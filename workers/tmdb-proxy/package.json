@@ -1,0 +1,16 @@
+{
+  "name": "kinopub-tmdb-proxy",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker: transparent forwarder for the TMDB API v3 and image CDN.",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "start": "wrangler dev"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^4.118.0"
+  }
+}

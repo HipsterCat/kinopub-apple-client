@@ -78,3 +78,27 @@ Focus bugs do not show up in previews, so anything focusable gets driven this wa
 a sibling fork of the same leoru original. Track it as remote `community` — **never rebase** our UI
 onto theirs. Steal Request/Model/Service slices; keep our screens. Details:
 [docs/en/community-fork.md](docs/en/community-fork.md).
+
+## Cursor Cloud specific instructions
+
+Cloud agents run in a **Linux** VM, not macOS. That shapes what can and can't be exercised here:
+
+- **The app (`KinoPubAppleClient`) cannot be built or run in this VM.** It is a tvOS/iOS/macOS SwiftUI
+  target that needs Xcode; there is no Swift toolchain or Simulator on Linux. The Xcode build and the
+  four `swift test` package suites only run on the `macos-15` CI runners (`.github/workflows/ci.yml`).
+  Do code review / edits here, but rely on CI (or a local Mac) to compile and test the Swift side —
+  don't expect to reproduce a build failure locally.
+- **What *is* runnable here:** the `tmdb-proxy` Cloudflare Worker and the standalone Python tools.
+- **`workers/tmdb-proxy` (Node/Cloudflare Worker).** `npm --prefix workers/tmdb-proxy install` (done by
+  the startup update script), then `npm --prefix workers/tmdb-proxy run dev` to serve on
+  `http://127.0.0.1:8787`. Routes: `/3/...` forwards to `api.themoviedb.org` with a Bearer token,
+  `/t/p/...` forwards to `image.tmdb.org` (no auth), anything else is a 404 hint. The API branch needs
+  `TMDB_READ_TOKEN` — put it in `workers/tmdb-proxy/.dev.vars` (gitignored) and **restart** `wrangler dev`
+  to pick it up (it is not hot-reloaded). Without the token the `/3/` branch returns a clean
+  `{"error":"misconfigured"}` 500; the image branch still works with no secret. `npm run deploy` needs
+  Cloudflare auth and is not runnable here.
+- **`tools/kinopub-snapshot` and `tools/kinopoisk-metadata` (Python 3, stdlib only).** No `pip install`
+  needed — they import only the standard library. Run directly, e.g.
+  `python3 tools/kinopub-snapshot/snapshot.py --help`. Doing real work needs live credentials the VM
+  doesn't have (a kino.pub access token via `--token`, a Kinopoisk Unofficial `--api-key`) and writes to
+  a gitignored `data/*.db`; without those they only self-check / print usage.
