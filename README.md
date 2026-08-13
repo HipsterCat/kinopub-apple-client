@@ -1,7 +1,9 @@
 # kino.pub Apple client
 
-A native SwiftUI client for [kino.pub](https://kino.pub), built as a **real multiplatform Apple app**
-(tvOS, iOS, iPadOS, macOS) with a high bar for focus, materials, and system controls.
+A native client for [kino.pub](https://kino.pub), built as a **real multiplatform Apple app**
+(tvOS, iOS, iPadOS, macOS) with a high bar for focus, materials, and system controls. SwiftUI on
+iPhone, iPad and Mac; UIKit + TVUIKit where tvOS media surfaces need the focus engine. One target,
+shared models and services, native composition per platform.
 
 Fork of [leoru/kinopub-apple-client](https://github.com/leoru/kinopub-apple-client). A sibling fork,
 [dungeon-master-xx/kinopub-apple-client](https://github.com/dungeon-master-xx/kinopub-apple-client),

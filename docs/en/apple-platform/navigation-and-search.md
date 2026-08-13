@@ -45,6 +45,15 @@ the **system** way (docs + device checks) — not hand-rolled Button-row sidebar
 
 This is a deliberate pause on sidebar chrome, not a design decision to drop the evergreen rules.
 
+**The tab bar is not required to stay pinned (user decision, 2026-08-13).** There is no product
+requirement that it survive scroll, and no tvOS API for it (`.tabBarMinimizeBehavior(.never)` is
+iOS 26+, explicitly unavailable on tvOS/macOS). Take what the system `TabView` does — do not chase
+it with `.toolbar(.hidden, for: .tabBar)`, minimize behaviours, or a custom bar layered over
+content. Direction from here: system `TabView` on tvOS and macOS, adaptive on iPad
+(sidebar-adaptable, or tabs only in landscape). If the bar's behaviour is wrong, the open question
+is which UX we want, not how to pin it. See
+[constraints-and-requirements](../policies/constraints-and-requirements.md).
+
 ## Project decisions
 
 - Destinations: single `Route` + `RouteDestination`.

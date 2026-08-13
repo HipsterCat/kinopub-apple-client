@@ -5,6 +5,9 @@ How agents approach work in this repo. Authority and preservation rules live in
 
 ## Sequence
 
+0. **Model before layout.** What is the thing the user acts on, and what can they do with it right
+   now? A page that keeps growing per-type sections is usually a data question being answered in
+   the view layer.
 1. **Capability and data flow** — what the user can do, which services / models / stores change,
    what old path to remove or merge.
 2. **Recon** — read the relevant policy, feature doc, and 1–2 Apple-platform knowledge sections.
@@ -92,6 +95,13 @@ activation code. The account has five device slots; do not spend them on the dev
 
 - Inventing design-decision blockers that the user did not set.
 - Encoding agent assumptions into README / plans, then treating them as law.
+- **Promoting a workaround to a requirement.** Label it, keep it local, or ask — see
+  [constraints-and-requirements](constraints-and-requirements.md). Documenting a hack as "how this
+  page works" is how the next agent inherits it as a constraint to defend.
+- Claiming an API limitation without a probe. `swiftc -typecheck` against the SDK settles most of
+  them in a minute; guessing from a header name has cost days here.
+- Copying a sample's *constants* along with its mechanism, when the sample was written for a
+  different input model (swipe vs focus). Copy the mechanism, re-derive the numbers.
 - Marking phases complete after tvOS-only compile while macOS sidebar / banner / artwork broken.
 - Overwriting user blur / glass / banner / badge decisions.
 - Placeholder grids that violate continuity policy.

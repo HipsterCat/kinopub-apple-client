@@ -10,6 +10,23 @@
 **Pages are assembled from a fixed catalogue of components. A page is a list of typed
 sections, not a hand-written stack of views.**
 
+🔴 **No screen-specific variants.** If a component differs only because a different screen
+uses it, that is an architecture defect — not a style choice, not a trade-off to weigh.
+
+```
+allowed                          never
+-------                          -----
+MediaCard                        HomeMediaCard
+  configuration:                 DetailMediaCard
+    kind                         SearchMediaCard
+    metadata
+    presentation
+```
+
+Different **platforms** may render one semantic component differently — that is
+[policy](apple-native-design.md#renderers-differ-by-platform-on-purpose). Different
+**screens** may not.
+
 Two pages that show a shelf must show the *same* shelf — same component, same metrics,
 same focus behaviour — not two views that happen to look similar. When a shelf is
 wrong, it is wrong in one place and fixed in one place.
@@ -92,6 +109,16 @@ Rules that follow from the table:
 5. **No custom `didUpdateFocus`, `scaleEffect`, shadow or stale-appearance reset** on a
    cell that has a system content configuration. Needing one means the wrong cell is
    in use.
+
+**Correction, 2026-08-13 — "`badgeText` is a `String`, so no glyph can ride along" is not a
+limitation.** An SF Symbol *is* a character in the SF Symbols font; a custom symbol or an
+asset is the next fallback, and a letter is the worst case. That sentence (still sitting in
+`TVUIKitMediaItemRail`'s comments) was used as the reason for a parallel badge system, which
+is exactly the move [constraints-and-requirements](constraints-and-requirements.md) bans:
+an unprobed API guess turning into an architecture. The overlay may still earn its keep for
+real reasons — it pairs the badge with a scrim, a checkmark and the progress bar, and those
+have to move together — but state *that*, and put the capability badge on the system's
+`badgeText` where it belongs. Probe before claiming the limitation back.
 
 ### Sizing and air
 
@@ -226,6 +253,34 @@ system's focus transform, and the only two places it can be are a child of the p
 image view (which forced the clipping above) or a sibling that mirrors the scale by hand.
 The cell is back on the sibling. If hand-mirroring is to go away again, that trade has to
 be solved, not assumed away.
+
+## One playable rail, not one section per content type
+
+> User decision, 2026-08-13. Replaces "movies get a trailer section, series get an episodes
+> section" — which is the catalogue rule being broken by content type instead of by screen.
+
+Episodes, trailers, parts, alternate versions and extras are **the same thing to the user**:
+something you can press Play on. They share a shape — id, title, duration, image, playback
+source, progress, kind — and they differ in one field. So they share a component:
+
+```
+PlayableRail(items: [ Episode, Trailer, Part, Version, Bonus ])
+```
+
+not `SeriesDetail → EpisodeComponent` beside `MovieDetail → TrailerComponent`. A trailer tile
+*is* an episode tile *is* a Continue Watching tile; only `text` / `secondaryText` / status
+differ, exactly as the wide-cell table above already says.
+
+Two consequences worth stating, because both were being designed around:
+
+- **A movie is not "the case with no rail".** Multi-part films and release variants (kino.pub
+  ships those as `s0e1` / `s0e2`) are playable nodes, and they belong in the same rail.
+- **"Related" is not a content type either.** It is a shelf of other titles, and it renders
+  through the same shelf component Home uses.
+
+The data model behind this — `PlayableItem` vs `PlaybackVariant`, and the kino.pub endpoints
+still to be mapped — lives in
+[04 — catalog completeness](../features/04-catalog-completeness.md#the-playable-graph).
 
 ## Native first, and at the right level
 

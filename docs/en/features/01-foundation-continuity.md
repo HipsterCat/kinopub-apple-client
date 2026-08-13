@@ -60,15 +60,17 @@ not supporting it at all. See [layout-and-containers](../apple-platform/layout-a
 - [x] tvOS detail ambient trailer off — still + `topGradient` / `bottomScrim` + blurred poster wash
   (ambient trailer later with a dedicated hero pass; Trailer button / real player unchanged)
 - [x] tvOS detail wash rewired: section focus flips a cheap `.regularMaterial` veil; hero chrome
-  fades faster than the wash (Rivulet-style). Facts/Reviews hidden on tvOS; metadata-debug footer
-  removed; Info block sits on a material panel.
-  **Correction (2026-08-09): the scroll-progress *scrub* half hadn't shipped — fixed same day.**
-  `washProgress` was computed and passed, but `MediaItemHeroView.effectiveWash` returned
-  `max(washProgress, 1)` — always 1 — so the veil was a binary flip on `isHeroOnScreen`. Now returns
-  `washProgress` directly. Not yet confirmed on-device (no remote-input path from this environment);
-  see phase 0 of [detail-page-choreography](../plans/detail-page-choreography.md)
-- [ ] Detail page choreography: hero out of the scroll, scrubbed material, overlay title logo,
-  sections as data — [detail-page-choreography](../plans/detail-page-choreography.md)
+  fades faster than the wash. Facts/Reviews hidden on tvOS; metadata-debug footer removed; Info
+  block sits on a material panel.
+  **Void (2026-08-13): the "scroll-progress scrub" chased through 2026-08-09 is not a requirement
+  and is not wanted.** The wash is two discrete states driven by focus, with one writer — see
+  [focus-and-tvui](../apple-platform/focus-and-tvui.md) § Detail page. The scrub keyed the blur to
+  incidental content geometry and re-ran the page body per frame; the several passes spent
+  correcting it are evidence, not law.
+- [ ] Detail page: artwork layer behind the scroll, hero content inside it, sections as data,
+  playable rail first. **No overlay title logo / compact title** (dropped 2026-08-13). Background:
+  [detail-page-choreography](../plans/detail-page-choreography.md) — read it as history, with
+  [constraints-and-requirements](../policies/constraints-and-requirements.md) as the filter
 - [ ] tvOS TVUIKit posters (`FeatureFlags.tvUIKitPosters`) — one shared collection for Home shelves
   and catalog grids; **Device Hub focus validation pending** before flipping the flag on
   (Up/Down between rails, overlay scale sync, Select / context menu, grid scroll / pagination)

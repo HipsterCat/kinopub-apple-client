@@ -35,9 +35,12 @@
   filters an already-rendered frame; a `UIVisualEffectView` driven by a **paused**
   `UIViewPropertyAnimator` (`startAnimation()` → `pauseAnimation()`, then set `fractionComplete`)
   is the sanctioned way to interpolate a material, and `alpha` on an effect view is not a
-  substitute. tvOS detail hero only — on iOS the nav bar's own material already does this job, and
-  on macOS a scrubbed blur fights the fixed-toolbar convention. See
-  [detail-page-choreography](../plans/detail-page-choreography.md).
+  substitute. Keep the technique; **the detail hero no longer uses it** — that surface animates
+  between two discrete states, so it animates a mask in front of a material instead (never
+  `.opacity()` on the material, which draws the full-strength effect semi-transparently). If some
+  future surface genuinely follows a continuous gesture, this is how. Not on iOS, where the nav
+  bar's own material already does the job, nor on macOS, where it fights the fixed-toolbar
+  convention. See [focus-and-tvui](focus-and-tvui.md) § Detail page.
 - Hero Play CTAs are **not** `.glassProminent` — white pill + translucent circles.
 - **`backgroundExtensionEffect` as shell chrome is banned** (Home / page / under
   `TabView(.sidebarAdaptable)`). Sidebars **displace** content — there is nothing to bleed under.

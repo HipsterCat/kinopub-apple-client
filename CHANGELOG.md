@@ -5,6 +5,31 @@ not belong here. Detail checklists live under [`docs/en/features/`](docs/en/feat
 
 ## Unreleased
 
+### Docs: constraints stop being requirements (2026-08-13)
+
+- **New policy [`constraints-and-requirements`](docs/en/policies/constraints-and-requirements.md).**
+  Every limitation gets one of four labels — Apple API / performance / focus invariant / product
+  decision — and only the last two may become durable requirements; the first two become one named
+  adapter. It carries three registers: banned patterns (focus bridges, shared `@FocusState` cases,
+  manual focus delays, hand-rolled focus chrome, continuous scroll-progress choreography,
+  hand-driven `contentOffset`, custom hero focus graphs, SwiftUI preview state machines,
+  screen-specific component variants), invalid agent-invented "requirements", and the two adapters
+  that are allowed to exist.
+- **Voided as requirements:** the detail page's scroll-progress scrub (`washProgress`), "hero lives
+  outside the scrolling container" (only the *artwork layer* does — hero content stays in one focus
+  graph with the sections), the overlay title logo / compact title, and tab-bar pinning. The
+  detail-page plan is now explicitly history, with a table of what survived.
+- **Renderers differ by platform on purpose:** tvOS media surfaces are UIKit + TVUIKit; iOS/iPadOS/
+  macOS are SwiftUI including `.navigationTransition(.zoom)`. Shared: models, services, view
+  models, component semantics, tokens, assets — never view hierarchy or geometry. Cross-platform
+  geometry parity (the two-line tvOS poster caption) is named as the anti-pattern it was.
+- **`badgeText` can carry a glyph** — an SF Symbol is a character. "The system badge cannot show an
+  icon" was never a reason for a parallel overlay system.
+- **The playable graph** ([04](docs/en/features/04-catalog-completeness.md#the-playable-graph)):
+  episodes, trailers, parts and versions are one `PlayableItem` rail, with `PlaybackVariant` under
+  it (kino.pub ships 24/48 fps as `s0e1`/`s0e2` — item 124447 is the probe). Detail pages lead with
+  what can be played. The kino.pub endpoints to map before more detail UI are listed there.
+
 ### The info popup, and hero buttons that are actually the system's
 
 - **`InfoPopup` (KinoPubUI) is the one "show me the rest of this" surface, on every platform** —

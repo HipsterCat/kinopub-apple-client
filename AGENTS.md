@@ -25,20 +25,33 @@ design questions with "Apple defaults", or rewrite docs to rationalize an implem
 ## Non-negotiables
 
 - **One multiplatform target.** Platform differences use `#if os(...)`. Do not add a second app target.
-- **Native Apple UI first.** Stock SwiftUI / AVKit / system UIKit-AppKit bridges before custom chrome.
-  Custom UI needs a named missing API, rejected alternatives, and a maintenance cost. See
+- **Constraints are not requirements.** A workaround you found while implementing is not a product
+  rule until the user says it is. Label every limitation as *Apple API* / *performance* /
+  *focus invariant* / *product decision* — only the last two become durable requirements; the first
+  two become one named adapter. The banned-pattern and invalid-requirement registers live in
+  [constraints-and-requirements](docs/en/policies/constraints-and-requirements.md). Read it before
+  writing a rule down.
+- **Platform-native first.** Ask "which system primitive does Apple provide for this?" before
+  "how do we reproduce it". Renderers differ by platform on purpose: **tvOS is UIKit + TVUIKit**
+  for media surfaces (focus engine, collection views, system cells), **iOS / iPadOS / macOS are
+  SwiftUI** including system navigation transitions. Shared across all of them: models, services,
+  view models, component *semantics*, tokens, assets — never view hierarchy or geometry. Custom UI
+  needs a named missing API, rejected alternatives, and a maintenance cost. See
   [apple-native-design](docs/en/policies/apple-native-design.md).
-- **One component catalogue, templated pages.** A page is a list of typed sections built from shared
-  components — never a screen-specific copy of something that already exists. Trying 2–4 variants of
-  *one* component behind a switch is fine; two screens growing their own version of the same idea is a
-  defect. TVML's `productTemplate` is the reference spec for what a media page is. See
+- 🔴 **No screen-specific component variants.** A page is a list of typed sections built from shared
+  components. `HomeMediaCard` / `DetailMediaCard` / `SearchMediaCard` is an architecture defect, not
+  a style: one component, configured (`kind` / `metadata` / `presentation`). Trying 2–4 variants of
+  *one* component behind a switch is fine; two screens growing their own version of the same idea is
+  not. TVML's `productTemplate` is the reference spec for what a media page is. See
   [component-catalogue](docs/en/policies/component-catalogue.md).
 - **Multiplatform-native, tvOS-quality.** Ship a real app on tvOS, iOS, iPadOS, and macOS. tvOS sets
   the media / focus / 10-foot bar; other platforms get their own native controls, not TV chrome
-  forced sideways.
-- **Focus must work on tvOS.** Interactive controls are reachable and visibly focusable. Avoid
-  `.buttonStyle(.plain)` unless you have verified focus. Rows screens use `MediaRowsView` and do
-  not put inert reserved space above content.
+  forced sideways — and tvOS does not inherit their geometry.
+- **Focus must work on tvOS, and it is Apple's engine.** Interactive controls are reachable and
+  visibly focusable. Avoid `.buttonStyle(.plain)` unless you have verified focus. Rows screens use
+  `MediaRowsView` and do not put inert reserved space above content. Do **not** build a focus layer
+  on top of the engine — no focus bridge, no shared `@FocusState` case across siblings, no manual
+  delays, no hand-rolled focus scale. Every tvOS state must keep a focus escape path.
 - **Continuity before placeholders.** Stale local data and already-loaded artwork beat blank screens.
   Exact-layout skeletons are allowed only for true cold loads. See
   [data-continuity](docs/en/policies/data-continuity.md).

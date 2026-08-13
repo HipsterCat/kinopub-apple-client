@@ -1,5 +1,29 @@
 # Plan: detail-page choreography (hero → sections)
 
+> ## ⛔ Superseded in large part — 2026-08-13
+>
+> Read everything below as **evidence of what was tried**, never as requirements. A user review on
+> 2026-08-13 went through what this page's documentation had turned into and voided the parts that
+> were workarounds wearing a requirement's clothes. Living rules now live in
+> [constraints-and-requirements](../policies/constraints-and-requirements.md),
+> [apple-native-design](../policies/apple-native-design.md),
+> [component-catalogue](../policies/component-catalogue.md) and
+> [focus-and-tvui](../apple-platform/focus-and-tvui.md).
+>
+> | In this plan | Now |
+> | --- | --- |
+> | Continuous scroll progress driving every layer (phase 0, `washProgress`, the fold-snapping passes) | **Void.** Two discrete states, one writer, derived from focus |
+> | Hero **outside** the scrolling container (phase 1) | **Void as written.** The *artwork layer* is behind the scroll; hero content stays in one focus graph with the sections |
+> | Overlay header with the title logo (phase 2) | **Dropped.** No compact title, no floating logo, unless navigation chrome needs one |
+> | Hand-driven `contentOffset` / `CADisplayLink`, "re-file from rejected to required" | **Banned again.** We do not replace the focus engine's scroll animator |
+> | Sections as data (phase 3) | **Stands** — and the playable rail comes first |
+> | Empty / error state is focusable content (the invariant) | **Stands**, promoted to a platform invariant about focus escape paths |
+> | Tab bar pinning (the "no API lever on tvOS" notes) | **Not a requirement at all.** System `TabView`; whatever it does on scroll, it does |
+> | Row landing rules, per-frame chrome maths, the reference app's race guards | **Not ours to port.** tvOS heavy surfaces move to UIKit + TVUIKit, where the engine does this |
+>
+> The SDK facts, the on-device focus findings (`heroOther`, stranded posters, season-tab defaults)
+> and the TVUIKit gallery notes remain useful and are unaffected.
+
 > **Dated implementation plan — not living authority.** Focus rules:
 > [focus-and-tvui](../apple-platform/focus-and-tvui.md). Material rules:
 > [materials-blur-and-chrome](../apple-platform/materials-blur-and-chrome.md). Layout:

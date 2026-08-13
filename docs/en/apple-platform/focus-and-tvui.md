@@ -91,21 +91,44 @@ Still open on top of that standard:
 - No inert reserved space above rows (old 560pt featured-preview spacer is gone).
 - Detail ambient muted trailer is **off on tvOS** (still + scrims + blurred poster wash). Trailer
   button / real player unchanged. Ambient trailer may return with a dedicated hero pass.
-- Detail below-fold wash: section focus forces full wash; scroll offset scrubs
-  `.regularMaterial` over the poster wash and fades hero chrome faster (`1 - min(1, p·2.6)`).
-  No vertical `.viewAligned` on the detail `ScrollView` (it fought section focus).
-- **A screen must never be able to lose its way out.** Three rules, from a one-way trap observed in
-  the reference app (empty below-fold + hero already made non-focusable = no Up, no exit):
+- **Every tvOS state keeps a focus escape path.** This is a platform invariant about the user, not
+  a workaround — a dead end on tvOS is unrecoverable, the remote has nowhere else to go. Observed as
+  a one-way trap in the reference app (empty below-fold + hero already made non-focusable = no Up,
+  no exit):
   1. Do not enter a "scrolled past the hero" state until at least one focusable row exists below.
   2. Do not drop the hero's focusability until focus has actually landed below it. Fading chrome is
      not the same as removing it — `MediaItemHeroView.chromeAlpha` keeps a 0.35 floor precisely so
      Play/More stay in the focus graph.
   3. Empty and error states are **focusable sections with a Retry control**, never an empty list.
-     An empty list is a focus dead end on tvOS, not just a blank area.
-- Focus moves inside a hero must not scroll the page. Hero chrome belongs **outside** the scrolling
-  container; when it sits inside one, every focus change triggers scroll-to-visible and the page
-  jitters as the user moves between Play / Watched / More. See
-  [detail-page-choreography](../plans/detail-page-choreography.md).
+     An empty list is a focus dead end, not just a blank area.
+- **A detail page leads with what you can play.** The cheapest path on a remote is
+  `hero button → playable rail → everything else`, and Apple's own detail pages are ordered that
+  way. Episodes / parts / versions / trailers sit directly under the hero as one rail (see
+  [component-catalogue](../policies/component-catalogue.md#one-playable-rail-not-one-section-per-content-type));
+  related titles, ratings, cast and info follow. Ordering is by what the user can do now, not by
+  entity type — a movie is not "the layout with the rail missing".
+- **We do not build a focus layer on top of the focus engine.** No focus bridge, no shared
+  `@FocusState` case across siblings, no `asyncAfter` focus delays, no hand-rolled focus scale.
+  Full list and reasoning: [constraints-and-requirements](../policies/constraints-and-requirements.md).
+
+### Detail page
+
+> Corrected 2026-08-13. The earlier entries here ("hero chrome belongs outside the scrolling
+> container", "scroll offset scrubs the material") described one broken SwiftUI attempt and one
+> per-frame number, not product rules. Both are void.
+
+- **The artwork layer is behind the scroll; the hero's content is in it.** One connected focus and
+  view graph — hero content and the sections below are siblings inside the same scroll. Splitting
+  them into independent scroll/focus worlds broke directional continuity *and* the `NavigationStack`
+  back-context on 2026-08-09. Parallax, blur and crop belong to the artwork layer, which nothing
+  focuses.
+- **Two discrete states, not a scrub.** The hero either owns focus or it does not; that flag has
+  exactly **one writer** and is derived from focus, never from scroll offset. There is no
+  intermediate rest position, and no `washProgress`-style number driving several layers per frame —
+  that mechanism keyed the blur to incidental content geometry (it "only worked for series") and
+  re-ran the whole page body, shelves included, on every scroll frame.
+- **No compact title, no floating header logo** unless navigation chrome requires one.
+- No vertical `.viewAligned` on the detail `ScrollView` (it fought section focus).
 - Top Shelf is a **later platform-completeness** item — before advanced subtitles, after core catalog
   / shell work. **Needs validation** on entitlement / extension packaging when implemented.
 
