@@ -43,7 +43,8 @@ target — we never push our UI there. Use it to read, cherry-pick isolated back
 - Their SwiftUI chrome, skeletons, filter sheets, Sport tab, Devices settings screens
 - Their “related” shelf — we use `GET /v1/items/similar`
 - Their removal of TMDB — we keep the worker
-- Their `MediaLibraryStore` as a `ContentStore` replacement
+- Their `MediaLibraryStore` as a **`ContentStore` replacement** (rows stay ours). The
+  per-item optimistic half — watchlist / watched / votes / download façade — **is** taken
 - Wiring `/v1/watching/togglewatchlist` to a checkmark control — **our** checkmark means Mark as Watched
 
 ### How metadata works without keys
@@ -103,6 +104,25 @@ List/remove are on `DeviceService` — Profile chrome is `// DESIGN:` stub only.
 - [x] `clear-for-season` history API
 - [x] `NetworkMonitor` (`KinoPubKit`) + app `environmentObject` (banner = DESIGN)
 - [x] Raise marktimes — local resume ~10s, server `marktime` ~30s (was gated at >60s)
+- [x] `MediaLibraryStore` — per-item optimistic library (watchlist / watched / votes /
+      download façade). Does **not** replace `ContentStore` or the bookmark stores.
+
+## Comparison snapshot (2026-08-18)
+
+A literal `git merge community/main` is still a bad idea: ~73 files changed in both,
+almost all Views / pbxproj / UI packages, plus Sport/EPG/AltStore we do not want.
+This branch ports the architecture that was actually missing, not their renderer.
+
+| Slice | Community | Ours after this branch |
+| --- | --- | --- |
+| Home/Library row cache | none (refetch on appear) | **`ContentStore` + disk snapshots** — keep |
+| Per-item optimistic library | `MediaLibraryStore` | **ported** as façade; bookmarks stay on our two stores |
+| Continue Watching | hide finished + `WatchProgress` | **already ahead** (`ContinueWatchingEpisode` / order / local merge) |
+| Lazy lists | `LazyHStack`/`LazyVStack` in SwiftUI shelves | **already** in `MediaPosterShelf` / `MediaRowsView` / grids; tvOS is UIKit collections |
+| Glass | iOS 26 `glassEffect` experiments | **ours** via `kinoGlass` — do not take theirs |
+| Genres/countries | disk cache | year TTL, **not** cleared on logout |
+| API / metadata | kpapp.link only, no TMDB | **ours is ahead** (`KinoPubMetadata`, identity map, workers) |
+| Sport / EPG / Comments / `FilterDataService` | present | **leave** |
 
 ## System still to port (no UI inventing)
 
@@ -117,7 +137,8 @@ Prefer these next. Land Backend/`*Service` + `// DESIGN:` comments where chrome 
 | MEDIUM | Raise marktimes interval | **done** | Local `LocalWatchProgressStore` every ~10s; server every ~30s; end-of-play still final mark. |
 | LOW | Device settings UI | service ready | Settings list/remove = DESIGN. |
 | LOW | Collections Home rows | service ready | Row chrome = DESIGN. |
-| SKIP | EPG / Sport UI, Comments, `FilterDataService`, `SectionVisibilityStore`, `WidthThresholdReader`, `WatchingSerial`, wholesale `MediaLibraryStore` | — | Leave alone. |
+| LOW | Card download status from `MediaLibraryStore` | façade ready | Badge overlay = DESIGN; do not invent a second card. |
+| SKIP | EPG / Sport UI, Comments, `FilterDataService`, `SectionVisibilityStore`, `WidthThresholdReader`, `WatchingSerial`, `MediaLibraryStore` as a ContentStore replacement | — | Leave alone. |
 
 ## DESIGN stubs (do not ship chrome from community)
 
@@ -132,5 +153,6 @@ Agents: add a `// DESIGN:` comment at the call site; **do not** invent buttons.
 - [ ] Sport / channels + optional XMLTV EPG
 - [ ] Downloads list polish (HLS interrupted rows, storage footer)
 - [ ] Offline / reachability banner (`NetworkMonitor` wired; chrome TBD)
+- [ ] Card / detail download status from `MediaLibraryStore.downloadStatus` (façade ready)
 
 Detail vote / reviews / actor CDN fallback already landed earlier — leave until a design pass says otherwise; no further UI invention from the community fork.

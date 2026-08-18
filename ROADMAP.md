@@ -29,6 +29,7 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
 `RouteDestination`; one `PlaybackSession`.
 
 - [x] Home/Library list cache + disk snapshots (`ContentStore` / `RowSnapshotStore`)
+- [x] Per-item optimistic library (`MediaLibraryStore`: watchlist / watched / votes / download façade)
 - [x] Banner shelf, gated by `FeatureFlags.homeBannerEnabled` (off skips sampling + artwork loads)
 - [x] Private `variableBlur` replaces the Metal progressive blur
 - [x] Unified routes + zoom transitions (iOS/tvOS)

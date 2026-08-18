@@ -5,6 +5,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Community architecture, without their UI (2026-08-18)
+
+- **`MediaLibraryStore`** — the per-item optimistic library from
+  dungeon-master-xx (watchlist, watched overrides, votes, download façade,
+  local-progress query). Wired through `AppContext` and the detail page.
+  Does **not** replace `ContentStore` (Home/Library rows) or the bookmark
+  stores. Votes migrate out of the old `UserDefaults` key once.
+- A literal merge of `community/main` is still rejected: ~73 overlapping
+  files, almost all Views. Continue Watching, lazy SwiftUI stacks, and
+  `WatchProgress` were already on our side; glass stays `kinoGlass`.
+
 ### Flags, a Video rename, full quality list, CC moved to Languages (2026-08-17)
 
 - **`FlagGlyph`** (`KinoPubUI`): a round flag keyed by ISO 639-1 language code or

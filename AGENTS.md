@@ -259,8 +259,12 @@ Details: skill `apple-chrome`.
   true cold loads, and only when the geometry matches what arrives.
 - Deduplicate in-flight work; stale paints first, revalidation runs underneath. Never reuse eternal
   grey as both loading and failure.
-- **One store ownership model.** Do not invent a third cache beside `ContentStore` / `MetadataCache`
-  / `Artwork` without consolidating. **All remote images go through `Artwork`** — one decoded memory
+- **One store ownership model.** `ContentStore` owns Home/Library *rows*; `MediaLibraryStore`
+  owns per-item optimistic library state (watchlist / watched / votes, plus a download
+  façade); `Artwork` owns remote images; `MetadataCache` (when it lands) owns item-facts.
+  Do not invent a fifth cache beside those. Bookmarks stay on `BookmarkMembershipStore` /
+  `BookmarkFoldersStore` — the library store does not replace them. **All remote images go
+  through `Artwork`** — one decoded memory
   cache keyed by target size, one disk entry per URL, coalescing and prefetch, on every platform.
   Use `CachedRemoteImage`, or `ArtworkImage` when the states need different geometry. `AsyncImage`
   is a regression and no longer appears anywhere in this repo. Local optimistic writes (hide, watched, bookmark) are
@@ -394,6 +398,8 @@ went wrong by porting thresholds tuned for a swipe-driven page onto a focus-driv
 | Glass helper | `Packages/KinoPubUI/Sources/KinoPubUI/DesignSystem/KinoGlass.swift` |
 | tvOS cells / rails / collection | `Packages/KinoPubUI/Sources/KinoPubUI/Components/TVUIKit/` |
 | Artwork cache (the only place Nuke is imported) | `Packages/KinoPubUI/Sources/KinoPubUI/Components/Content/ArtworkPipeline.swift` |
+| Home/Library rows | `KinoPubAppleClient/Services/Cache/ContentStore.swift` |
+| Per-item optimistic library | `KinoPubAppleClient/Services/MediaLibrary/MediaLibraryStore.swift` |
 | Network log (the only place Pulse is imported) | `Packages/KinoPubUI/Sources/KinoPubUI/Diagnostics/NetworkDiagnostics.swift` |
 | In-flight activity registry | `Packages/KinoPubLogging/Sources/KinoPubLogging/NetworkActivity.swift` |
 | Expanding clipped content | `Packages/KinoPubUI/Sources/KinoPubUI/Components/InfoPopup*` |
