@@ -12,6 +12,12 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
   local-progress query). Wired through `AppContext` and the detail page.
   Does **not** replace `ContentStore` (Home/Library rows) or the bookmark
   stores. Votes migrate out of the old `UserDefaults` key once.
+- **`WatchProgress.resumeFraction` is what a card paints.** The landscape time
+  chip, TVUIKit rail status, poster progress bar, episode/variant mapping, and
+  history/Play progress all stopped re-thresholding `time / duration` at 0.95 /
+  0.02. Those fudges were a second credits window (six minutes left on a
+  two-hour title vs the classifier's three). Outro markers will feed
+  `WatchProgress`, not the views.
 - **Continue Watching trusts local progress.** The player still does not
   invalidate Home TTL (a full `.watch` refetch was the wrong lever). Instead
   `assembleRows` overlays `LocalWatchProgressStore` onto the cached row: the

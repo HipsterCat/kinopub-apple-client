@@ -29,7 +29,7 @@ public struct LocalWatchEntry: Codable, Identifiable {
 
   /// Watch classification for this resume point — the single source of truth (fraction / finished).
   public var watch: WatchProgress { WatchProgress(position: position, duration: duration) }
-  public var progress: Double? { watch.fraction }
+  public var progress: Double? { watch.resumeFraction }
   public var finished: Bool { watch.isFinished }
 }
 
@@ -66,11 +66,14 @@ final class LocalWatchProgressStore {
   /// Record a resume point. No-op for live/trailers (non-finite duration) or before the
   /// minimum threshold, or when we have no snapshot to render a card with.
   ///
-  /// `position < duration` is deliberate: the end of playback is `recordFinished`,
-  /// which is the only writer allowed to store a finished tombstone. Without that
-  /// split, a tick at credits would look like a resume bar.
+  /// `position < duration` keeps the exact end-of-file tick for `recordFinished`.
+  /// A position already inside the credits window is still written;
+  /// `WatchProgress` classifies it as finished on read, so Continue Watching
+  /// does not grow a resume bar from it.
   func recordProgress(mediaId: Int, position: Double, duration: Double, season: Int?, episode: Int?) {
-    guard position >= Self.minimumSeconds, duration.isFinite, duration > 0, position < duration else { return }
+    guard duration.isFinite, duration > 0, position < duration else { return }
+    let watch = WatchProgress(position: position, duration: duration)
+    guard watch.hasStarted else { return }
     let changed = mutate { snapshots, entries in
       guard let snapshot = snapshots[mediaId] ?? entries[mediaId]?.item else { return false }
       entries[mediaId] = LocalWatchEntry(item: snapshot,
@@ -120,7 +123,7 @@ final class LocalWatchProgressStore {
   func allEntries() -> [LocalWatchEntry] {
     lock.lock(); defer { lock.unlock() }
     return entries.values
-      .filter { $0.position >= Self.minimumSeconds }
+      .filter { $0.watch.state != .unwatched }
       .sorted { $0.updatedAt > $1.updatedAt }
   }
 

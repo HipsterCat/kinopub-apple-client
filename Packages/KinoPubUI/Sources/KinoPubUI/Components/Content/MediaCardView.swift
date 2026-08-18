@@ -47,7 +47,8 @@ public struct MediaCard: Identifiable, Hashable, Codable {
 
   /// The combined score shown on the poster, or nil when neither source rated it.
   public var rating: Rating? { scores.aggregate }
-  /// 0…1 for partially watched serials, nil when there is nothing to show.
+  /// `WatchProgress.resumeFraction` — 0…1 while this video is in progress, nil
+  /// when unwatched or already finished. Do not re-threshold it in the view.
   public let progress: Double?
   public let badge: String?
 

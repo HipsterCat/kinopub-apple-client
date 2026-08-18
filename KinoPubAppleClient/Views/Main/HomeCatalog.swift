@@ -305,7 +305,7 @@ class HomeCatalog: ObservableObject {
         episode: entry.episode,
         isFinished: entry.watch.isFinished,
         isResumable: entry.watch.isResumable,
-        progress: entry.watch.isResumable ? entry.watch.fraction : nil,
+        progress: entry.watch.resumeFraction,
         updatedAt: entry.updatedAt,
         canInsert: true
       )
@@ -663,7 +663,7 @@ class HomeCatalog: ObservableObject {
     let offered = detail?.seasons?
       .first { $0.number == season }?.episodes
       .first { $0.number == video }
-    let localFraction = local?.watch.isResumable == true ? local?.watch.fraction : nil
+    let localFraction = local?.watch.resumeFraction
     // Episode resume only — never serial watched/total (that is not a scrubber) — and
     // never the *previous* episode's progress under a fresh one.
     let episodeProgress = isResuming

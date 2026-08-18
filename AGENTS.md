@@ -253,6 +253,12 @@ Details: skill `apple-chrome`.
 
 ## Data and continuity
 
+- **Watch state is `WatchProgress`.** Fraction, unwatched / inProgress / finished, and
+  the credits window (8% of runtime, 60–180 s, capped at half) live in that one type.
+  `Episode` / `Video`.isWatched is the server flag *or* `isFinished`. A card paints
+  `resumeFraction`, never a 0.95 / 0.02 of its own — five percent leftover on a two-hour
+  title is six minutes, the classifier's window is three. Skip / outro markers, when they
+  land, feed this type; they do not grow a second threshold.
 - **Continuity beats placeholders.** Stale local data and already-loaded artwork beat blank screens.
   Card → detail carries the known item, artwork handle and palette; detail paints from that snapshot
   and enriches — it must not blank-reload what the card already had. Exact-layout skeletons only on
