@@ -12,6 +12,13 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
   local-progress query). Wired through `AppContext` and the detail page.
   Does **not** replace `ContentStore` (Home/Library rows) or the bookmark
   stores. Votes migrate out of the old `UserDefaults` key once.
+- **Continue Watching trusts local progress.** The player still does not
+  invalidate Home TTL (a full `.watch` refetch was the wrong lever). Instead
+  `assembleRows` overlays `LocalWatchProgressStore` onto the cached row: the
+  bar moves on the next tick, a finished film disappears, a finished episode
+  steps to the next S/E. Offered S/E stays on the card so a TTL refresh does
+  not refetch up to 12 series details. `rows-v2.json` is not rewritten from
+  the playhead.
 - A literal merge of `community/main` is still rejected: ~73 overlapping
   files, almost all Views. Continue Watching, lazy SwiftUI stacks, and
   `WatchProgress` were already on our side; glass stays `kinoGlass`.

@@ -219,6 +219,50 @@ public struct MediaCard: Identifiable, Hashable, Codable {
     self.captionStats = captionStats
   }
 
+  /// Continue Watching paint-time overlay: progress / offered S/E change without
+  /// rebuilding the rest of the card (artwork, badges, identity).
+  public func withContinueWatching(progress: Double?,
+                                   season: Int?,
+                                   video: Int?,
+                                   overlayLabel: String?,
+                                   durationSeconds: Int? = nil) -> MediaCard {
+    MediaCard(id: id,
+              posterURL: posterURL,
+              title: title,
+              subtitle: subtitle,
+              watchedAt: watchedAt,
+              scores: scores,
+              progress: progress,
+              badge: badge,
+              backdropURL: backdropURL,
+              metaLine: overlayLabel ?? metaLine,
+              overview: overview,
+              landscapeImageURL: landscapeImageURL,
+              overlayLabel: overlayLabel,
+              itemID: itemID,
+              video: video,
+              season: season,
+              mediaID: mediaID,
+              isWatched: isWatched,
+              isSeries: isSeries,
+              isInHistory: isInHistory,
+              isInWatchlist: isInWatchlist,
+              is4K: is4K,
+              isHDR: isHDR,
+              isHD: isHD,
+              is3D: is3D,
+              hasClosedCaptions: hasClosedCaptions,
+              year: year,
+              durationSeconds: durationSeconds ?? self.durationSeconds,
+              genreLine: genreLine,
+              countryLine: countryLine,
+              isBookmarked: isBookmarked,
+              bookmarkFolderIDs: bookmarkFolderIDs,
+              primaryAction: primaryAction,
+              opensCollection: opensCollection,
+              captionStats: captionStats)
+  }
+
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     id = try c.decode(Int.self, forKey: .id)

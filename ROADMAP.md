@@ -30,8 +30,10 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
 
 - [x] Home/Library list cache + disk snapshots (`ContentStore` / `RowSnapshotStore`)
 - [x] Per-item optimistic library (`MediaLibraryStore`: watchlist / watched / votes / download façade)
-- [ ] Continue Watching: invalidate `ContentStore` `.watch` when playback finishes / last marktime
-      (Home can sit on a 60s TTL; hide/toggle already invalidate, the player does not)
+- [x] Continue Watching paints from local resume (`LocalWatchProgressStore`) without
+      invalidating Home TTL. Player `markFinished` writes a finished tombstone (hide a
+      film / step a series); the row's cached S/E skips the 12-details refresh. Past
+      that cap, new series still fall back to counters.
 - [x] Banner shelf, gated by `FeatureFlags.homeBannerEnabled` (off skips sampling + artwork loads)
 - [x] Private `variableBlur` replaces the Metal progressive blur
 - [x] Unified routes + zoom transitions (iOS/tvOS)

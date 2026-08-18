@@ -141,10 +141,14 @@ Ours already does that, then extra:
 
 What would still make **our** row better (none of this is in their services):
 
-1. **Invalidate `.watch` when playback ends** — player `markFinished` / last marktime does not touch `ContentStore`, so Home can sit on a 60s TTL after you finish a title. Hide/toggle already invalidate; the player does not.
+1. **~~Invalidate `.watch` when playback ends~~** — rejected: that would refetch every Home
+   watch row. Local resume overlays the Continue Watching *section* at paint time
+   (`ContinueWatchingLocalOverlay`); the player writes a finished tombstone instead of
+   clearing. Home TTL stays the server snapshot.
 2. **Episode rail leading card = resume / next-unwatched** — already the Home/Play answer; the seasons rail still leads chronological. ROADMAP §1.
-3. **Remember series details with the row** — today a refresh refetches up to 12 detail payloads just to know S/E. Cache the offered episode on the card / `ContentStore`.
-4. **Raise or drop `seriesDetailLimit` (12)** — past that cap we fall back to history counters and can still offer the wrong episode.
+3. **~~Remember series details with the row~~** — done: a card that already carries S/E is
+   trusted on refresh; details are fetched only for *new* series ids (still capped at 12).
+4. **Raise or drop `seriesDetailLimit` (12)** — past that cap, titles with no cached S/E still fall back to history counters and can still offer the wrong episode.
 
 Do not port their `WatchingSerial` — it is the same JSON as our `WatchingItem`. Do not port `PlayerContinueWatchingView` (their SwiftUI chrome).
 
@@ -188,7 +192,7 @@ Prefer these next. Land Backend/`*Service` + `// DESIGN:` comments where chrome 
 | LOW | Device settings UI | service ready | Settings list/remove = DESIGN. |
 | LOW | Collections Home rows | service ready | Row chrome = DESIGN. |
 | LOW | Card download status from `MediaLibraryStore` | façade ready | Badge overlay = DESIGN; do not invent a second card. |
-| OURS | Invalidate CW after playback | next | Player `markFinished` / last marktime never calls `contentStore.invalidate(.watch)` — Home can sit on a 60s TTL. Not a community port. |
+| OURS | Local CW overlay, no Home TTL reset | **done** | Paint-time overlay from `LocalWatchProgressStore`; `markFinished` keeps a tombstone. Cached S/E skips the 12-details refresh. Not a community port. |
 | SKIP | EPG / Sport UI, Comments, `FilterDataService`, `WatchingSerial`, `MediaLibraryStore` as a ContentStore replacement, `GetItemFolders` | — | Duplicate or product-rejected. |
 | SKIP | EPG / Sport UI, Comments, `FilterDataService`, `SectionVisibilityStore`, `WidthThresholdReader`, `WatchingSerial`, `MediaLibraryStore` as a ContentStore replacement | — | Leave alone. |
 
