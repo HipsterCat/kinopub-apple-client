@@ -9,7 +9,9 @@
 
 import XCTest
 import KinoPubBackend
-@testable import KinoPubAppleClient
+// The app target's module is `KinoPub` — `PRODUCT_NAME` is KinoPub and nothing overrides
+// `PRODUCT_MODULE_NAME`, so it is not the target name.
+@testable import KinoPub
 
 final class TrackPreferenceStoreTests: XCTestCase {
 
