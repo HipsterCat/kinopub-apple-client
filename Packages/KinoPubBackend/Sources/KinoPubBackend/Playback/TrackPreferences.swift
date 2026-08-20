@@ -210,7 +210,13 @@ public struct PlaybackLanguagePreferences: Equatable {
   /// subtitles. `nil` = no floor. Original (5) and unknown (6) kinds are never filtered
   /// by it — the floor is about dub quality, and an original track is not a dub.
   public var minimumDubKind: Int?
-  /// Subtitles come on when the audio that won is in a language the viewer does not read.
+  /// Subtitles are on by default. **Mirrors the system's own captions setting**
+  /// (Accessibility → Subtitles & Captioning) until the app has one of its own: that is
+  /// where the viewer already answered this question, and it is built for it.
+  public var subtitlesDefaultOn: Bool
+  /// Subtitles come on when the audio that won is in a language the viewer does not read,
+  /// even when the default above is off. Anime in Japanese, or a film that only ever had
+  /// an English track.
   public var subtitlesWhenAudioNotUnderstood: Bool
   /// On an anime, original audio plus subtitles wins even when a dub exists.
   public var animePrefersOriginalAudio: Bool
@@ -219,12 +225,14 @@ public struct PlaybackLanguagePreferences: Equatable {
   public init(audioLanguages: [String] = [],
               subtitleLanguages: [String] = [],
               minimumDubKind: Int? = nil,
+              subtitlesDefaultOn: Bool = false,
               subtitlesWhenAudioNotUnderstood: Bool = true,
               animePrefersOriginalAudio: Bool = false,
               preferNonCCSubtitles: Bool = true) {
     self.audioLanguages = audioLanguages
     self.subtitleLanguages = subtitleLanguages
     self.minimumDubKind = minimumDubKind
+    self.subtitlesDefaultOn = subtitlesDefaultOn
     self.subtitlesWhenAudioNotUnderstood = subtitlesWhenAudioNotUnderstood
     self.animePrefersOriginalAudio = animePrefersOriginalAudio
     self.preferNonCCSubtitles = preferNonCCSubtitles
@@ -273,15 +281,6 @@ public struct TitleTrackProfile: Equatable {
     self.originalLanguageKey = originalLanguageKey.map { SubtitleTracks.languageKey($0) }
   }
 
-  /// Anime is a kino.pub genre, and cartoons are not it: genre 23 (`мультфильм`) shares a
-  /// presentation with anime but not a track preference.
-  public static func looksLikeAnime(genres: [String]) -> Bool {
-    genres.contains { genre in
-      let name = genre.lowercased()
-      return name.contains("аниме") || name.contains("anime")
-    }
-  }
-
   /// The original language, guessed from the countries on the title against the languages
   /// actually on the menu — *"страна есть, язык субтитров есть: ого, Япония и японский"*.
   /// A country whose language nothing on the menu speaks is ignored, which is what keeps
@@ -296,11 +295,14 @@ public struct TitleTrackProfile: Equatable {
     return nil
   }
 
-  public static func infer(countries: [String],
-                           genres: [String],
+  /// **`isAnime` is not decided here.** `MediaPresentationProfile` is the one place a
+  /// rule that depends on type or genre is derived; a second genre classifier is how the
+  /// same word ends up meaning two things on two surfaces.
+  public static func infer(presentation: MediaPresentationProfile,
+                           countries: [String],
                            trackLanguages: [String]) -> TitleTrackProfile {
     TitleTrackProfile(
-      isAnime: looksLikeAnime(genres: genres),
+      isAnime: presentation.isAnime,
       originalLanguageKey: inferOriginalLanguage(countries: countries,
                                                  trackLanguages: trackLanguages)
     )

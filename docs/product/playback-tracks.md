@@ -79,13 +79,31 @@ shipped default should be multi-voice is the owner's call.
 
 ## Subtitles
 
-**prd** — Subtitles come on when **the audio that won is in a language the viewer does not read**.
-Reading languages are the preferred subtitle languages plus the preferred audio languages. This is
-one rule and it covers both the anime watched in Japanese and the film that only ever had an English
-track.
+**prd** — **Subtitles are the same mechanism as audio, not a lesser one.** Same scope chain, same
+ledger, same weights. Whether a title opens with them is a localization question exactly like which
+dub it opens with.
 
-**prd** — Subtitles otherwise default off, and **"off" is a remembered choice** like any other —
-otherwise the default turns them back on every episode.
+**prd** — With no history, **the app mirrors the system**: Settings → Accessibility → Subtitles &
+Captioning, read through `MediaAccessibility`. `.alwaysOn` means on; `.automatic` — the stock value —
+means "let the content decide", which is the rule below. The viewer already answered this question
+once, in the place built for it; answering it again with our own default is how an app ends up
+disagreeing with the rest of the system about the same preference. System caption languages seed the
+subtitle language order the same way.
+
+**prd** — On top of that, subtitles come on when **the audio that won is in a language the viewer
+does not read**, whatever the default says. Reading languages are the preferred subtitle languages
+plus the preferred audio languages. One rule, and it covers the anime watched in Japanese and the
+film that only ever had an English track.
+
+**prd** — When subtitles were asked for and none of them are in a language the viewer reads, a track
+they cannot read still beats nothing. Unknown subtitles are a real category.
+
+**prd** — **"Off" is a remembered choice** like any other. A viewer whose system has captions on and
+who turns them off here means it, and the next episode has to honour it.
+
+**prd** — Nothing is written when there was nothing to choose. An item that offered no subtitle
+track teaches the scope nothing, and recording "off" from a menu that only ever said "Off" would
+turn subtitles off for the whole series.
 
 **prd** — A subtitle track is remembered as language + CC-ness, with the same scopes and the same
 weights as audio. Forced tracks are never a default: they carry signage and alien dialogue only.
@@ -101,6 +119,15 @@ wins even when a dub exists.
 **prd** — The original language is a **heuristic from data we already have** — the countries on the
 title against the languages actually on the menu. Japan with a Japanese track means the original is
 Japanese. Nothing is fetched for this, and no provider field is added.
+
+## Later
+
+**idea** — Deviating from the system default is a strong signal: a viewer whose system has captions
+off and who turns them on here, on title after title, is telling us their app default. Offer to set
+it rather than silently accumulating it. The same for audio, once a language keeps being overridden.
+
+**idea** — With English audio and no subtitle track at all, Apple's own generated captions (26/27+)
+are the honest filler. **English only** — the quality on other languages does not carry the feature.
 
 ## Open
 

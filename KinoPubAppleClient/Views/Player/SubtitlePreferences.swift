@@ -5,6 +5,7 @@
 
 import Foundation
 import KinoPubBackend
+import MediaAccessibility
 
 enum SubtitlePreferences {
   static let preferEnglishKey = "preferEnglishSubtitles"
@@ -45,6 +46,7 @@ extension PlaybackLanguagePreferences {
   static let audioLanguagesKey = "preferredAudioLanguages"
   static let subtitleLanguagesKey = "preferredSubtitleLanguages"
   static let minimumDubKindKey = "minimumDubKind"
+  static let subtitlesDefaultOnKey = "subtitlesDefaultOn"
   static let subtitlesForForeignAudioKey = "subtitlesForForeignAudio"
   static let animeOriginalAudioKey = "animePrefersOriginalAudio"
 
@@ -53,9 +55,9 @@ extension PlaybackLanguagePreferences {
   static var current: PlaybackLanguagePreferences {
     let defaults = UserDefaults.standard
     var subtitleLanguages = defaults.stringArray(forKey: subtitleLanguagesKey) ?? []
-    // Interim mapping for the old "Default English subtitles" toggle: subtitles no longer
-    // come on merely because English exists — they come on when the audio is in a language
-    // the viewer does not read — so the switch now says *which* language wins when they do.
+    if subtitleLanguages.isEmpty { subtitleLanguages = systemCaptionLanguages }
+    // "Default English subtitles" says which language wins, not whether subtitles appear —
+    // that is `subtitlesDefaultOn`, which the system already answers.
     if SubtitlePreferences.preferEnglishSubtitles, !subtitleLanguages.contains("en") {
       subtitleLanguages.insert("en", at: 0)
     }
@@ -63,11 +65,30 @@ extension PlaybackLanguagePreferences {
       audioLanguages: defaults.stringArray(forKey: audioLanguagesKey) ?? [],
       subtitleLanguages: subtitleLanguages,
       minimumDubKind: defaults.object(forKey: minimumDubKindKey) as? Int,
+      subtitlesDefaultOn: defaults.object(forKey: subtitlesDefaultOnKey) as? Bool
+        ?? systemWantsCaptions,
       subtitlesWhenAudioNotUnderstood: defaults.object(forKey: subtitlesForForeignAudioKey) == nil
         ? true
         : defaults.bool(forKey: subtitlesForForeignAudioKey),
       animePrefersOriginalAudio: defaults.bool(forKey: animeOriginalAudioKey),
       preferNonCCSubtitles: SubtitlePreferences.preferNonCCSubtitles
     )
+  }
+
+  /// **Where the viewer already answered "do I watch with subtitles".** Settings →
+  /// Accessibility → Subtitles & Captioning, read through `MediaAccessibility`. Answering
+  /// it a second time in our own Settings, with its own default, is how an app ends up
+  /// disagreeing with the rest of the system about the same preference.
+  ///
+  /// `.alwaysOn` is the only value that means "on". `.automatic` is the stock default and
+  /// means "let the content decide", which for us is the foreign-audio rule below.
+  static var systemWantsCaptions: Bool {
+    MACaptionAppearanceGetDisplayType(.user) == .alwaysOn
+  }
+
+  /// The caption languages chosen in the same place, most preferred first.
+  static var systemCaptionLanguages: [String] {
+    guard let copied = MACaptionAppearanceCopySelectedLanguages(.user) else { return [] }
+    return (copied.takeRetainedValue() as NSArray) as? [String] ?? []
   }
 }

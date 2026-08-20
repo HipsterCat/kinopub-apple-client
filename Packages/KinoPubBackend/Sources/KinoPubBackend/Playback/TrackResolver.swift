@@ -85,6 +85,9 @@ public enum AudioSelectionReason: String, Equatable {
 
 public enum SubtitleSelectionReason: String, Equatable {
   case remembered
+  /// The viewer watches with subtitles — the app's setting, or the system's when the app
+  /// has none of its own.
+  case systemDefault
   /// The audio that won is in a language the viewer does not read.
   case audioNotUnderstood
   case off
@@ -273,18 +276,38 @@ public enum TrackResolver {
 
     guard !subtitles.isEmpty else { return (nil, .none, nil) }
 
+    // A viewer who watches with subtitles watches everything with subtitles. This is the
+    // same question the system already asks, so an app that has not been told otherwise
+    // answers it the same way rather than inventing a second default.
+    if settings.subtitlesDefaultOn, let track = firstAvailable(in: subtitles, settings: settings, systemLanguages: systemLanguages) {
+      return (track, .systemDefault, nil)
+    }
+
+    // And on regardless of that, when the audio that won cannot be followed.
     if settings.subtitlesWhenAudioNotUnderstood,
        let chosen,
-       !settings.readingLanguages(system: systemLanguages).contains(chosen.languageKey) {
-      for language in settings.resolvedSubtitleLanguages(system: systemLanguages) {
-        if let track = SubtitleTracks.preferred(language: language,
-                                                in: subtitles,
-                                                preferNonCC: settings.preferNonCCSubtitles) {
-          return (track, .audioNotUnderstood, nil)
-        }
-      }
+       !settings.readingLanguages(system: systemLanguages).contains(chosen.languageKey),
+       let track = firstAvailable(in: subtitles, settings: settings, systemLanguages: systemLanguages) {
+      return (track, .audioNotUnderstood, nil)
     }
 
     return (nil, .off, nil)
+  }
+
+  /// The best track in the first preferred subtitle language this item actually offers.
+  private static func firstAvailable(in subtitles: [SubtitleTrack],
+                                     settings: PlaybackLanguagePreferences,
+                                     systemLanguages: [String]) -> SubtitleTrack? {
+    for language in settings.resolvedSubtitleLanguages(system: systemLanguages) {
+      if let track = SubtitleTracks.preferred(language: language,
+                                              in: subtitles,
+                                              preferNonCC: settings.preferNonCCSubtitles) {
+        return track
+      }
+    }
+    // The languages the viewer reads are not on offer. Falling back to *some* track is
+    // what the "unknown subtitles" case needs — a track they cannot read is still better
+    // than silence they cannot follow — but only when subtitles were asked for at all.
+    return SubtitleTracks.sort(subtitles).first { !$0.isForced }
   }
 }

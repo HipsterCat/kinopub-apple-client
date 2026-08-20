@@ -463,7 +463,9 @@ class PlayerManager: ObservableObject {
 
     if remember {
       let scopes = trackScopes
-      if !scopes.isEmpty {
+      // An item that offered nothing to choose teaches nothing. Writing "off" from a menu
+      // that only ever said "Off" would turn subtitles off for the whole series.
+      if !scopes.isEmpty, !subtitleTracks.isEmpty {
         // Turning them off is a choice too — without storing it, the default turns
         // subtitles back on every episode.
         let signature = selection.primary.map(SubtitleChoiceSignature.init) ?? .off

@@ -72,8 +72,9 @@ final class PlaybackSession: ObservableObject {
       ?? AppContext.shared.localProgressStore.snapshot(for: item.metadata.id)
     guard let snapshot else { return TitleTrackProfile() }
     let languages = item.audioTracks.map(\.lang) + item.subtitles.map(\.lang)
-    return TitleTrackProfile.infer(countries: snapshot.countries.map(\.title),
-                                   genres: snapshot.genres.compactMap(\.title),
+    let presentation = MediaPresentationProfile(type: snapshot.type, genres: snapshot.genres)
+    return TitleTrackProfile.infer(presentation: presentation,
+                                   countries: snapshot.countries.map(\.title),
                                    trackLanguages: languages)
   }
 

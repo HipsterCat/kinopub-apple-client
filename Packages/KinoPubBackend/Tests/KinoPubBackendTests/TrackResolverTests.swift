@@ -461,6 +461,146 @@ final class TrackResolverTests: XCTestCase {
     XCTAssertNil(decision.subtitle, "forced tracks carry signage only")
   }
 
+  // MARK: - Subtitles follow the system, then the same ladder audio does
+
+  private var subtitlesOn: PlaybackLanguagePreferences {
+    var settings = PlaybackLanguagePreferences.default
+    settings.subtitlesDefaultOn = true
+    return settings
+  }
+
+  /// The viewer watches everything with subtitles — the system already knows that, so a
+  /// dubbed title gets them too.
+  func testSubtitlesOnInTheSystemMeansOnHere() {
+    let decision = decide([mosfilmDub],
+                          subtitles: subtitleTracks(["ru", "en"]),
+                          settings: subtitlesOn)
+    XCTAssertEqual(decision.subtitle?.lang, "ru")
+    XCTAssertEqual(decision.subtitleReason, .systemDefault)
+  }
+
+  func testSubtitlesOffInTheSystemLeavesADubbedTitleBare() {
+    let decision = decide([mosfilmDub], subtitles: subtitleTracks(["ru", "en"]))
+    XCTAssertNil(decision.subtitle)
+    XCTAssertEqual(decision.subtitleReason, .off)
+  }
+
+  /// Watching in Russian, reading English, because the point is the language practice.
+  func testEnglishSubtitlesOverRussianAudioAreRemembered() {
+    var ledger = TrackPreferenceLedger()
+    ledger.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false),
+                          at: day(4),
+                          weight: 3)
+
+    let decision = decide([mosfilmDub],
+                          subtitles: subtitleTracks(["ru", "en"]),
+                          ledgers: titleScope(ledger))
+    XCTAssertEqual(decision.audio, mosfilmDub)
+    XCTAssertEqual(decision.subtitle?.lang, "en")
+    XCTAssertEqual(decision.subtitleReason, .remembered)
+  }
+
+  /// Anime in the original with English subtitles, remembered on the anime bucket so the
+  /// next series opens the same way.
+  func testAnimeInTheOriginalWithEnglishSubtitlesCarriesToTheNextTitle() {
+    var anime = TrackPreferenceLedger()
+    anime.recordAudio(japaneseOriginal.signature, at: day(5), weight: 9)
+    anime.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false),
+                         at: day(5),
+                         weight: 9)
+
+    let ledgers = [
+      ScopedLedger(scope: .title(id: 777), ledger: TrackPreferenceLedger()),
+      ScopedLedger(scope: .anime, ledger: anime)
+    ]
+    let decision = decide([japaneseOriginal, lostfilmMVO],
+                          subtitles: subtitleTracks(["ru", "en"]),
+                          ledgers: ledgers,
+                          profile: TitleTrackProfile(isAnime: true, originalLanguageKey: "ja"))
+    XCTAssertEqual(decision.audio, japaneseOriginal)
+    XCTAssertEqual(decision.subtitle?.lang, "en")
+  }
+
+  /// The other anime viewer: original audio, Russian subtitles, and Russian is the only
+  /// subtitle language on offer.
+  func testAnimeInTheOriginalWithTheOnlySubtitlesThereAre() {
+    var settings = PlaybackLanguagePreferences.default
+    settings.animePrefersOriginalAudio = true
+
+    let decision = decide([japaneseOriginal, lostfilmMVO],
+                          subtitles: subtitleTracks(["ru"]),
+                          settings: settings,
+                          profile: TitleTrackProfile(isAnime: true, originalLanguageKey: "ja"))
+    XCTAssertEqual(decision.audio, japaneseOriginal)
+    XCTAssertEqual(decision.subtitle?.lang, "ru")
+    XCTAssertEqual(decision.subtitleReason, .audioNotUnderstood)
+  }
+
+  /// Unknown subtitles: none of them are in a language the viewer reads, but they asked
+  /// for subtitles, so a track they can at least see beats nothing.
+  func testSubtitlesInAnUnreadLanguageStillAppearWhenAskedFor() {
+    var settings = subtitlesOn
+    settings.audioLanguages = ["ru"]
+    settings.subtitleLanguages = ["ru"]
+
+    let decision = decide([mosfilmDub],
+                          subtitles: subtitleTracks(["pt"]),
+                          settings: settings)
+    XCTAssertEqual(decision.subtitle?.lang, "pt")
+    XCTAssertEqual(decision.subtitleReason, .systemDefault)
+  }
+
+  func testNoSubtitleTracksDecidesNothingRatherThanOff() {
+    let decision = decide([mosfilmDub], subtitles: [], settings: subtitlesOn)
+    XCTAssertNil(decision.subtitle)
+    XCTAssertEqual(decision.subtitleReason, .none, "nothing was on offer, so nothing was decided")
+  }
+
+  /// Original audio, no dub, no subtitles at all — the case Apple's generated captions
+  /// would later fill. Today it must simply not crash or invent a track.
+  func testOriginalAudioWithNothingToReadIsSilentAboutSubtitles() {
+    var settings = subtitlesOn
+    settings.audioLanguages = ["ru"]
+    settings.subtitleLanguages = ["ru"]
+
+    let decision = decide([englishOriginal], subtitles: [], settings: settings)
+    XCTAssertEqual(decision.audio, englishOriginal)
+    XCTAssertNil(decision.subtitle)
+  }
+
+  /// Turning them off against a system that has them on is the strong signal, and it wins
+  /// on the next episode.
+  func testTurningSubtitlesOffBeatsTheSystemDefault() {
+    var ledger = TrackPreferenceLedger()
+    ledger.recordSubtitle(.off, at: day(6), weight: 1)
+
+    let decision = decide([mosfilmDub],
+                          subtitles: subtitleTracks(["ru"]),
+                          ledgers: titleScope(ledger),
+                          settings: subtitlesOn)
+    XCTAssertNil(decision.subtitle)
+    XCTAssertEqual(decision.subtitleReason, .remembered)
+  }
+
+  func testSubtitleMemoryFollowsTheSameScopeChainAsAudio() {
+    var season = TrackPreferenceLedger()
+    season.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false),
+                          at: day(7),
+                          weight: 2)
+    var title = TrackPreferenceLedger()
+    title.recordSubtitle(SubtitleChoiceSignature(languageKey: "ru", isCC: false),
+                         at: day(1),
+                         weight: 8)
+
+    let ledgers = [
+      ScopedLedger(scope: .season(titleID: seriesID, season: 3), ledger: season),
+      ScopedLedger(scope: .title(id: seriesID), ledger: title)
+    ]
+    let decision = decide([mosfilmDub], subtitles: subtitleTracks(["ru", "en"]), ledgers: ledgers)
+    XCTAssertEqual(decision.subtitle?.lang, "en", "the season is asked before the series")
+    XCTAssertEqual(decision.subtitleScope, TrackMemoryScope.season(titleID: seriesID, season: 3))
+  }
+
   // MARK: - Signature identity
 
   /// The same team upgrading its two-voice track to a full dub is the same choice.
@@ -545,33 +685,48 @@ final class TrackResolverTests: XCTestCase {
 
   // MARK: - Title profile inference
 
+  /// Anime-ness is `MediaPresentationProfile`'s answer, not a second genre classifier.
+  private func trackProfile(type: String = "serial",
+                       genres: [String],
+                       countries: [String],
+                       trackLanguages: [String]) -> TitleTrackProfile {
+    let presentation = MediaPresentationProfile(
+      type: type,
+      genres: genres.enumerated().map { TypeClass(id: $0.offset, title: $0.element, shortTitle: nil) }
+    )
+    return TitleTrackProfile.infer(presentation: presentation,
+                                   countries: countries,
+                                   trackLanguages: trackLanguages)
+  }
+
   func testJapaneseOriginalIsInferredFromCountryAndTracks() {
-    let profile = TitleTrackProfile.infer(countries: ["Япония"],
-                                          genres: ["Аниме", "Комедия"],
-                                          trackLanguages: ["ru", "ja"])
+    let profile = trackProfile(genres: ["Аниме", "Комедия"],
+                               countries: ["Япония"],
+                               trackLanguages: ["ru", "ja"])
     XCTAssertTrue(profile.isAnime)
     XCTAssertEqual(profile.originalLanguageKey, "ja")
   }
 
   func testACountryWhoseLanguageIsNotOnTheMenuIsIgnored() {
-    let profile = TitleTrackProfile.infer(countries: ["Япония"],
-                                          genres: ["Аниме"],
-                                          trackLanguages: ["ru"])
+    let profile = trackProfile(genres: ["Аниме"],
+                               countries: ["Япония"],
+                               trackLanguages: ["ru"])
     XCTAssertNil(profile.originalLanguageKey, "never name a track that does not exist")
   }
 
   func testACartoonIsNotAnime() {
-    let profile = TitleTrackProfile.infer(countries: ["Россия"],
-                                          genres: ["Мультфильм"],
-                                          trackLanguages: ["ru"])
+    let profile = trackProfile(genres: ["Мультфильм"],
+                               countries: ["Россия"],
+                               trackLanguages: ["ru"])
     XCTAssertFalse(profile.isAnime)
     XCTAssertEqual(profile.originalLanguageKey, "ru")
   }
 
   func testChineseOriginalIsInferred() {
-    let profile = TitleTrackProfile.infer(countries: ["Китай"],
-                                          genres: ["Боевик"],
-                                          trackLanguages: ["ru", "zh"])
+    let profile = trackProfile(type: "movie",
+                               genres: ["Боевик"],
+                               countries: ["Китай"],
+                               trackLanguages: ["ru", "zh"])
     XCTAssertEqual(profile.originalLanguageKey, "zh")
   }
 
