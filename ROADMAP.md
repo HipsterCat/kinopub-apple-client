@@ -432,8 +432,11 @@ tvOS-only properties.
 - [ ] Settings › Diagnostics: the remembered ledgers, grouped by scope — what will be chosen for
       this season / series / film and on what principle. Then the same knowledge in labels, so a
       dub the viewer follows can lead its list ("этот сериал человек смотрит в Сыендуке")
-- [ ] Ask the resolver *before* the player opens: a card resolves its own dub while the loader
-      spins on the tile, so the player starts on the right track instead of switching after
+- [x] `PlaybackPreflight` answers "what will this play" outside the player, and warms an
+      episode's links from the detail hero so that request is out of the tap. The player
+      asks the same way, so a card and the player cannot disagree
+- [ ] Spend the warmed answer on screen: name the dub on the Play button, and a spinner on
+      the tile for the case where the tap still beats the links
 - [ ] Settings for the language ladder: preferred audio languages, the dub floor,
       `animePrefersOriginalAudio`
 - [ ] Fix subtitles-follow-episode (`MediaItem.subtitles` reads the first video only)

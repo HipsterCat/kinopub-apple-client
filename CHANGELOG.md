@@ -45,6 +45,40 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
   The last two are the ladder, not scopes, and app settings mirror the system list until set.
 - 54 scenario tests in `TrackResolverTests`, green on CI.
 
+### What a title will play is answerable before the player opens (2026-08-20)
+
+- **`PlaybackPreflight`** owns the question. `decision(for:profile:)` answers from what is
+  already loaded — no network — so a card, a Play button or a diagnostics screen can ask
+  while drawing. `PlayerManager` asks through it too and contributes only what it alone can
+  see: the real renditions, for a master the API gave no track metadata for. Two ways of
+  assembling those inputs would have been two answers.
+- **`warm(_:)` moves the media-links request out of the tap.** A series episode arrives
+  without links and the player used to fetch them on open, which is dead time on a spinner.
+  The detail hero warms its play target while the page is on screen. A no-op for anything
+  already playable, and `MediaLinksResolver` runs one request per media id however many
+  callers ask, so re-running it costs nothing. Failure is silent on purpose — the player
+  still resolves for itself and still owns reporting a stream it cannot play.
+- `audioSummary(for:profile:)` names the dub that will play. Nil for a single track.
+
+### App test targets exist, and CI runs them (2026-08-20)
+
+- `KinoPubAppleClientTests` (unit, hosted) and `KinoPubAppleClientUITests` (XCUITest),
+  written into `project.pbxproj` by hand — there is no project generator in this repo.
+  Both are `buildForTesting` only in the scheme, so the compile jobs stay as fast as they
+  were, and a `test-app` job runs them on a tvOS and an iOS simulator.
+- **The simulator is picked by udid, never by name.** Runner images rename and renumber
+  their devices; a hard-coded `Apple TV 4K (3rd generation)` is a job that dies on the next
+  image refresh.
+- **A CI runner has no kino.pub session** — `DevSessionMirror` seeds one only from a
+  developer's own machine — so the UI tests assert what is reachable without auth: the app
+  launches and paints something. Focus is not asserted; it needs content, and a screenshot
+  cannot show whether a landing felt right.
+- **The app target's Swift module is `KinoPub`, not `KinoPubAppleClient`.** `PRODUCT_NAME`
+  is KinoPub and nothing overrides `PRODUCT_MODULE_NAME`.
+- **A witness to a public protocol from another module must be `public`**, whatever the
+  visibility of the conformance — `extension AVMediaSelectionOption: AudioRendition` needs
+  `public var renditionName`.
+
 ### CI was red on tvOS and iOS, for three unrelated reasons (2026-08-20)
 
 Found while building the track work, all pre-existing, all now fixed:
