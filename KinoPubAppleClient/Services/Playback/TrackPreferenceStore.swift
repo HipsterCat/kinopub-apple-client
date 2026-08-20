@@ -21,11 +21,18 @@ final class TrackPreferenceStore {
 
   private let defaults: UserDefaults
   private var ledgers: [String: TrackPreferenceLedger]
+  /// `PlayerManager` records a play from its periodic time observer, which is not the main
+  /// thread, while a card reads a plan on it. Same shape as `LocalWatchProgressStore`.
+  private let lock = NSLock()
 
   /// Bumped on every write. A cached `PlaybackPlan` was decided from this history, so a
   /// change here is what makes it stale — cheaper and more honest than a time-based cache,
   /// which would go stale exactly when the viewer switched dub and expected it to stick.
-  private(set) var revision: Int = 0
+  private var storedRevision: Int = 0
+  var revision: Int {
+    lock.lock(); defer { lock.unlock() }
+    return storedRevision
+  }
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
@@ -38,17 +45,22 @@ final class TrackPreferenceStore {
   /// One entry per step of the chain, empty where nothing was learned, so the resolver
   /// walks the same shape every time.
   func ledgers(for chain: [TrackMemoryScope]) -> [ScopedLedger] {
-    chain.map { scope in
+    lock.lock(); defer { lock.unlock() }
+    return chain.map { scope in
       ScopedLedger(scope: scope, ledger: ledgers[scope.storageKey] ?? TrackPreferenceLedger())
     }
   }
 
   func ledger(for scope: TrackMemoryScope) -> TrackPreferenceLedger? {
-    ledgers[scope.storageKey]
+    lock.lock(); defer { lock.unlock() }
+    return ledgers[scope.storageKey]
   }
 
   /// Everything stored, for the diagnostics screen.
-  var all: [String: TrackPreferenceLedger] { ledgers }
+  var all: [String: TrackPreferenceLedger] {
+    lock.lock(); defer { lock.unlock() }
+    return ledgers
+  }
 
   // MARK: - Writing
 
@@ -76,13 +88,17 @@ final class TrackPreferenceStore {
   }
 
   func forget(scope: TrackMemoryScope) {
+    lock.lock()
     ledgers.removeValue(forKey: scope.storageKey)
-    persist()
+    persistLocked()
+    lock.unlock()
   }
 
   func forgetEverything() {
+    lock.lock()
     ledgers = [:]
-    persist()
+    persistLocked()
+    lock.unlock()
   }
 
   // MARK: - Private
@@ -90,16 +106,18 @@ final class TrackPreferenceStore {
   private func mutate(_ chain: [TrackMemoryScope],
                       _ body: (inout TrackPreferenceLedger) -> Void) {
     guard !chain.isEmpty else { return }
+    lock.lock(); defer { lock.unlock() }
     for scope in chain {
       var ledger = ledgers[scope.storageKey] ?? TrackPreferenceLedger()
       body(&ledger)
       ledgers[scope.storageKey] = ledger
     }
-    persist()
+    persistLocked()
   }
 
-  private func persist() {
-    revision &+= 1
+  /// Callers already hold `lock`.
+  private func persistLocked() {
+    storedRevision &+= 1
     guard let data = try? JSONEncoder().encode(ledgers) else { return }
     defaults.set(data, forKey: Self.storageKey)
   }
@@ -140,6 +158,7 @@ final class TrackPreferenceStore {
     }
 
     defaults.removeObject(forKey: legacyKey)
-    persist()
+    // Runs from `init`, before any other thread can hold this store.
+    persistLocked()
   }
 }

@@ -24,7 +24,11 @@ import OSLog
 /// Warming is safe to call repeatedly: `MediaLinksResolver` runs one request per media id
 /// however many callers ask, and `Episode` is a class, so a filled one is filled for
 /// everybody already holding it.
-@MainActor
+///
+/// **Not `@MainActor` as a whole**, on purpose: asking what a title will play has to work
+/// from `PlayerManager`, which is not main-actor-isolated and asks synchronously — from its
+/// periodic time observer among other places. Only `warm` is isolated, because the resolver
+/// it drives is. The cache is behind a lock rather than an actor for the same reason.
 final class PlaybackPreflight {
 
   static let shared = PlaybackPreflight()
@@ -56,6 +60,17 @@ final class PlaybackPreflight {
   }
 
   private var cache: [Int: CachedPlan] = [:]
+  private let cacheLock = NSLock()
+
+  private func cachedPlan(for id: Int) -> CachedPlan? {
+    cacheLock.lock(); defer { cacheLock.unlock() }
+    return cache[id]
+  }
+
+  private func store(_ cached: CachedPlan, for id: Int) {
+    cacheLock.lock(); defer { cacheLock.unlock() }
+    cache[id] = cached
+  }
 
   // MARK: - Knowing
 
@@ -101,7 +116,7 @@ final class PlaybackPreflight {
     let audioFingerprint = audio.hashValue
     let subtitleFingerprint = subs.hashValue
 
-    if let cached = cache[item.id],
+    if let cached = cachedPlan(for: item.id),
        cached.revision == preferences.revision,
        cached.audioFingerprint == audioFingerprint,
        cached.subtitleFingerprint == subtitleFingerprint,
@@ -118,10 +133,11 @@ final class PlaybackPreflight {
                                                             settings: PlaybackLanguagePreferences.current,
                                                             profile: profile),
                             isProvisional: audioMenu == nil)
-    cache[item.id] = CachedPlan(plan: plan,
-                                revision: preferences.revision,
-                                audioFingerprint: audioFingerprint,
-                                subtitleFingerprint: subtitleFingerprint)
+    store(CachedPlan(plan: plan,
+                     revision: preferences.revision,
+                     audioFingerprint: audioFingerprint,
+                     subtitleFingerprint: subtitleFingerprint),
+          for: item.id)
     return plan
   }
 
@@ -137,6 +153,7 @@ final class PlaybackPreflight {
   /// A no-op for anything that already has a playable link, so calling it on every render
   /// costs nothing. Failures are deliberately silent — this is an optimisation, and the
   /// player still does its own resolve and still owns reporting a stream it cannot play.
+  @MainActor
   func warm(_ item: any PlayableItem) async {
     guard let episode = item as? Episode else { return }
     guard !episode.files.hasPlayableURLs else { return }
