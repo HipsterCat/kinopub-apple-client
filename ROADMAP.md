@@ -417,9 +417,16 @@ tvOS-only properties.
       `TrackPreferenceStore` owns the ledgers, `PlaybackSession` derives `TitleTrackProfile`,
       `AudioRenditions` owns the bridge to what the player can select.
       **Green on CI for all three platforms; the selection has not been watched on a device**
-- [ ] App test targets — unit + `XCUITest` on tvOS and iOS. There is none today, so nothing
-      above the package boundary is testable; the `AVPlayerItem` selection is the first thing
-      to cover once one exists
+- [x] App test targets — `KinoPubAppleClientTests` (unit, hosted) and
+      `KinoPubAppleClientUITests` (XCUITest), plus a `test-app` CI job that runs both on a
+      tvOS and an iOS simulator. Both bundles are `buildForTesting` only, so the compile
+      jobs stay as fast as they were
+- [ ] Grow the UI tests past launch: a CI runner has no kino.pub session, so anything
+      behind auth needs a seeded fixture or a stubbed service before it can be asserted
+- [ ] The one integration test still missing: build a real `AVPlayerItem` from a local HLS
+      fixture with several audio renditions and assert `currentMediaSelection` matches what
+      `TrackResolver` decided. `AudioRenditions` covers the matching rules; this covers the
+      wiring around them
 - [ ] Split the slow UI jobs by path once they exist. **Not the compile jobs** — building all
       three platforms on every change is what caught three pre-existing breaks nobody had seen
 - [ ] Settings › Diagnostics: the remembered ledgers, grouped by scope — what will be chosen for

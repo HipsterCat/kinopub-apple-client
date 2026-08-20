@@ -77,6 +77,13 @@ title bar and `MPNowPlayingInfoCenter`, and SwiftUI's `VideoPlayer` exposes none
 
 - **Resume race:** `PlayerView.onAppear` → `fetchWatchMark` → seek. And resume currently reads the
   wrong episode in `PlayerManager`.
+- **The app target's Swift module is `KinoPub`, not `KinoPubAppleClient`.** `PRODUCT_NAME` is
+  KinoPub and nothing overrides `PRODUCT_MODULE_NAME`, so a test bundle writes
+  `@testable import KinoPub`. The target name is not the module name.
+- **A witness to a public protocol from another module must be `public`**, even when the
+  conformance is internal and used in one file — `extension AVMediaSelectionOption:
+  AudioRendition` needs `public var renditionName`. Trimming it to internal fails only on the
+  platforms that compile the conformance.
 - **A package that builds under `swift test` can still break the app.** `swift test` runs the
   package on **macOS only**, so a symbol fenced `#if os(macOS)` and used unfenced compiles there and
   fails every simulator build — `MediaCardView`'s `isHovered` did exactly that. The tvOS/iOS
