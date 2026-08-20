@@ -413,8 +413,9 @@ tvOS-only properties.
       `TrackPreferenceLedger`, [docs/product/playback-tracks.md](docs/product/playback-tracks.md).
       Pure, no player: scopes (season → title → anime class → ladder), weight by episodes
       watched, a new dub beating a provisional habit, the dub floor, anime in the original
-- [ ] Wire `TrackResolver` into `PlayerManager` and retire `AudioTrackMemory` / `AudioTrackRanker`
-      and the single-name `subtitleTrackChoices`; a store to own the ledgers and record a play
+- [x] `TrackResolver` wired into `PlayerManager`; `AudioTrackMemory` / `AudioTrackRanker` gone,
+      `TrackPreferenceStore` owns the ledgers, `PlaybackSession` derives `TitleTrackProfile`.
+      **Compiles on all three platforms; the selection has not been watched on a device**
 - [ ] Settings › Diagnostics: the remembered ledgers, grouped by scope — what will be chosen for
       this season / series / film and on what principle. Then the same knowledge in labels, so a
       dub the viewer follows can lead its list ("этот сериал человек смотрит в Сыендуке")

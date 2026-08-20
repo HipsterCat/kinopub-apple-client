@@ -31,9 +31,40 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
   "Off" is a remembered choice like any other.
 - Original language is inferred from the countries on the title against the languages
   actually on the menu. Nothing is fetched for it and no provider field was added.
-- 50 scenario tests in `TrackResolverTests`. **Not compiled or run** — the session had no
-  Swift toolchain. `AudioTrackMemory` / `AudioTrackRanker` and `SubtitleTrackMemory` are
-  still what the player uses; nothing is wired yet.
+- **The priority chain is `TrackMemoryScope.chain`** — episode → season → title → genre →
+  app settings → system languages, in one place so no caller can assemble it differently.
+  The last two are the ladder, not scopes, and app settings mirror the system list until set.
+- 54 scenario tests in `TrackResolverTests`, green on CI.
+
+### The player asks the resolver, and the two old track memories are gone (2026-08-20)
+
+- **`AudioTrackMemory` and `AudioTrackRanker` are deleted.** The first keyed a dub by its
+  rendition display name; HLS uniques duplicate `NAME=` with a " ∙ n" suffix and renditions
+  are not ordered the same across episodes, so the handle did not survive the one jump it
+  existed for. The second re-implemented the detail page's ladder and knew nothing about
+  history. `AVMediaSelectionOption.kinopubTrackName` survives, and gains
+  `kinopubLanguageCode`.
+- **`TrackPreferenceStore`** (`Services/Playback/`) owns the ledgers, keyed by
+  `TrackMemoryScope.storageKey`, and writes to every scope a play teaches. It migrates
+  `subtitleTrackChoices` — a `SubtitleTrackReference` carries a real language code — and
+  **drops `audioTrackChoices`**, which stored a display name that cannot be reversed into
+  one. Those pick themselves up again on the next choice.
+- **`PlaybackSession` derives `TitleTrackProfile`** and hands it to the player. Genres and
+  countries are on the *item*, and an `Episode` is not one — the series snapshot in
+  `LocalWatchProgressStore` is where they are read from, so playing straight from Continue
+  Watching still knows an anime is an anime.
+- Audio and subtitles ask **one** decision, so they cannot disagree about what is playing.
+  With no API track metadata the menu is synthesised from the renditions themselves, so an
+  unlabelled master still gets a considered pick rather than AVFoundation's first rendition.
+- A play is recorded once it passes `WatchProgress.enterContinueWatchingSeconds`, not on
+  open: weight is episodes watched, and a title sampled for a minute teaches nothing.
+- **Behaviour change:** subtitles no longer come on merely because an English track exists.
+  They come on when the audio that won is in a language the viewer does not read. The old
+  "Default English subtitles" switch now decides *which* language wins when they do.
+  `SubtitleSelector` no longer selects — it catalogues.
+- **Verification:** builds on tvOS, iOS and macOS, and the resolver's rules are covered by
+  tests. **Nothing here has been watched on a device** — that the right rendition is
+  actually selected is unconfirmed.
 
 
 ### Continue Watching stops offering junk in an arbitrary order (2026-08-20)
