@@ -414,8 +414,14 @@ tvOS-only properties.
       Pure, no player: scopes (season → title → anime class → ladder), weight by episodes
       watched, a new dub beating a provisional habit, the dub floor, anime in the original
 - [x] `TrackResolver` wired into `PlayerManager`; `AudioTrackMemory` / `AudioTrackRanker` gone,
-      `TrackPreferenceStore` owns the ledgers, `PlaybackSession` derives `TitleTrackProfile`.
-      **Compiles on all three platforms; the selection has not been watched on a device**
+      `TrackPreferenceStore` owns the ledgers, `PlaybackSession` derives `TitleTrackProfile`,
+      `AudioRenditions` owns the bridge to what the player can select.
+      **Green on CI for all three platforms; the selection has not been watched on a device**
+- [ ] App test targets — unit + `XCUITest` on tvOS and iOS. There is none today, so nothing
+      above the package boundary is testable; the `AVPlayerItem` selection is the first thing
+      to cover once one exists
+- [ ] Split the slow UI jobs by path once they exist. **Not the compile jobs** — building all
+      three platforms on every change is what caught three pre-existing breaks nobody had seen
 - [ ] Settings › Diagnostics: the remembered ledgers, grouped by scope — what will be chosen for
       this season / series / film and on what principle. Then the same knowledge in labels, so a
       dub the viewer follows can lead its list ("этот сериал человек смотрит в Сыендуке")

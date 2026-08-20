@@ -26,15 +26,39 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 - **`minimumDubKind` prefers the original with subtitles over a dub below the floor**, and
   never filters original or unknown-kind tracks — the floor is about dub quality. Ships as
   `nil` so nothing changes silently.
-- **Subtitles come on when the audio that won is in a language the viewer does not read.**
-  One rule for anime in Japanese and for the film that only ever had an English track.
-  "Off" is a remembered choice like any other.
+- **Subtitles are the same mechanism as audio**, not a lesser one: same scope chain, same
+  ledger, same weights. With no history the app mirrors the system's own captions setting
+  (Accessibility → Subtitles & Captioning, via `MediaAccessibility`), whose caption
+  languages also seed the language order. On top of that they come on whenever the audio
+  that won is in a language the viewer does not read — the anime in Japanese, the film that
+  only ever had an English track. Subtitles in a language the viewer cannot read still beat
+  nothing once subtitles were asked for; "off" is a remembered choice; and an item that
+  offered no track writes nothing at all.
+- **`isAnime` lives on `MediaPresentationProfile`**, which is the one place a rule that
+  depends on type or genre is derived. Separate from `kind`, because an anime and a cartoon
+  are drawn the same way and only one of them is normally watched in the original. kino.pub
+  files anime as a genre — `MediaType` has no case for it.
 - Original language is inferred from the countries on the title against the languages
   actually on the menu. Nothing is fetched for it and no provider field was added.
 - **The priority chain is `TrackMemoryScope.chain`** — episode → season → title → genre →
   app settings → system languages, in one place so no caller can assemble it differently.
   The last two are the ladder, not scopes, and app settings mirror the system list until set.
 - 54 scenario tests in `TrackResolverTests`, green on CI.
+
+### CI was red on tvOS and iOS, for three unrelated reasons (2026-08-20)
+
+Found while building the track work, all pre-existing, all now fixed:
+
+- `TVUIKitMediaItemStatusTests` was not fenced, and `TVUIKitMediaItem` is `#if os(tvOS)` —
+  it broke `swift test` for the whole of KinoPubUI.
+- `MediaCardView`'s watched-artwork opacity read `isHovered`, which is declared under
+  `#if os(macOS)`. Both simulator builds failed.
+- A `UILabGlassChipStyle` modifier — macOS- **and** DEBUG-only, from UILab — had been
+  pasted into `LibraryFiltersBar`'s sort menu. Both simulator builds failed.
+
+**Why nobody saw them:** `swift test` runs a package on **macOS only**. A symbol fenced to
+macOS and used unfenced compiles there and fails every simulator build, so green package
+tests prove nothing about tvOS or iOS. The `xcodebuild` jobs are the only guard.
 
 ### The player asks the resolver, and the two old track memories are gone (2026-08-20)
 
@@ -58,13 +82,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
   unlabelled master still gets a considered pick rather than AVFoundation's first rendition.
 - A play is recorded once it passes `WatchProgress.enterContinueWatchingSeconds`, not on
   open: weight is episodes watched, and a title sampled for a minute teaches nothing.
-- **Behaviour change:** subtitles no longer come on merely because an English track exists.
-  They come on when the audio that won is in a language the viewer does not read. The old
-  "Default English subtitles" switch now decides *which* language wins when they do.
-  `SubtitleSelector` no longer selects — it catalogues.
-- **Verification:** builds on tvOS, iOS and macOS, and the resolver's rules are covered by
-  tests. **Nothing here has been watched on a device** — that the right rendition is
-  actually selected is unconfirmed.
+- The old "Default English subtitles" switch now decides *which* language wins when
+  subtitles appear, not whether they appear — that is the system's answer.
+  `SubtitleSelector` no longer selects; it catalogues.
+- **`AudioRenditions` owns the bridge** between a decided `AudioTrackInfo` and the
+  rendition the player can select, behind an `AudioRendition` protocol that
+  `AVMediaSelectionOption` conforms to. It was in `PlayerManager` behind a type that needs
+  a real asset to construct, so the sharpest rules in the feature — duplicate ` ∙ n`
+  suffixes, one label being a prefix of another, the no-API-metadata path — were untestable.
+- **Verification:** green on CI — tvOS, iOS and macOS builds plus every package suite —
+  with 77 tests over the rules and the bridge. **Nothing here has been watched on a
+  device**; that the right rendition is actually selected in a real player is unconfirmed.
 
 
 ### Continue Watching stops offering junk in an arbitrary order (2026-08-20)
