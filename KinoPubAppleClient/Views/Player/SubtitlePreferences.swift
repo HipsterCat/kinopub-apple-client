@@ -50,6 +50,9 @@ extension PlaybackLanguagePreferences {
   static let subtitlesForForeignAudioKey = "subtitlesForForeignAudio"
   static let animeOriginalAudioKey = "animePrefersOriginalAudio"
 
+  /// `minimumDubKind` when the viewer has set no floor.
+  static let noDubFloor = -1
+
   /// The language ladder as the viewer has it. Empty lists mean "mirror the system",
   /// which is the default and covers anyone who never opens Settings.
   static var current: PlaybackLanguagePreferences {
@@ -64,7 +67,9 @@ extension PlaybackLanguagePreferences {
     return PlaybackLanguagePreferences(
       audioLanguages: defaults.stringArray(forKey: audioLanguagesKey) ?? [],
       subtitleLanguages: subtitleLanguages,
-      minimumDubKind: defaults.object(forKey: minimumDubKindKey) as? Int,
+      // Stored as an Int because `@AppStorage` has no Int? — negative means "no floor",
+      // which is also what a missing key means.
+      minimumDubKind: (defaults.object(forKey: minimumDubKindKey) as? Int).flatMap { $0 < 0 ? nil : $0 },
       subtitlesDefaultOn: defaults.object(forKey: subtitlesDefaultOnKey) as? Bool
         ?? systemWantsCaptions,
       subtitlesWhenAudioNotUnderstood: defaults.object(forKey: subtitlesForForeignAudioKey) == nil

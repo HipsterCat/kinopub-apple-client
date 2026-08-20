@@ -43,9 +43,14 @@ typealias AppContextProtocol = AuthorizationServiceProvider
 & DeviceServiceProvider
 & LocalWatchProgressProvider
 & MediaLibraryProvider
+& TrackPreferencesProvider
 
 protocol MetadataServiceProvider {
   var metadataService: MetadataService { get }
+}
+
+protocol TrackPreferencesProvider {
+  var trackPreferences: TrackPreferenceStore { get }
 }
 
 protocol ContentStoreProvider {

@@ -43,6 +43,39 @@ public enum TrackMemoryScope: Codable, Hashable {
 public extension TrackMemoryScope {
   /// Stable key for persistence. The store versions its own container, so this never
   /// needs a version of its own — but changing a case here orphans what is stored.
+  /// Reads a key back. What a screen listing what the app remembers needs, and the reason
+  /// `storageKey` stays a format rather than a hash.
+  init?(storageKey: String) {
+    let parts = storageKey.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+    switch parts.first {
+    case "e":
+      guard parts.count == 4, let titleID = Int(parts[1]), let episode = Int(parts[3]) else { return nil }
+      self = .episode(titleID: titleID, season: Int(parts[2]), episode: episode)
+    case "s":
+      guard parts.count == 3, let titleID = Int(parts[1]), let season = Int(parts[2]) else { return nil }
+      self = .season(titleID: titleID, season: season)
+    case "t":
+      guard parts.count == 2, let id = Int(parts[1]) else { return nil }
+      self = .title(id: id)
+    case "c":
+      guard parts.count == 2, !parts[1].isEmpty else { return nil }
+      self = .contentClass(parts[1])
+    default:
+      return nil
+    }
+  }
+
+  /// The title this scope belongs to, for grouping. `nil` for a class bucket, which is not
+  /// about any one title.
+  var titleID: Int? {
+    switch self {
+    case let .episode(titleID, _, _): return titleID
+    case let .season(titleID, _): return titleID
+    case let .title(id): return id
+    case .contentClass: return nil
+    }
+  }
+
   var storageKey: String {
     switch self {
     case let .episode(titleID, season, episode):

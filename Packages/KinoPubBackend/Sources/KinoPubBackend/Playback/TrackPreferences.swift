@@ -46,9 +46,26 @@ public struct AudioTrackSignature: Codable, Hashable {
   }
 }
 
+public extension AudioTrackSignature {
+  /// How a remembered dub reads on screen — "Русский ∙ Дубляж, LostFilm". Built from the
+  /// signature alone, because that is all a stored preference has: the API row it came from
+  /// belongs to an episode that may be long gone.
+  var displayLabel: String {
+    let language = LanguageNames.name(for: languageKey)
+    let kind = AudioTracks.localizedKindLabel(rank: kindRank)
+    switch (kind, studio) {
+    case let (kind?, studio?): return "\(language) ∙ \(kind), \(studio)"
+    case let (kind?, nil): return "\(language) ∙ \(kind)"
+    case let (nil, studio?): return "\(language) ∙ \(studio)"
+    case (nil, nil): return language
+    }
+  }
+}
+
 /// A remembered subtitle choice. `languageKey == nil` means **off**, which is a choice
 /// worth storing — otherwise the default turns subtitles back on every episode.
 public struct SubtitleChoiceSignature: Codable, Hashable {
+
   public let languageKey: String?
   public let isCC: Bool
 
@@ -64,6 +81,13 @@ public struct SubtitleChoiceSignature: Codable, Hashable {
   public static let off = SubtitleChoiceSignature(languageKey: nil, isCC: false)
 
   public var isOff: Bool { languageKey == nil }
+
+  /// How a remembered subtitle choice reads on screen.
+  public var displayLabel: String {
+    guard let languageKey else { return String(localized: "Off", bundle: .module) }
+    let language = LanguageNames.name(for: languageKey)
+    return isCC ? "\(language) (CC)" : language
+  }
 
   /// Language first, CC-ness as a preference rather than a requirement: a viewer who
   /// picked a plain track should still get one when only a CC track survived.

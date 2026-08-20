@@ -56,10 +56,22 @@ final class TrackPreferenceStore {
     return ledgers[scope.storageKey]
   }
 
-  /// Everything stored, for the diagnostics screen.
+  /// Everything stored, keyed by its raw storage key.
   var all: [String: TrackPreferenceLedger] {
     lock.lock(); defer { lock.unlock() }
     return ledgers
+  }
+
+  /// Everything stored, back as scopes — what Settings shows the viewer. A key that no
+  /// longer parses is skipped rather than guessed at; it belongs to a scope shape this
+  /// build does not have.
+  var storedScopes: [TrackMemoryScope: TrackPreferenceLedger] {
+    var parsed: [TrackMemoryScope: TrackPreferenceLedger] = [:]
+    for (key, ledger) in all {
+      guard let scope = TrackMemoryScope(storageKey: key) else { continue }
+      parsed[scope] = ledger
+    }
+    return parsed
   }
 
   // MARK: - Writing

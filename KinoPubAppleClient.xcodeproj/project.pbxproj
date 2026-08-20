@@ -14,6 +14,7 @@
 		57DF3824CA609C7DA4EB8324 /* RowSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849905DC0A8DF6F36DF8A402 /* RowSnapshotStore.swift */; };
 		5CDA790E2BD84471ADAD5D9D /* ContentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A455BD91626C3A69A07FF16 /* ContentStore.swift */; };
 		68BB8FA83F27CECB0FFCA1E7 /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831F62D766B34A0EEBB24C1C /* StorageSettingsView.swift */; };
+		A1B2C3D444B5A0E000000002 /* TrackMemorySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D444B5A0E000000001 /* TrackMemorySections.swift */; };
 		6DEC18B89FE39E3461D9C4BE /* BookmarkMembershipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA67574E8F59DCCBF4B88BF /* BookmarkMembershipStore.swift */; };
 		6DEC18B89FE39E3461D9C4BF /* BookmarkFoldersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA67574E8F59DCCBF4B88C0 /* BookmarkFoldersStore.swift */; };
 		A1B2C3D411B5A0E000000002 /* MediaLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D411B5A0E000000001 /* MediaLibraryStore.swift */; };
@@ -216,6 +217,7 @@
 		6CCB33005E595A30B2B59E06 /* SectionsSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SectionsSettingsView.swift; sourceTree = "<group>"; };
 		76F6301ED273E06AFCEBCC48 /* KinopoiskKeySettingsModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KinopoiskKeySettingsModel.swift; sourceTree = "<group>"; };
 		831F62D766B34A0EEBB24C1C /* StorageSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
+		A1B2C3D444B5A0E000000001 /* TrackMemorySections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackMemorySections.swift; sourceTree = "<group>"; };
 		849905DC0A8DF6F36DF8A402 /* RowSnapshotStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RowSnapshotStore.swift; sourceTree = "<group>"; };
 		8639E780102725D87EED78BB /* KinopoiskSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KinopoiskSettingsSection.swift; sourceTree = "<group>"; };
 		8A9752C15D23B6E4419BA5E1 /* ActorImageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActorImageProvider.swift; sourceTree = "<group>"; };
@@ -1035,6 +1037,7 @@
 				SET5F449030BE4759108DBE1 /* About */,
 				6A638F296984806CE370A2B2 /* DevicesListView.swift */,
 				831F62D766B34A0EEBB24C1C /* StorageSettingsView.swift */,
+				A1B2C3D444B5A0E000000001 /* TrackMemorySections.swift */,
 				6CCB33005E595A30B2B59E06 /* SectionsSettingsView.swift */,
 			);
 			path = Settings;
@@ -1347,6 +1350,7 @@
 				37B5470AC84450505E1E280E /* DevicesSettingsPane.swift in Sources */,
 				9B557ACAF0C4E827778EFCB4 /* DevicesListView.swift in Sources */,
 				68BB8FA83F27CECB0FFCA1E7 /* StorageSettingsView.swift in Sources */,
+				A1B2C3D444B5A0E000000002 /* TrackMemorySections.swift in Sources */,
 				702A02E524E03828B24D58EE /* SectionVisibilityStore.swift in Sources */,
 				9F6F94A15ADEFE2F79EFD2E3 /* SectionsSettingsView.swift in Sources */,
 				CF9A75DEEEBE063C426B6AB1 /* CollectionsModel.swift in Sources */,
