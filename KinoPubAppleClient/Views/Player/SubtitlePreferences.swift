@@ -88,7 +88,9 @@ extension PlaybackLanguagePreferences {
 
   /// The caption languages chosen in the same place, most preferred first.
   static var systemCaptionLanguages: [String] {
-    guard let copied = MACaptionAppearanceCopySelectedLanguages(.user) else { return [] }
-    return (copied.takeRetainedValue() as NSArray) as? [String] ?? []
+    // Non-optional `Unmanaged<CFArray>`, so there is nothing to bind — take the value and
+    // let the bridge cast decide whether it holds strings.
+    let copied = MACaptionAppearanceCopySelectedLanguages(.user).takeRetainedValue()
+    return (copied as NSArray) as? [String] ?? []
   }
 }
