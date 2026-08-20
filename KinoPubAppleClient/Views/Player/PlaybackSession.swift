@@ -50,12 +50,17 @@ final class PlaybackSession: ObservableObject {
     if let media = item as? MediaItem {
       AppContext.shared.localProgressStore.cacheItem(media)
     }
+    // The plan is made here rather than inside the player so the hand-off is the thing
+    // that travels: whatever a card or a Play button already said about this title is what
+    // the player starts from, and the player refines it once it sees the real renditions.
+    let profile = Self.trackProfile(for: item)
     let created = PlayerManager(
       playItem: item,
       watchMode: mode,
       downloadedFilesDatabase: downloadedFilesDatabase,
       actionsService: actionsService,
-      trackProfile: Self.trackProfile(for: item)
+      trackProfile: profile,
+      plan: PlaybackPreflight.shared.plan(for: item, profile: profile)
     )
     manager = created
     request = next

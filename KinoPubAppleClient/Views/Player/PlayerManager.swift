@@ -43,6 +43,11 @@ class PlayerManager: ObservableObject {
   @Published var currentPlaybackTime: TimeInterval = 0
   @Published private(set) var playbackState: PlaybackState = .preparing
 
+  /// **What this is going to play**, as the surfaces before the player already described
+  /// it. Handed in rather than derived here, then refreshed once the asset publishes its
+  /// real renditions — at which point it stops being provisional.
+  @Published private(set) var plan: PlaybackPlan
+
   /// Every subtitle track this item offers, and the two that are showing.
   @Published private(set) var subtitleTracks: [SubtitleTrack] = []
   @Published private(set) var primaryTrack: SubtitleTrack?
@@ -153,7 +158,9 @@ class PlayerManager: ObservableObject {
        actionsService: UserActionsService,
        contentService: VideoContentService = AppContext.shared.contentService,
        trackProfile: TitleTrackProfile = TitleTrackProfile(),
-       trackPreferences: TrackPreferenceStore = AppContext.shared.trackPreferences) {
+       trackPreferences: TrackPreferenceStore = AppContext.shared.trackPreferences,
+       plan: PlaybackPlan? = nil) {
+    self.plan = plan ?? .unknown(itemID: playItem.id)
     self.playItem = playItem
     self.watchMode = watchMode
     self.actionsService = actionsService
@@ -367,11 +374,14 @@ class PlayerManager: ObservableObject {
   /// the real renditions, when the API gave no track metadata.
   ///
   /// Rules: docs/product/playback-tracks.md
-  private func trackDecision(audioMenu: [AudioTrackInfo]) -> TrackDecision {
-    PlaybackPreflight.shared.decision(for: playItem,
-                                      profile: trackProfile,
-                                      audioMenu: audioMenu,
-                                      subtitles: subtitleTracks)
+  @discardableResult
+  private func refreshPlan(audioMenu: [AudioTrackInfo]? = nil) -> PlaybackPlan {
+    let refreshed = PlaybackPreflight.shared.plan(for: playItem,
+                                                  profile: trackProfile,
+                                                  audioMenu: audioMenu,
+                                                  subtitles: subtitleTracks)
+    plan = refreshed
+    return refreshed
   }
 
   /// The menu the resolver reasons about. The API's list when we have it — that one
@@ -397,7 +407,7 @@ class PlayerManager: ObservableObject {
 #if os(tvOS)
     guard watchMode == .media else { return }
     subtitleTracks = SubtitleSelector.tracks(in: playItem.subtitles)
-    let primary = trackDecision(audioMenu: playItem.audioTracks).subtitle
+    let primary = refreshPlan().decision.subtitle
     // Dual subtitles stay a Settings choice rather than something the resolver decides:
     // a second line is a deliberate extra, not part of what a title opens with.
     var secondary = SubtitlePreferences.dualSubtitlesEnabled
@@ -874,8 +884,8 @@ extension PlayerManager {
         // which menus have already been seen.
         self.trackPreferences.noteMenu(menu, in: self.trackScopes)
 
-        let decision = self.trackDecision(audioMenu: menu)
-        if let chosen = decision.audio.flatMap({ self.option(for: $0, in: group) }) {
+        let refreshed = self.refreshPlan(audioMenu: menu)
+        if let chosen = refreshed.decision.audio.flatMap({ self.option(for: $0, in: group) }) {
           item.select(chosen, in: group)
         }
       }

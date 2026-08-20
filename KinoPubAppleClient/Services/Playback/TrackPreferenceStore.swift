@@ -22,6 +22,11 @@ final class TrackPreferenceStore {
   private let defaults: UserDefaults
   private var ledgers: [String: TrackPreferenceLedger]
 
+  /// Bumped on every write. A cached `PlaybackPlan` was decided from this history, so a
+  /// change here is what makes it stale — cheaper and more honest than a time-based cache,
+  /// which would go stale exactly when the viewer switched dub and expected it to stick.
+  private(set) var revision: Int = 0
+
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
     self.ledgers = Self.load(from: defaults)
@@ -94,6 +99,7 @@ final class TrackPreferenceStore {
   }
 
   private func persist() {
+    revision &+= 1
     guard let data = try? JSONEncoder().encode(ledgers) else { return }
     defaults.set(data, forKey: Self.storageKey)
   }

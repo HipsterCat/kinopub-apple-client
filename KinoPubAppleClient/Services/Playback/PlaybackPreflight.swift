@@ -45,6 +45,18 @@ final class PlaybackPreflight {
     self.contentServiceOverride = contentService
   }
 
+  /// One plan per item, kept so a card, a button and the player hand each other the same
+  /// answer instead of each deriving one. Rebuilt when the history changes or the menu it
+  /// was decided from does.
+  private struct CachedPlan {
+    let plan: PlaybackPlan
+    let revision: Int
+    let audioFingerprint: Int
+    let subtitleFingerprint: Int
+  }
+
+  private var cache: [Int: CachedPlan] = [:]
+
   // MARK: - Knowing
 
   /// The scopes this item's history lives under. `WatchingMetadata.id` is the **series**
@@ -69,21 +81,53 @@ final class PlaybackPreflight {
                 profile: TitleTrackProfile,
                 audioMenu: [AudioTrackInfo]? = nil,
                 subtitles: [SubtitleTrack]? = nil) -> TrackDecision {
-    TrackResolver.resolve(audio: audioMenu ?? item.audioTracks,
-                          subtitles: subtitles ?? SubtitleTracks.catalog(item.subtitles),
-                          ledgers: preferences.ledgers(for: scopes(for: item, profile: profile)),
-                          settings: PlaybackLanguagePreferences.current,
-                          profile: profile)
+    plan(for: item, profile: profile, audioMenu: audioMenu, subtitles: subtitles).decision
+  }
+
+  /// **The object surfaces pass around.** Everything known about how this item will play,
+  /// ready to hand from the card that was tapped to the page to the player.
+  ///
+  /// Cached per item and rebuilt only when the history or the menu changes, so asking on
+  /// every render is free and every asker gets the identical answer.
+  ///
+  /// `audioMenu` is the player's to pass: it can see the real renditions, which beat the
+  /// API's list when there is none. A plan made without it is `isProvisional`.
+  func plan(for item: any PlayableItem,
+            profile: TitleTrackProfile,
+            audioMenu: [AudioTrackInfo]? = nil,
+            subtitles: [SubtitleTrack]? = nil) -> PlaybackPlan {
+    let audio = audioMenu ?? item.audioTracks
+    let subs = subtitles ?? SubtitleTracks.catalog(item.subtitles)
+    let audioFingerprint = audio.hashValue
+    let subtitleFingerprint = subs.hashValue
+
+    if let cached = cache[item.id],
+       cached.revision == preferences.revision,
+       cached.audioFingerprint == audioFingerprint,
+       cached.subtitleFingerprint == subtitleFingerprint,
+       cached.plan.isProvisional == (audioMenu == nil) {
+      return cached.plan
+    }
+
+    let scopes = scopes(for: item, profile: profile)
+    let plan = PlaybackPlan(itemID: item.id,
+                            scopes: scopes,
+                            decision: TrackResolver.resolve(audio: audio,
+                                                            subtitles: subs,
+                                                            ledgers: preferences.ledgers(for: scopes),
+                                                            settings: PlaybackLanguagePreferences.current,
+                                                            profile: profile),
+                            isProvisional: audioMenu == nil)
+    cache[item.id] = CachedPlan(plan: plan,
+                                revision: preferences.revision,
+                                audioFingerprint: audioFingerprint,
+                                subtitleFingerprint: subtitleFingerprint)
+    return plan
   }
 
   /// The dub this would play, as a label — "Русский ∙ Дубляж, LostFilm".
-  ///
-  /// `nil` when there is nothing worth saying: no tracks, or a single one, where naming it
-  /// tells the viewer nothing they can act on.
   func audioSummary(for item: any PlayableItem, profile: TitleTrackProfile) -> String? {
-    guard item.audioTracks.count > 1,
-          let track = decision(for: item, profile: profile).audio else { return nil }
-    return AudioTracks.baseLabel(track)
+    plan(for: item, profile: profile).audioLabel
   }
 
   // MARK: - Warming

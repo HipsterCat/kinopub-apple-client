@@ -135,6 +135,53 @@ final class PlaybackPreflightTests: XCTestCase {
     XCTAssertNil(preflight().audioSummary(for: bare, profile: TitleTrackProfile()))
   }
 
+  // MARK: - The plan is the thing that travels
+
+  /// The point of caching: two surfaces asking about the same title get the identical
+  /// answer, not two derivations of it.
+  func testTwoAsksGiveTheSamePlan() {
+    let preflight = self.preflight()
+    let first = preflight.plan(for: episode(), profile: TitleTrackProfile())
+    let second = preflight.plan(for: episode(), profile: TitleTrackProfile())
+    XCTAssertEqual(first, second)
+  }
+
+  /// And the point of keying it on the store's revision: the moment the viewer's history
+  /// changes, the cached answer is wrong.
+  func testAPlanIsRebuiltWhenTheHistoryChanges() {
+    let preflight = self.preflight()
+    let before = preflight.plan(for: episode(), profile: TitleTrackProfile())
+    XCTAssertEqual(before.decision.audioReason, .ladder)
+
+    let syenduk = audio("ru", 3, "Сыендук")
+    for _ in 0..<3 { store.recordAudio(syenduk.signature, in: [.title(id: seriesID)]) }
+
+    let after = preflight.plan(for: episode(), profile: TitleTrackProfile())
+    XCTAssertEqual(after.decision.audio?.signature, syenduk.signature)
+    XCTAssertEqual(after.decision.audioReason, .remembered)
+  }
+
+  /// A plan decided from API metadata is a snapshot. One decided from the renditions the
+  /// player can actually see is not, and must not be served from the same cache slot.
+  func testTheProvisionalPlanIsNotServedToThePlayer() {
+    let preflight = self.preflight()
+    let provisional = preflight.plan(for: episode(), profile: TitleTrackProfile())
+    XCTAssertTrue(provisional.isProvisional)
+
+    let real = preflight.plan(for: episode(),
+                              profile: TitleTrackProfile(),
+                              audioMenu: [audio("en", 6)])
+    XCTAssertFalse(real.isProvisional)
+    XCTAssertEqual(real.decision.audio?.languageKey, "en")
+  }
+
+  func testThePlanCarriesTheScopesItWasDecidedFrom() {
+    let plan = preflight().plan(for: episode(), profile: TitleTrackProfile())
+    XCTAssertEqual(plan.scopes, [.episode(titleID: seriesID, season: 2, episode: 5),
+                                 .season(titleID: seriesID, season: 2),
+                                 .title(id: seriesID)])
+  }
+
   // MARK: - Warming
 
   /// Warming is an optimisation for episodes that arrive without links. Anything else must
