@@ -971,11 +971,13 @@ extension PlayerManager {
 
 }
 
+/// Witnesses to a public protocol from another module must be public, even though the
+/// conformance itself is only used here.
 extension AVMediaSelectionOption: AudioRendition {
 
-  var renditionName: String { kinopubTrackName }
+  public var renditionName: String { kinopubTrackName }
 
-  var describesVideoForAccessibility: Bool {
+  public var describesVideoForAccessibility: Bool {
     hasMediaCharacteristic(.describesVideoForAccessibility)
   }
 
@@ -999,7 +1001,7 @@ extension AVMediaSelectionOption: AudioRendition {
 
   /// The rendition's language, from the option's locale, then its `LANGUAGE=` tag. Falls
   /// back to the name so a match by language at least has something to compare.
-  var renditionLanguageCode: String {
+  public var renditionLanguageCode: String {
     if let code = locale?.language.languageCode?.identifier, !code.isEmpty { return code }
     let tag = extendedLanguageTag ?? ""
     if !tag.isEmpty { return tag }
