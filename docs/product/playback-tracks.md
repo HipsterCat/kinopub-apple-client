@@ -11,17 +11,24 @@ is true.
 
 ## Scopes
 
-**prd** — A decision is looked up in this order, first hit wins:
+**prd** — A decision is looked up in this order, first hit wins. The order lives in exactly one
+place, `TrackMemoryScope.chain(titleID:season:episode:isAnime:)`:
 
-| Scope | Key | Why it exists |
+| Step | Key | Why it exists |
 | --- | --- | --- |
+| Episode | title id + season + episode | What this very episode last played. A rewatch replays it |
 | Season | title id + season number | Studios change between seasons — the team that dubbed S1 may not have done S4 |
 | Title | title id | The series or film as a whole |
-| Class | `anime` | *"надо запоминать для аниме его предпочтения, не на тайтл"* — a new anime opens the way the last one did |
-| Ladder | — | Settings, then the system's preferred languages |
+| Genre | `anime` | *"надо запоминать для аниме его предпочтения, не на тайтл"* — a new anime opens the way the last one did |
+| App settings | — | Preferred languages and the dub floor. **Mirrors the system list until it is set** |
+| System | — | `Locale.preferredLanguages`, in order |
+
+The last two are not scopes and hold no history: they are the ladder the resolver falls back to when
+nothing above answered.
 
 **prd** — A play writes to **every** scope that applies, not only the most specific one. Watching
-S2E5 in a studio's multi-voice teaches the season, the title and — on an anime — the anime class.
+S2E5 in a studio's multi-voice teaches that episode, the season, the title and — on an anime — the
+anime bucket.
 
 **prd** — Only `anime` is a class. It is a kino.pub genre and it is about to be a section of ours;
 cartoons (genre 23, `мультфильм`) are **not** anime and do not share the bucket.
@@ -97,9 +104,6 @@ Japanese. Nothing is fetched for this, and no provider field is added.
 
 ## Open
 
-- **Rewatch.** An episode already watched is resolved by exactly the same rules as a new one; we do
-  not store a per-episode track. Whether a rewatch should instead replay what it was watched with is
-  undecided.
 - **Decay.** A ledger entry never ages. If a viewer's taste moves, the new choice has to out-count
   the old one rather than out-date it.
 - **Where the answer comes from before the player opens.** The resolver is pure and takes a menu, so
