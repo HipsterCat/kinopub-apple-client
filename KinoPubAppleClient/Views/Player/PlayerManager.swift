@@ -385,17 +385,7 @@ class PlayerManager: ObservableObject {
     if !playItem.audioTracks.isEmpty { return playItem.audioTracks }
 #if os(tvOS)
     guard let group else { return [] }
-    return group.options.enumerated().map { index, option in
-      let name = option.kinopubTrackName
-      return AudioTrackInfo(
-        lang: option.kinopubLanguageCode,
-        typeTitle: name,
-        authorTitle: AudioTracks.authorFromDisplayName(name),
-        channels: AudioTracks.channelCount(fromLabel: name),
-        index: index,
-        isAudioDescription: option.hasMediaCharacteristic(.describesVideoForAccessibility)
-      )
-    }
+    return AudioRenditions.menu(from: group.options)
 #else
     return []
 #endif
@@ -896,36 +886,15 @@ extension PlayerManager {
     }
   }
 
-  /// The rendition carrying `track`. `HLSMasterResourceLoader` names renditions with
-  /// `AudioTracks.baseLabel` and uniques duplicates with a " ∙ n" suffix — HLS forbids two
-  /// identical `NAME=` in one group — so an exact match is tried before the suffixed one.
-  ///
-  /// A synthesised menu was built from these very options, so there `index` is the answer.
+  /// Matching rules and their reasons live in `AudioRenditions`, where they are covered by
+  /// tests that need no asset.
   private func option(for track: AudioTrackInfo,
                       in group: AVMediaSelectionGroup) -> AVMediaSelectionOption? {
-    guard !playItem.audioTracks.isEmpty else {
-      return group.options.indices.contains(track.index) ? group.options[track.index] : nil
-    }
-    let label = AudioTracks.baseLabel(track)
-    if let exact = group.options.first(where: { $0.kinopubTrackName == label }) { return exact }
-    return group.options.first { option in
-      let name = option.kinopubTrackName
-      guard name.hasPrefix(label) else { return false }
-      return name.dropFirst(label.count).hasPrefix(" ∙ ")
-    }
+    AudioRenditions.rendition(for: track, in: group.options, apiTracks: playItem.audioTracks)
   }
 
-  /// How the dub playing right now is written down. The API row when the rendition maps
-  /// back to one, otherwise read off the rendition's own name.
   private func audioSignature(for option: AVMediaSelectionOption) -> AudioTrackSignature {
-    let name = option.kinopubTrackName
-    if let track = playItem.audioTracks.first(where: { AudioTracks.baseLabel($0) == name })
-      ?? playItem.audioTracks.first(where: { name.hasPrefix(AudioTracks.baseLabel($0)) }) {
-      return track.signature
-    }
-    return AudioTrackSignature(languageKey: option.kinopubLanguageCode,
-                               kindRank: AudioTracks.kindRank(fromLabel: name),
-                               studio: AudioTracks.authorFromDisplayName(name))
+    AudioRenditions.signature(for: option, apiTracks: playItem.audioTracks)
   }
 
   /// The audio track showing right now, whether we auto-picked it or the user chose it in
@@ -1002,7 +971,13 @@ extension PlayerManager {
 
 }
 
-extension AVMediaSelectionOption {
+extension AVMediaSelectionOption: AudioRendition {
+
+  var renditionName: String { kinopubTrackName }
+
+  var describesVideoForAccessibility: Bool {
+    hasMediaCharacteristic(.describesVideoForAccessibility)
+  }
 
   /// The rendition's `NAME=` from the master playlist — the label carrying dub kind and
   /// studio, which is the whole point of `HLSAudioLabeler`.
@@ -1024,7 +999,7 @@ extension AVMediaSelectionOption {
 
   /// The rendition's language, from the option's locale, then its `LANGUAGE=` tag. Falls
   /// back to the name so a match by language at least has something to compare.
-  var kinopubLanguageCode: String {
+  var renditionLanguageCode: String {
     if let code = locale?.language.languageCode?.identifier, !code.isEmpty { return code }
     let tag = extendedLanguageTag ?? ""
     if !tag.isEmpty { return tag }
