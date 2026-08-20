@@ -62,8 +62,10 @@ title bar and `MPNowPlayingInfoCenter`, and SwiftUI's `VideoPlayer` exposes none
   function over a menu + what the scopes remember + settings; scopes are season → title → `anime`
   class → ladder. Do not add a second selection rule beside it, and do not remember a dub by
   rendition name, index or URL — those differ between two episodes of one season. Rules and reasons:
-  `docs/product/playback-tracks.md`. **Still unwired:** `AudioTrackMemory` / `AudioTrackRanker` and
-  `SubtitleTrackMemory` are what `PlayerManager` uses today, and they are the things it replaces.
+  `docs/product/playback-tracks.md`. `TrackPreferenceStore` owns the ledgers and writes to every
+  scope a play teaches; `PlaybackSession` derives `TitleTrackProfile` because genres and countries
+  live on the *item* and an `Episode` is not one. `AudioTrackMemory` / `AudioTrackRanker` are
+  **deleted** — do not reintroduce a second ranking ladder beside the resolver.
 - **Stream survey:** kino.pub deliveries surveyed were AVFoundation-friendly H.264/AAC — **no FFmpeg
   engine** for core playback. That survey does not globally ban capability badges (4K/HDR) when item
   and device flags support them.
@@ -75,6 +77,10 @@ title bar and `MPNowPlayingInfoCenter`, and SwiftUI's `VideoPlayer` exposes none
 
 - **Resume race:** `PlayerView.onAppear` → `fetchWatchMark` → seek. And resume currently reads the
   wrong episode in `PlayerManager`.
+- **A package that builds under `swift test` can still break the app.** `swift test` runs the
+  package on **macOS only**, so a symbol fenced `#if os(macOS)` and used unfenced compiles there and
+  fails every simulator build — `MediaCardView`'s `isHovered` did exactly that. The tvOS/iOS
+  `xcodebuild` jobs are the only thing that catches it; read them before believing green tests.
 - **SRT fetch needs encoding detection** — Russian subtitles are routinely windows-1251.
 - **Cue lookup is a linear scan** over ~2000 cues several times a second; it wants a binary search
   plus a cursor.
