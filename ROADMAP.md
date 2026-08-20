@@ -409,8 +409,20 @@ tvOS-only properties.
 - [ ] PiP that survives backgrounding on iOS (needs an `AVAudioSession` `.playback` category and
       `UIBackgroundModes: audio`; `allowsPictureInPicturePlayback` alone stops at backgrounding)
 - [ ] Verify AirPlay / Now Playing / Control Center titles and artwork on every platform
-- [ ] Per-show audio track memory; fix subtitles-follow-episode (`MediaItem.subtitles` reads the
-      first video only)
+- [x] Track preference rules written down and covered by tests — `TrackResolver`,
+      `TrackPreferenceLedger`, [docs/product/playback-tracks.md](docs/product/playback-tracks.md).
+      Pure, no player: scopes (season → title → anime class → ladder), weight by episodes
+      watched, a new dub beating a provisional habit, the dub floor, anime in the original
+- [ ] Wire `TrackResolver` into `PlayerManager` and retire `AudioTrackMemory` / `AudioTrackRanker`
+      and the single-name `subtitleTrackChoices`; a store to own the ledgers and record a play
+- [ ] Settings › Diagnostics: the remembered ledgers, grouped by scope — what will be chosen for
+      this season / series / film and on what principle. Then the same knowledge in labels, so a
+      dub the viewer follows can lead its list ("этот сериал человек смотрит в Сыендуке")
+- [ ] Ask the resolver *before* the player opens: a card resolves its own dub while the loader
+      spins on the tile, so the player starts on the right track instead of switching after
+- [ ] Settings for the language ladder: preferred audio languages, the dub floor,
+      `animePrefersOriginalAudio`
+- [ ] Fix subtitles-follow-episode (`MediaItem.subtitles` reads the first video only)
 - [ ] Skip data — subtitle-gap heuristic first, into `contextualActions`; then TheIntroDB (IMDb/TMDB
       keys) cached per episode; AniSkip once a MAL/AniList match exists
 - [ ] End-of-playback behavior + its Settings decision; resume-prompt default documented

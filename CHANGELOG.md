@@ -5,6 +5,37 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Which dub a title opens with is now a decided rule, not player-local guesswork (2026-08-20)
+
+- **`TrackResolver` decides audio and subtitles as one pure function** over a menu, what
+  the scopes remember, the settings and the system languages. No player, no network, no
+  storage — a card can ask it before the player exists, which is what the pre-open resolve
+  needs. Rules and their reasons: [docs/product/playback-tracks.md](docs/product/playback-tracks.md).
+- **Scopes, most specific first: season → title → `anime` class → ladder.** Season, because
+  studios change between seasons. The anime class, because a preference for watching anime
+  in the original belongs to anime, not to one title. Cartoons (genre 23) are not anime.
+- **A dub is remembered as language + kind + studio**, never a rendition name, index or URL
+  — those differ between two episodes of one season. A studio that upgrades its two-voice
+  track to a full dub still matches; "some other Russian track" deliberately does not.
+- **Weight is episodes watched, not picker opens.** Two episodes of a stopgap must not
+  outrank a season of the real preference. Count orders the ladder, recency only breaks ties.
+- **A dub never offered before beats a habit under `confidentWeight` (3).** This is the
+  "watched three episodes before anyone dubbed it properly, came back to five more seasons"
+  case. At or above that weight the habit holds, so a fresh dub cannot displace a studio the
+  viewer chose for a season.
+- **`minimumDubKind` prefers the original with subtitles over a dub below the floor**, and
+  never filters original or unknown-kind tracks — the floor is about dub quality. Ships as
+  `nil` so nothing changes silently.
+- **Subtitles come on when the audio that won is in a language the viewer does not read.**
+  One rule for anime in Japanese and for the film that only ever had an English track.
+  "Off" is a remembered choice like any other.
+- Original language is inferred from the countries on the title against the languages
+  actually on the menu. Nothing is fetched for it and no provider field was added.
+- 50 scenario tests in `TrackResolverTests`. **Not compiled or run** — the session had no
+  Swift toolchain. `AudioTrackMemory` / `AudioTrackRanker` and `SubtitleTrackMemory` are
+  still what the player uses; nothing is wired yet.
+
+
 ### Continue Watching stops offering junk in an arbitrary order (2026-08-20)
 
 - **The row is capped** (`ContinueWatchingOrder.maxItems`). `/v1/watching/serials`

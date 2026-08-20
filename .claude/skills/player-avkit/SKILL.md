@@ -58,6 +58,12 @@ title bar and `MPNowPlayingInfoCenter`, and SwiftUI's `VideoPlayer` exposes none
 - Subtitles: system HLS renditions off tvOS; tvOS may use a sidecar overlay for dual tracks. Hide the
   duplicate system subtitle button only while our menu is a strict superset.
 - Audio: system picker + master `NAME=` relabel via `HLSAudioLabeler`.
+- **Which dub and which subtitles a title opens with is `TrackResolver`, not the player.** One pure
+  function over a menu + what the scopes remember + settings; scopes are season → title → `anime`
+  class → ladder. Do not add a second selection rule beside it, and do not remember a dub by
+  rendition name, index or URL — those differ between two episodes of one season. Rules and reasons:
+  `docs/product/playback-tracks.md`. **Still unwired:** `AudioTrackMemory` / `AudioTrackRanker` and
+  `SubtitleTrackMemory` are what `PlayerManager` uses today, and they are the things it replaces.
 - **Stream survey:** kino.pub deliveries surveyed were AVFoundation-friendly H.264/AAC — **no FFmpeg
   engine** for core playback. That survey does not globally ban capability badges (4K/HDR) when item
   and device flags support them.
