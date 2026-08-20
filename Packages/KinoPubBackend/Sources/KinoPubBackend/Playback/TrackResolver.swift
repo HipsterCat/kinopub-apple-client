@@ -40,6 +40,23 @@ public enum TrackMemoryScope: Codable, Hashable {
   }
 }
 
+public extension TrackMemoryScope {
+  /// Stable key for persistence. The store versions its own container, so this never
+  /// needs a version of its own — but changing a case here orphans what is stored.
+  var storageKey: String {
+    switch self {
+    case let .episode(titleID, season, episode):
+      return "e:\(titleID):\(season.map(String.init) ?? "-"):\(episode)"
+    case let .season(titleID, season):
+      return "s:\(titleID):\(season)"
+    case let .title(id):
+      return "t:\(id)"
+    case let .contentClass(name):
+      return "c:\(name)"
+    }
+  }
+}
+
 public struct ScopedLedger: Equatable {
   public let scope: TrackMemoryScope
   public var ledger: TrackPreferenceLedger

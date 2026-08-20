@@ -81,6 +81,9 @@ struct AppContext: AppContextProtocol {
   var deviceService: DeviceService
   var localProgressStore: LocalWatchProgressStore
   var libraryState: MediaLibraryStore
+  /// Which dub and which subtitles each title opens with. Local-only knowledge the
+  /// server has no concept of, which is why it does not live on `MediaLibraryStore`.
+  var trackPreferences = TrackPreferenceStore()
 
   static let shared: AppContext = {
     let configuration = BundleConfiguration()

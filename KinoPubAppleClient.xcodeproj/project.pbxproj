@@ -17,6 +17,7 @@
 		6DEC18B89FE39E3461D9C4BE /* BookmarkMembershipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA67574E8F59DCCBF4B88BF /* BookmarkMembershipStore.swift */; };
 		6DEC18B89FE39E3461D9C4BF /* BookmarkFoldersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA67574E8F59DCCBF4B88C0 /* BookmarkFoldersStore.swift */; };
 		A1B2C3D411B5A0E000000002 /* MediaLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D411B5A0E000000001 /* MediaLibraryStore.swift */; };
+		A1B2C3D411B5A0E000000012 /* TrackPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D411B5A0E000000011 /* TrackPreferenceStore.swift */; };
 		702A02E524E03828B24D58EE /* SectionVisibilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52C3C1EAD68A9B19F26BA2E /* SectionVisibilityStore.swift */; };
 		84B06A5DC1674B8DBDF075FC /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673B11D8E07244CCADA6EBBB /* DeviceIdentity.swift */; };
 		9181898AA7F0D28971B9EAB2 /* DeviceCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B122808656F8D05B7D97DC /* DeviceCapabilities.swift */; };
@@ -207,6 +208,7 @@
 		AAA67574E8F59DCCBF4B88BF /* BookmarkMembershipStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BookmarkMembershipStore.swift; sourceTree = "<group>"; };
 		AAA67574E8F59DCCBF4B88C0 /* BookmarkFoldersStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BookmarkFoldersStore.swift; sourceTree = "<group>"; };
 		A1B2C3D411B5A0E000000001 /* MediaLibraryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaLibraryStore.swift; sourceTree = "<group>"; };
+		A1B2C3D411B5A0E000000011 /* TrackPreferenceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackPreferenceStore.swift; sourceTree = "<group>"; };
 		AC55C398012BAC5D583D1A45 /* DeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceService.swift; sourceTree = "<group>"; };
 		AF84111EC8ACE8C4885E1A76 /* CollectionsServiceImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionsServiceImpl.swift; sourceTree = "<group>"; };
 		B52C3C1EAD68A9B19F26BA2E /* SectionVisibilityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SectionVisibilityStore.swift; sourceTree = "<group>"; };
@@ -386,6 +388,14 @@
 				A1B2C3D411B5A0E000000001 /* MediaLibraryStore.swift */,
 			);
 			path = MediaLibrary;
+			sourceTree = "<group>";
+		};
+		A1B2C3D411B5A0E000000013 /* Playback */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D411B5A0E000000011 /* TrackPreferenceStore.swift */,
+			);
+			path = Playback;
 			sourceTree = "<group>";
 		};
 		A1C011EC710C511EC710C501 /* Collections */ = {
@@ -853,6 +863,7 @@
 				CCF388362A71C86900242581 /* KeychainStorage */,
 				3F62C34DB1BD4457BD04AAF8 /* LocalWatchProgress */,
 				A1B2C3D411B5A0E000000003 /* MediaLibrary */,
+				A1B2C3D411B5A0E000000013 /* Playback */,
 				CCF1FF302A83CBF2004DCED9 /* User */,
 				A1C011EC710C511EC710C501 /* Collections */,
 				D3D1CE5E001CE5E001CE5E01 /* Device */,
@@ -1224,6 +1235,7 @@
 				6DEC18B89FE39E3461D9C4BE /* BookmarkMembershipStore.swift in Sources */,
 				6DEC18B89FE39E3461D9C4BF /* BookmarkFoldersStore.swift in Sources */,
 				A1B2C3D411B5A0E000000002 /* MediaLibraryStore.swift in Sources */,
+				A1B2C3D411B5A0E000000012 /* TrackPreferenceStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

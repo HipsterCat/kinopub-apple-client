@@ -54,11 +54,27 @@ final class PlaybackSession: ObservableObject {
       playItem: item,
       watchMode: mode,
       downloadedFilesDatabase: downloadedFilesDatabase,
-      actionsService: actionsService
+      actionsService: actionsService,
+      trackProfile: Self.trackProfile(for: item)
     )
     manager = created
     request = next
     return created
+  }
+
+  /// Anime-ness and the original language, for track selection.
+  ///
+  /// Both come off the **item** payload, which an `Episode` is not: it carries no genres
+  /// and no countries. The series snapshot the user browsed to get here does, so that is
+  /// what is read — and when there is none, the resolver simply falls back to the ladder.
+  private static func trackProfile(for item: any PlayableItem) -> TitleTrackProfile {
+    let snapshot = (item as? MediaItem)
+      ?? AppContext.shared.localProgressStore.snapshot(for: item.metadata.id)
+    guard let snapshot else { return TitleTrackProfile() }
+    let languages = item.audioTracks.map(\.lang) + item.subtitles.map(\.lang)
+    return TitleTrackProfile.infer(countries: snapshot.countries.map(\.title),
+                                   genres: snapshot.genres.compactMap(\.title),
+                                   trackLanguages: languages)
   }
 
   func clear() {

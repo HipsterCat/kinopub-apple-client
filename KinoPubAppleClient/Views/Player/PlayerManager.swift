@@ -76,6 +76,19 @@ class PlayerManager: ObservableObject {
   private var didFetchWatchMark = false
   /// Resume point waiting for the item to become `readyToPlay` (fetch often races prepare).
   private var pendingResumeTime: TimeInterval?
+  /// What this title is, for track selection: anime, and its original language. Derived
+  /// outside the player — the item payload knows its genres and countries, an `Episode`
+  /// does not. See `PlaybackSession.trackProfile(for:)`.
+  private let trackProfile: TitleTrackProfile
+  /// What every scope has learned about dubs and subtitles. Read on open, written on a
+  /// pick and once a play counts.
+  private let trackPreferences: TrackPreferenceStore
+  /// One play is worth one unit of weight, so a session records at most one audio
+  /// signature: the explicit pick if there is one, otherwise what it opened with, once
+  /// the episode has been watched far enough to count.
+  private var recordedAudioSignature: AudioTrackSignature?
+  /// Set once this session's subtitle choice has been written down.
+  private var recordedSubtitleSignature: SubtitleChoiceSignature?
   private static let loaderQueue = DispatchQueue(label: "com.soda.kinopub.hls-master-loader")
 
 #if os(tvOS)
@@ -91,9 +104,6 @@ class PlayerManager: ObservableObject {
   /// Set once we've auto-picked a default, so a later readiness callback can't stomp a
   /// manual choice the user made in the meantime.
   private var didChooseDefaultAudio = false
-  /// The last dub name written to `AudioTrackMemory`, so the polling persist only writes
-  /// on an actual change.
-  private var lastPersistedAudioName: String?
 #endif
 
   /// Optional on purpose: both of these used to force-unwrap, and `URL(string: "")`
@@ -130,16 +140,34 @@ class PlayerManager: ObservableObject {
     }
   }
 
+  /// The scopes this playback teaches and reads, most specific first. `WatchingMetadata.id`
+  /// is the **series** for an episode, so the title scope is the series either way, and
+  /// `video` is the episode number within `season`.
+  ///
+  /// Empty for an unresolved item: writing a preference under id 0 would pool every such
+  /// title into one bucket.
+  private var trackScopes: [TrackMemoryScope] {
+    guard watchMode == .media, playItem.metadata.isResolved else { return [] }
+    return TrackMemoryScope.chain(titleID: playItem.metadata.id,
+                                  season: playItem.metadata.season,
+                                  episode: playItem.metadata.video,
+                                  isAnime: trackProfile.isAnime)
+  }
+
   init(playItem: any PlayableItem,
        watchMode: WatchMode,
        downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>,
        actionsService: UserActionsService,
-       contentService: VideoContentService = AppContext.shared.contentService) {
+       contentService: VideoContentService = AppContext.shared.contentService,
+       trackProfile: TitleTrackProfile = TitleTrackProfile(),
+       trackPreferences: TrackPreferenceStore = AppContext.shared.trackPreferences) {
     self.playItem = playItem
     self.watchMode = watchMode
     self.actionsService = actionsService
     self.downloadedFilesDatabase = downloadedFilesDatabase
     self.contentService = contentService
+    self.trackProfile = trackProfile
+    self.trackPreferences = trackPreferences
     rateObservation = player.observe(\.rate, options: [.new]) { [weak self] player, _ in
       DispatchQueue.main.async {
         self?.isPlaying = player.rate > 0
@@ -150,7 +178,7 @@ class PlayerManager: ObservableObject {
     playerTimeObserver = PlayerTimeObserver(player: player, period: 10.0, timeUpdateHandler: { [weak self] time in
       self?.saveWatchMark(time: time)
 #if os(tvOS)
-      self?.persistAudioSelectionIfNeeded()
+      self?.persistAudioSelectionIfNeeded(at: time)
 #endif
     })
 
@@ -336,8 +364,44 @@ class PlayerManager: ObservableObject {
     watchMode == .media && !subtitleTracks.isEmpty
   }
 
-  /// The tracks to open with: what was picked last time on this title, otherwise the
-  /// defaults from Profile → Playback.
+  /// **Which dub and which subtitles this opens with.** One answer, from `TrackResolver`,
+  /// asked at both the points that need it — subtitles at init, audio once the renditions
+  /// publish — so the two can never disagree about what is playing.
+  ///
+  /// Rules: docs/product/playback-tracks.md
+  private func trackDecision(audioMenu: [AudioTrackInfo]) -> TrackDecision {
+    TrackResolver.resolve(audio: audioMenu,
+                          subtitles: subtitleTracks,
+                          ledgers: trackPreferences.ledgers(for: trackScopes),
+                          settings: PlaybackLanguagePreferences.current,
+                          profile: trackProfile)
+  }
+
+  /// The menu the resolver reasons about. The API's list when we have it — that one
+  /// carries kind, studio and channels — otherwise one synthesised from the renditions,
+  /// so a downloaded file or an unlabelled master still gets a considered pick instead of
+  /// AVFoundation's "first rendition in the system language".
+  private func audioMenu(from group: AVMediaSelectionGroup?) -> [AudioTrackInfo] {
+    if !playItem.audioTracks.isEmpty { return playItem.audioTracks }
+#if os(tvOS)
+    guard let group else { return [] }
+    return group.options.enumerated().map { index, option in
+      let name = option.kinopubTrackName
+      return AudioTrackInfo(
+        lang: option.kinopubLanguageCode,
+        typeTitle: name,
+        authorTitle: AudioTracks.authorFromDisplayName(name),
+        channels: AudioTracks.channelCount(fromLabel: name),
+        index: index,
+        isAudioDescription: option.hasMediaCharacteristic(.describesVideoForAccessibility)
+      )
+    }
+#else
+    return []
+#endif
+  }
+
+  /// The tracks to open with.
   ///
   /// tvOS only. Everywhere else the system player lists the HLS subtitle renditions from
   /// the master itself and renders them, so downloading sidecar SRT there would fetch
@@ -346,9 +410,16 @@ class PlayerManager: ObservableObject {
 #if os(tvOS)
     guard watchMode == .media else { return }
     subtitleTracks = SubtitleSelector.tracks(in: playItem.subtitles)
-    let remembered = SubtitleTrackMemory.choice(for: playItem.metadata.id)
-    let selection = SubtitleSelector.selection(in: subtitleTracks, remembered: remembered)
-    apply(selection, remember: false)
+    let primary = trackDecision(audioMenu: playItem.audioTracks).subtitle
+    // Dual subtitles stay a Settings choice rather than something the resolver decides:
+    // a second line is a deliberate extra, not part of what a title opens with.
+    var secondary = SubtitlePreferences.dualSubtitlesEnabled
+      ? SubtitleTracks.preferred(language: SubtitlePreferences.secondSubtitleLanguage,
+                                 in: subtitleTracks,
+                                 preferNonCC: SubtitlePreferences.preferNonCCSubtitles)
+      : nil
+    if secondary == primary { secondary = nil }
+    apply(SubtitleSelector.Selection(primary: primary, secondary: secondary), remember: false)
 #endif
   }
 
@@ -391,9 +462,14 @@ class PlayerManager: ObservableObject {
     subtitlesEnabled = false
 
     if remember {
-      SubtitleTrackMemory.remember(SubtitleChoice(primary: selection.primary?.reference,
-                                                  secondary: selection.secondary?.reference),
-                                   for: playItem.metadata.id)
+      let scopes = trackScopes
+      if !scopes.isEmpty {
+        // Turning them off is a choice too — without storing it, the default turns
+        // subtitles back on every episode.
+        let signature = selection.primary.map(SubtitleChoiceSignature.init) ?? .off
+        recordedSubtitleSignature = signature
+        trackPreferences.recordSubtitle(signature, in: scopes)
+      }
     }
 
     // The transport-bar menu is the only place these tracks are shown on tvOS, so its
@@ -803,20 +879,51 @@ extension PlayerManager {
 
       if !self.didChooseDefaultAudio {
         self.didChooseDefaultAudio = true
-        let remembered = AudioTrackMemory.choice(for: self.playItem.metadata.id)
-        let chosen = remembered.flatMap { name in
-          group.options.first { $0.kinopubTrackName == name }
-        } ?? AudioTrackRanker.best(in: group.options)
-        if let chosen {
+        let menu = self.audioMenu(from: group)
+        // What this episode offered, recorded whether or not anything is chosen: a dub
+        // that shows up later is only distinguishable from one being declined if we know
+        // which menus have already been seen.
+        self.trackPreferences.noteMenu(menu, in: self.trackScopes)
+
+        let decision = self.trackDecision(audioMenu: menu)
+        if let chosen = decision.audio.flatMap({ self.option(for: $0, in: group) }) {
           item.select(chosen, in: group)
-          // Seed the persist baseline with what we opened on, so the polling write only
-          // fires once the user actually switches away from this — the auto-pick itself is
-          // not a "choice" worth remembering as one.
-          self.lastPersistedAudioName = chosen.kinopubTrackName
         }
       }
       self.rebuildTransportBarMenus()
     }
+  }
+
+  /// The rendition carrying `track`. `HLSMasterResourceLoader` names renditions with
+  /// `AudioTracks.baseLabel` and uniques duplicates with a " ∙ n" suffix — HLS forbids two
+  /// identical `NAME=` in one group — so an exact match is tried before the suffixed one.
+  ///
+  /// A synthesised menu was built from these very options, so there `index` is the answer.
+  private func option(for track: AudioTrackInfo,
+                      in group: AVMediaSelectionGroup) -> AVMediaSelectionOption? {
+    guard !playItem.audioTracks.isEmpty else {
+      return group.options.indices.contains(track.index) ? group.options[track.index] : nil
+    }
+    let label = AudioTracks.baseLabel(track)
+    if let exact = group.options.first(where: { $0.kinopubTrackName == label }) { return exact }
+    return group.options.first { option in
+      let name = option.kinopubTrackName
+      guard name.hasPrefix(label) else { return false }
+      return name.dropFirst(label.count).hasPrefix(" ∙ ")
+    }
+  }
+
+  /// How the dub playing right now is written down. The API row when the rendition maps
+  /// back to one, otherwise read off the rendition's own name.
+  private func audioSignature(for option: AVMediaSelectionOption) -> AudioTrackSignature {
+    let name = option.kinopubTrackName
+    if let track = playItem.audioTracks.first(where: { AudioTracks.baseLabel($0) == name })
+      ?? playItem.audioTracks.first(where: { name.hasPrefix(AudioTracks.baseLabel($0)) }) {
+      return track.signature
+    }
+    return AudioTrackSignature(languageKey: option.kinopubLanguageCode,
+                               kindRank: AudioTracks.kindRank(fromLabel: name),
+                               studio: AudioTracks.authorFromDisplayName(name))
   }
 
   /// The audio track showing right now, whether we auto-picked it or the user chose it in
@@ -827,14 +934,23 @@ extension PlayerManager {
   }
 
   /// The system Audio picker leaves no delegate callback to hang "remember this dub" off,
-  /// so we poll: the watch-mark tick (every 10s) is a fine cadence for persisting a track
-  /// choice, and a change since last time gets written down for the next episode.
-  func persistAudioSelectionIfNeeded() {
-    guard watchMode == .media, let option = currentAudioOption else { return }
-    let name = option.kinopubTrackName
-    guard name != lastPersistedAudioName else { return }
-    lastPersistedAudioName = name
-    AudioTrackMemory.remember(name, for: playItem.metadata.id)
+  /// so we poll the watch-mark tick.
+  ///
+  /// **Weight is episodes watched, not picker opens**, so nothing is written until the
+  /// episode passes the same floor Continue Watching uses to admit a card — a title
+  /// sampled for a minute has not taught us anything. Switching dubs mid-episode writes
+  /// the new one too; one episode can therefore contribute a unit to two dubs, which
+  /// costs a little precision and keeps the switch meaningful for the next episode.
+  func persistAudioSelectionIfNeeded(at position: TimeInterval) {
+    guard watchMode == .media,
+          position >= WatchProgress.enterContinueWatchingSeconds,
+          let option = currentAudioOption else { return }
+    let scopes = trackScopes
+    guard !scopes.isEmpty else { return }
+    let signature = audioSignature(for: option)
+    guard signature != recordedAudioSignature else { return }
+    recordedAudioSignature = signature
+    trackPreferences.recordAudio(signature, in: scopes)
   }
 
   // MARK: Menus
@@ -903,72 +1019,14 @@ extension AVMediaSelectionOption {
     if let title, !title.isEmpty { return title }
     return displayName
   }
-}
 
-/// The user's manually chosen audio track, kept per title the same way subtitles are, so
-/// the next episode opens with the same dub. The rendition's playlist name is the stable
-/// handle — it carries the dub kind and studio.
-enum AudioTrackMemory {
-  private static let storageKey = "audioTrackChoices"
-
-  static func choice(for itemID: Int, defaults: UserDefaults = .standard) -> String? {
-    stored(defaults)[String(itemID)]
-  }
-
-  static func remember(_ displayName: String, for itemID: Int, defaults: UserDefaults = .standard) {
-    var choices = stored(defaults)
-    choices[String(itemID)] = displayName
-    guard let data = try? JSONEncoder().encode(choices) else { return }
-    defaults.set(data, forKey: storageKey)
-  }
-
-  private static func stored(_ defaults: UserDefaults) -> [String: String] {
-    guard let data = defaults.data(forKey: storageKey),
-          let choices = try? JSONDecoder().decode([String: String].self, from: data) else {
-      return [:]
-    }
-    return choices
-  }
-}
-
-/// Picks a sensible default audio rendition when nothing was remembered.
-///
-/// Same ladder as the detail-page Audio column (`AudioTracks`): preferred languages,
-/// then A–Z, AD last within a language, kind (DUB → MVO → DVO → VO → AVO → Orig),
-/// studio A–Z, more channels first. The rendition's playlist name carries kind and
-/// studio; language comes from the option's locale / tag.
-enum AudioTrackRanker {
-
-  static func best(in options: [AVMediaSelectionOption],
-                   preferredLanguages: [String] = Locale.preferredLanguages) -> AVMediaSelectionOption? {
-    options.min { lhs, rhs in
-      sortKey(lhs, preferredLanguages: preferredLanguages)
-        < sortKey(rhs, preferredLanguages: preferredLanguages)
-    }
-  }
-
-  private static func sortKey(_ option: AVMediaSelectionOption,
-                              preferredLanguages: [String]) -> AudioTracks.SortKey {
-    let name = option.kinopubTrackName
-    let lang = languageCode(for: option)
-    return AudioTracks.sortKey(
-      lang: lang,
-      typeTitle: name,
-      author: AudioTracks.authorFromDisplayName(name),
-      channels: AudioTracks.channelCount(fromLabel: name),
-      isAudioDescription: option.hasMediaCharacteristic(.describesVideoForAccessibility),
-      index: 0,
-      preferredLanguages: preferredLanguages
-    )
-  }
-
-  private static func languageCode(for option: AVMediaSelectionOption) -> String {
-    if let code = option.locale?.language.languageCode?.identifier, !code.isEmpty {
-      return code
-    }
-    let tag = option.extendedLanguageTag ?? ""
+  /// The rendition's language, from the option's locale, then its `LANGUAGE=` tag. Falls
+  /// back to the name so a match by language at least has something to compare.
+  var kinopubLanguageCode: String {
+    if let code = locale?.language.languageCode?.identifier, !code.isEmpty { return code }
+    let tag = extendedLanguageTag ?? ""
     if !tag.isEmpty { return tag }
-    return option.kinopubTrackName
+    return kinopubTrackName
   }
 }
 
