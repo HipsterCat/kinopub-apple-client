@@ -140,18 +140,11 @@ class PlayerManager: ObservableObject {
     }
   }
 
-  /// The scopes this playback teaches and reads, most specific first. `WatchingMetadata.id`
-  /// is the **series** for an episode, so the title scope is the series either way, and
-  /// `video` is the episode number within `season`.
-  ///
-  /// Empty for an unresolved item: writing a preference under id 0 would pool every such
-  /// title into one bucket.
+  /// The scopes this playback teaches and reads. A trailer teaches nothing; the rest is
+  /// `PlaybackPreflight`'s to decide, so a card and the player read the same history.
   private var trackScopes: [TrackMemoryScope] {
-    guard watchMode == .media, playItem.metadata.isResolved else { return [] }
-    return TrackMemoryScope.chain(titleID: playItem.metadata.id,
-                                  season: playItem.metadata.season,
-                                  episode: playItem.metadata.video,
-                                  isAnime: trackProfile.isAnime)
+    guard watchMode == .media else { return [] }
+    return PlaybackPreflight.shared.scopes(for: playItem, profile: trackProfile)
   }
 
   init(playItem: any PlayableItem,
@@ -364,17 +357,21 @@ class PlayerManager: ObservableObject {
     watchMode == .media && !subtitleTracks.isEmpty
   }
 
-  /// **Which dub and which subtitles this opens with.** One answer, from `TrackResolver`,
-  /// asked at both the points that need it — subtitles at init, audio once the renditions
-  /// publish — so the two can never disagree about what is playing.
+  /// **Which dub and which subtitles this opens with.** Asked at both the points that need
+  /// it — subtitles at init, audio once the renditions publish — so the two can never
+  /// disagree about what is playing.
+  ///
+  /// Through `PlaybackPreflight`, deliberately: the same question is asked from outside the
+  /// player, by a card or a Play button, and two ways of assembling the inputs would be two
+  /// answers. The player only contributes the one thing it can see and nobody else can —
+  /// the real renditions, when the API gave no track metadata.
   ///
   /// Rules: docs/product/playback-tracks.md
   private func trackDecision(audioMenu: [AudioTrackInfo]) -> TrackDecision {
-    TrackResolver.resolve(audio: audioMenu,
-                          subtitles: subtitleTracks,
-                          ledgers: trackPreferences.ledgers(for: trackScopes),
-                          settings: PlaybackLanguagePreferences.current,
-                          profile: trackProfile)
+    PlaybackPreflight.shared.decision(for: playItem,
+                                      profile: trackProfile,
+                                      audioMenu: audioMenu,
+                                      subtitles: subtitleTracks)
   }
 
   /// The menu the resolver reasons about. The API's list when we have it — that one
