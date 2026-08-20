@@ -273,6 +273,49 @@ final class TrackResolverTests: XCTestCase {
     XCTAssertEqual(decision.subtitle?.lang, "ru")
   }
 
+  func testTheEpisodeItselfIsAskedBeforeTheSeason() {
+    var episode = TrackPreferenceLedger()
+    episode.recordAudio(mosfilmDub.signature, at: day(50), weight: 1)
+
+    var season = TrackPreferenceLedger()
+    season.recordAudio(lostfilmMVO.signature, at: day(40), weight: 9)
+
+    let ledgers = [
+      ScopedLedger(scope: .episode(titleID: seriesID, season: 2, episode: 5), ledger: episode),
+      ScopedLedger(scope: .season(titleID: seriesID, season: 2), ledger: season),
+      ScopedLedger(scope: .title(id: seriesID), ledger: establishedLedger())
+    ]
+    let decision = decide([mosfilmDub, lostfilmMVO, syenduk], ledgers: ledgers)
+    XCTAssertEqual(decision.audio, mosfilmDub, "a rewatch replays what this episode played")
+    XCTAssertEqual(decision.audioScope,
+                   TrackMemoryScope.episode(titleID: seriesID, season: 2, episode: 5))
+  }
+
+  // MARK: - The priority chain
+
+  func testChainForAnEpisodeOfAnAnimeSeries() {
+    XCTAssertEqual(
+      TrackMemoryScope.chain(titleID: seriesID, season: 2, episode: 5, isAnime: true),
+      [.episode(titleID: seriesID, season: 2, episode: 5),
+       .season(titleID: seriesID, season: 2),
+       .title(id: seriesID),
+       .anime]
+    )
+  }
+
+  func testChainForAFilmIsJustTheTitle() {
+    XCTAssertEqual(TrackMemoryScope.chain(titleID: seriesID), [.title(id: seriesID)])
+  }
+
+  func testChainSkipsTheAnimeBucketForOtherGenres() {
+    XCTAssertEqual(
+      TrackMemoryScope.chain(titleID: seriesID, season: 1, episode: 1, isAnime: false),
+      [.episode(titleID: seriesID, season: 1, episode: 1),
+       .season(titleID: seriesID, season: 1),
+       .title(id: seriesID)]
+    )
+  }
+
   // MARK: - The dub floor
 
   func testDubFloorPrefersTheOriginalOverATwoVoiceDub() {

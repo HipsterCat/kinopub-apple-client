@@ -8,6 +8,9 @@ import Foundation
 /// Where a remembered choice was learned. Ordered most specific first when resolving,
 /// and named so a debug screen can say *why* a title opens the way it does.
 public enum TrackMemoryScope: Codable, Hashable {
+  /// What this very episode was last watched with. First in the chain, so a rewatch
+  /// replays what it played the first time.
+  case episode(titleID: Int, season: Int?, episode: Int)
   /// Studios change between seasons — the team that dubbed S1 may not have done S4.
   case season(titleID: Int, season: Int)
   case title(id: Int)
@@ -15,6 +18,26 @@ public enum TrackMemoryScope: Codable, Hashable {
   case contentClass(String)
 
   public static let anime = TrackMemoryScope.contentClass("anime")
+
+  /// **The priority chain, most specific first.** The one place the order lives:
+  /// episode → season → title → genre → app settings → system languages. The last two
+  /// are not scopes — they are the ladder `TrackResolver` falls back to when no scope
+  /// here answers, and app settings mirror the system list until they are set.
+  public static func chain(titleID: Int,
+                           season: Int? = nil,
+                           episode: Int? = nil,
+                           isAnime: Bool = false) -> [TrackMemoryScope] {
+    var scopes: [TrackMemoryScope] = []
+    if let episode {
+      scopes.append(.episode(titleID: titleID, season: season, episode: episode))
+    }
+    if let season {
+      scopes.append(.season(titleID: titleID, season: season))
+    }
+    scopes.append(.title(id: titleID))
+    if isAnime { scopes.append(.anime) }
+    return scopes
+  }
 }
 
 public struct ScopedLedger: Equatable {
