@@ -68,7 +68,7 @@ struct PlaybackSettingsPane: View {
   private var subtitleSection: some View {
     Section {
       LabeledContent("Subtitles by default",
-                     value: SubtitlePreferences.systemWantsCaptions ? "On" : "Off")
+                     value: PlaybackLanguagePreferences.systemWantsCaptions ? "On" : "Off")
       Toggle("Default English subtitles", isOn: $preferEnglishSubtitles)
       Toggle("Prefer non-CC / non-SDH", isOn: $preferNonCCSubtitles)
       Toggle("Dual subtitles", isOn: $dualSubtitlesEnabled)
