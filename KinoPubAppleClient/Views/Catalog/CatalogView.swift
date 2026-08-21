@@ -41,10 +41,6 @@ struct CatalogView: View {
       catalogView
         .platformNavigationTitle(title)
         .background(Color.KinoPub.background)
-#if os(iOS)
-        .browseNavigationChrome()
-        .iosSettingsToolbar(for: tab)
-#endif
 #if os(macOS)
         .macToolbarSearch()
 #endif

@@ -80,23 +80,28 @@ sidebar and clips the first poster. `MediaItemView` deliberately ignores **top o
 
 ### Scroll-edge effect
 
-`scrollEdgeEffectStyle(.automatic, for: .top)` on the app's `ScrollView`-backed grids and rows
-(`ContentItemsListView`, `MediaCardsListView`, `MediaRowsView`). `List`-backed screens get it
-automatically; a plain `ScrollView` does not. Gated `#if !os(tvOS)` — no floating bar sits over
-those tvOS screens for content to slide under. Not applied to the detail page's hero scroll, which
-hides the nav-bar background on purpose so artwork runs to the top edge.
+`scrollEdgeEffectStyle(.automatic, for: .top)` on grids that sit under a navigation
+bar (`ContentItemsListView`, `MediaCardsListView`, and `MediaRowsView` when
+`showsScrollEdgeEffect` is true). Tab roots (Home / Watching / Bookmarks) have no
+header, so they pass `false` — a fade with nothing to slide under is a smear at the
+top of the page. `List`-backed screens get it automatically; a plain `ScrollView`
+does not. Gated `#if !os(tvOS)` — no floating bar sits over those tvOS screens for
+content to slide under. Not applied to the detail page's hero scroll, which hides
+the nav-bar background on purpose so artwork runs to the top edge.
 
 ## Navigation, tabs, search
 
 **Facts**
 
 - One `NavigationStack` per tab, with a unified route enum + destination registry.
-- **iPhone / iPad:** `Tab(role: .search)` pins Search on the **trailing** edge. Do not use legacy
-  `.tabItem` for Search — that keeps it as a normal left-side tab.
+- **iPhone / iPad:** `Tab(value:role: .search)` pins Search on the **trailing** edge. Do not
+  pass a title or `systemImage` — that keeps it as a normal peer tab. Do not use legacy
+  `.tabItem` for Search.
 - **tvOS:** Search is a normal **first** tab, left of Home. Do **not** use `Tab(role: .search)`
   there — the search role pins trailing.
 - **tvOS tab bar shape is icon · text · … · icon**: Search and Settings are glyph-only, browse
-  tabs are words. With Movies/Shows gated off that is Search · Home · Library · Settings.
+  tabs are words. With Movies/Shows gated off that is Search · Home · Watching ·
+  Bookmarks · Settings.
   Pass a bare `Image` / `Text` as the `Tab` label — `Tab("Title", systemImage:)` gives every
   tab an icon+label chip, which is the thing to avoid. Glyph tabs still carry
   `.accessibilityLabel`. **No in-content Back button on tvOS**: Search is a tab, so the way
@@ -120,16 +125,20 @@ hides the nav-bar background on purpose so artwork runs to the top edge.
 **Ours**
 
 - Shipping shell is the classic system `TabView` everywhere, until `.sidebarAdaptable` / a locked
-  sidebar is done the **system** way. Movies / Shows tabs are gated by
-  `FeatureFlags.catalogBrowseTabsEnabled` (off until those pages are Home-shaped section feeds):
-  tvOS `.tabBarOnly` Search · Home · Library · Settings; macOS `.tabBarOnly` Home · Library +
-  toolbar search; iPhone / iPad Home · Library + trailing `Tab(role: .search)`. Settings on iOS
-  is a navigation-bar gear (sheet), not a tab — a sixth tab is what shoved it into More.
+  sidebar is done the **system** way. Browse tabs are **Home · Watching · Bookmarks**. Movies /
+  Shows tabs are gated by `FeatureFlags.catalogBrowseTabsEnabled` (off until those pages are
+  Home-shaped section feeds): tvOS `.tabBarOnly` Search · Home · Watching · Bookmarks · Settings;
+  macOS `.tabBarOnly` Home · Watching · Bookmarks + toolbar search; iPhone / iPad the same three
+  plus trailing `Tab(value:role: .search)` with no title. Settings on iOS is a navigation-bar
+  gear on tab roots (sheet), not a tab — extra tabs are what shoved it into More.
 - **iOS tab bar minimizes on scroll-down** (`.tabBarMinimizeBehavior(.onScrollDown)`), matching
-  kinolab / HIG. Do not pin it with `.never`, and do not chase it with `.toolbar(.hidden, for:
-  .tabBar)` or a custom bar over content. Browse roots use `.toolbarTitleDisplayMode(.inlineLarge)`
-  so the title lives in the glass bar, plus 27-only `.toolbarMinimizationBehavior(.onScrollDown)`
-  so the bar hides on scroll-down and returns on scroll-up.
+  kinolab / HIG. Do not pin it with `.never`. Hide it on **pushed** destinations
+  (`RouteStack` when the path is non-empty) so inner sections show navigation without tabs;
+  never hide it on tab roots. Tab roots have no navigation title and no scroll-edge effect.
+  Do **not** use `.toolbarMinimizationBehavior` on the navigation bar — hiding the header on
+  scroll-down and restoring it on scroll-up is rejected. Inner screens (section / collection /
+  person / shortcut see-all) set a title, keep scroll-edge, and put sort/filter in the
+  toolbar as separate `ToolbarItem`s with `Label`s.
 - Re-selecting a tab pops that tab's stack to root.
 - Zoom: `matchedTransitionSource` / `navigationTransition(.zoom)` on **iOS/tvOS** from poster,
   banner and cast. On **macOS** the API may be unavailable — say so rather than claiming transitions

@@ -26,8 +26,13 @@ struct BookmarksView: View {
     @Bindable var errorHandler = errorHandler
     RouteStack(tab: .bookmarks) {
       bookmarksRows
-        .platformNavigationTitle("Bookmarks")
         .background(Color.KinoPub.background)
+#if os(iOS)
+        .tabRootChrome(for: .bookmarks)
+#endif
+#if os(macOS)
+        .macToolbarSearch()
+#endif
         .task {
           cardMenu.bind(errorHandler: errorHandler)
           await catalog.fetchItems()
@@ -63,6 +68,7 @@ struct BookmarksView: View {
   private var rows: some View {
     MediaRowsView(
       rows: catalog.rows,
+      showsScrollEdgeEffect: false,
       navigationLinkProvider: { card in
         BookmarksRoutes.detailsById(card.id)
       },

@@ -186,7 +186,7 @@ struct SearchView: View {
     case .movies: return "Movies".localized
     case .series: return "Series".localized
     case .library: return "Library".localized
-    case .watchlist: return "Watchlist".localized
+    case .watchlist: return "Watching".localized
     case .recentlyWatched: return "Recently Watched".localized
     case .bookmarks, .bookmark: return "Bookmarks".localized
     default: return "Back".localized

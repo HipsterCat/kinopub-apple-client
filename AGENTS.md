@@ -245,9 +245,14 @@ file, and delete the losers with the switch.
 - Blur: private `CAFilter` `variableBlur` over **static** art only. **No blur over video on
   tvOS/macOS**; blur over video is fine on iOS/iPadOS.
 - Hero CTAs are a white Play pill + translucent circular secondaries — not glass.
-- **Tab bar:** system `TabView`. iOS uses `.tabBarMinimizeBehavior(.onScrollDown)` — do not pin
-  with `.never`, `.toolbar(.hidden, for: .tabBar)`, or a custom bar over content. Settings on
-  iOS is a header gear, not a tab; Search is `Tab(role: .search)`.
+- **Tab bar:** system `TabView`. Browse tabs are Home · Watching · Bookmarks. iOS Search is
+  `Tab(value:role: .search)` with **no title or systemImage** — those make it a peer chip.
+  tvOS: Search glyph · Home · Watching · Bookmarks · Settings glyph; do **not** use the search
+  role (it pins trailing). macOS: no Search/Settings tabs (toolbar search, Settings window).
+  iOS Settings is a header gear on tab roots. iOS uses `.tabBarMinimizeBehavior(.onScrollDown)`.
+  Hide the tab bar on **pushed** destinations (`RouteStack`), never on tab roots. Tab roots have
+  no navigation title and no scroll-edge effect; inner screens have a title, scroll-edge, and
+  toolbar sort/filter. Do not minimize the navigation bar on scroll.
 - No shadows on tvOS cards / badges / action buttons.
 
 Details: skill `apple-chrome`.

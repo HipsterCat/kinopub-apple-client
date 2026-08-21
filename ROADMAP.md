@@ -38,10 +38,11 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
 - [x] Private `variableBlur` replaces the Metal progressive blur
 - [x] Unified routes + zoom transitions (iOS/tvOS)
 - [x] `TabsNavigationView` collapsed into one tab table + `RouteStack`
-- [x] iOS/iPad shell: `Tab(role: .search)`, Settings as a navigation-bar gear (not More),
-      Movies/Shows tabs gated off (`FeatureFlags.catalogBrowseTabsEnabled`) until they are
-      Home-shaped section feeds. Nav bar title is `inlineLarge` in the glass bar; iOS 27
-      minimizes the bar on scroll-down
+- [x] iOS/iPad shell: Home · Watching · Bookmarks + trailing `Tab(value:role: .search)` (no
+      title/systemImage). Settings as a navigation-bar gear on tab roots (not More). Movies/Shows
+      tabs gated off (`FeatureFlags.catalogBrowseTabsEnabled`) until they are Home-shaped section
+      feeds. Tab roots have no nav title and no scroll-edge; pushed screens have a title, hide
+      the tab bar, and put sort/filter in the toolbar. Nav bar is not minimized on scroll.
 - [ ] Movies / Shows tabs return as Home-shaped section feeds (not a sorted grid + pinned
       shortcut picker). Home already has Hot/Fresh/Popular rows; a row's "see all" still
       pushes `ShortcutItemsView`

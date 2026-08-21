@@ -36,14 +36,13 @@ struct MainView: View {
       // navigation and tab bars, and, on a failed or empty load, a mirrored copy of
       // the error placeholder. The native Apple TV app does not do this.
       //
-      // The navigation bar is left to the system Liquid Glass. On iOS the title
-      // lives in the bar (`browseNavigationChrome`) so it does not overlay
-      // posters as a content-area large title with no fill.
+      // The navigation bar is left to the system Liquid Glass. Tab roots have no
+      // title (the tab bar names the page) and no scroll-edge fade — there is no
+      // header for posters to slide under. Inner pushes set their own title.
       rowsView
-        .platformNavigationTitle("Home")
+        .background(Color.KinoPub.background)
 #if os(iOS)
-        .browseNavigationChrome()
-        .iosSettingsToolbar(for: .home)
+        .tabRootChrome(for: .home)
 #endif
 #if os(macOS)
         .macToolbarSearch()
@@ -90,6 +89,7 @@ struct MainView: View {
       // Gated by `FeatureFlags.homeBannerEnabled`. When off, HomeCatalog also
       // skips sampling so wide-poster artwork is never requested.
       bannerCards: FeatureFlags.homeBannerEnabled ? catalog.bannerCards : [],
+      showsScrollEdgeEffect: false,
       navigationLinkProvider: { card in
         if card.opensCollection {
           Route.collection(CollectionMediaCard.routeCollection(from: card))
@@ -118,7 +118,7 @@ struct MainView: View {
     )
   }
 
-  /// Continue Watching's "see all" is the Library tab, not a push: what the row shows
+  /// Continue Watching's "see all" is the Watching tab, not a push: what the row shows
   /// is the head of three lists that live there — series being watched, films being
   /// watched, and history. Every other row's chevron still pushes its own grid, so the
   /// destination stays on the row and only this one is attached here, where navigation
@@ -126,7 +126,7 @@ struct MainView: View {
   private var homeRows: [MediaRow] {
     catalog.rows.map { row in
       guard row.id == HomeCatalog.continueWatchingRowID else { return row }
-      return row.opening { navigationState.selectedTab = .library }
+      return row.opening { navigationState.selectedTab = .watchlist }
     }
   }
 

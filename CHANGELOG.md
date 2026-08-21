@@ -7,18 +7,22 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ### iOS/macOS navigation shell matches HIG Liquid Glass (2026-08-21)
 
-- **Search is `Tab(role: .search)`** on iPhone and iPad (trailing, morphs to the field).
-  Settings is a navigation-bar gear that presents a sheet, not a tab — Home + Movies +
-  Shows + Library + Settings was five items, Search a sixth, and UITabBar dumped the
-  overflow into More (the three dots). macOS still uses the Settings window / ⌘,; tvOS
-  keeps Settings as a trailing glyph.
-- **Movies / Shows tabs are gated off** (`FeatureFlags.catalogBrowseTabsEnabled`). They
-  come back as Home-shaped section feeds; the pinned shortcut/sort button is gone. Home
-  still has Hot/Fresh/Popular rows.
-- **Home/Library title lives in the glass bar** (`.toolbarTitleDisplayMode(.inlineLarge)`),
-  so it no longer overlays posters as a content-area large title with no fill. iOS 26
-  minimizes the tab bar on scroll-down; iOS 27 also minimizes the navigation bar
-  (`.toolbarMinimizationBehavior(.onScrollDown)`).
+- **Browse tabs are Home · Watching · Bookmarks.** Watching is watchlist serials +
+  unfinished movies + recently watched as Home-shaped rows. Bookmarks is the folder
+  shelves. The combined Library tab is gone (leftover `.library` remaps to Watching).
+  Movies / Shows stay gated off (`FeatureFlags.catalogBrowseTabsEnabled`).
+- **Search is `Tab(value:role: .search)`** on iPhone and iPad — trailing, no title or
+  systemImage (those made it a third peer chip). Settings is a navigation-bar gear on
+  tab roots that presents a sheet, not a tab. macOS still uses the Settings window /
+  ⌘,; tvOS keeps Settings as a trailing glyph. tvOS browse order is Search · Home ·
+  Watching · Bookmarks · Settings.
+- **Tab roots have no navigation title and no scroll-edge fade** — the tab bar names
+  the page, and a fade with no header is a smear over posters. Pushed screens (section,
+  collection, person, shortcut see-all) keep a title + scroll-edge and hide the tab bar.
+  Sort / filter on those grids live in the navigation toolbar as separate `Label` menus,
+  not a bar glued to the content.
+- **iOS tab bar minimizes on scroll-down** (`.tabBarMinimizeBehavior(.onScrollDown)`).
+  The navigation bar does **not** hide-on-scroll-down / restore-on-scroll-up.
 
 ### CI skips macos-26 jobs when the diff cannot compile (2026-08-21)
 

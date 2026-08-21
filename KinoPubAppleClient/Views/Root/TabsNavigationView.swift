@@ -21,17 +21,18 @@ import KinoPubKit
 ///
 /// - **tvOS:** `.tabBarOnly` (top); glyph · word · … · glyph. Search is the **first**
 ///   tab (left of Home) — not `role: .search`, which pins trailing. Settings stays a
-///   trailing glyph.
+///   trailing glyph. Browse tabs: Home · Watching · Bookmarks.
 /// - **macOS:** `.tabBarOnly`; no Settings tab (Settings window / ⌘,); no Search tab —
 ///   compact trailing toolbar search via `macToolbarSearch()` on each `RouteStack`
 ///   (Finder/Photos). Return opens Search results.
-/// - **iPhone / iPad:** browse tabs + `Tab(role: .search)` trailing (HIG). Settings is
-///   a navigation-bar gear, not a tab — a sixth tab is what shoved it into More.
+/// - **iPhone / iPad:** Home · Watching · Bookmarks + `Tab(value:role: .search)` trailing
+///   (HIG). Do **not** pass a title or systemImage on the search tab — that renders it
+///   as a peer chip. Settings is a navigation-bar gear, not a tab.
 /// - **Movies / Shows** are gated by `FeatureFlags.catalogBrowseTabsEnabled` until
 ///   those pages are Home-shaped section feeds.
 ///
 /// Badges are `@available(tvOS, unavailable)` on `TabContent` — verified in the 27.0 SDK
-/// interface, not assumed — so only the non-TV bars carry the Library count.
+/// interface, not assumed — so only the non-TV bars carry Watching / Bookmarks counts.
 ///
 /// PARKED (do not re-enable until locked properly per docs/WWDC): `.sidebarAdaptable`,
 /// `TabViewCustomization`, custom `NavigationSplitView` sidebars, Home segmented
@@ -128,13 +129,15 @@ struct TabsNavigationView: View {
       tabs.append(TabSpec(tab: .movies, title: "Movies", systemImage: "movieclapper"))
       tabs.append(TabSpec(tab: .series, title: "Shows", systemImage: "rectangle.stack"))
     }
-    tabs.append(TabSpec(tab: .library, title: "Library", systemImage: "rectangle.stack.badge.person.crop"))
+    tabs.append(TabSpec(tab: .watchlist, title: "Watching", systemImage: "play.circle.fill"))
+    tabs.append(TabSpec(tab: .bookmarks, title: "Bookmarks", systemImage: "bookmark.fill"))
     return tabs
   }
 
   /// Tabs the current platform's `TabView` actually contains. Hidden catalog tabs
   /// and Settings-as-a-tab on iOS/macOS must not remain the selection — that is
-  /// what used to dump Settings into More on iPhone.
+  /// what used to dump Settings into More on iPhone. The old combined Library tab
+  /// remaps to Watching.
   private static func isVisibleTab(_ tab: NavigationTabs) -> Bool {
     switch tab {
     case .movies, .series:
@@ -151,10 +154,10 @@ struct TabsNavigationView: View {
 #else
       return true
 #endif
-    case .home, .library:
+    case .home, .watchlist, .bookmarks:
       return true
-    default:
-      return true
+    case .library, .recentlyWatched, .downloads, .bookmark:
+      return false
     }
   }
 
@@ -164,6 +167,7 @@ struct TabsNavigationView: View {
       return navigationState.searchReturnTab ?? .home
     }
 #endif
+    if tab == .library { return .watchlist }
     return .home
   }
 
@@ -203,7 +207,8 @@ struct TabsNavigationView: View {
     case .home: homeContent
     case .movies: moviesContent
     case .series: seriesContent
-    case .library: libraryContent
+    case .watchlist, .library: watchingContent
+    case .bookmarks: bookmarksContent
     default: EmptyView()
     }
   }
@@ -284,22 +289,22 @@ struct TabsNavigationView: View {
 #endif
 
 #if os(iOS)
-  /// Bottom bar on iPhone, top bar on iPad: browse tabs + trailing Search role.
-  /// Settings is the navigation-bar gear (`iosSettingsToolbar`), not a tab —
-  /// Home + Movies + Shows + Library + Settings is five items, Search becomes
-  /// a sixth, and UITabBar dumps the overflow into More (the three dots).
+  /// Bottom bar on iPhone, top bar on iPad: Home · Watching · Bookmarks + trailing
+  /// Search role. The search tab is unlabeled — a title + systemImage makes it a
+  /// third peer chip. Settings is the navigation-bar gear (`tabRootChrome`).
   private var iosTabBar: some View {
     TabView(selection: tabSelection) {
       ForEach(Self.browseTabs) { spec in
         browseTab(spec)
       }
 
-      Tab("Search", systemImage: "magnifyingglass", value: NavigationTabs.search, role: .search) {
+      Tab(value: NavigationTabs.search, role: .search) {
         searchContent
       }
     }
     .tabViewStyle(.tabBarOnly)
     .tabBarMinimizeBehavior(.onScrollDown)
+    .tabViewSearchActivation(.searchTabSelection)
   }
 #endif
 
@@ -308,12 +313,18 @@ struct TabsNavigationView: View {
   /// `@available(tvOS, unavailable)` — the TV bar builds its tabs without this.
   @TabContentBuilder<NavigationTabs>
   private func browseTab(_ spec: TabSpec) -> some TabContent<NavigationTabs> {
-    if spec.tab == .library {
+    switch spec.tab {
+    case .watchlist:
       Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
         content(for: spec.tab)
       }
-      .badge(libraryBadgeCount)
-    } else {
+      .badge(watchlistBadgeCount)
+    case .bookmarks:
+      Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
+        content(for: spec.tab)
+      }
+      .badge(bookmarksBadgeCount)
+    default:
       Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
         content(for: spec.tab)
       }
@@ -322,10 +333,6 @@ struct TabsNavigationView: View {
 #endif
 
   // MARK: - Badges
-
-  private var libraryBadgeCount: Int {
-    watchlistBadgeCount + bookmarksBadgeCount
-  }
 
   private var bookmarksBadgeCount: Int {
     sidebarFolders.reduce(0) { $0 + (Int($1.count) ?? 0) }
@@ -376,25 +383,18 @@ struct TabsNavigationView: View {
                                       contentType: .serial))
   }
 
-  /// macOS and tvOS run the sidebar shell; iOS still gets the shelf-rows Library until
-  /// its Podcasts-shaped list lands (`docs/archive/plans/library-sidebar.md`, phase 4).
-  @ViewBuilder
-  private var libraryContent: some View {
-#if os(macOS) || os(tvOS)
-    LibraryShellView(
-      model: LibraryModel(contentService: appContext.contentService,
-                          actionsService: appContext.actionsService,
-                          authState: authState,
-                          errorHandler: errorHandler),
-      catalog: LibrarySectionCatalog(contentService: appContext.contentService,
-                                     authState: authState,
-                                     errorHandler: errorHandler)
-    )
-#else
+  /// Watching: watchlist serials, unfinished movies, recently watched — Home-shaped
+  /// rows. The macOS/tvOS Library sidebar (`LibraryShellView`) is parked.
+  private var watchingContent: some View {
     LibraryView(catalog: PersonalLibraryCatalog(itemsService: appContext.contentService,
                                                 authState: authState,
                                                 errorHandler: errorHandler))
-#endif
+  }
+
+  private var bookmarksContent: some View {
+    BookmarksView(catalog: BookmarksCatalog(itemsService: appContext.contentService,
+                                            authState: authState,
+                                            errorHandler: errorHandler))
   }
 
 #if os(tvOS)

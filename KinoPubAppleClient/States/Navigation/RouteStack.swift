@@ -37,6 +37,11 @@ struct RouteStack<Content: View>: View {
     }
     .environment(\.zoomTransitionNamespace, zoom ? zoomNamespace : nil)
     .navigationStackActive(for: tab, selected: navigationState.selectedTab)
+#if os(iOS) || os(tvOS)
+    // Pushed section / collection / title: navigation bar on, tab bar off. Tab
+    // roots keep the bar — do not hide it there to fake a pinned header.
+    .toolbar(navigationState.path(for: tab).wrappedValue.isEmpty ? .automatic : .hidden, for: .tabBar)
+#endif
   }
 }
 

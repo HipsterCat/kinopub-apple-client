@@ -38,33 +38,32 @@ public extension View {
 
 #if os(iOS)
 extension View {
-  /// Root browse chrome: title lives in the Liquid Glass bar (`inlineLarge`),
-  /// not as a content-area large title that overlays posters with no fill.
-  /// On 27 the bar itself minimizes on scroll-down and restores on scroll-up.
-  func browseNavigationChrome() -> some View {
-    modifier(BrowseNavigationChromeModifier())
+  /// Tab roots (Home / Watching / Bookmarks) have no navigation title — the tab
+  /// bar already names the page — and no filled bar for content to slide under.
+  /// Settings stays a trailing gear with a hidden bar background so posters are
+  /// not overlaid by a header. Inner screens set their own title and get the
+  /// system bar + scroll-edge fade.
+  func tabRootChrome(for tab: NavigationTabs) -> some View {
+    modifier(TabRootChromeModifier(tab: tab))
   }
 
   /// Gear in the trailing navigation bar, presenting Settings as a sheet that
   /// zooms out of the button. Only at tab root — a pushed title already owns
-  /// the trailing slot (overflow / More). macOS uses the Settings window;
+  /// the trailing slot (sort / filter / overflow). macOS uses the Settings window;
   /// tvOS keeps Settings as a glyph tab.
   func iosSettingsToolbar(for tab: NavigationTabs) -> some View {
     modifier(IOSSettingsToolbarModifier(tab: tab))
   }
 }
 
-private struct BrowseNavigationChromeModifier: ViewModifier {
-  @ViewBuilder
+private struct TabRootChromeModifier: ViewModifier {
+  let tab: NavigationTabs
+
   func body(content: Content) -> some View {
-    if #available(iOS 27, *) {
-      content
-        .toolbarTitleDisplayMode(.inlineLarge)
-        .toolbarMinimizationBehavior(.onScrollDown, for: .navigationBar)
-    } else {
-      content
-        .toolbarTitleDisplayMode(.inlineLarge)
-    }
+    content
+      .toolbarTitleDisplayMode(.inline)
+      .toolbarBackground(.hidden, for: .navigationBar)
+      .iosSettingsToolbar(for: tab)
   }
 }
 
@@ -106,6 +105,8 @@ private struct IOSSettingsToolbarModifier: ViewModifier {
   private var isTabRoot: Bool {
     switch tab {
     case .home: navigationState.mainRoutes.isEmpty
+    case .watchlist: navigationState.watchlistRoutes.isEmpty
+    case .bookmarks: navigationState.bookmarksRoutes.isEmpty
     case .library: navigationState.libraryRoutes.isEmpty
     case .movies: navigationState.moviesRoutes.isEmpty
     case .series: navigationState.seriesRoutes.isEmpty
