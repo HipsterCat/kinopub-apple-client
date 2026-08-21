@@ -16,6 +16,9 @@ import AppKit
 /// Shared Settings shell: sidebar split on macOS, category list on iOS.
 struct SettingsRootView: View {
   @Environment(\.appContext) private var appContext
+#if os(iOS)
+  @Environment(\.dismiss) private var dismiss
+#endif
   @Bindable var model: ProfileModel
   @State private var selectedCategory: SettingsCategory? = .general
   @State private var showLogoutAlert = false
@@ -201,6 +204,11 @@ struct SettingsRootView: View {
         }
     }
     .platformNavigationTitle("Settings")
+    .toolbar {
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Done") { dismiss() }
+      }
+    }
     .task {
       model.fetch()
       await loadAvatar()

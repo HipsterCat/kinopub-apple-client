@@ -17,7 +17,7 @@ public struct MediaRow: Identifiable {
   /// as plain text, for rows that have no page of their own.
   public let destination: (any Hashable)?
   /// For a row whose "see all" is not a push at all — Continue Watching sends the user
-  /// to the Library tab, where the same titles live split into series, movies and
+  /// to the Watching tab, where the same titles live split into series, movies and
   /// history. Set this *or* `destination`, never both.
   public let onOpen: (() -> Void)?
 
@@ -64,6 +64,10 @@ public struct MediaRowsView: View {
   /// Long-press menu for a card. Return an empty array to leave the card without one.
   /// `surface` distinguishes shelf lockups from featured banners (artwork URL, etc.).
   private let contextMenuProvider: ((MediaCard, MediaCardContextSurface) -> [MediaCardContextEntry])?
+  /// Native fade as rows pass under a navigation bar. Tab roots have no header, so
+  /// they pass `false` — a scroll-edge effect with nothing to slide under is a smear
+  /// at the top of the page.
+  private let showsScrollEdgeEffect: Bool
 
   /// Identifies one card in one row. The same item can sit in two rows — Continue
   /// Watching and Hot Series both — so the card's own id is not unique enough to
@@ -81,6 +85,7 @@ public struct MediaRowsView: View {
 
   public init(rows: [MediaRow],
               bannerCards: [MediaCard] = [],
+              showsScrollEdgeEffect: Bool = true,
               navigationLinkProvider: @escaping (MediaCard) -> any Hashable,
               onPlay: ((MediaCard) -> Void)? = nil,
               onRowAppear: ((MediaRow) -> Void)? = nil,
@@ -90,6 +95,7 @@ public struct MediaRowsView: View {
               contextMenuProvider: ((MediaCard, MediaCardContextSurface) -> [MediaCardContextEntry])? = nil) {
     self.rows = rows
     self.bannerCards = bannerCards
+    self.showsScrollEdgeEffect = showsScrollEdgeEffect
     self.navigationLinkProvider = navigationLinkProvider
     self.onPlay = onPlay
     self.onRowAppear = onRowAppear
@@ -129,21 +135,16 @@ public struct MediaRowsView: View {
       LazyVStack(alignment: .leading, spacing: Self.rowSpacing) {
         scrollContent
       }
-      // The first section is a header with no navigation title above it, so without
-      // this it starts hard against the bar. The scroll-edge effect needs something to
-      // fade, too — content that begins level with the bar has nothing to pass under.
+      // The first section sits under the navigation bar, so without this it starts
+      // hard against the glass. The scroll-edge effect needs something to fade, too —
+      // content that begins level with the bar has nothing to pass under.
       .padding(.top, Self.rowSpacing)
       .padding(.bottom, Self.rowSpacing)
     }
 #if os(tvOS)
     .scrollClipDisabled()
-#else
-    // Native fade as rows pass under the nav bar / large title. A plain `ScrollView`
-    // doesn't inherit the edge treatment `List` gets automatically, so it needs asking
-    // for explicitly. tvOS has no floating bar over this screen to slide under — see
-    // `.claude/skills/apple-chrome/SKILL.md`.
-    .scrollEdgeEffectStyle(.soft, for: .top)
 #endif
+    .scrollEdgeEffectIfNeeded(showsScrollEdgeEffect)
   }
 
   @ViewBuilder
@@ -359,6 +360,25 @@ public struct MediaCardContextMenuModifier: ViewModifier {
     }
   }
 }
+
+#if !os(tvOS)
+private extension View {
+  @ViewBuilder
+  func scrollEdgeEffectIfNeeded(_ enabled: Bool) -> some View {
+    if enabled {
+      self.scrollEdgeEffectStyle(.soft, for: .top)
+    } else {
+      self
+    }
+  }
+}
+#else
+private extension View {
+  func scrollEdgeEffectIfNeeded(_: Bool) -> some View {
+    self
+  }
+}
+#endif
 
 #Preview("Home rows + banner") {
   NavigationStack {

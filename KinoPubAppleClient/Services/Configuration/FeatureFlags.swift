@@ -15,6 +15,13 @@ enum FeatureFlags {
   /// not sample banner cards and does not load wide poster artwork for them.
   static let homeBannerEnabled = false
 
+  /// Movies and Shows as their own browse tabs. Off until those pages are
+  /// Home-shaped section feeds rather than a sorted grid with a pinned shortcut
+  /// picker. When false the tabs are omitted and `CatalogView` is not mounted,
+  /// so the catalog is not fetched — Home still has Hot/Fresh/Popular rows, and
+  /// a row's "see all" still pushes `ShortcutItemsView`.
+  static let catalogBrowseTabsEnabled = false
+
   /// Gates the Downloads tab, the item-detail download action, and any other
   /// downloads-facing UI. `KinoPubKit`'s `DownloadManager` / `DownloadedFilesDatabase`
   /// machinery stays compiled and available either way — this only hides entry points.

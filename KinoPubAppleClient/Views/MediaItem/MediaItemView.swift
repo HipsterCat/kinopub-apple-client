@@ -565,11 +565,7 @@ struct MediaItemView: View {
   private static let ambientScale: CGFloat = 14
 
   private static func openWatchlist(_ navigationState: NavigationState) {
-#if os(macOS)
     navigationState.selectedTab = .watchlist
-#else
-    navigationState.selectedTab = .library
-#endif
   }
 }
 

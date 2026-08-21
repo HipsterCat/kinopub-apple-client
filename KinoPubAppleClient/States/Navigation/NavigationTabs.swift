@@ -12,8 +12,10 @@ enum NavigationTabs: Hashable {
   case home
   case movies
   case series
-  /// Combined Watchlist + History + Bookmarks (tvOS / iOS / iPad).
+  /// Combined Watchlist + History + Bookmarks. No longer a browse tab — Watching
+  /// and Bookmarks are separate. Kept so leftover selection can remap.
   case library
+  /// Serials being followed, unfinished movies, and recently watched — the Watching tab.
   case watchlist
   case recentlyWatched
   case downloads

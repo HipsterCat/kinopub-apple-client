@@ -7,7 +7,8 @@ import SwiftUI
 import KinoPubUI
 import KinoPubBackend
 
-/// Combined Watchlist + History + Bookmarks for tvOS / iOS / iPad.
+/// Watching tab: watchlist serials, unfinished movies, recently watched — Home-shaped
+/// rows. Bookmark folders are the Bookmarks tab.
 struct LibraryView: View {
   @EnvironmentObject var navigationState: NavigationState
   @Environment(ErrorHandler.self) var errorHandler
@@ -24,10 +25,12 @@ struct LibraryView: View {
 
   var body: some View {
     @Bindable var errorHandler = errorHandler
-    RouteStack(tab: .library) {
+    RouteStack(tab: .watchlist) {
       content
-        .platformNavigationTitle("Library")
         .background(Color.KinoPub.background)
+#if os(iOS)
+        .tabRootChrome(for: .watchlist)
+#endif
 #if os(macOS)
         .macToolbarSearch()
 #endif
@@ -54,10 +57,11 @@ struct LibraryView: View {
         Task { await catalog.refresh() }
       })
     } else if catalog.rows.isEmpty {
-      UnavailableView(title: "No Results", systemImage: "bookmark")
+      UnavailableView(title: "No Results", systemImage: "play.circle")
     } else {
       MediaRowsView(
         rows: catalog.rows,
+        showsScrollEdgeEffect: false,
         navigationLinkProvider: { card in BookmarksRoutes.detailsById(card.itemID) },
         contextMenuProvider: { card, surface in
           MediaCardContextMenus.entries(

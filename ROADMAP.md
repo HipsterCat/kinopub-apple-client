@@ -38,6 +38,14 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
 - [x] Private `variableBlur` replaces the Metal progressive blur
 - [x] Unified routes + zoom transitions (iOS/tvOS)
 - [x] `TabsNavigationView` collapsed into one tab table + `RouteStack`
+- [x] iOS/iPad shell: Home · Watching · Bookmarks + trailing `Tab(value:role: .search)` (no
+      title/systemImage). Settings as a navigation-bar gear on tab roots (not More). Movies/Shows
+      tabs gated off (`FeatureFlags.catalogBrowseTabsEnabled`) until they are Home-shaped section
+      feeds. Tab roots have no nav title and no scroll-edge; pushed screens have a title, hide
+      the tab bar, and put sort/filter in the toolbar. Nav bar is not minimized on scroll.
+- [ ] Movies / Shows tabs return as Home-shaped section feeds (not a sorted grid + pinned
+      shortcut picker). Home already has Hot/Fresh/Popular rows; a row's "see all" still
+      pushes `ShortcutItemsView`
 - [ ] Paginated Movies/Series/Search grids join the same store model
 - [ ] Item-facts TTL cache (`MetadataCache`) for kino.pub details + enrichment
 - [ ] Per-source TTL instead of one TTL passed ad hoc at call sites; stale read returns cache **and**
@@ -46,10 +54,10 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       (`ArtworkPipeline.swift`), one decoded cache keyed by target size on all four platforms.
       **Palette is not part of it** and is still open
 - [ ] Card → detail always seeds the hero from known artwork
-- [ ] Search chrome is not on the pages that need it. Movies / Shows carry the toolbar field but
-      no filters bar, and their "sort" is a sheet-based shortcut picker rather than the
-      `LibrarySortMenu` + `LibraryFiltersBar` accessory strip Search and Person already use. One
-      chrome for every grid, or the field stops meaning the same thing from page to page
+- [ ] Search chrome is not on the pages that need it. Movies / Shows tabs are gated off;
+      when they return they must share Search's `LibrarySortMenu` + `LibraryFiltersBar`
+      accessory strip rather than a pinned shortcut picker. One chrome for every grid, or
+      the field stops meaning the same thing from page to page
 - [ ] Search, beyond "it runs now": instant recents and popular queries in the empty field
       (`SearchStarters` is a hardcoded stub standing in for this), typo/transliteration correction
       while typing, an in-field dropdown of matching titles (kino.pub's own site does this — see

@@ -5,6 +5,25 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### iOS/macOS navigation shell matches HIG Liquid Glass (2026-08-21)
+
+- **Browse tabs are Home · Watching · Bookmarks.** Watching is watchlist serials +
+  unfinished movies + recently watched as Home-shaped rows. Bookmarks is the folder
+  shelves. The combined Library tab is gone (leftover `.library` remaps to Watching).
+  Movies / Shows stay gated off (`FeatureFlags.catalogBrowseTabsEnabled`).
+- **Search is `Tab(value:role: .search)`** on iPhone and iPad — trailing, no title or
+  systemImage (those made it a third peer chip). Settings is a navigation-bar gear on
+  tab roots that presents a sheet, not a tab. macOS still uses the Settings window /
+  ⌘,; tvOS keeps Settings as a trailing glyph. tvOS browse order is Search · Home ·
+  Watching · Bookmarks · Settings.
+- **Tab roots have no navigation title and no scroll-edge fade** — the tab bar names
+  the page, and a fade with no header is a smear over posters. Pushed screens (section,
+  collection, person, shortcut see-all) keep a title + scroll-edge and hide the tab bar.
+  Sort / filter on those grids live in the navigation toolbar as separate `Label` menus,
+  not a bar glued to the content.
+- **iOS tab bar minimizes on scroll-down** (`.tabBarMinimizeBehavior(.onScrollDown)`).
+  The navigation bar does **not** hide-on-scroll-down / restore-on-scroll-up.
+
 ### CI skips macos-26 jobs when the diff cannot compile (2026-08-21)
 
 - Fastlane, TestFlight yaml, markdown, `workers/`, `tools/` wake nothing.

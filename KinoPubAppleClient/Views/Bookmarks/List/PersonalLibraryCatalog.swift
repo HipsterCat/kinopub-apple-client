@@ -10,8 +10,8 @@ import OSLog
 import KinoPubLogging
 import Combine
 
-/// Watchlist + history + bookmark folders as rows — the combined Library tab on
-/// tvOS / iOS / iPad. (Search keeps its own `LibraryCatalog`.)
+/// Watchlist serials + unfinished movies + recently watched as rows — the Watching
+/// tab. Bookmark folders live on the Bookmarks tab (`BookmarksCatalog`).
 @MainActor
 class PersonalLibraryCatalog: ObservableObject {
 
@@ -29,13 +29,6 @@ class PersonalLibraryCatalog: ObservableObject {
   /// The failure behind `loadFailed`, so the retry state can say what actually went wrong.
   @Published public private(set) var loadError: Error?
 
-  /// The folder *list* itself (ids, titles, counts) isn't row-cached — it's one
-  /// cheap call, and we need it live to know which folders even exist. Only the
-  /// per-folder item fetch (the N-per-folder fanout) goes through the store.
-  private var folders: [Bookmark] = []
-  private var foldersFetchFailed = false
-  private var foldersError: Error?
-
   init(itemsService: VideoContentService,
        authState: AuthState,
        errorHandler: ErrorHandler,
@@ -52,40 +45,39 @@ class PersonalLibraryCatalog: ObservableObject {
       return
     }
 
-    folders = await fetchFolders()
     assembleRows()
     isLoaded = !rows.isEmpty
 
     await withTaskGroup(of: Void.self) { group in
       group.addTask { [store] in
-        await store.refreshIfStale(.watchlist) { [weak self] in //'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+        await store.refreshIfStale(.watchlist) { [weak self] in
           guard let self else { throw CancellationError() }
           return try await self.fetchWatchlistCards()
         }
       }
       group.addTask { [store] in
-        await store.refreshIfStale(.history) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+        await store.refreshIfStale(.watchingMovies) { [weak self] in
           guard let self else { throw CancellationError() }
-          return try await self.fetchHistoryCards()
+          return try await self.fetchWatchingMovieCards()
         }
       }
-      for folder in folders {
-        group.addTask { [store] in
-          await store.refreshIfStale(.folder(folder.id)) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
-            guard let self else { throw CancellationError() }
-            return try await self.fetchFolderCards(folder)
-          }
+      group.addTask { [store] in
+        await store.refreshIfStale(.history) { [weak self] in
+          guard let self else { throw CancellationError() }
+          return try await self.fetchHistoryCards()
         }
       }
     }
 
     assembleRows()
     isLoaded = true
-    let firstError = [self.store.lastError(.watchlist), self.store.lastError(.history)].lazy
+    let firstError = [self.store.lastError(.watchlist),
+                      self.store.lastError(.watchingMovies),
+                      self.store.lastError(.history)].lazy
       .compactMap { $0 }
       .first
-    loadFailed = rows.isEmpty && (foldersFetchFailed || firstError != nil)
-    loadError = rows.isEmpty ? (firstError ?? foldersError) : nil
+    loadFailed = rows.isEmpty && firstError != nil
+    loadError = rows.isEmpty ? firstError : nil
   }
 
   /// Pull-to-refresh: forces every row to refetch regardless of TTL.
@@ -95,7 +87,6 @@ class PersonalLibraryCatalog: ObservableObject {
     loadFailed = false
     loadError = nil
     store.invalidate(family: .watch)
-    store.invalidate(family: .bookmarks)
     await fetch()
   }
 
@@ -110,6 +101,14 @@ class PersonalLibraryCatalog: ObservableObject {
                                 cards: watchlistCards))
     }
 
+    let watchingMovieCards = store.cards(.watchingMovies)
+    if !watchingMovieCards.isEmpty {
+      assembled.append(MediaRow(id: "watchingMovies",
+                                title: "Movies".localized,
+                                count: "\(watchingMovieCards.count)",
+                                cards: watchingMovieCards))
+    }
+
     let historyCards = store.cards(.history)
     if !historyCards.isEmpty {
       assembled.append(MediaRow(id: "history",
@@ -118,29 +117,17 @@ class PersonalLibraryCatalog: ObservableObject {
                                 cards: historyCards))
     }
 
-    for folder in folders {
-      let cards = store.cards(.folder(folder.id))
-      guard !cards.isEmpty else { continue }
-      assembled.append(MediaRow(id: "bookmark-\(folder.id)",
-                                title: folder.title,
-                                count: folder.count,
-                                cards: cards,
-                                destination: BookmarksRoutes.bookmark(folder)))
-    }
-
     rows = assembled
   }
 
   private func fetchWatchlistCards() async throws -> [MediaCard] {
     let items = try await contentService.fetchWatchingSerials(subscribedOnly: true).items
-    return items.map { item in
-      MediaCard(id: item.id,
-               posterURL: item.posters.medium,
-               title: item.localizedTitle,
-               subtitle: item.originalTitle,
-               badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
-               backdropURL: item.posters.wideURL ?? item.posters.big)
-    }
+    return items.map { Self.card(for: $0, isSeries: true) }
+  }
+
+  private func fetchWatchingMovieCards() async throws -> [MediaCard] {
+    let items = try await contentService.fetchWatchingMovies().items
+    return items.map { Self.card(for: $0, isSeries: false) }
   }
 
   private func fetchHistoryCards() async throws -> [MediaCard] {
@@ -150,27 +137,18 @@ class PersonalLibraryCatalog: ObservableObject {
     return HistoryView.cards(from: history, grouping: .byShow)
   }
 
-  private func fetchFolders() async -> [Bookmark] {
-    do {
-      let all = try await contentService.fetchBookmarks().items
-      // Unfiltered into the shared store — see BookmarksCatalog.
-      BookmarkFoldersStore.shared.adopt(all)
-      let fetched = all
-        .filter { $0.count != "0" }
-        .recentlyUpdatedFirst()
-      foldersFetchFailed = false
-      foldersError = nil
-      return fetched
-    } catch {
-      Logger.app.debug("Library bookmarks failed: \(error)")
-      foldersFetchFailed = true
-      foldersError = error
-      return folders  // keep whatever we already knew rather than emptying the tab
-    }
-  }
-
-  private func fetchFolderCards(_ folder: Bookmark) async throws -> [MediaCard] {
-    try await contentService.fetchBookmarkItems(id: "\(folder.id)", page: nil).items.map(MediaCard.init)
+  /// `/v1/watching/*` sends only enough to draw a card. Serials carry episode counts
+  /// (progress + "+N new"); films carry neither.
+  private static func card(for item: WatchingItem, isSeries: Bool) -> MediaCard {
+    MediaCard(id: item.id,
+              posterURL: item.posters.medium,
+              title: item.localizedTitle,
+              subtitle: item.originalTitle,
+              progress: isSeries ? item.progress : nil,
+              badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
+              backdropURL: item.posters.wideURL ?? item.posters.big,
+              isSeries: isSeries,
+              isInWatchlist: isSeries)
   }
 
   private func subscribeForAuth() {

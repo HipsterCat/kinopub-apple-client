@@ -62,6 +62,24 @@ struct PersonItemsView: View {
     }
     .background(Color.KinoPub.background)
     .platformNavigationTitle(person.name)
+#if os(iOS) || os(macOS)
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Menu {
+          ForEach(MediaSortOrder.allCases) { order in
+            Button {
+              catalog.update { $0.sort = order }
+            } label: {
+              LibraryFiltersBar.checkmarkLabel(LocalizedStringKey(order.titleKey),
+                                               selected: catalog.filter.sort == order)
+            }
+          }
+        } label: {
+          Label("Sort", systemImage: "arrow.up.arrow.down")
+        }
+      }
+    }
+#endif
     .overlay {
       if catalog.loadFailed {
         UnavailableView(
@@ -187,10 +205,12 @@ struct PersonItemsView: View {
         count: catalog.items.isEmpty ? nil : "\(catalog.items.count)"
       )
 
+#if os(tvOS)
       Spacer(minLength: Self.heroSpacing)
 
       LibrarySortMenu(catalog: catalog)
         .font(LibraryFiltersBar.font)
+#endif
     }
     .padding(.horizontal, gridInset)
     .padding(.vertical, Self.verticalPadding)

@@ -7,8 +7,11 @@ import SwiftUI
 import KinoPubUI
 import KinoPubBackend
 
-/// A browse tab pinned to one content type — Movies or Series. Paginated grid with a
-/// sort control; searching and filtering live in the Search tab.
+/// A browse tab pinned to one content type — Movies or Series. Paginated grid;
+/// searching and filtering live in the Search tab. The pinned shortcut/sort
+/// control is gone: it sat in the navigation bar through scroll and is the
+/// reason these tabs are gated off (`FeatureFlags.catalogBrowseTabsEnabled`)
+/// until the pages are Home-shaped section feeds.
 struct CatalogView: View {
   @EnvironmentObject var navigationState: NavigationState
   @Environment(ErrorHandler.self) var errorHandler
@@ -21,7 +24,6 @@ struct CatalogView: View {
 
   @StateObject private var catalog: MediaCatalog
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
-  @State private var showShortCutPicker: Bool = false
 
   /// The tab is the whole address: `RouteStack` resolves which array of
   /// `NavigationState` backs it, so there is no separate path key path to keep in step.
@@ -39,23 +41,9 @@ struct CatalogView: View {
       catalogView
         .platformNavigationTitle(title)
         .background(Color.KinoPub.background)
-        .toolbar {
-          // Not `.primaryAction` on macOS — that placement nests inside `.searchable`
-          // and makes the search field look custom (sort glyph in the field).
-          ToolbarItem(placement: sortToolbarPlacement) {
-            Button {
-              showShortCutPicker = true
-            } label: {
-              Label("Sort", systemImage: "arrow.up.arrow.down")
-            }
-          }
-        }
 #if os(macOS)
         .macToolbarSearch()
 #endif
-        .sheet(isPresented: $showShortCutPicker) {
-          ShortcutSelectionView(shortcut: $catalog.shortcut, mediaType: $catalog.contentType)
-        }
         .handleError(state: $errorHandler.state)
         .task {
           cardMenu.bind(errorHandler: errorHandler)
@@ -64,14 +52,6 @@ struct CatalogView: View {
         .task { await cardMenu.refreshFolders() }
         .mediaCardNewFolderAlert(cardMenu)
     }
-  }
-
-  private var sortToolbarPlacement: ToolbarItemPlacement {
-#if os(iOS) || os(tvOS)
-    .topBarTrailing
-#elseif os(macOS)
-    .automatic
-#endif
   }
 
   @ViewBuilder
