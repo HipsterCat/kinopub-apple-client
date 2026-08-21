@@ -624,12 +624,6 @@
             "state": "translated",
             "value": "Аниме"
           }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anime"
-          }
         }
       }
     },
@@ -646,12 +640,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Аниме в оригинале"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anime originalo kalba"
           }
         }
       }
@@ -764,12 +752,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Audio"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Garsas"
           }
         },
         "ru": {
@@ -966,12 +948,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Если озвучка хуже выбранной, играет оригинал с субтитрами. Предпочитаемые языки берутся из системы, пока не заданы в приложении."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žemiau priimtino įgarsinimo grojamas originalas su subtitrais."
           }
         }
       }
@@ -2144,12 +2120,6 @@
             "state": "translated",
             "value": "Забыть"
           }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pamiršti"
-          }
         }
       }
     },
@@ -2167,12 +2137,6 @@
             "state": "translated",
             "value": "Забыть запомненные дорожки"
           }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pamiršti įsimintus takelius"
-          }
         }
       }
     },
@@ -2189,12 +2153,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Забыть запомненные дорожки?"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pamiršti įsimintus takelius?"
           }
         }
       }
@@ -3048,12 +3006,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Минимальная озвучка"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žemiausias priimtinas įgarsinimas"
           }
         }
       }
@@ -6040,12 +5992,6 @@
             "state": "translated",
             "value": "Пока ничего не запомнено. Выберите озвучку или субтитры в плеере — и они появятся здесь."
           }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kol kas nieko neįsiminta. Pasirinkite įgarsinimą ar subtitrus grotuve."
-          }
         }
       }
     },
@@ -6441,12 +6387,6 @@
             "state": "translated",
             "value": "Воспроизведение вернётся к настройкам выше, пока не будут сделаны новые выборы."
           }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atkūrimas grįš prie aukščiau nustatytų numatytųjų."
-          }
         }
       }
     },
@@ -6615,12 +6555,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Предпочитаемый звук"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pageidaujamas garsas"
           }
         }
       }
@@ -6845,12 +6779,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Запомненные дорожки"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Įsimintos garso takeliai"
           }
         }
       }
@@ -7812,12 +7740,6 @@
             "state": "translated",
             "value": "Субтитры по умолчанию"
           }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Subtitrai pagal nutylėjimą"
-          }
         }
       }
     },
@@ -8440,12 +8362,6 @@
             "state": "translated",
             "value": "Появляются ли субтитры по умолчанию — берётся из Настройки › Универсальный доступ › Субтитры. Также они включаются, когда звук на языке, который вы не читаете."
           }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ar subtitrai rodomi pagal nutylėjimą, nustatoma sistemos nustatymuose."
-          }
         }
       }
     },
@@ -8462,12 +8378,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Весь тайтл"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visas pavadinimas"
           }
         }
       }

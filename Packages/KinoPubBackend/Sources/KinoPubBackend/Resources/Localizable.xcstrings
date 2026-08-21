@@ -131,12 +131,6 @@
             "value": "Subtitles off"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Subtitrai išjungti"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
