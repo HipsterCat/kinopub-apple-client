@@ -87,7 +87,7 @@ final class AudioRenditionsTests: XCTestCase {
 
     XCTAssertEqual(menu.count, 3)
     XCTAssertEqual(menu[0].kindRank, 0, "the dub kind is readable from the name")
-    XCTAssertEqual(menu[0].signature.studio, "мосфильм")
+    XCTAssertEqual(menu[0].signature.studio, "Мосфильм", "display keeps the source's own case")
     XCTAssertEqual(menu[1].languageKey, "ja")
     XCTAssertTrue(menu[2].isAudioDescription)
     XCTAssertEqual(menu.map(\.index), [0, 1, 2], "index is the rendition's position")
@@ -132,7 +132,7 @@ final class AudioRenditionsTests: XCTestCase {
 
     XCTAssertEqual(signature.languageKey, "ru")
     XCTAssertEqual(signature.kindRank, 2)
-    XCTAssertEqual(signature.studio, "jaskier")
+    XCTAssertEqual(signature.studio, "Jaskier", "display keeps the source's own case")
   }
 
   func testAnUnlabelledRenditionStillCarriesItsLanguage() {

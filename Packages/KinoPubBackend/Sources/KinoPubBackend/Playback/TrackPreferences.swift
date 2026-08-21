@@ -16,22 +16,33 @@ public struct AudioTrackSignature: Codable, Hashable {
   public let languageKey: String
   /// `AudioTracks.kindRank`: 0 DUB, 1 MVO, 2 DVO, 3 VO, 4 AVO, 5 Orig, 6 unknown.
   public let kindRank: Int
-  /// Lowercased studio, `nil` when the track is anonymous.
+  /// Trimmed, **original case** — this is what `displayLabel` shows, so lowercasing it
+  /// here would turn "Мосфильм" into "мосфильм" on screen. Equality and hashing compare
+  /// `studioKey` instead, so two differently-cased spellings of one studio are still one
+  /// signature.
   public let studio: String?
 
   public init(languageKey: String, kindRank: Int, studio: String?) {
     self.languageKey = SubtitleTracks.languageKey(languageKey)
     self.kindRank = kindRank
-    let trimmed = studio?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    if let trimmed, !trimmed.isEmpty {
-      self.studio = trimmed
-    } else {
-      self.studio = nil
-    }
+    let trimmed = studio?.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.studio = (trimmed?.isEmpty ?? true) ? nil : trimmed
   }
 
   public init(_ track: AudioTrackInfo) {
     self.init(languageKey: track.lang, kindRank: track.kindRank, studio: track.authorTitle)
+  }
+
+  private var studioKey: String? { studio?.lowercased() }
+
+  public static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.languageKey == rhs.languageKey && lhs.kindRank == rhs.kindRank && lhs.studioKey == rhs.studioKey
+  }
+
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(languageKey)
+    hasher.combine(kindRank)
+    hasher.combine(studioKey)
   }
 
   /// A studio that keeps its name across a kind change is the same choice: when a team
@@ -41,8 +52,8 @@ public struct AudioTrackSignature: Codable, Hashable {
   public func matches(_ track: AudioTrackInfo) -> Bool {
     let candidate = AudioTrackSignature(track)
     if candidate == self { return true }
-    guard let studio, let otherStudio = candidate.studio else { return false }
-    return candidate.languageKey == languageKey && otherStudio == studio
+    guard let studioKey, let otherKey = candidate.studioKey else { return false }
+    return candidate.languageKey == languageKey && otherKey == studioKey
   }
 }
 
