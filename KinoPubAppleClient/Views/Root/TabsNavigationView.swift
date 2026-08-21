@@ -19,14 +19,16 @@ import KinoPubKit
 /// changed, which is how the iPad bar's comment ended up describing a shape its own code
 /// did not build.
 ///
-/// - **tvOS:** `.tabBarOnly` (top); glyph · word · word · word · word · glyph. Search is
-///   the **first** tab (left of Home) — not `role: .search`, which pins trailing.
+/// - **tvOS:** `.tabBarOnly` (top); glyph · word · … · glyph. Search is the **first**
+///   tab (left of Home) — not `role: .search`, which pins trailing. Settings stays a
+///   trailing glyph.
 /// - **macOS:** `.tabBarOnly`; no Settings tab (Settings window / ⌘,); no Search tab —
 ///   compact trailing toolbar search via `macToolbarSearch()` on each `RouteStack`
 ///   (Finder/Photos). Return opens Search results.
-/// - **iPad:** `.tabBarOnly`; Search glyph **first**, Settings gear last, icon+word in
-///   between.
-/// - **iPhone:** bottom bar; `Tab(role: .search)` pins Search trailing (HIG).
+/// - **iPhone / iPad:** browse tabs + `Tab(role: .search)` trailing (HIG). Settings is
+///   a navigation-bar gear, not a tab — a sixth tab is what shoved it into More.
+/// - **Movies / Shows** are gated by `FeatureFlags.catalogBrowseTabsEnabled` until
+///   those pages are Home-shaped section feeds.
 ///
 /// Badges are `@available(tvOS, unavailable)` on `TabContent` — verified in the 27.0 SDK
 /// interface, not assumed — so only the non-TV bars carry the Library count.
@@ -37,9 +39,6 @@ import KinoPubKit
 struct TabsNavigationView: View {
 
   @Environment(\.appContext) var appContext
-#if os(iOS)
-  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-#endif
   @EnvironmentObject var navigationState: NavigationState
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
@@ -63,6 +62,7 @@ struct TabsNavigationView: View {
           navigationState.push(route)
         }
       }
+      .onAppear { remapHiddenTabs() }
       .task(id: authState.phase) {
         guard authState.phase == .signedIn else { return }
         await loadSidebarChrome()
@@ -78,16 +78,11 @@ struct TabsNavigationView: View {
   private var tabSelection: Binding<NavigationTabs> {
     Binding(
       get: {
-#if os(macOS)
-        // Search is not a tab on macOS — TabView only knows browse destinations.
         let tab = navigationState.selectedTab
-        if tab == .search || tab == .settings {
-          return navigationState.searchReturnTab ?? .home
+        if !Self.isVisibleTab(tab) {
+          return visibleFallback(for: tab)
         }
         return tab
-#else
-        navigationState.selectedTab
-#endif
       },
       set: { newValue in
 #if os(macOS)
@@ -125,12 +120,64 @@ struct TabsNavigationView: View {
     var id: NavigationTabs { tab }
   }
 
-  private static let browseTabs: [TabSpec] = [
-    TabSpec(tab: .home, title: "Home", systemImage: "house.fill"),
-    TabSpec(tab: .movies, title: "Movies", systemImage: "movieclapper"),
-    TabSpec(tab: .series, title: "Shows", systemImage: "rectangle.stack"),
-    TabSpec(tab: .library, title: "Library", systemImage: "rectangle.stack.badge.person.crop")
-  ]
+  private static var browseTabs: [TabSpec] {
+    var tabs = [
+      TabSpec(tab: .home, title: "Home", systemImage: "house.fill")
+    ]
+    if FeatureFlags.catalogBrowseTabsEnabled {
+      tabs.append(TabSpec(tab: .movies, title: "Movies", systemImage: "movieclapper"))
+      tabs.append(TabSpec(tab: .series, title: "Shows", systemImage: "rectangle.stack"))
+    }
+    tabs.append(TabSpec(tab: .library, title: "Library", systemImage: "rectangle.stack.badge.person.crop"))
+    return tabs
+  }
+
+  /// Tabs the current platform's `TabView` actually contains. Hidden catalog tabs
+  /// and Settings-as-a-tab on iOS/macOS must not remain the selection — that is
+  /// what used to dump Settings into More on iPhone.
+  private static func isVisibleTab(_ tab: NavigationTabs) -> Bool {
+    switch tab {
+    case .movies, .series:
+      return FeatureFlags.catalogBrowseTabsEnabled
+    case .settings:
+#if os(tvOS)
+      return true
+#else
+      return false
+#endif
+    case .search:
+#if os(macOS)
+      return false
+#else
+      return true
+#endif
+    case .home, .library:
+      return true
+    default:
+      return true
+    }
+  }
+
+  private func visibleFallback(for tab: NavigationTabs) -> NavigationTabs {
+#if os(macOS)
+    if tab == .search || tab == .settings {
+      return navigationState.searchReturnTab ?? .home
+    }
+#endif
+    return .home
+  }
+
+  private func remapHiddenTabs() {
+    let tab = navigationState.selectedTab
+#if os(macOS)
+    // Search is not a tab here, but it is a real selectedTab while the results
+    // surface is up — do not bounce it back to Home on appear.
+    if tab == .search { return }
+#endif
+    if !Self.isVisibleTab(tab) {
+      navigationState.selectedTab = visibleFallback(for: tab)
+    }
+  }
 
   @ViewBuilder
   private func content(for tab: NavigationTabs) -> some View {
@@ -161,12 +208,14 @@ struct TabsNavigationView: View {
     }
   }
 
+#if os(tvOS)
   /// Glyph-only tab label. The title still ships as the accessibility label — dropping
   /// the text is a visual decision, not a reason for VoiceOver to announce nothing.
   private func glyph(_ systemImage: String, label: LocalizedStringKey) -> some View {
     Image(systemName: systemImage)
       .accessibilityLabel(Text(label))
   }
+#endif
 
   // MARK: - TabView
 
@@ -177,11 +226,7 @@ struct TabsNavigationView: View {
 #elseif os(tvOS)
     tvTabBar
 #elseif os(iOS)
-    if horizontalSizeClass == .regular {
-      padTabBar
-    } else {
-      phoneCompactTabBar
-    }
+    iosTabBar
 #endif
   }
 
@@ -202,11 +247,6 @@ struct TabsNavigationView: View {
       }
     }
     .tabViewStyle(.tabBarOnly)
-    .onAppear {
-      if navigationState.selectedTab == .settings {
-        navigationState.selectedTab = .home
-      }
-    }
   }
 #endif
 
@@ -244,54 +284,22 @@ struct TabsNavigationView: View {
 #endif
 
 #if os(iOS)
-  /// iPad top tab bar: Search glyph leads, Settings gear closes, icon+word in between.
-  ///
-  /// Search deliberately does **not** use `Tab(role: .search)` here — that role pins it
-  /// trailing, which put the two utility tabs at the same end and read as an
-  /// afterthought. iPhone keeps the role (bottom-bar HIG).
-  private var padTabBar: some View {
+  /// Bottom bar on iPhone, top bar on iPad: browse tabs + trailing Search role.
+  /// Settings is the navigation-bar gear (`iosSettingsToolbar`), not a tab —
+  /// Home + Movies + Shows + Library + Settings is five items, Search becomes
+  /// a sixth, and UITabBar dumps the overflow into More (the three dots).
+  private var iosTabBar: some View {
     TabView(selection: tabSelection) {
-      Tab(value: NavigationTabs.search) {
-        searchContent
-      } label: {
-        glyph("magnifyingglass", label: "Search")
-      }
-
       ForEach(Self.browseTabs) { spec in
         browseTab(spec)
       }
 
-      Tab(value: NavigationTabs.settings) {
-        settingsContent
-      } label: {
-        glyph("gear", label: "Settings")
+      Tab("Search", systemImage: "magnifyingglass", value: NavigationTabs.search, role: .search) {
+        searchContent
       }
     }
     .tabViewStyle(.tabBarOnly)
-    // Always visible for now (2026-08-09) — the system's scroll-driven minimize was
-    // reading as random fade in/out. Revisit once detail-page choreography settles.
-    .tabBarMinimizeBehavior(.never)
-  }
-
-  /// iPhone bottom bar — content tabs + pinned trailing Search (`Tab(role: .search)`).
-  private var phoneCompactTabBar: some View {
-    TabView(selection: tabSelection) {
-      ForEach(Self.browseTabs) { spec in
-        browseTab(spec)
-      }
-
-      Tab("Settings", systemImage: "gear", value: NavigationTabs.settings) {
-        settingsContent
-      }
-
-      Tab(value: NavigationTabs.search, role: .search) {
-        searchContent
-      } label: {
-        Label("Search", systemImage: "magnifyingglass")
-      }
-    }
-    // Always visible for now (2026-08-09) — see `padTabBar`.
-    .tabBarMinimizeBehavior(.never)
+    .tabBarMinimizeBehavior(.onScrollDown)
   }
 #endif
 
@@ -389,7 +397,7 @@ struct TabsNavigationView: View {
 #endif
   }
 
-#if !os(macOS)
+#if os(tvOS)
   private var settingsContent: some View {
     ProfileView(model: ProfileModel(userService: appContext.userService,
                                     errorHandler: errorHandler,

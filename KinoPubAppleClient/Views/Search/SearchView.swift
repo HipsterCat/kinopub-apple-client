@@ -108,6 +108,9 @@ struct SearchView: View {
         }
       }
       .platformNavigationTitle(navigationTitleText)
+#if os(iOS)
+      .toolbarTitleDisplayMode(.inline)
+#endif
 #endif
       .toolbar {
 #if os(macOS)

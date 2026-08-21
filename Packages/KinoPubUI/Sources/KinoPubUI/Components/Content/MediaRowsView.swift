@@ -129,9 +129,9 @@ public struct MediaRowsView: View {
       LazyVStack(alignment: .leading, spacing: Self.rowSpacing) {
         scrollContent
       }
-      // The first section is a header with no navigation title above it, so without
-      // this it starts hard against the bar. The scroll-edge effect needs something to
-      // fade, too — content that begins level with the bar has nothing to pass under.
+      // The first section sits under the navigation bar, so without this it starts
+      // hard against the glass. The scroll-edge effect needs something to fade, too —
+      // content that begins level with the bar has nothing to pass under.
       .padding(.top, Self.rowSpacing)
       .padding(.bottom, Self.rowSpacing)
     }

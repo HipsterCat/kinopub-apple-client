@@ -95,12 +95,13 @@ hides the nav-bar background on purpose so artwork runs to the top edge.
   `.tabItem` for Search — that keeps it as a normal left-side tab.
 - **tvOS:** Search is a normal **first** tab, left of Home. Do **not** use `Tab(role: .search)`
   there — the search role pins trailing.
-- **tvOS tab bar shape is icon · text · text · text · text · icon**: Search and Settings are
-  glyph-only, browse tabs are words. Pass a bare `Image` / `Text` as the `Tab` label —
-  `Tab("Title", systemImage:)` gives every tab an icon+label chip, which is the thing to avoid.
-  Glyph tabs still carry `.accessibilityLabel`. **No in-content Back button on tvOS**: Search is a
-  tab, so the way out is up into the tab bar, and a chevron row above a grid also steals the first
-  focus target on entry.
+- **tvOS tab bar shape is icon · text · … · icon**: Search and Settings are glyph-only, browse
+  tabs are words. With Movies/Shows gated off that is Search · Home · Library · Settings.
+  Pass a bare `Image` / `Text` as the `Tab` label — `Tab("Title", systemImage:)` gives every
+  tab an icon+label chip, which is the thing to avoid. Glyph tabs still carry
+  `.accessibilityLabel`. **No in-content Back button on tvOS**: Search is a tab, so the way
+  out is up into the tab bar, and a chevron row above a grid also steals the first focus
+  target on entry.
 - **macOS:** no Search tab and no Settings tab in the library window. Settings is the Settings window
   (`⌘,` / App menu). Search is a **compact trailing toolbar field** (Finder/Photos):
   `.searchable(..., placement: .toolbar)` on each tab's `NavigationStack` — **never** on `TabView`,
@@ -119,11 +120,16 @@ hides the nav-bar background on purpose so artwork runs to the top edge.
 **Ours**
 
 - Shipping shell is the classic system `TabView` everywhere, until `.sidebarAdaptable` / a locked
-  sidebar is done the **system** way: tvOS `.tabBarOnly` Search · Home · Movies · Shows · Library ·
-  Settings; macOS `.tabBarOnly` Home · Movies · Shows · Library + toolbar search; iPad the same plus
-  Settings and a trailing Search role; iPhone the same on a bottom bar.
-- **No tab-bar pinning requirement.** Take what the system does on scroll; do not chase it with
-  `.toolbar(.hidden, for: .tabBar)`, minimize behaviours, or a custom bar over content.
+  sidebar is done the **system** way. Movies / Shows tabs are gated by
+  `FeatureFlags.catalogBrowseTabsEnabled` (off until those pages are Home-shaped section feeds):
+  tvOS `.tabBarOnly` Search · Home · Library · Settings; macOS `.tabBarOnly` Home · Library +
+  toolbar search; iPhone / iPad Home · Library + trailing `Tab(role: .search)`. Settings on iOS
+  is a navigation-bar gear (sheet), not a tab — a sixth tab is what shoved it into More.
+- **iOS tab bar minimizes on scroll-down** (`.tabBarMinimizeBehavior(.onScrollDown)`), matching
+  kinolab / HIG. Do not pin it with `.never`, and do not chase it with `.toolbar(.hidden, for:
+  .tabBar)` or a custom bar over content. Browse roots use `.toolbarTitleDisplayMode(.inlineLarge)`
+  so the title lives in the glass bar, plus 27-only `.toolbarMinimizationBehavior(.onScrollDown)`
+  so the bar hides on scroll-down and returns on scroll-up.
 - Re-selecting a tab pops that tab's stack to root.
 - Zoom: `matchedTransitionSource` / `navigationTransition(.zoom)` on **iOS/tvOS** from poster,
   banner and cast. On **macOS** the API may be unavailable — say so rather than claiming transitions

@@ -36,10 +36,15 @@ struct MainView: View {
       // navigation and tab bars, and, on a failed or empty load, a mirrored copy of
       // the error placeholder. The native Apple TV app does not do this.
       //
-      // The navigation bar is likewise left to the system: on 26 it is already
-      // Liquid Glass with the scroll-edge effect.
+      // The navigation bar is left to the system Liquid Glass. On iOS the title
+      // lives in the bar (`browseNavigationChrome`) so it does not overlay
+      // posters as a content-area large title with no fill.
       rowsView
         .platformNavigationTitle("Home")
+#if os(iOS)
+        .browseNavigationChrome()
+        .iosSettingsToolbar(for: .home)
+#endif
 #if os(macOS)
         .macToolbarSearch()
 #endif

@@ -5,6 +5,21 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### iOS/macOS navigation shell matches HIG Liquid Glass (2026-08-21)
+
+- **Search is `Tab(role: .search)`** on iPhone and iPad (trailing, morphs to the field).
+  Settings is a navigation-bar gear that presents a sheet, not a tab — Home + Movies +
+  Shows + Library + Settings was five items, Search a sixth, and UITabBar dumped the
+  overflow into More (the three dots). macOS still uses the Settings window / ⌘,; tvOS
+  keeps Settings as a trailing glyph.
+- **Movies / Shows tabs are gated off** (`FeatureFlags.catalogBrowseTabsEnabled`). They
+  come back as Home-shaped section feeds; the pinned shortcut/sort button is gone. Home
+  still has Hot/Fresh/Popular rows.
+- **Home/Library title lives in the glass bar** (`.toolbarTitleDisplayMode(.inlineLarge)`),
+  so it no longer overlays posters as a content-area large title with no fill. iOS 26
+  minimizes the tab bar on scroll-down; iOS 27 also minimizes the navigation bar
+  (`.toolbarMinimizationBehavior(.onScrollDown)`).
+
 ### CI skips macos-26 jobs when the diff cannot compile (2026-08-21)
 
 - Fastlane, TestFlight yaml, markdown, `workers/`, `tools/` wake nothing.

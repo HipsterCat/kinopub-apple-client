@@ -28,6 +28,10 @@ struct LibraryView: View {
       content
         .platformNavigationTitle("Library")
         .background(Color.KinoPub.background)
+#if os(iOS)
+        .browseNavigationChrome()
+        .iosSettingsToolbar(for: .library)
+#endif
 #if os(macOS)
         .macToolbarSearch()
 #endif
