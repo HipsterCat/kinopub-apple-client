@@ -59,7 +59,9 @@ struct TrackMemorySections: View {
       }
     }
     .onAppear(perform: reload)
-    .alert("Forget remembered tracks?", isPresented: $showsResetAlert) {
+    // Same key as the button above: Xcode's generated string symbols strip
+    // punctuation, so "…tracks" and "…tracks?" collided on one symbol name.
+    .alert("Forget remembered tracks", isPresented: $showsResetAlert) {
       Button("Cancel", role: .cancel) {}
       Button("Forget", role: .destructive) {
         store.forgetEverything()
