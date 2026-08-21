@@ -11,12 +11,6 @@
             "value": "Author's"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Autoriaus"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -30,12 +24,6 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CC"
-          }
-        },
-        "lt": {
           "stringUnit": {
             "state": "translated",
             "value": "CC"
@@ -59,12 +47,6 @@
             "value": "Dubbed"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dubliažas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -83,12 +65,6 @@
             "value": "Forced"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Priverstiniai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -105,12 +81,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Multi-voice"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiabalsis"
           }
         },
         "ru": {
@@ -149,12 +119,6 @@
             "value": "Original"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Originalas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -171,12 +135,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Single-voice"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vienbalsis"
           }
         },
         "ru": {
@@ -197,12 +155,6 @@
             "value": "Two-voice"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dvibalsis"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -219,12 +171,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unknown"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nežinoma"
           }
         },
         "ru": {

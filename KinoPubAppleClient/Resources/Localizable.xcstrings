@@ -9,12 +9,6 @@
             "value": "."
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "."
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -123,12 +117,6 @@
             "value": "."
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "."
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -185,12 +173,6 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "3D"
-          }
-        },
-        "lt": {
           "stringUnit": {
             "state": "translated",
             "value": "3D"
@@ -510,12 +492,6 @@
             "value": "Added"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pridėta"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -596,12 +572,6 @@
             "value": "Always on top"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visada viršuje"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -653,12 +623,6 @@
             "value": "Any"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bet koks"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -673,12 +637,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "App Version"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Programos versija"
           }
         },
         "ru": {
@@ -701,12 +659,6 @@
             "value": "Apply"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Taikyti"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -721,12 +673,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Are you sure?"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ar Jūs tikras?"
           }
         },
         "ru": {
@@ -771,12 +717,6 @@
             "value": "Activate"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktyvuoti"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -792,12 +732,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open Device Activation in your profile on a phone or computer, and enter this code."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Telefone arba kompiuteryje savo profilyje atidarykite skiltį „Įrenginio aktyvacija“ ir įveskite šį kodą."
           }
         },
         "ru": {
@@ -817,12 +751,6 @@
             "value": "Device Activation"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Įrenginio aktyvacija"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -838,12 +766,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Device Code"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Įrenginio kodas"
           }
         },
         "ru": {
@@ -899,12 +821,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Back"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atgal"
           }
         },
         "ru": {
@@ -1026,12 +942,6 @@
             "value": "Bookmarks"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žymės"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -1047,12 +957,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Browse History"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Naršyti istoriją"
           }
         },
         "ru": {
@@ -1074,12 +978,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Browse Watchlist"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Naršyti watchlist"
           }
         },
         "ru": {
@@ -1118,12 +1016,6 @@
             "value": "Cancel"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atšaukti"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -1139,12 +1031,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Actor"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktorius"
           }
         },
         "ru": {
@@ -1168,12 +1054,6 @@
             "value": "Cast & Crew"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktoriai ir kūrėjai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -1190,12 +1070,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Check your connection and try again."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Patikrinkite ryšį ir bandykite dar kartą."
           }
         },
         "ru": {
@@ -1232,12 +1106,6 @@
             "value": "Choose Item"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Pasirinkite"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -1253,12 +1121,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Clear"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Išvalyti"
           }
         },
         "ru": {
@@ -1350,12 +1212,6 @@
             "value": "Concert"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koncertai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -1373,12 +1229,6 @@
             "value": "Continue"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tęsti"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -1394,12 +1244,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Continue Watching"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tęsti žiūrėjimą"
           }
         },
         "ru": {
@@ -1423,12 +1267,6 @@
             "value": "Couldn't Load"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepavyko įkelti"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -1446,12 +1284,6 @@
             "value": "Couldn't Load More"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepavyko įkelti daugiau"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -1467,12 +1299,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Country"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Šalis"
           }
         },
         "ru": {
@@ -1511,12 +1337,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Credits"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Filmografija"
           }
         },
         "ru": {
@@ -1683,12 +1503,6 @@
             "value": "Director"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Režisierius"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -1724,12 +1538,6 @@
             "value": "Documentaries"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Dokumentiniai filmai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -1745,12 +1553,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Documentary Series"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Dokumentiniai serialai"
           }
         },
         "ru": {
@@ -1770,12 +1572,6 @@
             "value": "Documentaries"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Dokumentiniai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -1791,12 +1587,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Documentary Series"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dokumentiniai serialai"
           }
         },
         "ru": {
@@ -1839,12 +1629,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Downloads"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atsisiuntimai"
           }
         },
         "ru": {
@@ -1968,12 +1752,6 @@
             "value": "Episode"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Serija"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2012,12 +1790,6 @@
             "value": "Features"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Funkcijos"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2033,12 +1805,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Filter"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Filtrai"
           }
         },
         "ru": {
@@ -2090,12 +1856,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "For You"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tau"
           }
         },
         "ru": {
@@ -2153,12 +1913,6 @@
             "value": "Fresh"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nauja"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2176,12 +1930,6 @@
             "value": "Fresh Movies"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nauji filmai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2197,12 +1945,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fresh Series"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nauji serialai"
           }
         },
         "ru": {
@@ -2230,12 +1972,6 @@
             "value": "Genre"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žanras"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2253,12 +1989,6 @@
             "value": "Go to Movie"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eiti į filmą"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2274,12 +2004,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Go to Show"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eiti į serialą"
           }
         },
         "ru": {
@@ -2390,12 +2114,6 @@
             "value": "Hide from Here"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Slėpti iš čia"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2414,12 +2132,6 @@
             "value": "History"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Istorija"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2435,12 +2147,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "History Layout"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Istorijos išdėstymas"
           }
         },
         "ru": {
@@ -2580,12 +2286,6 @@
             "value": "Home"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pagrindinis"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2607,12 +2307,6 @@
             "value": "Home banner"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pagrindinis baneris"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2628,12 +2322,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hot"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HOT"
           }
         },
         "ru": {
@@ -2653,12 +2341,6 @@
             "value": "Hot Movies"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Populiarūs filmai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2676,12 +2358,6 @@
             "value": "Hot Series"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Populiarūs serialai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2697,12 +2373,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "IMDB Rating"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "IMDB Įvertinimas"
           }
         },
         "ru": {
@@ -2746,12 +2416,6 @@
             "value": "Information"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Informacija"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2792,12 +2456,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Landscape"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Horizontaliai"
           }
         },
         "ru": {
@@ -2849,12 +2507,6 @@
             "value": "Language"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Language"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2871,12 +2523,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Languages"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kalbos"
           }
         },
         "ru": {
@@ -2896,12 +2542,6 @@
             "value": "Less"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mažiau"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -2917,12 +2557,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Library"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Biblioteka"
           }
         },
         "ru": {
@@ -2956,12 +2590,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Logout"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atsijungti"
           }
         },
         "ru": {
@@ -3000,12 +2628,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Main"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pagrindinis"
           }
         },
         "ru": {
@@ -3068,12 +2690,6 @@
             "value": "Mark as Unwatched"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žymėti kaip nežiūrėtą"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3089,12 +2705,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mark as Watched"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žymėti kaip žiūrėtą"
           }
         },
         "ru": {
@@ -3131,12 +2741,6 @@
             "value": "Age Rating"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Amžiaus reitingas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3152,12 +2756,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Airs %@"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rodoma %@"
           }
         },
         "ru": {
@@ -3177,12 +2775,6 @@
             "value": "Title in Original"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Originalus pavadinimas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -3198,12 +2790,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Audio"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Garsas"
           }
         },
         "ru": {
@@ -3223,12 +2809,6 @@
             "value": "Available to watch"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Galima žiūrėti"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3244,12 +2824,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cast"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktoriai"
           }
         },
         "ru": {
@@ -3269,12 +2843,6 @@
             "value": "Cast"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vaidina"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3290,12 +2858,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Contains ads"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yra reklamų"
           }
         },
         "ru": {
@@ -3315,12 +2877,6 @@
             "value": "%@ — %lld min. If watched continuously 24 hours a day"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ — %lld min. Jei žiūrėti be pertraukų 24 val. per parą"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3336,12 +2892,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Countries of Origin"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kilmės šalys"
           }
         },
         "ru": {
@@ -3361,12 +2911,6 @@
             "value": "Country"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Šalis"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3382,12 +2926,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Country of Origin"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kilmės šalis"
           }
         },
         "ru": {
@@ -3407,12 +2945,6 @@
             "value": "Creators"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kūrėjai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3428,12 +2960,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Credits"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titrai"
           }
         },
         "ru": {
@@ -3453,12 +2979,6 @@
             "value": "Featuring"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dalyviai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3474,12 +2994,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Data"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duomenys"
           }
         },
         "ru": {
@@ -3499,12 +3013,6 @@
             "value": "Description"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aprašymas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3520,12 +3028,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Details"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Informacija"
           }
         },
         "ru": {
@@ -3545,12 +3047,6 @@
             "value": "Director"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Režisierius"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3566,12 +3062,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Duration"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trukmė"
           }
         },
         "ru": {
@@ -3591,12 +3081,6 @@
             "value": "Avg. Episode Duration"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Vid. serijos trukmė"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -3614,12 +3098,6 @@
             "value": "episode"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "serija"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3632,12 +3110,6 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ep."
-          }
-        },
-        "lt": {
           "stringUnit": {
             "state": "translated",
             "value": "ep."
@@ -3660,12 +3132,6 @@
             "value": "episodes"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "serijos"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3681,12 +3147,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Expected"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Laukiama"
           }
         },
         "ru": {
@@ -3723,12 +3183,6 @@
             "value": "Notes"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pastabos"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3744,12 +3198,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Genre"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žanras"
           }
         },
         "ru": {
@@ -3769,12 +3217,6 @@
             "value": "Genres"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žanrai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3790,12 +3232,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Updated on"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Paskutinis atnaujinimas"
           }
         },
         "ru": {
@@ -3832,12 +3268,6 @@
             "value": "Dolby Digital multichannel audio."
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dolby Digital daugiakanalis garsas."
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3853,12 +3283,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "A narration track describing what happens on screen, for viewers who are blind or have low vision."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pasakojimo takelis, aprašantis, kas vyksta ekrane, akliesiems ir silpnaregiams."
           }
         },
         "ru": {
@@ -3878,12 +3302,6 @@
             "value": "Audio description"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Garso aprašymas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3899,12 +3317,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "The age this title is rated for."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Amžius, kuriam skirtas šis kūrinys."
           }
         },
         "ru": {
@@ -3924,12 +3336,6 @@
             "value": "Subtitles are available in the languages listed above."
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Subtitrai prieinami aukščiau išvardytomis kalbomis."
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3945,12 +3351,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Highest resolution available for this title."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aukščiausia galima šio kūrinio raiška."
           }
         },
         "ru": {
@@ -3970,12 +3370,6 @@
             "value": "More by This Creator"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau iš šio kūrėjo"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3991,12 +3385,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "More from These Creators"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau iš šių kūrėjų"
           }
         },
         "ru": {
@@ -4016,12 +3404,6 @@
             "value": "More by This Director"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau iš šio režisieriaus"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4037,12 +3419,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "More from These Directors"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau iš šių režisierių"
           }
         },
         "ru": {
@@ -4062,12 +3438,6 @@
             "value": "More by This Artist"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau iš šio atlikėjo"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4083,12 +3453,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "More from These Artists"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau iš šių atlikėjų"
           }
         },
         "ru": {
@@ -4108,12 +3472,6 @@
             "value": "More by This Comedian"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau iš šio komiko"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4129,12 +3487,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "More from These Comedians"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau iš šių komikų"
           }
         },
         "ru": {
@@ -4154,12 +3506,6 @@
             "value": "More in %@"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau: %@"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4175,12 +3521,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Next episode"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kita serija"
           }
         },
         "ru": {
@@ -4217,12 +3557,6 @@
             "value": "Not available yet"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dar neprieinama"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4238,12 +3572,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not enough ratings yet"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kol kas per mažai įvertinimų"
           }
         },
         "ru": {
@@ -4263,12 +3591,6 @@
             "value": "Poor quality"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prasta kokybė"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4284,12 +3606,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Premiere · %@"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Premjera · %@"
           }
         },
         "ru": {
@@ -4326,12 +3642,6 @@
             "value": "Release"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Išleidimas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4347,12 +3657,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Release Year"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Išleidimo metai"
           }
         },
         "ru": {
@@ -4440,12 +3744,6 @@
             "value": "Runtime"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trukmė"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4461,12 +3759,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Season %d premiere"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d sezono premjera"
           }
         },
         "ru": {
@@ -4486,12 +3778,6 @@
             "value": "Season %d"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sezonas %d"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4507,12 +3793,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "season"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sezonas"
           }
         },
         "ru": {
@@ -4532,12 +3812,6 @@
             "value": "Seasons %d–%d"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sezonai %d–%d"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4553,12 +3827,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "seasons"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sezonai"
           }
         },
         "ru": {
@@ -4578,12 +3846,6 @@
             "value": "Since %@"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "nuo %@"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -4599,12 +3861,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Status"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Būsena"
           }
         },
         "ru": {
@@ -4624,12 +3880,6 @@
             "value": "Canceled"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atšaukta"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4645,12 +3895,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ended"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Baigtas"
           }
         },
         "ru": {
@@ -4670,12 +3914,6 @@
             "value": "In production"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gaminama"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4691,12 +3929,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ongoing"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Filmuojama"
           }
         },
         "ru": {
@@ -4716,12 +3948,6 @@
             "value": "Multi-part"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiadalis"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4737,12 +3963,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Technical"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Techninė informacija"
           }
         },
         "ru": {
@@ -4762,12 +3982,6 @@
             "value": "Title"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pavadinimas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4783,12 +3997,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Total Runtime"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bendra trukmė"
           }
         },
         "ru": {
@@ -4808,12 +4016,6 @@
             "value": "Total"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Iš viso"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4829,12 +4031,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Type"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tipas"
           }
         },
         "ru": {
@@ -4854,12 +4050,6 @@
             "value": "episodes"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "serijos"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4877,12 +4067,6 @@
             "value": "episodes"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "serijų"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -4898,12 +4082,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "episode"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "serija"
           }
         },
         "ru": {
@@ -5025,12 +4203,6 @@
             "value": "seasons"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sezonai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5046,12 +4218,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "seasons"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sezonų"
           }
         },
         "ru": {
@@ -5071,12 +4237,6 @@
             "value": "season"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sezonas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5092,12 +4252,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "specials"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "specialieji"
           }
         },
         "ru": {
@@ -5117,12 +4271,6 @@
             "value": "specials"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "specialiųjų"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5140,12 +4288,6 @@
             "value": "special"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "specialusis"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5161,12 +4303,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uploaded"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Įkelta"
           }
         },
         "ru": {
@@ -5220,12 +4356,6 @@
             "value": "Video Quality"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vaizdo kokybė"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5241,12 +4371,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Video Tracks"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vaizdo takeliai"
           }
         },
         "ru": {
@@ -5266,12 +4390,6 @@
             "value": "Views"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Peržiūros"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5287,12 +4405,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "on KinoPub"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KinoPub"
           }
         },
         "ru": {
@@ -5312,12 +4424,6 @@
             "value": "Voice"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Įgarsinimas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5333,12 +4439,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Volume"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apimtis"
           }
         },
         "ru": {
@@ -5358,12 +4458,6 @@
             "value": "Year"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Metai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5376,12 +4470,6 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "3D"
-          }
-        },
-        "lt": {
           "stringUnit": {
             "state": "translated",
             "value": "3D"
@@ -5404,12 +4492,6 @@
             "value": "Concert"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koncertas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5425,12 +4507,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Documentary"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dokumentinis"
           }
         },
         "ru": {
@@ -5450,12 +4526,6 @@
             "value": "Documentary Series"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dokumentinis serialas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5471,12 +4541,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Movie"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Filmas"
           }
         },
         "ru": {
@@ -5496,12 +4560,6 @@
             "value": "TV Series"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Serialas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5517,12 +4575,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "TV Show"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TV šou"
           }
         },
         "ru": {
@@ -5569,12 +4621,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "More"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daugiau"
           }
         },
         "ru": {
@@ -5645,12 +4691,6 @@
             "value": "Movies"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Filmai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5666,12 +4706,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Movies"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Filmai"
           }
         },
         "ru": {
@@ -5690,12 +4724,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Movies and shows you download will appear here."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atsisiųsti filmai ir serialai bus rodomi čia."
           }
         },
         "ru": {
@@ -5799,12 +4827,6 @@
             "value": "No"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ne"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5820,12 +4842,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "No Bookmarks"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žymių nėra"
           }
         },
         "ru": {
@@ -5845,12 +4861,6 @@
             "value": "No History"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Istorijos nėra"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5866,12 +4876,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "No Results"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nėra rezultatų"
           }
         },
         "ru": {
@@ -5911,12 +4915,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "No Results"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Nėra rezultatų"
           }
         },
         "ru": {
@@ -5990,12 +4988,6 @@
             "value": "OK"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OK"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -6028,12 +5020,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Off features skip their work entirely — not just the chrome."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Išjungtos funkcijos visiškai nevykdomos — ne tik slepiamas UI."
           }
         },
         "ru": {
@@ -6301,12 +5287,6 @@
             "value": "Play"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Groti"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -6322,12 +5302,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Play Again"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Groti iš naujo"
           }
         },
         "ru": {
@@ -6383,12 +5357,6 @@
             "value": "Popular"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Populiarūs"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -6406,12 +5374,6 @@
             "value": "Popular Movies"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mėgstamiausi filmai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -6427,12 +5389,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Popular Series"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mėgstamiausi serialai"
           }
         },
         "ru": {
@@ -6483,12 +5439,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Posters"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Plakatai"
           }
         },
         "ru": {
@@ -6568,12 +5518,6 @@
             "value": "Profile"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Profilis"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -6623,12 +5567,6 @@
             "value": "Rating"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Įvertinimas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -6662,12 +5600,6 @@
             "value": "Ratings"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Įvertinimai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -6683,12 +5615,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "History"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Neseniai žiūrėta"
           }
         },
         "ru": {
@@ -6712,12 +5638,6 @@
             "value": "Joining Date"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Registracijos data"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -6733,12 +5653,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Release Year"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Išleidimo metai"
           }
         },
         "ru": {
@@ -6848,12 +5762,6 @@
             "value": "Closing the app"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Perkraunama programa"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -6900,12 +5808,6 @@
             "value": "Saved"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Išsaugota"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -6923,12 +5825,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Search"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paieška"
           }
         },
         "ru": {
@@ -6963,12 +5859,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Seasons"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sezonai"
           }
         },
         "ru": {
@@ -7040,12 +5930,6 @@
             "value": "Select Language"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pasirinkite kalbą"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -7063,12 +5947,6 @@
             "value": "Serial"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Serialai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -7084,12 +5962,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Series"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Serijos"
           }
         },
         "ru": {
@@ -7111,12 +5983,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Settings"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nustatymai"
           }
         },
         "ru": {
@@ -7369,12 +6235,6 @@
             "value": "Shows"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Serijos"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -7447,12 +6307,6 @@
             "value": "IMDb Rating"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "IMDb įvertinimas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -7468,12 +6322,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "KinoPoisk Rating"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Kinopoisk įvertinimas"
           }
         },
         "ru": {
@@ -7493,12 +6341,6 @@
             "value": "Date Added"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Naujausi"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -7514,12 +6356,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Date Updated"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Neseniai atnaujinti"
           }
         },
         "ru": {
@@ -7539,12 +6375,6 @@
             "value": "Name"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Pavadinimas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -7560,12 +6390,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Views"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Populiariausi"
           }
         },
         "ru": {
@@ -7585,12 +6409,6 @@
             "value": "Release Year"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Metai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -7606,12 +6424,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Starring"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vaidina"
           }
         },
         "ru": {
@@ -7695,12 +6507,6 @@
             "value": "Subtitles"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Subtitrai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -7743,12 +6549,6 @@
             "value": "TV Series"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Serialai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -7764,12 +6564,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "TV Show"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TV laidos"
           }
         },
         "ru": {
@@ -7788,12 +6582,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Watched"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Peržiūrėta"
           }
         },
         "ru": {
@@ -7827,12 +6615,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "The app will close to apply the language change."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Programa išsijungs, kad būtų išsaugoti kalbos pasikeitimai."
           }
         },
         "ru": {
@@ -7917,12 +6699,6 @@
             "value": "Total Duration"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Bendra trukmė"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
@@ -7938,12 +6714,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trailer"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trileris"
           }
         },
         "ru": {
@@ -7967,12 +6737,6 @@
             "value": "Translation"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vertimas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -7994,12 +6758,6 @@
             "value": "Try Again"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bandyti dar kartą"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -8017,12 +6775,6 @@
             "value": "Try Searching"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pabandykite ieškoti"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -8037,12 +6789,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Type"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tipai"
           }
         },
         "ru": {
@@ -8096,12 +6842,6 @@
             "value": "Updated"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atnaujinta"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -8122,12 +6862,6 @@
             "value": "User Name"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vardas"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -8142,12 +6876,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "User Subscription"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prenumerata"
           }
         },
         "ru": {
@@ -8200,12 +6928,6 @@
             "value": "View"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rodinys"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -8238,12 +6960,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Watch"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Žiūrėti"
           }
         },
         "ru": {
@@ -8311,12 +7027,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Watchlist"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stebimi serialai"
           }
         },
         "ru": {
@@ -8398,12 +7108,6 @@
             "value": "Years"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Metai"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -8419,12 +7123,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yes"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Taip"
           }
         },
         "ru": {
@@ -8460,12 +7158,6 @@
             "value": "You don't have any downloads yet"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Neturite dar atsisiuntimų"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -8481,12 +7173,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your session has expired. Try again."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jūsų sesija baigėsi. Bandykite dar kartą."
           }
         },
         "ru": {
@@ -8507,12 +7193,6 @@
             "value": "and %lld more"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ir dar %lld"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -8528,12 +7208,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "days"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "dienos"
           }
         },
         "ru": {
@@ -8561,12 +7235,6 @@
             "value": "min"
           }
         },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "min"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -8586,12 +7254,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "votes"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "balsų"
           }
         },
         "ru": {
