@@ -56,38 +56,28 @@ title bar and `MPNowPlayingInfoCenter`, and SwiftUI's `VideoPlayer` exposes none
   `AVPlayerViewController` draws a transport bar and nothing else; with the navigation bar hidden
   that is a film you cannot leave. `entersFullScreenWhenPlaybackBegins` was supposed to buy the
   presentation and did not, so `PlayerPresentationController` presents it `.fullScreen` outright.
-- **`TrackResolver` decides the subtitles on every platform, not only tvOS.**
-  `player.appliesMediaSelectionCriteriaAutomatically` is off, because automatic criteria follow the
-  system caption settings and the *Automatic* display type exists to put captions up when the media
-  is **muted** — a transcription nobody asked for — while knowing nothing about the last episode.
-  Off tvOS the resolver's answer is carried to the master's own `SUBTITLES` renditions by
-  `SubtitleRenditions` (see below — no id is shared between the API list and the master).
-  **That is not "off": the resolver reads the system setting itself** —
-  `.alwaysOn` in Settings › Accessibility means on, and the system caption languages seed the
-  language order (`SubtitlePreferences.systemWantsCaptions`). Only the muted reflex is gone; a pick
-  in the system menu still wins. Rules: `docs/product/playback-tracks.md`.
-- **The dub is chosen by the resolver on every platform too.** `configureDefaultAudioWhenReady` /
-  `applyAudibleGroup` / `persistAudioSelectionIfNeeded` are no longer tvOS-only, so the season's
-  ledger reaches the iPhone and the Mac instead of leaving them on the master's `DEFAULT`. Off tvOS
-  the system menu is the only picker there is and it reports nothing, so a pick is noticed on the
-  watch-mark tick — audio and subtitles both, on the same "weight is episodes watched" floor.
-- **A subtitle rendition is matched by language and kind, never by a remembered position.**
-  `SubtitleRenditions` pairs the API list with the master's renditions inside one language and one
-  kind (forced / SDH); position only separates two tracks that are otherwise identical, and it is
-  counted from both lists *as they are in this session* — never a number carried over from an
-  earlier episode. `ai` (kino.pub's machine-translated Russian) is its own language and must not
-  collapse into `ru`.
+- 🔴 **No subtitles of ours, anywhere. The system draws them.** tvOS used to fetch the
+  sidecar SRT, parse it and render it in a SwiftUI overlay in our own styling, with a custom
+  transport-bar "Subtitles" menu beside it and `allowedSubtitleOptionLanguages = []` hiding
+  AVKit's own picker — all of it built for a dual-track feature that does not exist. Deleted
+  2026-08-25 by explicit decision: **we do not do caption design, the system does**, and it
+  knows the viewer's caption styling. `SubtitleCueParser`, `SubtitleOverlayView`,
+  `SubtitleTrackPickerView` and `SubtitleTranslatePanel` are gone; do not bring them back.
+  Subtitle *settings* live in Settings, never in the player.
+- **`TrackResolver` decides which track is selected, on every platform** — that is the whole
+  of our involvement. `player.appliesMediaSelectionCriteriaAutomatically` is off, because the
+  *Automatic* caption display type puts captions up when the media is **muted**, and the
+  resolver reads the system setting itself (`.alwaysOn` means on; system caption languages
+  seed the order). The answer reaches the master's own renditions through `SubtitleRenditions`.
 - **One language table.** `SubtitleTracks.languageKey` resolves through `LanguageNames`; the second
   shorter copy it used to keep is gone, and it is what made `uzb` and `phi` match nothing while the
   name beside them read correctly.
-- **`externalMetadata` is the stock panel, populated — and it is filled from the *title*, not
-  from what is playing.** An `Episode` carries none of its parent's facts (no plot, no genres,
-  no year, no poster), so reading only `playItem as? MediaItem` left every series with two
-  lines and an empty panel. `PlayerManager.titleContext` falls back to the series snapshot
-  `LocalWatchProgressStore` already holds — the same one `PlaybackSession` reads to pick a dub.
-  The mapping itself is `PlaybackMetadata` in `KinoPubBackend`, pure and tested without an
-  asset. Built under `#if os(iOS) || os(tvOS)` and called from `preparePlayback()`, plus again
-  from tvOS's `attach(to:)` for a controller that attaches after the item exists.
+- **`externalMetadata` is the stock panel, populated — from the *title*, not from what is
+  playing.** An `Episode` carries none of its parent's facts, so `PlayerManager.titleContext`
+  falls back to the series snapshot `LocalWatchProgressStore` already holds. The mapping is
+  `PlaybackMetadata` in `KinoPubBackend`. **No year:** `.commonIdentifierCreationDate` prints
+  in the line *above* the title on tvOS, where the stock player puts a channel name, so a film
+  read as "2023 / Мятеж".
 - **There is no metadata identifier for a capability badge.** 4K / HDR / Atmos in the panel are
   not something `externalMetadata` can carry — the common and iTunes identifier sets are title,
   subtitle, description, genre, date, artwork and the like. On tvOS the supported way to put
@@ -105,8 +95,6 @@ title bar and `MPNowPlayingInfoCenter`, and SwiftUI's `VideoPlayer` exposes none
   pushing the player fires `onDisappear`; macOS opens a *separate window*, so the detail page never
   disappears and the ambient copy kept playing behind it — the Trailer action meant the same clip
   playing twice, unsynced.
-- Subtitles: system HLS renditions off tvOS; tvOS may use a sidecar overlay for dual tracks. Hide the
-  duplicate system subtitle button only while our menu is a strict superset.
 - Audio: system picker + master `NAME=` relabel via `HLSAudioLabeler`.
 - **Which dub and which subtitles a title opens with is `TrackResolver`, not the player.** One pure
   function over a menu + what the scopes remember + settings; scopes are season → title → `anime`
@@ -146,6 +134,16 @@ title bar and `MPNowPlayingInfoCenter`, and SwiftUI's `VideoPlayer` exposes none
 - **`AVAudioSession.RouteSharingPolicy.longFormVideo` is `API_UNAVAILABLE(tvos)`** — the
   constant does not compile on tvOS at all, so it cannot merely be attempted and caught. The
   policy is fenced to iOS; tvOS takes the plain `.playback` / `.moviePlayback` category.
+- **kino.pub masters repeat every dub once per video rung.** Three dubs across three `AUDIO`
+  groups is nine entries in AVKit's Audio menu, all reading "Russian", none of them switching
+  to anything different — and no relabelling can help, because they *are* the same dub.
+  `HLSAudioLabeler.collapseAudioGroups` keeps the richest group and repoints every variant at
+  it before the labels are written. Audio then stops varying with the video rung, which is
+  what one audio group means; the stream ladder is untouched.
+- **AVKit's Audio menu shows `displayName`, not `NAME=`.** Our relabelling reaches the
+  *selection* (via common metadata) but not always the row the viewer reads, which is why the
+  menu can still say plain "Russian". Do not add another relabelling pass to fix that; the
+  duplication above was the real complaint.
 - **SRT fetch needs encoding detection** — Russian subtitles are routinely windows-1251.
 - **Cue lookup is a linear scan** over ~2000 cues several times a second; it wants a binary search
   plus a cursor.

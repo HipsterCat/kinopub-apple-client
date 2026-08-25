@@ -153,7 +153,7 @@ final class PlayerTrackSelectionTests: XCTestCase {
   // MARK: - What the system player is told
 
   /// The panel cannot be asserted without a device, but the fact that an episode now
-  /// carries its series' description, genres and year into it can — and that this happens
+  /// carries its series' description and genres into it can — and that this happens
   /// on the platforms whose panel we are talking about.
   func testAnEpisodeCarriesItsSeriesIntoTheInfoPanel() {
     let series = MediaItem.mock()
@@ -163,7 +163,71 @@ final class PlayerTrackSelectionTests: XCTestCase {
     XCTAssertEqual(items.first { $0.identifier == .commonIdentifierTitle }?.stringValue, "Series")
     XCTAssertEqual(items.first { $0.identifier == .commonIdentifierDescription }?.stringValue,
                    series.plot)
-    XCTAssertNotNil(items.first { $0.identifier == .commonIdentifierCreationDate })
+    XCTAssertNil(items.first { $0.identifier == .commonIdentifierCreationDate })
+  }
+
+  // MARK: - One audio group, not one per quality
+
+  /// A kino.pub master lists the same dubs again for every video rung. Three dubs across
+  /// three groups is nine entries in the Audio menu, all reading "Русский", none of them
+  /// switching to anything different — which is exactly what a device showed.
+  private var tripleGroupMaster: String {
+    """
+    #EXTM3U
+    #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a0",LANGUAGE="rus",NAME="Russian",URI="a0-ru.m3u8"
+    #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a0",LANGUAGE="eng",NAME="English",URI="a0-en.m3u8"
+    #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a1",LANGUAGE="rus",NAME="Russian",URI="a1-ru.m3u8"
+    #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a1",LANGUAGE="eng",NAME="English",URI="a1-en.m3u8"
+    #EXT-X-STREAM-INF:BANDWIDTH=800000,AUDIO="a0"
+    low.m3u8
+    #EXT-X-STREAM-INF:BANDWIDTH=4000000,AUDIO="a1"
+    high.m3u8
+    """
+  }
+
+  func testTheSameDubsRepeatedPerQualityCollapseToOneGroup() {
+    let out = HLSAudioLabeler.collapseAudioGroups(tripleGroupMaster.components(separatedBy: "\n"))
+    let audio = out.filter { $0.hasPrefix("#EXT-X-MEDIA:") && $0.contains("TYPE=AUDIO") }
+    XCTAssertEqual(audio.count, 2, "one entry per dub, not one per dub per rung")
+    XCTAssertTrue(audio.allSatisfy { $0.contains("GROUP-ID=\"a0\"") })
+  }
+
+  /// Every variant has to point at the group that survived, or the rungs whose group was
+  /// dropped play silent.
+  func testEveryVariantPointsAtTheSurvivingGroup() {
+    let out = HLSAudioLabeler.collapseAudioGroups(tripleGroupMaster.components(separatedBy: "\n"))
+    let variants = out.filter { $0.hasPrefix("#EXT-X-STREAM-INF:") }
+    XCTAssertEqual(variants.count, 2)
+    XCTAssertTrue(variants.allSatisfy { $0.contains("AUDIO=\"a0\"") })
+  }
+
+  /// Collapsing must never cost a language: the richest group is the one that stays.
+  func testTheGroupWithTheMostDubsIsTheOneThatStays() {
+    let master = """
+    #EXTM3U
+    #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="poor",LANGUAGE="rus",NAME="Russian",URI="p-ru.m3u8"
+    #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="rich",LANGUAGE="rus",NAME="Russian",URI="r-ru.m3u8"
+    #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="rich",LANGUAGE="eng",NAME="English",URI="r-en.m3u8"
+    #EXT-X-STREAM-INF:BANDWIDTH=800000,AUDIO="poor"
+    low.m3u8
+    """
+    let out = HLSAudioLabeler.collapseAudioGroups(master.components(separatedBy: "\n"))
+    let audio = out.filter { $0.contains("TYPE=AUDIO") }
+    XCTAssertEqual(audio.count, 2)
+    XCTAssertTrue(audio.allSatisfy { $0.contains("GROUP-ID=\"rich\"") })
+    XCTAssertTrue(out.contains { $0.hasPrefix("#EXT-X-STREAM-INF:") && $0.contains("AUDIO=\"rich\"") })
+  }
+
+  /// A master that already has one group is left exactly as it was.
+  func testASingleGroupMasterIsUntouched() {
+    let master = """
+    #EXTM3U
+    #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a0",LANGUAGE="rus",NAME="Russian",URI="ru.m3u8"
+    #EXT-X-STREAM-INF:BANDWIDTH=800000,AUDIO="a0"
+    v.m3u8
+    """
+    let lines = master.components(separatedBy: "\n")
+    XCTAssertEqual(HLSAudioLabeler.collapseAudioGroups(lines), lines)
   }
 
   private struct StubRendition: SubtitleRendition, Equatable {

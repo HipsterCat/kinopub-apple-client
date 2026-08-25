@@ -40,7 +40,8 @@ final class PlaybackMetadataTests: XCTestCase {
                                        subtitle: "Season 1, Episode 2",
                                        context: series)
     XCTAssertEqual(value(.commonIdentifierDescription, in: items), series.plot)
-    XCTAssertEqual(value(.commonIdentifierCreationDate, in: items), "2023")
+    // The year is deliberately absent — see `PlaybackMetadata`.
+    XCTAssertNil(value(.commonIdentifierCreationDate, in: items))
     XCTAssertEqual(value(.commonIdentifierType, in: items),
                    "Comedy, Action, Fantastic, Adventure")
   }

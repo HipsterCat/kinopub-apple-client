@@ -10,6 +10,8 @@ import SwiftUI
 import AVKit
 import KinoPubBackend
 import KinoPubUI
+import KinoPubLogging
+import OSLog
 
 struct PlayerView: View {
 
@@ -25,17 +27,11 @@ struct PlayerView: View {
   }
 
   var body: some View {
-    ZStack(alignment: .top) {
-      videoPlayer
-      // Off tvOS there is no chrome of ours at all: the system player already draws a
-      // transport bar, a subtitle menu and an audio menu, and the master playlist
-      // carries every kino.pub subtitle as a real HLS rendition for it to list. Ours
-      // was a second subtitles button next to the system one.
-#if os(tvOS)
-      subtitleLayers
-#endif
-    }
-    .ignoresSafeArea(.all)
+    // No chrome of ours, on any platform: the system player draws the transport bar, the
+    // subtitle and audio menus, and the captions themselves — in the viewer's own caption
+    // styling from Settings › Accessibility, which we have no business overriding.
+    videoPlayer
+      .ignoresSafeArea(.all)
     // The system player draws its own chrome for everything else — a spinner while it
     // buffers, Done/Menu/the window close button to get out. The one thing it can't
     // show on its own is *why* a stream failed, so that alone gets a system alert, and
@@ -65,14 +61,13 @@ struct PlayerView: View {
     .toolbar(.hidden, for: .tabBar)
     .onAppear(perform: {
       UIApplication.shared.isIdleTimerDisabled = true
-      UIDevice.current.setValue(UIInterfaceOrientation.landscapeLeft.rawValue, forKey: "orientation")
       AppDelegate.orientationLock = .landscape
+      Self.requestOrientation(.landscape)
     })
     .onDisappear(perform: {
       UIApplication.shared.isIdleTimerDisabled = false
       AppDelegate.orientationLock = .all
-      UIDevice.current.setValue(UIDevice.current.orientation.rawValue, forKey: "orientation")
-      Self.requestSupportedOrientationsUpdate()
+      Self.requestOrientation(.all)
     })
 #endif
 #if os(tvOS)
@@ -146,19 +141,21 @@ struct PlayerView: View {
   }
 
 #if os(iOS)
-  /// Asks the key window's top view controller to re-evaluate
-  /// `AppDelegate.supportedInterfaceOrientationsFor` after the player unlocks rotation.
-  private static func requestSupportedOrientationsUpdate() {
+  /// Turning the phone is the scene's business, not the device's.
+  ///
+  /// `UIDevice.current.setValue(_:forKey: "orientation")` is a private poke that UIKit now
+  /// answers with "BUG IN CLIENT OF UIKIT: Setting UIDevice.orientation is not supported"
+  /// — once per transition, and it printed six times on the way into one film.
+  private static func requestOrientation(_ orientations: UIInterfaceOrientationMask) {
     let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-    let window = scenes
-      .first(where: { $0.activationState == .foregroundActive })?
-      .windows.first(where: \.isKeyWindow)
-      ?? scenes.flatMap(\.windows).first(where: \.isKeyWindow)
-    var top = window?.rootViewController
+    guard let scene = scenes.first(where: { $0.activationState == .foregroundActive })
+            ?? scenes.first else { return }
+    var top = scene.windows.first(where: \.isKeyWindow)?.rootViewController
     while let presented = top?.presentedViewController {
       top = presented
     }
     top?.setNeedsUpdateOfSupportedInterfaceOrientations()
+    scene.requestGeometryUpdate(.iOS(interfaceOrientations: orientations))
   }
 #endif
 
@@ -171,34 +168,14 @@ struct PlayerView: View {
     return nil
   }
 
-  /// tvOS only. Sidecar SRT rendered by us, because the Siri Remote path still routes
-  /// subtitle choice through `transportBarCustomMenuItems`.
-  @ViewBuilder
-  private var subtitleLayers: some View {
-    VStack {
-      Spacer()
-      if playerManager.subtitlesEnabled,
-         playerManager.isPlaying,
-         let cue = playerManager.activeCue {
-        SubtitleOverlayView(text: cue.displayText,
-                            secondaryText: playerManager.activeSecondaryCue?.displayText)
-          .padding(.bottom, 48)
-          .transition(.opacity)
-      }
-    }
-    .animation(.easeOut(duration: 0.2), value: playerManager.isPlaying)
-    .animation(.easeOut(duration: 0.2), value: playerManager.activeCue)
-    .animation(.easeOut(duration: 0.2), value: playerManager.activeSecondaryCue)
-  }
-
 }
 
 #if os(tvOS)
 
-/// Drives `AVPlayerViewController` directly so the system transport bar is the only
-/// chrome — title/subtitle in the info panel, Subtitles and Audio in the transport-bar
-/// menu, all reachable with the Siri Remote. `PlayerManager` owns the configuration; this
-/// is just the bridge into UIKit.
+/// Drives `AVPlayerViewController` directly so the system transport bar is the only chrome:
+/// title, subtitle and description in the info panel, and AVKit's **own** Subtitles and
+/// Audio menus — no menu of ours beside them, and no captions drawn by us.
+/// `PlayerManager` owns the configuration; this is just the bridge into UIKit.
 private struct TVVideoPlayer: UIViewControllerRepresentable {
   let manager: PlayerManager
   /// This controller is a plain `NavigationStack` push, not a full-screen presentation —
@@ -345,14 +322,37 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
   }
 }
 
-/// Nothing but a stage for the presentation above: it holds the player controller and
-/// puts it on screen once it has a window to present from.
+/// Nothing but a stage for the presentation above: it holds the player controller and puts
+/// it on screen once there is a window to present from.
+///
+/// **The window is the part that bit us.** SwiftUI runs `viewDidAppear` on a representable's
+/// controller before it is in a window, and `present` from a controller outside the window
+/// hierarchy does nothing but log "whose view is not in the window hierarchy". The player
+/// then never appeared, this stage kept getting the screen back, that was read as "the
+/// viewer closed it", the route popped and re-pushed — the film that could not be left,
+/// three `play mode=media` in a row, and an auth refresh storm underneath it.
+///
+/// So: present only from a controller that is actually in a window, retry on the next
+/// runloop while it is not, and treat "the player went away" as an exit **only after it was
+/// really on screen**.
 final class PlayerPresentationController: UIViewController {
 
   let playerController = AVPlayerViewController()
   /// Called when the player has been dismissed and this stage is on screen again.
   var onPlayerDismissed: (() -> Void)?
-  private var didPresent = false
+
+  private enum Stage {
+    case waitingForWindow
+    case presenting
+    case presented
+    case finished
+  }
+
+  private var stage: Stage = .waitingForWindow
+  private var attempts = 0
+  /// Ten runloop turns is a tenth of a second at worst; a stage that is still window-less
+  /// after that is not going to get one, and silently retrying forever hides the reason.
+  private static let maximumAttempts = 10
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -363,16 +363,42 @@ final class PlayerPresentationController: UIViewController {
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-    guard presentedViewController == nil else { return }
-    guard !didPresent else {
+    switch stage {
+    case .waitingForWindow:
+      presentWhenWindowed()
+    case .presented where playerController.presentingViewController == nil:
+      // We were on screen and are not any more: the viewer left the player.
+      stage = .finished
       onPlayerDismissed?()
+    default:
+      break
+    }
+  }
+
+  private func presentWhenWindowed() {
+    guard view.window != nil, presentedViewController == nil else {
+      attempts += 1
+      guard attempts <= Self.maximumAttempts else {
+        Logger.app.error("Player stage never entered a window; leaving the route rather than showing black")
+        stage = .finished
+        onPlayerDismissed?()
+        return
+      }
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.stage == .waitingForWindow else { return }
+        self.presentWhenWindowed()
+      }
       return
     }
-    didPresent = true
-    present(playerController, animated: true)
+    stage = .presenting
+    present(playerController, animated: true) { [weak self] in
+      guard let self, self.stage == .presenting else { return }
+      self.stage = .presented
+    }
   }
 
   func dismissPlayerIfNeeded() {
+    stage = .finished
     guard playerController.presentingViewController != nil else { return }
     playerController.dismiss(animated: false)
   }

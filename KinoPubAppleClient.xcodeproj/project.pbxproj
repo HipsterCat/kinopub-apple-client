@@ -86,11 +86,7 @@
 		CC88E1E92A6586E700E9387F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CC88E1E82A6586E700E9387F /* Assets.xcassets */; };
 		CCA100012C6F000100000001 /* SubtitlePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F000100000002 /* SubtitlePreferences.swift */; };
 		CCA100012C6F000100000003 /* SubtitleSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F000100000004 /* SubtitleSelector.swift */; };
-		CCA100012C6F000100000005 /* SubtitleCueParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F000100000006 /* SubtitleCueParser.swift */; };
-		CCA100012C6F000100000007 /* SubtitleOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F000100000008 /* SubtitleOverlayView.swift */; };
-		CCA100012C6F000100000009 /* SubtitleTranslatePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F00010000000A /* SubtitleTranslatePanel.swift */; };
 		CCA100012C6F00010000000B /* SubtitleTrackMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F00010000000C /* SubtitleTrackMemory.swift */; };
-		CCA100012C6F00010000000D /* SubtitleTrackPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F00010000000E /* SubtitleTrackPickerView.swift */; };
 		CCA100012C6F000100000101 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F000100000102 /* SearchView.swift */; };
 		CCA100012C6F000100000201 /* HomeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F000100000202 /* HomeCatalog.swift */; };
 		CCA100012C6F000100000203 /* View+PlatformNavigationTitle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012C6F000100000204 /* View+PlatformNavigationTitle.swift */; };
@@ -287,11 +283,7 @@
 		CC88E1F72A65A42B00E9387F /* KinoPubUI */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = KinoPubUI; path = Packages/KinoPubUI; sourceTree = "<group>"; };
 		CCA100012C6F000100000002 /* SubtitlePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitlePreferences.swift; sourceTree = "<group>"; };
 		CCA100012C6F000100000004 /* SubtitleSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleSelector.swift; sourceTree = "<group>"; };
-		CCA100012C6F000100000006 /* SubtitleCueParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleCueParser.swift; sourceTree = "<group>"; };
-		CCA100012C6F000100000008 /* SubtitleOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleOverlayView.swift; sourceTree = "<group>"; };
-		CCA100012C6F00010000000A /* SubtitleTranslatePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleTranslatePanel.swift; sourceTree = "<group>"; };
 		CCA100012C6F00010000000C /* SubtitleTrackMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleTrackMemory.swift; sourceTree = "<group>"; };
-		CCA100012C6F00010000000E /* SubtitleTrackPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleTrackPickerView.swift; sourceTree = "<group>"; };
 		CCA100012C6F000100000102 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		CCA100012C6F000100000202 /* HomeCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCatalog.swift; sourceTree = "<group>"; };
 		CCA100012C6F000100000204 /* View+PlatformNavigationTitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+PlatformNavigationTitle.swift"; sourceTree = "<group>"; };
@@ -896,11 +888,7 @@
 				A1B2C3D42E5F60718293A102 /* PlaybackAudioSession.swift */,
 				CCA100012C6F000100000002 /* SubtitlePreferences.swift */,
 				CCA100012C6F000100000004 /* SubtitleSelector.swift */,
-				CCA100012C6F000100000006 /* SubtitleCueParser.swift */,
-				CCA100012C6F000100000008 /* SubtitleOverlayView.swift */,
-				CCA100012C6F00010000000A /* SubtitleTranslatePanel.swift */,
 				CCA100012C6F00010000000C /* SubtitleTrackMemory.swift */,
-				CCA100012C6F00010000000E /* SubtitleTrackPickerView.swift */,
 			);
 			path = Player;
 			sourceTree = "<group>";
@@ -1320,11 +1308,7 @@
 				CCA1000131000006 /* LibrarySectionCatalog.swift in Sources */,
 				CCA1000131000008 /* LibraryShellView.swift in Sources */,
 				CCA100012C6F000100000703 /* LibraryFiltersBar.swift in Sources */,
-				CCA100012C6F000100000005 /* SubtitleCueParser.swift in Sources */,
-				CCA100012C6F000100000007 /* SubtitleOverlayView.swift in Sources */,
-				CCA100012C6F000100000009 /* SubtitleTranslatePanel.swift in Sources */,
 				CCA100012C6F00010000000B /* SubtitleTrackMemory.swift in Sources */,
-				CCA100012C6F00010000000D /* SubtitleTrackPickerView.swift in Sources */,
 				CCF388322A71C13900242581 /* MediaCatalog.swift in Sources */,
 				CCF388382A71C87E00242581 /* KeychainStorage.swift in Sources */,
 				CC88E1E52A6586E600E9387F /* KinoPubAppleClientApp.swift in Sources */,

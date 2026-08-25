@@ -58,7 +58,9 @@ enum HLSAudioLabeler {
                       baseURL: URL,
                       tracks: [AudioTrackInfo],
                       preferredLanguages: [String] = Locale.preferredLanguages) -> String {
-    let lines = playlist.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+    let lines = collapseAudioGroups(
+      playlist.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+    )
     let audioIndices = lines.indices.filter { isAudioMedia(lines[$0]) }
     guard !audioIndices.isEmpty, !tracks.isEmpty else {
       return absolutize(lines, baseURL: baseURL).joined(separator: "\n")
@@ -76,6 +78,60 @@ enum HLSAudioLabeler {
       out[lineIndex] = line
     }
     return absolutize(out, baseURL: baseURL).joined(separator: "\n")
+  }
+
+  // MARK: - One audio group
+
+  /// **Why a film with three dubs showed nine.**
+  ///
+  /// kino.pub masters carry one `AUDIO` group per video quality — the same dubs listed
+  /// again for every ladder rung — and AVKit's Audio menu shows the union of them. The
+  /// viewer sees "Русский" three times over, switching between them changes nothing
+  /// audible, and no label can tell them apart because they *are* the same dub.
+  ///
+  /// So the master we serve keeps one group and points every variant at it: the group with
+  /// the most renditions, so no language the master offered is lost. Audio stops varying
+  /// with the video rung, which is what a single audio group means everywhere else — the
+  /// stream ladder itself is untouched.
+  static func collapseAudioGroups(_ lines: [String]) -> [String] {
+    let audioIndices = lines.indices.filter { isAudioMedia(lines[$0]) }
+    let groups = audioIndices.reduce(into: [String: [Int]]()) { groups, index in
+      guard let id = attribute("GROUP-ID", in: lines[index]) else { return }
+      groups[id, default: []].append(index)
+    }
+    guard groups.count > 1 else { return lines }
+
+    // The richest group wins; ties go to the one that appears first, so the choice does
+    // not wander between two identical masters.
+    let survivor = groups
+      .sorted { lhs, rhs in
+        if lhs.value.count != rhs.value.count { return lhs.value.count > rhs.value.count }
+        return (lhs.value.first ?? 0) < (rhs.value.first ?? 0)
+      }
+      .first
+    guard let survivor else { return lines }
+
+    let dropped = Set(groups.filter { $0.key != survivor.key }.flatMap(\.value))
+    return lines.enumerated().compactMap { index, line in
+      if dropped.contains(index) { return nil }
+      guard line.trimmingCharacters(in: .whitespaces).hasPrefix("#EXT-X-STREAM-INF:") else {
+        return line
+      }
+      return replaceAttribute("AUDIO", in: line, with: survivor.key)
+    }
+  }
+
+  private static func attribute(_ name: String, in line: String) -> String? {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    guard let colon = trimmed.firstIndex(of: ":") else { return nil }
+    return HLSManifestParser.attributes(in: String(trimmed[trimmed.index(after: colon)...]))[name]
+  }
+
+  private static func replaceAttribute(_ name: String, in line: String, with value: String) -> String {
+    guard let range = line.range(of: "\(name)=\"[^\"]*\"", options: .regularExpression) else {
+      return line
+    }
+    return line.replacingCharacters(in: range, with: "\(name)=\"\(value)\"")
   }
 
   // MARK: - DEFAULT pick

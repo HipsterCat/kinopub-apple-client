@@ -36,10 +36,6 @@ class PlayerManager: ObservableObject {
 
   @Published var isPlaying: Bool = false
   @Published var watchMark: WatchData?
-  @Published var activeCue: SubtitleCue?
-  @Published var activeSecondaryCue: SubtitleCue?
-  @Published var lastCue: SubtitleCue?
-  @Published var subtitlesEnabled: Bool = false
   @Published var currentPlaybackTime: TimeInterval = 0
   @Published private(set) var playbackState: PlaybackState = .preparing
   /// True while the system is showing this stream in Picture in Picture. Leaving the
@@ -52,14 +48,12 @@ class PlayerManager: ObservableObject {
   /// real renditions — at which point it stops being provisional.
   @Published private(set) var plan: PlaybackPlan
 
-  /// Every subtitle track this item offers, and the two that are showing.
+  /// Every subtitle track this item offers, and the one the system player is showing.
   @Published private(set) var subtitleTracks: [SubtitleTrack] = []
   @Published private(set) var primaryTrack: SubtitleTrack?
-  @Published private(set) var secondaryTrack: SubtitleTrack?
 
   let player = AVPlayer()
   private var playerTimeObserver: PlayerTimeObserver?
-  private var cueObserverToken: Any?
   private var playItem: any PlayableItem
   private var watchMode: WatchMode
   private var downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>
@@ -67,9 +61,6 @@ class PlayerManager: ObservableObject {
   private var actionsService: UserActionsService
   /// Only for resolving missing stream links — see `resolveStreamLinksIfNeeded`.
   private let contentService: VideoContentService
-  private var cues: [SubtitleCue] = []
-  private var secondaryCues: [SubtitleCue] = []
-  private var cueLoadTasks: [Task<Void, Never>] = []
   private var didPreparePlayback = false
   /// Playback position of the last successful `/v1/watching/marktime` tick.
   private var lastServerMarkPosition: TimeInterval = 0
@@ -113,15 +104,13 @@ class PlayerManager: ObservableObject {
   /// Set once we've auto-picked a default, so a later readiness callback can't stomp a
   /// manual choice the user made in the meantime.
   private var didChooseDefaultAudio = false
-#if !os(tvOS)
   /// The `.legible` group, kept for the same reason as the audible one: it is where the
   /// resolver's subtitle decision is applied, and where a pick made in the system player's
   /// own menu is read back from.
   private var legibleGroup: AVMediaSelectionGroup?
-#endif
 #if os(tvOS)
   /// The system player screen we drive on tvOS. Held weakly: AVKit owns it, we only
-  /// reach in to hang metadata and the transport-bar menus off it.
+  /// reach in to hang the info-panel metadata off it.
   private weak var playerViewController: AVPlayerViewController?
 #endif
 
@@ -194,14 +183,11 @@ class PlayerManager: ObservableObject {
     playerTimeObserver = PlayerTimeObserver(player: player, period: 10.0, timeUpdateHandler: { [weak self] time in
       self?.saveWatchMark(time: time)
       self?.persistAudioSelectionIfNeeded(at: time)
-#if !os(tvOS)
-      // On tvOS the picker records a pick as it is made; off it the system menu is the
-      // only picker there is, so the tick is where a change gets noticed.
+      // The system menu is the only picker there is, and it reports nothing, so the tick
+      // is where a change gets noticed — audio and subtitles alike.
       self?.persistSubtitleSelectionIfNeeded(at: time)
-#endif
     })
 
-    addCueTimeObserver()
     configureSubtitles()
   }
 
@@ -242,9 +228,7 @@ class PlayerManager: ObservableObject {
     // Set before the item is handed over: automatic criteria are applied as it loads.
     player.appliesMediaSelectionCriteriaAutomatically = false
     player.replaceCurrentItem(with: item)
-#if !os(tvOS)
     pinMediaSelection(on: item)
-#endif
 #if os(iOS) || os(tvOS)
     // AVPlayerItem.externalMetadata is absent on macOS (AVPlayerView / the window title
     // bar carry the name there instead) — see the customization-surface table in
@@ -254,9 +238,6 @@ class PlayerManager: ObservableObject {
     audibleGroup = nil
     didChooseDefaultAudio = false
     configureDefaultAudioWhenReady()
-#if os(tvOS)
-    rebuildTransportBarMenus()
-#endif
   }
 
   /// An episode that came from a `nolinks=1` details call has no files until now. One
@@ -332,10 +313,6 @@ class PlayerManager: ObservableObject {
   }
 
   deinit {
-    cueLoadTasks.forEach { $0.cancel() }
-    if let cueObserverToken {
-      player.removeTimeObserver(cueObserverToken)
-    }
     if let playbackFailureObserver {
       NotificationCenter.default.removeObserver(playbackFailureObserver)
     }
@@ -369,12 +346,6 @@ class PlayerManager: ObservableObject {
     seekObservation?.invalidate()
     seekObservation = nil
     masterLoader = nil
-    cueLoadTasks.forEach { $0.cancel() }
-    cueLoadTasks = []
-    if let cueObserverToken {
-      player.removeTimeObserver(cueObserverToken)
-      self.cueObserverToken = nil
-    }
     if let playbackFailureObserver {
       NotificationCenter.default.removeObserver(playbackFailureObserver)
       self.playbackFailureObserver = nil
@@ -385,9 +356,7 @@ class PlayerManager: ObservableObject {
     }
     audioReadyObservation?.invalidate()
     audioReadyObservation = nil
-#if !os(tvOS)
     legibleGroup = nil
-#endif
 #if os(iOS) || os(tvOS)
     // Give the session back so whatever was playing before us can resume.
     PlaybackAudioSession.deactivate()
@@ -410,11 +379,6 @@ class PlayerManager: ObservableObject {
   }
 
   // MARK: - Subtitles
-
-  /// Nothing to pick from on a trailer, or on an item the API gave no tracks for.
-  var canChooseSubtitles: Bool {
-    watchMode == .media && !subtitleTracks.isEmpty
-  }
 
   /// **Which dub and which subtitles this opens with.** Asked at both the points that need
   /// it — subtitles at init, audio once the renditions publish — so the two can never
@@ -446,216 +410,18 @@ class PlayerManager: ObservableObject {
     return AudioRenditions.menu(from: group.options)
   }
 
-  /// The tracks to open with.
+  /// The track to open with, on every platform.
   ///
-  /// **The decision is asked for on every platform; only the rendering differs.** tvOS
-  /// draws sidecar SRT itself (see `apply`), and everywhere else the system player lists
-  /// the master's own WebVTT copies of those same files and renders the one we select —
-  /// so off tvOS the answer is carried to the legible group by `pinMediaSelection` and no
-  /// sidecar is fetched.
+  /// **The subtitles the viewer sees are the system player's own**, drawn by AVKit from the
+  /// master's renditions and styled by Settings › Accessibility › Subtitles & Captioning.
+  /// We decide *which* one is selected and nothing else — no sidecar fetch, no overlay of
+  /// ours, no second menu. (Until 2026-08-25 tvOS rendered SRT itself, in our styling, and
+  /// hid the system picker behind a custom "Subtitles" menu built for a dual-track feature
+  /// that does not exist. Both are gone.)
   private func configureSubtitles() {
     guard watchMode == .media else { return }
     subtitleTracks = SubtitleSelector.tracks(in: playItem.subtitles)
-#if !os(tvOS)
-    // Off tvOS `apply` is not the path — it loads sidecar cues nothing would draw and
-    // rebuilds a transport-bar menu that does not exist. The decision is all we keep.
     primaryTrack = refreshPlan().decision.subtitle
-#endif
-#if os(tvOS)
-    let primary = refreshPlan().decision.subtitle
-    // Dual subtitles stay a Settings choice rather than something the resolver decides:
-    // a second line is a deliberate extra, not part of what a title opens with.
-    var secondary = SubtitlePreferences.dualSubtitlesEnabled
-      ? SubtitleTracks.preferred(language: SubtitlePreferences.secondSubtitleLanguage,
-                                 in: subtitleTracks,
-                                 preferNonCC: SubtitlePreferences.preferNonCCSubtitles)
-      : nil
-    if secondary == primary { secondary = nil }
-    apply(SubtitleSelector.Selection(primary: primary, secondary: secondary), remember: false)
-#endif
-  }
-
-  /// Picking a track is also a statement about the next episode, so every change from
-  /// the picker is written down.
-  ///
-  /// Turning the first line off turns the pair off: a second line on its own, with the
-  /// first row reading "Off", is a screen that lies about what it is showing.
-  func select(primary track: SubtitleTrack?) {
-    guard let track else {
-      apply(SubtitleSelector.Selection(primary: nil, secondary: nil), remember: true)
-      return
-    }
-    var selection = SubtitleSelector.Selection(primary: track, secondary: secondaryTrack)
-    if selection.secondary == track { selection.secondary = nil }
-    apply(selection, remember: true)
-  }
-
-  func select(secondary track: SubtitleTrack?) {
-    var selection = SubtitleSelector.Selection(primary: primaryTrack, secondary: track)
-    if selection.primary == track { selection.primary = nil }
-    if selection.primary == nil {
-      selection.primary = selection.secondary
-      selection.secondary = nil
-    }
-    apply(selection, remember: true)
-  }
-
-  private func apply(_ selection: SubtitleSelector.Selection, remember: Bool) {
-    cueLoadTasks.forEach { $0.cancel() }
-    cueLoadTasks = []
-
-    primaryTrack = selection.primary
-    secondaryTrack = selection.secondary
-    cues = []
-    secondaryCues = []
-    activeCue = nil
-    activeSecondaryCue = nil
-    lastCue = nil
-    subtitlesEnabled = false
-
-    if remember {
-      let scopes = trackScopes
-      // An item that offered nothing to choose teaches nothing. Writing "off" from a menu
-      // that only ever said "Off" would turn subtitles off for the whole series.
-      if !scopes.isEmpty, !subtitleTracks.isEmpty {
-        // Turning them off is a choice too — without storing it, the default turns
-        // subtitles back on every episode.
-        let signature = selection.primary.map(SubtitleChoiceSignature.init) ?? .off
-        recordedSubtitleSignature = signature
-        trackPreferences.recordSubtitle(signature, in: scopes)
-      }
-    }
-
-    // The transport-bar menu is the only place these tracks are shown on tvOS, so its
-    // checkmarks have to move the instant the selection does.
-#if os(tvOS)
-    rebuildTransportBarMenus()
-#endif
-
-    guard let primary = selection.primary else {
-      disableSystemLegibleSelection()
-      return
-    }
-
-    if let url = sidecarURL(for: primary) {
-      cueLoadTasks.append(Task { [weak self] in
-        await self?.loadSidecarSubtitles(from: url, shift: primary.subtitle.shift, isPrimary: true)
-      })
-    } else {
-      // Stream survey: every kino.pub subtitle is a sidecar SRT (embed × 0). No HLS
-      // legible fallback — selecting an embedded track would only mis-fire.
-      Logger.app.debug("Primary subtitle has no sidecar URL; overlay stays empty")
-    }
-
-    if let secondary = selection.secondary, let url = sidecarURL(for: secondary) {
-      cueLoadTasks.append(Task { [weak self] in
-        await self?.loadSidecarSubtitles(from: url, shift: secondary.subtitle.shift, isPrimary: false)
-      })
-    }
-  }
-
-  private func sidecarURL(for track: SubtitleTrack) -> URL? {
-    guard track.hasSidecar else { return nil }
-    return URL(string: track.url)
-  }
-
-  private func loadSidecarSubtitles(from url: URL, shift: Int, isPrimary: Bool) async {
-    do {
-      let (data, _) = try await URLSession.shared.data(from: url)
-      guard let content = String(data: data, encoding: .utf8)
-              ?? String(data: data, encoding: .isoLatin1) else {
-        Logger.app.error("Failed to decode subtitle file at \(url.absoluteString)")
-        return
-      }
-      let parsed = SubtitleCueParser.parse(content, shiftMilliseconds: shift)
-      guard !Task.isCancelled else { return }
-      await MainActor.run {
-        if isPrimary {
-          self.cues = parsed
-          self.subtitlesEnabled = !parsed.isEmpty
-          // Avoid double captions if the stream also has embedded tracks.
-          self.disableSystemLegibleSelection()
-        } else {
-          self.secondaryCues = parsed
-        }
-        Logger.app.debug("Loaded \(parsed.count) subtitle cues (primary: \(isPrimary))")
-      }
-    } catch {
-      Logger.app.error("Failed to load subtitles: \(error)")
-    }
-  }
-
-#if !os(tvOS)
-  /// **One authority decides the tracks, and it is `TrackResolver` — on every platform.**
-  ///
-  /// AVFoundation applies media-selection criteria automatically by default, which off tvOS
-  /// means the system's caption settings pick the legible track. Two of those settings
-  /// disagree with us: *Automatic*, the stock value, exists to put captions up when the
-  /// media is **muted** — that is the transcription that appeared over a film on macOS —
-  /// and neither value knows anything about what this viewer chose on the last episode.
-  ///
-  /// So automatic criteria are off and the answer comes from the resolver instead. That is
-  /// not the same as "off": the resolver **reads the system setting** — `.alwaysOn` in
-  /// Settings › Accessibility › Subtitles & Captioning means on, and the system caption
-  /// languages seed the language order — on top of the remembered per-season choice and the
-  /// "audio in a language the viewer does not read" rule. Rules and reasons:
-  /// docs/product/playback-tracks.md. Picking something else in the system menu still wins;
-  /// only the muted-transcription reflex is gone.
-  ///
-  /// Only the legible half is here: the dub is chosen by `applyAudibleGroup`, which runs on
-  /// every platform now and knows the ledger.
-  private func pinMediaSelection(on item: AVPlayerItem) {
-    Task { @MainActor in
-      guard let legible = try? await item.asset.loadMediaSelectionGroup(for: .legible) else { return }
-      // The await outlives a stream that was left in the meantime.
-      guard self.player.currentItem === item else { return }
-      self.applyLegibleGroup(from: item, group: legible)
-    }
-  }
-#endif
-
-  /// Told by the player screen's delegate, on every platform that has one.
-  func setPictureInPictureActive(_ active: Bool) {
-    isPictureInPictureActive = active
-  }
-
-  private func disableSystemLegibleSelection() {
-    guard let item = player.currentItem else { return }
-    Task { @MainActor in
-      guard let group = try? await item.asset.loadMediaSelectionGroup(for: .legible) else { return }
-      item.select(nil, in: group)
-    }
-  }
-
-  private func addCueTimeObserver() {
-    let interval = CMTime(seconds: 0.25, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-    cueObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-      guard let self else { return }
-      let seconds = time.seconds.isFinite ? time.seconds : 0
-      self.currentPlaybackTime = seconds
-      guard self.subtitlesEnabled, !self.cues.isEmpty else {
-        if self.activeCue != nil { self.activeCue = nil }
-        if self.activeSecondaryCue != nil { self.activeSecondaryCue = nil }
-        return
-      }
-      let cue = SubtitleCueParser.cue(at: seconds, in: self.cues)
-      if cue != self.activeCue {
-        self.activeCue = cue
-        if let cue {
-          self.lastCue = cue
-        }
-      }
-      guard !self.secondaryCues.isEmpty else {
-        if self.activeSecondaryCue != nil { self.activeSecondaryCue = nil }
-        return
-      }
-      // The two tracks have their own timings, so the second line is looked up on its
-      // own rather than paired with the first.
-      let secondary = SubtitleCueParser.cue(at: seconds, in: self.secondaryCues)
-      if secondary != self.activeSecondaryCue {
-        self.activeSecondaryCue = secondary
-      }
-    }
   }
 
   // MARK: - Watch marks
@@ -956,10 +722,6 @@ extension PlayerManager {
           item.select(chosen, in: group)
         }
       }
-#if os(tvOS)
-      // The transport-bar checkmarks are tvOS chrome; the selection above is not.
-      self.rebuildTransportBarMenus()
-#endif
     }
   }
 
@@ -1001,8 +763,6 @@ extension PlayerManager {
     trackPreferences.recordAudio(signature, in: scopes)
   }
 
-
-#if !os(tvOS)
 
   // MARK: Subtitles the system player renders
 
@@ -1060,84 +820,28 @@ extension PlayerManager {
     recordedSubtitleSignature = signature
     trackPreferences.recordSubtitle(signature, in: scopes)
   }
-
-#endif
 }
 
 #if os(tvOS)
 
-// MARK: - tvOS transport bar
+// MARK: - tvOS
 
 extension PlayerManager {
 
-  /// Hand the system player screen everything it needs: the title/subtitle for the info
-  /// panel, and the Subtitles menu for the transport bar. Called from the
-  /// `UIViewControllerRepresentable` once AVKit has made the controller.
+  /// Hand the system player screen what it needs and nothing else: the title/subtitle for
+  /// the info panel, and a dub chosen once the renditions publish.
+  ///
+  /// **No chrome of ours hangs off this controller any more.** It used to carry a custom
+  /// "Subtitles" menu in the transport bar — built for a dual-track feature that does not
+  /// exist — while `allowedSubtitleOptionLanguages = []` hid AVKit's own picker and a
+  /// SwiftUI overlay drew sidecar SRT in our styling. The system menu and the system
+  /// captions are back; they know about caption styling, and we do not.
   func attach(to controller: AVPlayerViewController) {
     playerViewController = controller
     configureExternalMetadata()
-    hideSystemSubtitlePicker(on: controller)
     if player.currentItem != nil {
       configureDefaultAudioWhenReady()
     }
-    rebuildTransportBarMenus()
-  }
-
-  /// The HLS legible group makes AVKit draw its own Subtitles control, so without this the
-  /// transport bar shows two — ours (dual tracks + sidecar SRT) and the system's. Emptying
-  /// the allowed-languages list removes the system one.
-  ///
-  /// Safe to drop here because kino.pub ships every subtitle as a sidecar SRT and the HLS
-  /// subtitle renditions are just its own WebVTT copies of those same files (Stream survey:
-  /// srt × 189, embed × 0, CC × 0) — so nothing the system picker could reach is missing
-  /// from ours. This only hides the picker UI.
-  private func hideSystemSubtitlePicker(on controller: AVPlayerViewController) {
-    controller.allowedSubtitleOptionLanguages = []
-  }
-
-  // MARK: Menus
-
-  /// Rebuild the custom menu from scratch. `UIMenu` is immutable, so tracking the current
-  /// pick means handing AVKit a freshly-built array every time anything changes.
-  ///
-  /// Only Subtitles lives here. Audio is left to the system picker the HLS stream already
-  /// gives the transport bar — a second, hand-rolled Audio menu next to it was the "two
-  /// buttons" duplication. We still choose a sensible default and remember the user's pick
-  /// (see `configureDefaultAudioWhenReady` / `persistAudioSelectionIfNeeded`); we just no
-  /// longer draw our own control for it.
-  func rebuildTransportBarMenus() {
-    guard let controller = playerViewController else { return }
-    var items: [UIMenuElement] = []
-    if let subtitles = subtitlesMenu() { items.append(subtitles) }
-    controller.transportBarCustomMenuItems = items
-  }
-
-  private func subtitlesMenu() -> UIMenu? {
-    guard canChooseSubtitles else { return nil }
-    let first = UIMenu(title: "First subtitles".localized,
-                       options: .singleSelection,
-                       children: subtitleActions(current: primaryTrack) { [weak self] track in
-                         self?.select(primary: track)
-                       })
-    let second = UIMenu(title: "Second subtitles".localized,
-                        options: .singleSelection,
-                        children: subtitleActions(current: secondaryTrack) { [weak self] track in
-                          self?.select(secondary: track)
-                        })
-    return UIMenu(title: "Subtitles".localized,
-                  image: UIImage(systemName: "captions.bubble"),
-                  children: [first, second])
-  }
-
-  private func subtitleActions(current: SubtitleTrack?,
-                               pick: @escaping (SubtitleTrack?) -> Void) -> [UIAction] {
-    let off = UIAction(title: "Off".localized,
-                       state: current == nil ? .on : .off) { _ in pick(nil) }
-    let tracks = subtitleTracks.map { track in
-      UIAction(title: track.displayName,
-               state: current == track ? .on : .off) { _ in pick(track) }
-    }
-    return [off] + tracks
   }
 
 }

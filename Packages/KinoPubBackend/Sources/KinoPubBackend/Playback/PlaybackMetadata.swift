@@ -48,11 +48,10 @@ public enum PlaybackMetadata {
     if !genres.isEmpty {
       items.append(item(.commonIdentifierType, genres.joined(separator: ", ")))
     }
-    if context.year > 0 {
-      // A year, not a date: the API has no release day, and inventing one would be a
-      // fact we do not have.
-      items.append(item(.commonIdentifierCreationDate, String(context.year)))
-    }
+    // **No year.** `.commonIdentifierCreationDate` does not land where a release year
+    // belongs — tvOS prints it in the line *above* the title, where the stock player puts
+    // a channel or a show name, so a film reads as "2023 / Мятеж". The year already lives
+    // on the page the viewer came from.
     return items
   }
 

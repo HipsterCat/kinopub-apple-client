@@ -126,29 +126,62 @@ final class AuthState: ObservableObject {
     Task { await refreshToken() }
   }
 
+  /// Set when a refresh was cut off mid-flight. **The next rejection cannot be trusted
+  /// after one of those:** the cancelled request may well have reached kino.pub and rotated
+  /// the refresh token there, in which case the following attempt presents a token the
+  /// server has already retired and gets a 400 that says nothing about the session.
+  private var lastRefreshWasCancelled = false
+
   private func refreshToken() async {
     guard !isRefreshing else { return }
     isRefreshing = true
     defer { isRefreshing = false }
     Logger.app.debug("Refreshing token...")
     do {
-      try await authService.refreshToken()
+      // **Detached on purpose.** `check()` is awaited from `RootView`'s `.task`, so a view
+      // that goes away mid-refresh used to cancel the HTTP request itself — which is how a
+      // session died on a device: the player churned, the refresh was cancelled at -999,
+      // the retry presented a rotated-away token, the 400 read as "session over" and the
+      // viewer landed on the activation-code screen mid-film.
+      try await Task.detached(priority: .userInitiated) { [authService] in
+        try await authService.refreshToken()
+      }.value
+      lastRefreshWasCancelled = false
       markSignedIn()
-    } catch let error as APIClientError where error.isFatalAuthError {
+    } catch let error as APIClientError where error.isFatalAuthError && !lastRefreshWasCancelled {
       // The backend explicitly rejected the refresh token — only now is the session
       // really over. Clear Keychain so the next launch does not revive a dead token.
       refreshRetryTask?.cancel()
       refreshRetryTask = nil
       authService.logout(userInitiated: false)
       markSignedOut(reason: "refresh rejected")
+    } catch let error as APIClientError where error.isFatalAuthError {
+      // Rejected, but right after a cancelled attempt — one grace round rather than
+      // throwing the viewer at the activation screen on our own race.
+      Logger.app.warning("Refresh rejected right after a cancelled one — keeping the session for one retry")
+      lastRefreshWasCancelled = false
+      markSignedIn()
+      scheduleRefreshRetry()
     } catch {
       // Timeout / offline / unreachable host: keep the session. The Keychain token
       // may still be valid and every screen has its own error state — logging out
       // over a network hiccup just throws the user at the activation code screen.
+      lastRefreshWasCancelled = Self.wasCancelled(error)
       Logger.app.warning("Token refresh failed transiently, keeping the session: \(error)")
       markSignedIn()
       scheduleRefreshRetry()
     }
+  }
+
+  /// A cancellation anywhere in the chain — the wrapper carries the `URLError` underneath.
+  private static func wasCancelled(_ error: Error) -> Bool {
+    if error is CancellationError { return true }
+    var stack: [NSError] = [error as NSError]
+    while let next = stack.popLast() {
+      if next.domain == NSURLErrorDomain, next.code == NSURLErrorCancelled { return true }
+      stack.append(contentsOf: next.underlyingErrors.map { $0 as NSError })
+    }
+    return false
   }
 
   /// Retries a failed refresh with backoff (5s → 10s → 20s → … capped at 2 min) so a

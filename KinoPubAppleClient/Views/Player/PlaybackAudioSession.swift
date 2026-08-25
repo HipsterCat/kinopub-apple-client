@@ -25,13 +25,18 @@ import OSLog
 /// must not cost us the category.
 enum PlaybackAudioSession {
 
+  /// Off the main thread on purpose: `setActive` blocks on the audio daemon, and UIKit
+  /// says so out loud ("This method can lead to UI unresponsiveness if called on the main
+  /// thread") — it was called straight from `preparePlayback`, which is main-actor.
   static func activate() {
-    let session = AVAudioSession.sharedInstance()
-    do {
-      try setPlaybackCategory(on: session)
-      try session.setActive(true)
-    } catch {
-      Logger.app.error("Audio session activation failed: \(error.localizedDescription)")
+    Task.detached(priority: .userInitiated) {
+      let session = AVAudioSession.sharedInstance()
+      do {
+        try setPlaybackCategory(on: session)
+        try session.setActive(true)
+      } catch {
+        Logger.app.error("Audio session activation failed: \(error.localizedDescription)")
+      }
     }
   }
 
@@ -50,6 +55,12 @@ enum PlaybackAudioSession {
   /// Handing the session back is what lets whatever was playing before us resume. Called
   /// when a stream is torn down, never merely when it pauses.
   static func deactivate() {
+    Task.detached(priority: .utility) {
+      deactivateNow()
+    }
+  }
+
+  private static func deactivateNow() {
     do {
       try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     } catch {
