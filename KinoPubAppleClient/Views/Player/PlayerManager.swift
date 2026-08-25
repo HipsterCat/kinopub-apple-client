@@ -410,6 +410,31 @@ class PlayerManager: ObservableObject {
     return AudioRenditions.menu(from: group.options)
   }
 
+  /// **One authority decides the tracks, and it is `TrackResolver`.**
+  ///
+  /// AVFoundation applies media-selection criteria automatically by default, and those
+  /// criteria follow the system's caption settings — including the *Automatic* display
+  /// type, whose whole job is to put captions up when the media is **muted**. That is the
+  /// transcription that appeared over a film on macOS, and it knows nothing about what this
+  /// viewer chose on the last episode. So automatic criteria are off (see `preparePlayback`)
+  /// and the answer comes from the resolver, which reads the system setting as one of its
+  /// inputs rather than competing with it.
+  ///
+  /// Only the legible half is here; the dub is `applyAudibleGroup`'s.
+  private func pinMediaSelection(on item: AVPlayerItem) {
+    Task { @MainActor in
+      guard let legible = try? await item.asset.loadMediaSelectionGroup(for: .legible) else { return }
+      // The await outlives a stream that was left in the meantime.
+      guard self.player.currentItem === item else { return }
+      self.applyLegibleGroup(from: item, group: legible)
+    }
+  }
+
+  /// Told by the player screen's delegate, on every platform that has one.
+  func setPictureInPictureActive(_ active: Bool) {
+    isPictureInPictureActive = active
+  }
+
   /// The track to open with, on every platform.
   ///
   /// **The subtitles the viewer sees are the system player's own**, drawn by AVKit from the
