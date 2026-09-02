@@ -83,15 +83,17 @@ struct PlayerView: View {
 #if os(iOS)
     .navigationBarHidden(true)
     .toolbar(.hidden, for: .tabBar)
+    // No orientation forcing: the video opens as held — portrait included — and the
+    // system player follows the device when the viewer rotates it. Forcing landscape
+    // here fought AVKit's own fullscreen orientation transaction ("a new orientation
+    // transaction token is being requested while a valid one already exists"), and the
+    // churn recreated the presentation host mid-dismissal — the player reopening after
+    // close. A "landscape by default" preference may come later, deliberately.
     .onAppear(perform: {
       UIApplication.shared.isIdleTimerDisabled = true
-      AppDelegate.orientationLock = .landscape
-      Self.requestGeometryUpdate(.landscape)
     })
     .onDisappear(perform: {
       UIApplication.shared.isIdleTimerDisabled = false
-      AppDelegate.orientationLock = .all
-      Self.requestGeometryUpdate(.all)
     })
 #endif
 #if os(tvOS)
@@ -174,23 +176,6 @@ struct PlayerView: View {
       }
 #endif
   }
-
-#if os(iOS)
-  /// Rotates through the scene's `requestGeometryUpdate`, the supported API — the
-  /// `UIDevice.orientation` KVO write it replaces is rejected on iOS 26 ("BUG IN CLIENT
-  /// OF UIKIT: Setting UIDevice.orientation is not supported") and each ignored write
-  /// churned the hierarchy, tearing this screen's `.task` down and back up under a film.
-  private static func requestGeometryUpdate(_ orientations: UIInterfaceOrientationMask) {
-    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-    guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else { return }
-    scene.requestGeometryUpdate(.iOS(interfaceOrientations: orientations))
-    var top = scene.windows.first(where: \.isKeyWindow)?.rootViewController
-    while let presented = top?.presentedViewController {
-      top = presented
-    }
-    top?.setNeedsUpdateOfSupportedInterfaceOrientations()
-  }
-#endif
 
   /// `nil` outside `.failed`, so the alert's `presenting:` item controls its own
   /// visibility together with `showsFailureAlert`.
