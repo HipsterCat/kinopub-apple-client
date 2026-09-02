@@ -181,21 +181,36 @@ final class HLSAudioLabelerTests: XCTestCase {
 
   private let base = URL(string: "https://cdn.example.com/hls/master.m3u8")!
 
-  /// Item 126352's shape: four real tracks repeated under three per-quality groups.
+  /// Item 126352's shape: four real tracks repeated under three per-quality groups, and
+  /// its four subtitle renditions — two Russian, one Russian forced, one English.
   private func master(audioGroups: [String] = ["audio1080", "audio720", "audio480"],
+                      subtitleGroups: [String] = ["sub"],
                       names: [(name: String, lang: String)] = [("01. Многоголосый. Rezka (RUS)", "rus"),
                                                                ("02. Многоголосый. Rezka 18+ (RUS)", "rus"),
                                                                ("03. Двухголосый. AlphaProject (RUS)", "rus"),
                                                                ("04. Оригинал (ENG)", "eng")]) -> String {
+    let subs: [(name: String, lang: String, forced: Bool)] = [("RUS #01", "rus", false),
+                                                              ("RUS #02", "rus", false),
+                                                              ("RUS #03 Forced", "rus", true),
+                                                              ("ENG #04", "eng", false)]
     var lines = ["#EXTM3U", "#EXT-X-VERSION:4"]
-    lines.append("#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub\",NAME=\"RUS #01\",LANGUAGE=\"rus\",URI=\"sub/rus.m3u8\"")
+    for (groupIndex, group) in subtitleGroups.enumerated() {
+      for sub in subs {
+        var line = "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"\(group)\",NAME=\"\(sub.name)\",LANGUAGE=\"\(sub.lang)\""
+        if sub.forced { line += ",FORCED=YES" }
+        line += ",URI=\"sub/\(sub.name)-\(groupIndex).m3u8\""
+        lines.append(line)
+      }
+    }
     for (groupIndex, group) in audioGroups.enumerated() {
       for (nameIndex, rendition) in names.enumerated() {
         lines.append("#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"\(group)\",NAME=\"\(rendition.name)\",LANGUAGE=\"\(rendition.lang)\",DEFAULT=\(nameIndex == 0 ? "YES" : "NO"),AUTOSELECT=YES,URI=\"a\(nameIndex)-\(groupIndex)/index.m3u8\"")
       }
     }
-    for group in audioGroups {
-      lines.append("#EXT-X-STREAM-INF:BANDWIDTH=1000,AUDIO=\"\(group)\",SUBTITLES=\"sub\"")
+    for (groupIndex, group) in audioGroups.enumerated() {
+      // As on the CDN, each variant stream points at its own quality's subtitle group.
+      let subs = subtitleGroups[min(groupIndex, subtitleGroups.count - 1)]
+      lines.append("#EXT-X-STREAM-INF:BANDWIDTH=1000,AUDIO=\"\(group)\",SUBTITLES=\"\(subs)\"")
       lines.append("vod/\(group).m3u8")
     }
     return lines.joined(separator: "\n")
@@ -250,7 +265,43 @@ final class HLSAudioLabelerTests: XCTestCase {
       .map { attribute("AUDIO", in: String($0)) }
     XCTAssertEqual(streamAudioGroups, ["audio1080", "audio1080", "audio1080"])
 
-    XCTAssertTrue(rewritten.contains("GROUP-ID=\"sub\""), "the subtitle group is not ours to touch")
+    XCTAssertTrue(rewritten.contains("GROUP-ID=\"sub\""), "a single subtitle group keeps its id")
+  }
+
+  // MARK: - Subtitle labels
+
+  private func subtitleLines(in playlist: String) -> [String] {
+    playlist.split(separator: "\n", omittingEmptySubsequences: false)
+      .map(String.init)
+      .filter { $0.contains("#EXT-X-MEDIA:") && $0.contains("TYPE=SUBTITLES") }
+  }
+
+  /// The bug behind "ENG #04 - English, Russian, Russian, Russian Forced" in the system
+  /// menu: the CDN's language-prefixed names confuse AVKit's display-name derivation into
+  /// stripping some rows and keeping others. Every rendition gets the clean language
+  /// label, duplicates numbered, the forced kind spelled out.
+  func testSubtitleNamesBecomeCleanLanguageLabels() {
+    let rewritten = HLSAudioLabeler.rewrite(master(), baseURL: base, tracks: apiTracks)
+    let subs = subtitleLines(in: rewritten)
+    XCTAssertEqual(subs.count, 4)
+    let rus = LanguageNames.name(for: "rus")
+    let eng = LanguageNames.name(for: "eng")
+    XCTAssertEqual(subs.map { attribute("NAME", in: $0) },
+                   [rus, "\(rus) ∙ 2", "\(rus) (\("Forced".localized))", eng])
+    XCTAssertTrue(subs[2].contains("FORCED=YES"), "the forced kind survives the rename")
+  }
+
+  /// Subtitles repeated under per-quality groups collapse exactly like audio does.
+  func testPerQualitySubtitleCopiesCollapseIntoOneGroup() {
+    let rewritten = HLSAudioLabeler.rewrite(master(subtitleGroups: ["sub1080", "sub720"]),
+                                            baseURL: base, tracks: apiTracks)
+    let subs = subtitleLines(in: rewritten)
+    XCTAssertEqual(subs.count, 4)
+    XCTAssertEqual(Set(subs.map { attribute("GROUP-ID", in: $0) }), ["sub1080"])
+    let streamSubGroups = rewritten.split(separator: "\n")
+      .filter { $0.hasPrefix("#EXT-X-STREAM-INF:") }
+      .map { attribute("SUBTITLES", in: String($0)) }
+    XCTAssertEqual(streamSubGroups, ["sub1080", "sub1080", "sub1080"])
   }
 
   /// "01. …" in the CDN name is the API index — Rezka 18+ has to land on row 2 even

@@ -151,8 +151,8 @@ struct PlayerView: View {
     // the Subtitles/Audio menus off the controller.
     TVVideoPlayer(manager: liveManager, onMenuPress: { dismiss() })
       .task {
+        // Playback starts itself once the stream is ready and the resume point applied.
         await playerManager.preparePlayback()
-        playerManager.player.play()
       }
 #elseif os(iOS)
     // The system player, presented rather than embedded — that presentation is where the
@@ -163,7 +163,6 @@ struct PlayerView: View {
     })
       .task {
         await playerManager.preparePlayback()
-        playerManager.player.play()
       }
 #else
     // SwiftUI's `VideoPlayer` exposes none of `speeds` / `allowsPictureInPicturePlayback` /
@@ -172,7 +171,6 @@ struct PlayerView: View {
     MacVideoPlayer(player: playerManager.player)
       .task {
         await playerManager.preparePlayback()
-        playerManager.player.play()
       }
 #endif
   }
@@ -301,10 +299,7 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
         // then finds the player already current and only adopts the new manager.
         playerViewController.player = next.player
         manager = next
-        Task {
-          await next.preparePlayback()
-          next.player.play()
-        }
+        Task { await next.preparePlayback() }
       }
     }
 

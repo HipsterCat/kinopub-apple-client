@@ -212,8 +212,11 @@ class PlayerManager: ObservableObject {
   }
 
   /// Loads the playable URL into `player`. Safe to call more than once; only the first
-  /// run does work. Playback starts immediately — the audio-name rewrite happens inside
-  /// the resource loader while the master is being fetched, never as a step before it.
+  /// run does work. Playback starts itself once the item is ready **and the resume point
+  /// has been applied** — the local store knows it synchronously, so the first frame is
+  /// the position the viewer left off at, not 0:00 with a visible jump a beat later.
+  /// The audio-name rewrite happens inside the resource loader while the master is being
+  /// fetched, never as a step before it.
   @MainActor
   func preparePlayback() async {
     guard !didPreparePlayback else { return }
@@ -250,6 +253,16 @@ class PlayerManager: ObservableObject {
     // Cap adaptive HLS to the user's chosen quality. Harmless for local/trailer playback.
     if watchMode == .media, let maxResolution = StreamQuality.current.maxResolution {
       item.preferredMaximumResolution = maxResolution
+    }
+    // The resume point we already have, before any network: the local store is written
+    // every ten seconds of playback and answered synchronously. The server's mark is
+    // still fetched on ready and can move the position forward (see `fetchWatchMark`).
+    if watchMode == .media, canReportWatching {
+      pendingResumeTime = AppContext.shared.localProgressStore
+        .entry(forId: playItem.metadata.id,
+               season: playItem.metadata.season,
+               episode: playItem.metadata.video)?
+        .position
     }
     observePlaybackState(of: item)
     observeEndOfPlayback(of: item)
@@ -321,7 +334,11 @@ class PlayerManager: ObservableObject {
         case .readyToPlay:
           self.prepareWatchdog?.cancel()
           self.playbackState = .ready
+          // The resume seek is issued before the play call so the stream opens at the
+          // remembered position — AVFoundation applies a queued seek before the first
+          // frame it renders.
           self.applyPendingSeekIfPossible()
+          self.player.play()
           // Nothing is said to the server until there is something to play. The view
           // used to ask on appear — before the player had an item, on a title the
           // viewer had not started.
@@ -422,16 +439,13 @@ class PlayerManager: ObservableObject {
 
   /// The failure alert's "Try Again": tear the stalled attempt down and prepare once
   /// more. The two `did…` flags re-arm so the new run does the full dance, resume
-  /// point included.
+  /// point included; playback starts itself when the stream is ready.
   @MainActor
   func retryAfterFailure() {
     tearDownForReplacement()
     didPreparePlayback = false
     didFetchWatchMark = false
-    Task {
-      await preparePlayback()
-      player.play()
-    }
+    Task { await preparePlayback() }
   }
 
   /// Playing to the very end marks the title watched (see `markFinished`).
@@ -775,9 +789,11 @@ class PlayerManager: ObservableObject {
     return true
   }
 
-  /// The resume point, asked for **once playback has actually started**. It used to be
-  /// requested from `onAppear`, which asked the server about a title the viewer had not
-  /// begun watching and often before the player had an item at all.
+  /// The server's resume point, asked for **once playback has actually started**. It used
+  /// to be requested from `onAppear`, which asked the server about a title the viewer had
+  /// not begun watching and often before the player had an item at all. The local half of
+  /// the answer is already applied — `preparePlayback` seeds it before the first frame —
+  /// so this fetch only moves the playhead when the server knows a *further* position.
   @MainActor
   func fetchWatchMark() async {
     guard watchMode == .media, canReportWatching, !didFetchWatchMark else { return }
@@ -804,7 +820,10 @@ class PlayerManager: ObservableObject {
       .position ?? 0
 
     let best = max(remoteContinueTime, localContinueTime)
-    if best > 0 {
+    // Re-seeking to the position playback already opened at is a visible stutter, so
+    // only a genuinely different answer moves the playhead.
+    let current = player.currentTime().seconds
+    if best > 0, abs(best - current) > 5 {
       seek(to: best)
     }
   }

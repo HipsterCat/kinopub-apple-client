@@ -1932,6 +1932,23 @@
         }
       }
     },
+    "Forced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forced"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Форсированные"
+          }
+        }
+      }
+    },
     "Forget" : {
       "extractionState" : "manual",
       "localizations" : {

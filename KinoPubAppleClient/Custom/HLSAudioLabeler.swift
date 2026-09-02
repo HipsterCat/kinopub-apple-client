@@ -18,6 +18,14 @@
 //  match gives it a real one. Survivors move into one group, and every variant
 //  stream is pointed at it.
 //
+//  Subtitle renditions get the same collapse (some items repeat them per quality too)
+//  plus a clean label: the CDN's "RUS #01" / "ENG #04" names read as noise in the system
+//  picker, and a name that *starts with the language code* makes AVKit's display-name
+//  derivation strip it on some rows and keep it on others — the mixed "ENG #04 - English,
+//  Russian, Russian" menu. There is no API label to match a subtitle against (the API's
+//  list is lang + URL only), so the name is the language, with the forced kind spelled
+//  out: "Русский", "Русский ∙ 2", "Русский (Forced)".
+//
 //  What we write arrives as the selection option's common-metadata title — read
 //  it with `AVMediaSelectionOption.kinopubTrackName`, not `displayName`, which
 //  discards it (see that property's note). Child playlist URIs are made absolute
@@ -64,32 +72,92 @@ enum HLSAudioLabeler {
     return total
   }
 
-  /// Pure rewrite for tests: collapses per-quality audio duplicates, replaces AUDIO
-  /// `NAME`s, absolute-izes relative URIs.
+  /// Pure rewrite for tests: collapses per-quality audio and subtitle duplicates,
+  /// replaces `NAME`s, absolute-izes relative URIs.
   static func rewrite(_ playlist: String,
                       baseURL: URL,
                       tracks: [AudioTrackInfo],
                       preferredLanguages: [String] = Locale.preferredLanguages) -> String {
     let lines = playlist.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-    let audioIndices = lines.indices.filter { isAudioMedia(lines[$0]) }
-    guard !audioIndices.isEmpty else {
+    let audioIndices = lines.indices.filter { isMedia(lines[$0], type: "AUDIO") }
+    let subtitleIndices = lines.indices.filter { isMedia(lines[$0], type: "SUBTITLES") }
+    guard !audioIndices.isEmpty || !subtitleIndices.isEmpty else {
       return absolutize(lines, baseURL: baseURL).joined(separator: "\n")
     }
 
-    // Keep the first occurrence of each distinct NAME *across* groups — a repeat under
-    // another GROUP-ID is the per-quality copy of the same track. A repeated name
-    // within one group is NOT a copy: the CDN left two dubs unnamed, and the API match
-    // below gives each its real one (LostFilm next to Red Head Sound, say). A literal
-    // repeat — same NAME, same URI — is a duplicate wherever it sits. All survivors
-    // move into one group.
+    let audio = collapse(audioIndices, in: lines)
+    let subtitles = collapse(subtitleIndices, in: lines)
+
+    let (labels, matched) = labelsForKeepers(audio.keeperAttrs, tracks: tracks)
+    let defaultKeeper = bestKeeper(matched: matched, preferredLanguages: preferredLanguages)
+    let subLabels = subtitleLabels(for: subtitles.keeperAttrs)
+
+    var audioKeeperPosition: [Int: Int] = [:]
+    for (position, index) in audio.keepers.enumerated() { audioKeeperPosition[index] = position }
+    var subtitleKeeperPosition: [Int: Int] = [:]
+    for (position, index) in subtitles.keepers.enumerated() { subtitleKeeperPosition[index] = position }
+
+    var out: [String] = []
+    out.reserveCapacity(lines.count)
+    for (index, line) in lines.enumerated() {
+      if let position = audioKeeperPosition[index] {
+        var line = line
+        if let unifiedGroupID = audio.unifiedGroupID {
+          line = replaceAttribute("GROUP-ID", with: unifiedGroupID, in: line)
+        }
+        line = replaceName(in: line, with: labels[position])
+        if let defaultKeeper {
+          line = setDefault(line, isDefault: position == defaultKeeper)
+        }
+        out.append(line)
+      } else if let position = subtitleKeeperPosition[index] {
+        var line = line
+        if let unifiedGroupID = subtitles.unifiedGroupID {
+          line = replaceAttribute("GROUP-ID", with: unifiedGroupID, in: line)
+        }
+        out.append(replaceName(in: line, with: subLabels[position]))
+      } else if isMedia(line, type: "AUDIO") || isMedia(line, type: "SUBTITLES") {
+        continue // per-quality copy of a keeper
+      } else if line.hasPrefix("#EXT-X-STREAM-INF:") {
+        var line = line
+        let attrs = attributes(in: line)
+        if let unifiedGroupID = audio.unifiedGroupID,
+           let group = attrs["AUDIO"],
+           audio.groupIDs.contains(group) {
+          line = replaceAttribute("AUDIO", with: unifiedGroupID, in: line)
+        }
+        if let unifiedGroupID = subtitles.unifiedGroupID,
+           let group = attrs["SUBTITLES"],
+           subtitles.groupIDs.contains(group) {
+          line = replaceAttribute("SUBTITLES", with: unifiedGroupID, in: line)
+        }
+        out.append(line)
+      } else {
+        out.append(line)
+      }
+    }
+    return absolutize(out, baseURL: baseURL).joined(separator: "\n")
+  }
+
+  /// Keep the first occurrence of each distinct NAME *across* groups — a repeat under
+  /// another GROUP-ID is the per-quality copy of the same track. A repeated name
+  /// within one group is NOT a copy: the CDN left two dubs unnamed, and the API match
+  /// below gives each its real one (LostFilm next to Red Head Sound, say). A literal
+  /// repeat — same NAME, same URI — is a duplicate wherever it sits. All survivors
+  /// move into one group.
+  private static func collapse(_ indices: [Int],
+                               in lines: [String]) -> (keepers: [Int],
+                                                       keeperAttrs: [[String: String]],
+                                                       groupIDs: Set<String>,
+                                                       unifiedGroupID: String?) {
     var keepers: [Int] = []
     var keeperAttrs: [[String: String]] = []
-    var audioGroupIDs: Set<String> = []
+    var groupIDs: Set<String> = []
     var unifiedGroupID: String?
-    for index in audioIndices {
+    for index in indices {
       let attrs = attributes(in: lines[index])
       if unifiedGroupID == nil { unifiedGroupID = attrs["GROUP-ID"] }
-      if let group = attrs["GROUP-ID"] { audioGroupIDs.insert(group) }
+      if let group = attrs["GROUP-ID"] { groupIDs.insert(group) }
       let name = attrs["NAME"] ?? ""
       let isCopy = !name.isEmpty && keeperAttrs.contains { keeper in
         keeper["NAME"] == name
@@ -100,38 +168,7 @@ enum HLSAudioLabeler {
         keeperAttrs.append(attrs)
       }
     }
-
-    let (labels, matched) = labelsForKeepers(keeperAttrs, tracks: tracks)
-    let defaultKeeper = bestKeeper(matched: matched, preferredLanguages: preferredLanguages)
-
-    var keeperPosition: [Int: Int] = [:]
-    for (position, index) in keepers.enumerated() { keeperPosition[index] = position }
-
-    var out: [String] = []
-    out.reserveCapacity(lines.count)
-    for (index, line) in lines.enumerated() {
-      if let position = keeperPosition[index] {
-        var line = line
-        if let unifiedGroupID {
-          line = replaceAttribute("GROUP-ID", with: unifiedGroupID, in: line)
-        }
-        line = replaceName(in: line, with: labels[position])
-        if let defaultKeeper {
-          line = setDefault(line, isDefault: position == defaultKeeper)
-        }
-        out.append(line)
-      } else if isAudioMedia(line) {
-        continue // per-quality copy of a keeper
-      } else if line.hasPrefix("#EXT-X-STREAM-INF:"),
-                let unifiedGroupID,
-                let group = attributes(in: line)["AUDIO"],
-                audioGroupIDs.contains(group) {
-        out.append(replaceAttribute("AUDIO", with: unifiedGroupID, in: line))
-      } else {
-        out.append(line)
-      }
-    }
-    return absolutize(out, baseURL: baseURL).joined(separator: "\n")
+    return (keepers, keeperAttrs, groupIDs, unifiedGroupID)
   }
 
   // MARK: - Track matching
@@ -195,10 +232,24 @@ enum HLSAudioLabeler {
     return bestIndex
   }
 
+  /// Subtitle labels: the API's subtitle list carries no titles to match against, so the
+  /// name is the language itself, the forced kind spelled out, duplicates numbered —
+  /// "Русский", "Русский ∙ 2", "Русский (Forced)". A rendition without a LANGUAGE keeps
+  /// its CDN name rather than losing it.
+  private static func subtitleLabels(for attrs: [[String: String]]) -> [String] {
+    let labels: [String] = attrs.map { attr in
+      let language = LanguageNames.name(for: attr["LANGUAGE"] ?? "")
+      let base = language.isEmpty ? (attr["NAME"] ?? "Subtitles") : language
+      guard attr["FORCED"] == "YES" else { return base }
+      return "\(base) (\("Forced".localized))"
+    }
+    return AudioTracks.uniquedHLSLabels(labels)
+  }
+
   // MARK: - Line surgery
 
-  private static func isAudioMedia(_ line: String) -> Bool {
-    attributes(in: line)["TYPE"] == "AUDIO"
+  private static func isMedia(_ line: String, type: String) -> Bool {
+    attributes(in: line)["TYPE"] == type
   }
 
   /// Attribute dictionary of an `#EXT-X-MEDIA:` or `#EXT-X-STREAM-INF:` line —
@@ -280,11 +331,11 @@ enum HLSAudioLabeler {
 /// Feeds AVPlayer the relabeled master playlist without ever gating playback on it.
 ///
 /// The player is pointed at the master URL with a custom scheme, which routes the
-/// request here; the loader fetches the real playlist, relabels the audio names, and
-/// answers from memory. Everything inside the playlist is absolute `https`, so all
-/// child playlists and segments load straight from the CDN — this delegate sees exactly
-/// one request. A payload that can't be rewritten is passed through untouched (worst
-/// case the Audio picker shows the CDN's plain names), and a fetch failure fails the
+/// request here; the loader fetches the real playlist, relabels the audio and subtitle
+/// names, and answers from memory. Everything inside the playlist is absolute `https`,
+/// so all child playlists and segments load straight from the CDN — this delegate sees
+/// exactly one request. A payload that can't be rewritten is passed through untouched
+/// (worst case the pickers show the CDN's plain names), and a fetch failure fails the
 /// player item so the screen shows an error instead of an endless spinner.
 final class HLSMasterResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
 
