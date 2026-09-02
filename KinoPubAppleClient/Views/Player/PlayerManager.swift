@@ -18,7 +18,7 @@ import AVKit
 import UIKit
 #endif
 
-enum WatchMode: Equatable {
+enum WatchMode: Hashable {
   case media
   case trailer
 }
@@ -83,6 +83,12 @@ class PlayerManager: ObservableObject {
   private var endOfPlaybackObserver: NSObjectProtocol?
   /// Set once the resume point has been asked for, so a re-entering view cannot ask twice.
   private var didFetchWatchMark = false
+  /// Arms when a stream starts preparing. AVFoundation reports a stalled master or
+  /// variant fetch as *nothing* — no failure, no log line — so without a timeout a hung
+  /// load is an infinite spinner with no way out and no answer for the viewer.
+  private var prepareWatchdog: Task<Void, Never>?
+  /// Longer than the master loader's own request timeout, so a real failure lands first.
+  private static let prepareTimeout: TimeInterval = 25
   /// Resume point waiting for the item to become `readyToPlay` (fetch often races prepare).
   private var pendingResumeTime: TimeInterval?
   /// What this title is, for track selection: anime, and its original language. Derived
@@ -113,16 +119,25 @@ class PlayerManager: ObservableObject {
   /// Set once we've auto-picked a default, so a later readiness callback can't stomp a
   /// manual choice the user made in the meantime.
   private var didChooseDefaultAudio = false
-#if !os(tvOS)
   /// The `.legible` group, kept for the same reason as the audible one: it is where the
   /// resolver's subtitle decision is applied, and where a pick made in the system player's
   /// own menu is read back from.
   private var legibleGroup: AVMediaSelectionGroup?
+#if os(iOS) || os(tvOS)
+  /// The facts the info panel currently shows and the poster already fetched for it, kept
+  /// apart so a late enrichment re-stamp doesn't drop the artwork and vice versa.
+  private var externalMetadataContext: MediaItem?
+  private var externalMetadataArtwork: AVMetadataItem?
+  private var metadataEnrichmentTask: Task<Void, Never>?
 #endif
 #if os(tvOS)
   /// The system player screen we drive on tvOS. Held weakly: AVKit owns it, we only
   /// reach in to hang metadata and the transport-bar menus off it.
   private weak var playerViewController: AVPlayerViewController?
+  /// The episode the system Up Next panel offers, resolved when the stream was
+  /// prepared. The player controller's delegate reads it when the panel is accepted —
+  /// the proposal object itself is AVKit's and carries none of our model.
+  private(set) var pendingNextEpisode: Episode?
 #endif
 
   /// Optional on purpose: both of these used to force-unwrap, and `URL(string: "")`
@@ -194,11 +209,9 @@ class PlayerManager: ObservableObject {
     playerTimeObserver = PlayerTimeObserver(player: player, period: 10.0, timeUpdateHandler: { [weak self] time in
       self?.saveWatchMark(time: time)
       self?.persistAudioSelectionIfNeeded(at: time)
-#if !os(tvOS)
-      // On tvOS the picker records a pick as it is made; off it the system menu is the
-      // only picker there is, so the tick is where a change gets noticed.
+      // The system menu is the subtitle picker and it reports nothing, so the tick is
+      // where a change gets noticed.
       self?.persistSubtitleSelectionIfNeeded(at: time)
-#endif
     })
 
     addCueTimeObserver()
@@ -206,12 +219,23 @@ class PlayerManager: ObservableObject {
   }
 
   /// Loads the playable URL into `player`. Safe to call more than once; only the first
-  /// run does work. Playback starts immediately — the audio-name rewrite happens inside
-  /// the resource loader while the master is being fetched, never as a step before it.
+  /// run does work. Playback starts itself once the item is ready **and the resume point
+  /// has been applied** — the local store knows it synchronously, so the first frame is
+  /// the position the viewer left off at, not 0:00 with a visible jump a beat later.
+  /// The audio-name rewrite happens inside the resource loader while the master is being
+  /// fetched, never as a step before it.
   @MainActor
   func preparePlayback() async {
     guard !didPreparePlayback else { return }
     didPreparePlayback = true
+
+    prepareWatchdog?.cancel()
+    prepareWatchdog = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .seconds(Self.prepareTimeout))
+      guard !Task.isCancelled, let self, self.playbackState == .preparing else { return }
+      Logger.app.error("Prepare watchdog fired: item \(self.playItem.id) never became ready")
+      self.playbackState = .failed("The stream took too long to respond".localized)
+    }
 
 #if os(iOS) || os(tvOS)
     // Before the first frame: without this the iPhone plays a film through the ringer
@@ -237,12 +261,28 @@ class PlayerManager: ObservableObject {
     if watchMode == .media, let maxResolution = StreamQuality.current.maxResolution {
       item.preferredMaximumResolution = maxResolution
     }
+    // The resume point we already have, before any network: the local store is written
+    // every ten seconds of playback and answered synchronously. The server's mark is
+    // still fetched on ready and can move the position forward (see `fetchWatchMark`).
+    if watchMode == .media, canReportWatching {
+      pendingResumeTime = AppContext.shared.localProgressStore
+        .entry(forId: playItem.metadata.id,
+               season: playItem.metadata.season,
+               episode: playItem.metadata.video)?
+        .position
+    }
     observePlaybackState(of: item)
     observeEndOfPlayback(of: item)
     // Set before the item is handed over: automatic criteria are applied as it loads.
     player.appliesMediaSelectionCriteriaAutomatically = false
     player.replaceCurrentItem(with: item)
-#if !os(tvOS)
+#if os(tvOS)
+    // In sidecar mode the legible group stays unselected — the overlay draws instead.
+    if !FeatureFlags.tvOSSidecarSubtitles {
+      pinMediaSelection(on: item)
+    }
+    installNextEpisodeProposal(on: item)
+#else
     pinMediaSelection(on: item)
 #endif
 #if os(iOS) || os(tvOS)
@@ -278,7 +318,6 @@ class PlayerManager: ObservableObject {
   /// their URL directly.
   private func playbackAsset(for source: URL) -> AVURLAsset {
     guard watchMode == .media,
-          !playItem.audioTracks.isEmpty,
           let scheme = source.scheme?.lowercased(),
           scheme == "http" || scheme == "https",
           let masked = HLSMasterResourceLoader.maskedURL(for: source) else {
@@ -300,13 +339,19 @@ class PlayerManager: ObservableObject {
         guard let self else { return }
         switch item.status {
         case .readyToPlay:
+          self.prepareWatchdog?.cancel()
           self.playbackState = .ready
+          // The resume seek is issued before the play call so the stream opens at the
+          // remembered position — AVFoundation applies a queued seek before the first
+          // frame it renders.
           self.applyPendingSeekIfPossible()
+          self.player.play()
           // Nothing is said to the server until there is something to play. The view
           // used to ask on appear — before the player had an item, on a title the
           // viewer had not started.
           Task { await self.fetchWatchMark() }
         case .failed:
+          self.prepareWatchdog?.cancel()
           self.playbackState = .failed(Self.failureMessage(for: item))
         default:
           break
@@ -371,6 +416,10 @@ class PlayerManager: ObservableObject {
     masterLoader = nil
     cueLoadTasks.forEach { $0.cancel() }
     cueLoadTasks = []
+#if os(iOS) || os(tvOS)
+    metadataEnrichmentTask?.cancel()
+    metadataEnrichmentTask = nil
+#endif
     if let cueObserverToken {
       player.removeTimeObserver(cueObserverToken)
       self.cueObserverToken = nil
@@ -385,8 +434,11 @@ class PlayerManager: ObservableObject {
     }
     audioReadyObservation?.invalidate()
     audioReadyObservation = nil
-#if !os(tvOS)
     legibleGroup = nil
+    prepareWatchdog?.cancel()
+    prepareWatchdog = nil
+#if os(tvOS)
+    pendingNextEpisode = nil
 #endif
 #if os(iOS) || os(tvOS)
     // Give the session back so whatever was playing before us can resume.
@@ -394,6 +446,17 @@ class PlayerManager: ObservableObject {
 #endif
     isPlaying = false
     playbackState = .preparing
+  }
+
+  /// The failure alert's "Try Again": tear the stalled attempt down and prepare once
+  /// more. The two `did…` flags re-arm so the new run does the full dance, resume
+  /// point included; playback starts itself when the stream is ready.
+  @MainActor
+  func retryAfterFailure() {
+    tearDownForReplacement()
+    didPreparePlayback = false
+    didFetchWatchMark = false
+    Task { await preparePlayback() }
   }
 
   /// Playing to the very end marks the title watched (see `markFinished`).
@@ -448,31 +511,30 @@ class PlayerManager: ObservableObject {
 
   /// The tracks to open with.
   ///
-  /// **The decision is asked for on every platform; only the rendering differs.** tvOS
-  /// draws sidecar SRT itself (see `apply`), and everywhere else the system player lists
-  /// the master's own WebVTT copies of those same files and renders the one we select —
-  /// so off tvOS the answer is carried to the legible group by `pinMediaSelection` and no
-  /// sidecar is fetched.
+  /// **The decision is asked for on every platform, and the rendering is the system's
+  /// on every platform.** The master lists WebVTT renditions of the API's SRT files;
+  /// the system player renders the one the resolver selects (`pinMediaSelection`
+  /// carries it to the legible group). The sidecar-SRT overlay — the dual-subtitle
+  /// stage — stays compiled behind `FeatureFlags.tvOSSidecarSubtitles`, off.
   private func configureSubtitles() {
     guard watchMode == .media else { return }
     subtitleTracks = SubtitleSelector.tracks(in: playItem.subtitles)
-#if !os(tvOS)
-    // Off tvOS `apply` is not the path — it loads sidecar cues nothing would draw and
-    // rebuilds a transport-bar menu that does not exist. The decision is all we keep.
-    primaryTrack = refreshPlan().decision.subtitle
-#endif
 #if os(tvOS)
-    let primary = refreshPlan().decision.subtitle
-    // Dual subtitles stay a Settings choice rather than something the resolver decides:
-    // a second line is a deliberate extra, not part of what a title opens with.
-    var secondary = SubtitlePreferences.dualSubtitlesEnabled
-      ? SubtitleTracks.preferred(language: SubtitlePreferences.secondSubtitleLanguage,
-                                 in: subtitleTracks,
-                                 preferNonCC: SubtitlePreferences.preferNonCCSubtitles)
-      : nil
-    if secondary == primary { secondary = nil }
-    apply(SubtitleSelector.Selection(primary: primary, secondary: secondary), remember: false)
+    if FeatureFlags.tvOSSidecarSubtitles {
+      let primary = refreshPlan().decision.subtitle
+      // Dual subtitles stay a Settings choice rather than something the resolver decides:
+      // a second line is a deliberate extra, not part of what a title opens with.
+      var secondary = SubtitlePreferences.dualSubtitlesEnabled
+        ? SubtitleTracks.preferred(language: SubtitlePreferences.secondSubtitleLanguage,
+                                   in: subtitleTracks,
+                                   preferNonCC: SubtitlePreferences.preferNonCCSubtitles)
+        : nil
+      if secondary == primary { secondary = nil }
+      apply(SubtitleSelector.Selection(primary: primary, secondary: secondary), remember: false)
+      return
+    }
 #endif
+    primaryTrack = refreshPlan().decision.subtitle
   }
 
   /// Picking a track is also a statement about the next episode, so every change from
@@ -526,8 +588,7 @@ class PlayerManager: ObservableObject {
       }
     }
 
-    // The transport-bar menu is the only place these tracks are shown on tvOS, so its
-    // checkmarks have to move the instant the selection does.
+    // The menu's checkmarks have to move the instant the selection does.
 #if os(tvOS)
     rebuildTransportBarMenus()
 #endif
@@ -585,7 +646,6 @@ class PlayerManager: ObservableObject {
     }
   }
 
-#if !os(tvOS)
   /// **One authority decides the tracks, and it is `TrackResolver` — on every platform.**
   ///
   /// AVFoundation applies media-selection criteria automatically by default, which off tvOS
@@ -612,7 +672,6 @@ class PlayerManager: ObservableObject {
       self.applyLegibleGroup(from: item, group: legible)
     }
   }
-#endif
 
   /// Told by the player screen's delegate, on every platform that has one.
   func setPictureInPictureActive(_ active: Bool) {
@@ -741,9 +800,11 @@ class PlayerManager: ObservableObject {
     return true
   }
 
-  /// The resume point, asked for **once playback has actually started**. It used to be
-  /// requested from `onAppear`, which asked the server about a title the viewer had not
-  /// begun watching and often before the player had an item at all.
+  /// The server's resume point, asked for **once playback has actually started**. It used
+  /// to be requested from `onAppear`, which asked the server about a title the viewer had
+  /// not begun watching and often before the player had an item at all. The local half of
+  /// the answer is already applied — `preparePlayback` seeds it before the first frame —
+  /// so this fetch only moves the playhead when the server knows a *further* position.
   @MainActor
   func fetchWatchMark() async {
     guard watchMode == .media, canReportWatching, !didFetchWatchMark else { return }
@@ -770,7 +831,10 @@ class PlayerManager: ObservableObject {
       .position ?? 0
 
     let best = max(remoteContinueTime, localContinueTime)
-    if best > 0 {
+    // Re-seeking to the position playback already opened at is a visible stutter, so
+    // only a genuinely different answer moves the playhead.
+    let current = player.currentTime().seconds
+    if best > 0, abs(best - current) > 5 {
       seek(to: best)
     }
   }
@@ -855,16 +919,53 @@ extension PlayerManager {
 
   func configureExternalMetadata() {
     guard let item = player.currentItem else { return }
-    let context = titleContext
-    let metadata = PlaybackMetadata.items(title: displayTitle,
-                                          subtitle: displaySubtitle,
-                                          context: context)
-    item.externalMetadata = metadata
+    metadataEnrichmentTask?.cancel()
+    externalMetadataArtwork = nil
+    externalMetadataContext = titleContext
+    restampExternalMetadata(on: item)
 
-    let artwork = PlaybackMetadata.artworkURL(context: context, fallback: episodeStill)
+    let artwork = PlaybackMetadata.artworkURL(context: externalMetadataContext,
+                                              fallback: episodeStill)
     if let artwork {
       Task { [weak self] in
-        await self?.attachArtwork(from: artwork, to: item, base: metadata)
+        await self?.attachArtwork(from: artwork, to: item)
+      }
+    }
+    enrichExternalMetadataIfNeeded(for: item)
+  }
+
+  private func restampExternalMetadata(on item: AVPlayerItem) {
+    var metadata = PlaybackMetadata.items(title: displayTitle,
+                                          subtitle: displaySubtitle,
+                                          context: externalMetadataContext)
+    if let externalMetadataArtwork {
+      metadata.append(externalMetadataArtwork)
+    }
+    item.externalMetadata = metadata
+  }
+
+  /// The lists a playback can start straight from (Continue Watching, search, bookmarks)
+  /// carry a title and posters and nothing else — no plot, genres or year, which is most
+  /// of the panel. One light `nolinks` details call fills them in and the panel is
+  /// re-stamped in place; the title already on screen never flickers.
+  private func enrichExternalMetadataIfNeeded(for item: AVPlayerItem) {
+    guard watchMode == .media,
+          externalMetadataContext?.plot.isEmpty != false else { return }
+    let id = playItem.metadata.id
+    metadataEnrichmentTask = Task { [weak self] in
+      guard let self else { return }
+      do {
+        let details = try await self.contentService.fetchDetails(for: String(id),
+                                                                 excludeLinks: true)
+        guard !Task.isCancelled else { return }
+        await MainActor.run {
+          guard self.player.currentItem === item else { return }
+          self.externalMetadataContext = details.item
+          self.restampExternalMetadata(on: item)
+        }
+      } catch {
+        guard !Task.isCancelled else { return }
+        Logger.app.debug("Info panel enrichment skipped: \(error.localizedDescription)")
       }
     }
   }
@@ -887,15 +988,16 @@ extension PlayerManager {
     (playItem as? Episode)?.thumbnail
   }
 
-  private func attachArtwork(from url: URL, to item: AVPlayerItem, base: [AVMetadataItem]) async {
+  private func attachArtwork(from url: URL, to item: AVPlayerItem) async {
     do {
       let (data, _) = try await URLSession.shared.data(from: url)
       guard !data.isEmpty else { return }
-      let next = base + [PlaybackMetadata.artworkItem(data)]
+      let artwork = PlaybackMetadata.artworkItem(data)
       await MainActor.run {
         // The stream may have been left while the poster was being fetched.
         guard self.player.currentItem === item else { return }
-        item.externalMetadata = next
+        self.externalMetadataArtwork = artwork
+        self.restampExternalMetadata(on: item)
       }
     } catch {
       Logger.app.debug("Player artwork metadata skipped: \(error.localizedDescription)")
@@ -908,9 +1010,10 @@ extension PlayerManager {
 
 // MARK: - Track selection
 
-/// **The tracks are chosen the same way on every platform.** What differs is only the
-/// surface they are applied to: tvOS also draws its own subtitle overlay and transport-bar
-/// menu, while off it the system player renders the master's own renditions.
+/// **The tracks are chosen the same way on every platform**, and rendered by the system
+/// player on every platform too. tvOS keeps its sidecar overlay and transport-bar menu
+/// compiled — parked behind `FeatureFlags.tvOSSidecarSubtitles` for the dual-subtitle
+/// stage they were built for.
 extension PlayerManager {
 
   // MARK: Audio
@@ -1002,8 +1105,6 @@ extension PlayerManager {
   }
 
 
-#if !os(tvOS)
-
   // MARK: Subtitles the system player renders
 
   /// Carry the resolver's subtitle answer to the master's own renditions, and remember the
@@ -1034,6 +1135,11 @@ extension PlayerManager {
   /// Watching uses, so a title sampled for a minute teaches the season nothing. "Off" is a
   /// choice like any other; an item that offered no subtitles at all is not.
   func persistSubtitleSelectionIfNeeded(at position: TimeInterval) {
+#if os(tvOS)
+    // In sidecar mode the legible selection is disabled on purpose — the pick lives in
+    // `primaryTrack` and was recorded when it was made in our own menu.
+    if FeatureFlags.tvOSSidecarSubtitles { return }
+#endif
     guard watchMode == .media,
           position >= WatchProgress.enterContinueWatchingSeconds,
           !subtitleTracks.isEmpty,
@@ -1060,8 +1166,6 @@ extension PlayerManager {
     recordedSubtitleSignature = signature
     trackPreferences.recordSubtitle(signature, in: scopes)
   }
-
-#endif
 }
 
 #if os(tvOS)
@@ -1071,42 +1175,42 @@ extension PlayerManager {
 extension PlayerManager {
 
   /// Hand the system player screen everything it needs: the title/subtitle for the info
-  /// panel, and the Subtitles menu for the transport bar. Called from the
-  /// `UIViewControllerRepresentable` once AVKit has made the controller.
+  /// panel. Called from the `UIViewControllerRepresentable` once AVKit has made the
+  /// controller.
   func attach(to controller: AVPlayerViewController) {
     playerViewController = controller
     configureExternalMetadata()
-    hideSystemSubtitlePicker(on: controller)
+    if FeatureFlags.tvOSSidecarSubtitles {
+      hideSystemSubtitlePicker(on: controller)
+    }
     if player.currentItem != nil {
       configureDefaultAudioWhenReady()
     }
     rebuildTransportBarMenus()
   }
 
-  /// The HLS legible group makes AVKit draw its own Subtitles control, so without this the
-  /// transport bar shows two — ours (dual tracks + sidecar SRT) and the system's. Emptying
-  /// the allowed-languages list removes the system one.
-  ///
-  /// Safe to drop here because kino.pub ships every subtitle as a sidecar SRT and the HLS
-  /// subtitle renditions are just its own WebVTT copies of those same files (Stream survey:
-  /// srt × 189, embed × 0, CC × 0) — so nothing the system picker could reach is missing
-  /// from ours. This only hides the picker UI.
+  /// The HLS legible group makes AVKit draw its own Subtitles control, so in sidecar mode
+  /// the transport bar would show two — ours (dual tracks + sidecar SRT) and the system's.
+  /// Emptying the allowed-languages list removes the system one. Only called with
+  /// `FeatureFlags.tvOSSidecarSubtitles` on; off, the system picker is the picker.
   private func hideSystemSubtitlePicker(on controller: AVPlayerViewController) {
     controller.allowedSubtitleOptionLanguages = []
   }
 
   // MARK: Menus
 
-  /// Rebuild the custom menu from scratch. `UIMenu` is immutable, so tracking the current
-  /// pick means handing AVKit a freshly-built array every time anything changes.
+  /// The dual-subtitle menu — parked with the rest of the sidecar machinery: with
+  /// `FeatureFlags.tvOSSidecarSubtitles` off there is no custom menu, and the system's
+  /// own Subtitles control is the only one.
   ///
-  /// Only Subtitles lives here. Audio is left to the system picker the HLS stream already
-  /// gives the transport bar — a second, hand-rolled Audio menu next to it was the "two
-  /// buttons" duplication. We still choose a sensible default and remember the user's pick
-  /// (see `configureDefaultAudioWhenReady` / `persistAudioSelectionIfNeeded`); we just no
-  /// longer draw our own control for it.
+  /// `UIMenu` is immutable, so tracking the current pick means handing AVKit a
+  /// freshly-built array every time anything changes.
   func rebuildTransportBarMenus() {
     guard let controller = playerViewController else { return }
+    guard FeatureFlags.tvOSSidecarSubtitles else {
+      controller.transportBarCustomMenuItems = []
+      return
+    }
     var items: [UIMenuElement] = []
     if let subtitles = subtitlesMenu() { items.append(subtitles) }
     controller.transportBarCustomMenuItems = items
@@ -1140,6 +1244,64 @@ extension PlayerManager {
     return [off] + tracks
   }
 
+}
+
+#endif
+
+#if os(tvOS)
+
+// MARK: - Up Next (system content proposal)
+
+extension PlayerManager {
+
+  /// System Up Next: near the credits AVKit presents its own panel offering the next
+  /// episode — title, the episode's still, a countdown. Accepting it is answered by the
+  /// player controller's delegate (`TVVideoPlayer`), which swaps the stream in place;
+  /// rejecting pops the player. No `AVContentProposalViewController` of ours — the
+  /// stock panel draws everything.
+  ///
+  /// Best-effort by construction: no cached series payload or no episode after this one
+  /// simply means no proposal. And no season/episode metadata identifiers exist in tvOS
+  /// AVFoundation (probed against the SDK — the iTunes key space is macOS-only), so the
+  /// title line carries what the rail cells carry.
+  func installNextEpisodeProposal(on item: AVPlayerItem) {
+    guard watchMode == .media, let current = playItem as? Episode else { return }
+    let series = AppContext.shared.localProgressStore.snapshot(for: current.metadata.id)
+    guard let next = NextPlayableEpisode.after(current, in: series) else { return }
+    pendingNextEpisode = next
+
+    // The panel appears at the credits — the same window `WatchProgress` calls
+    // "finished". An unknown runtime leaves the API default: the very end of the item.
+    let duration = Double(current.duration)
+    let transition = duration > 0
+      ? CMTime(seconds: duration - WatchProgress.endTolerance(forDuration: duration),
+               preferredTimescale: 600)
+      : .indefinite
+
+    let label = ContinueWatchingEpisode.overlayLabel(season: next.seasonNumber,
+                                                     episode: next.number)
+    var parts = [label, next.seriesTitle].compactMap { $0 }
+    if !next.title.isEmpty { parts.append(next.title) }
+    let title = parts.isEmpty ? next.fixedTitle : parts.joined(separator: " — ")
+    let imageURL = next.thumbnail.isEmpty ? nil : URL(string: next.thumbnail)
+
+    Task { [player] in
+      // The still rides along when it loads in time; the panel must not wait on it.
+      var image: UIImage?
+      if let imageURL,
+         let (data, _) = try? await URLSession.shared.data(from: imageURL) {
+        image = UIImage(data: data)
+      }
+      let proposal = AVContentProposal(contentTimeForTransition: transition,
+                                       title: title,
+                                       previewImage: image)
+      // A visible countdown then auto-accept, as the stock kino.pub app behaves.
+      proposal.automaticAcceptanceInterval = 10
+      // The stream may have ended (or been replaced) while the still was loading.
+      guard player.currentItem === item else { return }
+      item.nextContentProposal = proposal
+    }
+  }
 }
 
 #endif

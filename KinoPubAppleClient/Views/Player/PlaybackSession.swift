@@ -18,17 +18,35 @@ import KinoPubKit
 final class PlaybackSession: ObservableObject {
   static let shared = PlaybackSession()
 
-  struct Request: Equatable {
+  /// One playback request. The token is the identity of the *route instance* that
+  /// started it (minted where the route value is created); callers with no route —
+  /// the macOS player window, an accepted Up Next — pass nil and match by item alone.
+  struct Request: Hashable {
     let itemID: Int
     let mode: WatchMode
+    let token: UUID?
 
-    static func == (lhs: Request, rhs: Request) -> Bool {
-      lhs.itemID == rhs.itemID && lhs.mode == rhs.mode
+    /// Live-request matching: a tokenless caller addresses whatever is playing by
+    /// item; a routed caller matches only its own route instance.
+    func matches(_ other: Request) -> Bool {
+      itemID == other.itemID && mode == other.mode
+        && (token == nil || other.token == nil || token == other.token)
     }
   }
 
   @Published private(set) var request: Request?
   @Published private(set) var manager: PlayerManager?
+
+  /// Requests whose playback has ended, by strict identity (token included). A
+  /// navigation destination is re-evaluated while its route is leaving, and creating
+  /// a manager there is what re-armed a dismissed stream — the "player reopens
+  /// forever" loop. A tombstoned request instead hands the dying view an inert
+  /// manager: `preparePlayback` on it is a no-op and its player has no item. A legit
+  /// replay never collides — a fresh push mints a fresh token.
+  private var tombstonedRequests: Set<Request> = []
+  /// The most recently torn-down manager, kept so a dying destination has something
+  /// inert to hold. Which dead manager it is doesn't matter — the view is leaving.
+  private var stoppedManager: PlayerManager?
 
   private init() {}
 
@@ -38,14 +56,22 @@ final class PlaybackSession: ObservableObject {
   func play(
     item: any PlayableItem,
     mode: WatchMode,
+    token: UUID? = nil,
     downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>,
     actionsService: UserActionsService
   ) -> PlayerManager {
-    let next = Request(itemID: item.id, mode: mode)
-    if let manager, request == next {
+    let next = Request(itemID: item.id, mode: mode, token: token)
+    if let manager, let request, request.matches(next) {
       return manager
     }
+    if tombstonedRequests.contains(next), let stoppedManager {
+      return stoppedManager
+    }
 
+    if let request {
+      tombstonedRequests.insert(request)
+      stoppedManager = manager
+    }
     manager?.tearDownForReplacement()
     if let media = item as? MediaItem {
       AppContext.shared.localProgressStore.cacheItem(media)
@@ -102,6 +128,10 @@ final class PlaybackSession: ObservableObject {
   func stop(_ manager: PlayerManager) -> Bool {
     manager.tearDownForReplacement()
     guard self.manager === manager else { return false }
+    if let request {
+      tombstonedRequests.insert(request)
+    }
+    stoppedManager = manager
     self.manager = nil
     request = nil
     return true

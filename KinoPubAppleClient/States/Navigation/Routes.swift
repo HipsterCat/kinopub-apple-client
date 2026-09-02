@@ -21,8 +21,12 @@ enum Route: Hashable {
   case seasons([Season])
   case season(Season)
   case person(MediaPerson)
-  case player(any PlayableItem)
-  case trailerPlayer(any PlayableItem)
+  /// The token is minted where the route value is created, so one push of an episode
+  /// is one request instance: a destination re-evaluated while its route is leaving
+  /// carries the same token (and must not re-arm playback), while a fresh tap on the
+  /// same episode mints a new one (and must). See `PlaybackSession`.
+  case player(any PlayableItem, token: UUID)
+  case trailerPlayer(any PlayableItem, token: UUID)
   /// The curated-collections browser (`GET /v1/collections`).
   case collections
   /// One collection's full item grid (`GET /v1/collections/view`).
@@ -56,12 +60,14 @@ enum Route: Hashable {
     case .person(let person):
       hasher.combine(6)
       hasher.combine(person)
-    case .player(let item):
+    case .player(let item, let token):
       hasher.combine(7)
       hasher.combine(item.id)
-    case .trailerPlayer(let item):
+      hasher.combine(token)
+    case .trailerPlayer(let item, let token):
       hasher.combine(8)
       hasher.combine(item.id)
+      hasher.combine(token)
     case .collections:
       hasher.combine(9)
     case .collection(let collection):
@@ -94,10 +100,10 @@ enum Route: Hashable {
       return a == b
     case (.person(let a), .person(let b)):
       return a == b
-    case (.player(let a), .player(let b)):
-      return a.id == b.id
-    case (.trailerPlayer(let a), .trailerPlayer(let b)):
-      return a.id == b.id
+    case (.player(let a, let at), .player(let b, let bt)):
+      return a.id == b.id && at == bt
+    case (.trailerPlayer(let a, let at), .trailerPlayer(let b, let bt)):
+      return a.id == b.id && at == bt
     case (.collections, .collections):
       return true
     case (.collection(let a), .collection(let b)):

@@ -11,17 +11,9 @@ import SwiftUI
 #if os(iOS)
 class AppDelegate: NSObject, UIApplicationDelegate {
 
-  // This flag is used to lock orientation on the player view
-  static var orientationLock = UIInterfaceOrientationMask.all
-
   func application(_ application: UIApplication,
                    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-    UIDevice.current.beginGeneratingDeviceOrientationNotifications()
     return true
-  }
-
-  func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-    return AppDelegate.orientationLock
   }
 
   /// Relaunched in the background to finish events for a background URLSession.
