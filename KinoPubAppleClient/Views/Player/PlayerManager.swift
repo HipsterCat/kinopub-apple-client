@@ -123,6 +123,13 @@ class PlayerManager: ObservableObject {
   /// resolver's subtitle decision is applied, and where a pick made in the system player's
   /// own menu is read back from.
   private var legibleGroup: AVMediaSelectionGroup?
+#if os(iOS) || os(tvOS)
+  /// The facts the info panel currently shows and the poster already fetched for it, kept
+  /// apart so a late enrichment re-stamp doesn't drop the artwork and vice versa.
+  private var externalMetadataContext: MediaItem?
+  private var externalMetadataArtwork: AVMetadataItem?
+  private var metadataEnrichmentTask: Task<Void, Never>?
+#endif
 #if os(tvOS)
   /// The system player screen we drive on tvOS. Held weakly: AVKit owns it, we only
   /// reach in to hang metadata and the transport-bar menus off it.
@@ -409,6 +416,10 @@ class PlayerManager: ObservableObject {
     masterLoader = nil
     cueLoadTasks.forEach { $0.cancel() }
     cueLoadTasks = []
+#if os(iOS) || os(tvOS)
+    metadataEnrichmentTask?.cancel()
+    metadataEnrichmentTask = nil
+#endif
     if let cueObserverToken {
       player.removeTimeObserver(cueObserverToken)
       self.cueObserverToken = nil
@@ -908,16 +919,53 @@ extension PlayerManager {
 
   func configureExternalMetadata() {
     guard let item = player.currentItem else { return }
-    let context = titleContext
-    let metadata = PlaybackMetadata.items(title: displayTitle,
-                                          subtitle: displaySubtitle,
-                                          context: context)
-    item.externalMetadata = metadata
+    metadataEnrichmentTask?.cancel()
+    externalMetadataArtwork = nil
+    externalMetadataContext = titleContext
+    restampExternalMetadata(on: item)
 
-    let artwork = PlaybackMetadata.artworkURL(context: context, fallback: episodeStill)
+    let artwork = PlaybackMetadata.artworkURL(context: externalMetadataContext,
+                                              fallback: episodeStill)
     if let artwork {
       Task { [weak self] in
-        await self?.attachArtwork(from: artwork, to: item, base: metadata)
+        await self?.attachArtwork(from: artwork, to: item)
+      }
+    }
+    enrichExternalMetadataIfNeeded(for: item)
+  }
+
+  private func restampExternalMetadata(on item: AVPlayerItem) {
+    var metadata = PlaybackMetadata.items(title: displayTitle,
+                                          subtitle: displaySubtitle,
+                                          context: externalMetadataContext)
+    if let externalMetadataArtwork {
+      metadata.append(externalMetadataArtwork)
+    }
+    item.externalMetadata = metadata
+  }
+
+  /// The lists a playback can start straight from (Continue Watching, search, bookmarks)
+  /// carry a title and posters and nothing else — no plot, genres or year, which is most
+  /// of the panel. One light `nolinks` details call fills them in and the panel is
+  /// re-stamped in place; the title already on screen never flickers.
+  private func enrichExternalMetadataIfNeeded(for item: AVPlayerItem) {
+    guard watchMode == .media,
+          externalMetadataContext?.plot.isEmpty != false else { return }
+    let id = playItem.metadata.id
+    metadataEnrichmentTask = Task { [weak self] in
+      guard let self else { return }
+      do {
+        let details = try await self.contentService.fetchDetails(for: String(id),
+                                                                 excludeLinks: true)
+        guard !Task.isCancelled else { return }
+        await MainActor.run {
+          guard self.player.currentItem === item else { return }
+          self.externalMetadataContext = details.item
+          self.restampExternalMetadata(on: item)
+        }
+      } catch {
+        guard !Task.isCancelled else { return }
+        Logger.app.debug("Info panel enrichment skipped: \(error.localizedDescription)")
       }
     }
   }
@@ -940,15 +988,16 @@ extension PlayerManager {
     (playItem as? Episode)?.thumbnail
   }
 
-  private func attachArtwork(from url: URL, to item: AVPlayerItem, base: [AVMetadataItem]) async {
+  private func attachArtwork(from url: URL, to item: AVPlayerItem) async {
     do {
       let (data, _) = try await URLSession.shared.data(from: url)
       guard !data.isEmpty else { return }
-      let next = base + [PlaybackMetadata.artworkItem(data)]
+      let artwork = PlaybackMetadata.artworkItem(data)
       await MainActor.run {
         // The stream may have been left while the poster was being fetched.
         guard self.player.currentItem === item else { return }
-        item.externalMetadata = next
+        self.externalMetadataArtwork = artwork
+        self.restampExternalMetadata(on: item)
       }
     } catch {
       Logger.app.debug("Player artwork metadata skipped: \(error.localizedDescription)")
