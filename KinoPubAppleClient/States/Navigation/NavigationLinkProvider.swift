@@ -26,8 +26,8 @@ protocol NavigationLinkProvider {
 /// One provider for every tab stack — destinations are always `Route`.
 struct AppRoutesLinkProvider: NavigationLinkProvider {
   func link(for item: MediaItem) -> any Hashable { Route.details(item) }
-  func player(for item: any PlayableItem) -> any Hashable { Route.player(item) }
-  func trailerPlayer(for item: any PlayableItem) -> any Hashable { Route.trailerPlayer(item) }
+  func player(for item: any PlayableItem) -> any Hashable { Route.player(item, token: UUID()) }
+  func trailerPlayer(for item: any PlayableItem) -> any Hashable { Route.trailerPlayer(item, token: UUID()) }
   func seasons(for seasons: [Season]) -> any Hashable { Route.seasons(seasons) }
   func season(for season: Season) -> any Hashable { Route.season(season) }
   func person(for person: MediaPerson) -> any Hashable { Route.person(person) }

@@ -52,7 +52,7 @@ struct DownloadsView: View {
   
   var activeDownloadsList: some View {
     ForEach(catalog.activeDownloads, id: \.url) { download in
-      PlayerLink(route: DownloadsRoutes.player(download.metadata), item: download.metadata, mode: .media) {
+      PlayerLink(route: DownloadsRoutes.player(download.metadata, token: UUID()), item: download.metadata, mode: .media) {
         DownloadedItemView(mediaItem: download.metadata, progress: download.progress) { paused in
           catalog.toggle(download: download)
         }
@@ -69,7 +69,7 @@ struct DownloadsView: View {
   
   var downloadedFilesList: some View {
     ForEach(catalog.downloadedItems, id: \.originalURL) { fileInfo in
-      PlayerLink(route: DownloadsRoutes.player(fileInfo.metadata), item: fileInfo.metadata, mode: .media) {
+      PlayerLink(route: DownloadsRoutes.player(fileInfo.metadata, token: UUID()), item: fileInfo.metadata, mode: .media) {
         DownloadedItemView(mediaItem: fileInfo.metadata, progress: nil) { paused in
 
         }

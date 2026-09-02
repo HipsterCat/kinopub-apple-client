@@ -18,7 +18,7 @@ import AVKit
 import UIKit
 #endif
 
-enum WatchMode: Equatable {
+enum WatchMode: Hashable {
   case media
   case trailer
 }

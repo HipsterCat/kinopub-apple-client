@@ -123,7 +123,7 @@ final class MediaCardMenuCoordinator: ObservableObject {
         item.seasons?.forEach { $0.mediaId = item.id }
         membership.seed(from: item)
         AppContext.shared.localProgressStore.cacheItem(item)
-        push(.player(playable(from: item, preferring: card)))
+        push(.player(playable(from: item, preferring: card), token: UUID()))
       } catch {
         errorHandler?.setError(error)
       }

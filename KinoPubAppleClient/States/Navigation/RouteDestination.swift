@@ -67,24 +67,26 @@ struct RouteDestination: View {
                              errorHandler: errorHandler)
     case .ratingsAndReviews(let payload):
       MediaItemRatingsAndReviewsPage(payload: payload)
-    case .player(let item):
+    case .player(let item, let token):
 #if os(macOS)
       MacPlayerRouteGuard(item: item, mode: .media)
 #else
       PlayerView(manager: PlaybackSession.shared.play(
         item: item,
         mode: .media,
+        token: token,
         downloadedFilesDatabase: appContext.downloadedFilesDatabase,
         actionsService: appContext.actionsService
       ))
 #endif
-    case .trailerPlayer(let item):
+    case .trailerPlayer(let item, let token):
 #if os(macOS)
       MacPlayerRouteGuard(item: item, mode: .trailer)
 #else
       PlayerView(manager: PlaybackSession.shared.play(
         item: item,
         mode: .trailer,
+        token: token,
         downloadedFilesDatabase: appContext.downloadedFilesDatabase,
         actionsService: appContext.actionsService
       ))
