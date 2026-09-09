@@ -338,6 +338,9 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
     host.playerController.delegate = context.coordinator
     host.playerController.allowsPictureInPicturePlayback = true
     host.playerController.speeds = AVPlaybackSpeed.systemDefaultSpeeds
+    // Live Text over a paused frame: the floating text-recognition button and the
+    // VisionKit overlay it summons are not part of watching a film.
+    host.playerController.allowsVideoFrameAnalysis = false
     // **This is the exit signal, and it is UIKit's rather than AVKit's.** Apple API
     // limitation: `playerViewControllerDidEndDismissalTransition` is marked unavailable in
     // the iOS 26 SDK ("cannot override … which has been marked unavailable"), so the

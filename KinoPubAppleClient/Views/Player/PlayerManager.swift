@@ -918,7 +918,10 @@ class PlayerManager: ObservableObject {
 extension PlayerManager {
 
   func configureExternalMetadata() {
-    guard let item = player.currentItem else { return }
+    guard let item = player.currentItem else {
+      Logger.app.warning("Info panel skipped: no current item when metadata was configured")
+      return
+    }
     metadataEnrichmentTask?.cancel()
     externalMetadataArtwork = nil
     externalMetadataContext = titleContext
@@ -942,6 +945,9 @@ extension PlayerManager {
       metadata.append(externalMetadataArtwork)
     }
     item.externalMetadata = metadata
+    Logger.app.info(
+      "Info panel stamped: title=\(self.displayTitle ?? "nil", privacy: .public) subtitle=\(self.displaySubtitle ?? "nil", privacy: .public) items=\(metadata.count) context=\(self.externalMetadataContext == nil ? "none" : "full")"
+    )
   }
 
   /// The lists a playback can start straight from (Continue Watching, search, bookmarks)

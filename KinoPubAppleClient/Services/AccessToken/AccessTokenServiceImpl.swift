@@ -56,6 +56,13 @@ enum DevSessionMirror {
   }
 
   static func load() -> AccessToken? {
+    // A UI test launches through testmanagerd, which does not pass SIMULATOR_HOST_HOME
+    // down — the mirror file is unreachable from there. A test that needs a session
+    // hands the same JSON over directly.
+    if let raw = ProcessInfo.processInfo.environment["KINOPUB_DEV_SESSION"],
+       let data = raw.data(using: .utf8) {
+      return try? JSONDecoder().decode(AccessToken.self, from: data)
+    }
     guard let fileURL, let data = try? Data(contentsOf: fileURL) else { return nil }
     return try? JSONDecoder().decode(AccessToken.self, from: data)
   }

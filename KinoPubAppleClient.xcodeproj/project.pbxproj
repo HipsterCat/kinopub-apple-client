@@ -118,6 +118,7 @@
 		CCA100012D0005 /* StreamSurveyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012D0006 /* StreamSurveyView.swift */; };
 		CCA100012D0010 /* TVProfileSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012D0011 /* TVProfileSettingsView.swift */; };
 		CCA100012D0021 /* HLSAudioLabeler.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012D0020 /* HLSAudioLabeler.swift */; };
+		CCA100012D0041 /* MenuTypeSelectSuppression.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012D0040 /* MenuTypeSelectSuppression.swift */; };
 		CCA100012E1002 /* UILabRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012E1001 /* UILabRoot.swift */; };
 		CCA100012E1005 /* UILabSearchToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012E1004 /* UILabSearchToolbar.swift */; };
 		CCA100012E1007 /* SystemTypeStylesCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA100012E1006 /* SystemTypeStylesCatalogView.swift */; };
@@ -319,6 +320,7 @@
 		CCA100012D0006 /* StreamSurveyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamSurveyView.swift; sourceTree = "<group>"; };
 		CCA100012D0011 /* TVProfileSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVProfileSettingsView.swift; sourceTree = "<group>"; };
 		CCA100012D0020 /* HLSAudioLabeler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HLSAudioLabeler.swift; sourceTree = "<group>"; };
+		CCA100012D0040 /* MenuTypeSelectSuppression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuTypeSelectSuppression.swift; sourceTree = "<group>"; };
 		CCA100012E1001 /* UILabRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UILabRoot.swift; sourceTree = "<group>"; };
 		CCA100012E1004 /* UILabSearchToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UILabSearchToolbar.swift; sourceTree = "<group>"; };
 		CCA100012E1006 /* SystemTypeStylesCatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemTypeStylesCatalogView.swift; sourceTree = "<group>"; };
@@ -641,6 +643,7 @@
 				3CF41D6D63054F0F92A507B1 /* StreamQuality.swift */,
 				CCA100012D0002 /* HLSManifest.swift */,
 				CCA100012D0020 /* HLSAudioLabeler.swift */,
+				CCA100012D0040 /* MenuTypeSelectSuppression.swift */,
 				CCA100012D0004 /* StreamSurvey.swift */,
 				CC8202FC2A8656E70041079A /* BestVideoQualityFinder.swift */,
 				CCA100012C6F000100000204 /* View+PlatformNavigationTitle.swift */,
@@ -1262,6 +1265,7 @@
 				CC71E6FA2A6C0655004AFB3F /* BookmarksView.swift in Sources */,
 				CCA100012D0001 /* HLSManifest.swift in Sources */,
 				CCA100012D0021 /* HLSAudioLabeler.swift in Sources */,
+				CCA100012D0041 /* MenuTypeSelectSuppression.swift in Sources */,
 				CCA100012D0003 /* StreamSurvey.swift in Sources */,
 				CC8202FD2A8656E70041079A /* BestVideoQualityFinder.swift in Sources */,
 				CC21CEAD2AF6B61500EFCA8E /* SeasonsModel.swift in Sources */,
