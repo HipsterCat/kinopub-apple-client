@@ -7196,6 +7196,23 @@
         }
       }
     },
+    "Watch Now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch Now"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смотреть"
+          }
+        }
+      }
+    },
     "Watchlist" : {
       "extractionState" : "manual",
       "localizations" : {

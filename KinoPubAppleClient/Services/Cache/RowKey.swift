@@ -6,9 +6,9 @@
 import Foundation
 import KinoPubBackend
 
-/// Identifies one cacheable row of cards in `ContentStore` — Home shortcuts, the
-/// Library's watchlist/history/folders. Not used for paginated grids (Movies/Series/
-/// Search tabs) yet; those still fetch page-by-page through `MediaCatalog`.
+/// Identifies one cacheable row of cards in `ContentStore` — Watch Now / tvOS Movies
+/// / Series shortcut shelves, the Library's watchlist/history/folders. iOS/macOS
+/// Movies/Series grids and Search still fetch page-by-page through `MediaCatalog`.
 enum RowKey: Hashable, Codable {
   case continueWatching
   case shortcut(MediaShortcut, MediaType)

@@ -10,8 +10,10 @@ import OSLog
 import KinoPubLogging
 import Combine
 
-/// Builds the home screen's rows: what the user is part-way through first, then the
-/// catalog shortcuts. Rows that come back empty are dropped rather than shown blank.
+/// Builds Watch Now / Movies / Series poster shelves from the same Hot / Fresh /
+/// Popular shortcuts. Watch Now (`contentType == nil`) also carries Continue
+/// Watching and Collections; a typed catalog is those shortcuts for one
+/// `MediaType` only. Empty rows are dropped rather than shown blank.
 @MainActor
 class HomeCatalog: ObservableObject {
 
@@ -32,6 +34,22 @@ class HomeCatalog: ObservableObject {
     Shortcut(shortcut: .popular, contentType: .movie, title: "Popular Movies"),
     Shortcut(shortcut: .popular, contentType: .serial, title: "Popular Series")
   ]
+
+  /// Watch Now shows every shortcut; Movies / Series keep the same order, one type.
+  static func shortcuts(for contentType: MediaType?) -> [Shortcut] {
+    guard let contentType else { return shortcuts }
+    return shortcuts.filter { $0.contentType == contentType }
+  }
+
+  /// `nil` is Watch Now. `.movie` / `.serial` are the Movies and Series tabs.
+  let contentType: MediaType?
+
+  /// The shortcut rows this catalog actually fetches and paints.
+  var activeShortcuts: [Shortcut] { Self.shortcuts(for: contentType) }
+
+  /// Typed Movies / Series catalogs are poster shelves only — no Continue Watching,
+  /// collections preview, or banner sampling (those stay on Watch Now).
+  var includesWatchNowExtras: Bool { contentType == nil }
 
   static let continueWatchingRowID = "continue-watching"
   static let collectionsRowID = "collections"
@@ -102,7 +120,8 @@ class HomeCatalog: ObservableObject {
        actionsService: UserActionsService = AppContext.shared.actionsService,
        collectionsService: CollectionsService = AppContext.shared.collectionsService,
        store: ContentStore = AppContext.shared.contentStore,
-       localProgressStore: LocalWatchProgressStore = AppContext.shared.localProgressStore) {
+       localProgressStore: LocalWatchProgressStore = AppContext.shared.localProgressStore,
+       contentType: MediaType? = nil) {
     self.itemsService = itemsService
     self.authState = authState
     self.errorHandler = errorHandler
@@ -110,6 +129,7 @@ class HomeCatalog: ObservableObject {
     self.collectionsService = collectionsService
     self.store = store
     self.localProgressStore = localProgressStore
+    self.contentType = contentType
     NotificationCenter.default.publisher(for: .localWatchProgressDidChange)
       .receive(on: RunLoop.main)
       .sink { [weak self] _ in
@@ -130,32 +150,36 @@ class HomeCatalog: ObservableObject {
 
     assembleRows()
     isLoaded = !rows.isEmpty
+    seedCursorsFromStore()
 
-    let collectionsNeedMigration = store.cards(.collections).contains { !$0.opensCollection }
+    let collectionsNeedMigration = includesWatchNowExtras
+      && store.cards(.collections).contains { !$0.opensCollection }
 
     await withTaskGroup(of: Void.self) { group in
-      group.addTask { [store] in
-        await store.refreshIfStale(.continueWatching) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
-          guard let self else { throw CancellationError() }
-          return try await self.fetchContinueWatchingCards()
-        }
-      }
-      group.addTask { [store] in
-        // Stale snapshots predate `opensCollection` — force a refresh so Select
-        // opens the collection rather than a colliding media id.
-        if collectionsNeedMigration {
-          await store.refresh(.collections) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+      if includesWatchNowExtras {
+        group.addTask { [store] in
+          await store.refreshIfStale(.continueWatching) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
             guard let self else { throw CancellationError() }
-            return try await self.fetchCollectionsPreviewCards()
-          }
-        } else {
-          await store.refreshIfStale(.collections) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
-            guard let self else { throw CancellationError() }
-            return try await self.fetchCollectionsPreviewCards()
+            return try await self.fetchContinueWatchingCards()
           }
         }
+        group.addTask { [store] in
+          // Stale snapshots predate `opensCollection` — force a refresh so Select
+          // opens the collection rather than a colliding media id.
+          if collectionsNeedMigration {
+            await store.refresh(.collections) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+              guard let self else { throw CancellationError() }
+              return try await self.fetchCollectionsPreviewCards()
+            }
+          } else {
+            await store.refreshIfStale(.collections) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+              guard let self else { throw CancellationError() }
+              return try await self.fetchCollectionsPreviewCards()
+            }
+          }
+        }
       }
-      for shortcut in Self.shortcuts {
+      for shortcut in activeShortcuts {
         group.addTask { [store] in
           await store.refreshIfStale(.shortcut(shortcut.shortcut, shortcut.contentType)) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
             guard let self else { throw CancellationError() }
@@ -165,11 +189,12 @@ class HomeCatalog: ObservableObject {
       }
     }
 
+    seedCursorsFromStore()
     assembleRows()
     isLoaded = true
     // Catalog shelves always have content when the network cooperates, so an empty
     // screen with at least one failed shelf means an outage, not an empty account.
-    let firstError = Self.shortcuts.lazy
+    let firstError = activeShortcuts.lazy
       .compactMap { self.store.lastError(.shortcut($0.shortcut, $0.contentType)) }
       .first
     loadFailed = rows.isEmpty && firstError != nil
@@ -220,14 +245,39 @@ class HomeCatalog: ObservableObject {
 
   private func fetchPage(_ page: Int, ofRow rowID: String) async throws -> [MediaCard] {
     if rowID == Self.collectionsRowID {
-        let data = try await collectionsService.fetchCollections(page: page, sort: "views-")
+      let data = try await collectionsService.fetchCollections(page: page, sort: "views-")
+      if let total = data.pagination?.total {
+        cursors[rowID]?.total = max(total, 1)
+      }
       return data.collections.map(CollectionMediaCard.make(from:))
     }
     guard let shortcut = Self.shortcuts.first(where: { $0.id == rowID }) else { return [] }
     let data = try await itemsService.fetch(shortcut: shortcut.shortcut,
                                             contentType: shortcut.contentType,
                                             page: page)
+    cursors[rowID]?.total = max(data.pagination.total, 1)
     return data.items.map(Self.card(for:))
+  }
+
+  /// Warm cache skips `fetchShortcutCards`, so the cursor that paging reads was
+  /// never written. Reconstruct it from the cards already in the store: Home rails
+  /// use the server default of 20 per page, and a later `fetchPage` overwrites
+  /// `total` with the real pagination. Without this, Movies/Series (and Watch Now
+  /// after a TTL-fresh relaunch) would paint page 1 and never ask for more.
+  private func seedCursorsFromStore() {
+    let defaultPerPage = 20
+    for shortcut in activeShortcuts {
+      guard cursors[shortcut.id] == nil else { continue }
+      let count = store.cards(.shortcut(shortcut.shortcut, shortcut.contentType)).count
+      guard count > 0 else { continue }
+      let loaded = max(1, (count + defaultPerPage - 1) / defaultPerPage)
+      cursors[shortcut.id] = PageCursor(loaded: loaded, total: loaded + 1)
+    }
+    guard includesWatchNowExtras, cursors[Self.collectionsRowID] == nil else { return }
+    let count = store.cards(.collections).count
+    guard count > 0 else { return }
+    let loaded = max(1, (count + defaultPerPage - 1) / defaultPerPage)
+    cursors[Self.collectionsRowID] = PageCursor(loaded: loaded, total: loaded + 1)
   }
 
   private func storeKey(forRow rowID: String) throws -> RowKey {
@@ -243,7 +293,9 @@ class HomeCatalog: ObservableObject {
     errorHandler.reset()
     loadFailed = false
     loadError = nil
-    store.invalidate(family: .watch)
+    if includesWatchNowExtras {
+      store.invalidate(family: .watch)
+    }
     store.invalidate(family: .catalog)
     // A refresh returns every shelf to page 1, so the cursors have to go back with it —
     // otherwise a row that had reached page 5 would ask for page 6 of a one-page row.
@@ -260,13 +312,15 @@ class HomeCatalog: ObservableObject {
 
   private func assembleRows() {
     var assembled: [MediaRow] = []
-    let continueWatchingCards = paintedContinueWatchingCards()
-    if !continueWatchingCards.isEmpty {
-      assembled.append(MediaRow(id: Self.continueWatchingRowID,
-                                title: "Continue Watching".localized,
-                                cards: continueWatchingCards))
+    if includesWatchNowExtras {
+      let continueWatchingCards = paintedContinueWatchingCards()
+      if !continueWatchingCards.isEmpty {
+        assembled.append(MediaRow(id: Self.continueWatchingRowID,
+                                  title: "Continue Watching".localized,
+                                  cards: continueWatchingCards))
+      }
     }
-    for shortcut in Self.shortcuts {
+    for shortcut in activeShortcuts {
       let cards = store.cards(.shortcut(shortcut.shortcut, shortcut.contentType))
       guard !cards.isEmpty else { continue }
       // Same chevron + "see all" the Collections row already has: the header pushes a
@@ -280,12 +334,14 @@ class HomeCatalog: ObservableObject {
                                                                  title: shortcut.title.localized)))
     }
     // Collections sit last — a catalog add-on, not mixed into the hot/fresh/popular band.
-    let collectionsCards = store.cards(.collections)
-    if !collectionsCards.isEmpty {
-      assembled.append(MediaRow(id: Self.collectionsRowID,
-                                title: "Collections".localized,
-                                cards: collectionsCards,
-                                destination: Route.collections))
+    if includesWatchNowExtras {
+      let collectionsCards = store.cards(.collections)
+      if !collectionsCards.isEmpty {
+        assembled.append(MediaRow(id: Self.collectionsRowID,
+                                  title: "Collections".localized,
+                                  cards: collectionsCards,
+                                  destination: Route.collections))
+      }
     }
     rows = assembled
     refreshBannerCards(from: assembled)
@@ -353,7 +409,7 @@ class HomeCatalog: ObservableObject {
   /// Skipped entirely when `FeatureFlags.homeBannerEnabled` is off — no sampling and
   /// therefore no wide-poster fetches from `HomeBannerCardView`.
   private func refreshBannerCards(from rows: [MediaRow]) {
-    guard FeatureFlags.homeBannerEnabled else {
+    guard includesWatchNowExtras, FeatureFlags.homeBannerEnabled else {
       if !bannerCards.isEmpty { bannerCards = [] }
       return
     }

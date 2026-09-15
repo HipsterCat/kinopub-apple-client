@@ -5,6 +5,25 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Movies / Series are poster shelves, same as Watch Now (2026-09-15)
+
+The Movies and Series tabs were `CatalogView` grids while Watch Now (formerly Home)
+already stacked `MediaPosterShelf` / TVUIKit poster rails from `HomeCatalog`. M1
+closes that gap on tvOS only:
+
+- `HomeCatalog` takes an optional `contentType`. `nil` is Watch Now (Continue
+  Watching + Hot/Fresh/Popular × movie/serial + Collections). `.movie` / `.serial`
+  are the typed tabs — the same shortcut grammar, no CW / collections / banner.
+- `MainView` is the shared stack (`MediaRowsView` → `MediaPosterShelf` →
+  `TVUIKitPosterCell` when `FeatureFlags.tvUIKitPosters` is on). Menus stay on
+  `MediaCardContextMenus` / `MediaCardMenuCoordinator`.
+- Tab labels: Home → Watch Now, Shows → Series. iOS/macOS Movies / Series remain
+  sortable grids.
+
+Warm-cache paging: `refreshIfStale` used to skip the fetch that wrote the page
+cursor, so a shelf painted page 1 and never asked for more. Cursors are now
+seeded from the stored card count, and `fetchPage` writes the real `total`.
+
 ### The player's info panel is filled from the title, not the episode (2026-08-25)
 
 `externalMetadata` was only ever populated when the thing playing was a
