@@ -71,11 +71,20 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 - [ ] Am I reintroducing archive/hero/parallax research? → stop
 - [ ] Would Sasha see this as daily-driver tvOS progress? → if no, stop
 
+## PRs vs direct commits
+
+| Change | Process |
+| --- | --- |
+| **UI that changes what appears on screen** | PR **required**. Include **screenshots** (simulator or device) of the affected tvOS surfaces — before/after when useful. No screenshot = not ready for Sasha’s design check or archi review. Saves rebuild loops; the visual proof stays on the PR. |
+| **Policy / markdown / comments / tiny non-UI** (`CURRENT.md`, `PLAYBOOK.md`, ROADMAP pointers, typos) | **Direct commit** (no PR). Archi or max may land and approve these without waiting on a PR review. |
+
+Sasha reviews **design** on UI PRs (screenshots). Archi reviews architecture / milestone fit. Max implements.
+
 ## Communication
 
 - Architecture questions → **archi**
 - Implementation status → max reports milestone id + acceptance
-- Policy changes → only via CURRENT.md update after Sasha/archi
+- Policy changes → only via CURRENT.md / PLAYBOOK.md update after Sasha/archi
 
 ## Success
 
