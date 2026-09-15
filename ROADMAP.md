@@ -1,5 +1,7 @@
 # Roadmap
 
+> **Superseded for active work:** see `CURRENT.md`. This roadmap is inventory/history. Unchecked items are not the MVP backlog.
+
 Ordered product stages, their accepted behavior, and what is still open. Rules live in
 [AGENTS.md](AGENTS.md); this file is *what we are building*, not *how*.
 
