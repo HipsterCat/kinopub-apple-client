@@ -100,6 +100,9 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     view.showsVerticalScrollIndicator = false
     view.remembersLastFocusedIndexPath = true
     view.clipsToBounds = false
+    // Safe-area insets are our 80 pt sectionInset (the peek zone). Automatic
+    // adjustment would double-cut the rail and clip the offscreen hint.
+    view.contentInsetAdjustmentBehavior = .never
     view.dataSource = self
     view.delegate = self
     view.prefetchDataSource = self
@@ -122,6 +125,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     super.viewDidLoad()
     view.backgroundColor = .clear
     view.clipsToBounds = false
+    view.insetsLayoutMarginsFromSafeArea = false
     collectionView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(collectionView)
     NSLayoutConstraint.activate([

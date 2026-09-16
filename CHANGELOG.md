@@ -5,6 +5,20 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
+
+CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
+
+| | Before | CURRENT / now |
+| --- | --- | --- |
+| Poster width | 290 (invented) | **260** (6-col table) |
+| Gutter | ~53 (10% growth + 24) | **40** |
+| Side inset | 40 | **80** |
+| Page top/bottom | 40 (`rowSpacing`) | **60** |
+| Titled-row spacing | 40 | **100** |
+
+Peek/clip: page ignores horizontal safe area so the 80 pt inset is the peek zone; `scrollClipDisabled` + `clipsToBounds = false` + `contentInsetAdjustmentBehavior = .never` on the TVUIKit rail. Vertical `LazyVStack` → `VStack` on tvOS so off-screen rails stay in the focus graph. tvOS follows system light/dark (forced dark was a parked-hero tradeoff). Landscape CW width stays 352 until M3 (4@410).
+
 ### tvOS Movies / Series are poster shelves, same as Watch Now (2026-09-15)
 
 The Movies and Series tabs were `CatalogView` grids while Watch Now (formerly Home)

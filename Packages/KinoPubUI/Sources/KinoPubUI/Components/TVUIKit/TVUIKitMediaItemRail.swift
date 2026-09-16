@@ -409,6 +409,7 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
     view.backgroundColor = .clear
     view.clipsToBounds = false
+    view.contentInsetAdjustmentBehavior = .never
     // Deliberately OFF. `remembersLastFocusedIndexPath` restores by *index*, and this
     // rail's contents grow underneath it — TMDB schedules arrive after the kino.pub
     // episodes and insert unaired entries, so the remembered index silently becomes a
@@ -443,6 +444,7 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     super.viewDidLoad()
     view.backgroundColor = .clear
     view.clipsToBounds = false
+    view.insetsLayoutMarginsFromSafeArea = false
     collectionView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(collectionView)
     NSLayoutConstraint.activate([
