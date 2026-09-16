@@ -7,6 +7,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 
+Watch Now / Movies / Series on tvOS are **one** `UICollectionView`
+(`TVUIKitPosterPage`): orthogonal sections, not a `VStack` of per-rail
+representables. Posters rebuild the system continuous rail at **6@260 / gutter 40
+/ inset 80** (Apple's `orthogonalLayoutSectionForMediaItems()` is 16:9 only).
+Continue Watching uses `TVUIKitMediaItemMetrics` (the accepted adapter around that
+factory). Headers are non-focusable. `MediaPosterShelf` stays the one-rail
+component for detail / person shelves.
+
 CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
 
 | | Before | CURRENT / now |
@@ -17,7 +25,11 @@ CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
 | Page top/bottom | 40 (`rowSpacing`) | **60** |
 | Titled-row spacing | 40 | **100** |
 
-Peek/clip: page ignores horizontal safe area so the 80 pt inset is the peek zone; `scrollClipDisabled` + `clipsToBounds = false` + `contentInsetAdjustmentBehavior = .never` on the TVUIKit rail. Vertical `LazyVStack` → `VStack` on tvOS so off-screen rails stay in the focus graph. tvOS follows system light/dark (forced dark was a parked-hero tradeoff). Landscape CW width stays 352 until M3 (4@410).
+Peek/clip: the page collection is edge-to-edge (`ignoresSafeArea` horizontal) so the
+80 pt section inset is the peek zone; `clipsToBounds = false` +
+`contentInsetAdjustmentBehavior = .never`. The SwiftUI fallback (banner-on, or the
+flag off) still uses `VStack` not `LazyVStack` and `scrollClipDisabled`. tvOS
+follows system light/dark. Landscape CW width stays 352 until M3 (4@410).
 
 ### tvOS Movies / Series are poster shelves, same as Watch Now (2026-09-15)
 
@@ -28,8 +40,8 @@ closes that gap on tvOS only:
 - `HomeCatalog` takes an optional `contentType`. `nil` is Watch Now (Continue
   Watching + Hot/Fresh/Popular × movie/serial + Collections). `.movie` / `.serial`
   are the typed tabs — the same shortcut grammar, no CW / collections / banner.
-- `MainView` is the shared stack (`MediaRowsView` → `MediaPosterShelf` →
-  `TVUIKitPosterCell` when `FeatureFlags.tvUIKitPosters` is on). Menus stay on
+- `MainView` is the shared stack (`MediaRowsView` → `TVUIKitPosterPage` on tvOS when
+  `FeatureFlags.tvUIKitPosters` is on). Menus stay on
   `MediaCardContextMenus` / `MediaCardMenuCoordinator`.
 - Tab labels: Home → Watch Now, Shows → Series. iOS/macOS Movies / Series remain
   sortable grids.

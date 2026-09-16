@@ -77,6 +77,8 @@ public struct MediaRowsView: View {
 
   @FocusState private var focusedCard: CardKey?
   @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.usesTVUIKitPosters) private var usesTVUIKitPosters
+  @Environment(\.mediaNavigation) private var mediaNavigation
   @State private var containerWidth: CGFloat = 1920
 
   public init(rows: [MediaRow],
@@ -101,11 +103,7 @@ public struct MediaRowsView: View {
 
   public var body: some View {
 #if os(tvOS)
-    // Hand the remote the first banner (or first shelf card) once content exists —
-    // otherwise the sidebar keeps focus on launch. Default priority (not
-    // `.userInitiated`): returning from a detail page must not yank focus back.
-    scroll
-      .defaultFocus($focusedCard, firstCardKey)
+    tvOSBody
       .onGeometryChange(for: CGFloat.self) { proxy in
         proxy.size.width
       } action: { width in
@@ -120,6 +118,51 @@ public struct MediaRowsView: View {
       }
 #endif
   }
+
+#if os(tvOS)
+  @ViewBuilder
+  private var tvOSBody: some View {
+    // One UICollectionView for the catalog page. A VStack of per-rail
+    // representables is separate focus owners — the craft defect this replaces.
+    // Banner-on (flag off for MVP) keeps the stacked SwiftUI path so the
+    // featured row stays a different page region, not a second poster recipe.
+    if usesTVUIKitPosters, bannerCards.isEmpty {
+      posterPage
+    } else {
+      // Hand the remote the first banner (or first shelf card) once content exists —
+      // otherwise the sidebar keeps focus on launch. Default priority (not
+      // `.userInitiated`): returning from a detail page must not yank focus back.
+      scroll
+        .defaultFocus($focusedCard, firstCardKey)
+    }
+  }
+
+  private var posterPage: some View {
+    TVUIKitPosterPage(
+      rows: rows,
+      typeSize: typeSize,
+      onSelect: openFromPage,
+      onNearEnd: onLoadMore,
+      paginationProvider: paginationProvider,
+      contextMenuProvider: contextMenuProvider.map { provider in
+        { card in provider(card, .shelf) }
+      }
+    )
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .ignoresSafeArea(.container, edges: .horizontal)
+    .onAppear {
+      rows.forEach { onRowAppear?($0) }
+    }
+  }
+
+  private func openFromPage(_ card: MediaCard) {
+    if card.primaryAction == .play, let onPlay {
+      onPlay(card)
+      return
+    }
+    mediaNavigation?(navigationLinkProvider(card))
+  }
+#endif
 
   private var scroll: some View {
     ScrollView(.vertical) {

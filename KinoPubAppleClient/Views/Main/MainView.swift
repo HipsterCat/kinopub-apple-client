@@ -19,9 +19,10 @@ struct MainView: View {
   @StateObject private var catalog: HomeCatalog
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
 
-  /// Watch Now, Movies, or Series — same `MediaRowsView` + `MediaPosterShelf` stack.
-  /// The catalog's `contentType` is what differs: `nil` is Watch Now (all shortcuts,
-  /// plus Continue Watching / Collections); `.movie` / `.serial` are typed shelves.
+  /// Watch Now, Movies, or Series — same `MediaRowsView` stack. On tvOS that is one
+  /// `TVUIKitPosterPage` collection; iOS/macOS keep SwiftUI shelves. The catalog's
+  /// `contentType` is what differs: `nil` is Watch Now (all shortcuts, plus Continue
+  /// Watching / Collections); `.movie` / `.serial` are typed shelves.
   init(tab: NavigationTabs = .home,
        catalog: @autoclosure @escaping () -> HomeCatalog) {
     self.tab = tab
