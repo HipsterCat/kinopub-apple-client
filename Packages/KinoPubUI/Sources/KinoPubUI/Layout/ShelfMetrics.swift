@@ -121,9 +121,10 @@ public struct ShelfMetrics: Equatable, Sendable {
     tvHorizontalSpacing
   }
 
-  /// 6×260 + 5×40 + 2×80 = 1920. Pin the poster width; drop columns on a narrower
-  /// container rather than inventing a size. The page must be edge-to-edge
-  /// horizontally so the 80 pt inset is the peek zone, not a second safe-area cut.
+  /// 6×260 + 5×40 = 1760 in the content box after the 80 pt leading column.
+  /// Pin the poster width; drop columns on a narrower container rather than
+  /// inventing a size. Peek is a partial next card past that box — not a reason
+  /// to delete the leading margin.
   private static func tvPosters(width: CGFloat, safeArea: CGFloat) -> Self {
     let inset = max(tvContentMargin, safeArea)
     let gutter = tvHorizontalSpacing

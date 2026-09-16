@@ -13,6 +13,9 @@
 //  Headers are non-focusable supplementaries (a navigating title is an extra stop on
 //  the way down every row; no Apple tvOS app has one).
 //
+//  Inset model: 80 pt leading content column (title + first poster). Peek is a
+//  partial next card past that box. Not flush-to-edge / `insets none`.
+//
 
 import SwiftUI
 import UIKit
@@ -79,15 +82,18 @@ public final class TVUIKitPosterPageController: UIViewController {
   private var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   private var collectionLeading: NSLayoutConstraint?
   private var collectionTrailing: NSLayoutConstraint?
+  /// Extra leading section inset so the first poster sits **80 pt from the screen**,
+  /// not flush, and not 80-on-top-of-an-already-inset safe area.
+  private var contentLeadingInset: CGFloat = ShelfMetrics.tvContentMargin
 
   private lazy var collectionView: UICollectionView = {
     let config = UICollectionViewCompositionalLayoutConfiguration()
     config.scrollDirection = .vertical
     config.interSectionSpacing = ShelfMetrics.tvTitledRowSpacing
-    // `.none` + `contentInsetAdjustmentBehavior = .never` so the window's
-    // 80 pt overscan is not added on top of the section's own 80 pt peek inset.
-    // (tvOS 27 dropped `UIContentInsetsReference.scrollView`; `.none` is that case.)
-    config.contentInsetsReference = UIContentInsetsReference.none
+    // `.layoutMargins` with zero margins: only our explicit 80 pt content
+    // insets apply. `.none` on tvOS 27 dropped the leading margin (flush).
+    // `.automatic` would add the safe area on top of it (double-cut).
+    config.contentInsetsReference = .layoutMargins
     let layout = UICollectionViewCompositionalLayout(
       sectionProvider: { [weak self] index, environment in
         self?.makeSection(at: index, width: environment.container.contentSize.width)
@@ -98,6 +104,7 @@ public final class TVUIKitPosterPageController: UIViewController {
     view.backgroundColor = .clear
     view.clipsToBounds = false
     view.insetsLayoutMarginsFromSafeArea = false
+    view.directionalLayoutMargins = .zero
     view.contentInsetAdjustmentBehavior = .never
     view.contentInset = UIEdgeInsets(
       top: ShelfMetrics.tvPageVerticalInset,
@@ -125,14 +132,7 @@ public final class TVUIKitPosterPageController: UIViewController {
 
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    // CURRENT.md shelf clipping law: the 80 pt overscan *is* the peek zone.
-    // If SwiftUI still placed us inside the safe area, bleed out so we do not
-    // double-cut and flush-clip the 6th poster into a static-looking stack.
-    let bleed = max(view.safeAreaInsets.left, view.safeAreaInsets.right)
-    if collectionLeading?.constant != -bleed {
-      collectionLeading?.constant = -bleed
-      collectionTrailing?.constant = bleed
-    }
+    updateContentInsetsFromScreen()
     unclipOrthogonalScrollers(in: collectionView)
     view.superview?.clipsToBounds = false
     FocusLog.railGeometry(collectionView, section: "poster-page")
@@ -156,6 +156,32 @@ public final class TVUIKitPosterPageController: UIViewController {
       leading,
       trailing
     ])
+  }
+
+  /// CURRENT.md: 80 pt leading content column (headers + first poster). Peek is a
+  /// partial next card **past that box**, not “insets none” / edge-to-edge chrome.
+  /// Never pull the collection leading past the view — that flushed the first card
+  /// to the screen edge. Trailing may extend so the 7th poster can peek.
+  private func updateContentInsetsFromScreen() {
+    let margin = ShelfMetrics.tvContentMargin
+    let leadingFromScreen: CGFloat
+    if let window = view.window {
+      leadingFromScreen = view.convert(CGPoint.zero, to: window).x
+    } else {
+      leadingFromScreen = view.safeAreaInsets.left
+    }
+    let leading = max(0, margin - leadingFromScreen)
+    // When the view already sits on the 80 pt column, extend trailing so 6@260
+    // can still show a peek past the content box. When we ourselves supply the
+    // 80 pt inset, the section's trailing inset is the peek zone — no overflow.
+    let trailingOverflow: CGFloat = leading == 0 ? margin : 0
+    let insetChanged = abs(contentLeadingInset - leading) > 0.5
+    contentLeadingInset = leading
+    collectionLeading?.constant = 0
+    collectionTrailing?.constant = trailingOverflow
+    if insetChanged {
+      collectionView.collectionViewLayout.invalidateLayout()
+    }
   }
 
   /// Compositional orthogonal rails nest a `UICollectionView` per section. Those
@@ -216,7 +242,7 @@ public final class TVUIKitPosterPageController: UIViewController {
 
   private func makeSection(at index: Int, width: CGFloat) -> NSCollectionLayoutSection {
     let section = isLandscape(section: index)
-      ? TVUIKitMediaItemMetrics.section(width: max(width, 1), inset: ShelfMetrics.tvContentMargin)
+      ? TVUIKitMediaItemMetrics.section(width: max(width, 1), inset: 0)
       : TVUIKitPosterMetrics.orthogonalPosterSection(width: max(width, 1))
     let headerSize = NSCollectionLayoutSize(
       widthDimension: .fractionalWidth(1),
@@ -230,7 +256,13 @@ public final class TVUIKitPosterPageController: UIViewController {
     header.pinToVisibleBounds = false
     section.boundarySupplementaryItems = [header]
     section.supplementariesFollowContentInsets = true
-    section.contentInsetsReference = UIContentInsetsReference.none
+    section.contentInsetsReference = .layoutMargins
+    // 80 pt leading column (or the leftover to make 80 from the screen). Trailing
+    // inset is the peek zone only when the collection does not already overflow.
+    section.contentInsets.leading = contentLeadingInset
+    section.contentInsets.trailing = collectionTrailing?.constant == 0
+      ? ShelfMetrics.tvContentMargin
+      : 0
     return section
   }
 
