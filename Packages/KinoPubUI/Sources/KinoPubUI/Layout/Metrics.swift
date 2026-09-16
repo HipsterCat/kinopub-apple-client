@@ -20,7 +20,8 @@ public enum Metrics {
 
 #if os(tvOS)
   public static let cardCaptionSpacing: CGFloat = 20
-  public static let rowSpacing: CGFloat = 40
+  /// CURRENT.md: ≥100 pt between titled poster rows.
+  public static let rowSpacing: CGFloat = 100
   public static let sectionHeaderSpacing: CGFloat = 28
   public static let focusPadding: CGFloat = 32
   /// Extra room for Continue Watching / landscape focus lift (wider tiles grow more

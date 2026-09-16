@@ -13,6 +13,7 @@
 
 import CoreGraphics
 import SwiftUI
+import UIKit
 
 public enum TVUIKitPosterMetrics {
   /// On-focus caption under poster. One line.
@@ -90,6 +91,39 @@ public enum TVUIKitPosterMetrics {
                                       typeSize: typeSize,
                                       safeArea: safeArea)
     return item.height + padding * 2
+  }
+
+  /// Orthogonal poster rail for a page collection. `orthogonalLayoutSectionForMediaItems()`
+  /// is 16:9 `wideCell` only — there is no 2:3 factory — so this rebuilds the same
+  /// continuous section at the HIG poster recipe: width **pinned** at `tvCardWidth`
+  /// (260), gutter 40. Horizontal insets are applied by `TVUIKitPosterPage` so the
+  /// 80 pt leading column and trailing peek stay one decision.
+  @MainActor
+  public static func orthogonalPosterSection(width: CGFloat) -> NSCollectionLayoutSection {
+    let tile = posterSize(containerWidth: width)
+    let item = CGSize(
+      width: tile.width,
+      height: tile.height + captionTopPadding + captionHeight
+    )
+    let size = NSCollectionLayoutSize(
+      widthDimension: .absolute(item.width),
+      heightDimension: .absolute(item.height)
+    )
+    let layoutItem = NSCollectionLayoutItem(layoutSize: size)
+    let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [layoutItem])
+    let section = NSCollectionLayoutSection(group: group)
+    section.orthogonalScrollingBehavior = .continuous
+    section.interGroupSpacing = ShelfMetrics.tvHorizontalSpacing
+    let growth = focusGrowthPadding(tileHeight: tile.height)
+    let system = TVUIKitMediaItemMetrics.systemMetrics(width: width).verticalPadding / 2
+    let vertical = max(growth, system)
+    section.contentInsets = NSDirectionalEdgeInsets(
+      top: vertical,
+      leading: 0,
+      bottom: vertical,
+      trailing: 0
+    )
+    return section
   }
 }
 #endif

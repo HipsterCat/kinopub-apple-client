@@ -25,16 +25,20 @@ extension Color {
     /// token silently turns every `.background(…)` into a no-op and every
     /// `.opacity(…)` scrim built on it into nothing at all.
     ///
-    /// tvOS ships no semantic background colour — `UIColor.systemBackground` and
-    /// friends are `API_UNAVAILABLE(tvos)`, because a TV app is expected to bring
-    /// its own content backdrop. The app is dark-only, so the TV base is real
-    /// black, matching the window root underneath. Liquid Glass samples the
-    /// *content* above this fill, not the fill itself.
+    /// tvOS ships no semantic background colour (`UIColor.systemBackground` is
+    /// `API_UNAVAILABLE(tvos)`). The fill is opaque black/white from the
+    /// interface style so system light/dark works (CURRENT.md). Liquid Glass
+    /// samples the *content* above this fill, not the fill itself.
     public static var background: Color {
 #if os(macOS)
       Color(nsColor: .windowBackgroundColor)
 #elseif os(tvOS)
-      Color.black
+      // tvOS has no `systemBackground`. CURRENT.md rescinds forced dark-only for
+      // MVP (it was a hero tradeoff; heroes are parked), so the fill follows
+      // light/dark and stays opaque.
+      Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .light ? .white : .black
+      })
 #else
       Color(uiColor: .systemBackground)
 #endif

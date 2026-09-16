@@ -15,16 +15,31 @@ struct MainView: View {
   @Environment(\.appContext) var appContext
   @Environment(\.openURL) private var openURL
 
+  private let tab: NavigationTabs
   @StateObject private var catalog: HomeCatalog
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
 
-  init(catalog: @autoclosure @escaping () -> HomeCatalog) {
+  /// Watch Now, Movies, or Series — same `MediaRowsView` stack. On tvOS that is one
+  /// `TVUIKitPosterPage` collection; iOS/macOS keep SwiftUI shelves. The catalog's
+  /// `contentType` is what differs: `nil` is Watch Now (all shortcuts, plus Continue
+  /// Watching / Collections); `.movie` / `.serial` are typed shelves.
+  init(tab: NavigationTabs = .home,
+       catalog: @autoclosure @escaping () -> HomeCatalog) {
+    self.tab = tab
     _catalog = StateObject(wrappedValue: catalog())
+  }
+
+  private var title: LocalizedStringKey {
+    switch tab {
+    case .movies: "Movies"
+    case .series: "Series"
+    default: "Watch Now"
+    }
   }
 
   var body: some View {
     @Bindable var errorHandler = errorHandler
-    RouteStack(tab: .home, zoom: true) {
+    RouteStack(tab: tab, zoom: true) {
       // No page-level material and no `backgroundExtensionEffect` on any platform.
       //
       // That modifier duplicates the view into *mirrored, blurred copies* laid into
@@ -39,7 +54,7 @@ struct MainView: View {
       // The navigation bar is likewise left to the system: on 26 it is already
       // Liquid Glass with the scroll-edge effect.
       rowsView
-        .platformNavigationTitle("Home")
+        .platformNavigationTitle(title)
 #if os(macOS)
         .macToolbarSearch()
 #endif
@@ -84,7 +99,7 @@ struct MainView: View {
       rows: homeRows,
       // Gated by `FeatureFlags.homeBannerEnabled`. When off, HomeCatalog also
       // skips sampling so wide-poster artwork is never requested.
-      bannerCards: FeatureFlags.homeBannerEnabled ? catalog.bannerCards : [],
+      bannerCards: (tab == .home && FeatureFlags.homeBannerEnabled) ? catalog.bannerCards : [],
       navigationLinkProvider: { card in
         if card.opensCollection {
           Route.collection(CollectionMediaCard.routeCollection(from: card))
@@ -171,7 +186,7 @@ struct MainView_Previews: PreviewProvider {
   @StateObject static var navState = NavigationState()
 
   static var previews: some View {
-    MainView(catalog: HomeCatalog(itemsService: VideoContentServiceMock(),
+    MainView(tab: .home, catalog: HomeCatalog(itemsService: VideoContentServiceMock(),
                                   authState: AuthState(authService: AuthorizationServiceMock(),
                                                        accessTokenService: AccessTokenServiceMock()),
                                   errorHandler: ErrorHandler()))

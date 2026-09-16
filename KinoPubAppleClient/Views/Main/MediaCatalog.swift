@@ -15,11 +15,12 @@ import Combine
 import UIKit
 #endif
 
-/// How many items the full-screen catalog grids (Movies / Series tabs and the pushed
-/// "see all" pages) request per page. Roomy screens show many rows at once, so a
-/// 20-item page paginates visibly as you scroll; 50 keeps it seamless. iPhone stays at
-/// 20 to keep payloads light. Home rails and the background `StreamSurvey` keep the
-/// server default — they call the terse `fetch`/`search` overloads, not this.
+/// How many items the full-screen catalog grids (iOS/macOS Movies / Series tabs and
+/// the pushed "see all" pages) request per page. Roomy screens show many rows at once,
+/// so a 20-item page paginates visibly as you scroll; 50 keeps it seamless. iPhone
+/// stays at 20 to keep payloads light. Watch Now rails (and tvOS Movies / Series,
+/// which share them) keep the server default — they call the terse `fetch`/`search`
+/// overloads, not this.
 @MainActor
 enum CatalogPageSize {
   static var grid: Int {

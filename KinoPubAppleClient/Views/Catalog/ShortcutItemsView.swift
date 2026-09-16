@@ -7,7 +7,7 @@ import SwiftUI
 import KinoPubUI
 import KinoPubBackend
 
-/// One Home catalog shelf ("Hot Movies", "Fresh Series", …) opened as its own full,
+/// One Watch Now catalog shelf ("Hot Movies", "Fresh Series", …) opened as its own full,
 /// paginated grid — the row header's "see all". Reuses `MediaCatalog` pinned to one
 /// shortcut + content type, so paging, retry and context menus come for free. No sort
 /// control: the shelf already stands for one specific shortcut, and a picker would make

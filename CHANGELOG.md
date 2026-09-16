@@ -5,6 +5,56 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
+
+Watch Now / Movies / Series on tvOS are **one** `UICollectionView`
+(`TVUIKitPosterPage`): orthogonal sections, not a `VStack` of per-rail
+representables. Posters rebuild the system continuous rail at **6@260 / gutter 40
+/ inset 80** (Apple's `orthogonalLayoutSectionForMediaItems()` is 16:9 only).
+Continue Watching uses `TVUIKitMediaItemMetrics` (the accepted adapter around that
+factory). Headers are non-focusable. `MediaPosterShelf` stays the one-rail
+component for detail / person shelves.
+
+CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
+
+| | Before | CURRENT / now |
+| --- | --- | --- |
+| Poster width | 290 (invented) | **260** (6-col table) |
+| Gutter | ~53 (10% growth + 24) | **40** |
+| Side inset | 40 | **80** |
+| Page top/bottom | 40 (`rowSpacing`) | **60** |
+| Titled-row spacing | 40 | **100** |
+
+Peek/clip (CURRENT.md: peek ≠ insets none): **80 pt leading content column** —
+headers and the first poster share that line. That 80 pt is the collection’s
+leading edge in the window (`ShelfMetrics.tvPageChrome`), never a negative
+bleed and never `ignoreSafeArea`. Trailing peek is a partial next card **past**
+that box (section trailing inset 0; leftover after 6×260+5×40). Nested
+orthogonal scrollers stay unclipped so the peek and focus scale can paint.
+`.none` dropped section insets on tvOS 27, which is why the column is no longer
+a `contentInsetsReference` value. SwiftUI fallback still uses `VStack` not
+`LazyVStack` and `scrollClipDisabled`. tvOS follows system light/dark.
+Landscape CW width stays 352 until M3 (4@410).
+
+### tvOS Movies / Series are poster shelves, same as Watch Now (2026-09-15)
+
+The Movies and Series tabs were `CatalogView` grids while Watch Now (formerly Home)
+already stacked `MediaPosterShelf` / TVUIKit poster rails from `HomeCatalog`. M1
+closes that gap on tvOS only:
+
+- `HomeCatalog` takes an optional `contentType`. `nil` is Watch Now (Continue
+  Watching + Hot/Fresh/Popular × movie/serial + Collections). `.movie` / `.serial`
+  are the typed tabs — the same shortcut grammar, no CW / collections / banner.
+- `MainView` is the shared stack (`MediaRowsView` → `TVUIKitPosterPage` on tvOS when
+  `FeatureFlags.tvUIKitPosters` is on). Menus stay on
+  `MediaCardContextMenus` / `MediaCardMenuCoordinator`.
+- Tab labels: Home → Watch Now, Shows → Series. iOS/macOS Movies / Series remain
+  sortable grids.
+
+Warm-cache paging: `refreshIfStale` used to skip the fetch that wrote the page
+cursor, so a shelf painted page 1 and never asked for more. Cursors are now
+seeded from the stored card count, and `fetchPage` writes the real `total`.
+
 ### The player's info panel is filled from the title, not the episode (2026-08-25)
 
 `externalMetadata` was only ever populated when the thing playing was a

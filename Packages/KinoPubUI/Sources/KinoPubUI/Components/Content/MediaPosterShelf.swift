@@ -220,6 +220,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       typeSize: typeSize,
       safeArea: containerSafeArea
     ))
+    .scrollClipDisabled()
     .focusSection()
   }
 #endif
@@ -266,7 +267,13 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
             .frame(height: tailTileHeight)
         }
       }
+#if os(tvOS)
+      // Leading 80 pt content column (aligned with the header). Trailing stays
+      // open so the next card peeks past that box — not a matching 80 pt pad.
+      .padding(.leading, metrics.inset)
+#else
       .padding(.horizontal, metrics.inset)
+#endif
       // Vertical room for `.borderless` focus lift only — horizontal bleed must
       // stay inside `ShelfMetrics.cardWidth` or rails overflow ~2·focusPadding.
       .padding(.vertical, railFocusPadding)
