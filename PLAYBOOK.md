@@ -39,7 +39,8 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 - Symmetrical peek on every horizontal rail; `scrollClipDisabled` / no clip of focus scale
 - Content-type filter for Series/Movies; replace grid-as-home if needed
 - No new Up Next/CW feature work; no LIVE; no invented widths
-- Acceptance: focused posters don’t overlap neighbors or titles on device; Menu pops; detail opens; no banned focus chrome; screenshots on PR
+- Acceptance: focused posters don’t overlap neighbors or titles; **symmetrical peek, no edge-clip** of the rail; Menu pops; detail opens; system appearance + Dynamic Type; no banned focus chrome; screenshots from the **feature branch** (not stale main)
+- Prefer `#Preview` / isolated demos for visual checks — do not burn Sasha’s simulator OTP for routine UI review
 
 ### M2 — Actions everywhere
 - Unify `ItemActionState` + performer; wire all cards
@@ -71,6 +72,8 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 5. Prefer narrow patches on existing stores/services (`ContentStore`, `HomeCatalog`, menu coordinator, TVUIKit rails).
 6. Prove focus and menus on device; previews ≠ focus.
 7. Card widths only from CURRENT HIG grid table; shelf recipes numeric, not “about right.”
+9. System light/dark + Dynamic Type; read `.agents/skills` before inventing shelf scroll behavior.
+10. Apple Design Resources Sketch UI Kit names/styles over informal mocks.
 8. Focus fundamentals in CURRENT (clip, focusSection, caption clearance, focused assets, empty-state escape).
 
 ## Anti-distraction checklist (before every PR)

@@ -2,7 +2,7 @@
 
 **Authority for agents and engineers.** If this file conflicts with `ROADMAP.md`, `CHANGELOG.md`, `docs/archive/**`, old PR descriptions, or code comments about iOS/macOS chrome — **this file wins**, until Sasha changes it.
 
-Last updated: 2026-09-16 · Owner: archi (architecture) · Implementer: max (Cursor) · HIG grid: audited 2026-09-16
+Last updated: 2026-09-16 · Owner: archi (architecture) · Implementer: max (Cursor) · HIG grid + appearance realign
 
 ---
 
@@ -88,6 +88,24 @@ System TabView / `sidebarAdaptable` / list materials only. No custom frosted pil
 4. Captions clear the **focused (scaled)** image — prefer system lockups.
 5. Assets sharp at **focused** size.
 6. Empty/error states keep a focusable escape (don’t wait for M7).
+
+
+## Appearance & type
+
+- **System light/dark** — follow user preference. Forced dark-only was a **hero** tradeoff; heroes are parked, so dark-only is **rescinded** for MVP.
+- **Dynamic Type** — system text styles; no `.system(size:)` except where AGENTS already allows glyph/geometry exceptions.
+
+## Sketch source of truth
+
+“Sketch” means **Apple Design Resources — tvOS UI Kit** (official Sketch library): named components and styles as Apple labeled them. Not informal wireframes. Product mocks that diverge from that kit + HIG grid are non-binding.
+
+## Craft baseline
+
+Repo `.agents/skills` (tvOS fundamentals) are **required reading** for implementers — same tier as AGENTS focus/TVUIKit rules. Do not reinvent clipped Lazy stacks that hide horizontal scroll.
+
+## Shelf clipping (law)
+
+Horizontal rails must show **symmetrical peek** of offscreen items. Clipping a card flush at the safe-area edge so the row looks like a crooked static stack is a **defect**, not a density choice. Disable scroll clipping as needed so focus scale and peek remain visible.
 
 ## What we are not building (now)
 
