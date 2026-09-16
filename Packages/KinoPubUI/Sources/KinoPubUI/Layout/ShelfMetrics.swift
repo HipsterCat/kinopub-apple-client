@@ -103,6 +103,21 @@ public struct ShelfMetrics: Equatable, Sendable {
   /// bleed outside this, they do not shrink it.
   public static let tvContentMargin: CGFloat = 80
 
+  /// Where the catalog collection sits so titles + first poster share the 80 pt
+  /// screen column, and the 7th card peeks into the trailing 80 pt.
+  /// `leadingConstant` is never negative — that was the flush-to-edge regression.
+  public struct TVPageChrome: Equatable, Sendable {
+    public var leadingConstant: CGFloat
+    public var trailingOverflow: CGFloat
+  }
+
+  public static func tvPageChrome(viewFrameInWindow: CGRect, windowWidth: CGFloat) -> TVPageChrome {
+    TVPageChrome(
+      leadingConstant: max(0, tvContentMargin - viewFrameInWindow.minX),
+      trailingOverflow: max(0, windowWidth - viewFrameInWindow.maxX)
+    )
+  }
+
   /// CURRENT.md: 60 pt top/bottom on the page.
   public static let tvPageVerticalInset: CGFloat = 60
 
