@@ -100,8 +100,8 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     view.showsVerticalScrollIndicator = false
     view.remembersLastFocusedIndexPath = true
     view.clipsToBounds = false
-    // Safe-area insets are our 80 pt sectionInset (the peek zone). Automatic
-    // adjustment would double-cut the rail and clip the offscreen hint.
+    // Horizontal 80 pt is the leading content column, not a reason to ignore
+    // the safe area. Automatic adjustment would double-cut that column.
     view.contentInsetAdjustmentBehavior = .never
     view.dataSource = self
     view.delegate = self
@@ -201,11 +201,14 @@ public final class TVUIKitMediaCollectionController: UIViewController {
       // scrolls away; in a grid it would sit as a hole against the trailing edge, so
       // the grid takes it as symmetric margin and stays centred — through the same
       // `gridInset` a section header above it must use, or the two visibly disagree.
-      let sideInset = axis == .vertical ? metrics.gridInset(in: width) : inset
+      // Grid: symmetric inset (headers use the same `gridInset`). Shelf: 80 pt
+      // leading column, trailing 0 so the next card peeks past the content box.
+      let leadingInset = axis == .vertical ? metrics.gridInset(in: width) : inset
+      let trailingInset: CGFloat = axis == .vertical ? leadingInset : 0
       layout.sectionInset = UIEdgeInsets(top: focusRoom,
-                                         left: sideInset,
+                                         left: leadingInset,
                                          bottom: focusRoom,
-                                         right: sideInset)
+                                         right: trailingInset)
       layout.itemSize = item
     }
 
