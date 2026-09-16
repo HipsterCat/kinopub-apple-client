@@ -26,15 +26,15 @@ CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
 | Titled-row spacing | 40 | **100** |
 
 Peek/clip (CURRENT.md: peek ≠ insets none): **80 pt leading content column** —
-headers and the first poster share that line. Trailing peek is a partial next
-card **past that box** (section trailing inset 0; leftover after 6×260+5×40).
-The page does not ignore the safe area or bleed the collection leading to the
-screen edge (that flushed the first card). Nested orthogonal scrollers stay
-unclipped so the peek and focus scale can paint. `contentInsetsReference =
-.layoutMargins` (zero margins) so our 80 pt inset sticks; `.none` dropped it
-on tvOS 27. SwiftUI fallback still uses `VStack` not `LazyVStack` and
-`scrollClipDisabled`. tvOS follows system light/dark. Landscape CW width
-stays 352 until M3 (4@410).
+headers and the first poster share that line. That 80 pt is the collection’s
+leading edge in the window (`ShelfMetrics.tvPageChrome`), never a negative
+bleed and never `ignoreSafeArea`. Trailing peek is a partial next card **past**
+that box (section trailing inset 0; leftover after 6×260+5×40). Nested
+orthogonal scrollers stay unclipped so the peek and focus scale can paint.
+`.none` dropped section insets on tvOS 27, which is why the column is no longer
+a `contentInsetsReference` value. SwiftUI fallback still uses `VStack` not
+`LazyVStack` and `scrollClipDisabled`. tvOS follows system light/dark.
+Landscape CW width stays 352 until M3 (4@410).
 
 ### tvOS Movies / Series are poster shelves, same as Watch Now (2026-09-15)
 

@@ -13,8 +13,9 @@
 //  Headers are non-focusable supplementaries (a navigating title is an extra stop on
 //  the way down every row; no Apple tvOS app has one).
 //
-//  Inset model: 80 pt leading content column (title + first poster). Peek is a
-//  partial next card past that box. Not flush-to-edge / `insets none`.
+//  Inset model: 80 pt is the collection’s leading edge in the window (title +
+//  first poster). Peek is leftover past 6@260, including the trailing 80 pt of
+//  the screen. Not flush-to-edge, not `ignoreSafeArea`, not `insets none`.
 //
 
 import SwiftUI
@@ -82,20 +83,14 @@ public final class TVUIKitPosterPageController: UIViewController {
   private var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   private var collectionLeading: NSLayoutConstraint?
   private var collectionTrailing: NSLayoutConstraint?
-  /// Extra leading section inset so the first poster sits **80 pt from the screen**,
-  /// not flush, and not 80-on-top-of-an-already-inset safe area.
-  private var contentLeadingInset: CGFloat = ShelfMetrics.tvContentMargin
-  /// How far the collection extends past the host’s trailing edge into the screen’s
-  /// trailing 80 pt — that strip is the peek zone, not a second content margin.
-  private var trailingOverflow: CGFloat = 0
 
   private lazy var collectionView: UICollectionView = {
     let config = UICollectionViewCompositionalLayoutConfiguration()
     config.scrollDirection = .vertical
     config.interSectionSpacing = ShelfMetrics.tvTitledRowSpacing
-    // `.layoutMargins` with zero margins: only our explicit 80 pt content
-    // insets apply. `.none` on tvOS 27 dropped the leading margin (flush).
-    // `.automatic` would add the safe area on top of it (double-cut).
+    // Horizontal 80 pt is a collection-frame constant (`tvPageChrome`), not
+    // `contentInsetsReference`. `.none` dropped section insets (flush); `.automatic`
+    // would double-cut. Zero layout margins so UIKit does not add a second side inset.
     config.contentInsetsReference = .layoutMargins
     let layout = UICollectionViewCompositionalLayout(
       sectionProvider: { [weak self] index, environment in
@@ -149,7 +144,10 @@ public final class TVUIKitPosterPageController: UIViewController {
     viewRespectsSystemMinimumLayoutMargins = false
     collectionView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(collectionView)
-    let leading = collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+    let leading = collectionView.leadingAnchor.constraint(
+      equalTo: view.leadingAnchor,
+      constant: ShelfMetrics.tvContentMargin
+    )
     let trailing = collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
     collectionLeading = leading
     collectionTrailing = trailing
@@ -163,35 +161,27 @@ public final class TVUIKitPosterPageController: UIViewController {
 
   /// CURRENT.md: 80 pt leading content column (headers + first poster). Peek is a
   /// partial next card **past that box**, not “insets none” / edge-to-edge chrome.
-  /// Never pull the collection leading past the view — that flushed the first card
-  /// to the screen edge. Trailing may extend into the screen’s trailing 80 pt so
-  /// 6@260 still peeks. Trailing *section* inset stays 0: padding that strip
-  /// would hide the 7th card.
+  /// The 80 pt is the collection’s leading edge in the window — never a negative
+  /// bleed, never `ignoreSafeArea`. Trailing may extend into the screen’s last
+  /// 80 pt so 6@260 still peeks. Section horizontal insets stay 0.
   private func updateContentInsetsFromScreen() {
-    let margin = ShelfMetrics.tvContentMargin
-    let leadingFromScreen: CGFloat
-    let trailingFromScreen: CGFloat
+    let chrome: ShelfMetrics.TVPageChrome
     if let window = view.window {
-      let frame = view.convert(view.bounds, to: window)
-      leadingFromScreen = frame.minX
-      trailingFromScreen = max(0, window.bounds.maxX - frame.maxX)
+      chrome = ShelfMetrics.tvPageChrome(
+        viewFrameInWindow: view.convert(view.bounds, to: window),
+        windowWidth: window.bounds.width
+      )
     } else {
-      leadingFromScreen = view.safeAreaInsets.left
-      trailingFromScreen = view.safeAreaInsets.right
+      chrome = ShelfMetrics.TVPageChrome(
+        leadingConstant: ShelfMetrics.tvContentMargin,
+        trailingOverflow: 0
+      )
     }
-    let leading = max(0, margin - leadingFromScreen)
-    // Host already on the 80 pt column → leftover to the screen edge is peek.
-    // Host at x=0 (full-bleed) → we supply the 80 pt leading inset; the last
-    // 80 pt of a 1920-wide collection *is* the peek, so no overflow and no
-    // trailing section padding.
-    let overflow = trailingFromScreen
-    let insetChanged = abs(contentLeadingInset - leading) > 0.5
-      || abs(trailingOverflow - overflow) > 0.5
-    contentLeadingInset = leading
-    trailingOverflow = overflow
-    collectionLeading?.constant = 0
-    collectionTrailing?.constant = overflow
-    if insetChanged {
+    let leadingChanged = abs((collectionLeading?.constant ?? 0) - chrome.leadingConstant) > 0.5
+    let trailingChanged = abs((collectionTrailing?.constant ?? 0) - chrome.trailingOverflow) > 0.5
+    collectionLeading?.constant = chrome.leadingConstant
+    collectionTrailing?.constant = chrome.trailingOverflow
+    if leadingChanged || trailingChanged {
       collectionView.collectionViewLayout.invalidateLayout()
     }
   }
@@ -281,9 +271,8 @@ public final class TVUIKitPosterPageController: UIViewController {
     section.boundarySupplementaryItems = [header]
     section.supplementariesFollowContentInsets = true
     section.contentInsetsReference = .layoutMargins
-    // 80 pt from the screen (or the leftover to make 80). Trailing stays 0 so
-    // the 7th poster peeks into the leftover past 6×260+5×40 = 1760.
-    section.contentInsets.leading = contentLeadingInset
+    // Horizontal column is the collection frame (`tvPageChrome`), not section insets.
+    section.contentInsets.leading = 0
     section.contentInsets.trailing = 0
     return section
   }
