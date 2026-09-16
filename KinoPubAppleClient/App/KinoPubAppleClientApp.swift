@@ -65,9 +65,11 @@ struct KinoPubAppleClientApp: App {
 #if os(macOS)
         .environment(windowSettings)
 #endif
-        // Dark-only until light is a deliberate pass (modernization Phase 0).
-        // Info.plist UIUserInterfaceStyle=Dark covers system chrome; this covers SwiftUI.
+#if !os(tvOS)
+        // Dark-only until light is a deliberate pass on postponed platforms.
+        // tvOS follows system light/dark (CURRENT.md — heroes parked).
         .preferredColorScheme(.dark)
+#endif
         // Register a readable device identity + advertise HEVC/4K/HDR at activation, so
         // the kino.pub Devices list isn't "unknown / unknown" and streams match what
         // AVPlayer can open. A launch that only revived a Keychain token sends nothing

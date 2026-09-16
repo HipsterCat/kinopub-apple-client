@@ -220,6 +220,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       typeSize: typeSize,
       safeArea: containerSafeArea
     ))
+    .scrollClipDisabled()
     .focusSection()
   }
 #endif

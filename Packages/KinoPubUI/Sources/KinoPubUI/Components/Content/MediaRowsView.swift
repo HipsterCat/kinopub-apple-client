@@ -123,26 +123,35 @@ public struct MediaRowsView: View {
 
   private var scroll: some View {
     ScrollView(.vertical) {
-      // Lazy on every platform — an eager VStack on tvOS decoded every Home poster
-      // at once (1GB+ / CVPixelBuffer -6680). Focus lift room comes from
-      // `scrollClipDisabled` + per-rail vertical padding, not from realizing all rows.
-      LazyVStack(alignment: .leading, spacing: Self.rowSpacing) {
-        scrollContent
-      }
-      // The first section is a header with no navigation title above it, so without
-      // this it starts hard against the bar. The scroll-edge effect needs something to
-      // fade, too — content that begins level with the bar has nothing to pass under.
-      .padding(.top, Self.rowSpacing)
-      .padding(.bottom, Self.rowSpacing)
+      stack
+        .padding(.top, Self.pageVerticalInset)
+        .padding(.bottom, Self.pageVerticalInset)
     }
 #if os(tvOS)
     .scrollClipDisabled()
+    // Edge-to-edge so the 80 pt HIG inset is the peek zone. Sitting inside the
+    // system safe area first would clip the 7th poster flush and look like a
+    // static 6-card stack (CURRENT.md shelf-clipping law).
+    .ignoresSafeArea(.container, edges: .horizontal)
 #else
-    // Native fade as rows pass under the nav bar / large title. A plain `ScrollView`
-    // doesn't inherit the edge treatment `List` gets automatically, so it needs asking
-    // for explicitly. tvOS has no floating bar over this screen to slide under — see
-    // `.claude/skills/apple-chrome/SKILL.md`.
     .scrollEdgeEffectStyle(.soft, for: .top)
+#endif
+  }
+
+  @ViewBuilder
+  private var stack: some View {
+#if os(tvOS)
+    // Bounded Watch Now / Movies / Series (typically ≤8 titled rows). TVUIKit
+    // collections recycle cells. `LazyVStack` drops off-screen rails from the
+    // focus graph — focus then jumps to the tab bar (swift-focusengine-pro).
+    // The 1GB decode was SwiftUI `MediaCardView` in an eager stack, not this path.
+    VStack(alignment: .leading, spacing: Self.rowSpacing) {
+      scrollContent
+    }
+#else
+    LazyVStack(alignment: .leading, spacing: Self.rowSpacing) {
+      scrollContent
+    }
 #endif
   }
 
@@ -237,12 +246,14 @@ public struct MediaRowsView: View {
   /// space kept reserved so the row doesn't reflow.
   static let cardCaption: MediaCardCaption = .onFocus
 
-  static let rowSpacing: CGFloat = Metrics.rowSpacing
+  static let rowSpacing: CGFloat = ShelfMetrics.tvTitledRowSpacing
+  static let pageVerticalInset: CGFloat = ShelfMetrics.tvPageVerticalInset
 #else
   /// No focus off TV — the cards have to name themselves.
   static let cardCaption: MediaCardCaption = .always
 
   static let rowSpacing: CGFloat = Metrics.rowSpacing
+  static let pageVerticalInset: CGFloat = Metrics.rowSpacing
 #endif
 }
 
@@ -409,3 +420,26 @@ public struct MediaCardContextMenuModifier: ViewModifier {
   }
   .preferredColorScheme(.dark)
 }
+
+#if os(tvOS)
+#Preview("Poster shelves · HIG 6@260") {
+  let posters: [MediaCard] = (1...8).map { n in
+    MediaCard(
+      id: n,
+      posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+      title: "Title \(n)"
+    )
+  }
+  NavigationStack {
+    MediaRowsView(
+      rows: [
+        MediaRow(id: "hot", title: "Hot Movies", cards: posters),
+        MediaRow(id: "fresh", title: "Fresh Movies", cards: posters)
+      ],
+      navigationLinkProvider: { card in card.id }
+    )
+  }
+  .environment(\.usesTVUIKitPosters, true)
+  .frame(width: 1920, height: 1080)
+}
+#endif
