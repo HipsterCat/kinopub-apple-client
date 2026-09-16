@@ -77,6 +77,8 @@ public final class TVUIKitPosterPageController: UIViewController {
   private var onNearEnd: ((MediaRow, MediaCard) -> Void)?
   private var paginationProvider: ((MediaRow) -> PaginationState)?
   private var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  private var collectionLeading: NSLayoutConstraint?
+  private var collectionTrailing: NSLayoutConstraint?
 
   private lazy var collectionView: UICollectionView = {
     let config = UICollectionViewCompositionalLayoutConfiguration()
@@ -94,6 +96,7 @@ public final class TVUIKitPosterPageController: UIViewController {
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
     view.backgroundColor = .clear
     view.clipsToBounds = false
+    view.insetsLayoutMarginsFromSafeArea = false
     view.contentInsetAdjustmentBehavior = .never
     view.contentInset = UIEdgeInsets(
       top: ShelfMetrics.tvPageVerticalInset,
@@ -121,6 +124,16 @@ public final class TVUIKitPosterPageController: UIViewController {
 
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    // CURRENT.md shelf clipping law: the 80 pt overscan *is* the peek zone.
+    // If SwiftUI still placed us inside the safe area, bleed out so we do not
+    // double-cut and flush-clip the 6th poster into a static-looking stack.
+    let bleed = max(view.safeAreaInsets.left, view.safeAreaInsets.right)
+    if collectionLeading?.constant != -bleed {
+      collectionLeading?.constant = -bleed
+      collectionTrailing?.constant = bleed
+    }
+    unclipOrthogonalScrollers(in: collectionView)
+    view.superview?.clipsToBounds = false
     FocusLog.railGeometry(collectionView, section: "poster-page")
   }
 
@@ -129,14 +142,29 @@ public final class TVUIKitPosterPageController: UIViewController {
     view.backgroundColor = .clear
     view.clipsToBounds = false
     view.insetsLayoutMarginsFromSafeArea = false
+    viewRespectsSystemMinimumLayoutMargins = false
     collectionView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(collectionView)
+    let leading = collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+    let trailing = collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+    collectionLeading = leading
+    collectionTrailing = trailing
     NSLayoutConstraint.activate([
       collectionView.topAnchor.constraint(equalTo: view.topAnchor),
       collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-      collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+      leading,
+      trailing
     ])
+  }
+
+  /// Compositional orthogonal rails nest a `UICollectionView` per section. Those
+  /// inner scrollers default to `clipsToBounds = true`, which is what makes a
+  /// 6@260 row look like a non-scrolling stack (CURRENT.md shelf clipping law).
+  private func unclipOrthogonalScrollers(in view: UIView) {
+    if view is UIScrollView {
+      view.clipsToBounds = false
+    }
+    view.subviews.forEach { unclipOrthogonalScrollers(in: $0) }
   }
 
   func apply(rows: [MediaRow],
