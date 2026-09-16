@@ -84,9 +84,10 @@ public final class TVUIKitPosterPageController: UIViewController {
     let config = UICollectionViewCompositionalLayoutConfiguration()
     config.scrollDirection = .vertical
     config.interSectionSpacing = ShelfMetrics.tvTitledRowSpacing
-    // `.scrollView` + `contentInsetAdjustmentBehavior = .never` so the window's
+    // `.none` + `contentInsetAdjustmentBehavior = .never` so the window's
     // 80 pt overscan is not added on top of the section's own 80 pt peek inset.
-    config.contentInsetsReference = .scrollView
+    // (tvOS 27 dropped `UIContentInsetsReference.scrollView`; `.none` is that case.)
+    config.contentInsetsReference = UIContentInsetsReference.none
     let layout = UICollectionViewCompositionalLayout(
       sectionProvider: { [weak self] index, environment in
         self?.makeSection(at: index, width: environment.container.contentSize.width)
@@ -190,9 +191,22 @@ public final class TVUIKitPosterPageController: UIViewController {
     }
   }
 
-  private static func cardsSignature(_ rows: [MediaRow]) -> [(String, [Int], [Double?], [Bool])] {
+  /// Tuples are not `Equatable`, so an array of them cannot use `!=`.
+  private struct CardsSignature: Equatable {
+    var id: String
+    var cardIDs: [Int]
+    var progress: [Double?]
+    var watched: [Bool]
+  }
+
+  private static func cardsSignature(_ rows: [MediaRow]) -> [CardsSignature] {
     rows.map { row in
-      (row.id, row.cards.map(\.id), row.cards.map(\.progress), row.cards.map(\.isWatched))
+      CardsSignature(
+        id: row.id,
+        cardIDs: row.cards.map(\.id),
+        progress: row.cards.map(\.progress),
+        watched: row.cards.map(\.isWatched)
+      )
     }
   }
 
@@ -216,7 +230,7 @@ public final class TVUIKitPosterPageController: UIViewController {
     header.pinToVisibleBounds = false
     section.boundarySupplementaryItems = [header]
     section.supplementariesFollowContentInsets = true
-    section.contentInsetsReference = .scrollView
+    section.contentInsetsReference = UIContentInsetsReference.none
     return section
   }
 
