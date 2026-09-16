@@ -60,3 +60,6 @@ fastlane/.env
 *.mobileprovision
 *.provisionprofile
 AuthKey_*.p8
+
+## Agent / Cursor worktrees
+.worktrees/
