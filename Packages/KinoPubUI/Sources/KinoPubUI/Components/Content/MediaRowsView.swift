@@ -149,9 +149,6 @@ public struct MediaRowsView: View {
       }
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    // CURRENT.md shelf clipping law: the 80 pt overscan is the peek zone.
-    // `.all` (not only `.container`) so window overscan is included.
-    .ignoresSafeArea(.all, edges: .horizontal)
     .onAppear {
       rows.forEach { onRowAppear?($0) }
     }
@@ -174,10 +171,6 @@ public struct MediaRowsView: View {
     }
 #if os(tvOS)
     .scrollClipDisabled()
-    // Edge-to-edge so the 80 pt HIG inset is the peek zone. Sitting inside the
-    // system safe area first would clip the 7th poster flush and look like a
-    // static 6-card stack (CURRENT.md shelf clipping law).
-    .ignoresSafeArea(.all, edges: .horizontal)
 #else
     .scrollEdgeEffectStyle(.soft, for: .top)
 #endif

@@ -25,14 +25,15 @@ CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
 | Page top/bottom | 40 (`rowSpacing`) | **60** |
 | Titled-row spacing | 40 | **100** |
 
-Peek/clip (CURRENT.md shelf clipping law): the page collection is edge-to-edge
-(`ignoresSafeArea(.all)` horizontal) so the 80 pt section inset is the peek zone.
-If SwiftUI still sits us in the overscan, the collection bleeds that inset out.
-Nested orthogonal scrollers are unclipped (`clipsToBounds = false`) so a 6@260
-row cannot flush-clip into a static-looking stack. `contentInsetAdjustmentBehavior
-= .never`. SwiftUI fallback still uses `VStack` not `LazyVStack` and
-`scrollClipDisabled`. tvOS follows system light/dark. Landscape CW width stays
-352 until M3 (4@410).
+Peek/clip (CURRENT.md: peek ≠ insets none): **80 pt leading content column** —
+headers and the first poster share that line. Trailing peek is a partial next
+card **past that box**. The page does not ignore the safe area or bleed the
+collection leading to the screen edge (that flushed the first card). Nested
+orthogonal scrollers stay unclipped so the peek and focus scale can paint.
+`contentInsetsReference = .layoutMargins` (zero margins) so our 80 pt inset
+sticks; `.none` dropped it on tvOS 27. SwiftUI fallback still uses `VStack`
+not `LazyVStack` and `scrollClipDisabled`. tvOS follows system light/dark.
+Landscape CW width stays 352 until M3 (4@410).
 
 ### tvOS Movies / Series are poster shelves, same as Watch Now (2026-09-15)
 
