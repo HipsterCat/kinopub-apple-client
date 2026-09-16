@@ -29,15 +29,17 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 ## Milestone gates (full MVP, ordered)
 
 ### M0 — Policy in repo (do this before more UI if missing)
-- [ ] `CURRENT.md` + `PLAYBOOK.md` merged
+- [ ] `CURRENT.md` + `PLAYBOOK.md` merged (includes **Grid & chrome contract**)
 - [ ] ROADMAP header points here
 - [ ] Team/agents acknowledged: other platforms postponed
+- [ ] Grid table + surface→recipe frozen in CURRENT (safe area 80/60, 40 pt gutters, poster **6 @ 260**, stills **4 @ 410**)
 
-### M1 — Poster shelves (active next)
-- Watch Now: poster shelf grammar (Hot/Fresh/Popular-style via `HomeCatalog` patterns)
-- Movies + Series/Shows: **same shelf layout**, content-type filter (replace grid-as-home if needed)
-- No new Up Next/CW feature work; no LIVE
-- Acceptance: focus smooth on tvOS 26.6 device; Menu pops; detail opens; no banned focus chrome
+### M1 — Poster shelves (blocked until M0 grid contract is in main)
+- Watch Now / Series / Movies: **same** poster shelf recipe — **6-col @ 260**, spacing **40 pt**, titled-row clearance ≥ **100 pt** vertical between unfocused rows
+- Symmetrical peek on every horizontal rail; `scrollClipDisabled` / no clip of focus scale
+- Content-type filter for Series/Movies; replace grid-as-home if needed
+- No new Up Next/CW feature work; no LIVE; no invented widths
+- Acceptance: focused posters don’t overlap neighbors or titles on device; Menu pops; detail opens; no banned focus chrome; screenshots on PR
 
 ### M2 — Actions everywhere
 - Unify `ItemActionState` + performer; wire all cards
@@ -48,8 +50,14 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 - Not on Series/Movies
 
 ### M4 — Detail + playback path (system chrome)
-### M5 — Library + bookmarks (Sketch sidebar/grid OK)
+### M5 — Library + bookmarks
+- Before impl: **explicit** Library card recipe — 4-col landscape @ 410 **or** 5/6-col posters (not 2:3 in a 4-col grid)
+- Sketch sidebar OK with system list materials + focusSection
+
 ### M6 — Search + categories completeness
+- **System search only** — Sketch keyboard discarded
+- Results default **4-col @ 410** landscape @ 40 pt unless CURRENT picks another table size
+
 ### M7 — Harden on 4K 26.6; strip regressions
 
 **Stop and ping archi** before starting the next milestone letter.
@@ -62,6 +70,8 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 4. Ignore / do not extend despair-era comments and `#if os` chrome experiments for postponed platforms during MVP.
 5. Prefer narrow patches on existing stores/services (`ContentStore`, `HomeCatalog`, menu coordinator, TVUIKit rails).
 6. Prove focus and menus on device; previews ≠ focus.
+7. Card widths only from CURRENT HIG grid table; shelf recipes numeric, not “about right.”
+8. Focus fundamentals in CURRENT (clip, focusSection, caption clearance, focused assets, empty-state escape).
 
 ## Anti-distraction checklist (before every PR)
 
@@ -84,7 +94,7 @@ Sasha reviews **design** on UI PRs (screenshots). Archi reviews architecture / m
 
 - Architecture questions → **archi**
 - Implementation status → max reports milestone id + acceptance
-- Policy changes → only via CURRENT.md / PLAYBOOK.md update after Sasha/archi
+- Policy changes → only via CURRENT.md update after Sasha/archi
 
 ## Success
 

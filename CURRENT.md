@@ -2,13 +2,13 @@
 
 **Authority for agents and engineers.** If this file conflicts with `ROADMAP.md`, `CHANGELOG.md`, `docs/archive/**`, old PR descriptions, or code comments about iOS/macOS chrome — **this file wins**, until Sasha changes it.
 
-Last updated: 2026-09-15 · Owner: archi (architecture) · Implementer: max (Cursor)
+Last updated: 2026-09-16 · Owner: archi (architecture) · Implementer: max (Cursor) · HIG grid: audited 2026-09-16
 
 ---
 
 ## One-sentence goal
 
-Ship a **daily-driver Kinopub on tvOS 26+** using **standard Apple tvOS UI Kit** (Sketch), full basic product features, on the existing `kinopub-apple-client` pipes — not a research UI, not a multiplatform polish pass.
+Ship a **daily-driver Kinopub on tvOS 26+** using **standard Apple tvOS UI Kit** (Sketch + HIG grid law), full basic product features, on the existing `kinopub-apple-client` pipes — not a research UI, not a multiplatform polish pass.
 
 ## Active platform
 
@@ -19,9 +19,13 @@ Ship a **daily-driver Kinopub on tvOS 26+** using **standard Apple tvOS UI Kit**
 
 Compiling for other destinations may still succeed; **do not spend MVP time** on their chrome, toolbars, or focus quirks unless Sasha explicitly unblocks.
 
+### “Adaptive” on tvOS
+
+HIG: tvOS layouts do **not** auto-adapt per TV size — same interface on every display. Here **adaptive** means frames come from the **fixed HIG grid table + safe area** (`UICollectionViewFlowLayout` / `containerRelativeFrame`), not iOS size-class fluidity or ad-hoc percentages.
+
 ## What we are building (MVP)
 
-Full **basic** Kinopub, Sketch-simple:
+Full **basic** Kinopub, Sketch-simple **where Sketch matches HIG**; Sketch that invents chrome is non-binding:
 
 - Watch Now (ship tab may still say Home — rename toward Sketch)
 - Series / Movies — **identical shelf layout**, typed filter; **no Up Next** on those tabs
@@ -29,10 +33,68 @@ Full **basic** Kinopub, Sketch-simple:
 - **Posters first** in the UI reset; Up Next / Continue Watching landscape row **only on Watch Now**
 - **No LIVE badge** (mock artifact — never ship)
 
+## Grid & chrome contract (law — blocks M1 if violated)
+
+TVMLKit is deprecated; do **not** wait for Apple to republish every TVML template. Replacement stack:
+
+1. HIG layout grid + safe area (below)
+2. System lockups only — TVUIKit / SwiftUI `.borderless` | `.card` (see `AGENTS.md`)
+3. WWDC24 shelf/search recipes for “how”
+4. Sketch that isn’t (1)–(3) is **non-binding art**
+
+### Safe area
+
+Inset primary content **60 pt** top/bottom, **80 pt** sides. Only symmetrical peek / deliberate edge-bleed outside.
+
+### Unfocused grid table — horizontal spacing **always 40 pt**; min vertical spacing **100 pt**
+
+| Columns | Unfocused width (pt) |
+| --- | --- |
+| 2 | 860 |
+| 3 | 560 |
+| 4 | 410 |
+| 5 | 320 |
+| 6 | 260 |
+| 7 | 217 |
+| 8 | 184 |
+| 9 | 160 |
+
+**Any card width that isn’t in this table is a HIG break.** Extra vertical clearance for **titled** rows. Spacing must be **consistent**. Offscreen peek **symmetrical** left/right.
+
+UIKit: column count from item width + spacing. SwiftUI: `containerRelativeFrame(.horizontal, count: N, spacing: 40)` + matching stack spacing; `scrollClipDisabled()` so focus scale isn’t clipped.
+
+### Surface → recipe (MVP defaults)
+
+| Surface / row | Aspect | Columns | Unfocused width | Notes |
+| --- | --- | --- | --- | --- |
+| Poster rails (Watch Now, Series, Movies) | 2:3 | **6** | **260** | Same recipe all three tabs. Alt **5 @ 320** only if Sasha picks density. |
+| Up Next / stills (Watch Now only) | 16:9 | **4** | **410** | Progress on still; no LIVE. Alt **3 @ 560** for larger featured. |
+| Library grid | TBD at M5 | — | — | Mock 4-col fits **landscape @ 410**. **2:3 posters → 5 or 6 col**, not 4. Decide before M5 impl; don’t mix silently. |
+| Search results | 16:9 default | **4** | **410** | System search chrome only (below). |
+
+### Search chrome
+
+**System searchable / UIKit search only.** Sketch custom keyboard + suggestion-pill row is **non-binding** — do not build. Results use the grid table (default 4-col landscape @ 40 pt).
+
+### Materials
+
+System TabView / `sidebarAdaptable` / list materials only. No custom frosted pill stacks under Search/Settings. Heroes / full-bleed gradient catalogs stay **parked** (post-MVP).
+
+### Focus acceptance (fundamentals — not polish)
+
+1. Layout is a **grid of focusables** — no diagonal / irregular hit geometry.
+2. Shelves: disable scroll clip so focused lockup can scale + shadow.
+3. Headers / sidebars / filter rows: `focusSection` (or UIKit focus guides) so focus doesn’t jump to the tab bar from mid-shelf.
+4. Captions clear the **focused (scaled)** image — prefer system lockups.
+5. Assets sharp at **focused** size.
+6. Empty/error states keep a focusable escape (don’t wait for M7).
+
 ## What we are not building (now)
 
 - Clone-the-Apple-TV-app research, custom focus/parallax/scroll-scrub, custom player chrome → see `AGENTS.md` banned table (still law for *how* UI is built)
 - Heroes / banner shelf / Top Shelf / light theme / advanced subtitles as MVP scope
+- Custom search keyboard / Sketch glass approximations
+- Invented card widths outside the HIG table
 - Treating unchecked `ROADMAP.md` boxes as the sprint backlog
 - Promoting `docs/archive/**` or despair-era experiments into requirements
 - Copying Plozz / Parallax / Rivulet / silo code into product (technique only)
