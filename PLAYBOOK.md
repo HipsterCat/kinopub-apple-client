@@ -74,6 +74,8 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 7. Card widths only from CURRENT HIG grid table; shelf recipes numeric, not “about right.”
 9. System light/dark + Dynamic Type; read `.agents/skills` before inventing shelf scroll behavior.
 10. Apple Design Resources Sketch UI Kit names/styles over informal mocks.
+11. Never ship “insets none” / flush-to-edge rails — leading 80 pt content inset is law; peek ≠ no margin.
+12. Visual gate: before+after screenshots; hig compares to Sketch/Apple stills before merge.
 8. Focus fundamentals in CURRENT (clip, focusSection, caption clearance, focused assets, empty-state escape).
 
 ## Anti-distraction checklist (before every PR)

@@ -44,7 +44,9 @@ TVMLKit is deprecated; do **not** wait for Apple to republish every TVML templat
 
 ### Safe area
 
-Inset primary content **60 pt** top/bottom, **80 pt** sides. Only symmetrical peek / deliberate edge-bleed outside.
+Inset primary content **60 pt** top/bottom, **80 pt** sides. Section titles and the **first** card of a row align to that leading inset — same vertical line.
+
+**Peek is not “insets none.”** Trailing (and leading when scrolled) may show a **partial next card** past the content box so the rail reads as scrollable. The page is **not** flush to the screen edge; removing the leading margin is a **regression**. Do not ignore the safe area to fake edge-to-edge chrome.
 
 ### Unfocused grid table — horizontal spacing **always 40 pt**; min vertical spacing **100 pt**
 
@@ -105,7 +107,7 @@ Repo `.agents/skills` (tvOS fundamentals) are **required reading** for implement
 
 ## Shelf clipping (law)
 
-Horizontal rails must show **symmetrical peek** of offscreen items. Clipping a card flush at the safe-area edge so the row looks like a crooked static stack is a **defect**, not a density choice. Disable scroll clipping as needed so focus scale and peek remain visible.
+Horizontal rails keep the **80 pt leading content inset** (headers + first poster aligned). They also show a **trailing peek** of the next offscreen item. Clipping so there is no peek (looks like a crooked static stack) **or** flushing the first card to the screen edge (insets none) are both **defects**. Disable scroll clipping as needed so focus scale and peek remain visible — without deleting the content margin.
 
 ## What we are not building (now)
 
