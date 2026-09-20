@@ -124,7 +124,9 @@ public struct MediaRowsView: View {
     // collection with boundary headers was a second title system. VStack keeps
     // off-screen rails in the focus graph (`LazyVStack` jumps to the tab bar).
     scroll
-      .defaultFocus($focusedCard, firstCardKey)
+      .defaultFocus($focusedCard, DebugLaunch.focusFirstPoster
+        ? (firstPosterCardKey ?? firstCardKey)
+        : firstCardKey)
   }
 #endif
 
@@ -166,6 +168,9 @@ public struct MediaRowsView: View {
 
     ForEach(rows) { row in
       section(for: row)
+#if os(tvOS)
+        .prefersDefaultFocus(DebugLaunch.focusFirstPoster && isFirstPosterRow(row))
+#endif
     }
   }
 
@@ -176,6 +181,17 @@ public struct MediaRowsView: View {
     }
     guard let row = rows.first, let card = row.cards.first else { return nil }
     return CardKey(row: row.id, card: card.id)
+  }
+
+  /// First 2:3 poster row — Watch Now’s Continue Watching rail is landscape.
+  private var firstPosterCardKey: CardKey? {
+    guard let row = rows.first(where: { $0.cards.first?.isLandscape != true }),
+          let card = row.cards.first else { return nil }
+    return CardKey(row: row.id, card: card.id)
+  }
+
+  private func isFirstPosterRow(_ row: MediaRow) -> Bool {
+    row.id == rows.first(where: { $0.cards.first?.isLandscape != true })?.id
   }
 #endif
 

@@ -17,6 +17,12 @@ fallback). Header → rail gap is `Metrics.sectionHeaderSpacing` (28), not
 `max(0, 28−32)`. Poster caption animates down by focus growth so the 8 pt rest
 gap is not covered. **80 pt leading / 6@260 / trailing peek** unchanged.
 
+tvOS shell no longer forces `.preferredColorScheme(.dark)` (RootView preview
+still may). DEBUG `-KINOPUBForceColorScheme light|dark` at the app root for
+hig Dark+Light Watch Now shots (`simctl ui appearance` unsupported). DEBUG
+`-KINOPUBFocusFirstPoster` lands on the first 2:3 poster (skips CW landscape)
+so focused caption clearance can be captured; cells id `kinopub.poster.{id}`.
+
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 
 Watch Now / Movies / Series on tvOS share `MediaPosterShelf` (TVUIKit

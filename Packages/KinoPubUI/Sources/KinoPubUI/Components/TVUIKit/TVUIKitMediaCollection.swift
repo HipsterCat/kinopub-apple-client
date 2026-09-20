@@ -291,6 +291,14 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     onSelect?(cards[indexPath.item])
   }
 
+  /// DEBUG `-KINOPUBFocusFirstPoster`: land on the first poster, not CW landscape.
+  public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+    guard DebugLaunch.focusFirstPoster,
+          !isLandscape,
+          collectionView.numberOfItems(inSection: 0) > 0 else { return nil }
+    return IndexPath(item: 0, section: 0)
+  }
+
   public func collectionView(_ collectionView: UICollectionView,
                              didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                              with coordinator: UIFocusAnimationCoordinator) {

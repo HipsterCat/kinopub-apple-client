@@ -65,11 +65,10 @@ struct KinoPubAppleClientApp: App {
 #if os(macOS)
         .environment(windowSettings)
 #endif
-#if !os(tvOS)
-        // Dark-only until light is a deliberate pass on postponed platforms.
-        // tvOS follows system light/dark (CURRENT.md — heroes parked).
-        .preferredColorScheme(.dark)
-#endif
+        // tvOS: nil = system light/dark (CURRENT.md). iOS/macOS stay dark until their
+        // pass. DEBUG `-KINOPUBForceColorScheme light|dark` overrides for hig shots —
+        // `simctl ui appearance` is unsupported on this tvOS runtime.
+        .preferredColorScheme(LaunchAppearance.preferredColorScheme)
         // Register a readable device identity + advertise HEVC/4K/HDR at activation, so
         // the kino.pub Devices list isn't "unknown / unknown" and streams match what
         // AVPlayer can open. A launch that only revived a Keychain token sends nothing
@@ -288,4 +287,39 @@ private struct UILabCommands: Commands {
 }
 #endif
 #endif
+
+/// Appearance at the app root. tvOS follows the system; postponed platforms stay dark.
+///
+/// DEBUG `-KINOPUBForceColorScheme light|dark` is the shot harness: tvOS Simulator
+/// `simctl ui appearance` reports "Runtime does not support userInterfaceStyle".
+enum LaunchAppearance {
+  static var preferredColorScheme: ColorScheme? {
+#if DEBUG
+    if let forced = forceColorScheme { return forced }
+#endif
+#if os(tvOS)
+    return nil
+#else
+    return .dark
+#endif
+  }
+
+#if DEBUG
+  /// `-KINOPUBForceColorScheme light` also lands in UserDefaults (Apple’s `-Key value`).
+  private static var forceColorScheme: ColorScheme? {
+    let raw = UserDefaults.standard.string(forKey: "KINOPUBForceColorScheme")
+      ?? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-KINOPUBForceColorScheme"),
+              args.index(after: i) < args.endIndex else { return nil }
+        return args[args.index(after: i)]
+      }()
+    switch raw?.lowercased() {
+    case "light": return .light
+    case "dark": return .dark
+    default: return nil
+    }
+  }
+#endif
+}
 

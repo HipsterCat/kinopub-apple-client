@@ -149,6 +149,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     // the art and killed the parallax. Shape here, nothing else.
     posterView.contentSize = size
     captionLabel.text = card.title
+    accessibilityIdentifier = "kinopub.poster.\(card.id)"
     configureProgress(card)
     configureWatched(card)
     loadImage(from: URL(string: card.posterURL))

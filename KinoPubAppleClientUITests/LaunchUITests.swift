@@ -9,8 +9,15 @@
 //  is reachable is the most valuable regression there is on tvOS: **the app launches, and
 //  it does not sit on a black screen.** Both of those have broken before.
 //
-//  Focus behaviour is deliberately not asserted. It needs content, and a screenshot cannot
-//  show whether a landing felt right; that stays a device check.
+//  Focus behaviour is deliberately not asserted in CI. It needs content, and a
+//  screenshot cannot show whether a landing felt right; that stays a device check.
+//
+//  Local hig Watch Now shots (DEBUG scheme arguments — `simctl ui appearance` is
+//  unsupported on this tvOS runtime):
+//    -KINOPUBForceColorScheme light
+//    -KINOPUBForceColorScheme dark
+//    -KINOPUBFocusFirstPoster          // first 2:3 poster, not CW landscape
+//  Poster cells: accessibilityIdentifier `kinopub.poster.{id}`.
 //
 
 import XCTest
@@ -156,3 +163,22 @@ final class LaunchUITests: XCTestCase {
   }
 #endif
 }
+
+#if os(tvOS)
+extension XCUIApplication {
+  /// Local hig Watch Now shots. Not a CI test — pair with a signed-in DEBUG build.
+  /// `simctl ui appearance` is unsupported; pass `light` or `dark`.
+  func launchForWatchNowShot(colorScheme: String, focusFirstPoster: Bool = false) {
+    launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", colorScheme]
+    if focusFirstPoster {
+      launchArguments += ["-KINOPUBFocusFirstPoster"]
+    }
+    if let session = try? String(
+      contentsOfFile: NSHomeDirectory() + "/.kinopub-dev-session.json", encoding: .utf8
+    ) {
+      launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    launch()
+  }
+}
+#endif

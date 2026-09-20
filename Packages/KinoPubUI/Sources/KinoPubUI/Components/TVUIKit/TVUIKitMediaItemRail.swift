@@ -536,6 +536,8 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
   /// "start here" — the alternative is pushing focus programmatically from outside,
   /// which fights the engine and loses.
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+    // Screenshot harness wants a poster caption, not this landscape rail.
+    if DebugLaunch.focusFirstPoster { return nil }
     guard let index = index(of: entryItemID) else { return nil }
     return IndexPath(item: index, section: 0)
   }
