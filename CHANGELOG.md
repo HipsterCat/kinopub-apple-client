@@ -28,10 +28,12 @@ appearance` unsupported.
 Archi / hig shot review: Section titles were **centered** (light ~795 pt /
 x≈1589px; etalon is **x=80**). SwiftUI `frame(maxWidth:)` is not enough —
 the header is a 1920-wide UIKit title that paints at screen x=80. Continue
-Watching is skipped by row id + `allowsFocus` / `focusGroupPriority.ignored`
-(not merely preferred-index nil). Only Hot Movies claims initial poster
-focus. Header→items stays Sketch **~8–24 pt**. Caption clearance under the
-focused poster is unchanged. Args stay off the shared Debug scheme.
+Watching is skipped by row id + `collectionView.allowsFocus` / `canFocusItemAt`
+/ cell `canBecomeFocused` (not `UIView.allowsFocus` or `focusGroupPriority`,
+which are unavailable on tvOS). Returning nil from preferred index defaulted
+to the first CW cell. Only Hot Movies claims initial poster focus.
+Header→items stays Sketch **~8–24 pt**. Caption clearance under the focused
+poster is unchanged. Args stay off the shared Debug scheme.
 
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 

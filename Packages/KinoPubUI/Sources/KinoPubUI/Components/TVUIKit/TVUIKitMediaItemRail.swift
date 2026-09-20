@@ -477,14 +477,10 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     self.onNearEnd = onNearEnd
     self.onFocusedItem = onFocusedItem
     self.contextMenuProvider = contextMenuProvider
+    let focusChanged = self.allowsFocus != allowsFocus
     self.allowsFocus = allowsFocus
     collectionView.allowsFocus = allowsFocus
-    view.allowsFocus = allowsFocus
-    if !allowsFocus {
-      collectionView.focusGroupPriority = .ignored
-      view.focusGroupPriority = .ignored
-    }
-    if changed { collectionView.reloadData() }
+    if changed || focusChanged { collectionView.reloadData() }
     if changed || entryMoved { scrollToEntry(animated: animatesEntryScroll && !changed) }
   }
 
@@ -541,7 +537,7 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
       withReuseIdentifier: TVUIKitMediaItemCell.reuseID,
       for: indexPath
     ) as! TVUIKitMediaItemCell
-    cell.configure(items[indexPath.item])
+    cell.configure(items[indexPath.item], allowsFocus: allowsFocus)
     return cell
   }
 
@@ -616,8 +612,11 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   private var loadedURL: URL?
   private var imageTask: Task<Void, Never>?
   private let overlay = TVUIKitMediaItemOverlayView()
+  /// DEBUG `-KINOPUBFocusFirstPoster` sets this false on the CW landscape rail.
+  private var cellAllowsFocus = true
 
-  func configure(_ item: TVUIKitMediaItem) {
+  func configure(_ item: TVUIKitMediaItem, allowsFocus: Bool = true) {
+    cellAllowsFocus = allowsFocus
     let keepsArtwork = self.item?.imageURL == item.imageURL && loadedURL == item.imageURL
     self.item = item
     if !keepsArtwork {
@@ -702,22 +701,10 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     artwork = nil
     loadedURL = nil
     contentConfiguration = nil
+    cellAllowsFocus = true
   }
 
-  override var canBecomeFocused: Bool {
-    // DEBUG `-KINOPUBFocusFirstPoster` sets the landscape rail's
-    // `collectionView.allowsFocus = false`. The cell must agree — `canBecomeFocused
-    // { true }` would otherwise still take first focus even when
-    // `canFocusItemAt` returns false on some tvOS builds.
-    var ancestor: UIView? = superview
-    while let view = ancestor {
-      if let collection = view as? UICollectionView {
-        return collection.allowsFocus
-      }
-      ancestor = view.superview
-    }
-    return true
-  }
+  override var canBecomeFocused: Bool { cellAllowsFocus }
 }
 
 // MARK: - Overlay

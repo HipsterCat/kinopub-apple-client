@@ -7,9 +7,10 @@ import Foundation
 /// captured. Pair with `-KINOPUBForceColorScheme light`.
 ///
 /// Continue Watching is skipped by making the landscape rail unfocusable
-/// (`allowsFocus` / `canFocusItemAt`). Returning `nil` from
-/// `indexPathForPreferredFocusedView` is **not** enough — the system then
-/// defaults to the first CW cell.
+/// (`collectionView.allowsFocus`, `canFocusItemAt`, cell `canBecomeFocused`).
+/// Returning `nil` from `indexPathForPreferredFocusedView` is **not** enough —
+/// the system then defaults to the first CW cell. Do not use `UIView.allowsFocus`
+/// or `focusGroupPriority` — both are unavailable on tvOS.
 public enum DebugLaunch {
   public static var focusFirstPoster: Bool {
 #if DEBUG
