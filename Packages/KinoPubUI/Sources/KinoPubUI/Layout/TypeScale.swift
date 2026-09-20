@@ -7,9 +7,9 @@ import SwiftUI
 
 /// Text styles for cards, shelves, heroes and chrome. Prefer these over `.system(size:)`.
 public enum TypeScale {
-    public static let cardTitle: Font = .headline.weight(.regular)
-  public static let cardSubtitle: Font = .subheadline
-  public static let cardMeta: Font = .subheadline.weight(.regular)
+    public static let cardTitle: Font = .subheadline.weight(.regular)
+  public static let cardSubtitle: Font = .caption
+  public static let cardMeta: Font = .caption
     /// tvOS catalog shelves: Sketch `Headers/Section Header/Dark/Secondary/1 Line`
     /// = Headline emphasized (SF Pro Bold 38) → `.headline.bold()`. Not Title 2
     /// (~57pt), not Primary / Subtitle / Eyebrow / App Icon / Pill.
