@@ -18,7 +18,15 @@ import UIKit
 public enum TVUIKitPosterMetrics {
   /// On-focus caption under poster. One line.
   public static let captionHeight: CGFloat = 44
+  /// Rest gap, unfocused poster → caption. Focused lockups grow downward; see
+  /// `captionFocusClearance(tileHeight:)`.
   public static let captionTopPadding: CGFloat = 8
+
+  /// Extra caption offset so the label clears the **focused** (scaled) poster.
+  /// Half of the ~10% focus growth — the part that expands below the unfocused bottom.
+  public static func captionFocusClearance(tileHeight: CGFloat) -> CGFloat {
+    (tileHeight * ShelfMetrics.tvFocusGrowth / 2).rounded()
+  }
   public static let cornerRadius: CGFloat = 16
 
   /// Room a tile needs above and below itself for the focus lift, plus a gap so two
@@ -63,8 +71,12 @@ public enum TVUIKitPosterMetrics {
     let tile = isLandscape
       ? landscapeSize(containerWidth: containerWidth, typeSize: typeSize, safeArea: safeArea)
       : posterSize(containerWidth: containerWidth, typeSize: typeSize, safeArea: safeArea)
+    let captionClearance = isLandscape ? 0 : captionFocusClearance(tileHeight: tile.height)
     return CGSize(width: tile.width,
-                  height: tile.height + captionTopPadding + captionHeight)
+                  height: tile.height
+                    + captionTopPadding
+                    + captionClearance
+                    + captionHeight)
   }
 
   /// Room reserved above and below the tiles of a section, for the focus lift.
@@ -96,14 +108,16 @@ public enum TVUIKitPosterMetrics {
   /// Orthogonal poster rail for a page collection. `orthogonalLayoutSectionForMediaItems()`
   /// is 16:9 `wideCell` only — there is no 2:3 factory — so this rebuilds the same
   /// continuous section at the HIG poster recipe: width **pinned** at `tvCardWidth`
-  /// (260), gutter 40. Horizontal insets are applied by `TVUIKitPosterPage` so the
-  /// 80 pt leading column and trailing peek stay one decision.
+  /// (260), gutter 40. Horizontal insets are the shelf’s (SwiftUI `Section` + rail).
   @MainActor
   public static func orthogonalPosterSection(width: CGFloat) -> NSCollectionLayoutSection {
     let tile = posterSize(containerWidth: width)
     let item = CGSize(
       width: tile.width,
-      height: tile.height + captionTopPadding + captionHeight
+      height: tile.height
+        + captionTopPadding
+        + captionFocusClearance(tileHeight: tile.height)
+        + captionHeight
     )
     let size = NSCollectionLayoutSize(
       widthDimension: .absolute(item.width),

@@ -27,6 +27,9 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
   /// `ShelfMetrics.posters(width:typeSize:safeArea:)`. Passing the same value the
   /// caller used for its section header keeps the header and the tiles on one margin.
   public let safeArea: CGFloat
+  /// Leading content column. `nil` uses `ShelfMetrics` inset. Shelves pass the
+  /// 80-from-screen value so a host already in the safe area is not double-cut.
+  public let leadingInset: CGFloat?
   public let typeSize: DynamicTypeSize
   public let onSelect: (MediaCard) -> Void
   public let onNearEnd: ((MediaCard) -> Void)?
@@ -36,6 +39,7 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
               axis: TVUIKitCollectionAxis,
               containerWidth: CGFloat,
               safeArea: CGFloat = 0,
+              leadingInset: CGFloat? = nil,
               typeSize: DynamicTypeSize = .large,
               onSelect: @escaping (MediaCard) -> Void,
               onNearEnd: ((MediaCard) -> Void)? = nil,
@@ -44,6 +48,7 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
     self.axis = axis
     self.containerWidth = containerWidth
     self.safeArea = safeArea
+    self.leadingInset = leadingInset
     self.typeSize = typeSize
     self.onSelect = onSelect
     self.onNearEnd = onNearEnd
@@ -56,6 +61,7 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
              axis: axis,
              containerWidth: containerWidth,
              safeArea: safeArea,
+             leadingInset: leadingInset,
              typeSize: typeSize,
              onSelect: onSelect,
              onNearEnd: onNearEnd,
@@ -68,6 +74,7 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
              axis: axis,
              containerWidth: containerWidth,
              safeArea: safeArea,
+             leadingInset: leadingInset,
              typeSize: typeSize,
              onSelect: onSelect,
              onNearEnd: onNearEnd,
@@ -140,6 +147,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
              axis: TVUIKitCollectionAxis,
              containerWidth: CGFloat,
              safeArea: CGFloat,
+             leadingInset: CGFloat?,
              typeSize: DynamicTypeSize,
              onSelect: @escaping (MediaCard) -> Void,
              onNearEnd: ((MediaCard) -> Void)?,
@@ -165,11 +173,13 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     let cardsChanged = self.cards.map(\.id) != cards.map(\.id)
       || self.cards.map(\.progress) != cards.map(\.progress)
       || self.cards.map(\.isWatched) != cards.map(\.isWatched)
+    let resolvedInset = leadingInset ?? metrics.inset
     let layoutChanged = abs(self.containerWidth - width) > 0.5
       || self.axis != axis
       || isLandscape != landscape
       || abs(itemSize.width - item.width) > 0.5
       || abs(itemSize.height - item.height) > 0.5
+      || abs(self.inset - resolvedInset) > 0.5
 
     self.cards = cards
     self.axis = axis
@@ -179,7 +189,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     self.tileSize = tile
     self.itemSize = item
     self.gutter = metrics.gutter
-    self.inset = metrics.inset
+    self.inset = resolvedInset
     self.onSelect = onSelect
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider

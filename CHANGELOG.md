@@ -5,15 +5,23 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### SwiftUI `Section` shelves; headline; header gap; caption clearance (2026-09-20)
+
+Sasha / hig: every poster and landscape shelf is `Section { rail }` — the title
+lives in the Section (`.headline` + `.foregroundStyle(.secondary)`). UIKit
+`boundarySupplementary` titles and `TVUIKitPosterPage` are gone; each rail is
+one horizontal TVUIKit representable (or the SwiftUI fallback). Header → rail
+gap is `Metrics.sectionHeaderSpacing` (28), not `max(0, 28−32)`. Poster caption
+animates down by focus growth so the 8 pt rest gap is not covered. **80 pt
+leading / 6@260 / trailing peek** unchanged.
+
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 
-Watch Now / Movies / Series on tvOS are **one** `UICollectionView`
-(`TVUIKitPosterPage`): orthogonal sections, not a `VStack` of per-rail
-representables. Posters rebuild the system continuous rail at **6@260 / gutter 40
-/ inset 80** (Apple's `orthogonalLayoutSectionForMediaItems()` is 16:9 only).
-Continue Watching uses `TVUIKitMediaItemMetrics` (the accepted adapter around that
-factory). Headers are non-focusable. `MediaPosterShelf` stays the one-rail
-component for detail / person shelves.
+Watch Now / Movies / Series on tvOS share `MediaPosterShelf` (TVUIKit
+representable rails). Posters are **6@260 / gutter 40 / inset 80**. Continue
+Watching uses `TVUIKitMediaItemMetrics` (the accepted adapter around
+`orthogonalLayoutSectionForMediaItems()`). `MediaPosterShelf` is the one shelf
+component, including detail / person rows.
 
 CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
 
@@ -26,15 +34,12 @@ CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
 | Titled-row spacing | 40 | **100** |
 
 Peek/clip (CURRENT.md: peek ≠ insets none): **80 pt leading content column** —
-headers and the first poster share that line. That 80 pt is the collection’s
-leading edge in the window (`ShelfMetrics.tvPageChrome`), never a negative
-bleed and never `ignoreSafeArea`. Trailing peek is a partial next card **past**
-that box (section trailing inset 0; leftover after 6×260+5×40). Nested
-orthogonal scrollers stay unclipped so the peek and focus scale can paint.
-`.none` dropped section insets on tvOS 27, which is why the column is no longer
-a `contentInsetsReference` value. SwiftUI fallback still uses `VStack` not
-`LazyVStack` and `scrollClipDisabled`. tvOS follows system light/dark.
-Landscape CW width stays 352 until M3 (4@410).
+headers and the first poster share that line. Each shelf measures its `minX`
+in the window (`max(0, 80 − minX)`) so an already-inset host is not double-cut
+and we never `ignoreSafeArea`. Trailing peek is a partial next card **past**
+that box (rail trailing inset 0, `scrollClipDisabled`). SwiftUI page stack is
+`VStack` not `LazyVStack`. tvOS follows system light/dark. Landscape CW width
+stays 352 until M3 (4@410).
 
 ### tvOS Movies / Series are poster shelves, same as Watch Now (2026-09-15)
 
@@ -45,8 +50,7 @@ closes that gap on tvOS only:
 - `HomeCatalog` takes an optional `contentType`. `nil` is Watch Now (Continue
   Watching + Hot/Fresh/Popular × movie/serial + Collections). `.movie` / `.serial`
   are the typed tabs — the same shortcut grammar, no CW / collections / banner.
-- `MainView` is the shared stack (`MediaRowsView` → `TVUIKitPosterPage` on tvOS when
-  `FeatureFlags.tvUIKitPosters` is on). Menus stay on
+- `MainView` is the shared stack (`MediaRowsView` of `MediaPosterShelf`). Menus stay on
   `MediaCardContextMenus` / `MediaCardMenuCoordinator`.
 - Tab labels: Home → Watch Now, Shows → Series. iOS/macOS Movies / Series remain
   sortable grids.

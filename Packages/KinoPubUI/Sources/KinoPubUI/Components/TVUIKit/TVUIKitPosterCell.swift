@@ -32,6 +32,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
   private var posterSize = CGSize(width: 296, height: 444)
   private var posterWidthConstraint: NSLayoutConstraint!
   private var posterHeightConstraint: NSLayoutConstraint!
+  private var captionTopConstraint: NSLayoutConstraint!
   private var progressFillWidth: NSLayoutConstraint!
 
   public override init(frame: CGRect) {
@@ -94,6 +95,10 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
 
     posterWidthConstraint = posterView.widthAnchor.constraint(equalToConstant: 296)
     posterHeightConstraint = posterView.heightAnchor.constraint(equalToConstant: 444)
+    captionTopConstraint = captionLabel.topAnchor.constraint(
+      equalTo: posterView.bottomAnchor,
+      constant: TVUIKitPosterMetrics.captionTopPadding
+    )
     progressFillWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
 
     NSLayoutConstraint.activate([
@@ -125,7 +130,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
       watchedGlyph.leadingAnchor.constraint(equalTo: overlayContainer.leadingAnchor, constant: 16),
       watchedGlyph.bottomAnchor.constraint(equalTo: overlayContainer.bottomAnchor, constant: -15),
 
-      captionLabel.topAnchor.constraint(equalTo: posterView.bottomAnchor, constant: TVUIKitPosterMetrics.captionTopPadding),
+      captionTopConstraint,
       captionLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       captionLabel.trailingAnchor.constraint(equalTo: posterView.trailingAnchor),
       captionLabel.heightAnchor.constraint(lessThanOrEqualToConstant: TVUIKitPosterMetrics.captionHeight)
@@ -242,6 +247,12 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
         ? CGAffineTransform(scaleX: 1.1, y: 1.1)
         : .identity
       self.captionLabel.alpha = nowFocused ? 1 : 0
+      // Rest gap is 8 pt; focused lockup grows downward and would cover it.
+      self.captionTopConstraint.constant = TVUIKitPosterMetrics.captionTopPadding
+        + (nowFocused
+           ? TVUIKitPosterMetrics.captionFocusClearance(tileHeight: self.posterHeightConstraint.constant)
+           : 0)
+      self.contentView.layoutIfNeeded()
     }, completion: { [weak self] in
       guard let self, !nowFocused else { return }
       self.resetStaleFocusAppearance()
@@ -261,6 +272,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     }
     clear(posterView)
     overlayContainer.transform = .identity
+    captionTopConstraint.constant = TVUIKitPosterMetrics.captionTopPadding
     captionLabel.alpha = 0
   }
 

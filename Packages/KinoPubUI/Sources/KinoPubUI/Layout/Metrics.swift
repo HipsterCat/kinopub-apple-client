@@ -10,9 +10,8 @@ import SwiftUI
 ///
 /// Two of these decide the rhythm of a page of sections and must not be re-picked at a
 /// call site: `sectionHeaderSpacing` is header → the cards under it, `rowSpacing` is
-/// one section → the next. A rail adds its own focus padding inside both, so the
-/// *visible* distance is the constant only while every rail pads by the same amount —
-/// see `landscapeFocusPadding`, and `MediaPosterShelf`, which subtracts it back out.
+/// one section → the next. Do not subtract a rail’s focus padding from the header
+/// gap — that collapsed tvOS to `max(0, 28−32) = 0` (CURRENT.md shelf chrome).
 public enum Metrics {
   public static let cardCornerRadius: CGFloat = 14
   public static let progressBarHeight: CGFloat = 6

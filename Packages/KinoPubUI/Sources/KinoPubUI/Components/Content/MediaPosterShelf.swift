@@ -41,9 +41,12 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   @State private var containerWidth: CGFloat = 1920
   /// The container's own horizontal safe-area inset. Zero on a screen that already
   /// sits inside the safe area; the overscan margin on one that ignores it (the detail
-  /// page does, horizontally). `ShelfMetrics` takes the larger of this and its own
-  /// design margin, so the header and the rail always share one number.
+  /// page does, horizontally). `ShelfMetrics` takes the larger of the two.
   @State private var containerSafeArea: CGFloat = 0
+#if os(tvOS)
+  /// 80 pt from the **screen**, not 80 on top of an already-inset host.
+  @State private var contentLeadingInset: CGFloat = ShelfMetrics.tvContentMargin
+#endif
 
   public init(
     title: String,
@@ -113,28 +116,34 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     isLandscape ? Metrics.landscapeFocusPadding : Metrics.focusPadding
   }
 
-  /// Header → the first card, as a *visible* distance. The rail pads itself vertically
-  /// for focus lift, so that padding comes back out here — otherwise a landscape rail
-  /// and a poster rail sit different distances under identical headers.
+  private var leadingInset: CGFloat {
+#if os(tvOS)
+    contentLeadingInset
+#else
+    metrics.inset
+#endif
+  }
+
+  /// Header → unfocused cards. Never subtract the rail’s focus padding — that
+  /// collapsed tvOS to `max(0, 28−32) = 0`.
   private var headerSpacing: CGFloat {
-    max(0, Metrics.sectionHeaderSpacing - railFocusPadding)
+    Metrics.sectionHeaderSpacing
   }
 
   public var body: some View {
-    VStack(alignment: .leading, spacing: headerSpacing) {
+    // CURRENT.md: a shelf *is* a SwiftUI `Section`. Title lives in the section
+    // (secondary headline, system dodge). Not a free-floating header, not a UIKit
+    // `boundarySupplementary`.
+    Section {
+      rail
+        .padding(.top, headerSpacing)
+    } header: {
       header
-        .padding(.horizontal, metrics.inset)
-
-#if os(tvOS)
-      if usesTVUIKitPosters {
-        tvUIKitRail
-      } else {
-        swiftUIRail
-      }
-#else
-      swiftUIRail
-#endif
+        .padding(.leading, leadingInset)
     }
+#if os(tvOS)
+    .focusSection()
+#endif
     .onGeometryChange(for: ShelfGeometry.self) { proxy in
       ShelfGeometry(
         width: proxy.size.width,
@@ -144,6 +153,26 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       if geometry.width > 0 { containerWidth = geometry.width }
       containerSafeArea = max(0, geometry.safeArea)
     }
+#if os(tvOS)
+    .onGeometryChange(for: CGRect.self) { proxy in
+      proxy.frame(in: .global)
+    } action: { frame in
+      contentLeadingInset = max(0, ShelfMetrics.tvContentMargin - frame.minX)
+    }
+#endif
+  }
+
+  @ViewBuilder
+  private var rail: some View {
+#if os(tvOS)
+    if usesTVUIKitPosters {
+      tvUIKitRail
+    } else {
+      swiftUIRail
+    }
+#else
+    swiftUIRail
+#endif
   }
 
   @ViewBuilder
@@ -186,7 +215,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     if isLandscape {
       TVUIKitMediaItemRail(
         items: cards.map(TVUIKitMediaItem.init(card:)),
-        contentInset: metrics.inset,
+        contentInset: leadingInset,
         onSelect: { id in
           if let card = cards.first(where: { $0.id == id }) { open(card) }
         },
@@ -209,6 +238,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       axis: .horizontal,
       containerWidth: containerWidth,
       safeArea: containerSafeArea,
+      leadingInset: leadingInset,
       typeSize: typeSize,
       onSelect: { card in open(card) },
       onNearEnd: onNearEnd.map { _ in { card in reportIfLast(card.id) } },
@@ -270,7 +300,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #if os(tvOS)
       // Leading 80 pt content column (aligned with the header). Trailing stays
       // open so the next card peeks past that box — not a matching 80 pt pad.
-      .padding(.leading, metrics.inset)
+      .padding(.leading, leadingInset)
 #else
       .padding(.horizontal, metrics.inset)
 #endif
