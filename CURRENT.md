@@ -2,7 +2,7 @@
 
 **Authority for agents and engineers.** If this file conflicts with `ROADMAP.md`, `CHANGELOG.md`, `docs/archive/**`, old PR descriptions, or code comments about iOS/macOS chrome — **this file wins**, until Sasha changes it.
 
-Last updated: 2026-09-16 · Owner: archi (architecture) · Implementer: max (Cursor) · HIG grid + appearance realign
+Last updated: 2026-09-20 · Owner: archi (architecture) · Implementer: max (Cursor) · HIG grid + appearance realign
 
 ---
 
@@ -104,6 +104,14 @@ System TabView / `sidebarAdaptable` / list materials only. No custom frosted pil
 ## Craft baseline
 
 Repo `.agents/skills` (tvOS fundamentals) are **required reading** for implementers — same tier as AGENTS focus/TVUIKit rules. Do not reinvent clipped Lazy stacks that hide horizontal scroll.
+
+
+## Shelf chrome (SwiftUI — Sasha 2026-09 confirmed)
+
+- A poster/still **shelf is a `Section`**: `Section(title) { rail }`. The title belongs to the section (secondary / vibrant), and the system auto-dodges focus (WWDC24). Do not hand-roll a free-floating header above a rail.
+- **Row header type** on tvOS: `TypeScale.rowHeader` → **`.headline`** — not `.title2` (~57pt).
+- **Header → rail gap** must be real. A formula that collapses to `0` (e.g. `max(0, 28−32)`) is a defect. Respect titled-row vertical rhythm (see grid contract).
+- **Caption under poster** must clear the **focused (scaled)** lockup. `captionTopPadding = 8` is insufficient under focus growth — measure against focused bounds.
 
 ## Shelf clipping (law)
 
