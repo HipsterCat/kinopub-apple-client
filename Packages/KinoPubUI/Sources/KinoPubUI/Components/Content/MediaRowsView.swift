@@ -436,7 +436,7 @@ public struct MediaCardContextMenuModifier: ViewModifier {
           cards: [
             MediaCard(
               id: 1,
-              posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+              posterURL: "https://m.staticpop.net/poster/item/big/9944.jpg",
               title: "Стражи",
               imdbRating: 8.1,
               kinopoiskRating: 8.3,
@@ -445,7 +445,7 @@ public struct MediaCardContextMenuModifier: ViewModifier {
             ),
             MediaCard(
               id: 2,
-              posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+              posterURL: "https://m.staticpop.net/poster/item/big/10581.jpg",
               title: "Другой фильм",
               imdbRating: 7.2,
               kinopoiskRating: 7.0,
@@ -459,12 +459,12 @@ public struct MediaCardContextMenuModifier: ViewModifier {
       bannerCards: [
         MediaCard(
           id: 10,
-          posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+          posterURL: "https://m.staticpop.net/poster/item/big/15042.jpg",
           title: "Баннер",
           subtitle: "Featured",
           imdbRating: 7.8,
           kinopoiskRating: 7.5,
-          backdropURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+          backdropURL: "https://m.staticpop.net/poster/item/wide/15042.jpg",
           is4K: true,
           isHDR: true
         )
@@ -472,7 +472,7 @@ public struct MediaCardContextMenuModifier: ViewModifier {
       navigationLinkProvider: { card in card.id }
     )
   }
-  .preferredColorScheme(.dark)
+//  .preferredColorScheme(.dark)
 }
 
 #if os(tvOS)
@@ -480,7 +480,7 @@ public struct MediaCardContextMenuModifier: ViewModifier {
   let posters: [MediaCard] = (1...8).map { n in
     MediaCard(
       id: n,
-      posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/\(10581+n).jpg",
       title: "Title \(n)"
     )
   }
@@ -494,6 +494,6 @@ public struct MediaCardContextMenuModifier: ViewModifier {
     )
   }
   .environment(\.usesTVUIKitPosters, true)
-  .frame(width: 1920, height: 1080)
+  .frame(width: 1920, height: 1920)
 }
 #endif

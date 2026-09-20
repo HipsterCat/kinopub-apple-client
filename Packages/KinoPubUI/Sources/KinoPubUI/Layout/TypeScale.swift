@@ -15,7 +15,7 @@ public enum TypeScale {
     /// (~57pt), not Primary / Subtitle / Eyebrow / App Icon / Pill.
     public static let rowHeader: Font = {
 #if os(tvOS)
-    .headline.bold()
+        .headline.weight(.semibold)
 #else
     .title2.weight(.semibold)
 #endif
