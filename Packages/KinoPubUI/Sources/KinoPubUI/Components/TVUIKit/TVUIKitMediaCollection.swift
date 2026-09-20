@@ -96,6 +96,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   private var typeSize: DynamicTypeSize = .large
   private var isLandscape = false
   private var tileSize: CGSize = .zero
+  private var itemSize: CGSize = .zero
   private var gutter: CGFloat = 20
   private var inset: CGFloat = 40
   private var installedAxis: TVUIKitCollectionAxis?
@@ -196,6 +197,13 @@ public final class TVUIKitMediaCollectionController: UIViewController {
         safeArea: safeArea,
         leadingInset: resolvedInset
       )
+    let item = TVUIKitPosterMetrics.itemSize(
+      isLandscape: landscape,
+      containerWidth: width,
+      typeSize: typeSize,
+      safeArea: safeArea,
+      leadingInset: resolvedInset
+    )
 
     let cardsChanged = self.cards.map(\.id) != cards.map(\.id)
       || self.cards.map(\.progress) != cards.map(\.progress)
@@ -205,6 +213,8 @@ public final class TVUIKitMediaCollectionController: UIViewController {
       || isLandscape != landscape
       || abs(self.inset - resolvedInset) > 0.5
       || abs(self.gutter - metrics.gutter) > 0.5
+      || abs(itemSize.width - item.width) > 0.5
+      || abs(itemSize.height - item.height) > 0.5
 
     self.cards = cards
     self.axis = axis
@@ -212,6 +222,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     self.typeSize = typeSize
     self.isLandscape = landscape
     self.tileSize = tile
+    self.itemSize = item
     self.gutter = metrics.gutter
     self.inset = resolvedInset
     self.onSelect = onSelect
@@ -234,6 +245,8 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     if installedAxis != axis {
       collectionView.setCollectionViewLayout(makeLayout(), animated: false)
       installedAxis = axis
+    } else if axis == .vertical, let flow = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
+      applyVerticalFlowMetrics(to: flow)
     } else if layoutChanged {
       collectionView.collectionViewLayout.invalidateLayout()
     }
@@ -259,37 +272,57 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     startInitialFocusClaimIfNeeded()
   }
 
-  /// Compositional layout sized from the collection’s own bounds — not a SwiftUI
-  /// `@State` width. Item `fractionalWidth(1)` fills the group; group width is
-  /// the HIG fill `(W − 2×80 − 5×40) / 6` (260 at 1920).
-  private func makeLayout() -> UICollectionViewCompositionalLayout {
+  /// Horizontal shelves: compositional, 260-wide groups, item fills the group.
+  /// Vertical grids (Library): FlowLayout + pinned 260 — filling 6 columns in a
+  /// sidebar pane is what wrecked those posters.
+  private func makeLayout() -> UICollectionViewLayout {
+    if axis == .vertical {
+      return makeVerticalFlowLayout()
+    }
     let config = UICollectionViewCompositionalLayoutConfiguration()
-    config.scrollDirection = axis == .horizontal ? .horizontal : .vertical
+    config.scrollDirection = .horizontal
     return UICollectionViewCompositionalLayout(
       sectionProvider: { [weak self] _, environment in
-        self?.makeSection(in: environment) ?? Self.fallbackSection
+        self?.makeHorizontalSection(in: environment) ?? Self.fallbackSection
       },
       configuration: config
     )
   }
 
-  private func makeSection(in environment: NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection {
+  private func makeVerticalFlowLayout() -> UICollectionViewFlowLayout {
+    let layout = UICollectionViewFlowLayout()
+    layout.scrollDirection = .vertical
+    applyVerticalFlowMetrics(to: layout)
+    return layout
+  }
+
+  private func applyVerticalFlowMetrics(to layout: UICollectionViewFlowLayout) {
+    let width = max(containerWidth, 1)
+    let metrics = TVUIKitPosterMetrics.shelfMetrics(
+      isLandscape: isLandscape,
+      containerWidth: width,
+      typeSize: typeSize
+    )
+    layout.minimumLineSpacing = gutter
+    layout.minimumInteritemSpacing = gutter
+    let focusRoom = TVUIKitPosterMetrics.sectionFocusPadding(
+      isLandscape: isLandscape,
+      containerWidth: width,
+      typeSize: typeSize
+    )
+    let leading = metrics.gridInset(in: width)
+    layout.sectionInset = UIEdgeInsets(
+      top: focusRoom,
+      left: leading,
+      bottom: focusRoom,
+      right: leading
+    )
+    layout.itemSize = itemSize
+  }
+
+  private func makeHorizontalSection(in environment: NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection {
     let envWidth = environment.container.contentSize.width
     let width = envWidth > 8 ? envWidth : max(containerWidth, 1)
-    if axis == .vertical {
-      let metrics = TVUIKitPosterMetrics.shelfMetrics(
-        isLandscape: isLandscape,
-        containerWidth: width,
-        typeSize: typeSize
-      )
-      return TVUIKitPosterMetrics.makeVerticalPosterSection(
-        collectionWidth: width,
-        leadingInset: inset,
-        columns: metrics.columns,
-        gutter: gutter,
-        isLandscape: isLandscape
-      )
-    }
     if isLandscape {
       return makeHorizontalLandscapeSection(collectionWidth: width)
     }
@@ -477,7 +510,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     ) as! TVUIKitPosterCell
     let layoutWidth = collectionView.layoutAttributesForItem(at: indexPath)?.size.width
       ?? cell.bounds.width
-    let width = layoutWidth > 1 ? layoutWidth : tileSize.width
+    let width = layoutWidth > 1 ? layoutWidth : max(tileSize.width, ShelfMetrics.tvCardWidth)
     let size = CGSize(width: width, height: width / CardAspect.poster.ratio)
     cell.configure(card: card, size: size)
     return cell

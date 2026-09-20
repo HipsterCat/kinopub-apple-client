@@ -7,15 +7,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ### Sasha craft: fill layout, focused caption, spacing (2026-09-20)
 
-Poster rails use a `UICollectionViewCompositionalLayout`: item
-`fractionalWidth(1)` fills the group; group width is
-`(collectionWidth − 2×80 − 5×40) / 6` so the HIG **6@260** table is
-*realized* from the collection’s bounds (first paint and tab-revisit match).
-FlowLayout `itemSize` + cell default 296 are gone. Focused under-poster
-caption is `UIColor.label`; unfocused stays `.secondaryLabel` / hidden.
-Extra **+8** under the Section header is gone; remaining header→rail gap
-is halved (−4). Titled-row spacing **100 → 80**. `captionTopPadding` **8 → 2**.
-Row header stays **semibold** (not bold).
+Horizontal poster *shelves* use a compositional layout: item
+`fractionalWidth(1)` of a **260**-wide group (HIG 6@260 pin). Group height
+fills the rail so leftover focus room sits below the lockup, not as a gap
+under the title. Library / vertical grids stay **FlowLayout + pinned 260**
+— filling 6 columns in a sidebar pane shrank those posters. Title + rail
+are one inner `VStack(spacing: 4)` inside `Section` (header→poster 4 pt,
+not the page’s 80 pt row spacing). Focused caption is `UIColor.label`.
+`captionTopPadding` is **2**. Titled-row spacing **100 → 80**.
+
+First Movies/Series layout ignores a zero-width geometry frame so leading
+80 pt and tile 260 match Watch Now.
 
 ### SwiftUI `Section` shelves; headline; header gap; caption clearance (2026-09-20)
 

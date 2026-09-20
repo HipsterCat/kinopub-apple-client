@@ -41,11 +41,11 @@ public enum TVUIKitPosterMetrics {
                                 typeSize: DynamicTypeSize = .large,
                                 safeArea: CGFloat = 0,
                                 leadingInset: CGFloat? = nil) -> CGSize {
-    let inset = leadingInset ?? max(ShelfMetrics.tvContentMargin, safeArea)
-    let width = ShelfMetrics.tvFilledPosterWidth(
-      collectionWidth: containerWidth,
-      leadingInset: inset
-    )
+    // Width is the HIG pin (260), not a divide of this container. Filling a
+    // sidebar-narrow Library pane by 6 columns is what shrank those posters.
+    _ = leadingInset
+    let metrics = ShelfMetrics.posters(width: containerWidth, typeSize: typeSize, safeArea: safeArea)
+    let width = metrics.cardWidth(in: containerWidth)
     let height = width / CardAspect.poster.ratio
     return CGSize(width: width, height: height)
   }
@@ -131,8 +131,7 @@ public enum TVUIKitPosterMetrics {
 
   /// Orthogonal poster rail for a page collection. `orthogonalLayoutSectionForMediaItems()`
   /// is 16:9 `wideCell` only — there is no 2:3 factory — so this rebuilds the same
-  /// continuous section at the HIG poster recipe: 6-col / 40 gutter / 80 inset, item
-  /// width **filled** (`tvFilledPosterWidth`) so first paint and revisit match.
+  /// continuous section at the HIG poster recipe: 6-col @ **260**, gutter 40.
   @MainActor
   public static func orthogonalPosterSection(
     width: CGFloat,
@@ -146,10 +145,9 @@ public enum TVUIKitPosterMetrics {
     )
   }
 
-  /// Horizontal poster rail: item `fractionalWidth(1)` fills the group; group
-  /// width is the filled 6-col poster (`tvFilledPosterWidth`). At 1920 / 80 / 40
-  /// that group is 260. `orthogonal` is for a page collection; a dedicated rail
-  /// collection scrolls horizontally on its own axis instead.
+  /// Horizontal poster rail: item `fractionalWidth(1)` fills a **260**-wide group
+  /// (HIG 6@260). Height fills the collection so the lockup sits at the top —
+  /// leftover focus room stays below, not as a gap under the section title.
   @MainActor
   public static func makeHorizontalPosterSection(
     collectionWidth: CGFloat,
@@ -159,19 +157,16 @@ public enum TVUIKitPosterMetrics {
     orthogonal: Bool = true
   ) -> NSCollectionLayoutSection {
     let width = max(collectionWidth, 1)
-    let tile = posterSize(containerWidth: width, leadingInset: leadingInset)
-    let itemHeight = tile.height
-      + captionTopPadding
-      + captionFocusClearance(tileHeight: tile.height)
-      + captionHeight
+    let tileWidth = ShelfMetrics.tvCardWidth
+    let tileHeight = tileWidth / CardAspect.poster.ratio
     let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(
       widthDimension: .fractionalWidth(1),
       heightDimension: .fractionalHeight(1)
     ))
     let group = NSCollectionLayoutGroup.horizontal(
       layoutSize: NSCollectionLayoutSize(
-        widthDimension: .absolute(tile.width),
-        heightDimension: .absolute(itemHeight)
+        widthDimension: .absolute(tileWidth),
+        heightDimension: .fractionalHeight(1)
       ),
       subitems: [item]
     )
@@ -180,7 +175,7 @@ public enum TVUIKitPosterMetrics {
       section.orthogonalScrollingBehavior = .continuous
     }
     section.interGroupSpacing = ShelfMetrics.tvHorizontalSpacing
-    let growth = focusGrowthPadding(tileHeight: tile.height)
+    let growth = focusGrowthPadding(tileHeight: tileHeight)
     let system = TVUIKitMediaItemMetrics.systemMetrics(width: width).verticalPadding / 2
     let below = max(growth, system)
     section.contentInsets = NSDirectionalEdgeInsets(
@@ -188,55 +183,6 @@ public enum TVUIKitPosterMetrics {
       leading: leadingInset,
       bottom: below,
       trailing: trailingInset
-    )
-    return section
-  }
-
-  /// Vertical poster grid: a full-width group of `columns` items with
-  /// `fractionalWidth(1)` so they fill the content box after insets + gutters.
-  @MainActor
-  public static func makeVerticalPosterSection(
-    collectionWidth: CGFloat,
-    leadingInset: CGFloat,
-    columns: Int,
-    gutter: CGFloat,
-    isLandscape: Bool
-  ) -> NSCollectionLayoutSection {
-    let width = max(collectionWidth, 1)
-    let itemWidth = ShelfMetrics.tvFilledPosterWidth(
-      collectionWidth: width,
-      leadingInset: leadingInset,
-      columns: columns,
-      gutter: gutter
-    )
-    let tileHeight = itemWidth / (isLandscape ? CardAspect.landscape.ratio : CardAspect.poster.ratio)
-    let itemHeight = isLandscape
-      ? tileHeight
-      : tileHeight
-        + captionTopPadding
-        + captionFocusClearance(tileHeight: tileHeight)
-        + captionHeight
-    let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(
-      widthDimension: .fractionalWidth(1),
-      heightDimension: .fractionalHeight(1)
-    ))
-    let group = NSCollectionLayoutGroup.horizontal(
-      layoutSize: NSCollectionLayoutSize(
-        widthDimension: .fractionalWidth(1),
-        heightDimension: .absolute(itemHeight)
-      ),
-      repeatingSubitem: item,
-      count: max(columns, 1)
-    )
-    group.interItemSpacing = .fixed(gutter)
-    let section = NSCollectionLayoutSection(group: group)
-    section.interGroupSpacing = gutter
-    let growth = focusGrowthPadding(tileHeight: tileHeight)
-    section.contentInsets = NSDirectionalEdgeInsets(
-      top: growth,
-      leading: leadingInset,
-      bottom: growth,
-      trailing: leadingInset
     )
     return section
   }

@@ -22,12 +22,13 @@ public enum Metrics {
   public static let cardCaptionSpacing: CGFloat = 20
   /// Titled-row spacing. Was 100; Sasha 2026-09: reduce by 20 → **80**.
   public static let rowSpacing: CGFloat = 80
-  /// Extra padding under a `Section` header. The stacked **+8** is gone
-  /// (`MediaPosterShelf` halves Section’s remaining default gap instead).
+  /// Extra padding under a `Section` header. Unused on tvOS — header→rail is
+  /// `sectionHeaderToContentSpacing` on an inner VStack (Section in a parent
+  /// `VStack(spacing: 80)` was unpacking header and rail into two children).
   public static let sectionHeaderSpacing: CGFloat = 0
-  /// Section’s own header→content gap is the stack default (**8**). Sasha:
-  /// cut that remaining gap in half after dropping the extra +8.
-  public static let sectionHeaderToContentAdjustment: CGFloat = -4
+  /// Header → posters. Extra +8 is gone; this is the remaining gap, cut in half
+  /// from Section’s default ~8.
+  public static let sectionHeaderToContentSpacing: CGFloat = 4
   public static let focusPadding: CGFloat = 32
   /// Extra room for Continue Watching / landscape focus lift (wider tiles grow more
   /// in absolute points; poster shelves keep `focusPadding`).

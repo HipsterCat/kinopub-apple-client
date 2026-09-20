@@ -132,24 +132,26 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #endif
   }
 
-  /// Header → cards. tvOS extra +8 is gone; remaining Section gap is halved.
-  /// iOS/macOS keep `Metrics.sectionHeaderSpacing`.
-  private var headerSpacing: CGFloat {
+  /// Header → cards. tvOS: an inner VStack owns this number so a parent
+  /// `VStack(spacing: 80)` cannot sit between the title and the posters.
+  private var headerToRailSpacing: CGFloat {
 #if os(tvOS)
-    Metrics.sectionHeaderToContentAdjustment
+    Metrics.sectionHeaderToContentSpacing
 #else
     Metrics.sectionHeaderSpacing
 #endif
   }
 
   public var body: some View {
-    // CURRENT.md: `Section(title) { rail }`. Header is the Section title
-    // (`.headline.weight(.semibold)` + `.secondary`, system dodge) — not a VStack sibling, not UIKit.
+    // CURRENT.md: `Section(title) { rail }`. Header is `SectionHeader`
+    // (`.headline.weight(.semibold)` + `.secondary`). Title + rail are one
+    // VStack inside the Section so header→poster spacing is 4 pt, not the
+    // page's 80 pt row spacing.
     Section {
-      rail
-        .padding(.top, headerSpacing)
-    } header: {
-      sectionTitle
+      VStack(alignment: .leading, spacing: headerToRailSpacing) {
+        sectionTitle
+        rail
+      }
     }
 #if os(tvOS)
     .modifier(MediaPosterShelfFocusSection(enabled: allowsFocus))
@@ -167,6 +169,10 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     .onGeometryChange(for: CGRect.self) { proxy in
       proxy.frame(in: .global)
     } action: { frame in
+      // Ignore the zero/off-screen first frame (Movies/Series tab create).
+      // That frame reported minX=0 → leading 80 while Home had already
+      // settled at minX≈80 → leading 0: same rail, two insets, two sizes.
+      guard frame.width > 100 else { return }
       contentLeadingInset = max(0, ShelfMetrics.tvContentMargin - frame.minX)
     }
 #endif
