@@ -215,7 +215,10 @@ public final class TVUIKitMediaCollectionController: UIViewController {
       // leading column, trailing 0 so the next card peeks past the content box.
       let leadingInset = axis == .vertical ? metrics.gridInset(in: width) : inset
       let trailingInset: CGFloat = axis == .vertical ? leadingInset : 0
-      layout.sectionInset = UIEdgeInsets(top: focusRoom,
+      // Horizontal poster shelf: 0 above the cards so header→items stays Sketch
+      // tight (~8–24 pt). Bottom keeps focus room vs the next titled row.
+      let topInset: CGFloat = (axis == .horizontal && !landscape) ? 0 : focusRoom
+      layout.sectionInset = UIEdgeInsets(top: topInset,
                                          left: leadingInset,
                                          bottom: focusRoom,
                                          right: trailingInset)

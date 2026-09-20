@@ -74,7 +74,7 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 7. Card widths only from CURRENT HIG grid table; shelf recipes numeric, not “about right.”
 9. System light/dark + Dynamic Type; read `.agents/skills` before inventing shelf scroll behavior.
 10. Apple Design Resources Sketch UI Kit names/styles over informal mocks.
-11. Shelves use SwiftUI `Section`; rowHeader `.headline.bold()` + secondary; no zero headerSpacing; caption clears focus.
+11. Shelves use SwiftUI `Section`; rowHeader `.headline.bold()` + secondary; header→rail Sketch-tight (~8–24 pt, don’t stack 28 on Section); caption clears focus. Titles leading at x=80.
 12. Never ship “insets none” / flush-to-edge rails — leading 80 pt content inset is law; peek ≠ no margin.
 13. Visual gate: before+after screenshots; hig compares to Sketch/Apple stills before merge.
 8. Focus fundamentals in CURRENT (clip, focusSection, caption clearance, focused assets, empty-state escape).

@@ -13,9 +13,10 @@ title lives in the Section. Sketch `Headers/Section Header/Dark/Secondary/1 Line
 `.foregroundStyle(.secondary)` (not Title 2 ~57pt, not Primary/Subtitle/Eyebrow/
 App Icon/Pill). UIKit `boundarySupplementary` titles and `TVUIKitPosterPage` are
 gone; each rail is one horizontal TVUIKit representable (or the SwiftUI
-fallback). Header → rail gap is `Metrics.sectionHeaderSpacing` (28), not
-`max(0, 28−32)`. Poster caption animates down by focus growth so the 8 pt rest
-gap is not covered. **80 pt leading / 6@260 / trailing peek** unchanged.
+fallback). Header → rail gap is Sketch **~8–24 pt** (not 28 stacked on
+Section’s own spacing, and not a spare focus strip above the posters).
+Poster caption still animates down by focus growth so the 8 pt rest gap is
+not covered. **80 pt leading / 6@260 / trailing peek** unchanged.
 
 tvOS shell does **not** apply `.preferredColorScheme` at all unless DEBUG
 `-KINOPUBForceColorScheme light|dark` is passed (passing `nil` still pinned
@@ -25,13 +26,14 @@ Dark). iOS/macOS stay dark until their pass. Tab labels are **Watch Now** /
 appearance` unsupported.
 
 Archi / hig shot review: Section titles were **centered** (light ~795 pt;
-etalon is leading ~160 pt on the 80 pt column). The header is pinned to the
-shelf width and leading-aligned with the first poster. `-KINOPUBFocusFirstPoster`
-makes the Continue Watching landscape rail **unfocusable** (`allowsFocus` /
-`canFocusItemAt`) so the engine lands on the first Hot Movies 2:3 poster —
-returning `nil` from `indexPathForPreferredFocusedView` defaulted to the first
-CW cell — and scrolls that row on-screen for caption clearance. Args stay off
-the shared Debug scheme; pass them by hand.
+etalon is **x=80** on the 1920 artboard, same column as the first card). The
+header is pinned to the shelf width and leading-aligned. Header→items is
+Sketch **~8–24 pt** — extra pad is 8, not 28 stacked on Section, and the
+poster rail no longer keeps a focus strip *above* the cards (growth goes up
+into the gap / header dodge; caption clearance below is unchanged).
+`-KINOPUBFocusFirstPoster` makes the Continue Watching landscape rail
+**unfocusable** so the engine lands on the first Hot Movies 2:3 poster.
+Args stay off the shared Debug scheme; pass them by hand.
 
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 

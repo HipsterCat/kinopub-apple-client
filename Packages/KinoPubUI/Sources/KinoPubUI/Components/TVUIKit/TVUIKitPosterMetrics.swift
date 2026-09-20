@@ -98,11 +98,16 @@ public enum TVUIKitPosterMetrics {
                         containerWidth: containerWidth,
                         typeSize: typeSize,
                         safeArea: safeArea)
-    let padding = sectionFocusPadding(isLandscape: isLandscape,
-                                      containerWidth: containerWidth,
-                                      typeSize: typeSize,
-                                      safeArea: safeArea)
-    return item.height + padding * 2
+    let below = sectionFocusPadding(isLandscape: isLandscape,
+                                    containerWidth: containerWidth,
+                                    typeSize: typeSize,
+                                    safeArea: safeArea)
+    // Horizontal poster shelf: no spare strip *above* the cards. Sketch
+    // header→items is ~8–24 pt and Section already owns it; stacking a focus
+    // strip here was the void. Focus growth goes up into that gap / header dodge
+    // (`clipsToBounds` is false). Bottom still reserves lift vs the next row.
+    let above: CGFloat = isLandscape ? below : 0
+    return item.height + above + below
   }
 
   /// Orthogonal poster rail for a page collection. `orthogonalLayoutSectionForMediaItems()`
@@ -130,11 +135,11 @@ public enum TVUIKitPosterMetrics {
     section.interGroupSpacing = ShelfMetrics.tvHorizontalSpacing
     let growth = focusGrowthPadding(tileHeight: tile.height)
     let system = TVUIKitMediaItemMetrics.systemMetrics(width: width).verticalPadding / 2
-    let vertical = max(growth, system)
+    let below = max(growth, system)
     section.contentInsets = NSDirectionalEdgeInsets(
-      top: vertical,
+      top: 0,
       leading: 0,
-      bottom: vertical,
+      bottom: below,
       trailing: 0
     )
     return section

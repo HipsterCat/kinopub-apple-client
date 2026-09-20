@@ -111,7 +111,7 @@ Repo `.agents/skills` (tvOS fundamentals) are **required reading** for implement
 - A poster/still **shelf is a `Section`**: `Section(title) { rail }`. The title belongs to the section (secondary / vibrant), and the system auto-dodges focus (WWDC24). Do not hand-roll a free-floating header above a rail.
 - **Section titles are leading**, on the **80 pt** column with the first card. tvOS `Section` defaults to a centered header (compact hug, then centered — light shots landed at ~795 pt). Pin the header to the shelf width and leading-align the text; do not ship the centered default.
 - **Row header type** on tvOS: Sketch `Headers/Section Header/Dark/Secondary/1 Line` = Headline emphasized (SF Pro Bold 38) → `TypeScale.rowHeader` = **`.headline.bold()`** + `.foregroundStyle(.secondary)` (white α 0.5). Not `.title2` (~57pt). Not Primary / Subtitle / Eyebrow / App Icon / Pill.
-- **Header → rail gap** must be real. A formula that collapses to `0` (e.g. `max(0, 28−32)`) is a defect. Respect titled-row vertical rhythm (see grid contract).
+- **Header → rail gap** is Sketch-tight: **~8–24 pt** (Kinopub Home: header y=1098 h=76, items y=1182 → 8 pt). `Section` already spaces header→content — do **not** stack `.padding(.top, 28)` (or a spare focus strip) on top of that; that was the void. Between titled *rows* remains ≥100 pt. Subtracting focus padding to force `0` extra is still wrong if the rail itself keeps a 44 pt strip above the cards.
 - **Caption under poster** must clear the **focused (scaled)** lockup. `captionTopPadding = 8` is insufficient under focus growth — measure against focused bounds.
 
 ## Shelf clipping (law)

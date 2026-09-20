@@ -124,8 +124,10 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #endif
   }
 
-  /// Header → unfocused cards. Never subtract the rail’s focus padding — that
-  /// collapsed tvOS to `max(0, 28−32) = 0`.
+  /// Header → cards. tvOS extra is Sketch **8 pt**, not 28. Section also spaces
+  /// header→content; the rail no longer keeps a spare focus strip above posters.
+  /// Do not subtract focus padding here — that collapsed chrome and left the void
+  /// inside the collection.
   private var headerSpacing: CGFloat {
     Metrics.sectionHeaderSpacing
   }
@@ -140,7 +142,6 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       sectionTitle
     }
 #if os(tvOS)
-    .headerProminence(.standard)
     .focusSection()
 #endif
     .onGeometryChange(for: ShelfGeometry.self) { proxy in
@@ -166,9 +167,10 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   private var sectionTitle: some View {
 #if os(tvOS)
     // tvOS `Section` headers default to centered (compact hug, then the
-    // block is centered — light shots landed at ~795 pt). Etalon / Sketch is
-    // leading, on the same 80 pt column as the first poster. Pin the header
-    // to the measured shelf width so a centered parent cannot shift it.
+    // block is centered — light shots landed at ~795 pt). Sketch 1920
+    // artboard: leading **x=80**, same column as the first card. Never center.
+    // Pin the header to the measured shelf width so a centered parent cannot
+    // shift it.
     HStack(spacing: 0) {
       Text(title)
         .font(TypeScale.rowHeader)
@@ -312,13 +314,13 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #if os(tvOS)
       // Leading 80 pt content column (aligned with the header). Trailing stays
       // open so the next card peeks past that box — not a matching 80 pt pad.
+      // Top gap is Section’s, not another focus strip.
       .padding(.leading, leadingInset)
+      .padding(.bottom, railFocusPadding)
 #else
       .padding(.horizontal, metrics.inset)
-#endif
-      // Vertical room for `.borderless` focus lift only — horizontal bleed must
-      // stay inside `ShelfMetrics.cardWidth` or rails overflow ~2·focusPadding.
       .padding(.vertical, railFocusPadding)
+#endif
     }
 #if os(tvOS)
     .buttonStyle(.borderless)
