@@ -16,7 +16,7 @@
 //  unsupported on this tvOS runtime):
 //    -KINOPUBForceColorScheme light
 //    -KINOPUBForceColorScheme dark
-//    -KINOPUBFocusFirstPoster          // first 2:3 poster, not CW landscape
+//    -KINOPUBFocusFirstPoster          // Hot Movies 2:3 poster; CW landscape is unfocusable
 //  Poster cells: accessibilityIdentifier `kinopub.poster.{id}`.
 //
 

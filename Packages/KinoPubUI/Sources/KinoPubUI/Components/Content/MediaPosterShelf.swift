@@ -138,9 +138,9 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
         .padding(.top, headerSpacing)
     } header: {
       sectionTitle
-        .padding(.leading, leadingInset)
     }
 #if os(tvOS)
+    .headerProminence(.standard)
     .focusSection()
 #endif
     .onGeometryChange(for: ShelfGeometry.self) { proxy in
@@ -165,10 +165,22 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   @ViewBuilder
   private var sectionTitle: some View {
 #if os(tvOS)
-    Text(title)
-      .font(TypeScale.rowHeader)
-      .foregroundStyle(.secondary)
-      .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
+    // tvOS `Section` headers default to centered (compact hug, then the
+    // block is centered — light shots landed at ~795 pt). Etalon / Sketch is
+    // leading, on the same 80 pt column as the first poster. Pin the header
+    // to the measured shelf width so a centered parent cannot shift it.
+    HStack(spacing: 0) {
+      Text(title)
+        .font(TypeScale.rowHeader)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.leading)
+        .lineLimit(1)
+      Spacer(minLength: 0)
+    }
+    .environment(\.multilineTextAlignment, .leading)
+    .padding(.leading, leadingInset)
+    .frame(width: containerWidth, alignment: .leading)
+    .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
 #else
     header
 #endif
@@ -223,7 +235,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
         },
         contextMenuProvider: contextMenuProvider.map { provider in
           { id in cards.first(where: { $0.id == id }).map(provider) ?? [] }
-        }
+        },
+        allowsFocus: !DebugLaunch.focusFirstPoster
       )
       .focusSection()
     } else {

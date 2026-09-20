@@ -216,6 +216,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   private let onNearEnd: ((Int) -> Void)?
   private let onFocusedItem: ((Int) -> Void)?
   private let contextMenuProvider: ((Int) -> [MediaCardContextEntry])?
+  private let allowsFocus: Bool
 
   /// - Parameters:
   ///   - contentInset: leading/trailing inset, so the rail lines up with the section
@@ -234,7 +235,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
               onSelect: @escaping (Int) -> Void,
               onNearEnd: ((Int) -> Void)? = nil,
               onFocusedItem: ((Int) -> Void)? = nil,
-              contextMenuProvider: ((Int) -> [MediaCardContextEntry])? = nil) {
+              contextMenuProvider: ((Int) -> [MediaCardContextEntry])? = nil,
+              allowsFocus: Bool = true) {
     self.items = items
     self.contentInset = contentInset
     self.entryItemID = entryItemID
@@ -243,6 +245,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
     self.onNearEnd = onNearEnd
     self.onFocusedItem = onFocusedItem
     self.contextMenuProvider = contextMenuProvider
+    self.allowsFocus = allowsFocus
   }
 
   public func makeUIViewController(context: Context) -> TVUIKitMediaItemRailController {
@@ -253,7 +256,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
                      onSelect: onSelect,
                      onNearEnd: onNearEnd,
                      onFocusedItem: onFocusedItem,
-                     contextMenuProvider: contextMenuProvider)
+                     contextMenuProvider: contextMenuProvider,
+                     allowsFocus: allowsFocus)
     return controller
   }
 
@@ -264,7 +268,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
                      onSelect: onSelect,
                      onNearEnd: onNearEnd,
                      onFocusedItem: onFocusedItem,
-                     contextMenuProvider: contextMenuProvider)
+                     contextMenuProvider: contextMenuProvider,
+                     allowsFocus: allowsFocus)
   }
 
   public func sizeThatFits(_ proposal: ProposedViewSize,
@@ -400,6 +405,7 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   private var onNearEnd: ((Int) -> Void)?
   private var onFocusedItem: ((Int) -> Void)?
   private var contextMenuProvider: ((Int) -> [MediaCardContextEntry])?
+  private var allowsFocus = true
 
   private lazy var collectionView: UICollectionView = {
     let inset = contentInset
@@ -461,7 +467,8 @@ public final class TVUIKitMediaItemRailController: UIViewController {
              onSelect: @escaping (Int) -> Void,
              onNearEnd: ((Int) -> Void)?,
              onFocusedItem: ((Int) -> Void)?,
-             contextMenuProvider: ((Int) -> [MediaCardContextEntry])?) {
+             contextMenuProvider: ((Int) -> [MediaCardContextEntry])?,
+             allowsFocus: Bool = true) {
     let changed = self.items != items
     let entryMoved = self.entryItemID != entryItemID
     self.items = items
@@ -470,8 +477,15 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     self.onNearEnd = onNearEnd
     self.onFocusedItem = onFocusedItem
     self.contextMenuProvider = contextMenuProvider
+    self.allowsFocus = allowsFocus
+    collectionView.allowsFocus = allowsFocus
+    view.allowsFocus = allowsFocus
     if changed { collectionView.reloadData() }
     if changed || entryMoved { scrollToEntry(animated: animatesEntryScroll && !changed) }
+  }
+
+  public override var preferredFocusEnvironments: [UIFocusEnvironment] {
+    allowsFocus ? super.preferredFocusEnvironments : []
   }
 
   private func index(of id: Int?) -> Int? {
@@ -536,10 +550,14 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
   /// "start here" — the alternative is pushing focus programmatically from outside,
   /// which fights the engine and loses.
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
-    // Screenshot harness wants a poster caption, not this landscape rail.
-    if DebugLaunch.focusFirstPoster { return nil }
+    guard allowsFocus else { return nil }
     guard let index = index(of: entryItemID) else { return nil }
     return IndexPath(item: index, section: 0)
+  }
+
+  public func collectionView(_ collectionView: UICollectionView,
+                             canFocusItemAt indexPath: IndexPath) -> Bool {
+    allowsFocus
   }
 
   public func collectionView(_ collectionView: UICollectionView,
@@ -682,7 +700,20 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     contentConfiguration = nil
   }
 
-  override var canBecomeFocused: Bool { true }
+  override var canBecomeFocused: Bool {
+    // DEBUG `-KINOPUBFocusFirstPoster` sets the landscape rail's
+    // `collectionView.allowsFocus = false`. The cell must agree — `canBecomeFocused
+    // { true }` would otherwise still take first focus even when
+    // `canFocusItemAt` returns false on some tvOS builds.
+    var ancestor: UIView? = superview
+    while let view = ancestor {
+      if let collection = view as? UICollectionView {
+        return collection.allowsFocus
+      }
+      ancestor = view.superview
+    }
+    return true
+  }
 }
 
 // MARK: - Overlay

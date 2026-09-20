@@ -40,7 +40,7 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 - Content-type filter for Series/Movies; replace grid-as-home if needed
 - No new Up Next/CW feature work; no LIVE; no invented widths
 - Acceptance: `Section(title){rail}`; rowHeader=`.headline.bold()` + secondary (Sketch Section Header Dark/Secondary/1 Line); real header→rail gap; caption clears focused bounds; focused posters don’t overlap neighbors; **symmetrical peek, no edge-clip**; Menu pops; detail opens; system appearance + Dynamic Type; screenshots from feature branch; **hig visual pass** before merge
-- Prefer `#Preview` / isolated demos for visual checks — do not burn Sasha’s simulator OTP for routine UI review. Watch Now Dark+Light: DEBUG `-KINOPUBForceColorScheme light|dark` (`simctl ui appearance` unsupported); `-KINOPUBFocusFirstPoster` for focused caption clearance.
+- Prefer `#Preview` / isolated demos for visual checks — do not burn Sasha’s simulator OTP for routine UI review. Watch Now Dark+Light: DEBUG `-KINOPUBForceColorScheme light|dark` (`simctl ui appearance` unsupported); `-KINOPUBFocusFirstPoster` for focused **Hot Movies** caption clearance (skips CW). Pass args by hand — not on the shared Debug scheme.
 
 ### M2 — Actions everywhere
 - Unify `ItemActionState` + performer; wire all cards

@@ -105,7 +105,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     view.backgroundColor = .clear
     view.showsHorizontalScrollIndicator = false
     view.showsVerticalScrollIndicator = false
-    view.remembersLastFocusedIndexPath = true
+    view.remembersLastFocusedIndexPath = !DebugLaunch.focusFirstPoster
     view.clipsToBounds = false
     // Horizontal 80 pt is the leading content column, not a reason to ignore
     // the safe area. Automatic adjustment would double-cut that column.
@@ -231,6 +231,20 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     if cardsChanged || layoutChanged {
       collectionView.reloadData()
     }
+    if DebugLaunch.focusFirstPoster {
+      collectionView.remembersLastFocusedIndexPath = false
+    }
+  }
+
+  /// DEBUG `-KINOPUBFocusFirstPoster`: this poster rail, first cell — not CW.
+  public override var preferredFocusEnvironments: [UIFocusEnvironment] {
+    guard DebugLaunch.focusFirstPoster, !isLandscape,
+          collectionView.numberOfItems(inSection: 0) > 0 else {
+      return super.preferredFocusEnvironments
+    }
+    let path = IndexPath(item: 0, section: 0)
+    if let cell = collectionView.cellForItem(at: path) { return [cell] }
+    return [collectionView]
   }
 }
 

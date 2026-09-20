@@ -131,6 +131,20 @@ public struct MediaRowsView: View {
 #endif
 
   private var scroll: some View {
+#if os(tvOS)
+    ScrollViewReader { proxy in
+      verticalScroll
+        .task(id: firstPosterRow?.id) {
+          guard DebugLaunch.focusFirstPoster, let id = firstPosterRow?.id else { return }
+          proxy.scrollTo(id, anchor: .center)
+        }
+    }
+#else
+    verticalScroll
+#endif
+  }
+
+  private var verticalScroll: some View {
     ScrollView(.vertical) {
       stack
         .padding(.top, Self.pageVerticalInset)
@@ -253,6 +267,7 @@ public struct MediaRowsView: View {
       pagination: paginationProvider?(row) ?? .idle,
       onRetryPagination: onRetryPagination.map { retry in { retry(row) } }
     )
+    .id(row.id)
     .onAppear { onRowAppear?(row) }
   }
 

@@ -24,6 +24,15 @@ Dark). iOS/macOS stay dark until their pass. Tab labels are **Watch Now** /
 `-KINOPUBForceColorScheme` and `-KINOPUBFocusFirstPoster`. `simctl ui
 appearance` unsupported.
 
+Archi / hig shot review: Section titles were **centered** (light ~795 pt;
+etalon is leading ~160 pt on the 80 pt column). The header is pinned to the
+shelf width and leading-aligned with the first poster. `-KINOPUBFocusFirstPoster`
+makes the Continue Watching landscape rail **unfocusable** (`allowsFocus` /
+`canFocusItemAt`) so the engine lands on the first Hot Movies 2:3 poster —
+returning `nil` from `indexPathForPreferredFocusedView` defaulted to the first
+CW cell — and scrolls that row on-screen for caption clearance. Args stay off
+the shared Debug scheme; pass them by hand.
+
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 
 Watch Now / Movies / Series on tvOS share `MediaPosterShelf` (TVUIKit
