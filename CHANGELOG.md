@@ -26,9 +26,12 @@ Dark). iOS/macOS stay dark until their pass. Tab labels are **Watch Now** /
 appearance` unsupported.
 
 Archi / hig shot review: Section titles were **centered** (light ~795 pt /
-x≈1589px; etalon is **x=80**). SwiftUI `frame(maxWidth:)` is not enough —
-the header is a 1920-wide UIKit title that paints at screen x=80. Continue
-Watching is skipped by row id + `collectionView.allowsFocus` / `canFocusItemAt`
+x≈1589px; etalon is **x=80**). SwiftUI `frame(maxWidth:)` is not enough when
+the header hugs. A 1920-wide UIKit title that painted at screen x=80
+(`TVLeadingSectionTitle`) was retracted by Sasha — not acceptable craft.
+The header is SwiftUI `SectionHeader` pinned to the shelf’s measured
+`containerWidth` (same coordinate space as the rail) with `leadingInset`.
+Continue Watching is skipped by row id + `collectionView.allowsFocus` / `canFocusItemAt`
 / cell `canBecomeFocused` (not `UIView.allowsFocus` or `focusGroupPriority`,
 which are unavailable on tvOS). Returning nil from preferred index defaulted
 to the first CW cell. Only Hot Movies claims initial poster focus.

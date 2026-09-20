@@ -170,16 +170,25 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #endif
   }
 
-  /// tvOS: the Section title itself. iOS/macOS keep the navigable `header`.
+  /// tvOS: native `Section` header, leading on the same inset as the first card.
+  /// iOS/macOS keep the navigable `header`.
   @ViewBuilder
   private var sectionTitle: some View {
 #if os(tvOS)
-    // Light Section headers compact-hug then center (~795 pt). UIKit title
-    // is 1920 wide and paints at screen x=80 — SwiftUI frame cannot fight that.
-    TVLeadingSectionTitle(
+    // tvOS `Section` measures the header's *ideal* size and centers a compact hug
+    // (light shots landed ~795 pt). `frame(maxWidth: .infinity)` still hugs when
+    // the proposal is unspecified — that is not a licence for a 1920-wide
+    // screen-space canvas. Pin the header to the shelf's measured width (the
+    // same `containerWidth` the rail uses) so centering is a no-op, then pad
+    // with `leadingInset` (80-from-screen, shared with the first poster).
+    SectionHeader(
       title: title,
-      accessibilityText: count.map { "\(title), \($0)" } ?? title
+      count: count,
+      showsChevron: false,
+      leadingInset: leadingInset
     )
+    .frame(width: max(containerWidth, 1), alignment: .leading)
+    .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
 #else
     header
 #endif
