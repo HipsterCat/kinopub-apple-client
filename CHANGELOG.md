@@ -18,11 +18,11 @@ fallback). Header → rail gap is `Metrics.sectionHeaderSpacing` (28), not
 gap is not covered. **80 pt leading / 6@260 / trailing peek** unchanged.
 
 tvOS shell does **not** apply `.preferredColorScheme` at all unless DEBUG
-`-KINOPUBForceColorScheme light|dark` is set (passing `nil` still pinned Dark).
-iOS/macOS stay dark until their pass. Tab labels are **Watch Now** / **Series**
-(not Home / Shows). The Debug scheme launches with `light` +
-`-KINOPUBFocusFirstPoster` so max can capture Light Watch Now with the Hot
-Movies poster focused (caption clearance). `simctl ui appearance` unsupported.
+`-KINOPUBForceColorScheme light|dark` is passed (passing `nil` still pinned
+Dark). iOS/macOS stay dark until their pass. Tab labels are **Watch Now** /
+**Series** (not Home / Shows). Shot harness (not on the shared Debug scheme):
+`-KINOPUBForceColorScheme` and `-KINOPUBFocusFirstPoster`. `simctl ui
+appearance` unsupported.
 
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 
