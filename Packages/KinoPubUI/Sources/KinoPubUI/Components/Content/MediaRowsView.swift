@@ -120,7 +120,7 @@ public struct MediaRowsView: View {
 #if os(tvOS)
   @ViewBuilder
   private var tvOSBody: some View {
-    // SwiftUI `Section` around each rail (CURRENT.md). One page-wide UIKit
+    // SwiftUI `Section(title) { rail }` (CURRENT.md). One page-wide UIKit
     // collection with boundary headers was a second title system. VStack keeps
     // off-screen rails in the focus graph (`LazyVStack` jumps to the tab bar).
     scroll

@@ -7,13 +7,13 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ### SwiftUI `Section` shelves; headline; header gap; caption clearance (2026-09-20)
 
-Sasha / hig: every poster and landscape shelf is `Section { rail }` — the title
-lives in the Section (`.headline` + `.foregroundStyle(.secondary)`). UIKit
-`boundarySupplementary` titles and `TVUIKitPosterPage` are gone; each rail is
-one horizontal TVUIKit representable (or the SwiftUI fallback). Header → rail
-gap is `Metrics.sectionHeaderSpacing` (28), not `max(0, 28−32)`. Poster caption
-animates down by focus growth so the 8 pt rest gap is not covered. **80 pt
-leading / 6@260 / trailing peek** unchanged.
+Sasha / hig: every poster and landscape shelf is `Section(title) { rail }` — the
+title lives in the Section (`TypeScale.rowHeader` = `.headline` +
+`.foregroundStyle(.secondary)`). UIKit `boundarySupplementary` titles and
+`TVUIKitPosterPage` are gone; each rail is one horizontal TVUIKit representable
+(or the SwiftUI fallback). Header → rail gap is `Metrics.sectionHeaderSpacing`
+(28), not `max(0, 28−32)`. Poster caption animates down by focus growth so the
+8 pt rest gap is not covered. **80 pt leading / 6@260 / trailing peek** unchanged.
 
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 

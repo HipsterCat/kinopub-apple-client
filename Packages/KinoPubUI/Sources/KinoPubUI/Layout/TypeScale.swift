@@ -10,6 +10,7 @@ public enum TypeScale {
     public static let cardTitle: Font = .headline.weight(.regular)
   public static let cardSubtitle: Font = .subheadline
   public static let cardMeta: Font = .subheadline.weight(.regular)
+    /// CURRENT.md shelf chrome: tvOS `.headline`, not `.title2` (~57pt).
     public static let rowHeader: Font = {
 #if os(tvOS)
     .headline

@@ -131,14 +131,13 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   }
 
   public var body: some View {
-    // CURRENT.md: a shelf *is* a SwiftUI `Section`. Title lives in the section
-    // (secondary headline, system dodge). Not a free-floating header, not a UIKit
-    // `boundarySupplementary`.
+    // CURRENT.md: `Section(title) { rail }`. Header is the Section title
+    // (`.headline` + `.secondary`, system dodge) — not a VStack sibling, not UIKit.
     Section {
       rail
         .padding(.top, headerSpacing)
     } header: {
-      header
+      sectionTitle
         .padding(.leading, leadingInset)
     }
 #if os(tvOS)
@@ -162,6 +161,19 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #endif
   }
 
+  /// tvOS: the Section title itself. iOS/macOS keep the navigable `header`.
+  @ViewBuilder
+  private var sectionTitle: some View {
+#if os(tvOS)
+    Text(title)
+      .font(TypeScale.rowHeader)
+      .foregroundStyle(.secondary)
+      .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
+#else
+    header
+#endif
+  }
+
   @ViewBuilder
   private var rail: some View {
 #if os(tvOS)
@@ -175,22 +187,9 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #endif
   }
 
+#if !os(tvOS)
   @ViewBuilder
   private var header: some View {
-#if os(tvOS)
-    // Never a link on tvOS. A navigating section header is an iOS/macOS affordance:
-    // on a remote it becomes one more focus stop above every single row, which the
-    // user has to travel through on the way down the page, and which no Apple tvOS
-    // app has. "See all" belongs in the row itself — a trailing card — not in its
-    // title. See `docs/archive/plans/detail-page-choreography.md` phase 6.
-    HStack(spacing: 10) {
-      SectionHeader(title: title, count: count, showsChevron: false)
-      // The badge stayed pinned to the trailing edge when the header itself filled the
-      // row. It no longer does (it hugs its words now), so the spacer keeps it there.
-      Spacer(minLength: 10)
-      PaginationHeaderBadge(state: pagination)
-    }
-#else
     if let destination {
       NavigationLink(value: destination) {
         SectionHeader(title: title, count: count, showsChevron: true)
@@ -204,8 +203,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     } else {
       SectionHeader(title: title, count: count, showsChevron: false)
     }
-#endif
   }
+#endif
 
 #if os(tvOS)
   /// Wide rails ride the system's media-item cell; posters stay on `TVPosterView`

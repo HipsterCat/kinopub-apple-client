@@ -20,7 +20,7 @@ struct MainView: View {
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
 
   /// Watch Now, Movies, or Series — same `MediaRowsView` stack of SwiftUI
-  /// `Section { rail }` shelves. On tvOS the rail is a TVUIKit representable;
+  /// `Section(title) { rail }` shelves. On tvOS the rail is a TVUIKit representable;
   /// iOS/macOS keep SwiftUI cards. The catalog's `contentType` is what differs:
   /// `nil` is Watch Now (all shortcuts, plus Continue Watching / Collections);
   /// `.movie` / `.serial` are typed shelves.
