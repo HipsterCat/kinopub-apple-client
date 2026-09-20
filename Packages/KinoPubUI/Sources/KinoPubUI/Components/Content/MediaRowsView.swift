@@ -168,9 +168,6 @@ public struct MediaRowsView: View {
 
     ForEach(rows) { row in
       section(for: row)
-#if os(tvOS)
-        .prefersDefaultFocus(DebugLaunch.focusFirstPoster && isFirstPosterRow(row))
-#endif
     }
   }
 
@@ -193,10 +190,6 @@ public struct MediaRowsView: View {
   private var firstPosterRow: MediaRow? {
     rows.first(where: { $0.id == "hot-movie" })
       ?? rows.first(where: { $0.cards.first?.isLandscape != true })
-  }
-
-  private func isFirstPosterRow(_ row: MediaRow) -> Bool {
-    row.id == firstPosterRow?.id
   }
 #endif
 
