@@ -35,11 +35,11 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 - [ ] Grid table + surface→recipe frozen in CURRENT (safe area 80/60, 40 pt gutters, poster **6 @ 260**, stills **4 @ 410**)
 
 ### M1 — Poster shelves (blocked until M0 grid contract is in main)
-- Watch Now / Series / Movies: **same** poster shelf recipe — **6-col @ 260**, spacing **40 pt**, titled-row clearance ≥ **100 pt** vertical between unfocused rows
+- Watch Now / Series / Movies: **same** poster shelf recipe — **6-col @ 260**, spacing **40 pt**, titled-row clearance **80 pt** vertical between unfocused rows (Sasha: was 100, −20)
 - Symmetrical peek on every horizontal rail; `scrollClipDisabled` / no clip of focus scale
 - Content-type filter for Series/Movies; replace grid-as-home if needed
 - No new Up Next/CW feature work; no LIVE; no invented widths
-- Acceptance: `Section(title){rail}`; rowHeader=`.headline.bold()` + secondary (Sketch Section Header Dark/Secondary/1 Line); real header→rail gap; caption clears focused bounds; focused posters don’t overlap neighbors; **symmetrical peek, no edge-clip**; Menu pops; detail opens; system appearance + Dynamic Type; screenshots from feature branch; **hig visual pass** before merge
+- Acceptance: `Section(title){rail}`; rowHeader=`.headline.weight(.semibold)` + secondary; no extra +8 under the header; caption `.label` when focused; caption clears focused bounds; focused posters don’t overlap neighbors; **symmetrical peek, no edge-clip**; Menu pops; detail opens; system appearance + Dynamic Type; screenshots from feature branch; **hig visual pass** before merge
 - Prefer `#Preview` / isolated demos for visual checks — do not burn Sasha’s simulator OTP for routine UI review. Watch Now Dark+Light: DEBUG `-KINOPUBForceColorScheme light|dark` (`simctl ui appearance` unsupported); `-KINOPUBFocusFirstPoster` for focused **Hot Movies** caption clearance (skips CW). Pass args by hand — not on the shared Debug scheme.
 
 ### M2 — Actions everywhere
@@ -74,7 +74,7 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 7. Card widths only from CURRENT HIG grid table; shelf recipes numeric, not “about right.”
 9. System light/dark + Dynamic Type; read `.agents/skills` before inventing shelf scroll behavior.
 10. Apple Design Resources Sketch UI Kit names/styles over informal mocks.
-11. Shelves use SwiftUI `Section`; rowHeader `.headline.bold()` + secondary; header→rail Sketch-tight (~8–24 pt, don’t stack 28 on Section); caption clears focus. Titles leading at x=80.
+11. Shelves use SwiftUI `Section`; rowHeader `.headline.weight(.semibold)` + secondary; no extra +8 under the header (remaining Section gap halved); caption `.label` when focused, rest secondary/hidden; caption clears focus. Titles leading at x=80.
 12. Never ship “insets none” / flush-to-edge rails — leading 80 pt content inset is law; peek ≠ no margin.
 13. Visual gate: before+after screenshots; hig compares to Sketch/Apple stills before merge.
 8. Focus fundamentals in CURRENT (clip, focusSection, caption clearance, focused assets, empty-state escape).

@@ -132,17 +132,19 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #endif
   }
 
-  /// Header → cards. tvOS extra is Sketch **8 pt**, not 28. Section also spaces
-  /// header→content; the rail no longer keeps a spare focus strip above posters.
-  /// Do not subtract focus padding here — that collapsed chrome and left the void
-  /// inside the collection.
+  /// Header → cards. tvOS extra +8 is gone; remaining Section gap is halved.
+  /// iOS/macOS keep `Metrics.sectionHeaderSpacing`.
   private var headerSpacing: CGFloat {
+#if os(tvOS)
+    Metrics.sectionHeaderToContentAdjustment
+#else
     Metrics.sectionHeaderSpacing
+#endif
   }
 
   public var body: some View {
     // CURRENT.md: `Section(title) { rail }`. Header is the Section title
-    // (`.headline.bold()` + `.secondary`, system dodge) — not a VStack sibling, not UIKit.
+    // (`.headline.weight(.semibold)` + `.secondary`, system dodge) — not a VStack sibling, not UIKit.
     Section {
       rail
         .padding(.top, headerSpacing)
@@ -269,7 +271,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       isLandscape: isLandscape,
       containerWidth: containerWidth,
       typeSize: typeSize,
-      safeArea: containerSafeArea
+      safeArea: containerSafeArea,
+      leadingInset: leadingInset
     ))
     .scrollClipDisabled()
     .focusSection()

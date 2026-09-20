@@ -11,7 +11,7 @@ public enum TypeScale {
   public static let cardSubtitle: Font = .caption
   public static let cardMeta: Font = .caption
     /// tvOS catalog shelves: Sketch `Headers/Section Header/Dark/Secondary/1 Line`
-    /// = Headline emphasized (SF Pro Bold 38) → `.headline.bold()`. Not Title 2
+    /// = Headline emphasized. Sasha: **semibold**, not `.headline.bold()`. Not Title 2
     /// (~57pt), not Primary / Subtitle / Eyebrow / App Icon / Pill.
     public static let rowHeader: Font = {
 #if os(tvOS)

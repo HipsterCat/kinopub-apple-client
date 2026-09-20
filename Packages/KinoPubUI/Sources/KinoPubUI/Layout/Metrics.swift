@@ -9,10 +9,10 @@ import SwiftUI
 /// square / circular chrome; these are the unscaled baselines.
 ///
 /// Two of these decide the rhythm of a page of sections and must not be re-picked at a
-/// call site: `sectionHeaderSpacing` is extra header → cards (tvOS: Sketch **8 pt**,
-/// not 28), `rowSpacing` is one section → the next. Do not stack a large pad on top
-/// of Section’s own gap. Do not subtract a rail’s focus padding from that gap either
-/// — tighten the rail’s *top* inset instead of collapsing the chrome.
+/// call site: `sectionHeaderSpacing` is extra header → cards, `rowSpacing` is one
+/// section → the next. Do not stack a large pad on top of Section’s own gap. Do not
+/// subtract a rail’s focus padding from that gap either — tighten the rail’s *top*
+/// inset instead of collapsing the chrome.
 public enum Metrics {
   public static let cardCornerRadius: CGFloat = 14
   public static let progressBarHeight: CGFloat = 6
@@ -20,12 +20,14 @@ public enum Metrics {
 
 #if os(tvOS)
   public static let cardCaptionSpacing: CGFloat = 20
-  /// CURRENT.md: ≥100 pt between titled poster rows.
-  public static let rowSpacing: CGFloat = 100
-  /// Extra padding under a `Section` header. Sketch Kinopub Home is **~8–24 pt**
-  /// (header y=1098 h=76, items y=1182 → 8 pt). **8**, not 28 — stacking 28 on
-  /// Section’s own gap plus a focus strip above the cards made a void.
-  public static let sectionHeaderSpacing: CGFloat = 8
+  /// Titled-row spacing. Was 100; Sasha 2026-09: reduce by 20 → **80**.
+  public static let rowSpacing: CGFloat = 80
+  /// Extra padding under a `Section` header. The stacked **+8** is gone
+  /// (`MediaPosterShelf` halves Section’s remaining default gap instead).
+  public static let sectionHeaderSpacing: CGFloat = 0
+  /// Section’s own header→content gap is the stack default (**8**). Sasha:
+  /// cut that remaining gap in half after dropping the extra +8.
+  public static let sectionHeaderToContentAdjustment: CGFloat = -4
   public static let focusPadding: CGFloat = 32
   /// Extra room for Continue Watching / landscape focus lift (wider tiles grow more
   /// in absolute points; poster shelves keep `focusPadding`).

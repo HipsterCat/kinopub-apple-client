@@ -5,6 +5,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Sasha craft: fill layout, focused caption, spacing (2026-09-20)
+
+Poster rails use a `UICollectionViewCompositionalLayout`: item
+`fractionalWidth(1)` fills the group; group width is
+`(collectionWidth − 2×80 − 5×40) / 6` so the HIG **6@260** table is
+*realized* from the collection’s bounds (first paint and tab-revisit match).
+FlowLayout `itemSize` + cell default 296 are gone. Focused under-poster
+caption is `UIColor.label`; unfocused stays `.secondaryLabel` / hidden.
+Extra **+8** under the Section header is gone; remaining header→rail gap
+is halved (−4). Titled-row spacing **100 → 80**. `captionTopPadding` **8 → 2**.
+Row header stays **semibold** (not bold).
+
 ### SwiftUI `Section` shelves; headline; header gap; caption clearance (2026-09-20)
 
 Sasha / hig: every poster and landscape shelf is `Section(title) { rail }` — the

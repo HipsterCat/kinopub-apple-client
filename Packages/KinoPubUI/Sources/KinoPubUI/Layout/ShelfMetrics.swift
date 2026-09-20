@@ -121,8 +121,8 @@ public struct ShelfMetrics: Equatable, Sendable {
   /// CURRENT.md: 60 pt top/bottom on the page.
   public static let tvPageVerticalInset: CGFloat = 60
 
-  /// CURRENT.md: min **100 pt** between titled rows.
-  public static let tvTitledRowSpacing: CGFloat = 100
+  /// Titled-row spacing. Was 100; Sasha 2026-09: reduce by 20 → **80**.
+  public static let tvTitledRowSpacing: CGFloat = 80
 
   /// CURRENT.md: horizontal spacing **always 40 pt**.
   public static let tvHorizontalSpacing: CGFloat = 40
@@ -134,6 +134,22 @@ public struct ShelfMetrics: Equatable, Sendable {
 
   public static func tvGutter(cardWidth _: CGFloat) -> CGFloat {
     tvHorizontalSpacing
+  }
+
+  /// Unfocused poster width that **fills** the content box:
+  /// `(collectionWidth − 2×leadingInset − (columns−1)×gutter) / columns`.
+  /// At the HIG canvas (1920 / 80 / 40 / 6) this **is** 260 — the 6@260 table
+  /// realized from the collection’s current width, not a SwiftUI-pinned point
+  /// size. Trailing peek is leftover past that box (trailing section inset 0).
+  public static func tvFilledPosterWidth(
+    collectionWidth: CGFloat,
+    leadingInset: CGFloat,
+    columns: Int = tvPosterColumns,
+    gutter: CGFloat = tvHorizontalSpacing
+  ) -> CGFloat {
+    let count = CGFloat(max(columns, 1))
+    let usable = max(collectionWidth - leadingInset * 2, 1)
+    return max(1, (usable - gutter * (count - 1)) / count)
   }
 
   /// 6×260 + 5×40 = 1760 in the content box after the 80 pt leading column.

@@ -48,7 +48,7 @@ Inset primary content **60 pt** top/bottom, **80 pt** sides. Section titles and 
 
 **Peek is not “insets none.”** Trailing (and leading when scrolled) may show a **partial next card** past the content box so the rail reads as scrollable. The page is **not** flush to the screen edge; removing the leading margin is a **regression**. Do not ignore the safe area to fake edge-to-edge chrome.
 
-### Unfocused grid table — horizontal spacing **always 40 pt**; min vertical spacing **100 pt**
+### Unfocused grid table — horizontal spacing **always 40 pt**; titled-row vertical spacing **80 pt** (Sasha 2026-09: was 100, −20)
 
 | Columns | Unfocused width (pt) |
 | --- | --- |
@@ -110,9 +110,10 @@ Repo `.agents/skills` (tvOS fundamentals) are **required reading** for implement
 
 - A poster/still **shelf is a `Section`**: `Section(title) { rail }`. The title belongs to the section (secondary / vibrant), and the system auto-dodges focus (WWDC24). Do not hand-roll a free-floating header above a rail.
 - **Section titles are leading**, on the **80 pt** column with the first card. tvOS `Section` defaults to a centered header (compact hug, then centered — **light** shots landed at ~795 pt). A SwiftUI `frame(maxWidth: .infinity)` still hugs when the proposal is unspecified. Pin the header to the **shelf’s measured width** (same `containerWidth` as the rail) with leading alignment and the rail’s content inset. Do **not** fake this with a 1920-wide screen-coordinate canvas (`TVLeadingSectionTitle` — deleted). Never ship the centered default.
-- **Row header type** on tvOS: Sketch `Headers/Section Header/Dark/Secondary/1 Line` = Headline emphasized (SF Pro Bold 38) → `TypeScale.rowHeader` = **`.headline.bold()`** + `.foregroundStyle(.secondary)` (white α 0.5). Not `.title2` (~57pt). Not Primary / Subtitle / Eyebrow / App Icon / Pill.
-- **Header → rail gap** is Sketch-tight: **~8–24 pt** (Kinopub Home: header y=1098 h=76, items y=1182 → 8 pt). `Section` already spaces header→content — do **not** stack `.padding(.top, 28)` (or a spare focus strip) on top of that; that was the void. Between titled *rows* remains ≥100 pt. Subtracting focus padding to force `0` extra is still wrong if the rail itself keeps a 44 pt strip above the cards.
-- **Caption under poster** must clear the **focused (scaled)** lockup. `captionTopPadding = 8` is insufficient under focus growth — measure against focused bounds.
+- **Row header type** on tvOS: Sketch `Headers/Section Header/Dark/Secondary/1 Line` → `TypeScale.rowHeader` = **`.headline.weight(.semibold)`** + `.foregroundStyle(.secondary)`. Sasha: semibold, not `.headline.bold()`. Not `.title2` (~57pt). Not Primary / Subtitle / Eyebrow / App Icon / Pill.
+- **Header → rail gap**: do **not** stack extra **+8** on Section’s own header→content spacing. Remaining Section default (~8) is cut in half (`Metrics.sectionHeaderToContentAdjustment` = −4). Between titled *rows* is **80 pt** (was 100; Sasha −20). Subtracting focus padding to force `0` extra is still wrong if the rail itself keeps a 44 pt strip above the cards.
+- **Caption under poster** must clear the **focused (scaled)** lockup. Rest gap is `captionTopPadding = 2`. Focused caption colour is **`UIColor.label`** (primary); unfocused stays secondary / hidden.
+- **Poster width** on TVUIKit rails is **filled**, not a SwiftUI-pinned point size: compositional layout, item `fractionalWidth(1)` of a group sized `(W − 2×80 − 5×40) / 6`. At 1920 that **is** 260. First paint and revisit must match; do not keep a FlowLayout `itemSize` path beside it.
 
 ## Shelf clipping (law)
 
