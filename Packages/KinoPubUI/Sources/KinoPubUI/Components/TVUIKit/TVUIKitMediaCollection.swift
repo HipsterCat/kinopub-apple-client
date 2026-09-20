@@ -104,6 +104,11 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   private var onNearEnd: ((MediaCard) -> Void)?
   private var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   private var prefersInitialFocus = false
+  /// DEBUG: first poster is actually focused (not merely requested).
+  private var didClaimInitialFocus = false
+  /// DEBUG: retry `requestFocusUpdate` until the cell is focused or we give up.
+  private var initialFocusClaimTask: Task<Void, Never>?
+  private var initialFocusClaimExhausted = false
 
   private lazy var collectionView: UICollectionView = {
     let layout = UICollectionViewFlowLayout()
@@ -133,6 +138,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     FocusLog.railGeometry(collectionView, section: sectionName)
+    startInitialFocusClaimIfNeeded()
   }
 
   public override func viewDidLoad() {
@@ -148,6 +154,21 @@ public final class TVUIKitMediaCollectionController: UIViewController {
       collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
     ])
+  }
+
+  public override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    startInitialFocusClaimIfNeeded()
+  }
+
+  public override func didUpdateFocus(
+    in context: UIFocusUpdateContext,
+    with coordinator: UIFocusAnimationCoordinator
+  ) {
+    super.didUpdateFocus(in: context, with: coordinator)
+    if prefersInitialFocus, firstPosterContains(context.nextFocusedView) {
+      didClaimInitialFocus = true
+    }
   }
 
   func apply(cards: [MediaCard],
@@ -201,7 +222,19 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     self.onSelect = onSelect
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
+    if self.prefersInitialFocus != prefersInitialFocus {
+      didClaimInitialFocus = false
+      initialFocusClaimExhausted = false
+      initialFocusClaimTask?.cancel()
+      initialFocusClaimTask = nil
+    }
     self.prefersInitialFocus = prefersInitialFocus
+    if !prefersInitialFocus {
+      didClaimInitialFocus = false
+      initialFocusClaimExhausted = false
+      initialFocusClaimTask?.cancel()
+      initialFocusClaimTask = nil
+    }
 
     if let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
       layout.scrollDirection = axis == .horizontal ? .horizontal : .vertical
@@ -242,10 +275,17 @@ public final class TVUIKitMediaCollectionController: UIViewController {
 
     if cardsChanged || layoutChanged {
       collectionView.reloadData()
+      if prefersInitialFocus {
+        didClaimInitialFocus = false
+        initialFocusClaimExhausted = false
+        initialFocusClaimTask?.cancel()
+        initialFocusClaimTask = nil
+      }
     }
     if DebugLaunch.focusFirstPoster {
       collectionView.remembersLastFocusedIndexPath = false
     }
+    startInitialFocusClaimIfNeeded()
   }
 
   /// DEBUG `-KINOPUBFocusFirstPoster`: this poster rail, first cell — not CW.
@@ -257,6 +297,84 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     let path = IndexPath(item: 0, section: 0)
     if let cell = collectionView.cellForItem(at: path) { return [cell] }
     return [collectionView]
+  }
+
+  /// Move focus onto the first poster. `setNeedsFocusUpdate()` on *this* VC is a
+  /// no-op while the tab bar holds focus (the caller must contain the focused
+  /// view — swift-focusengine-pro anti-pattern #7). `UIFocusSystem.requestFocusUpdate(to:)`
+  /// is the engine’s “put focus here” after async catalog load.
+  ///
+  /// Do not mark the claim done when the request is *issued*: a SwiftUI update
+  /// or a still-off-screen cell is ignored, and a one-shot then leaves the
+  /// Watch Now tab pill focused (light shot) or the row scrolled with no scale
+  /// (dark shot). Retry until the cell (or a descendant) is actually focused.
+  private func startInitialFocusClaimIfNeeded() {
+    guard prefersInitialFocus, !didClaimInitialFocus, !initialFocusClaimExhausted else { return }
+    guard initialFocusClaimTask == nil else { return }
+    initialFocusClaimTask = Task { @MainActor [weak self] in
+      guard let self else { return }
+      defer { self.initialFocusClaimTask = nil }
+      for _ in 0..<80 {
+        if Task.isCancelled { return }
+        if self.didClaimInitialFocus { return }
+        if self.tryClaimInitialFocus() { return }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+      }
+      self.initialFocusClaimExhausted = true
+    }
+  }
+
+  @discardableResult
+  private func tryClaimInitialFocus() -> Bool {
+    guard prefersInitialFocus, !didClaimInitialFocus else { return true }
+    guard let window = collectionView.window else { return false }
+    guard collectionView.numberOfItems(inSection: 0) > 0 else { return false }
+    collectionView.layoutIfNeeded()
+    let cell = collectionView.cellForItem(at: IndexPath(item: 0, section: 0))
+    if firstPosterIsFocused() {
+      didClaimInitialFocus = true
+      return true
+    }
+    guard let system = UIFocusSystem.focusSystem(for: view)
+            ?? UIFocusSystem.focusSystem(for: window) else { return false }
+    // Prefer this VC: `preferredFocusEnvironments` already points at cell 0.
+    // Requesting only the cell fails when it is not yet in the focus graph
+    // (off-screen rail, SwiftUI update). The VC *is* in the window.
+    system.requestFocusUpdate(to: self)
+    system.updateFocusIfNeeded()
+    if firstPosterIsFocused() {
+      didClaimInitialFocus = true
+      return true
+    }
+    if let cell {
+      system.requestFocusUpdate(to: cell)
+      system.updateFocusIfNeeded()
+    }
+    if firstPosterIsFocused() {
+      didClaimInitialFocus = true
+      return true
+    }
+    return false
+  }
+
+  private func firstPosterIsFocused() -> Bool {
+    if let cell = collectionView.cellForItem(at: IndexPath(item: 0, section: 0)), cell.isFocused {
+      return true
+    }
+    return firstPosterContains(focusedView)
+  }
+
+  private var focusedView: UIView? {
+    let system = UIFocusSystem.focusSystem(for: collectionView)
+      ?? collectionView.window.flatMap { UIFocusSystem.focusSystem(for: $0) }
+    return system?.focusedItem as? UIView
+  }
+
+  private func firstPosterContains(_ view: UIView?) -> Bool {
+    guard let view else { return false }
+    let path = IndexPath(item: 0, section: 0)
+    guard let cell = collectionView.cellForItem(at: path) else { return false }
+    return view === cell || view.isDescendant(of: cell)
   }
 }
 
@@ -327,6 +445,9 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
   public func collectionView(_ collectionView: UICollectionView,
                              didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                              with coordinator: UIFocusAnimationCoordinator) {
+    if prefersInitialFocus, context.nextFocusedIndexPath == IndexPath(item: 0, section: 0) {
+      didClaimInitialFocus = true
+    }
     guard FocusLog.isEnabled else { return }
     let name: (IndexPath?) -> String? = { [weak self] path in
       guard let self, let path, self.cards.indices.contains(path.item) else { return nil }
@@ -375,6 +496,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     forItemAt indexPath: IndexPath
   ) {
     onNearEnd?(cards[indexPath.item])
+    if indexPath.item == 0 { startInitialFocusClaimIfNeeded() }
   }
 
   // MARK: - Context menu

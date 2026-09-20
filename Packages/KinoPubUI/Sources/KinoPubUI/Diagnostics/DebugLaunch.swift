@@ -11,6 +11,13 @@ import Foundation
 /// Returning `nil` from `indexPathForPreferredFocusedView` is **not** enough —
 /// the system then defaults to the first CW cell. Do not use `UIView.allowsFocus`
 /// or `focusGroupPriority` — both are unavailable on tvOS.
+///
+/// After the Hot Movies cells exist, `UIFocusSystem.requestFocusUpdate(to:)`
+/// claims the first poster and retries until that cell is actually focused.
+/// `setNeedsFocusUpdate()` on that rail is a no-op while the tab bar holds
+/// focus. SwiftUI `defaultFocus` does not reach TVUIKit cells — do not point
+/// it at a CardKey the posters never bind (an unbound defaultFocus leaves
+/// the Watch Now tab pill as preferred).
 public enum DebugLaunch {
   public static var focusFirstPoster: Bool {
 #if DEBUG

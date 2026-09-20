@@ -123,10 +123,14 @@ public struct MediaRowsView: View {
     // SwiftUI `Section(title) { rail }` (CURRENT.md). One page-wide UIKit
     // collection with boundary headers was a second title system. VStack keeps
     // off-screen rails in the focus graph (`LazyVStack` jumps to the tab bar).
-    scroll
-      .defaultFocus($focusedCard, DebugLaunch.focusFirstPoster
-        ? (firstPosterCardKey ?? firstCardKey)
-        : firstCardKey)
+    // SwiftUI `defaultFocus` binds `@FocusState` CardKeys that only exist on the
+    // SwiftUI rail. TVUIKit cells never see it — and with `-KINOPUBFocusFirstPoster`
+    // an unbound defaultFocus leaves the Watch Now tab pill as preferred.
+    if DebugLaunch.focusFirstPoster {
+      scroll
+    } else {
+      scroll.defaultFocus($focusedCard, firstCardKey)
+    }
   }
 #endif
 
@@ -136,7 +140,19 @@ public struct MediaRowsView: View {
       verticalScroll
         .task(id: firstPosterRow?.id) {
           guard DebugLaunch.focusFirstPoster, let id = firstPosterRow?.id else { return }
-          proxy.scrollTo(id, anchor: .center)
+          // Parks Hot Movies on screen for the caption shot. This does **not**
+          // move focus — the TVUIKit rail claims the first cell via
+          // `UIFocusSystem.requestFocusUpdate`. Repeat after layout so we do
+          // not scrollTo a row that is not in the tree yet.
+          for _ in 0..<12 {
+            if Task.isCancelled { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+              proxy.scrollTo(id, anchor: .center)
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+          }
         }
     }
 #else
@@ -196,11 +212,7 @@ public struct MediaRowsView: View {
 
   /// First 2:3 poster row. Watch Now’s Continue Watching rail is landscape; the
   /// next titled row is Hot Movies (`hot-movie`) — the hig caption-clearance shot.
-  private var firstPosterCardKey: CardKey? {
-    guard let row = firstPosterRow, let card = row.cards.first else { return nil }
-    return CardKey(row: row.id, card: card.id)
-  }
-
+  /// SwiftUI `CardKey` is not used: TVUIKit cells never bind `@FocusState`.
   private var firstPosterRow: MediaRow? {
     rows.first(where: { $0.id == "hot-movie" })
       ?? rows.first(where: { $0.cards.first?.isLandscape != true })
