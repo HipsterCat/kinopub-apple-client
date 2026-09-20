@@ -152,3 +152,5 @@ One state-driven menu policy for every card (`ItemActionState` + single performe
 ## Change control
 
 Sasha’s explicit decision in chat overrides this file. Archi updates CURRENT/PLAYBOOK when policy moves. Implementers do not silently expand scope past the active milestone in PLAYBOOK.
+
+**Archi reviews at merge-ready only** — not every UI/design iterate. Mid-PR visual work is max ↔ hig (see PLAYBOOK).

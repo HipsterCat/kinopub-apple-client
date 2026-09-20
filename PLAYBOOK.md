@@ -6,8 +6,9 @@ Read `CURRENT.md` first. This file is the **execution playbook**.
 
 | Role | Who | Does |
 | --- | --- | --- |
-| Architecture / policy | **archi** | CURRENT, PLAYBOOK, reviews, milestone gates |
+| Architecture / policy | **archi** | CURRENT, PLAYBOOK, milestone gates; **merge-ready review only** |
 | Implementation | **max** (Cursor) | Code in `kinopub-apple-client` only for active milestone |
+| Visual / HIG | **hig** | Design/HIG iterate with max on shots — no archi in the loop each commit |
 | Product decisions | **Sasha** | Unblocks scope; overrides CURRENT |
 
 Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the human channel — do not “decide like the old roadmap.”
@@ -76,7 +77,7 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 10. Apple Design Resources Sketch UI Kit names/styles over informal mocks.
 11. Shelves use SwiftUI `Section`; rowHeader `.headline`; no zero headerSpacing; caption clears focus.
 12. Never ship “insets none” / flush-to-edge rails — leading 80 pt content inset is law; peek ≠ no margin.
-13. Visual gate: before+after screenshots; hig compares to Sketch/Apple stills before merge.
+13. Visual gate: before+after screenshots; **hig** compares to Sketch/Apple stills; archi only at merge-ready.
 8. Focus fundamentals in CURRENT (clip, focusSection, caption clearance, focused assets, empty-state escape).
 
 ## Anti-distraction checklist (before every PR)
@@ -96,10 +97,19 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 
 Sasha reviews **design** on UI PRs (screenshots). Archi reviews architecture / milestone fit. Max implements.
 
+## When archi reviews
+
+**Archi does not review every commit or mid-iterate screenshot.** While max and hig are fixing UI / design details, archi stays out.
+
+Archi reviews **only** when max declares the PR **merge-ready** (final tip + labeled shots + hig pass or hig still FAIL with open list). Until that signal: max ↔ hig handle visual gates; archi does not re-score each push.
+
+Merge still needs: hig visual pass (or Sasha override) **and** archi’s merge-ready architecture check once max says go.
+
 ## Communication
 
 - Architecture questions → **archi**
-- Implementation status → max reports milestone id + acceptance
+- Mid-PR UI/HIG iterate → **max ↔ hig** (do not ping archi each commit)
+- Merge-ready signal → **max** tells archi once; then archi reviews
 - Policy changes → only via CURRENT.md update after Sasha/archi
 
 ## Success
