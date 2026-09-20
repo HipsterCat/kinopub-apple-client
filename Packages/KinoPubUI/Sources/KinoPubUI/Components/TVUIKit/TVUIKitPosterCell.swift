@@ -85,7 +85,8 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
 
     captionLabel.translatesAutoresizingMaskIntoConstraints = false
     captionLabel.font = .preferredFont(forTextStyle: .callout)
-    captionLabel.textColor = .white
+    // Sketch Secondary caption — not `.white`. White on light (~178) is ~1.9:1.
+    captionLabel.textColor = .secondaryLabel
     captionLabel.numberOfLines = 1
     captionLabel.textAlignment = .center
     captionLabel.enablesMarqueeWhenAncestorFocused = true

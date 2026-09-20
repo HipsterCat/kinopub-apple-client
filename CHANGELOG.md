@@ -44,6 +44,12 @@ Now tab pill in this embed (local verify at `f59f31b`: light frames at
 until a `kinopub.poster.*` cell hasFocus, write PNGs to `docs/pr21-shots/`
 and `/tmp/kinopub-pr21-shots/`.
 
+hig on `ae1fc9a` / shots `31f8f65`: caption **clearance** PASS; light
+caption **color** FAIL — `TVUIKitPosterCell` caption was `.white` (~1.9:1
+on light ~178). Caption is now `.secondaryLabel` (Sketch Secondary).
+Landscape CW captions use system `wideCell()` `text` (not hardcoded white);
+overlay glyphs on artwork stay white. Leading / gap / clearance unchanged.
+
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 
 Watch Now / Movies / Series on tvOS share `MediaPosterShelf` (TVUIKit
