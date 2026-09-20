@@ -38,9 +38,11 @@ poster is unchanged. Args stay off the shared Debug scheme.
 `-KINOPUBFocusFirstPoster` does **not** steal focus from the SwiftUI Watch
 Now tab pill in this embed (local verify at `f59f31b`: light frames at
 10/15/20/25s were byte-identical). Hig caption evidence is
-`WatchNowHigShotsUITests`: skip without `~/.kinopub-dev-session.json`,
-`XCUIRemote.shared.press(.down)` until a `kinopub.poster.*` cell hasFocus,
-write PNGs to `docs/pr21-shots/` and `/tmp/kinopub-pr21-shots/`.
+`WatchNowHigShotsUITests`: skip unless the Mac-host session file exists
+(`SIMULATOR_HOST_HOME` — UI tests run in the simulator sandbox, so
+`NSHomeDirectory()` is the wrong home), `XCUIRemote.shared.press(.down)`
+until a `kinopub.poster.*` cell hasFocus, write PNGs to `docs/pr21-shots/`
+and `/tmp/kinopub-pr21-shots/`.
 
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 

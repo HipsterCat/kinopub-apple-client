@@ -24,6 +24,22 @@
 
 import XCTest
 
+/// UI tests run *inside* the simulator. `NSHomeDirectory()` is the sandbox, not
+/// `/Users/sasha`. `SIMULATOR_HOST_HOME` is the Mac home (the same var
+/// `DevSessionMirror` uses in the app). The *app* under test still needs
+/// `KINOPUB_DEV_SESSION` — testmanagerd strips `SIMULATOR_HOST_HOME` from it.
+enum UITestDevSession {
+  static var filePath: String {
+    let hostHome = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"]
+      ?? NSHomeDirectory()
+    return hostHome + "/.kinopub-dev-session.json"
+  }
+
+  static var json: String? {
+    try? String(contentsOfFile: filePath, encoding: .utf8)
+  }
+}
+
 final class LaunchUITests: XCTestCase {
 
   override func setUpWithError() throws {
@@ -36,9 +52,7 @@ final class LaunchUITests: XCTestCase {
     // The app under a UI test cannot reach the dev-session mirror (testmanagerd strips
     // SIMULATOR_HOST_HOME), so the session is handed over directly when it exists.
     // CI runners have no such file and get the auth screen, as before.
-    if let session = try? String(
-      contentsOfFile: NSHomeDirectory() + "/.kinopub-dev-session.json", encoding: .utf8
-    ) {
+    if let session = UITestDevSession.json {
       app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
     }
     app.launch()
@@ -175,9 +189,7 @@ extension XCUIApplication {
     if focusFirstPoster {
       launchArguments += ["-KINOPUBFocusFirstPoster"]
     }
-    if let session = try? String(
-      contentsOfFile: NSHomeDirectory() + "/.kinopub-dev-session.json", encoding: .utf8
-    ) {
+    if let session = UITestDevSession.json {
       launchEnvironment["KINOPUB_DEV_SESSION"] = session
     }
     launch()

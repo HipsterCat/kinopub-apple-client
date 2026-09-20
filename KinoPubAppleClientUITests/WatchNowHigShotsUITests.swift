@@ -57,7 +57,7 @@ final class WatchNowHigShotsUITests: XCTestCase {
       "-ui-testing",
       "-KINOPUBForceColorScheme", colorScheme
     ]
-    if let session = try? String(contentsOfFile: Self.devSessionPath, encoding: .utf8) {
+    if let session = UITestDevSession.json {
       app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
     }
     app.launch()
@@ -95,9 +95,7 @@ final class WatchNowHigShotsUITests: XCTestCase {
 
   // MARK: - Session
 
-  private static var devSessionPath: String {
-    NSHomeDirectory() + "/.kinopub-dev-session.json"
-  }
+  private static var devSessionPath: String { UITestDevSession.filePath }
 
   private func skipUnlessDevSession() throws {
     guard FileManager.default.fileExists(atPath: Self.devSessionPath) else {
