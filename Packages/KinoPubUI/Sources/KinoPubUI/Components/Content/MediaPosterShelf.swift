@@ -132,7 +132,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 
   public var body: some View {
     // CURRENT.md: `Section(title) { rail }`. Header is the Section title
-    // (`.headline` + `.secondary`, system dodge) — not a VStack sibling, not UIKit.
+    // (`.headline.bold()` + `.secondary`, system dodge) — not a VStack sibling, not UIKit.
     Section {
       rail
         .padding(.top, headerSpacing)

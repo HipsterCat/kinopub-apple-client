@@ -109,7 +109,7 @@ Repo `.agents/skills` (tvOS fundamentals) are **required reading** for implement
 ## Shelf chrome (SwiftUI — Sasha 2026-09 confirmed)
 
 - A poster/still **shelf is a `Section`**: `Section(title) { rail }`. The title belongs to the section (secondary / vibrant), and the system auto-dodges focus (WWDC24). Do not hand-roll a free-floating header above a rail.
-- **Row header type** on tvOS: `TypeScale.rowHeader` → **`.headline`** — not `.title2` (~57pt).
+- **Row header type** on tvOS: Sketch `Headers/Section Header/Dark/Secondary/1 Line` = Headline emphasized (SF Pro Bold 38) → `TypeScale.rowHeader` = **`.headline.bold()`** + `.foregroundStyle(.secondary)` (white α 0.5). Not `.title2` (~57pt). Not Primary / Subtitle / Eyebrow / App Icon / Pill.
 - **Header → rail gap** must be real. A formula that collapses to `0` (e.g. `max(0, 28−32)`) is a defect. Respect titled-row vertical rhythm (see grid contract).
 - **Caption under poster** must clear the **focused (scaled)** lockup. `captionTopPadding = 8` is insufficient under focus growth — measure against focused bounds.
 
