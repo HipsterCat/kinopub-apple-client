@@ -126,6 +126,7 @@ struct TabsNavigationView: View {
   }
 
   private static let browseTabs: [TabSpec] = [
+    // CURRENT.md / M1: Watch Now / Series — never "Home" / "Shows".
     TabSpec(tab: .home, title: "Watch Now", systemImage: "house.fill"),
     TabSpec(tab: .movies, title: "Movies", systemImage: "movieclapper"),
     TabSpec(tab: .series, title: "Series", systemImage: "rectangle.stack"),
@@ -229,7 +230,15 @@ struct TabsNavigationView: View {
         Tab(value: spec.tab) {
           content(for: spec.tab)
         } label: {
-          Text(spec.title)
+          // Literals at the call site so String Catalog + TabView cannot drift
+          // back to Home / Shows (after shot at 8d0def4).
+          switch spec.tab {
+          case .home: Text("Watch Now")
+          case .movies: Text("Movies")
+          case .series: Text("Series")
+          case .library: Text("Library")
+          default: Text(spec.title)
+          }
         }
       }
 

@@ -94,7 +94,7 @@ System TabView / `sidebarAdaptable` / list materials only. No custom frosted pil
 
 ## Appearance & type
 
-- **System light/dark** — follow user preference. Forced dark-only was a **hero** tradeoff; heroes are parked, so dark-only is **rescinded** for MVP. Do not `.preferredColorScheme(.dark)` on the tvOS shell. `simctl ui appearance` is unsupported on current tvOS runtimes; DEBUG `-KINOPUBForceColorScheme light|dark` forces a scheme for shots.
+- **System light/dark** — follow user preference. Forced dark-only was a **hero** tradeoff; heroes are parked, so dark-only is **rescinded** for MVP. Do not apply `.preferredColorScheme` on the tvOS shell (even `nil` pinned Dark). `simctl ui appearance` is unsupported on current tvOS runtimes; DEBUG `-KINOPUBForceColorScheme light|dark` is the shot harness. Tab labels: **Watch Now** / **Series**, never Home / Shows.
 - **Dynamic Type** — system text styles; no `.system(size:)` except where AGENTS already allows glyph/geometry exceptions.
 
 ## Sketch source of truth

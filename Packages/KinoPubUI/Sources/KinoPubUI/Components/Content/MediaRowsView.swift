@@ -183,15 +183,20 @@ public struct MediaRowsView: View {
     return CardKey(row: row.id, card: card.id)
   }
 
-  /// First 2:3 poster row — Watch Now’s Continue Watching rail is landscape.
+  /// First 2:3 poster row. Watch Now’s Continue Watching rail is landscape; the
+  /// next titled row is Hot Movies (`hot-movie`) — the hig caption-clearance shot.
   private var firstPosterCardKey: CardKey? {
-    guard let row = rows.first(where: { $0.cards.first?.isLandscape != true }),
-          let card = row.cards.first else { return nil }
+    guard let row = firstPosterRow, let card = row.cards.first else { return nil }
     return CardKey(row: row.id, card: card.id)
   }
 
+  private var firstPosterRow: MediaRow? {
+    rows.first(where: { $0.id == "hot-movie" })
+      ?? rows.first(where: { $0.cards.first?.isLandscape != true })
+  }
+
   private func isFirstPosterRow(_ row: MediaRow) -> Bool {
-    row.id == rows.first(where: { $0.cards.first?.isLandscape != true })?.id
+    row.id == firstPosterRow?.id
   }
 #endif
 

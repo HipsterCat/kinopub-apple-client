@@ -2,9 +2,9 @@ import Foundation
 
 /// DEBUG scheme arguments for hig shots. Empty in Release.
 ///
-/// `-KINOPUBFocusFirstPoster` lands focus on the first **poster** tile (skips
-/// Continue Watching landscape) so caption clearance can be captured. Pair with
-/// the app’s `-KINOPUBForceColorScheme light|dark`.
+/// `-KINOPUBFocusFirstPoster` lands focus on Watch Now’s **Hot Movies** poster
+/// (`hot-movie`, else the first non-landscape row) so caption clearance can be
+/// captured. Pair with `-KINOPUBForceColorScheme light`.
 public enum DebugLaunch {
   public static var focusFirstPoster: Bool {
 #if DEBUG

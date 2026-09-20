@@ -65,10 +65,7 @@ struct KinoPubAppleClientApp: App {
 #if os(macOS)
         .environment(windowSettings)
 #endif
-        // tvOS: nil = system light/dark (CURRENT.md). iOS/macOS stay dark until their
-        // pass. DEBUG `-KINOPUBForceColorScheme light|dark` overrides for hig shots —
-        // `simctl ui appearance` is unsupported on this tvOS runtime.
-        .preferredColorScheme(LaunchAppearance.preferredColorScheme)
+        .kinopubLaunchColorScheme()
         // Register a readable device identity + advertise HEVC/4K/HDR at activation, so
         // the kino.pub Devices list isn't "unknown / unknown" and streams match what
         // AVPlayer can open. A launch that only revived a Keychain token sends nothing
@@ -288,25 +285,16 @@ private struct UILabCommands: Commands {
 #endif
 #endif
 
-/// Appearance at the app root. tvOS follows the system; postponed platforms stay dark.
+/// Appearance at the app root.
 ///
-/// DEBUG `-KINOPUBForceColorScheme light|dark` is the shot harness: tvOS Simulator
-/// `simctl ui appearance` reports "Runtime does not support userInterfaceStyle".
+/// tvOS must **not** get `.preferredColorScheme(.dark)` — CURRENT.md rescinded
+/// dark-only, and `.preferredColorScheme(nil)` still pinned Dark on the simulator
+/// (hig could not get Light). The modifier is applied only when DEBUG
+/// `-KINOPUBForceColorScheme light|dark` is set (`simctl ui appearance` unsupported).
+/// iOS/macOS stay dark until their pass.
 enum LaunchAppearance {
-  static var preferredColorScheme: ColorScheme? {
 #if DEBUG
-    if let forced = forceColorScheme { return forced }
-#endif
-#if os(tvOS)
-    return nil
-#else
-    return .dark
-#endif
-  }
-
-#if DEBUG
-  /// `-KINOPUBForceColorScheme light` also lands in UserDefaults (Apple’s `-Key value`).
-  private static var forceColorScheme: ColorScheme? {
+  static var forcedColorScheme: ColorScheme? {
     let raw = UserDefaults.standard.string(forKey: "KINOPUBForceColorScheme")
       ?? {
         let args = ProcessInfo.processInfo.arguments
@@ -314,12 +302,36 @@ enum LaunchAppearance {
               args.index(after: i) < args.endIndex else { return nil }
         return args[args.index(after: i)]
       }()
-    switch raw?.lowercased() {
+    switch raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
     case "light": return .light
     case "dark": return .dark
     default: return nil
     }
   }
 #endif
+}
+
+private extension View {
+  @ViewBuilder
+  func kinopubLaunchColorScheme() -> some View {
+#if DEBUG
+    if let scheme = LaunchAppearance.forcedColorScheme {
+      preferredColorScheme(scheme)
+    } else {
+      unforcedLaunchColorScheme
+    }
+#else
+    unforcedLaunchColorScheme
+#endif
+  }
+
+  @ViewBuilder
+  private var unforcedLaunchColorScheme: some View {
+#if os(tvOS)
+    self
+#else
+    preferredColorScheme(.dark)
+#endif
+  }
 }
 
