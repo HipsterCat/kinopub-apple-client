@@ -64,12 +64,8 @@ final class WatchNowHigShotsUITests: XCTestCase {
 
     XCTAssertEqual(app.state, .runningForeground)
 
-    let watchNow = app.buttons["Watch Now"].firstMatch
-    if watchNow.waitForExistence(timeout: 20), !watchNow.hasFocus {
-      watchNow.tap()
-      Thread.sleep(forTimeInterval: 0.4)
-    }
-
+    // Default tab is Watch Now. `XCUIElement.tap()` is unavailable on tvOS —
+    // do not select the pill; `.down` leaves it for the content graph.
     let posters = app.descendants(matching: .any).matching(
       NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.poster.")
     )
