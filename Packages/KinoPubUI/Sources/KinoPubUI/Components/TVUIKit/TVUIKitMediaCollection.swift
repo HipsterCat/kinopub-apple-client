@@ -299,15 +299,10 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     return [collectionView]
   }
 
-  /// Move focus onto the first poster. `setNeedsFocusUpdate()` on *this* VC is a
-  /// no-op while the tab bar holds focus (the caller must contain the focused
-  /// view — swift-focusengine-pro anti-pattern #7). `UIFocusSystem.requestFocusUpdate(to:)`
-  /// is the engine’s “put focus here” after async catalog load.
-  ///
-  /// Do not mark the claim done when the request is *issued*: a SwiftUI update
-  /// or a still-off-screen cell is ignored, and a one-shot then leaves the
-  /// Watch Now tab pill focused (light shot) or the row scrolled with no scale
-  /// (dark shot). Retry until the cell (or a descendant) is actually focused.
+  /// Move focus onto the first poster. Local verify at `f59f31b` failed:
+  /// this does **not** steal focus from the SwiftUI Watch Now tab pill.
+  /// Hig evidence is `WatchNowHigShotsUITests` + `XCUIRemote.press(.down)`.
+  /// Kept as a best-effort DEBUG helper only.
   private func startInitialFocusClaimIfNeeded() {
     guard prefersInitialFocus, !didClaimInitialFocus, !initialFocusClaimExhausted else { return }
     guard initialFocusClaimTask == nil else { return }

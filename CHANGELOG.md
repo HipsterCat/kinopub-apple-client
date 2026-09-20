@@ -35,12 +35,12 @@ to the first CW cell. Only Hot Movies claims initial poster focus.
 Header→items stays Sketch **~8–24 pt**. Caption clearance under the focused
 poster is unchanged. Args stay off the shared Debug scheme.
 
-`-KINOPUBFocusFirstPoster` must **steal** focus onto the first Hot Movies
-cell after catalog rows load. Making Continue Watching unfocusable is not
-enough: with no content preferred, the Watch Now tab pill wins, and
-`setNeedsFocusUpdate` / SwiftUI `defaultFocus` never enter the TVUIKit
-graph. The poster rail now `UIFocusSystem.requestFocusUpdate(to:)` the
-first cell and retries until that cell (or a descendant) is focused.
+`-KINOPUBFocusFirstPoster` does **not** steal focus from the SwiftUI Watch
+Now tab pill in this embed (local verify at `f59f31b`: light frames at
+10/15/20/25s were byte-identical). Hig caption evidence is
+`WatchNowHigShotsUITests`: skip without `~/.kinopub-dev-session.json`,
+`XCUIRemote.shared.press(.down)` until a `kinopub.poster.*` cell hasFocus,
+write PNGs to `docs/pr21-shots/` and `/tmp/kinopub-pr21-shots/`.
 
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 

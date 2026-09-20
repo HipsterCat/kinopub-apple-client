@@ -149,7 +149,12 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     // the art and killed the parallax. Shape here, nothing else.
     posterView.contentSize = size
     captionLabel.text = card.title
-    accessibilityIdentifier = "kinopub.poster.\(card.id)"
+    // XCUITest waits on this id. TVPosterView is the lockup the engine focuses, so
+    // the identifier has to live on it — the cell id alone does not surface.
+    let posterID = "kinopub.poster.\(card.id)"
+    accessibilityIdentifier = posterID
+    posterView.accessibilityIdentifier = posterID
+    posterView.accessibilityLabel = card.title
     configureProgress(card)
     configureWatched(card)
     loadImage(from: URL(string: card.posterURL))
@@ -235,6 +240,9 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     bottomInfoBlur?.isHidden = true
     watchedGlyph.isHidden = true
     captionLabel.alpha = 0
+    accessibilityIdentifier = nil
+    posterView.accessibilityIdentifier = nil
+    posterView.accessibilityLabel = nil
     resetStaleFocusAppearance()
   }
 

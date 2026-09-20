@@ -16,8 +16,10 @@
 //  unsupported on this tvOS runtime):
 //    -KINOPUBForceColorScheme light
 //    -KINOPUBForceColorScheme dark
-//    -KINOPUBFocusFirstPoster          // first Hot Movies 2:3 cell (CW unfocusable; requestFocusUpdate)
-//  Poster cells: accessibilityIdentifier `kinopub.poster.{id}`.
+//    -KINOPUBFocusFirstPoster          // unproven steal; hig frames use WatchNowHigShotsUITests
+//  Poster cells: accessibilityIdentifier `kinopub.poster.{id}` (cell + TVPosterView).
+//  Local hig capture (skips without ~/.kinopub-dev-session.json):
+//    WatchNowHigShotsUITests — XCUIRemote .down until a poster hasFocus.
 //
 
 import XCTest
