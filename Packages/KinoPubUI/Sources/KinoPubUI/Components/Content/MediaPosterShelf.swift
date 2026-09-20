@@ -34,6 +34,10 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   /// Whether the next page is loading, failed, or there is no next page.
   private let pagination: PaginationState
   private let onRetryPagination: (() -> Void)?
+  /// DEBUG `-KINOPUBFocusFirstPoster`: Continue Watching must not take focus.
+  private let allowsFocus: Bool
+  /// DEBUG: this shelf is Hot Movies — first 2:3 cell is the landing.
+  private let prefersInitialFocus: Bool
 
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.usesTVUIKitPosters) private var usesTVUIKitPosters
@@ -63,7 +67,9 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     onCardFocused: (() -> Void)? = nil,
     onNearEnd: ((MediaCard) -> Void)? = nil,
     pagination: PaginationState = .idle,
-    onRetryPagination: (() -> Void)? = nil
+    onRetryPagination: (() -> Void)? = nil,
+    allowsFocus: Bool = true,
+    prefersInitialFocus: Bool = false
   ) {
     self.title = title
     self.count = count
@@ -84,6 +90,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     self.onNearEnd = onNearEnd
     self.pagination = pagination
     self.onRetryPagination = onRetryPagination
+    self.allowsFocus = allowsFocus
+    self.prefersInitialFocus = prefersInitialFocus
   }
 
   private var isLandscape: Bool {
@@ -142,7 +150,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       sectionTitle
     }
 #if os(tvOS)
-    .focusSection()
+    .modifier(MediaPosterShelfFocusSection(enabled: allowsFocus))
 #endif
     .onGeometryChange(for: ShelfGeometry.self) { proxy in
       ShelfGeometry(
@@ -166,23 +174,12 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   @ViewBuilder
   private var sectionTitle: some View {
 #if os(tvOS)
-    // tvOS `Section` headers default to centered (compact hug, then the
-    // block is centered — light shots landed at ~795 pt). Sketch 1920
-    // artboard: leading **x=80**, same column as the first card. Never center.
-    // Pin the header to the measured shelf width so a centered parent cannot
-    // shift it.
-    HStack(spacing: 0) {
-      Text(title)
-        .font(TypeScale.rowHeader)
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.leading)
-        .lineLimit(1)
-      Spacer(minLength: 0)
-    }
-    .environment(\.multilineTextAlignment, .leading)
-    .padding(.leading, leadingInset)
-    .frame(width: containerWidth, alignment: .leading)
-    .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
+    // Light Section headers compact-hug then center (~795 pt). UIKit title
+    // is 1920 wide and paints at screen x=80 — SwiftUI frame cannot fight that.
+    TVLeadingSectionTitle(
+      title: title,
+      accessibilityText: count.map { "\(title), \($0)" } ?? title
+    )
 #else
     header
 #endif
@@ -238,9 +235,9 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
         contextMenuProvider: contextMenuProvider.map { provider in
           { id in cards.first(where: { $0.id == id }).map(provider) ?? [] }
         },
-        allowsFocus: !DebugLaunch.focusFirstPoster
+        allowsFocus: allowsFocus
       )
-      .focusSection()
+      .modifier(MediaPosterShelfFocusSection(enabled: allowsFocus))
     } else {
       tvUIKitPosterRail
     }
@@ -256,7 +253,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       typeSize: typeSize,
       onSelect: { card in open(card) },
       onNearEnd: onNearEnd.map { _ in { card in reportIfLast(card.id) } },
-      contextMenuProvider: contextMenuProvider
+      contextMenuProvider: contextMenuProvider,
+      prefersInitialFocus: prefersInitialFocus
     )
     .frame(height: TVUIKitPosterMetrics.railHeight(
       isLandscape: isLandscape,
@@ -282,7 +280,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
             .buttonStyle(MediaCardButtonStyle())
 #endif
             .modifier(MediaPosterShelfFocusModifier(
-              focusedCard: focusedCard,
+              focusedCard: allowsFocus ? focusedCard : nil,
               key: focusKey?(card)
             ))
 #if os(tvOS)
@@ -325,7 +323,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #if os(tvOS)
     .buttonStyle(.borderless)
     .scrollClipDisabled()
-    .focusSection()
+    .modifier(MediaPosterShelfFocusSection(enabled: allowsFocus))
 #endif
   }
 
@@ -401,6 +399,19 @@ private struct MediaPosterShelfFocusModifier<FocusKey: Hashable>: ViewModifier {
 }
 
 #if os(tvOS)
+private struct MediaPosterShelfFocusSection: ViewModifier {
+  var enabled: Bool
+
+  @ViewBuilder
+  func body(content: Content) -> some View {
+    if enabled {
+      content.focusSection()
+    } else {
+      content
+    }
+  }
+}
+
 private struct MediaPosterShelfFocusReporter: ViewModifier {
   let onCardFocused: (() -> Void)?
   @Environment(\.isFocused) private var isFocused

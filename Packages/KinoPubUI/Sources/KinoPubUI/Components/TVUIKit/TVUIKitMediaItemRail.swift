@@ -480,6 +480,10 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     self.allowsFocus = allowsFocus
     collectionView.allowsFocus = allowsFocus
     view.allowsFocus = allowsFocus
+    if !allowsFocus {
+      collectionView.focusGroupPriority = .ignored
+      view.focusGroupPriority = .ignored
+    }
     if changed { collectionView.reloadData() }
     if changed || entryMoved { scrollToEntry(animated: animatesEntryScroll && !changed) }
   }

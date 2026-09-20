@@ -34,6 +34,8 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
   public let onSelect: (MediaCard) -> Void
   public let onNearEnd: ((MediaCard) -> Void)?
   public let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  /// DEBUG `-KINOPUBFocusFirstPoster`: only Hot Movies should claim first cell.
+  public let prefersInitialFocus: Bool
 
   public init(cards: [MediaCard],
               axis: TVUIKitCollectionAxis,
@@ -43,7 +45,8 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
               typeSize: DynamicTypeSize = .large,
               onSelect: @escaping (MediaCard) -> Void,
               onNearEnd: ((MediaCard) -> Void)? = nil,
-              contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil) {
+              contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
+              prefersInitialFocus: Bool = false) {
     self.cards = cards
     self.axis = axis
     self.containerWidth = containerWidth
@@ -53,6 +56,7 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
     self.onSelect = onSelect
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
+    self.prefersInitialFocus = prefersInitialFocus
   }
 
   public func makeUIViewController(context: Context) -> TVUIKitMediaCollectionController {
@@ -65,7 +69,8 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
              typeSize: typeSize,
              onSelect: onSelect,
              onNearEnd: onNearEnd,
-             contextMenuProvider: contextMenuProvider)
+             contextMenuProvider: contextMenuProvider,
+             prefersInitialFocus: prefersInitialFocus)
     return vc
   }
 
@@ -78,7 +83,8 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
              typeSize: typeSize,
              onSelect: onSelect,
              onNearEnd: onNearEnd,
-             contextMenuProvider: contextMenuProvider)
+             contextMenuProvider: contextMenuProvider,
+             prefersInitialFocus: prefersInitialFocus)
   }
 }
 
@@ -97,6 +103,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   private var onSelect: ((MediaCard) -> Void)?
   private var onNearEnd: ((MediaCard) -> Void)?
   private var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  private var prefersInitialFocus = false
 
   private lazy var collectionView: UICollectionView = {
     let layout = UICollectionViewFlowLayout()
@@ -151,7 +158,8 @@ public final class TVUIKitMediaCollectionController: UIViewController {
              typeSize: DynamicTypeSize,
              onSelect: @escaping (MediaCard) -> Void,
              onNearEnd: ((MediaCard) -> Void)?,
-             contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?) {
+             contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?,
+             prefersInitialFocus: Bool = false) {
     let width = max(containerWidth, 1)
     let landscape = cards.first?.isLandscape == true
     let metrics = TVUIKitPosterMetrics.shelfMetrics(
@@ -193,6 +201,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     self.onSelect = onSelect
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
+    self.prefersInitialFocus = prefersInitialFocus
 
     if let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
       layout.scrollDirection = axis == .horizontal ? .horizontal : .vertical
@@ -241,7 +250,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
 
   /// DEBUG `-KINOPUBFocusFirstPoster`: this poster rail, first cell — not CW.
   public override var preferredFocusEnvironments: [UIFocusEnvironment] {
-    guard DebugLaunch.focusFirstPoster, !isLandscape,
+    guard prefersInitialFocus,
           collectionView.numberOfItems(inSection: 0) > 0 else {
       return super.preferredFocusEnvironments
     }
@@ -310,8 +319,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
 
   /// DEBUG `-KINOPUBFocusFirstPoster`: land on the first poster, not CW landscape.
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
-    guard DebugLaunch.focusFirstPoster,
-          !isLandscape,
+    guard prefersInitialFocus,
           collectionView.numberOfItems(inSection: 0) > 0 else { return nil }
     return IndexPath(item: 0, section: 0)
   }

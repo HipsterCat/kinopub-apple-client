@@ -25,15 +25,13 @@ Dark). iOS/macOS stay dark until their pass. Tab labels are **Watch Now** /
 `-KINOPUBForceColorScheme` and `-KINOPUBFocusFirstPoster`. `simctl ui
 appearance` unsupported.
 
-Archi / hig shot review: Section titles were **centered** (light ~795 pt;
-etalon is **x=80** on the 1920 artboard, same column as the first card). The
-header is pinned to the shelf width and leading-aligned. Header→items is
-Sketch **~8–24 pt** — extra pad is 8, not 28 stacked on Section, and the
-poster rail no longer keeps a focus strip *above* the cards (growth goes up
-into the gap / header dodge; caption clearance below is unchanged).
-`-KINOPUBFocusFirstPoster` makes the Continue Watching landscape rail
-**unfocusable** so the engine lands on the first Hot Movies 2:3 poster.
-Args stay off the shared Debug scheme; pass them by hand.
+Archi / hig shot review: Section titles were **centered** (light ~795 pt /
+x≈1589px; etalon is **x=80**). SwiftUI `frame(maxWidth:)` is not enough —
+the header is a 1920-wide UIKit title that paints at screen x=80. Continue
+Watching is skipped by row id + `allowsFocus` / `focusGroupPriority.ignored`
+(not merely preferred-index nil). Only Hot Movies claims initial poster
+focus. Header→items stays Sketch **~8–24 pt**. Caption clearance under the
+focused poster is unchanged. Args stay off the shared Debug scheme.
 
 ### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
 

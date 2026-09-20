@@ -249,6 +249,14 @@ public struct MediaRowsView: View {
 
   @ViewBuilder
   private func section(for row: MediaRow) -> some View {
+#if os(tvOS)
+    let allowsFocus = !(DebugLaunch.focusFirstPoster
+      && (row.id == "continue-watching" || row.cards.first?.isLandscape == true))
+    let prefersInitialFocus = DebugLaunch.focusFirstPoster && row.id == firstPosterRow?.id
+#else
+    let allowsFocus = true
+    let prefersInitialFocus = false
+#endif
     MediaPosterShelf(
       title: row.title,
       count: row.count,
@@ -265,7 +273,9 @@ public struct MediaRowsView: View {
       focusKey: { CardKey(row: row.id, card: $0.id) },
       onNearEnd: onLoadMore.map { report in { card in report(row, card) } },
       pagination: paginationProvider?(row) ?? .idle,
-      onRetryPagination: onRetryPagination.map { retry in { retry(row) } }
+      onRetryPagination: onRetryPagination.map { retry in { retry(row) } },
+      allowsFocus: allowsFocus,
+      prefersInitialFocus: prefersInitialFocus
     )
     .id(row.id)
     .onAppear { onRowAppear?(row) }
