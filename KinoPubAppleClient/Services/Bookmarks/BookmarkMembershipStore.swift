@@ -12,7 +12,8 @@ import Foundation
 import KinoPubBackend
 
 /// Persists which bookmark folders contain which titles. Thread-safe, UserDefaults-backed.
-final class BookmarkMembershipStore {
+/// `@unchecked Sendable` because every mutation of `map` goes through `lock`.
+final class BookmarkMembershipStore: @unchecked Sendable {
 
   static let shared = BookmarkMembershipStore()
 

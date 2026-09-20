@@ -15,7 +15,7 @@ import Combine
 @MainActor
 class HomeCatalog: ObservableObject {
 
-  struct Shortcut {
+  struct Shortcut: Sendable {
     let shortcut: MediaShortcut
     let contentType: MediaType
     let title: String

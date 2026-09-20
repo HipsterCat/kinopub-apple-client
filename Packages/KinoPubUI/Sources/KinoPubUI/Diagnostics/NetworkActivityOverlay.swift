@@ -81,5 +81,5 @@ public extension View {
     _ = NetworkActivity.begin(nameKey: "Activity_Watching", detail: "/v1/watching/serials")
     _ = NetworkActivity.begin(nameKey: "Activity_Session", detail: "/v1/user")
   }
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }

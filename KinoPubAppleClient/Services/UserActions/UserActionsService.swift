@@ -8,7 +8,7 @@
 import Foundation
 import KinoPubBackend
 
-protocol UserActionsService {
+protocol UserActionsService: Sendable {
   func markWatch(id: Int, time: Int, video: Int?, season: Int?) async throws
   /// Toggles watched for a film (`video` usually 1) or one episode (`video` + `season`).
   /// Returns the new watched flag when the service sends one.

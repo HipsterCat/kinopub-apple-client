@@ -12,24 +12,24 @@ import SwiftUI
 
 #Preview("A · Odyssey stack") {
   PhonePageOdyssey()
-    .preferredColorScheme(.dark)
+    // .preferredColorScheme(.dark)
 }
 
 #Preview("B · Title on art") {
   PhonePageTitleOnArt()
-    .preferredColorScheme(.dark)
+    // .preferredColorScheme(.dark)
 }
 
 #Preview("C · System extension") {
   PhonePageSystemExtension()
-    .preferredColorScheme(.dark)
+    // .preferredColorScheme(.dark)
 }
 
 // MARK: - Sample
 
 private enum PhonePageSample {
-  static let wide = URL(string: "https://m.staticpop.net/poster/item/wide/581.jpg")!
-  static let poster = URL(string: "https://m.staticpop.net/poster/item/big/581.jpg")!
+  static let wide = URL(string: "https://m.staticpop.net/poster/item/wide/100582.jpg")!
+  static let poster = URL(string: "https://m.staticpop.net/poster/item/big/100582.jpg")!
   static let titleLogo = URL(
     string: "https://kinopub-tmdb-proxy.traneblow1nd.workers.dev/t/p/w500/66NvmhvjxA7aWQ1TxTV5qBpOZ0k.png"
   )!
@@ -74,7 +74,7 @@ private struct PhonePoster: View {
       RatingBadgeView(rating: PhonePageSample.rating)
         .padding(6)
     }
-    .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
+//    .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
   }
 }
 
@@ -95,7 +95,7 @@ private struct PhoneNavChrome: View {
   private func circleGlyph(_ name: String) -> some View {
     Image(systemName: name)
       .font(.body.weight(.semibold))
-      .foregroundStyle(.white)
+      .foregroundStyle(.primary)
       .frame(width: 36, height: 36)
       .background(.ultraThinMaterial, in: Circle())
   }
@@ -143,14 +143,14 @@ private struct PhoneTitleLogo: View {
           .resizable()
           .scaledToFit()
           .frame(maxWidth: 280, maxHeight: maxHeight)
-          .shadow(color: .black.opacity(0.55), radius: 12, y: 4)
+//          .shadow(color: .black.opacity(0.55), radius: 12, y: 4)
       case .failure:
         Text(PhonePageSample.title)
           .font(TypeScale.heroTitle)
           .foregroundStyle(Color.KinoPub.text)
       case .empty:
         ProgressView()
-          .tint(.white)
+//          .tint(.white)
           .frame(height: maxHeight * 0.6)
       }
     }
@@ -316,12 +316,12 @@ private struct PhonePageTitleOnArt: View {
                 RatingBadgeView(rating: PhonePageSample.rating)
                 Text(PhonePageSample.meta)
                   .font(TypeScale.detailBody)
-                  .foregroundStyle(.white.opacity(0.9))
+                  .foregroundStyle(.primary.opacity(0.9))
               }
 
               Text(PhonePageSample.genres)
                 .font(TypeScale.detailBody)
-                .foregroundStyle(.white.opacity(0.75))
+                .foregroundStyle(.primary.opacity(0.75))
             }
             .padding(.horizontal, PhonePageSample.horizontalInset)
             .padding(.bottom, 20)

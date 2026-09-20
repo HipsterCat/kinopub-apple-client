@@ -8,7 +8,7 @@
 import Foundation
 import KinoPubBackend
 
-protocol VideoContentService {
+protocol VideoContentService: Sendable {
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem>
   func search(query: String?, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem>
   /// - Parameter excludeLinks: `nolinks=1` — details without video links. Only for

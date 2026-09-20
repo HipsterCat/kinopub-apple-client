@@ -11,9 +11,9 @@ import Foundation
 ///
 /// Optional TMDB fields ride along from the cast rail so the person page can show a
 /// photo and fetch a bio without a second name lookup. Equality stays name+role.
-public struct MediaPerson: Hashable, Identifiable {
+public struct MediaPerson: Hashable, Identifiable, Sendable {
 
-  public enum Role: String, Hashable {
+  public enum Role: String, Hashable, Sendable {
     case actor
     case director
 

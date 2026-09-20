@@ -28,7 +28,7 @@ public struct MediaCapabilityBadgesView: View {
         ForEach(chips, id: \.self) { chip in
           Text(chip)
             .font(Self.font)
-            .foregroundStyle(.white)
+            .foregroundStyle(.primary)
             .padding(.horizontal, Self.horizontalPadding)
             .padding(.vertical, Self.verticalPadding)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
@@ -69,6 +69,6 @@ public struct MediaCapabilityBadgesView: View {
     )
   }
   .padding()
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+  // .background(Color.black)
+  // .preferredColorScheme(.dark)
 }

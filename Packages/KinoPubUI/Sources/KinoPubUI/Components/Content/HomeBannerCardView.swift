@@ -28,7 +28,7 @@ public struct HomeBannerCardView: View {
   }
 
   private func content(in size: CGSize) -> some View {
-    let posterHeight = min(size.height * 0.72, size.height - Self.contentPadding * 2)
+    let posterHeight = min(size.height * 0.5, size.height - Self.contentPadding * 2)
 
     return ZStack(alignment: .bottomLeading) {
       backdrop(size: size)
@@ -37,32 +37,31 @@ public struct HomeBannerCardView: View {
       // AppKit variable-blur samples unreliably and reads as a frosted plate over
       // the wide still. A plain scrim keeps the 16:9 art visible on Mac.
 #else
-      ProgressiveBlur(startPoint: 0.42, maxRadius: 36)
+        ProgressiveBlur(startPoint: 0.55, maxRadius: 24)
 #endif
 
       LinearGradient(
         stops: [
-          .init(color: .clear, location: 0.35),
-          .init(color: .black.opacity(0.45), location: 0.72),
-          .init(color: .black.opacity(0.7), location: 1)
+          .init(color: .clear, location: 0),
+          .init(color: .black.opacity(0.15), location: 0.8),
+          .init(color: .black.opacity(0.3), location: 1)
         ],
         startPoint: .top,
         endPoint: .bottom
       )
 
       HStack(alignment: .bottom, spacing: Self.infoSpacing) {
-        poster(height: posterHeight)
 
         VStack(alignment: .leading, spacing: Self.titleSpacing) {
           Text(card.title)
             .font(Self.titleFont)
-            .foregroundStyle(.white)
-            .lineLimit(1)
+//            .foregroundStyle(.primary).colorScheme(.dark)
+            .lineLimit(3)
 
           if let subtitle = card.subtitle, !subtitle.isEmpty, subtitle != card.title {
             Text(subtitle)
               .font(Self.subtitleFont)
-              .foregroundStyle(.white.opacity(0.85))
+//              .foregroundStyle(.secondary).colorScheme(.dark)
               .lineLimit(1)
           }
 
@@ -71,10 +70,14 @@ public struct HomeBannerCardView: View {
           if card.scores.hasDisplayableScore {
             MediaScoresView(card.scores)
               .font(Self.scoreFont)
-              .foregroundStyle(.white.opacity(0.92))
+//              .foregroundStyle(.primary).colorScheme(.dark)
+              .padding(.top, 8)
           }
+
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+          poster(height: posterHeight)
+
       }
       .padding(Self.contentPadding)
     }
@@ -167,7 +170,7 @@ public struct HomeBannerCardView: View {
     }
     .clipShape(RoundedRectangle(cornerRadius: Self.posterCornerRadius, style: .continuous))
 #if !os(tvOS)
-    .shadow(color: .black.opacity(0.45), radius: 10, y: 4)
+//    .shadow(color: .black.opacity(0.45), radius: 10, y: 4)
 #endif
   }
 
@@ -177,8 +180,8 @@ public struct HomeBannerCardView: View {
   static let contentPadding: CGFloat = 28
   static let infoSpacing: CGFloat = 24
   static let titleSpacing: CGFloat = 8
-  static let titleFont: Font = .title2.bold()
-  static let subtitleFont: Font = .title3
+  static let titleFont: Font = .title2.weight(.semibold)
+  static let subtitleFont: Font = .subheadline
   static let scoreFont: Font = .callout.weight(.medium)
 #else
   static let cornerRadius: CGFloat = 14
@@ -196,20 +199,20 @@ public struct HomeBannerCardView: View {
   HomeBannerCardView(
     card: MediaCard(
       id: 1,
-      posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
       title: "Паук-Нуар",
       subtitle: "Spider-Noir",
       imdbRating: 7.8,
       kinopoiskRating: 7.5,
-      backdropURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+      backdropURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
       is4K: true,
       isHDR: true
     )
   )
   .frame(width: 860)
   .padding()
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Banner loading art") {
@@ -226,6 +229,6 @@ public struct HomeBannerCardView: View {
   )
   .frame(width: 860)
   .padding()
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black)
+  // .preferredColorScheme(.dark)
 }

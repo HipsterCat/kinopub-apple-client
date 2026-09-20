@@ -60,8 +60,8 @@ public enum TVUIKitMediaItemStatus: Equatable {
 
   var glyph: String? {
     switch self {
-    case .ready, .inProgress: "play.fill"
-    case .watched: "checkmark"
+//    case .ready, .inProgress: "play.fill"
+    case .ready, .inProgress, .watched: nil
     case .unavailable, .upcoming: nil
     }
   }
@@ -77,8 +77,8 @@ public enum TVUIKitMediaItemStatus: Equatable {
   /// nothing else is already carrying that story.
   var showsRuntime: Bool {
     switch self {
-    case .ready, .watched: true
-    case .inProgress, .unavailable, .upcoming: false
+    case .ready, .inProgress, .unavailable, .upcoming: true
+    case .watched: false
     }
   }
 
@@ -98,7 +98,7 @@ public enum TVUIKitMediaItemStatus: Equatable {
   /// An upcoming date gets a clock beside it — the reason this badge is ours and not
   /// the system's is partly that `badgeText` is a `String` with no room for a glyph.
   var badgeShowsClock: Bool {
-    if case .upcoming = self { return true }
+    if case .watched = self { return true }
     return false
   }
 
@@ -281,7 +281,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
 public enum TVUIKitMediaItemMetrics {
   /// Multiplier on the system's own tile size. 1.0 is exactly Apple's row; that reads
   /// small in our shelves, so the shipping tile is a notch above it.
-  public static let scale: CGFloat = 1.18
+    public static let scale: CGFloat = 1.18
 
   /// Used only when the probe comes back with nothing — roughly the system row.
   public static let fallback = SystemMetrics(itemSize: CGSize(width: 500, height: 340),
@@ -347,6 +347,7 @@ public enum TVUIKitMediaItemMetrics {
     probe.register(UICollectionViewCell.self, forCellWithReuseIdentifier: ProbeSource.reuseID)
     probe.dataSource = probeSource
     probe.layoutIfNeeded()
+
 
     let first = frame(of: 0, in: probe)
     let second = frame(of: 1, in: probe)
@@ -713,11 +714,11 @@ final class TVUIKitMediaItemOverlayView: UIView {
   private var progressFillWidth: NSLayoutConstraint!
 
   /// Keeps the corner chrome clear of the bar along the very bottom edge.
-  private static let cornerInset: CGFloat = 22
+  private static let cornerInset: CGFloat = 32
   private static let glyphSize: CGFloat = 22
-  private static let badgeIconSize: CGFloat = 14
+  private static let badgeIconSize: CGFloat = 16
   /// Fraction of the tile height the legibility gradient covers, from the bottom up.
-  private static let gradientHeightFraction: CGFloat = 0.4
+  private static let gradientHeightFraction: CGFloat = 0.5
   private var progressFraction: CGFloat = 0
 
   init() {
@@ -727,51 +728,51 @@ final class TVUIKitMediaItemOverlayView: UIView {
     // A light bottom-up fade, not a hard band — just enough for the glyph and runtime to
     // read over bright or busy artwork, since the system's own bottom gradient (under
     // its own text) does not reach up over the artwork itself.
-    gradientLayer.colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.5).cgColor]
+    gradientLayer.colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.25).cgColor]
     gradientLayer.locations = [0, 1]
     layer.addSublayer(gradientLayer)
 
     scrim.translatesAutoresizingMaskIntoConstraints = false
-    scrim.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+    scrim.backgroundColor = UIColor.red.withAlphaComponent(0)
     scrim.isHidden = true
     addSubview(scrim)
 
     glyphView.translatesAutoresizingMaskIntoConstraints = false
-    glyphView.tintColor = .white
+    glyphView.tintColor = .blue
     glyphView.contentMode = .scaleAspectFit
     glyphView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
-    TVUIKitChromeSupport.applyLegibilityShadow(to: glyphView.layer)
+//    TVUIKitChromeSupport.applyLegibilityShadow(to: glyphView.layer)
     addSubview(glyphView)
 
     runtimeLabel.translatesAutoresizingMaskIntoConstraints = false
-    runtimeLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 19, weight: .semibold)
-    runtimeLabel.textColor = .white
+    runtimeLabel.font = .preferredFont(forTextStyle: .caption2)
+    runtimeLabel.textColor = .red
     runtimeLabel.textAlignment = .right
-    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
+//    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
     addSubview(runtimeLabel)
 
     // A real pill, unlike the bottom corner — this is a badge (Watched / a release
     // date), a different kind of chrome from "what Select does", and Apple's own
     // capability badges (4K / HDR) it stands in for are pills too.
     badge.translatesAutoresizingMaskIntoConstraints = false
-    badge.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+    badge.backgroundColor = UIColor.black.withAlphaComponent(0.3)
     badge.layer.cornerCurve = .continuous
     badge.isHidden = true
     addSubview(badge)
 
     badgeIcon.translatesAutoresizingMaskIntoConstraints = false
-    badgeIcon.tintColor = .white
+//    badgeIcon.tintColor = .white
     badgeIcon.contentMode = .scaleAspectFit
-    badgeIcon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+    badgeIcon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
     badge.addSubview(badgeIcon)
 
     badgeLabel.translatesAutoresizingMaskIntoConstraints = false
-    badgeLabel.font = .systemFont(ofSize: 15, weight: .semibold)
-    badgeLabel.textColor = .white
+    badgeLabel.font = .preferredFont(forTextStyle: .caption2)
+    badgeLabel.textColor = .green
     badge.addSubview(badgeLabel)
 
     progressTrack.translatesAutoresizingMaskIntoConstraints = false
-    progressTrack.backgroundColor = UIColor.white.withAlphaComponent(0.28)
+    progressTrack.backgroundColor = UIColor.lightGray.withAlphaComponent(0.45)
     progressTrack.layer.cornerRadius = 3
     progressTrack.isHidden = true
     addSubview(progressTrack)
@@ -800,20 +801,20 @@ final class TVUIKitMediaItemOverlayView: UIView {
       scrim.leadingAnchor.constraint(equalTo: leadingAnchor),
       scrim.trailingAnchor.constraint(equalTo: trailingAnchor),
 
-      glyphView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+      glyphView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
       glyphView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.cornerInset),
       glyphView.widthAnchor.constraint(equalToConstant: Self.glyphSize),
       glyphView.heightAnchor.constraint(equalToConstant: Self.glyphSize),
 
       runtimeLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
-      runtimeLabel.leadingAnchor.constraint(greaterThanOrEqualTo: glyphView.trailingAnchor, constant: 8),
+      runtimeLabel.leadingAnchor.constraint(greaterThanOrEqualTo: glyphView.trailingAnchor, constant: 12),
       runtimeLabel.centerYAnchor.constraint(equalTo: glyphView.centerYAnchor),
 
-      badge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
-      badge.topAnchor.constraint(equalTo: topAnchor, constant: 16),
-      badge.heightAnchor.constraint(equalToConstant: 28),
+      badge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+      badge.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+      badge.heightAnchor.constraint(equalToConstant: 32),
 
-      badgeIcon.leadingAnchor.constraint(equalTo: badge.leadingAnchor, constant: 10),
+      badgeIcon.leadingAnchor.constraint(equalTo: badge.leadingAnchor, constant: 4),
       badgeIcon.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
       badgeIconWidth,
 
@@ -858,7 +859,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
       badgeLabel.text = text
       let showsIcon = status.badgeShowsClock
       badgeIcon.isHidden = !showsIcon
-      badgeIcon.image = showsIcon ? UIImage(systemName: "clock") : nil
+      badgeIcon.image = showsIcon ? UIImage(systemName: "checkmark") : nil
       badgeIconWidth.constant = showsIcon ? Self.badgeIconSize : 0
     } else {
       badge.isHidden = true

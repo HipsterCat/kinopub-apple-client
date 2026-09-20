@@ -1,9 +1,6 @@
 //
 //  Color+Extension.swift
 //
-//
-//  Created by Kirill Kunst on 22.07.2023.
-//
 
 import Foundation
 import SwiftUI
@@ -34,7 +31,7 @@ extension Color {
 #if os(macOS)
       Color(nsColor: .windowBackgroundColor)
 #elseif os(tvOS)
-      Color.black
+      Color.clear
 #else
       Color(uiColor: .systemBackground)
 #endif

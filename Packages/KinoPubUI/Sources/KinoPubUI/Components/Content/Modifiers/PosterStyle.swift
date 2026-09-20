@@ -48,7 +48,7 @@ public struct PosterStyle: ViewModifier {
     }
     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 #if !os(tvOS)
-    .shadow(radius: 8)
+//    .shadow(radius: 8)
 #endif
   }
 }

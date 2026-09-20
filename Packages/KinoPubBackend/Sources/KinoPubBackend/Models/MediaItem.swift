@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct MediaItem: Codable, Hashable {
+public struct MediaItem: Codable, Hashable, @unchecked Sendable {
   public let id: Int
   public let type: String
   public let subtype: String

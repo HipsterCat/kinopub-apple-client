@@ -9,7 +9,7 @@ import Foundation
 ///
 /// `kinopoisk_rating` and `imdb_rating` are absent from the published docs but the
 /// service accepts them and orders correctly — verified against live responses.
-public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable {
+public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable, Sendable {
   case recentlyAdded
   case recentlyUpdated
   case views
@@ -49,7 +49,7 @@ public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable {
 
 /// A release-year window. Decades rather than a free range: a two-ended numeric
 /// picker is miserable to drive with a remote.
-public struct YearRange: Identifiable, Hashable {
+public struct YearRange: Identifiable, Hashable, Sendable {
   public let from: Int
   public let to: Int
 
@@ -78,7 +78,7 @@ public struct YearRange: Identifiable, Hashable {
 
 /// Hot/popular window for `/v1/items?period=`. Server-side (unlike rating/HD facets).
 /// DESIGN: chip chrome in `LibraryFiltersBar` TBD — values are ready to send.
-public enum CatalogPeriod: String, CaseIterable, Identifiable, Hashable {
+public enum CatalogPeriod: String, CaseIterable, Identifiable, Hashable, Sendable {
   case day
   case week
   case month
@@ -104,7 +104,7 @@ public enum CatalogPeriod: String, CaseIterable, Identifiable, Hashable {
 /// `kinopoisk` / `quality` / `conditions` query params are silently ignored (verified
 /// by the dungeon-master-xx fork against the live API). Each `MediaItem` already carries
 /// `imdbRating` / `kinopoiskRating` / `quality` / `ac3`, so we filter the page locally.
-public struct LibraryFilter: Equatable, Hashable {
+public struct LibraryFilter: Equatable, Hashable, Sendable {
   public var contentType: MediaType?
   public var sort: MediaSortOrder
   public var genreID: Int?

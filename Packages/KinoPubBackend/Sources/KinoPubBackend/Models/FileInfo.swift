@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct FileInfo: Codable, Hashable {
+public struct FileInfo: Codable, Hashable, Sendable {
   public let codec: String
   public let w: Int
   public let h: Int

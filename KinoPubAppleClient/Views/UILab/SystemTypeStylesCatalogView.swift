@@ -46,9 +46,11 @@ struct SystemTypeStylesCatalogView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("System Type Styles")
         .font(TypeScale.settingsTitle)
+//        .preferredColorScheme(.dark)
       Text("Flat cards show label hierarchy on the page background. Tap any card for a blurred-backdrop + material preview — including Vibrant Primary / Secondary / Tertiary.")
         .font(.callout)
         .foregroundStyle(.secondary)
+//        .preferredColorScheme(.dark)
         .fixedSize(horizontal: false, vertical: true)
     }
   }
@@ -458,7 +460,7 @@ private struct TypeStyleSampleCard: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
-          .fill(Color.KinoPub.selectionBackground)
+          .fill(Color.KinoPub.background)
       }
       .overlay {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -479,15 +481,16 @@ private struct TypeStyleSampleCard: View {
           .frame(height: sampleAreaHeight)
           .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-          .fill(.regularMaterial)
-          .frame(height: sampleAreaHeight)
+//        RoundedRectangle(cornerRadius: 8, style: .continuous)
+//          .fill(.regularMaterial)
+//          .frame(height: sampleAreaHeight)
 
         styledSample
           .font(font)
           .lineLimit(2)
           .minimumScaleFactor(0.85)
           .padding(.horizontal, 10)
+          
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     } else {
@@ -502,6 +505,7 @@ private struct TypeStyleSampleCard: View {
   @ViewBuilder
   private var styledSample: some View {
     TypeStyleColoredText(role: role, text: sample)
+//          .preferredColorScheme(.dark)
   }
 
   private var sampleAreaHeight: CGFloat {
@@ -586,9 +590,9 @@ private struct TypeStyleMaterialPreviewSheet: View {
         .frame(height: heroHeight)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .fill(material.swiftUIMaterial)
-        .frame(height: heroHeight)
+//      RoundedRectangle(cornerRadius: 16, style: .continuous)
+//        .fill(material.swiftUIMaterial)
+//        .frame(height: heroHeight)
 
       VStack(alignment: .leading, spacing: 12) {
         TypeStyleColoredText(role: selection.role, text: selection.sample)
@@ -632,7 +636,7 @@ private struct TypeStyleMaterialPreviewSheet: View {
     }
   }
 
-  private var comparisonGrid: some View {
+    internal var comparisonGrid: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text("All roles on this material")
         .font(.title3.weight(.semibold))
@@ -710,24 +714,24 @@ private struct TypeStyleMaterialPreviewSheet: View {
 // MARK: - Backdrop
 
 private enum TypeStyleBackdrop: CaseIterable {
-  case widePoster
   case poster
+  case widePoster
   case mesh
 
   var title: String {
     switch self {
-    case .widePoster: return "Wide"
     case .poster: return "Poster"
+    case .widePoster: return "Wide"
     case .mesh: return "Mesh"
     }
   }
 
   var imageURL: URL? {
     switch self {
-    case .widePoster:
-      return URL(string: "https://m.staticpop.net/poster/item/wide/581.jpg")
     case .poster:
-      return URL(string: "https://m.staticpop.net/poster/item/big/581.jpg")
+      return URL(string: "https://m.staticpop.net/poster/item/big/100582.jpg")
+    case .widePoster:
+      return URL(string: "https://m.staticpop.net/poster/item/wide/100582.jpg")
     case .mesh:
       return nil
     }
@@ -735,7 +739,7 @@ private enum TypeStyleBackdrop: CaseIterable {
 }
 
 private struct TypeStyleBackdropImage: View {
-  var backdrop: TypeStyleBackdrop = .widePoster
+    var backdrop: TypeStyleBackdrop = .poster
 
   var body: some View {
     Group {
@@ -746,7 +750,7 @@ private struct TypeStyleBackdropImage: View {
             image
               .resizable()
               .scaledToFill()
-              .blur(radius: backdropBlurRadius)
+//              .blur(radius: backdropBlurRadius)
           case .failure:
             meshFallback
           case .empty:
@@ -906,4 +910,36 @@ private struct FontWeightSpec: Identifiable {
   ]
 }
 
+// MARK: - Preview
+
+#Preview("System Type Styles Catalog") {
+  SystemTypeStylesCatalogView()
+}
+
 #endif
+
+#Preview("TypeStyleSampleCard") {
+    TypeStyleSampleCard(
+        role: .primary,
+        weight: .default,
+        font: .body,
+        sample: "Sample body text",
+        styleName: "Body"
+    ) { }
+    .padding()
+    .background(Color.KinoPub.background)
+}
+
+
+#Preview("Comparison Grid") {
+    TypeStyleMaterialPreviewSheet(
+        selection: TypeStylePreviewSelection(
+            role: .primary,
+            weight: .default,
+            font: .body,
+            sample: "Sample text",
+            styleName: "Body"
+        )
+    ).comparisonGrid
+}
+

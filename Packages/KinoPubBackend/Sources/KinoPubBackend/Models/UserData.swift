@@ -7,9 +7,9 @@
 
 import Foundation
 
-public struct UserData: Codable {
+public struct UserData: Codable, Sendable {
   
-  public struct Subscription: Codable {
+  public struct Subscription: Codable, Sendable {
     public let active: Bool
     public let endTime: TimeInterval
     public let days: Double
@@ -20,12 +20,12 @@ public struct UserData: Codable {
     }
   }
   
-  public struct Profile: Codable {
+  public struct Profile: Codable, Sendable {
     public let name: String?
     public let avatar: String?
   }
   
-  public struct Settings: Codable {
+  public struct Settings: Codable, Sendable {
     public let showErotic: Bool
     public let showUncertain: Bool
     

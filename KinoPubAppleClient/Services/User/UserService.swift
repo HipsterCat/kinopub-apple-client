@@ -8,7 +8,7 @@
 import Foundation
 import KinoPubBackend
 
-protocol UserService {
+protocol UserService: Sendable {
   func fetchUserData() async throws -> UserData
 }
 

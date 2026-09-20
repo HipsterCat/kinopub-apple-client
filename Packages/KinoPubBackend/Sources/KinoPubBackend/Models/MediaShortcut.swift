@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum MediaShortcut: String, Codable, CaseIterable, Identifiable {
+public enum MediaShortcut: String, Codable, CaseIterable, Identifiable, Sendable {
   case hot
   case fresh
   case popular

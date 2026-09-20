@@ -12,6 +12,7 @@ import OSLog
 /// cold start paints the last known profile before the network answers — and an
 /// offline start doesn't show a blank row. Same deal as `RowSnapshotStore`: a
 /// missing or OS-purged snapshot just means "fetch fresh".
+@MainActor
 final class UserProfileCache {
   static let shared = UserProfileCache()
 

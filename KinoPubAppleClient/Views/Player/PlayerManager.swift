@@ -32,7 +32,7 @@ enum PlaybackState: Equatable {
   case failed(String)
 }
 
-class PlayerManager: ObservableObject {
+class PlayerManager: ObservableObject, @unchecked Sendable {
 
   @Published var isPlaying: Bool = false
   @Published var watchMark: WatchData?
@@ -181,13 +181,14 @@ class PlayerManager: ObservableObject {
     return preflight.scopes(for: playItem, profile: trackProfile)
   }
 
+  @MainActor
   init(playItem: any PlayableItem,
        watchMode: WatchMode,
        downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>,
        actionsService: UserActionsService,
        contentService: VideoContentService = AppContext.shared.contentService,
        trackProfile: TitleTrackProfile = TitleTrackProfile(),
-       trackPreferences: TrackPreferenceStore = AppContext.shared.trackPreferences,
+       trackPreferences: TrackPreferenceStore = .shared,
        preflight: PlaybackPreflight = .shared,
        plan: PlaybackPlan? = nil) {
     self.plan = plan ?? .unknown(itemID: playItem.id)
@@ -1240,7 +1241,7 @@ extension PlayerManager {
   }
 
   private func subtitleActions(current: SubtitleTrack?,
-                               pick: @escaping (SubtitleTrack?) -> Void) -> [UIAction] {
+                               pick: @escaping @Sendable (SubtitleTrack?) -> Void) -> [UIAction] {
     let off = UIAction(title: "Off".localized,
                        state: current == nil ? .on : .off) { _ in pick(nil) }
     let tracks = subtitleTracks.map { track in

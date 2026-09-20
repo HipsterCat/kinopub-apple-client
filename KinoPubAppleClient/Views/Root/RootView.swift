@@ -141,5 +141,5 @@ struct RootView_Previews: PreviewProvider {
     _ = NetworkActivity.begin(nameKey: "Activity_Session", detail: "/v1/user")
     _ = NetworkActivity.begin(nameKey: "Activity_History", detail: "/v1/history")
   }
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }

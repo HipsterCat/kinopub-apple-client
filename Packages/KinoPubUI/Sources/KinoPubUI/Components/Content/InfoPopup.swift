@@ -208,6 +208,6 @@ public enum InfoPopupTriggerStyle {
   }
   .padding(40)
   .frame(maxWidth: 900, alignment: .leading)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 #endif

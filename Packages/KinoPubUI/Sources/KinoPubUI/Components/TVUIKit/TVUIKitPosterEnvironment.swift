@@ -9,7 +9,7 @@
 import SwiftUI
 
 private struct UsesTVUIKitPostersKey: EnvironmentKey {
-  static let defaultValue = false
+  static let defaultValue = true
 }
 
 private struct MediaNavigationKey: EnvironmentKey {

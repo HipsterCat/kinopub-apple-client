@@ -1,10 +1,3 @@
-//
-//  AppContext.swift
-//  KinoPubAppleClient
-//
-//  Created by Kirill Kunst on 26.07.2023.
-//
-
 import Foundation
 import SwiftUI
 import KinoPubBackend
@@ -13,11 +6,13 @@ import KinoPubMetadata
 
 // MARK: - Env key
 
-private struct AppContextKey: EnvironmentKey {
-  static let defaultValue: AppContextProtocol = AppContext.shared
+@MainActor private struct AppContextKey: @preconcurrency EnvironmentKey {
+  @preconcurrency
+  static var defaultValue: AppContextProtocol { AppContext.shared }
 }
 
 extension EnvironmentValues {
+  @MainActor
   var appContext: AppContextProtocol {
     get { self[AppContextKey.self] }
     set { self[AppContextKey.self] = newValue }
@@ -25,25 +20,6 @@ extension EnvironmentValues {
 }
 
 // MARK: - AppContextProtocol
-
-typealias AppContextProtocol = AuthorizationServiceProvider
-& VideoContentServiceProvider
-& ConfigurationProvider
-& KeychainStorageProvider
-& AccessTokenServiceProvider
-& DownloadManagerProvider
-& DownloadedFilesDatabaseProvider
-& FileSaverProvider
-& UserServiceProvider
-& UserActionsServiceProvider
-& MetadataServiceProvider
-& KinopoiskKeyProviderProvider
-& ContentStoreProvider
-& CollectionsServiceProvider
-& DeviceServiceProvider
-& LocalWatchProgressProvider
-& MediaLibraryProvider
-& TrackPreferencesProvider
 
 protocol MetadataServiceProvider {
   var metadataService: MetadataService { get }
@@ -60,6 +36,25 @@ protocol ContentStoreProvider {
 protocol KinopoiskKeyProviderProvider {
   var kinopoiskKeyProvider: KinopoiskKeyProvider { get }
 }
+
+protocol AppContextProtocol: AuthorizationServiceProvider
+& VideoContentServiceProvider
+& ConfigurationProvider
+& KeychainStorageProvider
+& AccessTokenServiceProvider
+& DownloadManagerProvider
+& DownloadedFilesDatabaseProvider
+& FileSaverProvider
+& UserServiceProvider
+& UserActionsServiceProvider
+& MetadataServiceProvider
+& KinopoiskKeyProviderProvider
+& ContentStoreProvider
+& CollectionsServiceProvider
+& DeviceServiceProvider
+& LocalWatchProgressProvider
+& MediaLibraryProvider
+& TrackPreferencesProvider {}
 
 // MARK: - AppContext
 
@@ -88,9 +83,9 @@ struct AppContext: AppContextProtocol {
   var libraryState: MediaLibraryStore
   /// Which dub and which subtitles each title opens with. Local-only knowledge the
   /// server has no concept of, which is why it does not live on `MediaLibraryStore`.
-  var trackPreferences = TrackPreferenceStore()
+  var trackPreferences = TrackPreferenceStore.shared
 
-  static let shared: AppContext = {
+  @preconcurrency @MainActor static let shared: AppContext = {
     let configuration = BundleConfiguration()
     let keychainStorage = KeychainStorageImpl()
     let accessTokenService = AccessTokenServiceImpl(storage: keychainStorage)
@@ -126,8 +121,11 @@ struct AppContext: AppContextProtocol {
     // RootView's first frame, since `AppContext.shared` is resolved on the main thread before
     // any view renders. A paused/interrupted HLS download reattaching a few hundred ms later is
     // imperceptible; blocking every cold launch on it (even with zero downloads to restore) is not.
+    // `nonisolated(unsafe)`: the Task is MainActor-queued after this MainActor `shared` init
+    // finishes, so it cannot overlap the stores below; the manager is not Sendable.
+    nonisolated(unsafe) let hlsToRestore = hlsDownloadManager
     Task { @MainActor in
-      hlsDownloadManager.restorePendingDownloads()
+      hlsToRestore.restorePendingDownloads()
     }
     downloadManager.onDownloadFinished = { [weak seasonDownloadManager, weak downloadNotificationManager] url, meta in
       let handledBySeason = seasonDownloadManager?.handleFinished(url: url) ?? false

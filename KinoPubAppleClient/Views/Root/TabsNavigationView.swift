@@ -126,7 +126,7 @@ struct TabsNavigationView: View {
   }
 
   private static let browseTabs: [TabSpec] = [
-    TabSpec(tab: .home, title: "Home", systemImage: "house.fill"),
+    TabSpec(tab: .home, title: "Watch Now", systemImage: "house.fill"),
     TabSpec(tab: .movies, title: "Movies", systemImage: "movieclapper"),
     TabSpec(tab: .series, title: "Shows", systemImage: "rectangle.stack"),
     TabSpec(tab: .library, title: "Library", systemImage: "rectangle.stack.badge.person.crop")

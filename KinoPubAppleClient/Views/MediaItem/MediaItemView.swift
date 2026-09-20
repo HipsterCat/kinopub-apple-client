@@ -119,7 +119,7 @@ struct MediaItemView: View {
 #if os(iOS)
       .navigationBarTitleDisplayMode(.inline)
       .toolbarBackground(.hidden, for: .navigationBar)
-      .toolbarColorScheme(.dark, for: .navigationBar)
+//      .toolbarColorScheme(.dark, for: .navigationBar)
 #endif
 #if os(macOS)
       .toolbarBackground(.hidden, for: .windowToolbar)

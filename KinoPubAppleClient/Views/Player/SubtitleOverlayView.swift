@@ -30,8 +30,8 @@ struct SubtitleOverlayView: View {
     Text(text)
       .font(.system(size: size, weight: weight))
       .multilineTextAlignment(.center)
-      .foregroundStyle(.white.opacity(opacity))
-      .shadow(color: .black.opacity(0.85), radius: 2, x: 0, y: 1)
+      .foregroundStyle(.primary.opacity(opacity))
+//      .shadow(color: .black.opacity(0.85), radius: 2, x: 0, y: 1)
   }
 
   private var subtitleFontSize: CGFloat {

@@ -39,7 +39,7 @@ struct MainView: View {
       // The navigation bar is likewise left to the system: on 26 it is already
       // Liquid Glass with the scroll-edge effect.
       rowsView
-        .platformNavigationTitle("Home")
+        .platformNavigationTitle("Watch Now")
 #if os(macOS)
         .macToolbarSearch()
 #endif

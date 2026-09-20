@@ -9,7 +9,7 @@
 
 import Foundation
 
-public struct MediaLinks: Codable {
+public struct MediaLinks: Codable, Sendable {
 
   public let files: [FileInfo]
   public let subtitles: [Subtitle]

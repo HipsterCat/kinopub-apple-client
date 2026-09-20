@@ -105,7 +105,7 @@ public struct RemoteImageLoadingCue: View {
           .font(.title2)
       }
     }
-    .foregroundStyle(.white)
+    .foregroundStyle(.secondary)
     .opacity(isVisible ? 0.55 : 0)
     .animation(.easeOut(duration: 0.2), value: isVisible)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -132,13 +132,13 @@ public struct RemoteImageLoadingCue: View {
     .frame(width: 200, height: 160)
   }
   .padding()
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+  .background(Color.secondary)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Cached remote image") {
   CachedRemoteImage(
-    url: URL(string: "https://m.staticpop.net/poster/item/big/581.jpg"),
+    url: URL(string: "https://m.staticpop.net/poster/item/big/100582.jpg"),
     contentMode: .fill,
     placeholder: {
       ZStack {
@@ -151,6 +151,6 @@ public struct RemoteImageLoadingCue: View {
   .frame(width: 200, height: 300)
   .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   .padding()
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+  .background(Color.secondary)
+  // .preferredColorScheme(.dark)
 }

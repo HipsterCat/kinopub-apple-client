@@ -107,5 +107,5 @@ private func platformImage(named name: String, in bundle: Bundle) -> Image? {
   .foregroundStyle(.white)
   .padding()
   .background(Color.black)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }

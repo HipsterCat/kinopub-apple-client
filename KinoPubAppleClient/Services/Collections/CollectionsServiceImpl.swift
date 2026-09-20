@@ -6,9 +6,9 @@
 import Foundation
 import KinoPubBackend
 
-final class CollectionsServiceImpl: CollectionsService {
+final class CollectionsServiceImpl: CollectionsService, @unchecked Sendable {
 
-  private var apiClient: APIClient
+  private let apiClient: APIClient
 
   init(apiClient: APIClient) {
     self.apiClient = apiClient

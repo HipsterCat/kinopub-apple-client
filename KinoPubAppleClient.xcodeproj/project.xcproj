@@ -1,0 +1,734 @@
+{
+  "default-configuration": "Release",
+  "configurations": [
+    "Debug",
+    "Release",
+  ],
+  "localizations": {
+    "development": "en",
+    "supported": [
+      "Base",
+    ],
+  },
+  "packages": [
+    {
+      "kind": "remote",
+      "repository": "https://github.com/kishikawakatsumi/KeychainAccess.git",
+      "version": {
+        "up-to-next-major-version": "4.2.2",
+      },
+    }, {
+      "kind": "remote",
+      "repository": "https://github.com/exyte/PopupView.git",
+      "version": {
+        "up-to-next-major-version": "2.6.0",
+      },
+    }, {
+      "kind": "remote",
+      "repository": "https://github.com/ashleymills/Reachability.swift",
+      "version": {
+        "up-to-next-major-version": "5.1.0",
+      },
+    },
+  ],
+  "files": [
+    {
+      "kind": "group",
+      "path": "KinoPubAppleClient",
+      "children": [
+        {
+          "kind": "group",
+          "path": "App",
+          "children": [
+            { "path": "KinoPubAppleClientApp.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "AppDelegate.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+          ],
+        }, {
+          "kind": "group",
+          "path": "Context",
+          "children": [
+            { "path": "AppContext.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+          ],
+        }, {
+          "kind": "group",
+          "path": "Custom",
+          "children": [
+            { "path": "DeviceCapabilities.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "DeviceIdentity.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "StreamQuality.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "HLSManifest.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "HLSAudioLabeler.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "MenuTypeSelectSuppression.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "StreamSurvey.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "BestVideoQualityFinder.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "View+PlatformNavigationTitle.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "Bundle+Data.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "APIClientError+Description.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "String+Localization.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "MediaCardContextMenus.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "MediaCardMenuCoordinator.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "MediaCardMenuAlerts.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "WindowSettings.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "PlayerTimeObserver.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+          ],
+        },
+        { "path": "Info.plist" },
+        {
+          "kind": "group",
+          "path": "Resources",
+          "children": [
+            { "path": "KinoPubAppleClient.entitlements" },
+            { "path": "Assets.xcassets", "target-membership": [ "KinoPubAppleClient/resources" ] },
+            { "path": "Launch Screen.storyboard", "target-membership": [ { "build-phase": "KinoPubAppleClient/resources", "platforms": [ "ios" ] } ] },
+            { "path": "Localizable.xcstrings", "target-membership": [ "KinoPubAppleClient/resources" ] },
+          ],
+        }, {
+          "kind": "group",
+          "path": "Services",
+          "children": [
+            {
+              "kind": "group",
+              "path": "AccessToken",
+              "children": [
+                { "path": "AccessTokenService.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "AccessTokenServiceImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "AccessTokenPlugin.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Authorization",
+              "children": [
+                { "path": "AuthorizationService.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "AuthorizationServiceImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "UnauthorizedResponsePlugin.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Configuration",
+              "children": [
+                { "path": "Configuration.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "BundleConfiguration.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "FeatureFlags.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Download",
+              "children": [
+                { "path": "HLSAssetDownloadManager.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "HLSDownloadsStore.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SeasonDownloadManager.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "Providers.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            },
+            { "kind": "group", "path": "Filtering" },
+            {
+              "kind": "group",
+              "path": "KeychainStorage",
+              "children": [
+                { "path": "KeychainStorage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "KeychainStorageImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "KinopoiskKeyStorage.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "LocalWatchProgress",
+              "children": [
+                { "path": "LocalWatchProgressStore.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "MediaLibrary",
+              "children": [
+                { "path": "MediaLibraryStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Playback",
+              "children": [
+                { "path": "TrackPreferenceStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlaybackPreflight.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "User",
+              "children": [
+                { "path": "UserService.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "UserServiceImpl.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Collections",
+              "children": [
+                { "path": "CollectionsService.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "CollectionsServiceImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Device",
+              "children": [
+                { "path": "DeviceProfileRegistry.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "DeviceService.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "DeviceServiceImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "ActorImages",
+              "children": [
+                { "path": "ActorImageProvider.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "UserActions",
+              "children": [
+                { "path": "UserActionsService.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "UserActionsServiceImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "VideoContent",
+              "children": [
+                { "path": "VideoContentService.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "VideoContentServiceImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "MediaLinksResolver.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Cache",
+              "children": [
+                { "path": "RowKey.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "RowSnapshotStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "ContentStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "UserProfileCache.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Bookmarks",
+              "children": [
+                { "path": "BookmarkMembershipStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "BookmarkFoldersStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            },
+          ],
+        }, {
+          "kind": "group",
+          "path": "States",
+          "children": [
+            {
+              "kind": "group",
+              "path": "Auth",
+              "children": [
+                { "path": "AuthState.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Error",
+              "children": [
+                { "path": "ErrorHandler.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "View+ErrorState.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Navigation",
+              "children": [
+                { "path": "NavigationState.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "NavigationTabs.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "Routes.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "RouteDestination.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "RouteStack.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "NavigationLinkProvider.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SectionVisibilityStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            },
+          ],
+        }, {
+          "kind": "group",
+          "path": "Views",
+          "children": [
+            {
+              "kind": "group",
+              "path": "Settings",
+              "children": [
+                { "path": "SettingsCategory.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SettingsRootView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SettingsIconView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SettingsSidebarProfileView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SettingsMacChrome.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SettingsDetailRoute.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                {
+                  "kind": "group",
+                  "path": "Panes",
+                  "children": [
+                    { "path": "GeneralSettingsPane.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "PlaybackSettingsPane.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "IntegrationsSettingsPane.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "AdvancedSettingsPane.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "PlaceholderSettingsPanes.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "DevicesSettingsPane.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                }, {
+                  "kind": "group",
+                  "path": "About",
+                  "children": [
+                    { "path": "AboutView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                },
+                { "path": "DevicesListView.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "StorageSettingsView.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TrackMemorySections.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SectionsSettingsView.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "UILab",
+              "children": [
+                { "path": "UILabRoot.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "UILabSearchToolbar.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SystemTypeStylesCatalogView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TVUIKitComponentGalleryView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "NavigationFocusLabView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "NavigationFocusLabBridges.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "LibrarySidebarLabView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Auth",
+              "children": [
+                { "path": "AuthView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "AuthModel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Bookmarks",
+              "children": [
+                {
+                  "kind": "group",
+                  "path": "Item",
+                  "children": [
+                    { "path": "BookmarkView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "BookmarkModel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "BookmarkFolderTabView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                }, {
+                  "kind": "group",
+                  "path": "List",
+                  "children": [
+                    { "path": "BookmarksView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "BookmarksCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "PersonalLibraryCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "LibraryView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "WatchlistView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "RecentlyWatchedView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Library",
+              "children": [
+                { "path": "LibrarySection.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "LibraryModel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "LibrarySectionCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "LibraryShellView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Downloads",
+              "children": [
+                {
+                  "kind": "group",
+                  "path": "Models",
+                  "children": [
+                    { "path": "DownloadMeta.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                },
+                { "path": "DownloadsCatalog.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "DownloadsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "DownloadedItemView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "macOS",
+              "children": [
+                {
+                  "kind": "group",
+                  "path": "Settings",
+                  "children": [
+                    { "path": "SettingsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Main",
+              "children": [
+                { "kind": "group", "path": "Filter" },
+                {
+                  "kind": "group",
+                  "path": "Shortcut",
+                  "children": [
+                    { "path": "ShortcutView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                },
+                { "path": "MediaCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "MainView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "HomeCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "HistoryView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "MediaItem",
+              "children": [
+                {
+                  "kind": "group",
+                  "path": "Season",
+                  "children": [
+                    { "path": "SeasonView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "SeasonModel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                }, {
+                  "kind": "group",
+                  "path": "Seasons",
+                  "children": [
+                    { "path": "SeasonsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "SeasonsModel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                }, {
+                  "kind": "group",
+                  "path": "Subviews",
+                  "children": [
+                    { "path": "SeasonsRailView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "MediaItemDetailSections.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "MediaItemAboutLayouts.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "MediaItemReviewsPage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "MediaItemHeroView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                  ],
+                },
+                { "path": "MediaItemView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "MediaItemModel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "MediaItemDisplayPreferences.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Player",
+              "children": [
+                { "path": "PlayerView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlayerManager.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlaybackSession.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlaybackAudioSession.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SubtitlePreferences.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SubtitleSelector.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SubtitleCueParser.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SubtitleOverlayView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SubtitleTranslatePanel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SubtitleTrackMemory.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SubtitleTrackPickerView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Profile",
+              "children": [
+                { "path": "ProfileModel.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "StreamSurveyView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "ProfileView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TVProfileSettingsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "DataSourcesAttributionView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "KinopoiskKeySettingsModel.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "KinopoiskSettingsSection.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Search",
+              "children": [
+                { "path": "SearchView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "LibraryFiltersBar.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "LibraryCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PersonItemsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Catalog",
+              "children": [
+                { "path": "CatalogView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "ShortcutItemsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Root",
+              "children": [
+                { "path": "TabsNavigationView.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "RootView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Collections",
+              "children": [
+                { "path": "CollectionsModel.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "CollectionsView.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "CollectionDetailModel.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "CollectionDetailView.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            },
+          ],
+        },
+      ],
+    }, {
+      "kind": "group",
+      "path": "KinoPubAppleClientTests",
+      "children": [
+        { "path": "TrackPreferenceStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "PlaybackPreflightTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "PlayerTrackSelectionTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+      ],
+    }, {
+      "kind": "group",
+      "path": "KinoPubAppleClientUITests",
+      "children": [
+        { "path": "LaunchUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+      ],
+    }, {
+      "kind": "group",
+      "name": "Packages",
+      "children": [
+        { "path": "Packages/KinoPubKit" },
+        { "path": "Packages/KinoPubLogging" },
+        { "path": "Packages/KinoPubBackend" },
+        { "path": "Packages/KinoPubUI" },
+        { "path": "Packages/KinoPubMetadata" },
+      ],
+    }, {
+      "kind": "group",
+      "name": "Products",
+      "children": [
+        { "path": "<PRODUCTS>/KinoPub.app", "id": "CC88E1E12A6586E600E9387F", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/KinoPubAppleClientTests.xctest", "id": "A1B2C3D422B5A0E000000002", "type": "wrapper.cfbundle", "index": false },
+        { "path": "<PRODUCTS>/KinoPubAppleClientUITests.xctest", "id": "A1B2C3D422B5A0E000000012", "type": "wrapper.cfbundle", "index": false },
+      ],
+    },
+    { "kind": "group", "name": "Frameworks" },
+  ],
+  "targets": [
+    {
+      "name": "KinoPubAppleClient",
+      "id": "CC88E1E02A6586E600E9387F",
+      "product": "Products/KinoPub.app",
+      "product-type": "application",
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+      ],
+      "package-product-members": [
+        {
+          "product-name": "KinoPubBackend",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "product-name": "KinoPubKit",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "product-name": "KinoPubLogging",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "product-name": "KinoPubMetadata",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "product-name": "KinoPubUI",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "package": "KeychainAccess",
+          "product-name": "KeychainAccess",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "package": "PopupView",
+          "product-name": "PopupView",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "package": "Reachability",
+          "product-name": "Reachability",
+          "build-phase": { "build-phase": "frameworks" },
+        },
+      ],
+      "build-settings": {
+        "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
+        "ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS": "NO",
+        "CODE_SIGN_ENTITLEMENTS[config=Debug]": "KinoPubAppleClient/Resources/KinoPubAppleClient-Debug.entitlements",
+        "CODE_SIGN_ENTITLEMENTS[config=Release]": "KinoPubAppleClient/Resources/KinoPubAppleClient.entitlements",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development",
+        "CODE_SIGN_STYLE": "Automatic",
+        "CURRENT_PROJECT_VERSION": "1",
+        "DEAD_CODE_STRIPPING": "YES",
+        "DEVELOPMENT_ASSET_PATHS": "",
+        "ENABLE_DEBUG_DYLIB[config=Release][sdk=macosx*]": "NO",
+        "ENABLE_HARDENED_RUNTIME": "YES",
+        "ENABLE_PREVIEWS": "YES",
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "INFOPLIST_FILE": "KinoPubAppleClient/Info.plist",
+        "INFOPLIST_KEY_CFBundleDisplayName": "Kinopub Soda",
+        "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption": "NO",
+        "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.entertainment",
+        "INFOPLIST_KEY_NSLocalNetworkUsageDescription": "Streams the app's network log to the Pulse app on your Mac. Only used while you turn it on in Settings › Advanced › Diagnostics.",
+        "INFOPLIST_KEY_NSVideoSubscriberAccountUsageDescription": "",
+        "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]": "YES",
+        "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]": "YES",
+        "INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]": "YES",
+        "INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]": "YES",
+        "INFOPLIST_KEY_UIBackgroundModes[sdk=iphoneos*]": "audio",
+        "INFOPLIST_KEY_UIBackgroundModes[sdk=iphonesimulator*]": "audio",
+        "INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]": "YES",
+        "INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]": "YES",
+        "INFOPLIST_KEY_UILaunchStoryboardName": "Launch Screen.storyboard",
+        "INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]": "UIStatusBarStyleDefault",
+        "INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]": "UIStatusBarStyleDefault",
+        "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad": "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight",
+        "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone": "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight",
+        "IPHONEOS_DEPLOYMENT_TARGET": "26.6",
+        "LD_RUNPATH_SEARCH_PATHS": "@executable_path/Frameworks",
+        "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "@executable_path/../Frameworks",
+        "MACOSX_DEPLOYMENT_TARGET": "26.6",
+        "MARKETING_VERSION": "1.0",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.soda.kinopub",
+        "PRODUCT_NAME": "KinoPub",
+        "PROVISIONING_PROFILE_SPECIFIER": "",
+        "SDKROOT": "auto",
+        "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator macosx appletvos appletvsimulator",
+        "SWIFT_EMIT_LOC_STRINGS": "YES",
+        "SWIFT_VERSION": "6.0",
+        "TARGETED_DEVICE_FAMILY": "1,2,3",
+        "TVOS_DEPLOYMENT_TARGET": "26.6",
+      },
+    }, {
+      "name": "KinoPubAppleClientTests",
+      "id": "A1B2C3D422B5A0E000000001",
+      "product": "Products/KinoPubAppleClientTests.xctest",
+      "product-type": "bundle.unit-test",
+      "test-host-target": "KinoPubAppleClient",
+      "dependencies": [
+        "KinoPubAppleClient",
+      ],
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+      ],
+      "build-settings": {
+        "BUNDLE_LOADER": "$(TEST_HOST)",
+        "CODE_SIGN_STYLE": "Automatic",
+        "CURRENT_PROJECT_VERSION": "1",
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "IPHONEOS_DEPLOYMENT_TARGET": "26.6",
+        "MACOSX_DEPLOYMENT_TARGET": "26.6",
+        "MARKETING_VERSION": "1.0",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.soda.kinopub.tests",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SDKROOT": "auto",
+        "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator macosx appletvos appletvsimulator",
+        "SWIFT_EMIT_LOC_STRINGS": "NO",
+        "SWIFT_VERSION": "6.0",
+        "TARGETED_DEVICE_FAMILY": "1,2,3",
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/KinoPub.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KinoPub",
+        "TVOS_DEPLOYMENT_TARGET": "26.6",
+      },
+    }, {
+      "name": "KinoPubAppleClientUITests",
+      "id": "A1B2C3D422B5A0E000000011",
+      "product": "Products/KinoPubAppleClientUITests.xctest",
+      "product-type": "bundle.ui-testing",
+      "test-host-target": "KinoPubAppleClient",
+      "dependencies": [
+        "KinoPubAppleClient",
+      ],
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+      ],
+      "build-settings": {
+        "CODE_SIGN_STYLE": "Automatic",
+        "CURRENT_PROJECT_VERSION": "1",
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "IPHONEOS_DEPLOYMENT_TARGET": "26.6",
+        "MACOSX_DEPLOYMENT_TARGET": "26.6",
+        "MARKETING_VERSION": "1.0",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.soda.kinopub.uitests",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SDKROOT": "auto",
+        "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator macosx appletvos appletvsimulator",
+        "SWIFT_EMIT_LOC_STRINGS": "NO",
+        "SWIFT_VERSION": "6.0",
+        "TARGETED_DEVICE_FAMILY": "1,2,3",
+        "TEST_TARGET_NAME": "KinoPubAppleClient",
+        "TVOS_DEPLOYMENT_TARGET": "26.6",
+      },
+    },
+  ],
+  "build-settings": {
+    "ALWAYS_SEARCH_USER_PATHS": "NO",
+    "ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS": "YES",
+    "CLANG_ANALYZER_NONNULL": "YES",
+    "CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION": "YES_AGGRESSIVE",
+    "CLANG_CXX_LANGUAGE_STANDARD": "gnu++20",
+    "CLANG_ENABLE_MODULES": "YES",
+    "CLANG_ENABLE_OBJC_ARC": "YES",
+    "CLANG_ENABLE_OBJC_WEAK": "YES",
+    "CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING": "YES",
+    "CLANG_WARN_BOOL_CONVERSION": "YES",
+    "CLANG_WARN_COMMA": "YES",
+    "CLANG_WARN_CONSTANT_CONVERSION": "YES",
+    "CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS": "YES",
+    "CLANG_WARN_DIRECT_OBJC_ISA_USAGE": "YES_ERROR",
+    "CLANG_WARN_DOCUMENTATION_COMMENTS": "YES",
+    "CLANG_WARN_EMPTY_BODY": "YES",
+    "CLANG_WARN_ENUM_CONVERSION": "YES",
+    "CLANG_WARN_INFINITE_RECURSION": "YES",
+    "CLANG_WARN_INT_CONVERSION": "YES",
+    "CLANG_WARN_NON_LITERAL_NULL_CONVERSION": "YES",
+    "CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF": "YES",
+    "CLANG_WARN_OBJC_LITERAL_CONVERSION": "YES",
+    "CLANG_WARN_OBJC_ROOT_CLASS": "YES_ERROR",
+    "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "YES",
+    "CLANG_WARN_RANGE_LOOP_ANALYSIS": "YES",
+    "CLANG_WARN_STRICT_PROTOTYPES": "YES",
+    "CLANG_WARN_SUSPICIOUS_MOVE": "YES",
+    "CLANG_WARN_UNGUARDED_AVAILABILITY": "YES_AGGRESSIVE",
+    "CLANG_WARN_UNREACHABLE_CODE": "YES",
+    "CLANG_WARN__DUPLICATE_METHOD_MATCH": "YES",
+    "COPY_PHASE_STRIP": "NO",
+    "DEAD_CODE_STRIPPING": "YES",
+    "DEBUG_INFORMATION_FORMAT[config=Debug]": "dwarf",
+    "DEBUG_INFORMATION_FORMAT[config=Release]": "dwarf-with-dsym",
+    "DEVELOPMENT_TEAM": "Z2PQ733PSP",
+    "ENABLE_NS_ASSERTIONS[config=Release]": "NO",
+    "ENABLE_STRICT_OBJC_MSGSEND": "YES",
+    "ENABLE_TESTABILITY[config=Debug]": "YES",
+    "ENABLE_USER_SCRIPT_SANDBOXING": "YES",
+    "GCC_C_LANGUAGE_STANDARD": "gnu11",
+    "GCC_DYNAMIC_NO_PIC[config=Debug]": "NO",
+    "GCC_NO_COMMON_BLOCKS": "YES",
+    "GCC_OPTIMIZATION_LEVEL[config=Debug]": "0",
+    "GCC_PREPROCESSOR_DEFINITIONS[config=Debug]": [
+      "DEBUG=1",
+      "$(inherited)",
+    ],
+    "GCC_WARN_64_TO_32_BIT_CONVERSION": "YES",
+    "GCC_WARN_ABOUT_RETURN_TYPE": "YES_ERROR",
+    "GCC_WARN_UNDECLARED_SELECTOR": "YES",
+    "GCC_WARN_UNINITIALIZED_AUTOS": "YES_AGGRESSIVE",
+    "GCC_WARN_UNUSED_FUNCTION": "YES",
+    "GCC_WARN_UNUSED_VARIABLE": "YES",
+    "IPHONEOS_DEPLOYMENT_TARGET": "26.6",
+    "MACOSX_DEPLOYMENT_TARGET": "26.6",
+    "MTL_ENABLE_DEBUG_INFO[config=Debug]": "INCLUDE_SOURCE",
+    "MTL_ENABLE_DEBUG_INFO[config=Release]": "NO",
+    "MTL_FAST_MATH": "YES",
+    "ONLY_ACTIVE_ARCH[config=Debug]": "YES",
+    "STRING_CATALOG_GENERATE_SYMBOLS": "YES",
+    "SWIFT_ACTIVE_COMPILATION_CONDITIONS[config=Debug]": "DEBUG",
+    "SWIFT_COMPILATION_MODE[config=Release]": "wholemodule",
+    "SWIFT_OPTIMIZATION_LEVEL[config=Debug]": "-Onone",
+    "SWIFT_OPTIMIZATION_LEVEL[config=Release]": "-O",
+    "SWIFT_VERSION": "6.0",
+    "TVOS_DEPLOYMENT_TARGET": "26.6",
+  },
+  "last-upgrade": "27.2",
+  "last-swift-update": "14.3",
+}

@@ -5,9 +5,9 @@
 import Foundation
 
 /// A curated kino.pub collection (`GET /v1/collections`, `/v1/collections/view`).
-public struct Collection: Decodable, Identifiable, Hashable {
+public struct Collection: Decodable, Identifiable, Hashable, Sendable {
 
-  public struct Posters: Decodable, Hashable {
+  public struct Posters: Decodable, Hashable, Sendable {
     public let small: String?
     public let medium: String?
     public let big: String?

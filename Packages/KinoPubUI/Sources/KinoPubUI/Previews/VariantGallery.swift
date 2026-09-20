@@ -44,7 +44,7 @@ public struct VariantGallery<Content: View>: View {
           .foregroundStyle(Color.KinoPub.subtitle)
       }
 
-        VStack(alignment: .leading, spacing: 32) {
+        HStack(alignment: .top, spacing: 32) {
         content
       }
     }
@@ -96,12 +96,12 @@ public struct Variant<Content: View>: View {
           .fill(Color.KinoPub.glassSubstitute))
     }
   }
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 
 private struct GlassSample: View {
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    HStack(alignment: .top, spacing: 8) {
       Text("Filters")
         .font(.headline)
         .foregroundStyle(Color.KinoPub.text)

@@ -29,7 +29,7 @@ extension View {
       }
       .padding(.horizontal, 20)
       .padding(.vertical, 12)
-      .background(.regularMaterial, in: Capsule())
+//      .background(.regularMaterial, in: Capsule())
       .padding(.bottom, 30)
     } customize: {
       $0
@@ -43,6 +43,7 @@ extension View {
     // The haptic belongs to the error surfacing, not to any view component —
     // it fires once when the toast appears, only on platforms that have haptics.
     .sensoryFeedback(.error, trigger: state.wrappedValue.showError) { _, shown in shown }
+    .background(.regularMaterial, in: Capsule())
 #endif
   }
 

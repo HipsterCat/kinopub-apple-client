@@ -354,7 +354,7 @@ private struct AggregateRatingTile: View {
           .fill(rating.tier.color)
         Image(systemName: "star.fill")
           .font(.system(size: MediaItemRatingsSection.iconSize * 0.58, weight: .semibold))
-          .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+          .foregroundStyle(.primary)
       }
       .frame(width: MediaItemRatingsSection.iconSize, height: MediaItemRatingsSection.iconSize)
 
@@ -696,7 +696,7 @@ struct CastAvatarView: View {
     ZStack {
       // Solid plate — focus shadow sits behind this, not through the gradient.
       Self.posterShape
-        .fill(colorScheme == .dark ? Color.black : Color.white)
+            .fill(Color.KinoPub.placeholder)
 
       if let image {
         image
@@ -872,20 +872,15 @@ private struct PortraitButtonStyle: ButtonStyle {
     var body: some View {
       configuration.label
         .scaleEffect(isFocused ? 1.05 : (configuration.isPressed ? 0.96 : 1.0))
-#if !os(tvOS)
         // Radius (not just opacity) changes with focus — SwiftUI has to re-render the
         // shadow's blur every tick, on every cast/crew circle in the row. Off on tvOS,
         // where this style backs a `LazyHGrid` of many simultaneously-visible circles.
-        .shadow(color: .black.opacity(isFocused ? 0.45 : (isHovered ? 0.2 : 0)),
-                radius: isFocused ? 14 : 8,
-                y: isFocused ? 6 : 2)
-#endif
+//        .shadow(color: .black.opacity(isFocused ? 0.45 : (isHovered ? 0.2 : 0)), radius: isFocused ? 14 : 8, y: isFocused ? 6 : 2)
         .animation(.easeOut(duration: 0.18), value: isFocused)
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .animation(.spring(response: 0.15, dampingFraction: 0.9), value: configuration.isPressed)
 #if !os(tvOS)
         .onHover { isHovered = $0 }
-        .pointingHandCursorOnHover()
 #endif
     }
   }
@@ -996,8 +991,8 @@ private struct MediaItemPosterShelfSkeleton: View {
         HStack(alignment: .top, spacing: metrics.gutter) {
           ForEach(0..<metrics.columns, id: \.self) { _ in
             RoundedRectangle(cornerRadius: MediaCardView.cornerRadius, style: .continuous)
-              .fill(Color.KinoPub.selectionBackground.opacity(0.45))
-              .aspectRatio(CardAspect.poster.ratio, contentMode: .fit)
+//              .fill(Color.KinoPub.selectionBackground.opacity(0.45))
+              .aspectRatio(CardAspect.poster.ratio, contentMode: .fill)
               .containerRelativeFrame(.horizontal,
                                       count: metrics.columns,
                                       span: 1,
@@ -2124,7 +2119,7 @@ private struct VideoCard: View {
   ])
   .padding()
   .background(Color.KinoPub.background)
-  .preferredColorScheme(.dark)
+//  // .preferredColorScheme(.dark)
 }
 #endif
 
@@ -3435,14 +3430,14 @@ enum MediaItemLayout {
 /// Two keys rather than one so the plot view can compare them without either
 /// measurement having to know the other's value.
 private struct PlotClampedHeightKey: PreferenceKey {
-  static var defaultValue: CGFloat = 0
+  static let defaultValue: CGFloat = 0
   static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
     value = max(value, nextValue())
   }
 }
 
 private struct PlotFullHeightKey: PreferenceKey {
-  static var defaultValue: CGFloat = 0
+  static let defaultValue: CGFloat = 0
   static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
     value = max(value, nextValue())
   }
@@ -3588,7 +3583,7 @@ struct MediaItemPlotView: View {
                 .padding()
                 .frame(maxWidth: 960, alignment: .leading)
                 //    .background(Color.black)
-                .preferredColorScheme(.dark)
+                // .preferredColorScheme(.dark)
             }
         }
         
@@ -3621,7 +3616,7 @@ struct MediaItemPlotView: View {
             //  .foregroundStyle(.white.opacity(0.85))
             .padding()
             //  .background(Color.black)
-            .preferredColorScheme(.dark)
+            // .preferredColorScheme(.dark)
         }
         
 #endif

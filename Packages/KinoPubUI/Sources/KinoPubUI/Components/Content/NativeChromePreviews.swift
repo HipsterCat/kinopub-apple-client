@@ -12,9 +12,9 @@ import KinoPubBackend
 #if DEBUG
 
 enum PreviewSample {
-  static let posterURL = "https://m.staticpop.net/poster/item/big/581.jpg"
-  static let backdropURL = "https://m.staticpop.net/poster/item/wide/581.jpg"
-  static let landscapeURL = "https://m.staticpop.net/poster/item/wide/581.jpg"
+  static let posterURL = "https://m.staticpop.net/poster/item/big/100582.jpg"
+  static let backdropURL = "https://m.staticpop.net/poster/item/wide/100582.jpg"
+  static let landscapeURL = "https://m.staticpop.net/poster/item/wide/100582.jpg"
 
   static func posterCard(
     title: String = "Стражи Галактики. Часть 3",
@@ -109,7 +109,7 @@ enum PreviewSample {
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   .background(Color.black)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Ratings") {
@@ -126,8 +126,8 @@ enum PreviewSample {
   }
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Section headers") {
@@ -140,7 +140,7 @@ enum PreviewSample {
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   .background(Color.KinoPub.background)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Marquee") {
@@ -157,8 +157,8 @@ enum PreviewSample {
   }
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Poster lockups") {
@@ -192,8 +192,8 @@ enum PreviewSample {
   }
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Landscape + banner") {
@@ -207,7 +207,7 @@ enum PreviewSample {
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 //  .background(Color.black)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Image loading cue") {
@@ -238,7 +238,7 @@ enum PreviewSample {
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   .background(Color.black)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Action pills") {
@@ -269,8 +269,8 @@ enum PreviewSample {
   }
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black)
+  // .preferredColorScheme(.dark)
 }
 
 #endif

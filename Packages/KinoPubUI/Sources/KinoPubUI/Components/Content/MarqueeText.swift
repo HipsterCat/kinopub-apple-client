@@ -134,6 +134,6 @@ private struct MarqueeWidthModifier: ViewModifier {
   )
   .frame(width: 160)
   .padding()
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black)
+  // .preferredColorScheme(.dark)
 }

@@ -7,7 +7,7 @@ import Foundation
 
 /// One subtitle track of an item, with everything the player and the picker need to
 /// tell it apart from its neighbours.
-public struct SubtitleTrack: Identifiable, Hashable {
+public struct SubtitleTrack: Identifiable, Hashable, Sendable {
   public let index: Int
   public let subtitle: Subtitle
   public let isCC: Bool

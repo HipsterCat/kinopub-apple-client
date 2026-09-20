@@ -28,7 +28,7 @@ public struct MediaCardCaptionStat: Hashable, Codable, Sendable {
 
 /// Everything a poster card needs to draw itself, so rows can be built from any
 /// endpoint's payload rather than only from a full `MediaItem`.
-public struct MediaCard: Identifiable, Hashable, Codable {
+public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let id: Int
   public let posterURL: String
   public let title: String
@@ -1158,7 +1158,7 @@ public struct LandscapePlayChromeView: View {
   public var body: some View {
     Image(systemName: "play.fill")
       .font(.system(size: iconSize, weight: .semibold))
-      .foregroundStyle(.white)
+      .foregroundStyle(.primary)
       .padding(.leading, 2)
       .frame(width: diameter, height: diameter)
       .modifier(LandscapePlayChromeBackground(style: style))
@@ -1189,7 +1189,7 @@ private struct LandscapePlayChromeBackground: ViewModifier {
   MediaCardView(
     card: MediaCard(
       id: 1,
-      posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
       title: "Стражи Галактики",
       subtitle: "Guardians of the Galaxy",
       imdbRating: 8.1,
@@ -1204,14 +1204,14 @@ private struct LandscapePlayChromeBackground: ViewModifier {
   .frame(width: 260)
   .padding()
 //  .background(Color.black)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Poster watched") {
   MediaCardView(
     card: MediaCard(
       id: 2,
-      posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
       title: "Стражи Галактики",
       imdbRating: 7.2,
       kinopoiskRating: 7.0,
@@ -1223,17 +1223,17 @@ private struct LandscapePlayChromeBackground: ViewModifier {
   .frame(width: 260)
   .padding()
 //  .background(Color.black)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Landscape episode") {
   MediaCardView(
     card: MediaCard(
       id: 3,
-      posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
       title: "Название эпизода подлиннее обычного",
       progress: 0.55,
-      landscapeImageURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+      landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
       overlayLabel: "S1, E3",
       isSeries: true,
       isInWatchlist: true,
@@ -1245,8 +1245,8 @@ private struct LandscapePlayChromeBackground: ViewModifier {
   )
   .frame(width: 360)
   .padding()
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black)
+  // .preferredColorScheme(.dark)
 }
 
 #Preview("Landscape time states") {
@@ -1254,9 +1254,9 @@ private struct LandscapePlayChromeBackground: ViewModifier {
     MediaCardView(
       card: MediaCard(
         id: 1,
-        posterURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+        posterURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
         title: "Unwatched",
-        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
         durationSeconds: 62 * 60,
         primaryAction: .play
       ),
@@ -1267,10 +1267,10 @@ private struct LandscapePlayChromeBackground: ViewModifier {
     MediaCardView(
       card: MediaCard(
         id: 2,
-        posterURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+        posterURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
         title: "In progress",
         progress: 0.35,
-        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
         isInWatchlist: true,
         durationSeconds: 2 * 3600,
         primaryAction: .play
@@ -1282,19 +1282,19 @@ private struct LandscapePlayChromeBackground: ViewModifier {
     MediaCardView(
       card: MediaCard(
         id: 3,
-        posterURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+        posterURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
         title: "Watched",
         progress: 1,
-        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
         isWatched: true,
         durationSeconds: 2 * 60,
         primaryAction: .play
       ),
-      caption: .always
+      caption: .onFocus
     )
     .frame(width: 220)
   }
   .padding()
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black
+  // .preferredColorScheme(.dark)
 }

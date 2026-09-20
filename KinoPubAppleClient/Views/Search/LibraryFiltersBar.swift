@@ -326,6 +326,6 @@ struct LibrarySortMenu: View {
     )
   )
   .background(Color.KinoPub.background)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 #endif

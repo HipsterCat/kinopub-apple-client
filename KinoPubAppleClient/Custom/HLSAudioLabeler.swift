@@ -337,7 +337,7 @@ enum HLSAudioLabeler {
 /// exactly one request. A payload that can't be rewritten is passed through untouched
 /// (worst case the pickers show the CDN's plain names), and a fetch failure fails the
 /// player item so the screen shows an error instead of an endless spinner.
-final class HLSMasterResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
+final class HLSMasterResourceLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked Sendable {
 
   static let scheme = "kinopub-hls"
 
@@ -365,7 +365,9 @@ final class HLSMasterResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
 
   func resourceLoader(_ resourceLoader: AVAssetResourceLoader,
                       shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool {
-    Task { await serve(loadingRequest) }
+    Task { [weak self] in
+      await self?.serve(loadingRequest)
+    }
     return true
   }
 

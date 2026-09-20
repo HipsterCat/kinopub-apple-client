@@ -19,7 +19,8 @@ final class TrailerPreviewModel: ObservableObject {
   @Published private(set) var isReady: Bool = false
 
   private var statusObservation: NSKeyValueObservation?
-  private var endObserver: Any?
+  // `deinit` is nonisolated; the token is only removed, never read as shared state.
+  nonisolated(unsafe) private var endObserver: Any?
   private var startedURL: URL?
   /// False while the hero is scrolled off screen. Playback is gated on it rather than
   /// started unconditionally, so a trailer that becomes ready after the page has been
@@ -531,7 +532,7 @@ struct MediaItemHeroView: View {
     content
       .opacity(chromeAlpha)
       .animation(.easeOut(duration: 0.25), value: chromeAlpha)
-      .environment(\.colorScheme, .dark)
+//      .environment(\.colorScheme, .dark)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
       // The same muted preview, promoted to sound and full screen without restarting.
       // Menu on the remote dismisses it — no chrome of our own over the picture.
@@ -550,7 +551,7 @@ struct MediaItemHeroView: View {
         .aspectRatio(16 / 9, contentMode: .fit)
 
       content
-        .environment(\.colorScheme, .dark)
+//        .environment(\.colorScheme, .dark)
     }
     .frame(maxWidth: .infinity, alignment: .bottomLeading)
     .background {
@@ -730,7 +731,7 @@ struct MediaItemHeroView: View {
 #if os(iOS)
     VStack(alignment: .leading, spacing: Self.contentSpacing) {
       titleBlock
-        .heroTextShadow()
+//        .heroTextShadow()
 
       actions
         .padding(.top, Self.actionsGap)
@@ -766,7 +767,7 @@ struct MediaItemHeroView: View {
       // own material, and a drop shadow under one that scales on focus is an extra
       // offscreen pass on every frame of the animation.
       titleBlock
-        .heroTextShadow()
+//        .heroTextShadow()
 
       // Actions sit with the title so Up from Play is a dead end → fullscreen trailer.
       // Everything written is the sibling column (or below on phone), not above the row.
@@ -785,7 +786,7 @@ struct MediaItemHeroView: View {
       metadata
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .heroTextShadow()
+//    .heroTextShadow()
   }
 
   @ViewBuilder
@@ -1362,7 +1363,7 @@ private struct MediaItemHeroPreview: View {
     .aspectRatio(16 / 9, contentMode: .fit)
     .frame(maxWidth: 960)
 //    .background(Color.black)
-    .preferredColorScheme(.dark)
+    // .preferredColorScheme(.dark)
   }
 }
 

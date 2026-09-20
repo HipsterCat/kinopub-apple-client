@@ -41,7 +41,7 @@ import SwiftUI
       }
     }
   }
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 
 // MARK: - Harness (A–C)
@@ -52,7 +52,7 @@ private struct HeroBleedHarness<Content: View>: View {
   @ViewBuilder var content: () -> Content
 
   private let stageWidth: CGFloat = 420
-  private let bleedHeight: CGFloat = 72
+  private let bleedHeight: CGFloat = 100
 
   var body: some View {
     VStack(spacing: 0) {
@@ -68,7 +68,7 @@ private struct HeroBleedHarness<Content: View>: View {
       }
 
       content()
-        .aspectRatio(16 / 9, contentMode: .fit)
+//        .aspectRatio(16 / 9, contentMode: .fit)
         .frame(width: stageWidth)
         .clipped()
         .overlay(alignment: .bottomLeading) {
@@ -90,22 +90,25 @@ private struct HeroBleedChrome: View {
     VStack(alignment: .leading, spacing: 6) {
       Text("Паук-Нуар")
         .font(.title3.bold())
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
+//        .colorScheme(.dark)
       Text("2026 · Crime · Drama")
         .font(.caption)
-        .foregroundStyle(.white.opacity(0.85))
+        .foregroundStyle(.secondary)
+//        .colorScheme(.dark)
     }
-    .shadow(color: .black.opacity(0.8), radius: 16, y: 4)
+//    .preferredColorScheme(.dark)
+//    .shadow(color: .black.opacity(0.8), radius: 16, y: 4)
     .padding(16)
   }
 }
 
 private enum HeroBleedSample {
-  static let wideURL = URL(string: "https://m.staticpop.net/poster/item/wide/581.jpg")!
+  static let wideURL = URL(string: "https://m.staticpop.net/poster/item/wide/100582.jpg")!
   static let stageWidth: CGFloat = 420
-  static let artHeight: CGFloat = 420 * 9 / 16
+  static let artHeight: CGFloat = 420
   /// Zone above the sharp crop — where D's system extension should paint.
-  static let topInset: CGFloat = 72
+  static let topInset: CGFloat = 100
 }
 
 private var sampleArt: some View {
@@ -136,11 +139,11 @@ private struct HeroBleedPrivateBlur: View {
         endPoint: .bottom
       )
 #else
-      ProgressiveBlur(startPoint: 0.42, maxRadius: 36)
+      ProgressiveBlur(startPoint: 0.7, maxRadius: 10)
       LinearGradient(
         stops: [
           .init(color: .clear, location: 0.45),
-          .init(color: .black.opacity(0.35), location: 1)
+          .init(color: .black.opacity(0.2), location: 1)
         ],
         startPoint: .top,
         endPoint: .bottom
@@ -197,9 +200,9 @@ private struct HeroBleedArtExtension: View {
 
       ZStack(alignment: .top) {
         sampleArt
-          .frame(width: w, height: h)
-          .scaleEffect(1.35, anchor: .top)
-          .blur(radius: 28, opaque: true)
+          .frame(width: 420, height: 420)
+//          .scaleEffect(1.35, anchor: .top)
+//          .blur(radius: 28, opaque: true)
           .opacity(0.85)
           .mask(
             LinearGradient(
@@ -212,13 +215,13 @@ private struct HeroBleedArtExtension: View {
               endPoint: .bottom
             )
           )
-          .frame(width: w, height: bleedHeight + 40, alignment: .top)
+          .frame(width: 420, height: 420, alignment: .top)
           .offset(y: -bleedHeight)
           .allowsHitTesting(false)
 
         sampleArt
-          .frame(width: w, height: h)
-          .clipped()
+          .frame(width: 420, height: 420)
+//          .clipped()
 
         Rectangle()
           .fill(.ultraThinMaterial)
@@ -240,9 +243,9 @@ private struct HeroBleedArtExtension: View {
           endPoint: .bottom
         )
       }
-      .frame(width: w, height: h)
-      .padding(.top, bleedHeight)
-      .offset(y: -bleedHeight)
+      .frame(width: 420, height: 420)
+//      .padding(.top, bleedHeight)
+//      .offset(y: -bleedHeight)
     }
   }
 }
@@ -258,12 +261,12 @@ private struct HeroBleedArtExtension: View {
 private struct HeroBleedSystemExtension: View {
   var body: some View {
     sampleArt
-      .frame(width: HeroBleedSample.stageWidth, height: HeroBleedSample.artHeight)
+      .frame(width: 420, height: 420)
       .clipped()
       .backgroundExtensionEffect()
       .safeAreaInset(edge: .top, spacing: 0) {
         Color.clear
-          .frame(height: HeroBleedSample.topInset)
+              .frame(width: 420, height: 100)
           .overlay(alignment: .bottom) {
             Text("↑ system extension")
               .font(.caption2)
@@ -273,7 +276,7 @@ private struct HeroBleedSystemExtension: View {
       }
       .safeAreaInset(edge: .bottom, spacing: 0) {
         HeroBleedChrome()
-          .frame(maxWidth: .infinity, alignment: .leading)
+              .frame(width: 420, height: 420)
           .background(
             LinearGradient(
               colors: [.black.opacity(0.55), .clear],
@@ -287,7 +290,7 @@ private struct HeroBleedSystemExtension: View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
           .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
       }
-      .frame(width: HeroBleedSample.stageWidth)
+      .frame(width: 420, height: 420)
   }
 }
 #endif

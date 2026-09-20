@@ -10,7 +10,6 @@
 
 import UIKit
 import TVUIKit
-import KinoPubUI
 
 @MainActor
 public final class TVUIKitPosterCell: UICollectionViewCell {
@@ -84,7 +83,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
 
     captionLabel.translatesAutoresizingMaskIntoConstraints = false
     captionLabel.font = .preferredFont(forTextStyle: .callout)
-    captionLabel.textColor = .white
+    captionLabel.textColor = UIColor.label
     captionLabel.numberOfLines = 1
     captionLabel.textAlignment = .center
     captionLabel.enablesMarqueeWhenAncestorFocused = true
@@ -239,7 +238,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
       || context.nextFocusedView?.isDescendant(of: self) == true
     coordinator.addCoordinatedAnimations({
       self.overlayContainer.transform = nowFocused
-        ? CGAffineTransform(scaleX: 1.1, y: 1.1)
+        ? CGAffineTransform(scaleX: 1.18, y: 1.18)
         : .identity
       self.captionLabel.alpha = nowFocused ? 1 : 0
     }, completion: { [weak self] in

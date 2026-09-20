@@ -94,5 +94,5 @@ public struct SectionHeader: View {
   }
   .padding()
   .background(Color.KinoPub.background)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }

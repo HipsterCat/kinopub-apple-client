@@ -15,7 +15,13 @@ import KinoPubBackend
 /// no concept of.
 ///
 /// Rules: docs/product/playback-tracks.md
-final class TrackPreferenceStore {
+///
+/// `@unchecked Sendable` because every read/write of `ledgers` / `storedRevision`
+/// goes through `lock`. The player records from a time observer off-main; cards
+/// read a plan on the main actor.
+final class TrackPreferenceStore: @unchecked Sendable {
+
+  static let shared = TrackPreferenceStore()
 
   private static let storageKey = "trackPreferenceLedgers.v1"
 

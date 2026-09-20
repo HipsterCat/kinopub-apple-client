@@ -68,5 +68,5 @@ public struct FillingText: View {
     }
   }
   .padding()
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }

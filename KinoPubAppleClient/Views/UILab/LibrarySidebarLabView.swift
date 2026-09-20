@@ -120,7 +120,7 @@ private struct LibraryLabOuterShell<LibraryContent: View>: View {
   var body: some View {
     TabView {
       Tab("Home", systemImage: "play.fill") {
-        LibraryLabPlaceholder(title: "Home")
+        LibraryLabPlaceholder(title: "Watch Now")
       }
       Tab("Movies", systemImage: "movieclapper") {
         LibraryLabPlaceholder(title: "Movies")

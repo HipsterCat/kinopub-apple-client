@@ -24,6 +24,7 @@ struct AppSection: Identifiable {
   let titleKey: LocalizedStringKey
 }
 
+@MainActor
 final class SectionVisibilityStore: ObservableObject {
   static let shared = SectionVisibilityStore()
 

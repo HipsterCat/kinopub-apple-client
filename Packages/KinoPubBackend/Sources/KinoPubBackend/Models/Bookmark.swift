@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Bookmark: Codable {
+public struct Bookmark: Codable, Sendable {
   public let id: Int
   public let title: String
   public let views: Int

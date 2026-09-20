@@ -8,9 +8,9 @@
 import Foundation
 import KinoPubBackend
 
-final class VideoContentServiceImpl: VideoContentService {
+final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
 
-  private var apiClient: APIClient
+  private let apiClient: APIClient
 
   init(apiClient: APIClient) {
     self.apiClient = apiClient

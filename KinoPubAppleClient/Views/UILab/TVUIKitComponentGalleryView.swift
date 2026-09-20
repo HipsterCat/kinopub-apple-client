@@ -27,7 +27,7 @@ struct TVUIKitComponentGalleryView: View {
         header
 
         section("Episode states", note: "The shipping TVUIKitMediaItemRail, one look, one tile per state — including two upcoming tiles to compare a relative date badge against an absolute one. Under the tile: the name, always visible. In the artwork: progress bar OR runtime bottom-trailing, never both, never gated by focus — the bar already says \"how far in\", so the two are mutually exclusive. A bare glyph sits bottom-leading (no pill, a drop shadow carries it). Watched and upcoming get a top-leading badge instead of the corner glyph telling the whole story; a missing episode simply has no glyph at all — no fade, no disable.") {
-          TVUIKitMediaItemRail(items: GalleryContent.episodeStates, contentInset: 60, onSelect: { _ in })
+            TVUIKitMediaItemRail(items: GalleryContent.episodeStates, contentInset: 60, onSelect: { _ in })
         }
 
         section("Badges", note: "badgeText is a corner chip, not a spec sheet — one token. kino.pub's \"+10 new episodes\" counter deliberately does not feed it.") {
@@ -136,6 +136,7 @@ struct TVUIKitComponentGalleryView: View {
       VStack(alignment: .leading, spacing: 4) {
         Text(title)
           .font(TypeScale.detailSection)
+          .foregroundStyle(.primary)
         Text(note)
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -147,7 +148,7 @@ struct TVUIKitComponentGalleryView: View {
       content()
     }
     .focusSection()
-  }
+   }
 
   // MARK: - Full-screen layout
 
@@ -220,6 +221,7 @@ private struct GalleryItem: Identifiable {
   let tint: UIColor
 }
 
+@MainActor
 private enum GalleryContent {
   static let posters: [GalleryItem] = (0..<8).map { i in
     GalleryItem(id: i, title: "Poster \(i + 1)", subtitle: "Subtitle", symbol: "film", tint: palette[i % palette.count])
@@ -258,10 +260,10 @@ private enum GalleryContent {
     TVUIKitMediaItem(id: 4, tint: .systemGray, symbol: "film",
                      caption: "S1 E4 · Futurama",
                      status: .unavailable),
-    TVUIKitMediaItem(id: 5, tint: .systemGray, symbol: "calendar",
+    TVUIKitMediaItem(id: 5, tint: .systemGray, symbol: "film",
                      caption: "S1 E5 · Futurama",
-                     status: .upcoming("in 3 days")),
-    TVUIKitMediaItem(id: 6, tint: .systemGray, symbol: "calendar",
+                     status: .upcoming("In 3 days")),
+    TVUIKitMediaItem(id: 6, tint: .systemGray, symbol: "film",
                      caption: "S1 E6 · Futurama",
                      status: .upcoming("Mar 13, 2026"))
   ]
@@ -294,7 +296,7 @@ private enum GalleryContent {
       tint.withAlphaComponent(0.85).setFill()
       UIRectFill(CGRect(origin: .zero, size: size))
       let config = UIImage.SymbolConfiguration(pointSize: min(size.width, size.height) * 0.35, weight: .semibold)
-      if let glyph = UIImage(systemName: symbol, withConfiguration: config)?.withTintColor(.white.withAlphaComponent(0.9), renderingMode: .alwaysOriginal) {
+      if let glyph = UIImage(systemName: symbol, withConfiguration: config) {
         let origin = CGPoint(x: (size.width - glyph.size.width) / 2, y: (size.height - glyph.size.height) / 2)
         glyph.draw(at: origin)
       }
@@ -402,7 +404,7 @@ private struct TVCaptionButtonViewRepresentable: UIViewRepresentable {
 /// *does* react to the lockup's state — a straight opacity bump on focus/highlight, to
 /// show what a component participating (vs. `TVCardView`'s `contentView`, which the
 /// system animates on its own with no protocol needed) looks like.
-private final class LockupComponentBox: UIView, TVLockupViewComponent {
+private final class LockupComponentBox: UIView, @preconcurrency TVLockupViewComponent {
   func updateAppearance(forLockupViewState state: UIControl.State) {
     UIView.animate(withDuration: 0.2) {
       self.alpha = state.contains(.focused) ? 1 : 0.6
@@ -561,7 +563,7 @@ private final class FullScreenGalleryCell: TVCollectionViewFullScreenCell {
     tintBackground = background
 
     label.font = .systemFont(ofSize: 48, weight: .bold)
-    label.textColor = .white
+    label.textColor = UIColor.label
     label.translatesAutoresizingMaskIntoConstraints = false
     maskedContentView.addSubview(label)
     NSLayoutConstraint.activate([

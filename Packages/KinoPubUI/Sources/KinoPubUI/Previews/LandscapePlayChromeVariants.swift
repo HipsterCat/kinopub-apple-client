@@ -21,7 +21,7 @@ import SwiftUI
       sample(style: .glassLarge)
     }
   }
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }
 
 @MainActor
@@ -29,10 +29,10 @@ private func sample(style: LandscapePlayChromeStyle) -> some View {
   MediaCardView(
     card: MediaCard(
       id: 581,
-      posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
       title: "Стражи Галактики",
       progress: 0.42,
-      landscapeImageURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+      landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
       overlayLabel: "S2, E5 · 42 min",
       isSeries: true,
       primaryAction: .play

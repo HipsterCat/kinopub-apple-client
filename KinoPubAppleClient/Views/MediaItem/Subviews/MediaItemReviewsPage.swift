@@ -124,5 +124,5 @@ struct MediaItemRatingsAndReviewsPage: View {
                                  dislikeCount: 12)
     )
   }
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }

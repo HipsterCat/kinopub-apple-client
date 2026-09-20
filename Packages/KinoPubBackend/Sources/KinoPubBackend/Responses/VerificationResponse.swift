@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct VerificationResponse: Codable {
+public struct VerificationResponse: Codable, Sendable {
   public let code: String
   public let userCode: String
   public let verificationUri: String

@@ -67,7 +67,7 @@ struct KinoPubAppleClientApp: App {
 #endif
         // Dark-only until light is a deliberate pass (modernization Phase 0).
         // Info.plist UIUserInterfaceStyle=Dark covers system chrome; this covers SwiftUI.
-        .preferredColorScheme(.dark)
+//        // .preferredColorScheme(.dark)
         // Register a readable device identity + advertise HEVC/4K/HDR at activation, so
         // the kino.pub Devices list isn't "unknown / unknown" and streams match what
         // AVPlayer can open. A launch that only revived a Keychain token sends nothing
@@ -124,7 +124,7 @@ struct KinoPubAppleClientApp: App {
         .environmentObject(authState)
         .environment(errorHandler)
         .environmentObject(networkMonitor)
-        .preferredColorScheme(.dark)
+//        // .preferredColorScheme(.dark)
     }
     // Off the Window menu: the only way in is pressing Play. A menu item opens the scene
     // with nothing to play, which is just an empty black window.
@@ -152,7 +152,7 @@ struct KinoPubAppleClientApp: App {
         .environment(windowSettings)
         .environmentObject(authState)
         .environment(errorHandler)
-        .preferredColorScheme(.dark)
+//        // .preferredColorScheme(.dark)
     }
     .windowResizability(.contentSize)
     .defaultSize(width: 720, height: 520)
@@ -160,7 +160,7 @@ struct KinoPubAppleClientApp: App {
 
     Window("About KinoPub", id: AboutWindow.id) {
       AboutView()
-        .preferredColorScheme(.dark)
+//        // .preferredColorScheme(.dark)
     }
     .windowResizability(.contentSize)
     .restorationBehavior(.disabled)
@@ -172,7 +172,7 @@ struct KinoPubAppleClientApp: App {
     WindowGroup("UI Lab", id: UILabWindow.id, for: UILabChrome.self) { $chrome in
       UILabRoot(initialChrome: chrome ?? .adaptableSidebar)
         .frame(minWidth: 1100, minHeight: 700)
-        .preferredColorScheme(.dark)
+//        // .preferredColorScheme(.dark)
     }
     .defaultSize(width: 1200, height: 800)
     .windowResizability(.contentSize)

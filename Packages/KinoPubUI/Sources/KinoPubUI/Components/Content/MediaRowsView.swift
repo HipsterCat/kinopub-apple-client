@@ -371,7 +371,7 @@ public struct MediaCardContextMenuModifier: ViewModifier {
           cards: [
             MediaCard(
               id: 1,
-              posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+              posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
               title: "Стражи",
               imdbRating: 8.1,
               kinopoiskRating: 8.3,
@@ -380,7 +380,7 @@ public struct MediaCardContextMenuModifier: ViewModifier {
             ),
             MediaCard(
               id: 2,
-              posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+              posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
               title: "Другой фильм",
               imdbRating: 7.2,
               kinopoiskRating: 7.0,
@@ -394,12 +394,12 @@ public struct MediaCardContextMenuModifier: ViewModifier {
       bannerCards: [
         MediaCard(
           id: 10,
-          posterURL: "https://m.staticpop.net/poster/item/big/581.jpg",
+          posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
           title: "Баннер",
           subtitle: "Featured",
           imdbRating: 7.8,
           kinopoiskRating: 7.5,
-          backdropURL: "https://m.staticpop.net/poster/item/wide/581.jpg",
+          backdropURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
           is4K: true,
           isHDR: true
         )
@@ -407,5 +407,5 @@ public struct MediaCardContextMenuModifier: ViewModifier {
       navigationLinkProvider: { card in card.id }
     )
   }
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }

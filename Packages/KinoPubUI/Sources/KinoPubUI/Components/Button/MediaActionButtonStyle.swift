@@ -179,5 +179,5 @@ public struct MediaActionProgressTrack: View {
   .padding(32)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   .background(Color.black)
-  .preferredColorScheme(.dark)
+  // .preferredColorScheme(.dark)
 }

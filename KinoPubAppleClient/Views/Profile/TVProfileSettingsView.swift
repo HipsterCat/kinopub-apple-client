@@ -543,7 +543,7 @@ private struct SettingsPillButtonStyle: ButtonStyle {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
           Capsule(style: .continuous)
-            .fill(isFocused ? Color.white : Color.KinoPub.selectionBackground)
+            .fill(isFocused ? .primary : Color.KinoPub.selectionBackground)
         )
         .scaleEffect(isFocused ? 1.02 : (configuration.isPressed ? 0.98 : 1.0))
         .opacity(isEnabled ? 1.0 : 0.4)
@@ -621,7 +621,7 @@ private struct TVKinopoiskKeyView: View {
         .padding(.vertical, Metrics.pillVerticalPadding)
         .background(
           Capsule(style: .continuous)
-            .fill(isFieldFocused ? Color.white : Color.KinoPub.selectionBackground)
+            .fill(isFieldFocused ? .primary: Color.KinoPub.selectionBackground)
         )
         .focused($isFieldFocused)
 

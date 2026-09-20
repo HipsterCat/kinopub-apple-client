@@ -29,21 +29,16 @@ import OSLog
 /// from `PlayerManager`, which is not main-actor-isolated and asks synchronously — from its
 /// periodic time observer among other places. Only `warm` is isolated, because the resolver
 /// it drives is. The cache is behind a lock rather than an actor for the same reason.
-final class PlaybackPreflight {
+///
+/// `@unchecked Sendable` because every read/write of `cache` goes through `cacheLock`.
+final class PlaybackPreflight: @unchecked Sendable {
 
   static let shared = PlaybackPreflight()
 
   private let preferences: TrackPreferenceStore
   private let contentServiceOverride: VideoContentService?
 
-  /// The content service is resolved when it is first needed rather than held, so asking
-  /// what a title would play never builds the app context. That matters for a test, which
-  /// wants the decision without a network stack behind it.
-  private var contentService: VideoContentService {
-    contentServiceOverride ?? AppContext.shared.contentService
-  }
-
-  init(preferences: TrackPreferenceStore = AppContext.shared.trackPreferences,
+  init(preferences: TrackPreferenceStore = .shared,
        contentService: VideoContentService? = nil) {
     self.preferences = preferences
     self.contentServiceOverride = contentService
@@ -157,7 +152,8 @@ final class PlaybackPreflight {
   func warm(_ item: any PlayableItem) async {
     guard let episode = item as? Episode else { return }
     guard !episode.files.hasPlayableURLs else { return }
-    let filled = await MediaLinksResolver.shared.fill(episode, using: contentService)
+    let service = contentServiceOverride ?? AppContext.shared.contentService
+    let filled = await MediaLinksResolver.shared.fill(episode, using: service)
     Logger.app.debug("preflight warmed episode \(episode.id) playable=\(filled)")
   }
 }

@@ -245,7 +245,8 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
     Coordinator(manager: manager, onMenuPress: onMenuPress)
   }
 
-  final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+  @MainActor
+  final class Coordinator: NSObject, @preconcurrency AVPlayerViewControllerDelegate {
     /// Tracks the session's current manager — an accepted Up Next replaces it.
     var manager: PlayerManager
     let onMenuPress: () -> Void
@@ -281,26 +282,21 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
     /// Accepted (or the countdown ran out): swap the stream in place, same screen.
     func playerViewController(_ playerViewController: AVPlayerViewController,
                               didAccept proposal: AVContentProposal) {
-      // AVKit calls player delegates on the main thread; the session is main-actor
-      // state. (The methods stay nonisolated: a main-actor witness of the ObjC
-      // protocol warns in Swift 5 mode and errors in Swift 6.)
-      MainActor.assumeIsolated {
-        guard let episode = manager.pendingNextEpisode else { return }
-        let context = AppContext.shared
-        let next = PlaybackSession.shared.play(
-          item: episode,
-          mode: .media,
-          downloadedFilesDatabase: context.downloadedFilesDatabase,
-          actionsService: context.actionsService
-        )
-        next.attach(to: playerViewController)
-        // Swap immediately — waiting on the SwiftUI round-trip would hold the finished
-        // episode's last frame behind the countdown panel. `updateUIViewController`
-        // then finds the player already current and only adopts the new manager.
-        playerViewController.player = next.player
-        manager = next
-        Task { await next.preparePlayback() }
-      }
+      guard let episode = manager.pendingNextEpisode else { return }
+      let context = AppContext.shared
+      let next = PlaybackSession.shared.play(
+        item: episode,
+        mode: .media,
+        downloadedFilesDatabase: context.downloadedFilesDatabase,
+        actionsService: context.actionsService
+      )
+      next.attach(to: playerViewController)
+      // Swap immediately — waiting on the SwiftUI round-trip would hold the finished
+      // episode's last frame behind the countdown panel. `updateUIViewController`
+      // then finds the player already current and only adopts the new manager.
+      playerViewController.player = next.player
+      manager = next
+      Task { await next.preparePlayback() }
     }
 
     /// Rejected: the header's default is to dismiss the player, but this controller is

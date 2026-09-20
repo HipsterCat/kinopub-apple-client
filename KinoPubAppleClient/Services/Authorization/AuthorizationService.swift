@@ -12,7 +12,7 @@ enum MockError: Error {
   case mock
 }
 
-protocol AuthorizationService {
+protocol AuthorizationService: Sendable {
   func fetchDeviceCode() async throws -> VerificationResponse
   func fetchToken(by verification: VerificationResponse) async throws
   func refreshToken() async throws

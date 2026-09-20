@@ -6,7 +6,7 @@
 import Foundation
 import KinoPubBackend
 
-protocol CollectionsService {
+protocol CollectionsService: Sendable {
   func fetchCollections(page: Int?, sort: String?) async throws -> CollectionsData
   func fetchCollection(id: Int) async throws -> (Collection, [MediaItem])
   /// Which collections a title sits in. Best-effort by contract: the endpoint was
