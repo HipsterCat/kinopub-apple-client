@@ -90,53 +90,87 @@ public struct ShelfMetrics: Equatable, Sendable {
   }
 
 #if os(tvOS)
-  /// The HIG 6-column table on the full 1920pt canvas, expressed as the card width it
-  /// produces. On TV this is the fixed quantity: a poster has to stay readable from the
-  /// sofa, so a narrower container gets *fewer* cards, never smaller ones — and a
-  /// poster is the same size in a rail and in a grid, which is the whole point.
-  public static let tvCardWidth: CGFloat = 290
+  /// CURRENT.md HIG poster rail (Watch Now / Series / Movies): **6-col @ 260**.
+  /// Any other unfocused poster width is a grid-contract break.
+  public static let tvCardWidth: CGFloat = 260
+  public static let tvPosterColumns: Int = 6
 
-  /// What five landscape columns come to on the same 1920pt canvas.
+  /// Continue Watching / landscape stills. M3 owns the 4@410 recipe; M1 does not
+  /// resize that row. 352 remains until that milestone — not a poster-rail width.
   public static let tvLandscapeCardWidth: CGFloat = 352
 
-  /// Design margin inside whatever the container hands us. Only wins when the
-  /// container is already inside the platform's safe area (`safeArea == 0`).
-  public static let tvContentMargin: CGFloat = 40
+  /// CURRENT.md: 80 pt leading/trailing for primary content. Peek / focus scale
+  /// bleed outside this, they do not shrink it.
+  public static let tvContentMargin: CGFloat = 80
 
-  /// A focused tvOS tile grows about a tenth of its width, half of it into each
-  /// neighbour's side of the gutter. A constant gutter therefore reads fine at rest and
-  /// collides on focus, which is exactly what a 20pt gutter under a 290pt poster did.
-  /// The gutter has to carry the growth *and* still leave a visible gap.
-  public static let tvFocusGrowth: CGFloat = 0.1
-  public static let tvMinimumGap: CGFloat = 24
-
-  public static func tvGutter(cardWidth: CGFloat) -> CGFloat {
-    (cardWidth * tvFocusGrowth).rounded() + tvMinimumGap
+  /// Where the catalog collection sits so titles + first poster share the 80 pt
+  /// screen column, and the 7th card peeks into the trailing 80 pt.
+  /// `leadingConstant` is never negative — that was the flush-to-edge regression.
+  public struct TVPageChrome: Equatable, Sendable {
+    public var leadingConstant: CGFloat
+    public var trailingOverflow: CGFloat
   }
 
-  /// Width alone cannot classify a canvas. 1500pt is a Mac window at arm's length —
-  /// eight columns are right there — and it is also the tvOS Library grid next to its
-  /// 420pt sidebar, still viewed across a room. The shared table reads that as "wide
-  /// tablet" and halved the poster to ~150pt the moment a sidebar appeared, so tvOS
-  /// pins `tvCardWidth` and lets the container decide how many fit.
+  public static func tvPageChrome(viewFrameInWindow: CGRect, windowWidth: CGFloat) -> TVPageChrome {
+    TVPageChrome(
+      leadingConstant: max(0, tvContentMargin - viewFrameInWindow.minX),
+      trailingOverflow: max(0, windowWidth - viewFrameInWindow.maxX)
+    )
+  }
+
+  /// CURRENT.md: 60 pt top/bottom on the page.
+  public static let tvPageVerticalInset: CGFloat = 60
+
+  public static let tvTitledRowSpacing: CGFloat = 60
+
+  /// CURRENT.md: horizontal spacing **always 40 pt**.
+  public static let tvHorizontalSpacing: CGFloat = 40
+
+  /// A focused tvOS tile grows about a tenth of its size. Used only to reserve
+  /// focus-lift room, not to pick the gutter (that is `tvHorizontalSpacing`).
+  public static let tvFocusGrowth: CGFloat = 0.15
+  public static let tvMinimumGap: CGFloat = 40
+
+  public static func tvGutter(cardWidth _: CGFloat) -> CGFloat {
+    tvHorizontalSpacing
+  }
+
+  /// Unfocused poster width that **fills** the content box:
+  /// `(collectionWidth − 2×leadingInset − (columns−1)×gutter) / columns`.
+  /// At the HIG canvas (1920 / 80 / 40 / 6) this **is** 260 — the 6@260 table
+  /// realized from the collection’s current width, not a SwiftUI-pinned point
+  /// size. Trailing peek is leftover past that box (trailing section inset 0).
+  public static func tvFilledPosterWidth(
+    collectionWidth: CGFloat,
+    leadingInset: CGFloat,
+    columns: Int = tvPosterColumns,
+    gutter: CGFloat = tvHorizontalSpacing
+  ) -> CGFloat {
+    let count = CGFloat(max(columns, 1))
+    let usable = max(collectionWidth - leadingInset * 2, 1)
+    return max(1, (usable - gutter * (count - 1)) / count)
+  }
+
+  /// 6×260 + 5×40 = 1760 in the content box after the 80 pt leading column.
+  /// Pin the poster width; drop columns on a narrower container rather than
+  /// inventing a size. Peek is a partial next card past that box — not a reason
+  /// to delete the leading margin.
   private static func tvPosters(width: CGFloat, safeArea: CGFloat) -> Self {
     let inset = max(tvContentMargin, safeArea)
-    let gutter = tvGutter(cardWidth: tvCardWidth)
+    let gutter = tvHorizontalSpacing
     let usable = max(width - inset * 2, 1)
-    // Cards + the gutters between them: n·card + (n−1)·gutter ≤ usable. Floored, not
-    // rounded — with the card width pinned, rounding up overflows the container
-    // instead of quietly shrinking the cards.
-    let columns = Int((usable + gutter) / (tvCardWidth + gutter))
+    let fitting = Int((usable + gutter) / (tvCardWidth + gutter))
+    let columns = max(1, min(tvPosterColumns, fitting))
     return .init(inset: inset,
                  gutter: gutter,
-                 columns: max(2, columns),
+                 columns: columns,
                  fixedCardWidth: tvCardWidth)
   }
 #endif
 
   /// How much width buys one more column past the last named breakpoint. The named
   /// steps sit ~200pt apart for the same reason: that is one poster plus its gutter.
-  private static let columnStep: CGFloat = 200
+  private static let columnStep: CGFloat = 260
 
   /// One page of a grid or shelf, from the single number that decides its rhythm.
   ///

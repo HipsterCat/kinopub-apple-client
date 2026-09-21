@@ -9,11 +9,36 @@
 //  is reachable is the most valuable regression there is on tvOS: **the app launches, and
 //  it does not sit on a black screen.** Both of those have broken before.
 //
-//  Focus behaviour is deliberately not asserted. It needs content, and a screenshot cannot
-//  show whether a landing felt right; that stays a device check.
+//  Focus behaviour is deliberately not asserted in CI. It needs content, and a
+//  screenshot cannot show whether a landing felt right; that stays a device check.
+//
+//  Local hig Watch Now shots (DEBUG scheme arguments — `simctl ui appearance` is
+//  unsupported on this tvOS runtime):
+//    -KINOPUBForceColorScheme light
+//    -KINOPUBForceColorScheme dark
+//    -KINOPUBFocusFirstPoster          // unproven steal; hig frames use WatchNowHigShotsUITests
+//  Poster cells: accessibilityIdentifier `kinopub.poster.{id}` (cell + TVPosterView).
+//  Local hig capture (skips without ~/.kinopub-dev-session.json):
+//    WatchNowHigShotsUITests — XCUIRemote .down until a poster hasFocus.
 //
 
 import XCTest
+
+/// UI tests run *inside* the simulator. `NSHomeDirectory()` is the sandbox, not
+/// `/Users/sasha`. `SIMULATOR_HOST_HOME` is the Mac home (the same var
+/// `DevSessionMirror` uses in the app). The *app* under test still needs
+/// `KINOPUB_DEV_SESSION` — testmanagerd strips `SIMULATOR_HOST_HOME` from it.
+enum UITestDevSession {
+  static var filePath: String {
+    let hostHome = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"]
+      ?? NSHomeDirectory()
+    return hostHome + "/.kinopub-dev-session.json"
+  }
+
+  static var json: String? {
+    try? String(contentsOfFile: filePath, encoding: .utf8)
+  }
+}
 
 final class LaunchUITests: XCTestCase {
 
@@ -27,9 +52,7 @@ final class LaunchUITests: XCTestCase {
     // The app under a UI test cannot reach the dev-session mirror (testmanagerd strips
     // SIMULATOR_HOST_HOME), so the session is handed over directly when it exists.
     // CI runners have no such file and get the auth screen, as before.
-    if let session = try? String(
-      contentsOfFile: NSHomeDirectory() + "/.kinopub-dev-session.json", encoding: .utf8
-    ) {
+    if let session = UITestDevSession.json {
       app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
     }
     app.launch()
@@ -156,3 +179,20 @@ final class LaunchUITests: XCTestCase {
   }
 #endif
 }
+
+#if os(tvOS)
+extension XCUIApplication {
+  /// Local hig Watch Now shots. Not a CI test — pair with a signed-in DEBUG build.
+  /// `simctl ui appearance` is unsupported; pass `light` or `dark`.
+  func launchForWatchNowShot(colorScheme: String, focusFirstPoster: Bool = false) {
+    launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", colorScheme]
+    if focusFirstPoster {
+      launchArguments += ["-KINOPUBFocusFirstPoster"]
+    }
+    if let session = UITestDevSession.json {
+      launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    launch()
+  }
+}
+#endif

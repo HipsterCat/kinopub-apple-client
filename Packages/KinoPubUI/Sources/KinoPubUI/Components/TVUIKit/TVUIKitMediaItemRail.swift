@@ -216,6 +216,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   private let onNearEnd: ((Int) -> Void)?
   private let onFocusedItem: ((Int) -> Void)?
   private let contextMenuProvider: ((Int) -> [MediaCardContextEntry])?
+  private let allowsFocus: Bool
 
   /// - Parameters:
   ///   - contentInset: leading/trailing inset, so the rail lines up with the section
@@ -234,7 +235,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
               onSelect: @escaping (Int) -> Void,
               onNearEnd: ((Int) -> Void)? = nil,
               onFocusedItem: ((Int) -> Void)? = nil,
-              contextMenuProvider: ((Int) -> [MediaCardContextEntry])? = nil) {
+              contextMenuProvider: ((Int) -> [MediaCardContextEntry])? = nil,
+              allowsFocus: Bool = true) {
     self.items = items
     self.contentInset = contentInset
     self.entryItemID = entryItemID
@@ -243,6 +245,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
     self.onNearEnd = onNearEnd
     self.onFocusedItem = onFocusedItem
     self.contextMenuProvider = contextMenuProvider
+    self.allowsFocus = allowsFocus
   }
 
   public func makeUIViewController(context: Context) -> TVUIKitMediaItemRailController {
@@ -253,7 +256,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
                      onSelect: onSelect,
                      onNearEnd: onNearEnd,
                      onFocusedItem: onFocusedItem,
-                     contextMenuProvider: contextMenuProvider)
+                     contextMenuProvider: contextMenuProvider,
+                     allowsFocus: allowsFocus)
     return controller
   }
 
@@ -264,7 +268,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
                      onSelect: onSelect,
                      onNearEnd: onNearEnd,
                      onFocusedItem: onFocusedItem,
-                     contextMenuProvider: contextMenuProvider)
+                     contextMenuProvider: contextMenuProvider,
+                     allowsFocus: allowsFocus)
   }
 
   public func sizeThatFits(_ proposal: ProposedViewSize,
@@ -281,7 +286,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
 public enum TVUIKitMediaItemMetrics {
   /// Multiplier on the system's own tile size. 1.0 is exactly Apple's row; that reads
   /// small in our shelves, so the shipping tile is a notch above it.
-  public static let scale: CGFloat = 1.18
+    public static let scale: CGFloat = 1.15
 
   /// Used only when the probe comes back with nothing — roughly the system row.
   public static let fallback = SystemMetrics(itemSize: CGSize(width: 500, height: 340),
@@ -400,6 +405,7 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   private var onNearEnd: ((Int) -> Void)?
   private var onFocusedItem: ((Int) -> Void)?
   private var contextMenuProvider: ((Int) -> [MediaCardContextEntry])?
+  private var allowsFocus = true
 
   private lazy var collectionView: UICollectionView = {
     let inset = contentInset
@@ -409,6 +415,7 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
     view.backgroundColor = .clear
     view.clipsToBounds = false
+    view.contentInsetAdjustmentBehavior = .never
     // Deliberately OFF. `remembersLastFocusedIndexPath` restores by *index*, and this
     // rail's contents grow underneath it — TMDB schedules arrive after the kino.pub
     // episodes and insert unaired entries, so the remembered index silently becomes a
@@ -443,6 +450,7 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     super.viewDidLoad()
     view.backgroundColor = .clear
     view.clipsToBounds = false
+    view.insetsLayoutMarginsFromSafeArea = false
     collectionView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(collectionView)
     NSLayoutConstraint.activate([
@@ -459,7 +467,8 @@ public final class TVUIKitMediaItemRailController: UIViewController {
              onSelect: @escaping (Int) -> Void,
              onNearEnd: ((Int) -> Void)?,
              onFocusedItem: ((Int) -> Void)?,
-             contextMenuProvider: ((Int) -> [MediaCardContextEntry])?) {
+             contextMenuProvider: ((Int) -> [MediaCardContextEntry])?,
+             allowsFocus: Bool = true) {
     let changed = self.items != items
     let entryMoved = self.entryItemID != entryItemID
     self.items = items
@@ -468,8 +477,15 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     self.onNearEnd = onNearEnd
     self.onFocusedItem = onFocusedItem
     self.contextMenuProvider = contextMenuProvider
-    if changed { collectionView.reloadData() }
+    let focusChanged = self.allowsFocus != allowsFocus
+    self.allowsFocus = allowsFocus
+    collectionView.allowsFocus = allowsFocus
+    if changed || focusChanged { collectionView.reloadData() }
     if changed || entryMoved { scrollToEntry(animated: animatesEntryScroll && !changed) }
+  }
+
+  public override var preferredFocusEnvironments: [UIFocusEnvironment] {
+    allowsFocus ? super.preferredFocusEnvironments : []
   }
 
   private func index(of id: Int?) -> Int? {
@@ -521,7 +537,7 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
       withReuseIdentifier: TVUIKitMediaItemCell.reuseID,
       for: indexPath
     ) as! TVUIKitMediaItemCell
-    cell.configure(items[indexPath.item])
+    cell.configure(items[indexPath.item], allowsFocus: allowsFocus)
     return cell
   }
 
@@ -534,8 +550,14 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
   /// "start here" — the alternative is pushing focus programmatically from outside,
   /// which fights the engine and loses.
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+    guard allowsFocus else { return nil }
     guard let index = index(of: entryItemID) else { return nil }
     return IndexPath(item: index, section: 0)
+  }
+
+  public func collectionView(_ collectionView: UICollectionView,
+                             canFocusItemAt indexPath: IndexPath) -> Bool {
+    allowsFocus
   }
 
   public func collectionView(_ collectionView: UICollectionView,
@@ -590,8 +612,11 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   private var loadedURL: URL?
   private var imageTask: Task<Void, Never>?
   private let overlay = TVUIKitMediaItemOverlayView()
+  /// DEBUG `-KINOPUBFocusFirstPoster` sets this false on the CW landscape rail.
+  private var cellAllowsFocus = true
 
-  func configure(_ item: TVUIKitMediaItem) {
+  func configure(_ item: TVUIKitMediaItem, allowsFocus: Bool = true) {
+    cellAllowsFocus = allowsFocus
     let keepsArtwork = self.item?.imageURL == item.imageURL && loadedURL == item.imageURL
     self.item = item
     if !keepsArtwork {
@@ -676,9 +701,10 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     artwork = nil
     loadedURL = nil
     contentConfiguration = nil
+    cellAllowsFocus = true
   }
 
-  override var canBecomeFocused: Bool { true }
+  override var canBecomeFocused: Bool { cellAllowsFocus }
 }
 
 // MARK: - Overlay
@@ -740,14 +766,14 @@ final class TVUIKitMediaItemOverlayView: UIView {
     glyphView.tintColor = .white
     glyphView.contentMode = .scaleAspectFit
     glyphView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
-    TVUIKitChromeSupport.applyLegibilityShadow(to: glyphView.layer)
+//    TVUIKitChromeSupport.applyLegibilityShadow(to: glyphView.layer)
     addSubview(glyphView)
 
     runtimeLabel.translatesAutoresizingMaskIntoConstraints = false
     runtimeLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 19, weight: .semibold)
     runtimeLabel.textColor = .white
     runtimeLabel.textAlignment = .right
-    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
+//    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
     addSubview(runtimeLabel)
 
     // A real pill, unlike the bottom corner — this is a badge (Watched / a release

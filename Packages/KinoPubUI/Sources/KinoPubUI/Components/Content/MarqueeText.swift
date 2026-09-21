@@ -22,7 +22,7 @@ public struct MarqueeText: View {
 #if os(tvOS)
     var textStyle: UIFont.TextStyle {
       switch self {
-      case .title: return .headline
+      case .title: return .subheadline
       case .subtitle: return .callout
       case .meta: return .caption1
       }

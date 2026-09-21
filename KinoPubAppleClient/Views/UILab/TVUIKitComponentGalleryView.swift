@@ -330,14 +330,14 @@ private struct TVPosterViewRepresentable: UIViewRepresentable {
     view.title = item.title
     view.subtitle = item.subtitle
     // Without this the poster's natural size is the image's own 520×780.
-    view.contentSize = CGSize(width: 260, height: 390)
+    view.contentSize = CGSize(width: 260, height: 394)
     return view
   }
 
   func updateUIView(_ view: TVPosterView, context: Context) {}
 
   func sizeThatFits(_ proposal: ProposedViewSize, uiView: TVPosterView, context: Context) -> CGSize? {
-    lockupSize(uiView, fallback: CGSize(width: 260, height: 440))
+    lockupSize(uiView, fallback: CGSize(width: 260, height: 436))
   }
 }
 

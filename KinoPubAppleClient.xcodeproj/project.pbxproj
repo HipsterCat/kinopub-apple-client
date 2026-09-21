@@ -182,6 +182,7 @@
 		A1B2C3D433B5A0E000000012 /* PlaybackPreflightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D433B5A0E000000011 /* PlaybackPreflightTests.swift */; };
 		A1B2C3D433B5A0E000000022 /* PlayerTrackSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D433B5A0E000000021 /* PlayerTrackSelectionTests.swift */; };
 		A1B2C3D422B5A0E00000001D /* LaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D422B5A0E00000001C /* LaunchUITests.swift */; };
+		A1B2C3D422B5A0E00000002D /* WatchNowHigShotsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D422B5A0E00000002C /* WatchNowHigShotsUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -379,6 +380,7 @@
 		A1B2C3D433B5A0E000000021 /* PlayerTrackSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerTrackSelectionTests.swift; sourceTree = "<group>"; };
 		A1B2C3D422B5A0E000000012 /* KinoPubAppleClientUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KinoPubAppleClientUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1B2C3D422B5A0E00000001C /* LaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchUITests.swift; sourceTree = "<group>"; };
+		A1B2C3D422B5A0E00000002C /* WatchNowHigShotsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchNowHigShotsUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1065,6 +1067,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D422B5A0E00000001C /* LaunchUITests.swift */,
+				A1B2C3D422B5A0E00000002C /* WatchNowHigShotsUITests.swift */,
 			);
 			path = KinoPubAppleClientUITests;
 			sourceTree = "<group>";
@@ -1391,6 +1394,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D422B5A0E00000001D /* LaunchUITests.swift in Sources */,
+				A1B2C3D422B5A0E00000002D /* WatchNowHigShotsUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1567,7 +1571,11 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=iphoneos*]" = Dark;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=iphonesimulator*]" = Dark;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=macosx*]" = Dark;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=appletvos*]" = Automatic;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=appletvsimulator*]" = Automatic;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
@@ -1618,7 +1626,11 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=iphoneos*]" = Dark;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=iphonesimulator*]" = Dark;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=macosx*]" = Dark;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=appletvos*]" = Automatic;
+				"INFOPLIST_KEY_UIUserInterfaceStyle[sdk=appletvsimulator*]" = Automatic;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";

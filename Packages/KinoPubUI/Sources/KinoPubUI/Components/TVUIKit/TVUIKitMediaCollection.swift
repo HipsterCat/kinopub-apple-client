@@ -27,27 +27,36 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
   /// `ShelfMetrics.posters(width:typeSize:safeArea:)`. Passing the same value the
   /// caller used for its section header keeps the header and the tiles on one margin.
   public let safeArea: CGFloat
+  /// Leading content column. `nil` uses `ShelfMetrics` inset. Shelves pass the
+  /// 80-from-screen value so a host already in the safe area is not double-cut.
+  public let leadingInset: CGFloat?
   public let typeSize: DynamicTypeSize
   public let onSelect: (MediaCard) -> Void
   public let onNearEnd: ((MediaCard) -> Void)?
   public let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  /// DEBUG `-KINOPUBFocusFirstPoster`: only Hot Movies should claim first cell.
+  public let prefersInitialFocus: Bool
 
   public init(cards: [MediaCard],
               axis: TVUIKitCollectionAxis,
               containerWidth: CGFloat,
               safeArea: CGFloat = 0,
+              leadingInset: CGFloat? = nil,
               typeSize: DynamicTypeSize = .large,
               onSelect: @escaping (MediaCard) -> Void,
               onNearEnd: ((MediaCard) -> Void)? = nil,
-              contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil) {
+              contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
+              prefersInitialFocus: Bool = false) {
     self.cards = cards
     self.axis = axis
     self.containerWidth = containerWidth
     self.safeArea = safeArea
+    self.leadingInset = leadingInset
     self.typeSize = typeSize
     self.onSelect = onSelect
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
+    self.prefersInitialFocus = prefersInitialFocus
   }
 
   public func makeUIViewController(context: Context) -> TVUIKitMediaCollectionController {
@@ -56,10 +65,12 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
              axis: axis,
              containerWidth: containerWidth,
              safeArea: safeArea,
+             leadingInset: leadingInset,
              typeSize: typeSize,
              onSelect: onSelect,
              onNearEnd: onNearEnd,
-             contextMenuProvider: contextMenuProvider)
+             contextMenuProvider: contextMenuProvider,
+             prefersInitialFocus: prefersInitialFocus)
     return vc
   }
 
@@ -68,10 +79,12 @@ public struct TVUIKitMediaCollection: UIViewControllerRepresentable {
              axis: axis,
              containerWidth: containerWidth,
              safeArea: safeArea,
+             leadingInset: leadingInset,
              typeSize: typeSize,
              onSelect: onSelect,
              onNearEnd: onNearEnd,
-             contextMenuProvider: contextMenuProvider)
+             contextMenuProvider: contextMenuProvider,
+             prefersInitialFocus: prefersInitialFocus)
   }
 }
 
@@ -84,22 +97,30 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   private var isLandscape = false
   private var tileSize: CGSize = .zero
   private var itemSize: CGSize = .zero
-  private var gutter: CGFloat = 20
+  private var gutter: CGFloat = 40
   private var inset: CGFloat = 40
+  private var installedAxis: TVUIKitCollectionAxis?
 
   private var onSelect: ((MediaCard) -> Void)?
   private var onNearEnd: ((MediaCard) -> Void)?
   private var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  private var prefersInitialFocus = false
+  /// DEBUG: first poster is actually focused (not merely requested).
+  private var didClaimInitialFocus = false
+  /// DEBUG: retry `requestFocusUpdate` until the cell is focused or we give up.
+  private var initialFocusClaimTask: Task<Void, Never>?
+  private var initialFocusClaimExhausted = false
 
   private lazy var collectionView: UICollectionView = {
-    let layout = UICollectionViewFlowLayout()
-    layout.scrollDirection = .horizontal
-    let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+    let view = UICollectionView(frame: .zero, collectionViewLayout: makeLayout())
     view.backgroundColor = .clear
     view.showsHorizontalScrollIndicator = false
     view.showsVerticalScrollIndicator = false
-    view.remembersLastFocusedIndexPath = true
+    view.remembersLastFocusedIndexPath = !DebugLaunch.focusFirstPoster
     view.clipsToBounds = false
+    // Horizontal 80 pt is the leading content column, not a reason to ignore
+    // the safe area. Automatic adjustment would double-cut that column.
+    view.contentInsetAdjustmentBehavior = .never
     view.dataSource = self
     view.delegate = self
     view.prefetchDataSource = self
@@ -116,12 +137,14 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     FocusLog.railGeometry(collectionView, section: sectionName)
+    startInitialFocusClaimIfNeeded()
   }
 
   public override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = .clear
     view.clipsToBounds = false
+    view.insetsLayoutMarginsFromSafeArea = false
     collectionView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(collectionView)
     NSLayoutConstraint.activate([
@@ -132,14 +155,31 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     ])
   }
 
+  public override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    startInitialFocusClaimIfNeeded()
+  }
+
+  public override func didUpdateFocus(
+    in context: UIFocusUpdateContext,
+    with coordinator: UIFocusAnimationCoordinator
+  ) {
+    super.didUpdateFocus(in: context, with: coordinator)
+    if prefersInitialFocus, firstPosterContains(context.nextFocusedView) {
+      didClaimInitialFocus = true
+    }
+  }
+
   func apply(cards: [MediaCard],
              axis: TVUIKitCollectionAxis,
              containerWidth: CGFloat,
              safeArea: CGFloat,
+             leadingInset: CGFloat?,
              typeSize: DynamicTypeSize,
              onSelect: @escaping (MediaCard) -> Void,
              onNearEnd: ((MediaCard) -> Void)?,
-             contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?) {
+             contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?,
+             prefersInitialFocus: Bool = false) {
     let width = max(containerWidth, 1)
     let landscape = cards.first?.isLandscape == true
     let metrics = TVUIKitPosterMetrics.shelfMetrics(
@@ -148,14 +188,21 @@ public final class TVUIKitMediaCollectionController: UIViewController {
       typeSize: typeSize,
       safeArea: safeArea
     )
+    let resolvedInset = leadingInset ?? metrics.inset
     let tile = landscape
       ? TVUIKitPosterMetrics.landscapeSize(containerWidth: width, typeSize: typeSize, safeArea: safeArea)
-      : TVUIKitPosterMetrics.posterSize(containerWidth: width, typeSize: typeSize, safeArea: safeArea)
+      : TVUIKitPosterMetrics.posterSize(
+        containerWidth: width,
+        typeSize: typeSize,
+        safeArea: safeArea,
+        leadingInset: resolvedInset
+      )
     let item = TVUIKitPosterMetrics.itemSize(
       isLandscape: landscape,
       containerWidth: width,
       typeSize: typeSize,
-      safeArea: safeArea
+      safeArea: safeArea,
+      leadingInset: resolvedInset
     )
 
     let cardsChanged = self.cards.map(\.id) != cards.map(\.id)
@@ -164,6 +211,8 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     let layoutChanged = abs(self.containerWidth - width) > 0.5
       || self.axis != axis
       || isLandscape != landscape
+      || abs(self.inset - resolvedInset) > 0.5
+      || abs(self.gutter - metrics.gutter) > 0.5
       || abs(itemSize.width - item.width) > 0.5
       || abs(itemSize.height - item.height) > 0.5
 
@@ -175,34 +224,31 @@ public final class TVUIKitMediaCollectionController: UIViewController {
     self.tileSize = tile
     self.itemSize = item
     self.gutter = metrics.gutter
-    self.inset = metrics.inset
+    self.inset = resolvedInset
     self.onSelect = onSelect
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
+    if self.prefersInitialFocus != prefersInitialFocus {
+      didClaimInitialFocus = false
+      initialFocusClaimExhausted = false
+      initialFocusClaimTask?.cancel()
+      initialFocusClaimTask = nil
+    }
+    self.prefersInitialFocus = prefersInitialFocus
+    if !prefersInitialFocus {
+      didClaimInitialFocus = false
+      initialFocusClaimExhausted = false
+      initialFocusClaimTask?.cancel()
+      initialFocusClaimTask = nil
+    }
 
-    if let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
-      layout.scrollDirection = axis == .horizontal ? .horizontal : .vertical
-      layout.minimumLineSpacing = gutter
-      layout.minimumInteritemSpacing = gutter
-      // Focus room derived from the tile, not a constant: a 435pt-tall poster and a
-      // 198pt-tall landscape still grow by different amounts, and reserving the same
-      // strip for both is how rows ended up touching when one of them lit up.
-      let focusRoom = TVUIKitPosterMetrics.sectionFocusPadding(
-        isLandscape: landscape,
-        containerWidth: width,
-        typeSize: typeSize,
-        safeArea: safeArea
-      )
-      // A pinned card width leaves a remainder at the end of a row. In a shelf it just
-      // scrolls away; in a grid it would sit as a hole against the trailing edge, so
-      // the grid takes it as symmetric margin and stays centred — through the same
-      // `gridInset` a section header above it must use, or the two visibly disagree.
-      let sideInset = axis == .vertical ? metrics.gridInset(in: width) : inset
-      layout.sectionInset = UIEdgeInsets(top: focusRoom,
-                                         left: sideInset,
-                                         bottom: focusRoom,
-                                         right: sideInset)
-      layout.itemSize = item
+    if installedAxis != axis {
+      collectionView.setCollectionViewLayout(makeLayout(), animated: false)
+      installedAxis = axis
+    } else if axis == .vertical, let flow = collectionView.collectionViewLayout as? UICollectionViewFlowLayout {
+      applyVerticalFlowMetrics(to: flow)
+    } else if layoutChanged {
+      collectionView.collectionViewLayout.invalidateLayout()
     }
 
     collectionView.alwaysBounceHorizontal = axis == .horizontal
@@ -213,7 +259,203 @@ public final class TVUIKitMediaCollectionController: UIViewController {
 
     if cardsChanged || layoutChanged {
       collectionView.reloadData()
+      if prefersInitialFocus {
+        didClaimInitialFocus = false
+        initialFocusClaimExhausted = false
+        initialFocusClaimTask?.cancel()
+        initialFocusClaimTask = nil
+      }
     }
+    if DebugLaunch.focusFirstPoster {
+      collectionView.remembersLastFocusedIndexPath = false
+    }
+    startInitialFocusClaimIfNeeded()
+  }
+
+  /// Horizontal shelves: compositional, 260-wide groups, item fills the group.
+  /// Vertical grids (Library): FlowLayout + pinned 260 — filling 6 columns in a
+  /// sidebar pane is what wrecked those posters.
+  private func makeLayout() -> UICollectionViewLayout {
+    if axis == .vertical {
+      return makeVerticalFlowLayout()
+    }
+    let config = UICollectionViewCompositionalLayoutConfiguration()
+    config.scrollDirection = .horizontal
+    return UICollectionViewCompositionalLayout(
+      sectionProvider: { [weak self] _, environment in
+        self?.makeHorizontalSection(in: environment) ?? Self.fallbackSection
+      },
+      configuration: config
+    )
+  }
+
+  private func makeVerticalFlowLayout() -> UICollectionViewFlowLayout {
+    let layout = UICollectionViewFlowLayout()
+    layout.scrollDirection = .vertical
+    applyVerticalFlowMetrics(to: layout)
+    return layout
+  }
+
+  private func applyVerticalFlowMetrics(to layout: UICollectionViewFlowLayout) {
+    let width = max(containerWidth, 1)
+    let metrics = TVUIKitPosterMetrics.shelfMetrics(
+      isLandscape: isLandscape,
+      containerWidth: width,
+      typeSize: typeSize
+    )
+    layout.minimumLineSpacing = gutter
+    layout.minimumInteritemSpacing = gutter
+    let focusRoom = TVUIKitPosterMetrics.sectionFocusPadding(
+      isLandscape: isLandscape,
+      containerWidth: width,
+      typeSize: typeSize
+    )
+    let leading = metrics.gridInset(in: width)
+    layout.sectionInset = UIEdgeInsets(
+      top: focusRoom,
+      left: leading,
+      bottom: focusRoom,
+      right: leading
+    )
+    layout.itemSize = itemSize
+  }
+
+  private func makeHorizontalSection(in environment: NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection {
+    let envWidth = environment.container.contentSize.width
+    let width = envWidth > 8 ? envWidth : max(containerWidth, 1)
+    if isLandscape {
+      return makeHorizontalLandscapeSection(collectionWidth: width)
+    }
+    return TVUIKitPosterMetrics.makeHorizontalPosterSection(
+      collectionWidth: width,
+      leadingInset: inset,
+      trailingInset: 0,
+      topInset: 0,
+      orthogonal: false
+    )
+  }
+
+  private func makeHorizontalLandscapeSection(collectionWidth: CGFloat) -> NSCollectionLayoutSection {
+    let tile = TVUIKitPosterMetrics.landscapeSize(
+      containerWidth: collectionWidth,
+      typeSize: typeSize
+    )
+    let focusRoom = TVUIKitPosterMetrics.focusGrowthPadding(tileHeight: tile.height)
+    let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(
+      widthDimension: .fractionalWidth(1),
+      heightDimension: .fractionalHeight(1)
+    ))
+    let group = NSCollectionLayoutGroup.horizontal(
+      layoutSize: NSCollectionLayoutSize(
+        widthDimension: .absolute(tile.width),
+        heightDimension: .absolute(tile.height)
+      ),
+      subitems: [item]
+    )
+    let section = NSCollectionLayoutSection(group: group)
+    section.interGroupSpacing = gutter
+    section.contentInsets = NSDirectionalEdgeInsets(
+      top: focusRoom,
+      leading: inset,
+      bottom: focusRoom,
+      trailing: 0
+    )
+    return section
+  }
+
+  private static var fallbackSection: NSCollectionLayoutSection {
+    let size = NSCollectionLayoutSize(
+      widthDimension: .absolute(1),
+      heightDimension: .absolute(1)
+    )
+    let item = NSCollectionLayoutItem(layoutSize: size)
+    return NSCollectionLayoutSection(
+      group: .horizontal(layoutSize: size, subitems: [item])
+    )
+  }
+
+  /// DEBUG `-KINOPUBFocusFirstPoster`: this poster rail, first cell — not CW.
+  public override var preferredFocusEnvironments: [UIFocusEnvironment] {
+    guard prefersInitialFocus,
+          collectionView.numberOfItems(inSection: 0) > 0 else {
+      return super.preferredFocusEnvironments
+    }
+    let path = IndexPath(item: 0, section: 0)
+    if let cell = collectionView.cellForItem(at: path) { return [cell] }
+    return [collectionView]
+  }
+
+  /// Move focus onto the first poster. Local verify at `f59f31b` failed:
+  /// this does **not** steal focus from the SwiftUI Watch Now tab pill.
+  /// Hig evidence is `WatchNowHigShotsUITests` + `XCUIRemote.press(.down)`.
+  /// Kept as a best-effort DEBUG helper only.
+  private func startInitialFocusClaimIfNeeded() {
+    guard prefersInitialFocus, !didClaimInitialFocus, !initialFocusClaimExhausted else { return }
+    guard initialFocusClaimTask == nil else { return }
+    initialFocusClaimTask = Task { @MainActor [weak self] in
+      guard let self else { return }
+      defer { self.initialFocusClaimTask = nil }
+      for _ in 0..<80 {
+        if Task.isCancelled { return }
+        if self.didClaimInitialFocus { return }
+        if self.tryClaimInitialFocus() { return }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+      }
+      self.initialFocusClaimExhausted = true
+    }
+  }
+
+  @discardableResult
+  private func tryClaimInitialFocus() -> Bool {
+    guard prefersInitialFocus, !didClaimInitialFocus else { return true }
+    guard let window = collectionView.window else { return false }
+    guard collectionView.numberOfItems(inSection: 0) > 0 else { return false }
+    collectionView.layoutIfNeeded()
+    let cell = collectionView.cellForItem(at: IndexPath(item: 0, section: 0))
+    if firstPosterIsFocused() {
+      didClaimInitialFocus = true
+      return true
+    }
+    guard let system = UIFocusSystem.focusSystem(for: view)
+            ?? UIFocusSystem.focusSystem(for: window) else { return false }
+    // Prefer this VC: `preferredFocusEnvironments` already points at cell 0.
+    // Requesting only the cell fails when it is not yet in the focus graph
+    // (off-screen rail, SwiftUI update). The VC *is* in the window.
+    system.requestFocusUpdate(to: self)
+    system.updateFocusIfNeeded()
+    if firstPosterIsFocused() {
+      didClaimInitialFocus = true
+      return true
+    }
+    if let cell {
+      system.requestFocusUpdate(to: cell)
+      system.updateFocusIfNeeded()
+    }
+    if firstPosterIsFocused() {
+      didClaimInitialFocus = true
+      return true
+    }
+    return false
+  }
+
+  private func firstPosterIsFocused() -> Bool {
+    if let cell = collectionView.cellForItem(at: IndexPath(item: 0, section: 0)), cell.isFocused {
+      return true
+    }
+    return firstPosterContains(focusedView)
+  }
+
+  private var focusedView: UIView? {
+    let system = UIFocusSystem.focusSystem(for: collectionView)
+      ?? collectionView.window.flatMap { UIFocusSystem.focusSystem(for: $0) }
+    return system?.focusedItem as? UIView
+  }
+
+  private func firstPosterContains(_ view: UIView?) -> Bool {
+    guard let view else { return false }
+    let path = IndexPath(item: 0, section: 0)
+    guard let cell = collectionView.cellForItem(at: path) else { return false }
+    return view === cell || view.isDescendant(of: cell)
   }
 }
 
@@ -266,7 +508,11 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
       withReuseIdentifier: TVUIKitPosterCell.reuseID,
       for: indexPath
     ) as! TVUIKitPosterCell
-    cell.configure(card: card, size: tileSize)
+    let layoutWidth = collectionView.layoutAttributesForItem(at: indexPath)?.size.width
+      ?? cell.bounds.width
+    let width = layoutWidth > 1 ? layoutWidth : max(tileSize.width, ShelfMetrics.tvCardWidth)
+    let size = CGSize(width: width, height: width / CardAspect.poster.ratio)
+    cell.configure(card: card, size: size)
     return cell
   }
 
@@ -274,9 +520,19 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     onSelect?(cards[indexPath.item])
   }
 
+  /// DEBUG `-KINOPUBFocusFirstPoster`: land on the first poster, not CW landscape.
+  public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+    guard prefersInitialFocus,
+          collectionView.numberOfItems(inSection: 0) > 0 else { return nil }
+    return IndexPath(item: 0, section: 0)
+  }
+
   public func collectionView(_ collectionView: UICollectionView,
                              didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                              with coordinator: UIFocusAnimationCoordinator) {
+    if prefersInitialFocus, context.nextFocusedIndexPath == IndexPath(item: 0, section: 0) {
+      didClaimInitialFocus = true
+    }
     guard FocusLog.isEnabled else { return }
     let name: (IndexPath?) -> String? = { [weak self] path in
       guard let self, let path, self.cards.indices.contains(path.item) else { return nil }
@@ -325,6 +581,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     forItemAt indexPath: IndexPath
   ) {
     onNearEnd?(cards[indexPath.item])
+    if indexPath.item == 0 { startInitialFocusClaimIfNeeded() }
   }
 
   // MARK: - Context menu

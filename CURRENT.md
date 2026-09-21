@@ -48,7 +48,7 @@ Inset primary content **60 pt** top/bottom, **80 pt** sides. Section titles and 
 
 **Peek is not “insets none.”** Trailing (and leading when scrolled) may show a **partial next card** past the content box so the rail reads as scrollable. The page is **not** flush to the screen edge; removing the leading margin is a **regression**. Do not ignore the safe area to fake edge-to-edge chrome.
 
-### Unfocused grid table — horizontal spacing **always 40 pt**; min vertical spacing **100 pt**
+### Unfocused grid table — horizontal spacing **always 40 pt**; titled-row vertical spacing **80 pt** (Sasha 2026-09: was 100, −20)
 
 | Columns | Unfocused width (pt) |
 | --- | --- |
@@ -94,7 +94,7 @@ System TabView / `sidebarAdaptable` / list materials only. No custom frosted pil
 
 ## Appearance & type
 
-- **System light/dark** — follow user preference. Forced dark-only was a **hero** tradeoff; heroes are parked, so dark-only is **rescinded** for MVP.
+- **System light/dark** — follow user preference. Forced dark-only was a **hero** tradeoff; heroes are parked, so dark-only is **rescinded** for MVP. Do not apply `.preferredColorScheme` on the tvOS shell (even `nil` pinned Dark). `simctl ui appearance` is unsupported on current tvOS runtimes; DEBUG `-KINOPUBForceColorScheme light|dark` is the shot harness. Tab labels: **Watch Now** / **Series**, never Home / Shows.
 - **Dynamic Type** — system text styles; no `.system(size:)` except where AGENTS already allows glyph/geometry exceptions.
 
 ## Sketch source of truth
@@ -109,9 +109,11 @@ Repo `.agents/skills` (tvOS fundamentals) are **required reading** for implement
 ## Shelf chrome (SwiftUI — Sasha 2026-09 confirmed)
 
 - A poster/still **shelf is a `Section`**: `Section(title) { rail }`. The title belongs to the section (secondary / vibrant), and the system auto-dodges focus (WWDC24). Do not hand-roll a free-floating header above a rail.
-- **Row header type** on tvOS: `TypeScale.rowHeader` → **`.headline`** — not `.title2` (~57pt).
-- **Header → rail gap** must be real. A formula that collapses to `0` (e.g. `max(0, 28−32)`) is a defect. Respect titled-row vertical rhythm (see grid contract).
-- **Caption under poster** must clear the **focused (scaled)** lockup. `captionTopPadding = 8` is insufficient under focus growth — measure against focused bounds.
+- **Section titles are leading**, on the **80 pt** column with the first card. tvOS `Section` defaults to a centered header (compact hug, then centered — **light** shots landed at ~795 pt). A SwiftUI `frame(maxWidth: .infinity)` still hugs when the proposal is unspecified. Pin the header to the **shelf’s measured width** (same `containerWidth` as the rail) with leading alignment and the rail’s content inset. Do **not** fake this with a 1920-wide screen-coordinate canvas (`TVLeadingSectionTitle` — deleted). Never ship the centered default.
+- **Row header type** on tvOS: Sketch `Headers/Section Header/Dark/Secondary/1 Line` → `TypeScale.rowHeader` = **`.headline.weight(.semibold)`** + `.foregroundStyle(.secondary)`. Sasha: semibold, not `.headline.bold()`. Not `.title2` (~57pt). Not Primary / Subtitle / Eyebrow / App Icon / Pill.
+- **Header → rail gap**: extra **+8** is gone. Title + rail sit in one inner `VStack(spacing: 4)` inside `Section` so the page `VStack(spacing: 80)` cannot land between them. Between titled *rows* is **80 pt** (was 100; Sasha −20).
+- **Caption under poster** must clear the **focused (scaled)** lockup. Rest gap is `captionTopPadding = 2`. Focused caption colour is **`UIColor.label`** (primary); unfocused stays secondary / hidden.
+- **Poster width** on TVUIKit *shelves* is **260** (HIG 6-col pin). Item `fractionalWidth(1)` fills that group. Library / vertical grids stay FlowLayout + the same pin — do not divide a sidebar pane into 6 columns.
 
 ## Shelf clipping (law)
 

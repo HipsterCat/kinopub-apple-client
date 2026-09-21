@@ -101,7 +101,7 @@ private struct HeroBleedChrome: View {
 }
 
 private enum HeroBleedSample {
-  static let wideURL = URL(string: "https://m.staticpop.net/poster/item/wide/581.jpg")!
+  static let wideURL = URL(string: "https://m.staticpop.net/poster/item/wide/4581.jpg")!
   static let stageWidth: CGFloat = 420
   static let artHeight: CGFloat = 420 * 9 / 16
   /// Zone above the sharp crop — where D's system extension should paint.

@@ -9,6 +9,9 @@ import KinoPubBackend
 
 /// A browse tab pinned to one content type — Movies or Series. Paginated grid with a
 /// sort control; searching and filtering live in the Search tab.
+///
+/// iOS / macOS only. tvOS Movies / Series use the same `MainView` + `HomeCatalog`
+/// poster shelves as Watch Now, typed to one `MediaType`.
 struct CatalogView: View {
   @EnvironmentObject var navigationState: NavigationState
   @Environment(ErrorHandler.self) var errorHandler

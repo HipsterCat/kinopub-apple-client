@@ -9,10 +9,10 @@ import SwiftUI
 /// square / circular chrome; these are the unscaled baselines.
 ///
 /// Two of these decide the rhythm of a page of sections and must not be re-picked at a
-/// call site: `sectionHeaderSpacing` is header → the cards under it, `rowSpacing` is
-/// one section → the next. A rail adds its own focus padding inside both, so the
-/// *visible* distance is the constant only while every rail pads by the same amount —
-/// see `landscapeFocusPadding`, and `MediaPosterShelf`, which subtracts it back out.
+/// call site: `sectionHeaderSpacing` is extra header → cards, `rowSpacing` is one
+/// section → the next. Do not stack a large pad on top of Section’s own gap. Do not
+/// subtract a rail’s focus padding from that gap either — tighten the rail’s *top*
+/// inset instead of collapsing the chrome.
 public enum Metrics {
   public static let cardCornerRadius: CGFloat = 14
   public static let progressBarHeight: CGFloat = 6
@@ -20,8 +20,15 @@ public enum Metrics {
 
 #if os(tvOS)
   public static let cardCaptionSpacing: CGFloat = 20
-  public static let rowSpacing: CGFloat = 40
-  public static let sectionHeaderSpacing: CGFloat = 28
+  /// Titled-row spacing. Was 100; Sasha 2026-09: reduce by 20 → **80**.
+  public static let rowSpacing: CGFloat = 80
+  /// Extra padding under a `Section` header. Unused on tvOS — header→rail is
+  /// `sectionHeaderToContentSpacing` on an inner VStack (Section in a parent
+  /// `VStack(spacing: 80)` was unpacking header and rail into two children).
+  public static let sectionHeaderSpacing: CGFloat = 0
+  /// Header → posters. Extra +8 is gone; this is the remaining gap, cut in half
+  /// from Section’s default ~8.
+  public static let sectionHeaderToContentSpacing: CGFloat = 4
   public static let focusPadding: CGFloat = 32
   /// Extra room for Continue Watching / landscape focus lift (wider tiles grow more
   /// in absolute points; poster shelves keep `focusPadding`).
