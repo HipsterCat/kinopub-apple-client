@@ -88,16 +88,94 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "pop-focus-before-select")
 
     XCUIRemote.shared.press(.select)
-    Thread.sleep(forTimeInterval: 4)
+    Thread.sleep(forTimeInterval: 0.8)
+    try shoot(app, name: "pop-focus-detail-0.8s")
+    Thread.sleep(forTimeInterval: 3.2)
     try shoot(app, name: "pop-focus-detail")
 
     XCUIRemote.shared.press(.menu)
+    Thread.sleep(forTimeInterval: 1)
+    try shoot(app, name: "pop-focus-after-menu-1s")
     Thread.sleep(forTimeInterval: 2)
     try shoot(app, name: "pop-focus-after-menu")
 
     let back = focusedPoster(in: app)
     XCTAssertNotNil(back, "after Menu nothing in the page is focused — focus went to the tab bar?\n\(focusDescription(app))")
     XCTAssertEqual(back?.identifier, posterID, "focus came back to a different poster")
+  }
+
+  /// Three rows down: the observed collection has scrolled past the bar's own
+  /// threshold, so the bar should be hidden; Up from the first row brings it back.
+  /// Screenshots only — the bar's visibility is judged by eye until a stable
+  /// accessibility signal for "hidden" is found.
+  func testTabBarHidesOnScrollDown() throws {
+    let app = launchSignedIn()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    for _ in 0..<3 {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.7)
+    }
+    try shoot(app, name: "tabbar-three-down")
+    for _ in 0..<3 {
+      XCUIRemote.shared.press(.up)
+      Thread.sleep(forTimeInterval: 0.7)
+    }
+    try shoot(app, name: "tabbar-back-up")
+  }
+
+  /// Flicking Movies ↔ Series with a focused row behind each switch used to leave every
+  /// poster of that row lifted at once (the system's unfocus animation never ran).
+  /// A lifted lockup reports a bigger accessibility frame, so count them.
+  func testRapidTabSwitchingStrandsNoPosters() throws {
+    let app = launchSignedIn()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    XCUIRemote.shared.press(.right)
+    XCTAssertTrue(firstPoster(in: app, page: "movies").waitForExistence(timeout: 60))
+    // Into the page, so the row has a remembered focus, then back to the bar.
+    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.6)
+    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.6)
+    XCUIRemote.shared.press(.up); Thread.sleep(forTimeInterval: 0.6)
+    for _ in 0..<4 {
+      XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.15)
+      XCUIRemote.shared.press(.left); Thread.sleep(forTimeInterval: 0.15)
+    }
+    Thread.sleep(forTimeInterval: 2.5)
+    try shoot(app, name: "rapid-switch-settled")
+
+    let posters = app.descendants(matching: .any).matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.poster.")
+    )
+    let widths = (0..<min(posters.count, 14)).map { posters.element(boundBy: $0).frame.width }
+    let lifted = widths.filter { $0 > 260 * 1.15 }
+    XCTAssertLessThanOrEqual(lifted.count, 1, "stranded lifted posters: \(widths)")
+  }
+
+  /// Every section template in one walk: Down through the gallery, a shot per step.
+  /// No session needed — the gallery is the app root under `-KINOPUBTemplatesGallery`.
+  func testTemplatesGalleryWalk() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBTemplatesGallery", "-KINOPUBForceColorScheme", "dark"]
+    app.launch()
+    Thread.sleep(forTimeInterval: 4)
+    try shoot(app, name: "gallery-0")
+    for step in 1...9 {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.9)
+      try shoot(app, name: "gallery-\(step)")
+    }
+    XCUIRemote.shared.press(.right)
+    Thread.sleep(forTimeInterval: 0.9)
+    try shoot(app, name: "gallery-right")
+  }
+
+  private func launchSignedIn() -> XCUIApplication {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    return app
   }
 
   private func focusedPoster(in app: XCUIApplication) -> XCUIElement? {

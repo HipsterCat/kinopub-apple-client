@@ -25,11 +25,13 @@ import UIKit
 
 @MainActor
 final class TVPageLockupPosterCell: UICollectionViewCell {
+  /// Air between the art and the footer caption. `TVLockupView.contentViewInsets`
+  /// takes negative values for positive spacing; the probe in `TVPageCellMetrics`
+  /// applies the same, so the envelope it measures includes this.
+  static let footerGap: CGFloat = 12
+
   private let posterView = TVPosterView(image: nil)
-  private let progressTrack = UIView()
-  private let progressFill = UIView()
   private let watchedGlyph = UIImageView()
-  private var progressWidth: NSLayoutConstraint!
 
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
@@ -49,6 +51,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     contentView.clipsToBounds = false
 
     posterView.translatesAutoresizingMaskIntoConstraints = false
+    posterView.contentViewInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: -Self.footerGap, trailing: 0)
     contentView.addSubview(posterView)
     NSLayoutConstraint.activate([
       posterView.topAnchor.constraint(equalTo: contentView.topAnchor),
@@ -58,21 +61,10 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     ])
 
     // Overlays live in the lockup's contentView, pinned to its imageView, so they ride
-    // the system focus transform instead of imitating it.
+    // the system focus transform instead of imitating it. No progress bar on a poster:
+    // a poster is a title, not a playable item — the bar belongs to stills.
     let host = posterView.contentView
     let image = posterView.imageView
-
-    progressTrack.translatesAutoresizingMaskIntoConstraints = false
-    progressTrack.backgroundColor = UIColor.white.withAlphaComponent(0.3)
-    progressTrack.layer.cornerRadius = 3
-    progressTrack.isHidden = true
-    host.addSubview(progressTrack)
-
-    progressFill.translatesAutoresizingMaskIntoConstraints = false
-    progressFill.backgroundColor = .white
-    progressFill.layer.cornerRadius = 3
-    progressTrack.addSubview(progressFill)
-    progressWidth = progressFill.widthAnchor.constraint(equalTo: progressTrack.widthAnchor, multiplier: 0)
 
     watchedGlyph.translatesAutoresizingMaskIntoConstraints = false
     watchedGlyph.image = UIImage(systemName: "checkmark.circle.fill")
@@ -83,16 +75,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     host.addSubview(watchedGlyph)
 
     NSLayoutConstraint.activate([
-      progressTrack.leadingAnchor.constraint(equalTo: image.leadingAnchor, constant: 16),
-      progressTrack.trailingAnchor.constraint(equalTo: image.trailingAnchor, constant: -16),
-      progressTrack.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -14),
-      progressTrack.heightAnchor.constraint(equalToConstant: 6),
-
-      progressFill.leadingAnchor.constraint(equalTo: progressTrack.leadingAnchor),
-      progressFill.topAnchor.constraint(equalTo: progressTrack.topAnchor),
-      progressFill.bottomAnchor.constraint(equalTo: progressTrack.bottomAnchor),
-      progressWidth,
-
       watchedGlyph.leadingAnchor.constraint(equalTo: image.leadingAnchor, constant: 16),
       watchedGlyph.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -14)
     ])
@@ -108,13 +90,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.accessibilityIdentifier = posterID
     posterView.accessibilityLabel = card.title
 
-    if let progress = card.progress {
-      progressTrack.isHidden = false
-      setProgress(CGFloat(progress))
-    } else {
-      progressTrack.isHidden = true
-    }
-    watchedGlyph.isHidden = !(card.isWatched && card.progress == nil)
+    watchedGlyph.isHidden = !card.isWatched
 
     loadImage(URL(string: card.posterURL))
   }
@@ -123,7 +99,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     self.recipe = recipe
     posterView.contentSize = recipe.posterContentSize
     applyCaption(.never, title: nil)
-    progressTrack.isHidden = true
     watchedGlyph.isHidden = true
     imageTask?.cancel()
     imageTask = nil
@@ -153,9 +128,15 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   /// Always an image of the content size, never nil: the lockup computes its focus
   /// envelope from the image, and a nil image means a different (zero) envelope until
   /// the real art lands.
+  /// Rounded like the art the lockup will round itself, and resolved for this cell's
+  /// appearance — the lockup rounds a real image but draws a bitmap placeholder as is.
   private var placeholder: UIImage {
-    TVUIKitTileArtwork.placeholder(size: recipe?.posterContentSize ?? CGSize(width: 260, height: 390))
+    TVUIKitTileArtwork.placeholder(size: recipe?.posterContentSize ?? CGSize(width: 260, height: 390),
+                                   cornerRadius: Self.placeholderCornerRadius,
+                                   traits: traitCollection)
   }
+
+  private static let placeholderCornerRadius: CGFloat = 14
 
   private func applyCaption(_ caption: TVPageCaption, title: String?) {
     switch caption {
@@ -169,15 +150,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
       posterView.footerView?.showsOnlyWhenAncestorFocused = caption == .onFocus
       posterView.footerView?.titleLabel?.textColor = isFocused ? .label : .secondaryLabel
     }
-  }
-
-  private func setProgress(_ fraction: CGFloat) {
-    progressWidth.isActive = false
-    progressWidth = progressFill.widthAnchor.constraint(
-      equalTo: progressTrack.widthAnchor,
-      multiplier: min(max(fraction, 0), 1)
-    )
-    progressWidth.isActive = true
   }
 
   private func loadImage(_ url: URL?) {
@@ -215,9 +187,29 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     super.didUpdateFocus(in: context, with: coordinator)
     let focused = context.nextFocusedView === self
       || context.nextFocusedView?.isDescendant(of: self) == true
-    coordinator.addCoordinatedAnimations { [weak self] in
+    coordinator.addCoordinatedAnimations({ [weak self] in
       self?.posterView.footerView?.titleLabel?.textColor = focused ? .label : .secondaryLabel
+    }, completion: { [weak self] in
+      guard let self, !focused else { return }
+      self.resetStaleFocusAppearance()
+    })
+  }
+
+  /// Accepted adapter, carried over from `TVUIKitPosterCell`: `TVPosterView`'s
+  /// coordinated *unfocus* animation sometimes never runs — a tab switched mid-motion
+  /// leaves every lockup of the row lifted, tilting and captioned while nothing is
+  /// focused. This undoes the system's stranded motion; it runs no motion of its own.
+  func resetStaleFocusAppearance() {
+    guard !isFocused else { return }
+    func clear(_ view: UIView) {
+      if !view.transform.isIdentity { view.transform = .identity }
+      if !CATransform3DIsIdentity(view.layer.transform) { view.layer.transform = CATransform3DIdentity }
+      view.motionEffects.forEach { view.removeMotionEffect($0) }
+      view.subviews.forEach(clear)
     }
+    clear(posterView)
+    posterView.footerView?.updateAppearance(forLockupViewState: .normal)
+    posterView.footerView?.titleLabel?.textColor = .secondaryLabel
   }
 
   override func prepareForReuse() {
@@ -228,8 +220,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     desiredImage = nil
     posterView.image = nil
     posterView.title = nil
-    progressTrack.isHidden = true
     watchedGlyph.isHidden = true
+    resetStaleFocusAppearance()
     accessibilityIdentifier = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil

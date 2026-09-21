@@ -37,8 +37,8 @@ public enum TVPageFlow: Hashable, Sendable {
   case grid
 }
 
-/// When the poster caption is drawn. Stills and people always show their text — that
-/// is how the system cells are built; only the poster lockup offers the choice.
+/// When a card's caption is drawn: the poster footer and the still's text line both
+/// follow it. People always show their name — that is how the monogram cell is built.
 public enum TVPageCaption: Hashable, Sendable {
   case onFocus
   case always
@@ -145,9 +145,10 @@ public struct TVPageSection: Identifiable, Hashable {
                             count: String? = nil,
                             columns: Int = 5,
                             flow: TVPageFlow = .rail,
+                            caption: TVPageCaption = .onFocus,
                             cards: [MediaCard]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .still, flow: flow,
-                  columns: columns, caption: .always, items: cards.map(TVPageItem.card))
+                  columns: columns, caption: caption, items: cards.map(TVPageItem.card))
   }
 
   public static func people(id: String,

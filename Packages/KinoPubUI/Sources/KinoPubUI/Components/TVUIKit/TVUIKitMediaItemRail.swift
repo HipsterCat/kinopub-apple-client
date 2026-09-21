@@ -615,9 +615,13 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   private let overlay = TVUIKitMediaItemOverlayView()
   /// DEBUG `-KINOPUBFocusFirstPoster` sets this false on the CW landscape rail.
   private var cellAllowsFocus = true
+  /// The caption under the still appears with focus only (Sasha, 2026-09-21) — the
+  /// same rule as the poster footer. `false` keeps it on the tile at rest (grids).
+  private var captionOnFocus = false
 
-  func configure(_ item: TVUIKitMediaItem, allowsFocus: Bool = true) {
+  func configure(_ item: TVUIKitMediaItem, allowsFocus: Bool = true, captionOnFocus: Bool = false) {
     cellAllowsFocus = allowsFocus
+    self.captionOnFocus = captionOnFocus
     let keepsArtwork = self.item?.imageURL == item.imageURL && loadedURL == item.imageURL
     self.item = item
     if !keepsArtwork {
@@ -639,7 +643,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     // `text` is the line *under* the tile, always visible. Secondary at rest, label
     // when focused (CURRENT.md caption law); the configuration's default is white
     // regardless of appearance, which is what read as "always white, with a shadow".
-    config.text = item.caption
+    config.text = captionOnFocus && !state.isFocused ? nil : item.caption
     config.textProperties.color = state.isFocused ? .label : .secondaryLabel
     // One line, on purpose. Setting `secondaryText` here produced nothing visible on
     // screen (2026-08-11), so the tile is treated as having a single caption and
@@ -659,14 +663,14 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
       config.badgeProperties = item.badgeIsLive ? .liveContent() : .default()
     }
 
-    overlay.apply(status: item.status, timeLabel: item.timeLabel)
+    overlay.apply(status: item.status, timeLabel: item.timeLabel, isFocused: state.isFocused)
     config.overlayView = overlay
 
     contentConfiguration = config
   }
 
   private func fallbackImage(for item: TVUIKitMediaItem) -> UIImage {
-    guard let tint = item.tint else { return TVUIKitTileArtwork.placeholder() }
+    guard let tint = item.tint else { return TVUIKitTileArtwork.placeholder(traits: traitCollection) }
     return TVUIKitTileArtwork.wide(tint: tint, symbol: item.symbol)
   }
 
@@ -706,6 +710,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     loadedURL = nil
     contentConfiguration = nil
     cellAllowsFocus = true
+    captionOnFocus = false
   }
 
   override var canBecomeFocused: Bool { cellAllowsFocus }
@@ -741,10 +746,16 @@ final class TVUIKitMediaItemOverlayView: UIView {
   private let progressTrack = UIView()
   private let progressFill = UIView()
   private var progressFillWidth: NSLayoutConstraint!
+  /// The runtime sits just above the bottom edge, or above the bar when there is one.
+  private var runtimeBottom: NSLayoutConstraint!
 
   /// Keeps the corner chrome clear of the bar along the very bottom edge.
   private static let cornerInset: CGFloat = 32
   private static let glyphSize: CGFloat = 22
+  private static let runtimePointSize: CGFloat = 19
+  /// Runtime baseline above the tile's bottom edge: bare, and lifted over the bar.
+  private static let runtimeInset: CGFloat = 12
+  private static let runtimeInsetOverBar: CGFloat = 26
   private static let badgeIconSize: CGFloat = 16
   /// Fraction of the tile height the legibility gradient covers, from the bottom up.
   private static let gradientHeightFraction: CGFloat = 0.5
@@ -774,9 +785,13 @@ final class TVUIKitMediaItemOverlayView: UIView {
     addSubview(glyphView)
 
     runtimeLabel.translatesAutoresizingMaskIntoConstraints = false
-    runtimeLabel.font = .preferredFont(forTextStyle: .caption2)
-    runtimeLabel.textColor = .red
+    // A step under caption2 (the smallest text style), still scaled with Dynamic Type
+    // through the caption2 metrics — a corner chip on artwork, not running text.
+    runtimeLabel.font = UIFontMetrics(forTextStyle: .caption2)
+      .scaledFont(for: .systemFont(ofSize: Self.runtimePointSize, weight: .semibold))
+    runtimeLabel.textColor = .white
     runtimeLabel.textAlignment = .right
+    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
     addSubview(runtimeLabel)
@@ -814,6 +829,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
 
     badgeIconWidth = badgeIcon.widthAnchor.constraint(equalToConstant: Self.badgeIconSize)
     progressFillWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
+    runtimeBottom = runtimeLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.runtimeInset)
 
     NSLayoutConstraint.activate([
       progressTrack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
@@ -838,7 +854,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
 
       runtimeLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
       runtimeLabel.leadingAnchor.constraint(greaterThanOrEqualTo: glyphView.trailingAnchor, constant: 12),
-      runtimeLabel.centerYAnchor.constraint(equalTo: glyphView.centerYAnchor),
+      runtimeBottom,
 
       badge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
       badge.topAnchor.constraint(equalTo: topAnchor, constant: 8),
@@ -869,7 +885,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
     CATransaction.commit()
   }
 
-  func apply(status: TVUIKitMediaItemStatus, timeLabel: String?) {
+  func apply(status: TVUIKitMediaItemStatus, timeLabel: String?, isFocused: Bool = true) {
     scrim.isHidden = !status.dimsArtwork
 
     let glyph = status.glyph
@@ -880,9 +896,11 @@ final class TVUIKitMediaItemOverlayView: UIView {
     progressTrack.isHidden = status.progress <= 0
     setNeedsLayout()
 
-    let showsRuntime = status.showsRuntime && timeLabel?.isEmpty == false
+    // Runtime only while focused (Sasha, 2026-09-21): the idle tile keeps its art clean.
+    let showsRuntime = isFocused && status.showsRuntime && timeLabel?.isEmpty == false
     runtimeLabel.text = timeLabel
     runtimeLabel.isHidden = !showsRuntime
+    runtimeBottom.constant = -(status.progress > 0 ? Self.runtimeInsetOverBar : Self.runtimeInset)
 
     if let text = status.overlayBadgeText {
       badge.isHidden = false

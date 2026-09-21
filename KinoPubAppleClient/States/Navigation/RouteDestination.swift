@@ -25,6 +25,13 @@ struct RouteDestination: View {
   var body: some View {
     destination
       .modifier(ZoomDestinationModifier(route: route, namespace: transitionNamespace))
+#if os(tvOS)
+      // Product decision 2026-09-21 (Sasha): a pushed page owns the whole screen. The
+      // tab bar stays with the tab root — no switching tabs from inside a stack, no bar
+      // floating over a detail page fading in and out, and Menu pops instead of finding
+      // the bar focused and quitting the app.
+      .toolbar(.hidden, for: .tabBar)
+#endif
   }
 
   @ViewBuilder

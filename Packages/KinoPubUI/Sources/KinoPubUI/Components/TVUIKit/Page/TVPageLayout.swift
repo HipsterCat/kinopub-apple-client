@@ -44,8 +44,9 @@ public enum TVPageLayout {
     let configuration = UICollectionViewCompositionalLayoutConfiguration()
     configuration.scrollDirection = .vertical
     configuration.interSectionSpacing = 0
-    // Sections carry the side insets; the controller applies the top/bottom safe area
-    // as content inset. Referencing the safe area here too would inset twice.
+    // Sections carry the side insets. The collection view's adjusted content inset
+    // (the tab bar on top) is the container's frame of reference; the safe area itself
+    // is not referenced here, or the bar's region would be counted twice.
     configuration.contentInsetsReference = .none
     return UICollectionViewCompositionalLayout(
       sectionProvider: { index, environment in
@@ -122,8 +123,10 @@ public enum TVPageLayout {
                            sideInset: CGFloat) -> NSCollectionLayoutSection {
     let (columns, art) = TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth)
     let recipe = TVPageCellMetrics.recipe(kind: section.kind, artWidth: art, caption: section.caption)
+    // `count:` places the items; it does not size them — an item at fractionalWidth(1)
+    // is the whole group, and the row became one banner per line.
     let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(
-      widthDimension: .fractionalWidth(1),
+      widthDimension: .fractionalWidth(1 / CGFloat(columns)),
       heightDimension: .fractionalHeight(1)
     ))
     let group = NSCollectionLayoutGroup.horizontal(
@@ -250,6 +253,7 @@ public enum TVPageCellMetrics {
       let probe = TVPosterView(image: TVUIKitTileArtwork.placeholder(size: contentSize))
       probe.contentSize = contentSize
       probe.title = caption == .never ? nil : "Ag"
+      probe.contentViewInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: -TVPageLockupPosterCell.footerGap, trailing: 0)
       envelope = probe.intrinsicContentSize
       probe.frame = CGRect(origin: .zero, size: envelope)
       probe.layoutIfNeeded()

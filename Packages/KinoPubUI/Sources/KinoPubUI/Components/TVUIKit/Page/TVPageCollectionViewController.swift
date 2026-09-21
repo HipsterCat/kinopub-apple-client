@@ -61,10 +61,11 @@ public final class TVPageCollectionViewController: UIViewController {
     view.clipsToBounds = false
     view.showsVerticalScrollIndicator = false
     view.remembersLastFocusedIndexPath = true
-    // The page spans the screen; sections own the 80 pt side insets and the top / bottom
-    // safe area is applied by hand in `updateContentInsets` — automatic adjustment would
-    // add tvOS's 80 pt horizontal safe area on top of the sections' own.
-    view.contentInsetAdjustmentBehavior = .never
+    // The safe area (the tab bar's region on top) is applied by the system: the tab bar
+    // controller hides and reveals the bar from the *adjusted* insets of the scroll view
+    // it observes, and opting out of the adjustment left the bar pinned. Horizontal
+    // safe area is zero on tvOS; the sections own the 80 pt side insets themselves.
+    view.contentInsetAdjustmentBehavior = .automatic
     view.delegate = self
     view.prefetchDataSource = self
     return view
@@ -114,6 +115,47 @@ public final class TVPageCollectionViewController: UIViewController {
   public override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     observeTabBar()
+    resetStrandedFocusAppearance()
+  }
+
+  public override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    resetStrandedFocusAppearance()
+  }
+
+  /// A tab switched away mid focus animation can leave a whole row's lockups lifted and
+  /// captioned (the system's unfocus animation never ran). Undo it whenever the page
+  /// comes or goes, and after every focus move — see `TVPageLockupPosterCell`.
+  private func resetStrandedFocusAppearance() {
+    for cell in collectionView.visibleCells where !cell.isFocused {
+      (cell as? TVPageLockupPosterCell)?.resetStaleFocusAppearance()
+    }
+  }
+
+  // MARK: - Row title dodge
+
+  /// Which section holds focus, so a header dequeued while scrolling back starts in
+  /// the right place.
+  private var focusedSectionIndex: Int?
+
+  private func header(at section: Int) -> UICollectionReusableView? {
+    collectionView.supplementaryView(forElementKind: TVPageLayout.headerKind,
+                                     at: IndexPath(item: 0, section: section))
+  }
+
+  /// The focused card grows upward by its lift; the row title moves up by the same
+  /// amount so the two never touch — the small nudge the system rows have.
+  private func headerDodge(for section: Int) -> CGAffineTransform {
+    guard sections.indices.contains(section) else { return .identity }
+    let target = sections[section]
+    guard target.kind != .chip else { return .identity }
+    let contentWidth = max(collectionView.bounds.width - sideInset * 2, 1)
+    let art = TVHIGGrid.resolve(columns: target.columns, contentWidth: contentWidth).cardWidth
+    let recipe = TVPageCellMetrics.recipe(kind: target.kind, artWidth: art, caption: target.caption)
+    let lift = recipe.artInsets.top > 0
+      ? recipe.artInsets.top
+      : TVHIGGrid.focusRoom(cardHeight: recipe.itemSize.height)
+    return CGAffineTransform(translationX: 0, y: -lift)
   }
 
   /// The system tab bar hides and reveals itself from the scroll view it observes —
@@ -134,17 +176,11 @@ public final class TVPageCollectionViewController: UIViewController {
     }
   }
 
-  /// The page runs under the tab bar (the host ignores the safe area), so the bar's
-  /// region comes back as the top content inset — the first row starts right under
-  /// it and scrolls beneath it, which is what lets the bar hide and reveal. Bottom:
-  /// the HIG 60 pt page inset past any bottom safe area.
+  /// The page runs under the tab bar (the host ignores the safe area); the bar's region
+  /// arrives as the adjusted top inset, so the first row starts right under it and
+  /// scrolls beneath it. Ours is only the HIG 60 pt bottom page inset.
   private func updateContentInsets() {
-    let insets = UIEdgeInsets(
-      top: view.safeAreaInsets.top,
-      left: 0,
-      bottom: view.safeAreaInsets.bottom + TVHIGGrid.verticalInset,
-      right: 0
-    )
+    let insets = UIEdgeInsets(top: 0, left: 0, bottom: TVHIGGrid.verticalInset, right: 0)
     guard collectionView.contentInset != insets else { return }
     collectionView.contentInset = insets
   }
@@ -169,9 +205,10 @@ public final class TVPageCollectionViewController: UIViewController {
     let still = UICollectionView.CellRegistration<TVUIKitMediaItemCell, TVPageItemID> {
       [weak self] cell, _, id in
       guard let self else { return }
+      let captionOnFocus = self.sectionsByID[id.section]?.caption == .onFocus
       switch self.itemsByID[id] {
       case .card(let card)?:
-        cell.configure(TVUIKitMediaItem(card: card))
+        cell.configure(TVUIKitMediaItem(card: card), captionOnFocus: captionOnFocus)
       default:
         cell.configure(TVUIKitMediaItem(id: id.hashValue, tint: UIColor(white: 0.16, alpha: 1)))
       }
@@ -199,6 +236,9 @@ public final class TVPageCollectionViewController: UIViewController {
       guard let self, self.sections.indices.contains(indexPath.section) else { return }
       let section = self.sections[indexPath.section]
       view.configure(title: section.title ?? "", count: section.count)
+      view.transform = indexPath.section == self.focusedSectionIndex
+        ? self.headerDodge(for: indexPath.section)
+        : .identity
     }
 
     dataSource = UICollectionViewDiffableDataSource<String, TVPageItemID>(
@@ -337,6 +377,21 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   public func collectionView(_ collectionView: UICollectionView,
                              didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                              with coordinator: UIFocusAnimationCoordinator) {
+    let previousSection = context.previouslyFocusedIndexPath?.section
+    let nextSection = context.nextFocusedIndexPath?.section
+    focusedSectionIndex = nextSection
+    coordinator.addCoordinatedAnimations({ [weak self] in
+      guard let self else { return }
+      if let previousSection, previousSection != nextSection {
+        self.header(at: previousSection)?.transform = .identity
+      }
+      if let nextSection {
+        self.header(at: nextSection)?.transform = self.headerDodge(for: nextSection)
+      }
+    }, completion: { [weak self] in
+      self?.resetStrandedFocusAppearance()
+    })
+
     guard FocusLog.isEnabled else { return }
     let name: (IndexPath?) -> String? = { [weak self] path in
       guard let self, let path, let id = self.dataSource.itemIdentifier(for: path) else { return nil }

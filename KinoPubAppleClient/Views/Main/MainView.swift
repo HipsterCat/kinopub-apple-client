@@ -127,10 +127,16 @@ struct MainView: View {
     .ignoresSafeArea()
   }
 
+  /// Continue Watching shows three — the rest lives in Library (Sasha, 2026-09-21).
+  private static let continueWatchingLimit = 3
+
   private var pageSections: [TVPageSection] {
     homeRows.map { row in
       if row.cards.first?.isLandscape == true {
-        return .stills(id: row.id, title: row.title, count: row.count, cards: row.cards)
+        let cards = row.id == HomeCatalog.continueWatchingRowID
+          ? Array(row.cards.prefix(Self.continueWatchingLimit))
+          : row.cards
+        return .stills(id: row.id, title: row.title, count: row.count, cards: cards)
       }
       return .posters(id: row.id, title: row.title, count: row.count, cards: row.cards)
     }

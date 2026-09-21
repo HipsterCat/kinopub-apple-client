@@ -22,6 +22,17 @@ import Foundation
 /// it at a CardKey the posters never bind (an unbound defaultFocus leaves
 /// the Watch Now tab pill as preferred).
 public enum DebugLaunch {
+  /// `-KINOPUBTemplatesGallery`: the app root is the section-templates page instead of
+  /// the tab shell — the one place every `TVPageSection` kind is on screen at once, for
+  /// shots and remote-driven tests without a sign-in or a walk through Settings.
+  public static var templatesGallery: Bool {
+#if DEBUG
+    ProcessInfo.processInfo.arguments.contains("-KINOPUBTemplatesGallery")
+#else
+    false
+#endif
+  }
+
   public static var focusFirstPoster: Bool {
 #if DEBUG
     ProcessInfo.processInfo.arguments.contains("-KINOPUBFocusFirstPoster")

@@ -72,11 +72,16 @@ public enum Artwork {
   ///   down to it, and the size is part of the cache key — the same still in a rail and
   ///   in a grid is a different decode, and handing one out for the other is either
   ///   blurry or wasteful. `.zero` keeps full resolution and should be rare.
+  ///
+  /// The decode **crops** to the box's aspect (centre crop): a tile is a fixed shape —
+  /// 2:3 poster, 16:9 still — and art of another ratio fills the width and is cut to
+  /// the height. Without the crop a 2:3 poster handed to a 16:9 still arrived 2:3 and
+  /// the system cell squeezed it to fit.
   public static func request(_ url: URL, size: CGSize = .zero) -> ImageRequest {
     guard size != .zero else { return ImageRequest(url: url) }
     return ImageRequest(
       url: url,
-      processors: [ImageProcessors.Resize(size: size, unit: .points, contentMode: .aspectFill)]
+      processors: [ImageProcessors.Resize(size: size, unit: .points, contentMode: .aspectFill, crop: true)]
     )
   }
 

@@ -32,16 +32,33 @@ public enum TVUIKitTileArtwork {
     image(tint: tint, symbol: symbol, size: wideSize)
   }
 
-  /// A flat tint with a centred glyph, cached per (tint, symbol, size) — a rail
-  /// re-drawing this on every cell reuse is a renderer pass per scroll tick.
-  public static func image(tint: UIColor, symbol: String?, size: CGSize) -> UIImage {
-    let key = "\(tint.hashValue)-\(symbol ?? "-")-\(Int(size.width))x\(Int(size.height))" as NSString
+  /// A flat tint with a centred glyph, cached per (tint, symbol, size, corners,
+  /// appearance) — a rail re-drawing this on every cell reuse is a renderer pass per
+  /// scroll tick.
+  ///
+  /// `traits` resolves a dynamic tint: a `.quaternaryLabel` drawn into a bitmap keeps
+  /// whatever appearance was current at draw time, which from a layout probe is light —
+  /// near-white panels on a dark page. `cornerRadius` bakes the rounding in for a host
+  /// that rounds real art but not this one (`TVPosterView`).
+  public static func image(tint: UIColor,
+                           symbol: String?,
+                           size: CGSize,
+                           cornerRadius: CGFloat = 0,
+                           fillAlpha: CGFloat = 0.85,
+                           traits: UITraitCollection? = nil) -> UIImage {
+    let traits = traits ?? .current
+    let resolved = tint.resolvedColor(with: traits)
+    let key = "\(resolved.hashValue)-\(symbol ?? "-")-\(Int(size.width))x\(Int(size.height))-r\(Int(cornerRadius))-a\(fillAlpha)-\(traits.userInterfaceStyle.rawValue)" as NSString
     if let cached = cache.object(forKey: key) { return cached }
 
     let renderer = UIGraphicsImageRenderer(size: size)
     let drawn = renderer.image { context in
-      tint.withAlphaComponent(0.85).setFill()
-      context.fill(CGRect(origin: .zero, size: size))
+      resolved.withAlphaComponent(fillAlpha).setFill()
+      if cornerRadius > 0 {
+        UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: cornerRadius).fill()
+      } else {
+        context.fill(CGRect(origin: .zero, size: size))
+      }
       guard let symbol else { return }
       let config = UIImage.SymbolConfiguration(
         pointSize: min(size.width, size.height) * 0.32,
@@ -59,8 +76,15 @@ public enum TVUIKitTileArtwork {
 
   /// Neutral panel for a still that has not arrived (or does not exist) — same shape as
   /// the artwork it stands in for, so the cell never resizes when the image lands.
-  public static func placeholder(size: CGSize = wideSize) -> UIImage {
-       image(tint: .quaternaryLabel, symbol: nil, size: size)
+  ///
+  /// A twelfth of the label colour: a quiet panel on either appearance. tvOS's label
+  /// hierarchy in dark mode is *bright* all the way down — `.quaternaryLabel` resolves
+  /// to (220, 220, 220) there — so a label-tier colour at its own alpha reads as a
+  /// white card on a dark page, not as an empty slot.
+  public static func placeholder(size: CGSize = wideSize,
+                                 cornerRadius: CGFloat = 0,
+                                 traits: UITraitCollection? = nil) -> UIImage {
+    image(tint: .label, symbol: nil, size: size, cornerRadius: cornerRadius, fillAlpha: 0.12, traits: traits)
   }
 
   /// `NSCache` is documented thread-safe, so the artwork helper does not need to be

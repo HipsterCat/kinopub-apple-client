@@ -52,6 +52,19 @@ struct RootView: View {
 
   @ViewBuilder
   private var rootContent: some View {
+#if os(tvOS) && DEBUG
+    if DebugLaunch.templatesGallery {
+      TVPageTemplatesGallery()
+    } else {
+      phaseContent
+    }
+#else
+    phaseContent
+#endif
+  }
+
+  @ViewBuilder
+  private var phaseContent: some View {
     switch authState.phase {
     case .resolving:
       ZStack {
