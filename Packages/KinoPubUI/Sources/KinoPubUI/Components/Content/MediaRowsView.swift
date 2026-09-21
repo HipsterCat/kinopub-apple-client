@@ -101,11 +101,7 @@ public struct MediaRowsView: View {
 
   public var body: some View {
 #if os(tvOS)
-    // Hand the remote the first banner (or first shelf card) once content exists —
-    // otherwise the sidebar keeps focus on launch. Default priority (not
-    // `.userInitiated`): returning from a detail page must not yank focus back.
-    scroll
-      .defaultFocus($focusedCard, firstCardKey)
+    tvOSBody
       .onGeometryChange(for: CGFloat.self) { proxy in
         proxy.size.width
       } action: { width in
@@ -121,28 +117,76 @@ public struct MediaRowsView: View {
 #endif
   }
 
+#if os(tvOS)
+  @ViewBuilder
+  private var tvOSBody: some View {
+    // SwiftUI `Section(title) { rail }` (CURRENT.md). One page-wide UIKit
+    // collection with boundary headers was a second title system. VStack keeps
+    // off-screen rails in the focus graph (`LazyVStack` jumps to the tab bar).
+    // SwiftUI `defaultFocus` binds `@FocusState` CardKeys that only exist on the
+    // SwiftUI rail. TVUIKit cells never see it — and with `-KINOPUBFocusFirstPoster`
+    // an unbound defaultFocus leaves the Watch Now tab pill as preferred.
+    if DebugLaunch.focusFirstPoster {
+      scroll
+    } else {
+      scroll.defaultFocus($focusedCard, firstCardKey)
+    }
+  }
+#endif
+
   private var scroll: some View {
+#if os(tvOS)
+    ScrollViewReader { proxy in
+      verticalScroll
+        .task(id: firstPosterRow?.id) {
+          guard DebugLaunch.focusFirstPoster, let id = firstPosterRow?.id else { return }
+          // Parks Hot Movies on screen for the caption shot. This does **not**
+          // move focus — the TVUIKit rail claims the first cell via
+          // `UIFocusSystem.requestFocusUpdate`. Repeat after layout so we do
+          // not scrollTo a row that is not in the tree yet.
+          for _ in 0..<12 {
+            if Task.isCancelled { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+              proxy.scrollTo(id, anchor: .center)
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+          }
+        }
+    }
+#else
+    verticalScroll
+#endif
+  }
+
+  private var verticalScroll: some View {
     ScrollView(.vertical) {
-      // Lazy on every platform — an eager VStack on tvOS decoded every Home poster
-      // at once (1GB+ / CVPixelBuffer -6680). Focus lift room comes from
-      // `scrollClipDisabled` + per-rail vertical padding, not from realizing all rows.
-      LazyVStack(alignment: .leading, spacing: Self.rowSpacing) {
-        scrollContent
-      }
-      // The first section is a header with no navigation title above it, so without
-      // this it starts hard against the bar. The scroll-edge effect needs something to
-      // fade, too — content that begins level with the bar has nothing to pass under.
-      .padding(.top, Self.rowSpacing)
-      .padding(.bottom, Self.rowSpacing)
+      stack
+        .padding(.top, Self.pageVerticalInset)
+        .padding(.bottom, Self.pageVerticalInset)
     }
 #if os(tvOS)
     .scrollClipDisabled()
 #else
-    // Native fade as rows pass under the nav bar / large title. A plain `ScrollView`
-    // doesn't inherit the edge treatment `List` gets automatically, so it needs asking
-    // for explicitly. tvOS has no floating bar over this screen to slide under — see
-    // `.claude/skills/apple-chrome/SKILL.md`.
     .scrollEdgeEffectStyle(.soft, for: .top)
+#endif
+  }
+
+  @ViewBuilder
+  private var stack: some View {
+#if os(tvOS)
+    // Bounded Watch Now / Movies / Series (typically ≤8 titled rows). TVUIKit
+    // collections recycle cells. `LazyVStack` drops off-screen rails from the
+    // focus graph — focus then jumps to the tab bar (swift-focusengine-pro).
+    // The 1GB decode was SwiftUI `MediaCardView` in an eager stack, not this path.
+    VStack(alignment: .leading, spacing: Self.rowSpacing) {
+      scrollContent
+    }
+#else
+    LazyVStack(alignment: .leading, spacing: Self.rowSpacing) {
+      scrollContent
+    }
 #endif
   }
 
@@ -164,6 +208,14 @@ public struct MediaRowsView: View {
     }
     guard let row = rows.first, let card = row.cards.first else { return nil }
     return CardKey(row: row.id, card: card.id)
+  }
+
+  /// First 2:3 poster row. Watch Now’s Continue Watching rail is landscape; the
+  /// next titled row is Hot Movies (`hot-movie`) — the hig caption-clearance shot.
+  /// SwiftUI `CardKey` is not used: TVUIKit cells never bind `@FocusState`.
+  private var firstPosterRow: MediaRow? {
+    rows.first(where: { $0.id == "hot-movie" })
+      ?? rows.first(where: { $0.cards.first?.isLandscape != true })
   }
 #endif
 
@@ -201,7 +253,7 @@ public struct MediaRowsView: View {
 #if os(tvOS)
     .buttonStyle(.borderless)
     .scrollClipDisabled()
-    .focusSection()
+     .focusSection()
 #endif
   }
 
@@ -209,6 +261,14 @@ public struct MediaRowsView: View {
 
   @ViewBuilder
   private func section(for row: MediaRow) -> some View {
+#if os(tvOS)
+    let allowsFocus = !(DebugLaunch.focusFirstPoster
+      && (row.id == "continue-watching" || row.cards.first?.isLandscape == true))
+    let prefersInitialFocus = DebugLaunch.focusFirstPoster && row.id == firstPosterRow?.id
+#else
+    let allowsFocus = true
+    let prefersInitialFocus = false
+#endif
     MediaPosterShelf(
       title: row.title,
       count: row.count,
@@ -225,8 +285,11 @@ public struct MediaRowsView: View {
       focusKey: { CardKey(row: row.id, card: $0.id) },
       onNearEnd: onLoadMore.map { report in { card in report(row, card) } },
       pagination: paginationProvider?(row) ?? .idle,
-      onRetryPagination: onRetryPagination.map { retry in { retry(row) } }
+      onRetryPagination: onRetryPagination.map { retry in { retry(row) } },
+      allowsFocus: allowsFocus,
+      prefersInitialFocus: prefersInitialFocus
     )
+    .id(row.id)
     .onAppear { onRowAppear?(row) }
   }
 
@@ -237,12 +300,14 @@ public struct MediaRowsView: View {
   /// space kept reserved so the row doesn't reflow.
   static let cardCaption: MediaCardCaption = .onFocus
 
-  static let rowSpacing: CGFloat = Metrics.rowSpacing
+  static let rowSpacing: CGFloat = ShelfMetrics.tvTitledRowSpacing
+  static let pageVerticalInset: CGFloat = ShelfMetrics.tvPageVerticalInset
 #else
   /// No focus off TV — the cards have to name themselves.
   static let cardCaption: MediaCardCaption = .always
 
   static let rowSpacing: CGFloat = Metrics.rowSpacing
+  static let pageVerticalInset: CGFloat = Metrics.rowSpacing
 #endif
 }
 
@@ -262,7 +327,7 @@ public struct RowHeaderButtonStyle: ButtonStyle {
     var body: some View {
       configuration.label
         .environment(\.cardFocused, isFocused)
-        .scaleEffect(isFocused ? 1.06 : 1.0, anchor: .leading)
+        .scaleEffect(isFocused ? 1.18 : 1.0, anchor: .leading)
         .opacity(configuration.isPressed ? 0.6 : 1)
         .animation(.easeOut(duration: 0.18), value: isFocused)
     }
@@ -371,7 +436,7 @@ public struct MediaCardContextMenuModifier: ViewModifier {
           cards: [
             MediaCard(
               id: 1,
-              posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
+              posterURL: "https://m.staticpop.net/poster/item/big/9944.jpg",
               title: "Стражи",
               imdbRating: 8.1,
               kinopoiskRating: 8.3,
@@ -380,7 +445,7 @@ public struct MediaCardContextMenuModifier: ViewModifier {
             ),
             MediaCard(
               id: 2,
-              posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
+              posterURL: "https://m.staticpop.net/poster/item/big/10581.jpg",
               title: "Другой фильм",
               imdbRating: 7.2,
               kinopoiskRating: 7.0,
@@ -394,12 +459,12 @@ public struct MediaCardContextMenuModifier: ViewModifier {
       bannerCards: [
         MediaCard(
           id: 10,
-          posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
+          posterURL: "https://m.staticpop.net/poster/item/big/15042.jpg",
           title: "Баннер",
           subtitle: "Featured",
           imdbRating: 7.8,
           kinopoiskRating: 7.5,
-          backdropURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
+          backdropURL: "https://m.staticpop.net/poster/item/wide/15042.jpg",
           is4K: true,
           isHDR: true
         )
@@ -407,5 +472,28 @@ public struct MediaCardContextMenuModifier: ViewModifier {
       navigationLinkProvider: { card in card.id }
     )
   }
-  // .preferredColorScheme(.dark)
+//  .preferredColorScheme(.dark)
 }
+
+#if os(tvOS)
+#Preview("Poster shelves · HIG 6@260") {
+  let posters: [MediaCard] = (1...8).map { n in
+    MediaCard(
+      id: n,
+      posterURL: "https://m.staticpop.net/poster/item/big/\(10581+n).jpg",
+      title: "Title \(n)"
+    )
+  }
+  NavigationStack {
+    MediaRowsView(
+      rows: [
+        MediaRow(id: "hot", title: "Hot Movies", cards: posters),
+        MediaRow(id: "fresh", title: "Fresh Movies", cards: posters)
+      ],
+      navigationLinkProvider: { card in card.id }
+    )
+  }
+  .environment(\.usesTVUIKitPosters, true)
+//  .frame(width: 500, height: 200)
+}
+#endif

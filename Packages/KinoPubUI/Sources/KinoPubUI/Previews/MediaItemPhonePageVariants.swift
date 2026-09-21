@@ -67,14 +67,14 @@ private struct PhonePoster: View {
       placeholder: { Color.KinoPub.placeholder },
       failure: { Color.KinoPub.placeholder }
     )
-    .aspectRatio(CardAspect.poster.ratio, contentMode: .fit)
+    .aspectRatio(CardAspect.poster.ratio, contentMode: .fill)
     .frame(width: width)
     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    .overlay(alignment: .topLeading) {
-      RatingBadgeView(rating: PhonePageSample.rating)
-        .padding(6)
-    }
-//    .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
+//    .overlay(alignment: .topLeading) {
+//      RatingBadgeView(rating: PhonePageSample.rating)
+//        .padding(6)
+//    }
+    .shadow(color: .secondary.opacity(0.4), radius: 18, y: 8)
   }
 }
 
@@ -143,7 +143,7 @@ private struct PhoneTitleLogo: View {
           .resizable()
           .scaledToFit()
           .frame(maxWidth: 280, maxHeight: maxHeight)
-//          .shadow(color: .black.opacity(0.55), radius: 12, y: 4)
+          .shadow(color: .secondary.opacity(0.4), radius: 30, y: 4)
       case .failure:
         Text(PhonePageSample.title)
           .font(TypeScale.heroTitle)
@@ -302,37 +302,29 @@ private struct PhonePageTitleOnArt: View {
         ZStack(alignment: .bottom) {
           PhoneWideArt()
             .frame(maxWidth: .infinity)
-            .frame(height: 380)
+            .frame(height: 394)
             .clipped()
             .overlay(PhoneVariableWash())
 
           VStack(spacing: 0) {
             PhoneNavChrome()
             Spacer(minLength: 0)
-            VStack(spacing: 10) {
+            VStack(spacing: 16) {
               PhoneTitleLogo(maxHeight: 64)
+                PhonePoster(width: 120)
 
-              HStack(spacing: 10) {
-                RatingBadgeView(rating: PhonePageSample.rating)
-                Text(PhonePageSample.meta)
-                  .font(TypeScale.detailBody)
-                  .foregroundStyle(.primary.opacity(0.9))
-              }
-
-              Text(PhonePageSample.genres)
-                .font(TypeScale.detailBody)
-                .foregroundStyle(.primary.opacity(0.75))
             }
             .padding(.horizontal, PhonePageSample.horizontalInset)
-            .padding(.bottom, 20)
+            .padding(.bottom, 16)
             .frame(maxWidth: .infinity)
           }
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .frame(height: 300)
         }
 
         VStack(spacing: 16) {
-          PhonePoster(width: 120)
-          PhonePlayPill(label: "Play movie")
+            PhoneMetaBlock(useTitleLogo: false)
+
+          PhonePlayPill(label: "Play Movie")
           PhoneCircleRow()
           PhonePlot()
             .padding(.top, 4)

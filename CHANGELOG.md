@@ -5,6 +5,112 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Sasha craft: fill layout, focused caption, spacing (2026-09-20)
+
+Horizontal poster *shelves* use a compositional layout: item
+`fractionalWidth(1)` of a **260**-wide group (HIG 6@260 pin). Group height
+fills the rail so leftover focus room sits below the lockup, not as a gap
+under the title. Library / vertical grids stay **FlowLayout + pinned 260**
+— filling 6 columns in a sidebar pane shrank those posters. Title + rail
+are one inner `VStack(spacing: 4)` inside `Section` (header→poster 4 pt,
+not the page’s 80 pt row spacing). Focused caption is `UIColor.label`.
+`captionTopPadding` is **2**. Titled-row spacing **100 → 80**.
+
+First Movies/Series layout ignores a zero-width geometry frame so leading
+80 pt and tile 260 match Watch Now.
+
+### SwiftUI `Section` shelves; headline; header gap; caption clearance (2026-09-20)
+
+Sasha / hig: every poster and landscape shelf is `Section(title) { rail }` — the
+title lives in the Section. Sketch `Headers/Section Header/Dark/Secondary/1 Line`
+= Headline emphasized → `TypeScale.rowHeader` = **`.headline.bold()`** +
+`.foregroundStyle(.secondary)` (not Title 2 ~57pt, not Primary/Subtitle/Eyebrow/
+App Icon/Pill). UIKit `boundarySupplementary` titles and `TVUIKitPosterPage` are
+gone; each rail is one horizontal TVUIKit representable (or the SwiftUI
+fallback). Header → rail gap is Sketch **~8–24 pt** (not 28 stacked on
+Section’s own spacing, and not a spare focus strip above the posters).
+Poster caption still animates down by focus growth so the 8 pt rest gap is
+not covered. **80 pt leading / 6@260 / trailing peek** unchanged.
+
+tvOS shell does **not** apply `.preferredColorScheme` at all unless DEBUG
+`-KINOPUBForceColorScheme light|dark` is passed (passing `nil` still pinned
+Dark). iOS/macOS stay dark until their pass. Tab labels are **Watch Now** /
+**Series** (not Home / Shows). Shot harness (not on the shared Debug scheme):
+`-KINOPUBForceColorScheme` and `-KINOPUBFocusFirstPoster`. `simctl ui
+appearance` unsupported.
+
+Archi / hig shot review: Section titles were **centered** (light ~795 pt /
+x≈1589px; etalon is **x=80**). SwiftUI `frame(maxWidth:)` is not enough when
+the header hugs. A 1920-wide UIKit title that painted at screen x=80
+(`TVLeadingSectionTitle`) was retracted by Sasha — not acceptable craft.
+The header is SwiftUI `SectionHeader` pinned to the shelf’s measured
+`containerWidth` (same coordinate space as the rail) with `leadingInset`.
+Continue Watching is skipped by row id + `collectionView.allowsFocus` / `canFocusItemAt`
+/ cell `canBecomeFocused` (not `UIView.allowsFocus` or `focusGroupPriority`,
+which are unavailable on tvOS). Returning nil from preferred index defaulted
+to the first CW cell. Only Hot Movies claims initial poster focus.
+Header→items stays Sketch **~8–24 pt**. Caption clearance under the focused
+poster is unchanged. Args stay off the shared Debug scheme.
+
+`-KINOPUBFocusFirstPoster` does **not** steal focus from the SwiftUI Watch
+Now tab pill in this embed (local verify at `f59f31b`: light frames at
+10/15/20/25s were byte-identical). Hig caption evidence is
+`WatchNowHigShotsUITests`: skip unless the Mac-host session file exists
+(`SIMULATOR_HOST_HOME` — UI tests run in the simulator sandbox, so
+`NSHomeDirectory()` is the wrong home), `XCUIRemote.shared.press(.down)`
+until a `kinopub.poster.*` cell hasFocus, write PNGs to `docs/pr21-shots/`
+and `/tmp/kinopub-pr21-shots/`.
+
+hig on `ae1fc9a` / shots `31f8f65`: caption **clearance** PASS; light
+caption **color** FAIL — `TVUIKitPosterCell` caption was `.white` (~1.9:1
+on light ~178). Caption is now `.secondaryLabel` (Sketch Secondary).
+Landscape CW captions use system `wideCell()` `text` (not hardcoded white);
+overlay glyphs on artwork stay white. Leading / gap / clearance unchanged.
+
+### tvOS poster rails match the HIG 6@260 grid (2026-09-16)
+
+Watch Now / Movies / Series on tvOS share `MediaPosterShelf` (TVUIKit
+representable rails). Posters are **6@260 / gutter 40 / inset 80**. Continue
+Watching uses `TVUIKitMediaItemMetrics` (the accepted adapter around
+`orthogonalLayoutSectionForMediaItems()`). `MediaPosterShelf` is the one shelf
+component, including detail / person rows.
+
+CURRENT.md grid contract for M1 poster shelves (Watch Now / Series / Movies):
+
+| | Before | CURRENT / now |
+| --- | --- | --- |
+| Poster width | 290 (invented) | **260** (6-col table) |
+| Gutter | ~53 (10% growth + 24) | **40** |
+| Side inset | 40 | **80** |
+| Page top/bottom | 40 (`rowSpacing`) | **60** |
+| Titled-row spacing | 40 | **100** |
+
+Peek/clip (CURRENT.md: peek ≠ insets none): **80 pt leading content column** —
+headers and the first poster share that line. Each shelf measures its `minX`
+in the window (`max(0, 80 − minX)`) so an already-inset host is not double-cut
+and we never `ignoreSafeArea`. Trailing peek is a partial next card **past**
+that box (rail trailing inset 0, `scrollClipDisabled`). SwiftUI page stack is
+`VStack` not `LazyVStack`. tvOS follows system light/dark. Landscape CW width
+stays 352 until M3 (4@410).
+
+### tvOS Movies / Series are poster shelves, same as Watch Now (2026-09-15)
+
+The Movies and Series tabs were `CatalogView` grids while Watch Now (formerly Home)
+already stacked `MediaPosterShelf` / TVUIKit poster rails from `HomeCatalog`. M1
+closes that gap on tvOS only:
+
+- `HomeCatalog` takes an optional `contentType`. `nil` is Watch Now (Continue
+  Watching + Hot/Fresh/Popular × movie/serial + Collections). `.movie` / `.serial`
+  are the typed tabs — the same shortcut grammar, no CW / collections / banner.
+- `MainView` is the shared stack (`MediaRowsView` of `MediaPosterShelf`). Menus stay on
+  `MediaCardContextMenus` / `MediaCardMenuCoordinator`.
+- Tab labels: Home → Watch Now, Shows → Series. iOS/macOS Movies / Series remain
+  sortable grids.
+
+Warm-cache paging: `refreshIfStale` used to skip the fetch that wrote the page
+cursor, so a shelf painted page 1 and never asked for more. Cursors are now
+seeded from the stored card count, and `fetchPage` writes the real `total`.
+
 ### The player's info panel is filled from the title, not the episode (2026-08-25)
 
 `externalMetadata` was only ever populated when the thing playing was a

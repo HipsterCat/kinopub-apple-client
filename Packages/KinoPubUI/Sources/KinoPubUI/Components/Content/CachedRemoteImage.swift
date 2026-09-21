@@ -120,13 +120,13 @@ public struct RemoteImageLoadingCue: View {
 #Preview("Loading cue") {
   HStack(spacing: 16) {
     ZStack {
-      Color.black.opacity(0.4)
+      Color.KinoPub.placeholder
       RemoteImageLoadingCue(delay: .milliseconds(50))
     }
     .frame(width: 200, height: 160)
 
     ZStack {
-      Color.black.opacity(0.4)
+      Color.KinoPub.placeholder
       RemoteImageLoadingCue(title: "Стражи Галактики. Часть 3", delay: .milliseconds(50))
     }
     .frame(width: 200, height: 160)
@@ -142,15 +142,15 @@ public struct RemoteImageLoadingCue: View {
     contentMode: .fill,
     placeholder: {
       ZStack {
-        Color.black.opacity(0.35)
+        Color.KinoPub.placeholder
         RemoteImageLoadingCue()
       }
     },
     failure: { Color.red.opacity(0.3) }
   )
-  .frame(width: 200, height: 300)
+  .frame(width: 260, height: 394)
   .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   .padding()
-  .background(Color.secondary)
-  // .preferredColorScheme(.dark)
+  .background(.tertiary)
+//  .preferredColorScheme(.dark)
 }

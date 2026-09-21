@@ -65,9 +65,7 @@ struct KinoPubAppleClientApp: App {
 #if os(macOS)
         .environment(windowSettings)
 #endif
-        // Dark-only until light is a deliberate pass (modernization Phase 0).
-        // Info.plist UIUserInterfaceStyle=Dark covers system chrome; this covers SwiftUI.
-//        // .preferredColorScheme(.dark)
+        .kinopubLaunchColorScheme()
         // Register a readable device identity + advertise HEVC/4K/HDR at activation, so
         // the kino.pub Devices list isn't "unknown / unknown" and streams match what
         // AVPlayer can open. A launch that only revived a Keychain token sends nothing
@@ -286,4 +284,54 @@ private struct UILabCommands: Commands {
 }
 #endif
 #endif
+
+/// Appearance at the app root.
+///
+/// tvOS must **not** get `.preferredColorScheme(.dark)` — CURRENT.md rescinded
+/// dark-only, and `.preferredColorScheme(nil)` still pinned Dark on the simulator
+/// (hig could not get Light). The modifier is applied only when DEBUG
+/// `-KINOPUBForceColorScheme light|dark` is set (`simctl ui appearance` unsupported).
+/// iOS/macOS stay dark until their pass.
+enum LaunchAppearance {
+#if DEBUG
+  static var forcedColorScheme: ColorScheme? {
+    let raw = UserDefaults.standard.string(forKey: "KINOPUBForceColorScheme")
+      ?? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-KINOPUBForceColorScheme"),
+              args.index(after: i) < args.endIndex else { return nil }
+        return args[args.index(after: i)]
+      }()
+    switch raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+    case "light": return .light
+    case "dark": return .dark
+    default: return nil
+    }
+  }
+#endif
+}
+
+private extension View {
+  @ViewBuilder
+  func kinopubLaunchColorScheme() -> some View {
+#if DEBUG
+    if let scheme = LaunchAppearance.forcedColorScheme {
+      preferredColorScheme(scheme)
+    } else {
+      unforcedLaunchColorScheme
+    }
+#else
+    unforcedLaunchColorScheme
+#endif
+  }
+
+  @ViewBuilder
+  private var unforcedLaunchColorScheme: some View {
+#if os(tvOS)
+    self
+#else
+    preferredColorScheme(.dark)
+#endif
+  }
+}
 

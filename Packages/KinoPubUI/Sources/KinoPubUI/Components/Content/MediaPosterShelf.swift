@@ -34,6 +34,10 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   /// Whether the next page is loading, failed, or there is no next page.
   private let pagination: PaginationState
   private let onRetryPagination: (() -> Void)?
+  /// DEBUG `-KINOPUBFocusFirstPoster`: Continue Watching must not take focus.
+  private let allowsFocus: Bool
+  /// DEBUG: this shelf is Hot Movies — first 2:3 cell is the landing.
+  private let prefersInitialFocus: Bool
 
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.usesTVUIKitPosters) private var usesTVUIKitPosters
@@ -41,9 +45,12 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   @State private var containerWidth: CGFloat = 1920
   /// The container's own horizontal safe-area inset. Zero on a screen that already
   /// sits inside the safe area; the overscan margin on one that ignores it (the detail
-  /// page does, horizontally). `ShelfMetrics` takes the larger of this and its own
-  /// design margin, so the header and the rail always share one number.
+  /// page does, horizontally). `ShelfMetrics` takes the larger of the two.
   @State private var containerSafeArea: CGFloat = 0
+#if os(tvOS)
+  /// 80 pt from the **screen**, not 80 on top of an already-inset host.
+  @State private var contentLeadingInset: CGFloat = ShelfMetrics.tvContentMargin
+#endif
 
   public init(
     title: String,
@@ -60,7 +67,9 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     onCardFocused: (() -> Void)? = nil,
     onNearEnd: ((MediaCard) -> Void)? = nil,
     pagination: PaginationState = .idle,
-    onRetryPagination: (() -> Void)? = nil
+    onRetryPagination: (() -> Void)? = nil,
+    allowsFocus: Bool = true,
+    prefersInitialFocus: Bool = false
   ) {
     self.title = title
     self.count = count
@@ -71,7 +80,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     self.onPlay = onPlay
     self.contextMenuProvider = contextMenuProvider
 #if os(tvOS)
-    self.caption = caption ?? .onFocus
+    self.caption = caption ?? .always
 #else
     self.caption = caption ?? .always
 #endif
@@ -81,6 +90,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     self.onNearEnd = onNearEnd
     self.pagination = pagination
     self.onRetryPagination = onRetryPagination
+    self.allowsFocus = allowsFocus
+    self.prefersInitialFocus = prefersInitialFocus
   }
 
   private var isLandscape: Bool {
@@ -113,28 +124,38 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     isLandscape ? Metrics.landscapeFocusPadding : Metrics.focusPadding
   }
 
-  /// Header → the first card, as a *visible* distance. The rail pads itself vertically
-  /// for focus lift, so that padding comes back out here — otherwise a landscape rail
-  /// and a poster rail sit different distances under identical headers.
-  private var headerSpacing: CGFloat {
-    max(0, Metrics.sectionHeaderSpacing - railFocusPadding)
+  private var leadingInset: CGFloat {
+#if os(tvOS)
+    contentLeadingInset
+#else
+    metrics.inset
+#endif
+  }
+
+  /// Header → cards. tvOS: an inner VStack owns this number so a parent
+  /// `VStack(spacing: 80)` cannot sit between the title and the posters.
+  private var headerToRailSpacing: CGFloat {
+#if os(tvOS)
+    Metrics.sectionHeaderToContentSpacing
+#else
+    Metrics.sectionHeaderSpacing
+#endif
   }
 
   public var body: some View {
-    VStack(alignment: .leading, spacing: headerSpacing) {
-      header
-        .padding(.horizontal, metrics.inset)
-
-#if os(tvOS)
-      if usesTVUIKitPosters {
-        tvUIKitRail
-      } else {
-        swiftUIRail
+    // CURRENT.md: `Section(title) { rail }`. Header is `SectionHeader`
+    // (`.headline.weight(.semibold)` + `.secondary`). Title + rail are one
+    // VStack inside the Section so header→poster spacing is 4 pt, not the
+    // page's 80 pt row spacing.
+    Section {
+      VStack(alignment: .leading, spacing: headerToRailSpacing) {
+        sectionTitle
+        rail
       }
-#else
-      swiftUIRail
-#endif
     }
+#if os(tvOS)
+    .modifier(MediaPosterShelfFocusSection(enabled: allowsFocus))
+#endif
     .onGeometryChange(for: ShelfGeometry.self) { proxy in
       ShelfGeometry(
         width: proxy.size.width,
@@ -144,24 +165,59 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       if geometry.width > 0 { containerWidth = geometry.width }
       containerSafeArea = max(0, geometry.safeArea)
     }
+#if os(tvOS)
+    .onGeometryChange(for: CGRect.self) { proxy in
+      proxy.frame(in: .global)
+    } action: { frame in
+      // Ignore the zero/off-screen first frame (Movies/Series tab create).
+      // That frame reported minX=0 → leading 80 while Home had already
+      // settled at minX≈80 → leading 0: same rail, two insets, two sizes.
+      guard frame.width > 100 else { return }
+      contentLeadingInset = max(0, ShelfMetrics.tvContentMargin - frame.minX)
+    }
+#endif
+  }
+
+  /// tvOS: native `Section` header, leading on the same inset as the first card.
+  /// iOS/macOS keep the navigable `header`.
+  @ViewBuilder
+  private var sectionTitle: some View {
+#if os(tvOS)
+    // tvOS `Section` measures the header's *ideal* size and centers a compact hug
+    // (light shots landed ~795 pt). `frame(maxWidth: .infinity)` still hugs when
+    // the proposal is unspecified — that is not a licence for a 1920-wide
+    // screen-space canvas. Pin the header to the shelf's measured width (the
+    // same `containerWidth` the rail uses) so centering is a no-op, then pad
+    // with `leadingInset` (80-from-screen, shared with the first poster).
+    SectionHeader(
+      title: title,
+      count: count,
+      showsChevron: false,
+      leadingInset: leadingInset
+    )
+    .frame(width: max(containerWidth, 1), alignment: .leading)
+    .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
+#else
+    header
+#endif
   }
 
   @ViewBuilder
-  private var header: some View {
+  private var rail: some View {
 #if os(tvOS)
-    // Never a link on tvOS. A navigating section header is an iOS/macOS affordance:
-    // on a remote it becomes one more focus stop above every single row, which the
-    // user has to travel through on the way down the page, and which no Apple tvOS
-    // app has. "See all" belongs in the row itself — a trailing card — not in its
-    // title. See `docs/archive/plans/detail-page-choreography.md` phase 6.
-    HStack(spacing: 10) {
-      SectionHeader(title: title, count: count, showsChevron: false)
-      // The badge stayed pinned to the trailing edge when the header itself filled the
-      // row. It no longer does (it hugs its words now), so the spacer keeps it there.
-      Spacer(minLength: 10)
-      PaginationHeaderBadge(state: pagination)
+    if usesTVUIKitPosters {
+      tvUIKitRail
+    } else {
+      swiftUIRail
     }
 #else
+    swiftUIRail
+#endif
+  }
+
+#if !os(tvOS)
+  @ViewBuilder
+  private var header: some View {
     if let destination {
       NavigationLink(value: destination) {
         SectionHeader(title: title, count: count, showsChevron: true)
@@ -175,8 +231,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     } else {
       SectionHeader(title: title, count: count, showsChevron: false)
     }
-#endif
   }
+#endif
 
 #if os(tvOS)
   /// Wide rails ride the system's media-item cell; posters stay on `TVPosterView`
@@ -186,7 +242,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     if isLandscape {
       TVUIKitMediaItemRail(
         items: cards.map(TVUIKitMediaItem.init(card:)),
-        contentInset: metrics.inset,
+        contentInset: leadingInset,
         onSelect: { id in
           if let card = cards.first(where: { $0.id == id }) { open(card) }
         },
@@ -195,9 +251,10 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
         },
         contextMenuProvider: contextMenuProvider.map { provider in
           { id in cards.first(where: { $0.id == id }).map(provider) ?? [] }
-        }
+        },
+        allowsFocus: allowsFocus
       )
-      .focusSection()
+      .modifier(MediaPosterShelfFocusSection(enabled: allowsFocus))
     } else {
       tvUIKitPosterRail
     }
@@ -209,17 +266,21 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       axis: .horizontal,
       containerWidth: containerWidth,
       safeArea: containerSafeArea,
+      leadingInset: leadingInset,
       typeSize: typeSize,
       onSelect: { card in open(card) },
       onNearEnd: onNearEnd.map { _ in { card in reportIfLast(card.id) } },
-      contextMenuProvider: contextMenuProvider
+      contextMenuProvider: contextMenuProvider,
+      prefersInitialFocus: prefersInitialFocus
     )
     .frame(height: TVUIKitPosterMetrics.railHeight(
       isLandscape: isLandscape,
       containerWidth: containerWidth,
       typeSize: typeSize,
-      safeArea: containerSafeArea
+      safeArea: containerSafeArea,
+      leadingInset: leadingInset
     ))
+    .scrollClipDisabled()
     .focusSection()
   }
 #endif
@@ -237,7 +298,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
             .buttonStyle(MediaCardButtonStyle())
 #endif
             .modifier(MediaPosterShelfFocusModifier(
-              focusedCard: focusedCard,
+              focusedCard: allowsFocus ? focusedCard : nil,
               key: focusKey?(card)
             ))
 #if os(tvOS)
@@ -266,14 +327,21 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
             .frame(height: tailTileHeight)
         }
       }
+#if os(tvOS)
+      // Leading 80 pt content column (aligned with the header). Trailing stays
+      // open so the next card peeks past that box — not a matching 80 pt pad.
+      // Top gap is Section’s, not another focus strip.
+      .padding(.leading, leadingInset)
+      .padding(.bottom, railFocusPadding)
+#else
       .padding(.horizontal, metrics.inset)
-      // Vertical room for `.borderless` focus lift only — horizontal bleed must
-      // stay inside `ShelfMetrics.cardWidth` or rails overflow ~2·focusPadding.
       .padding(.vertical, railFocusPadding)
+#endif
     }
 #if os(tvOS)
     .buttonStyle(.borderless)
     .scrollClipDisabled()
+    .modifier(MediaPosterShelfFocusSection(enabled: allowsFocus))
     .focusSection()
 #endif
   }
@@ -350,6 +418,19 @@ private struct MediaPosterShelfFocusModifier<FocusKey: Hashable>: ViewModifier {
 }
 
 #if os(tvOS)
+private struct MediaPosterShelfFocusSection: ViewModifier {
+  var enabled: Bool
+
+  @ViewBuilder
+  func body(content: Content) -> some View {
+    if enabled {
+      content.focusSection()
+    } else {
+      content
+    }
+  }
+}
+
 private struct MediaPosterShelfFocusReporter: ViewModifier {
   let onCardFocused: (() -> Void)?
   @Environment(\.isFocused) private var isFocused

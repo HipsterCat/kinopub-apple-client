@@ -20,7 +20,7 @@ import KinoPubKit
 /// did not build.
 ///
 /// - **tvOS:** `.tabBarOnly` (top); glyph · word · word · word · word · glyph. Search is
-///   the **first** tab (left of Home) — not `role: .search`, which pins trailing.
+///   the **first** tab (left of Watch Now) — not `role: .search`, which pins trailing.
 /// - **macOS:** `.tabBarOnly`; no Settings tab (Settings window / ⌘,); no Search tab —
 ///   compact trailing toolbar search via `macToolbarSearch()` on each `RouteStack`
 ///   (Finder/Photos). Return opens Search results.
@@ -126,9 +126,10 @@ struct TabsNavigationView: View {
   }
 
   private static let browseTabs: [TabSpec] = [
+    // CURRENT.md / M1: Watch Now / Series — never "Home" / "Shows".
     TabSpec(tab: .home, title: "Watch Now", systemImage: "house.fill"),
     TabSpec(tab: .movies, title: "Movies", systemImage: "movieclapper"),
-    TabSpec(tab: .series, title: "Shows", systemImage: "rectangle.stack"),
+    TabSpec(tab: .series, title: "Series", systemImage: "rectangle.stack"),
     TabSpec(tab: .library, title: "Library", systemImage: "rectangle.stack.badge.person.crop")
   ]
 
@@ -191,7 +192,7 @@ struct TabsNavigationView: View {
   /// Return in the field opens the Search results surface.
   /// Search fills the **content** of the tab it was entered from, rather than covering
   /// the shell. Laying it over the `TabView` also covered the tab bar, so typing in the
-  /// toolbar field made Home / Movies / Shows / Library disappear — the one piece of
+  /// toolbar field made Watch Now / Movies / Series / Library disappear — the one piece of
   /// chrome that says where you are, gone exactly when a result is about to take you
   /// somewhere else. The tabs stay drawn, the tab you came from stays selected, and
   /// `searchReturnTab` still owns the way back.
@@ -211,7 +212,7 @@ struct TabsNavigationView: View {
 #endif
 
 #if os(tvOS)
-  /// Top tab bar — Search is first (left of Home), not `role: .search` (that pins
+  /// Top tab bar — Search is first (left of Watch Now), not `role: .search` (that pins
   /// trailing).
   ///
   /// The browse tabs pass a bare `Text`: `Tab("Title", systemImage:)` gives every tab an
@@ -229,7 +230,15 @@ struct TabsNavigationView: View {
         Tab(value: spec.tab) {
           content(for: spec.tab)
         } label: {
-          Text(spec.title)
+          // Literals at the call site so String Catalog + TabView cannot drift
+          // back to Home / Shows (after shot at 8d0def4).
+          switch spec.tab {
+          case .home: Text("Watch Now")
+          case .movies: Text("Movies")
+          case .series: Text("Series")
+          case .library: Text("Library")
+          default: Text(spec.title)
+          }
         }
       }
 
@@ -345,27 +354,43 @@ struct TabsNavigationView: View {
   }
 
   private var homeContent: some View {
-    MainView(catalog: HomeCatalog(itemsService: appContext.contentService,
-                                  authState: authState,
-                                  errorHandler: errorHandler))
+    posterShelves(tab: .home, contentType: nil)
   }
 
   private var moviesContent: some View {
+#if os(tvOS)
+    posterShelves(tab: .movies, contentType: .movie)
+#else
     CatalogView(title: "Movies",
                 tab: .movies,
                 catalog: MediaCatalog(itemsService: appContext.contentService,
                                       authState: authState,
                                       errorHandler: errorHandler,
                                       contentType: .movie))
+#endif
   }
 
   private var seriesContent: some View {
-    CatalogView(title: "Shows",
+#if os(tvOS)
+    posterShelves(tab: .series, contentType: .serial)
+#else
+    CatalogView(title: "Series",
                 tab: .series,
                 catalog: MediaCatalog(itemsService: appContext.contentService,
                                       authState: authState,
                                       errorHandler: errorHandler,
                                       contentType: .serial))
+#endif
+  }
+
+  /// Watch Now / Movies / Series on tvOS — and Watch Now on every platform — share
+  /// `MainView` + `HomeCatalog`. Typed catalogs filter Hot / Fresh / Popular to one
+  /// `MediaType`; Continue Watching stays on Watch Now only.
+  private func posterShelves(tab: NavigationTabs, contentType: MediaType?) -> some View {
+    MainView(tab: tab, catalog: HomeCatalog(itemsService: appContext.contentService,
+                                            authState: authState,
+                                            errorHandler: errorHandler,
+                                            contentType: contentType))
   }
 
   /// macOS and tvOS run the sidebar shell; iOS still gets the shelf-rows Library until

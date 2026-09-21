@@ -30,6 +30,9 @@ the known item and artwork; exact skeletons only on true cold loads (Search may 
 grid so the remote has a focus landing zone); contained Home banner shelf; unified `Route` /
 `RouteDestination`; one `PlaybackSession`.
 
+- [x] tvOS Movies / Series tabs use the same `HomeCatalog` poster shelves as Watch Now
+      (Hot / Fresh / Popular, typed filter). iOS/macOS keep `CatalogView` grids. Continue
+      Watching is unchanged and stays on Watch Now only
 - [x] Home/Library list cache + disk snapshots (`ContentStore` / `RowSnapshotStore`)
 - [x] Per-item optimistic library (`MediaLibraryStore`: watchlist / watched / votes / download façade)
 - [x] Continue Watching paints from local resume (`LocalWatchProgressStore`) without

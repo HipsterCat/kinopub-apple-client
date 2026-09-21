@@ -174,8 +174,8 @@ public struct PaginationTailTile: View {
 
 // MARK: - Badge, beside a section header
 
-/// For containers that cannot host a tile — the TVUIKit rails own their own cells, so
-/// a shelf on tvOS reports its paging state next to the row title instead.
+/// For containers that cannot host a tile. tvOS shelves are `Section(title) { rail }`
+/// (CURRENT.md); paging on those rails is the SwiftUI fallback’s tail tile, not this badge.
 public struct PaginationHeaderBadge: View {
   private let state: PaginationState
 

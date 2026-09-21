@@ -1189,7 +1189,7 @@ private struct LandscapePlayChromeBackground: ViewModifier {
   MediaCardView(
     card: MediaCard(
       id: 1,
-      posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/6581.jpg",
       title: "Стражи Галактики",
       subtitle: "Guardians of the Galaxy",
       imdbRating: 8.1,
@@ -1204,14 +1204,14 @@ private struct LandscapePlayChromeBackground: ViewModifier {
   .frame(width: 260)
   .padding()
 //  .background(Color.black)
-  // .preferredColorScheme(.dark)
+//  .preferredColorScheme(.dark)
 }
 
 #Preview("Poster watched") {
   MediaCardView(
     card: MediaCard(
       id: 2,
-      posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/6581.jpg",
       title: "Стражи Галактики",
       imdbRating: 7.2,
       kinopoiskRating: 7.0,
@@ -1223,17 +1223,17 @@ private struct LandscapePlayChromeBackground: ViewModifier {
   .frame(width: 260)
   .padding()
 //  .background(Color.black)
-  // .preferredColorScheme(.dark)
+//  .preferredColorScheme(.dark)
 }
 
 #Preview("Landscape episode") {
   MediaCardView(
     card: MediaCard(
       id: 3,
-      posterURL: "https://m.staticpop.net/poster/item/big/100582.jpg",
+      posterURL: "https://m.staticpop.net/poster/item/big/10524.jpg",
       title: "Название эпизода подлиннее обычного",
       progress: 0.55,
-      landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
+      landscapeImageURL: "https://m.staticpop.net/poster/item/wide/10524.jpg",
       overlayLabel: "S1, E3",
       isSeries: true,
       isInWatchlist: true,
@@ -1243,18 +1243,18 @@ private struct LandscapePlayChromeBackground: ViewModifier {
     caption: .always,
     forcePlayChrome: true
   )
-  .frame(width: 360)
+  .frame(width: 260)
   .padding()
 //  .background(Color.black)
-  // .preferredColorScheme(.dark)
+//  .preferredColorScheme(.dark)
 }
 
 #Preview("Landscape time states") {
-  HStack(alignment: .top, spacing: 16) {
+  HStack(alignment: .top, spacing: 44) {
     MediaCardView(
       card: MediaCard(
         id: 1,
-        posterURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
+        posterURL: "https://m.staticpop.net/poster/item/wide/8581.jpg",
         title: "Unwatched",
         landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
         durationSeconds: 62 * 60,
@@ -1263,7 +1263,7 @@ private struct LandscapePlayChromeBackground: ViewModifier {
       caption: .always,
       forcePlayChrome: false
     )
-    .frame(width: 220)
+    .frame(width: 320)
     MediaCardView(
       card: MediaCard(
         id: 2,
@@ -1278,23 +1278,23 @@ private struct LandscapePlayChromeBackground: ViewModifier {
       caption: .always,
       forcePlayChrome: false
     )
-    .frame(width: 220)
+    .frame(width: 360)
     MediaCardView(
       card: MediaCard(
         id: 3,
-        posterURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
+        posterURL: "https://m.staticpop.net/poster/item/wide/3581.jpg",
         title: "Watched",
         progress: 1,
-        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
+        landscapeImageURL: "https://m.staticpop.net/poster/item/wide/3581.jpg",
         isWatched: true,
         durationSeconds: 2 * 60,
         primaryAction: .play
       ),
       caption: .onFocus
     )
-    .frame(width: 220)
+    .frame(width: 260)
   }
   .padding()
-//  .background(Color.black
-  // .preferredColorScheme(.dark)
+//  .background(Color.black)
+//  .preferredColorScheme(.dark)
 }
