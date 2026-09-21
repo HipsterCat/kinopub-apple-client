@@ -83,8 +83,9 @@ public extension View {
   /// Play / Resume — the primary call to action.
   func mediaActionPlayPillStyle() -> some View {
       buttonStyle(.glassProminent)
-          .tint(Color.KinoPub.accent)
-          .kinoGlass(in: .buttonBorder, interactive: true)
+          .tint(Color.KinoPub.text)
+//          .foregroundStyle(.primary).colorScheme(.dark)
+//          .kinoGlass(in: .buttonBorder, interactive: true)
       .buttonBorderShape(.capsule)
 #if !os(tvOS)
       .controlSize(.large)
@@ -95,6 +96,8 @@ public extension View {
   func mediaActionPillStyle() -> some View {
       
     buttonStyle(.glass)
+//          .tint(Color.KinoPub.secondary)
+//          .kinoGlass(in: .buttonBorder, interactive: true)
       .buttonBorderShape(.capsule)
 #if !os(tvOS)
       .controlSize(.large)
@@ -105,7 +108,7 @@ public extension View {
   /// plate, its focus treatment and its press feedback are all the system's.
   func mediaActionCircleStyle() -> some View {
     buttonStyle(.glass)
-          .buttonBorderShape(.capsule)
+          .buttonBorderShape(.circle)
 #if !os(tvOS)
       .controlSize(.large)
 #endif
@@ -146,19 +149,24 @@ public struct MediaActionProgressTrack: View {
 #Preview("Action chrome") {
   HStack(spacing: MediaActionMetrics.rowSpacing) {
     Button {} label: {
-      HStack(spacing: MediaActionMetrics.contentSpacing) {
-        Image(systemName: "play.fill")
-//          .font(MediaActionMetrics.labelFont)
-        Text("Play")
+        Label("Play", systemImage: "play.fill")
           .font(MediaActionMetrics.labelFont)
-      }
-      .frame(minWidth: MediaActionMetrics.playPillMinWidth)
+          .padding(.horizontal, 4)
+//      HStack(spacing: MediaActionMetrics.contentSpacing) {
+//        Image(systemName: "play.fill")
+////          .font(MediaActionMetrics.labelFont)
+//        Text("Play")
+//          .font(MediaActionMetrics.labelFont)
+//          .padding(.horizontal, 4)
+//      }
+//      .frame(minWidth: MediaActionMetrics.playPillMinWidth)
     }
     .mediaActionPlayPillStyle()
 
     Button {} label: {
       Label("Trailer", systemImage: "film")
         .font(MediaActionMetrics.labelFont)
+        .padding(.horizontal, 4)
     }
 //    .buttonStyle(.glass)
     .mediaActionPillStyle()
@@ -167,17 +175,26 @@ public struct MediaActionProgressTrack: View {
 //      Image(systemName: "bookmark")
         
 //            .font(MediaActionMetrics.labelFont)
-        Label("Add to Bookmarks", systemImage: "bookmark")
+        Label("Save", systemImage: "bookmark")
             .font(MediaActionMetrics.labelFont)
-
+            .padding(.horizontal, 4)
 //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
     }
 //    .buttonStyle(.glass)
     .mediaActionPillStyle()
 //    .mediaActionCircleStyle()
+      Button {} label: {
+        Image(systemName: "ellipsis")
+          
+  //            .font(MediaActionMetrics.labelFont)
+//          Label("Save", systemImage: "bookmark")
+//              .font(MediaActionMetrics.labelFont)
+
+  //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+      }.mediaActionCircleStyle()
   }
-  .padding(32)
+  .padding(24)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+//  .background(Color.black)
+//  .preferredColorScheme(.dark)
 }

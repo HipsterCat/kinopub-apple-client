@@ -148,9 +148,9 @@ public struct RemoteImageLoadingCue: View {
     },
     failure: { Color.red.opacity(0.3) }
   )
-  .frame(width: 200, height: 300)
+  .frame(width: 260, height: 394)
   .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   .padding()
-  .background(Color.black)
-  .preferredColorScheme(.dark)
+  .background(.tertiary)
+//  .preferredColorScheme(.dark)
 }

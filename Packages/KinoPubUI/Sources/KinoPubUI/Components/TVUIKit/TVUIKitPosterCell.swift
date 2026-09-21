@@ -29,7 +29,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
   private var currentURL: URL?
   private var tileWidth: CGFloat = 260
   /// The box the artwork is decoded into — see `TVUIKitRemoteImage.load(url:size:)`.
-  private var posterSize = CGSize(width: 260, height: 390)
+  private var posterSize = CGSize(width: 260, height: 394)
   private var posterWidthConstraint: NSLayoutConstraint!
   private var posterHeightConstraint: NSLayoutConstraint!
   private var captionTopConstraint: NSLayoutConstraint!
@@ -84,21 +84,21 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     overlayContainer.addSubview(watchedGlyph)
 
     captionLabel.translatesAutoresizingMaskIntoConstraints = false
-    captionLabel.font = .preferredFont(forTextStyle: .callout)
+    captionLabel.font = .preferredFont(forTextStyle: .footnote)
     // Rest / unfocused: Sketch Secondary. Focused: `.label` (primary).
     captionLabel.textColor = .secondaryLabel
     captionLabel.numberOfLines = 1
     captionLabel.textAlignment = .center
     captionLabel.enablesMarqueeWhenAncestorFocused = true
     captionLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    captionLabel.alpha = 0
+    captionLabel.alpha = 1
     contentView.addSubview(captionLabel)
 
     posterWidthConstraint = posterView.widthAnchor.constraint(equalToConstant: 260)
-    posterHeightConstraint = posterView.heightAnchor.constraint(equalToConstant: 390)
+    posterHeightConstraint = posterView.heightAnchor.constraint(equalToConstant: 394)
     captionTopConstraint = captionLabel.topAnchor.constraint(
-      equalTo: posterView.bottomAnchor,
-      constant: TVUIKitPosterMetrics.captionTopPadding
+        equalTo: posterView.bottomAnchor,
+        constant: TVUIKitPosterMetrics.captionTopPadding
     )
     progressFillWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
 
@@ -263,7 +263,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     progressTrack.isHidden = true
     bottomInfoBlur?.isHidden = true
     watchedGlyph.isHidden = true
-    captionLabel.alpha = 0
+    captionLabel.alpha = 1
     captionLabel.textColor = .secondaryLabel
     accessibilityIdentifier = nil
     posterView.accessibilityIdentifier = nil
@@ -278,15 +278,15 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
       || context.nextFocusedView?.isDescendant(of: self) == true
     coordinator.addCoordinatedAnimations({
       self.overlayContainer.transform = nowFocused
-        ? CGAffineTransform(scaleX: 1.1, y: 1.1)
+        ? CGAffineTransform(scaleX: 1.15, y: 1.15)
         : .identity
-      self.captionLabel.alpha = nowFocused ? 1 : 0
-      self.captionLabel.textColor = nowFocused ? .label : .secondaryLabel
-      // Rest gap is `captionTopPadding` (2 pt); focused lockup grows downward.
-      self.captionTopConstraint.constant = TVUIKitPosterMetrics.captionTopPadding
-        + (nowFocused
-           ? TVUIKitPosterMetrics.captionFocusClearance(tileHeight: self.posterHeightConstraint.constant)
-           : 0)
+       self.captionLabel.alpha = 1
+       self.captionLabel.textColor = nowFocused ? .label : .secondaryLabel
+       // Rest gap is `captionTopPadding` (2 pt); focused lockup grows downward.
+       self.captionTopConstraint.constant = TVUIKitPosterMetrics.captionTopPadding
+         + (nowFocused
+            ? TVUIKitPosterMetrics.captionFocusClearance(tileHeight: self.posterHeightConstraint.constant)
+            : 0)
       self.contentView.layoutIfNeeded()
     }, completion: { [weak self] in
       guard let self, !nowFocused else { return }
@@ -309,7 +309,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     overlayContainer.transform = .identity
     captionTopConstraint.constant = TVUIKitPosterMetrics.captionTopPadding
     captionLabel.textColor = .secondaryLabel
-    captionLabel.alpha = 0
+    captionLabel.alpha = 1
   }
 
   public override var canBecomeFocused: Bool { true }

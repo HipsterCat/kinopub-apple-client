@@ -167,7 +167,7 @@ public struct HomeBannerCardView: View {
     }
     .clipShape(RoundedRectangle(cornerRadius: Self.posterCornerRadius, style: .continuous))
 #if !os(tvOS)
-    .shadow(color: .black.opacity(0.45), radius: 10, y: 4)
+//    .shadow(color: .black.opacity(0.45), radius: 10, y: 4)
 #endif
   }
 

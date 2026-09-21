@@ -121,16 +121,15 @@ public struct ShelfMetrics: Equatable, Sendable {
   /// CURRENT.md: 60 pt top/bottom on the page.
   public static let tvPageVerticalInset: CGFloat = 60
 
-  /// Titled-row spacing. Was 100; Sasha 2026-09: reduce by 20 → **80**.
-  public static let tvTitledRowSpacing: CGFloat = 80
+  public static let tvTitledRowSpacing: CGFloat = 60
 
   /// CURRENT.md: horizontal spacing **always 40 pt**.
   public static let tvHorizontalSpacing: CGFloat = 40
 
   /// A focused tvOS tile grows about a tenth of its size. Used only to reserve
   /// focus-lift room, not to pick the gutter (that is `tvHorizontalSpacing`).
-  public static let tvFocusGrowth: CGFloat = 0.1
-  public static let tvMinimumGap: CGFloat = 24
+  public static let tvFocusGrowth: CGFloat = 0.15
+  public static let tvMinimumGap: CGFloat = 40
 
   public static func tvGutter(cardWidth _: CGFloat) -> CGFloat {
     tvHorizontalSpacing
@@ -171,7 +170,7 @@ public struct ShelfMetrics: Equatable, Sendable {
 
   /// How much width buys one more column past the last named breakpoint. The named
   /// steps sit ~200pt apart for the same reason: that is one poster plus its gutter.
-  private static let columnStep: CGFloat = 200
+  private static let columnStep: CGFloat = 260
 
   /// One page of a grid or shelf, from the single number that decides its rhythm.
   ///

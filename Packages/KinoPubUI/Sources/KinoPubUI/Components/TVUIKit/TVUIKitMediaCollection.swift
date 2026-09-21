@@ -97,7 +97,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   private var isLandscape = false
   private var tileSize: CGSize = .zero
   private var itemSize: CGSize = .zero
-  private var gutter: CGFloat = 20
+  private var gutter: CGFloat = 40
   private var inset: CGFloat = 40
   private var installedAxis: TVUIKitCollectionAxis?
 

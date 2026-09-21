@@ -1243,7 +1243,7 @@ private struct LandscapePlayChromeBackground: ViewModifier {
     caption: .always,
     forcePlayChrome: true
   )
-  .frame(width: 360)
+  .frame(width: 260)
   .padding()
 //  .background(Color.black)
 //  .preferredColorScheme(.dark)
@@ -1278,7 +1278,7 @@ private struct LandscapePlayChromeBackground: ViewModifier {
       caption: .always,
       forcePlayChrome: false
     )
-    .frame(width: 320)
+    .frame(width: 360)
     MediaCardView(
       card: MediaCard(
         id: 3,
@@ -1292,7 +1292,7 @@ private struct LandscapePlayChromeBackground: ViewModifier {
       ),
       caption: .always
     )
-    .frame(width: 320)
+    .frame(width: 260)
   }
   .padding()
 //  .background(Color.black)

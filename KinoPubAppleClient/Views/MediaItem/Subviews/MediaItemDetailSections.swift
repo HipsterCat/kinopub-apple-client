@@ -299,7 +299,7 @@ struct MediaItemRatingsSection: View {
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
 #if os(tvOS)
         .scrollClipDisabled()
-//        .focusSection()
+        .focusSection()
 #endif
       }
       .animation(.easeOut(duration: 0.35), value: showsHeader)
@@ -638,7 +638,7 @@ struct MediaItemCastSection: View {
       onCellFocused: onSectionFocused
     )
     .frame(height: TVUIKitPersonCollectionController.railHeight)
-//    .focusSection()
+    .focusSection()
   }
 
   /// Character when TMDB has one, else the credit role — same rule as
@@ -2937,7 +2937,7 @@ struct MediaItemInfoColumns: View {
       }
 #if os(tvOS)
       .reportMediaItemSectionFocus(onSectionFocused)
-//      .focusSection()
+      .focusSection()
 #endif
     }
   }

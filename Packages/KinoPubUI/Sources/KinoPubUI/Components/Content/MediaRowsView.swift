@@ -253,7 +253,7 @@ public struct MediaRowsView: View {
 #if os(tvOS)
     .buttonStyle(.borderless)
     .scrollClipDisabled()
-    .focusSection()
+     .focusSection()
 #endif
   }
 
@@ -327,7 +327,7 @@ public struct RowHeaderButtonStyle: ButtonStyle {
     var body: some View {
       configuration.label
         .environment(\.cardFocused, isFocused)
-        .scaleEffect(isFocused ? 1.06 : 1.0, anchor: .leading)
+        .scaleEffect(isFocused ? 1.15 : 1.0, anchor: .leading)
         .opacity(configuration.isPressed ? 0.6 : 1)
         .animation(.easeOut(duration: 0.18), value: isFocused)
     }
@@ -494,6 +494,6 @@ public struct MediaCardContextMenuModifier: ViewModifier {
     )
   }
   .environment(\.usesTVUIKitPosters, true)
-  .frame(width: 1920, height: 1920)
+//  .frame(width: 500, height: 200)
 }
 #endif

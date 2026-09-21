@@ -286,7 +286,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
 public enum TVUIKitMediaItemMetrics {
   /// Multiplier on the system's own tile size. 1.0 is exactly Apple's row; that reads
   /// small in our shelves, so the shipping tile is a notch above it.
-  public static let scale: CGFloat = 1.18
+    public static let scale: CGFloat = 1.15
 
   /// Used only when the probe comes back with nothing — roughly the system row.
   public static let fallback = SystemMetrics(itemSize: CGSize(width: 500, height: 340),
@@ -766,14 +766,14 @@ final class TVUIKitMediaItemOverlayView: UIView {
     glyphView.tintColor = .white
     glyphView.contentMode = .scaleAspectFit
     glyphView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
-    TVUIKitChromeSupport.applyLegibilityShadow(to: glyphView.layer)
+//    TVUIKitChromeSupport.applyLegibilityShadow(to: glyphView.layer)
     addSubview(glyphView)
 
     runtimeLabel.translatesAutoresizingMaskIntoConstraints = false
     runtimeLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 19, weight: .semibold)
     runtimeLabel.textColor = .white
     runtimeLabel.textAlignment = .right
-    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
+//    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
     addSubview(runtimeLabel)
 
     // A real pill, unlike the bottom corner — this is a badge (Watched / a release

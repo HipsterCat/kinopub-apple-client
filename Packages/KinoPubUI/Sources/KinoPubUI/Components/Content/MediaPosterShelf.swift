@@ -80,7 +80,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     self.onPlay = onPlay
     self.contextMenuProvider = contextMenuProvider
 #if os(tvOS)
-    self.caption = caption ?? .onFocus
+    self.caption = caption ?? .always
 #else
     self.caption = caption ?? .always
 #endif
@@ -342,6 +342,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     .buttonStyle(.borderless)
     .scrollClipDisabled()
     .modifier(MediaPosterShelfFocusSection(enabled: allowsFocus))
+    .focusSection()
 #endif
   }
 

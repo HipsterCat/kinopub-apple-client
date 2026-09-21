@@ -17,15 +17,12 @@ import UIKit
 
 public enum TVUIKitPosterMetrics {
   /// On-focus caption under poster. One line.
-  public static let captionHeight: CGFloat = 44
-  /// Rest gap, unfocused poster → caption. Sasha: **2 pt**. Focused lockups grow
-  /// downward; see `captionFocusClearance(tileHeight:)`.
-  public static let captionTopPadding: CGFloat = 2
-
-  /// Extra caption offset so the label clears the **focused** (scaled) poster.
-  /// Half of the ~10% focus growth — the part that expands below the unfocused bottom.
+  public static let captionHeight: CGFloat = 36
+  public static let captionTopPadding: CGFloat = 0
+/// Extra caption offset so the label clears the **focused** (scaled) poster.
+/// Half of the ~10% focus growth — the part that expands below the unfocused bottom.
   public static func captionFocusClearance(tileHeight: CGFloat) -> CGFloat {
-    (tileHeight * ShelfMetrics.tvFocusGrowth / 2).rounded()
+  (tileHeight * ShelfMetrics.tvFocusGrowth / 2).rounded()
   }
   public static let cornerRadius: CGFloat = 16
 
