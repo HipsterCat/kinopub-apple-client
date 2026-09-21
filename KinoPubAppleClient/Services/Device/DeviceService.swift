@@ -6,7 +6,7 @@
 import Foundation
 import KinoPubBackend
 
-protocol DeviceService {
+protocol DeviceService: Sendable {
   func fetchCurrentDevice() async throws -> DeviceInfo
   func fetchSettings(deviceId: Int) async throws -> DeviceSettings
   func updateSettings(deviceId: Int, settings: DeviceSettings) async throws

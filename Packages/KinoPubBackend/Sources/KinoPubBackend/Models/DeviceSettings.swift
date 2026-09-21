@@ -5,7 +5,7 @@
 import Foundation
 
 /// One option of a "list"-type device setting (e.g. a stream type or a server location).
-public struct DeviceSettingOption: Codable, Identifiable, Hashable {
+public struct DeviceSettingOption: Codable, Identifiable, Hashable, Sendable {
   public let id: Int
   public let label: String
   public init(id: Int, label: String) {
@@ -20,7 +20,7 @@ public struct DeviceSettingOption: Codable, Identifiable, Hashable {
 /// puts in the HLS master. With HEVC on and `mixedPlaylist` off, HDR titles can arrive
 /// as an HEVC-only master that AVPlayer cannot open (-11868/-17223). Advertising HEVC
 /// **and** turning `mixedPlaylist` on keeps an h264 fallback while still offering HDR.
-public struct DeviceSettings: Codable {
+public struct DeviceSettings: Codable, Sendable {
 
   public var supportSsl: Bool
   public var supportHevc: Bool

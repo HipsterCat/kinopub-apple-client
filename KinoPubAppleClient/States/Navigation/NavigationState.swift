@@ -180,7 +180,7 @@ class NavigationState: ObservableObject {
   /// returns to that tab's root (Apple Music / Apple TV behaviour).
   func popToRoot(for tab: NavigationTabs) {
     guard let keyPath = Self.routes(for: tab) else { return }
-    self[keyPath: keyPath] = []
+    self[keyPath: keyPath] = [] //Publishing changes from within view updates is not allowed, this will cause undefined behavior.
   }
 
   /// Appends onto the selected tab's navigation stack (context-menu Play, etc.).

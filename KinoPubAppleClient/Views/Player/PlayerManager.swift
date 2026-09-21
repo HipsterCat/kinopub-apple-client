@@ -878,30 +878,35 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       return download.localizedTitle.isEmpty ? nil : download.localizedTitle
     }
     if let episode = playItem as? Episode {
-      // The item page fills `seriesTitle` in before handing the episode to the player;
+        // The item page fills `seriesTitle` in before handing the episode to the player;
       // a bare `Episode` from elsewhere falls back to its own title, the best we have.
-      if let seriesTitle = episode.seriesTitle, !seriesTitle.isEmpty {
-        return seriesTitle
-      }
+
+    // let epTitle = episode.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    // if !epTitle.isEmpty && (epTitle != episode.seriesTitle) {
+    //   return epTitle
+    // }
+    if let seriesTitle = episode.seriesTitle, !seriesTitle.isEmpty {
+      return seriesTitle
+    }
       return episode.fixedTitle
     }
     return nil
   }
 
-  /// "Season 2, Episode 5 — <episode title>" for a series episode; nothing for a movie.
+    /// "Season 2, Episode 5 — <episode title>" for a series episode; "S2, E5 • Lanterns" when it has a title for episode; nothing for a movie.
   var displaySubtitle: String? {
     guard let episode = playItem as? Episode else { return nil }
     var parts: [String] = []
     if let season = episode.seasonNumber {
-      parts.append("\("Season".localized) \(season)")
+      parts.append("Season \(season)")
     }
-    parts.append("\("Episode".localized) \(episode.number)")
+    parts.append("Episode \(episode.number)")
     let line = parts.joined(separator: ", ")
     // The title line already shows the episode name, so only append it when it adds
     // something the "Episode N" label doesn't already say.
     let epTitle = episode.title.trimmingCharacters(in: .whitespacesAndNewlines)
     if !epTitle.isEmpty, epTitle != displayTitle {
-      return "\(line) — \(epTitle)"
+      return "\(line): \(epTitle)"
     }
     return line
   }

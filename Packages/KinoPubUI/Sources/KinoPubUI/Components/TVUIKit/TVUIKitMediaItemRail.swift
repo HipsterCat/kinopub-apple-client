@@ -764,8 +764,8 @@ final class TVUIKitMediaItemOverlayView: UIView {
     addSubview(scrim)
 
     glyphView.translatesAutoresizingMaskIntoConstraints = false
-    glyphView.tintColor = .blue
-    glyphView.contentMode = .scaleAspectFit
+    glyphView.tintColor = .secondaryLabel
+    glyphView.contentMode = .scaleAspectFill
     glyphView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: glyphView.layer)
     addSubview(glyphView)

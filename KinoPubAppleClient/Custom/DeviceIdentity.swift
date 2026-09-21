@@ -169,7 +169,9 @@ enum DeviceIdentity {
     guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else { return nil }
     var buffer = [CChar](repeating: 0, count: size)
     guard sysctlbyname(name, &buffer, &size, nil, 0) == 0 else { return nil }
-    let value = String(cString: buffer).trimmingCharacters(in: .whitespacesAndNewlines)
+    let nullIndex = buffer.firstIndex(of: 0) ?? buffer.count
+    let bytes = buffer[..<nullIndex].map { UInt8(bitPattern: $0) }
+    let value = String(decoding: bytes, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     return value.isEmpty ? nil : value
   }
 #endif

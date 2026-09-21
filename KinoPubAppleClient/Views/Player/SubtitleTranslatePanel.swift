@@ -15,6 +15,7 @@ import SwiftUI
 // Translation is not available on tvOS and the entire feature is gated by
 // canImport(Translation).  The tvOS variant only shows the fallback UI.
 #if canImport(Translation) && !os(tvOS)
+// otherwise - just display the second subtitle track for translation (first one, easier). or use siri. or deep link lol
 
 import Translation
 
@@ -93,7 +94,7 @@ private struct WordTranslationView: View {
         target: Locale.Language(identifier: "ru")
       )
     }
-    .translationTask(configuration) { session in
+    .translationTask(configuration) { @concurrent session in
       do {
         let response = try await session.translate(word)
         await MainActor.run { translated = response.targetText }

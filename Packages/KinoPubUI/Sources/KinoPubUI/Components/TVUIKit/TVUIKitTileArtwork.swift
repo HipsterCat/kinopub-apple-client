@@ -48,7 +48,7 @@ public enum TVUIKitTileArtwork {
         weight: .semibold
       )
       guard let glyph = UIImage(systemName: symbol, withConfiguration: config)?
-        .withTintColor(.blue.withAlphaComponent(0.9), renderingMode: .alwaysOriginal)
+          .withTintColor(.label.withAlphaComponent(0.9), renderingMode: .alwaysOriginal)
       else { return }
       glyph.draw(at: CGPoint(x: (size.width - glyph.size.width) / 2,
                              y: (size.height - glyph.size.height) / 2))
@@ -60,7 +60,7 @@ public enum TVUIKitTileArtwork {
   /// Neutral panel for a still that has not arrived (or does not exist) — same shape as
   /// the artwork it stands in for, so the cell never resizes when the image lands.
   public static func placeholder(size: CGSize = wideSize) -> UIImage {
-      image(tint: .blue, symbol: nil, size: size)
+       image(tint: .quaternaryLabel, symbol: nil, size: size)
   }
 
   /// `NSCache` is documented thread-safe, so the artwork helper does not need to be

@@ -6,6 +6,7 @@
 import SwiftUI
 import KinoPubUI
 import KinoPubBackend
+import UIKit
 
 /// Search, sorting and filtering all live here so the Main tab can be a pure
 /// browse surface (rows of artwork) the way tvOS apps present a home screen.
@@ -19,6 +20,9 @@ struct SearchView: View {
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
   /// What the search field shows. When this matches `filterFieldAnchor`, the
   /// catalog is filter-driven (query stays empty so the filter bar stays up).
+//     #if os(tvOS)
+//     UISearchBar
+//     #endif
 #if os(macOS)
   // Bound to the shell's always-visible toolbar field (`NavigationState.macSearchFieldText`).
 #else

@@ -37,7 +37,7 @@ public class Episode: Codable, Hashable, Identifiable {
 
   public var fixedTitle: String {
     if title.isEmpty {
-      return "Серия \(number)"
+      return "Episode \(number)"
     }
     return title
   }

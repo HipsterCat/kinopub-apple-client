@@ -916,7 +916,6 @@ private struct FontWeightSpec: Identifiable {
   SystemTypeStylesCatalogView()
 }
 
-#endif
 
 #Preview("TypeStyleSampleCard") {
     TypeStyleSampleCard(
@@ -943,3 +942,4 @@ private struct FontWeightSpec: Identifiable {
     ).comparisonGrid
 }
 
+#endif

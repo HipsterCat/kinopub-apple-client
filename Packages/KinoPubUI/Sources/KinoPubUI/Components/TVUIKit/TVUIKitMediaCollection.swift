@@ -617,7 +617,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     // Same TVPosterView stranding as after a focus change — the lifted poster can
     // stay enlarged once the menu's preview hands the cell back.
     let reset: () -> Void = { [weak self] in
-      guard let self else { return }
+        guard self != nil else { return }
       collectionView.visibleCells
         .compactMap { $0 as? TVUIKitPosterCell }
         .forEach { $0.resetStaleFocusAppearance() }

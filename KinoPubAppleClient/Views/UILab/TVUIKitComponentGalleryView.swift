@@ -593,7 +593,7 @@ private struct TVDigitEntryRepresentable: UIViewControllerRepresentable {
     controller.promptText = "Any 4 digits dismiss this"
     controller.numberOfDigits = 4
     controller.entryCompletionHandler = { _ in
-      DispatchQueue.main.async(execute: onComplete)
+      DispatchQueue.main.async(execute: onComplete)//Converting non-Sendable function value to '@MainActor @Sendable @convention(block) () -> Void' may introduce data races
     }
     return controller
   }

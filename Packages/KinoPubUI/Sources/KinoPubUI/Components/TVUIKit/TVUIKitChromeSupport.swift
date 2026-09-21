@@ -8,7 +8,6 @@
 
 import UIKit
 import SwiftUI
-import KinoPubUI
 
 public enum TVUIKitChromeSupport {
   /// A drop shadow instead of a pill behind small white chrome over artwork. Used by
