@@ -636,8 +636,11 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
 
     var config = TVMediaItemContentConfiguration.wideCell()
     config.image = artwork ?? fallbackImage(for: item)
-    // `text` is the line *under* the tile, always visible.
+    // `text` is the line *under* the tile, always visible. Secondary at rest, label
+    // when focused (CURRENT.md caption law); the configuration's default is white
+    // regardless of appearance, which is what read as "always white, with a shadow".
     config.text = item.caption
+    config.textProperties.color = state.isFocused ? .label : .secondaryLabel
     // One line, on purpose. Setting `secondaryText` here produced nothing visible on
     // screen (2026-08-11), so the tile is treated as having a single caption and
     // everything worth saying is packed into `text`. The one lead never tried: Apple's

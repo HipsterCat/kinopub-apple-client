@@ -2677,6 +2677,24 @@
         }
       }
     },
+    "Loading %@" : {
+      "comment" : "Page status while a tab has nothing cached: the tab name follows",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загружаем %@"
+          }
+        }
+      }
+    },
     "Logout" : {
       "localizations" : {
         "en" : {

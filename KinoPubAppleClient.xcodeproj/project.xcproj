@@ -484,6 +484,8 @@
       "path": "KinoPubAppleClientUITests",
       "children": [
         { "path": "LaunchUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+        { "path": "WatchNowHigShotsUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+        { "path": "TVPageGeometryUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
       ],
     }, {
       "kind": "group",

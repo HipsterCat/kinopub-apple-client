@@ -37,6 +37,13 @@ enum FeatureFlags {
   /// was turned on to be judged on a real screen, not because that check passed.
   static let tvUIKitPosters = true
 
+  /// tvOS Watch Now / Movies / Series render as **one** `UICollectionView` per page
+  /// (`TVPage`: typed sections, HIG column formula, diffable snapshots) instead of one
+  /// bridged rail per row inside a SwiftUI `Section` stack (`MediaRowsView`). The old
+  /// path stays behind this switch until the page has been driven on a device; then it
+  /// is deleted, not kept.
+  static let tvPageSections = true
+
   /// A series detail page fetches its item with `nolinks=1` and resolves an episode's
   /// links from `/v1/items/media-links` when it is played (`MediaLinksResolver`).
   ///

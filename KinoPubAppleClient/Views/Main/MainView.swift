@@ -79,6 +79,88 @@ struct MainView: View {
   /// every shelf errored) gets a retry state instead of a blank page.
   @ViewBuilder
   var rowsView: some View {
+#if os(tvOS)
+    if FeatureFlags.tvPageSections {
+      page
+    } else {
+      legacyRowsView
+    }
+#else
+    legacyRowsView
+#endif
+  }
+
+#if os(tvOS)
+  /// One collection for the whole tab. Rows become typed sections; the column count is
+  /// the section template's default (posters 6, stills 5) — change it there, once.
+  private var page: some View {
+    TVPage(
+      sections: pageSections,
+      status: pageStatus,
+      accessibilityID: "kinopub.page.\(tab)",
+      onSelect: { _, item in
+        guard case .card(let card) = item else { return }
+        if card.primaryAction == .play {
+          cardMenu.play(card) { navigationState.push($0) }
+        } else if card.opensCollection {
+          navigationState.push(Route.collection(CollectionMediaCard.routeCollection(from: card)))
+        } else {
+          navigationState.push(Route.detailsById(card.id))
+        }
+      },
+      onNearEnd: { section in
+        catalog.loadMore(rowID: section.id)
+      },
+      contextMenuProvider: { card in
+        guard !card.opensCollection else { return [] }
+        return menuEntries(for: card, surface: .shelf, isContinueWatching: card.isLandscape)
+      },
+      onRetry: {
+        Task { await catalog.refresh() }
+      },
+      prefersFirstPosterFocus: DebugLaunch.focusFirstPoster
+    )
+    // The page spans the screen — under the tab bar too, the way a UIKit tab's content
+    // does: the bar's region comes back to the collection as its top inset, rows scroll
+    // beneath the bar, and the bar can hide and reveal from that scroll. Sections apply
+    // the 80 pt HIG side insets; a rail's trailing peek runs out to the screen edge.
+    .ignoresSafeArea()
+  }
+
+  private var pageSections: [TVPageSection] {
+    homeRows.map { row in
+      if row.cards.first?.isLandscape == true {
+        return .stills(id: row.id, title: row.title, count: row.count, cards: row.cards)
+      }
+      return .posters(id: row.id, title: row.title, count: row.count, cards: row.cards)
+    }
+  }
+
+  /// Contextual, never a bare spinner: "Loading Movies". Failure keeps a focusable
+  /// Retry so the remote has somewhere to land.
+  private var pageStatus: TVPageStatus {
+    if catalog.rows.isEmpty && !catalog.isLoaded {
+      return .loading(String(localized: "Loading \(pageTitle)"))
+    }
+    if catalog.rows.isEmpty && catalog.loadFailed {
+      return .failed(message: catalog.loadError?.userFacingMessage
+                       ?? "Check your connection and try again.".localized,
+                     retryTitle: "Try Again".localized)
+    }
+    return .content
+  }
+
+  private var pageTitle: String {
+    switch tab {
+    case .movies: String(localized: "Movies")
+    case .series: String(localized: "Series")
+    default: String(localized: "Watch Now")
+    }
+  }
+#endif
+
+  @ViewBuilder
+  private var legacyRowsView: some View {
     if catalog.rows.isEmpty && !catalog.isLoaded {
       LoadingIndicatorView()
     } else if catalog.rows.isEmpty && catalog.loadFailed {
