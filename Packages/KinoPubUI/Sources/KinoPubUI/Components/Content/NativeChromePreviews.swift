@@ -241,36 +241,63 @@ enum PreviewSample {
   // .preferredColorScheme(.dark)
 }
 
-#Preview("Action pills") {
-  HStack(spacing: MediaActionMetrics.rowSpacing) {
-    Button {} label: {
-      HStack(spacing: MediaActionMetrics.contentSpacing) {
-        Image(systemName: "play.fill")
-        Text("Play")
-          .font(MediaActionMetrics.labelFont)
-      }
-    }
-    .mediaActionPlayPillStyle()
-
-    Button {} label: {
-      Text("Watchlist")
-        .font(MediaActionMetrics.labelFont)
-    }
-    .mediaActionPillStyle()
-
-    Button {} label: {
-      Image(systemName: "checkmark")
-            .font(MediaActionMetrics.labelFont)
-//        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
-    }
-    .mediaActionPlayPillStyle()
-
-//    .mediaActionCircleStyle()
-  }
-  .padding(32)
-  .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-//  .background(Color.black)
-  // .preferredColorScheme(.dark)
+#Preview("Action chrome") {
+     HStack(spacing: MediaActionMetrics.rowSpacing) {
+          Button {} label: {
+               Label("Play", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)
+                    .padding(.horizontal, 4)
+               //      HStack(spacing: MediaActionMetrics.contentSpacing) {
+               //        Image(systemName: "play.fill")
+               ////          .font(MediaActionMetrics.labelFont)
+               //        Text("Play")
+               //          .font(MediaActionMetrics.labelFont)
+               //          .padding(.horizontal, 4)
+               //      }
+               //      .frame(minWidth: MediaActionMetrics.playPillMinWidth)
+          }
+          .mediaActionPlayPillStyle()
+          
+          Button {} label: {
+               Label("Trailer", systemImage: "film")
+                    .font(MediaActionMetrics.labelFont)
+                    .padding(.horizontal, 4)
+          }
+          //    .buttonStyle(.glass)
+          .mediaActionPillStyle()
+          
+          Button {} label: {
+               //      Image(systemName: "bookmark")
+               
+               //            .font(MediaActionMetrics.labelFont)
+               Label("Save", systemImage: "bookmark")
+                    .font(MediaActionMetrics.labelFont)
+                    .padding(.horizontal, 4)
+               //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+          }
+          //    .buttonStyle(.glass)
+          .mediaActionPillStyle()
+          //    .mediaActionCircleStyle()
+          
+          Button {} label: {
+               Image(systemName: "checkmark")
+          }.mediaActionCircleStyle()
+          
+          Button {} label: {
+               Image(systemName: "ellipsis")
+               
+               //            .font(MediaActionMetrics.labelFont)
+               //          Label("Save", systemImage: "bookmark")
+               //              .font(MediaActionMetrics.labelFont)
+               
+               //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+          }.mediaActionCircleStyle()
+     }
+     .padding(24)
+     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+     //  .background(Color.black)
+     //  .preferredColorScheme(.dark)
 }
+
 
 #endif

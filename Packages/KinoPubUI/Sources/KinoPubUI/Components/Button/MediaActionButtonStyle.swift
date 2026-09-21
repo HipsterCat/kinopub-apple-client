@@ -35,7 +35,7 @@ public enum MediaActionMetrics {
   public static let labelFont = TypeScale.actionLabel
   public static let progressWidth: CGFloat = 60
   public static let progressHeight: CGFloat = 5
-  public static let contentSpacing: CGFloat = 12
+  public static let contentSpacing: CGFloat = 2
   public static let rowSpacing: CGFloat = 16
 #else
   public static let playPillMinWidth: CGFloat = 60
@@ -147,42 +147,47 @@ public struct MediaActionProgressTrack: View {
 }
 
 #Preview("Action chrome") {
-  HStack(spacing: MediaActionMetrics.rowSpacing) {
-    Button {} label: {
-        Label("Play", systemImage: "play.fill")
-          .font(MediaActionMetrics.labelFont)
-          .padding(.horizontal, 4)
-//      HStack(spacing: MediaActionMetrics.contentSpacing) {
-//        Image(systemName: "play.fill")
-////          .font(MediaActionMetrics.labelFont)
-//        Text("Play")
-//          .font(MediaActionMetrics.labelFont)
-//          .padding(.horizontal, 4)
-//      }
-//      .frame(minWidth: MediaActionMetrics.playPillMinWidth)
-    }
-    .mediaActionPlayPillStyle()
-
-    Button {} label: {
-      Label("Trailer", systemImage: "film")
-        .font(MediaActionMetrics.labelFont)
-        .padding(.horizontal, 4)
-    }
-//    .buttonStyle(.glass)
-    .mediaActionPillStyle()
-
-    Button {} label: {
-//      Image(systemName: "bookmark")
-        
-//            .font(MediaActionMetrics.labelFont)
-        Label("Save", systemImage: "bookmark")
-            .font(MediaActionMetrics.labelFont)
-            .padding(.horizontal, 4)
-//        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
-    }
-//    .buttonStyle(.glass)
-    .mediaActionPillStyle()
-//    .mediaActionCircleStyle()
+     HStack(spacing: MediaActionMetrics.rowSpacing) {
+          Button {} label: {
+               Label("Play", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)
+                    .padding(.horizontal, 4)
+               //      HStack(spacing: MediaActionMetrics.contentSpacing) {
+               //        Image(systemName: "play.fill")
+               ////          .font(MediaActionMetrics.labelFont)
+               //        Text("Play")
+               //          .font(MediaActionMetrics.labelFont)
+               //          .padding(.horizontal, 4)
+               //      }
+               //      .frame(minWidth: MediaActionMetrics.playPillMinWidth)
+          }
+          .mediaActionPlayPillStyle()
+          
+          Button {} label: {
+               Label("Trailer", systemImage: "film")
+                    .font(MediaActionMetrics.labelFont)
+                    .padding(.horizontal, 4)
+          }
+          //    .buttonStyle(.glass)
+          .mediaActionPillStyle()
+          
+          Button {} label: {
+               //      Image(systemName: "bookmark")
+               
+               //            .font(MediaActionMetrics.labelFont)
+               Label("Save", systemImage: "bookmark")
+                    .font(MediaActionMetrics.labelFont)
+                    .padding(.horizontal, 4)
+               //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+          }
+          //    .buttonStyle(.glass)
+          .mediaActionPillStyle()
+          //    .mediaActionCircleStyle()
+          
+          Button {} label: {
+               Image(systemName: "checkmark")
+          }.mediaActionCircleStyle()
+       
       Button {} label: {
         Image(systemName: "ellipsis")
           
