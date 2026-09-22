@@ -27,8 +27,9 @@ public enum TVHIGGrid {
   public static let sideInset: CGFloat = 80
   public static let verticalInset: CGFloat = 0
 
-  /// HIG: horizontal spacing is 40 pt at every column count.
-  public static let gutter: CGFloat = 40
+  /// Horizontal spacing between cards. HIG states 40; the stock apps read a touch wider,
+  /// and Sasha asked for +4 (2026-09-23). One number — every rail and grid uses it.
+  public static let gutter: CGFloat = 44
 
   /// HIG: "Minimum vertical spacing 100 pt" between unfocused rows of a grid.
   public static let minimumRowSpacing: CGFloat = 100
@@ -62,15 +63,16 @@ public enum TVHIGGrid {
     return (usable / n).rounded(.down)
   }
 
-  /// A classic collection: fixed side insets, fixed gutter, and **as many cards as
-  /// fit** at the size the section asked for, stretched to fill the row. `columns` is
-  /// the HIG count at 1920 (6 → 260-wide posters); in a narrower container the count
-  /// drops and the survivors grow into the leftover, they never shrink below the
-  /// class. At 1920 this is exactly the table; beside a 420 pt sidebar a poster row
-  /// becomes four cards of 320.
+  /// A classic collection: fixed side insets, fixed gutter, and as many cards of the
+  /// section's size as fit, adjusted to fill the row exactly. `columns` is the count at
+  /// 1920 (6 → 256-wide posters with the 44 gutter); a narrower container takes the
+  /// nearest whole count, so a card stays within a few percent of its class — the
+  /// 1400 pt Library pane beside the sidebar gets five posters of 245.
   public static func resolve(columns: Int, contentWidth: CGFloat) -> (columns: Int, cardWidth: CGFloat) {
     let preferred = cardWidth(columns: columns, contentWidth: referenceContentWidth)
-    let fitting = Int(((contentWidth + gutter) / (preferred + gutter)).rounded(.down))
+    // Nearest, not floor: the card stays within a few percent of its class either way
+    // (a 1400 pane gets five posters of 245, not four of 317).
+    let fitting = Int(((contentWidth + gutter) / (preferred + gutter)).rounded())
     let count = max(1, fitting)
     return (count, cardWidth(columns: count, contentWidth: contentWidth))
   }

@@ -257,6 +257,9 @@ final class TVUIKitPersonCell: UICollectionViewCell {
     imageTask = nil
     currentURL = person.photoURL
 
+    // The monogram draws its own focus; the cell's default tvOS background painted a
+    // dark square behind the circle when focused.
+    backgroundConfiguration = .clear()
     var config = TVMonogramContentConfiguration.cell()
     config.text = person.name
     config.secondaryText = person.caption

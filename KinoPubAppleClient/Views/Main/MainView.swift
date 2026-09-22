@@ -127,16 +127,15 @@ struct MainView: View {
     .ignoresSafeArea()
   }
 
-  /// Continue Watching shows three — the rest lives in Library (Sasha, 2026-09-21).
-  private static let continueWatchingLimit = 3
+  /// Continue Watching is the large still row: three across (HIG 3-column, 560 at
+  /// 1920), the rest scrolls — not three items (Sasha, 2026-09-23).
+  private static let continueWatchingColumns = 3
 
   private var pageSections: [TVPageSection] {
     homeRows.map { row in
       if row.cards.first?.isLandscape == true {
-        let cards = row.id == HomeCatalog.continueWatchingRowID
-          ? Array(row.cards.prefix(Self.continueWatchingLimit))
-          : row.cards
-        return .stills(id: row.id, title: row.title, count: row.count, cards: cards)
+        let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : 5
+        return .stills(id: row.id, title: row.title, count: row.count, columns: columns, cards: row.cards)
       }
       return .posters(id: row.id, title: row.title, count: row.count, cards: row.cards)
     }

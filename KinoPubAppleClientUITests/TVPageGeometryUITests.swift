@@ -58,10 +58,10 @@ final class TVPageGeometryUITests: XCTestCase {
                    "poster x moved after first paint: \(first) → \(settled)")
     // The cell is the lockup's focus envelope (unfocused art inset by its own
     // `focusSizeIncrease`), so its edges are not the art's — but its centre is. HIG
-    // 6-column at 1920: art 260 wide starting at 80 → centred on 210.
-    XCTAssertEqual(settled.midX, 80 + 260 / 2, accuracy: 2,
+    // 6-column at 1920 with the 44 pt gutter: art (1760 − 5·44)/6 = 256 wide from 80.
+    XCTAssertEqual(settled.midX, 80 + 256 / 2, accuracy: 2,
                    "first poster is not centred on the HIG 6-column slot: \(settled)")
-    XCTAssertGreaterThanOrEqual(settled.width, 260, "envelope narrower than the HIG art width")
+    XCTAssertGreaterThanOrEqual(settled.width, 256, "envelope narrower than the HIG art width")
     XCTAssertLessThanOrEqual(settled.width, 260 * 1.15, "envelope far wider than the art plus focus growth")
   }
 
@@ -166,6 +166,29 @@ final class TVPageGeometryUITests: XCTestCase {
     XCUIRemote.shared.press(.right)
     Thread.sleep(forTimeInterval: 0.9)
     try shoot(app, name: "gallery-right")
+  }
+
+  /// Search (the tab left of Watch Now) and Library (three right): shots of each
+  /// landing, then one step into the content.
+  func testSearchAndLibraryShots() throws {
+    let app = launchSignedIn()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 4)
+    try shoot(app, name: "search-landing")
+    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 1)
+    try shoot(app, name: "search-keyboard")
+    for _ in 0..<4 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.8) }
+    try shoot(app, name: "search-results")
+    for _ in 0..<8 { XCUIRemote.shared.press(.up); Thread.sleep(forTimeInterval: 0.3) }
+
+    for _ in 0..<4 { XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.6) }
+    Thread.sleep(forTimeInterval: 4)
+    try shoot(app, name: "library-landing")
+    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.8)
+    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 1.2)
+    try shoot(app, name: "library-grid")
   }
 
   private func launchSignedIn() -> XCUIApplication {

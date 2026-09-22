@@ -6,7 +6,9 @@
 import SwiftUI
 import KinoPubUI
 import KinoPubBackend
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Search, sorting and filtering all live here so the Main tab can be a pure
 /// browse surface (rows of artwork) the way tvOS apps present a home screen.
@@ -43,8 +45,96 @@ struct SearchView: View {
   private static let placeholderCount = 12
 
   var body: some View {
+#if os(tvOS)
+    tvBody
+#else
+    standardBody
+#endif
+  }
+
+#if os(tvOS)
+  /// UIKit search (`TVSearchPage`): the system keyboard and suggestions over the same
+  /// page collection every tab uses, results as a poster grid. Filters are not on this
+  /// screen yet — a filter jump from a detail page still lands here with its title in
+  /// the field (`applyPending`).
+  private var tvBody: some View {
     @Bindable var errorHandler = errorHandler
-    RouteStack(tab: .search) {
+    return RouteStack(tab: .search) {
+      TVSearchPage(
+        sections: tvSections,
+        status: tvStatus,
+        text: searchFieldText,
+        placeholder: "Search".localized,
+        suggestions: SearchStarters.queries,
+        onTextChange: { searchFieldText = $0 },
+        onSelect: { _, item in
+          guard case .card(let card) = item else { return }
+          navigationState.push(.detailsById(card.itemID))
+        },
+        onNearEnd: { _ in
+          guard let last = catalog.items.last else { return }
+          catalog.loadMoreContent(after: last)
+        },
+        contextMenuProvider: { card in
+          MediaCardContextMenus.entries(for: card,
+                                        surface: .shelf,
+                                        menu: cardMenu,
+                                        pushRoute: { navigationState.push($0) },
+                                        openURL: { openURL($0) })
+        },
+        onRetry: { Task { await catalog.refresh() } }
+      )
+      .ignoresSafeArea()
+      .handleError(state: $errorHandler.state)
+      .task {
+        cardMenu.bind(errorHandler: errorHandler)
+        if let pending = navigationState.pendingSearch {
+          navigationState.pendingSearch = nil
+          applyPending(pending)
+        } else {
+          await catalog.load()
+        }
+      }
+      .task { await cardMenu.refreshFolders() }
+      .mediaCardNewFolderAlert(cardMenu)
+      .onChange(of: navigationState.pendingSearch) { _, pending in
+        guard let pending else { return }
+        navigationState.pendingSearch = nil
+        applyPending(pending)
+      }
+      .onChange(of: searchFieldText) { _, newValue in
+        handleSearchFieldChange(newValue)
+      }
+    }
+  }
+
+  private var tvSections: [TVPageSection] {
+    if catalog.items.isEmpty {
+      return showsPlaceholders
+        ? [.placeholder(id: "results", title: nil, kind: .poster, columns: 6, flow: .grid)]
+        : []
+    }
+    return [.posters(id: "results",
+                     title: nil,
+                     flow: .grid,
+                     caption: .onFocus,
+                     cards: catalog.items.map { MediaCard($0) })]
+  }
+
+  private var tvStatus: TVPageStatus {
+    if catalog.loadFailed && catalog.items.isEmpty {
+      return .failed(message: catalog.loadError?.userFacingMessage
+                       ?? "Check your connection and try again.".localized,
+                     retryTitle: "Try Again".localized)
+    }
+    if showsEmptyMessage { return .message("No Results".localized) }
+    return .content
+  }
+#endif
+
+  private var standardBody: some View {
+    @Bindable var errorHandler = errorHandler
+    return RouteStack(tab: .search) {
       Group {
         if catalog.loadFailed && catalog.items.isEmpty {
           // First page failed — full-screen retry. A failed page further down keeps

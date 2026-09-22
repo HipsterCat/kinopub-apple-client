@@ -26,6 +26,9 @@ public enum TVPageStatus: Equatable {
   /// Contextual — "Loading Movies", never a bare "Loading".
   case loading(String)
   case failed(message: String, retryTitle: String)
+  /// Nothing to show and nothing to retry — "No Results". Focus stays with whatever
+  /// sits beside the page (the keyboard, a sidebar).
+  case message(String)
 }
 
 @MainActor
@@ -158,21 +161,19 @@ public final class TVPageCollectionViewController: UIViewController {
     return CGAffineTransform(translationX: 0, y: -lift)
   }
 
-  /// The system tab bar hides and reveals itself from the scroll view it observes —
-  /// that is the whole native behaviour, and SwiftUI only wires its own `ScrollView`
-  /// into it. A UIKit page under the SwiftUI `TabView` (a `UITabBarController` under
-  /// the hood) has to point the controller at its collection view itself, or the bar
-  /// stays pinned over the content forever.
+  /// The system chrome above a page — the tab bar, a search field — hides and reveals
+  /// itself from the scroll view the view controller reports for its top edge
+  /// (`setContentScrollView(_:for:)`, the tvOS 15+ replacement for the deprecated
+  /// `tabBarObservedScrollView` / `searchControllerObservedScrollView`). The chrome asks
+  /// the view controller it holds — for a tab that is SwiftUI's hosting controller, not
+  /// this one — so the scroll view is reported on every ancestor up to the container.
   private func observeTabBar() {
-    var found: UITabBarController? = tabBarController
-    var responder: UIResponder? = found == nil ? self : nil
-    while found == nil, let current = responder {
-      found = current as? UITabBarController
-      responder = current.next
-    }
-    guard let tabs = found else { return }
-    if tabs.tabBarObservedScrollView !== collectionView {
-      tabs.tabBarObservedScrollView = collectionView
+    var controller: UIViewController? = self
+    while let current = controller, !(current is UITabBarController) {
+      if current.contentScrollView(for: .top) !== collectionView {
+        current.setContentScrollView(collectionView, for: .top)
+      }
+      controller = current.parent
     }
   }
 
@@ -510,6 +511,10 @@ final class TVPageStatusView: UIView {
       label.text = message
       retryButton.configuration?.title = retryTitle
       retryButton.isHidden = false
+    case .message(let text):
+      spinner.stopAnimating()
+      label.text = text
+      retryButton.isHidden = true
     }
   }
 

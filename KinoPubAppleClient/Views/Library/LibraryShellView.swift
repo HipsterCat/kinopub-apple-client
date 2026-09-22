@@ -192,7 +192,7 @@ struct LibraryShellView: View {
       }
     }
     .listStyle(.plain)
-    .frame(width: 420)
+    .frame(width: 360)
     .focusSection()
   }
 
@@ -246,6 +246,73 @@ struct LibraryShellView: View {
     }
   }
 
+#if os(tvOS)
+  /// The same page collection as the tabs, in grid flow: the same cards at the same
+  /// class size, wrapping instead of running off the edge. Recently Watched keeps its
+  /// month (or week) sections as titled grids.
+  private var sectionContent: some View {
+    TVPage(
+      sections: librarySections,
+      status: libraryStatus,
+      accessibilityID: "kinopub.page.library",
+      onSelect: { _, item in
+        guard case .card(let card) = item else { return }
+        if card.primaryAction == .play {
+          cardMenu.play(card) { navigationState.push($0) }
+        } else {
+          navigationState.push(.detailsById(card.itemID))
+        }
+      },
+      onNearEnd: { _ in
+        guard let last = catalog.cards.last else { return }
+        catalog.loadMoreContent(after: last)
+      },
+      contextMenuProvider: { card in
+        MediaCardContextMenus.entries(for: card,
+                                      surface: .shelf,
+                                      menu: cardMenu,
+                                      pushRoute: { navigationState.push($0) },
+                                      openURL: { openURL($0) })
+      },
+      onRetry: { Task { await catalog.refresh() } }
+    )
+    // Runs under the tab bar like every tab page, and out to the right screen edge so
+    // its own 80 pt inset is the same right margin as on the tabs. The sidebar keeps
+    // the leading safe area.
+    .ignoresSafeArea(.container, edges: [.vertical, .trailing])
+  }
+
+  private var librarySections: [TVPageSection] {
+    let cards = catalog.cards
+    guard !cards.isEmpty else {
+      return catalog.isLoading
+        ? [.placeholder(id: "library", title: nil, kind: .poster, columns: 6, flow: .grid)]
+        : []
+    }
+    let grouped = model.selection == .history ? sectioning.sections(for: cards) : []
+    let groups: [(id: String, title: String?, cards: [MediaCard])] = grouped.isEmpty
+      ? [("library", nil, cards)]
+      : grouped.map { ($0.id, $0.title, $0.cards) }
+    return groups.map { group in
+      group.cards.first?.isLandscape == true
+        ? .stills(id: group.id, title: group.title, columns: 4, flow: .grid, caption: .always, cards: group.cards)
+        : .posters(id: group.id, title: group.title, flow: .grid, caption: .onFocus, cards: group.cards)
+    }
+  }
+
+  private var libraryStatus: TVPageStatus {
+    let cards = catalog.cards
+    if cards.isEmpty && catalog.loadFailed {
+      return .failed(message: catalog.loadError?.userFacingMessage
+                       ?? "Check your connection and try again.".localized,
+                     retryTitle: "Try Again".localized)
+    }
+    if cards.isEmpty && !catalog.isLoading && catalog.isLoaded {
+      return .message("No Results".localized)
+    }
+    return .content
+  }
+#else
   @ViewBuilder
   private var sectionContent: some View {
     if catalog.cards.isEmpty && catalog.isLoading {
@@ -280,5 +347,6 @@ struct LibraryShellView: View {
       )
     }
   }
+#endif
 }
 #endif

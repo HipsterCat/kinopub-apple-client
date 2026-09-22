@@ -300,7 +300,9 @@ public enum TVPageCellMetrics {
   /// Circle the width of the art, two text lines under it inside the item.
   private static func person(artWidth: CGFloat) -> TVPageCellRecipe {
     let size = CGSize(width: artWidth, height: artWidth + 96)
-    return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+    // The monogram cell lays its two text lines partly below its own frame — without
+    // this the next row's title sat on the "Actor" line (gallery walk, 2026-09-23).
+    return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 100,
                             artSize: CGSize(width: artWidth, height: artWidth),
                             posterContentSize: size)
   }
