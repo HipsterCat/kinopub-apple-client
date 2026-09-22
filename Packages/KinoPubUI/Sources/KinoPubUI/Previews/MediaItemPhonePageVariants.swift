@@ -299,7 +299,7 @@ private struct PhonePageTitleOnArt: View {
   var body: some View {
     ScrollView {
       VStack(spacing: 0) {
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: .top) {
           PhoneWideArt()
             .frame(maxWidth: .infinity)
             .frame(height: 394)
@@ -311,20 +311,34 @@ private struct PhonePageTitleOnArt: View {
             Spacer(minLength: 0)
             VStack(spacing: 16) {
               PhoneTitleLogo(maxHeight: 64)
-                PhonePoster(width: 120)
+                PhonePoster(width: 200)
 
             }
             .padding(.horizontal, PhonePageSample.horizontalInset)
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity)
           }
-          .frame(height: 300)
+          .frame(height: 460)
         }
 
         VStack(spacing: 16) {
             PhoneMetaBlock(useTitleLogo: false)
+             Button {} label: {
+                  HStack(spacing: MediaActionMetrics.contentSpacing) {
+                       Image(systemName: "play.fill")
+//                       Text("Continue")
+//                            .font(MediaActionMetrics.labelFont)
+//                       MediaActionProgressTrack(progress: 0.35)
+                       Text("Watch Now")
 
-          PhonePlayPill(label: "Play Movie")
+//                       Text("Play ∙ 2h 15m")
+                            .font(MediaActionMetrics.labelFont)
+                  }.padding(.horizontal, 4)
+             }
+             .mediaActionPlayPillStyle()
+//          PhonePlayPill(label: "Resume · 39 min", showProgress: true)
+
+//          PhonePlayPill(label: "Play Movie")
           PhoneCircleRow()
           PhonePlot()
             .padding(.top, 4)
@@ -372,8 +386,18 @@ private struct PhonePageSystemExtension: View {
             .padding(.bottom, -24)
 
           PhoneMetaBlock(useTitleLogo: true)
-
-          PhonePlayPill(label: "Resume · 39 min", showProgress: true)
+             Button {} label: {
+                  HStack(spacing: MediaActionMetrics.contentSpacing) {
+                       Image(systemName: "play.fill")
+//                       Text("Continue")
+//                            .font(MediaActionMetrics.labelFont)
+                       MediaActionProgressTrack(progress: 0.35)
+                       Text("34m left")
+                            .font(MediaActionMetrics.labelFont)
+                  }
+             }
+             .mediaActionPlayPillStyle()
+//          PhonePlayPill(label: "Resume · 39 min", showProgress: true)
 
           PhoneCircleRow()
 

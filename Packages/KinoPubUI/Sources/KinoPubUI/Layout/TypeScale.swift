@@ -62,7 +62,7 @@ public enum TypeScale {
 #endif
     }()
   public static let filterControl: Font = .subheadline.weight(.semibold)
-  public static let actionLabel: Font = .subheadline.weight(.semibold)
+  public static let actionLabel: Font = .subheadline.weight(.medium)
   public static let detailSection: Font = .title3.weight(.semibold)
   public static let settingsTitle: Font = .largeTitle.bold()
   public static let settingsTip: Font = .title3

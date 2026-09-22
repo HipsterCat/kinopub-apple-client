@@ -33,9 +33,9 @@ public enum MediaActionMetrics {
 //  public static let iconPointSize: CGFloat = 26
 //  public static let circleIconPointSize: CGFloat = 24
   public static let labelFont = TypeScale.actionLabel
-  public static let progressWidth: CGFloat = 60
-  public static let progressHeight: CGFloat = 5
-  public static let contentSpacing: CGFloat = 2
+  public static let progressWidth: CGFloat = 96
+  public static let progressHeight: CGFloat = 8
+  public static let contentSpacing: CGFloat = 14
   public static let rowSpacing: CGFloat = 16
 #else
   public static let playPillMinWidth: CGFloat = 60
@@ -83,7 +83,7 @@ public extension View {
   /// Play / Resume — the primary call to action.
   func mediaActionPlayPillStyle() -> some View {
       buttonStyle(.glassProminent)
-          .tint(Color.KinoPub.text)
+            .tint(.primary)
 //          .foregroundStyle(.primary).colorScheme(.dark)
 //          .kinoGlass(in: .buttonBorder, interactive: true)
       .buttonBorderShape(.capsule)
@@ -95,7 +95,7 @@ public extension View {
   /// A labelled secondary control (Trailer, Watchlist) — same capsule, quieter weight.
   func mediaActionPillStyle() -> some View {
       
-    buttonStyle(.glass)
+       buttonStyle(.borderedProminent)
 //          .tint(Color.KinoPub.secondary)
 //          .kinoGlass(in: .buttonBorder, interactive: true)
       .buttonBorderShape(.capsule)
@@ -107,8 +107,8 @@ public extension View {
   /// An icon-only secondary control. `.circle` is a real `ButtonBorderShape`, so the
   /// plate, its focus treatment and its press feedback are all the system's.
   func mediaActionCircleStyle() -> some View {
-    buttonStyle(.glass)
-          .buttonBorderShape(.circle)
+       buttonStyle(.bordered)
+     .buttonBorderShape(.circle)
 #if !os(tvOS)
       .controlSize(.large)
 #endif
@@ -147,58 +147,69 @@ public struct MediaActionProgressTrack: View {
 }
 
 #Preview("Action chrome") {
-     HStack(spacing: MediaActionMetrics.rowSpacing) {
+     VStack(alignment: .leading, spacing: 44) {
+          HStack(spacing: MediaActionMetrics.rowSpacing) {
+               Button {} label: {
+                    HStack(spacing: MediaActionMetrics.contentSpacing) {
+                         Image(systemName: "play.fill")
+                         MediaActionProgressTrack(progress: 0.35)
+                         Text("34m left")
+                              .font(MediaActionMetrics.labelFont)
+                    }
+//                    .padding(.horizontal, 6)
+                    //      HStack(spacing: MediaActionMetrics.contentSpacing) {
+                    //        Image(systemName: "play.fill")
+                    ////          .font(MediaActionMetrics.labelFont)
+                    //        Text("Play")
+                    //          .font(MediaActionMetrics.labelFont)
+                    //          .padding(.horizontal, 4)
+                    //      }
+                    //      .frame(minWidth: MediaActionMetrics.playPillMinWidth)
+               }
+               .mediaActionPlayPillStyle()
+               
+               Button {} label: {
+                    Label("Trailer", systemImage: "film")
+                         .font(MediaActionMetrics.labelFont)
+                    //                    .padding(.horizontal, 2)
+               }
+               //    .buttonStyle(.glass)
+               .mediaActionPillStyle()
+               
+               Button {} label: {
+                    //      Image(systemName: "bookmark")
+                    
+                    //            .font(MediaActionMetrics.labelFont)
+                    Label("Save", systemImage: "bookmark")
+                         .font(MediaActionMetrics.labelFont)
+                    //                    .padding(.horizontal, 2)
+                    //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+               }
+               //    .buttonStyle(.glass)
+               .mediaActionPillStyle()
+               //    .mediaActionCircleStyle()
+               
+               Button {} label: {
+                    Image(systemName: "checkmark")
+               }.mediaActionCircleStyle()
+               
+               Button {} label: {
+                    Image(systemName: "ellipsis")
+                    
+                    //            .font(MediaActionMetrics.labelFont)
+                    //          Label("Save", systemImage: "bookmark")
+                    //              .font(MediaActionMetrics.labelFont)
+                    
+                    //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+               }.mediaActionCircleStyle()
+          }
           Button {} label: {
                Label("Play", systemImage: "play.fill")
-                    .font(MediaActionMetrics.labelFont)
-                    .padding(.horizontal, 4)
-               //      HStack(spacing: MediaActionMetrics.contentSpacing) {
-               //        Image(systemName: "play.fill")
-               ////          .font(MediaActionMetrics.labelFont)
-               //        Text("Play")
-               //          .font(MediaActionMetrics.labelFont)
-               //          .padding(.horizontal, 4)
-               //      }
-               //      .frame(minWidth: MediaActionMetrics.playPillMinWidth)
-          }
+               .font(MediaActionMetrics.labelFont)}
+          .padding(.horizontal, 6)
           .mediaActionPlayPillStyle()
-          
-          Button {} label: {
-               Label("Trailer", systemImage: "film")
-                    .font(MediaActionMetrics.labelFont)
-                    .padding(.horizontal, 4)
-          }
-          //    .buttonStyle(.glass)
-          .mediaActionPillStyle()
-          
-          Button {} label: {
-               //      Image(systemName: "bookmark")
-               
-               //            .font(MediaActionMetrics.labelFont)
-               Label("Save", systemImage: "bookmark")
-                    .font(MediaActionMetrics.labelFont)
-                    .padding(.horizontal, 4)
-               //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
-          }
-          //    .buttonStyle(.glass)
-          .mediaActionPillStyle()
-          //    .mediaActionCircleStyle()
-          
-          Button {} label: {
-               Image(systemName: "checkmark")
-          }.mediaActionCircleStyle()
-       
-      Button {} label: {
-        Image(systemName: "ellipsis")
-          
-  //            .font(MediaActionMetrics.labelFont)
-//          Label("Save", systemImage: "bookmark")
-//              .font(MediaActionMetrics.labelFont)
-
-  //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
-      }.mediaActionCircleStyle()
-  }
-  .padding(24)
+}
+  .padding(18)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 //  .background(Color.black)
 //  .preferredColorScheme(.dark)

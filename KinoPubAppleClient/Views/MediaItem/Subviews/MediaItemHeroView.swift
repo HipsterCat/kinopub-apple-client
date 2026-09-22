@@ -1160,7 +1160,7 @@ struct MediaItemHeroView: View {
     PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
       primaryActionLabel(for: content)
     }
-    .mediaActionPlayPillStyle()
+    .mediaActionPillStyle()
     .focused($focus, equals: .play)
     .accessibilityLabel(Text(playAccessibilityLabel(for: content)))
     .accessibilityHint(Text("Starts playback"))
@@ -1199,21 +1199,25 @@ struct MediaItemHeroView: View {
         Text(Self.resumeMeta(episodeLabel: episodeLabel, durationSeconds: durationSeconds)
           ?? Self.resumeFallback(episodeLabel: episodeLabel))
           .font(MediaActionMetrics.labelFont)
+          .foregroundColor(.primary)
           .lineLimit(1)
       case .play(let episodeLabel):
         if let episodeLabel {
           Text("\("Play".localized) \(episodeLabel)")
             .font(MediaActionMetrics.labelFont)
             .lineLimit(1)
+            .foregroundColor(.primary)
         } else {
           Text("Play")
             .font(MediaActionMetrics.labelFont)
             .lineLimit(1)
+            .foregroundColor(.primary)
         }
       case .playAgain:
         Text("Play Again")
           .font(MediaActionMetrics.labelFont)
           .lineLimit(1)
+          .foregroundColor(.primary)
       }
     }
     // On the label, not the button: the system styles hug their content, and a bare
