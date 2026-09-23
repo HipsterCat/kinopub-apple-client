@@ -44,6 +44,19 @@ enum FeatureFlags {
   /// is deleted, not kept.
   static let tvPageSections = true
 
+  /// tvOS Search as UIKit (`TVSearchPage`: `UISearchContainerViewController`, native
+  /// suggestions with recents, native scope bar, local-first results). Off falls back
+  /// to the SwiftUI `.searchable` screen.
+  ///
+  /// **Open defect (2026-09-23):** once focus enters the results, Up does not return to
+  /// the keyboard / suggestions / scope bar, and Down from the tab bar lands on the first
+  /// result. UIFocusDebugger: the system turns `_UISearchControllerTVKeyboardContainerView`
+  /// user interaction off when results take focus and never turns it back on. Not the
+  /// search bar delegate, not `isActive`, not the results' preferred focus, not the
+  /// content-scroll-view registration — all tried. Next suspect: hosting the container
+  /// inside SwiftUI's `NavigationStack` instead of a UIKit navigation controller.
+  static let tvUIKitSearch = true
+
   /// A series detail page fetches its item with `nolinks=1` and resolves an episode's
   /// links from `/v1/items/media-links` when it is played (`MediaLinksResolver`).
   ///

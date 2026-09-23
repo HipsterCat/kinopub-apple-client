@@ -108,6 +108,10 @@ public final class TVPageCollectionViewController: UIViewController {
     applySnapshot(animated: false)
     applyStatus()
     updateContentInsets()
+    // Report the scroll view from the start. A controller *presented* by a search
+    // controller need not get `viewDidAppear`, and the search screen uses this scroll
+    // view to collapse its keyboard over the results and bring it back at the top.
+    setContentScrollView(collectionView, for: .top)
   }
 
   public override func viewSafeAreaInsetsDidChange() {
@@ -169,7 +173,11 @@ public final class TVPageCollectionViewController: UIViewController {
   /// this one — so the scroll view is reported on every ancestor up to the container.
   private func observeTabBar() {
     var controller: UIViewController? = self
+    // Stop at a search controller: it owns the scroll that carries its keyboard and
+    // suggestions over the results. Handing it our collection instead cut the keyboard
+    // off the focus graph — Up from the results could never reach it again.
     while let current = controller, !(current is UITabBarController) {
+      if current is UISearchController { break }
       if current.contentScrollView(for: .top) !== collectionView {
         current.setContentScrollView(collectionView, for: .top)
       }
@@ -332,7 +340,13 @@ public final class TVPageCollectionViewController: UIViewController {
 
   // MARK: - Focus
 
+  /// `false` when the page is not the thing focus should land on first — the search
+  /// results under the keyboard: preferring the collection there pulled Down from the
+  /// tab bar straight into the first poster, past the keyboard, suggestions and scope.
+  public var claimsInitialFocus = true
+
   public override var preferredFocusEnvironments: [UIFocusEnvironment] {
+    guard claimsInitialFocus else { return super.preferredFocusEnvironments }
     if !statusView.isHidden { return [statusView] }
     return [collectionView]
   }

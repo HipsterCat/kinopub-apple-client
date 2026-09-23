@@ -191,6 +191,36 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "library-grid")
   }
 
+  /// Search end to end on whatever the device holds: type a query the Home rows are
+  /// likely to contain, shoot the suggestion row and the results, move to the scope
+  /// bar, then scroll into the results (the keyboard should scroll away).
+  func testSearchTypingScopeAndScroll() throws {
+    // The inline tvOS keyboard takes no `typeText`; the field starts filled instead.
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark", "-KINOPUBSearchQuery", "ма"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 3.5)
+    try shoot(app, name: "search2-typed")
+    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 1)
+    try shoot(app, name: "search2-down1")
+    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 1)
+    try shoot(app, name: "search2-down2")
+    XCUIRemote.shared.press(.up); Thread.sleep(forTimeInterval: 1)
+    XCUIRemote.shared.press(.up); Thread.sleep(forTimeInterval: 1)
+    try shoot(app, name: "search2-up")
+    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.6)
+    try shoot(app, name: "search2-right")
+    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.5)
+    try shoot(app, name: "search2-scope-movies")
+    for _ in 0..<2 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.8) }
+    try shoot(app, name: "search2-scrolled")
+  }
+
   private func launchSignedIn() -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark"]

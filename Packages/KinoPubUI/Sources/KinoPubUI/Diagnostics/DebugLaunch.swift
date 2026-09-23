@@ -33,6 +33,16 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBSearchQuery <text>`: the search field starts with this text. The tvOS
+  /// inline keyboard takes no `typeText` from UI tests, so this is how a test searches.
+  public static var searchQuery: String? {
+#if DEBUG
+    UserDefaults.standard.string(forKey: "KINOPUBSearchQuery")
+#else
+    nil
+#endif
+  }
+
   public static var focusFirstPoster: Bool {
 #if DEBUG
     ProcessInfo.processInfo.arguments.contains("-KINOPUBFocusFirstPoster")

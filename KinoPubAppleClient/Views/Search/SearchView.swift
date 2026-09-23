@@ -33,6 +33,9 @@ struct SearchView: View {
   /// The label we stuffed into the field for a filter jump — editing away from
   /// it switches to a normal text search.
   @State private var filterFieldAnchor: String?
+#if os(tvOS)
+  @State private var tvScope: TVSearchScope = .all
+#endif
   @State private var navigationTitleText: String = "Search".localized
 
   @Environment(\.openURL) private var openURL
@@ -46,17 +49,24 @@ struct SearchView: View {
 
   var body: some View {
 #if os(tvOS)
-    tvBody
+    if FeatureFlags.tvUIKitSearch {
+      tvBody
+    } else {
+      standardBody
+    }
 #else
     standardBody
 #endif
   }
 
 #if os(tvOS)
-  /// UIKit search (`TVSearchPage`): the system keyboard and suggestions over the same
-  /// page collection every tab uses, results as a poster grid. Filters are not on this
-  /// screen yet — a filter jump from a detail page still lands here with its title in
-  /// the field (`applyPending`).
+  /// UIKit search (`TVSearchPage`): the system keyboard, suggestion row and scope bar
+  /// over the same page collection every tab uses.
+  ///
+  /// Results are local first: every title the app already holds (`ContentStore` — Home
+  /// rows, Library) is matched as you type and painted at once, then the server's
+  /// answer fills in whatever the device did not know. Offline, search still finds what
+  /// is on the shelves.
   private var tvBody: some View {
     @Bindable var errorHandler = errorHandler
     return RouteStack(tab: .search) {
@@ -65,10 +75,19 @@ struct SearchView: View {
         status: tvStatus,
         text: searchFieldText,
         placeholder: "Search".localized,
-        suggestions: SearchStarters.queries,
+        suggestions: tvSuggestions,
+        scopes: TVSearchScope.allCases.map(\.title),
+        selectedScope: tvScope.rawValue,
         onTextChange: { searchFieldText = $0 },
+        onScopeChange: { index in
+          tvScope = TVSearchScope(rawValue: index) ?? .all
+          catalog.filter.contentType = tvScope.contentType
+          if !catalog.isSearching { Task { await catalog.refresh() } }
+        },
+        onCommit: { SearchHistory.record($0) },
         onSelect: { _, item in
           guard case .card(let card) = item else { return }
+          SearchHistory.record(searchFieldText)
           navigationState.push(.detailsById(card.itemID))
         },
         onNearEnd: { _ in
@@ -92,6 +111,9 @@ struct SearchView: View {
           navigationState.pendingSearch = nil
           applyPending(pending)
         } else {
+          if let query = DebugLaunch.searchQuery, searchFieldText.isEmpty {
+            searchFieldText = query
+          }
           await catalog.load()
         }
       }
@@ -108,27 +130,96 @@ struct SearchView: View {
     }
   }
 
+  private var trimmedQuery: String {
+    searchFieldText.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  /// Every title the device already knows, matched on title and original title.
+  /// Episode stills are skipped — their caption is an episode, not a title.
+  private var localMatches: [MediaCard] {
+    let query = trimmedQuery
+    guard !query.isEmpty else { return [] }
+    var seen = Set<Int>()
+    var out: [MediaCard] = []
+    for state in appContext.contentStore.rows.values {
+      for card in state.cards where !card.isLandscape && !card.opensCollection {
+        guard !seen.contains(card.itemID), card.matchesSearch(query) else { continue }
+        seen.insert(card.itemID)
+        out.append(card)
+      }
+    }
+    return out
+  }
+
+  /// Local matches first, then whatever the server adds, within the chosen scope.
+  private var tvResults: [MediaCard] {
+    guard !trimmedQuery.isEmpty else { return catalog.items.map { MediaCard($0) } }
+    var seen = Set<Int>()
+    var merged: [MediaCard] = []
+    for card in localMatches + catalog.items.map({ MediaCard($0) }) where !seen.contains(card.itemID) {
+      seen.insert(card.itemID)
+      merged.append(card)
+    }
+    return merged.filter(tvScope.includes)
+  }
+
   private var tvSections: [TVPageSection] {
-    if catalog.items.isEmpty {
-      return showsPlaceholders
+    let results = tvResults
+    if results.isEmpty {
+      return catalog.isLoading
         ? [.placeholder(id: "results", title: nil, kind: .poster, columns: 6, flow: .grid)]
         : []
     }
-    return [.posters(id: "results",
-                     title: nil,
-                     flow: .grid,
-                     caption: .onFocus,
-                     cards: catalog.items.map { MediaCard($0) })]
+    // Browsing (empty field): the catalog, newest first, as one grid.
+    guard !trimmedQuery.isEmpty else {
+      return [.posters(id: "recent", title: "Recently Added".localized, flow: .grid, cards: results)]
+    }
+    // A scope narrows to one kind — one grid. "All" splits by kind into rails, the
+    // way the TV app files results under Movies / Shows.
+    guard tvScope == .all else {
+      return [.posters(id: "results", title: nil, flow: .grid, cards: results)]
+    }
+    let movies = results.filter { !$0.isSeries }
+    let series = results.filter(\.isSeries)
+    return [
+      movies.isEmpty ? nil : TVPageSection.posters(id: "movies", title: "Movies".localized, cards: movies),
+      series.isEmpty ? nil : TVPageSection.posters(id: "series", title: "Series".localized, cards: series)
+    ].compactMap { $0 }
   }
 
   private var tvStatus: TVPageStatus {
-    if catalog.loadFailed && catalog.items.isEmpty {
+    let empty = tvResults.isEmpty
+    if catalog.loadFailed && empty {
       return .failed(message: catalog.loadError?.userFacingMessage
                        ?? "Check your connection and try again.".localized,
                      retryTitle: "Try Again".localized)
     }
-    if showsEmptyMessage { return .message("No Results".localized) }
+    if empty && !catalog.isLoading && !trimmedQuery.isEmpty { return .message("No Results".localized) }
     return .content
+  }
+
+  /// Empty field: recent queries, then starters. Typing: recents that still match,
+  /// then titles the device knows that start with what was typed.
+  private var tvSuggestions: [TVSearchSuggestion] {
+    let query = trimmedQuery
+    let recents = SearchHistory.recent
+    guard !query.isEmpty else {
+      let starters = SearchStarters.queries.filter { starter in
+        !recents.contains { $0.caseInsensitiveCompare(starter) == .orderedSame }
+      }
+      return (recents.map { TVSearchSuggestion($0, kind: .recent) }
+        + starters.map { TVSearchSuggestion($0, kind: .suggested) }).prefix(8).map { $0 }
+    }
+    let matchingRecents = recents.filter {
+      $0.localizedCaseInsensitiveContains(query) && $0.caseInsensitiveCompare(query) != .orderedSame
+    }
+    let completions = localMatches.map(\.title).filter {
+      $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive, .anchored]) != nil
+    }
+    var seen = Set<String>()
+    let items = matchingRecents.map { TVSearchSuggestion($0, kind: .recent) }
+      + completions.map { TVSearchSuggestion($0, kind: .suggested) }
+    return items.filter { seen.insert($0.text.lowercased()).inserted }.prefix(6).map { $0 }
   }
 #endif
 
@@ -316,6 +407,73 @@ struct SearchView: View {
 
   private var showsEmptyMessage: Bool {
     catalog.items.isEmpty && catalog.isSearching && !catalog.isLoading
+  }
+}
+
+#if os(tvOS)
+/// The native scope bar's segments on the tvOS search screen.
+enum TVSearchScope: Int, CaseIterable {
+  case all, movies, series
+
+  var title: String {
+    switch self {
+    case .all: "All".localized
+    case .movies: "Movies".localized
+    case .series: "Series".localized
+    }
+  }
+
+  var contentType: MediaType? {
+    switch self {
+    case .all: nil
+    case .movies: .movie
+    case .series: .serial
+    }
+  }
+
+  func includes(_ card: MediaCard) -> Bool {
+    switch self {
+    case .all: true
+    case .movies: !card.isSeries
+    case .series: card.isSeries
+    }
+  }
+}
+#endif
+
+/// Recent queries, newest first, on this device only. The system keeps no search
+/// history of its own; HIG asks for recents among the suggestions and for a way to
+/// clear them (Settings › Storage clears `UserDefaults` too — a dedicated control is
+/// still to do).
+enum SearchHistory {
+  private static let key = "search.recentQueries"
+  private static let limit = 8
+
+  static var recent: [String] {
+    UserDefaults.standard.stringArray(forKey: key) ?? []
+  }
+
+  static func record(_ query: String) {
+    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.count >= 2 else { return }
+    var list = recent.filter { $0.caseInsensitiveCompare(trimmed) != .orderedSame }
+    list.insert(trimmed, at: 0)
+    UserDefaults.standard.set(Array(list.prefix(limit)), forKey: key)
+  }
+
+  static func clear() {
+    UserDefaults.standard.removeObject(forKey: key)
+  }
+}
+
+private extension MediaCard {
+  /// Title or original title contains the query, ignoring case and diacritics
+  /// ("ё" finds "е", "Вильнев" finds "Вильнёв").
+  func matchesSearch(_ query: String) -> Bool {
+    let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+    if title.range(of: query, options: options) != nil { return true }
+    if let subtitle, subtitle.range(of: query, options: options) != nil { return true }
+    return false
   }
 }
 
