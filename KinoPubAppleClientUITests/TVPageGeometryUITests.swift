@@ -221,6 +221,64 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "search2-scrolled")
   }
 
+  /// The search round trip the focus engine has to allow: tab bar → keyboard →
+  /// results → back up to the keyboard → back up to the tab bar. Runs with `-UIFocusLoggingEnabled YES`
+  /// (Apple, "Debugging focus issues in your app") so the console carries the focus
+  /// engine's own account of every move; stream it with
+  /// `log stream --predicate 'process == "KinoPub"'` while the test runs.
+  func testSearchFocusRoundTrip() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBSearchQuery", "ма", "-UIFocusLoggingEnabled", "YES"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 3)
+
+    func hop(_ button: XCUIRemote.Button, _ name: String) throws {
+      XCUIRemote.shared.press(button)
+      Thread.sleep(forTimeInterval: 1)
+      try shoot(app, name: "focus-\(name)")
+    }
+
+    // XCUI reports no focused element inside the presented search controller, so the
+    // walk is fixed and the verdict is read from the focus log ("Moving focus from … to
+    // …" per hop): tab bar → keyboard → suggestions → scope → sort → top results →
+    // Movies, then back up.
+    for step in 0..<6 { try hop(.down, "1-down-\(step)") }
+    for step in 0..<7 { try hop(.up, "2-up-\(step)") }
+  }
+
+  /// The sort pull-down: Down to it, Select opens the system menu, Down + Select picks
+  /// the next order, and the rows re-sort. Shots of each state.
+  func testSearchSortMenu() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBSearchQuery", "ма", "-UIFocusLoggingEnabled", "YES"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 3)
+    for _ in 0..<4 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.8) }
+    try shoot(app, name: "sort-0-chip")
+    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.2)
+    try shoot(app, name: "sort-1-menu")
+    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.6)
+    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.5)
+    try shoot(app, name: "sort-2-picked")
+    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 1)
+    try shoot(app, name: "sort-3-card")
+    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 1)
+    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 1)
+    try shoot(app, name: "sort-4-card-right")
+  }
+
   private func launchSignedIn() -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark"]

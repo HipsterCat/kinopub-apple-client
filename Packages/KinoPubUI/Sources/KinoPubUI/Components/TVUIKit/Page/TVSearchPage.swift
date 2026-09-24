@@ -64,6 +64,8 @@ public struct TVSearchPage: UIViewControllerRepresentable {
   /// A query the user settled on (picked a suggestion) — worth remembering.
   public let onCommit: (String) -> Void
   public let onSelect: (TVPageSection, TVPageItem) -> Void
+  /// A pull-down chip in the results (sort, filters): (chip id, option id).
+  public let onChipOption: (String, String) -> Void
   public let onNearEnd: ((TVPageSection) -> Void)?
   public let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   public let onRetry: (() -> Void)?
@@ -79,6 +81,7 @@ public struct TVSearchPage: UIViewControllerRepresentable {
               onScopeChange: @escaping (Int) -> Void = { _ in },
               onCommit: @escaping (String) -> Void = { _ in },
               onSelect: @escaping (TVPageSection, TVPageItem) -> Void,
+              onChipOption: @escaping (String, String) -> Void = { _, _ in },
               onNearEnd: ((TVPageSection) -> Void)? = nil,
               contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               onRetry: (() -> Void)? = nil) {
@@ -93,6 +96,7 @@ public struct TVSearchPage: UIViewControllerRepresentable {
     self.onScopeChange = onScopeChange
     self.onCommit = onCommit
     self.onSelect = onSelect
+    self.onChipOption = onChipOption
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
     self.onRetry = onRetry
@@ -139,6 +143,7 @@ public struct TVSearchPage: UIViewControllerRepresentable {
     coordinator.onCommit = onCommit
     guard let results = coordinator.results, let search = coordinator.search else { return }
     results.onSelect = onSelect
+    results.onChipOption = onChipOption
     results.onNearEnd = onNearEnd
     results.contextMenuProvider = contextMenuProvider
     results.onRetry = onRetry

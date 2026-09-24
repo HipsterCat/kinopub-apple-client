@@ -43,6 +43,11 @@ public struct TVPageTemplatesGallery: View {
   /// a still grid, a skeleton row.
   public static var sections: [TVPageSection] {
     [
+      .chips(id: "filters", title: nil, chips: filters),
+      .cards(id: "top", title: "Top Results · wide cards",
+             items: posters(seed: 3).prefix(2).map(TVPageItem.card)
+               + people.prefix(2).map(TVPageItem.person)
+               + posters(seed: 3).dropFirst(2).prefix(4).map(TVPageItem.card)),
       .stills(id: "up-next", title: "Up Next", columns: 5, cards: stills(progress: true)),
       .posters(id: "hot", title: "Hot Movies", count: "128", columns: 6, cards: posters(seed: 0)),
       .posters(id: "fresh", title: "Fresh Series · 5 across", columns: 5, cards: posters(seed: 8)),
@@ -90,6 +95,17 @@ public struct TVPageTemplatesGallery: View {
                     nameComponents: TVUIKitPerson.nameComponents(from: name),
                     caption: "Actor", photoURL: nil)
     }
+  }
+
+  /// Pull-downs, as search's sort row uses them.
+  static var filters: [TVPageChip] {
+    let sorts = ["Relevance", "Name", "Release Year", "IMDb Rating"]
+    return [
+      TVPageChip(id: "sort", title: sorts[0], systemImage: "arrow.up.arrow.down",
+                 menu: .init(options: sorts.map { .init(id: $0, title: $0) }, selectedID: sorts[0])),
+      TVPageChip(id: "genre", title: "Genre",
+                 menu: .init(options: ["Any", "Drama", "Comedy"].map { .init(id: $0, title: $0) }, selectedID: "Any"))
+    ]
   }
 
   static var chips: [TVPageChip] {

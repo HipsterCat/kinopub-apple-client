@@ -35,11 +35,23 @@ public enum TVPageLayout {
   public static let chipHeight: CGFloat = 66
   public static let chipSpacing: CGFloat = 24
 
+  /// A wide text card is as tall as its thumbnail plus the platter's padding — the
+  /// width is the column's, like every other card.
+  public static let cardThumbnailHeight: CGFloat = 128
+  public static let cardPadding: CGFloat = 16
+  public static var cardHeight: CGFloat { cardThumbnailHeight + cardPadding * 2 }
+
   /// The layout for one page: a section provider that resolves the section at that
   /// index from `sections()` at layout time, so a snapshot swap and its geometry can
   /// never disagree.
+  /// `adjustedLeading` is how far from the screen edge the collection's content already
+  /// starts. A tab page is full screen and it is 0; the search container lays its
+  /// results out inside its 80 pt safe area, and adding the section's own 80 on top put
+  /// the first card at 160 (2026-09-25). The HIG 80 is from the screen edge, so the
+  /// section adds only what is missing.
   @MainActor
   public static func makeLayout(sideInset: CGFloat = TVHIGGrid.sideInset,
+                                adjustedLeading: @escaping () -> CGFloat = { 0 },
                                 sections: @escaping () -> [TVPageSection]) -> UICollectionViewCompositionalLayout {
     let configuration = UICollectionViewCompositionalLayoutConfiguration()
     configuration.scrollDirection = .vertical
@@ -52,7 +64,8 @@ public enum TVPageLayout {
       sectionProvider: { index, environment in
         let all = sections()
         guard all.indices.contains(index) else { return fallback }
-        return section(for: all[index], environment: environment, sideInset: sideInset)
+        let inset = max(sideInset - adjustedLeading(), 0)
+        return section(for: all[index], environment: environment, sideInset: inset)
       },
       configuration: configuration
     )
@@ -232,6 +245,7 @@ public enum TVPageCellMetrics {
       let size = CGSize(width: key.width, height: TVPageLayout.chipHeight)
       recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
                                 artSize: size, posterContentSize: size)
+    case .card: recipe = measureCard(artWidth: key.width)
     }
     cache[key] = recipe
     return recipe
@@ -282,6 +296,44 @@ public enum TVPageCellMetrics {
                             belowItem: 0,
                             artSize: landed.size,
                             posterContentSize: contentSize)
+  }
+
+  /// `TVCardView` is a lockup like the poster: its frame is the *focused* envelope and
+  /// the platter sits inside it at rest (measured 2026-09-25: a 557 × 160 frame drew a
+  /// 464 × 120 platter). Same method as the poster — ask, read back where the platter
+  /// landed, correct, repeat — so the resting platter is the HIG column.
+  private static func measureCard(artWidth: CGFloat) -> TVPageCellRecipe {
+    let art = CGSize(width: artWidth, height: TVPageLayout.cardHeight)
+    var contentSize = art
+    var envelope = CGSize.zero
+    var landed = CGRect.zero
+    for _ in 0..<4 {
+      let probe = TVCardView()
+      probe.contentSize = contentSize
+      envelope = probe.intrinsicContentSize
+      if envelope.width < 1 || envelope.height < 1 { envelope = contentSize }
+      probe.frame = CGRect(origin: .zero, size: envelope)
+      probe.layoutIfNeeded()
+      landed = probe.contentView.frame
+      guard landed.width > 1 else { break }
+      let dw = art.width - landed.width
+      let dh = art.height - landed.height
+      if abs(dw) < 1, abs(dh) < 1 { break }
+      contentSize.width += dw
+      contentSize.height += dh
+    }
+    guard landed.width > 1, envelope.width >= landed.maxX, envelope.height >= landed.maxY else {
+      return TVPageCellRecipe(itemSize: art, artInsets: .zero, belowItem: 0,
+                              artSize: art, posterContentSize: art)
+    }
+    let insets = NSDirectionalEdgeInsets(
+      top: landed.minY,
+      leading: landed.minX,
+      bottom: envelope.height - landed.maxY,
+      trailing: envelope.width - landed.maxX
+    )
+    return TVPageCellRecipe(itemSize: envelope, artInsets: insets, belowItem: 0,
+                            artSize: landed.size, posterContentSize: contentSize)
   }
 
   /// `TVMediaItemContentView` fills its bounds with the image and lays its text lines

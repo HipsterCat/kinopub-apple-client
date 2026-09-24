@@ -53,6 +53,60 @@
         }
       }
     },
+    "Top Results" : {
+      "comment" : "tvOS search: wide-card row of the best matches, titles and people",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Results"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лучшие совпадения"
+          }
+        }
+      }
+    },
+    "Relevance" : {
+      "comment" : "tvOS search sort: the order the search returned",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relevance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По релевантности"
+          }
+        }
+      }
+    },
+    "Actor" : {
+      "comment" : "tvOS search: role under a matching person's name",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actor"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Актёр"
+          }
+        }
+      }
+    },
     "\n\n" : {
 
     },

@@ -35,6 +35,8 @@ public enum TVPageStatus: Equatable {
 public final class TVPageCollectionViewController: UIViewController {
 
   public var onSelect: ((TVPageSection, TVPageItem) -> Void)?
+  /// A pull-down chip's option was picked: (chip id, option id).
+  public var onChipOption: ((String, String) -> Void)?
   /// The section's last loaded item came on screen; the owner decides if there is more.
   public var onNearEnd: ((TVPageSection) -> Void)?
   public var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
@@ -56,9 +58,11 @@ public final class TVPageCollectionViewController: UIViewController {
   private var dataSource: UICollectionViewDiffableDataSource<String, TVPageItemID>!
 
   private lazy var collectionView: UICollectionView = {
-    let layout = TVPageLayout.makeLayout(sideInset: sideInset) { [weak self] in
-      self?.sections ?? []
-    }
+    let layout = TVPageLayout.makeLayout(
+      sideInset: sideInset,
+      adjustedLeading: { [weak self] in self?.adjustedLeading ?? 0 },
+      sections: { [weak self] in self?.sections ?? [] }
+    )
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
     view.backgroundColor = .clear
     view.clipsToBounds = false
@@ -67,7 +71,8 @@ public final class TVPageCollectionViewController: UIViewController {
     // The safe area (the tab bar's region on top) is applied by the system: the tab bar
     // controller hides and reveals the bar from the *adjusted* insets of the scroll view
     // it observes, and opting out of the adjustment left the bar pinned. Horizontal
-    // safe area is zero on tvOS; the sections own the 80 pt side insets themselves.
+    // safe area is zero on a tab page but 80 inside the search container; the layout
+    // subtracts it (`adjustedLeading`), so the side inset is 80 from the edge either way.
     view.contentInsetAdjustmentBehavior = .automatic
     view.delegate = self
     view.prefetchDataSource = self
@@ -118,6 +123,26 @@ public final class TVPageCollectionViewController: UIViewController {
     super.viewSafeAreaInsetsDidChange()
     updateContentInsets()
   }
+
+  public override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    updateAdjustedLeading()
+  }
+
+  /// How far the collection's content already starts from the screen's leading edge:
+  /// its own frame in the window (the search container lays its results controller out
+  /// inside the 80 pt safe area — measured x = 80, width 1760) plus the scroll view's
+  /// adjusted inset. A tab page is full screen with neither.
+  private func updateAdjustedLeading() {
+    guard view.window != nil else { return }
+    let leading = view.convert(view.bounds.origin, to: nil).x + collectionView.adjustedContentInset.left
+    guard abs(leading - adjustedLeading) > 0.5 else { return }
+    adjustedLeading = leading
+    collectionView.collectionViewLayout.invalidateLayout()
+  }
+
+  /// See `updateAdjustedLeading` and `TVPageLayout.makeLayout`.
+  private var adjustedLeading: CGFloat = 0
 
   public override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
@@ -233,9 +258,26 @@ public final class TVPageCollectionViewController: UIViewController {
       [weak self] cell, _, id in
       guard let self, case .chip(let chip)? = self.itemsByID[id] else { return }
       cell.configure(chip: chip)
-      cell.onSelect = { [weak self] in
+      // A pull-down's Select opens its menu; the pick is the action, not the press.
+      cell.onSelect = chip.menu != nil ? nil : { [weak self] in
         guard let self, let section = self.sectionsByID[id.section] else { return }
         self.onSelect?(section, .chip(chip))
+      }
+      cell.onOption = { [weak self] option in
+        self?.onChipOption?(chip.id, option)
+      }
+    }
+
+    let card = UICollectionView.CellRegistration<TVPageWideCardCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self else { return }
+      let width = self.collectionView.layoutAttributesForItem(at: indexPath)?.size.width
+        ?? cell.bounds.width
+      cell.apply(recipe: TVPageCellMetrics.recipe(kind: .card, itemWidth: width, caption: .always))
+      switch self.itemsByID[id] {
+      case .card(let item)?: cell.configure(card: item)
+      case .person(let person)?: cell.configure(person: person)
+      default: cell.configurePlaceholder()
       }
     }
 
@@ -265,6 +307,8 @@ public final class TVPageCollectionViewController: UIViewController {
         return collectionView.dequeueConfiguredReusableCell(using: person, for: indexPath, item: id)
       case .chip:
         return collectionView.dequeueConfiguredReusableCell(using: chip, for: indexPath, item: id)
+      case .card:
+        return collectionView.dequeueConfiguredReusableCell(using: card, for: indexPath, item: id)
       }
     }
     dataSource.supplementaryViewProvider = { collectionView, _, indexPath in

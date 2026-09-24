@@ -15,7 +15,8 @@
 //  this replaces.
 //
 //  Still and person cells are the existing system-configuration cells
-//  (`TVUIKitMediaItemCell`, `TVUIKitPersonCell`) — nothing new to draw.
+//  (`TVUIKitMediaItemCell`, `TVUIKitPersonCell`) — nothing new to draw. The wide card
+//  is a `TVCardView` with a thumbnail and text in its `contentView`.
 //
 
 import TVUIKit
@@ -232,11 +233,14 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
 /// A pill of text. The cell is not focusable; the system button inside it is, which is
 /// what gives the pill the stock tvOS button focus (lift, white fill) with no focus
-/// code here.
+/// code here. A chip with a `menu` is the system pull-down: `UIButton.menu` shown as
+/// the primary action, the current pick checked — the same control a SwiftUI `Menu`
+/// becomes on tvOS, with no menu chrome of ours.
 @MainActor
 final class TVPageChipCell: UICollectionViewCell {
   private let button = UIButton(configuration: .gray())
   var onSelect: (() -> Void)?
+  var onOption: ((String) -> Void)?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -257,10 +261,33 @@ final class TVPageChipCell: UICollectionViewCell {
   func configure(chip: TVPageChip) {
     var configuration = button.configuration ?? .gray()
     configuration.title = chip.title
-    configuration.image = chip.systemImage.flatMap { UIImage(systemName: $0) }
     configuration.imagePadding = 12
     configuration.cornerStyle = .capsule
+    if let systemImage = chip.systemImage {
+      configuration.image = UIImage(systemName: systemImage)
+      configuration.imagePlacement = .leading
+    } else if chip.menu != nil {
+      // A pull-down with no icon of its own says so with the system chevron.
+      configuration.image = UIImage(systemName: "chevron.down")
+      configuration.imagePlacement = .trailing
+      configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .caption1, scale: .small)
+    } else {
+      configuration.image = nil
+    }
     button.configuration = configuration
+
+    if let menu = chip.menu {
+      button.menu = UIMenu(children: menu.options.map { option in
+        UIAction(title: option.title, state: option.id == menu.selectedID ? .on : .off) { [weak self] _ in
+          self?.onOption?(option.id)
+        }
+      })
+      button.showsMenuAsPrimaryAction = true
+    } else {
+      button.menu = nil
+      button.showsMenuAsPrimaryAction = false
+    }
+    button.accessibilityIdentifier = "kinopub.chip.\(chip.id)"
   }
 
   override var canBecomeFocused: Bool { false }
@@ -268,6 +295,230 @@ final class TVPageChipCell: UICollectionViewCell {
   override func prepareForReuse() {
     super.prepareForReuse()
     onSelect = nil
+    onOption = nil
+  }
+}
+
+// MARK: - Wide card
+
+/// A `TVCardView` — the system's floating platter, the UIKit side of SwiftUI's `.card`
+/// button style — holding a thumbnail and two lines of text. The platter, its focus
+/// lift, tilt and background alpha are the card view's; the cell only fills the
+/// `contentView`, the container `TVLockupView` says subviews belong in.
+///
+/// A title shows its poster as a 2:3 thumbnail; a person shows the system monogram
+/// circle (`TVUIKitPersonAvatarView`, the same face as the cast rail and person page).
+@MainActor
+final class TVPageWideCardCell: UICollectionViewCell {
+  private let cardView = TVCardView()
+  private let thumbnail = UIImageView()
+  private let avatar = TVUIKitPersonAvatarView()
+  private let titleLabel = UILabel()
+  private let detailLabel = UILabel()
+  private var thumbnailWidth: NSLayoutConstraint!
+
+  private var imageTask: Task<Void, Never>?
+  private var currentURL: URL?
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    clipsToBounds = false
+    contentView.clipsToBounds = false
+
+    cardView.translatesAutoresizingMaskIntoConstraints = false
+    contentView.addSubview(cardView)
+
+    let host = cardView.contentView
+    // The system platter (default `cardBackgroundColor`) is clear at rest in dark mode
+    // and white under focus. The rest tint is ours, on the floating content view so it
+    // moves with it, and it steps aside on focus to let the system's white through.
+    host.backgroundColor = Self.restingFill
+    host.layer.cornerRadius = Self.cornerRadius
+    host.layer.cornerCurve = .continuous
+    let height = TVPageLayout.cardThumbnailHeight
+    let padding = TVPageLayout.cardPadding
+
+    thumbnail.translatesAutoresizingMaskIntoConstraints = false
+    thumbnail.contentMode = .scaleAspectFill
+    thumbnail.clipsToBounds = true
+    thumbnail.layer.cornerRadius = 8
+    thumbnail.layer.cornerCurve = .continuous
+    host.addSubview(thumbnail)
+
+    avatar.translatesAutoresizingMaskIntoConstraints = false
+    avatar.isUserInteractionEnabled = false
+    host.addSubview(avatar)
+
+    titleLabel.font = Self.font(.body, weight: .medium)
+    titleLabel.adjustsFontForContentSizeCategory = true
+    titleLabel.textColor = .label
+    titleLabel.numberOfLines = 2
+    detailLabel.font = UIFont.preferredFont(forTextStyle: .footnote)
+    detailLabel.adjustsFontForContentSizeCategory = true
+    detailLabel.textColor = .secondaryLabel
+    detailLabel.numberOfLines = 1
+
+    let text = UIStackView(arrangedSubviews: [titleLabel, detailLabel])
+    text.axis = .vertical
+    text.spacing = 2
+    text.translatesAutoresizingMaskIntoConstraints = false
+    host.addSubview(text)
+
+    thumbnailWidth = thumbnail.widthAnchor.constraint(equalToConstant: height * CardAspect.poster.ratio)
+    NSLayoutConstraint.activate([
+      cardView.topAnchor.constraint(equalTo: contentView.topAnchor),
+      cardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      cardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+      cardView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+
+      thumbnail.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: padding),
+      thumbnail.centerYAnchor.constraint(equalTo: host.centerYAnchor),
+      thumbnail.heightAnchor.constraint(equalToConstant: height),
+      thumbnailWidth,
+
+      avatar.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: padding),
+      avatar.centerYAnchor.constraint(equalTo: host.centerYAnchor),
+      avatar.heightAnchor.constraint(equalToConstant: height),
+      avatar.widthAnchor.constraint(equalToConstant: height),
+
+      text.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: padding * 2 + height),
+      text.trailingAnchor.constraint(lessThanOrEqualTo: host.trailingAnchor, constant: -padding * 1.5),
+      text.centerYAnchor.constraint(equalTo: host.centerYAnchor)
+    ])
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  private static let restingFill = UIColor.label.withAlphaComponent(0.1)
+  private static let cornerRadius: CGFloat = 12
+
+  /// Colour only, like the poster caption: the platter's lift, tilt and white fill are
+  /// the card view's. `TVLockupViewComponent` would be the lockup's own hook for this,
+  /// but the lockup only calls it for its *own* focus — here the cell holds focus (so
+  /// selection, focus memory and the context menu stay the collection view's) and the
+  /// card only follows it as an ancestor (measured 2026-09-25: never called).
+  override func didUpdateFocus(in context: UIFocusUpdateContext,
+                               with coordinator: UIFocusAnimationCoordinator) {
+    super.didUpdateFocus(in: context, with: coordinator)
+    let focused = context.nextFocusedView === self
+      || context.nextFocusedView?.isDescendant(of: self) == true
+    coordinator.addCoordinatedAnimations({ [weak self] in
+      self?.applyFocusColors(focused)
+    })
+  }
+
+  private func applyFocusColors(_ focused: Bool) {
+    cardView.contentView.backgroundColor = focused ? .clear : Self.restingFill
+    titleLabel.textColor = focused ? .black : .label
+    detailLabel.textColor = focused ? UIColor.black.withAlphaComponent(0.6) : .secondaryLabel
+  }
+
+  /// The card view sizes its platter from `contentSize` (a system default otherwise,
+  /// ~500 wide whatever the frame). `TVPageCellMetrics` measured which content size
+  /// puts the resting platter on the HIG column; the cell's frame is the envelope.
+  func apply(recipe: TVPageCellRecipe) {
+    if cardView.contentSize != recipe.posterContentSize {
+      cardView.contentSize = recipe.posterContentSize
+    }
+  }
+
+  func configure(card: MediaCard) {
+    thumbnail.isHidden = false
+    avatar.isHidden = true
+    textLeading(for: TVPageLayout.cardThumbnailHeight * CardAspect.poster.ratio)
+    titleLabel.text = card.title
+    detailLabel.text = Self.detail(for: card)
+    detailLabel.isHidden = detailLabel.text == nil
+    accessibilityIdentifier = "kinopub.card.\(card.id)"
+    cardView.accessibilityLabel = [card.title, detailLabel.text].compactMap { $0 }.joined(separator: ", ")
+    loadThumbnail(URL(string: card.posterURL))
+  }
+
+  func configure(person: TVUIKitPerson) {
+    thumbnail.isHidden = true
+    avatar.isHidden = false
+    textLeading(for: TVPageLayout.cardThumbnailHeight)
+    imageTask?.cancel()
+    imageTask = nil
+    avatar.configure(name: person.name, photoURL: person.photoURL)
+    titleLabel.text = person.name
+    detailLabel.text = person.caption
+    detailLabel.isHidden = person.caption == nil
+    accessibilityIdentifier = "kinopub.card.person.\(person.id)"
+    cardView.accessibilityLabel = [person.name, person.caption].compactMap { $0 }.joined(separator: ", ")
+  }
+
+  func configurePlaceholder() {
+    thumbnail.isHidden = false
+    avatar.isHidden = true
+    titleLabel.text = nil
+    detailLabel.text = nil
+    thumbnail.image = placeholder
+  }
+
+  /// The text column starts one padding after whichever thumbnail is showing.
+  private func textLeading(for thumbnailWidth: CGFloat) {
+    self.thumbnailWidth.constant = thumbnailWidth
+    guard let text = titleLabel.superview,
+          let leading = cardView.contentView.constraints.first(where: {
+            $0.firstItem === text && $0.firstAttribute == .leading
+          }) else { return }
+    leading.constant = TVPageLayout.cardPadding * 2 + thumbnailWidth
+  }
+
+  /// "2025 · 1 h 55 min · Боевик" — the catalog's own meta line when the card came
+  /// from the server; year and genres for a card rebuilt from the local shelves. What
+  /// tells two same-named titles apart in a result list.
+  private static func detail(for card: MediaCard) -> String? {
+    if let meta = card.metaLine, !meta.isEmpty { return meta }
+    let parts = [card.year.map(String.init), card.genreLine].compactMap { $0 }.filter { !$0.isEmpty }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  }
+
+  private var placeholder: UIImage {
+    let size = CGSize(width: TVPageLayout.cardThumbnailHeight * CardAspect.poster.ratio,
+                      height: TVPageLayout.cardThumbnailHeight)
+    return TVUIKitTileArtwork.placeholder(size: size, cornerRadius: 0, traits: traitCollection)
+  }
+
+  private func loadThumbnail(_ url: URL?) {
+    imageTask?.cancel()
+    imageTask = nil
+    currentURL = url
+    let size = CGSize(width: TVPageLayout.cardThumbnailHeight * CardAspect.poster.ratio,
+                      height: TVPageLayout.cardThumbnailHeight)
+    guard let url else {
+      thumbnail.image = placeholder
+      return
+    }
+    if let hit = TVUIKitRemoteImage.cached(url: url, size: size) {
+      thumbnail.image = hit
+      return
+    }
+    thumbnail.image = placeholder
+    imageTask = Task { [weak self] in
+      let image = await TVUIKitRemoteImage.load(url: url, size: size)
+      guard let self, !Task.isCancelled, self.currentURL == url, let image else { return }
+      self.thumbnail.image = image
+    }
+  }
+
+  private static func font(_ style: UIFont.TextStyle, weight: UIFont.Weight) -> UIFont {
+    let descriptor = UIFont.preferredFont(forTextStyle: style).fontDescriptor
+      .addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight]])
+    return UIFont(descriptor: descriptor, size: 0)
+  }
+
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    imageTask?.cancel()
+    imageTask = nil
+    currentURL = nil
+    thumbnail.image = nil
+    titleLabel.text = nil
+    detailLabel.text = nil
+    accessibilityIdentifier = nil
+    applyFocusColors(false)
   }
 }
 

@@ -4,7 +4,7 @@
 //  KinoPubUI
 //
 //  A tvOS page is a list of typed sections. The section says *what* it holds (one of
-//  the three system cell families, or chips), *how it flows* (a rail or a grid) and
+//  the system cell families, or chips), *how it flows* (a rail or a grid) and
 //  *how many columns* the HIG grid should split the container into. Everything else —
 //  card width, heights, insets, focus room — is derived in `TVPageLayout`.
 //
@@ -17,7 +17,7 @@
 import Foundation
 import UIKit
 
-/// The cell family a section dequeues. Three system cells and one system control.
+/// The cell family a section dequeues. Four system cells and one system control.
 public enum TVPageCellKind: Hashable, Sendable {
   /// 2:3 art — `TVPosterView` lockup. Title in the system footer.
   case poster
@@ -26,8 +26,13 @@ public enum TVPageCellKind: Hashable, Sendable {
   case still
   /// A person — `TVMonogramContentConfiguration.cell()`.
   case person
-  /// A text pill — system `UIButton` inside the cell. Tags, quick filters, suggestions.
+  /// A text pill — system `UIButton` inside the cell. Tags, quick filters, suggestions,
+  /// and pull-down filters when the chip carries a `menu`.
   case chip
+  /// A `TVCardView` platter with a thumbnail and text beside it — the UIKit side of
+  /// SwiftUI's `.card` button style. For rows where the words matter as much as the
+  /// art: search's top results, where a title and a person sit side by side.
+  case card
 }
 
 public enum TVPageFlow: Hashable, Sendable {
@@ -49,11 +54,36 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
   public let id: String
   public let title: String
   public let systemImage: String?
+  /// When set, the chip is a pull-down: Select opens the system menu (`UIButton.menu`
+  /// shown as the primary action) and a pick reports the option's id.
+  public let menu: Menu?
 
-  public init(id: String, title: String, systemImage: String? = nil) {
+  public struct Option: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+
+    public init(id: String, title: String) {
+      self.id = id
+      self.title = title
+    }
+  }
+
+  public struct Menu: Hashable, Sendable {
+    public let options: [Option]
+    /// Drawn with the system checkmark.
+    public let selectedID: String?
+
+    public init(options: [Option], selectedID: String?) {
+      self.options = options
+      self.selectedID = selectedID
+    }
+  }
+
+  public init(id: String, title: String, systemImage: String? = nil, menu: Menu? = nil) {
     self.id = id
     self.title = title
     self.systemImage = systemImage
+    self.menu = menu
   }
 }
 
@@ -158,6 +188,17 @@ public struct TVPageSection: Identifiable, Hashable {
                             people: [TVUIKitPerson]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .person, flow: .rail,
                   columns: columns, caption: .always, items: people.map(TVPageItem.person))
+  }
+
+  /// Wide text cards, 3 across by default (HIG 560 at 1920): a title's poster
+  /// thumbnail or a person's circle, with the words beside it.
+  public static func cards(id: String,
+                           title: String?,
+                           count: String? = nil,
+                           columns: Int = 3,
+                           items: [TVPageItem]) -> TVPageSection {
+    TVPageSection(id: id, title: title, count: count, kind: .card, flow: .rail,
+                  columns: columns, caption: .always, items: items)
   }
 
   public static func chips(id: String,
