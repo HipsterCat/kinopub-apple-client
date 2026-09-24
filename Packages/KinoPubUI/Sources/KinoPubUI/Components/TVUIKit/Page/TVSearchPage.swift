@@ -121,7 +121,14 @@ public struct TVSearchPage: UIViewControllerRepresentable {
     context.coordinator.search = search
     context.coordinator.lastReported = text
     update(context.coordinator, animated: false)
-    return UISearchContainerViewController(searchController: search)
+    let container = UISearchContainerViewController(searchController: search)
+    if DebugLaunch.layoutDebug {
+      // Magenta: the search container's own view — where SwiftUI placed it.
+      container.view.backgroundColor = UIColor.systemPink.withAlphaComponent(0.12)
+      container.view.layer.borderColor = UIColor.systemPink.cgColor
+      container.view.layer.borderWidth = 4
+    }
+    return container
   }
 
   public func updateUIViewController(_ controller: UISearchContainerViewController, context: Context) {

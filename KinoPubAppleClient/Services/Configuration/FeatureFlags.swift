@@ -45,8 +45,10 @@ enum FeatureFlags {
   static let tvPageSections = true
 
   /// tvOS Search as UIKit (`TVSearchPage`: `UISearchContainerViewController`, native
-  /// suggestions with recents, native scope bar, a sort pull-down, top results as wide
-  /// cards, local-first results). Off falls back to the SwiftUI `.searchable` screen.
+  /// suggestions with recents and kino.pub's type-ahead, a row of system pull-downs —
+  /// type, genre, country, years, facets, sort — sent to `/v1/items/search`, the best
+  /// matches as two rows of wide cards, local-first results). Off falls back to the
+  /// SwiftUI `.searchable` screen.
   ///
   /// The focus trap of 2026-09-23 (Down from the tab bar skipped the keyboard, Up never
   /// left the results) was `.ignoresSafeArea()` on the search host: the keyboard,

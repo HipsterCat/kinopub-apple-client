@@ -30,16 +30,19 @@ public enum TVPageLayout {
 
   /// Unfocused row-to-row spacing inside a grid, art bottom to art top.
   public static let gridRowSpacing: CGFloat = 64
+  /// Wide cards carry their text inside the platter, so their rows sit closer — the
+  /// gutter, as in the search mock.
+  public static let cardRowSpacing: CGFloat = TVHIGGrid.gutter
 
   /// Chips are the system button height on tvOS; width is whatever the title needs.
   public static let chipHeight: CGFloat = 66
   public static let chipSpacing: CGFloat = 24
 
-  /// A wide text card is as tall as its thumbnail plus the platter's padding — the
-  /// width is the column's, like every other card.
-  public static let cardThumbnailHeight: CGFloat = 128
+  /// A wide text card: the title's poster fills the platter's leading edge top to
+  /// bottom, so the card is as tall as that thumbnail; a person's circle sits inside it
+  /// with `cardPadding` around. The width is the column's, like every other card.
+  public static let cardHeight: CGFloat = 160
   public static let cardPadding: CGFloat = 16
-  public static var cardHeight: CGFloat { cardThumbnailHeight + cardPadding * 2 }
 
   /// The layout for one page: a section provider that resolves the section at that
   /// index from `sections()` at layout time, so a snapshot swap and its geometry can
@@ -60,15 +63,23 @@ public enum TVPageLayout {
     // (the tab bar on top) is the container's frame of reference; the safe area itself
     // is not referenced here, or the bar's region would be counted twice.
     configuration.contentInsetsReference = .none
-    return UICollectionViewCompositionalLayout(
+    let layout = UICollectionViewCompositionalLayout(
       sectionProvider: { index, environment in
         let all = sections()
         guard all.indices.contains(index) else { return fallback }
         let inset = max(sideInset - adjustedLeading(), 0)
-        return section(for: all[index], environment: environment, sideInset: inset)
+        let built = section(for: all[index], environment: environment, sideInset: inset)
+        if DebugLaunch.layoutDebug {
+          built.decorationItems = [NSCollectionLayoutDecorationItem.background(elementKind: debugBackgroundKind)]
+        }
+        return built
       },
       configuration: configuration
     )
+    if DebugLaunch.layoutDebug {
+      layout.register(TVPageDebugSectionBackground.self, forDecorationViewOfKind: debugBackgroundKind)
+    }
+    return layout
   }
 
   @MainActor
@@ -81,7 +92,9 @@ public enum TVPageLayout {
     let layoutSection: NSCollectionLayoutSection
     switch (section.kind, section.flow) {
     case (.chip, _):
-      layoutSection = chipRail(sideInset: sideInset)
+      layoutSection = section.items.contains(where: Self.isTrailingChip)
+        ? chipRow(section, sideInset: sideInset)
+        : chipRail(sideInset: sideInset)
     case (_, .rail):
       layoutSection = rail(section, contentWidth: contentWidth, sideInset: sideInset)
     case (_, .grid):
@@ -119,7 +132,22 @@ public enum TVPageLayout {
     let size = NSCollectionLayoutSize(widthDimension: .absolute(recipe.itemSize.width),
                                       heightDimension: .absolute(recipe.itemSize.height))
     let item = NSCollectionLayoutItem(layoutSize: size)
-    let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [item])
+    let group: NSCollectionLayoutGroup
+    if section.rows > 1 {
+      // A column of `rows` envelopes, scrolled sideways as one — the art stacks
+      // `gridRowSpacing` apart, like a grid's rows.
+      let between = section.kind == .card ? cardRowSpacing : gridRowSpacing
+      let spacing = between - recipe.artInsets.top - recipe.artInsets.bottom
+      let rows = CGFloat(section.rows)
+      let column = NSCollectionLayoutSize(
+        widthDimension: .absolute(recipe.itemSize.width),
+        heightDimension: .absolute(recipe.itemSize.height * rows + spacing * (rows - 1))
+      )
+      group = NSCollectionLayoutGroup.vertical(layoutSize: column, repeatingSubitem: item, count: section.rows)
+      group.interItemSpacing = .fixed(spacing)
+    } else {
+      group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [item])
+    }
     let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.orthogonalScrollingBehavior = .continuous
     layoutSection.interGroupSpacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
@@ -153,6 +181,52 @@ public enum TVPageLayout {
     layoutSection.interGroupSpacing = gridRowSpacing + recipe.belowItem
       - recipe.artInsets.top - recipe.artInsets.bottom
     layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil)
+    return layoutSection
+  }
+
+  static let debugBackgroundKind = "TVPageDebugSectionBackground"
+
+  private static func isTrailingChip(_ item: TVPageItem) -> Bool {
+    if case .chip(let chip) = item { return chip.alignment == .trailing }
+    return false
+  }
+
+  /// A filter row: the pills at their measured widths (`TVPageChipCell.fittingWidth`),
+  /// the leading ones from the left edge, the trailing ones (the sort) flush with the
+  /// right one. A custom group places them outright: flexible edge spacing in a
+  /// horizontal group left most of the leftover width unspent (measured 2026-09-25 —
+  /// the sort sat 45 pt after Filters instead of at the edge). It does not scroll.
+  @MainActor
+  private static func chipRow(_ section: TVPageSection, sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let chips: [(width: CGFloat, trailing: Bool)] = section.items.map { entry in
+      guard case .chip(let chip) = entry else { return (180, false) }
+      return (TVPageChipCell.fittingWidth(for: chip), chip.alignment == .trailing)
+    }
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(chipHeight))
+    ) { environment in
+      // The environment here is the collection's full width, not the section's content
+      // box (measured: the sort ran 80 pt past the edge), so the insets come off here.
+      let width = environment.container.effectiveContentSize.width - sideInset * 2
+      var frames = [CGRect](repeating: .zero, count: chips.count)
+      var x: CGFloat = 0
+      for (index, chip) in chips.enumerated() where !chip.trailing {
+        frames[index] = CGRect(x: x, y: 0, width: chip.width, height: chipHeight)
+        x += chip.width + chipSpacing
+      }
+      var end = width
+      for (index, chip) in chips.enumerated().reversed() where chip.trailing {
+        end -= chip.width
+        frames[index] = CGRect(x: end, y: 0, width: chip.width, height: chipHeight)
+        end -= chipSpacing
+      }
+      return frames.map { NSCollectionLayoutGroupCustomItem(frame: $0) }
+    }
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(
+      top: TVHIGGrid.headerToItems, leading: sideInset,
+      bottom: TVHIGGrid.titledRowGap / 2, trailing: sideInset
+    )
     return layoutSection
   }
 
@@ -322,16 +396,16 @@ public enum TVPageCellMetrics {
       contentSize.width += dw
       contentSize.height += dh
     }
-    guard landed.width > 1, envelope.width >= landed.maxX, envelope.height >= landed.maxY else {
+    guard landed.width > 1, envelope.width >= landed.width, envelope.height >= landed.height else {
       return TVPageCellRecipe(itemSize: art, artInsets: .zero, belowItem: 0,
                               artSize: art, posterContentSize: art)
     }
-    let insets = NSDirectionalEdgeInsets(
-      top: landed.minY,
-      leading: landed.minX,
-      bottom: envelope.height - landed.maxY,
-      trailing: envelope.width - landed.maxX
-    )
+    // Centred, not read from `landed.origin`: off screen the probe reports the platter at
+    // the envelope's origin, on screen it sits in the middle (layout-debug shot
+    // 2026-09-25: platter 20 pt inside a yellow cell that started on the 80 pt line).
+    let dx = ((envelope.width - landed.width) / 2).rounded()
+    let dy = ((envelope.height - landed.height) / 2).rounded()
+    let insets = NSDirectionalEdgeInsets(top: dy, leading: dx, bottom: dy, trailing: dx)
     return TVPageCellRecipe(itemSize: envelope, artInsets: insets, belowItem: 0,
                             artSize: landed.size, posterContentSize: contentSize)
   }

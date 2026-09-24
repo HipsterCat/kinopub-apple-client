@@ -109,6 +109,15 @@ public final class TVPageCollectionViewController: UIViewController {
       statusView.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor)
     ])
 
+    if DebugLaunch.layoutDebug {
+      // The page's own view red, the collection's frame blue; sections paint themselves
+      // (`TVPageDebugSectionBackground`), cells and headers yellow / green.
+      view.backgroundColor = UIColor.systemRed.withAlphaComponent(0.15)
+      collectionView.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
+      collectionView.layer.borderColor = UIColor.systemBlue.cgColor
+      collectionView.layer.borderWidth = 3
+    }
+
     configureDataSource()
     applySnapshot(animated: false)
     applyStatus()
@@ -275,7 +284,7 @@ public final class TVPageCollectionViewController: UIViewController {
         ?? cell.bounds.width
       cell.apply(recipe: TVPageCellMetrics.recipe(kind: .card, itemWidth: width, caption: .always))
       switch self.itemsByID[id] {
-      case .card(let item)?: cell.configure(card: item)
+      case .card(let item)?: cell.configure(card: item, match: self.sectionsByID[id.section]?.match)
       case .person(let person)?: cell.configure(person: person)
       default: cell.configurePlaceholder()
       }
@@ -287,6 +296,7 @@ public final class TVPageCollectionViewController: UIViewController {
       guard let self, self.sections.indices.contains(indexPath.section) else { return }
       let section = self.sections[indexPath.section]
       view.configure(title: section.title ?? "", count: section.count)
+      if DebugLaunch.layoutDebug { view.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.3) }
       view.transform = indexPath.section == self.focusedSectionIndex
         ? self.headerDodge(for: indexPath.section)
         : .identity
@@ -344,7 +354,7 @@ public final class TVPageCollectionViewController: UIViewController {
       }
       applySnapshot(animated: animated)
     }
-    if status != self.status {
+    if status != self.status || sectionsChanged {
       self.status = status
       applyStatus()
     }
@@ -368,16 +378,21 @@ public final class TVPageCollectionViewController: UIViewController {
     hasAppliedOnce = true
   }
 
-  /// Everything the layout reads from a section — not its items.
+  /// Everything the layout reads from a section — not its items, except a chip row's
+  /// count (a filter row builds one layout item per pill).
   private static func layoutSignature(_ section: TVPageSection) -> String {
-    "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)"
+    "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.kind == .chip ? section.items.count : 0)"
   }
 
+  /// The status shows when the page has nothing but chrome: no sections, or only chip
+  /// rows. A filter row stays on screen above "No Results" / "Try Again" — a filter or
+  /// sort that emptied the page has to be undoable from where it was set.
   private func applyStatus() {
     guard isViewLoaded else { return }
-    let showsStatus = sections.isEmpty && status != .content
+    let onlyChrome = sections.allSatisfy { $0.kind == .chip }
+    let showsStatus = onlyChrome && status != .content
     statusView.isHidden = !showsStatus
-    collectionView.isHidden = showsStatus
+    collectionView.isHidden = showsStatus && sections.isEmpty
     statusView.apply(status)
     if showsStatus { setNeedsFocusUpdate() }
   }
@@ -416,6 +431,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   public func collectionView(_ collectionView: UICollectionView,
                              willDisplay cell: UICollectionViewCell,
                              forItemAt indexPath: IndexPath) {
+    if DebugLaunch.layoutDebug { cell.contentView.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.25) }
     guard sections.indices.contains(indexPath.section) else { return }
     let section = sections[indexPath.section]
     guard !section.isPlaceholder, indexPath.item == section.items.count - 1 else { return }

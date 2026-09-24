@@ -43,6 +43,17 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBLayoutDebug`: every page section, the collection, the page controller's
+  /// view and each cell's content get their own translucent colour — the "paint the
+  /// boxes" way of seeing which container owns a stray inset without Xcode's view debugger.
+  public static var layoutDebug: Bool {
+#if DEBUG
+    ProcessInfo.processInfo.arguments.contains("-KINOPUBLayoutDebug")
+#else
+    false
+#endif
+  }
+
   public static var focusFirstPoster: Bool {
 #if DEBUG
     ProcessInfo.processInfo.arguments.contains("-KINOPUBFocusFirstPoster")

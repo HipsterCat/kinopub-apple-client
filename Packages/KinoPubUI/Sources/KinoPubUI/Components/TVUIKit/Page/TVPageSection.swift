@@ -57,6 +57,17 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
   /// When set, the chip is a pull-down: Select opens the system menu (`UIButton.menu`
   /// shown as the primary action) and a pick reports the option's id.
   public let menu: Menu?
+  /// A filter that is narrowing the results — drawn filled, so a row of pull-downs says
+  /// at a glance which of them are in play.
+  public let isActive: Bool
+  public let alignment: Alignment
+
+  public enum Alignment: Hashable, Sendable {
+    case leading
+    /// Pushed to the row's trailing edge, with every later chip after it — the sort
+    /// pull-down sits apart from the filters.
+    case trailing
+  }
 
   public struct Option: Identifiable, Hashable, Sendable {
     public let id: String
@@ -68,22 +79,44 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
     }
   }
 
-  public struct Menu: Hashable, Sendable {
+  /// One block of a pull-down: a titled inline group in the system menu, with its own
+  /// checkmark. A flat menu is one untitled group.
+  public struct Group: Hashable, Sendable {
+    public let title: String?
     public let options: [Option]
-    /// Drawn with the system checkmark.
     public let selectedID: String?
 
-    public init(options: [Option], selectedID: String?) {
+    public init(title: String?, options: [Option], selectedID: String?) {
+      self.title = title
       self.options = options
       self.selectedID = selectedID
     }
   }
 
-  public init(id: String, title: String, systemImage: String? = nil, menu: Menu? = nil) {
+  public struct Menu: Hashable, Sendable {
+    public let groups: [Group]
+
+    public init(groups: [Group]) {
+      self.groups = groups
+    }
+
+    public init(options: [Option], selectedID: String?) {
+      self.groups = [Group(title: nil, options: options, selectedID: selectedID)]
+    }
+  }
+
+  public init(id: String,
+              title: String,
+              systemImage: String? = nil,
+              menu: Menu? = nil,
+              isActive: Bool = false,
+              alignment: Alignment = .leading) {
     self.id = id
     self.title = title
     self.systemImage = systemImage
     self.menu = menu
+    self.isActive = isActive
+    self.alignment = alignment
   }
 }
 
@@ -134,6 +167,11 @@ public struct TVPageSection: Identifiable, Hashable {
   public let columns: Int
   public let caption: TVPageCaption
   public let items: [TVPageItem]
+  /// Rows a rail stacks before it scrolls sideways — search's wide cards run two deep.
+  public let rows: Int
+  /// The text the page was searched for. A card whose original title holds it shows
+  /// that title too, so a match on "The Matrix" under "Матрица" explains itself.
+  public let match: String?
 
   public init(id: String,
               title: String?,
@@ -142,6 +180,8 @@ public struct TVPageSection: Identifiable, Hashable {
               flow: TVPageFlow = .rail,
               columns: Int,
               caption: TVPageCaption = .onFocus,
+              rows: Int = 1,
+              match: String? = nil,
               items: [TVPageItem]) {
     self.id = id
     self.title = title
@@ -150,6 +190,8 @@ public struct TVPageSection: Identifiable, Hashable {
     self.flow = flow
     self.columns = columns
     self.caption = caption
+    self.rows = max(rows, 1)
+    self.match = match
     self.items = items
   }
 
@@ -196,9 +238,11 @@ public struct TVPageSection: Identifiable, Hashable {
                            title: String?,
                            count: String? = nil,
                            columns: Int = 3,
+                           rows: Int = 1,
+                           match: String? = nil,
                            items: [TVPageItem]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .card, flow: .rail,
-                  columns: columns, caption: .always, items: items)
+                  columns: columns, caption: .always, rows: rows, match: match, items: items)
   }
 
   public static func chips(id: String,

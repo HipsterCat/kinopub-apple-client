@@ -34,11 +34,9 @@ struct SearchView: View {
   /// it switches to a normal text search.
   @State private var filterFieldAnchor: String?
 #if os(tvOS)
-  @State private var tvScope: TVSearchScope = .all
-  /// Order of a typed search's results. `/v1/items/search` takes no sort, so this is
-  /// applied on the device; browsing (empty field) sorts on the server instead, through
-  /// `catalog.filter.sort`.
-  @State private var tvSort: TVSearchSort = .relevance
+  /// kino.pub's own type-ahead for the typed text (`/v1.1/autocomplete`) — the
+  /// suggestion row's completions. Empty offline; local titles stand in then.
+  @State private var tvAutocomplete: [SearchAutocompleteEntry] = []
 #endif
   @State private var navigationTitleText: String = "Search".localized
 
@@ -80,14 +78,7 @@ struct SearchView: View {
         text: searchFieldText,
         placeholder: "Search".localized,
         suggestions: tvSuggestions,
-        scopes: TVSearchScope.allCases.map(\.title),
-        selectedScope: tvScope.rawValue,
         onTextChange: { searchFieldText = $0 },
-        onScopeChange: { index in
-          tvScope = TVSearchScope(rawValue: index) ?? .all
-          catalog.filter.contentType = tvScope.contentType
-          if !catalog.isSearching { Task { await catalog.refresh() } }
-        },
         onCommit: { SearchHistory.record($0) },
         onSelect: { _, item in
           switch item {
@@ -103,13 +94,7 @@ struct SearchView: View {
           }
         },
         onChipOption: { chip, option in
-          guard chip == Self.sortChipID else { return }
-          if trimmedQuery.isEmpty {
-            guard let order = MediaSortOrder(rawValue: option) else { return }
-            catalog.update { $0.sort = order }
-          } else {
-            tvSort = TVSearchSort(rawValue: option) ?? .relevance
-          }
+          TVSearchFilters.apply(chip: chip, option: option, to: catalog, searching: !trimmedQuery.isEmpty)
         },
         onNearEnd: { _ in
           guard let last = catalog.items.last else { return }
@@ -124,10 +109,13 @@ struct SearchView: View {
         },
         onRetry: { Task { await catalog.refresh() } }
       )
-      // No `.ignoresSafeArea()` here, unlike the tab pages: the search container lays
-      // its keyboard out below the tab bar from the safe area. Ignoring it put the
-      // keyboard, suggestions and scope bar *under* the bar, so the focus engine found
-      // nothing below the bar but the results (focus log, 2026-09-24).
+      // Horizontal and bottom only, never the top: the search container lays its
+      // keyboard out below the tab bar from the top safe area — ignoring that put the
+      // keyboard, suggestions and scope bar *under* the bar, and the focus engine found
+      // nothing below the bar but the results (focus log, 2026-09-24). The sides are the
+      // container's own: SwiftUI's 80 pt inset on top of UIKit's doubled the field's
+      // indent and clipped the results' rails at 80 / 1840.
+      .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
       .handleError(state: $errorHandler.state)
       .task {
         cardMenu.bind(errorHandler: errorHandler)
@@ -150,6 +138,16 @@ struct SearchView: View {
       }
       .onChange(of: searchFieldText) { _, newValue in
         handleSearchFieldChange(newValue)
+      }
+      .task(id: trimmedQuery) {
+        // Type-ahead after a short pause in typing; a new keystroke cancels this task.
+        let query = trimmedQuery
+        guard !query.isEmpty else { tvAutocomplete = []; return }
+        try? await Task.sleep(for: .milliseconds(250))
+        guard !Task.isCancelled else { return }
+        let entries = (try? await appContext.contentService.autocomplete(query: query)) ?? []
+        guard !Task.isCancelled else { return }
+        tvAutocomplete = entries
       }
     }
   }
@@ -175,17 +173,20 @@ struct SearchView: View {
     return out
   }
 
-  /// Local matches first, then whatever the server adds, within the chosen scope, in
-  /// the chosen order.
+  /// Local matches first, then whatever the server adds — while nothing narrows the
+  /// search. A filter or a sort is the server's answer alone: the shelves' cards carry
+  /// no genres or countries to filter on, and they would break the server's order.
   private var tvResults: [MediaCard] {
-    guard !trimmedQuery.isEmpty else { return catalog.items.map { MediaCard($0) } }
+    let server = catalog.items.map { MediaCard($0) }
+    guard !trimmedQuery.isEmpty,
+          !catalog.filter.hasActiveFilters, catalog.searchSort == nil else { return server }
     var seen = Set<Int>()
     var merged: [MediaCard] = []
-    for card in localMatches + catalog.items.map({ MediaCard($0) }) where !seen.contains(card.itemID) {
+    for card in localMatches + server where !seen.contains(card.itemID) {
       seen.insert(card.itemID)
       merged.append(card)
     }
-    return tvSort.apply(to: merged.filter(tvScope.includes))
+    return merged
   }
 
   /// People whose name holds the query, from the credits of what the server returned —
@@ -210,38 +211,14 @@ struct SearchView: View {
     return Array(out.prefix(Self.topPeopleLimit))
   }
 
-  private static let sortChipID = "sort"
   private static let topPeopleLimit = 3
-  private static let topTitlesLimit = 6
+  /// Two rows of three on screen, a few more a Right away.
+  private static let topCardsLimit = 12
 
-  /// The sort pull-down. Typed: the orders the device can apply to a result list.
-  /// Browsing: every order the catalog endpoint takes.
-  private var tvFilterRow: TVPageSection {
-    let chip: TVPageChip
-    if trimmedQuery.isEmpty {
-      chip = TVPageChip(
-        id: Self.sortChipID,
-        title: catalog.filter.sort.titleKey.localized,
-        systemImage: "arrow.up.arrow.down",
-        menu: .init(options: MediaSortOrder.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
-                    selectedID: catalog.filter.sort.rawValue)
-      )
-    } else {
-      chip = TVPageChip(
-        id: Self.sortChipID,
-        title: tvSort.title,
-        systemImage: "arrow.up.arrow.down",
-        menu: .init(options: TVSearchSort.allCases.map { .init(id: $0.rawValue, title: $0.title) },
-                    selectedID: tvSort.rawValue)
-      )
-    }
-    return .chips(id: "filters", title: nil, chips: [chip])
-  }
-
-  /// "Top Results": the best titles as wide text cards, with the people whose name
-  /// matched right after the first two — the order the mock and the TV app use.
-  private func topResults(from results: [MediaCard]) -> TVPageSection? {
-    let titles = results.prefix(Self.topTitlesLimit).map(TVPageItem.card)
+  /// The best matches as wide text cards, two rows deep, with the people whose name
+  /// matched after the first two titles. No row title — the cards say what they are,
+  /// and the rows under them get the height.
+  private func topCards(from results: [MediaCard]) -> TVPageSection? {
     let people = tvPeople.map { person in
       TVPageItem.person(TVUIKitPerson(
         id: person.id,
@@ -251,33 +228,37 @@ struct SearchView: View {
         photoURL: person.photoURL
       ))
     }
+    let titles = results.prefix(Self.topCardsLimit - people.count).map(TVPageItem.card)
     let items = Array(titles.prefix(2)) + people + Array(titles.dropFirst(2))
     guard !items.isEmpty else { return nil }
-    return .cards(id: "top", title: "Top Results".localized, items: items)
+    return .cards(id: "top", title: nil, rows: min(2, items.count), match: trimmedQuery, items: items)
   }
 
   private var tvSections: [TVPageSection] {
     let results = tvResults
+    let filters = TVSearchFilters.row(catalog: catalog, searching: !trimmedQuery.isEmpty)
     if results.isEmpty {
+      // The filter row stays over "No Results" / a failed load: a filter or sort that
+      // emptied the page is undone from there (`TVPageStatus` shows under chip rows).
       return catalog.isLoading
-        ? [.placeholder(id: "results", title: nil, kind: .poster, columns: 6, flow: .grid)]
-        : []
+        ? [filters, .placeholder(id: "results", title: nil, kind: .poster, columns: 6, flow: .grid)]
+        : [filters]
     }
     // Browsing (empty field): the catalog in the chosen order, as one grid.
     guard !trimmedQuery.isEmpty else {
-      return [tvFilterRow,
-              .posters(id: "recent", title: catalog.filter.sort.titleKey.localized, flow: .grid, cards: results)]
+      return [filters, .posters(id: "browse", title: nil, flow: .grid, cards: results)]
     }
-    // A scope narrows to one kind — one grid. "All" leads with the top results as
-    // wide cards, then splits by kind into rails, the way the TV app files results.
-    guard tvScope == .all else {
-      return [tvFilterRow, .posters(id: "results", title: nil, flow: .grid, cards: results)]
+    // A type narrows to one kind — one grid under the cards. No type splits by kind
+    // into rails, the way the TV app files results.
+    let cards = topCards(from: results)
+    guard catalog.filter.contentType == nil else {
+      return [filters, cards, .posters(id: "results", title: nil, flow: .grid, cards: results)].compactMap { $0 }
     }
     let movies = results.filter { !$0.isSeries }
     let series = results.filter(\.isSeries)
     return [
-      tvFilterRow,
-      topResults(from: results),
+      filters,
+      cards,
       movies.isEmpty ? nil : TVPageSection.posters(id: "movies", title: "Movies".localized, cards: movies),
       series.isEmpty ? nil : TVPageSection.posters(id: "series", title: "Series".localized, cards: series)
     ].compactMap { $0 }
@@ -295,7 +276,8 @@ struct SearchView: View {
   }
 
   /// Empty field: recent queries, then starters. Typing: recents that still match,
-  /// then titles the device knows that start with what was typed.
+  /// then kino.pub's own type-ahead — or, offline, titles the device knows that start
+  /// with what was typed.
   private var tvSuggestions: [TVSearchSuggestion] {
     let query = trimmedQuery
     let recents = SearchHistory.recent
@@ -309,10 +291,12 @@ struct SearchView: View {
     let matchingRecents = recents.filter {
       $0.localizedCaseInsensitiveContains(query) && $0.caseInsensitiveCompare(query) != .orderedSame
     }
-    let completions = localMatches.map(\.title).filter {
-      $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive, .anchored]) != nil
-    }
-    var seen = Set<String>()
+    let completions = tvAutocomplete.isEmpty
+      ? localMatches.map(\.title).filter {
+          $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive, .anchored]) != nil
+        }
+      : tvAutocomplete.map(\.title)
+    var seen = Set<String>([query.lowercased()])
     let items = matchingRecents.map { TVSearchSuggestion($0, kind: .recent) }
       + completions.map { TVSearchSuggestion($0, kind: .suggested) }
     return items.filter { seen.insert($0.text.lowercased()).inserted }.prefix(6).map { $0 }
@@ -507,72 +491,152 @@ struct SearchView: View {
 }
 
 #if os(tvOS)
-/// The native scope bar's segments on the tvOS search screen.
-/// Orders a typed search can be put in on the device. The catalog's other orders
-/// (recently added, updated, views) need fields a search result does not carry.
-enum TVSearchSort: String, CaseIterable {
-  case relevance, title, year, kinopoisk, imdb
+/// The pull-downs above tvOS search results: type, genre, country, years, the
+/// rating / quality facets, and the sort at the trailing end. System `UIButton` menus
+/// (`TVPageChip.menu`); every pick is a `LibraryFilter` change the server applies —
+/// `/v1/items/search` takes the same filters and sort as `/v1/items`.
+enum TVSearchFilters {
+  static let type = "type", genre = "genre", country = "country", years = "years"
+  static let facets = "facets", sort = "sort"
+  private static let any = "any"
+  /// Sort option id for the server's own relevance order (search only).
+  private static let relevance = "relevance"
 
-  var title: String {
-    switch self {
-    case .relevance: "Relevance".localized
-    case .title: MediaSortOrder.title.titleKey.localized
-    case .year: MediaSortOrder.year.titleKey.localized
-    case .kinopoisk: MediaSortOrder.kinopoiskRating.titleKey.localized
-    case .imdb: MediaSortOrder.imdbRating.titleKey.localized
+  @MainActor
+  static func row(catalog: LibraryCatalog, searching: Bool) -> TVPageSection {
+    let filter = catalog.filter
+    let anyTitle = "Any".localized
+    let decades = YearRange.decades(upTo: Calendar.current.component(.year, from: Date()))
+
+    let typeChip = TVPageChip(
+      id: type,
+      title: filter.contentType.map { $0.titleKey.localized } ?? "All".localized,
+      menu: .init(options: [.init(id: any, title: "All".localized)]
+                    + MediaType.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
+                  selectedID: filter.contentType?.rawValue ?? any),
+      isActive: filter.contentType != nil
+    )
+    let genre = catalog.genres.first { $0.id == filter.genreID }
+    let genreChip = TVPageChip(
+      id: self.genre,
+      title: genre?.title ?? "Genre".localized,
+      menu: .init(options: [.init(id: any, title: anyTitle)]
+                    + catalog.genres.map { .init(id: "\($0.id)", title: $0.title) },
+                  selectedID: filter.genreID.map { "\($0)" } ?? any),
+      isActive: filter.genreID != nil
+    )
+    let country = catalog.countries.first { $0.id == filter.countryID }
+    let countryChip = TVPageChip(
+      id: self.country,
+      title: country?.title ?? "Country".localized,
+      menu: .init(options: [.init(id: any, title: anyTitle)]
+                    + catalog.countries.map { .init(id: "\($0.id)", title: $0.title) },
+                  selectedID: filter.countryID.map { "\($0)" } ?? any),
+      isActive: filter.countryID != nil
+    )
+    let yearsChip = TVPageChip(
+      id: years,
+      title: filter.years?.title ?? "Years".localized,
+      menu: .init(options: [.init(id: any, title: anyTitle)] + decades.map { .init(id: $0.id, title: $0.title) },
+                  selectedID: filter.years?.id ?? any),
+      isActive: filter.years != nil
+    )
+    let facetsChip = TVPageChip(
+      id: facets,
+      title: "Filters".localized,
+      systemImage: "line.3.horizontal.decrease",
+      menu: .init(groups: facetGroups(filter)),
+      isActive: filter.hasClientSideFacets
+    )
+    let sortChip: TVPageChip
+    if searching {
+      let current = catalog.searchSort
+      sortChip = TVPageChip(
+        id: sort,
+        title: current.map { $0.titleKey.localized } ?? "Relevance".localized,
+        systemImage: "arrow.up.arrow.down",
+        menu: .init(options: [.init(id: relevance, title: "Relevance".localized)]
+                      + MediaSortOrder.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
+                    selectedID: current?.rawValue ?? relevance),
+        alignment: .trailing
+      )
+    } else {
+      sortChip = TVPageChip(
+        id: sort,
+        title: filter.sort.titleKey.localized,
+        systemImage: "arrow.up.arrow.down",
+        menu: .init(options: MediaSortOrder.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
+                    selectedID: filter.sort.rawValue),
+        alignment: .trailing
+      )
     }
+    return .chips(id: "filters", title: nil,
+                  chips: [typeChip, genreChip, countryChip, yearsChip, facetsChip, sortChip])
   }
 
-  /// Stable: equal keys keep the search's own order.
-  func apply(to cards: [MediaCard]) -> [MediaCard] {
-    func descending<T: Comparable>(_ key: (MediaCard) -> T?) -> [MediaCard] {
-      cards.enumerated().sorted { a, b in
-        switch (key(a.element), key(b.element)) {
-        case let (x?, y?) where x != y: return x > y
-        case (_?, nil): return true
-        case (nil, _?): return false
-        default: return a.offset < b.offset
+  private static let ratingSteps: [Double] = [6, 7, 8]
+
+  /// The facets `LibraryFilter` applies on the device (ratings, quality, AC3), one
+  /// inline group each in the Filters pull-down.
+  private static func facetGroups(_ filter: LibraryFilter) -> [TVPageChip.Group] {
+    func rating(_ prefix: String, _ title: String, _ value: Double?) -> TVPageChip.Group {
+      TVPageChip.Group(
+        title: title,
+        options: [.init(id: "\(prefix).\(any)", title: "Any".localized)]
+          + ratingSteps.map { .init(id: "\(prefix).\(Int($0))", title: "\(Int($0))+") },
+        selectedID: value.map { "\(prefix).\(Int($0))" } ?? "\(prefix).\(any)"
+      )
+    }
+    let quality = filter.want4K ? "q.4k" : filter.wantHD ? "q.hd" : "q.\(any)"
+    return [
+      rating("kp", "Kinopoisk".localized, filter.kinopoiskMin),
+      rating("imdb", "IMDb".localized, filter.imdbMin),
+      TVPageChip.Group(title: "Quality".localized,
+                       options: [.init(id: "q.\(any)", title: "Any".localized),
+                                 .init(id: "q.hd", title: "HD"), .init(id: "q.4k", title: "4K")],
+                       selectedID: quality),
+      TVPageChip.Group(title: "Audio".localized,
+                       options: [.init(id: "ac3.\(any)", title: "Any".localized), .init(id: "ac3.on", title: "AC3")],
+                       selectedID: filter.wantAC3 ? "ac3.on" : "ac3.\(any)")
+    ]
+  }
+
+  @MainActor
+  static func apply(chip: String, option: String, to catalog: LibraryCatalog, searching: Bool) {
+    let isAny = option == any
+    switch chip {
+    case type:
+      catalog.update { $0.contentType = isAny ? nil : MediaType(rawValue: option) }
+    case genre:
+      catalog.update { $0.genreID = isAny ? nil : Int(option) }
+    case country:
+      catalog.update { $0.countryID = isAny ? nil : Int(option) }
+    case years:
+      let decades = YearRange.decades(upTo: Calendar.current.component(.year, from: Date()))
+      catalog.update { $0.years = isAny ? nil : decades.first { $0.id == option } }
+    case facets:
+      let parts = option.split(separator: ".", maxSplits: 1).map(String.init)
+      guard parts.count == 2 else { return }
+      let value = parts[1]
+      catalog.update { filter in
+        switch parts[0] {
+        case "kp": filter.kinopoiskMin = Double(value)
+        case "imdb": filter.imdbMin = Double(value)
+        case "q":
+          filter.wantHD = value == "hd"
+          filter.want4K = value == "4k"
+        case "ac3": filter.wantAC3 = value == "on"
+        default: break
         }
-      }.map(\.element)
-    }
-    switch self {
-    case .relevance: return cards
-    case .title:
-      return cards.enumerated().sorted { a, b in
-        let order = a.element.title.localizedStandardCompare(b.element.title)
-        return order == .orderedSame ? a.offset < b.offset : order == .orderedAscending
-      }.map(\.element)
-    case .year: return descending(\.year)
-    case .kinopoisk: return descending(\.kinopoiskRating)
-    case .imdb: return descending(\.imdbRating)
-    }
-  }
-}
-
-enum TVSearchScope: Int, CaseIterable {
-  case all, movies, series
-
-  var title: String {
-    switch self {
-    case .all: "All".localized
-    case .movies: "Movies".localized
-    case .series: "Series".localized
-    }
-  }
-
-  var contentType: MediaType? {
-    switch self {
-    case .all: nil
-    case .movies: .movie
-    case .series: .serial
-    }
-  }
-
-  func includes(_ card: MediaCard) -> Bool {
-    switch self {
-    case .all: true
-    case .movies: !card.isSeries
-    case .series: card.isSeries
+      }
+    case sort:
+      if searching {
+        catalog.updateSearchSort(option == relevance ? nil : MediaSortOrder(rawValue: option))
+      } else if let order = MediaSortOrder(rawValue: option) {
+        catalog.update { $0.sort = order }
+      }
+    default:
+      break
     }
   }
 }

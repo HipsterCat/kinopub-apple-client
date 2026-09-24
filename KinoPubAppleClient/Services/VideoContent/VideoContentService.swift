@@ -10,7 +10,11 @@ import KinoPubBackend
 
 protocol VideoContentService: Sendable {
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem>
-  func search(query: String?, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem>
+  /// Text search with the catalog's filters. `sort: nil` is the server's relevance.
+  func search(query: String?, filter: LibraryFilter?, sort: MediaSortOrder?,
+              page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem>
+  /// kino.pub's type-ahead rows for the suggestion strip.
+  func autocomplete(query: String) async throws -> [SearchAutocompleteEntry]
   /// - Parameter excludeLinks: `nolinks=1` — details without video links. Only for
   ///   callers that will resolve links per media with `fetchMediaLinks(mediaId:)`.
   func fetchDetails(for id: String, excludeLinks: Bool) async throws -> SingleItemData<MediaItem>
@@ -43,7 +47,11 @@ extension VideoContentService {
   }
 
   func search(query: String?, page: Int?) async throws -> PaginatedData<MediaItem> {
-    try await search(query: query, page: page, perPage: nil)
+    try await search(query: query, filter: nil, sort: nil, page: page, perPage: nil)
+  }
+
+  func search(query: String?, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
+    try await search(query: query, filter: nil, sort: nil, page: page, perPage: perPage)
   }
 
   /// Details with links, which is what every caller that plays straight from the payload
@@ -63,8 +71,13 @@ struct VideoContentServiceMock: VideoContentService {
     return PaginatedData.mock(data: [])
   }
 
-  func search(query: String?, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
+  func search(query: String?, filter: LibraryFilter?, sort: MediaSortOrder?,
+              page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     return PaginatedData.mock(data: [])
+  }
+
+  func autocomplete(query: String) async throws -> [SearchAutocompleteEntry] {
+    []
   }
 
   func fetchDetails(for id: String, excludeLinks: Bool) async throws -> SingleItemData<MediaItem> {

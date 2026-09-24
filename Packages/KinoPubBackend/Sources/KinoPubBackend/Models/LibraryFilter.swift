@@ -163,6 +163,44 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     self.wantAC3 = wantAC3
   }
 
+  /// The server-side filters as query parameters, shared by `/v1/items` and
+  /// `/v1/items/search` — the search endpoint honors the same `type` / `genre` /
+  /// `country` / `year` / `sort` (verified live 2026-09-25, see docs/providers/kinopub/video.md).
+  /// `sort` is left to the caller: search without one is the server's relevance order.
+  public var serverParameters: [String: Any] {
+    var params: [String: Any] = [:]
+    if let contentType {
+      params["type"] = contentType.rawValue
+    }
+    // Commas are OR on `genre` — several genres ask for anything filed under any of
+    // them. **Not true of `cast` / `director`**: those match the field as written, so a
+    // comma there matches nothing and each name needs its own request (verified against
+    // the live API 2026-08-17 — `director=Фил Лорд,Кристофер Миллер` answers empty).
+    if !genreIDs.isEmpty {
+      params["genre"] = genreIDs.map(String.init).joined(separator: ",")
+    } else if let genreID {
+      params["genre"] = "\(genreID)"
+    }
+    if let countryID {
+      params["country"] = "\(countryID)"
+    }
+    if let years {
+      params["year"] = years.apiValue
+    }
+    // Popularity window — server-side (not a client facet). Sent for views/watchers
+    // rankings; approximating via `created_at` would empty those lists.
+    if let period {
+      params["period"] = period.rawValue
+    }
+    // `cast` / `director`, matched on the name as it appears in the credits — one name
+    // per request, see the note above.
+    // (`cast`, not the docs' `actor` — see `MediaPerson.Role.itemsQueryParameter`.)
+    if let person {
+      params[person.role.itemsQueryParameter] = person.name
+    }
+    return params
+  }
+
   /// True when anything other than the default sort is in play.
   public var hasActiveFilters: Bool {
     contentType != nil

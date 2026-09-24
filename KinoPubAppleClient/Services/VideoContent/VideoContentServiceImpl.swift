@@ -23,11 +23,19 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
     return response
   }
 
-  func search(query: String?, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
-    let request = SearchItemsRequest(contentType: nil, page: page, query: query, perPage: perPage)
-    let response = try await apiClient.performRequest(with: request,
+  func search(query: String?, filter: LibraryFilter?, sort: MediaSortOrder?,
+              page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
+    let request = SearchItemsRequest(query: query, filter: filter, sort: sort, page: page, perPage: perPage)
+    var response = try await apiClient.performRequest(with: request,
                                                       decodingType: PaginatedData<MediaItem>.self)
+    if let filter, filter.hasClientSideFacets {
+      response.items = response.items.filter { filter.clientSideMatches($0) }
+    }
     return response
+  }
+
+  func autocomplete(query: String) async throws -> [SearchAutocompleteEntry] {
+    try await SearchAutocomplete.fetch(query)
   }
 
   func fetchDetails(for id: String, excludeLinks: Bool) async throws -> SingleItemData<MediaItem> {

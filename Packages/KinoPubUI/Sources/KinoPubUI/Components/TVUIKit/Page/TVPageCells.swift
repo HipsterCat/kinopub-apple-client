@@ -259,29 +259,17 @@ final class TVPageChipCell: UICollectionViewCell {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func configure(chip: TVPageChip) {
-    var configuration = button.configuration ?? .gray()
-    configuration.title = chip.title
-    configuration.imagePadding = 12
-    configuration.cornerStyle = .capsule
-    if let systemImage = chip.systemImage {
-      configuration.image = UIImage(systemName: systemImage)
-      configuration.imagePlacement = .leading
-    } else if chip.menu != nil {
-      // A pull-down with no icon of its own says so with the system chevron.
-      configuration.image = UIImage(systemName: "chevron.down")
-      configuration.imagePlacement = .trailing
-      configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .caption1, scale: .small)
-    } else {
-      configuration.image = nil
-    }
-    button.configuration = configuration
-
+    button.configuration = Self.configuration(for: chip)
     if let menu = chip.menu {
-      button.menu = UIMenu(children: menu.options.map { option in
-        UIAction(title: option.title, state: option.id == menu.selectedID ? .on : .off) { [weak self] _ in
-          self?.onOption?(option.id)
+      let blocks: [UIMenuElement] = menu.groups.map { group in
+        let actions = group.options.map { option in
+          UIAction(title: option.title, state: option.id == group.selectedID ? .on : .off) { [weak self] _ in
+            self?.onOption?(option.id)
+          }
         }
-      })
+        return UIMenu(title: group.title ?? "", options: .displayInline, children: actions)
+      }
+      button.menu = UIMenu(children: blocks.count == 1 ? (blocks[0] as? UIMenu)?.children ?? blocks : blocks)
       button.showsMenuAsPrimaryAction = true
     } else {
       button.menu = nil
@@ -291,6 +279,53 @@ final class TVPageChipCell: UICollectionViewCell {
   }
 
   override var canBecomeFocused: Bool { false }
+
+  /// Active filters take the system's tinted fill; the rest stay gray. Title in
+  /// `.body`, the size the filter row is drawn at. Focus is the button's own either way.
+  static func configuration(for chip: TVPageChip) -> UIButton.Configuration {
+    var configuration = chip.isActive ? UIButton.Configuration.tinted() : .gray()
+    configuration.title = chip.title
+    configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+      var outgoing = incoming
+      outgoing.font = UIFont.preferredFont(forTextStyle: .body)
+      return outgoing
+    }
+    configuration.imagePadding = 12
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 26, bottom: 12, trailing: 26)
+    if let systemImage = chip.systemImage {
+      configuration.image = UIImage(systemName: systemImage)
+      configuration.imagePlacement = .leading
+      configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .body)
+    } else if chip.menu != nil {
+      // A pull-down with no icon of its own says so with the system chevron.
+      configuration.image = UIImage(systemName: "chevron.down")
+      configuration.imagePlacement = .trailing
+      configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .caption1, scale: .small)
+    } else {
+      configuration.image = nil
+    }
+    return configuration
+  }
+
+  private static var widthCache: [TVPageChip: CGFloat] = [:]
+  private static let prototype = UIButton(configuration: .gray())
+
+  /// The pill's own width, measured on a prototype system button with the same
+  /// configuration — what a filter row needs to push its trailing pills to the edge
+  /// exactly (a flexible edge over estimated widths lands short).
+  static func fittingWidth(for chip: TVPageChip) -> CGFloat {
+    if let cached = widthCache[chip] { return cached }
+    prototype.configuration = configuration(for: chip)
+    let size = prototype.systemLayoutSizeFitting(
+      CGSize(width: UIView.layoutFittingCompressedSize.width, height: TVPageLayout.chipHeight),
+      withHorizontalFittingPriority: .fittingSizeLevel,
+      verticalFittingPriority: .required
+    )
+    let width = ceil(size.width)
+    widthCache[chip] = width
+    return width
+  }
 
   override func prepareForReuse() {
     super.prepareForReuse()
@@ -302,23 +337,38 @@ final class TVPageChipCell: UICollectionViewCell {
 // MARK: - Wide card
 
 /// A `TVCardView` — the system's floating platter, the UIKit side of SwiftUI's `.card`
-/// button style — holding a thumbnail and two lines of text. The platter, its focus
-/// lift, tilt and background alpha are the card view's; the cell only fills the
+/// button style — holding a thumbnail and up to three lines of text. The platter, its
+/// focus lift, tilt and white fill are the card view's; the cell fills the
 /// `contentView`, the container `TVLockupView` says subviews belong in.
 ///
-/// A title shows its poster as a 2:3 thumbnail; a person shows the system monogram
-/// circle (`TVUIKitPersonAvatarView`, the same face as the cast rail and person page).
+/// A title's poster fills the platter's leading edge top to bottom; a person gets the
+/// system monogram circle (`TVUIKitPersonAvatarView`, the same face as the cast rail and
+/// the person page) inset by the padding. Text: title in `.body` (two lines), then in
+/// `.caption2` the original title when that is what matched, and year · genres.
 @MainActor
 final class TVPageWideCardCell: UICollectionViewCell {
   private let cardView = TVCardView()
   private let thumbnail = UIImageView()
   private let avatar = TVUIKitPersonAvatarView()
   private let titleLabel = UILabel()
+  private let originalLabel = UILabel()
   private let detailLabel = UILabel()
-  private var thumbnailWidth: NSLayoutConstraint!
+  private let text = UIStackView()
+  private var textLeading: NSLayoutConstraint!
 
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
+
+  private static let restingFill = UIColor.label.withAlphaComponent(0.1)
+  private static let cornerRadius: CGFloat = 12
+  private static let textGap: CGFloat = 24
+
+  private static var thumbnailSize: CGSize {
+    let height = TVPageLayout.cardHeight
+    return CGSize(width: (height * CardAspect.poster.ratio).rounded(), height: height)
+  }
+
+  private static var avatarDiameter: CGFloat { TVPageLayout.cardHeight - TVPageLayout.cardPadding * 2 }
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -332,17 +382,16 @@ final class TVPageWideCardCell: UICollectionViewCell {
     // The system platter (default `cardBackgroundColor`) is clear at rest in dark mode
     // and white under focus. The rest tint is ours, on the floating content view so it
     // moves with it, and it steps aside on focus to let the system's white through.
+    // The content view clips to the platter's corners, which is what rounds the poster's
+    // leading edge.
     host.backgroundColor = Self.restingFill
     host.layer.cornerRadius = Self.cornerRadius
     host.layer.cornerCurve = .continuous
-    let height = TVPageLayout.cardThumbnailHeight
-    let padding = TVPageLayout.cardPadding
+    host.clipsToBounds = true
 
     thumbnail.translatesAutoresizingMaskIntoConstraints = false
     thumbnail.contentMode = .scaleAspectFill
     thumbnail.clipsToBounds = true
-    thumbnail.layer.cornerRadius = 8
-    thumbnail.layer.cornerCurve = .continuous
     host.addSubview(thumbnail)
 
     avatar.translatesAutoresizingMaskIntoConstraints = false
@@ -350,47 +399,47 @@ final class TVPageWideCardCell: UICollectionViewCell {
     host.addSubview(avatar)
 
     titleLabel.font = Self.font(.body, weight: .medium)
-    titleLabel.adjustsFontForContentSizeCategory = true
-    titleLabel.textColor = .label
     titleLabel.numberOfLines = 2
-    detailLabel.font = UIFont.preferredFont(forTextStyle: .footnote)
-    detailLabel.adjustsFontForContentSizeCategory = true
-    detailLabel.textColor = .secondaryLabel
+    originalLabel.font = UIFont.preferredFont(forTextStyle: .caption2)
+    originalLabel.numberOfLines = 1
+    detailLabel.font = UIFont.preferredFont(forTextStyle: .caption2)
     detailLabel.numberOfLines = 1
-
-    let text = UIStackView(arrangedSubviews: [titleLabel, detailLabel])
+    for label in [titleLabel, originalLabel, detailLabel] {
+      label.adjustsFontForContentSizeCategory = true
+      text.addArrangedSubview(label)
+    }
     text.axis = .vertical
-    text.spacing = 2
+    text.spacing = 4
+    text.setCustomSpacing(10, after: originalLabel)
     text.translatesAutoresizingMaskIntoConstraints = false
     host.addSubview(text)
+    applyFocusColors(false)
 
-    thumbnailWidth = thumbnail.widthAnchor.constraint(equalToConstant: height * CardAspect.poster.ratio)
+    let size = Self.thumbnailSize
+    textLeading = text.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: size.width + Self.textGap)
     NSLayoutConstraint.activate([
       cardView.topAnchor.constraint(equalTo: contentView.topAnchor),
       cardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       cardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
       cardView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
 
-      thumbnail.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: padding),
-      thumbnail.centerYAnchor.constraint(equalTo: host.centerYAnchor),
-      thumbnail.heightAnchor.constraint(equalToConstant: height),
-      thumbnailWidth,
+      thumbnail.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+      thumbnail.topAnchor.constraint(equalTo: host.topAnchor),
+      thumbnail.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+      thumbnail.widthAnchor.constraint(equalTo: thumbnail.heightAnchor, multiplier: CardAspect.poster.ratio),
 
-      avatar.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: padding),
+      avatar.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: TVPageLayout.cardPadding * 1.5),
       avatar.centerYAnchor.constraint(equalTo: host.centerYAnchor),
-      avatar.heightAnchor.constraint(equalToConstant: height),
-      avatar.widthAnchor.constraint(equalToConstant: height),
+      avatar.heightAnchor.constraint(equalToConstant: Self.avatarDiameter),
+      avatar.widthAnchor.constraint(equalToConstant: Self.avatarDiameter),
 
-      text.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: padding * 2 + height),
-      text.trailingAnchor.constraint(lessThanOrEqualTo: host.trailingAnchor, constant: -padding * 1.5),
+      textLeading,
+      text.trailingAnchor.constraint(lessThanOrEqualTo: host.trailingAnchor, constant: -Self.textGap),
       text.centerYAnchor.constraint(equalTo: host.centerYAnchor)
     ])
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-  private static let restingFill = UIColor.label.withAlphaComponent(0.1)
-  private static let cornerRadius: CGFloat = 12
 
   /// Colour only, like the poster caption: the platter's lift, tilt and white fill are
   /// the card view's. `TVLockupViewComponent` would be the lockup's own hook for this,
@@ -410,7 +459,9 @@ final class TVPageWideCardCell: UICollectionViewCell {
   private func applyFocusColors(_ focused: Bool) {
     cardView.contentView.backgroundColor = focused ? .clear : Self.restingFill
     titleLabel.textColor = focused ? .black : .label
-    detailLabel.textColor = focused ? UIColor.black.withAlphaComponent(0.6) : .secondaryLabel
+    let secondary = focused ? UIColor.black.withAlphaComponent(0.6) : .secondaryLabel
+    originalLabel.textColor = secondary
+    detailLabel.textColor = secondary
   }
 
   /// The card view sizes its platter from `contentSize` (a system default otherwise,
@@ -422,26 +473,31 @@ final class TVPageWideCardCell: UICollectionViewCell {
     }
   }
 
-  func configure(card: MediaCard) {
+  func configure(card: MediaCard, match: String?) {
     thumbnail.isHidden = false
     avatar.isHidden = true
-    textLeading(for: TVPageLayout.cardThumbnailHeight * CardAspect.poster.ratio)
+    textLeading.constant = Self.thumbnailSize.width + Self.textGap
     titleLabel.text = card.title
+    let original = Self.matchedOriginal(card, match: match)
+    originalLabel.text = original
+    originalLabel.isHidden = original == nil
     detailLabel.text = Self.detail(for: card)
     detailLabel.isHidden = detailLabel.text == nil
     accessibilityIdentifier = "kinopub.card.\(card.id)"
-    cardView.accessibilityLabel = [card.title, detailLabel.text].compactMap { $0 }.joined(separator: ", ")
+    cardView.accessibilityLabel = [card.title, original, detailLabel.text].compactMap { $0 }.joined(separator: ", ")
     loadThumbnail(URL(string: card.posterURL))
   }
 
   func configure(person: TVUIKitPerson) {
     thumbnail.isHidden = true
     avatar.isHidden = false
-    textLeading(for: TVPageLayout.cardThumbnailHeight)
+    textLeading.constant = TVPageLayout.cardPadding * 1.5 + Self.avatarDiameter + Self.textGap
     imageTask?.cancel()
     imageTask = nil
     avatar.configure(name: person.name, photoURL: person.photoURL)
     titleLabel.text = person.name
+    originalLabel.text = nil
+    originalLabel.isHidden = true
     detailLabel.text = person.caption
     detailLabel.isHidden = person.caption == nil
     accessibilityIdentifier = "kinopub.card.person.\(person.id)"
@@ -452,41 +508,38 @@ final class TVPageWideCardCell: UICollectionViewCell {
     thumbnail.isHidden = false
     avatar.isHidden = true
     titleLabel.text = nil
-    detailLabel.text = nil
+    originalLabel.isHidden = true
+    detailLabel.isHidden = true
     thumbnail.image = placeholder
   }
 
-  /// The text column starts one padding after whichever thumbnail is showing.
-  private func textLeading(for thumbnailWidth: CGFloat) {
-    self.thumbnailWidth.constant = thumbnailWidth
-    guard let text = titleLabel.superview,
-          let leading = cardView.contentView.constraints.first(where: {
-            $0.firstItem === text && $0.firstAttribute == .leading
-          }) else { return }
-    leading.constant = TVPageLayout.cardPadding * 2 + thumbnailWidth
+  /// The original title, when the search matched it and it says something the local
+  /// title does not.
+  private static func matchedOriginal(_ card: MediaCard, match: String?) -> String? {
+    guard let match, !match.isEmpty,
+          let original = card.subtitle?.trimmingCharacters(in: .whitespaces), !original.isEmpty,
+          original.caseInsensitiveCompare(card.title) != .orderedSame,
+          original.range(of: match, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+    else { return nil }
+    return original
   }
 
-  /// "2025 · 1 h 55 min · Боевик" — the catalog's own meta line when the card came
-  /// from the server; year and genres for a card rebuilt from the local shelves. What
-  /// tells two same-named titles apart in a result list.
+  /// "2021  Боевик, Фантастика" — year and genres. No running time: in a result list the
+  /// year and genre are what tell two same-named titles apart.
   private static func detail(for card: MediaCard) -> String? {
-    if let meta = card.metaLine, !meta.isEmpty { return meta }
     let parts = [card.year.map(String.init), card.genreLine].compactMap { $0 }.filter { !$0.isEmpty }
-    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    return parts.isEmpty ? nil : parts.joined(separator: "\u{2003}")
   }
 
   private var placeholder: UIImage {
-    let size = CGSize(width: TVPageLayout.cardThumbnailHeight * CardAspect.poster.ratio,
-                      height: TVPageLayout.cardThumbnailHeight)
-    return TVUIKitTileArtwork.placeholder(size: size, cornerRadius: 0, traits: traitCollection)
+    TVUIKitTileArtwork.placeholder(size: Self.thumbnailSize, cornerRadius: 0, traits: traitCollection)
   }
 
   private func loadThumbnail(_ url: URL?) {
     imageTask?.cancel()
     imageTask = nil
     currentURL = url
-    let size = CGSize(width: TVPageLayout.cardThumbnailHeight * CardAspect.poster.ratio,
-                      height: TVPageLayout.cardThumbnailHeight)
+    let size = Self.thumbnailSize
     guard let url else {
       thumbnail.image = placeholder
       return
@@ -516,9 +569,27 @@ final class TVPageWideCardCell: UICollectionViewCell {
     currentURL = nil
     thumbnail.image = nil
     titleLabel.text = nil
+    originalLabel.text = nil
     detailLabel.text = nil
     accessibilityIdentifier = nil
     applyFocusColors(false)
+  }
+}
+
+// MARK: - Layout debug
+
+/// `-KINOPUBLayoutDebug`: a translucent fill per section (the decoration background the
+/// layout adds behind each), cycling colours by section index, so a section's content
+/// insets show as the coloured margin around its cells.
+final class TVPageDebugSectionBackground: UICollectionReusableView {
+  static let palette: [UIColor] = [.systemBlue, .systemGreen, .systemRed, .systemYellow, .systemPurple, .systemOrange, .systemTeal]
+
+  override func apply(_ layoutAttributes: UICollectionViewLayoutAttributes) {
+    super.apply(layoutAttributes)
+    let color = Self.palette[layoutAttributes.indexPath.section % Self.palette.count]
+    backgroundColor = color.withAlphaComponent(0.22)
+    layer.borderColor = color.cgColor
+    layer.borderWidth = 2
   }
 }
 

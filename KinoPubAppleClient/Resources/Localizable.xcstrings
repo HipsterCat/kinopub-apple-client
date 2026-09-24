@@ -53,6 +53,42 @@
         }
       }
     },
+    "Filters" : {
+      "comment" : "tvOS search: pull-down with rating, quality and audio filters",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filters"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фильтры"
+          }
+        }
+      }
+    },
+    "Quality" : {
+      "comment" : "tvOS search filters: video quality group",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quality"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Качество"
+          }
+        }
+      }
+    },
     "Top Results" : {
       "comment" : "tvOS search: wide-card row of the best matches, titles and people",
       "extractionState" : "manual",

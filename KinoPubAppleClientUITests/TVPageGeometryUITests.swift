@@ -265,18 +265,47 @@ final class TVPageGeometryUITests: XCTestCase {
     XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
     XCUIRemote.shared.press(.left)
     Thread.sleep(forTimeInterval: 3)
-    for _ in 0..<4 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.8) }
+    // Tab bar → keyboard → suggestions → the filter row's first pull-down ("All").
+    for _ in 0..<3 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.8) }
     try shoot(app, name: "sort-0-chip")
     XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.2)
-    try shoot(app, name: "sort-1-menu")
-    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.6)
-    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.5)
-    try shoot(app, name: "sort-2-picked")
-    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 1)
-    try shoot(app, name: "sort-3-card")
-    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 1)
-    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 1)
-    try shoot(app, name: "sort-4-card-right")
+    try shoot(app, name: "sort-1-type-menu")
+    XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1)
+    for _ in 0..<4 { XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.5) }
+    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.2)
+    try shoot(app, name: "sort-2-filters-menu")
+    XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1)
+    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.5)
+    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.2)
+    try shoot(app, name: "sort-3-sort-menu")
+    // Relevance → the next order (recently added), picked.
+    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.5)
+    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 3)
+    try shoot(app, name: "sort-4-picked")
+  }
+
+  /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
+  /// red, collection blue, sections in rotating colours, cells yellow): shots of the
+  /// typed search, the filter row, the cards and a rail scrolled right, to see which
+  /// box owns an inset or clips.
+  func testSearchLayoutDebug() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBSearchQuery", "ма", "-KINOPUBLayoutDebug"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 3)
+    try shoot(app, name: "layout-0-typed")
+    for step in 1...4 {
+      XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.9)
+      try shoot(app, name: "layout-\(step)")
+    }
+    for _ in 0..<3 { XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.6) }
+    try shoot(app, name: "layout-5-right")
   }
 
   private func launchSignedIn() -> XCUIApplication {

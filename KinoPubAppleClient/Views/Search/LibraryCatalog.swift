@@ -73,6 +73,10 @@ class LibraryCatalog: ObservableObject {
   }
   @Published public var query: String = ""
   @Published public var filter: LibraryFilter = LibraryFilter()
+  /// The order of a text search. `nil` is the server's relevance — the default, since
+  /// `filter.sort` defaults to "recently added", which is the catalog's order, not a
+  /// search's.
+  @Published public private(set) var searchSort: MediaSortOrder?
 
   /// Picker contents, loaded once the user is authorized.
   @Published public private(set) var genres: [MediaGenre] = []
@@ -137,7 +141,10 @@ class LibraryCatalog: ObservableObject {
       let page = pagination.map { $0.current + 1 }
       let data: PaginatedData<MediaItem>
       if isSearching {
-        data = try await itemsService.search(query: query, page: page)
+        // The search endpoint takes the catalog's filters and sort as well; no sort is
+        // the server's relevance order (verified live 2026-09-25).
+        data = try await itemsService.search(query: query, filter: filter, sort: searchSort,
+                                             page: page, perPage: nil)
       } else {
         data = try await itemsService.fetchItems(filter: filter, page: page)
       }
@@ -226,6 +233,13 @@ class LibraryCatalog: ObservableObject {
       genres = []
       self.filter.genreID = nil
     }
+    Task { await refresh() }
+  }
+
+  func updateSearchSort(_ sort: MediaSortOrder?) {
+    guard sort != searchSort else { return }
+    searchSort = sort
+    guard isSearching else { return }
     Task { await refresh() }
   }
 
