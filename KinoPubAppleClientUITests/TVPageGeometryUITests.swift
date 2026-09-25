@@ -265,23 +265,34 @@ final class TVPageGeometryUITests: XCTestCase {
     XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
     XCUIRemote.shared.press(.left)
     Thread.sleep(forTimeInterval: 3)
-    // Tab bar → keyboard → suggestions → the filter row's first pull-down ("All").
-    for _ in 0..<3 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.8) }
-    try shoot(app, name: "sort-0-chip")
-    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.2)
-    try shoot(app, name: "sort-1-type-menu")
-    XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1)
-    for _ in 0..<4 { XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.5) }
-    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.2)
-    try shoot(app, name: "sort-2-filters-menu")
-    XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1)
-    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.5)
-    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.2)
-    try shoot(app, name: "sort-3-sort-menu")
-    // Relevance → the next order (recently added), picked.
-    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.5)
-    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 3)
-    try shoot(app, name: "sort-4-picked")
+    // Tab bar → keyboard (two rows in Russian) → suggestions → the filter row's first
+    // pull-down ("Все").
+    let remote = XCUIRemote.shared
+    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
+      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
+    }
+    // Down lands on whichever pill sits under the focused suggestion; walk to "Все".
+    press(.down, 4)
+    press(.left, 6, wait: 0.4)
+    try shoot(app, name: "menu-0-row")
+    press(.select, wait: 1.2)
+    try shoot(app, name: "menu-1-types")
+    // Down onto the first type and toggle it off: the menu has to stay up.
+    press(.down, 1); press(.select, wait: 1.5)
+    try shoot(app, name: "menu-2-type-toggled")
+    press(.menu, wait: 1.5)
+    try shoot(app, name: "menu-3-after-types")
+    press(.right, 1); press(.select, wait: 1.2)
+    try shoot(app, name: "menu-4-genres")
+    press(.down, 2); press(.select, wait: 1.2); press(.down, 1); press(.select, wait: 1.5)
+    try shoot(app, name: "menu-5-genres-picked")
+    press(.menu, wait: 1.5)
+    press(.right, 3); press(.select, wait: 1.2)
+    try shoot(app, name: "menu-6-filters")
+    press(.select, wait: 1.2)
+    try shoot(app, name: "menu-7-filters-submenu")
+    press(.menu, wait: 1.5)
+    try shoot(app, name: "menu-8-closed")
   }
 
   /// Deep into the cards, back up to the keyboard, then Down: focus must go to what is

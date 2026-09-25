@@ -106,12 +106,20 @@ public enum CatalogPeriod: String, CaseIterable, Identifiable, Hashable, Sendabl
 /// `imdbRating` / `kinopoiskRating` / `quality` / `ac3`, so we filter the page locally.
 public struct LibraryFilter: Equatable, Hashable, Sendable {
   public var contentType: MediaType?
+  /// Several content types at once — `type=movie,serial` is OR on the server (verified
+  /// live 2026-09-25). Empty means every type; it wins over `contentType` when set.
+  public var contentTypes: Set<MediaType> = []
   public var sort: MediaSortOrder
   public var genreID: Int?
   /// Several genres at once — `/v1/items` reads a comma as OR on `genre`. Set instead
   /// of `genreID` when asking "more like this" of a title filed under six of them.
   public var genreIDs: [Int] = []
   public var countryID: Int?
+  /// Several countries at once — a comma is OR on `country`, like on `genre`.
+  public var countryIDs: Set<Int> = []
+  /// `finished=1` — completed series only. `finished=0` is ignored by the server
+  /// (same total with and without it, 2026-09-26), so there is no "ongoing" filter.
+  public var finishedOnly: Bool = false
   public var years: YearRange?
   /// Set for a person's credits, which are the same listing narrowed to one name.
   public var person: MediaPerson?
@@ -169,7 +177,9 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   /// `sort` is left to the caller: search without one is the server's relevance order.
   public var serverParameters: [String: Any] {
     var params: [String: Any] = [:]
-    if let contentType {
+    if !contentTypes.isEmpty {
+      params["type"] = contentTypes.map(\.rawValue).sorted().joined(separator: ",")
+    } else if let contentType {
       params["type"] = contentType.rawValue
     }
     // Commas are OR on `genre` — several genres ask for anything filed under any of
@@ -181,8 +191,13 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     } else if let genreID {
       params["genre"] = "\(genreID)"
     }
-    if let countryID {
+    if !countryIDs.isEmpty {
+      params["country"] = countryIDs.sorted().map(String.init).joined(separator: ",")
+    } else if let countryID {
       params["country"] = "\(countryID)"
+    }
+    if finishedOnly {
+      params["finished"] = "1"
     }
     if let years {
       params["year"] = years.apiValue
@@ -204,6 +219,9 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   /// True when anything other than the default sort is in play.
   public var hasActiveFilters: Bool {
     contentType != nil
+      || !contentTypes.isEmpty
+      || !countryIDs.isEmpty
+      || finishedOnly
       || genreID != nil
       || !genreIDs.isEmpty
       || countryID != nil

@@ -148,6 +148,28 @@ final class LibraryFilterTests: XCTestCase {
 
     XCTAssertEqual(decoded.items.first?.id, 25)
     XCTAssertEqual(decoded.items.first?.title, "Аниме")
-    XCTAssertEqual(decoded.items.first?.type, .movie)
+    XCTAssertEqual(decoded.items.first?.kind, .movie)
+  }
+
+  /// `/v1/genres` without a type answers every set; `docu` / `music` are not content
+  /// types, and decoding them as `MediaType` failed the whole list.
+  func testGenreKindsDecodeAndUnknownKindsDoNotFail() throws {
+    let json = #"{"items":[{"id":93,"type":"docu","title":"IT"},{"id":30,"type":"music","title":"Blues"},{"id":1,"type":"future","title":"X"}]}"#
+      .data(using: .utf8)!
+    let decoded = try JSONDecoder().decode(ArrayData<MediaGenre>.self, from: json)
+    XCTAssertEqual(decoded.items.map(\.kind), [.docu, .music, nil])
+  }
+
+  /// A comma list is OR on `type` / `country` (verified live 2026-09-26).
+  func testMultiSelectFiltersJoinWithCommas() {
+    var filter = LibraryFilter()
+    filter.contentTypes = [.serial, .movie]
+    filter.countryIDs = [2, 1]
+    filter.finishedOnly = true
+    let params = filter.serverParameters
+    XCTAssertEqual(params["type"] as? String, "movie,serial")
+    XCTAssertEqual(params["country"] as? String, "1,2")
+    XCTAssertEqual(params["finished"] as? String, "1")
+    XCTAssertTrue(filter.hasActiveFilters)
   }
 }

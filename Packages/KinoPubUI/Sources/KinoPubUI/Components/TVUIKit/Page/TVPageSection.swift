@@ -72,36 +72,61 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
   public struct Option: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
+    public let isEnabled: Bool
+    /// Drawn in the system's destructive style — "Reset Filters".
+    public let isDestructive: Bool
 
-    public init(id: String, title: String) {
+    public init(id: String, title: String, isEnabled: Bool = true, isDestructive: Bool = false) {
       self.id = id
       self.title = title
+      self.isEnabled = isEnabled
+      self.isDestructive = isDestructive
     }
   }
 
-  /// One block of a pull-down: a titled inline group in the system menu, with its own
-  /// checkmark. A flat menu is one untitled group.
+  /// One block of a pull-down. `.inline` is a titled section of the menu itself;
+  /// `.submenu` is a row that opens its own menu, with the current pick as its subtitle
+  /// — how the Filters pull-down shows what else there is at the top level.
   public struct Group: Hashable, Sendable {
+    public enum Presentation: Hashable, Sendable { case inline, submenu }
+
     public let title: String?
+    public let subtitle: String?
     public let options: [Option]
-    public let selectedID: String?
+    /// Checked options. Several for a multi-select group.
+    public let selectedIDs: Set<String>
+    public let presentation: Presentation
+
+    public init(title: String?,
+                subtitle: String? = nil,
+                options: [Option],
+                selectedIDs: Set<String>,
+                presentation: Presentation = .inline) {
+      self.title = title
+      self.subtitle = subtitle
+      self.options = options
+      self.selectedIDs = selectedIDs
+      self.presentation = presentation
+    }
 
     public init(title: String?, options: [Option], selectedID: String?) {
-      self.title = title
-      self.options = options
-      self.selectedID = selectedID
+      self.init(title: title, options: options, selectedIDs: selectedID.map { [$0] } ?? [])
     }
   }
 
   public struct Menu: Hashable, Sendable {
     public let groups: [Group]
+    /// Multi-select: a pick toggles and the menu stays open for the next one
+    /// (`UIMenuElement.Attributes.keepsMenuPresented`).
+    public let keepsPresented: Bool
 
-    public init(groups: [Group]) {
+    public init(groups: [Group], keepsPresented: Bool = false) {
       self.groups = groups
+      self.keepsPresented = keepsPresented
     }
 
     public init(options: [Option], selectedID: String?) {
-      self.groups = [Group(title: nil, options: options, selectedID: selectedID)]
+      self.init(groups: [Group(title: nil, options: options, selectedID: selectedID)])
     }
   }
 

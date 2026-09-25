@@ -262,15 +262,16 @@ struct SearchView: View {
     guard !trimmedQuery.isEmpty else {
       return [filters, .posters(id: "browse", title: nil, flow: .grid, caption: .always, cards: results)]
     }
-    // A type narrows to one kind — one grid under the cards. No type splits by kind
-    // into rails, the way the TV app files results.
+    // Films and series both in the results: rails by kind, the way the TV app files
+    // them. Only one kind (the type filter narrowed it, or that is all there is): one
+    // grid under the cards.
     let cards = topCards(from: results)
-    guard catalog.filter.contentType == nil else {
+    let movies = results.filter { !$0.isSeries }
+    let series = results.filter(\.isSeries)
+    guard !movies.isEmpty, !series.isEmpty else {
       return [filters, cards, .posters(id: "results", title: nil, flow: .grid, caption: .always, cards: results)]
         .compactMap { $0 }
     }
-    let movies = results.filter { !$0.isSeries }
-    let series = results.filter(\.isSeries)
     return [
       filters,
       cards,
@@ -506,49 +507,88 @@ struct SearchView: View {
 }
 
 #if os(tvOS)
-/// The pull-downs above tvOS search results: type, genre, country, years, the
-/// rating / quality facets, and the sort at the trailing end. System `UIButton` menus
+/// The pull-downs above tvOS search results: type, genre, country, years, the other
+/// filters, and the sort at the trailing end. System `UIButton` menus
 /// (`TVPageChip.menu`); every pick is a `LibraryFilter` change the server applies —
-/// `/v1/items/search` takes the same filters and sort as `/v1/items`.
+/// `/v1/items/search` takes the same filters and sort as `/v1/items`, and a comma list
+/// on `type` / `genre` / `country` is OR (verified live 2026-09-26).
+///
+/// Type, genre and country are multi-select: a pick toggles and the menu stays up.
+/// Every type is on by default (no `type` sent); no genre and no country by default.
 enum TVSearchFilters {
   static let type = "type", genre = "genre", country = "country", years = "years"
   static let facets = "facets", sort = "sort"
   private static let any = "any"
+  private static let reset = "reset"
   /// Sort option id for the server's own relevance order (search only).
   private static let relevance = "relevance"
+
+  /// The types on — every type when the filter names none.
+  static func selectedTypes(_ filter: LibraryFilter) -> Set<MediaType> {
+    if !filter.contentTypes.isEmpty { return filter.contentTypes }
+    if let single = filter.contentType { return [single] }
+    return Set(MediaType.allCases)
+  }
+
+  /// "Драма", or "Драма +2" for several.
+  private static func summary(_ titles: [String], none: String) -> String {
+    guard let first = titles.first else { return none }
+    return titles.count == 1 ? first : "\(first) +\(titles.count - 1)"
+  }
 
   @MainActor
   static func row(catalog: LibraryCatalog, searching: Bool) -> TVPageSection {
     let filter = catalog.filter
     let anyTitle = "Any".localized
     let decades = YearRange.decades(upTo: Calendar.current.component(.year, from: Date()))
+    let types = selectedTypes(filter)
+    let allTypes = types.count == MediaType.allCases.count
 
     let typeChip = TVPageChip(
       id: type,
-      title: filter.contentType.map { $0.titleKey.localized } ?? "All".localized,
-      menu: .init(options: [.init(id: any, title: "All".localized)]
-                    + MediaType.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
-                  selectedID: filter.contentType?.rawValue ?? any),
-      isActive: filter.contentType != nil
+      title: allTypes ? "All".localized
+        : summary(MediaType.allCases.filter(types.contains).map { $0.titleKey.localized }, none: "All".localized),
+      menu: .init(groups: [
+        .init(title: nil, options: [.init(id: any, title: "All".localized)],
+              selectedIDs: allTypes ? [any] : []),
+        .init(title: nil, options: MediaType.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
+              selectedIDs: Set(types.map(\.rawValue)))
+      ], keepsPresented: true),
+      isActive: !allTypes
     )
-    let genre = catalog.genres.first { $0.id == filter.genreID }
+
+    // Genres by set, only the sets the chosen types use — documentary genres are
+    // meaningless once documentaries are off.
+    let kinds = Set(types.map(\.genreKind))
+    let selectedGenres = Set(filter.genreIDs)
+    let genreGroups: [TVPageChip.Group] = GenreKind.allCases.filter(kinds.contains).compactMap { kind in
+      let genres = catalog.genres.filter { $0.kind == kind }
+      guard !genres.isEmpty else { return nil }
+      return .init(title: kinds.count > 1 ? kind.title : nil,
+                   options: genres.map { .init(id: "\($0.id)", title: $0.title) },
+                   selectedIDs: Set(genres.filter { selectedGenres.contains($0.id) }.map { "\($0.id)" }))
+    }
     let genreChip = TVPageChip(
-      id: self.genre,
-      title: genre?.title ?? "Genre".localized,
-      menu: .init(options: [.init(id: any, title: anyTitle)]
-                    + catalog.genres.map { .init(id: "\($0.id)", title: $0.title) },
-                  selectedID: filter.genreID.map { "\($0)" } ?? any),
-      isActive: filter.genreID != nil
+      id: genre,
+      title: summary(catalog.genres.filter { selectedGenres.contains($0.id) }.map(\.title), none: "Genre".localized),
+      menu: .init(groups: [.init(title: nil, options: [.init(id: any, title: anyTitle)],
+                                 selectedIDs: selectedGenres.isEmpty ? [any] : [])] + genreGroups,
+                  keepsPresented: true),
+      isActive: !selectedGenres.isEmpty
     )
-    let country = catalog.countries.first { $0.id == filter.countryID }
+
+    let countries = filter.countryIDs
     let countryChip = TVPageChip(
-      id: self.country,
-      title: country?.title ?? "Country".localized,
-      menu: .init(options: [.init(id: any, title: anyTitle)]
-                    + catalog.countries.map { .init(id: "\($0.id)", title: $0.title) },
-                  selectedID: filter.countryID.map { "\($0)" } ?? any),
-      isActive: filter.countryID != nil
+      id: country,
+      title: summary(catalog.countries.filter { countries.contains($0.id) }.map(\.title), none: "Country".localized),
+      menu: .init(groups: [
+        .init(title: nil, options: [.init(id: any, title: anyTitle)], selectedIDs: countries.isEmpty ? [any] : []),
+        .init(title: nil, options: catalog.countries.map { .init(id: "\($0.id)", title: $0.title) },
+              selectedIDs: Set(countries.map { "\($0)" }))
+      ], keepsPresented: true),
+      isActive: !countries.isEmpty
     )
+
     let yearsChip = TVPageChip(
       id: years,
       title: filter.years?.title ?? "Years".localized,
@@ -556,13 +596,19 @@ enum TVSearchFilters {
                   selectedID: filter.years?.id ?? any),
       isActive: filter.years != nil
     )
+
+    let facetsActive = filter.hasClientSideFacets || filter.finishedOnly
     let facetsChip = TVPageChip(
       id: facets,
       title: "Filters".localized,
       systemImage: "line.3.horizontal.decrease",
-      menu: .init(groups: facetGroups(filter)),
-      isActive: filter.hasClientSideFacets
+      menu: .init(groups: facetGroups(filter) + (filter.hasActiveFilters
+        ? [.init(title: nil, options: [.init(id: reset, title: "Reset Filters".localized, isDestructive: true)],
+                 selectedIDs: [])]
+        : [])),
+      isActive: facetsActive
     )
+
     let sortChip: TVPageChip
     if searching {
       let current = catalog.searchSort
@@ -591,15 +637,19 @@ enum TVSearchFilters {
 
   private static let ratingSteps: [Double] = [6, 7, 8]
 
-  /// The facets `LibraryFilter` applies on the device (ratings, quality, AC3), one
-  /// inline group each in the Filters pull-down.
+  /// Everything that is not a pill of its own, one submenu each with the current pick
+  /// as its subtitle: ratings and quality / audio (applied on the device), completed
+  /// series (`finished=1`, on the server).
   private static func facetGroups(_ filter: LibraryFilter) -> [TVPageChip.Group] {
+    let anyTitle = "Any".localized
     func rating(_ prefix: String, _ title: String, _ value: Double?) -> TVPageChip.Group {
       TVPageChip.Group(
         title: title,
-        options: [.init(id: "\(prefix).\(any)", title: "Any".localized)]
+        subtitle: value.map { "\(Int($0))+" } ?? anyTitle,
+        options: [.init(id: "\(prefix).\(any)", title: anyTitle)]
           + ratingSteps.map { .init(id: "\(prefix).\(Int($0))", title: "\(Int($0))+") },
-        selectedID: value.map { "\(prefix).\(Int($0))" } ?? "\(prefix).\(any)"
+        selectedIDs: [value.map { "\(prefix).\(Int($0))" } ?? "\(prefix).\(any)"],
+        presentation: .submenu
       )
     }
     let quality = filter.want4K ? "q.4k" : filter.wantHD ? "q.hd" : "q.\(any)"
@@ -607,12 +657,18 @@ enum TVSearchFilters {
       rating("kp", "Kinopoisk".localized, filter.kinopoiskMin),
       rating("imdb", "IMDb".localized, filter.imdbMin),
       TVPageChip.Group(title: "Quality".localized,
-                       options: [.init(id: "q.\(any)", title: "Any".localized),
+                       subtitle: filter.want4K ? "4K" : filter.wantHD ? "HD" : anyTitle,
+                       options: [.init(id: "q.\(any)", title: anyTitle),
                                  .init(id: "q.hd", title: "HD"), .init(id: "q.4k", title: "4K")],
-                       selectedID: quality),
+                       selectedIDs: [quality], presentation: .submenu),
       TVPageChip.Group(title: "Audio".localized,
-                       options: [.init(id: "ac3.\(any)", title: "Any".localized), .init(id: "ac3.on", title: "AC3")],
-                       selectedID: filter.wantAC3 ? "ac3.on" : "ac3.\(any)")
+                       subtitle: filter.wantAC3 ? "AC3" : anyTitle,
+                       options: [.init(id: "ac3.\(any)", title: anyTitle), .init(id: "ac3.on", title: "AC3")],
+                       selectedIDs: [filter.wantAC3 ? "ac3.on" : "ac3.\(any)"], presentation: .submenu),
+      TVPageChip.Group(title: "Filter_Status".localized,
+                       subtitle: filter.finishedOnly ? "Finished".localized : anyTitle,
+                       options: [.init(id: "fin.\(any)", title: anyTitle), .init(id: "fin.on", title: "Finished".localized)],
+                       selectedIDs: [filter.finishedOnly ? "fin.on" : "fin.\(any)"], presentation: .submenu)
     ]
   }
 
@@ -621,15 +677,47 @@ enum TVSearchFilters {
     let isAny = option == any
     switch chip {
     case type:
-      catalog.update { $0.contentType = isAny ? nil : MediaType(rawValue: option) }
+      catalog.update { filter in
+        var types = selectedTypes(filter)
+        if isAny {
+          types = Set(MediaType.allCases)
+        } else if let picked = MediaType(rawValue: option) {
+          if types.contains(picked) { types.remove(picked) } else { types.insert(picked) }
+          // The last type cannot go: nothing selected is not a search.
+          guard !types.isEmpty else { return }
+        }
+        filter.contentType = nil
+        filter.contentTypes = types.count == MediaType.allCases.count ? [] : types
+        // Genres of a set no chosen type uses no longer apply.
+        let kinds = Set(types.map(\.genreKind))
+        let applicable = Set(catalog.genres.filter { $0.kind.map(kinds.contains) ?? true }.map(\.id))
+        filter.genreIDs = filter.genreIDs.filter(applicable.contains)
+        filter.genreID = nil
+      }
     case genre:
-      catalog.update { $0.genreID = isAny ? nil : Int(option) }
+      catalog.update { filter in
+        filter.genreID = nil
+        guard !isAny, let id = Int(option) else { filter.genreIDs = []; return }
+        if let index = filter.genreIDs.firstIndex(of: id) {
+          filter.genreIDs.remove(at: index)
+        } else {
+          filter.genreIDs.append(id)
+        }
+      }
     case country:
-      catalog.update { $0.countryID = isAny ? nil : Int(option) }
+      catalog.update { filter in
+        filter.countryID = nil
+        guard !isAny, let id = Int(option) else { filter.countryIDs = []; return }
+        if filter.countryIDs.contains(id) { filter.countryIDs.remove(id) } else { filter.countryIDs.insert(id) }
+      }
     case years:
       let decades = YearRange.decades(upTo: Calendar.current.component(.year, from: Date()))
       catalog.update { $0.years = isAny ? nil : decades.first { $0.id == option } }
     case facets:
+      if option == reset {
+        catalog.clearFilters()
+        return
+      }
       let parts = option.split(separator: ".", maxSplits: 1).map(String.init)
       guard parts.count == 2 else { return }
       let value = parts[1]
@@ -641,6 +729,7 @@ enum TVSearchFilters {
           filter.wantHD = value == "hd"
           filter.want4K = value == "4k"
         case "ac3": filter.wantAC3 = value == "on"
+        case "fin": filter.finishedOnly = value == "on"
         default: break
         }
       }
@@ -652,6 +741,17 @@ enum TVSearchFilters {
       }
     default:
       break
+    }
+  }
+}
+
+extension GenreKind {
+  var title: String {
+    switch self {
+    case .movie: "Movies & Series".localized
+    case .docu: "Documentary".localized
+    case .tvshow: "TV Show".localized
+    case .music: "Concert".localized
     }
   }
 }

@@ -261,15 +261,7 @@ final class TVPageChipCell: UICollectionViewCell {
   func configure(chip: TVPageChip) {
     button.configuration = Self.configuration(for: chip)
     if let menu = chip.menu {
-      let blocks: [UIMenuElement] = menu.groups.map { group in
-        let actions = group.options.map { option in
-          UIAction(title: option.title, state: option.id == group.selectedID ? .on : .off) { [weak self] _ in
-            self?.onOption?(option.id)
-          }
-        }
-        return UIMenu(title: group.title ?? "", options: .displayInline, children: actions)
-      }
-      button.menu = UIMenu(children: blocks.count == 1 ? (blocks[0] as? UIMenu)?.children ?? blocks : blocks)
+      button.menu = Self.menu(for: menu) { [weak self] id in self?.onOption?(id) }
       button.showsMenuAsPrimaryAction = true
     } else {
       button.menu = nil
@@ -308,14 +300,51 @@ final class TVPageChipCell: UICollectionViewCell {
     return configuration
   }
 
-  private static var widthCache: [TVPageChip: CGFloat] = [:]
+  /// The system menu for a chip's `Menu`: one inline section or submenu per group, the
+  /// checked options `.on`, and — for a multi-select — every action keeping the menu up.
+  static func menu(for menu: TVPageChip.Menu, onOption: @escaping (String) -> Void) -> UIMenu {
+    let blocks: [UIMenu] = menu.groups.map { group in
+      let actions = group.options.map { option in
+        var attributes: UIMenuElement.Attributes = []
+        if !option.isEnabled { attributes.insert(.disabled) }
+        if option.isDestructive { attributes.insert(.destructive) }
+        if menu.keepsPresented { attributes.insert(.keepsMenuPresented) }
+        return UIAction(title: option.title, attributes: attributes,
+                        state: group.selectedIDs.contains(option.id) ? .on : .off) { _ in onOption(option.id) }
+      }
+      switch group.presentation {
+      case .inline:
+        return UIMenu(title: group.title ?? "", options: .displayInline, children: actions)
+      case .submenu:
+        let submenu = UIMenu(title: group.title ?? "", children: actions)
+        submenu.subtitle = group.subtitle
+        return submenu
+      }
+    }
+    // A single untitled inline group is the menu itself.
+    if blocks.count == 1, menu.groups[0].presentation == .inline, menu.groups[0].title == nil {
+      return UIMenu(children: blocks[0].children)
+    }
+    return UIMenu(children: blocks)
+  }
+
+  /// What the pill's width depends on — not its menu (a genre menu is 115 options).
+  private struct WidthKey: Hashable {
+    let title: String
+    let systemImage: String?
+    let isActive: Bool
+    let hasMenu: Bool
+  }
+
+  private static var widthCache: [WidthKey: CGFloat] = [:]
   private static let prototype = UIButton(configuration: .gray())
 
   /// The pill's own width, measured on a prototype system button with the same
   /// configuration — what a filter row needs to push its trailing pills to the edge
   /// exactly (a flexible edge over estimated widths lands short).
   static func fittingWidth(for chip: TVPageChip) -> CGFloat {
-    if let cached = widthCache[chip] { return cached }
+    let key = WidthKey(title: chip.title, systemImage: chip.systemImage, isActive: chip.isActive, hasMenu: chip.menu != nil)
+    if let cached = widthCache[key] { return cached }
     prototype.configuration = configuration(for: chip)
     let size = prototype.systemLayoutSizeFitting(
       CGSize(width: UIView.layoutFittingCompressedSize.width, height: TVPageLayout.chipHeight),
@@ -323,7 +352,7 @@ final class TVPageChipCell: UICollectionViewCell {
       verticalFittingPriority: .required
     )
     let width = ceil(size.width)
-    widthCache[chip] = width
+    widthCache[key] = width
     return width
   }
 

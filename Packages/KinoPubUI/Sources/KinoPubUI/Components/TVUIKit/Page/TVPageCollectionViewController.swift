@@ -429,9 +429,17 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   /// Everything the layout reads from a section — not its items, except a chip row's
-  /// count (a filter row builds one layout item per pill).
+  /// titles (a filter row places each pill at its measured width).
+  /// A filter row's pills are laid out at their measured widths, so a title change
+  /// ("Жанр" → "Драма +2") is a layout change.
+  private static func chipSignature(_ section: TVPageSection) -> String {
+    section.items.map { item in
+      if case .chip(let chip) = item { return chip.title } else { return "?" }
+    }.joined(separator: "|")
+  }
+
   private static func layoutSignature(_ section: TVPageSection) -> String {
-    "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.kind == .chip ? section.items.count : 0)"
+    "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.kind == .chip ? chipSignature(section) : "")"
   }
 
   /// The status shows when the page has nothing but chrome: no sections, or only chip
