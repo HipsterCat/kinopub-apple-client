@@ -15,8 +15,8 @@ public enum TVUIKitChromeSupport {
   /// copy of these numbers is how two tiles start looking subtly different.
   public static func applyLegibilityShadow(to layer: CALayer) {
     layer.shadowColor = UIColor.black.cgColor
-    layer.shadowOpacity = 0.9
-    layer.shadowRadius = 5
+    layer.shadowOpacity = 0
+    layer.shadowRadius = 0
     layer.shadowOffset = .zero
   }
 }

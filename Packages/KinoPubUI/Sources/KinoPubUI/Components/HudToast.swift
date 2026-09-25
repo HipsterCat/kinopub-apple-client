@@ -51,7 +51,7 @@ public struct HudToastView: View {
     .frame(width: Metrics.hudSide, height: Metrics.hudSide)
     .kinoPlayerGlass(in: RoundedRectangle(cornerRadius: Metrics.hudCornerRadius,
                                           style: .continuous))
-    .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
+    .shadow(color: .black.opacity(0.1), radius: 30, y: 6)
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(.isStaticText)
   }

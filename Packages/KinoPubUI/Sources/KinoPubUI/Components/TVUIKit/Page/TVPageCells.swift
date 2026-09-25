@@ -359,7 +359,7 @@ final class TVPageWideCardCell: UICollectionViewCell {
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
 
-  private static let restingFill = UIColor.label.withAlphaComponent(0.1)
+  private static let restingFill = UIColor.label.withAlphaComponent(0.1) // REPLACE WITH SYSTEM BACKGROUND COLORS
   private static let cornerRadius: CGFloat = 12
   private static let textGap: CGFloat = 24
 
@@ -609,7 +609,7 @@ final class TVPageHeaderView: UICollectionReusableView {
     titleLabel.font = Self.font(.headline, weight: .semibold)
     titleLabel.adjustsFontForContentSizeCategory = true
     titleLabel.textColor = .secondaryLabel
-    countLabel.font = Self.font(.title3, weight: .medium)
+    countLabel.font = Self.font(.subheadline, weight: .medium)
     countLabel.adjustsFontForContentSizeCategory = true
     countLabel.textColor = .tertiaryLabel
 

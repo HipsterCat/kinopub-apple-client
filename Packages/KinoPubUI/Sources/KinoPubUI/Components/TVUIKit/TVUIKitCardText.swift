@@ -20,14 +20,14 @@ import Foundation
 public enum TVUIKitCardText {
 
   /// Continue Watching and history: which episode, then which episode it *is*.
-  /// `S2 E4 • Episode Name`, and just the title when there is no episode context.
+  /// `S2 E4 ∙ Episode Name`, and just the title when there is no episode context.
   public static func caption(for card: MediaCard) -> String? {
     let title = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let overlay = card.overlayLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
           !overlay.isEmpty else {
       return title.isEmpty ? nil : title
     }
-    return title.isEmpty ? overlay : "\(overlay) • \(title)"
+    return title.isEmpty ? overlay : "\(overlay) ∙ \(title)"
   }
 
   /// An episode inside a season rail, where the season is already named by the tab

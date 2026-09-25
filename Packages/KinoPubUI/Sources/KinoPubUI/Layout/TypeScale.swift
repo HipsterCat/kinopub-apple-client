@@ -20,7 +20,13 @@ public enum TypeScale {
     .title2.weight(.semibold)
 #endif
     }()
-    public static let rowCount: Font = .title3.weight(.medium)
+     public static let rowCount: Font = {
+     #if os(tvOS)
+               .subheadline.weight(.semibold)
+     #else
+               .title3.weight(.medium)
+     #endif
+     }()
   public static let rowChevron: Font = .headline.weight(.bold)
 
   public static let heroTitle: Font = {

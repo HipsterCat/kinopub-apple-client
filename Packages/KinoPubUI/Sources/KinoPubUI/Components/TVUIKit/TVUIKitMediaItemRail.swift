@@ -768,14 +768,14 @@ final class TVUIKitMediaItemOverlayView: UIView {
     // A light bottom-up fade, not a hard band — just enough for the glyph and runtime to
     // read over bright or busy artwork, since the system's own bottom gradient (under
     // its own text) does not reach up over the artwork itself.
-    gradientLayer.colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.25).cgColor]
-    gradientLayer.locations = [0, 1]
-    layer.addSublayer(gradientLayer)
+//    gradientLayer.colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.25).cgColor]
+//    gradientLayer.locations = [0, 1]
+//    layer.addSublayer(gradientLayer)
 
-    scrim.translatesAutoresizingMaskIntoConstraints = false
-    scrim.backgroundColor = UIColor.red.withAlphaComponent(0)
-    scrim.isHidden = true
-    addSubview(scrim)
+//    scrim.translatesAutoresizingMaskIntoConstraints = false
+//    scrim.backgroundColor = UIColor.red.withAlphaComponent(0)
+//    scrim.isHidden = true
+//    addSubview(scrim)
 
     glyphView.translatesAutoresizingMaskIntoConstraints = false
     glyphView.tintColor = .secondaryLabel
@@ -787,11 +787,11 @@ final class TVUIKitMediaItemOverlayView: UIView {
     runtimeLabel.translatesAutoresizingMaskIntoConstraints = false
     // A step under caption2 (the smallest text style), still scaled with Dynamic Type
     // through the caption2 metrics — a corner chip on artwork, not running text.
-    runtimeLabel.font = UIFontMetrics(forTextStyle: .caption2)
+    runtimeLabel.font = UIFontMetrics(forTextStyle: .caption1)
       .scaledFont(for: .systemFont(ofSize: Self.runtimePointSize, weight: .semibold))
     runtimeLabel.textColor = .white
     runtimeLabel.textAlignment = .right
-    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
+//    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
     addSubview(runtimeLabel)
@@ -817,7 +817,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
     badge.addSubview(badgeLabel)
 
     progressTrack.translatesAutoresizingMaskIntoConstraints = false
-    progressTrack.backgroundColor = UIColor.lightGray.withAlphaComponent(0.45)
+    progressTrack.backgroundColor = UIColor.black.withAlphaComponent(0.2)
     progressTrack.layer.cornerRadius = 3
     progressTrack.isHidden = true
     addSubview(progressTrack)
@@ -842,10 +842,10 @@ final class TVUIKitMediaItemOverlayView: UIView {
       progressFill.bottomAnchor.constraint(equalTo: progressTrack.bottomAnchor),
       progressFillWidth,
 
-      scrim.topAnchor.constraint(equalTo: topAnchor),
-      scrim.bottomAnchor.constraint(equalTo: bottomAnchor),
-      scrim.leadingAnchor.constraint(equalTo: leadingAnchor),
-      scrim.trailingAnchor.constraint(equalTo: trailingAnchor),
+//      scrim.topAnchor.constraint(equalTo: topAnchor),
+//      scrim.bottomAnchor.constraint(equalTo: bottomAnchor),
+//      scrim.leadingAnchor.constraint(equalTo: leadingAnchor),
+//      scrim.trailingAnchor.constraint(equalTo: trailingAnchor),
 
       glyphView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
       glyphView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.cornerInset),
@@ -853,7 +853,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
       glyphView.heightAnchor.constraint(equalToConstant: Self.glyphSize),
 
       runtimeLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
-      runtimeLabel.leadingAnchor.constraint(greaterThanOrEqualTo: glyphView.trailingAnchor, constant: 12),
+//      runtimeLabel.leadingAnchor.constraint(equalToConstant: 16),
       runtimeBottom,
 
       badge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
@@ -913,7 +913,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
       badge.isHidden = true
     }
 
-    gradientLayer.isHidden = !(glyph != nil || showsRuntime)
+    gradientLayer.isHidden = true
   }
 
 }
