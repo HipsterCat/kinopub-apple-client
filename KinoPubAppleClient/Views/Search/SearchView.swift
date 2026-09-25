@@ -180,11 +180,15 @@ struct SearchView: View {
     let server = catalog.items.map { MediaCard($0) }
     guard !trimmedQuery.isEmpty,
           !catalog.filter.hasActiveFilters, catalog.searchSort == nil else { return server }
+    // Local first in order, but a title the server also returned takes the server's
+    // card: a shelf card carries no year or genres, and its line under the title was
+    // empty (2026-09-26).
+    let fromServer = Dictionary(server.map { ($0.itemID, $0) }, uniquingKeysWith: { first, _ in first })
     var seen = Set<Int>()
     var merged: [MediaCard] = []
     for card in localMatches + server where !seen.contains(card.itemID) {
       seen.insert(card.itemID)
-      merged.append(card)
+      merged.append(fromServer[card.itemID] ?? card)
     }
     return merged
   }
@@ -238,7 +242,10 @@ struct SearchView: View {
     let titles = results.prefix(Self.topCardsLimit - people.count).map(TVPageItem.card)
     let items = Array(titles.prefix(2)) + people + Array(titles.dropFirst(2))
     guard !items.isEmpty else { return nil }
-    return .cards(id: "top", title: nil, rows: min(2, items.count), match: trimmedQuery, items: items)
+    // Two rows only once one row is full: two matches are a row of two, not a column.
+    let columns = 3
+    return .cards(id: "top", title: nil, columns: columns, rows: items.count > columns ? 2 : 1,
+                  match: trimmedQuery, items: items)
   }
 
   private var tvSections: [TVPageSection] {

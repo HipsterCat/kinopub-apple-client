@@ -155,7 +155,9 @@ public struct TVSearchPage: UIViewControllerRepresentable {
     results.onNearEnd = onNearEnd
     results.contextMenuProvider = contextMenuProvider
     results.onRetry = onRetry
-    results.apply(sections: sections, status: status, animated: animated)
+    // Never animated: results change on every keystroke, and a diff animation had the
+    // cards hopping about while the list settled — a rebuild is cheaper on an Apple TV.
+    results.apply(sections: sections, status: status, animated: false)
 
     let bar = search.searchBar
     if bar.scopeButtonTitles ?? [] != scopes {

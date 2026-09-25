@@ -341,15 +341,18 @@ final class TVPageChipCell: UICollectionViewCell {
 /// focus lift, tilt and white fill are the card view's; the cell fills the
 /// `contentView`, the container `TVLockupView` says subviews belong in.
 ///
-/// A title's poster fills the platter's leading edge top to bottom; a person gets the
-/// system monogram circle (`TVUIKitPersonAvatarView`, the same face as the cast rail and
-/// the person page) inset by the padding. Text: title in `.body` (two lines), then in
+/// A title's poster fills the platter's leading edge top to bottom; a person gets a
+/// circle — their photo, or initials on a quiet disc — inset by the padding. Text: title in `.body` (two lines), then in
 /// `.caption2` the original title when that is what matched, and year · genres.
 @MainActor
 final class TVPageWideCardCell: UICollectionViewCell {
   private let cardView = TVCardView()
   private let thumbnail = UIImageView()
-  private let avatar = TVUIKitPersonAvatarView()
+  /// A person's photo or initials in a circle — a still image, like the poster
+  /// thumbnail. Not `TVUIKitPersonAvatarView`: its monogram content is a focusable
+  /// lockup that lifted itself in layers inside the focused card and kept stale
+  /// initials across reuse ("KT" on Stephen Robert Morse, 2026-09-26).
+  private let avatar = UIImageView()
   private let titleLabel = UILabel()
   private let originalLabel = UILabel()
   private let detailLabel = UILabel()
@@ -395,7 +398,9 @@ final class TVPageWideCardCell: UICollectionViewCell {
     host.addSubview(thumbnail)
 
     avatar.translatesAutoresizingMaskIntoConstraints = false
-    avatar.isUserInteractionEnabled = false
+    avatar.contentMode = .scaleAspectFill
+    avatar.clipsToBounds = true
+    avatar.layer.cornerRadius = Self.avatarDiameter / 2
     host.addSubview(avatar)
 
     titleLabel.font = Self.font(.body, weight: .medium)
@@ -456,7 +461,17 @@ final class TVPageWideCardCell: UICollectionViewCell {
     })
   }
 
+  /// The name behind a monogram on screen (no photo): redrawn in the platter's colours.
+  private var monogramName: String?
+  private var isFocusedLook = false
+
   private func applyFocusColors(_ focused: Bool) {
+    isFocusedLook = focused
+    if let monogramName {
+      // Light ink on the white focused platter, like the text beside it.
+      let traits = focused ? UITraitCollection(userInterfaceStyle: .light) : traitCollection
+      avatar.image = TVUIKitTileArtwork.monogram(name: monogramName, diameter: Self.avatarDiameter, traits: traits)
+    }
     cardView.contentView.backgroundColor = focused ? .clear : Self.restingFill
     titleLabel.textColor = focused ? .black : .label
     let secondary = focused ? UIColor.black.withAlphaComponent(0.6) : .secondaryLabel
@@ -474,6 +489,7 @@ final class TVPageWideCardCell: UICollectionViewCell {
   }
 
   func configure(card: MediaCard, match: String?) {
+    monogramName = nil
     thumbnail.isHidden = false
     avatar.isHidden = true
     textLeading.constant = Self.thumbnailSize.width + Self.textGap
@@ -492,9 +508,7 @@ final class TVPageWideCardCell: UICollectionViewCell {
     thumbnail.isHidden = true
     avatar.isHidden = false
     textLeading.constant = TVPageLayout.cardPadding * 1.5 + Self.avatarDiameter + Self.textGap
-    imageTask?.cancel()
-    imageTask = nil
-    avatar.configure(name: person.name, photoURL: person.photoURL)
+    loadAvatar(name: person.name, url: person.photoURL)
     titleLabel.text = person.name
     originalLabel.text = nil
     originalLabel.isHidden = true
@@ -535,6 +549,31 @@ final class TVPageWideCardCell: UICollectionViewCell {
     TVUIKitTileArtwork.placeholder(size: Self.thumbnailSize, cornerRadius: 0, traits: traitCollection)
   }
 
+  private func loadAvatar(name: String, url: URL?) {
+    imageTask?.cancel()
+    imageTask = nil
+    currentURL = url
+    let diameter = Self.avatarDiameter
+    avatar.layer.cornerRadius = diameter / 2
+    let traits = isFocusedLook ? UITraitCollection(userInterfaceStyle: .light) : traitCollection
+    let monogram = TVUIKitTileArtwork.monogram(name: name, diameter: diameter, traits: traits)
+    let size = CGSize(width: diameter, height: diameter)
+    if let url, let hit = TVUIKitRemoteImage.cached(url: url, size: size) {
+      monogramName = nil
+      avatar.image = hit
+      return
+    }
+    monogramName = name
+    avatar.image = monogram
+    guard let url else { return }
+    imageTask = Task { [weak self] in
+      let image = await TVUIKitRemoteImage.load(url: url, size: size)
+      guard let self, !Task.isCancelled, self.currentURL == url, let image else { return }
+      self.monogramName = nil
+      self.avatar.image = image
+    }
+  }
+
   private func loadThumbnail(_ url: URL?) {
     imageTask?.cancel()
     imageTask = nil
@@ -568,6 +607,8 @@ final class TVPageWideCardCell: UICollectionViewCell {
     imageTask = nil
     currentURL = nil
     thumbnail.image = nil
+    avatar.image = nil
+    monogramName = nil
     titleLabel.text = nil
     originalLabel.text = nil
     detailLabel.text = nil

@@ -81,6 +81,35 @@ public enum TVUIKitTileArtwork {
   /// hierarchy in dark mode is *bright* all the way down — `.quaternaryLabel` resolves
   /// to (220, 220, 220) there — so a label-tier colour at its own alpha reads as a
   /// white card on a dark page, not as an empty slot.
+  /// A person with no photo: initials on a quiet disc, the look of the system
+  /// monogram, as a plain image. The monogram *view* is a focusable lockup of its own
+  /// and lifts itself, layer by layer, inside a focused card — this does nothing.
+  public static func monogram(name: String, diameter: CGFloat, traits: UITraitCollection? = nil) -> UIImage {
+    let traits = traits ?? .current
+    let formatter = PersonNameComponentsFormatter()
+    formatter.style = .abbreviated
+    var initials = ""
+    if let components = formatter.personNameComponents(from: name) {
+      initials = formatter.string(from: components)
+    }
+    if initials.isEmpty || initials.count > 3 {
+      initials = name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined()
+    }
+    let size = CGSize(width: diameter, height: diameter)
+    let fill = UIColor.label.withAlphaComponent(0.16).resolvedColor(with: traits)
+    let ink = UIColor.secondaryLabel.resolvedColor(with: traits)
+    let font = UIFont.systemFont(ofSize: diameter * 0.36, weight: .medium)
+    return UIGraphicsImageRenderer(size: size).image { _ in
+      fill.setFill()
+      UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).fill()
+      let text = initials.uppercased() as NSString
+      let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ink]
+      let box = text.size(withAttributes: attributes)
+      text.draw(at: CGPoint(x: (size.width - box.width) / 2, y: (size.height - box.height) / 2),
+                withAttributes: attributes)
+    }
+  }
+
   public static func placeholder(size: CGSize = wideSize,
                                  cornerRadius: CGFloat = 0,
                                  traits: UITraitCollection? = nil) -> UIImage {

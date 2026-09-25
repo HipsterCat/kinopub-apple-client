@@ -352,6 +352,28 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "large-1-posters")
   }
 
+  /// The two queries from the 2026-09-26 report: "Тарантино" (two matches — a row, not
+  /// a column) and "rob" (people: initials, and a person card under focus).
+  func testSearchQueryShots() throws {
+    for (tag, query) in [("tarantino", "Тарантино"), ("rob", "rob")] {
+      let app = XCUIApplication()
+      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark", "-KINOPUBSearchQuery", query]
+      if let session = UITestDevSession.json {
+        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+      }
+      app.launch()
+      XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+      XCUIRemote.shared.press(.left)
+      Thread.sleep(forTimeInterval: 4)
+      // The Russian keyboard is two rows deep: keyboard ×2, suggestions, filters, cards.
+      for _ in 0..<5 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.6) }
+      try shoot(app, name: "query-\(tag)-0")
+      XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.8)
+      try shoot(app, name: "query-\(tag)-1")
+      app.terminate()
+    }
+  }
+
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
   /// red, collection blue, sections in rotating colours, cells yellow): shots of the
   /// typed search, the filter row, the cards and a rail scrolled right, to see which
