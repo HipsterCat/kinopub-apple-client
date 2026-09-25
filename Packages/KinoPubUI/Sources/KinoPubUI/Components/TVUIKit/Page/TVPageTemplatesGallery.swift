@@ -104,7 +104,9 @@ public struct TVPageTemplatesGallery: View {
       TVPageChip(id: "sort", title: sorts[0], systemImage: "arrow.up.arrow.down",
                  menu: .init(options: sorts.map { .init(id: $0, title: $0) }, selectedID: sorts[0])),
       TVPageChip(id: "genre", title: "Genre",
-                 menu: .init(options: ["Any", "Drama", "Comedy"].map { .init(id: $0, title: $0) }, selectedID: "Any"))
+                 menu: .init(nodes: [.option(.init(id: "any", title: "Any"), isSelected: true)]
+                   + ["Drama", "Comedy"].map { .option(.init(id: $0, title: $0), isSelected: false) },
+                   keepsPresented: true))
     ]
   }
 

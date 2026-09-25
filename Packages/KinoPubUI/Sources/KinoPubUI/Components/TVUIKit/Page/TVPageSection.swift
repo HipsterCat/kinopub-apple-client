@@ -84,49 +84,31 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
     }
   }
 
-  /// One block of a pull-down. `.inline` is a titled section of the menu itself;
-  /// `.submenu` is a row that opens its own menu, with the current pick as its subtitle
-  /// — how the Filters pull-down shows what else there is at the top level.
-  public struct Group: Hashable, Sendable {
-    public enum Presentation: Hashable, Sendable { case inline, submenu }
-
-    public let title: String?
-    public let subtitle: String?
-    public let options: [Option]
-    /// Checked options. Several for a multi-select group.
-    public let selectedIDs: Set<String>
-    public let presentation: Presentation
-
-    public init(title: String?,
-                subtitle: String? = nil,
-                options: [Option],
-                selectedIDs: Set<String>,
-                presentation: Presentation = .inline) {
-      self.title = title
-      self.subtitle = subtitle
-      self.options = options
-      self.selectedIDs = selectedIDs
-      self.presentation = presentation
-    }
-
-    public init(title: String?, options: [Option], selectedID: String?) {
-      self.init(title: title, options: options, selectedIDs: selectedID.map { [$0] } ?? [])
-    }
+  /// A pull-down's content as a tree, the shape `UIMenu` takes: options with a
+  /// checkmark, inline sections, and submenus that show their current value as a
+  /// subtitle — "Ratings ▸ Kinopoisk ▸ from / to".
+  public indirect enum MenuNode: Hashable, Sendable {
+    case option(Option, isSelected: Bool)
+    /// A run of entries drawn in the menu itself; a title makes it a titled section,
+    /// no title and it is part of the list (no divider above it).
+    case section(title: String?, children: [MenuNode])
+    case submenu(title: String, subtitle: String?, children: [MenuNode])
   }
 
   public struct Menu: Hashable, Sendable {
-    public let groups: [Group]
+    public let nodes: [MenuNode]
     /// Multi-select: a pick toggles and the menu stays open for the next one
     /// (`UIMenuElement.Attributes.keepsMenuPresented`).
     public let keepsPresented: Bool
 
-    public init(groups: [Group], keepsPresented: Bool = false) {
-      self.groups = groups
+    public init(nodes: [MenuNode], keepsPresented: Bool = false) {
+      self.nodes = nodes
       self.keepsPresented = keepsPresented
     }
 
+    /// A flat single-select list.
     public init(options: [Option], selectedID: String?) {
-      self.init(groups: [Group(title: nil, options: options, selectedID: selectedID)])
+      self.init(nodes: options.map { .option($0, isSelected: $0.id == selectedID) })
     }
   }
 

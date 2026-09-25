@@ -47,6 +47,24 @@ public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable, Sendab
   }
 }
 
+/// kino.pub's quality ids (`GET /v1/references/video-quality`). As a `quality=` filter
+/// the id means "at least": 1 → 32205 films, 2 → 27861, 3 → 26070, 4 → 2737 (2026-09-26).
+public enum VideoQuality: Int, CaseIterable, Hashable, Sendable {
+  case sd480 = 1
+  case hd720 = 2
+  case fullHD1080 = 3
+  case uhd4K = 4
+
+  public var title: String {
+    switch self {
+    case .sd480: "480p"
+    case .hd720: "720p"
+    case .fullHD1080: "1080p"
+    case .uhd4K: "4K"
+    }
+  }
+}
+
 /// A release-year window. Decades rather than a free range: a two-ended numeric
 /// picker is miserable to drive with a remote.
 public struct YearRange: Identifiable, Hashable, Sendable {
@@ -126,10 +144,21 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   /// Popularity window (`day`/`week`/`month`/`year`) — sent server-side.
   public var period: CatalogPeriod?
 
-  /// Minimum Kinopoisk rating (0…10). Applied client-side.
+  /// Kinopoisk rating range (0…10). Sent as `conditions[]=kinopoisk_rating>=…/<=…` —
+  /// the server applies it (verified 2026-09-26: `<=5` → 4831 of 32206 films).
   public var kinopoiskMin: Double?
-  /// Minimum IMDb rating (0…10). Applied client-side.
+  public var kinopoiskMax: Double?
+  /// IMDb rating range, the same way (`imdb_rating>=8` → 794).
   public var imdbMin: Double?
+  public var imdbMax: Double?
+  /// Release years, from–to, as `conditions[]=year>=…/<=…`. Wins over `years`.
+  public var yearFrom: Int?
+  public var yearTo: Int?
+  /// At least this quality — `quality=<id>` (verified: 4 → 2737 films in 4K).
+  public var minimumQuality: VideoQuality?
+  /// Drop titles marked as carrying adverts (`advert`). Applied client-side — the API
+  /// ignores `advert=` (2026-09-26).
+  public var withoutAdverts: Bool = false
   /// Keep items whose advertised height is ≥ 720. Applied client-side.
   public var wantHD: Bool
   /// Keep items whose advertised height is ≥ 2160. Applied client-side.
@@ -199,8 +228,24 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     if finishedOnly {
       params["finished"] = "1"
     }
-    if let years {
+    var conditions: [String] = []
+    if yearFrom != nil || yearTo != nil {
+      if let yearFrom { conditions.append("year>=\(yearFrom)") }
+      if let yearTo { conditions.append("year<=\(yearTo)") }
+    } else if let years {
       params["year"] = years.apiValue
+    }
+    func rating(_ field: String, _ min: Double?, _ max: Double?) {
+      if let min, min > 0 { conditions.append("\(field)>=\(Self.format(min))") }
+      if let max, max < 10 { conditions.append("\(field)<=\(Self.format(max))") }
+    }
+    rating("kinopoisk_rating", kinopoiskMin, kinopoiskMax)
+    rating("imdb_rating", imdbMin, imdbMax)
+    if !conditions.isEmpty {
+      params["conditions[]"] = conditions
+    }
+    if let minimumQuality {
+      params["quality"] = "\(minimumQuality.rawValue)"
     }
     // Popularity window — server-side (not a client facet). Sent for views/watchers
     // rankings; approximating via `created_at` would empty those lists.
@@ -216,6 +261,10 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     return params
   }
 
+  private static func format(_ value: Double) -> String {
+    value == value.rounded() ? String(Int(value)) : String(value)
+  }
+
   /// True when anything other than the default sort is in play.
   public var hasActiveFilters: Bool {
     contentType != nil
@@ -226,25 +275,31 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
       || !genreIDs.isEmpty
       || countryID != nil
       || years != nil
+      || yearFrom != nil
+      || yearTo != nil
       || period != nil
+      || kinopoiskMin != nil
+      || kinopoiskMax != nil
+      || imdbMin != nil
+      || imdbMax != nil
+      || minimumQuality != nil
       || hasClientSideFacets
   }
 
-  /// Facets the server ignores — applied to each fetched page locally.
+  /// Facets the server ignores — applied to each fetched page locally. Ratings are no
+  /// longer among them: `conditions[]` does those on the server.
   public var hasClientSideFacets: Bool {
-    (imdbMin ?? 0) > 0
-      || (kinopoiskMin ?? 0) > 0
-      || wantHD
+    wantHD
       || withoutHD
       || want4K
       || wantAC3
+      || withoutAdverts
   }
 
   /// Applies the client-side-only facets to a fetched item.
   public func clientSideMatches(_ item: MediaItem) -> Bool {
-    if let imdbMin, imdbMin > 0, (item.imdbRating ?? 0) < imdbMin { return false }
-    if let kinopoiskMin, kinopoiskMin > 0, (item.kinopoiskRating ?? 0) < kinopoiskMin { return false }
     if wantAC3, (item.ac3 ?? 0) != 1 { return false }
+    if withoutAdverts, item.advert { return false }
     if want4K, item.quality < 2160 { return false }
     if wantHD, item.quality < 720 { return false }
     if withoutHD, item.quality >= 720 { return false }

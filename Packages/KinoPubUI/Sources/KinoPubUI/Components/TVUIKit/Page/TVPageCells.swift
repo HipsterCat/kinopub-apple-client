@@ -300,32 +300,27 @@ final class TVPageChipCell: UICollectionViewCell {
     return configuration
   }
 
-  /// The system menu for a chip's `Menu`: one inline section or submenu per group, the
-  /// checked options `.on`, and — for a multi-select — every action keeping the menu up.
+  /// The system menu for a chip's `Menu`: options become `UIAction`s (checked ones
+  /// `.on`), sections inline `UIMenu`s, submenus nested `UIMenu`s with a subtitle.
   static func menu(for menu: TVPageChip.Menu, onOption: @escaping (String) -> Void) -> UIMenu {
-    let blocks: [UIMenu] = menu.groups.map { group in
-      let actions = group.options.map { option in
+    func element(_ node: TVPageChip.MenuNode) -> UIMenuElement {
+      switch node {
+      case let .option(option, isSelected):
         var attributes: UIMenuElement.Attributes = []
         if !option.isEnabled { attributes.insert(.disabled) }
         if option.isDestructive { attributes.insert(.destructive) }
         if menu.keepsPresented { attributes.insert(.keepsMenuPresented) }
         return UIAction(title: option.title, attributes: attributes,
-                        state: group.selectedIDs.contains(option.id) ? .on : .off) { _ in onOption(option.id) }
-      }
-      switch group.presentation {
-      case .inline:
-        return UIMenu(title: group.title ?? "", options: .displayInline, children: actions)
-      case .submenu:
-        let submenu = UIMenu(title: group.title ?? "", children: actions)
-        submenu.subtitle = group.subtitle
+                        state: isSelected ? .on : .off) { _ in onOption(option.id) }
+      case let .section(title, children):
+        return UIMenu(title: title ?? "", options: .displayInline, children: children.map(element))
+      case let .submenu(title, subtitle, children):
+        let submenu = UIMenu(title: title, children: children.map(element))
+        submenu.subtitle = subtitle
         return submenu
       }
     }
-    // A single untitled inline group is the menu itself.
-    if blocks.count == 1, menu.groups[0].presentation == .inline, menu.groups[0].title == nil {
-      return UIMenu(children: blocks[0].children)
-    }
-    return UIMenu(children: blocks)
+    return UIMenu(children: menu.nodes.map(element))
   }
 
   /// What the pill's width depends on — not its menu (a genre menu is 115 options).

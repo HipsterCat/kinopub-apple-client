@@ -309,16 +309,9 @@ public enum AudioTracks {
 
   /// Lower sorts earlier. Prefer the API type id when present.
   public static func kindRank(typeId: Int?, typeTitle: String?, typeShortTitle: String?) -> Int {
-    if let typeId {
-      switch typeId {
-      case 1: return 0 // DUB
-      case 2: return 1 // MVO
-      case 3: return 2 // DVO
-      case 4: return 3 // VO
-      case 5: return 4 // AVO
-      case 6: return 5 // Orig
-      default: break
-      }
+    // The API's type id, through the one `VoiceType` table (DUB → … → Orig).
+    if let typeId, let type = VoiceType(rawValue: typeId), type.preferenceRank != kindRankUnknown {
+      return type.preferenceRank
     }
     let blob = [typeTitle, typeShortTitle].compactMap { $0 }.joined(separator: " ")
     if !blob.isEmpty { return kindRank(fromLabel: blob) }

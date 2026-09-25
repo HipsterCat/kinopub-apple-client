@@ -174,10 +174,19 @@ class LibraryCatalog: ObservableObject {
 
   /// Pickers are chrome: if they fail the listing still works, so this never raises.
   private func loadPickerData() async {
+    // kino.pub's public config first: genres labelled by set in its own order, and
+    // countries in its popularity order (docs/providers/kinopub/references.md). The API
+    // lists are the fallback. A single-type catalog keeps only that type's genre set.
+    if let config = await KinoPubConfig.load() {
+      let kind = filter.contentType?.genreKind
+      genres = config.genres.filter { kind == nil || $0.kind == kind }
+      countries = config.countries
+      return
+    }
     async let genresTask = try? itemsService.fetchGenres(for: filter.contentType).items
     async let countriesTask = try? itemsService.fetchCountries().items
     genres = (await genresTask ?? []).sorted { $0.title < $1.title }
-    countries = (await countriesTask ?? []).sorted { $0.title < $1.title }
+    countries = CountryPopularity.sorted(await countriesTask ?? [])
   }
 
   /// A person's credits are the one listing where the same film arrives twice — the 3D

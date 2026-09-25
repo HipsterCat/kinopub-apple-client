@@ -58,9 +58,17 @@ internal class RequestBuilder {
     var request = request
     var components = URLComponents(url: url, resolvingAgainstBaseURL: true)!
     if let parameters = endpoint.parameters {
-      components.queryItems = parameters.sorted(by: { $0.key < $1.key }).map { (key, value) in
-        return URLQueryItem(name: key, value: "\(value)")
+      // An array value is the key repeated — `conditions[]=year>=1990&conditions[]=…`.
+      components.queryItems = parameters.sorted(by: { $0.key < $1.key }).flatMap { (key, value) -> [URLQueryItem] in
+        if let values = value as? [String] {
+          return values.map { URLQueryItem(name: key, value: $0) }
+        }
+        return [URLQueryItem(name: key, value: "\(value)")]
       }
+      // `URLComponents` leaves `=` and `+` alone in a value; a condition like
+      // `year>=1990` has to reach the server as one value.
+      components.percentEncodedQuery = components.percentEncodedQuery?
+        .replacingOccurrences(of: "+", with: "%2B")
     }
     request.url = components.url
     return request

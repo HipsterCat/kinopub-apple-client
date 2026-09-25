@@ -168,9 +168,11 @@ final class CommunityPortTests: XCTestCase {
     XCTAssertTrue(filter4K.clientSideMatches(high))
     XCTAssertFalse(filter4K.clientSideMatches(low))
 
+    // Ratings moved to the server: `conditions[]=kinopoisk_rating>=7.5` (verified live
+    // 2026-09-26), so they are no longer a client-side facet.
     let filterKP = LibraryFilter(kinopoiskMin: 7.5)
-    XCTAssertTrue(filterKP.clientSideMatches(high))
-    XCTAssertFalse(filterKP.clientSideMatches(low))
+    XCTAssertFalse(filterKP.hasClientSideFacets)
+    XCTAssertEqual(filterKP.serverParameters["conditions[]"] as? [String], ["kinopoisk_rating>=7.5"])
 
     let filterAC3 = LibraryFilter(wantAC3: true)
     XCTAssertTrue(filterAC3.clientSideMatches(high))

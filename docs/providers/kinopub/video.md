@@ -484,6 +484,28 @@ GET https://api.service-kp.cnom/v1/items/search?q=termi
 >
 > `type[]=movie&type[]=concert` на `/v1/items` → **502**; только запятые.
 >
+> ### Что ещё фильтруется, а что нет (2026-09-26, `/v1/items?type=movie` = 32206, поиск `ма` = 4013)
+>
+> | Работает | Как |
+> | --- | --- |
+> | диапазон лет | `conditions[]=year>=1990&conditions[]=year<=1999` → 3236 (или `year=1990-1999` → то же) |
+> | рейтинги | `conditions[]=kinopoisk_rating<=5` → 4831, `imdb_rating>=8` → 794; также `rating`, `views`, `created` |
+> | качество «не ниже» | `quality=<id>` из `/v1/references/video-quality` (1=480p, 2=720p, 3=1080p, 4=4K): 32205 / 27861 / 26070 / 2737; `quality=1080` → 0 |
+> | завершённые | `finished=1` |
+>
+> **Игнорируются мобильным API** (итог не меняется ни в каталоге, ни в поиске): язык (`lang`,
+> `audio`, `language`), тип перевода (`voiceType`, `voice_type`, `voiceover_type`…), озвучка
+> (`voiceAuthor`, `voice_author`, `voiceover_author`…), возраст (`age`, `age_rating`), субтитры
+> (`subtitle`, `subtitles`), `period`, `ac3`, `4k`, `hd`, `advert`, а через `conditions[]` —
+> `ac3`, `advert`, `age`, `quality`, `langs`, `finished`. Хосты `api.kinopub.link/v1` и
+> `api.ios-kp.store/api2/v1.1/items` отвечают 404. kino.watch (`?lang=spa&voiceType=4&voiceAuthor=9&age=18`)
+> фильтрует на своём бэкенде. AC3 и реклама есть в каждой карточке списка — их можно отсеять на клиенте.
+>
+> Справочники для этого: `/v1/references/voiceover-type` (1 DUB, 2 MVO, 3 DVO, 4 VO, 5 AVO, 6 Orig, 7 Ai —
+> те же id, что `audio.type.id`) и `/v1/references/voiceover-author` (833). В бандле:
+> `KinoPubBackend/Resources/voiceover-authors.json` в порядке фильтра kino.watch и
+> `country-popularity.json` — порядок стран kino.pub.
+>
 > `GET /v1/genres` **без** `type` отдаёт все 115 жанров, а поле `type` у жанра — это **набор**
 > (`movie` / `docu` / `tvshow` / `music`), не тип контента. Декодировать его как `MediaType` нельзя:
 > `docu` и `music` не типы, и список падал целиком (исправлено: `MediaGenre.kind`).

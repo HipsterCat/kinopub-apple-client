@@ -147,3 +147,24 @@ final class GenreFloorQueryTests: XCTestCase {
     XCTAssertEqual(p["genre"], "34")
   }
 }
+
+/// Ranges go to the server as a repeated `conditions[]` key (verified live 2026-09-26).
+final class ConditionsQueryTests: XCTestCase {
+
+  func testRangesBecomeRepeatedConditions() throws {
+    var filter = LibraryFilter()
+    filter.yearFrom = 1990
+    filter.yearTo = 1999
+    filter.kinopoiskMin = 7
+    filter.imdbMax = 8.5
+    filter.minimumQuality = .uhd4K
+    let builder = RequestBuilder(baseURL: URL(string: "https://api.service-kp.com/")!)
+    let request = try XCTUnwrap(builder.build(with: SearchItemsRequest(query: "ма", filter: filter)))
+    let url = try XCTUnwrap(request.url?.absoluteString)
+    print("CONDITIONS-URL \(url)")
+    let items = URLComponents(string: url)?.queryItems ?? []
+    XCTAssertEqual(items.filter { $0.name == "conditions[]" }.map(\.value),
+                   ["year>=1990", "year<=1999", "kinopoisk_rating>=7", "imdb_rating<=8.5"])
+    XCTAssertEqual(items.first { $0.name == "quality" }?.value, "4")
+  }
+}

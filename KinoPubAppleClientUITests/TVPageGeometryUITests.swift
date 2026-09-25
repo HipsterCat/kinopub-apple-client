@@ -275,24 +275,17 @@ final class TVPageGeometryUITests: XCTestCase {
     press(.down, 4)
     press(.left, 6, wait: 0.4)
     try shoot(app, name: "menu-0-row")
-    press(.select, wait: 1.2)
-    try shoot(app, name: "menu-1-types")
-    // Down onto the first type and toggle it off: the menu has to stay up.
-    press(.down, 1); press(.select, wait: 1.5)
-    try shoot(app, name: "menu-2-type-toggled")
-    press(.menu, wait: 1.5)
-    try shoot(app, name: "menu-3-after-types")
-    press(.right, 1); press(.select, wait: 1.2)
-    try shoot(app, name: "menu-4-genres")
-    press(.down, 2); press(.select, wait: 1.2); press(.down, 1); press(.select, wait: 1.5)
-    try shoot(app, name: "menu-5-genres-picked")
-    press(.menu, wait: 1.5)
-    press(.right, 3); press(.select, wait: 1.2)
-    try shoot(app, name: "menu-6-filters")
-    press(.select, wait: 1.2)
-    try shoot(app, name: "menu-7-filters-submenu")
-    press(.menu, wait: 1.5)
-    try shoot(app, name: "menu-8-closed")
+    press(.select, wait: 1.2); try shoot(app, name: "menu-1-types"); press(.menu, wait: 1.2)
+    press(.right); press(.select, wait: 1.2); try shoot(app, name: "menu-2-genres")
+    press(.down); press(.select, wait: 1.2); try shoot(app, name: "menu-3-genre-set")
+    press(.menu, wait: 1); press(.menu, wait: 1.2)
+    press(.right); press(.select, wait: 1.2); try shoot(app, name: "menu-4-countries"); press(.menu, wait: 1.2)
+    press(.right); press(.select, wait: 1.2); try shoot(app, name: "menu-5-years")
+    press(.select, wait: 1.2); try shoot(app, name: "menu-6-years-from")
+    press(.menu, wait: 1); press(.menu, wait: 1.2)
+    press(.right); press(.select, wait: 1.2); try shoot(app, name: "menu-7-filters")
+    press(.select, wait: 1.2); press(.select, wait: 1.2); try shoot(app, name: "menu-8-kinopoisk")
+    press(.menu, wait: 1); press(.menu, wait: 1); press(.menu, wait: 1.2)
   }
 
   /// Deep into the cards, back up to the keyboard, then Down: focus must go to what is
@@ -383,6 +376,36 @@ final class TVPageGeometryUITests: XCTestCase {
       try shoot(app, name: "query-\(tag)-1")
       app.terminate()
     }
+  }
+
+  /// Picks that must reach the server: years from 2010, Kinopoisk from 7. Shots of the
+  /// chip titles, the submenu subtitles and the results after each.
+  func testSearchFilterPicks() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark", "-KINOPUBSearchQuery", "ма"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    let remote = XCUIRemote.shared
+    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
+      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
+    }
+    press(.left, wait: 3)
+    press(.down, 4); press(.left, 6, wait: 0.4)
+    try shoot(app, name: "pick-0")
+    // Years ▸ С ▸ 2010 (Любой, 2026…2022, 2020, 2010).
+    press(.right, 3); press(.select, wait: 1.2); press(.select, wait: 1.2)
+    press(.down, 7, wait: 0.4); press(.select, wait: 3)
+    try shoot(app, name: "pick-1-years")
+    // Filters ▸ Рейтинги ▸ Кинопоиск ▸ От 7 (Неважно, 5, 6, 7).
+    press(.right); press(.select, wait: 1.2); press(.select, wait: 1.2); press(.select, wait: 1.2)
+    press(.down, 3, wait: 0.4); press(.select, wait: 3)
+    try shoot(app, name: "pick-2-kp")
+    press(.select, wait: 1.2); press(.select, wait: 1.2)
+    try shoot(app, name: "pick-3-ratings-open")
+    press(.menu, wait: 1); press(.menu, wait: 1.5)
   }
 
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
