@@ -284,6 +284,74 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "sort-4-picked")
   }
 
+  /// Deep into the cards, back up to the keyboard, then Down: focus must go to what is
+  /// under the keyboard (suggestions, then the filter row), not jump back to the card it
+  /// left. Read from the focus log — the last "Moving focus" lines of the run.
+  func testSearchFocusDownAfterReturning() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBSearchQuery", "ма", "-UIFocusLoggingEnabled", "YES"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 3)
+    for _ in 0..<4 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.7) }
+    for _ in 0..<4 { XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 0.5) }
+    try shoot(app, name: "return-0-deep")
+    // First card row → filter row → suggestions → keyboard.
+    for _ in 0..<3 { XCUIRemote.shared.press(.up); Thread.sleep(forTimeInterval: 0.7) }
+    try shoot(app, name: "return-1-keyboard")
+    for step in 2...4 {
+      XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.8)
+      try shoot(app, name: "return-\(step)-down")
+    }
+  }
+
+  /// Down through the whole results page with the containers painted: a shot per
+  /// step, to see where cells appear and vanish at the top and bottom edges.
+  func testSearchScrollEdges() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBSearchQuery", "ма"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 3)
+    for step in 0..<7 {
+      XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.35)
+      try shoot(app, name: "edge-down-\(step)")
+    }
+    for step in 0..<7 {
+      XCUIRemote.shared.press(.up); Thread.sleep(forTimeInterval: 0.35)
+      try shoot(app, name: "edge-up-\(step)")
+    }
+  }
+
+  /// The same page at a large Dynamic Type size: captions, card text and the rows'
+  /// heights have to grow together, with the gaps kept.
+  func testSearchLargeText() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark", "-KINOPUBSearchQuery", "ма",
+                            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXL"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 3)
+    for _ in 0..<3 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.6) }
+    try shoot(app, name: "large-0-cards")
+    for _ in 0..<3 { XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 0.6) }
+    try shoot(app, name: "large-1-posters")
+  }
+
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
   /// red, collection blue, sections in rotating colours, cells yellow): shots of the
   /// typed search, the filter row, the cards and a rail scrolled right, to see which

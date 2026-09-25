@@ -201,8 +201,15 @@ struct SearchView: View {
     for role in [MediaPerson.Role.director, .actor] {
       for item in catalog.items {
         let credits = role == .director ? item.director : item.cast
+        // A word of the name starts with the query ("ма" → Мадс, not Томас) — the same
+        // prefix rule kino.pub's type-ahead uses.
         for name in credits.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) })
-        where !name.isEmpty && name.range(of: query, options: options) != nil {
+        // A multi-word query ("мадс мик") matches the name as a whole.
+        where !name.isEmpty && (query.contains(" ")
+          ? name.range(of: query, options: options) != nil
+          : name.split(separator: " ").contains(where: {
+              $0.range(of: query, options: options.union(.anchored)) != nil
+            })) {
           guard seen.insert(name.lowercased()).inserted else { continue }
           out.append(MediaPerson(name: name, role: role))
         }
@@ -246,21 +253,22 @@ struct SearchView: View {
     }
     // Browsing (empty field): the catalog in the chosen order, as one grid.
     guard !trimmedQuery.isEmpty else {
-      return [filters, .posters(id: "browse", title: nil, flow: .grid, cards: results)]
+      return [filters, .posters(id: "browse", title: nil, flow: .grid, caption: .always, cards: results)]
     }
     // A type narrows to one kind — one grid under the cards. No type splits by kind
     // into rails, the way the TV app files results.
     let cards = topCards(from: results)
     guard catalog.filter.contentType == nil else {
-      return [filters, cards, .posters(id: "results", title: nil, flow: .grid, cards: results)].compactMap { $0 }
+      return [filters, cards, .posters(id: "results", title: nil, flow: .grid, caption: .always, cards: results)]
+        .compactMap { $0 }
     }
     let movies = results.filter { !$0.isSeries }
     let series = results.filter(\.isSeries)
     return [
       filters,
       cards,
-      movies.isEmpty ? nil : TVPageSection.posters(id: "movies", title: "Movies".localized, cards: movies),
-      series.isEmpty ? nil : TVPageSection.posters(id: "series", title: "Series".localized, cards: series)
+      movies.isEmpty ? nil : TVPageSection.posters(id: "movies", title: "Movies".localized, caption: .always, cards: movies),
+      series.isEmpty ? nil : TVPageSection.posters(id: "series", title: "Series".localized, caption: .always, cards: series)
     ].compactMap { $0 }
   }
 

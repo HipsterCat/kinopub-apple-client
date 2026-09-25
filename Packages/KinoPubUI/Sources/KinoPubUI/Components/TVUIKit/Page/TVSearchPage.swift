@@ -108,6 +108,7 @@ public struct TVSearchPage: UIViewControllerRepresentable {
     let results = TVPageCollectionViewController()
     results.accessibilityID = "kinopub.page.search"
     results.claimsInitialFocus = false
+    results.remembersFocus = false
     let search = UISearchController(searchResultsController: results)
     search.searchResultsUpdater = context.coordinator
     // Never take the search bar's delegate: the search controller drives its tvOS

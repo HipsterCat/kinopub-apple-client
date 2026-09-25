@@ -67,7 +67,7 @@ public final class TVPageCollectionViewController: UIViewController {
     view.backgroundColor = .clear
     view.clipsToBounds = false
     view.showsVerticalScrollIndicator = false
-    view.remembersLastFocusedIndexPath = true
+    view.remembersLastFocusedIndexPath = true  // see `remembersFocus`
     // The safe area (the tab bar's region on top) is applied by the system: the tab bar
     // controller hides and reveals the bar from the *adjusted* insets of the scroll view
     // it observes, and opting out of the adjustment left the bar pinned. Horizontal
@@ -100,11 +100,14 @@ public final class TVPageCollectionViewController: UIViewController {
     statusView.translatesAutoresizingMaskIntoConstraints = false
     statusView.onRetry = { [weak self] in self?.onRetry?() }
     view.addSubview(statusView)
-    NSLayoutConstraint.activate([
+    let edges = [
       collectionView.topAnchor.constraint(equalTo: view.topAnchor),
       collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      view.trailingAnchor.constraint(equalTo: collectionView.trailingAnchor),
+      view.bottomAnchor.constraint(equalTo: collectionView.bottomAnchor)
+    ]
+    windowExtension = edges
+    NSLayoutConstraint.activate(edges + [
       statusView.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
       statusView.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor)
     ])
@@ -116,6 +119,12 @@ public final class TVPageCollectionViewController: UIViewController {
       collectionView.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
       collectionView.layer.borderColor = UIColor.systemBlue.cgColor
       collectionView.layer.borderWidth = 3
+    }
+
+    collectionView.remembersLastFocusedIndexPath = remembersFocus
+    // Dynamic Type: captions and card text change height, so every recipe is re-measured.
+    registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _) in
+      self.collectionView.collectionViewLayout.invalidateLayout()
     }
 
     configureDataSource()
@@ -135,7 +144,42 @@ public final class TVPageCollectionViewController: UIViewController {
 
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    extendToWindow()
     updateAdjustedLeading()
+    if DebugLaunch.layoutDebug {
+      NSLog("PAGEPROBE %@ view=%@ collection=%@ adjusted=%@ safe=%@", accessibilityID ?? "-",
+            NSCoder.string(for: view.convert(view.bounds, to: nil)),
+            NSCoder.string(for: collectionView.convert(collectionView.bounds, to: nil)),
+            NSCoder.string(for: collectionView.adjustedContentInset),
+            NSCoder.string(for: collectionView.safeAreaInsets))
+    }
+  }
+
+  /// top, leading, trailing, bottom — the collection's edges against the page's view.
+  private var windowExtension: [NSLayoutConstraint] = []
+
+  /// The collection covers the whole window even when its controller does not. A
+  /// collection view keeps a cell only while it is inside its *bounds*; the search
+  /// container lays its results out from y = 157 (under the field), so a card scrolling
+  /// up was dropped there — still in plain sight, since nothing clips — and the band
+  /// above went blank (2026-09-26). Out to the window edges, cells live exactly as long
+  /// as they are on screen. The same amount goes back in as content inset (the automatic
+  /// one did not grow — measured: the filter row landed on the suggestion row), so the
+  /// content stays where it was.
+  private func extendToWindow() {
+    guard let window = view.window, windowExtension.count == 4 else { return }
+    let frame = view.convert(view.bounds, to: window)
+    // How far each edge sits inside the window. Every constraint takes the negative:
+    // top / leading are collection→view, trailing / bottom view→collection, so a
+    // negative constant moves each edge outward.
+    let wanted = [frame.minY, frame.minX,
+                  window.bounds.maxX - frame.maxX, window.bounds.maxY - frame.maxY].map { -max($0, 0) }
+    var changed = false
+    for (constraint, constant) in zip(windowExtension, wanted) where abs(constraint.constant - constant) > 0.5 {
+      constraint.constant = constant
+      changed = true
+    }
+    if changed { updateContentInsets() }
   }
 
   /// How far the collection's content already starts from the screen's leading edge:
@@ -144,7 +188,8 @@ public final class TVPageCollectionViewController: UIViewController {
   /// adjusted inset. A tab page is full screen with neither.
   private func updateAdjustedLeading() {
     guard view.window != nil else { return }
-    let leading = view.convert(view.bounds.origin, to: nil).x + collectionView.adjustedContentInset.left
+    let leading = collectionView.convert(collectionView.bounds.origin, to: nil).x - collectionView.contentOffset.x
+      + collectionView.adjustedContentInset.left
     guard abs(leading - adjustedLeading) > 0.5 else { return }
     adjustedLeading = leading
     collectionView.collectionViewLayout.invalidateLayout()
@@ -223,7 +268,12 @@ public final class TVPageCollectionViewController: UIViewController {
   /// arrives as the adjusted top inset, so the first row starts right under it and
   /// scrolls beneath it. Ours is only the HIG 60 pt bottom page inset.
   private func updateContentInsets() {
-    let insets = UIEdgeInsets(top: 0, left: 0, bottom: TVHIGGrid.verticalInset, right: 0)
+    // The window extension comes back as content inset, so the first row starts where
+    // the page's own view starts — the extension only keeps cells alive past it.
+    let extended = windowExtension.map { -$0.constant }
+    let top = extended.first ?? 0
+    let bottom = extended.count == 4 ? extended[3] : 0
+    let insets = UIEdgeInsets(top: top, left: 0, bottom: TVHIGGrid.verticalInset + bottom, right: 0)
     guard collectionView.contentInset != insets else { return }
     collectionView.contentInset = insets
   }
@@ -403,6 +453,14 @@ public final class TVPageCollectionViewController: UIViewController {
   /// results under the keyboard: preferring the collection there pulled Down from the
   /// tab bar straight into the first poster, past the keyboard, suggestions and scope.
   public var claimsInitialFocus = true
+
+  /// Coming back into the page lands on the card it was left from — what a tab page
+  /// wants from the tab bar. Off for search: its filter row lives in the same
+  /// collection, and Down from the keyboard jumped past the filters straight to the
+  /// last card scrolled to (2026-09-26); there focus should go to what is below.
+  public var remembersFocus = true {
+    didSet { if isViewLoaded { collectionView.remembersLastFocusedIndexPath = remembersFocus } }
+  }
 
   public override var preferredFocusEnvironments: [UIFocusEnvironment] {
     guard claimsInitialFocus else { return super.preferredFocusEnvironments }

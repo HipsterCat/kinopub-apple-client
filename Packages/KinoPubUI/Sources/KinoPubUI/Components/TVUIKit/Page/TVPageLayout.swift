@@ -41,7 +41,12 @@ public enum TVPageLayout {
   /// A wide text card: the title's poster fills the platter's leading edge top to
   /// bottom, so the card is as tall as that thumbnail; a person's circle sits inside it
   /// with `cardPadding` around. The width is the column's, like every other card.
-  public static let cardHeight: CGFloat = 160
+  /// 160 at the default text size, scaled with Dynamic Type like the text inside it.
+  @MainActor
+  public static var cardHeight: CGFloat {
+    let traits = UITraitCollection(preferredContentSizeCategory: TVPageCellMetrics.contentSizeCategory)
+    return UIFontMetrics(forTextStyle: .body).scaledValue(for: 160, compatibleWith: traits).rounded()
+  }
   public static let cardPadding: CGFloat = 16
 
   /// The layout for one page: a section provider that resolves the section at that
@@ -151,7 +156,8 @@ public enum TVPageLayout {
     let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.orthogonalScrollingBehavior = .continuous
     layoutSection.interGroupSpacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
-    layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil)
+    layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil,
+                                         captioned: hasStandingCaption(section))
     return layoutSection
   }
 
@@ -178,9 +184,11 @@ public enum TVPageLayout {
     )
     group.interItemSpacing = .fixed(TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing)
     let layoutSection = NSCollectionLayoutSection(group: group)
-    layoutSection.interGroupSpacing = gridRowSpacing + recipe.belowItem
-      - recipe.artInsets.top - recipe.artInsets.bottom
-    layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil)
+    layoutSection.interGroupSpacing = hasStandingCaption(section)
+      ? captionedRowGap
+      : gridRowSpacing + recipe.belowItem - recipe.artInsets.top - recipe.artInsets.bottom
+    layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil,
+                                         captioned: hasStandingCaption(section))
     return layoutSection
   }
 
@@ -252,14 +260,30 @@ public enum TVPageLayout {
   /// below the item).
   private static func insets(for recipe: TVPageCellRecipe,
                              sideInset: CGFloat,
-                             titled: Bool) -> NSDirectionalEdgeInsets {
+                             titled: Bool,
+                             captioned: Bool = false) -> NSDirectionalEdgeInsets {
     let top = titled ? TVHIGGrid.headerToItems : TVHIGGrid.focusRoom(cardHeight: recipe.itemSize.height)
+    // A caption that is always drawn sits inside the envelope's bottom (the lockup's
+    // footer, which also drops with the focus lift). Measuring the row gap from the art
+    // let that caption eat it and touch the next row's title (2026-09-26); from the
+    // envelope, the text keeps clear air under it at any Dynamic Type size.
+    let bottom = captioned
+      ? captionedRowGap
+      : TVHIGGrid.titledRowGap + recipe.belowItem - recipe.artInsets.bottom
     return NSDirectionalEdgeInsets(
       top: max(top - recipe.artInsets.top, 0),
       leading: max(sideInset - recipe.artInsets.leading, 0),
-      bottom: max(TVHIGGrid.titledRowGap + recipe.belowItem - recipe.artInsets.bottom, 0),
+      bottom: max(bottom, 0),
       trailing: max(sideInset - recipe.artInsets.trailing, 0)
     )
+  }
+
+  /// Air under a row whose captions always show, from the bottom of its envelopes
+  /// (caption and focus drop included) to the next row's title or cards.
+  public static let captionedRowGap: CGFloat = 48
+
+  private static func hasStandingCaption(_ section: TVPageSection) -> Bool {
+    section.kind == .poster && section.caption == .always
   }
 
   private static var fallback: NSCollectionLayoutSection {
@@ -303,12 +327,20 @@ public enum TVPageCellMetrics {
     let kind: TVPageCellKind
     let width: CGFloat
     let caption: TVPageCaption
+    /// Text size: a caption under a poster, the lines in a card, grow with it.
+    let category: UIContentSizeCategory
+  }
+
+  /// The app's Dynamic Type size — one setting for the whole screen on tvOS.
+  static var contentSizeCategory: UIContentSizeCategory {
+    UIApplication.shared.preferredContentSizeCategory
   }
 
   private static var cache: [Key: TVPageCellRecipe] = [:]
 
   public static func recipe(kind: TVPageCellKind, artWidth: CGFloat, caption: TVPageCaption) -> TVPageCellRecipe {
-    let key = Key(kind: kind, width: artWidth.rounded(), caption: kind == .poster ? caption : .always)
+    let key = Key(kind: kind, width: artWidth.rounded(), caption: kind == .poster ? caption : .always,
+                  category: contentSizeCategory)
     if let cached = cache[key] { return cached }
     let recipe: TVPageCellRecipe
     switch kind {
@@ -339,6 +371,7 @@ public enum TVPageCellMetrics {
     var landed = CGRect.zero
     for _ in 0..<3 {
       let probe = TVPosterView(image: TVUIKitTileArtwork.placeholder(size: contentSize))
+      probe.traitOverrides.preferredContentSizeCategory = contentSizeCategory
       probe.contentSize = contentSize
       probe.title = caption == .never ? nil : "Ag"
       probe.contentViewInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: -TVPageLockupPosterCell.footerGap, trailing: 0)
@@ -438,7 +471,9 @@ public enum TVPageCellMetrics {
   /// layout hands out is cached first, so this is a hit for any cell on screen.
   public static func recipe(kind: TVPageCellKind, itemWidth: CGFloat, caption: TVPageCaption) -> TVPageCellRecipe {
     let captionKey: TVPageCaption = kind == .poster ? caption : .always
+    let category = contentSizeCategory
     if let hit = cache.first(where: { $0.key.kind == kind && $0.key.caption == captionKey
+                                        && $0.key.category == category
                                         && abs($0.value.itemSize.width - itemWidth) < 1 }) {
       return hit.value
     }
