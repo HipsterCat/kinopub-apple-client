@@ -178,6 +178,15 @@ struct SearchView: View {
     return !query.isEmpty && !catalog.isSearching ? query : nil
   }
 
+  /// Under the first letters: titles on the device's shelves that match but are not in
+  /// the listing — kept apart from it (see `SearchLetterFilter`).
+  private var tvOtherResults: [MediaCard] {
+    guard let letters = letterFilter else { return [] }
+    return SearchLetterFilter.split(loaded: catalog.items.map { MediaCard($0) },
+                                    elsewhere: localMatches(letters, prefix: true),
+                                    letters: letters).others
+  }
+
   private func localMatches(_ query: String, prefix: Bool) -> [MediaCard] {
     guard !query.isEmpty else { return [] }
     var seen = Set<Int>()
@@ -199,9 +208,7 @@ struct SearchView: View {
   private var tvResults: [MediaCard] {
     let server = catalog.items.map { MediaCard($0) }
     if let letters = letterFilter {
-      let loaded = server.filter { $0.hasWord(startingWith: letters) }
-      let ids = Set(loaded.map(\.itemID))
-      return loaded + localMatches(letters, prefix: true).filter { !ids.contains($0.itemID) }
+      return SearchLetterFilter.split(loaded: server, elsewhere: [], letters: letters).matches
     }
     // Local titles only while the server's answer is the whole search: no type, and
     // every field (a shelf card cannot say whether a name matched its cast).
@@ -285,6 +292,17 @@ struct SearchView: View {
   private var tvSections: [TVPageSection] {
     let results = tvResults
     let filters = TVSearchFilters.row(catalog: catalog, searching: catalog.isSearching)
+    // The first letters: the listing's matches, then — apart, under a title, so a
+    // filtered listing is never diluted — what else on the device matches.
+    if letterFilter != nil {
+      let others = tvOtherResults
+      return [
+        filters,
+        results.isEmpty ? nil : TVPageSection.posters(id: "browse", title: nil, flow: .grid, caption: .always, cards: results),
+        others.isEmpty ? nil : TVPageSection.posters(id: "others", title: "Other Results".localized, flow: .grid,
+                                                     caption: .always, cards: others)
+      ].compactMap { $0 }
+    }
     if results.isEmpty {
       // The filter row stays over "No Results" / a failed load: a filter or sort that
       // emptied the page is undone from there (`TVPageStatus` shows under chip rows).
@@ -341,7 +359,8 @@ struct SearchView: View {
       if !catalog.isSearching, letterFilter == nil, catalog.filter.hasActiveFilters {
         return .message("Nothing Matches These Filters".localized)
       }
-      if catalog.isSearching || letterFilter != nil { return .message("No Results".localized) }
+      if catalog.isSearching { return .message("No Results".localized) }
+      if letterFilter != nil, tvOtherResults.isEmpty { return .message("No Results".localized) }
     }
     return .content
   }
@@ -583,9 +602,8 @@ enum TVSearchFilters {
   static let clear = "clear"
   /// Where a typed query looks (`field=`): everywhere (three requests, see
   /// `LibraryCatalog.searchesEveryField`), or titles / actors / directors alone.
-  private static let scopes: [(field: SearchItemsRequest.Field, titleKey: String, optionKey: String)] = [
-    (.title, "Scope_Titles", "Scope_TitlesOnly"), (.cast, "Scope_Actors", "Scope_InActors"),
-    (.director, "Scope_Directors", "Scope_InDirectors")
+  private static let scopes: [(field: SearchItemsRequest.Field, optionKey: String)] = [
+    (.title, "Scope_TitlesOnly"), (.cast, "Scope_InActors"), (.director, "Scope_InDirectors")
   ]
 
   /// The kinds on — empty is "Все".
@@ -686,7 +704,8 @@ enum TVSearchFilters {
       let current = catalog.searchField
       let scopeChip = TVPageChip(
         id: scope,
-        title: scopes.first { $0.field == current }?.titleKey.localized ?? "Scope_Everywhere_Title".localized,
+        // The pick itself, as the menu words it.
+        title: scopes.first { $0.field == current }?.optionKey.localized ?? "Scope_Everywhere".localized,
         menu: .init(nodes: [option("scope.all", "Scope_Everywhere".localized, current == nil)]
                       + scopes.map { option("scope.\($0.field.rawValue)", $0.optionKey.localized, current == $0.field) }),
         isActive: current != nil
@@ -1006,16 +1025,6 @@ enum SearchHistory {
 }
 
 private extension MediaCard {
-  /// A word of the title or original title starts with `letters` ("та" → "Табу",
-  /// "Звезда не того масштаба" no), ignoring case and diacritics.
-  func hasWord(startingWith letters: String) -> Bool {
-    let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .anchored]
-    return [title, subtitle ?? ""].contains { text in
-      text.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-        .contains { $0.range(of: letters, options: options) != nil }
-    }
-  }
-
   /// Title or original title contains the query, ignoring case and diacritics
   /// ("ё" finds "е", "Вильнев" finds "Вильнёв").
   func matchesSearch(_ query: String) -> Bool {

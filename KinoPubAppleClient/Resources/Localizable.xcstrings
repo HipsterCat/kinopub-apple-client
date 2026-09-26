@@ -1,6 +1,24 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Other Results" : {
+      "comment" : "Search, first letters: device titles that match but are outside the filtered listing",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other Results"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другие результаты"
+          }
+        }
+      }
+    },
     "Scope_InDirectors" : {
       "comment" : "Search scope menu: director names",
       "extractionState" : "manual",
@@ -69,24 +87,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Искать совпадения везде"
-          }
-        }
-      }
-    },
-    "Scope_Everywhere_Title" : {
-      "comment" : "Search scope pull-down title while searching everywhere",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Titles, Actors, Directors"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Названия, актёры, режиссёры"
           }
         }
       }
@@ -7583,60 +7583,6 @@
     },
     "Saved. Changes take effect within a minute." : {
 
-    },
-    "Scope_Actors" : {
-      "comment" : "Search scope: actors only",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Actors"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Актёры"
-          }
-        }
-      }
-    },
-    "Scope_Directors" : {
-      "comment" : "Search scope: directors only",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Directors"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Режиссёры"
-          }
-        }
-      }
-    },
-    "Scope_Titles" : {
-      "comment" : "Search scope: titles only",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Titles"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Названия"
-          }
-        }
-      }
     },
     "Scratch files from relabeling audio tracks in older builds. These are already swept on every launch." : {
 

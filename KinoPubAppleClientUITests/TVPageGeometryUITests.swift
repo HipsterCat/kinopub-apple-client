@@ -401,6 +401,25 @@ final class TVPageGeometryUITests: XCTestCase {
     app.terminate()
   }
 
+  /// Two letters over a filtered listing (Аниме): the listing's matches only, and the
+  /// device's other matches apart, under "Другие результаты".
+  func testSearchLettersKeepFilters() throws {
+    let app = launchSearch(["-KINOPUBSearchQuery", "та"])
+    press(.left, wait: 3)
+    try shoot(app, name: "letters-0-all")
+    press(.down, 4); press(.left, 8, wait: 0.4)
+    press(.right, 2); press(.select, wait: 1.2)                    // Тип
+    press(.down, 7, wait: 0.35); press(.select, wait: 1)           // Аниме (under Все + 5 types + divider)
+    try shoot(app, name: "letters-1-type-menu")
+    press(.menu, wait: 5)
+    try shoot(app, name: "letters-2-anime")
+    for step in 3...5 {
+      press(.down, wait: 1.2)
+      try shoot(app, name: "letters-\(step)")
+    }
+    app.terminate()
+  }
+
   /// The filter row's picks survive a relaunch; the query does not.
   func testSearchFiltersPersist() throws {
     var app = launchSearch([])

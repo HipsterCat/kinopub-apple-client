@@ -346,7 +346,9 @@ class LibraryCatalog: ObservableObject {
       }
       .removeDuplicates()
       .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
-      .sink { [weak self] _ in
+      .sink { [weak self] text in
+        // Where to look is per search: a cleared field starts the next one everywhere.
+        if text.isEmpty { self?.searchField = nil }
         Task { await self?.refresh() }
       }.store(in: &bag)
   }
