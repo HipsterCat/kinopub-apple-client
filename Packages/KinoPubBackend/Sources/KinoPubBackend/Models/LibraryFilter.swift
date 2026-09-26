@@ -49,6 +49,12 @@ public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable, Sendab
 
 /// kino.pub's quality ids (`GET /v1/references/video-quality`). As a `quality=` filter
 /// the id means "at least": 1 → 32205 films, 2 → 27861, 3 → 26070, 4 → 2737 (2026-09-26).
+/// A series' run — the `finished` parameter.
+public enum SeriesStatus: Int, CaseIterable, Hashable, Sendable {
+  case airing = 0
+  case finished = 1
+}
+
 public enum VideoQuality: Int, CaseIterable, Hashable, Sendable {
   case sd480 = 1
   case hd720 = 2
@@ -139,9 +145,11 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   public var countryID: Int?
   /// Several countries at once — a comma is OR on `country`, like on `genre`.
   public var countryIDs: Set<Int> = []
-  /// `finished=1` — completed series only. `finished=0` is ignored by the server
-  /// (same total with and without it, 2026-09-26), so there is no "ongoing" filter.
-  public var finishedOnly: Bool = false
+  /// `finished=0` airing / `finished=1` ended; `nil` sends nothing — any. `0` is what
+  /// kino.pub's own web client sends for "В эфире", but on 2026-09-26 the server
+  /// answered it exactly as without the parameter (serials 7961 either way; ended
+  /// titles on its pages) — sent as the site sends it, in case that changes.
+  public var seriesStatus: SeriesStatus?
   public var years: YearRange?
   /// Set for a person's credits, which are the same listing narrowed to one name.
   public var person: MediaPerson?
@@ -236,8 +244,8 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     } else if let countryID {
       params["country"] = "\(countryID)"
     }
-    if finishedOnly {
-      params["finished"] = "1"
+    if let seriesStatus {
+      params["finished"] = "\(seriesStatus.rawValue)"
     }
     var conditions: [String] = []
     if yearFrom != nil || yearTo != nil {
@@ -282,7 +290,7 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
       || !contentTypes.isEmpty
       || !kinds.isEmpty
       || !countryIDs.isEmpty
-      || finishedOnly
+      || seriesStatus != nil
       || genreID != nil
       || !genreIDs.isEmpty
       || countryID != nil

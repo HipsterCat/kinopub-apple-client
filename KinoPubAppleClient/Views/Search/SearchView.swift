@@ -37,6 +37,7 @@ struct SearchView: View {
   /// kino.pub's own type-ahead for the typed text (`/v1.1/autocomplete`) — the
   /// suggestion row's completions. Empty offline; local titles stand in then.
   @State private var tvAutocomplete: [SearchAutocompleteEntry] = []
+  @Environment(\.scenePhase) private var scenePhase
 #endif
   @State private var navigationTitleText: String = "Search".localized
 
@@ -143,6 +144,11 @@ struct SearchView: View {
       }
       .onChange(of: searchFieldText) { _, newValue in
         handleSearchFieldChange(newValue)
+      }
+      // Typed text lives for one visit: coming back to the app is the library again —
+      // its filters and sort kept, the query gone (recents keep it one press away).
+      .onChange(of: scenePhase) { _, phase in
+        if phase == .background { searchFieldText = "" }
       }
       .task(id: trimmedQuery) {
         // Type-ahead after a short pause in typing; a new keystroke cancels this task.
@@ -622,7 +628,7 @@ enum TVSearchFilters {
       title: "Filters".localized,
       systemImage: "line.3.horizontal.decrease",
       menu: .init(nodes: facetNodes(filter, episodic: kinds.isEmpty || kinds.contains(where: \.isEpisodic))),
-      isActive: filter.finishedOnly || filter.minimumQuality != nil
+      isActive: filter.seriesStatus != nil || filter.minimumQuality != nil
         || filter.kinopoiskMin != nil || filter.kinopoiskMax != nil
         || filter.imdbMin != nil || filter.imdbMax != nil
     )
@@ -759,13 +765,14 @@ enum TVSearchFilters {
     // Only what the server filters: no AC3 / adverts facets (the API ignores both; a
     // client-side filter breaks paging), "finished only" while an episodic type is on.
     var nodes: [TVPageChip.MenuNode] = [ratings, quality]
-    // Статус ▸ Окончен — one pick, undone by picking it again; no default. "В эфире"
-    // is not offered: the API cannot select running series (`finished=0` and every
-    // other spelling is ignored, 2026-09-26) and we do not filter on the client.
+    // Статус ▸ В эфире / Окончен — one pick, undone by picking it again; no default
+    // (nothing sent is any status).
     if episodic {
       nodes.append(.submenu(title: "Filter_Status".localized,
-                            subtitle: filter.finishedOnly ? "Status_Finished".localized : nil,
-                            children: [option("finished", "Status_Finished".localized, filter.finishedOnly)]))
+                            subtitle: filter.seriesStatus?.titleKey.localized,
+                            children: SeriesStatus.allCases.map {
+                              option("status.\($0.rawValue)", $0.titleKey.localized, filter.seriesStatus == $0)
+                            }))
     }
     return nodes
   }
@@ -823,7 +830,7 @@ enum TVSearchFilters {
         // A preset owns the `genre` parameter — its genre chip is gone, and so are picks.
         filter.genreIDs = kinds.contains { $0.axis == .genre } ? [] : filter.genreIDs.filter(applicable.contains)
         filter.genreID = nil
-        if !kinds.isEmpty, !kinds.contains(where: \.isEpisodic) { filter.finishedOnly = false }
+        if !kinds.isEmpty, !kinds.contains(where: \.isEpisodic) { filter.seriesStatus = nil }
       }
     case genre:
       catalog.update { filter in
@@ -842,14 +849,12 @@ enum TVSearchFilters {
 
   @MainActor
   private static func applyFacet(_ option: String, to catalog: LibraryCatalog) {
-    switch option {
-    case "finished":
-      catalog.update { $0.finishedOnly.toggle() }
-      return
-    default:
-      break
-    }
     let parts = option.split(separator: ".").map(String.init)
+    if parts.count == 2, parts[0] == "status" {
+      let picked = Int(parts[1]).flatMap(SeriesStatus.init(rawValue:))
+      catalog.update { $0.seriesStatus = $0.seriesStatus == picked ? nil : picked }
+      return
+    }
     if parts.count == 2, parts[0] == "q" {
       let picked = Int(parts[1]).flatMap(VideoQuality.init(rawValue:))
       catalog.update { $0.minimumQuality = $0.minimumQuality == picked ? nil : picked }
@@ -874,6 +879,15 @@ enum TVSearchFilters {
       if let lo = filter.imdbMin, let hi = filter.imdbMax, lo > hi {
         if parts[1] == "min" { filter.imdbMax = lo } else { filter.imdbMin = hi }
       }
+    }
+  }
+}
+
+extension SeriesStatus {
+  var titleKey: String {
+    switch self {
+    case .airing: "Status_Airing"
+    case .finished: "Status_Finished"
     }
   }
 }

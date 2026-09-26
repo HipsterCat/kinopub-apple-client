@@ -1,6 +1,24 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Status_Airing" : {
+      "comment" : "Series status filter option: still running or being filmed",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Airing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В эфире, снимается"
+          }
+        }
+      }
+    },
     "Status_Finished" : {
       "comment" : "Series status filter option: the show has ended",
       "extractionState" : "manual",

@@ -490,11 +490,17 @@ final class TVPageGeometryUITests: XCTestCase {
       try shoot(app, name: "type-\(scheme)-4-ratings")
       press(.menu, wait: 1); press(.down, 2); press(.select, wait: 1.2)
       try shoot(app, name: "type-\(scheme)-4b-status")
-      press(.menu, wait: 1); press(.menu, wait: 1.2)
+      press(.right, wait: 1); press(.select, wait: 1.2)   // В эфире
+      try shoot(app, name: "type-\(scheme)-4c-airing")   // a pick closes the menu
       press(.left, 5, wait: 0.5)
       try shoot(app, name: "type-\(scheme)-5-clear-focused")
       press(.select, wait: 3)
       try shoot(app, name: "type-\(scheme)-6-cleared")
+      // Away and back: the typed text is gone, the library (and its filters) stays.
+      press(.home, wait: 3)
+      app.activate()
+      Thread.sleep(forTimeInterval: 3)
+      try shoot(app, name: "type-\(scheme)-7-reopened")
       app.terminate()
     }
   }

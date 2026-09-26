@@ -90,8 +90,8 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
                                               decodingType: HistoryData.self)
   }
 
-  func fetchItems(filter: LibraryFilter, page: Int?) async throws -> PaginatedData<MediaItem> {
-    let request = ItemsRequest(filter: filter, page: page)
+  func fetchItems(filter: LibraryFilter, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
+    let request = ItemsRequest(filter: filter, page: page, perPage: perPage)
     var response = try await apiClient.performRequest(
       with: request,
       decodingType: PaginatedData<MediaItem>.self

@@ -10,10 +10,13 @@ public struct ItemsRequest: Endpoint {
 
   private let filter: LibraryFilter
   private let page: Int?
+  /// `perpage` — the server's default is 50.
+  private let perPage: Int?
 
-  public init(filter: LibraryFilter, page: Int? = nil) {
+  public init(filter: LibraryFilter, page: Int? = nil, perPage: Int? = nil) {
     self.filter = filter
     self.page = page
+    self.perPage = perPage
   }
 
   public var path: String {
@@ -29,6 +32,9 @@ public struct ItemsRequest: Endpoint {
     params["sort"] = filter.sort.apiValue
     if let page {
       params["page"] = "\(page)"
+    }
+    if let perPage {
+      params["perpage"] = "\(perPage)"
     }
     return params
   }

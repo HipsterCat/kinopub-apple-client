@@ -491,7 +491,7 @@ GET https://api.service-kp.cnom/v1/items/search?q=termi
 > | диапазон лет | `conditions[]=year>=1990&conditions[]=year<=1999` → 3236 (или `year=1990-1999` → то же) |
 > | рейтинги | `conditions[]=kinopoisk_rating<=5` → 4831, `imdb_rating>=8` → 794; также `rating`, `views`, `created` |
 > | качество «не ниже» | `quality=<id>` из `/v1/references/video-quality` (1=480p, 2=720p, 3=1080p, 4=4K): 32205 / 27861 / 26070 / 2737; `quality=1080` → 0 |
-> | завершённые | `finished=<что угодно>`: `1`, `y`, `n` дают одно и то же (сериалы 7960 → 4703) — сервер смотрит на наличие параметра; `finished=0` и `finished=` игнорируются, «идущих» не выбрать: `ongoing`, `status`, `in_production`, `not_finished`, `unfinished`, `conditions[]=finished=0` / `<1` / `!=1` — без эффекта (сериалы 7961, 2026-09-26) |
+> | завершённые | `finished=<что угодно>`: `1`, `y`, `n` дают одно и то же (сериалы 7960 → 4703) — сервер смотрит на наличие параметра; `finished=0` и `finished=` игнорируются, «идущих» не выбрать: `ongoing`, `status`, `in_production`, `not_finished`, `unfinished`, `conditions[]=finished=0` / `<1` / `!=1` — без эффекта (сериалы 7961, 2026-09-26). Веб-клиент kino.pub шлёт `finished=0` для «В эфире» (`items?genre=25&country=&finished=0&perpage=20&page=1` на `api.boramoraboom.ru`), но и там итог тот же, что без параметра (аниме 1733, с `finished=1` — 517), а на 5-й странице `type=serial&finished=0` 7 из 20 — окончены. Мы шлём `0` так же, как сайт |
 >
 > **Игнорируются мобильным API** (итог не меняется ни в каталоге, ни в поиске): язык (`lang`,
 > `audio`, `language`), тип перевода (`voiceType`, `voice_type`, `voiceover_type`…), озвучка

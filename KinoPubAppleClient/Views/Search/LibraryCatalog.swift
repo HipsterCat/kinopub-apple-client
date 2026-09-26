@@ -72,6 +72,7 @@ class LibraryCatalog: ObservableObject {
     return PaginationState(phase: .complete, loadedCount: items.count)
   }
   @Published public var query: String = ""
+  static let pageSize = 20
   @Published public var filter: LibraryFilter = LibraryFilter()
 
   /// Picker contents, loaded once the user is authorized.
@@ -134,16 +135,18 @@ class LibraryCatalog: ObservableObject {
     defer { isLoading = false }
 
     do {
-      let page = pagination.map { $0.current + 1 }
+      // Page 1 stated, 20 a page — the server's default page is 50, more than a screen
+      // of results needs before the next page is asked for.
+      let page = pagination.map { $0.current + 1 } ?? 1
       let data: PaginatedData<MediaItem>
       if isSearching {
         // The search endpoint takes the catalog's filters (and would take a sort — the
         // UI offers none, a query is ranked by relevance as on the site; verified live
         // 2026-09-26).
         data = try await itemsService.search(query: query, filter: filter, sort: nil,
-                                             page: page, perPage: nil)
+                                             page: page, perPage: Self.pageSize)
       } else {
-        data = try await itemsService.fetchItems(filter: filter, page: page)
+        data = try await itemsService.fetchItems(filter: filter, page: page, perPage: Self.pageSize)
       }
       handle(data, isFirstPage: isFirstPage)
       loadFailed = false
@@ -192,7 +195,12 @@ class LibraryCatalog: ObservableObject {
   /// exactly those entries. Collapsing runs over everything loaded so far, since the
   /// second copy of a film can land a page later.
   private func handle(_ data: PaginatedData<MediaItem>, isFirstPage: Bool) {
-    let loaded = isFirstPage ? data.items : items + data.items
+    // Pages overlap: the server's order is not stable between requests, and a title on
+    // page 1 came back on page 2 (a diffable snapshot aborts on a repeated id — seen
+    // with `finished=0`, 20 a page, 2026-09-26). The first copy stays.
+    var seen = isFirstPage ? Set<Int>() : Set(items.map(\.id))
+    let fresh = data.items.filter { seen.insert($0.id).inserted }
+    let loaded = isFirstPage ? fresh : items + fresh
     items = filter.person != nil && !isSearching ? loaded.collapsingFilmVariants() : loaded
     pagination = data.pagination
   }

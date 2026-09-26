@@ -387,6 +387,21 @@ final class TVPageChipCell: UICollectionViewCell {
 
   /// Gray system pills, the title in `.body`, the size the filter row is drawn at.
   /// Focus is the button's own; an active chip's resting look is `updateActiveLook`.
+  /// An icon-only chip's symbol: small (the × read as too heavy at `.body`), drawn
+  /// centred on a square canvas so the button's content — and so the button — is
+  /// exactly as wide as it is tall.
+  private static let iconSide: CGFloat = 24
+
+  private static func squareIcon(_ name: String) -> UIImage? {
+    guard let symbol = UIImage(systemName: name,
+                               withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .semibold))
+    else { return nil }
+    let side = CGSize(width: iconSide, height: iconSide)
+    return UIGraphicsImageRenderer(size: side).image { _ in
+      symbol.draw(at: CGPoint(x: (side.width - symbol.size.width) / 2, y: (side.height - symbol.size.height) / 2))
+    }.withRenderingMode(.alwaysTemplate)
+  }
+
   static func configuration(for chip: TVPageChip) -> UIButton.Configuration {
     var configuration = UIButton.Configuration.gray()
     configuration.title = chip.showsTitle ? chip.title : nil
@@ -399,8 +414,12 @@ final class TVPageChipCell: UICollectionViewCell {
     configuration.cornerStyle = .capsule
     configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 26, bottom: 12, trailing: 26)
     if !chip.showsTitle {
-      // A round icon button: the symbol's own width plus insets that make it square.
-      configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18)
+      // A circle: the button draws at its own content size, so the content is made
+      // exactly the row's height square — a small symbol, inset to fill the rest.
+      let inset = (TVPageLayout.chipHeight - iconSide) / 2
+      configuration.contentInsets = NSDirectionalEdgeInsets(top: inset, leading: inset, bottom: inset, trailing: inset)
+      configuration.image = chip.systemImage.flatMap(squareIcon)
+      return configuration
     }
     if let systemImage = chip.systemImage {
       configuration.image = UIImage(systemName: systemImage)

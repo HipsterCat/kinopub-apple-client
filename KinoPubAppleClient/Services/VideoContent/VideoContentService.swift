@@ -28,7 +28,7 @@ protocol VideoContentService: Sendable {
   /// - Parameter perPage: raw history *entries*, not cards. History is one entry per
   ///   play, so a page of 20 collapses to far fewer titles — see `LibrarySectionCatalog`.
   func fetchHistory(page: Int?, perPage: Int) async throws -> HistoryData
-  func fetchItems(filter: LibraryFilter, page: Int?) async throws -> PaginatedData<MediaItem>
+  func fetchItems(filter: LibraryFilter, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem>
   func fetchGenres(for type: MediaType?) async throws -> ArrayData<MediaGenre>
   func fetchCountries() async throws -> ArrayData<Country>
   func fetchItemFolders(itemId: Int) async throws -> ArrayData<Bookmark>
@@ -44,6 +44,10 @@ extension VideoContentService {
   /// explicit `perPage` (see `CatalogPageSize`).
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?) async throws -> PaginatedData<MediaItem> {
     try await fetch(shortcut: shortcut, contentType: contentType, page: page, perPage: nil)
+  }
+
+  func fetchItems(filter: LibraryFilter, page: Int?) async throws -> PaginatedData<MediaItem> {
+    try await fetchItems(filter: filter, page: page, perPage: nil)
   }
 
   func search(query: String?, page: Int?) async throws -> PaginatedData<MediaItem> {
@@ -117,7 +121,7 @@ struct VideoContentServiceMock: VideoContentService {
     return HistoryData.mock(data: [])
   }
 
-  func fetchItems(filter: LibraryFilter, page: Int?) async throws -> PaginatedData<MediaItem> {
+  func fetchItems(filter: LibraryFilter, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     // Person shelves on the detail page need something non-empty so previews
     // exercise the rail instead of hiding it.
     if filter.person != nil {

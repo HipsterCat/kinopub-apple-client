@@ -165,12 +165,26 @@ final class LibraryFilterTests: XCTestCase {
     var filter = LibraryFilter()
     filter.contentTypes = [.serial, .movie]
     filter.countryIDs = [2, 1]
-    filter.finishedOnly = true
+    filter.seriesStatus = .finished
     let params = filter.serverParameters
     XCTAssertEqual(params["type"] as? String, "movie,serial")
     XCTAssertEqual(params["country"] as? String, "1,2")
     XCTAssertEqual(params["finished"] as? String, "1")
     XCTAssertTrue(filter.hasActiveFilters)
+  }
+
+  /// Airing is `finished=0`, as kino.pub's web client sends it; no status, no parameter.
+  func testSeriesStatusParameter() {
+    var filter = LibraryFilter()
+    XCTAssertNil(filter.serverParameters["finished"])
+    filter.seriesStatus = .airing
+    XCTAssertEqual(filter.serverParameters["finished"] as? String, "0")
+  }
+
+  func testItemsRequestSendsPageSize() {
+    let params = ItemsRequest(filter: LibraryFilter(), page: 1, perPage: 20).parameters ?? [:]
+    XCTAssertEqual(params["perpage"] as? String, "20")
+    XCTAssertEqual(params["page"] as? String, "1")
   }
 }
 
