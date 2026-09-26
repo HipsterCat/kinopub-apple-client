@@ -75,14 +75,14 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let isEnabled: Bool
-    /// Drawn in the system's destructive style — "Reset Filters".
-    public let isDestructive: Bool
+    /// An SF Symbol beside the title — the trash can on "Reset Filters".
+    public let systemImage: String?
 
-    public init(id: String, title: String, isEnabled: Bool = true, isDestructive: Bool = false) {
+    public init(id: String, title: String, isEnabled: Bool = true, systemImage: String? = nil) {
       self.id = id
       self.title = title
       self.isEnabled = isEnabled
-      self.isDestructive = isDestructive
+      self.systemImage = systemImage
     }
   }
 
@@ -111,13 +111,21 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
     /// another group starts a new selection — "films" and "anime" are different axes
     /// on the server and cannot be one request.
     public let optionGroups: [String: Int]
+    /// Groups whose options stand alone — presets: a pick is that option only, and
+    /// picking it again clears it.
+    public let soloGroups: Set<Int>
+    /// A multi-select's "clear" entry: shown in its own section at the bottom while
+    /// anything is checked; a pick clears the selection and closes the menu.
+    public let reset: Option?
 
     public init(nodes: [MenuNode], keepsPresented: Bool = false, exclusiveOptionID: String? = nil,
-                optionGroups: [String: Int] = [:]) {
+                optionGroups: [String: Int] = [:], soloGroups: Set<Int> = [], reset: Option? = nil) {
       self.nodes = nodes
       self.keepsPresented = keepsPresented
       self.exclusiveOptionID = exclusiveOptionID
       self.optionGroups = optionGroups
+      self.soloGroups = soloGroups
+      self.reset = reset
     }
 
     /// The checked option ids, anywhere in the tree.
@@ -133,21 +141,28 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
       return Set(collect(nodes))
     }
 
+    /// Whether `selection` narrows anything — what shows the reset entry.
+    public func isNarrowing(_ selection: Set<String>) -> Bool {
+      !selection.subtracting(exclusiveOptionID.map { [$0] } ?? []).isEmpty
+    }
+
     /// The selection after tapping `id`, by the multi-select rules above.
     public func toggling(_ id: String, in selection: Set<String>) -> Set<String> {
-      guard let all = exclusiveOptionID else {
-        var next = selection
-        if next.contains(id) { next.remove(id) } else { next.insert(id) }
-        return next
-      }
-      if id == all { return [all] }
-      if selection.contains(all) { return [id] }
-      if let group = optionGroups[id], selection.contains(where: { optionGroups[$0] != group }) {
-        return [id]
-      }
+      if id == reset?.id { return exclusiveOptionID.map { [$0] } ?? [] }
       var next = selection
-      if next.contains(id) { next.remove(id) } else { next.insert(id) }
-      return next.isEmpty ? [all] : next
+      if let all = exclusiveOptionID {
+        if id == all { return [all] }
+        next.remove(all)
+      }
+      let group = optionGroups[id]
+      if let group, soloGroups.contains(group) {
+        next = next.contains(id) ? [] : [id]
+      } else {
+        if next.contains(where: { optionGroups[$0] != group }) { next = [] }
+        if next.contains(id) { next.remove(id) } else { next.insert(id) }
+      }
+      if next.isEmpty, let all = exclusiveOptionID { return [all] }
+      return next
     }
 
     /// A flat single-select list.

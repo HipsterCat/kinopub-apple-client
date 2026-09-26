@@ -1,6 +1,78 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Quality_4K_Only" : {
+      "comment" : "Quality filter option: 4K only",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4K Only"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только 4K"
+          }
+        }
+      }
+    },
+    "Filter_RangeTitle %@ %lld %lld" : {
+      "comment" : "Rating source with its range, e.g. 'Kinopoisk: from 0 to 10'",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$lld to %3$lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: от %2$lld до %3$lld"
+          }
+        }
+      }
+    },
+    "Filter_Ratings %@" : {
+      "comment" : "Ratings submenu title with the current ranges, e.g. 'Ratings: 5+ KP, 7–9 IMDb'",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ratings: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценки: %@"
+          }
+        }
+      }
+    },
+    "Reset Filter" : {
+      "comment" : "Clears one pull-down's picks (the Type menu)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Filter"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить фильтр"
+          }
+        }
+      }
+    },
     "Genre_21" : {
       "comment" : "Film/series genre, plural, as a filter lists it",
       "extractionState" : "manual",

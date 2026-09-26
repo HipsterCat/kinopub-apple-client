@@ -505,8 +505,20 @@ GET https://api.service-kp.cnom/v1/items/search?q=termi
 >
 > Справочники для этого: `/v1/references/voiceover-type` (1 DUB, 2 MVO, 3 DVO, 4 VO, 5 AVO, 6 Orig, 7 Ai —
 > те же id, что `audio.type.id`) и `/v1/references/voiceover-author` (833). В бандле:
-> `KinoPubBackend/Resources/voiceover-authors.json` в порядке фильтра kino.watch и
-> `country-popularity.json` — порядок стран kino.pub.
+> `KinoPubBackend/Resources/voiceover-authors.json` в порядке фильтра kino.watch; порядок стран
+> и жанров по популярности — в коде, `Models/CatalogPopularity.swift`.
+>
+> **Пересечения жанров нет** (2026-09-26, `genre=25` аниме = 1733, `genre=6` = 3558): `genre=25,6` → 5270
+> (OR); `genre=25&genre=6` → берётся последний; `+`, `;`, `|`, `genres=`, `genre2=`, `subgenre=`,
+> `tag=`, `genre_mode=and`, `match=all` — игнорируются; `genre[]`, `genre[0]`, `genre[and]` → 502;
+> `conditions[]` по жанру (`genre=`, `genres=`, `genre_id`, `item_genres.genre_id`) игнорируется, а
+> `<что-угодно>.id=N` сравнивает **id тайтла** (`foo.id=6` → 1 тайтл). `type=anime` → 0, `section=anime`
+> игнорируется. Поэтому «Аниме / Мультфильмы / Короткометражки / Стендапы» (тип + жанр) не
+> сочетаются ни с типами, ни с фильтром жанра — в UI это пресеты, и чип «Жанр» при них скрыт.
+>
+> **С запросом работает всё** (`q=матрица`, 9 тайтлов): `type`, `genre`, `country`, `conditions[]`,
+> `quality`, `finished` сужают, `sort=-year` / `title` / `-rating` переставляют. Чип сортировки при
+> запросе мы всё равно не показываем — как на сайте, запрос упорядочен по релевантности.
 >
 > `GET /v1/genres` **без** `type` отдаёт все 115 жанров, а поле `type` у жанра — это **набор**
 > (`movie` / `docu` / `tvshow` / `music`), не тип контента. Декодировать его как `MediaType` нельзя:

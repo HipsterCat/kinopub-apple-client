@@ -451,12 +451,12 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "multi-7-empty")
   }
 
-  /// Kinds in kino.pub's order; a genre kind after a type kind starts over and turns
-  /// the genre filter off; genres as one list with dividers; countries by popularity;
-  /// Kinopoisk from 0…9 / to 10…1.
-  func testSearchKindsAndGenres() throws {
+  /// Type: types check together, a preset (anime…) replaces them and hides Genre,
+  /// "Сбросить фильтр" appears with the first check; active chips at rest in the light
+  /// appearance; the Filters menu's "Оценки" / "Кинопоиск: от 0 до 10" / "Качество".
+  func testSearchTypePresets() throws {
     let app = XCUIApplication()
-    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark", "-KINOPUBSearchQuery", "ма"]
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "light", "-KINOPUBSearchQuery", "ма"]
     if let session = UITestDevSession.json {
       app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
     }
@@ -469,25 +469,30 @@ final class TVPageGeometryUITests: XCTestCase {
     press(.left, wait: 3)
     press(.down, 4); press(.left, 6, wait: 0.4)
     press(.select, wait: 1.2)
-    press(.down); press(.select, wait: 1)            // Фильмы
-    press(.down, 4, wait: 0.4); press(.select, wait: 1)  // Аниме (5th kind) — starts over
-    try shoot(app, name: "kinds-0-anime")
+    try shoot(app, name: "type-0-open")
+    press(.select, wait: 1)                          // Фильмы
+    press(.down); press(.select, wait: 1)            // Сериалы
+    try shoot(app, name: "type-1-films-series")
     press(.menu, wait: 3)
-    try shoot(app, name: "kinds-1-anime-closed")
-    press(.select, wait: 1.2); press(.up, 6, wait: 0.3); press(.select, wait: 1); press(.menu, wait: 3)  // back to Все
-    press(.right); press(.select, wait: 1.2)
-    try shoot(app, name: "kinds-2-genres")
-    press(.down, 12, wait: 0.3)
-    try shoot(app, name: "kinds-3-genres-deeper")
-    press(.menu, wait: 1.2)
-    press(.right); press(.select, wait: 1.2)
-    try shoot(app, name: "kinds-4-countries")
-    press(.menu, wait: 1.2)
-    press(.right, 2); press(.select, wait: 1.2); press(.select, wait: 1.2); press(.select, wait: 1.2)
-    try shoot(app, name: "kinds-5-kinopoisk")
-    press(.down, 12, wait: 0.3)
-    try shoot(app, name: "kinds-6-kinopoisk-to")
-    press(.menu, wait: 1); press(.menu, wait: 1); press(.menu, wait: 1.2)
+    press(.right, wait: 1)
+    try shoot(app, name: "type-2-closed")
+    press(.left, wait: 1)
+    press(.select, wait: 1.2)
+    try shoot(app, name: "type-3-reopened")
+    press(.down, 8, wait: 0.3)
+    try shoot(app, name: "type-4-bottom")
+    press(.up, 3, wait: 0.3); press(.select, wait: 1)
+    try shoot(app, name: "type-5-preset")
+    press(.menu, wait: 3)
+    press(.right, wait: 1)
+    try shoot(app, name: "type-6-preset-closed")
+    press(.right, 3, wait: 0.5); press(.select, wait: 1.2)
+    try shoot(app, name: "type-7-filters")
+    press(.select, wait: 1.2)
+    try shoot(app, name: "type-8-ratings")
+    press(.menu, wait: 1); press(.down); press(.select, wait: 1.2)
+    try shoot(app, name: "type-9-quality")
+    press(.menu, wait: 1); press(.menu, wait: 1.2)
   }
 
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view

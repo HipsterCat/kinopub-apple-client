@@ -284,6 +284,9 @@ final class TVPageChipCell: UICollectionViewCell {
     button.addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .primaryActionTriggered)
     button.onMenuWillShow = { [weak self] in self?.menuWillShow() }
     button.onMenuDidEnd = { [weak self] in self?.menuDidEnd() }
+    button.configurationUpdateHandler = { [weak self] button in
+      Self.updateActiveLook(of: button, isActive: self?.chip?.isActive == true)
+    }
     contentView.addSubview(button)
     NSLayoutConstraint.activate([
       button.topAnchor.constraint(equalTo: contentView.topAnchor),
@@ -307,7 +310,7 @@ final class TVPageChipCell: UICollectionViewCell {
     button.isEnabled = chip.isEnabled
     if let menu = chip.menu {
       draft = menu.selectedIDs
-      button.menu = Self.menu(for: menu) { [weak self] id in self?.picked(id) }
+      button.menu = Self.menu(for: menu, selection: draft) { [weak self] id in self?.picked(id) }
       button.showsMenuAsPrimaryAction = true
     } else {
       button.menu = nil
@@ -324,8 +327,9 @@ final class TVPageChipCell: UICollectionViewCell {
     }
     draft = menu.toggling(id, in: draft)
     let selection = draft
-    button.contextMenuInteraction?.updateVisibleMenu { visible in
-      Self.applyingChecks(selection, to: visible)
+    button.contextMenuInteraction?.updateVisibleMenu { [weak self] visible in
+      let checked = Self.applyingChecks(selection, to: visible)
+      return Self.placingReset(of: menu, selection: selection, in: checked) { id in self?.picked(id) }
     }
   }
 
@@ -360,12 +364,49 @@ final class TVPageChipCell: UICollectionViewCell {
     })
   }
 
+  /// The reset entry's section — its own, at the bottom — present while `selection`
+  /// narrows anything and gone once it does not, so it appears with the first check.
+  private static let resetSectionID = UIMenu.Identifier("kinopub.chip.reset")
+
+  private static func placingReset(of menu: TVPageChip.Menu, selection: Set<String>, in visible: UIMenu,
+                                   onOption: @escaping (String) -> Void) -> UIMenu {
+    guard let reset = menu.reset else { return visible }
+    var children = visible.children.filter { ($0 as? UIMenu)?.identifier != resetSectionID }
+    if menu.isNarrowing(selection) {
+      children.append(resetSection(reset, onOption: onOption))
+    }
+    return visible.replacingChildren(children)
+  }
+
+  private static func resetSection(_ reset: TVPageChip.Option, onOption: @escaping (String) -> Void) -> UIMenu {
+    // Not `keepsMenuPresented`: clearing is the end of the edit, so the menu closes
+    // and the (now empty) selection goes out.
+    let action = UIAction(title: reset.title, image: reset.systemImage.flatMap { UIImage(systemName: $0) },
+                          identifier: UIAction.Identifier(reset.id)) { _ in onOption(reset.id) }
+    return UIMenu(title: "", identifier: resetSectionID, options: .displayInline, children: [action])
+  }
+
   override var canBecomeFocused: Bool { false }
 
-  /// Active filters take the system's tinted fill; the rest stay gray. Title in
-  /// `.body`, the size the filter row is drawn at. Focus is the button's own either way.
+  /// An active filter, at rest, wears the focused look without the lift — white fill,
+  /// dark title — so a row of pull-downs says which are in play in either appearance,
+  /// and focus (which also lifts and casts a shadow) still reads as focus. Focused or
+  /// idle, the look is the system's own.
+  private static let grayFill = UIButton.Configuration.gray().background.backgroundColor
+
+  private static func updateActiveLook(of button: UIButton, isActive: Bool) {
+    guard var configuration = button.configuration else { return }
+    let resting = isActive && !button.isFocused
+    // Back to the gray style's own fill, not `nil` — on tvOS a `nil` fill draws white.
+    configuration.background.backgroundColor = resting ? .white : grayFill
+    configuration.baseForegroundColor = resting ? .black : nil
+    button.configuration = configuration
+  }
+
+  /// Gray system pills, the title in `.body`, the size the filter row is drawn at.
+  /// Focus is the button's own; an active chip's resting look is `updateActiveLook`.
   static func configuration(for chip: TVPageChip) -> UIButton.Configuration {
-    var configuration = chip.isActive ? UIButton.Configuration.tinted() : .gray()
+    var configuration = UIButton.Configuration.gray()
     configuration.title = chip.title
     configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
       var outgoing = incoming
@@ -392,15 +433,16 @@ final class TVPageChipCell: UICollectionViewCell {
 
   /// The system menu for a chip's `Menu`: options become `UIAction`s (checked ones
   /// `.on`), sections inline `UIMenu`s, submenus nested `UIMenu`s with a subtitle.
-  static func menu(for menu: TVPageChip.Menu, onOption: @escaping (String) -> Void) -> UIMenu {
+  static func menu(for menu: TVPageChip.Menu, selection: Set<String>? = nil,
+                   onOption: @escaping (String) -> Void) -> UIMenu {
     func element(_ node: TVPageChip.MenuNode) -> UIMenuElement {
       switch node {
       case let .option(option, isSelected):
         var attributes: UIMenuElement.Attributes = []
         if !option.isEnabled { attributes.insert(.disabled) }
-        if option.isDestructive { attributes.insert(.destructive) }
         if menu.keepsPresented { attributes.insert(.keepsMenuPresented) }
-        return UIAction(title: option.title, identifier: UIAction.Identifier(option.id),
+        return UIAction(title: option.title, image: option.systemImage.flatMap { UIImage(systemName: $0) },
+                        identifier: UIAction.Identifier(option.id),
                         attributes: attributes,
                         state: isSelected ? .on : .off) { _ in onOption(option.id) }
       case let .section(title, children):
@@ -411,7 +453,11 @@ final class TVPageChipCell: UICollectionViewCell {
         return submenu
       }
     }
-    return UIMenu(children: menu.nodes.map(element))
+    var children = menu.nodes.map(element)
+    if let reset = menu.reset, menu.isNarrowing(selection ?? menu.selectedIDs) {
+      children.append(resetSection(reset, onOption: onOption))
+    }
+    return UIMenu(children: children)
   }
 
   /// What the pill's width depends on — not its menu (a genre menu is 115 options).
