@@ -583,8 +583,9 @@ enum TVSearchFilters {
   static let clear = "clear"
   /// Where a typed query looks (`field=`): everywhere (three requests, see
   /// `LibraryCatalog.searchesEveryField`), or titles / actors / directors alone.
-  private static let scopes: [(field: SearchItemsRequest.Field, titleKey: String)] = [
-    (.title, "Scope_Titles"), (.cast, "Scope_Actors"), (.director, "Scope_Directors")
+  private static let scopes: [(field: SearchItemsRequest.Field, titleKey: String, optionKey: String)] = [
+    (.title, "Scope_Titles", "Scope_TitlesOnly"), (.cast, "Scope_Actors", "Scope_InActors"),
+    (.director, "Scope_Directors", "Scope_InDirectors")
   ]
 
   /// The kinds on — empty is "Все".
@@ -686,13 +687,11 @@ enum TVSearchFilters {
       let scopeChip = TVPageChip(
         id: scope,
         title: scopes.first { $0.field == current }?.titleKey.localized ?? "Scope_Everywhere_Title".localized,
-        menu: .init(nodes: [option("scope.all", "Scope_Everywhere".localized, current == nil),
-                            .section(title: nil, children: scopes.map {
-                              option("scope.\($0.field.rawValue)", $0.titleKey.localized, current == $0.field)
-                            })]),
+        menu: .init(nodes: [option("scope.all", "Scope_Everywhere".localized, current == nil)]
+                      + scopes.map { option("scope.\($0.field.rawValue)", $0.optionKey.localized, current == $0.field) }),
         isActive: current != nil
       )
-      return .chips(id: "filters", title: nil, chips: [scopeChip, typeChip])
+      return .chips(id: "filters", title: nil, chips: [typeChip, scopeChip])
     }
 
     // Sort, then Filters (a round icon until something in it is set, then what is
@@ -713,7 +712,8 @@ enum TVSearchFilters {
     let facetsChip = TVPageChip(
       id: facets,
       title: facetsLabel ?? "Filters".localized,
-      systemImage: "line.3.horizontal.decrease",
+      // Filled once something in it is set — the label beside it says what.
+      systemImage: facetsLabel == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill",
       menu: .init(nodes: facetNodes(filter, episodic: kinds.isEmpty || kinds.contains(where: \.isEpisodic))),
       isActive: facetsLabel != nil,
       showsTitle: facetsLabel != nil

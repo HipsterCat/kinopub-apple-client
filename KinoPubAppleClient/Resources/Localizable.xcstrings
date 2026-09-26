@@ -1,6 +1,78 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Scope_InDirectors" : {
+      "comment" : "Search scope menu: director names",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Director Names"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В именах режиссёров"
+          }
+        }
+      }
+    },
+    "Scope_InActors" : {
+      "comment" : "Search scope menu: actor names",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Actor Names"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В именах актёров"
+          }
+        }
+      }
+    },
+    "Scope_TitlesOnly" : {
+      "comment" : "Search scope menu: titles only",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titles Only"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только в названии"
+          }
+        }
+      }
+    },
+    "Scope_Everywhere" : {
+      "comment" : "Search scope menu: all fields (the default)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match Anywhere"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Искать совпадения везде"
+          }
+        }
+      }
+    },
     "Scope_Everywhere_Title" : {
       "comment" : "Search scope pull-down title while searching everywhere",
       "extractionState" : "manual",
@@ -15,24 +87,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Названия, актёры, режиссёры"
-          }
-        }
-      }
-    },
-    "Scope_Everywhere" : {
-      "comment" : "Search scope menu: all fields (the default)",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search Everywhere"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Искать везде"
           }
         }
       }

@@ -390,11 +390,12 @@ final class TVPageChipCell: UICollectionViewCell {
   /// An icon-only chip's symbol, a touch under the `.body` symbols beside it (the ×
   /// read as too heavy at full size), drawn centred on a square canvas so the
   /// button's content — and so the button — is exactly as wide as it is tall.
-  private static let iconSide: CGFloat = 30
+  private static let iconSide: CGFloat = 32
+  private static let iconSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 26, weight: .medium)
 
   private static func squareIcon(_ name: String) -> UIImage? {
     guard let symbol = UIImage(systemName: name,
-                               withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .medium))
+                               withConfiguration: iconSymbolConfiguration)
     else { return nil }
     let side = CGSize(width: iconSide, height: iconSide)
     return UIGraphicsImageRenderer(size: side).image { _ in
@@ -405,6 +406,8 @@ final class TVPageChipCell: UICollectionViewCell {
   static func configuration(for chip: TVPageChip) -> UIButton.Configuration {
     var configuration = UIButton.Configuration.gray()
     configuration.title = chip.showsTitle ? chip.title : nil
+    // One line: the row measures each pill at its full title (`fittingWidth`).
+    configuration.titleLineBreakMode = .byTruncatingTail
     configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
       var outgoing = incoming
       outgoing.font = UIFont.preferredFont(forTextStyle: .body)
@@ -422,9 +425,11 @@ final class TVPageChipCell: UICollectionViewCell {
       return configuration
     }
     if let systemImage = chip.systemImage {
+      // The same symbol size as the round icon chips: a label beside it does not
+      // make the symbol grow.
       configuration.image = UIImage(systemName: systemImage)
       configuration.imagePlacement = .leading
-      configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .body)
+      configuration.preferredSymbolConfigurationForImage = iconSymbolConfiguration
     } else if chip.menu != nil {
       // A pull-down with no icon of its own says so with the system chevron.
       configuration.image = UIImage(systemName: "chevron.down")
@@ -466,6 +471,7 @@ final class TVPageChipCell: UICollectionViewCell {
     let systemImage: String?
     let isActive: Bool
     let hasMenu: Bool
+    let showsTitle: Bool
   }
 
   private static var widthCache: [WidthKey: CGFloat] = [:]
@@ -475,7 +481,8 @@ final class TVPageChipCell: UICollectionViewCell {
   /// configuration — what a filter row needs to push its trailing pills to the edge
   /// exactly (a flexible edge over estimated widths lands short).
   static func fittingWidth(for chip: TVPageChip) -> CGFloat {
-    let key = WidthKey(title: chip.title, systemImage: chip.systemImage, isActive: chip.isActive, hasMenu: chip.menu != nil)
+    let key = WidthKey(title: chip.title, systemImage: chip.systemImage, isActive: chip.isActive,
+                       hasMenu: chip.menu != nil, showsTitle: chip.showsTitle)
     if let cached = widthCache[key] { return cached }
     prototype.configuration = configuration(for: chip)
     let size = prototype.systemLayoutSizeFitting(

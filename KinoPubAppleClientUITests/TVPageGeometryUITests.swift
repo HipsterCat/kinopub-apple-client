@@ -390,9 +390,9 @@ final class TVPageGeometryUITests: XCTestCase {
     var app = launchSearch(["-KINOPUBSearchQuery", "таба"])
     press(.left, wait: 4)
     try shoot(app, name: "query-0")
-    press(.down, 4); press(.left, 6, wait: 0.4); press(.select, wait: 1.2)
+    press(.down, 4); press(.left, 6, wait: 0.4); press(.right); press(.select, wait: 1.2)
     try shoot(app, name: "query-1-scope-menu")
-    press(.down, 2); press(.select, wait: 4)                       // Актёры
+    press(.down, 2); press(.select, wait: 4)                       // В именах актёров
     try shoot(app, name: "query-2-actors")
     app.terminate()
     app = launchSearch(["-KINOPUBSearchQuery", "та"])

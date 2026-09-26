@@ -104,7 +104,7 @@ public enum TVPageLayout {
                                  otherwise: pinned ? TVHIGGrid.titledRowGap / 2 : TVHIGGrid.titledRowGap)
       layoutSection = pinned
         ? chipRow(section, sideInset: sideInset, bottom: bottom)
-        : chipRail(sideInset: sideInset, bottom: bottom)
+        : chipRail(section, sideInset: sideInset, bottom: bottom)
     case (_, .rail):
       layoutSection = rail(section, contentWidth: contentWidth, sideInset: sideInset)
     case (_, .grid):
@@ -269,15 +269,28 @@ public enum TVPageLayout {
     insets(for: recipe, sideInset: 0, titled: false).top + recipe.artInsets.top
   }
 
-  /// Self-sizing pills in one orthogonal row.
-  private static func chipRail(sideInset: CGFloat, bottom: CGFloat) -> NSCollectionLayoutSection {
-    let size = NSCollectionLayoutSize(widthDimension: .estimated(180),
-                                      heightDimension: .absolute(chipHeight))
-    let item = NSCollectionLayoutItem(layoutSize: size)
-    let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [item])
+  /// Pills in one row that scrolls sideways, each at its measured width
+  /// (`TVPageChipCell.fittingWidth`, one line of text). Estimated widths self-sized
+  /// against a compressed fit and wrapped a long title onto a second line
+  /// ("Названия, актёры, режиссёры", 2026-09-26).
+  @MainActor
+  private static func chipRail(_ section: TVPageSection, sideInset: CGFloat, bottom: CGFloat) -> NSCollectionLayoutSection {
+    let widths: [CGFloat] = section.items.map { entry in
+      guard case .chip(let chip) = entry else { return 180 }
+      return TVPageChipCell.fittingWidth(for: chip)
+    }
+    var frames: [CGRect] = []
+    var x: CGFloat = 0
+    for width in widths {
+      frames.append(CGRect(x: x, y: 0, width: width, height: chipHeight))
+      x += width + chipSpacing
+    }
+    let total = max(x - chipSpacing, 1)
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .absolute(total), heightDimension: .absolute(chipHeight))
+    ) { _ in frames.map { NSCollectionLayoutGroupCustomItem(frame: $0) } }
     let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.orthogonalScrollingBehavior = .continuous
-    layoutSection.interGroupSpacing = chipSpacing
     layoutSection.contentInsets = NSDirectionalEdgeInsets(
       top: TVHIGGrid.headerToItems, leading: sideInset,
       bottom: bottom, trailing: sideInset
