@@ -532,14 +532,14 @@ enum TVSearchFilters {
   /// Sort option id for the server's own relevance order (search only).
   private static let relevance = "relevance"
 
-  /// Types whose titles have episodes — where "finished only" means something.
-  private static let episodic: Set<MediaType> = [.serial, .docuserial, .tvshow]
+  /// The kinds on — empty is "Все".
+  static func selectedKinds(_ filter: LibraryFilter) -> Set<CatalogKind> { filter.kinds }
 
-  /// The types on — every type when the filter names none.
-  static func selectedTypes(_ filter: LibraryFilter) -> Set<MediaType> {
-    if !filter.contentTypes.isEmpty { return filter.contentTypes }
-    if let single = filter.contentType { return [single] }
-    return Set(MediaType.allCases)
+  /// A genre's filter name — the plural ("Военные", "Вестерны") where there is one.
+  static func genreTitle(_ genre: MediaGenre) -> String {
+    let key = "Genre_\(genre.id)"
+    let plural = key.localized
+    return plural == key ? genre.title : plural
   }
 
   /// "Драма", or "Драма +2" for several.
@@ -555,42 +555,44 @@ enum TVSearchFilters {
   @MainActor
   static func row(catalog: LibraryCatalog, searching: Bool) -> TVPageSection {
     let filter = catalog.filter
-    let types = selectedTypes(filter)
-    let allTypes = types.count == MediaType.allCases.count
+    let kinds = selectedKinds(filter)
+    let genreAxis = kinds.contains { $0.axis == .genre }
 
-    // Type — "Все" on by default, the types off. A first pick is that type alone,
-    // later picks add; "Все" or clearing the last one goes back to everything.
+    // Kind — "Все" on by default, the kinds off. A first pick is that kind alone,
+    // later picks add within its axis; a pick from the other axis starts over (the API
+    // cannot OR "films" with "anime"); "Все" or clearing the last goes back.
     let typeChip = TVPageChip(
       id: type,
-      title: typesTitle(types),
-      menu: .init(nodes: [option(any, "All".localized, allTypes)]
-                    + MediaType.allCases.map { option($0.rawValue, $0.titleKey.localized, !allTypes && types.contains($0)) },
-                  keepsPresented: true, exclusiveOptionID: any),
-      isActive: !allTypes
+      title: kindsTitle(kinds),
+      menu: .init(nodes: [option(any, "All".localized, kinds.isEmpty)]
+                    + CatalogKind.allCases.map { option($0.rawValue, $0.titleKey.localized, kinds.contains($0)) },
+                  keepsPresented: true, exclusiveOptionID: any,
+                  optionGroups: Dictionary(uniqueKeysWithValues: CatalogKind.allCases.map {
+                    ($0.rawValue, $0.axis == .type ? 0 : 1)
+                  })),
+      isActive: !kinds.isEmpty
     )
 
-    // Genre — only the sets the chosen types use. One set: a flat list under "Любой".
-    // Several: "Любой" and a submenu per set, each titled with what is picked in it.
-    let kinds = GenreKind.allCases.filter { kind in types.contains { $0.genreKind == kind } }
+    // Genre — one list, a divider between sets, each set largest first; only the sets
+    // the chosen kinds use. Off while a genre kind (anime, cartoons…) is on: that kind
+    // owns the `genre` parameter.
+    let sets = kinds.isEmpty ? Set(GenreKind.allCases) : Set(kinds.flatMap(\.genreKinds))
     let picked = Set(filter.genreIDs)
-    let byKind = kinds.map { kind in (kind, catalog.genres.filter { $0.kind == kind }) }.filter { !$0.1.isEmpty }
+    let sections = GenreKind.allCases.filter(sets.contains).map { kind in
+      GenrePopularity.sorted(catalog.genres.filter { $0.kind == kind })
+        .map { option("\($0.id)", genreTitle($0), picked.contains($0.id)) }
+    }.filter { !$0.isEmpty }
     let anyGenre = option(any, "Any_Masculine".localized, picked.isEmpty)
-    let genreNodes: [TVPageChip.MenuNode]
-    if byKind.count <= 1 {
-      genreNodes = [anyGenre] + (byKind.first?.1 ?? []).map { option("\($0.id)", $0.title, picked.contains($0.id)) }
-    } else {
-      genreNodes = [anyGenre] + byKind.map { kind, genres in
-        let chosen = genres.filter { picked.contains($0.id) }.map(\.title)
-        return .submenu(title: kind.title,
-                        subtitle: chosen.isEmpty ? nil : summary(chosen, none: ""),
-                        children: genres.map { option("\($0.id)", $0.title, picked.contains($0.id)) })
-      }
+    let genreNodes: [TVPageChip.MenuNode] = sections.enumerated().map { index, options in
+      .section(title: nil, children: index == 0 ? [anyGenre] + options : options)
     }
     let genreChip = TVPageChip(
       id: genre,
-      title: summary(catalog.genres.filter { picked.contains($0.id) }.map(\.title), none: "Genre".localized),
-      menu: .init(nodes: genreNodes, keepsPresented: true, exclusiveOptionID: any),
-      isActive: !picked.isEmpty
+      title: genreAxis ? "Genre".localized
+        : summary(catalog.genres.filter { picked.contains($0.id) }.map(genreTitle), none: "Genre".localized),
+      menu: .init(nodes: genreNodes.isEmpty ? [anyGenre] : genreNodes, keepsPresented: true, exclusiveOptionID: any),
+      isActive: !picked.isEmpty && !genreAxis,
+      isEnabled: !genreAxis
     )
 
     // Country — kino.pub's popularity order, "Любая" first.
@@ -615,7 +617,7 @@ enum TVSearchFilters {
       id: facets,
       title: "Filters".localized,
       systemImage: "line.3.horizontal.decrease",
-      menu: .init(nodes: facetNodes(filter, episodic: !types.isDisjoint(with: episodic))),
+      menu: .init(nodes: facetNodes(filter, episodic: kinds.isEmpty || kinds.contains(where: \.isEpisodic))),
       isActive: filter.finishedOnly || filter.minimumQuality != nil
         || filter.kinopoiskMin != nil || filter.kinopoiskMax != nil
         || filter.imdbMin != nil || filter.imdbMax != nil
@@ -647,14 +649,15 @@ enum TVSearchFilters {
                   chips: [typeChip, genreChip, countryChip, yearsChip, facetsChip, sortChip])
   }
 
-  /// "Все", "Фильмы", "Фильмы и сериалы", "Без документальных" (everything but one),
+  /// "Все", "Фильмы", "Фильмы и сериалы", "Без концертов" (every type kind but one),
   /// or "Фильмы +2".
-  private static func typesTitle(_ types: Set<MediaType>) -> String {
-    let all = MediaType.allCases
-    guard types.count < all.count else { return "All".localized }
-    let picked = all.filter(types.contains)
-    if picked.count == all.count - 1, let missing = all.first(where: { !types.contains($0) }) {
-      return "TypeWithout_\(missing.rawValue)".localized
+  private static func kindsTitle(_ kinds: Set<CatalogKind>) -> String {
+    guard !kinds.isEmpty else { return "All".localized }
+    let picked = CatalogKind.allCases.filter(kinds.contains)
+    let typeKinds = CatalogKind.allCases.filter { $0.axis == .type }
+    if picked.count == typeKinds.count - 1, picked.allSatisfy({ $0.axis == .type }),
+       let missing = typeKinds.first(where: { !kinds.contains($0) }) {
+      return missing.withoutTitleKey.localized
     }
     if picked.count == 2 {
       return String(format: "%@ and %@".localized, picked[0].titleKey.localized, picked[1].titleKey.localized.lowercased())
@@ -694,7 +697,10 @@ enum TVSearchFilters {
 
   // MARK: Filters
 
-  private static let ratingSteps = [5, 6, 7, 8, 9]
+  /// "От" 0…9 up (0 = no bound, the default), "До" 10…1 down (10 = no bound) — low
+  /// ratings are as findable as high ones.
+  private static let ratingFloors = Array(0...9)
+  private static let ratingCeilings = Array((1...10).reversed())
 
   private static func ratingSummary(_ min: Double?, _ max: Double?) -> String? {
     switch (min.map { Int($0) }, max.map { Int($0) }) {
@@ -710,13 +716,14 @@ enum TVSearchFilters {
   private static func facetNodes(_ filter: LibraryFilter, episodic: Bool) -> [TVPageChip.MenuNode] {
     let unset = "Doesn't Matter".localized
     func range(_ prefix: String, _ title: String, _ min: Double?, _ max: Double?) -> TVPageChip.MenuNode {
-      func side(_ edge: String, _ sideTitle: String, _ value: Double?) -> TVPageChip.MenuNode {
-        .section(title: sideTitle,
-                 children: [option("\(prefix).\(edge).\(any)", unset, value == nil)]
-                   + ratingSteps.map { option("\(prefix).\(edge).\($0)", "\($0)", value.map(Int.init) == $0) })
-      }
-      return .submenu(title: title, subtitle: ratingSummary(min, max) ?? unset,
-                      children: [side("min", "Range_From".localized, min), side("max", "Range_To".localized, max)])
+      let lo = min.map(Int.init) ?? 0
+      let hi = max.map(Int.init) ?? 10
+      return .submenu(title: title, subtitle: ratingSummary(min, max) ?? unset, children: [
+        .section(title: "Range_From".localized,
+                 children: ratingFloors.map { option("\(prefix).min.\($0)", "\($0)", lo == $0) }),
+        .section(title: "Range_To".localized,
+                 children: ratingCeilings.map { option("\(prefix).max.\($0)", "\($0)", hi == $0) })
+      ])
     }
     let kp = ratingSummary(filter.kinopoiskMin, filter.kinopoiskMax)
     let imdb = ratingSummary(filter.imdbMin, filter.imdbMax)
@@ -793,14 +800,17 @@ enum TVSearchFilters {
     switch chip {
     case type:
       catalog.update { filter in
-        let types = everything ? Set(MediaType.allCases) : Set(selection.compactMap(MediaType.init(rawValue:)))
+        let kinds = everything ? [] : Set(selection.compactMap(CatalogKind.init(rawValue:)))
+        filter.kinds = kinds
         filter.contentType = nil
-        filter.contentTypes = types.count == MediaType.allCases.count ? [] : types
-        let kinds = Set(types.map(\.genreKind))
-        let applicable = Set(catalog.genres.filter { $0.kind.map(kinds.contains) ?? true }.map(\.id))
+        filter.contentTypes = []
+        // Genres of a set no chosen kind uses no longer apply; nor does "finished"
+        // without an episodic kind.
+        let sets = kinds.isEmpty ? Set(GenreKind.allCases) : Set(kinds.flatMap(\.genreKinds))
+        let applicable = Set(catalog.genres.filter { $0.kind.map(sets.contains) ?? true }.map(\.id))
         filter.genreIDs = filter.genreIDs.filter(applicable.contains)
         filter.genreID = nil
-        if types.isDisjoint(with: episodic) { filter.finishedOnly = false }
+        if !kinds.isEmpty, !kinds.contains(where: \.isEpisodic) { filter.finishedOnly = false }
       }
     case genre:
       catalog.update { filter in
@@ -835,8 +845,9 @@ enum TVSearchFilters {
       return
     }
     // "kp.min.7", "imdb.max.any"
-    guard parts.count == 3 else { return }
-    let value = Double(parts[2])
+    guard parts.count == 3, let number = Double(parts[2]) else { return }
+    // The ends of the scale are no bound at all.
+    let value: Double? = (parts[1] == "min" && number <= 0) || (parts[1] == "max" && number >= 10) ? nil : number
     catalog.update { filter in
       switch (parts[0], parts[1]) {
       case ("kp", "min"): filter.kinopoiskMin = value

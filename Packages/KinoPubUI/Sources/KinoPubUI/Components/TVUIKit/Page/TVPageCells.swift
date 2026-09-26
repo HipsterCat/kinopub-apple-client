@@ -304,6 +304,7 @@ final class TVPageChipCell: UICollectionViewCell {
     }
     self.chip = chip
     button.configuration = Self.configuration(for: chip)
+    button.isEnabled = chip.isEnabled
     if let menu = chip.menu {
       draft = menu.selectedIDs
       button.menu = Self.menu(for: menu) { [weak self] id in self?.picked(id) }

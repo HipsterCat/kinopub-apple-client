@@ -42,10 +42,11 @@ public struct KinoPubConfig: Decodable, Sendable {
 
   public static let url = URL(string: "https://www.kpapp.link/config.json")!
 
-  /// Genres with their set, in the config's order per set.
+  /// Genres with their set, sets in `GenreKind` order, each set largest-first
+  /// (`GenrePopularity`).
   public var genres: [MediaGenre] {
     GenreKind.allCases.flatMap { kind in
-      (filter.genres[kind.rawValue] ?? []).map { MediaGenre(id: $0.id, title: $0.title, kind: kind) }
+      GenrePopularity.sorted((filter.genres[kind.rawValue] ?? []).map { MediaGenre(id: $0.id, title: $0.title, kind: kind) })
     }
   }
 
@@ -77,32 +78,5 @@ public struct KinoPubConfig: Decodable, Sendable {
       return config
     }
     return nil
-  }
-}
-
-/// kino.pub's own country order (its web filter lists them by popularity, not A–Z):
-/// `country-popularity.json`. Countries it does not list follow, A–Z.
-public enum CountryPopularity {
-  public static let order: [String] = {
-    struct File: Decodable { let countries: [String] }
-    guard let url = Bundle.module.url(forResource: "country-popularity", withExtension: "json"),
-          let data = try? Data(contentsOf: url),
-          let file = try? JSONDecoder().decode(File.self, from: data)
-    else { return [] }
-    return file.countries
-  }()
-
-  private static let rank: [String: Int] = Dictionary(order.enumerated().map { ($1, $0) },
-                                                      uniquingKeysWith: { first, _ in first })
-
-  public static func sorted(_ countries: [Country]) -> [Country] {
-    countries.sorted { a, b in
-      switch (rank[a.title], rank[b.title]) {
-      case let (x?, y?): return x < y
-      case (_?, nil): return true
-      case (nil, _?): return false
-      default: return a.title.localizedStandardCompare(b.title) == .orderedAscending
-      }
-    }
   }
 }

@@ -127,6 +127,10 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   /// Several content types at once — `type=movie,serial` is OR on the server (verified
   /// live 2026-09-25). Empty means every type; it wins over `contentType` when set.
   public var contentTypes: Set<MediaType> = []
+  /// kino.pub's sections as a person names them (`CatalogKind`). Wins over
+  /// `contentType(s)`; a genre kind (anime, cartoons, shorts, stand-up) also owns
+  /// `genre` — the API has no genre AND. Empty = everything.
+  public var kinds: Set<CatalogKind> = []
   public var sort: MediaSortOrder
   public var genreID: Int?
   /// Several genres at once — `/v1/items` reads a comma as OR on `genre`. Set instead
@@ -206,7 +210,12 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   /// `sort` is left to the caller: search without one is the server's relevance order.
   public var serverParameters: [String: Any] {
     var params: [String: Any] = [:]
-    if !contentTypes.isEmpty {
+    let genreKinds = kinds.filter { $0.axis == .genre }
+    if !kinds.isEmpty {
+      // One axis at a time (the picker enforces it); genre kinds win if both slip in.
+      let active = genreKinds.isEmpty ? kinds : genreKinds
+      params["type"] = Set(active.flatMap(\.types)).map(\.rawValue).sorted().joined(separator: ",")
+    } else if !contentTypes.isEmpty {
       params["type"] = contentTypes.map(\.rawValue).sorted().joined(separator: ",")
     } else if let contentType {
       params["type"] = contentType.rawValue
@@ -215,7 +224,9 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     // them. **Not true of `cast` / `director`**: those match the field as written, so a
     // comma there matches nothing and each name needs its own request (verified against
     // the live API 2026-08-17 — `director=Фил Лорд,Кристофер Миллер` answers empty).
-    if !genreIDs.isEmpty {
+    if !genreKinds.isEmpty {
+      params["genre"] = genreKinds.compactMap(\.genreID).sorted().map(String.init).joined(separator: ",")
+    } else if !genreIDs.isEmpty {
       params["genre"] = genreIDs.map(String.init).joined(separator: ",")
     } else if let genreID {
       params["genre"] = "\(genreID)"
@@ -269,6 +280,7 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   public var hasActiveFilters: Bool {
     contentType != nil
       || !contentTypes.isEmpty
+      || !kinds.isEmpty
       || !countryIDs.isEmpty
       || finishedOnly
       || genreID != nil

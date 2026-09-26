@@ -173,3 +173,32 @@ final class LibraryFilterTests: XCTestCase {
     XCTAssertTrue(filter.hasActiveFilters)
   }
 }
+
+/// kino.pub's sections as filter kinds: type kinds OR their types; genre kinds (anime,
+/// cartoons, shorts, stand-up) also own `genre` — `home_blocks` in config.json.
+final class CatalogKindParameterTests: XCTestCase {
+
+  func testTypeKindsUnionTheirTypes() {
+    var filter = LibraryFilter()
+    filter.kinds = [.movies, .documentaries]
+    let params = filter.serverParameters
+    XCTAssertEqual(params["type"] as? String, "documovie,docuserial,movie")
+    XCTAssertNil(params["genre"])
+  }
+
+  func testGenreKindsOwnTheGenreParameter() {
+    var filter = LibraryFilter()
+    filter.kinds = [.anime, .cartoons]
+    filter.genreIDs = [9]
+    let params = filter.serverParameters
+    XCTAssertEqual(params["type"] as? String, "movie,serial")
+    XCTAssertEqual(params["genre"] as? String, "23,25")
+  }
+
+  func testGenrePopularityPutsTheLargestFirst() {
+    let sorted = GenrePopularity.sorted([MediaGenre(id: 116, title: "Водевиль", kind: .movie),
+                                         MediaGenre(id: 9, title: "Драма", kind: .movie)])
+    XCTAssertEqual(sorted.map(\.id), [9, 116])
+    XCTAssertEqual(CountryPopularity.order.first, "США")
+  }
+}

@@ -1,6 +1,960 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Genre_21" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erotica"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эротика"
+          }
+        }
+      }
+    },
+    "Genre_128" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exclusives"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эксклюзивы"
+          }
+        }
+      }
+    },
+    "Genre_5" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fantasy"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фэнтези"
+          }
+        }
+      }
+    },
+    "Genre_4" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sci-Fi"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фантастика"
+          }
+        }
+      }
+    },
+    "Genre_12" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horror"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ужасы"
+          }
+        }
+      }
+    },
+    "Genre_7" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thrillers"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Триллеры"
+          }
+        }
+      }
+    },
+    "Genre_101" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stand-Up"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стендапы"
+          }
+        }
+      }
+    },
+    "Genre_20" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sports"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Спортивные"
+          }
+        }
+      }
+    },
+    "Genre_27" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Спектакли"
+          }
+        }
+      }
+    },
+    "Genre_6" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Family"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Семейные"
+          }
+        }
+      }
+    },
+    "Genre_8" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adventure"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приключения"
+          }
+        }
+      }
+    },
+    "Genre_105" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noir"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нуар"
+          }
+        }
+      }
+    },
+    "Genre_23" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Animation"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мультфильмы"
+          }
+        }
+      }
+    },
+    "Genre_19" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Musicals"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Музыкальные"
+          }
+        }
+      }
+    },
+    "Genre_11" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mystery"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мистика"
+          }
+        }
+      }
+    },
+    "Genre_10" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Romance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мелодрамы"
+          }
+        }
+      }
+    },
+    "Genre_17" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crime"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Криминальные"
+          }
+        }
+      }
+    },
+    "Genre_26" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shorts"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Короткометражки"
+          }
+        }
+      }
+    },
+    "Genre_1" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comedies"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Комедии"
+          }
+        }
+      }
+    },
+    "Genre_18" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historical"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исторические"
+          }
+        }
+      }
+    },
+    "Genre_9" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dramas"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Драмы"
+          }
+        }
+      }
+    },
+    "Genre_107" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doramas"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дорамы"
+          }
+        }
+      }
+    },
+    "Genre_24" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documentaries"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документальные"
+          }
+        }
+      }
+    },
+    "Genre_13" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detective"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Детективы"
+          }
+        }
+      }
+    },
+    "Genre_15" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "War"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Военные"
+          }
+        }
+      }
+    },
+    "Genre_116" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vaudevilles"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Водевили"
+          }
+        }
+      }
+    },
+    "Genre_14" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Westerns"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вестерны"
+          }
+        }
+      }
+    },
+    "Genre_2" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Action"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Боевики"
+          }
+        }
+      }
+    },
+    "Genre_3" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Biographies"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Биографии"
+          }
+        }
+      }
+    },
+    "Genre_25" : {
+      "comment" : "Film/series genre, plural, as a filter lists it",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anime"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аниме"
+          }
+        }
+      }
+    },
+    "Kind_concerts_Without" : {
+      "comment" : "Every catalog kind but this one",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without Concerts"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без концертов"
+          }
+        }
+      }
+    },
+    "Kind_concerts_One" : {
+      "comment" : "Catalog kind, singular: one title's kind on its page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Concert"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Концерт"
+          }
+        }
+      }
+    },
+    "Kind_concerts" : {
+      "comment" : "Catalog kind, plural: filters and section titles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Concerts"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Концерты"
+          }
+        }
+      }
+    },
+    "Kind_tvShows_Without" : {
+      "comment" : "Every catalog kind but this one",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without TV Shows"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без ТВ-шоу"
+          }
+        }
+      }
+    },
+    "Kind_tvShows_One" : {
+      "comment" : "Catalog kind, singular: one title's kind on its page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TV Show"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ТВ-шоу"
+          }
+        }
+      }
+    },
+    "Kind_tvShows" : {
+      "comment" : "Catalog kind, plural: filters and section titles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TV Shows"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ТВ-шоу"
+          }
+        }
+      }
+    },
+    "Kind_standup_One" : {
+      "comment" : "Catalog kind, singular: one title's kind on its page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stand-Up Special"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стендап"
+          }
+        }
+      }
+    },
+    "Kind_standup" : {
+      "comment" : "Catalog kind, plural: filters and section titles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stand-Up"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стендапы"
+          }
+        }
+      }
+    },
+    "Kind_cartoons_One" : {
+      "comment" : "Catalog kind, singular: one title's kind on its page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Animated"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мультфильм"
+          }
+        }
+      }
+    },
+    "Kind_cartoons" : {
+      "comment" : "Catalog kind, plural: filters and section titles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Animation"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мультфильмы"
+          }
+        }
+      }
+    },
+    "Kind_anime_One" : {
+      "comment" : "Catalog kind, singular: one title's kind on its page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anime"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аниме"
+          }
+        }
+      }
+    },
+    "Kind_anime" : {
+      "comment" : "Catalog kind, plural: filters and section titles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anime"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аниме"
+          }
+        }
+      }
+    },
+    "Kind_documentaries_Without" : {
+      "comment" : "Every catalog kind but this one",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without Documentaries"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без документалок"
+          }
+        }
+      }
+    },
+    "Kind_documentaries_One" : {
+      "comment" : "Catalog kind, singular: one title's kind on its page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documentary"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документалка"
+          }
+        }
+      }
+    },
+    "Kind_documentaries" : {
+      "comment" : "Catalog kind, plural: filters and section titles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documentaries"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документалки"
+          }
+        }
+      }
+    },
+    "Kind_shorts_One" : {
+      "comment" : "Catalog kind, singular: one title's kind on its page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Short"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Короткометражка"
+          }
+        }
+      }
+    },
+    "Kind_shorts" : {
+      "comment" : "Catalog kind, plural: filters and section titles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shorts"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Короткометражки"
+          }
+        }
+      }
+    },
+    "Kind_series_Without" : {
+      "comment" : "Every catalog kind but this one",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without Series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без сериалов"
+          }
+        }
+      }
+    },
+    "Kind_series_One" : {
+      "comment" : "Catalog kind, singular: one title's kind on its page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сериал"
+          }
+        }
+      }
+    },
+    "Kind_series" : {
+      "comment" : "Catalog kind, plural: filters and section titles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сериалы"
+          }
+        }
+      }
+    },
+    "Kind_movies_Without" : {
+      "comment" : "Every catalog kind but this one",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without Movies"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без фильмов"
+          }
+        }
+      }
+    },
+    "Kind_movies_One" : {
+      "comment" : "Catalog kind, singular: one title's kind on its page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Movie"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фильм"
+          }
+        }
+      }
+    },
+    "Kind_movies" : {
+      "comment" : "Catalog kind, plural: filters and section titles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Movies"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фильмы"
+          }
+        }
+      }
+    },
     "" : {
       "localizations" : {
         "en" : {

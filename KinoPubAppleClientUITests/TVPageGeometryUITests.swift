@@ -451,6 +451,45 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "multi-7-empty")
   }
 
+  /// Kinds in kino.pub's order; a genre kind after a type kind starts over and turns
+  /// the genre filter off; genres as one list with dividers; countries by popularity;
+  /// Kinopoisk from 0…9 / to 10…1.
+  func testSearchKindsAndGenres() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark", "-KINOPUBSearchQuery", "ма"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    let remote = XCUIRemote.shared
+    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
+      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
+    }
+    press(.left, wait: 3)
+    press(.down, 4); press(.left, 6, wait: 0.4)
+    press(.select, wait: 1.2)
+    press(.down); press(.select, wait: 1)            // Фильмы
+    press(.down, 4, wait: 0.4); press(.select, wait: 1)  // Аниме (5th kind) — starts over
+    try shoot(app, name: "kinds-0-anime")
+    press(.menu, wait: 3)
+    try shoot(app, name: "kinds-1-anime-closed")
+    press(.select, wait: 1.2); press(.up, 6, wait: 0.3); press(.select, wait: 1); press(.menu, wait: 3)  // back to Все
+    press(.right); press(.select, wait: 1.2)
+    try shoot(app, name: "kinds-2-genres")
+    press(.down, 12, wait: 0.3)
+    try shoot(app, name: "kinds-3-genres-deeper")
+    press(.menu, wait: 1.2)
+    press(.right); press(.select, wait: 1.2)
+    try shoot(app, name: "kinds-4-countries")
+    press(.menu, wait: 1.2)
+    press(.right, 2); press(.select, wait: 1.2); press(.select, wait: 1.2); press(.select, wait: 1.2)
+    try shoot(app, name: "kinds-5-kinopoisk")
+    press(.down, 12, wait: 0.3)
+    try shoot(app, name: "kinds-6-kinopoisk-to")
+    press(.menu, wait: 1); press(.menu, wait: 1); press(.menu, wait: 1.2)
+  }
+
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
   /// red, collection blue, sections in rotating colours, cells yellow): shots of the
   /// typed search, the filter row, the cards and a rail scrolled right, to see which

@@ -60,6 +60,8 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
   /// A filter that is narrowing the results — drawn filled, so a row of pull-downs says
   /// at a glance which of them are in play.
   public let isActive: Bool
+  /// Off: drawn dimmed and skipped by focus — a filter the other picks rule out.
+  public let isEnabled: Bool
   public let alignment: Alignment
 
   public enum Alignment: Hashable, Sendable {
@@ -105,10 +107,17 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
     /// anything else clears it, and clearing the last pick brings it back.
     public let exclusiveOptionID: String?
 
-    public init(nodes: [MenuNode], keepsPresented: Bool = false, exclusiveOptionID: String? = nil) {
+    /// Options that only combine with their own group (option id → group). A pick from
+    /// another group starts a new selection — "films" and "anime" are different axes
+    /// on the server and cannot be one request.
+    public let optionGroups: [String: Int]
+
+    public init(nodes: [MenuNode], keepsPresented: Bool = false, exclusiveOptionID: String? = nil,
+                optionGroups: [String: Int] = [:]) {
       self.nodes = nodes
       self.keepsPresented = keepsPresented
       self.exclusiveOptionID = exclusiveOptionID
+      self.optionGroups = optionGroups
     }
 
     /// The checked option ids, anywhere in the tree.
@@ -133,6 +142,9 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
       }
       if id == all { return [all] }
       if selection.contains(all) { return [id] }
+      if let group = optionGroups[id], selection.contains(where: { optionGroups[$0] != group }) {
+        return [id]
+      }
       var next = selection
       if next.contains(id) { next.remove(id) } else { next.insert(id) }
       return next.isEmpty ? [all] : next
@@ -149,12 +161,14 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
               systemImage: String? = nil,
               menu: Menu? = nil,
               isActive: Bool = false,
+              isEnabled: Bool = true,
               alignment: Alignment = .leading) {
     self.id = id
     self.title = title
     self.systemImage = systemImage
     self.menu = menu
     self.isActive = isActive
+    self.isEnabled = isEnabled
     self.alignment = alignment
   }
 }
