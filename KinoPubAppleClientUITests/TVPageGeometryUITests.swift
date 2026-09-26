@@ -252,42 +252,6 @@ final class TVPageGeometryUITests: XCTestCase {
     for step in 0..<7 { try hop(.up, "2-up-\(step)") }
   }
 
-  /// The sort pull-down: Down to it, Select opens the system menu, Down + Select picks
-  /// the next order, and the rows re-sort. Shots of each state.
-  func testSearchSortMenu() throws {
-    let app = XCUIApplication()
-    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
-                            "-KINOPUBSearchQuery", "ма", "-UIFocusLoggingEnabled", "YES"]
-    if let session = UITestDevSession.json {
-      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
-    }
-    app.launch()
-    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
-    XCUIRemote.shared.press(.left)
-    Thread.sleep(forTimeInterval: 3)
-    // Tab bar → keyboard (two rows in Russian) → suggestions → the filter row's first
-    // pull-down ("Все").
-    let remote = XCUIRemote.shared
-    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
-      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
-    }
-    // Down lands on whichever pill sits under the focused suggestion; walk to "Все".
-    press(.down, 4)
-    press(.left, 6, wait: 0.4)
-    try shoot(app, name: "menu-0-row")
-    press(.select, wait: 1.2); try shoot(app, name: "menu-1-types"); press(.menu, wait: 1.2)
-    press(.right); press(.select, wait: 1.2); try shoot(app, name: "menu-2-genres")
-    press(.down); press(.select, wait: 1.2); try shoot(app, name: "menu-3-genre-set")
-    press(.menu, wait: 1); press(.menu, wait: 1.2)
-    press(.right); press(.select, wait: 1.2); try shoot(app, name: "menu-4-countries"); press(.menu, wait: 1.2)
-    press(.right); press(.select, wait: 1.2); try shoot(app, name: "menu-5-years")
-    press(.select, wait: 1.2); try shoot(app, name: "menu-6-years-from")
-    press(.menu, wait: 1); press(.menu, wait: 1.2)
-    press(.right); press(.select, wait: 1.2); try shoot(app, name: "menu-7-filters")
-    press(.select, wait: 1.2); press(.select, wait: 1.2); try shoot(app, name: "menu-8-kinopoisk")
-    press(.menu, wait: 1); press(.menu, wait: 1); press(.menu, wait: 1.2)
-  }
-
   /// Deep into the cards, back up to the keyboard, then Down: focus must go to what is
   /// under the keyboard (suggestions, then the filter row), not jump back to the card it
   /// left. Read from the focus log — the last "Moving focus" lines of the run.
@@ -378,196 +342,79 @@ final class TVPageGeometryUITests: XCTestCase {
     }
   }
 
-  /// Picks that must reach the server: years from 2010, Kinopoisk from 7. Shots of the
-  /// chip titles, the submenu subtitles and the results after each.
-  func testSearchFilterPicks() throws {
+  private func launchSearch(_ extra: [String]) -> XCUIApplication {
     let app = XCUIApplication()
-    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark", "-KINOPUBSearchQuery", "ма"]
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "light"] + extra
     if let session = UITestDevSession.json {
       app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
     }
     app.launch()
     XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
-    let remote = XCUIRemote.shared
-    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
-      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
-    }
+    return app
+  }
+
+  private func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
+    for _ in 0..<times { XCUIRemote.shared.press(button); Thread.sleep(forTimeInterval: wait) }
+  }
+
+  /// The browse row: Sort, Filters (round icon until set, then what is set), then
+  /// Тип, Жанр, Рейтинг, Год, Страна with the ones in play first; a horizontal rail.
+  func testSearchFilterRow() throws {
+    let app = launchSearch([])
     press(.left, wait: 3)
-    press(.down, 4); press(.left, 6, wait: 0.4)
-    try shoot(app, name: "pick-0")
-    // Years ▸ С ▸ 2010 (Любой, 2026…2022, 2020, 2010).
-    press(.right, 3); press(.select, wait: 1.2); press(.select, wait: 1.2)
-    press(.down, 7, wait: 0.4); press(.select, wait: 3)
-    try shoot(app, name: "pick-1-years")
-    // Filters ▸ Рейтинги ▸ Кинопоиск ▸ От 7 (Неважно, 5, 6, 7).
-    press(.right); press(.select, wait: 1.2); press(.select, wait: 1.2); press(.select, wait: 1.2)
-    press(.down, 3, wait: 0.4); press(.select, wait: 3)
-    try shoot(app, name: "pick-2-kp")
-    press(.select, wait: 1.2); press(.select, wait: 1.2)
-    try shoot(app, name: "pick-3-ratings-open")
-    press(.menu, wait: 1); press(.menu, wait: 1.5)
-  }
-
-  /// Multi-selects keep a draft while open (checkmarks flip in place, the list stays
-  /// where it is) and apply once on close; years apply at once; a filter that leaves
-  /// nothing shows the empty state under the filter row.
-  func testSearchMultiSelectDeferred() throws {
-    let app = XCUIApplication()
-    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark", "-KINOPUBSearchQuery", "ма"]
-    if let session = UITestDevSession.json {
-      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
-    }
-    app.launch()
-    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
-    let remote = XCUIRemote.shared
-    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
-      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
-    }
-    press(.left, wait: 3)
-    press(.down, 4); press(.left, 6, wait: 0.4)
-    // Type: Фильмы, then Сериалы, menu open throughout.
-    press(.select, wait: 1.2)
-    press(.down); press(.select, wait: 1)
-    try shoot(app, name: "multi-0-type-one")
-    press(.down); press(.select, wait: 1)
-    try shoot(app, name: "multi-1-type-two")
+    press(.down, 4); press(.left, 8, wait: 0.4)                    // Sort
+    try shoot(app, name: "row-0")
+    press(.right, 2); press(.select, wait: 1.2)                    // Тип
+    press(.down); press(.select, wait: 1); press(.down); press(.select, wait: 1)
+    try shoot(app, name: "row-1-type-menu")
     press(.menu, wait: 3)
-    try shoot(app, name: "multi-2-type-closed")
-    // Country: deep in the list, two picks.
-    press(.right, 2); press(.select, wait: 1.2)
-    press(.down, 9, wait: 0.35); press(.select, wait: 1)
-    press(.down, 2, wait: 0.35); press(.select, wait: 1)
-    try shoot(app, name: "multi-3-country-deep")
-    press(.menu, wait: 3)
-    try shoot(app, name: "multi-4-country-closed")
-    // Year: Начиная с ▸ 2020 (2026 … 2020 is the seventh).
-    press(.right); press(.select, wait: 1.2)
-    try shoot(app, name: "multi-5-year-menu")
-    press(.select, wait: 1.2); press(.down, 6, wait: 0.35); press(.select, wait: 3)
-    try shoot(app, name: "multi-6-year-picked")
-    // Filters ▸ Рейтинги ▸ Кинопоиск ▸ От 9 — likely nothing left.
-    press(.right); press(.select, wait: 1.2); press(.select, wait: 1.2); press(.select, wait: 1.2)
-    press(.down, 5, wait: 0.35); press(.select, wait: 4)
-    try shoot(app, name: "multi-7-empty")
+    press(.right); press(.select, wait: 1.2)                       // Жанр
+    press(.down); press(.select, wait: 1); press(.menu, wait: 3)
+    try shoot(app, name: "row-2-genre")
+    press(.left, 8, wait: 0.4); press(.right)                      // Filters
+    press(.select, wait: 1.2); press(.select, wait: 1.2)           // ▸ Качество
+    try shoot(app, name: "row-3-quality")
+    press(.down); press(.select, wait: 3)                          // Только 4K
+    try shoot(app, name: "row-4-4k")
+    press(.right, 3); press(.select, wait: 1.2); press(.select, wait: 1.2)  // Рейтинг ▸ Кинопоиск
+    try shoot(app, name: "row-5-rating-menu")
+    press(.down, 5, wait: 0.35); press(.select, wait: 3)           // от 5
+    try shoot(app, name: "row-6-rating")
+    press(.right, 6, wait: 0.5)
+    try shoot(app, name: "row-7-end")
   }
 
-  /// Type: "Все" checked by default, types check together, a preset (anime…) replaces
-  /// them and hides Genre; an active chip keeps its look
-  /// when another filter repaints the row; the Filters menu's second lines; the round
-  /// × at the head of the row clears everything.
-  func testSearchTypePresets() throws {
-    for scheme in ["light", "dark"] {
-      let app = XCUIApplication()
-      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", scheme, "-KINOPUBSearchQuery", "ма"]
-      if let session = UITestDevSession.json {
-        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
-      }
-      app.launch()
-      XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
-      let remote = XCUIRemote.shared
-      func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
-        for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
-      }
-      press(.left, wait: 3)
-      press(.down, 4); press(.left, 6, wait: 0.4)
-      press(.select, wait: 1.2)
-      try shoot(app, name: "type-\(scheme)-0-open")
-      press(.down); press(.select, wait: 1)            // Фильмы (under "Все")
-      press(.down); press(.select, wait: 1)            // Сериалы
-      try shoot(app, name: "type-\(scheme)-1-two")
-      press(.menu, wait: 3)
-      press(.right, wait: 0.8); press(.select, wait: 1.2)
-      press(.down); press(.select, wait: 1)            // the first genre
-      press(.menu, wait: 3)
-      press(.left, wait: 0.8); press(.select, wait: 1.2)
-      press(.down, 3); press(.select, wait: 1)         // + Документалки
-      press(.menu, wait: 3)
-      press(.right, wait: 1)
-      try shoot(app, name: "type-\(scheme)-2-row-after-repaint")
-      press(.right, 3, wait: 0.5); press(.select, wait: 1.2)
-      try shoot(app, name: "type-\(scheme)-3-filters")
-      press(.select, wait: 1.2)
-      try shoot(app, name: "type-\(scheme)-4-ratings")
-      press(.menu, wait: 1); press(.down, 2); press(.select, wait: 1.2)
-      try shoot(app, name: "type-\(scheme)-4b-status")
-      press(.right, wait: 1); press(.select, wait: 1.2)   // В эфире
-      try shoot(app, name: "type-\(scheme)-4c-airing")   // a pick closes the menu
-      press(.left, 5, wait: 0.5)
-      try shoot(app, name: "type-\(scheme)-5-clear-focused")
-      press(.select, wait: 3)
-      try shoot(app, name: "type-\(scheme)-6-cleared")
-      // Away and back: the typed text is gone, the library (and its filters) stays.
-      press(.home, wait: 3)
-      app.activate()
-      Thread.sleep(forTimeInterval: 3)
-      try shoot(app, name: "type-\(scheme)-7-reopened")
-      app.terminate()
-    }
-  }
-
-  /// A typed query (3+ characters): the row is Type and the scope (Все | Названия |
-  /// Актёры | Режиссёры), results filed in titled rails by kind; the scope narrows.
-  /// Two characters stay the library, with the whole row.
+  /// A query from the 3rd letter: [where to look ▾] [Тип ▾]; the first two letters
+  /// narrow what is loaded, by word start.
   func testSearchQueryMode() throws {
-    let remote = XCUIRemote.shared
-    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
-      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
-    }
-    for query in ["таба", "ма"] {
-      let app = XCUIApplication()
-      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "light", "-KINOPUBSearchQuery", query]
-      if let session = UITestDevSession.json {
-        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
-      }
-      app.launch()
-      XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
-      press(.left, wait: 4)
-      try shoot(app, name: "query-\(query)-0")
-      guard query == "таба" else { app.terminate(); continue }
-      press(.down, 4); press(.left, 6, wait: 0.4)
-      press(.right, 3, wait: 0.5); press(.select, wait: 4)   // Актёры
-      try shoot(app, name: "query-\(query)-1-actors")
-      press(.left, 2, wait: 0.5); press(.select, wait: 4)    // Все
-      for step in 2...5 {
-        press(.down, wait: 1)
-        try shoot(app, name: "query-\(query)-\(step)")
-      }
-      app.terminate()
-    }
+    var app = launchSearch(["-KINOPUBSearchQuery", "таба"])
+    press(.left, wait: 4)
+    try shoot(app, name: "query-0")
+    press(.down, 4); press(.left, 6, wait: 0.4); press(.select, wait: 1.2)
+    try shoot(app, name: "query-1-scope-menu")
+    press(.down, 2); press(.select, wait: 4)                       // Актёры
+    try shoot(app, name: "query-2-actors")
+    app.terminate()
+    app = launchSearch(["-KINOPUBSearchQuery", "та"])
+    press(.left, wait: 4)
+    try shoot(app, name: "query-3-letters")
+    app.terminate()
   }
 
   /// The filter row's picks survive a relaunch; the query does not.
   func testSearchFiltersPersist() throws {
-    let remote = XCUIRemote.shared
-    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
-      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
-    }
-    func launch(_ extra: [String]) -> XCUIApplication {
-      let app = XCUIApplication()
-      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "light"] + extra
-      if let session = UITestDevSession.json {
-        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
-      }
-      app.launch()
-      XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
-      return app
-    }
-    var app = launch([])                                     // a clean row
+    var app = launchSearch([])
     press(.left, wait: 3)
-    press(.down, 4); press(.left, 6, wait: 0.4)
-    press(.select, wait: 1.2); press(.down); press(.select, wait: 1); press(.menu, wait: 3)  // Фильмы
-    press(.right, 4, wait: 0.5); press(.select, wait: 1.2)  // Фильтры (Тип → Жанр, Страна, Год, Фильтры)
-    try shoot(app, name: "persist-0-filters-menu")
-    press(.down); press(.select, wait: 1.2)                  // Качество
-    try shoot(app, name: "persist-1-quality")
-    press(.menu, wait: 1); press(.down); press(.select, wait: 1.2)  // Статус
-    try shoot(app, name: "persist-1b-status")
-    press(.menu, wait: 1); press(.up); press(.select, wait: 1.2)    // back to Качество
-    press(.down, 2); press(.select, wait: 3)                 // Full HD 1080p+
+    press(.down, 4); press(.left, 8, wait: 0.4)
+    press(.right, 2); press(.select, wait: 1.2)                    // Тип ▸ Фильмы
+    press(.down); press(.select, wait: 1); press(.menu, wait: 3)
+    press(.left); press(.select, wait: 1.2); press(.select, wait: 1.2)  // Filters ▸ Качество
+    press(.down); press(.select, wait: 3)                          // Только 4K
+    try shoot(app, name: "persist-0")
     app.terminate()
-    app = launch(["-KINOPUBKeepSearchFilter"])
+    app = launchSearch(["-KINOPUBKeepSearchFilter"])
     press(.left, wait: 4)
-    try shoot(app, name: "persist-2-relaunched")
+    try shoot(app, name: "persist-1-relaunched")
     app.terminate()
   }
 

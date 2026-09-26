@@ -235,4 +235,14 @@ final class CatalogKindParameterTests: XCTestCase {
     XCTAssertEqual(sorted.map(\.id), [9, 116])
     XCTAssertEqual(CountryPopularity.order.first, "США")
   }
+
+  /// "Everywhere" is three answers: order kept, paging while any has more.
+  func testMergingPages() {
+    let titles = PaginatedData(items: [1, 2], pagination: Pagination(total: 1, current: 1, perpage: 20))
+    let cast = PaginatedData(items: [3], pagination: Pagination(total: 6, current: 1, perpage: 20))
+    let merged = PaginatedData.merging([titles, cast])
+    XCTAssertEqual(merged.items, [1, 2, 3])
+    XCTAssertEqual(merged.pagination.total, 6)
+    XCTAssertEqual(merged.pagination.current, 1)
+  }
 }

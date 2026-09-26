@@ -343,7 +343,8 @@ struct TabsNavigationView: View {
                                        errorHandler: errorHandler,
                                        query: initialSearchQuery,
                                        minimumQueryLength: 3,
-                                       savedFilterKey: "search.filter"))
+                                       savedFilterKey: "search.filter",
+                                       searchesEveryField: true))
 #else
     SearchView(catalog: LibraryCatalog(itemsService: appContext.contentService,
                                        authState: authState,

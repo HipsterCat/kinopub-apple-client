@@ -86,6 +86,10 @@ class LibraryCatalog: ObservableObject {
   let minimumQueryLength: Int
   /// Where the filter row's picks are kept between launches (the query never is).
   private let savedFilterKey: String?
+  /// "Everywhere" as titles + directors + cast, three requests merged: without `field`
+  /// the server matches titles only ("табак" → 2 titles; `field=cast` → 112), and it
+  /// takes one field per request (a comma list is read as one; 2026-09-26).
+  private let searchesEveryField: Bool
 
   /// Picker contents, loaded once the user is authorized.
   @Published public private(set) var genres: [MediaGenre] = []
@@ -115,12 +119,14 @@ class LibraryCatalog: ObservableObject {
        filter: LibraryFilter = LibraryFilter(),
        query: String = "",
        minimumQueryLength: Int = 1,
-       savedFilterKey: String? = nil) {
+       savedFilterKey: String? = nil,
+       searchesEveryField: Bool = false) {
     self.itemsService = itemsService
     self.authState = authState
     self.errorHandler = errorHandler
     self.minimumQueryLength = minimumQueryLength
     self.savedFilterKey = savedFilterKey
+    self.searchesEveryField = searchesEveryField
 #if DEBUG
     // UI tests start from a clean filter row unless a test is about the saving itself.
     let arguments = ProcessInfo.processInfo.arguments
@@ -185,8 +191,20 @@ class LibraryCatalog: ObservableObject {
 #else
         let searchFilter = filter
 #endif
-        data = try await itemsService.search(query: searchQuery, filter: searchFilter, sort: nil,
-                                             field: searchField, page: page, perPage: Self.pageSize)
+        if searchField == nil, searchesEveryField {
+          let query = searchQuery
+          async let titles = itemsService.search(query: query, filter: searchFilter, sort: nil,
+                                                 field: .title, page: page, perPage: Self.pageSize)
+          async let directors = itemsService.search(query: query, filter: searchFilter, sort: nil,
+                                                    field: .director, page: page, perPage: Self.pageSize)
+          async let cast = itemsService.search(query: query, filter: searchFilter, sort: nil,
+                                               field: .cast, page: page, perPage: Self.pageSize)
+          // Titles first, then directors, then cast; `handle` drops the repeats.
+          data = try await .merging([titles, directors, cast])
+        } else {
+          data = try await itemsService.search(query: searchQuery, filter: searchFilter, sort: nil,
+                                               field: searchField, page: page, perPage: Self.pageSize)
+        }
       } else {
         data = try await itemsService.fetchItems(filter: filter, page: page, perPage: Self.pageSize)
       }

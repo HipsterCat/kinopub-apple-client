@@ -387,14 +387,14 @@ final class TVPageChipCell: UICollectionViewCell {
 
   /// Gray system pills, the title in `.body`, the size the filter row is drawn at.
   /// Focus is the button's own; an active chip's resting look is `updateActiveLook`.
-  /// An icon-only chip's symbol: small (the × read as too heavy at `.body`), drawn
-  /// centred on a square canvas so the button's content — and so the button — is
-  /// exactly as wide as it is tall.
-  private static let iconSide: CGFloat = 24
+  /// An icon-only chip's symbol, a touch under the `.body` symbols beside it (the ×
+  /// read as too heavy at full size), drawn centred on a square canvas so the
+  /// button's content — and so the button — is exactly as wide as it is tall.
+  private static let iconSide: CGFloat = 30
 
   private static func squareIcon(_ name: String) -> UIImage? {
     guard let symbol = UIImage(systemName: name,
-                               withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .semibold))
+                               withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .medium))
     else { return nil }
     let side = CGSize(width: iconSide, height: iconSide)
     return UIGraphicsImageRenderer(size: side).image { _ in

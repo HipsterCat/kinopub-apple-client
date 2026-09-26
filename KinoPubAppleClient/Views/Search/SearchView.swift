@@ -92,8 +92,6 @@ struct SearchView: View {
             navigationState.push(.person(match))
           case .chip(let chip) where chip.id == TVSearchFilters.clear:
             catalog.clearFilters()
-          case .chip(let chip) where chip.id.hasPrefix(TVSearchFilters.scopePrefix):
-            catalog.updateSearchField(TVSearchFilters.scopeField(chip.id))
           case .chip, .placeholder:
             break
           }
@@ -171,14 +169,23 @@ struct SearchView: View {
 
   /// Every title the device already knows, matched on title and original title.
   /// Episode stills are skipped — their caption is an episode, not a title.
-  private var localMatches: [MediaCard] {
-    let query = catalog.searchQuery
+  private var localMatches: [MediaCard] { localMatches(catalog.searchQuery, prefix: false) }
+
+  /// The first letters (below the search threshold): what is already on screen and on
+  /// the device, by a word of the title starting with them — an index, not a search.
+  private var letterFilter: String? {
+    let query = trimmedQuery
+    return !query.isEmpty && !catalog.isSearching ? query : nil
+  }
+
+  private func localMatches(_ query: String, prefix: Bool) -> [MediaCard] {
     guard !query.isEmpty else { return [] }
     var seen = Set<Int>()
     var out: [MediaCard] = []
     for state in appContext.contentStore.rows.values {
       for card in state.cards where !card.isLandscape && !card.opensCollection {
-        guard !seen.contains(card.itemID), card.matchesSearch(query) else { continue }
+        guard !seen.contains(card.itemID),
+              prefix ? card.hasWord(startingWith: query) : card.matchesSearch(query) else { continue }
         seen.insert(card.itemID)
         out.append(card)
       }
@@ -191,6 +198,11 @@ struct SearchView: View {
   /// no genres or countries to filter on, and they would break the server's order.
   private var tvResults: [MediaCard] {
     let server = catalog.items.map { MediaCard($0) }
+    if let letters = letterFilter {
+      let loaded = server.filter { $0.hasWord(startingWith: letters) }
+      let ids = Set(loaded.map(\.itemID))
+      return loaded + localMatches(letters, prefix: true).filter { !ids.contains($0.itemID) }
+    }
     // Local titles only while the server's answer is the whole search: no type, and
     // every field (a shelf card cannot say whether a name matched its cast).
     guard catalog.isSearching, catalog.filter.kinds.isEmpty,
@@ -326,10 +338,10 @@ struct SearchView: View {
                      retryTitle: "Try Again".localized)
     }
     if empty && !catalog.isLoading {
-      if !catalog.isSearching, catalog.filter.hasActiveFilters {
+      if !catalog.isSearching, letterFilter == nil, catalog.filter.hasActiveFilters {
         return .message("Nothing Matches These Filters".localized)
       }
-      if catalog.isSearching { return .message("No Results".localized) }
+      if catalog.isSearching || letterFilter != nil { return .message("No Results".localized) }
     }
     return .content
   }
@@ -565,19 +577,15 @@ enum TVSearchFilters {
   static let type = "type", genre = "genre", country = "country", years = "years"
   static let facets = "facets", sort = "sort"
   private static let any = "any"
-  /// The round × that clears every filter — first in the row while any is on.
+  static let rating = "rating", scope = "scope"
+  /// The round × that clears every filter. Off for now (2026-09-26): the row starts
+  /// with sort and Filters, and the × pushed every pill along when it appeared.
   static let clear = "clear"
-  /// Where a typed query looks: all fields, titles, actors, directors (`field=`).
-  static let scopePrefix = "scope."
-  private static let scopes: [(id: String, titleKey: String, field: SearchItemsRequest.Field?)] = [
-    ("all", "All", nil), ("title", "Scope_Titles", .title),
-    ("cast", "Scope_Actors", .cast), ("director", "Scope_Directors", .director)
+  /// Where a typed query looks (`field=`): everywhere (three requests, see
+  /// `LibraryCatalog.searchesEveryField`), or titles / actors / directors alone.
+  private static let scopes: [(field: SearchItemsRequest.Field, titleKey: String)] = [
+    (.title, "Scope_Titles"), (.cast, "Scope_Actors"), (.director, "Scope_Directors")
   ]
-
-  static func scopeField(_ chipID: String) -> SearchItemsRequest.Field? {
-    let id = String(chipID.dropFirst(scopePrefix.count))
-    return scopes.first { $0.id == id }?.field
-  }
 
   /// The kinds on — empty is "Все".
   static func selectedKinds(_ filter: LibraryFilter) -> Set<CatalogKind> { filter.kinds }
@@ -663,45 +671,54 @@ enum TVSearchFilters {
       isActive: filter.yearFrom != nil || filter.yearTo != nil
     )
 
-    let facetsChip = TVPageChip(
-      id: facets,
-      title: "Filters".localized,
-      systemImage: "line.3.horizontal.decrease",
-      menu: .init(nodes: facetNodes(filter, episodic: kinds.isEmpty || kinds.contains(where: \.isEpisodic))),
-      isActive: filter.finishedOnly || filter.minimumQuality != nil
-        || filter.kinopoiskMin != nil || filter.kinopoiskMax != nil
-        || filter.imdbMin != nil || filter.imdbMax != nil
+    // Rating — Kinopoisk and IMDb, each from–to.
+    let ratingChip = TVPageChip(
+      id: rating,
+      title: ratingTitle(filter) ?? "Filter_Rating".localized,
+      menu: .init(nodes: ratingNodes(filter)),
+      isActive: ratingTitle(filter) != nil
     )
 
-    // A typed query: the type and where to look — kino.pub's search takes nothing else
-    // (for now; the other picks stay and come back with the empty field).
+    // A typed query: where to look, then the type — kino.pub's search takes nothing
+    // else (for now; the other picks stay and come back with the empty field).
     if searching {
       let current = catalog.searchField
-      return .chips(id: "filters", title: nil, chips: [typeChip] + scopes.map { scope in
-        TVPageChip(id: scopePrefix + scope.id, title: scope.titleKey.localized, isActive: scope.field == current)
-      })
+      let scopeChip = TVPageChip(
+        id: scope,
+        title: scopes.first { $0.field == current }?.titleKey.localized ?? "Scope_Everywhere_Title".localized,
+        menu: .init(nodes: [option("scope.all", "Scope_Everywhere".localized, current == nil),
+                            .section(title: nil, children: scopes.map {
+                              option("scope.\($0.field.rawValue)", $0.titleKey.localized, current == $0.field)
+                            })]),
+        isActive: current != nil
+      )
+      return .chips(id: "filters", title: nil, chips: [scopeChip, typeChip])
     }
 
-    // Clearing is one round × at the head of the row, not an entry in each menu.
-    var chips: [TVPageChip] = []
-    if filter.hasActiveFilters {
-      chips.append(TVPageChip(id: clear, title: "Reset Filters".localized, systemImage: "xmark", showsTitle: false))
-    }
-    chips.append(typeChip)
-    if !genreAxis { chips.append(genreChip) }
-    chips += [countryChip, yearsChip, facetsChip]
-    // Browsing only: a typed query is ranked by the server's relevance, as on the site.
-    if !searching {
-      chips.append(TVPageChip(
-        id: sort,
-        title: filter.sort.titleKey.localized,
-        systemImage: "arrow.up.arrow.down",
-        menu: .init(options: MediaSortOrder.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
-                    selectedID: filter.sort.rawValue),
-        alignment: .trailing
-      ))
-    }
-    return .chips(id: "filters", title: nil, chips: chips)
+    // Sort, then Filters (a round icon until something in it is set, then what is
+    // set), then the stack — Тип, Жанр, Рейтинг, Год, Страна — with the ones in play
+    // moved to its front in that order. A horizontal rail: nothing is pinned to the
+    // trailing edge for a longer row to run into.
+    let sortChip = TVPageChip(
+      id: sort,
+      title: filter.sort.titleKey.localized,
+      systemImage: "arrow.up.arrow.down",
+      menu: .init(options: MediaSortOrder.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
+                  selectedID: filter.sort.rawValue)
+    )
+    let facetsLabel = facetsTitle(filter)
+    let facetsChip = TVPageChip(
+      id: facets,
+      title: facetsLabel ?? "Filters".localized,
+      systemImage: "line.3.horizontal.decrease",
+      menu: .init(nodes: facetNodes(filter, episodic: kinds.isEmpty || kinds.contains(where: \.isEpisodic))),
+      isActive: facetsLabel != nil,
+      showsTitle: facetsLabel != nil
+    )
+    let stack = [typeChip, genreAxis ? nil : genreChip, ratingChip, yearsChip, countryChip].compactMap { $0 }
+    // if filter.hasActiveFilters { × — see `clear` }
+    return .chips(id: "filters", title: nil,
+                  chips: [sortChip, facetsChip] + stack.filter(\.isActive) + stack.filter { !$0.isActive })
   }
 
   /// "Тип", "Фильмы", "Фильмы и сериалы", "Без концертов" (every type but one), or
@@ -764,13 +781,46 @@ enum TVSearchFilters {
     return hi == 10 ? "\(lo)+" : "\(lo)–\(hi)"
   }
 
-  /// "0+ Кинопоиск, IMDb" while both read the same, else "5+ КП, 7–9 IMDb".
-  private static func ratingsSummary(_ filter: LibraryFilter) -> String {
-    let kp = ratingRange(filter.kinopoiskMin, filter.kinopoiskMax)
-    let imdb = ratingRange(filter.imdbMin, filter.imdbMax)
-    return kp == imdb
-      ? "\(kp) \("Filter_Kinopoisk".localized), IMDb"
-      : "\(kp) \("Filter_KP_Short".localized), \(imdb) IMDb"
+  /// "КП 5+", "IMDb 7–9", "КП 5+, IMDb 7–9" — only what is set; `nil` when neither is.
+  private static func ratingTitle(_ filter: LibraryFilter) -> String? {
+    var parts: [String] = []
+    if filter.kinopoiskMin != nil || filter.kinopoiskMax != nil {
+      parts.append("\("Filter_KP_Short".localized) \(ratingRange(filter.kinopoiskMin, filter.kinopoiskMax))")
+    }
+    if filter.imdbMin != nil || filter.imdbMax != nil {
+      parts.append("IMDb \(ratingRange(filter.imdbMin, filter.imdbMax))")
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: ", ")
+  }
+
+  /// Kinopoisk ▸ and IMDb ▸, each "от" 0…9 and "до" 10…1, the range as the second line.
+  private static func ratingNodes(_ filter: LibraryFilter) -> [TVPageChip.MenuNode] {
+    func range(_ prefix: String, _ name: String, _ min: Double?, _ max: Double?) -> TVPageChip.MenuNode {
+      let lo = min.map(Int.init) ?? 0
+      let hi = max.map(Int.init) ?? 10
+      return .submenu(title: name, subtitle: String(format: "Filter_Range %lld %lld".localized, lo, hi), children: [
+        .section(title: "Range_From".localized,
+                 children: ratingFloors.map { option("\(prefix).min.\($0)", "\($0)", lo == $0) }),
+        .section(title: "Range_To".localized,
+                 children: ratingCeilings.map { option("\(prefix).max.\($0)", "\($0)", hi == $0) })
+      ])
+    }
+    return [range("kp", "Filter_Kinopoisk".localized, filter.kinopoiskMin, filter.kinopoiskMax),
+            range("imdb", "IMDb", filter.imdbMin, filter.imdbMax)]
+  }
+
+  /// What Filters holds when anything in it is set — "4K", "от 720p", "4K, завершённые"
+  /// — or `nil` (the chip is then a round icon).
+  private static func facetsTitle(_ filter: LibraryFilter) -> String? {
+    var parts: [String] = []
+    if let quality = filter.minimumQuality {
+      parts.append(quality == .uhd4K ? quality.title : String(format: "Filter_From %@".localized, quality.title))
+    }
+    if filter.finishedOnly {
+      let status = "Status_Finished".localized
+      parts.append(parts.isEmpty ? status : status.lowercased())
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: ", ")
   }
 
   private static let qualities: [VideoQuality] = [.uhd4K, .fullHD1080, .hd720]
@@ -785,26 +835,9 @@ enum TVSearchFilters {
     }
   }
 
-  /// Ratings (Kinopoisk and IMDb, each from–to) and quality as submenus with their
-  /// value as the second line; "finished only" as a checkmark while an episodic type
-  /// is on. No dividers, no reset entry — the row's × clears.
+  /// Quality and — while an episodic type is on — status, as submenus with their
+  /// value as the second line.
   private static func facetNodes(_ filter: LibraryFilter, episodic: Bool) -> [TVPageChip.MenuNode] {
-    func range(_ prefix: String, _ name: String, _ min: Double?, _ max: Double?) -> TVPageChip.MenuNode {
-      let lo = min.map(Int.init) ?? 0
-      let hi = max.map(Int.init) ?? 10
-      return .submenu(title: name, subtitle: String(format: "Filter_Range %lld %lld".localized, lo, hi), children: [
-        .section(title: "Range_From".localized,
-                 children: ratingFloors.map { option("\(prefix).min.\($0)", "\($0)", lo == $0) }),
-        .section(title: "Range_To".localized,
-                 children: ratingCeilings.map { option("\(prefix).max.\($0)", "\($0)", hi == $0) })
-      ])
-    }
-    let ratings = TVPageChip.MenuNode.submenu(
-      title: "Filter_Ratings".localized,
-      subtitle: ratingsSummary(filter),
-      children: [range("kp", "Filter_Kinopoisk".localized, filter.kinopoiskMin, filter.kinopoiskMax),
-                 range("imdb", "IMDb", filter.imdbMin, filter.imdbMax)]
-    )
     // "Любое" first and checked by default.
     let quality = TVPageChip.MenuNode.submenu(
       title: "Quality".localized,
@@ -814,7 +847,7 @@ enum TVSearchFilters {
     )
     // Only what the server filters: no AC3 / adverts facets (the API ignores both; a
     // client-side filter breaks paging), "finished only" while an episodic type is on.
-    var nodes: [TVPageChip.MenuNode] = [ratings, quality]
+    var nodes: [TVPageChip.MenuNode] = [quality]
     // Статус ▸ Все ✓ / Завершённые. No "airing": the API cannot select it.
     if episodic {
       nodes.append(.submenu(title: "Filter_Status".localized,
@@ -849,8 +882,11 @@ enum TVSearchFilters {
           if parts[0] == "from" { filter.yearTo = from } else { filter.yearFrom = to }
         }
       }
-    case facets:
+    case facets, rating:
       applyFacet(option, to: catalog)
+    case scope:
+      let id = String(option.dropFirst("scope.".count))
+      catalog.updateSearchField(SearchItemsRequest.Field(rawValue: id))
     case sort:
       if let order = MediaSortOrder(rawValue: option) {
         catalog.update { $0.sort = order }
@@ -967,6 +1003,16 @@ enum SearchHistory {
 }
 
 private extension MediaCard {
+  /// A word of the title or original title starts with `letters` ("та" → "Табу",
+  /// "Звезда не того масштаба" no), ignoring case and diacritics.
+  func hasWord(startingWith letters: String) -> Bool {
+    let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .anchored]
+    return [title, subtitle ?? ""].contains { text in
+      text.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        .contains { $0.range(of: letters, options: options) != nil }
+    }
+  }
+
   /// Title or original title contains the query, ignoring case and diacritics
   /// ("ё" finds "е", "Вильнев" finds "Вильнёв").
   func matchesSearch(_ query: String) -> Bool {
