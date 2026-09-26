@@ -699,12 +699,15 @@ enum TVSearchFilters {
     // set), then the stack — Тип, Жанр, Рейтинг, Год, Страна — with the ones in play
     // moved to its front in that order. A horizontal rail: nothing is pinned to the
     // trailing edge for a longer row to run into.
+    // Sort is a round icon of fixed size, like Filters at rest: the order's name is
+    // in its menu (and is the button's accessibility label), not on the row.
     let sortChip = TVPageChip(
       id: sort,
       title: filter.sort.titleKey.localized,
       systemImage: "arrow.up.arrow.down",
       menu: .init(options: MediaSortOrder.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
-                  selectedID: filter.sort.rawValue)
+                  selectedID: filter.sort.rawValue),
+      showsTitle: false
     )
     let facetsLabel = facetsTitle(filter)
     let facetsChip = TVPageChip(
