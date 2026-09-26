@@ -63,6 +63,9 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
   /// Off: drawn dimmed and skipped by focus — a filter the other picks rule out.
   public let isEnabled: Bool
   public let alignment: Alignment
+  /// Off: an icon-only round button — the title is its accessibility label ("Reset
+  /// Filters" as ×).
+  public let showsTitle: Bool
 
   public enum Alignment: Hashable, Sendable {
     case leading
@@ -114,18 +117,14 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
     /// Groups whose options stand alone — presets: a pick is that option only, and
     /// picking it again clears it.
     public let soloGroups: Set<Int>
-    /// A multi-select's "clear" entry: shown in its own section at the bottom while
-    /// anything is checked; a pick clears the selection and closes the menu.
-    public let reset: Option?
 
     public init(nodes: [MenuNode], keepsPresented: Bool = false, exclusiveOptionID: String? = nil,
-                optionGroups: [String: Int] = [:], soloGroups: Set<Int> = [], reset: Option? = nil) {
+                optionGroups: [String: Int] = [:], soloGroups: Set<Int> = []) {
       self.nodes = nodes
       self.keepsPresented = keepsPresented
       self.exclusiveOptionID = exclusiveOptionID
       self.optionGroups = optionGroups
       self.soloGroups = soloGroups
-      self.reset = reset
     }
 
     /// The checked option ids, anywhere in the tree.
@@ -141,14 +140,8 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
       return Set(collect(nodes))
     }
 
-    /// Whether `selection` narrows anything — what shows the reset entry.
-    public func isNarrowing(_ selection: Set<String>) -> Bool {
-      !selection.subtracting(exclusiveOptionID.map { [$0] } ?? []).isEmpty
-    }
-
     /// The selection after tapping `id`, by the multi-select rules above.
     public func toggling(_ id: String, in selection: Set<String>) -> Set<String> {
-      if id == reset?.id { return exclusiveOptionID.map { [$0] } ?? [] }
       var next = selection
       if let all = exclusiveOptionID {
         if id == all { return [all] }
@@ -177,7 +170,8 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
               menu: Menu? = nil,
               isActive: Bool = false,
               isEnabled: Bool = true,
-              alignment: Alignment = .leading) {
+              alignment: Alignment = .leading,
+              showsTitle: Bool = true) {
     self.id = id
     self.title = title
     self.systemImage = systemImage
@@ -185,6 +179,7 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
     self.isActive = isActive
     self.isEnabled = isEnabled
     self.alignment = alignment
+    self.showsTitle = showsTitle
   }
 }
 

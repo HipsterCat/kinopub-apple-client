@@ -285,7 +285,8 @@ final class TVPageChipCell: UICollectionViewCell {
     button.onMenuWillShow = { [weak self] in self?.menuWillShow() }
     button.onMenuDidEnd = { [weak self] in self?.menuDidEnd() }
     button.configurationUpdateHandler = { [weak self] button in
-      Self.updateActiveLook(of: button, isActive: self?.chip?.isActive == true)
+      guard self?.chip?.isActive == true else { return }
+      Self.updateActiveLook(of: button)
     }
     contentView.addSubview(button)
     NSLayoutConstraint.activate([
@@ -307,10 +308,14 @@ final class TVPageChipCell: UICollectionViewCell {
     }
     self.chip = chip
     button.configuration = Self.configuration(for: chip)
+    // Now, not on the next state change: a chip that stays active through a repaint
+    // (another filter changed) must not fall back to gray until it is focused.
+    if chip.isActive { Self.updateActiveLook(of: button) }
     button.isEnabled = chip.isEnabled
+    button.accessibilityLabel = chip.showsTitle ? nil : chip.title
     if let menu = chip.menu {
       draft = menu.selectedIDs
-      button.menu = Self.menu(for: menu, selection: draft) { [weak self] id in self?.picked(id) }
+      button.menu = Self.menu(for: menu) { [weak self] id in self?.picked(id) }
       button.showsMenuAsPrimaryAction = true
     } else {
       button.menu = nil
@@ -327,9 +332,9 @@ final class TVPageChipCell: UICollectionViewCell {
     }
     draft = menu.toggling(id, in: draft)
     let selection = draft
-    button.contextMenuInteraction?.updateVisibleMenu { [weak self] visible in
-      let checked = Self.applyingChecks(selection, to: visible)
-      return Self.placingReset(of: menu, selection: selection, in: checked) { id in self?.picked(id) }
+    let imageChecks = Self.drawsChecksAsImages(menu)
+    button.contextMenuInteraction?.updateVisibleMenu { visible in
+      Self.applyingChecks(selection, to: visible, asImages: imageChecks)
     }
   }
 
@@ -351,63 +356,46 @@ final class TVPageChipCell: UICollectionViewCell {
 
   /// The visible menu with each action's checkmark set from `selection`, submenus
   /// included — actions carry their option id as `identifier`.
-  private static func applyingChecks(_ selection: Set<String>, to menu: UIMenu) -> UIMenu {
+  private static func applyingChecks(_ selection: Set<String>, to menu: UIMenu, asImages: Bool) -> UIMenu {
     menu.replacingChildren(menu.children.map { element in
       if let action = element as? UIAction {
-        action.state = selection.contains(action.identifier.rawValue) ? .on : .off
+        let checked = selection.contains(action.identifier.rawValue)
+        if asImages {
+          action.image = checked ? checkImage : blankCheckImage
+        } else {
+          action.state = checked ? .on : .off
+        }
         return action
       }
       if let submenu = element as? UIMenu {
-        return applyingChecks(selection, to: submenu)
+        return applyingChecks(selection, to: submenu, asImages: asImages)
       }
       return element
     })
   }
 
-  /// The reset entry's section — its own, at the bottom — present while `selection`
-  /// narrows anything and gone once it does not, so it appears with the first check.
-  private static let resetSectionID = UIMenu.Identifier("kinopub.chip.reset")
-
-  private static func placingReset(of menu: TVPageChip.Menu, selection: Set<String>, in visible: UIMenu,
-                                   onOption: @escaping (String) -> Void) -> UIMenu {
-    guard let reset = menu.reset else { return visible }
-    var children = visible.children.filter { ($0 as? UIMenu)?.identifier != resetSectionID }
-    if menu.isNarrowing(selection) {
-      children.append(resetSection(reset, onOption: onOption))
-    }
-    return visible.replacingChildren(children)
-  }
-
-  private static func resetSection(_ reset: TVPageChip.Option, onOption: @escaping (String) -> Void) -> UIMenu {
-    // Not `keepsMenuPresented`: clearing is the end of the edit, so the menu closes
-    // and the (now empty) selection goes out.
-    let action = UIAction(title: reset.title, image: reset.systemImage.flatMap { UIImage(systemName: $0) },
-                          identifier: UIAction.Identifier(reset.id)) { _ in onOption(reset.id) }
-    return UIMenu(title: "", identifier: resetSectionID, options: .displayInline, children: [action])
-  }
-
   override var canBecomeFocused: Bool { false }
 
-  /// An active filter, at rest, wears the focused look without the lift — white fill,
-  /// dark title — so a row of pull-downs says which are in play in either appearance,
-  /// and focus (which also lifts and casts a shadow) still reads as focus. Focused or
-  /// idle, the look is the system's own.
-  private static let grayFill = UIButton.Configuration.gray().background.backgroundColor
-
-  private static func updateActiveLook(of button: UIButton, isActive: Bool) {
+  /// An active filter at rest: a secondary-label fill with the title in the
+  /// background's colour — a step up from the gray pills, a step down from focus
+  /// (white, lifted, shadowed). Focused, the look is the system's own: the values it
+  /// sets there are `nil`. Only active chips pass through here — the gray style's
+  /// resting fill is not a plain colour, and writing any colour over it flattens it.
+  private static func updateActiveLook(of button: UIButton) {
     guard var configuration = button.configuration else { return }
-    let resting = isActive && !button.isFocused
-    // Back to the gray style's own fill, not `nil` — on tvOS a `nil` fill draws white.
-    configuration.background.backgroundColor = resting ? .white : grayFill
-    configuration.baseForegroundColor = resting ? .black : nil
+    let resting = !button.isFocused
+    configuration.background.backgroundColor = resting ? .secondaryLabel : nil
+    configuration.baseForegroundColor = resting ? activeTitle : nil
     button.configuration = configuration
   }
+
+  private static let activeTitle = UIColor { $0.userInterfaceStyle == .dark ? .black : .white }
 
   /// Gray system pills, the title in `.body`, the size the filter row is drawn at.
   /// Focus is the button's own; an active chip's resting look is `updateActiveLook`.
   static func configuration(for chip: TVPageChip) -> UIButton.Configuration {
     var configuration = UIButton.Configuration.gray()
-    configuration.title = chip.title
+    configuration.title = chip.showsTitle ? chip.title : nil
     configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
       var outgoing = incoming
       outgoing.font = UIFont.preferredFont(forTextStyle: .body)
@@ -416,6 +404,10 @@ final class TVPageChipCell: UICollectionViewCell {
     configuration.imagePadding = 12
     configuration.cornerStyle = .capsule
     configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 26, bottom: 12, trailing: 26)
+    if !chip.showsTitle {
+      // A round icon button: the symbol's own width plus insets that make it square.
+      configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18)
+    }
     if let systemImage = chip.systemImage {
       configuration.image = UIImage(systemName: systemImage)
       configuration.imagePlacement = .leading
@@ -433,14 +425,19 @@ final class TVPageChipCell: UICollectionViewCell {
 
   /// The system menu for a chip's `Menu`: options become `UIAction`s (checked ones
   /// `.on`), sections inline `UIMenu`s, submenus nested `UIMenu`s with a subtitle.
-  static func menu(for menu: TVPageChip.Menu, selection: Set<String>? = nil,
-                   onOption: @escaping (String) -> Void) -> UIMenu {
+  static func menu(for menu: TVPageChip.Menu, onOption: @escaping (String) -> Void) -> UIMenu {
+    let imageChecks = drawsChecksAsImages(menu)
     func element(_ node: TVPageChip.MenuNode) -> UIMenuElement {
       switch node {
       case let .option(option, isSelected):
         var attributes: UIMenuElement.Attributes = []
         if !option.isEnabled { attributes.insert(.disabled) }
         if menu.keepsPresented { attributes.insert(.keepsMenuPresented) }
+        if imageChecks {
+          return UIAction(title: option.title, image: isSelected ? checkImage : blankCheckImage,
+                          identifier: UIAction.Identifier(option.id),
+                          attributes: attributes) { _ in onOption(option.id) }
+        }
         return UIAction(title: option.title, image: option.systemImage.flatMap { UIImage(systemName: $0) },
                         identifier: UIAction.Identifier(option.id),
                         attributes: attributes,
@@ -453,12 +450,22 @@ final class TVPageChipCell: UICollectionViewCell {
         return submenu
       }
     }
-    var children = menu.nodes.map(element)
-    if let reset = menu.reset, menu.isNarrowing(selection ?? menu.selectedIDs) {
-      children.append(resetSection(reset, onOption: onOption))
-    }
-    return UIMenu(children: children)
+    return UIMenu(children: menu.nodes.map(element))
   }
+
+  /// A menu reserves its checkmark column only while something is checked, so in a
+  /// multi-select that can be empty (Type) the first check shifted every title right.
+  /// `.singleSelection` does not reserve it either, and draws one check at most
+  /// (tried 2026-09-26). Such a menu carries its checks as the item image instead —
+  /// a checkmark, or the same symbol drawn clear — and the column is always there.
+  /// Menus with an "any" entry always have a check and keep the system's.
+  static func drawsChecksAsImages(_ menu: TVPageChip.Menu) -> Bool {
+    menu.keepsPresented && menu.exclusiveOptionID == nil
+  }
+
+  private static let checkImage = UIImage(systemName: "checkmark")
+  private static let blankCheckImage = UIImage(systemName: "checkmark")?
+    .withTintColor(.clear, renderingMode: .alwaysOriginal)
 
   /// What the pill's width depends on — not its menu (a genre menu is 115 options).
   private struct WidthKey: Hashable {

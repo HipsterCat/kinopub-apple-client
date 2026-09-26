@@ -89,6 +89,8 @@ struct SearchView: View {
             guard let match = tvPeople.first(where: { $0.id == person.id }) else { return }
             SearchHistory.record(searchFieldText)
             navigationState.push(.person(match))
+          case .chip(let chip) where chip.id == TVSearchFilters.clear:
+            catalog.clearFilters()
           case .chip, .placeholder:
             break
           }
@@ -528,7 +530,8 @@ enum TVSearchFilters {
   static let type = "type", genre = "genre", country = "country", years = "years"
   static let facets = "facets", sort = "sort"
   private static let any = "any"
-  private static let reset = "reset"
+  /// The round × that clears every filter — first in the row while any is on.
+  static let clear = "clear"
 
   /// The kinds on — empty is "Все".
   static func selectedKinds(_ filter: LibraryFilter) -> Set<CatalogKind> { filter.kinds }
@@ -558,8 +561,7 @@ enum TVSearchFilters {
 
     // Type — two groups, nothing checked by default ("Тип"). Types combine freely;
     // below a divider the presets (anime, cartoons, shorts, stand-up) stand alone: a
-    // preset is type + genre on the server and cannot be ORed with a type. "Сбросить
-    // фильтр" appears at the bottom with the first check.
+    // preset is type + genre on the server and cannot be ORed with a type.
     let presets: [CatalogKind] = [.anime, .cartoons, .shorts, .standup]
     let kindOption = { (kind: CatalogKind) in option(kind.rawValue, kind.titleKey.localized, kinds.contains(kind)) }
     let typeChip = TVPageChip(
@@ -571,8 +573,7 @@ enum TVSearchFilters {
                   optionGroups: Dictionary(uniqueKeysWithValues: CatalogKind.allCases.map {
                     ($0.rawValue, $0.axis == .type ? 0 : 1)
                   }),
-                  soloGroups: [1],
-                  reset: .init(id: reset, title: "Reset Filter".localized, systemImage: "trash")),
+                  soloGroups: [1]),
       isActive: !kinds.isEmpty
     )
 
@@ -624,7 +625,12 @@ enum TVSearchFilters {
         || filter.imdbMin != nil || filter.imdbMax != nil
     )
 
-    var chips = [typeChip]
+    // Clearing is one round × at the head of the row, not an entry in each menu.
+    var chips: [TVPageChip] = []
+    if filter.hasActiveFilters {
+      chips.append(TVPageChip(id: clear, title: "Reset Filters".localized, systemImage: "xmark", showsTitle: false))
+    }
+    chips.append(typeChip)
     if !genreAxis { chips.append(genreChip) }
     chips += [countryChip, yearsChip, facetsChip]
     // Browsing only: a typed query is ranked by the server's relevance, as on the site.
@@ -701,15 +707,13 @@ enum TVSearchFilters {
     return hi == 10 ? "\(lo)+" : "\(lo)–\(hi)"
   }
 
-  /// "Оценки: 0+ Кинопоиск, IMDb" while both read the same, else
-  /// "Оценки: 5+ КП, 7–9 IMDb".
-  private static func ratingsTitle(_ filter: LibraryFilter) -> String {
+  /// "0+ Кинопоиск, IMDb" while both read the same, else "5+ КП, 7–9 IMDb".
+  private static func ratingsSummary(_ filter: LibraryFilter) -> String {
     let kp = ratingRange(filter.kinopoiskMin, filter.kinopoiskMax)
     let imdb = ratingRange(filter.imdbMin, filter.imdbMax)
-    let value = kp == imdb
+    return kp == imdb
       ? "\(kp) \("Filter_Kinopoisk".localized), IMDb"
       : "\(kp) \("Filter_KP_Short".localized), \(imdb) IMDb"
-    return String(format: "Filter_Ratings %@".localized, value)
   }
 
   private static let qualities: [VideoQuality] = [.uhd4K, .fullHD1080, .hd720]
@@ -724,14 +728,14 @@ enum TVSearchFilters {
     }
   }
 
-  /// Ratings (Kinopoisk and IMDb, each from–to) and quality as submenus that say their
-  /// value in the title; "finished only" as a checkmark while an episodic type is on;
-  /// Reset last.
+  /// Ratings (Kinopoisk and IMDb, each from–to) and quality as submenus with their
+  /// value as the second line; "finished only" as a checkmark while an episodic type
+  /// is on. No dividers, no reset entry — the row's × clears.
   private static func facetNodes(_ filter: LibraryFilter, episodic: Bool) -> [TVPageChip.MenuNode] {
     func range(_ prefix: String, _ name: String, _ min: Double?, _ max: Double?) -> TVPageChip.MenuNode {
       let lo = min.map(Int.init) ?? 0
       let hi = max.map(Int.init) ?? 10
-      return .submenu(title: String(format: "Filter_RangeTitle %@ %lld %lld".localized, name, lo, hi), subtitle: nil, children: [
+      return .submenu(title: name, subtitle: String(format: "Filter_Range %lld %lld".localized, lo, hi), children: [
         .section(title: "Range_From".localized,
                  children: ratingFloors.map { option("\(prefix).min.\($0)", "\($0)", lo == $0) }),
         .section(title: "Range_To".localized,
@@ -739,28 +743,22 @@ enum TVSearchFilters {
       ])
     }
     let ratings = TVPageChip.MenuNode.submenu(
-      title: ratingsTitle(filter),
-      subtitle: nil,
+      title: "Filter_Ratings".localized,
+      subtitle: ratingsSummary(filter),
       children: [range("kp", "Filter_Kinopoisk".localized, filter.kinopoiskMin, filter.kinopoiskMax),
                  range("imdb", "IMDb", filter.imdbMin, filter.imdbMax)]
     )
     // No default: nothing checked is any quality; picking the checked one clears it.
     let quality = TVPageChip.MenuNode.submenu(
-      title: filter.minimumQuality.map { "\("Quality".localized): \(qualityTitle($0))" } ?? "Quality".localized,
-      subtitle: nil,
+      title: "Quality".localized,
+      subtitle: filter.minimumQuality.map(qualityTitle),
       children: qualities.map { option("q.\($0.rawValue)", qualityTitle($0), filter.minimumQuality == $0) }
     )
     // Only what the server filters: no AC3 / adverts facets (the API ignores both; a
     // client-side filter breaks paging), "finished only" while an episodic type is on.
     var nodes: [TVPageChip.MenuNode] = [ratings, quality]
     if episodic {
-      nodes.append(.section(title: nil, children: [option("finished", "Finished Only".localized, filter.finishedOnly)]))
-    }
-    if filter.hasActiveFilters {
-      // Not destructive red: it clears choices, it deletes nothing.
-      nodes.append(.section(title: nil, children: [
-        .option(.init(id: reset, title: "Reset Filters".localized, systemImage: "trash"), isSelected: false)
-      ]))
+      nodes.append(option("finished", "Finished Only".localized, filter.finishedOnly))
     }
     return nodes
   }
@@ -838,9 +836,6 @@ enum TVSearchFilters {
   @MainActor
   private static func applyFacet(_ option: String, to catalog: LibraryCatalog) {
     switch option {
-    case reset:
-      catalog.clearFilters()
-      return
     case "finished":
       catalog.update { $0.finishedOnly.toggle() }
       return

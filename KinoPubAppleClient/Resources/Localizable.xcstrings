@@ -1,6 +1,42 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Filter_Range %lld %lld" : {
+      "comment" : "A rating range as a submenu's second line, e.g. 'from 0 to 10'",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld to %2$lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "от %1$lld до %2$lld"
+          }
+        }
+      }
+    },
+    "Filter_Ratings" : {
+      "comment" : "Filters menu: ratings submenu title; its current ranges are the second line",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ratings"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценки"
+          }
+        }
+      }
+    },
     "Quality_4K_Only" : {
       "comment" : "Quality filter option: 4K only",
       "extractionState" : "manual",
@@ -15,60 +51,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Только 4K"
-          }
-        }
-      }
-    },
-    "Filter_RangeTitle %@ %lld %lld" : {
-      "comment" : "Rating source with its range, e.g. 'Kinopoisk: from 0 to 10'",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@: %2$lld to %3$lld"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@: от %2$lld до %3$lld"
-          }
-        }
-      }
-    },
-    "Filter_Ratings %@" : {
-      "comment" : "Ratings submenu title with the current ranges, e.g. 'Ratings: 5+ KP, 7–9 IMDb'",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ratings: %@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Оценки: %@"
-          }
-        }
-      }
-    },
-    "Reset Filter" : {
-      "comment" : "Clears one pull-down's picks (the Type menu)",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset Filter"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сбросить фильтр"
           }
         }
       }

@@ -451,48 +451,50 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "multi-7-empty")
   }
 
-  /// Type: types check together, a preset (anime…) replaces them and hides Genre,
-  /// "Сбросить фильтр" appears with the first check; active chips at rest in the light
-  /// appearance; the Filters menu's "Оценки" / "Кинопоиск: от 0 до 10" / "Качество".
+  /// Type: types check together, a preset (anime…) replaces them and hides Genre; the
+  /// checkmark column is there before the first check; an active chip keeps its look
+  /// when another filter repaints the row; the Filters menu's second lines; the round
+  /// × at the head of the row clears everything.
   func testSearchTypePresets() throws {
-    let app = XCUIApplication()
-    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "light", "-KINOPUBSearchQuery", "ма"]
-    if let session = UITestDevSession.json {
-      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    for scheme in ["light", "dark"] {
+      let app = XCUIApplication()
+      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", scheme, "-KINOPUBSearchQuery", "ма"]
+      if let session = UITestDevSession.json {
+        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+      }
+      app.launch()
+      XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+      let remote = XCUIRemote.shared
+      func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
+        for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
+      }
+      press(.left, wait: 3)
+      press(.down, 4); press(.left, 6, wait: 0.4)
+      press(.select, wait: 1.2)
+      try shoot(app, name: "type-\(scheme)-0-open")
+      press(.select, wait: 1)                          // Фильмы
+      press(.down); press(.select, wait: 1)            // Сериалы
+      try shoot(app, name: "type-\(scheme)-1-two")
+      press(.menu, wait: 3)
+      press(.right, wait: 0.8); press(.select, wait: 1.2)
+      press(.down); press(.select, wait: 1)            // the first genre
+      press(.menu, wait: 3)
+      press(.left, wait: 0.8); press(.select, wait: 1.2)
+      press(.down, 2); press(.select, wait: 1)         // + Документалки
+      press(.menu, wait: 3)
+      press(.right, wait: 1)
+      try shoot(app, name: "type-\(scheme)-2-row-after-repaint")
+      press(.right, 3, wait: 0.5); press(.select, wait: 1.2)
+      try shoot(app, name: "type-\(scheme)-3-filters")
+      press(.select, wait: 1.2)
+      try shoot(app, name: "type-\(scheme)-4-ratings")
+      press(.menu, wait: 1); press(.menu, wait: 1.2)
+      press(.left, 5, wait: 0.5)
+      try shoot(app, name: "type-\(scheme)-5-clear-focused")
+      press(.select, wait: 3)
+      try shoot(app, name: "type-\(scheme)-6-cleared")
+      app.terminate()
     }
-    app.launch()
-    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
-    let remote = XCUIRemote.shared
-    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
-      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
-    }
-    press(.left, wait: 3)
-    press(.down, 4); press(.left, 6, wait: 0.4)
-    press(.select, wait: 1.2)
-    try shoot(app, name: "type-0-open")
-    press(.select, wait: 1)                          // Фильмы
-    press(.down); press(.select, wait: 1)            // Сериалы
-    try shoot(app, name: "type-1-films-series")
-    press(.menu, wait: 3)
-    press(.right, wait: 1)
-    try shoot(app, name: "type-2-closed")
-    press(.left, wait: 1)
-    press(.select, wait: 1.2)
-    try shoot(app, name: "type-3-reopened")
-    press(.down, 8, wait: 0.3)
-    try shoot(app, name: "type-4-bottom")
-    press(.up, 3, wait: 0.3); press(.select, wait: 1)
-    try shoot(app, name: "type-5-preset")
-    press(.menu, wait: 3)
-    press(.right, wait: 1)
-    try shoot(app, name: "type-6-preset-closed")
-    press(.right, 3, wait: 0.5); press(.select, wait: 1.2)
-    try shoot(app, name: "type-7-filters")
-    press(.select, wait: 1.2)
-    try shoot(app, name: "type-8-ratings")
-    press(.menu, wait: 1); press(.down); press(.select, wait: 1.2)
-    try shoot(app, name: "type-9-quality")
-    press(.menu, wait: 1); press(.menu, wait: 1.2)
   }
 
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
