@@ -37,6 +37,8 @@ public final class TVPageCollectionViewController: UIViewController {
   public var onSelect: ((TVPageSection, TVPageItem) -> Void)?
   /// A pull-down chip's option was picked: (chip id, option id).
   public var onChipOption: ((String, String) -> Void)?
+  /// A multi-select pull-down closed with a new selection: (chip id, option ids).
+  public var onChipSelection: ((String, Set<String>) -> Void)?
   /// The section's last loaded item came on screen; the owner decides if there is more.
   public var onNearEnd: ((TVPageSection) -> Void)?
   public var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
@@ -324,6 +326,9 @@ public final class TVPageCollectionViewController: UIViewController {
       }
       cell.onOption = { [weak self] option in
         self?.onChipOption?(chip.id, option)
+      }
+      cell.onSelection = { [weak self] selection in
+        self?.onChipSelection?(chip.id, selection)
       }
     }
 

@@ -231,22 +231,59 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
 // MARK: - Chip
 
+/// A system button that says when its menu opens and closes — the two
+/// `UIContextMenuInteractionDelegate` calls `UIControl` already implements for the menu
+/// it presents (tvOS 17).
+@MainActor
+final class TVPageMenuButton: UIButton {
+  var onMenuWillShow: (() -> Void)?
+  var onMenuDidEnd: (() -> Void)?
+
+  override func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                       willDisplayMenuFor configuration: UIContextMenuConfiguration,
+                                       animator: (any UIContextMenuInteractionAnimating)?) {
+    super.contextMenuInteraction(interaction, willDisplayMenuFor: configuration, animator: animator)
+    onMenuWillShow?()
+  }
+
+  override func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                       willEndFor configuration: UIContextMenuConfiguration,
+                                       animator: (any UIContextMenuInteractionAnimating)?) {
+    super.contextMenuInteraction(interaction, willEndFor: configuration, animator: animator)
+    onMenuDidEnd?()
+  }
+}
+
 /// A pill of text. The cell is not focusable; the system button inside it is, which is
 /// what gives the pill the stock tvOS button focus (lift, white fill) with no focus
 /// code here. A chip with a `menu` is the system pull-down: `UIButton.menu` shown as
 /// the primary action, the current pick checked — the same control a SwiftUI `Menu`
 /// becomes on tvOS, with no menu chrome of ours.
+///
+/// A multi-select menu keeps a draft while it is open: a pick flips checkmarks in the
+/// visible menu (`updateVisibleMenu`) and nothing else happens until it closes, when the
+/// whole selection goes out once. Rebuilding the menu per pick reloaded the results
+/// under it and sent a long list (countries) back to the top.
 @MainActor
 final class TVPageChipCell: UICollectionViewCell {
-  private let button = UIButton(configuration: .gray())
+  private let button = TVPageMenuButton(configuration: .gray())
   var onSelect: (() -> Void)?
   var onOption: ((String) -> Void)?
+  var onSelection: ((Set<String>) -> Void)?
+
+  private var chip: TVPageChip?
+  private var menuOpen = false
+  private var pending: TVPageChip?
+  private var draft: Set<String> = []
+  private var openedWith: Set<String> = []
 
   override init(frame: CGRect) {
     super.init(frame: frame)
     button.translatesAutoresizingMaskIntoConstraints = false
     button.configuration?.cornerStyle = .capsule
     button.addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .primaryActionTriggered)
+    button.onMenuWillShow = { [weak self] in self?.menuWillShow() }
+    button.onMenuDidEnd = { [weak self] in self?.menuDidEnd() }
     contentView.addSubview(button)
     NSLayoutConstraint.activate([
       button.topAnchor.constraint(equalTo: contentView.topAnchor),
@@ -259,15 +296,67 @@ final class TVPageChipCell: UICollectionViewCell {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func configure(chip: TVPageChip) {
+    // Never rebuild a menu that is on screen — the page may repaint under it (results
+    // arriving); the newest chip is applied when it closes.
+    guard !menuOpen else {
+      pending = chip
+      return
+    }
+    self.chip = chip
     button.configuration = Self.configuration(for: chip)
     if let menu = chip.menu {
-      button.menu = Self.menu(for: menu) { [weak self] id in self?.onOption?(id) }
+      draft = menu.selectedIDs
+      button.menu = Self.menu(for: menu) { [weak self] id in self?.picked(id) }
       button.showsMenuAsPrimaryAction = true
     } else {
       button.menu = nil
       button.showsMenuAsPrimaryAction = false
     }
     button.accessibilityIdentifier = "kinopub.chip.\(chip.id)"
+  }
+
+  private func picked(_ id: String) {
+    guard let menu = chip?.menu else { return }
+    guard menu.keepsPresented else {
+      onOption?(id)
+      return
+    }
+    draft = menu.toggling(id, in: draft)
+    let selection = draft
+    button.contextMenuInteraction?.updateVisibleMenu { visible in
+      Self.applyingChecks(selection, to: visible)
+    }
+  }
+
+  private func menuWillShow() {
+    menuOpen = true
+    openedWith = draft
+  }
+
+  private func menuDidEnd() {
+    menuOpen = false
+    if chip?.menu?.keepsPresented == true, draft != openedWith {
+      onSelection?(draft)
+    }
+    if let pending {
+      self.pending = nil
+      configure(chip: pending)
+    }
+  }
+
+  /// The visible menu with each action's checkmark set from `selection`, submenus
+  /// included — actions carry their option id as `identifier`.
+  private static func applyingChecks(_ selection: Set<String>, to menu: UIMenu) -> UIMenu {
+    menu.replacingChildren(menu.children.map { element in
+      if let action = element as? UIAction {
+        action.state = selection.contains(action.identifier.rawValue) ? .on : .off
+        return action
+      }
+      if let submenu = element as? UIMenu {
+        return applyingChecks(selection, to: submenu)
+      }
+      return element
+    })
   }
 
   override var canBecomeFocused: Bool { false }
@@ -310,7 +399,8 @@ final class TVPageChipCell: UICollectionViewCell {
         if !option.isEnabled { attributes.insert(.disabled) }
         if option.isDestructive { attributes.insert(.destructive) }
         if menu.keepsPresented { attributes.insert(.keepsMenuPresented) }
-        return UIAction(title: option.title, attributes: attributes,
+        return UIAction(title: option.title, identifier: UIAction.Identifier(option.id),
+                        attributes: attributes,
                         state: isSelected ? .on : .off) { _ in onOption(option.id) }
       case let .section(title, children):
         return UIMenu(title: title ?? "", options: .displayInline, children: children.map(element))
@@ -355,6 +445,8 @@ final class TVPageChipCell: UICollectionViewCell {
     super.prepareForReuse()
     onSelect = nil
     onOption = nil
+    onSelection = nil
+    pending = nil
   }
 }
 

@@ -408,6 +408,49 @@ final class TVPageGeometryUITests: XCTestCase {
     press(.menu, wait: 1); press(.menu, wait: 1.5)
   }
 
+  /// Multi-selects keep a draft while open (checkmarks flip in place, the list stays
+  /// where it is) and apply once on close; years apply at once; a filter that leaves
+  /// nothing shows the empty state under the filter row.
+  func testSearchMultiSelectDeferred() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark", "-KINOPUBSearchQuery", "ма"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+    let remote = XCUIRemote.shared
+    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
+      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
+    }
+    press(.left, wait: 3)
+    press(.down, 4); press(.left, 6, wait: 0.4)
+    // Type: Фильмы, then Сериалы, menu open throughout.
+    press(.select, wait: 1.2)
+    press(.down); press(.select, wait: 1)
+    try shoot(app, name: "multi-0-type-one")
+    press(.down); press(.select, wait: 1)
+    try shoot(app, name: "multi-1-type-two")
+    press(.menu, wait: 3)
+    try shoot(app, name: "multi-2-type-closed")
+    // Country: deep in the list, two picks.
+    press(.right, 2); press(.select, wait: 1.2)
+    press(.down, 9, wait: 0.35); press(.select, wait: 1)
+    press(.down, 2, wait: 0.35); press(.select, wait: 1)
+    try shoot(app, name: "multi-3-country-deep")
+    press(.menu, wait: 3)
+    try shoot(app, name: "multi-4-country-closed")
+    // Year: Начиная с ▸ 2020 (2026 … 2020 is the seventh).
+    press(.right); press(.select, wait: 1.2)
+    try shoot(app, name: "multi-5-year-menu")
+    press(.select, wait: 1.2); press(.down, 6, wait: 0.35); press(.select, wait: 3)
+    try shoot(app, name: "multi-6-year-picked")
+    // Filters ▸ Рейтинги ▸ Кинопоиск ▸ От 9 — likely nothing left.
+    press(.right); press(.select, wait: 1.2); press(.select, wait: 1.2); press(.select, wait: 1.2)
+    press(.down, 5, wait: 0.35); press(.select, wait: 4)
+    try shoot(app, name: "multi-7-empty")
+  }
+
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
   /// red, collection blue, sections in rotating colours, cells yellow): shots of the
   /// typed search, the filter row, the cards and a rail scrolled right, to see which

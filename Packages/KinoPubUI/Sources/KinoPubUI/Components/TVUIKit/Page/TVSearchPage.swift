@@ -66,6 +66,8 @@ public struct TVSearchPage: UIViewControllerRepresentable {
   public let onSelect: (TVPageSection, TVPageItem) -> Void
   /// A pull-down chip in the results (sort, filters): (chip id, option id).
   public let onChipOption: (String, String) -> Void
+  /// A multi-select pull-down closed with a new selection: (chip id, option ids).
+  public let onChipSelection: (String, Set<String>) -> Void
   public let onNearEnd: ((TVPageSection) -> Void)?
   public let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   public let onRetry: (() -> Void)?
@@ -82,6 +84,7 @@ public struct TVSearchPage: UIViewControllerRepresentable {
               onCommit: @escaping (String) -> Void = { _ in },
               onSelect: @escaping (TVPageSection, TVPageItem) -> Void,
               onChipOption: @escaping (String, String) -> Void = { _, _ in },
+              onChipSelection: @escaping (String, Set<String>) -> Void = { _, _ in },
               onNearEnd: ((TVPageSection) -> Void)? = nil,
               contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               onRetry: (() -> Void)? = nil) {
@@ -97,6 +100,7 @@ public struct TVSearchPage: UIViewControllerRepresentable {
     self.onCommit = onCommit
     self.onSelect = onSelect
     self.onChipOption = onChipOption
+    self.onChipSelection = onChipSelection
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
     self.onRetry = onRetry
@@ -152,6 +156,7 @@ public struct TVSearchPage: UIViewControllerRepresentable {
     guard let results = coordinator.results, let search = coordinator.search else { return }
     results.onSelect = onSelect
     results.onChipOption = onChipOption
+    results.onChipSelection = onChipSelection
     results.onNearEnd = onNearEnd
     results.contextMenuProvider = contextMenuProvider
     results.onRetry = onRetry

@@ -97,13 +97,45 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
 
   public struct Menu: Hashable, Sendable {
     public let nodes: [MenuNode]
-    /// Multi-select: a pick toggles and the menu stays open for the next one
-    /// (`UIMenuElement.Attributes.keepsMenuPresented`).
+    /// Multi-select: a pick toggles a checkmark in place and the menu stays open
+    /// (`UIMenuElement.Attributes.keepsMenuPresented`); the whole selection is reported
+    /// once, when the menu closes — the list under the finger does not rebuild or jump.
     public let keepsPresented: Bool
+    /// The "all / any" option of a multi-select: picking it clears the rest, picking
+    /// anything else clears it, and clearing the last pick brings it back.
+    public let exclusiveOptionID: String?
 
-    public init(nodes: [MenuNode], keepsPresented: Bool = false) {
+    public init(nodes: [MenuNode], keepsPresented: Bool = false, exclusiveOptionID: String? = nil) {
       self.nodes = nodes
       self.keepsPresented = keepsPresented
+      self.exclusiveOptionID = exclusiveOptionID
+    }
+
+    /// The checked option ids, anywhere in the tree.
+    public var selectedIDs: Set<String> {
+      func collect(_ nodes: [MenuNode]) -> [String] {
+        nodes.flatMap { node -> [String] in
+          switch node {
+          case let .option(option, isSelected): return isSelected ? [option.id] : []
+          case let .section(_, children), let .submenu(_, _, children): return collect(children)
+          }
+        }
+      }
+      return Set(collect(nodes))
+    }
+
+    /// The selection after tapping `id`, by the multi-select rules above.
+    public func toggling(_ id: String, in selection: Set<String>) -> Set<String> {
+      guard let all = exclusiveOptionID else {
+        var next = selection
+        if next.contains(id) { next.remove(id) } else { next.insert(id) }
+        return next
+      }
+      if id == all { return [all] }
+      if selection.contains(all) { return [id] }
+      var next = selection
+      if next.contains(id) { next.remove(id) } else { next.insert(id) }
+      return next.isEmpty ? [all] : next
     }
 
     /// A flat single-select list.

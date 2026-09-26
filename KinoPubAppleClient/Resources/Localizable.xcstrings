@@ -53,6 +53,186 @@
         }
       }
     },
+    "Filter_Year" : {
+      "comment" : "tvOS search: the year pull-down",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Year"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Год"
+          }
+        }
+      }
+    },
+    "%@ and %@" : {
+      "comment" : "Two picked types, e.g. Movies and Series",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ and %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ и %2$@"
+          }
+        }
+      }
+    },
+    "TypeWithout_movie" : {
+      "comment" : "Every type but movies",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without Movies"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без фильмов"
+          }
+        }
+      }
+    },
+    "TypeWithout_serial" : {
+      "comment" : "Every type but series",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without Series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без сериалов"
+          }
+        }
+      }
+    },
+    "TypeWithout_3D" : {
+      "comment" : "Every type but 3D",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without 3D"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без 3D"
+          }
+        }
+      }
+    },
+    "TypeWithout_concert" : {
+      "comment" : "Every type but concerts",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without Concerts"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без концертов"
+          }
+        }
+      }
+    },
+    "TypeWithout_documovie" : {
+      "comment" : "Every type but documentary films",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without Documentaries"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без документальных"
+          }
+        }
+      }
+    },
+    "TypeWithout_docuserial" : {
+      "comment" : "Every type but documentary series",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without Documentary Series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без документальных сериалов"
+          }
+        }
+      }
+    },
+    "TypeWithout_tvshow" : {
+      "comment" : "Every type but TV shows",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without TV Shows"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без ТВ-шоу"
+          }
+        }
+      }
+    },
+    "Nothing Matches These Filters" : {
+      "comment" : "tvOS search: filters left no results",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing matches these filters"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По этим фильтрам ничего не найдено"
+          }
+        }
+      }
+    },
     "Filter_Kinopoisk" : {
       "comment" : "tvOS search filters: Kinopoisk rating submenu",
       "extractionState" : "manual",
@@ -222,13 +402,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "From"
+            "value" : "Starting From"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "С"
+            "value" : "Начиная с"
           }
         }
       }
@@ -240,13 +420,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "To"
+            "value" : "Up To"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "По"
+            "value" : "До"
           }
         }
       }
