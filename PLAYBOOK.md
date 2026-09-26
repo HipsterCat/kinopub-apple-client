@@ -30,17 +30,18 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 ## Milestone gates (full MVP, ordered)
 
 ### M0 — Policy in repo (do this before more UI if missing)
-- [ ] `CURRENT.md` + `PLAYBOOK.md` merged (includes **Grid & chrome contract**)
+- [ ] `CURRENT.md` + `PLAYBOOK.md` merged (includes **adaptive layout + Dynamic Type** contract)
 - [ ] ROADMAP header points here
 - [ ] Team/agents acknowledged: other platforms postponed
-- [ ] Grid table + surface→recipe frozen in CURRENT (safe area 80/60, 40 pt gutters, poster **6 @ 260**, stills **4 @ 410**)
+- [ ] Layout contract frozen as: **container + safe area + Dynamic Type + preferred item size**; HIG table kept as **density examples only** (not fixed 6 @ 260 / 4 @ 410 acceptance)
 
-### M1 — Poster shelves (blocked until M0 grid contract is in main)
-- Watch Now / Series / Movies: **same** poster shelf recipe — **6-col @ 260**, spacing **40 pt**, titled-row clearance **80 pt** vertical between unfocused rows (Sasha: was 100, −20)
+### M1 — Poster shelves (blocked until M0 layout contract is in main)
+- Watch Now / Series / Movies: **same** poster shelf recipe — preferred 2:3 poster size; columns from available width (HIG ~6-col class on full width is a density check, not a hardcode)
 - Symmetrical peek on every horizontal rail; `scrollClipDisabled` / no clip of focus scale
 - Content-type filter for Series/Movies; replace grid-as-home if needed
-- No new Up Next/CW feature work; no LIVE; no invented widths
-- Acceptance: `Section(title){rail}`; rowHeader=`.headline.weight(.semibold)` + secondary; no extra +8 under the header; caption `.label` when focused; caption clears focused bounds; focused posters don’t overlap neighbors; **symmetrical peek, no edge-clip**; Menu pops; detail opens; system appearance + Dynamic Type; screenshots from feature branch; **hig visual pass** before merge
+- No new Up Next/CW feature work; no LIVE; no 1920 canvas / hardcoded cell frames
+- Acceptance: leading section titles aligned to content inset; rowHeader=`.headline.weight(.semibold)` + secondary; caption `.label` when focused; caption clears focused bounds; focused posters don’t overlap neighbors; **symmetrical peek, no edge-clip**; Menu pops; detail opens; system appearance + **Dynamic Type** (larger text grows captions/headers without clipping); screenshots from feature branch; **hig visual pass** before merge
+- SwiftUI `Section { rail }` is the **current** shelf default; a UIKit page / collection revisit for perf is expected later with archi — do not expand SwiftUI rail surface silently
 - Prefer `#Preview` / isolated demos for visual checks — do not burn Sasha’s simulator OTP for routine UI review. Watch Now Dark+Light: DEBUG `-KINOPUBForceColorScheme light|dark` (`simctl ui appearance` unsupported); `-KINOPUBFocusFirstPoster` for focused **Hot Movies** caption clearance (skips CW). Pass args by hand — not on the shared Debug scheme.
 
 ### M2 — Actions everywhere
@@ -53,12 +54,12 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 
 ### M4 — Detail + playback path (system chrome)
 ### M5 — Library + bookmarks
-- Before impl: **explicit** Library card recipe — 4-col landscape @ 410 **or** 5/6-col posters (not 2:3 in a 4-col grid)
+- Before impl: **explicit** Library card recipe — preferred aspect + adaptive columns (do not freeze 4-col @ 410 as law)
 - Sketch sidebar OK with system list materials + focusSection
 
 ### M6 — Search + categories completeness
-- **System search only** — Sketch keyboard discarded
-- Results default **4-col @ 410** landscape @ 40 pt unless CURRENT picks another table size
+- **System UIKit search only** on tvOS — Sketch keyboard discarded; SwiftUI `.searchable` is not tvOS law
+- Results: adaptive grid from preferred item size; HIG density examples only
 
 ### M7 — Harden on 4K 26.6; strip regressions
 
@@ -67,18 +68,18 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 ## Engineering rules (non-negotiable)
 
 1. `AGENTS.md` banned patterns — still banned.
-2. tvOS media = UIKit + TVUIKit; three system cell families.
+2. tvOS media = UIKit + TVUIKit for **large / repeating** surfaces; three system cell families. SwiftUI is fine for **small chrome** (buttons, Menu, filter chips, alerts).
 3. One semantic component, configured — never `HomeMediaCard`-style forks.
 4. Ignore / do not extend despair-era comments and `#if os` chrome experiments for postponed platforms during MVP.
-5. Prefer narrow patches on existing stores/services (`ContentStore`, `HomeCatalog`, menu coordinator, TVUIKit rails).
+5. Prefer narrow patches on existing stores/services (`ContentStore`, `HomeCatalog`, menu coordinator, TVUIKit / page collections).
 6. Prove focus and menus on device; previews ≠ focus.
-7. Card widths only from CURRENT HIG grid table; shelf recipes numeric, not “about right.”
-9. System light/dark + Dynamic Type; read `.agents/skills` before inventing shelf scroll behavior.
-10. Apple Design Resources Sketch UI Kit names/styles over informal mocks.
-11. Shelves use SwiftUI `Section`; rowHeader `.headline.weight(.semibold)` + secondary; no extra +8 under the header (remaining Section gap halved); caption `.label` when focused, rest secondary/hidden; caption clears focus. Titles leading at x=80.
-12. Never ship “insets none” / flush-to-edge rails — leading 80 pt content inset is law; peek ≠ no margin.
-13. Visual gate: before+after screenshots; **hig** compares to Sketch/Apple stills; archi only at merge-ready.
+7. Prefer **preferred item size + container width**; HIG widths are density examples. Do not hardcode cell frames for a fixed canvas.
 8. Focus fundamentals in CURRENT (clip, focusSection, caption clearance, focused assets, empty-state escape).
+9. System light/dark + **Dynamic Type** everywhere practical; UIKit `adjustsFontForContentSizeCategory = true`; self-sizing / fit content; read `.agents/skills` before inventing shelf scroll behavior.
+10. Apple Design Resources Sketch UI Kit names/styles over informal mocks. Orient by system apps (TV, App Store, Podcasts, Music, TestFlight, Fitness).
+11. Shelves: SwiftUI `Section` is current default; rowHeader `.headline.weight(.semibold)` + secondary; caption `.label` when focused. Leading titles follow **safe area / content inset**, not magic `x=80` / 1920 canvas. Perf revisit of SwiftUI shelves is expected — do not expand without measuring.
+12. Never ship “insets none” / flush-to-edge rails — leading content inset from safe area is law; peek ≠ no margin.
+13. Visual gate: before+after screenshots; **hig** compares to Sketch/Apple stills; archi only at merge-ready.
 
 ## Anti-distraction checklist (before every PR)
 
@@ -86,6 +87,7 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 - [ ] Am I following an unchecked ROADMAP box that CURRENT did not pick up? → stop
 - [ ] Am I “improving” iOS/macOS chrome? → stop (postponed)
 - [ ] Am I reintroducing archive/hero/parallax research? → stop
+- [ ] Am I hardcoding cell size / column count for one canvas (ignoring container or Dynamic Type)? → stop
 - [ ] Would Sasha see this as daily-driver tvOS progress? → if no, stop
 
 ## PRs vs direct commits
