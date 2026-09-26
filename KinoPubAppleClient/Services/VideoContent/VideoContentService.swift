@@ -10,8 +10,10 @@ import KinoPubBackend
 
 protocol VideoContentService: Sendable {
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem>
-  /// Text search with the catalog's filters. `sort: nil` is the server's relevance.
+  /// Text search with the catalog's filters. `sort: nil` is the server's relevance;
+  /// `field` searches titles, cast or directors only.
   func search(query: String?, filter: LibraryFilter?, sort: MediaSortOrder?,
+              field: SearchItemsRequest.Field?,
               page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem>
   /// kino.pub's type-ahead rows for the suggestion strip.
   func autocomplete(query: String) async throws -> [SearchAutocompleteEntry]
@@ -51,11 +53,11 @@ extension VideoContentService {
   }
 
   func search(query: String?, page: Int?) async throws -> PaginatedData<MediaItem> {
-    try await search(query: query, filter: nil, sort: nil, page: page, perPage: nil)
+    try await search(query: query, filter: nil, sort: nil, field: nil, page: page, perPage: nil)
   }
 
   func search(query: String?, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
-    try await search(query: query, filter: nil, sort: nil, page: page, perPage: perPage)
+    try await search(query: query, filter: nil, sort: nil, field: nil, page: page, perPage: perPage)
   }
 
   /// Details with links, which is what every caller that plays straight from the payload
@@ -76,6 +78,7 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func search(query: String?, filter: LibraryFilter?, sort: MediaSortOrder?,
+              field: SearchItemsRequest.Field?,
               page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     return PaginatedData.mock(data: [])
   }

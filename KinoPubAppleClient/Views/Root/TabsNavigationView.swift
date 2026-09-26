@@ -335,10 +335,21 @@ struct TabsNavigationView: View {
   // MARK: - Tab roots
 
   private var searchContent: some View {
+#if os(tvOS)
+    // Results from the third character (the first two only complete the query); the
+    // filter row's picks come back after a relaunch, the typed text does not.
+    SearchView(catalog: LibraryCatalog(itemsService: appContext.contentService,
+                                       authState: authState,
+                                       errorHandler: errorHandler,
+                                       query: initialSearchQuery,
+                                       minimumQueryLength: 3,
+                                       savedFilterKey: "search.filter"))
+#else
     SearchView(catalog: LibraryCatalog(itemsService: appContext.contentService,
                                        authState: authState,
                                        errorHandler: errorHandler,
                                        query: initialSearchQuery))
+#endif
   }
 
   /// What the user has already typed by the time the search surface is built. Only

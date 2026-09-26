@@ -92,6 +92,8 @@ struct SearchView: View {
             navigationState.push(.person(match))
           case .chip(let chip) where chip.id == TVSearchFilters.clear:
             catalog.clearFilters()
+          case .chip(let chip) where chip.id.hasPrefix(TVSearchFilters.scopePrefix):
+            catalog.updateSearchField(TVSearchFilters.scopeField(chip.id))
           case .chip, .placeholder:
             break
           }
@@ -170,7 +172,7 @@ struct SearchView: View {
   /// Every title the device already knows, matched on title and original title.
   /// Episode stills are skipped — their caption is an episode, not a title.
   private var localMatches: [MediaCard] {
-    let query = trimmedQuery
+    let query = catalog.searchQuery
     guard !query.isEmpty else { return [] }
     var seen = Set<Int>()
     var out: [MediaCard] = []
@@ -189,8 +191,10 @@ struct SearchView: View {
   /// no genres or countries to filter on, and they would break the server's order.
   private var tvResults: [MediaCard] {
     let server = catalog.items.map { MediaCard($0) }
-    guard !trimmedQuery.isEmpty,
-          !catalog.filter.hasActiveFilters else { return server }
+    // Local titles only while the server's answer is the whole search: no type, and
+    // every field (a shelf card cannot say whether a name matched its cast).
+    guard catalog.isSearching, catalog.filter.kinds.isEmpty,
+          catalog.searchField == nil || catalog.searchField == .title else { return server }
     // Local first in order, but a title the server also returned takes the server's
     // card: a shelf card carries no year or genres, and its line under the title was
     // empty (2026-09-26).
@@ -208,12 +212,19 @@ struct SearchView: View {
   /// the search endpoint matches `cast` and `director`, so a name typed into the field
   /// is as likely to be a person as a title. Directors first, then cast, in result order.
   private var tvPeople: [MediaPerson] {
-    let query = trimmedQuery
+    let query = catalog.searchQuery
     guard !query.isEmpty else { return [] }
+    // The scope says which credits count: titles only — none; actors / directors — that role.
+    let roles: [MediaPerson.Role] = switch catalog.searchField {
+    case .title: []
+    case .cast: [.actor]
+    case .director: [.director]
+    case nil: [.director, .actor]
+    }
     let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
     var seen = Set<String>()
     var out: [MediaPerson] = []
-    for role in [MediaPerson.Role.director, .actor] {
+    for role in roles {
       for item in catalog.items {
         let credits = role == .director ? item.director : item.cast
         // A word of the name starts with the query ("ма" → Мадс, not Томас) — the same
@@ -256,12 +267,12 @@ struct SearchView: View {
     // Two rows only once one row is full: two matches are a row of two, not a column.
     let columns = 3
     return .cards(id: "top", title: nil, columns: columns, rows: items.count > columns ? 2 : 1,
-                  match: trimmedQuery, items: items)
+                  match: catalog.searchQuery, items: items)
   }
 
   private var tvSections: [TVPageSection] {
     let results = tvResults
-    let filters = TVSearchFilters.row(catalog: catalog, searching: !trimmedQuery.isEmpty)
+    let filters = TVSearchFilters.row(catalog: catalog, searching: catalog.isSearching)
     if results.isEmpty {
       // The filter row stays over "No Results" / a failed load: a filter or sort that
       // emptied the page is undone from there (`TVPageStatus` shows under chip rows).
@@ -270,25 +281,41 @@ struct SearchView: View {
         : [filters]
     }
     // Browsing (empty field): the catalog in the chosen order, as one grid.
-    guard !trimmedQuery.isEmpty else {
+    guard catalog.isSearching else {
       return [filters, .posters(id: "browse", title: nil, flow: .grid, caption: .always, cards: results)]
     }
-    // Films and series both in the results: rails by kind, the way the TV app files
-    // them. Only one kind (the type filter narrowed it, or that is all there is): one
-    // grid under the cards.
+    // The best matches as cards, then a titled rail per kind — Фильмы, Сериалы,
+    // Документалки… `sectioned=1` would have the server group them, but it answers
+    // the same flat list (2026-09-26), so the one answer is filed by each title's
+    // type. One kind only (the type filter, or all there is): one grid, no title.
     let cards = topCards(from: results)
-    let movies = results.filter { !$0.isSeries }
-    let series = results.filter(\.isSeries)
-    guard !movies.isEmpty, !series.isEmpty else {
+    let groups = Self.kindGroups(results, types: catalog.itemTypes)
+    guard groups.count > 1 else {
       return [filters, cards, .posters(id: "results", title: nil, flow: .grid, caption: .always, cards: results)]
         .compactMap { $0 }
     }
-    return [
-      filters,
-      cards,
-      movies.isEmpty ? nil : TVPageSection.posters(id: "movies", title: "Movies".localized, caption: .always, cards: movies),
-      series.isEmpty ? nil : TVPageSection.posters(id: "series", title: "Series".localized, caption: .always, cards: series)
-    ].compactMap { $0 }
+    return [filters, cards].compactMap { $0 } + groups.map { kind, cards in
+      TVPageSection.posters(id: "kind.\(kind.rawValue)", title: kind.titleKey.localized, caption: .always, cards: cards)
+    }
+  }
+
+  /// Results by kino.pub's kinds, in the Type menu's order. A title the server did not
+  /// return (a local match) is filed by what its card knows: series or not.
+  private static func kindGroups(_ cards: [MediaCard],
+                                 types: [Int: MediaType]) -> [(CatalogKind, [MediaCard])] {
+    var groups: [CatalogKind: [MediaCard]] = [:]
+    for card in cards {
+      let kind: CatalogKind = switch types[card.itemID] {
+      case .serial?: .series
+      case .documovie?, .docuserial?: .documentaries
+      case .tvshow?: .tvShows
+      case .concert?: .concerts
+      case .movie?, .threeD?: .movies
+      case nil: card.isSeries ? .series : .movies
+      }
+      groups[kind, default: []].append(card)
+    }
+    return CatalogKind.allCases.compactMap { kind in groups[kind].map { (kind, $0) } }
   }
 
   private var tvStatus: TVPageStatus {
@@ -299,8 +326,10 @@ struct SearchView: View {
                      retryTitle: "Try Again".localized)
     }
     if empty && !catalog.isLoading {
-      if catalog.filter.hasActiveFilters { return .message("Nothing Matches These Filters".localized) }
-      if !trimmedQuery.isEmpty { return .message("No Results".localized) }
+      if !catalog.isSearching, catalog.filter.hasActiveFilters {
+        return .message("Nothing Matches These Filters".localized)
+      }
+      if catalog.isSearching { return .message("No Results".localized) }
     }
     return .content
   }
@@ -538,6 +567,17 @@ enum TVSearchFilters {
   private static let any = "any"
   /// The round × that clears every filter — first in the row while any is on.
   static let clear = "clear"
+  /// Where a typed query looks: all fields, titles, actors, directors (`field=`).
+  static let scopePrefix = "scope."
+  private static let scopes: [(id: String, titleKey: String, field: SearchItemsRequest.Field?)] = [
+    ("all", "All", nil), ("title", "Scope_Titles", .title),
+    ("cast", "Scope_Actors", .cast), ("director", "Scope_Directors", .director)
+  ]
+
+  static func scopeField(_ chipID: String) -> SearchItemsRequest.Field? {
+    let id = String(chipID.dropFirst(scopePrefix.count))
+    return scopes.first { $0.id == id }?.field
+  }
 
   /// The kinds on — empty is "Все".
   static func selectedKinds(_ filter: LibraryFilter) -> Set<CatalogKind> { filter.kinds }
@@ -628,10 +668,19 @@ enum TVSearchFilters {
       title: "Filters".localized,
       systemImage: "line.3.horizontal.decrease",
       menu: .init(nodes: facetNodes(filter, episodic: kinds.isEmpty || kinds.contains(where: \.isEpisodic))),
-      isActive: filter.seriesStatus != nil || filter.minimumQuality != nil
+      isActive: filter.finishedOnly || filter.minimumQuality != nil
         || filter.kinopoiskMin != nil || filter.kinopoiskMax != nil
         || filter.imdbMin != nil || filter.imdbMax != nil
     )
+
+    // A typed query: the type and where to look — kino.pub's search takes nothing else
+    // (for now; the other picks stay and come back with the empty field).
+    if searching {
+      let current = catalog.searchField
+      return .chips(id: "filters", title: nil, chips: [typeChip] + scopes.map { scope in
+        TVPageChip(id: scopePrefix + scope.id, title: scope.titleKey.localized, isActive: scope.field == current)
+      })
+    }
 
     // Clearing is one round × at the head of the row, not an entry in each menu.
     var chips: [TVPageChip] = []
@@ -756,23 +805,22 @@ enum TVSearchFilters {
       children: [range("kp", "Filter_Kinopoisk".localized, filter.kinopoiskMin, filter.kinopoiskMax),
                  range("imdb", "IMDb", filter.imdbMin, filter.imdbMax)]
     )
-    // No default: nothing checked is any quality; picking the checked one clears it.
+    // "Любое" first and checked by default.
     let quality = TVPageChip.MenuNode.submenu(
       title: "Quality".localized,
-      subtitle: filter.minimumQuality.map(qualityTitle),
-      children: qualities.map { option("q.\($0.rawValue)", qualityTitle($0), filter.minimumQuality == $0) }
+      subtitle: filter.minimumQuality.map(qualityTitle) ?? "Any_Neuter".localized,
+      children: [option("q.any", "Any_Neuter".localized, filter.minimumQuality == nil)]
+        + qualities.map { option("q.\($0.rawValue)", qualityTitle($0), filter.minimumQuality == $0) }
     )
     // Only what the server filters: no AC3 / adverts facets (the API ignores both; a
     // client-side filter breaks paging), "finished only" while an episodic type is on.
     var nodes: [TVPageChip.MenuNode] = [ratings, quality]
-    // Статус ▸ В эфире / Окончен — one pick, undone by picking it again; no default
-    // (nothing sent is any status).
+    // Статус ▸ Все ✓ / Завершённые. No "airing": the API cannot select it.
     if episodic {
       nodes.append(.submenu(title: "Filter_Status".localized,
-                            subtitle: filter.seriesStatus?.titleKey.localized,
-                            children: SeriesStatus.allCases.map {
-                              option("status.\($0.rawValue)", $0.titleKey.localized, filter.seriesStatus == $0)
-                            }))
+                            subtitle: (filter.finishedOnly ? "Status_Finished" : "All").localized,
+                            children: [option("status.all", "All".localized, !filter.finishedOnly),
+                                       option("status.finished", "Status_Finished".localized, filter.finishedOnly)]))
     }
     return nodes
   }
@@ -830,7 +878,7 @@ enum TVSearchFilters {
         // A preset owns the `genre` parameter — its genre chip is gone, and so are picks.
         filter.genreIDs = kinds.contains { $0.axis == .genre } ? [] : filter.genreIDs.filter(applicable.contains)
         filter.genreID = nil
-        if !kinds.isEmpty, !kinds.contains(where: \.isEpisodic) { filter.seriesStatus = nil }
+        if !kinds.isEmpty, !kinds.contains(where: \.isEpisodic) { filter.finishedOnly = false }
       }
     case genre:
       catalog.update { filter in
@@ -851,13 +899,11 @@ enum TVSearchFilters {
   private static func applyFacet(_ option: String, to catalog: LibraryCatalog) {
     let parts = option.split(separator: ".").map(String.init)
     if parts.count == 2, parts[0] == "status" {
-      let picked = Int(parts[1]).flatMap(SeriesStatus.init(rawValue:))
-      catalog.update { $0.seriesStatus = $0.seriesStatus == picked ? nil : picked }
+      catalog.update { $0.finishedOnly = parts[1] == "finished" }
       return
     }
     if parts.count == 2, parts[0] == "q" {
-      let picked = Int(parts[1]).flatMap(VideoQuality.init(rawValue:))
-      catalog.update { $0.minimumQuality = $0.minimumQuality == picked ? nil : picked }
+      catalog.update { $0.minimumQuality = Int(parts[1]).flatMap(VideoQuality.init(rawValue:)) }
       return
     }
     // "kp.min.7", "imdb.max.any"
@@ -879,15 +925,6 @@ enum TVSearchFilters {
       if let lo = filter.imdbMin, let hi = filter.imdbMax, lo > hi {
         if parts[1] == "min" { filter.imdbMax = lo } else { filter.imdbMin = hi }
       }
-    }
-  }
-}
-
-extension SeriesStatus {
-  var titleKey: String {
-    switch self {
-    case .airing: "Status_Airing"
-    case .finished: "Status_Finished"
     }
   }
 }

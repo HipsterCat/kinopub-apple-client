@@ -49,12 +49,6 @@ public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable, Sendab
 
 /// kino.pub's quality ids (`GET /v1/references/video-quality`). As a `quality=` filter
 /// the id means "at least": 1 → 32205 films, 2 → 27861, 3 → 26070, 4 → 2737 (2026-09-26).
-/// A series' run — the `finished` parameter.
-public enum SeriesStatus: Int, CaseIterable, Hashable, Sendable {
-  case airing = 0
-  case finished = 1
-}
-
 public enum VideoQuality: Int, CaseIterable, Hashable, Sendable {
   case sd480 = 1
   case hd720 = 2
@@ -145,11 +139,10 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   public var countryID: Int?
   /// Several countries at once — a comma is OR on `country`, like on `genre`.
   public var countryIDs: Set<Int> = []
-  /// `finished=0` airing / `finished=1` ended; `nil` sends nothing — any. `0` is what
-  /// kino.pub's own web client sends for "В эфире", but on 2026-09-26 the server
-  /// answered it exactly as without the parameter (serials 7961 either way; ended
-  /// titles on its pages) — sent as the site sends it, in case that changes.
-  public var seriesStatus: SeriesStatus?
+  /// `finished=1` — ended series only. There is no "airing": `finished=0` (what
+  /// kino.pub's web client sends for "В эфире") is answered exactly as no parameter
+  /// (2026-09-26, ended titles on its pages).
+  public var finishedOnly: Bool = false
   public var years: YearRange?
   /// Set for a person's credits, which are the same listing narrowed to one name.
   public var person: MediaPerson?
@@ -244,8 +237,8 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     } else if let countryID {
       params["country"] = "\(countryID)"
     }
-    if let seriesStatus {
-      params["finished"] = "\(seriesStatus.rawValue)"
+    if finishedOnly {
+      params["finished"] = "1"
     }
     var conditions: [String] = []
     if yearFrom != nil || yearTo != nil {
@@ -290,7 +283,7 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
       || !contentTypes.isEmpty
       || !kinds.isEmpty
       || !countryIDs.isEmpty
-      || seriesStatus != nil
+      || finishedOnly
       || genreID != nil
       || !genreIDs.isEmpty
       || countryID != nil
@@ -324,5 +317,69 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     if wantHD, item.quality < 720 { return false }
     if withoutHD, item.quality >= 720 { return false }
     return true
+  }
+}
+
+// MARK: - Saved
+
+extension LibraryFilter {
+  /// The picks a person makes in the search tab's filter row, as they are kept on disk
+  /// between launches — ids and raw values only, so a renamed case drops the pick
+  /// instead of failing the whole decode.
+  public struct Saved: Codable, Equatable, Sendable {
+    public var kinds: [String] = []
+    public var genreIDs: [Int] = []
+    public var countryIDs: [Int] = []
+    public var finishedOnly = false
+    public var yearFrom: Int?
+    public var yearTo: Int?
+    public var kinopoiskMin: Double?
+    public var kinopoiskMax: Double?
+    public var imdbMin: Double?
+    public var imdbMax: Double?
+    public var minimumQuality: Int?
+    public var sort: String?
+
+    public init() {}
+  }
+
+  public var saved: Saved {
+    var saved = Saved()
+    saved.kinds = CatalogKind.allCases.filter(kinds.contains).map(\.rawValue)
+    saved.genreIDs = genreIDs
+    saved.countryIDs = countryIDs.sorted()
+    saved.finishedOnly = finishedOnly
+    saved.yearFrom = yearFrom
+    saved.yearTo = yearTo
+    saved.kinopoiskMin = kinopoiskMin
+    saved.kinopoiskMax = kinopoiskMax
+    saved.imdbMin = imdbMin
+    saved.imdbMax = imdbMax
+    saved.minimumQuality = minimumQuality?.rawValue
+    saved.sort = sort.rawValue
+    return saved
+  }
+
+  public init(saved: Saved) {
+    self.init(sort: saved.sort.flatMap(MediaSortOrder.init(rawValue:)) ?? .recentlyAdded)
+    kinds = Set(saved.kinds.compactMap(CatalogKind.init(rawValue:)))
+    genreIDs = saved.genreIDs
+    countryIDs = Set(saved.countryIDs)
+    finishedOnly = saved.finishedOnly
+    yearFrom = saved.yearFrom
+    yearTo = saved.yearTo
+    kinopoiskMin = saved.kinopoiskMin
+    kinopoiskMax = saved.kinopoiskMax
+    imdbMin = saved.imdbMin
+    imdbMax = saved.imdbMax
+    minimumQuality = saved.minimumQuality.flatMap(VideoQuality.init(rawValue:))
+  }
+
+  /// What a typed search sends: the type (kinds) only — kino.pub's site offers nothing
+  /// else next to a query. The rest stays picked for browsing.
+  public var searchSubset: LibraryFilter {
+    var subset = LibraryFilter()
+    subset.kinds = kinds
+    return subset
   }
 }

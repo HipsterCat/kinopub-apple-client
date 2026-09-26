@@ -505,6 +505,72 @@ final class TVPageGeometryUITests: XCTestCase {
     }
   }
 
+  /// A typed query (3+ characters): the row is Type and the scope (Все | Названия |
+  /// Актёры | Режиссёры), results filed in titled rails by kind; the scope narrows.
+  /// Two characters stay the library, with the whole row.
+  func testSearchQueryMode() throws {
+    let remote = XCUIRemote.shared
+    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
+      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
+    }
+    for query in ["таба", "ма"] {
+      let app = XCUIApplication()
+      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "light", "-KINOPUBSearchQuery", query]
+      if let session = UITestDevSession.json {
+        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+      }
+      app.launch()
+      XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+      press(.left, wait: 4)
+      try shoot(app, name: "query-\(query)-0")
+      guard query == "таба" else { app.terminate(); continue }
+      press(.down, 4); press(.left, 6, wait: 0.4)
+      press(.right, 3, wait: 0.5); press(.select, wait: 4)   // Актёры
+      try shoot(app, name: "query-\(query)-1-actors")
+      press(.left, 2, wait: 0.5); press(.select, wait: 4)    // Все
+      for step in 2...5 {
+        press(.down, wait: 1)
+        try shoot(app, name: "query-\(query)-\(step)")
+      }
+      app.terminate()
+    }
+  }
+
+  /// The filter row's picks survive a relaunch; the query does not.
+  func testSearchFiltersPersist() throws {
+    let remote = XCUIRemote.shared
+    func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
+      for _ in 0..<times { remote.press(button); Thread.sleep(forTimeInterval: wait) }
+    }
+    func launch(_ extra: [String]) -> XCUIApplication {
+      let app = XCUIApplication()
+      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "light"] + extra
+      if let session = UITestDevSession.json {
+        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+      }
+      app.launch()
+      XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+      return app
+    }
+    var app = launch([])                                     // a clean row
+    press(.left, wait: 3)
+    press(.down, 4); press(.left, 6, wait: 0.4)
+    press(.select, wait: 1.2); press(.down); press(.select, wait: 1); press(.menu, wait: 3)  // Фильмы
+    press(.right, 4, wait: 0.5); press(.select, wait: 1.2)  // Фильтры (Тип → Жанр, Страна, Год, Фильтры)
+    try shoot(app, name: "persist-0-filters-menu")
+    press(.down); press(.select, wait: 1.2)                  // Качество
+    try shoot(app, name: "persist-1-quality")
+    press(.menu, wait: 1); press(.down); press(.select, wait: 1.2)  // Статус
+    try shoot(app, name: "persist-1b-status")
+    press(.menu, wait: 1); press(.up); press(.select, wait: 1.2)    // back to Качество
+    press(.down, 2); press(.select, wait: 3)                 // Full HD 1080p+
+    app.terminate()
+    app = launch(["-KINOPUBKeepSearchFilter"])
+    press(.left, wait: 4)
+    try shoot(app, name: "persist-2-relaunched")
+    app.terminate()
+  }
+
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
   /// red, collection blue, sections in rotating colours, cells yellow): shots of the
   /// typed search, the filter row, the cards and a rail scrolled right, to see which

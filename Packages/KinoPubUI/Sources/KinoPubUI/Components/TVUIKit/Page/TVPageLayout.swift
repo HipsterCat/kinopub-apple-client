@@ -73,7 +73,8 @@ public enum TVPageLayout {
         let all = sections()
         guard all.indices.contains(index) else { return fallback }
         let inset = max(sideInset - adjustedLeading(), 0)
-        let built = section(for: all[index], environment: environment, sideInset: inset)
+        let next = all.indices.contains(index + 1) ? all[index + 1] : nil
+        let built = section(for: all[index], environment: environment, sideInset: inset, next: next)
         if DebugLaunch.layoutDebug {
           built.decorationItems = [NSCollectionLayoutDecorationItem.background(elementKind: debugBackgroundKind)]
         }
@@ -90,16 +91,20 @@ public enum TVPageLayout {
   @MainActor
   public static func section(for section: TVPageSection,
                              environment: NSCollectionLayoutEnvironment,
-                             sideInset: CGFloat) -> NSCollectionLayoutSection {
+                             sideInset: CGFloat,
+                             next: TVPageSection? = nil) -> NSCollectionLayoutSection {
     let containerWidth = environment.container.effectiveContentSize.width
     let contentWidth = max(containerWidth - sideInset * 2, 1)
 
     let layoutSection: NSCollectionLayoutSection
     switch (section.kind, section.flow) {
     case (.chip, _):
-      layoutSection = section.items.contains(where: Self.isTrailingChip)
-        ? chipRow(section, sideInset: sideInset)
-        : chipRail(sideInset: sideInset)
+      let pinned = section.items.contains(where: Self.isTrailingChip)
+      let bottom = chipRowBottom(before: next, contentWidth: contentWidth,
+                                 otherwise: pinned ? TVHIGGrid.titledRowGap / 2 : TVHIGGrid.titledRowGap)
+      layoutSection = pinned
+        ? chipRow(section, sideInset: sideInset, bottom: bottom)
+        : chipRail(sideInset: sideInset, bottom: bottom)
     case (_, .rail):
       layoutSection = rail(section, contentWidth: contentWidth, sideInset: sideInset)
     case (_, .grid):
@@ -205,7 +210,8 @@ public enum TVPageLayout {
   /// horizontal group left most of the leftover width unspent (measured 2026-09-25 —
   /// the sort sat 45 pt after Filters instead of at the edge). It does not scroll.
   @MainActor
-  private static func chipRow(_ section: TVPageSection, sideInset: CGFloat) -> NSCollectionLayoutSection {
+  private static func chipRow(_ section: TVPageSection, sideInset: CGFloat,
+                              bottom: CGFloat) -> NSCollectionLayoutSection {
     let chips: [(width: CGFloat, trailing: Bool)] = section.items.map { entry in
       guard case .chip(let chip) = entry else { return (180, false) }
       return (TVPageChipCell.fittingWidth(for: chip), chip.alignment == .trailing)
@@ -233,13 +239,38 @@ public enum TVPageLayout {
     let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.contentInsets = NSDirectionalEdgeInsets(
       top: TVHIGGrid.headerToItems, leading: sideInset,
-      bottom: TVHIGGrid.titledRowGap / 2, trailing: sideInset
+      bottom: bottom, trailing: sideInset
     )
     return layoutSection
   }
 
+  /// Air under a filter row, set so the next untitled section's *art* starts where a
+  /// poster grid's does. Sections are laid out in envelopes, and a wide card's envelope
+  /// (the platter's focus room, centred) is taller above the art than a poster's — the
+  /// same inset put search's cards 30 pt lower than the browse grid (2026-09-26).
+  @MainActor
+  private static func chipRowBottom(before next: TVPageSection?, contentWidth: CGFloat,
+                                    otherwise: CGFloat) -> CGFloat {
+    guard let next, next.kind != .chip, next.title == nil else { return otherwise }
+    let standard = TVHIGGrid.titledRowGap / 2
+    let poster = TVPageCellMetrics.recipe(
+      kind: .poster,
+      artWidth: TVHIGGrid.resolve(columns: 6, contentWidth: contentWidth).cardWidth,
+      caption: .always
+    )
+    let reference = artTop(poster)
+    let art = TVHIGGrid.resolve(columns: next.columns, contentWidth: contentWidth).cardWidth
+    let recipe = TVPageCellMetrics.recipe(kind: next.kind, artWidth: art, caption: next.caption)
+    return max(standard + reference - artTop(recipe), 0)
+  }
+
+  /// How far below an untitled section's top its art begins.
+  private static func artTop(_ recipe: TVPageCellRecipe) -> CGFloat {
+    insets(for: recipe, sideInset: 0, titled: false).top + recipe.artInsets.top
+  }
+
   /// Self-sizing pills in one orthogonal row.
-  private static func chipRail(sideInset: CGFloat) -> NSCollectionLayoutSection {
+  private static func chipRail(sideInset: CGFloat, bottom: CGFloat) -> NSCollectionLayoutSection {
     let size = NSCollectionLayoutSize(widthDimension: .estimated(180),
                                       heightDimension: .absolute(chipHeight))
     let item = NSCollectionLayoutItem(layoutSize: size)
@@ -249,7 +280,7 @@ public enum TVPageLayout {
     layoutSection.interGroupSpacing = chipSpacing
     layoutSection.contentInsets = NSDirectionalEdgeInsets(
       top: TVHIGGrid.headerToItems, leading: sideInset,
-      bottom: TVHIGGrid.titledRowGap, trailing: sideInset
+      bottom: bottom, trailing: sideInset
     )
     return layoutSection
   }

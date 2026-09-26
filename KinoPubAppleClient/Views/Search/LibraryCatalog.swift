@@ -74,6 +74,18 @@ class LibraryCatalog: ObservableObject {
   @Published public var query: String = ""
   static let pageSize = 20
   @Published public var filter: LibraryFilter = LibraryFilter()
+  /// Each loaded title's type, for filing results by kind — `MediaItem.type` is a string.
+  var itemTypes: [Int: MediaType] {
+    Dictionary(items.compactMap { item in MediaType(rawValue: item.type).map { (item.id, $0) } },
+               uniquingKeysWith: { first, _ in first })
+  }
+  /// Titles only, cast only, directors only — `nil` searches all three.
+  @Published public private(set) var searchField: SearchItemsRequest.Field?
+  /// Shorter text is not a search: the listing stays the catalog and the field only
+  /// offers completions. tvOS search waits for 3 characters; elsewhere any text counts.
+  let minimumQueryLength: Int
+  /// Where the filter row's picks are kept between launches (the query never is).
+  private let savedFilterKey: String?
 
   /// Picker contents, loaded once the user is authorized.
   @Published public private(set) var genres: [MediaGenre] = []
@@ -85,7 +97,13 @@ class LibraryCatalog: ObservableObject {
   private var bag = Set<AnyCancellable>()
   private var isFetching = false
 
-  var isSearching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
+  var isSearching: Bool { !searchQuery.isEmpty }
+
+  /// The text sent to the server — empty below `minimumQueryLength`.
+  var searchQuery: String {
+    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.count >= minimumQueryLength ? trimmed : ""
+  }
 
   /// `query` is for the surface that already holds the user's text when this is built
   /// — the macOS toolbar field. Assigned before `subscribe()` on purpose: `$query`
@@ -95,11 +113,28 @@ class LibraryCatalog: ObservableObject {
        authState: AuthState,
        errorHandler: ErrorHandler,
        filter: LibraryFilter = LibraryFilter(),
-       query: String = "") {
+       query: String = "",
+       minimumQueryLength: Int = 1,
+       savedFilterKey: String? = nil) {
     self.itemsService = itemsService
     self.authState = authState
     self.errorHandler = errorHandler
-    self.filter = filter
+    self.minimumQueryLength = minimumQueryLength
+    self.savedFilterKey = savedFilterKey
+#if DEBUG
+    // UI tests start from a clean filter row unless a test is about the saving itself.
+    let arguments = ProcessInfo.processInfo.arguments
+    if let savedFilterKey, arguments.contains("-ui-testing"), !arguments.contains("-KINOPUBKeepSearchFilter") {
+      UserDefaults.standard.removeObject(forKey: savedFilterKey)
+    }
+#endif
+    if let savedFilterKey,
+       let data = UserDefaults.standard.data(forKey: savedFilterKey),
+       let saved = try? JSONDecoder().decode(LibraryFilter.Saved.self, from: data) {
+      self.filter = LibraryFilter(saved: saved)
+    } else {
+      self.filter = filter
+    }
     self.query = query
     subscribe()
   }
@@ -143,8 +178,15 @@ class LibraryCatalog: ObservableObject {
         // The search endpoint takes the catalog's filters (and would take a sort — the
         // UI offers none, a query is ranked by relevance as on the site; verified live
         // 2026-09-26).
-        data = try await itemsService.search(query: query, filter: filter, sort: nil,
-                                             page: page, perPage: Self.pageSize)
+#if os(tvOS)
+        // Only the type goes with a query on tvOS, as on kino.pub's site — the row
+        // offers nothing else while text is typed.
+        let searchFilter = filter.searchSubset
+#else
+        let searchFilter = filter
+#endif
+        data = try await itemsService.search(query: searchQuery, filter: searchFilter, sort: nil,
+                                             field: searchField, page: page, perPage: Self.pageSize)
       } else {
         data = try await itemsService.fetchItems(filter: filter, page: page, perPage: Self.pageSize)
       }
@@ -250,6 +292,13 @@ class LibraryCatalog: ObservableObject {
     Task { await refresh() }
   }
 
+  func updateSearchField(_ field: SearchItemsRequest.Field?) {
+    guard field != searchField else { return }
+    searchField = field
+    guard isSearching else { return }
+    Task { await refresh() }
+  }
+
   func clearFilters() {
     guard filter.hasActiveFilters else { return }
     filter = LibraryFilter(sort: filter.sort)
@@ -260,8 +309,23 @@ class LibraryCatalog: ObservableObject {
   // MARK: - Subscriptions
 
   private func subscribe() {
+    if let savedFilterKey {
+      $filter
+        .dropFirst()
+        .removeDuplicates()
+        .sink { filter in
+          guard let data = try? JSONEncoder().encode(filter.saved) else { return }
+          UserDefaults.standard.set(data, forKey: savedFilterKey)
+        }.store(in: &bag)
+    }
+    // A search starts at `minimumQueryLength`; the letters before it, and edits that
+    // keep it below, reload nothing.
     $query
       .dropFirst()
+      .map { [minimumQueryLength] text in
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.count >= minimumQueryLength ? trimmed : ""
+      }
       .removeDuplicates()
       .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
       .sink { [weak self] _ in

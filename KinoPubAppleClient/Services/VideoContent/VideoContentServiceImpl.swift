@@ -24,8 +24,10 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
   }
 
   func search(query: String?, filter: LibraryFilter?, sort: MediaSortOrder?,
+              field: SearchItemsRequest.Field?,
               page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
-    let request = SearchItemsRequest(query: query, filter: filter, sort: sort, page: page, perPage: perPage)
+    let request = SearchItemsRequest(query: query, filter: filter, sort: sort, field: field,
+                                     page: page, perPage: perPage)
     var response = try await apiClient.performRequest(with: request,
                                                       decodingType: PaginatedData<MediaItem>.self)
     if let filter, filter.hasClientSideFacets {

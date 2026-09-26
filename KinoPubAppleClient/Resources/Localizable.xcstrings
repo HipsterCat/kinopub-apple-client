@@ -1,38 +1,92 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Status_Airing" : {
-      "comment" : "Series status filter option: still running or being filmed",
+    "Scope_Directors" : {
+      "comment" : "Search scope: directors only",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Airing"
+            "value" : "Directors"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "В эфире, снимается"
+            "value" : "Режиссёры"
+          }
+        }
+      }
+    },
+    "Scope_Actors" : {
+      "comment" : "Search scope: actors only",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actors"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Актёры"
+          }
+        }
+      }
+    },
+    "Scope_Titles" : {
+      "comment" : "Search scope: titles only",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titles"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Названия"
+          }
+        }
+      }
+    },
+    "Any_Neuter" : {
+      "comment" : "'Any' for a neuter noun (quality: Любое)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Любое"
           }
         }
       }
     },
     "Status_Finished" : {
-      "comment" : "Series status filter option: the show has ended",
+      "comment" : "Series status filter option: ended series only",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ended"
+            "value" : "Finished"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Окончен"
+            "value" : "Завершённые"
           }
         }
       }

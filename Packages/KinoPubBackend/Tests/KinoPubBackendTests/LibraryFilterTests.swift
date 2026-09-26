@@ -165,7 +165,7 @@ final class LibraryFilterTests: XCTestCase {
     var filter = LibraryFilter()
     filter.contentTypes = [.serial, .movie]
     filter.countryIDs = [2, 1]
-    filter.seriesStatus = .finished
+    filter.finishedOnly = true
     let params = filter.serverParameters
     XCTAssertEqual(params["type"] as? String, "movie,serial")
     XCTAssertEqual(params["country"] as? String, "1,2")
@@ -173,12 +173,32 @@ final class LibraryFilterTests: XCTestCase {
     XCTAssertTrue(filter.hasActiveFilters)
   }
 
-  /// Airing is `finished=0`, as kino.pub's web client sends it; no status, no parameter.
-  func testSeriesStatusParameter() {
+  /// What the search tab keeps on disk comes back as the same filter.
+  func testSavedRoundTrip() throws {
+    var filter = LibraryFilter(sort: .imdbRating)
+    filter.kinds = [.movies, .series]
+    filter.genreIDs = [6, 2]
+    filter.countryIDs = [1, 2]
+    filter.finishedOnly = true
+    filter.yearFrom = 1990
+    filter.kinopoiskMin = 5
+    filter.imdbMax = 9
+    filter.minimumQuality = .fullHD1080
+    let data = try JSONEncoder().encode(filter.saved)
+    let restored = LibraryFilter(saved: try JSONDecoder().decode(LibraryFilter.Saved.self, from: data))
+    XCTAssertEqual(restored, filter)
+  }
+
+  /// A query sends the type and nothing else.
+  func testSearchSubsetKeepsOnlyKinds() {
     var filter = LibraryFilter()
-    XCTAssertNil(filter.serverParameters["finished"])
-    filter.seriesStatus = .airing
-    XCTAssertEqual(filter.serverParameters["finished"] as? String, "0")
+    filter.kinds = [.anime]
+    filter.countryIDs = [1]
+    filter.kinopoiskMin = 7
+    let params = filter.searchSubset.serverParameters
+    XCTAssertEqual(params["genre"] as? String, "25")
+    XCTAssertNil(params["country"])
+    XCTAssertNil(params["conditions[]"])
   }
 
   func testItemsRequestSendsPageSize() {

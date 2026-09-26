@@ -468,7 +468,7 @@ GET https://api.service-kp.cnom/v1/items/search?q=termi
 > | `conditions[]=year>=2010` | 3 из 9, все ≥ 2010 |
 > | `conditions[]=kinopoisk_rating>=7.0` | 6 из 9 |
 > | `finished=1` | 1 из 9 |
-> | `sectioned=1` | ответ той же формы `{status, items, pagination}` — секций не видно |
+> | `sectioned=1` | ответ той же формы `{status, items, pagination}` — секций не видно. Перепроверено 2026-09-26: `1` / `true` / `y`, вместе с `type=movie,serial`, `field=`, `perpage=` — тот же плоский список на `api.service-kp.com` и на `api.boramoraboom.ru`; `type[]` → 502. Поэтому tvOS раскладывает один ответ по типу тайтла сам |
 > | `field=cast`, `q=Киану Ривз` | фильмография по касту |
 >
 > Проверено 2026-09-26, `q=ма`: **список через запятую — это ИЛИ** на `type`, `genre` и `country`:
