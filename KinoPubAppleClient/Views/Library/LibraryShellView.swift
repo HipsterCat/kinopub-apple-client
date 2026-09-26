@@ -296,7 +296,9 @@ struct LibraryShellView: View {
     return groups.map { group in
       group.cards.first?.isLandscape == true
         ? .stills(id: group.id, title: group.title, columns: 4, flow: .grid, caption: .always, cards: group.cards)
-        : .posters(id: group.id, title: group.title, flow: .grid, caption: .onFocus, cards: group.cards)
+        // Titles always under the posters, as in search — and with them the row gap
+        // that leaves the captions clear air (`TVPageLayout.captionedRowGap`).
+        : .posters(id: group.id, title: group.title, flow: .grid, caption: .always, cards: group.cards)
     }
   }
 

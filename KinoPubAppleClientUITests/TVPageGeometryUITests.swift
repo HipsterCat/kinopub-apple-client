@@ -437,6 +437,33 @@ final class TVPageGeometryUITests: XCTestCase {
     app.terminate()
   }
 
+  /// Library: the section list and the grid side by side — the grid starts past the
+  /// list, never under it; posters carry their titles with the captioned row gap.
+  func testLibraryLayout() throws {
+    for scheme in ["dark", "light"] {
+      let app = XCUIApplication()
+      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", scheme]
+      if let session = UITestDevSession.json {
+        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+      }
+      app.launch()
+      XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 90))
+      press(.right, 3, wait: 0.6)                                  // Библиотека
+      Thread.sleep(forTimeInterval: 5)
+      try shoot(app, name: "lib-\(scheme)-0")
+      press(.down, wait: 1.2)
+      try shoot(app, name: "lib-\(scheme)-1-focus")
+      press(.left, 2, wait: 0.8)                                   // into the list
+      press(.down, 6, wait: 0.5); press(.select, wait: 5)          // a bookmark folder
+      try shoot(app, name: "lib-\(scheme)-2-folder")
+      press(.right, wait: 1.2)
+      try shoot(app, name: "lib-\(scheme)-3-grid")
+      press(.down, 2, wait: 1.2)
+      try shoot(app, name: "lib-\(scheme)-4-scrolled")
+      app.terminate()
+    }
+  }
+
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
   /// red, collection blue, sections in rotating colours, cells yellow): shots of the
   /// typed search, the filter row, the cards and a rail scrolled right, to see which

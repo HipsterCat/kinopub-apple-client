@@ -212,6 +212,9 @@ pushes to the grid.
 - [x] Sidebar + detail grid shell on macOS; Library opens on Watchlist; folder counts match the
       reference client; no sidebar-toggle button in the window toolbar
 - [ ] Same shell on iPadOS, and on tvOS with working focus (probe first)
+- [ ] tvOS sidebar polish (seen 2026-09-26, predates the search work): the fixed rows' symbol sits
+      flush against its title ("☆Слежу за новыми…", "🎬Фильмы" — no gap, unlike the bookmark rows),
+      and "Create Bookmark" is not localized
 - [ ] iPhone Podcasts-shaped list
 - [ ] Create / delete bookmark folder from the sidebar (today creating one is only possible while
       bookmarking an item)

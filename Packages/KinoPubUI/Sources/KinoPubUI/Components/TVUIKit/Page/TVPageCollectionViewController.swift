@@ -160,6 +160,15 @@ public final class TVPageCollectionViewController: UIViewController {
   /// top, leading, trailing, bottom — the collection's edges against the page's view.
   private var windowExtension: [NSLayoutConstraint] = []
 
+  /// The page is the whole screen's width, only laid out inside a narrower box (the
+  /// search container's safe area): the collection also reaches the window's sides and
+  /// the side inset counts from the screen edge. Off for a page that shares the width
+  /// with something beside it — the Library's section list: reaching left put the
+  /// grid under the list (2026-09-26).
+  public var spansScreenWidth = false {
+    didSet { if isViewLoaded { view.setNeedsLayout() } }
+  }
+
   /// The collection covers the whole window even when its controller does not. A
   /// collection view keeps a cell only while it is inside its *bounds*; the search
   /// container lays its results out from y = 157 (under the field), so a card scrolling
@@ -174,8 +183,9 @@ public final class TVPageCollectionViewController: UIViewController {
     // How far each edge sits inside the window. Every constraint takes the negative:
     // top / leading are collection→view, trailing / bottom view→collection, so a
     // negative constant moves each edge outward.
-    let wanted = [frame.minY, frame.minX,
-                  window.bounds.maxX - frame.maxX, window.bounds.maxY - frame.maxY].map { -max($0, 0) }
+    let leading = spansScreenWidth ? frame.minX : 0
+    let trailing = spansScreenWidth ? window.bounds.maxX - frame.maxX : 0
+    let wanted = [frame.minY, leading, trailing, window.bounds.maxY - frame.maxY].map { -max($0, 0) }
     var changed = false
     for (constraint, constant) in zip(windowExtension, wanted) where abs(constraint.constant - constant) > 0.5 {
       constraint.constant = constant
@@ -190,8 +200,10 @@ public final class TVPageCollectionViewController: UIViewController {
   /// adjusted inset. A tab page is full screen with neither.
   private func updateAdjustedLeading() {
     guard view.window != nil else { return }
-    let leading = collectionView.convert(collectionView.bounds.origin, to: nil).x - collectionView.contentOffset.x
-      + collectionView.adjustedContentInset.left
+    // Beside a sidebar the inset counts from the page's own edge.
+    let leading = !spansScreenWidth ? 0
+      : collectionView.convert(collectionView.bounds.origin, to: nil).x - collectionView.contentOffset.x
+        + collectionView.adjustedContentInset.left
     guard abs(leading - adjustedLeading) > 0.5 else { return }
     adjustedLeading = leading
     collectionView.collectionViewLayout.invalidateLayout()
