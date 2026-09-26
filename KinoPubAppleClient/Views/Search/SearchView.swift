@@ -559,17 +559,19 @@ enum TVSearchFilters {
     let kinds = selectedKinds(filter)
     let genreAxis = kinds.contains { $0.axis == .genre }
 
-    // Type — two groups, nothing checked by default ("Тип"). Types combine freely;
-    // below a divider the presets (anime, cartoons, shorts, stand-up) stand alone: a
-    // preset is type + genre on the server and cannot be ORed with a type.
+    // Type — "Все" on top, checked by default (so the menu's checkmark column is there
+    // from the start). Types combine freely; below a divider the presets (anime,
+    // cartoons, shorts, stand-up) stand alone: a preset is type + genre on the server
+    // and cannot be ORed with a type.
     let presets: [CatalogKind] = [.anime, .cartoons, .shorts, .standup]
     let kindOption = { (kind: CatalogKind) in option(kind.rawValue, kind.titleKey.localized, kinds.contains(kind)) }
     let typeChip = TVPageChip(
       id: type,
       title: kindsTitle(kinds),
-      menu: .init(nodes: [.section(title: nil, children: CatalogKind.allCases.filter { $0.axis == .type }.map(kindOption)),
+      menu: .init(nodes: [.section(title: nil, children: [option(any, "All".localized, kinds.isEmpty)]
+                                    + CatalogKind.allCases.filter { $0.axis == .type }.map(kindOption)),
                           .section(title: nil, children: presets.map(kindOption))],
-                  keepsPresented: true,
+                  keepsPresented: true, exclusiveOptionID: any,
                   optionGroups: Dictionary(uniqueKeysWithValues: CatalogKind.allCases.map {
                     ($0.rawValue, $0.axis == .type ? 0 : 1)
                   }),
@@ -757,8 +759,13 @@ enum TVSearchFilters {
     // Only what the server filters: no AC3 / adverts facets (the API ignores both; a
     // client-side filter breaks paging), "finished only" while an episodic type is on.
     var nodes: [TVPageChip.MenuNode] = [ratings, quality]
+    // Статус ▸ Окончен — one pick, undone by picking it again; no default. "В эфире"
+    // is not offered: the API cannot select running series (`finished=0` and every
+    // other spelling is ignored, 2026-09-26) and we do not filter on the client.
     if episodic {
-      nodes.append(option("finished", "Finished Only".localized, filter.finishedOnly))
+      nodes.append(.submenu(title: "Filter_Status".localized,
+                            subtitle: filter.finishedOnly ? "Status_Finished".localized : nil,
+                            children: [option("finished", "Status_Finished".localized, filter.finishedOnly)]))
     }
     return nodes
   }

@@ -1,6 +1,24 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Status_Finished" : {
+      "comment" : "Series status filter option: the show has ended",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ended"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окончен"
+          }
+        }
+      }
+    },
     "Filter_Range %lld %lld" : {
       "comment" : "A rating range as a submenu's second line, e.g. 'from 0 to 10'",
       "extractionState" : "manual",

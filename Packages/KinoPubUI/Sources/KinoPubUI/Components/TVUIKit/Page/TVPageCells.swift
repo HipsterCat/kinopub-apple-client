@@ -332,9 +332,8 @@ final class TVPageChipCell: UICollectionViewCell {
     }
     draft = menu.toggling(id, in: draft)
     let selection = draft
-    let imageChecks = Self.drawsChecksAsImages(menu)
     button.contextMenuInteraction?.updateVisibleMenu { visible in
-      Self.applyingChecks(selection, to: visible, asImages: imageChecks)
+      Self.applyingChecks(selection, to: visible)
     }
   }
 
@@ -356,19 +355,14 @@ final class TVPageChipCell: UICollectionViewCell {
 
   /// The visible menu with each action's checkmark set from `selection`, submenus
   /// included — actions carry their option id as `identifier`.
-  private static func applyingChecks(_ selection: Set<String>, to menu: UIMenu, asImages: Bool) -> UIMenu {
+  private static func applyingChecks(_ selection: Set<String>, to menu: UIMenu) -> UIMenu {
     menu.replacingChildren(menu.children.map { element in
       if let action = element as? UIAction {
-        let checked = selection.contains(action.identifier.rawValue)
-        if asImages {
-          action.image = checked ? checkImage : blankCheckImage
-        } else {
-          action.state = checked ? .on : .off
-        }
+        action.state = selection.contains(action.identifier.rawValue) ? .on : .off
         return action
       }
       if let submenu = element as? UIMenu {
-        return applyingChecks(selection, to: submenu, asImages: asImages)
+        return applyingChecks(selection, to: submenu)
       }
       return element
     })
@@ -426,18 +420,12 @@ final class TVPageChipCell: UICollectionViewCell {
   /// The system menu for a chip's `Menu`: options become `UIAction`s (checked ones
   /// `.on`), sections inline `UIMenu`s, submenus nested `UIMenu`s with a subtitle.
   static func menu(for menu: TVPageChip.Menu, onOption: @escaping (String) -> Void) -> UIMenu {
-    let imageChecks = drawsChecksAsImages(menu)
     func element(_ node: TVPageChip.MenuNode) -> UIMenuElement {
       switch node {
       case let .option(option, isSelected):
         var attributes: UIMenuElement.Attributes = []
         if !option.isEnabled { attributes.insert(.disabled) }
         if menu.keepsPresented { attributes.insert(.keepsMenuPresented) }
-        if imageChecks {
-          return UIAction(title: option.title, image: isSelected ? checkImage : blankCheckImage,
-                          identifier: UIAction.Identifier(option.id),
-                          attributes: attributes) { _ in onOption(option.id) }
-        }
         return UIAction(title: option.title, image: option.systemImage.flatMap { UIImage(systemName: $0) },
                         identifier: UIAction.Identifier(option.id),
                         attributes: attributes,
@@ -452,20 +440,6 @@ final class TVPageChipCell: UICollectionViewCell {
     }
     return UIMenu(children: menu.nodes.map(element))
   }
-
-  /// A menu reserves its checkmark column only while something is checked, so in a
-  /// multi-select that can be empty (Type) the first check shifted every title right.
-  /// `.singleSelection` does not reserve it either, and draws one check at most
-  /// (tried 2026-09-26). Such a menu carries its checks as the item image instead —
-  /// a checkmark, or the same symbol drawn clear — and the column is always there.
-  /// Menus with an "any" entry always have a check and keep the system's.
-  static func drawsChecksAsImages(_ menu: TVPageChip.Menu) -> Bool {
-    menu.keepsPresented && menu.exclusiveOptionID == nil
-  }
-
-  private static let checkImage = UIImage(systemName: "checkmark")
-  private static let blankCheckImage = UIImage(systemName: "checkmark")?
-    .withTintColor(.clear, renderingMode: .alwaysOriginal)
 
   /// What the pill's width depends on — not its menu (a genre menu is 115 options).
   private struct WidthKey: Hashable {

@@ -451,8 +451,8 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "multi-7-empty")
   }
 
-  /// Type: types check together, a preset (anime…) replaces them and hides Genre; the
-  /// checkmark column is there before the first check; an active chip keeps its look
+  /// Type: "Все" checked by default, types check together, a preset (anime…) replaces
+  /// them and hides Genre; an active chip keeps its look
   /// when another filter repaints the row; the Filters menu's second lines; the round
   /// × at the head of the row clears everything.
   func testSearchTypePresets() throws {
@@ -472,7 +472,7 @@ final class TVPageGeometryUITests: XCTestCase {
       press(.down, 4); press(.left, 6, wait: 0.4)
       press(.select, wait: 1.2)
       try shoot(app, name: "type-\(scheme)-0-open")
-      press(.select, wait: 1)                          // Фильмы
+      press(.down); press(.select, wait: 1)            // Фильмы (under "Все")
       press(.down); press(.select, wait: 1)            // Сериалы
       try shoot(app, name: "type-\(scheme)-1-two")
       press(.menu, wait: 3)
@@ -480,7 +480,7 @@ final class TVPageGeometryUITests: XCTestCase {
       press(.down); press(.select, wait: 1)            // the first genre
       press(.menu, wait: 3)
       press(.left, wait: 0.8); press(.select, wait: 1.2)
-      press(.down, 2); press(.select, wait: 1)         // + Документалки
+      press(.down, 3); press(.select, wait: 1)         // + Документалки
       press(.menu, wait: 3)
       press(.right, wait: 1)
       try shoot(app, name: "type-\(scheme)-2-row-after-repaint")
@@ -488,6 +488,8 @@ final class TVPageGeometryUITests: XCTestCase {
       try shoot(app, name: "type-\(scheme)-3-filters")
       press(.select, wait: 1.2)
       try shoot(app, name: "type-\(scheme)-4-ratings")
+      press(.menu, wait: 1); press(.down, 2); press(.select, wait: 1.2)
+      try shoot(app, name: "type-\(scheme)-4b-status")
       press(.menu, wait: 1); press(.menu, wait: 1.2)
       press(.left, 5, wait: 0.5)
       try shoot(app, name: "type-\(scheme)-5-clear-focused")
