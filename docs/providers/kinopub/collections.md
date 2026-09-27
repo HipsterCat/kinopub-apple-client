@@ -23,6 +23,13 @@
 >   зеркало, под которым авторизован пользователь. Принимает ли эта ветка наш токен — ещё не
 >   подтверждено.
 
+> 🗂 **Категорий подборок в API нет** (у подборки нет такого поля, `/v1/collections` — плоский
+> список). kpapp.link берёт их из статичной страницы `https://www.kpapp.link/categories.html`
+> (`$('#collections-categories res').load('/categories.html')` в его `app.js`): 38 заголовков, под
+> каждым ссылки `/collections/<id>`. Снимок 2026-09-27 лежит в
+> `KinoPubBackend/Resources/collection-categories.json` (531 id), модель — `CollectionCategory`.
+> Ссылка на подборку 231 («Для всей семьи») на странице битая, название восстановлено вручную.
+
 #
   
 Содержание  
