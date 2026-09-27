@@ -57,8 +57,7 @@ availability — prefer the SDK `.swiftinterface` when unsure.
   way to interpolate a material, and `alpha` on an effect view is not a substitute.
 - **But animate the mask, not the material.** SwiftUI *can* animate a material — you animate the
   mask in front of it (a `LinearGradient` whose stop opacities animate). Never fade a material with
-  `.opacity()`: that draws the full-strength effect semi-transparently instead of weakening it. The
-  detail hero uses this, between two discrete states — it does **not** scrub.
+  `.opacity()`: that draws the full-strength effect semi-transparently instead of weakening it.
 - Full-screen `layerEffect` blur recomputed on every focus move is a performance footgun. Tie blur
   to image identity changes, not to focus ticks.
 - macOS `.behindWindow` materials can grey out cards — validate carefully.

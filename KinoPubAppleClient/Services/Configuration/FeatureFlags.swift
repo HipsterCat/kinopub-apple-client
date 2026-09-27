@@ -77,13 +77,9 @@ enum FeatureFlags {
   /// button still plays the real thing through the system player.
   static let heroAmbientTrailerEnabled = false
 
-  /// The artwork behind a detail page: the blurred-poster wash on iOS / macOS, and on
-  /// tvOS the full-bleed hero still with its fold material.
-  ///
-  /// Off means the page sits on the plain app background and neither the wide still nor
-  /// the blur buffer is decoded — the hero's own foreground (title, actions, poster) is
-  /// untouched. **On tvOS that is the whole picture behind the page**, so expect a bare
-  /// page there, not a subtler one.
+  /// The blurred-poster wash behind the whole detail page on iOS / macOS. Off means the
+  /// page sits on the plain app background and no blur buffer is decoded. The hero's own
+  /// artwork is not governed by this, and tvOS has no page-wide wash at all.
   static let detailAmbientBackdropEnabled = false
 
   /// The tvOS sidecar-SRT machinery: a custom transport-bar Subtitles menu (dual

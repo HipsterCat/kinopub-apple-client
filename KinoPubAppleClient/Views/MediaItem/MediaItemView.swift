@@ -27,19 +27,11 @@ enum MediaItemFocusTarget: Hashable {
   case plot
 }
 
-/// Whether the hero is the current section, as its own `@Observable` rather than a
-/// `@State` on `MediaItemView` itself. The distinction matters: `@State` invalidates
-/// the *owning* view's `body` on every write, whether or not that body actually reads
-/// the value — so as long as this lived on `MediaItemView`, every hero↔section
-/// transition forced the whole page (all of `contentSections`, every
-/// `TVUIKitMediaCollection` in it) to re-render, on top of the `@FocusState`-driven
-/// rerun the same transition already causes. `@Observable` tracks reads per view: only
-/// `MediaItemHeroBackdrop` and `MediaItemHeroView` — the two views that actually read
-/// `isHeroOnScreen` inside their own `body` — re-render when it changes.
-///
-/// `MediaItemView.body` must never read `.isHeroOnScreen` directly (only construct
-/// child views with a reference to the object, or write through it in a closure); doing
-/// so would reintroduce the same dependency this exists to avoid.
+/// Whether the hero is on screen, measured by the hero's own frame on iOS and macOS and
+/// used for one thing: pausing the ambient trailer once it has scrolled away. An
+/// `@Observable` held by reference so the write lands in `MediaItemHeroView` alone and
+/// never re-runs this page's body. tvOS does not use it: there the artwork is part of the
+/// hero and scrolls away with it, so there is no page-wide state to keep.
 @Observable
 final class MediaItemHeroPhase {
   var isHeroOnScreen = true
@@ -50,16 +42,12 @@ struct MediaItemView: View {
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var navigationState: NavigationState
   @StateObject private var itemModel: MediaItemModel
-  /// Shared with the hero (Up → fullscreen) and, on tvOS, the pinned full-bleed
-  /// backdrop behind the scroll view.
+  /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
   @StateObject private var trailer: TrailerPreviewModel
-  /// False once focus has left the hero — on tvOS fades the pinned wide still
-  /// down to the blurred poster wash; on macOS also pauses the ambient trailer.
-  /// See `MediaItemHeroPhase` for why this is a `@State`-held reference type and
-  /// not a plain `@State private var isHeroOnScreen: Bool`.
+  /// See `MediaItemHeroPhase` — iOS and macOS only in practice.
   @State private var heroPhase = MediaItemHeroPhase()
-  /// Measured hero height — the one number the fold snap needs.
-  @State private var showcaseHeight: CGFloat = 0
+  /// Bound by the hero's controls and read by nothing in this body. `.defaultFocus`
+  /// takes the binding, not the value, so hero focus moves re-render the hero alone.
   @FocusState private var focus: MediaItemFocusTarget?
   /// Owns folder state + context-menu wiring for the related-item rows (Similar /
   /// More from Director / More with Actor) as ONE coordinator shared across all of
@@ -157,25 +145,8 @@ struct MediaItemView: View {
         trailer.start(url: url)
       }
 #endif
-      // `trailer.setActive` lives on `MediaItemHeroView`'s own `onChange` now — see
+      // `trailer.setActive` lives on `MediaItemHeroView`'s own `onChange` — see
       // `MediaItemHeroPhase` — so this page never reads `heroPhase.isHeroOnScreen`.
-#if os(tvOS)
-      // Focus landing on ANY hero control means "the hero section is current" — the
-      // section is the unit, not the individual button. Sections below report the
-      // opposite through `leaveHero`. Those two writers are the whole wash state.
-      // A write through `heroPhase`, not a read — does not couple this page's body
-      // to the value (see `MediaItemHeroPhase`).
-      .onChange(of: focus) { _, target in
-        FocusLog.moved(section: "hero",
-                       element: target.map { "\($0)" } ?? "none",
-                       focused: target != nil)
-        // The fold, and its only writer. `focus` is non-nil exactly while one of the
-        // hero's own controls holds focus; the moment focus moves to anything below
-        // it goes nil. That is the whole state: focus in the hero → the page belongs
-        // to the hero; focus anywhere else → it belongs to the sections.
-        heroPhase.isHeroOnScreen = target != nil
-      }
-#endif
       .onDisappear {
         trailer.stop()
       }
@@ -217,119 +188,73 @@ struct MediaItemView: View {
     }
   }
 
-  /// Single native vertical scroll: hero + content in one focus graph. Layout-driven
-  /// scrolling replaces the old offset slideshow and invisible focus bridges.
+  /// One native vertical scroll: the hero, its artwork and the sections below are one
+  /// view and focus graph, and the focus engine scrolls it. The only scroll this page
+  /// asks for itself is back to the top whenever a hero control takes focus: the hero's
+  /// controls sit at its bottom edge, and left alone the engine nudges the page just far
+  /// enough to frame whichever one was focused (the same drift Plozz corrects the same
+  /// way). Below the hero there is nothing to correct and nothing is written.
   ///
-  /// Phase 1 of `docs/archive/plans/detail-page-choreography.md` tried pulling the hero
-  /// out of this `ScrollView` into a fixed `ZStack` layer, to stop focus moves among
-  /// Play / Watched / Watchlist from nudging the scroll offset. **Reverted** —
-  /// on-device it broke tvOS spatial focus across the ZStack/ScrollView sibling
-  /// boundary outright: focus could not leave Play at all, Down only worked when a
-  /// season rail happened to be the first section, Up never worked, Menu closed the
-  /// app instead of popping, and the permanently-present hero visually collided with
-  /// section content that was never tall enough to fully cover it. See the plan for
-  /// the full account before attempting this again — it needs a design that doesn't
-  /// split hero and scroll into ZStack siblings.
+  /// The artwork is the hero's own `.background`, so it scrolls away with the hero. The
+  /// page keeps no fold state, no scroll target behaviour and no pinned layer, which is
+  /// what used to re-render every shelf on each hero↔section move.
   private var scrollDetails: some View {
-    ScrollView(.vertical) {
-      VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) {
-        MediaItemHeroView(mediaItem: itemModel.mediaItem,
-                          focus: $focus,
-                          trailer: trailer,
-                          phase: heroPhase,
-                          linkProvider: itemModel.linkProvider,
-                          isWatched: itemModel.isWatched,
-                          isBookmarked: itemModel.isBookmarked,
-                          folders: itemModel.folders,
-                          folderIDsContainingItem: itemModel.folderIDsContainingItem,
-                          onWatchedToggle: { itemModel.toggleWatched() },
-                          onSeasonWatchedToggle: { itemModel.toggleWatched(season: $0) },
-                          onFolderToggle: { itemModel.toggleFolder($0) },
-                          onCreateFolder: { itemModel.createFolderAndAdd(named: $0) },
-                          onClearFromContinueWatching: { itemModel.clearFromContinueWatching() },
-                          onBrowseWatchlist: { Self.openWatchlist(navigationState) },
-                          isInWatchlist: itemModel.isInWatchlist,
-                          onToggleWatchlist: { itemModel.toggleWatchlist() },
-                          titleLogoURL: itemModel.externalMetadata.titleLogoURL,
-                          ageRating: itemModel.externalMetadata.ageRating,
-                          externalMetadataLoaded: itemModel.externalMetadataLoaded)
+    ScrollViewReader { proxy in
+      ScrollView(.vertical) {
+        VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) {
+          MediaItemHeroView(mediaItem: itemModel.mediaItem,
+                            focus: $focus,
+                            trailer: trailer,
+                            phase: heroPhase,
+                            linkProvider: itemModel.linkProvider,
+                            isWatched: itemModel.isWatched,
+                            isBookmarked: itemModel.isBookmarked,
+                            folders: itemModel.folders,
+                            folderIDsContainingItem: itemModel.folderIDsContainingItem,
+                            onWatchedToggle: { itemModel.toggleWatched() },
+                            onSeasonWatchedToggle: { itemModel.toggleWatched(season: $0) },
+                            onFolderToggle: { itemModel.toggleFolder($0) },
+                            onCreateFolder: { itemModel.createFolderAndAdd(named: $0) },
+                            onClearFromContinueWatching: { itemModel.clearFromContinueWatching() },
+                            onBrowseWatchlist: { Self.openWatchlist(navigationState) },
+                            isInWatchlist: itemModel.isInWatchlist,
+                            onToggleWatchlist: { itemModel.toggleWatchlist() },
+                            titleLogoURL: itemModel.externalMetadata.titleLogoURL,
+                            ageRating: itemModel.externalMetadata.ageRating,
+                            externalMetadataLoaded: itemModel.externalMetadataLoaded,
+                            onFocusEntered: {
+                              withAnimation(.easeInOut(duration: 0.4)) {
+                                proxy.scrollTo(Self.heroAnchor, anchor: .top)
+                              }
+                            })
+            .id(Self.heroAnchor)
 #if os(tvOS)
-          // Screen height MINUS a peek strip, not the whole viewport. That subtraction
-          // is what makes the resting hero state show a slice of the first section at
-          // the bottom — the affordance that says "there is more below" — and it is
-          // also what gives the snap behaviour below a height to snap to.
-          .containerRelativeFrame(.vertical, alignment: .topLeading) { length, _ in
-            length * MediaItemLayout.heroFraction
-          }
-          // Restored (it was commented out): Apple's tvOS layout guidance calls this
-          // out by name — without a full-width focus section on the header, "moving
-          // focus up from the right side of the shelves below might fail, or might
-          // jump all the way to the tab bar", because the engine searches straight up
-          // from the focused item. That is verbatim the Up-from-sections bug this page
-          // has been carrying.
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .focusSection()
-          .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.height
-          } action: { height in
-            showcaseHeight = height
-          }
-          // NOT `onScrollVisibilityChange`. Deriving the fold from how much of the
-          // hero is on screen is circular on a page that moves by focus: the scroll
-          // decides the fold, and the fold decides where to scroll. The fold is a
-          // property of *where focus is*, and focus is the thing the user moves —
-          // see the `focus` observer on `body`.
+            // Screen height minus a peek strip: the slice of the first section showing
+            // under the hero at rest is what says there is more below.
+            .containerRelativeFrame(.vertical, alignment: .topLeading) { length, _ in
+              length * MediaItemLayout.heroFraction
+            }
+            // Apple's tvOS layout guidance: without a full-width focus section on the
+            // header, Up from the right side of the shelves below can miss it or jump
+            // to the tab bar, because the engine searches straight up.
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .focusSection()
 #endif
 
-        contentSections
+          contentSections
+        }
+        .padding(.bottom, MediaItemLayout.bottomPadding)
       }
-      .padding(.bottom, MediaItemLayout.bottomPadding)
-    }
-    .coordinateSpace(name: MediaItemLayout.scrollSpace)
+      .coordinateSpace(name: MediaItemLayout.scrollSpace)
 #if os(tvOS)
-    // The snap. A *custom* `ScrollTargetBehavior` — not `.viewAligned`, which this
-    // page tried before and which fought section focus; that experiment was recorded
-    // as "no scroll target behaviour here", which was the wrong conclusion drawn from
-    // the right result. This rewrites the scroll target from inside the native scroll
-    // instead of chasing it from outside with `scrollTo`, so there is nothing for the
-    // focus engine's own scroll animator to fight.
-    .scrollTargetBehavior(
-      MediaItemFoldSnappingBehavior(aboveFold: heroPhase.isHeroOnScreen,
-                                    showcaseHeight: showcaseHeight)
-    )
+      // A focused card's lift and a focused button's scale are drawn outside their
+      // frames; the page's own edges must not cut them.
+      .scrollClipDisabled()
 #endif
-    // No `.viewAligned` on the vertical detail scroll — it fought section focus and
-    // pinned a full-viewport hero so the info panel never settled on screen. Home
-    // banners keep viewAligned on their own horizontal rails.
-    //
-    // No `onScrollGeometryChange` either, deliberately: driving the wash from scroll
-    // offset re-ran this body on every scroll frame, which re-rendered every shelf
-    // below — including each `TVUIKitMediaCollection`'s `updateUIViewController`. The
-    // wash is section state now (`isHeroOnScreen`), so nothing here needs per-frame
-    // work. See `docs/archive/plans/detail-page-choreography.md`.
-#if os(tvOS)
-    // Phase 2 of the same plan: small title logo pinned at the top once focus has
-    // left the hero. `.overlay` on the `ScrollView` draws fixed relative to its own
-    // frame — content scrolls under it, it does not scroll with content — and is
-    // purely visual (non-focusable), so it carries none of the risk phase 1's
-    // ZStack-sibling *focusable* hero content did (see the plan's account of that
-    // revert). Passing `heroPhase` itself, not `heroPhase.isHeroOnScreen`, keeps this
-    // page's own body from depending on the value — see `MediaItemHeroPhase`.
-    .overlay(alignment: .top) {
-      MediaItemTitleLogoHeader(phase: heroPhase,
-                               titleLogoURL: itemModel.externalMetadata.titleLogoURL,
-                               title: itemModel.mediaItem.localizedTitle)
     }
-#endif
   }
 
-  /// Fired when any below-hero section takes focus — flips the backdrop wash.
-  /// A write through `heroPhase`, not a read — this closure capturing `heroPhase`
-  /// (the object) rather than its current value is what keeps this page's own body
-  /// from depending on `isHeroOnScreen` (see `MediaItemHeroPhase`).
-  private var leaveHero: () -> Void {
-    { heroPhase.isHeroOnScreen = false }
-  }
+  private static let heroAnchor = "media-item-hero"
 
   /// Real seasons, or — under `FeatureFlags.fakeSeasonsOnMovies` — a fabricated one for
   /// titles that have none. **Temporary diagnostic, delete with the flag.**
@@ -389,8 +314,7 @@ struct MediaItemView: View {
         VersionsRailView(variants: itemModel.mediaItem.playbackVariants,
                          linkProvider: itemModel.linkProvider,
                          stillURL: itemModel.mediaItem.posters.wideURL ?? itemModel.mediaItem.posters.medium,
-                         showsChrome: true,
-                         onSectionFocused: leaveHero)
+                         showsChrome: true)
       }
 
       if let seasons = seasonsForDisplay, !seasons.isEmpty {
@@ -398,7 +322,6 @@ struct MediaItemView: View {
                         linkProvider: itemModel.linkProvider,
                         seriesTitle: itemModel.mediaItem.localizedTitle,
                         showsChrome: true,
-                        onSectionFocused: leaveHero,
                         onUnavailableSelected: { message in
                           itemModel.hudToast = HudToast(systemImage: "clock", title: message)
                         },
@@ -421,8 +344,7 @@ struct MediaItemView: View {
                               externalMetadata: itemModel.externalMetadata,
                               likeCount: itemModel.likeCount,
                               dislikeCount: itemModel.dislikeCount,
-                              showsHeader: true,
-                              onSectionFocused: leaveHero)
+                              showsHeader: true)
 #if !os(tvOS)
       // Experiment: scores and opinions as one block section.
       MediaItemRatingsAndReviewsSection(mediaItem: itemModel.mediaItem,
@@ -430,23 +352,19 @@ struct MediaItemView: View {
                                         summary: itemModel.externalMetadata.reviewsSummary,
                                         likeCount: itemModel.likeCount,
                                         dislikeCount: itemModel.dislikeCount,
-                                        destination: ratingsAndReviewsDestination,
-                                        onSectionFocused: leaveHero)
+                                        destination: ratingsAndReviewsDestination)
 #endif
       MediaItemCommunityVoteSection(likeCount: itemModel.likeCount,
                                     dislikeCount: itemModel.dislikeCount,
                                     myVote: itemModel.myVote,
-                                    onVote: { itemModel.vote(up: $0) },
-                                    onSectionFocused: leaveHero)
-        .detailFocusSection("vote")
+                                    onVote: { itemModel.vote(up: $0) })
+        .detailFocusSection()
       MediaItemCastSection(mediaItem: itemModel.mediaItem,
                            linkProvider: itemModel.linkProvider,
-                           externalMetadata: itemModel.externalMetadata,
-                           onSectionFocused: leaveHero)
-        .detailFocusSection("cast")
-      MediaItemAwardsSection(awards: itemModel.externalMetadata.awards,
-                             onSectionFocused: leaveHero)
-        .detailFocusSection("awards")
+                           externalMetadata: itemModel.externalMetadata)
+        .detailFocusSection()
+      MediaItemAwardsSection(awards: itemModel.externalMetadata.awards)
+        .detailFocusSection()
       // Where to go next comes before the reading matter: the shelves are the page's
       // recommendations, and stills and trivia are the tail you reach only if you are
       // still here. Everything about *this* title (ratings and reviews, vote, cast,
@@ -456,35 +374,29 @@ struct MediaItemView: View {
                                   relatedItem: { itemModel.relatedItem(forCardID: $0) },
                                   linkProvider: itemModel.linkProvider,
                                   cardMenu: relatedRowsMenu,
-                                  pendingShelves: itemModel.pendingRelatedShelfTitles,
-                                  onSectionFocused: leaveHero)
-        .detailFocusSection("related")
-      MediaItemPhotosSection(stills: itemModel.externalMetadata.stills,
-                             onSectionFocused: leaveHero)
-        .detailFocusSection("photos")
+                                  pendingShelves: itemModel.pendingRelatedShelfTitles)
+        .detailFocusSection()
+      MediaItemPhotosSection(stills: itemModel.externalMetadata.stills)
+        .detailFocusSection()
 #if !os(tvOS)
-      MediaItemFactsSection(facts: itemModel.externalMetadata.facts,
-                            onSectionFocused: leaveHero)
+      MediaItemFactsSection(facts: itemModel.externalMetadata.facts)
       // Both variants are on the page while the block experiment runs: the merged
       // Ratings and Reviews block above, and the standalone Reviews section here,
       // where it shipped. Comparing them needs both visible; one of them goes with
       // this comment.
       MediaItemReviewsSection(reviews: itemModel.externalMetadata.reviews,
                               summary: itemModel.externalMetadata.reviewsSummary,
-                              destination: ratingsAndReviewsDestination,
-                              onSectionFocused: leaveHero)
+                              destination: ratingsAndReviewsDestination)
       // Same rail shape as Facts/Reviews, for the two things worth a glance before
       // the table below: what this release technically is, and whether it's OK for
       // the room. `InfoFooter` (Uploaded / Last Update / source credit), inside
       // `MediaItemInfoColumns`, is untouched.
       MediaItemBadgeCardsSection(mediaItem: itemModel.mediaItem,
-                                externalMetadata: itemModel.externalMetadata,
-                                onSectionFocused: leaveHero)
+                                externalMetadata: itemModel.externalMetadata)
 #endif
       MediaItemInfoColumns(mediaItem: itemModel.mediaItem,
-                           externalMetadata: itemModel.externalMetadata,
-                           onSectionFocused: leaveHero)
-        .detailFocusSection("about")
+                           externalMetadata: itemModel.externalMetadata)
+        .detailFocusSection()
     }
   }
 
@@ -500,26 +412,20 @@ struct MediaItemView: View {
     )
   }
 
+  /// tvOS: the plain page. The artwork belongs to the hero and scrolls away with it,
+  /// so everything below the hero sits on the app background. iOS / macOS keep the
+  /// optional blurred-poster wash behind the whole page.
   @ViewBuilder
   private var pageBackground: some View {
-    if FeatureFlags.detailAmbientBackdropEnabled {
 #if os(tvOS)
-      if itemModel.itemLoaded {
-        // Passing `heroPhase` itself, not `heroPhase.isHeroOnScreen` — the latter would
-        // read the value here, inside `MediaItemView.body`, and reintroduce the exact
-        // dependency `MediaItemHeroPhase` exists to avoid.
-        MediaItemHeroBackdrop(mediaItem: itemModel.mediaItem,
-                              trailer: trailer,
-                              phase: heroPhase)
-      } else {
-        ambientBackground
-      }
+    genericBackground
 #else
+    if FeatureFlags.detailAmbientBackdropEnabled {
       ambientBackground
-#endif
     } else {
       genericBackground
     }
+#endif
   }
 
   /// What the page sits on with `detailAmbientBackdropEnabled` off: the app background
@@ -573,171 +479,17 @@ struct MediaItemView: View {
   }
 }
 
-#if os(tvOS)
-/// Snaps the page to one of two resting positions: hero at the top, or the first
-/// content section at the top. Nothing in between is reachable, which is the whole
-/// point — left alone, the focus engine scrolls only far enough to reveal whichever
-/// element just took focus, an offset that is a function of that element's geometry
-/// rather than of which half of the page you are in. That is why the page used to
-/// stop twenty pixels down and stay there.
-private struct MediaItemFoldSnappingBehavior: ScrollTargetBehavior {
-  var aboveFold: Bool
-  var showcaseHeight: CGFloat
-
-  func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
-    // Before the hero has been measured there is no fold to snap to.
-    guard showcaseHeight > 0 else { return }
-
-    // Two positions, chosen by which page owns focus — nothing else.
-    //
-    // Apple's landing-page sample guards this with distance thresholds ("above the
-    // fold and not travelling far enough down — leave it be"). Those are written for
-    // a page the user *swipes*: a small target means they barely moved. On a page
-    // that moves by focus the first thing below the fold is only a short scroll away
-    // — it is already peeking under the hero — so every crossing landed inside the
-    // leave-it-be zone and never snapped. Sections further down (ratings, cast) did
-    // snap, which is exactly how this was spotted.
-    if aboveFold {
-      FocusLog.snapped(from: target.rect.origin.y, to: 0, aboveFold: true)
-      target.rect.origin.y = 0
-      return
-    }
-
-    // The two resting positions govern **the fold**, not the whole page. Applied to
-    // every scroll below it, this pinned the page at `showcaseHeight` forever: focus
-    // moved to the cast rail, the snap yanked the offset from 1295 back to 816, the
-    // rail left the screen and focus bounced straight back out — so nothing below the
-    // vote buttons was reachable at all. Once the page has travelled past the first
-    // section, the focus engine's own target is the correct one.
-    guard target.rect.origin.y < showcaseHeight else { return }
-    FocusLog.snapped(from: target.rect.origin.y, to: showcaseHeight, aboveFold: false)
-    target.rect.origin.y = showcaseHeight
-  }
-}
-
-/// Overlay-header title logo (`docs/archive/plans/detail-page-choreography.md` phase 2).
-/// Fades in once focus has left the hero, fades out on return — matching the same
-/// binary `isHeroOnScreen` clock as `MediaItemHeroBackdrop`'s wash and
-/// `MediaItemHeroView`'s `chromeAlpha`, rather than the continuous scroll-progress the
-/// plan's prose describes: continuous per-frame scroll tracking was deliberately
-/// deleted from this page (see `MediaItemHeroPhase`) because it re-ran the whole page
-/// body every scroll frame. This is the binary-model translation of the same idea —
-/// once the hero's own title/logo has faded out, this one fades in to replace it as an
-/// orientation cue while scrolling through sections.
-///
-/// Deliberately does not include the plan's other phase-2 bullet (moving the season
-/// rail into this overlay) — that couples into `SeasonsRailView`'s own internals and
-/// is left for a separate pass. iOS/macOS are also deferred: both platforms already
-/// hide this page's real navigation title (`MediaItemView.body`'s
-/// `.platformNavigationTitle("")`), and swapping a system nav title in only for this
-/// page would reopen that decision rather than extend it.
-private struct MediaItemTitleLogoHeader: View {
-  var phase: MediaItemHeroPhase
-  var titleLogoURL: URL?
-  var title: String
-
-  var body: some View {
-    // Centred, not leading: once the hero's own bottom-leading title block has faded
-    // out, a logo still pinned to the left edge reads as a leftover from it. Centred
-    // it reads as the page's title bar, which is what it now is.
-    VStack(spacing: 0) {
-      content
-        .padding(.horizontal, MediaItemLayout.horizontalInset)
-        .padding(.top, Self.topPadding)
-      Spacer(minLength: 0)
-    }
-    .frame(maxWidth: .infinity, maxHeight: Self.bandHeight, alignment: .top)
-    .background(scrim)
-    .frame(maxWidth: .infinity, alignment: .top)
-    .opacity(phase.isHeroOnScreen ? 0 : 1)
-    .allowsHitTesting(false)
-    .animation(.easeOut(duration: 0.3), value: phase.isHeroOnScreen)
-  }
-
-  @ViewBuilder
-  private var content: some View {
-    if let titleLogoURL {
-      CachedRemoteImage(url: titleLogoURL, contentMode: .fit)
-        .frame(maxWidth: Self.logoMaxWidth, maxHeight: Self.logoMaxHeight, alignment: .center)
-    }
-    // No lettered fallback. Spelling the title out here reads as a caption stuck to
-    // the top of the page rather than as the title bar this is meant to be — artwork
-    // for every title is the plan instead.
-  }
-
-  /// Independent of `MediaItemHeroBackdrop`, which is a fixed full-screen layer behind
-  /// everything and may itself carry little visual weight by the time a below-fold
-  /// section this far down is showing — this scrim is what actually keeps the logo
-  /// legible over whatever section content has scrolled underneath it.
-  private var scrim: some View {
-    LinearGradient(stops: [
-      .init(color: .black.opacity(1), location: 0),
-      .init(color: .black.opacity(0.9), location: 0.5),
-      .init(color: .black.opacity(0.5), location: 0.8),
-      .init(color: .clear, location: 1)
-    ], startPoint: .top, endPoint: .bottom)
-  }
-
-  private static let topPadding: CGFloat = 48
-    private static let bandHeight: CGFloat = .infinity
-  private static let logoMaxWidth: CGFloat = 320
-  private static let logoMaxHeight: CGFloat = 100
-}
-
-/// The name of the detail section a view sits in, for focus tracing. Set once per
-/// section by `detailFocusSection(_:)` where the page is composed, so the individual
-/// section views do not each have to know (or repeat) their own name.
-private struct DetailSectionNameKey: EnvironmentKey {
-  static let defaultValue = "detail-section"
-}
-
-extension EnvironmentValues {
-  var detailSectionName: String {
-    get { self[DetailSectionNameKey.self] }
-    set { self[DetailSectionNameKey.self] = newValue }
-  }
-}
-
-/// Reports when a control inside a detail section takes focus.
-struct MediaItemSectionFocusReporter: ViewModifier {
-  let onSectionFocused: () -> Void
-  @Environment(\.isFocused) private var isFocused
-  @Environment(\.detailSectionName) private var section
-
-  func body(content: Content) -> some View {
-    content.onChange(of: isFocused) { _, focused in
-      FocusLog.moved(section: section, element: "control", focused: focused)
-      if focused { onSectionFocused() }
-    }
-  }
-}
-
-extension View {
-  @ViewBuilder
-  func reportMediaItemSectionFocus(_ handler: (() -> Void)?) -> some View {
-    if let handler {
-      modifier(MediaItemSectionFocusReporter(onSectionFocused: handler))
-    } else {
-      self
-    }
-  }
-}
-#endif
-
 extension View {
   /// One focus section per detail-page content section, so Up/Down travels
   /// section-to-section instead of creeping element-by-element, and a section holds
-  /// focus internally while you move across it. The hero is the same shape one level
-  /// up — a full-viewport `focusSection` — which is what lets "the hero is current" be
-  /// a single state rather than something inferred per button.
+  /// focus internally while you move across it. The hero is the same shape one level up.
   ///
   /// Only applied to sections that do not already declare their own: the ratings row
   /// and `SeasonsRailView` build theirs internally, and nesting would fight them.
   @ViewBuilder
-  func detailFocusSection(_ name: String = "detail-section") -> some View {
+  func detailFocusSection() -> some View {
 #if os(tvOS)
     focusSection()
-      .environment(\.detailSectionName, name)
 #else
     self
 #endif

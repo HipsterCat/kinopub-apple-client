@@ -32,9 +32,6 @@ struct SeasonsRailView: View {
   let seriesTitle: String
   /// False while the hero/trailer is up — season tabs stay out of the way.
   var showsChrome: Bool = true
-  /// Fired when any control in this rail takes focus, so the page can snap to the
-  /// seasons "page" and stop the outer scroll from drifting between episodes/tabs.
-  var onSectionFocused: (() -> Void)? = nil
 #if os(tvOS)
   /// Bumped by the detail page when it flips from the hero onto this rail — we then
   /// park focus on the selected season tab so Play cannot reclaim the remote.
@@ -283,7 +280,6 @@ struct SeasonsRailView: View {
       .mediaCardNewFolderAlert(cardMenu)
 #if os(tvOS)
       .onChange(of: focusedSeasonID) { _, seasonID in
-        if seasonID != nil { onSectionFocused?() }
         // Left/Right onto a *different* tab selects + scrolls. Re-focusing the already
         // selected tab leaves the rail frozen.
         guard let seasonID, seasonID != selectedSeasonID else { return }
@@ -457,7 +453,6 @@ struct SeasonsRailView: View {
 
   /// The rail tells us which episode the engine is standing on; the season tabs follow.
   private func episodeFocused(_ id: Int) {
-    onSectionFocused?()
     guard !isScrollingFromTab,
           let season = entries.first(where: { $0.id == id })?.season else { return }
     selectedSeasonID = season.id
@@ -853,7 +848,6 @@ struct VersionsRailView: View {
   /// False while the hero owns the page — the header stays out from under the artwork,
   /// the same rule the season tabs follow.
   var showsChrome: Bool = true
-  var onSectionFocused: (() -> Void)? = nil
 
   @Environment(\.dynamicTypeSize) private var typeSize
 #if os(tvOS)
@@ -894,8 +888,7 @@ struct VersionsRailView: View {
         // A UIKit cell cannot host a `NavigationLink`; the same environment hook the
         // other TVUIKit rails push through carries the identical route.
         mediaNavigation?(linkProvider.player(for: variant))
-      },
-      onFocusedItem: { _ in onSectionFocused?() }
+      }
     )
     .focusSection()
   }
