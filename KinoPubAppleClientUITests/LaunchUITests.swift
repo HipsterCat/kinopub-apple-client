@@ -84,7 +84,10 @@ final class LaunchUITests: XCTestCase {
     let app = launchedApp()
     XCUIDevice.shared.press(.home)
     app.activate()
-    XCTAssertEqual(app.state, .runningForeground)
+    // `activate()` can return while the app is still `.runningBackground` (seen on the
+    // iOS 27 simulator), so wait for the state rather than reading it once.
+    XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10),
+                  "app did not return to the foreground, state: \(app.state.rawValue)")
   }
 
   /// **Local diagnostic, not a CI test** — it needs the mirrored developer session
