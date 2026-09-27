@@ -24,7 +24,6 @@ import UIKit
 enum MenuTypeSelectSuppression {
 
   private static var installed = false
-  private static var originalImplementation: IMP?
 
   /// Installs the swizzle once, from launch (`AppDelegate`). No-ops when the private
   /// class does not exist (older SDKs) so this never breaks on an OS update.
@@ -37,19 +36,13 @@ enum MenuTypeSelectSuppression {
       return
     }
 
-    originalImplementation = method_getImplementation(method)
-    // UIKit calls `becomeFirstResponder` on the main thread. `assumeIsolated` checks
-    // that at runtime instead of taking it on trust: a call from anywhere else traps
-    // rather than racing on `originalImplementation`.
-    let block: @convention(block) @Sendable (AnyObject) -> Bool = { receiver in
-      MainActor.assumeIsolated {
-        if GCKeyboard.coalesced != nil,
-           let imp = MenuTypeSelectSuppression.originalImplementation {
-          typealias Fn = @convention(c) (AnyObject, Selector) -> Bool
-          return unsafeBitCast(imp, to: Fn.self)(receiver, #selector(UIResponder.becomeFirstResponder))
-        }
-        return false
-      }
+    // The block keeps its own copy of the original implementation, so it reads no
+    // shared state from whatever thread UIKit calls it on.
+    let original = method_getImplementation(method)
+    let block: @convention(block) (AnyObject) -> Bool = { receiver in
+      guard GCKeyboard.coalesced != nil else { return false }
+      typealias Fn = @convention(c) (AnyObject, Selector) -> Bool
+      return unsafeBitCast(original, to: Fn.self)(receiver, #selector(UIResponder.becomeFirstResponder))
     }
     method_setImplementation(method, imp_implementationWithBlock(block))
   }
