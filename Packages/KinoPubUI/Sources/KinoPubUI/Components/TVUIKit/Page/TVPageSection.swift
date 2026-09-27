@@ -21,6 +21,9 @@ import UIKit
 public enum TVPageCellKind: Hashable, Sendable {
   /// 2:3 art — `TVPosterView` lockup. Title in the system footer.
   case poster
+  /// 1:1 art — the same `TVPosterView` lockup at a square aspect. Collection covers,
+  /// festival and award tiles.
+  case square
   /// 16:9 art — `TVMediaItemContentConfiguration.wideCell()`. Stills, episodes,
   /// trailers, Continue Watching, genre / category tiles, collections.
   case still
@@ -183,6 +186,44 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
   }
 }
 
+/// A tile whose artwork is drawn rather than loaded — genres, categories, sub-sections,
+/// the "See All" entry that opens a row's full list. It takes the cell of the section
+/// it sits in (a still, a square, a poster), so a genre rail and a row of posters are
+/// the same collection with different items. The name is the tile's caption, in the
+/// system's text line under the art, not painted into the bitmap.
+public struct TVPageTile: Identifiable, Hashable {
+  public let id: String
+  public let title: String
+  public let symbol: String?
+  /// Nil takes a stable colour from the title (`TVUIKitTileArtwork.tint(for:)`).
+  public let tint: UIColor?
+  public let style: TVUIKitTileArtwork.Style
+
+  public init(id: String, title: String, symbol: String? = nil, tint: UIColor? = nil,
+              style: TVUIKitTileArtwork.Style = .gradient) {
+    self.id = id
+    self.title = title
+    self.symbol = symbol
+    self.tint = tint
+    self.style = style
+  }
+
+  public var resolvedTint: UIColor { tint ?? TVUIKitTileArtwork.tint(for: title) }
+}
+
+public extension TVUIKitMediaItem {
+  /// A drawn tile in the still cell: no image URL, so the tint is the artwork, and the
+  /// name is the caption line.
+  init(tile: TVPageTile) {
+    self.init(id: tile.id.hashValue,
+              tint: tile.resolvedTint,
+              symbol: tile.symbol,
+              tileStyle: tile.style,
+              caption: tile.title,
+              status: .unavailable)
+  }
+}
+
 /// One entry in a section. A `.placeholder` is an exact-geometry skeleton for a section
 /// whose data has not arrived; it takes the same cell shape so the swap is a repaint,
 /// not a reflow.
@@ -190,6 +231,8 @@ public enum TVPageItem: Hashable {
   case card(MediaCard)
   case person(TVUIKitPerson)
   case chip(TVPageChip)
+  /// Drawn artwork, no photograph: a genre, a category, a "See All" entry.
+  case tile(TVPageTile)
   case placeholder(Int)
 
   /// Stable within one section. Two sections can hold the same card, so the page
@@ -199,6 +242,7 @@ public enum TVPageItem: Hashable {
     case .card(let card): return "card.\(card.id)"
     case .person(let person): return "person.\(person.id)"
     case .chip(let chip): return "chip.\(chip.id)"
+    case .tile(let tile): return "tile.\(tile.id)"
     case .placeholder(let n): return "placeholder.\(n)"
     }
   }
@@ -238,6 +282,9 @@ public struct TVPageSection: Identifiable, Hashable {
   /// A grid with more pages to come: the page pads its last row with skeleton tiles and
   /// shows a spinner under it, so the end of what is loaded never reads as the end.
   public let loadsMore: Bool
+  /// Posters and squares carry the title's score in a corner chip. Off by default: a
+  /// row decides whether a number is what the user is choosing by.
+  public let showsRating: Bool
 
   public init(id: String,
               title: String?,
@@ -249,6 +296,7 @@ public struct TVPageSection: Identifiable, Hashable {
               rows: Int = 1,
               match: String? = nil,
               loadsMore: Bool = false,
+              showsRating: Bool = false,
               items: [TVPageItem]) {
     self.id = id
     self.title = title
@@ -260,6 +308,7 @@ public struct TVPageSection: Identifiable, Hashable {
     self.rows = max(rows, 1)
     self.match = match
     self.loadsMore = loadsMore
+    self.showsRating = showsRating
     self.items = items
   }
 
@@ -273,10 +322,35 @@ public struct TVPageSection: Identifiable, Hashable {
                              flow: TVPageFlow = .rail,
                              caption: TVPageCaption = .onFocus,
                              loadsMore: Bool = false,
+                             showsRating: Bool = false,
                              cards: [MediaCard]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .poster, flow: flow,
                   columns: columns, caption: caption, loadsMore: loadsMore,
-                  items: cards.map(TVPageItem.card))
+                  showsRating: showsRating, items: cards.map(TVPageItem.card))
+  }
+
+  /// 1:1 art in the poster lockup, 6 across by default — collection covers, awards.
+  public static func squares(id: String,
+                             title: String?,
+                             count: String? = nil,
+                             columns: Int = 6,
+                             flow: TVPageFlow = .rail,
+                             caption: TVPageCaption = .onFocus,
+                             items: [TVPageItem]) -> TVPageSection {
+    TVPageSection(id: id, title: title, count: count, kind: .square, flow: flow,
+                  columns: columns, caption: caption, items: items)
+  }
+
+  /// Drawn tiles in the 16:9 still cell — genres, categories. 4 across by default:
+  /// a name has to read from the sofa.
+  public static func tiles(id: String,
+                           title: String?,
+                           count: String? = nil,
+                           columns: Int = 4,
+                           flow: TVPageFlow = .rail,
+                           tiles: [TVPageTile]) -> TVPageSection {
+    TVPageSection(id: id, title: title, count: count, kind: .still, flow: flow,
+                  columns: columns, caption: .always, items: tiles.map(TVPageItem.tile))
   }
 
   /// 16:9 stills with the system's text lines underneath — Up Next, episodes,
@@ -341,7 +415,7 @@ public struct TVPageSection: Identifiable, Hashable {
   func appendingPlaceholders(_ count: Int) -> TVPageSection {
     TVPageSection(id: id, title: title, count: self.count, kind: kind, flow: flow, columns: columns,
                   caption: caption, rows: rows, match: match, loadsMore: loadsMore,
-                  items: items + (0..<count).map(TVPageItem.placeholder))
+                  showsRating: showsRating, items: items + (0..<count).map(TVPageItem.placeholder))
   }
 
   /// Items that are data, not skeleton tiles.

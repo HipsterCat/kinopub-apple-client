@@ -164,6 +164,12 @@ Content-Type: application/json
 
 **[subscribed]** - 0/1. 0 - Показывать все недосмотренные сериалы, 1 - Показывать сериалы отмеченные “Буду смотреть”
 
+> 🔎 kpapp.link (2026-09-27, `app.js`) шлёт `subscribed=1` и для `/watching/serials`, и для
+> `/watching/movies`, хотя у фильмов параметр не описан. Мы для фильмов его не шлём; что он
+> меняет у фильмов, не проверено. Там же есть `/watching/togglesubscribe?id=` (в kpapp кнопка
+> отключена), `/items/comments` и `/kpapi/films/{kinopoisk}/{type}` (прокси к Кинопоиску на
+> сервере kpapp, не kino.pub).
+
 Запрос:
 
 ```
