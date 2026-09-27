@@ -116,6 +116,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   /// have no photograph at all and use this as their real artwork.
   public let tint: UIColor?
   public let symbol: String?
+  /// How `tint` is drawn when it is the artwork.
+  public let tileStyle: TVUIKitTileArtwork.Style
   /// The line under the tile — always visible: a movie's title, or "S2, E11 · Show".
   public let caption: String?
   public let status: TVUIKitMediaItemStatus
@@ -129,6 +131,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               imageURL: URL? = nil,
               tint: UIColor? = nil,
               symbol: String? = nil,
+              tileStyle: TVUIKitTileArtwork.Style = .flat,
               caption: String? = nil,
               status: TVUIKitMediaItemStatus = .ready,
               timeLabel: String? = nil,
@@ -138,6 +141,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.imageURL = imageURL
     self.tint = tint
     self.symbol = symbol
+    self.tileStyle = tileStyle
     self.caption = caption
     self.status = status
     self.timeLabel = timeLabel
@@ -671,7 +675,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
 
   private func fallbackImage(for item: TVUIKitMediaItem) -> UIImage {
     guard let tint = item.tint else { return TVUIKitTileArtwork.placeholder(traits: traitCollection) }
-    return TVUIKitTileArtwork.wide(tint: tint, symbol: item.symbol)
+    return TVUIKitTileArtwork.wide(tint: tint, symbol: item.symbol, style: item.tileStyle)
   }
 
   private func loadArtwork(for item: TVUIKitMediaItem) {

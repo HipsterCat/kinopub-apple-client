@@ -5,6 +5,16 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Card shapes and collection categories (2026-09-27)
+
+TVPage gains `TVPageCellKind.square`, `TVPageItem.tile` (flat or gradient
+`TVUIKitTileArtwork`) and an opt-in poster score chip (`showsRating`); all
+are previewed in `TVPageTemplatesGallery`, none is placed on a screen yet.
+Collection categories are not in the API: `CollectionCategory.catalog` reads a
+bundled snapshot of kpapp.link `categories.html` (38 categories, 531 ids). kpapp
+findings (genre 107 Дорама, api2 without token, `logos.s`) live as notes in
+`docs/providers/kinopub/`.
+
 ### tvOS Settings in categories; developer tools in every build (2026-10-01)
 
 `TVProfileSettingsView`'s root is a list of categories (`TVSettingsCategory`), each pushing a

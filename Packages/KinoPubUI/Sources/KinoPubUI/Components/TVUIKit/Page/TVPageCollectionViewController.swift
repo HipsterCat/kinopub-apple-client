@@ -313,10 +313,12 @@ public final class TVPageCollectionViewController: UIViewController {
       guard let self, let section = self.sectionsByID[id.section] else { return }
       let width = self.collectionView.layoutAttributesForItem(at: indexPath)?.size.width
         ?? cell.bounds.width
-      let recipe = TVPageCellMetrics.recipe(kind: .poster, itemWidth: width, caption: section.caption)
+      let recipe = TVPageCellMetrics.recipe(kind: section.kind, itemWidth: width, caption: section.caption)
       switch self.itemsByID[id] {
       case .card(let card)?:
-        cell.configure(card: card, recipe: recipe, caption: section.caption)
+        cell.configure(card: card, recipe: recipe, caption: section.caption, showsRating: section.showsRating)
+      case .tile(let tile)?:
+        cell.configure(tile: tile, recipe: recipe, caption: section.caption)
       default:
         cell.configurePlaceholder(recipe: recipe)
       }
@@ -329,6 +331,8 @@ public final class TVPageCollectionViewController: UIViewController {
       switch self.itemsByID[id] {
       case .card(let card)?:
         cell.configure(TVUIKitMediaItem(card: card), captionOnFocus: captionOnFocus)
+      case .tile(let tile)?:
+        cell.configure(TVUIKitMediaItem(tile: tile), captionOnFocus: captionOnFocus)
       default:
         cell.configure(TVUIKitMediaItem(id: id.hashValue, tint: UIColor(white: 0.16, alpha: 1)))
       }
@@ -389,7 +393,7 @@ public final class TVPageCollectionViewController: UIViewController {
         return collectionView.dequeueConfiguredReusableCell(using: chip, for: indexPath, item: id)
       }
       switch section.kind {
-      case .poster:
+      case .poster, .square:
         return collectionView.dequeueConfiguredReusableCell(using: poster, for: indexPath, item: id)
       case .still:
         return collectionView.dequeueConfiguredReusableCell(using: still, for: indexPath, item: id)
@@ -680,7 +684,7 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
       return URL(string: string)
     case .person(let person):
       return person.photoURL
-    case .chip, .placeholder:
+    case .chip, .tile, .placeholder:
       return nil
     }
   }
