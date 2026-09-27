@@ -102,8 +102,13 @@ struct SearchView: View {
         onChipSelection: { chip, selection in
           TVSearchFilters.applySelection(chip: chip, selection: selection, to: catalog)
         },
-        onNearEnd: { _ in
-          guard let last = catalog.items.last else { return }
+        onNearEnd: { section in
+          // Only the listing pages. The first letters are an index over what is already
+          // loaded: paging under them found a match or two a page, so the short grid kept
+          // reaching its end and ran the listing to page 44 (2026-09-27). Nor do the
+          // filter chips, the top cards or "Other Results" stand for the next page.
+          guard letterFilter == nil, Self.pagedSectionIDs.contains(section.id) || section.id.hasPrefix("kind."),
+                let last = catalog.items.last else { return }
           catalog.loadMoreContent(after: last)
         },
         contextMenuProvider: { card in
@@ -263,6 +268,9 @@ struct SearchView: View {
     return Array(out.prefix(Self.topPeopleLimit))
   }
 
+  /// The grids that are the listing itself, and so page.
+  private static let pagedSectionIDs: Set<String> = ["browse", "results"]
+
   private static let topPeopleLimit = 3
   /// Two rows of three on screen, a few more a Right away.
   private static let topCardsLimit = 12
@@ -312,7 +320,8 @@ struct SearchView: View {
     }
     // Browsing (empty field): the catalog in the chosen order, as one grid.
     guard catalog.isSearching else {
-      return [filters, .posters(id: "browse", title: nil, flow: .grid, caption: .always, cards: results)]
+      return [filters, .posters(id: "browse", title: nil, flow: .grid, caption: .always,
+                                loadsMore: catalog.hasMorePages, cards: results)]
     }
     // The best matches as cards, then a titled rail per kind — Фильмы, Сериалы,
     // Документалки… `sectioned=1` would have the server group them, but it answers
@@ -321,7 +330,8 @@ struct SearchView: View {
     let cards = topCards(from: results)
     let groups = Self.kindGroups(results, types: catalog.itemTypes)
     guard groups.count > 1 else {
-      return [filters, cards, .posters(id: "results", title: nil, flow: .grid, caption: .always, cards: results)]
+      return [filters, cards, .posters(id: "results", title: nil, flow: .grid, caption: .always,
+                                       loadsMore: catalog.hasMorePages, cards: results)]
         .compactMap { $0 }
     }
     return [filters, cards].compactMap { $0 } + groups.map { kind, cards in
