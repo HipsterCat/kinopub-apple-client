@@ -18,7 +18,7 @@ import KinoPubBackend
 /// `LibraryModel.folders` at draw time.
 enum LibrarySection: Hashable, Codable {
   case watchlist
-  case movies
+  case unwatched
   case history
   case downloads
   case folder(Int)
@@ -28,7 +28,7 @@ enum LibrarySection: Hashable, Codable {
   /// Downloads is behind `FeatureFlags.downloadsEnabled` like every other downloads
   /// entry point — an off flag drops the row entirely, it does not show a dead one.
   static var fixed: [LibrarySection] {
-    var sections: [LibrarySection] = [.watchlist, .movies, .history]
+    var sections: [LibrarySection] = [.watchlist, .unwatched, .history]
     if FeatureFlags.downloadsEnabled {
       sections.append(.downloads)
     }
@@ -37,11 +37,13 @@ enum LibrarySection: Hashable, Codable {
 
   var systemImage: String {
     switch self {
-    case .watchlist: return "star"
-    case .movies: return "movieclapper"
-    case .history: return "clock"
-    case .downloads: return "arrow.down.circle"
+    case .watchlist: return "bell.fill"
+    case .unwatched: return "chevron.forward.dotted.chevron.forward"
+//    case .movies: return "movieclapper"
+//    case .downloads: return "arrow.down.circle"
+    case .downloads: return "arrow.down.to.line"
     case .folder: return "bookmark"
+    case .history: return "clock"
     }
   }
 
@@ -49,10 +51,10 @@ enum LibrarySection: Hashable, Codable {
   /// it, so it comes from `LibraryModel.title(for:)`.
   var fixedTitle: String? {
     switch self {
-    case .watchlist: return "Watchlist".localized
-    case .movies: return "Movies".localized
-    case .history: return "Recently Watched".localized
-    case .downloads: return "Downloads".localized
+    case .watchlist: return "Following".localized
+    case .unwatched: return "Continue".localized
+    case .history: return "History".localized
+    case .downloads: return "Downloaded".localized
     case .folder: return nil
     }
   }
@@ -62,7 +64,7 @@ enum LibrarySection: Hashable, Codable {
   var rowKey: RowKey? {
     switch self {
     case .watchlist: return .watchlist
-    case .movies: return .watchingMovies
+    case .unwatched: return .watchingMovies
     case .history: return .history
     case .downloads: return nil
     case .folder(let id): return .folder(id)
@@ -73,7 +75,7 @@ enum LibrarySection: Hashable, Codable {
   var isPaginated: Bool {
     switch self {
     case .history, .folder: return true
-    case .watchlist, .movies, .downloads: return false
+    case .watchlist, .unwatched, .downloads: return false
     }
   }
 
@@ -89,7 +91,7 @@ enum LibrarySection: Hashable, Codable {
   var persistenceID: String {
     switch self {
     case .watchlist: return "watchlist"
-    case .movies: return "movies"
+    case .unwatched: return "unwatched"
     case .history: return "history"
     case .downloads: return "downloads"
     case .folder(let id): return "folder:\(id)"
@@ -99,7 +101,7 @@ enum LibrarySection: Hashable, Codable {
   init?(persistenceID: String) {
     switch persistenceID {
     case "watchlist": self = .watchlist
-    case "movies": self = .movies
+    case "unwatched": self = .unwatched
     case "history": self = .history
     case "downloads": self = .downloads
     default:

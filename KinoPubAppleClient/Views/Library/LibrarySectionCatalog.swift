@@ -219,7 +219,7 @@ final class LibrarySectionCatalog: ObservableObject {
       }
     }
   }
-
+ 
   // MARK: - Fetching
 
 
@@ -240,7 +240,7 @@ final class LibrarySectionCatalog: ObservableObject {
     case .watchlist:
       let items = try await service.fetchWatchingSerials(subscribedOnly: true).items
       return PageResult(cards: items.map { card(for: $0, isSeries: true) }, pagination: nil)
-    case .movies:
+    case .unwatched:
       let items = try await service.fetchWatchingMovies().items
       return PageResult(cards: items.map { card(for: $0, isSeries: false) }, pagination: nil)
     case .history:

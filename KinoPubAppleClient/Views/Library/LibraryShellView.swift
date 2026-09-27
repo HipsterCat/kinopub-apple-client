@@ -179,21 +179,21 @@ struct LibraryShellView: View {
         }
       }
 
-      Section("Bookmarks") {
+      Section {
         ForEach(model.folders, id: \.id) { folder in
           sidebarButton(for: .folder(folder.id))
         }
 
-        Button {
-          model.promptNewFolder()
-        } label: {
-          Label("Create Bookmark", systemImage: "plus")
-        }
+//        Button {
+//          model.promptNewFolder()
+//        } label: {
+//          Label("Create Bookmark", systemImage: "plus")
+//        }
       }
     }
-    .listStyle(.plain)
-    .frame(width: 360)
-    .focusSection()
+//    .listStyle(.auto)
+    .frame(width: 300)
+//    .focusSection()
   }
 
   private func sidebarButton(for section: LibrarySection) -> some View {
@@ -201,7 +201,7 @@ struct LibraryShellView: View {
       model.select(section)
     } label: {
       row(for: section)
-    }
+    }.buttonStyle(.bordered)
   }
 #endif
 
@@ -209,17 +209,22 @@ struct LibraryShellView: View {
     HStack {
       Label(model.title(for: section), systemImage: section.systemImage)
         .lineLimit(1)
+        .font(.system(.footnote, weight: .regular))
+        .foregroundStyle(model.selection == section ? .primary : .secondary)
       if let count = model.count(for: section) {
         Spacer()
         Text(count)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(.tertiary)
           .monospacedDigit()
+          .font(.system(.caption, weight: .regular))
+
       }
     }
 #if os(tvOS)
     // The focused row already reads as "here"; the selected one needs to stay legible
     // when focus is off in the grid.
-    .fontWeight(model.selection == section ? .semibold : .regular)
+    .fontWeight(model.selection == section ? .medium : .regular)
+//    .foregroundStyle(model.selection == section ? .primary : .secondary)
 #endif
   }
 
@@ -241,7 +246,7 @@ struct LibraryShellView: View {
         .macToolbarSearch()
 #endif
 #if os(tvOS)
-        .focusSection()
+//        .focusSection()
 #endif
     }
   }
@@ -279,7 +284,7 @@ struct LibraryShellView: View {
     // Runs under the tab bar like every tab page, and out to the right screen edge so
     // its own 80 pt inset is the same right margin as on the tabs. The sidebar keeps
     // the leading safe area.
-    .ignoresSafeArea(.container, edges: [.vertical, .trailing])
+    .ignoresSafeArea(.container, edges: [.vertical, .trailing, .horizontal, .leading])
   }
 
   private var librarySections: [TVPageSection] {

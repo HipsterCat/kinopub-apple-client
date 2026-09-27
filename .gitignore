@@ -8,6 +8,7 @@
 .vscode/
 
 ## Xcode
+pics/
 build/
 DerivedData/
 *.moved-aside
