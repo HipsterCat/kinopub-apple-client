@@ -118,7 +118,7 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
   /// Persisted record of an in-flight download so it can be resumed (background task survived) or
   /// re-offered (force-quit) after a relaunch — the system keeps the task, but the meta lives only in
   /// memory, so without this the delegate can't recover it.
-  private struct PendingHLSDownload: Codable, Equatable {
+  private struct PendingHLSDownload: Codable, Equatable, Sendable {
     let key: String
     let meta: DownloadMeta
     let hlsURLString: String

@@ -71,6 +71,12 @@ class LibraryCatalog: ObservableObject {
     guard let pagination, pagination.current >= pagination.total else { return .idle }
     return PaginationState(phase: .complete, loadedCount: items.count)
   }
+  /// Another page exists and nothing stands in the way of asking for it — the grid
+  /// ends on a skeleton row and a spinner rather than a ragged last row.
+  var hasMorePages: Bool {
+    guard !paginationFailed, let pagination else { return false }
+    return pagination.current < pagination.total
+  }
   @Published public var query: String = ""
   static let pageSize = 20
   @Published public var filter: LibraryFilter = LibraryFilter()

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct WatchingMetadata: Codable, Hashable {
+public struct WatchingMetadata: Codable, Hashable, Sendable {
   public let id: Int
   public let video: Int?
   public let season: Int?

@@ -292,8 +292,10 @@ class MediaItemModel: ObservableObject {
     followBookmarkFolders()
     Task {
       do {
+        let requestedAt = Date()
         mediaItem = try await itemsService.fetchDetails(for: "\(mediaItemId)",
                                                        excludeLinks: excludeLinksOnFetch).item
+        payloadRequestedAt = requestedAt
         let mediaId = mediaItem.id
         mediaItem.seasons = mediaItem.seasons?.map({ $0.mediaId = mediaId; return $0 })
         AppContext.shared.localProgressStore.cacheItem(mediaItem)
@@ -322,6 +324,7 @@ class MediaItemModel: ObservableObject {
           "details id=\(self.mediaItemId) nolinks=\(self.excludeLinksOnFetch) type=\(self.mediaItem.type) seasons=\(self.mediaItem.seasons?.count ?? 0) firstEpisodeFiles=\(self.mediaItem.seasons?.first?.episodes.first?.files.count ?? -1) videoFiles=\(self.mediaItem.videos?.first?.files.count ?? -1) trailer=\(self.mediaItem.trailerURL?.host ?? "none")"
         )
         itemLoaded = true
+        repaintFromLocalProgress()
         identity = MediaIdentity(mediaItem: mediaItem)
         // People shelves need credit names from the details payload — kick them
         // off as soon as we have them, in parallel with TMDB enrichment. The
@@ -463,6 +466,55 @@ class MediaItemModel: ObservableObject {
   }
 
   private var folderSubscription: AnyCancellable?
+
+  // MARK: - Local watch progress
+
+  /// When the payload on this page was asked for. The server's positions are as of then.
+  private var payloadRequestedAt = Date.distantPast
+
+  /// Lays the player's local positions over the payload. Only what was written after the
+  /// payload was requested counts: anything older the server has already seen through
+  /// `marktime` and answered with, and the payload is the better source for it.
+  ///
+  /// Called from the page's `onAppear`, not from a progress subscription: the page stays
+  /// mounted under the player, so `.task` does not run again when the player closes, and
+  /// the rail kept the old checkmarks while the hero kept offering the episode just
+  /// finished. Repainting on appear catches that without redrawing a hidden page on
+  /// every ~10s player tick. Costs no request.
+  func repaintFromLocalProgress() {
+    guard itemLoaded else { return }
+    let records = AppContext.shared.localProgressStore
+      .records(forItem: mediaItemId)
+      .filter { $0.updatedAt > payloadRequestedAt }
+    guard !records.isEmpty else { return }
+
+    var changed = false
+    for record in records {
+      let time = Int(record.position)
+      if let season = record.season {
+        guard let episode = mediaItem.seasons?
+          .first(where: { $0.number == season })?.episodes
+          .first(where: { $0.number == record.episode }),
+          episode.watching.time != time else { continue }
+        episode.watching = EpisodeWatching(status: episode.watching.status, time: time)
+        changed = true
+      } else if var videos = mediaItem.videos, !videos.isEmpty {
+        let index = videos.firstIndex { $0.number == record.episode } ?? videos.startIndex
+        guard videos[index].watching.time != time else { continue }
+        videos[index].watching = EpisodeWatching(status: videos[index].watching.status, time: time)
+        mediaItem.videos = videos
+        changed = true
+      }
+    }
+    guard changed else { return }
+    // Episodes are classes; reassigning the item is what republishes it (same as the
+    // watched toggles below).
+    mediaItem = mediaItem
+    isWatched = libraryState.movieWatched(
+      itemId: mediaItemId,
+      serverWatched: mediaItem.playbackAction == .playAgain
+    )
+  }
 
   private func applyBookmarkState() {
     if let bookmarks = mediaItem.bookmarks {
