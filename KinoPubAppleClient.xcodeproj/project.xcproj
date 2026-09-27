@@ -134,6 +134,7 @@
               "path": "LocalWatchProgress",
               "children": [
                 { "path": "LocalWatchProgressStore.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "WatchLibrary.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",
@@ -477,6 +478,7 @@
       "path": "KinoPubAppleClientTests",
       "children": [
         { "path": "TrackPreferenceStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "LocalWatchProgressStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlaybackPreflightTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlayerTrackSelectionTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LibraryCatalogSearchTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },

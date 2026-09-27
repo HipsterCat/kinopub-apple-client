@@ -20,7 +20,9 @@ public class Episode: Codable, Hashable, Identifiable {
   /// Mutated after `/v1/watching/toggle` so the episode rail can flip its state
   /// without refetching the whole title.
   public var watched: Int
-  public let watching: EpisodeWatching
+  /// Overwritten from the local watch store when the player wrote a newer position than
+  /// the payload knew about, so the rail and the hero redraw without refetching the title.
+  public var watching: EpisodeWatching
   /// Both of these are empty when the details call asked for `nolinks=1`, and are filled
   /// in from `/v1/items/media-links` the first time this episode is actually played
   /// (`MediaLinksResolver`). `Episode` is a class, so the fill is visible to everything

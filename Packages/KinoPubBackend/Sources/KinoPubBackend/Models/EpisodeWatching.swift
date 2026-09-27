@@ -10,4 +10,9 @@ import Foundation
 public struct EpisodeWatching: Codable, Hashable {
   public let status: Int
   public let time: Int
+
+  public init(status: Int, time: Int) {
+    self.status = status
+    self.time = time
+  }
 }
