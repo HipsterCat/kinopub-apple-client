@@ -9,7 +9,7 @@ import KinoPubUI
 import KinoPubBackend
 
 struct MainView: View {
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @Environment(\.appContext) var appContext
@@ -271,13 +271,13 @@ struct MainView: View {
 }
 
 struct MainView_Previews: PreviewProvider {
-  @StateObject static var navState = NavigationState()
+  static let navState = NavigationState()
 
   static var previews: some View {
     MainView(tab: .home, catalog: HomeCatalog(itemsService: VideoContentServiceMock(),
                                   authState: AuthState(authService: AuthorizationServiceMock(),
                                                        accessTokenService: AccessTokenServiceMock()),
                                   errorHandler: ErrorHandler()))
-      .environmentObject(navState)
+      .environment(navState)
   }
 }

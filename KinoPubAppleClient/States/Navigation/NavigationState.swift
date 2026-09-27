@@ -23,37 +23,43 @@ struct PendingSearch: Equatable {
  }
 */
 
-class NavigationState: ObservableObject {
-  @Published var selectedTab: NavigationTabs = .home
-  @Published var mainRoutes: [Route] = []
-  @Published var searchRoutes: [Route] = []
-  @Published var moviesRoutes: [Route] = []
-  @Published var seriesRoutes: [Route] = []
-  @Published var libraryRoutes: [Route] = []
-  @Published var watchlistRoutes: [Route] = []
-  @Published var recentlyWatchedRoutes: [Route] = []
-  @Published var bookmarksRoutes: [Route] = []
-  @Published var downloadsRoutes: [Route] = []
+/// `@Observable`, not `ObservableObject`: a view now depends only on the properties it
+/// reads. As an `ObservableObject` every push, pop, tab switch or keystroke in the Mac
+/// search field invalidated every view holding it — each tab's root, every `RouteStack`,
+/// every mounted detail page — whether or not it read what changed. A view that only
+/// calls `push` reads nothing and never re-renders for navigation.
+@Observable
+final class NavigationState {
+  var selectedTab: NavigationTabs = .home
+  var mainRoutes: [Route] = []
+  var searchRoutes: [Route] = []
+  var moviesRoutes: [Route] = []
+  var seriesRoutes: [Route] = []
+  var libraryRoutes: [Route] = []
+  var watchlistRoutes: [Route] = []
+  var recentlyWatchedRoutes: [Route] = []
+  var bookmarksRoutes: [Route] = []
+  var downloadsRoutes: [Route] = []
   /// Applied once when Search becomes active — genre / country / year from the
   /// item page land here so Search opens already filtered, titled, and labeled.
-  @Published var pendingSearch: PendingSearch?
+  var pendingSearch: PendingSearch?
   /// Tab to restore when the user backs out of a filter-driven Search jump.
-  @Published private(set) var searchReturnTab: NavigationTabs?
+  private(set) var searchReturnTab: NavigationTabs?
 #if os(macOS)
   /// Shared with the always-visible trailing toolbar search field (Finder/Photos style).
-  @Published var macSearchFieldText = ""
+  var macSearchFieldText = ""
   /// Recent queries for the searchable suggestion menu (Photos-style dropdown).
-  @Published private(set) var macSearchRecents: [String] = MacSearchRecentsStore.load()
+  private(set) var macSearchRecents: [String] = MacSearchRecentsStore.load()
 #endif
 
 #if os(macOS)
   /// Bumped instead of appending whenever `push` redirects a `.player` / `.trailerPlayer`
   /// route to the dedicated window (see `push`). `RootView` holds the `openWindow`
   /// environment action and observes this to actually raise that window — `NavigationState` is a
-  /// plain `ObservableObject`, not a view, so it cannot call `openWindow` itself. A fresh
+  /// model, not a view, so it cannot call `openWindow` itself. A fresh
   /// UUID on every redirect makes a repeat request for the same item still fire the
   /// observer.
-  @Published private(set) var playerWindowRequestID: UUID?
+  private(set) var playerWindowRequestID: UUID?
 #endif
 
 #if os(tvOS) && DEBUG
@@ -265,7 +271,7 @@ extension View {
 }
 
 private struct MacToolbarSearchModifier: ViewModifier {
-  @EnvironmentObject private var navigationState: NavigationState
+  @Environment(NavigationState.self) private var navigationState
 
   func body(content: Content) -> some View {
     content

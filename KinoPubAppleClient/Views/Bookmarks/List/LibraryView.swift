@@ -9,7 +9,7 @@ import KinoPubBackend
 
 /// Combined Watchlist + History + Bookmarks for tvOS / iOS / iPad.
 struct LibraryView: View {
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @Environment(\.appContext) var appContext

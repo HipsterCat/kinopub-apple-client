@@ -159,7 +159,7 @@ extension FocusedValues {
 /// (episode still when the payload has one); macOS View menu can switch to posters.
 struct HistoryView: View {
   @Environment(ErrorHandler.self) var errorHandler
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(\.appContext) var appContext
   @Environment(\.openURL) private var openURL
   @StateObject private var cardMenu = MediaCardMenuCoordinator()

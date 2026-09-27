@@ -10,7 +10,7 @@ import KinoPubBackend
 /// The grid behind one collection shelf's title / "+N more" — every item the
 /// collection has, no pagination (the endpoint returns them all at once).
 struct CollectionDetailView: View {
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(\.openURL) private var openURL
   @StateObject private var model: CollectionDetailModel

@@ -20,7 +20,7 @@ struct RouteDestination: View {
   @Environment(\.appContext) private var appContext
   @Environment(ErrorHandler.self) private var errorHandler
   @EnvironmentObject private var authState: AuthState
-  @EnvironmentObject private var navigationState: NavigationState
+  @Environment(NavigationState.self) private var navigationState
 
   var body: some View {
     destination

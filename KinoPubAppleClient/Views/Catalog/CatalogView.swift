@@ -13,7 +13,7 @@ import KinoPubBackend
 /// iOS / macOS only. tvOS Movies / Series use the same `MainView` + `HomeCatalog`
 /// poster shelves as Watch Now, typed to one `MediaType`.
 struct CatalogView: View {
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @Environment(\.appContext) var appContext

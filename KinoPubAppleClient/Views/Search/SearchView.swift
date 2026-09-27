@@ -13,7 +13,7 @@ import UIKit
 /// Search, sorting and filtering all live here so the Main tab can be a pure
 /// browse surface (rows of artwork) the way tvOS apps present a home screen.
 struct SearchView: View {
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @Environment(\.appContext) var appContext
@@ -1053,13 +1053,13 @@ enum SearchStarters {
 }
 
 struct SearchView_Previews: PreviewProvider {
-  @StateObject static var navState = NavigationState()
+  static let navState = NavigationState()
 
   static var previews: some View {
     SearchView(catalog: LibraryCatalog(itemsService: VideoContentServiceMock(),
                                        authState: AuthState(authService: AuthorizationServiceMock(),
                                                             accessTokenService: AccessTokenServiceMock()),
                                        errorHandler: ErrorHandler()))
-    .environmentObject(navState)
+    .environment(navState)
   }
 }

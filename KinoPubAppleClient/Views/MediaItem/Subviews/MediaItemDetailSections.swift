@@ -903,7 +903,7 @@ struct MediaItemRelatedRowsSection: View {
   var pendingShelves: [String] = []
 
   @Environment(ErrorHandler.self) private var errorHandler
-  @EnvironmentObject private var navigationState: NavigationState
+  @Environment(NavigationState.self) private var navigationState
   @Environment(\.openURL) private var openURL
 
   private struct CardKey: Hashable {
@@ -2857,7 +2857,7 @@ struct MediaItemInfoColumns: View {
   /// have, but reachable in one place instead of scattered through three columns.
   private struct TagStrip: View {
     let values: [InfoValue]
-    @EnvironmentObject var navigationState: NavigationState
+    @Environment(NavigationState.self) var navigationState
 
     var body: some View {
       // Wraps rather than scrolls: the whole set should be readable at a glance, and

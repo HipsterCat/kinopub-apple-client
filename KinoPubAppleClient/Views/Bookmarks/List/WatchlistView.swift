@@ -13,7 +13,7 @@ import OSLog
 /// Reads through `ContentStore`, so a warm cache paints instantly and a failed
 /// refresh keeps the last known list instead of blanking the tab.
 struct WatchlistView: View {
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @Environment(\.appContext) var appContext

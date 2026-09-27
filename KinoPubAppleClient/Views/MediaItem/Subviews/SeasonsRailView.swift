@@ -50,7 +50,7 @@ struct SeasonsRailView: View {
   var onSeasonVisible: ((Int) -> Void)? = nil
 
   @Environment(ErrorHandler.self) private var errorHandler
-  @EnvironmentObject private var navigationState: NavigationState
+  @Environment(NavigationState.self) private var navigationState
   @Environment(\.openURL) private var openURL
   @Environment(\.dynamicTypeSize) private var typeSize
 #if os(tvOS)

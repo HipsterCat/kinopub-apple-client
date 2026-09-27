@@ -10,7 +10,7 @@ import KinoPubKit
 
 struct ProfileView: View {
 
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(\.appContext) var appContext
   // Eager, not lazy: `ProfileModel.init` only stores references and reads

@@ -40,7 +40,7 @@ final class MediaItemHeroPhase {
 struct MediaItemView: View {
 
   @Environment(ErrorHandler.self) var errorHandler
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @StateObject private var itemModel: MediaItemModel
   /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
   @StateObject private var trailer: TrailerPreviewModel

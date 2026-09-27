@@ -16,7 +16,7 @@ import KinoPubBackend
 /// each column is its own `focusSection`, so Left out of the grid lands in the list and
 /// Right comes back, without a `NavigationSplitView` deciding when to collapse.
 struct LibraryShellView: View {
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(\.appContext) var appContext
   @Environment(\.openURL) private var openURL

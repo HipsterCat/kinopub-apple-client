@@ -14,7 +14,7 @@ struct RootView: View {
 
   @Environment(\.appContext) var appContext
   @EnvironmentObject var authState: AuthState
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   /// Off unless switched on in Settings › Advanced › Diagnostics.
   @AppStorage(DiagnosticsSettings.activityOverlayKey) private var showsActivityOverlay = false
 #if os(macOS)

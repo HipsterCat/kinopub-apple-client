@@ -303,7 +303,7 @@ struct MediaItemHeroView: View {
   private var showsAgeRatingBadge = false
 
   @Environment(\.openURL) private var openURL
-  @EnvironmentObject private var navigationState: NavigationState
+  @Environment(NavigationState.self) private var navigationState
 
   private var isSeries: Bool {
     !(mediaItem.seasons?.isEmpty ?? true)
@@ -1177,7 +1177,7 @@ private extension View {
 private struct MediaItemHeroPreview: View {
   @FocusState private var focus: MediaItemFocusTarget?
   @StateObject private var trailer = TrailerPreviewModel()
-  @StateObject private var navigationState = NavigationState()
+  @State private var navigationState = NavigationState()
   @State private var heroPhase = MediaItemHeroPhase()
 
   var body: some View {
@@ -1195,7 +1195,7 @@ private struct MediaItemHeroPreview: View {
       onFolderToggle: { _ in },
       titleLogoURL: nil
     )
-    .environmentObject(navigationState)
+    .environment(navigationState)
     .aspectRatio(16 / 9, contentMode: .fit)
     .frame(maxWidth: 960)
 //    .background(Color.black)

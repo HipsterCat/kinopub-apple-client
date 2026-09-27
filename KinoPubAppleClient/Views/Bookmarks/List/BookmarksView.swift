@@ -10,7 +10,7 @@ import KinoPubUI
 import KinoPubBackend
 
 struct BookmarksView: View {
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @EnvironmentObject var authState: AuthState
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(\.appContext) var appContext

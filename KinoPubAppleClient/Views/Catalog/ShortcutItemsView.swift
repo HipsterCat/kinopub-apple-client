@@ -18,7 +18,7 @@ import KinoPubBackend
 struct ShortcutItemsView: View {
   private let title: String
 
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(\.openURL) private var openURL
   @StateObject private var catalog: MediaCatalog

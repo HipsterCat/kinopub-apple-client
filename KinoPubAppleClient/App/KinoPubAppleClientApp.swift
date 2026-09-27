@@ -20,7 +20,7 @@ enum WindowSize {
 @main
 struct KinoPubAppleClientApp: App {
   
-  @StateObject var navigationState = NavigationState()
+  @State var navigationState = NavigationState()
   @State private var errorHandler = ErrorHandler()
   @StateObject var networkMonitor = NetworkMonitor()
   @StateObject var authState = AuthState(authService: AppContext.shared.authService,
@@ -58,7 +58,7 @@ struct KinoPubAppleClientApp: App {
     WindowGroup {
       RootView()
         .environment(\.appContext, AppContext.shared)
-        .environmentObject(navigationState)
+        .environment(navigationState)
         .environmentObject(authState)
         .environment(errorHandler)
         .environmentObject(networkMonitor)
@@ -118,7 +118,7 @@ struct KinoPubAppleClientApp: App {
     Window("Player", id: PlaybackWindowState.windowID) {
       PlayerWindowContent()
         .environment(\.appContext, AppContext.shared)
-        .environmentObject(navigationState)
+        .environment(navigationState)
         .environmentObject(authState)
         .environment(errorHandler)
         .environmentObject(networkMonitor)
