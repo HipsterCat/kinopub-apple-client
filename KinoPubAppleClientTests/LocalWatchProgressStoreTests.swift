@@ -26,6 +26,7 @@ final class LocalWatchProgressStoreTests: XCTestCase {
   private let seriesID = 4242
   private let filmID = 777
 
+  @MainActor
   func testFilmResumePointSurvivesRelaunch() async {
     let store = LocalWatchProgressStore(container: container)
     store.cacheItem(.mock(id: filmID, type: "movie"))
@@ -39,6 +40,7 @@ final class LocalWatchProgressStoreTests: XCTestCase {
     XCTAssertNotNil(relaunched.snapshot(for: filmID))
   }
 
+  @MainActor
   func testEachEpisodeKeepsItsOwnRecord() async {
     let store = LocalWatchProgressStore(container: container)
     store.cacheItem(.mock(id: seriesID, type: "serial"))
@@ -55,12 +57,14 @@ final class LocalWatchProgressStoreTests: XCTestCase {
     XCTAssertEqual(relaunched.allEntries().first?.episode, 4, "newest record per title")
   }
 
+  @MainActor
   func testNothingIsWrittenWithoutAPayload() async {
     let store = LocalWatchProgressStore(container: container)
     store.recordProgress(mediaId: filmID, position: 600, duration: 6000, season: nil, episode: 1)
     XCTAssertNil(store.entry(forId: filmID, season: nil, episode: nil))
   }
 
+  @MainActor
   func testClearRemovesEveryRecordOfTheTitle() async {
     let store = LocalWatchProgressStore(container: container)
     store.cacheItem(.mock(id: seriesID, type: "serial"))
@@ -73,5 +77,25 @@ final class LocalWatchProgressStoreTests: XCTestCase {
     let relaunched = LocalWatchProgressStore(container: container)
     XCTAssertTrue(relaunched.records(forItem: seriesID).isEmpty)
     XCTAssertTrue(relaunched.allEntries().isEmpty)
+  }
+
+  /// Writers on several threads: the disk ends where memory ends. Queued after the lock,
+  /// two writes could reach the writer in the other order and a relaunch read an older
+  /// position than the one the app had shown.
+  @MainActor
+  func testConcurrentWritesLandInMemoryOrder() async {
+    let store = LocalWatchProgressStore(container: container)
+    store.cacheItem(.mock(id: filmID, type: "movie"))
+    let id = filmID
+    DispatchQueue.concurrentPerform(iterations: 200) { @Sendable step in
+      store.recordProgress(mediaId: id, position: Double(600 + step), duration: 6000,
+                           season: nil, episode: 1)
+    }
+    await store.flush()
+
+    let shown = store.entry(forId: filmID, season: nil, episode: nil)?.position
+    let relaunched = LocalWatchProgressStore(container: container)
+    XCTAssertNotNil(shown)
+    XCTAssertEqual(relaunched.entry(forId: filmID, season: nil, episode: nil)?.position, shown)
   }
 }

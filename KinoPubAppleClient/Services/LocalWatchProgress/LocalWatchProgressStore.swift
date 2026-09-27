@@ -8,6 +8,15 @@
 //  Reads are synchronous from memory; every write is queued to `WatchLibraryWriter`
 //  and persisted with SwiftData in `Caches/` (see `WatchLibrary`).
 //
+//  Two rules keep it race-free:
+//  - A write is queued inside the same lock that changes memory, so the disk sees
+//    writes in the order memory did. Queued after `unlock()`, two writers could swap
+//    places: progress rolled back after a relaunch, or a cleared title came back.
+//  - A payload is encoded where the item is handed in (`cacheItem`, on the main
+//    actor), never from the player's tick. `MediaItem` holds `Season`/`Episode`
+//    classes the detail page updates in place on the main thread; the tick runs on a
+//    background queue (`PlayerTimeObserver`) and must not read them.
+//
 
 import Foundation
 import KinoPubBackend
@@ -62,8 +71,10 @@ final class LocalWatchProgressStore: @unchecked Sendable {
   /// that have a resume point (so episode playback, whose `PlayableItem` is an `Episode`,
   /// can still resolve the parent series artwork after a relaunch).
   private var snapshots: [Int: MediaItem] = [:]
-  /// Titles whose snapshot has already been written this launch — the player writes every
-  /// ~10s, and re-encoding the whole payload on each tick would be pure waste.
+  /// Each snapshot's JSON, encoded in `cacheItem` (or read back from disk).
+  private var payloads: [Int: Data] = [:]
+  /// Titles whose current payload is already on disk — the player writes every ~10s,
+  /// and rewriting the same payload on each tick would be pure waste.
   private var persistedSnapshotIDs: Set<Int> = []
   /// One per episode (series) or per title (film), keyed by `WatchRecord.key`.
   private var records: [String: WatchRecordValue] = [:]
@@ -94,10 +105,17 @@ final class LocalWatchProgressStore: @unchecked Sendable {
     }
   }
 
-  /// Remember the artwork/title for an item the user is browsing (cheap, in-memory only).
+  /// Remember the artwork/title for an item the user is browsing. In memory only; the
+  /// payload reaches disk with the title's first resume point.
+  @MainActor
   func cacheItem(_ item: MediaItem) {
+    let payload = try? JSONEncoder().encode(item)
     lock.lock(); defer { lock.unlock() }
     snapshots[item.id] = item
+    guard let payload, payloads[item.id] != payload else { return }
+    payloads[item.id] = payload
+    // A newer payload than the one on disk goes out with the next write.
+    persistedSnapshotIDs.remove(item.id)
   }
 
   /// The cached payload for an item, when the user has browsed it this session or it has
@@ -172,9 +190,9 @@ final class LocalWatchProgressStore: @unchecked Sendable {
     let keys = records.values.filter { $0.itemID == id }.map(\.key)
     keys.forEach { records[$0] = nil }
     persistedSnapshotIDs.remove(id)
+    if !keys.isEmpty { writes.yield(.deleteAll(itemID: id)) }
     lock.unlock()
     guard !keys.isEmpty else { return }
-    writes.yield(.deleteAll(itemID: id))
     notify()
   }
 
@@ -187,11 +205,8 @@ final class LocalWatchProgressStore: @unchecked Sendable {
 
   /// Returns false when there is no payload to draw a card from — the same rule as before.
   private func write(mediaId: Int, position: Double, duration: Double, season: Int?, episode: Int?) -> Bool {
-    lock.lock()
-    guard let snapshot = snapshots[mediaId] else {
-      lock.unlock()
-      return false
-    }
+    lock.lock(); defer { lock.unlock() }
+    guard snapshots[mediaId] != nil else { return false }
     let value = WatchRecordValue(itemID: mediaId,
                                  season: season,
                                  episode: episode,
@@ -199,11 +214,8 @@ final class LocalWatchProgressStore: @unchecked Sendable {
                                  duration: duration,
                                  updatedAt: Date())
     records[value.key] = value
-    let needsSnapshot = persistedSnapshotIDs.insert(mediaId).inserted
-    lock.unlock()
-
     writes.yield(.record(value))
-    if needsSnapshot, let payload = try? JSONEncoder().encode(snapshot) {
+    if let payload = payloads[mediaId], persistedSnapshotIDs.insert(mediaId).inserted {
       writes.yield(.snapshot(itemID: mediaId, payload: payload))
     }
     return true
@@ -231,6 +243,8 @@ final class LocalWatchProgressStore: @unchecked Sendable {
       for snapshot in try context.fetch(FetchDescriptor<TitleSnapshot>()) {
         if let item = try? decoder.decode(MediaItem.self, from: snapshot.payload) {
           snapshots[snapshot.itemID] = item
+          payloads[snapshot.itemID] = snapshot.payload
+          persistedSnapshotIDs.insert(snapshot.itemID)
         }
       }
       for record in try context.fetch(FetchDescriptor<WatchRecord>()) {
@@ -268,7 +282,10 @@ final class LocalWatchProgressStore: @unchecked Sendable {
       records[value.key] = value
       snapshots[entry.id] = entry.item
       writes.yield(.record(value))
+      // Still in `init`: nothing else holds these items yet.
       if let payload = try? JSONEncoder().encode(entry.item) {
+        payloads[entry.id] = payload
+        persistedSnapshotIDs.insert(entry.id)
         writes.yield(.snapshot(itemID: entry.id, payload: payload))
       }
     }
