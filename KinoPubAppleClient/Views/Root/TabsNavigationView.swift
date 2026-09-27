@@ -242,6 +242,17 @@ struct TabsNavigationView: View {
         }
       }
 
+#if DEBUG
+      // Library sidebar sandbox, one tab per engine.
+      ForEach(SBEngine.allCases, id: \.self) { engine in
+        Tab(value: NavigationTabs.sidebarLab(engine)) {
+          TVSidebarSandbox(engine: engine)
+        } label: {
+          Text(verbatim: engine.tabTitle)
+        }
+      }
+#endif
+
       Tab(value: NavigationTabs.settings) {
         settingsContent
       } label: {

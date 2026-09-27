@@ -464,6 +464,48 @@ final class TVPageGeometryUITests: XCTestCase {
     }
   }
 
+  /// Library sidebar sandbox (DEBUG "SwiftUI" / "UIKit" tabs, `TVSidebarSandbox.swift`):
+  /// the three-level walk — bar, Select into the sidebar (the selected row), two rows
+  /// down (selection follows), Select into the content, Left back to the selected row,
+  /// Select in again, Menu back to the row, Menu to the bar. Mock data, no session needed.
+  func testSidebarSandbox() throws {
+    let presets: [(name: String, config: String)] = [
+      ("uikit", "engine=uikit"),
+      ("swiftui", "engine=swiftUI"),
+    ]
+    for preset in presets {
+      let app = XCUIApplication()
+      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                              "-KINOPUBSidebarSandbox", preset.config]
+      if let session = UITestDevSession.json {
+        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+      }
+      app.launch()
+      Thread.sleep(forTimeInterval: 6)
+      try shoot(app, name: "sandbox-\(preset.name)-0-launch")
+      // Out to the bar — never Menu once it is there: Menu on the bar quits the app.
+      for _ in 0..<2 where app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count == 0 {
+        press(.menu, wait: 1.2)
+      }
+      try shoot(app, name: "sandbox-\(preset.name)-1-bar")
+      press(.select, wait: 1.2)
+      try shoot(app, name: "sandbox-\(preset.name)-2-enter")
+      press(.down, 2, wait: 1)
+      try shoot(app, name: "sandbox-\(preset.name)-3-moved")
+      press(.select, wait: 1.2)
+      try shoot(app, name: "sandbox-\(preset.name)-4-content")
+      press(.down, wait: 0.8)
+      press(.left, 3, wait: 0.8)
+      try shoot(app, name: "sandbox-\(preset.name)-5-left")
+      press(.select, wait: 1.2)
+      press(.menu, wait: 1.2)
+      try shoot(app, name: "sandbox-\(preset.name)-6-menu")
+      press(.menu, wait: 1.2)
+      try shoot(app, name: "sandbox-\(preset.name)-7-menu-bar")
+      app.terminate()
+    }
+  }
+
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
   /// red, collection blue, sections in rotating colours, cells yellow): shots of the
   /// typed search, the filter row, the cards and a rail scrolled right, to see which

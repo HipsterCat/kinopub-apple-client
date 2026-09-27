@@ -2146,7 +2146,7 @@ private struct ParentalAdvisoryCard: View {
         if let ageRating {
           HStack(spacing: 8) {
             CapabilityGlyph(.ageRatingCheckmark, height: 22)
-              .foregroundStyle(.green)
+//              .foregroundStyle(.green)
             Text(ageRating)
               .font(.system(.title2, design: .rounded, weight: .semibold))
               .foregroundStyle(Color.KinoPub.text)
@@ -2167,7 +2167,7 @@ private struct ParentalAdvisoryCard: View {
         if let ageRating {
           HStack(spacing: 10) {
             CapabilityGlyph(.ageRatingCheckmark, height: 28)
-              .foregroundStyle(.green)
+//              .foregroundStyle(.green)
             Text(ageRating)
               .font(.system(.largeTitle, design: .rounded, weight: .semibold))
               .foregroundStyle(Color.KinoPub.text)

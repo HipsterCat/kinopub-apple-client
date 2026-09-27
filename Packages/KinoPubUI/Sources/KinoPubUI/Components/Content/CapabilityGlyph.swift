@@ -102,10 +102,10 @@ private func platformImage(named name: String, in bundle: Bundle) -> Image? {
     CapabilityGlyph(.closedCaptions, height: 18)
     CapabilityGlyph(.audioDescription, height: 18)
     CapabilityGlyph(.ageRatingCheckmark, height: 24)
-      .foregroundStyle(.green)
+//      .foregroundStyle(.green)
   }
   .foregroundStyle(.white)
   .padding()
-  .background(Color.black)
+  .background(Color.black.opacity(0.35))
   // .preferredColorScheme(.dark)
 }

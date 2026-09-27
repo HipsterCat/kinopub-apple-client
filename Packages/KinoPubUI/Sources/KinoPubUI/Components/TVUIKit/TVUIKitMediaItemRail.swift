@@ -789,7 +789,9 @@ final class TVUIKitMediaItemOverlayView: UIView {
     // through the caption2 metrics — a corner chip on artwork, not running text.
     runtimeLabel.font = UIFontMetrics(forTextStyle: .caption1)
       .scaledFont(for: .systemFont(ofSize: Self.runtimePointSize, weight: .semibold))
-    runtimeLabel.textColor = .white
+//    runtimeLabel.textColor = .white
+       runtimeLabel.preferredVibrancy = .automatic
+       runtimeLabel.textColor = .white.withProminence(.secondary)
     runtimeLabel.textAlignment = .right
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
@@ -800,7 +802,8 @@ final class TVUIKitMediaItemOverlayView: UIView {
     // date), a different kind of chrome from "what Select does", and Apple's own
     // capability badges (4K / HDR) it stands in for are pills too.
     badge.translatesAutoresizingMaskIntoConstraints = false
-    badge.backgroundColor = UIColor.black.withAlphaComponent(0.3)
+    badge.backgroundColor = UIColor.black.withAlphaComponent(0.36)
+//       badge.backgrou/*nd(*/.regularMaterial, in: Capsule())
     badge.layer.cornerCurve = .continuous
     badge.isHidden = true
     addSubview(badge)
@@ -813,7 +816,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
 
     badgeLabel.translatesAutoresizingMaskIntoConstraints = false
     badgeLabel.font = .preferredFont(forTextStyle: .caption2)
-    badgeLabel.textColor = .green
+    badgeLabel.textColor = .white
     badge.addSubview(badgeLabel)
 
     progressTrack.translatesAutoresizingMaskIntoConstraints = false

@@ -1,132 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Other Results" : {
-      "comment" : "Search, first letters: device titles that match but are outside the filtered listing",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Other Results"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Другие результаты"
-          }
-        }
-      }
-    },
-    "Scope_InDirectors" : {
-      "comment" : "Search scope menu: director names",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In Director Names"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "В именах режиссёров"
-          }
-        }
-      }
-    },
-    "Scope_InActors" : {
-      "comment" : "Search scope menu: actor names",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In Actor Names"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "В именах актёров"
-          }
-        }
-      }
-    },
-    "Scope_TitlesOnly" : {
-      "comment" : "Search scope menu: titles only",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Titles Only"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Только в названии"
-          }
-        }
-      }
-    },
-    "Scope_Everywhere" : {
-      "comment" : "Search scope menu: all fields (the default)",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Match Anywhere"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Искать совпадения везде"
-          }
-        }
-      }
-    },
-    "Filter_From %@" : {
-      "comment" : "Quality at least, as the Filters label: 'from 720p'",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "from %@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "от %@"
-          }
-        }
-      }
-    },
-    "Filter_Rating" : {
-      "comment" : "Rating filter pull-down, nothing set",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rating"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Рейтинг"
-          }
-        }
-      }
-    },
     "" : {
       "localizations" : {
         "en" : {
@@ -2187,6 +2061,24 @@
         }
       }
     },
+    "Filter_From %@" : {
+      "comment" : "Quality at least, as the Filters label: 'from 720p'",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "from %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "от %@"
+          }
+        }
+      }
+    },
     "Filter_Kinopoisk" : {
       "comment" : "tvOS search filters: Kinopoisk rating submenu",
       "extractionState" : "manual",
@@ -2237,6 +2129,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "от %1$lld до %2$lld"
+          }
+        }
+      }
+    },
+    "Filter_Rating" : {
+      "comment" : "Rating filter pull-down, nothing set",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rating"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рейтинг"
           }
         }
       }
@@ -6800,6 +6710,24 @@
     "Other" : {
 
     },
+    "Other Results" : {
+      "comment" : "Search, first letters: device titles that match but are outside the filtered listing",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other Results"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другие результаты"
+          }
+        }
+      }
+    },
     "Pagination_AllLoaded" : {
       "comment" : "Pagination state shown at the end of a paginated grid or rail",
       "extractionState" : "stale",
@@ -7584,6 +7512,78 @@
     "Saved. Changes take effect within a minute." : {
 
     },
+    "Scope_Everywhere" : {
+      "comment" : "Search scope menu: all fields (the default)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match Anywhere"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Искать совпадения везде"
+          }
+        }
+      }
+    },
+    "Scope_InActors" : {
+      "comment" : "Search scope menu: actor names",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Actor Names"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В именах актёров"
+          }
+        }
+      }
+    },
+    "Scope_InDirectors" : {
+      "comment" : "Search scope menu: director names",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Director Names"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В именах режиссёров"
+          }
+        }
+      }
+    },
+    "Scope_TitlesOnly" : {
+      "comment" : "Search scope menu: titles only",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titles Only"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только в названии"
+          }
+        }
+      }
+    },
     "Scratch files from relabeling audio tracks in older builds. These are already swept on every launch." : {
 
     },
@@ -8052,6 +8052,10 @@
     },
     "Sidebar" : {
       "comment" : "Sidebar category in settings.",
+      "isCommentAutoGenerated" : true
+    },
+    "Signing in" : {
+      "comment" : "A placeholder text that says \"Signing in\".",
       "isCommentAutoGenerated" : true
     },
     "Similar" : {

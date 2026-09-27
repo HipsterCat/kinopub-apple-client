@@ -288,6 +288,7 @@
                 { "path": "NavigationFocusLabView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "NavigationFocusLabBridges.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "LibrarySidebarLabView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TVSidebarSandbox.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",

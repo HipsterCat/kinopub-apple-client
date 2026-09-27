@@ -56,6 +56,15 @@ class NavigationState: ObservableObject {
   @Published private(set) var playerWindowRequestID: UUID?
 #endif
 
+#if os(tvOS) && DEBUG
+  /// `-KINOPUBSidebarSandbox <config>` opens straight on the sidebar sandbox tab.
+  init() {
+    if SidebarSandboxConfig.launchValue != nil {
+      selectedTab = .sidebarLab(SidebarSandboxConfig.fromLaunchArguments().engine)
+    }
+  }
+#endif
+
   var canReturnFromSearch: Bool { searchReturnTab != nil }
 
   /// Switch to Search with a filter already selected (and the stack at root).
@@ -163,6 +172,9 @@ class NavigationState: ObservableObject {
     case .bookmarks, .bookmark: \.bookmarksRoutes
     case .downloads: \.downloadsRoutes
     case .settings: nil
+#if os(tvOS) && DEBUG
+    case .sidebarLab: nil
+#endif
     }
   }
 
