@@ -274,6 +274,7 @@ private struct MacToolbarSearchModifier: ViewModifier {
   @Environment(NavigationState.self) private var navigationState
 
   func body(content: Content) -> some View {
+    @Bindable var navigationState = navigationState
     content
       // Probe: `.toolbar` = compact trailing field beside `.tabBarOnly` tabs (Finder/Photos).
       // `.automatic` / no placement on this shell can still stretch; `.toolbarPrincipal` is the giant center field.
