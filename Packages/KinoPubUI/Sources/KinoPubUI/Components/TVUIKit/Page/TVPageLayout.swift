@@ -339,7 +339,7 @@ public enum TVPageLayout {
   public static let captionedRowGap: CGFloat = 48
 
   private static func hasStandingCaption(_ section: TVPageSection) -> Bool {
-    section.kind == .poster && section.caption == .always
+    section.kind.isLockup && section.caption == .always
   }
 
   private static var fallback: NSCollectionLayoutSection {
@@ -395,12 +395,13 @@ public enum TVPageCellMetrics {
   private static var cache: [Key: TVPageCellRecipe] = [:]
 
   public static func recipe(kind: TVPageCellKind, artWidth: CGFloat, caption: TVPageCaption) -> TVPageCellRecipe {
-    let key = Key(kind: kind, width: artWidth.rounded(), caption: kind == .poster ? caption : .always,
+    let key = Key(kind: kind, width: artWidth.rounded(), caption: kind.isLockup ? caption : .always,
                   category: contentSizeCategory)
     if let cached = cache[key] { return cached }
     let recipe: TVPageCellRecipe
     switch kind {
-    case .poster: recipe = measurePoster(artWidth: key.width, caption: caption)
+    case .poster: recipe = measurePoster(artWidth: key.width, caption: caption, aspect: .poster)
+    case .square: recipe = measurePoster(artWidth: key.width, caption: caption, aspect: .square)
     case .still: recipe = still(artWidth: key.width)
     case .person: recipe = person(artWidth: key.width)
     case .chip:
@@ -416,8 +417,9 @@ public enum TVPageCellMetrics {
   /// `TVPosterView` draws the unfocused art at `contentSize` minus its own
   /// `focusSizeIncrease` (≈5% per side, computed from the image). Ask for a content
   /// size a tenth larger, then read back where the art actually landed.
-  private static func measurePoster(artWidth: CGFloat, caption: TVPageCaption) -> TVPageCellRecipe {
-    let art = CGSize(width: artWidth, height: (artWidth / CardAspect.poster.ratio).rounded())
+  private static func measurePoster(artWidth: CGFloat, caption: TVPageCaption,
+                                    aspect: CardAspect) -> TVPageCellRecipe {
+    let art = CGSize(width: artWidth, height: (artWidth / aspect.ratio).rounded())
     var contentSize = CGSize(width: (art.width / (1 - TVHIGGrid.focusGrowth)).rounded(),
                              height: (art.height / (1 - TVHIGGrid.focusGrowth)).rounded())
 
@@ -526,7 +528,7 @@ public enum TVPageCellMetrics {
   /// envelope the layout gave it), so look the recipe up by that. Every recipe the
   /// layout hands out is cached first, so this is a hit for any cell on screen.
   public static func recipe(kind: TVPageCellKind, itemWidth: CGFloat, caption: TVPageCaption) -> TVPageCellRecipe {
-    let captionKey: TVPageCaption = kind == .poster ? caption : .always
+    let captionKey: TVPageCaption = kind.isLockup ? caption : .always
     let category = contentSizeCategory
     if let hit = cache.first(where: { $0.key.kind == kind && $0.key.caption == captionKey
                                         && $0.key.category == category
@@ -541,5 +543,11 @@ public enum TVPageCellMetrics {
     let r = recipe(kind: kind, artWidth: artWidth, caption: caption)
     return "\(kind) art \(Int(artWidth)) → item \(Int(r.itemSize.width))×\(Int(r.itemSize.height)) insets \(Int(r.artInsets.top))/\(Int(r.artInsets.leading))/\(Int(r.artInsets.bottom))/\(Int(r.artInsets.trailing))"
   }
+}
+
+extension TVPageCellKind {
+  /// Drawn by `TVPosterView`: the envelope is the focused size, the caption is the
+  /// lockup's footer, and whether it shows changes the measured height.
+  var isLockup: Bool { self == .poster || self == .square }
 }
 #endif

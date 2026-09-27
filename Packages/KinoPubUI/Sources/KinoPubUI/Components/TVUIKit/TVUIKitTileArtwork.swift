@@ -28,8 +28,17 @@ public enum TVUIKitTileArtwork {
     palette[Int(stableHash(name) % UInt64(palette.count))]
   }
 
-  public static func wide(tint: UIColor, symbol: String?) -> UIImage {
-    image(tint: tint, symbol: symbol, size: wideSize)
+  /// How the tint is laid down.
+  public enum Style: Hashable, Sendable {
+    /// One flat fill, glyph centred.
+    case flat
+    /// A diagonal wash from a lighter tint (top-leading) to a deeper one
+    /// (bottom-trailing), glyph toward the trailing edge — genre and category tiles.
+    case gradient
+  }
+
+  public static func wide(tint: UIColor, symbol: String?, style: Style = .flat) -> UIImage {
+    image(tint: tint, symbol: symbol, size: wideSize, style: style)
   }
 
   /// A flat tint with a centred glyph, cached per (tint, symbol, size, corners,
@@ -45,30 +54,43 @@ public enum TVUIKitTileArtwork {
                            size: CGSize,
                            cornerRadius: CGFloat = 0,
                            fillAlpha: CGFloat = 0.85,
+                           style: Style = .flat,
                            traits: UITraitCollection? = nil) -> UIImage {
     let traits = traits ?? .current
     let resolved = tint.resolvedColor(with: traits)
-    let key = "\(resolved.hashValue)-\(symbol ?? "-")-\(Int(size.width))x\(Int(size.height))-r\(Int(cornerRadius))-a\(fillAlpha)-\(traits.userInterfaceStyle.rawValue)" as NSString
+    let key = "\(resolved.hashValue)-\(symbol ?? "-")-\(Int(size.width))x\(Int(size.height))-r\(Int(cornerRadius))-a\(fillAlpha)-\(style)-\(traits.userInterfaceStyle.rawValue)" as NSString
     if let cached = cache.object(forKey: key) { return cached }
 
+    let bounds = CGRect(origin: .zero, size: size)
     let renderer = UIGraphicsImageRenderer(size: size)
     let drawn = renderer.image { context in
-      resolved.withAlphaComponent(fillAlpha).setFill()
       if cornerRadius > 0 {
-        UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: cornerRadius).fill()
-      } else {
-        context.fill(CGRect(origin: .zero, size: size))
+        UIBezierPath(roundedRect: bounds, cornerRadius: cornerRadius).addClip()
+      }
+      switch style {
+      case .flat:
+        resolved.withAlphaComponent(fillAlpha).setFill()
+        context.fill(bounds)
+      case .gradient:
+        let colors = [shade(resolved, brightness: 1.25), shade(resolved, brightness: 0.55)]
+          .map { $0.withAlphaComponent(fillAlpha).cgColor } as CFArray
+        if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
+          context.cgContext.drawLinearGradient(gradient, start: .zero,
+                                               end: CGPoint(x: size.width, y: size.height), options: [])
+        }
       }
       guard let symbol else { return }
       let config = UIImage.SymbolConfiguration(
-        pointSize: min(size.width, size.height) * 0.32,
+        pointSize: min(size.width, size.height) * (style == .gradient ? 0.42 : 0.32),
         weight: .semibold
       )
       guard let glyph = UIImage(systemName: symbol, withConfiguration: config)?
           .withTintColor(.label.withAlphaComponent(0.9), renderingMode: .alwaysOriginal)
       else { return }
-      glyph.draw(at: CGPoint(x: (size.width - glyph.size.width) / 2,
-                             y: (size.height - glyph.size.height) / 2))
+      let x = style == .gradient
+        ? size.width - glyph.size.width - size.height * 0.14
+        : (size.width - glyph.size.width) / 2
+      glyph.draw(at: CGPoint(x: x, y: (size.height - glyph.size.height) / 2))
     }
     cache.setObject(drawn, forKey: key)
     return drawn
@@ -119,6 +141,13 @@ public enum TVUIKitTileArtwork {
   /// `NSCache` is documented thread-safe, so the artwork helper does not need to be
   /// main-actor bound — `TVUIKitMediaItem` builds tinted tiles off the actor.
   nonisolated(unsafe) private static let cache = NSCache<NSString, UIImage>()
+
+  /// The same hue at a scaled brightness, for the two ends of a gradient tile.
+  private static func shade(_ color: UIColor, brightness factor: CGFloat) -> UIColor {
+    var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+    guard color.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else { return color }
+    return UIColor(hue: hue, saturation: saturation, brightness: min(brightness * factor, 1), alpha: alpha)
+  }
 
   /// FNV-1a over UTF-8 — stable across processes and platforms.
   private static func stableHash(_ value: String) -> UInt64 {
