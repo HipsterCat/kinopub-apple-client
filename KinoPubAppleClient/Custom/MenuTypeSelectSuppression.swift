@@ -22,8 +22,10 @@ import UIKit
 /// soft keyboard for touch, delete this.
 enum MenuTypeSelectSuppression {
 
-  private static var installed = false
-  private static var originalImplementation: IMP?
+  // Written once from `install()` on launch, then only read by the swizzled block on the
+  // main thread — Swift 6 cannot prove that, hence `nonisolated(unsafe)`.
+  nonisolated(unsafe) private static var installed = false
+  nonisolated(unsafe) private static var originalImplementation: IMP?
 
   /// Installs the swizzle once. Safe to call from anywhere; no-ops when the private
   /// class does not exist (older SDKs) so this never breaks on an OS update.
