@@ -9,7 +9,7 @@ import Foundation
 import KinoPubBackend
 import KinoPubKit
 
-public struct DownloadMeta: PlayableItem, Codable, Equatable {
+public struct DownloadMeta: PlayableItem, Codable, Equatable, Sendable {
   public var id: Int
   public var files: [FileInfo]
   public var trailer: Trailer? { nil }
