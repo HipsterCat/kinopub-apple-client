@@ -5,6 +5,21 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Feature flags switchable in the app (2026-09-28)
+
+`FeatureFlags.*` are computed now, read from `FeatureFlag` — compiled default plus a per-device
+override (`featureFlag.<case>` in `UserDefaults`), listed in Settings › Diagnostics › Feature
+flags on every platform and in every build. Flags that shape the shell (tabs, pages, card
+chrome) are pinned at launch by `FeatureFlag.applyAtLaunch()`; the rest are read when their
+surface next opens. `RatingFeature.combinedEnabled` became a `var` the app writes at launch.
+
+### kino.pub HLS masters captured (2026-09-28)
+
+[docs/providers/kinopub/hls.md](docs/providers/kinopub/hls.md). `NAME` is built from the API row
+(`NN. type. author (LANG)`, or `Track N (LANG)` without a type), AVFoundation merges the
+per-quality copies itself, and the system menu names an option after `NAME` only in the
+viewer's own language. `AudioRenditions.sourceIndex` reads both shapes.
+
 ### Stock Audio / Subtitles menus in the player (2026-09-28)
 
 The master rewrite (`HLSAudioLabeler` + `HLSMasterResourceLoader`) is behind

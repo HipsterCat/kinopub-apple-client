@@ -450,14 +450,15 @@ tvOS-only properties.
       `HLSAudioLabeler` pairs through the same function. **Not watched on a device** — the
       `tracks ·` lines in the app log are the check: options per menu, what each paired with,
       what was picked
-- [ ] Capture real kino.pub masters into `docs/providers/kinopub/` before deciding anything
-      else about them — a multi-dub series (126352), *Трудно быть богом* (one Russian track that
-      showed as "Russian, Russian, Russian ∙ 2"), an AC-3 title: are the repeated groups per
-      *quality* or per *codec*, and what do `NAME` / `LANGUAGE` / `CHANNELS` / `CODECS` hold
-- [ ] *Unverified, predates the flag:* the rewrite's collapse keeps the first copy of a `NAME`
-      across `GROUP-ID`s and points every variant at one group. If those groups are per codec
-      (AAC / AC-3) rather than per quality, that drops the 5.1 rendition and points AC-3
-      variants at AAC audio — AVFoundation would have chosen between them by itself
+- [x] Real masters captured — [docs/providers/kinopub/hls.md](docs/providers/kinopub/hls.md).
+      Groups are per *quality* (the AC-3 row sits beside the AAC ones), AVFoundation merges the
+      copies by itself, `NN` in `NAME` is the API row's `index`, and the system names an option
+      after `NAME` only in the viewer's own language and never the default one
+- [ ] Decide the audio menu from that evidence: the system menu cannot label dubs in another
+      language, and one track in three codecs is three rows at the source. Candidates: collapse
+      API rows that are one dub (lang + `type.id` + `author.id`) to one rendition; write `NAME`
+      from the row's ids only for the viewer's own language; `AVCustomMediaSelectionScheme`
+- [ ] Check the same menus on the tvOS simulator — the naming rule was read on macOS 27.2
 - [x] Player tests that run on **both** simulators (`KinoPubAppleClientTests`), and CI on
       `claude/**` pushes — a branch used to compile nowhere until a PR existed
 - [ ] The integration test still missing: a real `AVPlayerItem` from a local HLS fixture, asserting
