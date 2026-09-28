@@ -94,6 +94,24 @@ enum FeatureFlags {
   /// dual-subtitle stage will want it; flipping this brings the whole path back.
   static let tvOSSidecarSubtitles = false
 
+  /// Our edits to what the system player lists under Audio and Subtitles: the master
+  /// rewrite (`HLSAudioLabeler`) that renames every rendition after the API row
+  /// ("Русский ∙ Многоголосый, LostFilm"), numbers look-alikes ("∙ 2"), collapses the
+  /// per-quality groups into one and moves `DEFAULT`.
+  ///
+  /// **Off.** The player gets the CDN's master untouched and AVKit lists and names the
+  /// tracks itself — localized, with its own CC / SDH / Forced wording. What we still do
+  /// is *choose*: `TrackResolver` picks the dub and subtitles a title opens with, and a
+  /// pick made in the system menu is remembered. Both read the master as delivered
+  /// (`AudioRenditions.Naming.asDelivered`, `SubtitleRenditions`).
+  ///
+  /// Off to see on a device what the stock menus actually say for kino.pub masters — the
+  /// rewrite exists because they once listed every dub once per video quality, and it is
+  /// also what turned one track in three codecs into "Russian, Russian, Russian ∙ 2".
+  /// The player logs both menus as AVFoundation hands them over (`tracks ·` lines).
+  /// On brings the rewrite back unchanged.
+  static let rewritesStreamTrackMenus = false
+
   /// Our own combined IMDb + Kinopoisk score: poster plaque, hero pill, the detail
   /// "Rating" tile, and the card Rating placement / source settings. Off — IMDb and
   /// Kinopoisk show only under their own logos meanwhile.

@@ -108,46 +108,120 @@ final class AudioRenditionsTests: XCTestCase {
     XCTAssertNil(AudioRenditions.rendition(for: stale, in: renditions, apiTracks: []))
   }
 
+
   // MARK: - Writing down what played
+
+  private func signature(_ rendition: Rendition, apiTracks: [AudioTrackInfo]) -> AudioTrackSignature? {
+    AudioRenditions.signature(forRenditionAt: 0, in: [rendition], apiTracks: apiTracks)
+  }
 
   func testTheAPIRowIsPreferredWhenTheRenditionMapsBack() {
     let syenduk = track("ru", 3, "Сыендук")
     let rendition = Rendition(renditionName: AudioTracks.baseLabel(syenduk))
-    XCTAssertEqual(AudioRenditions.signature(for: rendition, apiTracks: [syenduk]),
-                   syenduk.signature)
+    XCTAssertEqual(signature(rendition, apiTracks: [syenduk]), syenduk.signature)
   }
 
   func testASuffixedRenditionStillResolvesToItsAPIRow() {
     let syenduk = track("ru", 3, "Сыендук")
     let rendition = Rendition(renditionName: "\(AudioTracks.baseLabel(syenduk)) ∙ 2")
-    XCTAssertEqual(AudioRenditions.signature(for: rendition, apiTracks: [syenduk]),
-                   syenduk.signature)
+    XCTAssertEqual(signature(rendition, apiTracks: [syenduk]), syenduk.signature)
   }
 
   /// No API metadata at all — kind and studio are read out of the rendition's own name so
   /// the choice is still remembered as something more specific than "Russian".
   func testWithoutAnAPIRowTheNameIsRead() {
     let rendition = Rendition(renditionName: "Русский ∙ Двухголосый, Jaskier")
-    let signature = AudioRenditions.signature(for: rendition, apiTracks: [])
+    let signature = signature(rendition, apiTracks: [])
 
-    XCTAssertEqual(signature.languageKey, "ru")
-    XCTAssertEqual(signature.kindRank, 2)
-    XCTAssertEqual(signature.studio, "Jaskier", "display keeps the source's own case")
+    XCTAssertEqual(signature?.languageKey, "ru")
+    XCTAssertEqual(signature?.kindRank, 2)
+    XCTAssertEqual(signature?.studio, "Jaskier", "display keeps the source's own case")
   }
 
   func testAnUnlabelledRenditionStillCarriesItsLanguage() {
     let rendition = Rendition(renditionName: "Audio", renditionLanguageCode: "en")
-    let signature = AudioRenditions.signature(for: rendition, apiTracks: [])
-    XCTAssertEqual(signature.languageKey, "en")
-    XCTAssertEqual(signature.kindRank, AudioTracks.kindRankUnknown)
-    XCTAssertNil(signature.studio)
+    let signature = signature(rendition, apiTracks: [])
+    XCTAssertEqual(signature?.languageKey, "en")
+    XCTAssertEqual(signature?.kindRank, AudioTracks.kindRankUnknown)
+    XCTAssertNil(signature?.studio)
   }
 
   /// A rendition whose name matches nothing must not borrow another dub's identity.
   func testAnUnrelatedRenditionDoesNotBorrowAnAPIRow() {
     let syenduk = track("ru", 3, "Сыендук")
     let rendition = Rendition(renditionName: "Русский ∙ Дубляж, Мосфильм")
-    XCTAssertNotEqual(AudioRenditions.signature(for: rendition, apiTracks: [syenduk]),
-                      syenduk.signature)
+    XCTAssertNotEqual(signature(rendition, apiTracks: [syenduk]), syenduk.signature)
+  }
+
+  // MARK: - The CDN's own names (`FeatureFlags.rewritesStreamTrackMenus` off)
+
+  /// Item 126352's shape as the CDN names it: `NN. Kind. Studio (LANG)`, `NN` the API row.
+  private var rezka: AudioTrackInfo { track("rus", 2, "Rezka", index: 1) }
+  private var rezka18: AudioTrackInfo { track("rus", 2, "Rezka 18+", index: 2) }
+  private var alpha: AudioTrackInfo { track("rus", 3, "AlphaProject", index: 3) }
+  private var original: AudioTrackInfo { track("eng", 6, index: 4) }
+  private var apiTracks: [AudioTrackInfo] { [rezka, rezka18, alpha, original] }
+
+  private func sourceRenditions(copies: Int = 1) -> [Rendition] {
+    let one = [Rendition(renditionName: "01. Многоголосый. Rezka (RUS)"),
+               Rendition(renditionName: "02. Многоголосый. Rezka 18+ (RUS)"),
+               Rendition(renditionName: "03. Двухголосый. AlphaProject (RUS)"),
+               Rendition(renditionName: "04. Оригинал (ENG)", renditionLanguageCode: "en")]
+    return Array(repeating: one, count: copies).flatMap { $0 }
+  }
+
+  func testTheLeadingNumberIsTheAPIRow() {
+    let renditions = sourceRenditions()
+    XCTAssertEqual(AudioRenditions.pairing(renditions, apiTracks: apiTracks.reversed(), naming: .asDelivered),
+                   [rezka, rezka18, alpha, original])
+    XCTAssertEqual(AudioRenditions.rendition(for: alpha, in: renditions, apiTracks: apiTracks,
+                                             naming: .asDelivered),
+                   renditions[2])
+  }
+
+  /// Without the rewrite, a master may list every dub once per video quality. Each copy is
+  /// the same row — a pick made on any of them is remembered as that dub.
+  func testEveryPerQualityCopyPairsWithItsRow() {
+    let renditions = sourceRenditions(copies: 3)
+    let paired = AudioRenditions.pairing(renditions, apiTracks: apiTracks, naming: .asDelivered)
+    XCTAssertEqual(paired, Array(repeating: [rezka, rezka18, alpha, original], count: 3).flatMap { $0 })
+    XCTAssertEqual(AudioRenditions.signature(forRenditionAt: 9, in: renditions, apiTracks: apiTracks,
+                                             naming: .asDelivered),
+                   rezka18.signature)
+  }
+
+  /// No numbers to go by: same-language dubs are listed in the same order on both sides,
+  /// so the API's `index` order is the pairing — each row taken once.
+  func testUnnumberedNamesPairByLanguageInListingOrder() {
+    let renditions = [Rendition(renditionName: "Russian"),
+                      Rendition(renditionName: "Russian"),
+                      Rendition(renditionName: "English", renditionLanguageCode: "en")]
+    let paired = AudioRenditions.pairing(renditions, apiTracks: [original, rezka18, rezka],
+                                         naming: .asDelivered)
+    XCTAssertEqual(paired, [rezka, rezka18, original])
+  }
+
+  /// Our labels are never read as a CDN name, and the CDN's names are never read as ours.
+  func testTheNamingDecidesHowNamesAreRead() {
+    let relabelled = [Rendition(renditionName: AudioTracks.baseLabel(rezka))]
+    XCTAssertEqual(AudioRenditions.pairing(relabelled, apiTracks: apiTracks, naming: .apiLabels), [rezka])
+    XCTAssertEqual(AudioRenditions.pairing(sourceRenditions(), apiTracks: apiTracks, naming: .apiLabels),
+                   [nil, nil, nil, nil])
+  }
+
+  /// A row the API does not list is still remembered as that dub, and "(RUS)" is the
+  /// rendition's language — not a studio called RUS.
+  func testAnUnpairedSourceNameIsReadAsKindAndStudio() {
+    let renditions = [Rendition(renditionName: "07. Двухголосый. Кубик в Кубе (RUS)")]
+    let signature = AudioRenditions.signature(forRenditionAt: 0, in: renditions, apiTracks: [original],
+                                              naming: .asDelivered)
+    XCTAssertEqual(signature?.languageKey, "ru")
+    XCTAssertEqual(signature?.kindRank, 2)
+    XCTAssertEqual(signature?.studio, "Кубик в Кубе")
+
+    let menu = AudioRenditions.menu(from: [Rendition(renditionName: "04. Оригинал (ENG)",
+                                                     renditionLanguageCode: "en")])
+    XCTAssertEqual(menu[0].kindRank, 5)
+    XCTAssertNil(menu[0].authorTitle)
   }
 }

@@ -5,6 +5,16 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Stock Audio / Subtitles menus in the player (2026-09-28)
+
+The master rewrite (`HLSAudioLabeler` + `HLSMasterResourceLoader`) is behind
+`FeatureFlags.rewritesStreamTrackMenus`, **off**: the player opens the CDN's master as it is,
+and AVKit names the tracks. `TrackResolver` still picks the dub and subtitles and the ledger
+still learns from the system menu. `AudioRenditions.signature(for:apiTracks:)` is gone —
+`signature(forRenditionAt:in:apiTracks:naming:)` needs the whole menu, because pairing a CDN
+name with its API row (`01.` ↔ `index` 1, then language in listing order) is a property of the
+list, not of one option. The labeler's own copy of those rules is gone with it.
+
 ### Sasha craft: fill layout, focused caption, spacing (2026-09-20)
 
 Horizontal poster *shelves* use a compositional layout: item

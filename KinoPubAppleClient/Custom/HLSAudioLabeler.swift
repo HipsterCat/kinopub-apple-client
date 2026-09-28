@@ -4,6 +4,10 @@
 //
 //  Rewrites a kino.pub HLS master so audio renditions carry useful names.
 //
+//  **Behind `FeatureFlags.rewritesStreamTrackMenus`, off.** The player opens the CDN's
+//  master untouched and AVKit names the tracks; everything below describes what happens
+//  when the flag is on, and why it was built.
+//
 //  Two problems with the raw master. One: the CDN names renditions after the
 //  track ("01. Многоголосый. Rezka (RUS)"), which reads as noise in the system
 //  picker — the API already knows the dub kind and studio, so we stamp a clean
@@ -173,29 +177,16 @@ enum HLSAudioLabeler {
 
   // MARK: - Track matching
 
-  /// Matches surviving renditions to API tracks: first by the leading number the CDN
-  /// prefixes names with ("01. …" ↔ `AudioTrackInfo.index` 1), then by language —
-  /// several same-language tracks go in the site's own listing order (payload
-  /// `index`). An unmatched survivor keeps its CDN name — "01. Многоголосый.
-  /// Rezka (RUS)" says more than a bare language row.
+  /// Matches surviving renditions to API tracks the way the player does when it gets the
+  /// CDN's master untouched — `AudioRenditions.pairing(…, naming: .asDelivered)`: the
+  /// leading number first ("01. …" ↔ `AudioTrackInfo.index` 1), then language in the
+  /// site's own listing order. One set of rules for both. An unmatched survivor keeps its
+  /// CDN name — "01. Многоголосый. Rezka (RUS)" says more than a bare language row.
   private static func labelsForKeepers(_ attrs: [[String: String]],
                                        tracks: [AudioTrackInfo]) -> (labels: [String], matched: [AudioTrackInfo?]) {
-    var remaining = tracks
-    var matched = [AudioTrackInfo?](repeating: nil, count: attrs.count)
-    for (index, attr) in attrs.enumerated() {
-      guard let trackIndex = leadingIndex(attr["NAME"] ?? ""),
-            let t = remaining.firstIndex(where: { $0.index == trackIndex }) else { continue }
-      matched[index] = remaining.remove(at: t)
-    }
-    for (index, attr) in attrs.enumerated() where matched[index] == nil {
-      let key = SubtitleTracks.languageKey(attr["LANGUAGE"] ?? "")
-      guard !key.isEmpty else { continue }
-      // Several same-language tracks and no rendition numbers: take them in payload
-      // order (`index` is the site's own listing order), not fixture order.
-      let candidates = remaining.indices.filter { SubtitleTracks.languageKey(remaining[$0].lang) == key }
-      guard let t = candidates.min(by: { remaining[$0].index < remaining[$1].index }) else { continue }
-      matched[index] = remaining.remove(at: t)
-    }
+    let matched = AudioRenditions.pairing(attrs.map(ManifestAudioRendition.init),
+                                          apiTracks: tracks,
+                                          naming: .asDelivered)
     let labels: [String] = attrs.enumerated().map { index, attr in
       if let track = matched[index] { return AudioTracks.baseLabel(track) }
       if let name = attr["NAME"], !name.isEmpty { return name }
@@ -205,13 +196,19 @@ enum HLSAudioLabeler {
     return (AudioTracks.uniquedHLSLabels(labels), matched)
   }
 
-  /// Leading rendition number the CDN prefixes names with: `"01. Многоголосый…"` → 1.
-  private static func leadingIndex(_ name: String) -> Int? {
-    let digits = name.prefix(while: { $0.isNumber })
-    guard !digits.isEmpty else { return nil }
-    let rest = name.dropFirst(digits.count)
-    guard let separator = rest.first, separator == "." || separator == ")" || separator == " " else { return nil }
-    return Int(digits)
+  /// An `#EXT-X-MEDIA:TYPE=AUDIO` line's attributes, seen the way `AudioRenditions` reads
+  /// an `AVMediaSelectionOption`.
+  private struct ManifestAudioRendition: AudioRendition {
+    let renditionName: String
+    let renditionLanguageCode: String
+    let describesVideoForAccessibility: Bool
+
+    init(_ attrs: [String: String]) {
+      renditionName = attrs["NAME"] ?? ""
+      renditionLanguageCode = attrs["LANGUAGE"] ?? ""
+      describesVideoForAccessibility = (attrs["CHARACTERISTICS"] ?? "")
+        .contains("public.accessibility.describes-video")
+    }
   }
 
   // MARK: - DEFAULT pick

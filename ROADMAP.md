@@ -443,6 +443,21 @@ tvOS-only properties.
       only within one session — a track added to an item later moves both lists together.
       One language table (`LanguageNames`), so `uzb` and `phi` stop matching nothing, and `ai`
       stays its own language
+- [x] **Stock track menus** — `FeatureFlags.rewritesStreamTrackMenus`, off: the player gets the
+      CDN's master untouched and AVKit lists and names Audio and Subtitles itself; we only
+      choose what a title opens with. `AudioRenditions.pairing` reads the CDN's own names
+      (`NN. Kind. Studio (LANG)`, `NN` = the API row's `index`) as well as ours, and
+      `HLSAudioLabeler` pairs through the same function. **Not watched on a device** — the
+      `tracks ·` lines in the app log are the check: options per menu, what each paired with,
+      what was picked
+- [ ] Capture real kino.pub masters into `docs/providers/kinopub/` before deciding anything
+      else about them — a multi-dub series (126352), *Трудно быть богом* (one Russian track that
+      showed as "Russian, Russian, Russian ∙ 2"), an AC-3 title: are the repeated groups per
+      *quality* or per *codec*, and what do `NAME` / `LANGUAGE` / `CHANNELS` / `CODECS` hold
+- [ ] *Unverified, predates the flag:* the rewrite's collapse keeps the first copy of a `NAME`
+      across `GROUP-ID`s and points every variant at one group. If those groups are per codec
+      (AAC / AC-3) rather than per quality, that drops the 5.1 rendition and points AC-3
+      variants at AAC audio — AVFoundation would have chosen between them by itself
 - [x] Player tests that run on **both** simulators (`KinoPubAppleClientTests`), and CI on
       `claude/**` pushes — a branch used to compile nowhere until a PR existed
 - [ ] The integration test still missing: a real `AVPlayerItem` from a local HLS fixture, asserting
