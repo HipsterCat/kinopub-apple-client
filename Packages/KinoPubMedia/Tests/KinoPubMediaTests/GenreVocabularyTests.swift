@@ -1,0 +1,130 @@
+//
+//  GenreVocabularyTests.swift
+//
+//  Our genre table and how each source's genres land in it.
+//
+
+import XCTest
+@testable import KinoPubMedia
+
+final class GenreVocabularyTests: XCTestCase {
+
+  /// Every kino.pub id the table holds was read off a captured payload, next to the name
+  /// that payload printed. The two must land on the same genre — otherwise the table is
+  /// wrong, not the name.
+  func testEveryConfirmedKinoPubIDAgreesWithTheNameItWasCapturedWith() {
+    let captured: [(id: Int, title: String, domain: GenreDomain, expected: String)] = [
+      (2, "Боевик", .video, "action"),
+      (4, "Фантастика", .video, "sci-fi"),
+      (5, "Фэнтези", .video, "fantasy"),
+      (6, "Семейный", .video, "family"),
+      (8, "Приключения", .video, "adventure"),
+      (9, "Драма", .video, "drama"),
+      (10, "Мелодрама", .video, "romance"),
+      (36, "Electronic", .music, "music.electronic"),
+      (42, "New Age", .music, "music.new-age"),
+      (100, "Trance", .music, "music.trance"),
+      (102, "Chillout", .music, "music.chillout"),
+    ]
+    for row in captured {
+      let byID = GenreVocabulary.kinopub(id: row.id, title: nil, domain: row.domain)
+      let byName = GenreVocabulary.kinopub(id: -1, title: row.title, domain: row.domain)
+      XCTAssertEqual(byID.id, row.expected, "id \(row.id)")
+      XCTAssertEqual(byName.id, row.expected, "name \(row.title)")
+    }
+  }
+
+  /// The ids `CatalogKind` already builds shelves on.
+  func testTheCatalogKindGenreIDsAreKnown() {
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 23, title: nil, domain: .video).id, "animation")
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 25, title: nil, domain: .video).id, "anime")
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 26, title: nil, domain: .video).id, "short")
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 101, title: nil, domain: .video).id, "stand-up")
+  }
+
+  /// The API answers in either language; one idea is one genre.
+  func testBothLanguagesLandOnOneGenre() {
+    XCTAssertEqual(GenreVocabulary.named("Комедия", domain: .video),
+                   GenreVocabulary.named("Comedy", domain: .video))
+    XCTAssertEqual(GenreVocabulary.named("  КОМЕДИЯ ", domain: .video)?.id, "comedy")
+    // kino.pub's English name for Фантастика.
+    XCTAssertEqual(GenreVocabulary.named("Fantastic", domain: .video)?.id, "sci-fi")
+  }
+
+  /// TMDB's TV list folds pairs into one id; both halves are real genres of the title.
+  func testATMDBPairIsTwoGenres() {
+    XCTAssertEqual(GenreVocabulary.tmdb(id: 10759, name: "Action & Adventure").map(\.id),
+                   ["action", "adventure"])
+    XCTAssertEqual(GenreVocabulary.tmdb(id: 10765, name: "Sci-Fi & Fantasy").map(\.id),
+                   ["sci-fi", "fantasy"])
+    XCTAssertEqual(GenreVocabulary.tmdb(id: 10768, name: "War & Politics").map(\.id),
+                   ["war", "politics"])
+    XCTAssertEqual(GenreVocabulary.tmdb(id: 18, name: "Drama").map(\.id), ["drama"])
+  }
+
+  /// kino.pub's genre id and TMDB's are different numbers for one idea.
+  func testSourcesAgreeThroughTheTable() {
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 9, title: nil, domain: .video),
+                   GenreVocabulary.tmdb(id: 18, name: nil).first)
+  }
+
+  /// A concert's genres are looked up among music genres first, and a name only the
+  /// other vocabulary knows is still found there.
+  func testTheDomainIsAHintNotAWall() {
+    XCTAssertEqual(GenreVocabulary.named("Electronic", domain: .video)?.id, "music.electronic")
+    XCTAssertEqual(GenreVocabulary.named("Документальный", domain: .music)?.id, "documentary")
+  }
+
+  /// A name nobody mapped yet still shows, under the source's own words, and says so.
+  func testAnUnknownGenreIsKeptAndMarked() {
+    let genre = GenreVocabulary.kinopub(id: 777, title: "Киберпанк", domain: .video)
+    XCTAssertFalse(genre.isMapped)
+    XCTAssertEqual(genre.id, "kinopub:777")
+    XCTAssertEqual(genre.name.value(languageCode: "ru"), "Киберпанк")
+    XCTAssertEqual(genre.name.value(languageCode: "en"), "Киберпанк")
+  }
+
+  func testNamesFollowTheLanguage() {
+    let drama = GenreVocabulary.genre(id: "drama")
+    XCTAssertEqual(drama?.name.value(languageCode: "ru"), "Драма")
+    XCTAssertEqual(drama?.name.value(languageCode: "ru-RU"), "Драма")
+    XCTAssertEqual(drama?.name.value(languageCode: "en"), "Drama")
+    XCTAssertEqual(drama?.name.value(languageCode: nil), "Drama")
+  }
+
+  // MARK: - The table itself
+
+  func testIDsAreUnique() {
+    let ids = GenreVocabulary.definitions.map(\.genre.id)
+    XCTAssertEqual(ids.count, Set(ids).count)
+  }
+
+  /// One name must never mean two genres in one vocabulary — the lookup would silently
+  /// keep whichever came first.
+  func testNoNameMeansTwoGenres() {
+    var owner: [String: String] = [:]
+    for definition in GenreVocabulary.definitions {
+      let genre = definition.genre
+      let names = [genre.name.en, genre.name.ru] + definition.aliases
+      for name in Set(names.map(GenreVocabulary.normalize)) {
+        let key = "\(genre.domain.rawValue)/\(name)"
+        if let previous = owner[key] {
+          XCTFail("\"\(name)\" is both \(previous) and \(genre.id)")
+        }
+        owner[key] = genre.id
+      }
+    }
+  }
+
+  func testNoKinoPubIDIsClaimedTwice() {
+    let ids = GenreVocabulary.definitions.flatMap(\.kinopub)
+    XCTAssertEqual(ids.count, Set(ids).count)
+  }
+
+  func testMusicGenresLiveInTheMusicDomain() {
+    for definition in GenreVocabulary.definitions {
+      XCTAssertEqual(definition.genre.id.hasPrefix("music."), definition.genre.domain == .music,
+                     definition.genre.id)
+    }
+  }
+}

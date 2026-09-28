@@ -277,6 +277,51 @@ document per title per call — no GraphQL, `?include=` trims, default is everyt
 with what is warm and refreshes the rest in the background. One in-flight request per key, both
 sides.
 
+## The media model (`Packages/KinoPubMedia`)
+
+**Our model of a thing to watch, in the app.** Provider-neutral: the package imports nothing but
+Foundation/AVFoundation, so no model type can grow a kino.pub or TMDB field by accident. The
+vocabulary is Apple's — what the Apple TV app and the iTunes store carry for the same objects —
+plus what we hold beyond it; a field Apple has no slot for is kept and simply never reaches an
+Apple surface.
+
+```
+source payload ──► MediaFragment ──► MediaAggregator ──► MediaEntity / MediaContext ──► projection
+(each source,       (what one source   (declared            (merged, with            (PlayerInfo → the
+ in its own          says about one     precedence per       provenance per           system player;
+ package)            entity)            field)               field; inheritance)      cards later)
+```
+
+| Zone | Where | Owns | Never does |
+| --- | --- | --- | --- |
+| Source adapter | with the source: `KinoPubBackend/Media/KinoPubMediaMapping.swift`, `KinoPubMetadata/Model/MediaFragments.swift` | its payload → `MediaFragment`, its genre ids → `GenreVocabulary` | decide who wins a field |
+| Vocabulary | `GenreVocabulary` | our genre ids; each source's ids and names as columns | know a title |
+| Aggregator | `MediaAggregator` + `MediaPrecedence.standard` | per-field winner, provenance, order-independence | know a payload shape |
+| Context | `MediaContext` | what an episode borrows from its season/show, what it never borrows, which picture stands for it | render |
+| Projection | `PlayerInfo` (one per surface) | Apple's fields and nothing else | reach past the context |
+| Orchestration | app `Services/Playback/PlaybackMediaContext.swift` | which source to ask about which level | merge or inherit |
+
+**Shapes are Apple's:** `movie`, `show`, `season`, `episode`, `extra` (trailer…). What *sort* of work
+it is — documentary, concert, stand-up, anime — is a **genre**, the way Apple files it; 3D is a
+format of one platform's copy. kino.pub's seven types map through
+`KinoPubMediaMapping.typeMapping`.
+
+**Genres are ours.** `drama` is kino.pub's 9, TMDB's 18 and Kinopoisk's «драма». Two domains, video
+and music (concerts). An entity's `genres` is **ordered and its first is the primary genre** — one
+field, as Apple has it; the aggregator takes one source's list whole rather than splicing two. An
+unknown genre is kept under `<source>:<key>` and logged (`unmappedGenres=` in the player log), never
+dropped. kino.pub ids in the table are only the ones seen in captured payloads; the full list is
+`kpapp.link/config.json` → `filter.genres` (ROADMAP stage 4).
+
+**Scores** (`Score`, per provider, with scale and votes) sit side by side on every entity — title,
+season, episode — never averaged and never inherited. `contentRating` is the age rating, a different
+thing.
+
+**When the server document carries seasons and episodes** (`tools/metadata-ingest/document.py`),
+it becomes one more source whose fragment arrives pre-merged, and the orchestration shrinks to one
+call. The document's `kind` (`movie | series` today) and its per-source genre *names* are what has
+to grow to meet this model: shapes as above, genre ids from this vocabulary.
+
 ## Rules for code written today
 
 - **New providers land server-side, not in the app.** The app gets one more field, not one more
@@ -313,13 +358,17 @@ Recorded so they are not mistaken for decisions:
    nil. (The person page draws the right circle today only because the photo path resolves off the
    kino.pub name we already hold — a workaround for this, not a fix.)
 3. **Merge order is non-deterministic** — a task group consumed in completion order with gap-fill
-   merge means the faster source wins that run. No provenance recorded.
+   merge means the faster source wins that run. No provenance recorded. (`TitleMetadata` only:
+   `MediaAggregator` is order-independent and records provenance, but it receives `TitleMetadata`
+   as one fragment, labelled by its main contributor.)
 4. **Kinopoisk uses 5 endpoints** (`films`, `staff`, `awards`, `images?type=STILL`, `facts`) while
    our own offline schema already models `box_office`, `videos`, `seasons`, `similars`, `reviews`
    and `/staff/{id}`. The app is behind our own schema.
 5. **The kino.pub snapshot is thin** — 53 485 items in 24 flat columns, no genres, tags, collections,
    seasons/episodes, dubs or cast; documentaries and concerts skipped. A title index, not a catalogue.
-6. **No ratings model** on `TitleMetadata` at all, per-title or per-episode.
+6. **No ratings model** on `TitleMetadata` at all, per-title or per-episode. (The media model has
+   one — `Score` on every entity — and TMDB's per-episode and per-season scores now reach it; the
+   detail page does not read it yet.)
 7. **Cache is per-device and volatile** — `Caches/KinoPubMetadata` is purged on tvOS whenever the app
    is not running, so every cold launch re-spends third-party quota on the same titles.
 8. **The worker is a dumb forwarder** — no identity storage, no merge, no image route.

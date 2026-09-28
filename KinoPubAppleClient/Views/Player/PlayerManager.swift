@@ -10,6 +10,8 @@ import SwiftUI
 import Combine
 import KinoPubBackend
 import KinoPubKit
+import KinoPubMedia
+import KinoPubMetadata
 import AVFoundation
 import KinoPubLogging
 import OSLog
@@ -67,6 +69,8 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   private var actionsService: UserActionsService
   /// Only for resolving missing stream links — see `resolveStreamLinksIfNeeded`.
   private let contentService: VideoContentService
+  /// What the info panel is enriched from, beyond kino.pub — see `PlaybackMediaContext`.
+  private let metadataService: MetadataService
   private var cues: [SubtitleCue] = []
   private var secondaryCues: [SubtitleCue] = []
   private var cueLoadTasks: [Task<Void, Never>] = []
@@ -124,10 +128,13 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// own menu is read back from.
   private var legibleGroup: AVMediaSelectionGroup?
 #if os(iOS) || os(tvOS)
-  /// The facts the info panel currently shows and the poster already fetched for it, kept
+  /// What the info panel currently shows and the picture already fetched for it, kept
   /// apart so a late enrichment re-stamp doesn't drop the artwork and vice versa.
-  private var externalMetadataContext: MediaItem?
+  private var externalMetadataContext: MediaContext?
   private var externalMetadataArtwork: AVMetadataItem?
+  /// The candidate the artwork above was asked for, so a re-stamp only downloads again
+  /// when it now has a better one.
+  private var externalMetadataArtworkURL: URL?
   private var metadataEnrichmentTask: Task<Void, Never>?
 #endif
 #if os(tvOS)
@@ -187,6 +194,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
        downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>,
        actionsService: UserActionsService,
        contentService: VideoContentService = AppContext.shared.contentService,
+       metadataService: MetadataService = AppContext.shared.metadataService,
        trackProfile: TitleTrackProfile = TitleTrackProfile(),
        trackPreferences: TrackPreferenceStore = .shared,
        preflight: PlaybackPreflight = .shared,
@@ -197,6 +205,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     self.actionsService = actionsService
     self.downloadedFilesDatabase = downloadedFilesDatabase
     self.contentService = contentService
+    self.metadataService = metadataService
     self.trackProfile = trackProfile
     self.trackPreferences = trackPreferences
     self.preflight = preflight
@@ -894,24 +903,6 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     return nil
   }
 
-    /// "Season 2, Episode 5 — <episode title>" for a series episode; "S2, E5 • Lanterns" when it has a title for episode; nothing for a movie.
-  var displaySubtitle: String? {
-    guard let episode = playItem as? Episode else { return nil }
-    var parts: [String] = []
-    if let season = episode.seasonNumber {
-      parts.append("Season \(season)")
-    }
-    parts.append("Episode \(episode.number)")
-    let line = parts.joined(separator: ", ")
-    // The title line already shows the episode name, so only append it when it adds
-    // something the "Episode N" label doesn't already say.
-    let epTitle = episode.title.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !epTitle.isEmpty, epTitle != displayTitle {
-      return "\(line): \(epTitle)"
-    }
-    return line
-  }
-
 }
 
 #if os(iOS) || os(tvOS)
@@ -922,6 +913,11 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
 /// iOS 12.2+ system player / Control Center / lock screen, and AirPlay — everywhere but
 /// macOS, which has no `externalMetadata` and carries the title on the window title bar
 /// instead (see the customization-surface table in player-and-media.md).
+///
+/// **What goes in is decided elsewhere.** `PlaybackMediaContext` gathers the sources,
+/// `MediaAggregator` merges them, `MediaContext` decides what an episode borrows from its
+/// show, `PlayerInfo` projects that onto Apple's fields. This only stamps the result:
+/// first with what kino.pub already told us, again as each enrichment answers.
 extension PlayerManager {
 
   func configureExternalMetadata() {
@@ -930,55 +926,80 @@ extension PlayerManager {
       return
     }
     metadataEnrichmentTask?.cancel()
+    externalMetadataContext = nil
     externalMetadataArtwork = nil
-    externalMetadataContext = titleContext
-    restampExternalMetadata(on: item)
+    externalMetadataArtworkURL = nil
+    let title = titleContext
+    let isTrailer = watchMode == .trailer
+    stamp(PlaybackMediaContext.draft(playing: playItem, title: title, isTrailer: isTrailer),
+          on: item)
+    enrichExternalMetadata(title: title, isTrailer: isTrailer, on: item)
+  }
 
-    let artwork = PlaybackMetadata.artworkURL(context: externalMetadataContext,
-                                              fallback: episodeStill)
-    if let artwork {
-      Task { [weak self] in
-        await self?.attachArtwork(from: artwork, to: item)
-      }
+  private func stamp(_ draft: MediaContextDraft, on item: AVPlayerItem) {
+    guard let context = MediaAggregator.merge(draft) else {
+      Logger.app.warning("Info panel skipped: nothing is known about item \(self.playItem.id)")
+      return
     }
-    enrichExternalMetadataIfNeeded(for: item)
+    externalMetadataContext = context
+    restampExternalMetadata(on: item)
+    attachArtworkIfNeeded(to: item)
   }
 
   private func restampExternalMetadata(on item: AVPlayerItem) {
-    var metadata = PlaybackMetadata.items(title: displayTitle,
-                                          subtitle: displaySubtitle,
-                                          context: externalMetadataContext)
+    guard let context = externalMetadataContext else { return }
+    let info = PlayerInfo(context: context, labels: PlaybackMediaContext.labels)
+    var metadata = info.metadataItems()
     if let externalMetadataArtwork {
       metadata.append(externalMetadataArtwork)
     }
     item.externalMetadata = metadata
+    // An unmapped genre still shows under the source's own name; the log is how the
+    // genre table learns about it.
+    let unmapped = context.genres.filter { !$0.isMapped }.map(\.id).joined(separator: ",")
     Logger.app.info(
-      "Info panel stamped: title=\(self.displayTitle ?? "nil", privacy: .public) subtitle=\(self.displaySubtitle ?? "nil", privacy: .public) items=\(metadata.count) context=\(self.externalMetadataContext == nil ? "none" : "full")"
+      "Info panel stamped: title=\(info.title ?? "nil", privacy: .public) subtitle=\(info.subtitle ?? "nil", privacy: .public) genre=\(info.genre ?? "nil", privacy: .public) rating=\(info.contentRating ?? "nil", privacy: .public) date=\(info.creationDate ?? "nil", privacy: .public) items=\(metadata.count) unmappedGenres=\(unmapped, privacy: .public)"
     )
   }
 
-  /// The lists a playback can start straight from (Continue Watching, search, bookmarks)
-  /// carry a title and posters and nothing else — no plot, genres or year, which is most
-  /// of the panel. One light `nolinks` details call fills them in and the panel is
-  /// re-stamped in place; the title already on screen never flickers.
-  private func enrichExternalMetadataIfNeeded(for item: AVPlayerItem) {
-    guard watchMode == .media,
-          externalMetadataContext?.plot.isEmpty != false else { return }
+  /// The lists a playback can start from (Continue Watching, search, bookmarks) carry a
+  /// title and posters and nothing else, so a thin title is filled first from one light
+  /// `nolinks` details call; then the enrichment sources are asked about the title, the
+  /// season and the episode. Each answer re-stamps in place; the title never flickers.
+  private func enrichExternalMetadata(title: MediaItem?, isTrailer: Bool, on item: AVPlayerItem) {
     let id = playItem.metadata.id
+    let needsDetails = watchMode == .media && title?.plot.isEmpty != false
     metadataEnrichmentTask = Task { [weak self] in
       guard let self else { return }
-      do {
-        let details = try await self.contentService.fetchDetails(for: String(id),
-                                                                 excludeLinks: true)
-        guard !Task.isCancelled else { return }
+      var title = title
+      if needsDetails {
+        do {
+          title = try await self.contentService.fetchDetails(for: String(id),
+                                                             excludeLinks: true).item
+        } catch {
+          guard !Task.isCancelled else { return }
+          Logger.app.debug("Info panel details skipped: \(error.localizedDescription)")
+        }
+      }
+      guard !Task.isCancelled else { return }
+      let known = title
+      let (draft, enrichment) = await MainActor.run {
+        (PlaybackMediaContext.draft(playing: self.playItem, title: known, isTrailer: isTrailer),
+         PlaybackMediaContext.enrichment(playing: self.playItem, title: known, isTrailer: isTrailer))
+      }
+      if needsDetails, known != nil {
         await MainActor.run {
           guard self.player.currentItem === item else { return }
-          self.externalMetadataContext = details.item
-          self.restampExternalMetadata(on: item)
+          self.stamp(draft, on: item)
         }
-      } catch {
-        guard !Task.isCancelled else { return }
-        Logger.app.debug("Info panel enrichment skipped: \(error.localizedDescription)")
+      }
+      guard let enrichment else { return }
+      let enriched = await PlaybackMediaContext.enrich(draft, with: enrichment,
+                                                       service: self.metadataService)
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        guard self.player.currentItem === item else { return }
+        self.stamp(enriched, on: item)
       }
     }
   }
@@ -995,28 +1016,39 @@ extension PlayerManager {
       ?? AppContext.shared.localProgressStore.snapshot(for: playItem.metadata.id)
   }
 
-  /// An episode's own still, for the case where the series snapshot is gone — better than
-  /// no artwork at all, and it is the frame the rail was showing a moment ago.
-  private var episodeStill: String? {
-    (playItem as? Episode)?.thumbnail
-  }
-
-  private func attachArtwork(from url: URL, to item: AVPlayerItem) async {
-    do {
-      let (data, _) = try await URLSession.shared.data(from: url)
-      guard !data.isEmpty else { return }
-      let artwork = PlaybackMetadata.artworkItem(data)
-      await MainActor.run {
-        // The stream may have been left while the poster was being fetched.
-        guard self.player.currentItem === item else { return }
-        self.externalMetadataArtwork = artwork
-        self.restampExternalMetadata(on: item)
-      }
-    } catch {
-      Logger.app.debug("Player artwork metadata skipped: \(error.localizedDescription)")
+  /// Downloads the best picture the context offers — and again only when a later stamp
+  /// offers a better one, such as TMDB's still for an episode kino.pub had no frame for.
+  private func attachArtworkIfNeeded(to item: AVPlayerItem) {
+    guard let candidates = externalMetadataContext?.artworkCandidates,
+          let best = candidates.first,
+          best != externalMetadataArtworkURL else { return }
+    externalMetadataArtworkURL = best
+    Task { [weak self] in
+      await self?.attachArtwork(from: candidates, to: item)
     }
   }
 
+  /// Walks the candidates until one loads.
+  private func attachArtwork(from candidates: [URL], to item: AVPlayerItem) async {
+    let wanted = candidates.first
+    for url in candidates {
+      do {
+        let (data, _) = try await URLSession.shared.data(from: url)
+        guard !data.isEmpty else { continue }
+        let artwork = PlayerInfo.artworkItem(data)
+        await MainActor.run {
+          // The stream may have been left, or a better picture asked for, meanwhile.
+          guard self.player.currentItem === item,
+                self.externalMetadataArtworkURL == wanted else { return }
+          self.externalMetadataArtwork = artwork
+          self.restampExternalMetadata(on: item)
+        }
+        return
+      } catch {
+        Logger.app.debug("Player artwork skipped: \(error.localizedDescription)")
+      }
+    }
+  }
 }
 
 #endif

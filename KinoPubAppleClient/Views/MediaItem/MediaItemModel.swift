@@ -399,22 +399,13 @@ class MediaItemModel: ObservableObject {
     mediaItem.seasons?.first(where: { $0.number == number })
   }
 
-  /// kino.pub sometimes re-numbers its season blocks from 1 while titling them
-  /// "Сезон N" — TMDB numbers by the real season. Map by the title's digits first
-  /// (validated against TMDB's season list), then by kino number, else give up:
-  /// asking TMDB for "season 1" of a block that is really season 14 produced
-  /// decade-old "missing episodes" on a current show.
+  /// The rule itself is `TMDBSeasonMatch`, shared with the player.
   private func tmdbSeasonNumber(forKinoSeason kinoNumber: Int) -> Int? {
     guard let kinoSeason = kinoSeason(for: kinoNumber) else { return nil }
-    let tmdbNumbers = Set(externalMetadata.seasonSummaries.map(\.seasonNumber))
-    if let titleNumber = kinoSeason.titleSeasonNumber,
-       tmdbNumbers.contains(titleNumber) {
-      return titleNumber
-    }
-    if tmdbNumbers.isEmpty || tmdbNumbers.contains(kinoNumber) {
-      return kinoNumber
-    }
-    return nil
+    return TMDBSeasonMatch.tmdbSeason(
+      kinoNumber: kinoNumber,
+      titleNumber: kinoSeason.titleSeasonNumber,
+      tmdbSeasons: Set(externalMetadata.seasonSummaries.map(\.seasonNumber)))
   }
 
   func schedule(for episode: Episode, in season: Season) -> EpisodeSchedule? {

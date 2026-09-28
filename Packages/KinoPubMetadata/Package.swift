@@ -11,17 +11,22 @@ let package = Package(
       targets: ["KinoPubMetadata"])
   ],
   dependencies: [
-    .package(name: "KinoPubLogging", path: "../KinoPubLogging")
+    .package(name: "KinoPubLogging", path: "../KinoPubLogging"),
+    .package(name: "KinoPubMedia", path: "../KinoPubMedia")
   ],
   targets: [
     .target(
       name: "KinoPubMetadata",
       dependencies: [
-        .product(name: "KinoPubLogging", package: "KinoPubLogging")
+        .product(name: "KinoPubLogging", package: "KinoPubLogging"),
+        .product(name: "KinoPubMedia", package: "KinoPubMedia")
       ]),
     .testTarget(
       name: "KinoPubMetadataTests",
-      dependencies: ["KinoPubMetadata"],
+      dependencies: [
+        "KinoPubMetadata",
+        .product(name: "KinoPubMedia", package: "KinoPubMedia")
+      ],
       resources: [
         .copy("Fixtures")
       ])

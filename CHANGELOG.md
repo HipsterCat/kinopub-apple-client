@@ -5,6 +5,26 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### The media model: `KinoPubMedia`, and the player's info panel on it (2026-09-28)
+
+New package `Packages/KinoPubMedia` — our provider-neutral model in Apple's vocabulary: shapes
+`movie / show / season / episode / extra`, `MediaEntity` (short/long synopsis, ordered genres whose
+first is primary, dated release at the precision the source had, age rating, `Score` per provider,
+artwork, provenance), `GenreVocabulary` (our genre ids; kino.pub ids, TMDB ids and RU/EN names as
+columns), `MediaAggregator` with `MediaPrecedence.standard`, `MediaContext` (what an episode
+borrows and never borrows), and `PlayerInfo`, the projection onto Apple's documented player fields.
+KinoPubBackend and KinoPubMetadata depend on it; each maps its own payload
+(`KinoPubMediaMapping`, `MediaFragments.swift`).
+
+`PlaybackMetadata` (KinoPubBackend) is **gone**: genres were a comma list in
+`commonIdentifierType`, which no Apple surface reads as a genre, and the series poster always beat
+the episode's still. `PlayerManager` stamps `PlayerInfo` now, via
+`Services/Playback/PlaybackMediaContext.swift`; `displaySubtitle` is gone with it (the episode line
+is localized: *Сезон 2, Серия 5*). TMDB's show overview, genres, season overview/score and
+per-episode score are decoded and carried (`TitleMetadata.overview/genres`,
+`SeasonSummary.overview/voteAverage`, `EpisodeSchedule.voteAverage/voteCount`). The kino.pub →
+TMDB season match moved out of `MediaItemModel` into `TMDBSeasonMatch`.
+
 ### Stock Audio / Subtitles menus in the player (2026-09-28)
 
 The master rewrite (`HLSAudioLabeler` + `HLSMasterResourceLoader`) is behind

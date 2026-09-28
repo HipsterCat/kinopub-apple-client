@@ -1,4 +1,5 @@
 import Foundation
+import KinoPubMedia
 
 /// TMDB implementation of `MetadataSource`. Talks to the Cloudflare Worker proxy;
 /// never holds an API key.
@@ -199,7 +200,9 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
         overview: ep.overview,
         airDate: Self.parseDate(ep.airDate),
         runtime: ep.runtime,
-        still: imageURL(path: ep.stillPath, size: .stillW300)
+        still: imageURL(path: ep.stillPath, size: .stillW300),
+        voteAverage: ep.voteAverage,
+        voteCount: ep.voteCount
       )
     }
   }
@@ -245,6 +248,15 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
     meta.inProduction = details.inProduction
     meta.keywords = details.keywords?.all.compactMap(\.name) ?? []
     meta.tagline = details.tagline?.isEmpty == false ? details.tagline : nil
+    meta.overview = details.overview?.isEmpty == false ? details.overview : nil
+    var genres: [Genre] = []
+    for named in details.genres ?? [] {
+      guard let id = named.id else { continue }
+      for genre in GenreVocabulary.tmdb(id: id, name: named.name) where !genres.contains(genre) {
+        genres.append(genre)
+      }
+    }
+    meta.genres = genres
     meta.homepage = details.homepage.flatMap { $0.isEmpty ? nil : URL(string: $0) }
     meta.budget = (details.budget ?? 0) > 0 ? details.budget : nil
     meta.revenue = (details.revenue ?? 0) > 0 ? details.revenue : nil
@@ -323,9 +335,11 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
       return SeasonSummary(
         seasonNumber: number,
         name: ref.name,
+        overview: ref.overview?.isEmpty == false ? ref.overview : nil,
         episodeCount: ref.episodeCount,
         airDate: Self.parseDate(ref.airDate),
-        poster: imageURL(path: ref.posterPath, size: .posterW780)
+        poster: imageURL(path: ref.posterPath, size: .posterW780),
+        voteAverage: ref.voteAverage
       )
     }
     meta.numberOfSeasons = details.numberOfSeasons

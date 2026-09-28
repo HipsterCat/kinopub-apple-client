@@ -298,7 +298,12 @@ Media
 - [ ] Confirm `genre=5,23,101` really is OR (the vendor docs say nothing about it). The floor falls
       back to one genre when it answers empty; the log line is `genre floor`
 - [ ] Fold `filter.genres` from `kpapp.link/config.json` into the app so the profile matches genre
-      **ids** instead of RU/EN title strings — and so genre pickers stop needing a request
+      **ids** instead of RU/EN title strings — and so genre pickers stop needing a request. The
+      ids land as the `kinopub` column of `GenreVocabulary` (KinoPubMedia), which today holds
+      only the ids seen in captured payloads
+- [ ] `MediaPresentationProfile` reads the media model's genres and shapes instead of kino.pub's
+      `type` string and genre-title words — anime, cartoon, stand-up and documentary are
+      `GenreVocabulary` ids there
 - [ ] Close the two open questions in that product doc: the poster / horizontal-card treatment per
       kind, and whether the actor shelf names the person while the author shelf names the role
 - [ ] "Known for" ordering proper for person shelves — lead with the films the person is known for
@@ -381,6 +386,11 @@ image fails.
 - [ ] Decide the recommendations approach — Trakt scrobble, local taste, editorial-only, or none
 - [ ] Editorial Home rows, if a legitimate source is chosen
 - [ ] Server-side "donate" of pulled metadata — postponed until there is a backend
+- [ ] The `/v1/title` document meets the media model: `kind` as `movie / show` (+ seasons and
+      episodes as entities, already in the record), genres as `GenreVocabulary` ids with a
+      primary, scores per season and episode — so `PlaybackMediaContext.enrich` becomes one call
+- [ ] Detail page, cards and Top Shelf read `MediaContext` instead of `MediaItem` + `TitleMetadata`
+      (season facts, per-episode scores and descriptions are in the model already)
 
 ---
 
@@ -399,11 +409,16 @@ per-platform API matrix is in the `player-avkit` skill — do not plan iOS or ma
 tvOS-only properties.
 
 - [x] Custom centre panel deleted; a failure shows a system alert and we stay in the player
-- [x] `externalMetadata` on iOS as well as tvOS, filled from the **title** rather than from
-      what is playing: an episode carries its series' description, genres, year and poster
-      into the panel instead of showing two lines and nothing else (`PlaybackMetadata`,
-      tested without an asset). Capability badges are not reachable this way — no identifier
-      carries one; that is what `customInfoViewControllers` below is for
+- [x] `externalMetadata` on iOS as well as tvOS, projected from the media model
+      (`PlayerInfo` ← `MediaContext`, KinoPubMedia): Apple's documented fields only — one
+      primary genre through `quickTimeMetadataGenre` (it went to `commonIdentifierType` before
+      and never showed), the age rating through `iTunesMetadataContentRating`, an episode's own
+      still, description, date and name from TMDB. Rules:
+      [docs/product/playback-info.md](docs/product/playback-info.md). Scores and capability
+      badges are not reachable this way — no identifier carries one; that is what
+      `customInfoViewControllers` below is for
+- [ ] Watch the Info tab on a device: primary genre, age rating, an episode's own still and
+      description. Everything in that product doc is unit-tested only
 - [x] Every play entry point goes through `PlayerLink`; `NavigationState.push` redirects player
       routes into the macOS playback window, with a `RouteDestination` guard behind it
 - [x] macOS `AVPlayerView` bridge (speeds, PiP, fullscreen toggle, sharing)

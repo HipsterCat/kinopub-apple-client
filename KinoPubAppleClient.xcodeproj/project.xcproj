@@ -148,6 +148,7 @@
               "children": [
                 { "path": "TrackPreferenceStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PlaybackPreflight.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlaybackMediaContext.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",
@@ -500,6 +501,7 @@
         { "path": "Packages/KinoPubBackend" },
         { "path": "Packages/KinoPubUI" },
         { "path": "Packages/KinoPubMetadata" },
+        { "path": "Packages/KinoPubMedia" },
       ],
     }, {
       "kind": "group",
@@ -535,6 +537,9 @@
           "build-phase": { "build-phase": "frameworks" },
         }, {
           "product-name": "KinoPubMetadata",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "product-name": "KinoPubMedia",
           "build-phase": { "build-phase": "frameworks" },
         }, {
           "product-name": "KinoPubUI",

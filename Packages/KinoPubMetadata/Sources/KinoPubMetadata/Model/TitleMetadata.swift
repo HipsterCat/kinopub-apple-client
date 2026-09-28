@@ -1,4 +1,5 @@
 import Foundation
+import KinoPubMedia
 
 public struct Artwork: Sendable, Hashable {
   public var titleLogo: URL?
@@ -69,6 +70,9 @@ public struct EpisodeSchedule: Sendable, Hashable, Identifiable {
   public var airDate: Date?
   public var runtime: Int?
   public var still: URL?
+  /// TMDB's audience score for this one episode, and how many people it is from.
+  public var voteAverage: Double?
+  public var voteCount: Int?
 
   public init(
     episodeNumber: Int,
@@ -77,7 +81,9 @@ public struct EpisodeSchedule: Sendable, Hashable, Identifiable {
     overview: String? = nil,
     airDate: Date? = nil,
     runtime: Int? = nil,
-    still: URL? = nil
+    still: URL? = nil,
+    voteAverage: Double? = nil,
+    voteCount: Int? = nil
   ) {
     self.episodeNumber = episodeNumber
     self.seasonNumber = seasonNumber
@@ -86,6 +92,8 @@ public struct EpisodeSchedule: Sendable, Hashable, Identifiable {
     self.airDate = airDate
     self.runtime = runtime
     self.still = still
+    self.voteAverage = voteAverage
+    self.voteCount = voteCount
   }
 
   /// True when the episode has a known air date in the future (local calendar day).
@@ -114,16 +122,22 @@ public struct EpisodeRef: Sendable, Hashable {
 public struct SeasonSummary: Sendable, Hashable {
   public let seasonNumber: Int
   public var name: String?
+  public var overview: String?
   public var episodeCount: Int?
   public var airDate: Date?
   public var poster: URL?
+  public var voteAverage: Double?
 
-  public init(seasonNumber: Int, name: String? = nil, episodeCount: Int? = nil, airDate: Date? = nil, poster: URL? = nil) {
+  public init(seasonNumber: Int, name: String? = nil, overview: String? = nil,
+              episodeCount: Int? = nil, airDate: Date? = nil, poster: URL? = nil,
+              voteAverage: Double? = nil) {
     self.seasonNumber = seasonNumber
     self.name = name
+    self.overview = overview
     self.episodeCount = episodeCount
     self.airDate = airDate
     self.poster = poster
+    self.voteAverage = voteAverage
   }
 }
 
@@ -324,6 +338,11 @@ public struct TitleMetadata: Sendable {
   /// Movie-only: the world premiere date the source knows.
   public var releaseDate: Date?
   public var ageRating: String?
+  /// The source's own description of the title. kino.pub's plot outranks it
+  /// (`MediaPrecedence`); it is what a title kino.pub never described falls back to.
+  public var overview: String?
+  /// Already in our vocabulary — the source mapped its own ids (`GenreVocabulary.tmdb`).
+  public var genres: [Genre] = []
   public var keywords: [String] = []
   public var trailers: [TrailerRef] = []
   public var tagline: String?
@@ -373,6 +392,8 @@ public struct TitleMetadata: Sendable {
     if lastAirDate == nil { lastAirDate = other.lastAirDate }
     if releaseDate == nil { releaseDate = other.releaseDate }
     if ageRating == nil { ageRating = other.ageRating }
+    if overview == nil { overview = other.overview }
+    if genres.isEmpty { genres = other.genres }
     if keywords.isEmpty { keywords = other.keywords }
     if trailers.isEmpty { trailers = other.trailers }
     if tagline == nil { tagline = other.tagline }
