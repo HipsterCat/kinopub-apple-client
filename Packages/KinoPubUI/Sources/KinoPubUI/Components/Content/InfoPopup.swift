@@ -126,12 +126,16 @@ public extension View {
   /// where nothing was clipped and there is nothing more to show. Focus bindings and
   /// accessibility belong on the call site, outside this modifier: it does not know
   /// which focus target it is.
+  ///
+  /// `chrome` says what the content is: `.card` for a container of facts (a column, a
+  /// tile), `.text` for running prose that sits on artwork, such as the hero synopsis.
   func expandsIntoInfoPopup<Expanded: View>(
     title: Text,
     isEnabled: Bool = true,
+    chrome: InfoPopupTriggerChrome = .card,
     @ViewBuilder expanded: @escaping () -> Expanded
   ) -> some View {
-    modifier(InfoPopupTrigger(title: title, isEnabled: isEnabled, expanded: expanded))
+    modifier(InfoPopupTrigger(title: title, isEnabled: isEnabled, chrome: chrome, expanded: expanded))
   }
 }
 
@@ -159,25 +163,46 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
 private struct InfoPopupTrigger<Expanded: View>: ViewModifier {
   let title: Text
   let isEnabled: Bool
+  let chrome: InfoPopupTriggerChrome
   @ViewBuilder let expanded: () -> Expanded
 
   @State private var isPresented = false
 
   func body(content: Content) -> some View {
     if isEnabled {
-      Button {
-        isPresented = true
-      } label: {
-        content
-      }
-      .buttonStyle(InfoPopupTriggerStyle.buttonStyle)
-      .infoPopup(title, isPresented: $isPresented) {
-        expanded()
-      }
+      trigger(content)
+        .infoPopup(title, isPresented: $isPresented) {
+          expanded()
+        }
     } else {
       content
     }
   }
+
+  @ViewBuilder
+  private func trigger(_ content: Content) -> some View {
+    let button = Button {
+      isPresented = true
+    } label: {
+      content
+    }
+    switch chrome {
+    case .card:
+      button.buttonStyle(InfoPopupTriggerStyle.buttonStyle)
+    case .text:
+      button.buttonStyle(InfoPopupTriggerStyle.textButtonStyle)
+    }
+  }
+}
+
+/// What the trigger looks like at rest.
+public enum InfoPopupTriggerChrome: Sendable {
+  /// A platter at rest and the card lift on focus — for containers.
+  case card
+  /// Nothing at rest; the platform's own treatment only while focused. On tvOS `.card`
+  /// draws its platter whether or not the control is focused, so a synopsis wearing it
+  /// looked focused next to the button that actually was (Sasha, on device, 2026-09-28).
+  case text
 }
 
 /// `.card` on tvOS, `.plain` elsewhere — the same pairing Apple's own `DestinationVideo`
@@ -187,6 +212,16 @@ public enum InfoPopupTriggerStyle {
   public static var buttonStyle: some PrimitiveButtonStyle {
 #if os(tvOS)
     .card
+#else
+    .plain
+#endif
+  }
+
+  /// The stock borderless style on tvOS: no chrome at rest, the platform's own treatment
+  /// on focus. The same choice the season tabs made (`SeasonsRailView`).
+  public static var textButtonStyle: some PrimitiveButtonStyle {
+#if os(tvOS)
+    .borderless
 #else
     .plain
 #endif

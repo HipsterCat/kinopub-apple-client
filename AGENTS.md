@@ -205,10 +205,23 @@ file, and delete the losers with the switch.
 ## The detail page
 
 - **One scroll, and the artwork is part of the hero** (Sasha, 2026-09-27, after comparing with
-  Plozz). The artwork is the hero's own `.background`: it takes the hero's size, adds none of its
-  own, and scrolls away with the hero. The hero, its artwork and the sections are one focus and
+  Plozz). The artwork is the hero's own `.background`, so it adds nothing to the layout and scrolls
+  away with the hero. It is **as tall as the screen, not the hero** (`containerRelativeFrame`), so
+  the first section peeks over the picture, and the picture's own alpha dissolves into the page at
+  the bottom — no second colour to match. The hero, its artwork and the sections are one focus and
   view graph; nothing is pinned behind the page. Splitting them into independent scroll/focus
   worlds broke directional continuity and the responder chain.
+- **The hero scrim follows light/dark.** Black in dark mode, white in light mode, same geometry
+  (Plozz's `scrimTone`): the hero text and buttons are system colours, dark in light mode, and a
+  black scrim under them was unreadable (Sasha, on device, 2026-09-28). Keep it where the text is
+  (bottom band, left edge); a stacked 0.92 diagonal read as a black slab.
+- **Prose in the hero has no chrome at rest.** The synopsis opens the info popup with
+  `expandsIntoInfoPopup(chrome: .text)` (stock `.borderless` on tvOS). `.card` draws its platter
+  whether focused or not, and next to the focused Play it read as a second focus.
+- **Play is the entry focus, by name.** `defaultFocus(priority: .userInitiated)`, the hero sets
+  `focus = .play` in `.task`, and the synopsis — the one control above Play — stays
+  `.focusable(false)` until an action has taken focus. tvOS otherwise hands entry focus to the
+  topmost focusable element. The written column is a `focusSection` so Right from Play reaches it.
 - **No page-wide hero state.** No fold flag, no wash, no chrome fade, no custom
   `ScrollTargetBehavior`. The focus engine scrolls the page. The one scroll the page asks for is
   back to the top when a hero control takes focus (`ScrollViewReader.scrollTo`), because the

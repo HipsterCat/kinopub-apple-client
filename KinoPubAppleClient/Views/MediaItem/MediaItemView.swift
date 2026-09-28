@@ -187,7 +187,9 @@ struct MediaItemView: View {
   private var details: some View {
     if itemModel.itemLoaded {
       scrollDetails
-        .defaultFocus($focus, .play)
+        // `.userInitiated`: the default `.automatic` is only a hint, and tvOS otherwise
+        // takes the topmost focusable element. The hero also names Play in its `.task`.
+        .defaultFocus($focus, .play, priority: .userInitiated)
     } else {
       Color.clear
     }

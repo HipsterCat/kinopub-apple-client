@@ -296,6 +296,9 @@ struct MediaItemHeroView: View {
   @State private var isTrailerFullScreen = false
   @State private var showNewFolderAlert = false
   @State private var newFolderName = ""
+  /// tvOS: the synopsis joins the focus graph once an action has taken focus. See
+  /// `MediaItemPlotView.acceptsFocus`.
+  @State private var plotAcceptsFocus = false
 
   /// Opt-in, off by default. Read as `@AppStorage` so flipping it in Settings redraws
   /// the metadata row without leaving the page.
@@ -304,6 +307,9 @@ struct MediaItemHeroView: View {
 
   @Environment(\.openURL) private var openURL
   @Environment(NavigationState.self) private var navigationState
+#if os(tvOS)
+  @Environment(\.colorScheme) private var colorScheme
+#endif
 
   private var isSeries: Bool {
     !(mediaItem.seasons?.isEmpty ?? true)
@@ -327,7 +333,14 @@ struct MediaItemHeroView: View {
       // `focus` is non-nil exactly while a hero control holds focus. Read here rather
       // than on the page, so a focus move re-renders the hero and nothing else.
       .onChange(of: focus) { _, target in
-        if target != nil { onFocusEntered?() }
+        guard target != nil else { return }
+        plotAcceptsFocus = true
+        onFocusEntered?()
+      }
+      // `defaultFocus` is only a request, and loses to the topmost focusable element on
+      // entry. Naming Play outright is what holds (Plozz, `ItemDetailView`).
+      .task {
+        if focus == nil { focus = .play }
       }
 #endif
   }
@@ -335,17 +348,15 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var platformBody: some View {
 #if os(tvOS)
-    // The page gives the hero its height (`MediaItemLayout.heroFraction` of the screen);
-    // the chrome sits at its bottom edge and the artwork fills it from behind. As a
-    // `.background` the artwork takes the hero's size and adds none of its own, and it
-    // scrolls away with the hero — nothing is pinned behind the page.
+    // The page gives the hero its height (`MediaItemLayout.heroFraction` of the screen)
+    // and the chrome sits at its bottom edge. The artwork is the hero's `.background`, so
+    // it adds nothing to the layout and scrolls away with the hero, but it is as tall as
+    // the screen, not the hero: the first section peeks over the picture instead of over
+    // a band of bare page, and the picture dissolves into the page at the bottom.
     content
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-      .background {
-        ZStack {
-          scrollingBackdrop
-          scrollingScrim
-        }
+      .background(alignment: .top) {
+        backdropLayer
       }
       // The same muted preview, promoted to sound and full screen without restarting.
       // Menu on the remote dismisses it — no chrome of our own over the picture.
@@ -514,27 +525,59 @@ struct MediaItemHeroView: View {
   }
 
 #if os(tvOS)
-  /// Two layers, because the chrome runs the whole bottom edge: title and actions on
-  /// the leading side, synopsis and credits on the trailing side.
-  /// - A floor across the full width, ending in the page colour so the hero meets the
-  ///   sections below without a seam.
-  /// - Extra weight anchored under the title block (bottom-leading → top-trailing),
-  ///   where the largest text sits; a title-logo image carries no shadow of its own.
+  /// Artwork, then the legibility scrim, both dissolved into the page at the bottom and
+  /// sized to the screen (`containerRelativeFrame` resolves against the page's scroll
+  /// view, not the hero).
+  private var backdropLayer: some View {
+    ZStack {
+      scrollingBackdrop
+      scrollingScrim
+    }
+    .containerRelativeFrame(.vertical, alignment: .top)
+    .mask {
+      // The picture's own alpha goes to zero, so whatever the page is drawn on shows
+      // through: no second colour to match, in light or dark.
+      LinearGradient(stops: [
+        .init(color: .black, location: 0),
+        .init(color: .black, location: 0.72),
+        .init(color: .clear, location: 1)
+      ], startPoint: .top, endPoint: .bottom)
+    }
+  }
+
+  /// Dark in dark mode, light in light mode: the hero's text and buttons use the system
+  /// colours, which are dark in light mode, and a black scrim under dark text is what
+  /// made the light theme unreadable. Only the tone flips; the geometry is the same.
+  private var scrimTone: Color {
+    colorScheme == .dark ? .black : .white
+  }
+
+  /// Where our text is, and nowhere else: the chrome runs the whole bottom edge (title
+  /// and actions on the left, synopsis and credits on the right), so the floor is full
+  /// width; the left edge gets extra weight for the title. The top of the picture is left
+  /// alone. Stops are in screen height — the hero's content spans roughly 0.3 to 0.75.
+  /// The old scrim stacked a 0.92 diagonal on a 0.45 floor, which is what read as black.
   private var scrollingScrim: some View {
     ZStack {
+      scrimTone.opacity(0.08)
+
       LinearGradient(stops: [
-        .init(color: .clear, location: 0),
-        .init(color: .clear, location: 0.2),
-        .init(color: .black.opacity(0.3), location: 0.45),
-        .init(color: .black.opacity(0.45), location: 0.9),
-        .init(color: Color.KinoPub.background, location: 1)
+        .init(color: .clear, location: 0.25),
+        .init(color: scrimTone.opacity(0.35), location: 0.45),
+        .init(color: scrimTone.opacity(0.6), location: 0.7),
+        .init(color: scrimTone.opacity(0.6), location: 1)
       ], startPoint: .top, endPoint: .bottom)
 
       LinearGradient(stops: [
-        .init(color: .black.opacity(0.92), location: 0),
-        .init(color: .black.opacity(0.55), location: 0.45),
-        .init(color: .clear, location: 1)
-      ], startPoint: .bottomLeading, endPoint: .topTrailing)
+        .init(color: scrimTone.opacity(0.45), location: 0),
+        .init(color: .clear, location: 0.45)
+      ], startPoint: .leading, endPoint: .trailing)
+      .mask {
+        LinearGradient(stops: [
+          .init(color: .clear, location: 0.2),
+          .init(color: .black, location: 0.45)
+        ], startPoint: .top, endPoint: .bottom)
+      }
     }
   }
 #else
@@ -613,11 +656,18 @@ struct MediaItemHeroView: View {
   /// so they sit at the foot of the column rather than heading it.
   private var detailColumn: some View {
     VStack(alignment: .leading, spacing: Self.contentSpacing) {
-      MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus)
+      MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus,
+                        acceptsFocus: plotAcceptsFocus)
       credits
       metadata
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+#if os(tvOS)
+    // The synopsis is the only control in this column and sits at its top, above the
+    // band Right from Play travels along, so a plain Right found nothing. As a section
+    // the whole column is the target.
+    .focusSection()
+#endif
 //    .heroTextShadow()
   }
 

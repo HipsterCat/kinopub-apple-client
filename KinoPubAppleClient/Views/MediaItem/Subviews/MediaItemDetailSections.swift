@@ -3399,6 +3399,12 @@ struct MediaItemPlotView: View {
   /// Shared with the other hero controls so focusing the plot does not count as
   /// leaving the hero (and killing the trailer).
   @FocusState.Binding var focus: MediaItemFocusTarget?
+  /// tvOS: false until one of the hero's actions has taken focus. The synopsis sits above
+  /// Play, and tvOS hands entry focus to the topmost focusable element whatever
+  /// `defaultFocus` asks for — Plozz hit the same thing with its breadcrumb and fixed it
+  /// the same way, by keeping the higher control out of the focus system until focus has
+  /// landed. `.focusable(false)`, not `.disabled`, so the text never looks inert.
+  var acceptsFocus: Bool = true
 
   /// The two heights the truncation decision is made from, kept as state so it is
   /// remade every time the layout changes — the old `ViewThatFits` probe latched
@@ -3435,13 +3441,16 @@ struct MediaItemPlotView: View {
   /// a statement about the text, not about whether the control exists.
   private var content: some View {
     paragraph(showsMore: isTruncated)
-      .expandsIntoInfoPopup(title: Text(title)) {
+      .expandsIntoInfoPopup(title: Text(title), chrome: .text) {
         Text(plot)
           .font(InfoPopupMetrics.bodyFont)
           .foregroundStyle(Color.KinoPub.text)
           .multilineTextAlignment(.leading)
       }
       .focused($focus, equals: .plot)
+#if os(tvOS)
+      .focusable(acceptsFocus)
+#endif
   }
 
   private func paragraph(showsMore: Bool) -> some View {
