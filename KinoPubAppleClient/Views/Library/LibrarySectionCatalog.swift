@@ -44,6 +44,15 @@ final class LibrarySectionCatalog: ObservableObject {
     return PaginationState(phase: .complete, loadedCount: cards.count)
   }
 
+  /// Another page may exist: the grid ends on a skeleton row and a spinner. Page 1 from
+  /// the store carries no pagination, so a paginated section counts as "maybe more"
+  /// until page 2 answers.
+  var hasMorePages: Bool {
+    guard section.isPaginated, !paginationFailed, !cards.isEmpty else { return false }
+    guard let pagination else { return true }
+    return pagination.current < pagination.total
+  }
+
   private(set) var section: LibrarySection = .watchlist
 
   private var pagedCards: [MediaCard] = []

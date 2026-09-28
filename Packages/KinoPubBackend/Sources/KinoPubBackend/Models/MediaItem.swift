@@ -45,7 +45,7 @@ public struct MediaItem: Codable, Hashable, @unchecked Sendable {
   public let ac3: Int?
   public let bookmarks: [TypeClass]?
   public var seasons: [Season]?
-  public let videos: [Video]?
+  public var videos: [Video]?
 
   public init(
     id: Int,

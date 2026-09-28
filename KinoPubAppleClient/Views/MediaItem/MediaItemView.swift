@@ -124,6 +124,11 @@ struct MediaItemView: View {
       .task {
         itemModel.fetchData()
       }
+      // Back from the player: the page never unmounted, so repaint the rail and the hero
+      // from what the player just wrote locally. No-op until the payload has loaded.
+      .onAppear {
+        itemModel.repaintFromLocalProgress()
+      }
       .task {
         relatedRowsMenu.bind(errorHandler: errorHandler)
         await relatedRowsMenu.refreshFolders()

@@ -20,14 +20,12 @@ import UIKit
 /// With a hardware keyboard attached the input is left alone, keeping menu type-ahead.
 /// Re-probe on the next SDK: if Apple adds a public switch or stops summoning the
 /// soft keyboard for touch, delete this.
+@MainActor
 enum MenuTypeSelectSuppression {
 
-  // Written once from `install()` on launch, then only read by the swizzled block on the
-  // main thread — Swift 6 cannot prove that, hence `nonisolated(unsafe)`.
-  nonisolated(unsafe) private static var installed = false
-  nonisolated(unsafe) private static var originalImplementation: IMP?
+  private static var installed = false
 
-  /// Installs the swizzle once. Safe to call from anywhere; no-ops when the private
+  /// Installs the swizzle once, from launch (`AppDelegate`). No-ops when the private
   /// class does not exist (older SDKs) so this never breaks on an OS update.
   static func install() {
     guard !installed else { return }
@@ -38,14 +36,13 @@ enum MenuTypeSelectSuppression {
       return
     }
 
-    originalImplementation = method_getImplementation(method)
+    // The block keeps its own copy of the original implementation, so it reads no
+    // shared state from whatever thread UIKit calls it on.
+    let original = method_getImplementation(method)
     let block: @convention(block) (AnyObject) -> Bool = { receiver in
-      if GCKeyboard.coalesced != nil,
-         let imp = MenuTypeSelectSuppression.originalImplementation {
-        typealias Fn = @convention(c) (AnyObject, Selector) -> Bool
-        return unsafeBitCast(imp, to: Fn.self)(receiver, #selector(UIResponder.becomeFirstResponder))
-      }
-      return false
+      guard GCKeyboard.coalesced != nil else { return false }
+      typealias Fn = @convention(c) (AnyObject, Selector) -> Bool
+      return unsafeBitCast(original, to: Fn.self)(receiver, #selector(UIResponder.becomeFirstResponder))
     }
     method_setImplementation(method, imp_implementationWithBlock(block))
   }

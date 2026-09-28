@@ -298,12 +298,17 @@ struct LibraryShellView: View {
     let groups: [(id: String, title: String?, cards: [MediaCard])] = grouped.isEmpty
       ? [("library", nil, cards)]
       : grouped.map { ($0.id, $0.title, $0.cards) }
+    // The next page lands in the last group, so only that one ends on the loading row.
+    let lastID = groups.last?.id
     return groups.map { group in
-      group.cards.first?.isLandscape == true
-        ? .stills(id: group.id, title: group.title, columns: 4, flow: .grid, caption: .always, cards: group.cards)
+      let loadsMore = group.id == lastID && catalog.hasMorePages
+      return group.cards.first?.isLandscape == true
+        ? .stills(id: group.id, title: group.title, columns: 4, flow: .grid, caption: .always,
+                  loadsMore: loadsMore, cards: group.cards)
         // Titles always under the posters, as in search — and with them the row gap
         // that leaves the captions clear air (`TVPageLayout.captionedRowGap`).
-        : .posters(id: group.id, title: group.title, flow: .grid, caption: .always, cards: group.cards)
+        : .posters(id: group.id, title: group.title, flow: .grid, caption: .always,
+                   loadsMore: loadsMore, cards: group.cards)
     }
   }
 

@@ -27,6 +27,9 @@ public enum TVPageLayout {
 
   /// Height of the row title strip: `.headline` on tvOS plus breathing room.
   public static let headerHeight: CGFloat = 52
+  /// Under a grid that has more pages coming (`TVPageSection.loadsMore`): a spinner.
+  public static let loadingFooterKind = "TVPageSectionLoadingFooter"
+  public static let loadingFooterHeight: CGFloat = 120
 
   /// Unfocused row-to-row spacing inside a grid, art bottom to art top.
   public static let gridRowSpacing: CGFloat = 64
@@ -123,6 +126,15 @@ public enum TVPageLayout {
       header.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: sideInset, bottom: 0, trailing: sideInset)
       layoutSection.supplementariesFollowContentInsets = false//'supplementariesFollowContentInsets' was deprecated in tvOS 16.0
       layoutSection.boundarySupplementaryItems = [header]
+    }
+    if section.loadsMore, section.flow == .grid {
+      let footer = NSCollectionLayoutBoundarySupplementaryItem(
+        layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                           heightDimension: .absolute(loadingFooterHeight)),
+        elementKind: loadingFooterKind,
+        alignment: .bottom
+      )
+      layoutSection.boundarySupplementaryItems.append(footer)
     }
     return layoutSection
   }

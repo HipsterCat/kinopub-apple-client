@@ -17,7 +17,8 @@ public struct Video: Codable, Hashable {
   public let ac3: Int
   public let audios: [VideoAudio]
   public let watched: Int
-  public let watching: EpisodeWatching
+  /// Overwritten from the local watch store, same as `Episode.watching`.
+  public var watching: EpisodeWatching
   public let subtitles: [Subtitle]
   public let files: [FileInfo]
 }

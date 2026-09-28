@@ -235,6 +235,9 @@ public struct TVPageSection: Identifiable, Hashable {
   /// The text the page was searched for. A card whose original title holds it shows
   /// that title too, so a match on "The Matrix" under "Матрица" explains itself.
   public let match: String?
+  /// A grid with more pages to come: the page pads its last row with skeleton tiles and
+  /// shows a spinner under it, so the end of what is loaded never reads as the end.
+  public let loadsMore: Bool
 
   public init(id: String,
               title: String?,
@@ -245,6 +248,7 @@ public struct TVPageSection: Identifiable, Hashable {
               caption: TVPageCaption = .onFocus,
               rows: Int = 1,
               match: String? = nil,
+              loadsMore: Bool = false,
               items: [TVPageItem]) {
     self.id = id
     self.title = title
@@ -255,6 +259,7 @@ public struct TVPageSection: Identifiable, Hashable {
     self.caption = caption
     self.rows = max(rows, 1)
     self.match = match
+    self.loadsMore = loadsMore
     self.items = items
   }
 
@@ -267,9 +272,11 @@ public struct TVPageSection: Identifiable, Hashable {
                              columns: Int = 6,
                              flow: TVPageFlow = .rail,
                              caption: TVPageCaption = .onFocus,
+                             loadsMore: Bool = false,
                              cards: [MediaCard]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .poster, flow: flow,
-                  columns: columns, caption: caption, items: cards.map(TVPageItem.card))
+                  columns: columns, caption: caption, loadsMore: loadsMore,
+                  items: cards.map(TVPageItem.card))
   }
 
   /// 16:9 stills with the system's text lines underneath — Up Next, episodes,
@@ -281,9 +288,11 @@ public struct TVPageSection: Identifiable, Hashable {
                             columns: Int = 5,
                             flow: TVPageFlow = .rail,
                             caption: TVPageCaption = .onFocus,
+                            loadsMore: Bool = false,
                             cards: [MediaCard]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .still, flow: flow,
-                  columns: columns, caption: caption, items: cards.map(TVPageItem.card))
+                  columns: columns, caption: caption, loadsMore: loadsMore,
+                  items: cards.map(TVPageItem.card))
   }
 
   public static func people(id: String,
@@ -326,6 +335,20 @@ public struct TVPageSection: Identifiable, Hashable {
     let tiles = count ?? (flow == .rail ? columns + 1 : columns * 2)
     return TVPageSection(id: id, title: title, kind: kind, flow: flow, columns: columns,
                          caption: .never, items: (0..<tiles).map(TVPageItem.placeholder))
+  }
+
+  /// The same section with `count` skeleton tiles after its items.
+  func appendingPlaceholders(_ count: Int) -> TVPageSection {
+    TVPageSection(id: id, title: title, count: self.count, kind: kind, flow: flow, columns: columns,
+                  caption: caption, rows: rows, match: match, loadsMore: loadsMore,
+                  items: items + (0..<count).map(TVPageItem.placeholder))
+  }
+
+  /// Items that are data, not skeleton tiles.
+  var loadedCount: Int {
+    items.reduce(0) { count, item in
+      if case .placeholder = item { return count } else { return count + 1 }
+    }
   }
 
   public var isPlaceholder: Bool {

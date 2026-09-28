@@ -49,6 +49,8 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   private(set) var sections: [TVPageSection] = []
+  /// Per section, the length it had when it last asked for more.
+  private var nearEndReported: [String: Int] = [:]
   private var sectionsByID: [String: TVPageSection] = [:]
   private var itemsByID: [TVPageItemID: TVPageItem] = [:]
   private var status: TVPageStatus = .content
@@ -62,7 +64,7 @@ public final class TVPageCollectionViewController: UIViewController {
   private lazy var collectionView: UICollectionView = {
     let layout = TVPageLayout.makeLayout(
       sideInset: sideInset,
-      adjustedLeading: { [weak self] in self?.adjustedLeading ?? 0 },
+      adjustedLeading: { [weak self] in self?.currentLeading() ?? 0 },
       sections: { [weak self] in self?.sections ?? [] }
     )
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
@@ -148,6 +150,7 @@ public final class TVPageCollectionViewController: UIViewController {
     super.viewDidLayoutSubviews()
     extendToWindow()
     updateAdjustedLeading()
+    refreshLoadingTails()
     if DebugLaunch.layoutDebug {
       NSLog("PAGEPROBE %@ view=%@ collection=%@ adjusted=%@ safe=%@", accessibilityID ?? "-",
             NSCoder.string(for: view.convert(view.bounds, to: nil)),
@@ -200,17 +203,27 @@ public final class TVPageCollectionViewController: UIViewController {
   /// adjusted inset. A tab page is full screen with neither.
   private func updateAdjustedLeading() {
     guard view.window != nil else { return }
-    // Beside a sidebar the inset counts from the page's own edge.
-    let leading = !spansScreenWidth ? 0
-      : collectionView.convert(collectionView.bounds.origin, to: nil).x - collectionView.contentOffset.x
-        + collectionView.adjustedContentInset.left
+    let leading = currentLeading()
     guard abs(leading - adjustedLeading) > 0.5 else { return }
     adjustedLeading = leading
     collectionView.collectionViewLayout.invalidateLayout()
   }
 
-  /// See `updateAdjustedLeading` and `TVPageLayout.makeLayout`.
+  /// The last leading `updateAdjustedLeading` saw — only to tell when it moved.
   private var adjustedLeading: CGFloat = 0
+
+  /// The leading edge as the collection sits *now*. The layout reads this, never the
+  /// value cached in `viewDidLayoutSubviews`: the search container re-lays its results
+  /// out while the keyboard collapses, and a width from one pass with a leading from the
+  /// other put the grid at 5, 6 or 7 columns while pages arrived (2026-09-27) — the
+  /// column count comes from that width (`TVHIGGrid.resolve`).
+  private func currentLeading() -> CGFloat {
+    // Beside a sidebar the inset counts from the page's own edge.
+    guard spansScreenWidth else { return 0 }
+    guard collectionView.window != nil else { return adjustedLeading }
+    return collectionView.convert(collectionView.bounds.origin, to: nil).x - collectionView.contentOffset.x
+      + collectionView.adjustedContentInset.left
+  }
 
   public override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
@@ -388,14 +401,33 @@ public final class TVPageCollectionViewController: UIViewController {
         return collectionView.dequeueConfiguredReusableCell(using: card, for: indexPath, item: id)
       }
     }
-    dataSource.supplementaryViewProvider = { collectionView, _, indexPath in
-      collectionView.dequeueConfiguredReusableSupplementary(using: header, for: indexPath)
+    let loadingFooter = UICollectionView.SupplementaryRegistration<TVPageLoadingFooterView>(
+      elementKind: TVPageLayout.loadingFooterKind
+    ) { _, _, _ in }
+
+    dataSource.supplementaryViewProvider = { collectionView, kind, indexPath in
+      kind == TVPageLayout.loadingFooterKind
+        ? collectionView.dequeueConfiguredReusableSupplementary(using: loadingFooter, for: indexPath)
+        : collectionView.dequeueConfiguredReusableSupplementary(using: header, for: indexPath)
     }
   }
 
   // MARK: - Input
 
   public func apply(sections newSections: [TVPageSection], status: TVPageStatus, animated: Bool) {
+    givenSections = newSections
+    applyGivenSections(status: status, animated: animated)
+  }
+
+  /// The sections as the owner gave them; `sections` is these plus each grid's loading
+  /// tail (`withLoadingTail`).
+  private var givenSections: [TVPageSection] = []
+  /// The column count each loading tail was padded for, to re-pad when it changes.
+  private var tailColumns: [String: Int] = [:]
+
+  private func applyGivenSections(status: TVPageStatus, animated: Bool) {
+    tailColumns = [:]
+    let newSections = givenSections.map(withLoadingTail)
     let sectionsChanged = newSections != sections
     if sectionsChanged {
       // Items whose content changed under the same id (progress moved, watched
@@ -430,6 +462,37 @@ public final class TVPageCollectionViewController: UIViewController {
   private var pendingReconfigure: [TVPageItemID] = []
   private var hasAppliedOnce = false
 
+  /// A grid with more pages coming ends on a full row: its last row is topped up with
+  /// skeleton tiles (a full row of them when it is already full), and the layout puts a
+  /// spinner under it. A ragged last row with the next section right under it read as
+  /// the end of the list.
+  private func withLoadingTail(_ section: TVPageSection) -> TVPageSection {
+    guard section.loadsMore, section.flow == .grid, !section.items.isEmpty, !section.isPlaceholder
+    else { return section }
+    let columns = gridColumns(for: section)
+    tailColumns[section.id] = columns
+    let remainder = section.items.count % columns
+    return section.appendingPlaceholders(remainder == 0 ? columns : columns - remainder)
+  }
+
+  /// How many columns the layout gives a grid at the collection's current width — the
+  /// same formula `TVPageLayout.grid` runs.
+  private func gridColumns(for section: TVPageSection) -> Int {
+    let width = isViewLoaded ? collectionView.bounds.width : 0
+    guard width > 0 else { return max(section.columns, 1) }
+    let inset = max(sideInset - currentLeading(), 0)
+    return TVHIGGrid.resolve(columns: section.columns, contentWidth: max(width - inset * 2, 1)).columns
+  }
+
+  /// The width moved and a tail was padded for another column count: pad again.
+  private func refreshLoadingTails() {
+    let stale = givenSections.contains { section in
+      guard let used = tailColumns[section.id] else { return false }
+      return used != gridColumns(for: section)
+    }
+    if stale { applyGivenSections(status: status, animated: false) }
+  }
+
   private func applySnapshot(animated: Bool) {
     guard isViewLoaded, dataSource != nil else { return }
     var snapshot = NSDiffableDataSourceSnapshot<String, TVPageItemID>()
@@ -456,7 +519,7 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   private static func layoutSignature(_ section: TVPageSection) -> String {
-    "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.kind == .chip ? chipSignature(section) : "")"
+    "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.loadsMore)|\(section.kind == .chip ? chipSignature(section) : "")"
   }
 
   /// The status shows when the page has nothing but chrome: no sections, or only chip
@@ -508,6 +571,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     guard let id = dataSource.itemIdentifier(for: indexPath),
           let section = sectionsByID[id.section],
           let item = itemsByID[id] else { return }
+    if case .placeholder = item { return }
     onSelect?(section, item)
   }
 
@@ -517,14 +581,35 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     if DebugLaunch.layoutDebug { cell.contentView.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.25) }
     guard sections.indices.contains(indexPath.section) else { return }
     let section = sections[indexPath.section]
-    guard !section.isPlaceholder, indexPath.item == section.items.count - 1 else { return }
+    // A chip row has no pages, and skeleton tiles are not data.
+    guard section.kind != .chip, !section.isPlaceholder else { return }
+    let loaded = section.loadedCount
+    guard indexPath.item >= loaded - 1 else { return }
+    // Once per length: re-displaying the same last card (a snapshot rebuild, a relayout)
+    // asks for nothing. The next ask needs the section to have grown, or its end to
+    // have gone off screen and come back — see `didEndDisplaying`. Before this, every
+    // rebuild of a short section asked for another page: a one-letter filter over the
+    // search listing ran it to page 44 in a couple of seconds (2026-09-27).
+    guard nearEndReported[section.id] != loaded else { return }
+    nearEndReported[section.id] = loaded
     onNearEnd?(section)
   }
 
+  public func collectionView(_ collectionView: UICollectionView,
+                             didEndDisplaying cell: UICollectionViewCell,
+                             forItemAt indexPath: IndexPath) {
+    guard sections.indices.contains(indexPath.section) else { return }
+    let section = sections[indexPath.section]
+    guard indexPath.item >= section.loadedCount - 1 else { return }
+    // The end scrolled away; coming back to it may ask again (a failed page retries).
+    nearEndReported[section.id] = nil
+  }
+
   public func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
-    guard sections.indices.contains(indexPath.section) else { return false }
     // Skeleton tiles are not destinations; the page keeps its focus escape elsewhere.
-    return !sections[indexPath.section].isPlaceholder
+    guard let id = dataSource.itemIdentifier(for: indexPath), let item = itemsByID[id] else { return false }
+    if case .placeholder = item { return false }
+    return true
   }
 
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
@@ -607,6 +692,33 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
   public func collectionView(_ collectionView: UICollectionView,
                              cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
     TVUIKitRemoteImage.cancelPrefetch(indexPaths.map(artworkURL(at:)))
+  }
+}
+
+// MARK: - Loading footer
+
+/// Under a grid with more pages coming: the system spinner, centred. The skeleton row
+/// above it already says what is loading, so it carries no label.
+@MainActor
+final class TVPageLoadingFooterView: UICollectionReusableView {
+  private let spinner = UIActivityIndicatorView(style: .large)
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    spinner.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(spinner)
+    NSLayoutConstraint.activate([
+      spinner.centerXAnchor.constraint(equalTo: centerXAnchor),
+      spinner.centerYAnchor.constraint(equalTo: centerYAnchor)
+    ])
+    spinner.startAnimating()
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    spinner.startAnimating()
   }
 }
 
