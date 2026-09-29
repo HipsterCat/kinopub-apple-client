@@ -13,7 +13,7 @@ import KinoPubUI
 enum FeatureFlags {
   /// Contained Home banner shelf. Off pending redesign — when false, Home does
   /// not sample banner cards and does not load wide poster artwork for them.
-  static let homeBannerEnabled = false
+  static let homeBannerEnabled = true
 
   /// Gates the Downloads tab, the item-detail download action, and any other
   /// downloads-facing UI. `KinoPubKit`'s `DownloadManager` / `DownloadedFilesDatabase`
@@ -26,7 +26,7 @@ enum FeatureFlags {
   /// "All Bookmarks" overview tab (folder shelves). Off while History / Watchlist /
   /// per-folder tabs carry browsing; when false the tab is omitted and the overview
   /// catalog is not fetched.
-  static let allBookmarksEnabled = false
+  static let allBookmarksEnabled = true
 
   /// tvOS shelves + grids share one `TVPosterView` / `TVCardView` atom (same
   /// `ShelfMetrics` sizing), drawn by a recycling `UICollectionView` rather than a
@@ -80,7 +80,7 @@ enum FeatureFlags {
   /// The blurred-poster wash behind the whole detail page on iOS / macOS. Off means the
   /// page sits on the plain app background and no blur buffer is decoded. The hero's own
   /// artwork is not governed by this, and tvOS has no page-wide wash at all.
-  static let detailAmbientBackdropEnabled = false
+  static let detailAmbientBackdropEnabled = true
 
   /// The tvOS sidecar-SRT machinery: a custom transport-bar Subtitles menu (dual
   /// tracks), our own cue overlay, and hiding the system's Subtitles control.
