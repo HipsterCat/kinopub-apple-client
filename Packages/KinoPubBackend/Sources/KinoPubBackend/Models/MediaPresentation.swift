@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import KinoPubMedia
 
 /// What kind of thing a title is, as far as *presentation* is concerned — not the same
 /// question as `MediaType`, which is the API's filing cabinet.
@@ -163,8 +164,8 @@ public struct MediaPresentationProfile: Equatable, Sendable {
   /// asking about.
   public var signatureGenreIDs: Set<Int> {
     switch kind {
-    case .standup: return Self.standupGenreIDs
-    case .animation: return Self.animationGenreIDs
+    case .standup: return Set(GenreVocabulary.kinopubIDs(ofGenre: "stand-up"))
+    case .animation: return Set(GenreVocabulary.kinopubIDs(ofGenre: "animation"))
     default: return []
     }
   }
@@ -191,75 +192,40 @@ public struct CastShelfPolicy: Equatable, Sendable {
 
 public extension MediaPresentationProfile {
 
-  /// Type first, then genre: a `documovie` is a documentary whatever its genres say,
-  /// while a documentary, a cartoon or a stand-up set filed as a plain `movie` is only
-  /// knowable from the genre list.
-  ///
-  /// Genres 101 (stand-up) and 23 (animation) are the ids kino.pub has confirmed to us.
-  /// The rest match on the genre's own title, in both languages the API answers in,
-  /// because we hold no id table for them (`filter.genres` in `kpapp.link/config.json`
-  /// is where one would come from — see docs/providers/kinopub/references.md).
+  /// Read off our media model, not off kino.pub's strings: the type's shape and implied
+  /// genre first (`KinoPubMediaMapping.typeMapping` — a `documovie` is a documentary
+  /// whatever its genres say), then the title's genres **in our vocabulary**, where an id
+  /// and every spelling of a name are already one genre. What used to be matched here by
+  /// genre-title words ("документальн", "стенд-ап", "мультсериал") is the vocabulary's job.
   init(type: String, genres: [TypeClass]) {
-    self.init(kind: Self.kind(type: type, genres: genres),
-              authorRole: Self.authorRole(type: type),
-              isAnime: Self.isAnime(genres: genres))
+    let mapping = KinoPubMediaMapping.typeMapping(type)
+    let ids = Set(KinoPubMediaMapping.genres(genres, type: type).map(\.id))
+    self.init(kind: Self.kind(implied: mapping.impliedGenre?.id, genres: ids),
+              authorRole: Self.authorRole(mapping),
+              isAnime: ids.contains("anime"))
   }
 
-  /// kino.pub files anime as a **genre**, not a type — `MediaType` has no case for it —
-  /// and we hold no confirmed id for it the way we do for 23 (`Мультфильм`) and 101
-  /// (stand-up), so this matches the genre's own title in both languages the API answers
-  /// in. A cartoon is deliberately not anime.
-  private static func isAnime(genres: [TypeClass]) -> Bool {
-    let titles = genres.compactMap(\.title).map(normalized)
-    return titles.contains { matches($0, animeGenreWords) }
-  }
-
-  private static func kind(type: String, genres: [TypeClass]) -> MediaPresentationKind {
-    switch type.lowercased() {
-    case "documovie", "docuserial": return .documentary
+  /// The implied genre is the type speaking; after it, stand-up beats animation beats a
+  /// documentary genre on a plain film — the order this profile has always had.
+  private static func kind(implied: String?, genres: Set<String>) -> MediaPresentationKind {
+    switch implied {
+    case "documentary": return .documentary
     case "concert": return .concert
-    case "tvshow": return .show
+    case "tv-show": return .show
     default: break
     }
-
-    let ids = Set(genres.map(\.id))
-    if !ids.isDisjoint(with: standupGenreIDs) { return .standup }
-    if !ids.isDisjoint(with: animationGenreIDs) { return .animation }
-
-    let titles = genres.compactMap(\.title).map(normalized)
-    if titles.contains(where: { matches($0, animationGenreWords) }) { return .animation }
-    if titles.contains(where: { matches($0, documentaryGenreWords) }) { return .documentary }
-    if titles.contains(where: { matches($0, standupGenreWords) }) { return .standup }
-
+    if genres.contains("stand-up") { return .standup }
+    if !genres.isDisjoint(with: ["animation", "anime"]) { return .animation }
+    if genres.contains("documentary") { return .documentary }
     return .fiction
   }
 
-  /// Episodic and documentary titles credit creators; a film credits a director.
-  /// `documovie` is not episodic and still counts — its `director` is its author.
-  private static func authorRole(type: String) -> MediaAuthorRole {
-    switch type.lowercased() {
-    case "serial", "docuserial", "tvshow", "documovie": return .creator
-    default: return .director
-    }
+  /// A show (series, docuseries, TV show) and a documentary film credit creators; a film
+  /// credits a director. By the type, as before — a plain movie filed under Documentary
+  /// still names a director.
+  private static func authorRole(_ mapping: KinoPubMediaMapping.TypeMapping) -> MediaAuthorRole {
+    mapping.kind == .show || mapping.impliedGenre?.id == "documentary" ? .creator : .director
   }
-
-  private static func normalized(_ title: String) -> String {
-    title.folding(options: [.diacriticInsensitive, .caseInsensitive, .widthInsensitive],
-                  locale: nil)
-  }
-
-  private static func matches(_ title: String, _ words: [String]) -> Bool {
-    words.contains { title.contains($0) }
-  }
-
-  /// Confirmed by the user against live payloads: 101 stand-up, 23 "Мультфильм".
-  private static let standupGenreIDs: Set<Int> = [101]
-  private static let animationGenreIDs: Set<Int> = [23]
-  private static let standupGenreWords = ["стендап", "стенд-ап", "stand-up", "standup"]
-  private static let animeGenreWords = ["аниме", "anime"]
-  private static let cartoonGenreWords = ["мультфильм", "мультсериал", "cartoon", "animation"]
-  private static let animationGenreWords = animeGenreWords + cartoonGenreWords
-  private static let documentaryGenreWords = ["документальн", "documentar"]
 }
 
 public extension Array where Element == MediaItem {

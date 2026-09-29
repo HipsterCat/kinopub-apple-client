@@ -137,6 +137,12 @@ public enum MediaAggregator {
     }
     entity.ids = ids
 
+    var labels: [MediaLabel] = []
+    for fragment in byIdentity {
+      for label in fragment.entity.labels where !labels.contains(label) { labels.append(label) }
+    }
+    entity.labels = labels
+
     // A blank string is a source with nothing to say, not a value that wins the field —
     // kino.pub ships `""` for every episode it never named.
     entity.title = pick(.title) { $0.title.nonBlank }

@@ -5,6 +5,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Labels; one genre file for app, ingest and worker; document v2 (2026-09-29)
+
+"Эксклюзив" is kept as a `MediaLabel` (`MediaEntity.labels`, union-merged; source key
+`genre:128`) instead of being dropped. The genre table moved out of Swift into
+`KinoPubMedia/Resources/genres.json`, read by `GenreVocabulary`, `tools/metadata-ingest/genres.py`
+and `workers/tmdb-proxy/src/genres.js`; each genre carries a `GenreGroup`. `tvshow` implies a new
+*TV Show* genre. `MediaPresentationProfile` reads our genres and `KinoPubMediaMapping.typeMapping`
+— its genre-title word lists are gone. Documents are version 2: `kind` `movie | show`, `genres` our
+ids primary first, raw rows in `genre_sources`. Test fixtures that invented kino.pub genre ids
+(id 9 as «Документальный», 2 as «Аниме») now use the real ones.
+
 ### kino.pub's full genre list in the media model; Documentary leads (2026-09-29)
 
 `GenreVocabulary`'s `kinopub` column is now kino.pub's whole reference list

@@ -315,16 +315,25 @@ dropped. The `kinopub` column is kino.pub's whole reference list — `kpapp.link
 test that maps every id. Its four sets (`movie` / `docu` / `tvshow` / `music`) number their own
 genres, so one idea holds several ids (Биография: 3 and 78), and the documentary subjects and TV
 formats kino.pub distinguishes stay distinct genres of ours rather than collapsing into Apple's
-coarser tree. "Эксклюзив" (128, 133) is not a genre (`kinopubNonGenres`).
+coarser tree — each genre carries its `GenreGroup` (film / documentary subject / TV format / music)
+for filters and sections. "Эксклюзив" (128, 133) is not a genre but is never dropped: it is a
+`MediaLabel` on the entity (id, name, source, and the source's own key `genre:128`), merged as a
+union across sources.
+
+**The table is one file:** `Packages/KinoPubMedia/Sources/KinoPubMedia/Resources/genres.json`, read
+by `GenreVocabulary` (Swift), `tools/metadata-ingest/genres.py` and `workers/tmdb-proxy/src/genres.js`.
+Edit the JSON, never a copy of it; both test suites check it against kino.pub's reference list.
 
 **Scores** (`Score`, per provider, with scale and votes) sit side by side on every entity — title,
 season, episode — never averaged and never inherited. `contentRating` is the age rating, a different
 thing.
 
-**When the server document carries seasons and episodes** (`tools/metadata-ingest/document.py`),
-it becomes one more source whose fragment arrives pre-merged, and the orchestration shrinks to one
-call. The document's `kind` (`movie | series` today) and its per-source genre *names* are what has
-to grow to meet this model: shapes as above, genre ids from this vocabulary.
+**The server document speaks this model** (`document.py` and the worker, version 2): `kind` is
+`movie | show` (the record keeps `series` internally), `genres` are our ids, primary first, one
+source's list whole with the same precedence, and the raw rows ride along as `genre_sources`. It
+already carries seasons with their episodes and per-season/episode ratings; when the app reads it,
+it becomes one more source whose fragment arrives pre-merged and the orchestration shrinks to one
+call.
 
 ## Rules for code written today
 

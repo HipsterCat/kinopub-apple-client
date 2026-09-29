@@ -919,5 +919,74 @@ class TestTMDBCreditLanguageLabeling(unittest.TestCase):
                             "same person, same script — must be one row, not two")
             conn.close()
 
+class TestGenreTable(unittest.TestCase):
+    """The table the app reads (`genres.json`) answers the same here."""
+
+    def test_kinopub_reference_list_is_fully_mapped(self):
+        import genres
+        config = json.loads((Path(__file__).resolve().parents[2]
+                             / "Packages/KinoPubBackend/Tests/KinoPubBackendTests/Fixtures"
+                             / "kinopub_config.json").read_text())
+        for set_name, rows in config["filter"]["genres"].items():
+            domain = "music" if set_name == "music" else "video"
+            seen = {}
+            for row in rows:
+                genre = genres.from_kinopub(row["id"], None, domain)
+                if genre is None:
+                    self.assertIsNotNone(genres.kinopub_label(row["id"]), row)
+                    continue
+                self.assertTrue(genre["mapped"], row)
+                self.assertEqual(genre["domain"], domain, row)
+                self.assertNotIn(genre["id"], seen, (set_name, row, seen.get(genre["id"])))
+                seen[genre["id"]] = row["title"]
+
+    def test_exclusive_is_a_label(self):
+        import genres
+        self.assertIsNone(genres.from_kinopub(128))
+        self.assertEqual(genres.kinopub_label(133)["source_key"], "genre:133")
+
+    def test_names_fold_like_the_app(self):
+        import genres
+        self.assertEqual(genres.from_name("  КОМЕДИЯ ", "kinopoisk")["id"], "comedy")
+        self.assertEqual(genres.from_name("фэнтези", "tvoe")["id"], "fantasy")
+        self.assertEqual(genres.from_name("Документальный", "kinopoisk", "music")["id"],
+                         "documentary")
+        unknown = genres.from_name("Киберпанк", "tvoe")
+        self.assertEqual((unknown["id"], unknown["mapped"]), ("tvoe:киберпанк", False))
+
+    def test_tmdb_pairs_are_two_genres(self):
+        import genres
+        self.assertEqual([g["id"] for g in genres.from_tmdb(10759)], ["action", "adventure"])
+        self.assertEqual([g["id"] for g in genres.from_tmdb(18)], ["drama"])
+
+    def test_one_sources_list_wins_whole(self):
+        import genres
+        rows = [{"source": "tmdb", "name": "Drama"}, {"source": "tmdb", "name": "Comedy"},
+                {"source": "kinopoisk", "name": "комедия"},
+                {"source": "tmdb:keyword", "name": "sports"}]
+        merged = genres.merge(rows)
+        self.assertEqual([g["id"] for g in merged], ["drama", "comedy"])
+        self.assertEqual(merged[0]["source"], "tmdb")
+        self.assertEqual(genres.merge([{"source": "tmdb:keyword", "name": "x"}]), [])
+
+
+class TestDocumentSpeaksTheMediaModel(RecordTestCase):
+
+    def test_kind_and_genres(self):
+        import document
+        title_id = self.make_title(kind="series")
+        for name in ("комедия", "спорт"):
+            self.conn.execute("INSERT INTO genre(title_id,source,name) VALUES (?,?,?)",
+                              (title_id, "kinopoisk", name))
+        self.conn.execute("INSERT INTO genre(title_id,source,name) VALUES (?,?,?)",
+                          (title_id, "tmdb:keyword", "football"))
+        doc = document.build(self.conn, title_id)
+        self.assertEqual(doc["version"], 2)
+        self.assertEqual(doc["kind"], "show")
+        self.assertEqual([g["id"] for g in doc["genres"]], ["comedy", "sport"])
+        self.assertEqual(doc["genres"][0]["name"]["ru"], "Комедия")
+        self.assertEqual(len(doc["genre_sources"]), 3)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

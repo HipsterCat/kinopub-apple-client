@@ -15,7 +15,11 @@ let package = Package(
       targets: ["KinoPubMedia"])
   ],
   targets: [
-    .target(name: "KinoPubMedia"),
+    .target(
+      name: "KinoPubMedia",
+      resources: [
+        .process("Resources")
+      ]),
     .testTarget(
       name: "KinoPubMediaTests",
       dependencies: ["KinoPubMedia"])

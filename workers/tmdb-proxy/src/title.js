@@ -21,6 +21,8 @@
  * and means a title we have never seen is still resolvable on the spot.
  */
 
+import { tmdbGenres } from "./genres.js";
+
 const KINOPUB_POSTER = "https://m.staticpop.net/poster/item";
 // kino.pub's own sizes, which are addressable from the id alone. This is the
 // fallback that makes the image route incapable of returning a hole.
@@ -168,9 +170,10 @@ function readHints(url) {
 /** What we can say about a title we have never seen, using only what the client sent. */
 function draftDocument(id, hints) {
   return {
-    version: 1,
+    version: 2,
     id: null,
-    kind: hints.type === "series" ? "series" : hints.type ? "movie" : null,
+    // The app's model says `show`; older clients still hint `series`.
+    kind: hints.type === "series" || hints.type === "show" ? "show" : hints.type ? "movie" : null,
     title: { ru: hints.title || null, original: hints.original || null },
     year: hints.year ? Number(hints.year) : null,
     ids: {
@@ -184,7 +187,7 @@ function draftDocument(id, hints) {
       poster: [{ source: "kinopub", url: `${KINOPUB_POSTER}/big/${id}.jpg`, lang: null }],
       backdrop: [{ source: "kinopub", url: `${KINOPUB_POSTER}/wide/${id}.jpg`, lang: null }],
     },
-    ratings: [], synopsis: [], genres: [], countries: [], credits: [],
+    ratings: [], synopsis: [], genres: [], genre_sources: [], countries: [], credits: [],
     seasons: [], trailers: [], awards: [], badges: [], copies: [],
     facts: [], reviews: [],
     // Honest about its own state: absent because nobody has asked yet, not
@@ -244,7 +247,7 @@ async function resolveAndStore(env, id, hints, base) {
 
   try {
     const found = await tmdb(env, `/3/find/${hints.imdb}`, { external_source: "imdb_id" });
-    const preferTv = base.kind === "series";
+    const preferTv = base.kind === "show";
     const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
     let match = null, mediaType = null;
     for (const type of order) {
@@ -313,7 +316,7 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
     ru: details.name || details.title || document.title.ru,
     original: details.original_name || details.original_title || document.title.original,
   };
-  document.kind = mediaType === "tv" ? "series" : "movie";
+  document.kind = mediaType === "tv" ? "show" : "movie";
 
   // One per language, capped to ru / en / textless — see capArtwork. The
   // kino.pub fallback the draft carried is appended last, so it only survives
@@ -338,7 +341,9 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
     document.synopsis = [{ source: "tmdb", lang: "ru", variant: "full",
                            text: details.overview }];
   }
-  document.genres = (details.genres || []).map((g) => ({ source: "tmdb", name: g.name }));
+  // Ours, primary first (genres.json); the raw names ride along, as in the record.
+  document.genres = tmdbGenres(details.genres);
+  document.genre_sources = (details.genres || []).map((g) => ({ source: "tmdb", name: g.name }));
 
   // `name` is localized by the request's `language` (ru-RU below), so it is
   // the Russian spelling, not English — mislabeling it name_en would split

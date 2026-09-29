@@ -37,8 +37,10 @@ Trance…); *Concert* is filed after them, so it is never the one word shown.
 **prd — A documentary leads with Documentary**, as Apple files it; its subject (History, Nature…)
 follows. (User's call, 2026-09-29.)
 
-**prd — "Эксклюзив" is not a genre.** kino.pub lists it among genres (128, 133); it says who
-carries the copy, not what the work is, and is dropped from genres — a badge candidate.
+**prd — "Эксклюзив" is not a genre, and it is kept.** kino.pub lists it among genres (128, 133);
+it says who carries the copy, not what the work is, so it never becomes the one word shown. It is a
+`MediaLabel` on the title, with kino.pub's own key (`genre:128`), for badges, filters and sections.
+(User's call, 2026-09-29.)
 
 **prd — An episode is its own cover.** The artwork for an episode is **its own still**; the season's
 poster, then the show's, only stand in when it has none. (Until 2026-09-28 the series poster always

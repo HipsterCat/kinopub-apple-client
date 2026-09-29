@@ -58,7 +58,7 @@ final class KinoPubMediaMappingTests: XCTestCase {
       ("movie", .movie, .video, nil),
       ("3D", .movie, .video, nil),
       ("serial", .show, .video, nil),
-      ("tvshow", .show, .video, nil),
+      ("tvshow", .show, .video, "tv-show"),
       ("documovie", .movie, .video, "documentary"),
       ("docuserial", .show, .video, "documentary"),
       ("concert", .movie, .music, "concert"),
@@ -123,6 +123,25 @@ final class KinoPubMediaMappingTests: XCTestCase {
     XCTAssertTrue(KinoPubMediaMapping.genres([TypeClass(id: 128, title: "Эксклюзив",
                                                         shortTitle: nil)], type: "movie")
       .isEmpty)
+  }
+
+  /// …but it is not lost: it is a label, with the key kino.pub itself filters by.
+  func testExclusiveIsKeptAsALabel() {
+    let exclusive = TypeClass(id: 128, title: "Эксклюзив", shortTitle: nil)
+    let film = item(type: "movie", genres: [comedy, exclusive])
+    let entity = film.mediaFragment.entity
+    XCTAssertEqual(entity.genres.map(\.id), ["comedy"])
+    XCTAssertEqual(entity.labels.map(\.id), ["exclusive"])
+    XCTAssertEqual(entity.labels.first?.sourceKey, "genre:128")
+    XCTAssertEqual(entity.labels.first?.source, .kinopub)
+    XCTAssertEqual(entity.labels.first?.name.value(languageCode: "ru"), "Эксклюзив")
+  }
+
+  /// A TV show says so in its genres, after its formats.
+  func testATVShowIsFiledUnderTVShowAfterItsFormat() {
+    let reality = TypeClass(id: 114, title: "Реалити-шоу", shortTitle: nil)
+    XCTAssertEqual(KinoPubMediaMapping.genres([reality], type: "tvshow").map(\.id),
+                   ["reality", "tv-show"])
   }
 
   // MARK: - kino.pub's own reference list

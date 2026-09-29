@@ -692,7 +692,10 @@ final class TrackResolverTests: XCTestCase {
                        trackLanguages: [String]) -> TitleTrackProfile {
     let presentation = MediaPresentationProfile(
       type: type,
-      genres: genres.enumerated().map { TypeClass(id: $0.offset, title: $0.element, shortTitle: nil) }
+      // Ids no kino.pub genre has: these cases are about the names.
+      genres: genres.enumerated().map {
+        TypeClass(id: 10_000 + $0.offset, title: $0.element, shortTitle: nil)
+      }
     )
     return TitleTrackProfile.infer(presentation: presentation,
                                    countries: countries,

@@ -124,6 +124,31 @@ final class GenreVocabularyTests: XCTestCase {
     XCTAssertNil(GenreVocabulary.kinopub(id: 128, title: "Эксклюзив", domain: .video))
   }
 
+  /// "Эксклюзив" is not a genre, but it is kept: a label, with kino.pub's own key.
+  func testExclusiveIsALabel() {
+    XCTAssertEqual(GenreVocabulary.kinopubLabel(id: 128)?.id, "exclusive")
+    XCTAssertEqual(GenreVocabulary.kinopubLabel(id: 133)?.sourceKey, "genre:133")
+    XCTAssertNil(GenreVocabulary.kinopubLabel(id: 9))
+    XCTAssertEqual(GenreVocabulary.kinopubNonGenres, [128, 133])
+  }
+
+  /// The table is a file; it has to have loaded, and every row has to be usable.
+  func testTheFileLoaded() {
+    XCTAssertGreaterThan(GenreVocabulary.definitions.count, 100)
+    XCTAssertNotNil(GenreVocabulary.genre(id: "tv-show"))
+  }
+
+  /// kino.pub's lists stay told apart: a documentary's subject is not a film genre.
+  func testGroupsKeepKinoPubsSpecificity() {
+    XCTAssertEqual(GenreVocabulary.genre(id: "drama").flatMap(GenreVocabulary.group), .film)
+    XCTAssertEqual(GenreVocabulary.genre(id: "aviation").flatMap(GenreVocabulary.group),
+                   .documentarySubject)
+    XCTAssertEqual(GenreVocabulary.genre(id: "reality").flatMap(GenreVocabulary.group),
+                   .tvFormat)
+    XCTAssertEqual(GenreVocabulary.genre(id: "music.trance").flatMap(GenreVocabulary.group),
+                   .music)
+  }
+
   func testNoKinoPubIDIsClaimedTwice() {
     let ids = GenreVocabulary.definitions.flatMap(\.kinopub)
     XCTAssertEqual(ids.count, Set(ids).count)

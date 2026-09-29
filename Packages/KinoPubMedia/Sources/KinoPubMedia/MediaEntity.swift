@@ -42,6 +42,10 @@ public struct MediaEntity: Hashable, Sendable {
   public var scores: [Score]
   public var artwork: ArtworkSet
   public var countries: [String]
+  /// What a platform says about its copy or its catalogue rather than about the work —
+  /// kino.pub's "Эксклюзив". Not genres, never the one word shown; kept for badges,
+  /// filters and sections. Every source's are kept.
+  public var labels: [MediaLabel]
   /// Which source each field came from. Filled by `MediaAggregator`; empty on a fragment.
   public var provenance: [MediaField: MediaSource]
 
@@ -62,6 +66,7 @@ public struct MediaEntity: Hashable, Sendable {
               scores: [Score] = [],
               artwork: ArtworkSet = ArtworkSet(),
               countries: [String] = [],
+              labels: [MediaLabel] = [],
               provenance: [MediaField: MediaSource] = [:]) {
     self.kind = kind
     self.extraKind = extraKind
@@ -80,6 +85,7 @@ public struct MediaEntity: Hashable, Sendable {
     self.scores = scores
     self.artwork = artwork
     self.countries = countries
+    self.labels = labels
     self.provenance = provenance
   }
 
@@ -91,6 +97,23 @@ public struct MediaEntity: Hashable, Sendable {
 }
 
 // MARK: - Values
+
+/// A platform's statement about a title that is not a genre: "Эксклюзив" on kino.pub.
+/// `sourceKey` is how that platform itself asks for it (kino.pub's `genre=128`), so a
+/// section or a filter built on the label can query the source it came from.
+public struct MediaLabel: Hashable, Sendable {
+  public let id: String
+  public let name: LocalizedName
+  public let source: MediaSource
+  public let sourceKey: String?
+
+  public init(id: String, name: LocalizedName, source: MediaSource, sourceKey: String? = nil) {
+    self.id = id
+    self.name = name
+    self.source = source
+    self.sourceKey = sourceKey
+  }
+}
 
 public struct ExternalID: Hashable, Sendable, Codable {
   public enum Namespace: String, Hashable, Sendable, Codable, CaseIterable {

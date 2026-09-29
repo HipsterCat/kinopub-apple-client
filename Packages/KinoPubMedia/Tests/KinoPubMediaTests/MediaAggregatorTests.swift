@@ -128,6 +128,17 @@ final class MediaAggregatorTests: XCTestCase {
     XCTAssertEqual(one, two)
   }
 
+  /// Labels are a platform's statements, not a field to win: every source's are kept.
+  func testLabelsFromEverySourceAreKept() throws {
+    let exclusive = MediaLabel(id: "exclusive", name: LocalizedName(en: "Exclusive", ru: "Эксклюзив"),
+                               source: .kinopub, sourceKey: "genre:128")
+    var kinopub = kinopubShow
+    kinopub.entity.labels = [exclusive]
+    let show = try XCTUnwrap(MediaAggregator.merge([tmdbShow, kinopub]))
+    XCTAssertEqual(show.labels, [exclusive])
+    XCTAssertEqual(show.genres.map(\.id), ["comedy", "sport"])
+  }
+
   func testIDsFromEverySourceAreKept() throws {
     let show = try XCTUnwrap(MediaAggregator.merge([kinopubShow, tmdbShow]))
     XCTAssertEqual(show.id(.kinopub), "87940")

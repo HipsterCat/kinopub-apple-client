@@ -38,8 +38,13 @@ public enum KinoPubMediaMapping {
     switch type.lowercased() {
     case "movie", "3d":
       return TypeMapping(kind: .movie, genreDomain: .video)
-    case "serial", "tvshow":
+    case "serial":
       return TypeMapping(kind: .show, genreDomain: .video)
+    case "tvshow":
+      // A show whose genres are formats (Реалити-шоу, Ток-шоу) — the implied TV Show
+      // genre is what tells it from a series filed under Travel.
+      return TypeMapping(kind: .show, genreDomain: .video,
+                         impliedGenre: GenreVocabulary.genre(id: "tv-show"))
     case "documovie":
       return TypeMapping(kind: .movie, genreDomain: .video,
                          impliedGenre: GenreVocabulary.genre(id: "documentary"),
@@ -75,6 +80,17 @@ public enum KinoPubMediaMapping {
         result.insert(implied, at: 0)
       } else {
         result.append(implied)
+      }
+    }
+    return result
+  }
+
+  /// What kino.pub files among genres but is not one ("Эксклюзив"), kept as labels.
+  public static func labels(_ genres: [TypeClass]) -> [MediaLabel] {
+    var result: [MediaLabel] = []
+    for genre in genres {
+      if let label = GenreVocabulary.kinopubLabel(id: genre.id), !result.contains(label) {
+        result.append(label)
       }
     }
     return result
@@ -145,6 +161,7 @@ public extension MediaItem {
       entity.originalTitle = title.contains("/") ? originalTitle : nil
       entity.synopsis = Synopsis(full: plot)
       entity.genres = KinoPubMediaMapping.genres(genres, type: type)
+      entity.labels = KinoPubMediaMapping.labels(genres)
       entity.release = ReleaseDate(year: year)
       if mapping.kind == .movie {
         // `total` sums every version of a multi-version film; `average` is the film.

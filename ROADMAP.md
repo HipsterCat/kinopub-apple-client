@@ -304,9 +304,10 @@ Media
 - [ ] An Apple column in `GenreVocabulary`: iTunes Store genre ids/names per genre, from the
       store's genres endpoint (`MZStoreServices.woa/ws/genres`) — unreachable from the
       2026-09-28 session, so nothing Apple-specific is in the table yet
-- [ ] `MediaPresentationProfile` reads the media model's genres and shapes instead of kino.pub's
-      `type` string and genre-title words — anime, cartoon, stand-up and documentary are
-      `GenreVocabulary` ids there
+- [x] `MediaPresentationProfile` reads the media model's genres and the type mapping instead of
+      kino.pub's `type` string and genre-title words
+- [ ] Sections and filters on `MediaLabel` (Эксклюзив) and `GenreGroup` (documentary subjects,
+      TV formats) — the data is in the model, nothing reads it yet
 - [ ] Close the two open questions in that product doc: the poster / horizontal-card treatment per
       kind, and whether the actor shelf names the person while the author shelf names the role
 - [ ] "Known for" ordering proper for person shelves — lead with the films the person is known for
@@ -389,9 +390,11 @@ image fails.
 - [ ] Decide the recommendations approach — Trakt scrobble, local taste, editorial-only, or none
 - [ ] Editorial Home rows, if a legitimate source is chosen
 - [ ] Server-side "donate" of pulled metadata — postponed until there is a backend
-- [ ] The `/v1/title` document meets the media model: `kind` as `movie / show` (+ seasons and
-      episodes as entities, already in the record), genres as `GenreVocabulary` ids with a
-      primary, scores per season and episode — so `PlaybackMediaContext.enrich` becomes one call
+- [x] The `/v1/title` document meets the media model (version 2): `kind` `movie / show`, genres
+      as our ids with a primary, from the shared `genres.json` — `document.py` and the worker
+- [ ] The app reads `/v1/title` as a source (a `MediaFragment` per level from the document's
+      title, seasons and episodes), so `PlaybackMediaContext.enrich` becomes one call. Needs the
+      document's seasons to carry kino.pub's block numbering or the season match
 - [ ] Detail page, cards and Top Shelf read `MediaContext` instead of `MediaItem` + `TitleMetadata`
       (season facts, per-episode scores and descriptions are in the model already)
 
