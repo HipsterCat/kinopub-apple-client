@@ -338,6 +338,9 @@ Details: skill `apple-chrome`.
   family, not a string at the call site.
 - **Downloads are non-TV only.** Feature-gate incomplete surfaces (`FeatureFlags`) rather than
   inventing half-UI. An off flag must skip the work — network, sampling — not only hide UI.
+  **Every flag is a `FeatureFlag` case** (default, title, one-line summary, platforms, launch-time
+  or not) and so is switchable in Settings › Diagnostics › Feature flags in every build — a
+  `static let` flag can only be judged by rebuilding, and there is no Xcode next to a TV.
 
 ## What is dead — do not revive
 

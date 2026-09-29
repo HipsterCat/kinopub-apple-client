@@ -15,8 +15,11 @@ import SwiftUI
 /// Off while the aggregate is being reworked — until then IMDb and Kinopoisk show
 /// only under their own logos, never folded into one number. An off flag hides the
 /// settings too, so nothing points at chrome that cannot appear.
+///
+/// The app owns the switch (`FeatureFlag.combinedRating`, switchable in Settings) and
+/// writes it here once at launch, before any card is drawn; the package only reads it.
 public enum RatingFeature {
-    public static let combinedEnabled = true
+    nonisolated(unsafe) public static var combinedEnabled = true
 }
 
 /// A single score combining the IMDb and Kinopoisk ratings.

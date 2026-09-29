@@ -443,6 +443,22 @@ tvOS-only properties.
       only within one session — a track added to an item later moves both lists together.
       One language table (`LanguageNames`), so `uzb` and `phi` stop matching nothing, and `ai`
       stays its own language
+- [x] **Stock track menus** — `FeatureFlags.rewritesStreamTrackMenus`, off: the player gets the
+      CDN's master untouched and AVKit lists and names Audio and Subtitles itself; we only
+      choose what a title opens with. `AudioRenditions.pairing` reads the CDN's own names
+      (`NN. Kind. Studio (LANG)`, `NN` = the API row's `index`) as well as ours, and
+      `HLSAudioLabeler` pairs through the same function. **Not watched on a device** — the
+      `tracks ·` lines in the app log are the check: options per menu, what each paired with,
+      what was picked
+- [x] Real masters captured — [docs/providers/kinopub/hls.md](docs/providers/kinopub/hls.md).
+      Groups are per *quality* (the AC-3 row sits beside the AAC ones), AVFoundation merges the
+      copies by itself, `NN` in `NAME` is the API row's `index`, and the system names an option
+      after `NAME` only in the viewer's own language and never the default one
+- [ ] Decide the audio menu from that evidence: the system menu cannot label dubs in another
+      language, and one track in three codecs is three rows at the source. Candidates: collapse
+      API rows that are one dub (lang + `type.id` + `author.id`) to one rendition; write `NAME`
+      from the row's ids only for the viewer's own language; `AVCustomMediaSelectionScheme`
+- [ ] Check the same menus on the tvOS simulator — the naming rule was read on macOS 27.2
 - [x] Player tests that run on **both** simulators (`KinoPubAppleClientTests`), and CI on
       `claude/**` pushes — a branch used to compile nowhere until a PR existed
 - [ ] The integration test still missing: a real `AVPlayerItem` from a local HLS fixture, asserting

@@ -82,6 +82,9 @@ struct SettingsRootView: View {
             case .networkLog:
               NetworkConsoleView()
                 .settingsMacChrome(title: "Network log", isRoot: false)
+            case .featureFlags:
+              FeatureFlagsView()
+                .settingsMacChrome(title: "Feature flags", isRoot: false)
 #if DEBUG
             case .streamSurvey:
               StreamSurveyView()
@@ -187,6 +190,8 @@ struct SettingsRootView: View {
           case .networkLog:
             NetworkConsoleView()
               .navigationTitle("Network log")
+          case .featureFlags:
+            FeatureFlagsView()
 #if DEBUG
           case .streamSurvey:
             StreamSurveyView()

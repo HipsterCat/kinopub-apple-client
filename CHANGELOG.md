@@ -5,6 +5,31 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Feature flags switchable in the app (2026-09-28)
+
+`FeatureFlags.*` are computed now, read from `FeatureFlag` — compiled default plus a per-device
+override (`featureFlag.<case>` in `UserDefaults`), listed in Settings › Diagnostics › Feature
+flags on every platform and in every build. Flags that shape the shell (tabs, pages, card
+chrome) are pinned at launch by `FeatureFlag.applyAtLaunch()`; the rest are read when their
+surface next opens. `RatingFeature.combinedEnabled` became a `var` the app writes at launch.
+
+### kino.pub HLS masters captured (2026-09-28)
+
+[docs/providers/kinopub/hls.md](docs/providers/kinopub/hls.md). `NAME` is built from the API row
+(`NN. type. author (LANG)`, or `Track N (LANG)` without a type), AVFoundation merges the
+per-quality copies itself, and the system menu names an option after `NAME` only in the
+viewer's own language. `AudioRenditions.sourceIndex` reads both shapes.
+
+### Stock Audio / Subtitles menus in the player (2026-09-28)
+
+The master rewrite (`HLSAudioLabeler` + `HLSMasterResourceLoader`) is behind
+`FeatureFlags.rewritesStreamTrackMenus`, **off**: the player opens the CDN's master as it is,
+and AVKit names the tracks. `TrackResolver` still picks the dub and subtitles and the ledger
+still learns from the system menu. `AudioRenditions.signature(for:apiTracks:)` is gone —
+`signature(forRenditionAt:in:apiTracks:naming:)` needs the whole menu, because pairing a CDN
+name with its API row (`01.` ↔ `index` 1, then language in listing order) is a property of the
+list, not of one option. The labeler's own copy of those rules is gone with it.
+
 ### Sasha craft: fill layout, focused caption, spacing (2026-09-20)
 
 Horizontal poster *shelves* use a compositional layout: item

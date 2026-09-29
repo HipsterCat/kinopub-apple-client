@@ -314,11 +314,12 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     configureSubtitles()
   }
 
-  /// Media masters route through `HLSMasterResourceLoader` so the Audio picker gets
-  /// real dub names; trailers, downloaded files and items without track metadata play
-  /// their URL directly.
+  /// With `FeatureFlags.rewritesStreamTrackMenus` on, media masters route through
+  /// `HLSMasterResourceLoader` so the Audio picker gets our dub names. Off — and always
+  /// for trailers and downloaded files — the player gets the URL as it is.
   private func playbackAsset(for source: URL) -> AVURLAsset {
-    guard watchMode == .media,
+    guard FeatureFlags.rewritesStreamTrackMenus,
+          watchMode == .media,
           let scheme = source.scheme?.lowercased(),
           scheme == "http" || scheme == "https",
           let masked = HLSMasterResourceLoader.maskedURL(for: source) else {
@@ -1067,9 +1068,11 @@ extension PlayerManager {
         self.trackPreferences.noteMenu(menu, in: self.trackScopes)
 
         let refreshed = self.refreshPlan(audioMenu: menu)
-        if let chosen = refreshed.decision.audio.flatMap({ self.option(for: $0, in: group) }) {
+        let chosen = refreshed.decision.audio.flatMap { self.option(for: $0, in: group) }
+        if let chosen {
           item.select(chosen, in: group)
         }
+        self.logAudioMenu(group, chosen: chosen, decision: refreshed.decision)
       }
 #if os(tvOS)
       // The transport-bar checkmarks are tvOS chrome; the selection above is not.
@@ -1078,15 +1081,25 @@ extension PlayerManager {
     }
   }
 
+  /// How the renditions in front of the player are named: ours when the master went
+  /// through the relabelling loader, the CDN's otherwise.
+  private var renditionNaming: AudioRenditions.Naming {
+    masterLoader == nil ? .asDelivered : .apiLabels
+  }
+
   /// Matching rules and their reasons live in `AudioRenditions`, where they are covered by
   /// tests that need no asset.
   private func option(for track: AudioTrackInfo,
                       in group: AVMediaSelectionGroup) -> AVMediaSelectionOption? {
-    AudioRenditions.rendition(for: track, in: group.options, apiTracks: playItem.audioTracks)
+    AudioRenditions.rendition(for: track, in: group.options, apiTracks: playItem.audioTracks,
+                              naming: renditionNaming)
   }
 
-  private func audioSignature(for option: AVMediaSelectionOption) -> AudioTrackSignature {
-    AudioRenditions.signature(for: option, apiTracks: playItem.audioTracks)
+  private func audioSignature(for option: AVMediaSelectionOption,
+                              in group: AVMediaSelectionGroup) -> AudioTrackSignature? {
+    guard let index = group.options.firstIndex(where: { $0 === option }) else { return nil }
+    return AudioRenditions.signature(forRenditionAt: index, in: group.options,
+                                     apiTracks: playItem.audioTracks, naming: renditionNaming)
   }
 
   /// The audio track showing right now, whether we auto-picked it or the user chose it in
@@ -1107,11 +1120,12 @@ extension PlayerManager {
   func persistAudioSelectionIfNeeded(at position: TimeInterval) {
     guard watchMode == .media,
           position >= WatchProgress.enterContinueWatchingSeconds,
-          let option = currentAudioOption else { return }
+          let option = currentAudioOption,
+          let group = audibleGroup else { return }
     let scopes = trackScopes
-    guard !scopes.isEmpty else { return }
-    let signature = audioSignature(for: option)
-    guard signature != recordedAudioSignature else { return }
+    guard !scopes.isEmpty,
+          let signature = audioSignature(for: option, in: group),
+          signature != recordedAudioSignature else { return }
     recordedAudioSignature = signature
     trackPreferences.recordAudio(signature, in: scopes)
   }
@@ -1137,6 +1151,46 @@ extension PlayerManager {
       Logger.app.debug("No rendition for the decided subtitle track; opening without subtitles")
     }
     item.select(index.map { group.options[$0] }, in: group)
+    logSubtitleMenu(group, chosenIndex: index)
+  }
+
+  // MARK: What the menus hold
+
+  /// Both menus as AVFoundation hands them over, one line per option — what the system
+  /// picker is built from, what each option paired with, and which one we selected. The
+  /// check for `FeatureFlags.rewritesStreamTrackMenus`: whether the CDN's master lists a
+  /// dub once per quality, and how AVKit names what the CDN wrote. `.public` because a
+  /// TestFlight build on a TV is where this gets read, and track names are not private.
+  private func logAudioMenu(_ group: AVMediaSelectionGroup,
+                            chosen: AVMediaSelectionOption?,
+                            decision: TrackDecision) {
+    let options = group.options
+    let paired = playItem.audioTracks.isEmpty
+      ? [AudioTrackInfo?](repeating: nil, count: options.count)
+      : AudioRenditions.pairing(options, apiTracks: playItem.audioTracks, naming: renditionNaming)
+    let naming = masterLoader == nil ? "as delivered" : "relabelled"
+    let picked = chosen.flatMap { option in options.firstIndex { $0 === option } }.map { "#\($0)" } ?? "none"
+    Logger.app.info(
+      "tracks · audio item=\(self.playItem.id) master=\(naming, privacy: .public) api=\(self.playItem.audioTracks.count) options=\(options.count) picked=\(picked, privacy: .public) reason=\(decision.audioReason.rawValue, privacy: .public)"
+    )
+    for (index, option) in options.enumerated() {
+      let row = paired[index].map(AudioTracks.baseLabel) ?? "—"
+      Logger.app.info(
+        "tracks · audio #\(index) name=\"\(option.kinopubTrackName, privacy: .public)\" display=\"\(option.displayName, privacy: .public)\" lang=\(option.renditionLanguageCode, privacy: .public) ↔ \(row, privacy: .public)"
+      )
+    }
+  }
+
+  private func logSubtitleMenu(_ group: AVMediaSelectionGroup, chosenIndex: Int?) {
+    let picked = chosenIndex.map { "#\($0)" } ?? "none"
+    Logger.app.info(
+      "tracks · subtitles item=\(self.playItem.id) api=\(self.subtitleTracks.count) options=\(group.options.count) picked=\(picked, privacy: .public) decided=\(self.primaryTrack?.displayName ?? "off", privacy: .public)"
+    )
+    for (index, option) in group.options.enumerated() {
+      Logger.app.info(
+        "tracks · subtitles #\(index) name=\"\(option.kinopubTrackName, privacy: .public)\" display=\"\(option.displayName, privacy: .public)\" lang=\(option.renditionLanguageCode, privacy: .public) forced=\(option.isForcedRendition) sdh=\(option.isCaptioningRendition)"
+      )
+    }
   }
 
   /// The subtitle showing now, written down the way a dub is.
