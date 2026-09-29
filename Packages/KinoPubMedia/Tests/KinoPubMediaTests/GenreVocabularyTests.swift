@@ -9,9 +9,9 @@ import XCTest
 
 final class GenreVocabularyTests: XCTestCase {
 
-  /// Every kino.pub id the table holds was read off a captured payload, next to the name
-  /// that payload printed. The two must land on the same genre — otherwise the table is
-  /// wrong, not the name.
+  /// Ids from captured item payloads, next to the name each payload printed: the id table
+  /// (from kino.pub's reference list) and the name must land on the same genre. The whole
+  /// reference list is checked in `KinoPubMediaMappingTests`.
   func testEveryConfirmedKinoPubIDAgreesWithTheNameItWasCapturedWith() {
     let captured: [(id: Int, title: String, domain: GenreDomain, expected: String)] = [
       (2, "Боевик", .video, "action"),
@@ -29,17 +29,17 @@ final class GenreVocabularyTests: XCTestCase {
     for row in captured {
       let byID = GenreVocabulary.kinopub(id: row.id, title: nil, domain: row.domain)
       let byName = GenreVocabulary.kinopub(id: -1, title: row.title, domain: row.domain)
-      XCTAssertEqual(byID.id, row.expected, "id \(row.id)")
-      XCTAssertEqual(byName.id, row.expected, "name \(row.title)")
+      XCTAssertEqual(byID?.id, row.expected, "id \(row.id)")
+      XCTAssertEqual(byName?.id, row.expected, "name \(row.title)")
     }
   }
 
   /// The ids `CatalogKind` already builds shelves on.
   func testTheCatalogKindGenreIDsAreKnown() {
-    XCTAssertEqual(GenreVocabulary.kinopub(id: 23, title: nil, domain: .video).id, "animation")
-    XCTAssertEqual(GenreVocabulary.kinopub(id: 25, title: nil, domain: .video).id, "anime")
-    XCTAssertEqual(GenreVocabulary.kinopub(id: 26, title: nil, domain: .video).id, "short")
-    XCTAssertEqual(GenreVocabulary.kinopub(id: 101, title: nil, domain: .video).id, "stand-up")
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 23, title: nil, domain: .video)?.id, "animation")
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 25, title: nil, domain: .video)?.id, "anime")
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 26, title: nil, domain: .video)?.id, "short")
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 101, title: nil, domain: .video)?.id, "stand-up")
   }
 
   /// The API answers in either language; one idea is one genre.
@@ -76,8 +76,9 @@ final class GenreVocabularyTests: XCTestCase {
   }
 
   /// A name nobody mapped yet still shows, under the source's own words, and says so.
-  func testAnUnknownGenreIsKeptAndMarked() {
-    let genre = GenreVocabulary.kinopub(id: 777, title: "Киберпанк", domain: .video)
+  func testAnUnknownGenreIsKeptAndMarked() throws {
+    let genre = try XCTUnwrap(GenreVocabulary.kinopub(id: 777, title: "Киберпанк",
+                                                      domain: .video))
     XCTAssertFalse(genre.isMapped)
     XCTAssertEqual(genre.id, "kinopub:777")
     XCTAssertEqual(genre.name.value(languageCode: "ru"), "Киберпанк")
@@ -114,6 +115,13 @@ final class GenreVocabularyTests: XCTestCase {
         owner[key] = genre.id
       }
     }
+  }
+
+  /// Each kino.pub set numbers its own genres, so one idea holds several ids.
+  func testOneIdeaAcrossKinoPubSets() {
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 3, title: nil, domain: .video)?.id, "biography")
+    XCTAssertEqual(GenreVocabulary.kinopub(id: 78, title: nil, domain: .video)?.id, "biography")
+    XCTAssertNil(GenreVocabulary.kinopub(id: 128, title: "Эксклюзив", domain: .video))
   }
 
   func testNoKinoPubIDIsClaimedTwice() {

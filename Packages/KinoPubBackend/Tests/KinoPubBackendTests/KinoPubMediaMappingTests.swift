@@ -47,7 +47,7 @@ final class KinoPubMediaMappingTests: XCTestCase {
   }
 
   private let comedy = TypeClass(id: 1, title: "Комедия", shortTitle: nil)
-  private let sport = TypeClass(id: 40, title: "Спорт", shortTitle: nil)
+  private let sport = TypeClass(id: 20, title: "Спорт", shortTitle: nil)
 
   // MARK: - Seven types, five shapes
 
@@ -103,13 +103,81 @@ final class KinoPubMediaMappingTests: XCTestCase {
     XCTAssertTrue(entity.genres.allSatisfy(\.isMapped))
   }
 
-  func testADocumentaryCarriesTheGenreItsTypeImplies() {
-    let history = TypeClass(id: 500, title: "История", shortTitle: nil)
+  /// Documentary leads a documentary, as Apple files it, and its subject follows.
+  func testADocumentaryLeadsWithDocumentary() {
+    let history = TypeClass(id: 51, title: "История", shortTitle: nil)
     XCTAssertEqual(KinoPubMediaMapping.genres([history], type: "documovie").map(\.id),
-                   ["history", "documentary"])
-    let documentary = TypeClass(id: 501, title: "Документальный", shortTitle: nil)
-    XCTAssertEqual(KinoPubMediaMapping.genres([documentary, history], type: "docuserial")
+                   ["documentary", "history"])
+    // Filed under Documentary explicitly, and not first: it still leads, once.
+    let documentary = TypeClass(id: 24, title: "Документальный", shortTitle: nil)
+    XCTAssertEqual(KinoPubMediaMapping.genres([history, documentary], type: "docuserial")
       .map(\.id), ["documentary", "history"])
+  }
+
+  /// "Эксклюзив" says who carries the copy, not what the work is.
+  func testExclusiveIsNotAGenre() {
+    let exclusive = TypeClass(id: 133, title: "Эксклюзив", shortTitle: nil)
+    let nature = TypeClass(id: 73, title: "Природа", shortTitle: nil)
+    XCTAssertEqual(KinoPubMediaMapping.genres([exclusive, nature], type: "documovie")
+      .map(\.id), ["documentary", "nature"])
+    XCTAssertTrue(KinoPubMediaMapping.genres([TypeClass(id: 128, title: "Эксклюзив",
+                                                        shortTitle: nil)], type: "movie")
+      .isEmpty)
+  }
+
+  // MARK: - kino.pub's own reference list
+
+  private struct Config: Decodable {
+    struct Filter: Decodable {
+      struct TypeRow: Decodable { let id: String; let genres: String }
+      struct GenreRow: Decodable { let id: Int; let title: String }
+      let types: [TypeRow]
+      let genres: [String: [GenreRow]]
+    }
+    let filter: Filter
+  }
+
+  private func config() throws -> Config {
+    let url = try XCTUnwrap(Bundle.module.url(forResource: "kinopub_config",
+                                              withExtension: "json",
+                                              subdirectory: "Fixtures"))
+    return try JSONDecoder().decode(Config.self, from: Data(contentsOf: url))
+  }
+
+  /// `kpapp.link/config.json` v2.12.7, verbatim: **every** genre id kino.pub has lands on a
+  /// genre of ours, in the right vocabulary, and no two ids of one set collapse into one
+  /// genre — each set keeps its own distinctions.
+  func testEveryKinoPubGenreIsMapped() throws {
+    let sets = try config().filter.genres
+    XCTAssertEqual(Set(sets.keys), ["movie", "docu", "tvshow", "music"])
+    for (set, rows) in sets {
+      let domain: GenreDomain = set == "music" ? .music : .video
+      var seen: [String: String] = [:]
+      for row in rows {
+        if GenreVocabulary.kinopubNonGenres.contains(row.id) {
+          XCTAssertNil(GenreVocabulary.kinopub(id: row.id, title: row.title, domain: domain))
+          continue
+        }
+        guard let genre = GenreVocabulary.kinopub(id: row.id, title: nil, domain: domain) else {
+          XCTFail("\(set) \(row.id) \(row.title) has no genre")
+          continue
+        }
+        XCTAssertTrue(genre.isMapped, "\(set) \(row.id) \(row.title)")
+        XCTAssertEqual(genre.domain, domain, "\(set) \(row.id) \(row.title)")
+        if let other = seen[genre.id] {
+          XCTFail("\(set): \(other) and \(row.title) are both \(genre.id)")
+        }
+        seen[genre.id] = row.title
+      }
+    }
+  }
+
+  /// The type → genre-set table in the same file is the one `typeMapping` follows.
+  func testEachTypeLooksUpItsOwnGenreSet() throws {
+    for row in try config().filter.types {
+      let domain = KinoPubMediaMapping.typeMapping(row.id).genreDomain
+      XCTAssertEqual(domain, row.genres == "music" ? .music : .video, row.id)
+    }
   }
 
   // MARK: - The title

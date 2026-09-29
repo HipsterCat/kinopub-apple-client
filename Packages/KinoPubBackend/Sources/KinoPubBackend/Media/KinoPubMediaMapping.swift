@@ -21,42 +21,61 @@ public enum KinoPubMediaMapping {
     public let genreDomain: GenreDomain
     /// The genre the type itself stands for.
     public let impliedGenre: Genre?
+    /// Whether that genre leads the list or follows it. Documentary leads, as Apple files
+    /// it; Concert follows, so a concert's one word is its music.
+    public let impliedGenreLeads: Bool
+
+    init(kind: MediaKind, genreDomain: GenreDomain, impliedGenre: Genre? = nil,
+         impliedGenreLeads: Bool = false) {
+      self.kind = kind
+      self.genreDomain = genreDomain
+      self.impliedGenre = impliedGenre
+      self.impliedGenreLeads = impliedGenreLeads
+    }
   }
 
   public static func typeMapping(_ type: String, hasSeasons: Bool = false) -> TypeMapping {
     switch type.lowercased() {
     case "movie", "3d":
-      return TypeMapping(kind: .movie, genreDomain: .video, impliedGenre: nil)
+      return TypeMapping(kind: .movie, genreDomain: .video)
     case "serial", "tvshow":
-      return TypeMapping(kind: .show, genreDomain: .video, impliedGenre: nil)
+      return TypeMapping(kind: .show, genreDomain: .video)
     case "documovie":
       return TypeMapping(kind: .movie, genreDomain: .video,
-                         impliedGenre: GenreVocabulary.genre(id: "documentary"))
+                         impliedGenre: GenreVocabulary.genre(id: "documentary"),
+                         impliedGenreLeads: true)
     case "docuserial":
       return TypeMapping(kind: .show, genreDomain: .video,
-                         impliedGenre: GenreVocabulary.genre(id: "documentary"))
+                         impliedGenre: GenreVocabulary.genre(id: "documentary"),
+                         impliedGenreLeads: true)
     case "concert":
       return TypeMapping(kind: .movie, genreDomain: .music,
                          impliedGenre: GenreVocabulary.genre(id: "concert"))
     default:
-      return TypeMapping(kind: hasSeasons ? .show : .movie, genreDomain: .video,
-                         impliedGenre: nil)
+      return TypeMapping(kind: hasSeasons ? .show : .movie, genreDomain: .video)
     }
   }
 
   /// A title's genres in our vocabulary, **in kino.pub's order** — its first is the
-  /// primary genre. The genre the type implies goes last when the list does not already
-  /// carry it: a concert filed under Electronic leads with Electronic.
+  /// primary genre — minus the ids that are not genres ("Эксклюзив"). The genre the type
+  /// implies leads for documentaries (Documentary, as Apple files them) and follows for
+  /// concerts (a concert filed under Electronic leads with Electronic).
   public static func genres(_ genres: [TypeClass], type: String) -> [Genre] {
     let mapping = typeMapping(type)
     var result: [Genre] = []
     for genre in genres {
-      let mapped = GenreVocabulary.kinopub(id: genre.id, title: genre.title,
-                                           domain: mapping.genreDomain)
-      if !result.contains(mapped) { result.append(mapped) }
+      guard let mapped = GenreVocabulary.kinopub(id: genre.id, title: genre.title,
+                                                 domain: mapping.genreDomain),
+            !result.contains(mapped) else { continue }
+      result.append(mapped)
     }
-    if let implied = mapping.impliedGenre, !result.contains(implied) {
-      result.append(implied)
+    if let implied = mapping.impliedGenre {
+      result.removeAll { $0 == implied }
+      if mapping.impliedGenreLeads {
+        result.insert(implied, at: 0)
+      } else {
+        result.append(implied)
+      }
     }
     return result
   }

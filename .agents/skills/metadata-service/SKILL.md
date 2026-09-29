@@ -310,8 +310,12 @@ format of one platform's copy. kino.pub's seven types map through
 and music (concerts). An entity's `genres` is **ordered and its first is the primary genre** — one
 field, as Apple has it; the aggregator takes one source's list whole rather than splicing two. An
 unknown genre is kept under `<source>:<key>` and logged (`unmappedGenres=` in the player log), never
-dropped. kino.pub ids in the table are only the ones seen in captured payloads; the full list is
-`kpapp.link/config.json` → `filter.genres` (ROADMAP stage 4).
+dropped. The `kinopub` column is kino.pub's whole reference list — `kpapp.link/config.json` →
+`filter.genres` v2.12.7, kept verbatim as `KinoPubBackendTests/Fixtures/kinopub_config.json`, with a
+test that maps every id. Its four sets (`movie` / `docu` / `tvshow` / `music`) number their own
+genres, so one idea holds several ids (Биография: 3 and 78), and the documentary subjects and TV
+formats kino.pub distinguishes stay distinct genres of ours rather than collapsing into Apple's
+coarser tree. "Эксклюзив" (128, 133) is not a genre (`kinopubNonGenres`).
 
 **Scores** (`Score`, per provider, with scale and votes) sit side by side on every entity — title,
 season, episode — never averaged and never inherited. `contentRating` is the age rating, a different

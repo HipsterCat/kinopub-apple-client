@@ -297,10 +297,13 @@ Media
       `api2/v1.1` branch, wired best-effort, never seen answering. The log line is `item collections`
 - [ ] Confirm `genre=5,23,101` really is OR (the vendor docs say nothing about it). The floor falls
       back to one genre when it answers empty; the log line is `genre floor`
-- [ ] Fold `filter.genres` from `kpapp.link/config.json` into the app so the profile matches genre
-      **ids** instead of RU/EN title strings — and so genre pickers stop needing a request. The
-      ids land as the `kinopub` column of `GenreVocabulary` (KinoPubMedia), which today holds
-      only the ids seen in captured payloads
+- [x] `filter.genres` from `kpapp.link/config.json` folded in: every id of the four sets is the
+      `kinopub` column of `GenreVocabulary` (KinoPubMedia); the file is a test fixture
+- [ ] Genre pickers read `GenreVocabulary` instead of `GET /v1/genres`, with our RU/EN names
+      (Localizable when a third language comes)
+- [ ] An Apple column in `GenreVocabulary`: iTunes Store genre ids/names per genre, from the
+      store's genres endpoint (`MZStoreServices.woa/ws/genres`) — unreachable from the
+      2026-09-28 session, so nothing Apple-specific is in the table yet
 - [ ] `MediaPresentationProfile` reads the media model's genres and shapes instead of kino.pub's
       `type` string and genre-title words — anime, cartoon, stand-up and documentary are
       `GenreVocabulary` ids there

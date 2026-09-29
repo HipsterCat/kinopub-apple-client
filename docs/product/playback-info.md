@@ -34,6 +34,12 @@ and Sport. The primary genre is the first of the title's genres (`MediaEntity.ge
 **prd — A concert leads with its music genre.** A concert's genres are music genres (Electronic,
 Trance…); *Concert* is filed after them, so it is never the one word shown.
 
+**prd — A documentary leads with Documentary**, as Apple files it; its subject (History, Nature…)
+follows. (User's call, 2026-09-29.)
+
+**prd — "Эксклюзив" is not a genre.** kino.pub lists it among genres (128, 133); it says who
+carries the copy, not what the work is, and is dropped from genres — a badge candidate.
+
 **prd — An episode is its own cover.** The artwork for an episode is **its own still**; the season's
 poster, then the show's, only stand in when it has none. (Until 2026-09-28 the series poster always
 won — reversed on the user's call.)
@@ -66,14 +72,11 @@ panel.
 | Episode | show | Season N, Episode M: name | episode → season → show | show's primary | still → season poster → show poster |
 | Trailer | film/show | Trailer | film/show | film/show's primary | trailer frame → film poster |
 | Concert | concert | — | concert | first music genre | poster |
-| Documentary | film/show | as above | as above | first of its genres | as above |
+| Documentary | film/show | as above | as above | Documentary | as above |
 | Download | saved name | — | title, if still cached | title's, if cached | saved poster |
 
 ## Not decided
 
-- **idea — a documentary's primary genre.** Apple leads documentaries with *Documentary*; we keep
-  kino.pub's order and file *Documentary* after the subject genres, so a documentary about history
-  may read *History*. Flip it in `KinoPubMediaMapping.genres` if the user wants Apple's way.
 - **idea — an episode's date falls back to its show's first year.** Kept from the old panel; a
   season 5 episode then shows the show's premiere year when neither TMDB nor kino.pub dated it.
 - **Where `commonIdentifierCreationDate` shows at all.** Not in Apple's documented set.

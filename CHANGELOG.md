@@ -5,6 +5,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### kino.pub's full genre list in the media model; Documentary leads (2026-09-29)
+
+`GenreVocabulary`'s `kinopub` column is now kino.pub's whole reference list
+(`kpapp.link/config.json` v2.12.7 → `filter.genres`, all four sets), kept verbatim as
+`KinoPubBackendTests/Fixtures/kinopub_config.json` and tested id by id. kino.pub ids decide; names
+only rescue an unknown id. New genres for the documentary subjects and TV formats kino.pub files
+(space, universe, survival, quiz, entertainment, …) and its music set; genres no source listed
+(ambient, techno, punk, …) are gone. `GenreVocabulary.kinopub` returns nil for "Эксклюзив"
+(128, 133): a badge, not a genre. Documentaries lead with Documentary
+(`TypeMapping.impliedGenreLeads`); concerts still lead with their music.
+
 ### The media model: `KinoPubMedia`, and the player's info panel on it (2026-09-28)
 
 New package `Packages/KinoPubMedia` — our provider-neutral model in Apple's vocabulary: shapes
