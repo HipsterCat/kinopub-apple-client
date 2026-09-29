@@ -70,8 +70,10 @@ struct RootView: View {
       ZStack {
         Color.KinoPub.background.ignoresSafeArea()
         VStack(spacing: 16) {
-          ProgressView()
-          LaunchStatusLabel()
+             ProgressView(label: {
+                 Text("Signing in")
+             })
+//          LaunchStatusLabel()
         }
       }
 #if os(macOS)
@@ -146,9 +148,9 @@ struct RootView_Previews: PreviewProvider {
   ZStack {
     Color.KinoPub.background.ignoresSafeArea()
     VStack(spacing: 16) {
-      ProgressView()
-      LaunchStatusLabel()
-    }
+         ProgressView(label: {
+             Text("Signing in")
+         })    }
   }
   .task {
     _ = NetworkActivity.begin(nameKey: "Activity_Session", detail: "/v1/user")
