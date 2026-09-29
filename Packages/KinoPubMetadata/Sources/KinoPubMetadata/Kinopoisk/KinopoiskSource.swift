@@ -165,7 +165,7 @@ public final class KinopoiskSource: MetadataSource, @unchecked Sendable {
     }
     let debug = debugEntry(endpoint: "details", path: path, query: [], entry: entry)
     guard let entry, !entry.isNegative else { return (nil, debug) }
-    return (try? await client.decode(KinopoiskFilmDetails.self, from: entry.payload), debug)
+    return (try? client.decode(KinopoiskFilmDetails.self, from: entry.payload), debug)
   }
 
   private func fetchStaff(filmId: Int) async -> ([KinopoiskStaffMember]?, SourceDebugEntry) {
@@ -177,7 +177,7 @@ public final class KinopoiskSource: MetadataSource, @unchecked Sendable {
     }
     let debug = debugEntry(endpoint: "staff", path: path, query: query, entry: entry)
     guard let entry, !entry.isNegative else { return (nil, debug) }
-    return (try? await client.decode([KinopoiskStaffMember].self, from: entry.payload), debug)
+    return (try? client.decode([KinopoiskStaffMember].self, from: entry.payload), debug)
   }
 
   private func fetchAwards(filmId: Int) async -> (KinopoiskAwardsResponse?, SourceDebugEntry) {
@@ -188,7 +188,7 @@ public final class KinopoiskSource: MetadataSource, @unchecked Sendable {
     }
     let debug = debugEntry(endpoint: "awards", path: path, query: [], entry: entry)
     guard let entry, !entry.isNegative else { return (nil, debug) }
-    return (try? await client.decode(KinopoiskAwardsResponse.self, from: entry.payload), debug)
+    return (try? client.decode(KinopoiskAwardsResponse.self, from: entry.payload), debug)
   }
 
   private func fetchImages(filmId: Int) async -> (KinopoiskImagesResponse?, SourceDebugEntry) {
@@ -200,7 +200,7 @@ public final class KinopoiskSource: MetadataSource, @unchecked Sendable {
     }
     let debug = debugEntry(endpoint: "images", path: path, query: query, entry: entry)
     guard let entry, !entry.isNegative else { return (nil, debug) }
-    return (try? await client.decode(KinopoiskImagesResponse.self, from: entry.payload), debug)
+    return (try? client.decode(KinopoiskImagesResponse.self, from: entry.payload), debug)
   }
 
   private func fetchFacts(filmId: Int) async -> (KinopoiskFactsResponse?, SourceDebugEntry) {
@@ -211,7 +211,7 @@ public final class KinopoiskSource: MetadataSource, @unchecked Sendable {
     }
     let debug = debugEntry(endpoint: "facts", path: path, query: [], entry: entry)
     guard let entry, !entry.isNegative else { return (nil, debug) }
-    return (try? await client.decode(KinopoiskFactsResponse.self, from: entry.payload), debug)
+    return (try? client.decode(KinopoiskFactsResponse.self, from: entry.payload), debug)
   }
 
   /// Shared fetch-decode-validate-cache step every endpoint above uses.
@@ -222,7 +222,7 @@ public final class KinopoiskSource: MetadataSource, @unchecked Sendable {
     do {
       let url = try makeURL(path: path, query: query)
       let data = try await client.getData(url: url, headers: ["X-API-KEY": key])
-      _ = try await client.decode(T.self, from: data) // validate before caching
+      _ = try client.decode(T.self, from: data) // validate before caching
       return MetadataCache.Entry(payload: data)
     } catch MetadataError.httpStatus(404) {
       return MetadataCache.Entry(payload: Data(), isNegative: true)
