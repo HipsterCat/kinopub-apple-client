@@ -5,6 +5,27 @@ movie, 13 dubs) and 127393 (*Трудно быть богом*, series, S1E1), 2
 half was read on **macOS 27.2** with a probe that loads the master and prints both media
 selection groups; tvOS has not been checked the same way yet.
 
+## Four stream types, and we play one
+
+Every `files[]` row carries four links; kino.pub's device setting `streamingType` (device.md)
+says which one a client is meant to use. We — and upstream's `BestVideoQualityFinder`, and the
+community fork (checked 2026-09-29) — hard-code `hls4`. What AVFoundation sees in each, for
+127393 and 126352:
+
+| Link | What it is | Audio options | Subtitle options |
+| --- | --- | --- | --- |
+| `http` | progressive MP4 | — | — |
+| `hls` | CDN packager, one quality, `…/master-v1a1.m3u8` | **1**, muxed, `Unknown` / `Язык не указан` | CC only |
+| `hls2` | `api…/manifest/hls2/<mid>.m3u8`, three qualities | **1**, muxed, `Unknown` | CC only |
+| `hls4` | `api…/manifest/hls4/<mid>.m3u8`, three qualities | **one per API row**, as below | the master's own list |
+
+- In `hls` the audio is chosen **by the link**: `master-v1a2.m3u8` … `a4` all answer 200 with
+  their own `index-v1-aN` playlist. A client on `hls` / `hls2` picks the dub outside the player
+  and the system menu shows a single `Язык не указан` — which is what kino.pub's own TVML app
+  shows (not verified in their code; matches the screen).
+- `hls` / `hls2` carry the **first** row's audio (`index` 1) and no subtitle renditions, even on a
+  title with 13 dubs and 5 subtitle tracks.
+
 ## What the master carries
 
 ```
@@ -53,6 +74,11 @@ One track in several codecs is **several rows**. 127393 S1E1 has one Russian tra
 
 - **Per-quality copies merge into one option.** 126352 → 13 audio options, 127393 → 3. The
   collapse `HLSAudioLabeler` performs is not needed for this.
+- **A track in two codecs stays two options.** AVFoundation picks a codec by itself only when the
+  same rendition (same `NAME`) sits in one group per codec and each variant's `CODECS` says which.
+  `hls4` puts the AAC and AC-3 rows in the *same* group under different names, and `CODECS` lists
+  only AAC — so to the player they are different tracks. That is how one Russian soundtrack in
+  127393 becomes three menu rows in every client that plays `hls4` untouched.
 - The legible group also offers **CC** (`transcribes-spoken-dialog`, `describes-music-and-sound`)
   with no `NAME` — the variants declare no `CLOSED-CAPTIONS`, so in-band captions are advertised.
 - **How an audio option is named** — `displayName(with:)`, which is what the system menu shows:
