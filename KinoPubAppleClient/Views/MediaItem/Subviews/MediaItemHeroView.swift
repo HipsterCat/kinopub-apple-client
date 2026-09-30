@@ -227,7 +227,7 @@ struct MediaItemOverflowMenu: View {
   var onBrowseWatchlist: (() -> Void)?
 
   var body: some View {
-    Button(role: .destructive, action: onClearFromContinueWatching) {
+    Button(action: onClearFromContinueWatching) {
       Label("Remove from Recently Watched", systemImage: "trash")
     }
 
@@ -461,7 +461,7 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var fullScreenTrailer: some View {
     ZStack {
-      Color.black.ignoresSafeArea()
+//      Color.black.ignoresSafeArea()
       if let player = trailer.player {
         TrailerVideoLayer(player: player, gravity: .resizeAspect)
           .ignoresSafeArea()
@@ -533,14 +533,14 @@ struct MediaItemHeroView: View {
       scrollingBackdrop
       scrollingScrim
     }
-    .containerRelativeFrame(.vertical, alignment: .top)
+//    .containerRelativeFrame(.vertical, alignment: .top)
     .mask {
       // The picture's own alpha goes to zero, so whatever the page is drawn on shows
       // through: no second colour to match, in light or dark.
       LinearGradient(stops: [
         .init(color: .black, location: 0),
-        .init(color: .black, location: 0.72),
-        .init(color: .clear, location: 1)
+        .init(color: .black, location: 0.5),
+        .init(color: .black, location: 1)
       ], startPoint: .top, endPoint: .bottom)
     }
   }
@@ -549,7 +549,7 @@ struct MediaItemHeroView: View {
   /// colours, which are dark in light mode, and a black scrim under dark text is what
   /// made the light theme unreadable. Only the tone flips; the geometry is the same.
   private var scrimTone: Color {
-    colorScheme == .dark ? .black : .white
+    colorScheme == .dark ? .black : .black
   }
 
   /// Where our text is, and nowhere else: the chrome runs the whole bottom edge (title
@@ -562,21 +562,21 @@ struct MediaItemHeroView: View {
       scrimTone.opacity(0.08)
 
       LinearGradient(stops: [
-        .init(color: .clear, location: 0.25),
-        .init(color: scrimTone.opacity(0.35), location: 0.45),
-        .init(color: scrimTone.opacity(0.6), location: 0.7),
-        .init(color: scrimTone.opacity(0.6), location: 1)
+          .init(color: .clear, location: 0.4),
+        .init(color: scrimTone.opacity(0.15), location: 0.6),
+        .init(color: scrimTone.opacity(0.35), location: 0.9),
+        .init(color: scrimTone.opacity(0.4), location: 1)
       ], startPoint: .top, endPoint: .bottom)
 
       LinearGradient(stops: [
-        .init(color: scrimTone.opacity(0.45), location: 0),
-        .init(color: .clear, location: 0.45)
-      ], startPoint: .leading, endPoint: .trailing)
+        .init(color: scrimTone.opacity(0.3), location: 0),
+        .init(color: .clear, location: 0.3)
+      ], startPoint: .top, endPoint: .bottom)
       .mask {
         LinearGradient(stops: [
-          .init(color: .clear, location: 0.2),
-          .init(color: .black, location: 0.45)
-        ], startPoint: .top, endPoint: .bottom)
+          .init(color: .clear, location: 0),
+          .init(color: .black, location: 1)
+        ], startPoint: .bottom, endPoint: .top)
       }
     }
   }
@@ -618,36 +618,37 @@ struct MediaItemHeroView: View {
     .padding(.bottom, Self.bottomInset)
     .frame(maxWidth: .infinity, alignment: .leading)
 #else
-    HStack(alignment: .bottom, spacing: Self.columnGutter) {
+    VStack(alignment: .leading, spacing: Self.columnGutter) {
       // Fixed, not proportional: the title block and the action stack are a known
       // size, and letting them share the width evenly with the prose left the
       // synopsis in a narrow ravine on a wide window.
-      leadingColumn
-        .frame(width: Self.leadingWidth, alignment: .leading)
-
+         titleBlock
+               Spacer()
       detailColumn
-        .frame(maxWidth: .infinity, alignment: .leading)
+         actions
+//         leadingColumn
+//           .frame(width: Self.leadingWidth, alignment: .leading)
     }
-    .padding(.horizontal, Self.horizontalInset)
-    .padding(.bottom, Self.bottomInset)
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(Self.horizontalInset)
+//    .padding(.vertical, Self.bottomInset)
+    .frame(maxWidth: .infinity,  maxHeight: .infinity, alignment: .leading)
 #endif
   }
 
   /// Logo / title, then the action stack — left column on wide layouts. The metadata
   /// row moved across to head the written column, the way the reference layout has it.
   private var leadingColumn: some View {
-    VStack(alignment: .leading, spacing: Self.contentSpacing) {
+       VStack(alignment: .leading) {
       // Shadowed on its own, with the actions left out of it: the buttons carry their
       // own material, and a drop shadow under one that scales on focus is an extra
       // offscreen pass on every frame of the animation.
       titleBlock
+            Spacer()
 //        .heroTextShadow()
 
       // Actions sit with the title so Up from Play is a dead end → fullscreen trailer.
       // Everything written is the sibling column (or below on phone), not above the row.
-      actions
-        .padding(.top, Self.actionsGap)
+//        .padding(.top, 80)
     }
   }
 
@@ -655,11 +656,13 @@ struct MediaItemHeroView: View {
   /// what the film is about — year, genres and the score are what they check after,
   /// so they sit at the foot of the column rather than heading it.
   private var detailColumn: some View {
-    VStack(alignment: .leading, spacing: Self.contentSpacing) {
+       VStack(alignment: .leading, spacing: Self.contentSpacing*1.75) {
       MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus,
                         acceptsFocus: plotAcceptsFocus)
-      credits
-      metadata
+         VStack(alignment: .leading, spacing: Self.contentSpacing) {
+              credits
+              metadata
+         }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
 #if os(tvOS)
@@ -707,21 +710,20 @@ struct MediaItemHeroView: View {
   }
 
   private var titleTextBlock: some View {
-    VStack(alignment: .leading, spacing: Self.contentSpacing) {
-      // Above the localized title, as an eyebrow: it is the same title, not a second
-      // piece of information, so it leads into the big one rather than trailing it.
-      if mediaItem.originalTitle != mediaItem.localizedTitle {
-        Text(mediaItem.originalTitle)
-          .font(Self.secondaryFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
-          .lineLimit(1)
-      }
-
-      Text(mediaItem.localizedTitle)
-        .font(Self.titleFont)
-        .foregroundStyle(Color.KinoPub.text)
-        .lineLimit(2)
-    }
+       VStack(alignment: .leading, spacing: Self.contentSpacing) {
+            // Above the localized title, as an eyebrow: it is the same title, not a second
+            // piece of information, so it leads into the big one rather than trailing it.
+            Text(mediaItem.localizedTitle)
+                 .font(Self.titleFont)
+                 .foregroundStyle(Color.KinoPub.text)
+                 .lineLimit(4)
+            
+            if mediaItem.originalTitle != mediaItem.localizedTitle {
+                 Text(mediaItem.originalTitle)
+                      .font(Self.secondaryFont)
+                      .foregroundStyle(Color.KinoPub.subtitle)
+                      .lineLimit(1)
+            }}
   }
 
   /// Heads the written column: the score, when and how long, then the capability
@@ -729,6 +731,17 @@ struct MediaItemHeroView: View {
   /// scores the same wherever it is shown, so it should not be spelled two ways.
   private var metadata: some View {
     HStack(spacing: Self.metaSpacing) {
+         let releaseLine = mediaItem.releaseLine
+         if !releaseLine.isEmpty {
+           Text(releaseLine)
+             .lineLimit(1)
+         }
+         if !genreCountryLine.isEmpty {
+           Text(genreCountryLine)
+             .foregroundStyle(Color.KinoPub.subtitle)
+         }
+         
+
       if FeatureFlags.combinedRatingEnabled {
         if let rating = MediaScores(mediaItem).aggregate {
           RatingBadgeView(rating: rating)
@@ -738,11 +751,6 @@ struct MediaItemHeroView: View {
         MediaScoresView(MediaScores(mediaItem))
       }
 
-      let releaseLine = mediaItem.releaseLine
-      if !releaseLine.isEmpty {
-        Text(releaseLine)
-          .lineLimit(1)
-      }
 
       // Certification only when it was asked for — see `MediaItemDisplayPreferences`.
       let badges = MediaCapabilityBadges.from(item: mediaItem,
@@ -761,12 +769,7 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var credits: some View {
     if !genreCountryLine.isEmpty || showsCreditNames {
-      VStack(alignment: .leading, spacing: Self.creditLineSpacing) {
-        if !genreCountryLine.isEmpty {
-          Text(genreCountryLine)
-            .foregroundStyle(Color.KinoPub.subtitle)
-        }
-
+      HStack(alignment: .bottom, spacing: Self.creditLineSpacing) {
         if showsCreditNames {
           ForEach(creditLines, id: \.role) { line in
             Text(creditLine(line))
@@ -776,7 +779,7 @@ struct MediaItemHeroView: View {
       .font(Self.secondaryFont)
       .multilineTextAlignment(.leading)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .fixedSize(horizontal: false, vertical: true)
+//      .fixedSize(horizontal: false, vertical: true)
     }
   }
 
@@ -828,7 +831,7 @@ struct MediaItemHeroView: View {
       ? Array(mediaItem.castMembers.prefix(Self.creditNameLimit))
       : []
     if !cast.isEmpty {
-      lines.append(("Starring", cast.joined(separator: ", ")))
+         lines.append(("Starring.short".localized, cast.joined(separator: ",  ")))
     }
     if !isSeries {
       let directors = mediaItem.directorNames.prefix(Self.creditNameLimit)
@@ -845,7 +848,7 @@ struct MediaItemHeroView: View {
   /// Primary on its own row, secondaries as one row of identical circles underneath —
   /// the shape the reference layout uses. Nothing here competes with Play for width.
   private var actions: some View {
-    VStack(alignment: .leading, spacing: Self.actionsRowGap) {
+    HStack(alignment: .center, spacing: Self.actionsRowGap) {
       primaryAction
 #if os(tvOS)
         // Dead-end Up opens the trailer; Down lands on the circles, then scrolls on
@@ -943,14 +946,14 @@ struct MediaItemHeroView: View {
       } label: {
         watchedGlyph
       }
-      .mediaActionCircleStyle()
+      .mediaActionPillStyle()
       .focused($focus, equals: .watched)
       .accessibilityLabel("Mark as Watched")
     } else {
       Button(action: onWatchedToggle) {
         watchedGlyph
       }
-      .mediaActionPillStyle()
+      .mediaActionCircleStyle()
       .focused($focus, equals: .watched)
       .accessibilityLabel("Mark as Watched")
     }
@@ -995,7 +998,7 @@ struct MediaItemHeroView: View {
 
 //        .font(.system(size: MediaActionMetrics.circleIconPointSize, weight: .bold))
     }
-    .mediaActionPillStyle()
+    .mediaActionCircleStyle()
     .focused($focus, equals: .more)
     .accessibilityLabel("More")
   }
@@ -1104,7 +1107,7 @@ struct MediaItemHeroView: View {
     }
     // On the label, not the button: the system styles hug their content, and a bare
     // "Play" next to a labelled Trailer would otherwise be the narrower of the two.
-    .frame(minWidth: MediaActionMetrics.playPillMinWidth)
+//    .frame(minWidth: MediaActionMetrics.playPillMinWidth)
   }
 
   /// For a series, play the first episode that still has something left; the rail
@@ -1164,18 +1167,18 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
   // Unused for layout — the slideshow slide sizes the hero. Kept so shared metrics
   // below stay in one `#if` block.
-  static let heroHeight: CGFloat = 1080
+  static let heroHeight: CGFloat = 1280
   static let horizontalInset: CGFloat = 80
-  static let bottomInset: CGFloat = 60
+  static let bottomInset: CGFloat = 80
   static let contentSpacing: CGFloat = 12
-  static let leadingWidth: CGFloat = 640
+ static let leadingWidth: CGFloat = .infinity
   static let logoMaxWidth: CGFloat = 640
   static let logoMaxHeight: CGFloat = 220
   static let titleFont: Font = TypeScale.heroTitle
   static let metaSpacing: CGFloat = 20
   static let actionsGap: CGFloat = 20
   static let actionsRowGap: CGFloat = 16
-  static let creditLineSpacing: CGFloat = 4
+  static let creditLineSpacing: CGFloat = 8
   static let columnGutter: CGFloat = 48
 #elseif os(macOS)
   /// Preview / fallback only — live layout uses `.aspectRatio(16/9)`.
@@ -1246,8 +1249,8 @@ private struct MediaItemHeroPreview: View {
       titleLogoURL: nil
     )
     .environment(navigationState)
-    .aspectRatio(16 / 9, contentMode: .fit)
-    .frame(maxWidth: 960)
+//    .aspectRatio(16 / 9, contentMode: .fit)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
 //    .background(Color.black)
     // .preferredColorScheme(.dark)
   }
