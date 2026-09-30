@@ -148,7 +148,158 @@ public struct MediaActionProgressTrack: View {
 
 #Preview("Action chrome") {
      VStack(alignment: .leading, spacing: 44) {
-          HStack(spacing: MediaActionMetrics.rowSpacing) {
+          LazyHStack(spacing: MediaActionMetrics.rowSpacing) {
+               Button {} label: {
+                    HStack(spacing: MediaActionMetrics.contentSpacing) {
+                         Image(systemName: "play.fill")
+                         MediaActionProgressTrack(progress: 0.35)
+                         Text("34 мин")
+                              .font(MediaActionMetrics.labelFont)
+                    }
+               }
+               .mediaActionPlayPillStyle()
+               
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "checkmark")
+               //               }.mediaActionCircleStyle() // Mark as Watched, only visible on in progress/unwatched items. Spinner until success, button disappears animated scale down when marked, updates play button state and shows toast on success
+               
+               
+               
+               //               Button {} label: {
+               //                    Label("Просмотрено", systemImage: "checkmark")
+               //                         .font(MediaActionMetrics.labelFont)
+               //               }.mediaActionPillStyle() // Mark as Watched, only visible on in progress/unwatched items. Spinner until success, button disappears animated scale down when marked, updates play button state and shows toast on success
+               
+               
+               
+               //               Button {} label: {
+               //                    Label("Random", systemImage: "shuffle")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }.mediaActionPillStyle()
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "arrow.trianglehead.counterclockwise")
+               //               }.mediaActionCircleStyle()
+
+               
+               Button {} label: {
+                    Label("Просмотрено", systemImage: "checkmark")
+                         .font(MediaActionMetrics.labelFont)
+               }.mediaActionPillStyle() // Mark as Watched, only visible on in progress/unwatched items. Spinner until success, button disappears animated scale down when marked, updates play button state and shows toast on success
+               // Long press for more options - "Серия 4", "2 сезон", "Все серии"
+               
+               Button {} label: {
+                    Label("Трейлер", systemImage: "play.fill")
+                         .font(MediaActionMetrics.labelFont)
+                    //                    .padding(.horizontal, 2)
+               }
+               //    .buttonStyle(.glass)
+               .mediaActionPillStyle()
+               
+//               Button {} label: {
+//                    Label("Трейлер", systemImage: "video.fill")
+//                         .font(MediaActionMetrics.labelFont)
+//                    //                    .padding(.horizontal, 2)
+//               }
+//               //    .buttonStyle(.glass)
+//               .mediaActionPillStyle()
+               
+               
+//               Button {} label: {
+//                    Label("Выбрать серию", systemImage: "rectangle.on.rectangle")
+//                         .font(MediaActionMetrics.labelFont)
+//               }.mediaActionPillStyle() // Выбрать сезон
+               
+
+               
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "video.fill")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionCircleStyle()
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "info")
+               //               }.mediaActionCircleStyle()
+               
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "checkmark")
+               //               }.mediaActionCircleStyle() // Mark as Watched, only visible on in progress/unwatched items. Spinner until success, button disappears animated scale down when marked, updates play button state and shows toast on success
+               
+//               
+//               Button {} label: {
+//                    Label("Подписаться", systemImage: "plus")
+//                         .font(MediaActionMetrics.labelFont)
+//                    //                    .padding(.horizontal, 2)
+//               }
+//               //    .buttonStyle(.glass)
+//               .mediaActionPillStyle()
+               
+               
+               
+               Button {} label: {
+                    Image(systemName: "bell")
+               }.mediaActionCircleStyle() // Follow/subscribe/add to watchlist. Только для сериалов и шоу. "bell.fill" когда подписан. Клик spinner потом тост.
+               
+//               Button {} label: {
+//                    Image(systemName: "plus")
+//               }.mediaActionCircleStyle() // // bookmark.fill when bookmarked
+               
+               
+               Button {} label: {
+                    Image(systemName: "bookmark")
+               }.mediaActionCircleStyle() // // bookmark.fill when bookmarked
+               
+   
+               
+               
+               
+               //               Button {} label: {
+               //                    //      Image(systemName: "bookmark")
+               //
+               //                    //            .font(MediaActionMetrics.labelFont)
+               //                    Label("Save", systemImage: "bookmark")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //                    //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+               //                    // bookmark.fill when bookmarked, label = Name of folder or "2 Lists"
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionPillStyle()
+               //               //    .mediaActionCircleStyle()
+               
+               
+               
+               Button {} label: {
+                    Image(systemName: "shuffle")
+               }.mediaActionCircleStyle() // Play random unwatched episode, only for tv shows or shows with lots of episodes
+               
+               Button {} label: {
+                    Image(systemName: "ellipsis")
+               }.mediaActionCircleStyle()
+          }
+          LazyHStack(spacing: MediaActionMetrics.rowSpacing) {
+               //               Button {} label: {
+               //                    Label("From Beggining", systemImage: "arrow.trianglehead.counterclockwise")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionPillStyle()
+               //               Button {} label: {
+               //                    Image(systemName: "arrow.trianglehead.counterclockwise")
+               //               }.mediaActionCircleStyle() // Mark as Watched, only visible on in progress/unwatched items
                Button {} label: {
                     HStack(spacing: MediaActionMetrics.contentSpacing) {
                          Image(systemName: "play.fill")
@@ -156,7 +307,7 @@ public struct MediaActionProgressTrack: View {
                          Text("34m left")
                               .font(MediaActionMetrics.labelFont)
                     }
-//                    .padding(.horizontal, 6)
+                    //                    .padding(.horizontal, 6)
                     //      HStack(spacing: MediaActionMetrics.contentSpacing) {
                     //        Image(systemName: "play.fill")
                     ////          .font(MediaActionMetrics.labelFont)
@@ -168,49 +319,196 @@ public struct MediaActionProgressTrack: View {
                }
                .mediaActionPlayPillStyle()
                
-               Button {} label: {
-                    Label("Trailer", systemImage: "film")
-                         .font(MediaActionMetrics.labelFont)
-                    //                    .padding(.horizontal, 2)
-               }
-               //    .buttonStyle(.glass)
-               .mediaActionPillStyle()
+               //               Button {} label: {
+               //                    Label("Random", systemImage: "shuffle")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }.mediaActionPillStyle()
                
+               
+               //               Button {} label: {
+               //                    Image(systemName: "arrow.trianglehead.counterclockwise")
+               //               }.mediaActionCircleStyle()
                Button {} label: {
-                    //      Image(systemName: "bookmark")
-                    
-                    //            .font(MediaActionMetrics.labelFont)
-                    Label("Save", systemImage: "bookmark")
+                    Label("Trailer", systemImage: "video.fill")
                          .font(MediaActionMetrics.labelFont)
                     //                    .padding(.horizontal, 2)
-                    //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
                }
                //    .buttonStyle(.glass)
                .mediaActionPillStyle()
-               //    .mediaActionCircleStyle()
                
                Button {} label: {
                     Image(systemName: "checkmark")
-               }.mediaActionCircleStyle()
+               }.mediaActionCircleStyle() // Mark as Watched, only visible on in progress/unwatched items. Spinner until success, button disappears animated scale down when marked, updates play button state and shows toast on success
+               Button {} label: {
+                    Image(systemName: "bookmark")
+               }.mediaActionCircleStyle() // // bookmark.fill when bookmarked
+               
+               
+               //               Button {} label: {
+               //                    //      Image(systemName: "bookmark")
+               //
+               //                    //            .font(MediaActionMetrics.labelFont)
+               //                    Label("Save", systemImage: "bookmark")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //                    //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+               //                    // bookmark.fill when bookmarked, label = Name of folder or "2 Lists"
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionPillStyle()
+               //               //    .mediaActionCircleStyle()
+               
+               
                
                Button {} label: {
+                    Image(systemName: "shuffle")
+               }.mediaActionCircleStyle() // Play random unwatched episode, only for tv shows or shows with lots of episodes or when all episodes already watched
+               Button {} label: {
                     Image(systemName: "ellipsis")
-                    
-                    //            .font(MediaActionMetrics.labelFont)
-                    //          Label("Save", systemImage: "bookmark")
-                    //              .font(MediaActionMetrics.labelFont)
-                    
-                    //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
                }.mediaActionCircleStyle()
           }
+          HStack (spacing: 10) {
+               Button {} label: {
+                    Label("Play", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPlayPillStyle()
+               Button {} label: {
+                    Label("Смотреть", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+               Button {} label: {
+                    Label("Play First Episode", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+               Button {} label: {
+                    Label("1 сезон, 1 серия", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+               Button {} label: {
+                    Label("Season 1, Episode 1", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+               Button {} label: {
+                    Label("Play S1, E1", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+          }
+          HStack (spacing: 10) {
+               Button {} label: {
+                    Label("Play Again", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPlayPillStyle()
+               Button {} label: {
+                    Label("Смотреть ещё раз", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+               Button {} label: {
+                    Label("Посмотреть ещё раз", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+          }
+          HStack (spacing: 10) {
+               Button {} label: {
+                    Label("Resume S1, E2", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPlayPillStyle()
+               Button {} label: {
+                    Label("Продолжить S1, E2", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+               Button {} label: {
+                    Label("1 сезон, 2 серия", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+               Button {} label: {
+                    Label("Далее 1 сезон, 2 серия", systemImage: "play.fill")
+                    .font(MediaActionMetrics.labelFont)}
+               .padding(.horizontal, 6)
+               .mediaActionPillStyle()
+          }
+          HStack (spacing: 10) {
+
           Button {} label: {
-               Label("Play", systemImage: "play.fill")
-               .font(MediaActionMetrics.labelFont)}
-          .padding(.horizontal, 6)
+               HStack(spacing: MediaActionMetrics.contentSpacing) {
+                    Image(systemName: "play.fill")
+                    MediaActionProgressTrack(progress: 0.35)
+                    Text("S1, E2 ∙ 34m")
+                         .font(MediaActionMetrics.labelFont)
+               }
+          }
           .mediaActionPlayPillStyle()
+
+          Button {} label: {
+               HStack(spacing: MediaActionMetrics.contentSpacing) {
+                    Image(systemName: "play.fill")
+                    MediaActionProgressTrack(progress: 0.35)
+                    Text("1 сезон, 2 серия")
+                         .font(MediaActionMetrics.labelFont)
+               }
+          }
+          .mediaActionPillStyle()
+               Button {} label: {
+                    HStack(spacing: MediaActionMetrics.contentSpacing) {
+                         Image(systemName: "play.fill")
+                         MediaActionProgressTrack(progress: 0.35)
+                         Text("2 серия")
+                              .font(MediaActionMetrics.labelFont)
+                    }
+               }
+               .mediaActionPillStyle()
+     }
+          HStack (spacing: 10) {
+               
+               Button {} label: {
+                    HStack(spacing: MediaActionMetrics.contentSpacing) {
+                         Image(systemName: "play.fill")
+                         MediaActionProgressTrack(progress: 0.35)
+                         Text("1 сезон, 3 серия")
+                              .font(MediaActionMetrics.labelFont)
+                    }
+               }
+          }
+          .mediaActionPlayPillStyle()
+          HStack (spacing: 10) {
+               Button {} label: {
+                    HStack(spacing: MediaActionMetrics.contentSpacing) {
+                         Image(systemName: "play.fill")
+                         Text("S1, E2")
+                              .font(MediaActionMetrics.labelFont)
+                         MediaActionProgressTrack(progress: 0.35)
+                         Text("34m left")
+                              .font(MediaActionMetrics.labelFont)
+                    }
+               }
+               .mediaActionPlayPillStyle()
+               Button {} label: {
+                    HStack(spacing: MediaActionMetrics.contentSpacing) {
+                         Image(systemName: "play.fill")
+                         Text("S1, E2")
+                              .font(MediaActionMetrics.labelFont)
+                         MediaActionProgressTrack(progress: 0.35)
+                         Text("34m left")
+                              .font(MediaActionMetrics.labelFont)
+                    }
+               }
+               .mediaActionPillStyle()
+          }
 }
-  .padding(18)
+     .padding(.vertical, 18)
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-//  .background(Color.black)
+  .background(Color.clear)
 //  .preferredColorScheme(.dark)
 }
