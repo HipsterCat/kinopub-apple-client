@@ -23,6 +23,7 @@ enum MediaCardContextMenus {
     surface: MediaCardContextSurface = .shelf,
     bookmarkFolders: [BookmarkFolderOption] = [],
     onPlay: (() -> Void)? = nil,
+    onDownload: (() -> Void)? = nil,
     onGoToTitle: (() -> Void)? = nil,
     onToggleWatchlist: (() -> Void)? = nil,
     onToggleBookmarkFolder: ((Int) -> Void)? = nil,
@@ -45,7 +46,7 @@ enum MediaCardContextMenus {
     }
 
     func markGroup() {
-      needsDivider = true
+      needsDivider = false
     }
 
     // MARK: Playback
@@ -58,7 +59,32 @@ enum MediaCardContextMenus {
         handler: onPlay
       )))
       markGroup()
+         
     }
+       
+       // MARK: Navigation
+       if let onDownload {
+         appendDivider()
+         entries.append(.action(MediaCardContextAction(
+           id: "download",
+           title: "Download",
+           systemImage: "arrow.down",
+           handler: onDownload
+         )))
+         markGroup()
+       }
+       
+       // MARK: Watched
+       if let onToggleWatched {
+         appendDivider()
+         entries.append(.action(MediaCardContextAction(
+           id: "toggle-watched",
+           title: (card.isWatched ? "Mark as New" : "Mark as Watched").localized,
+           systemImage: card.isWatched ? "eye.slash" : "checkmark",
+           handler: onToggleWatched
+         )))
+         markGroup()
+       }
 
     // MARK: Navigation
     if let onGoToTitle {
@@ -66,7 +92,7 @@ enum MediaCardContextMenus {
       entries.append(.action(MediaCardContextAction(
         id: "go-to-title",
         title: (card.isSeries ? "Go to Show" : "Go to Movie").localized,
-        systemImage: "info.circle",
+        systemImage: "info",
         handler: onGoToTitle
       )))
       markGroup()
@@ -81,7 +107,7 @@ enum MediaCardContextMenus {
         entries.append(.action(MediaCardContextAction(
           id: "toggle-watchlist",
           title: (card.isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist").localized,
-          systemImage: card.isInWatchlist ? "text.badge.minus" : "text.badge.plus",
+          systemImage: card.isInWatchlist ? "minus.circle" : "bell",
           handler: onToggleWatchlist
         )))
       }
@@ -125,26 +151,14 @@ enum MediaCardContextMenus {
       markGroup()
     }
 
-    // MARK: Watched
-    if let onToggleWatched {
-      appendDivider()
-      entries.append(.action(MediaCardContextAction(
-        id: "toggle-watched",
-        title: (card.isWatched ? "Mark as New" : "Mark as Watched").localized,
-        systemImage: card.isWatched ? "eye" : "checkmark",
-        handler: onToggleWatched
-      )))
-      markGroup()
-    }
 
     // MARK: Destructive / CW
     if let onHide {
       appendDivider()
       entries.append(.action(MediaCardContextAction(
         id: "hide",
-        title: "Remove from Recently Watched",
+        title: "Hide",
         systemImage: "trash",
-        role: .destructive,
         handler: onHide
       )))
       markGroup()
@@ -164,7 +178,7 @@ enum MediaCardContextMenus {
         entries.append(.action(MediaCardContextAction(
           id: "debug-image-url-\(index)",
           title: url.absoluteString,
-          systemImage: "link",
+          systemImage: "photo",
           handler: { onOpenImageURL(url) }
         )))
       }
@@ -207,7 +221,7 @@ enum MediaCardContextMenus {
     pushRoute: @escaping (Route) -> Void,
     openURL: @escaping (URL) -> Void,
     isContinueWatchingStyle: Bool = false,
-    includePlay: Bool = true,
+    includePlay: Bool = false,
     includeGoToTitle: Bool = true
   ) -> [MediaCardContextEntry] {
     let containing = menu.containingFolders(for: card)
@@ -225,6 +239,7 @@ enum MediaCardContextMenus {
       surface: surface,
       bookmarkFolders: folderOptions,
       onPlay: includePlay ? { menu.play(card, push: pushRoute) } : nil,
+      onDownload: nil,
       onGoToTitle: includeGoToTitle ? { pushRoute(.detailsById(card.itemID)) } : nil,
       onToggleWatchlist: card.isSeries ? { menu.toggleWatchlist(card) } : nil,
       onToggleBookmarkFolder: { folderID in
@@ -268,7 +283,7 @@ enum MediaCardContextMenus {
       .action(MediaCardContextAction(
         id: "debug-image-url-\(index)",
         title: url.absoluteString,
-        systemImage: "link",
+        systemImage: "photo",
         handler: { openURL(url) }
       ))
     }

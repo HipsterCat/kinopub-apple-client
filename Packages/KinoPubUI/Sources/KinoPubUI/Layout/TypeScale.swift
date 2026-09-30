@@ -31,7 +31,7 @@ public enum TypeScale {
 
   public static let heroTitle: Font = {
 #if os(tvOS)
-    .title.bold()
+       .title2.weight(.semibold)
 #elseif os(macOS)
     .title.bold()
 #else
@@ -41,7 +41,7 @@ public enum TypeScale {
 
   public static let heroSecondary: Font = {
 #if os(tvOS)
-        .body
+        .callout
 #else
         .subheadline
 #endif
@@ -62,7 +62,7 @@ public enum TypeScale {
   /// thing you are meant to read. Levelling them meant levelling **up**.
     public static let detailBody: Font = {
 #if os(tvOS)
-        .footnote
+        .caption
 #else
         .body
 #endif
