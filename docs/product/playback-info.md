@@ -102,8 +102,9 @@ from any source, and with none the line is just *Season 1, Episode 1*. Same on t
 `AVPlayerViewController.infoViewActions`, the system's own buttons. iOS and macOS have no such
 surface and get no substitute.
 
-- *Go to Show* (an episode) / *Go to Movie* (a film or its trailer) — leaves the player for the
-  title's page. When the page is already the route under the player it is a plain pop; otherwise the
+- *Go to Show* (an episode, or a series' trailer) / *Go to Movie* (a film or its trailer) —
+  decided by the media model's context, not by what Swift type is playing. Leaves the player for
+  the title's page. When the page is already the route under the player it is a plain pop; otherwise the
   page takes the player's place.
 - *From Beginning* (the system's own) stays on top. **prd** — *Next Episode* is not an Info button:
   the Up Next tab carries it (user's call, 2026-09-30).
@@ -113,8 +114,11 @@ surface and get no substitute.
 
 **Up Next tab (tvOS), chosen 2026-09-30 from the lab's three variants.** Beside Info, the Apple-TV
 way: the episodes that follow this one (up to six, `NextPlayableEpisode`, no fetch) as the same
-wide tiles Continue Watching uses — real stills, resume progress, runtime — with the first flagged
-*Next episode*. Selecting one swaps the stream in place. **Apple API limitation:** nothing native
+wide tiles Continue Watching uses — resume progress, runtime — with the first flagged
+*Next episode*. **A tile's name and frame are the media model's**, the same as the Info tab's:
+kino.pub's, then TMDB's once it answers; «Эпизод 3» never shows as a name. The frame is
+kino.pub's when it has one (full-size, the file that plays), TMDB's otherwise — the episode rail's
+rule, now the model's (`MediaPrecedence` `.still`). Selecting one swaps the stream in place. **Apple API limitation:** nothing native
 fills a tab with next-episode cards; AVKit draws only the tab strip (`customInfoViewControllers`),
 so the content is a hosted `TVUIKitMediaItemRail`. Seen working in the tvOS simulator with the real
 app (2026-09-30): tab, tiles, badge, swap. Not seen on a physical Apple TV.

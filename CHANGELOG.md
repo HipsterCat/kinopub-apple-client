@@ -5,6 +5,16 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Up Next on the media model; review cleanup (2026-10-01)
+
+The Up Next tab's tiles take their name and frame from `MediaContext`
+(`PlaybackMediaContext.upcoming` / `context(for:in:)` / `enrichedContexts`) instead of reading
+kino.pub's `Episode` fields directly, so TMDB names replace «Эпизод N» there too. `MediaPrecedence`
+ranks kino.pub's still first, as the episode rail always did. *Go to Show / Go to Movie* follows the
+context's kind (a series' trailer goes to the show). The system Info buttons are captured by the
+player's coordinator, not stashed on the controller with `objc_setAssociatedObject`.
+`tools/player-lab/` is deleted: it needed another repo's catalogue to run.
+
 ### Year slot fixed; Next Episode and Go to Show on the tvOS Info tab (2026-09-30)
 
 AVKit renders a date-shaped *string* as a stray number (`"2025-01-01"` → 12169); the creation

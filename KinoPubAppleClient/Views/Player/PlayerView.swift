@@ -247,6 +247,8 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
     controller.delegate = context.coordinator
     controller.speeds = AVPlaybackSpeed.systemDefaultSpeeds
     controller.allowsPictureInPicturePlayback = true
+    // Before anything sets the list: afterwards the getter answers empty (tvOS 27.2).
+    context.coordinator.systemInfoActions = controller.infoViewActions ?? []
     context.coordinator.install(on: manager, controller: controller)
     manager.attach(to: controller)
     return controller
@@ -282,7 +284,12 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
     /// Answers the Info tab's buttons for `manager`. Installed again for every manager an
     /// in-place swap brings in — the buttons are built by (and read from) the manager
     /// playing at the time.
+    /// The system's own Info buttons for this controller, read once — every manager an
+    /// in-place swap brings in gets the same list.
+    var systemInfoActions: [UIAction] = []
+
     func install(on manager: PlayerManager, controller: AVPlayerViewController) {
+      manager.systemInfoActions = systemInfoActions
       manager.onPlayEpisode = { [weak self, weak controller] episode in
         guard let self, let controller else { return }
         self.advance(controller, to: episode)

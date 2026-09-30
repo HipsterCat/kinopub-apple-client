@@ -66,7 +66,9 @@ public struct MediaPrecedence: Sendable {
     // copy of the same IMDb number.
     .scores: [.imdb, .kinopoisk, .tmdb, .omdb, .kinopub],
     .poster: [.apple, .tmdb, .kinopoisk, .kinopub],
-    .still: [.tmdb, .apple, .kinopub],
+    // An episode's frame: kino.pub's is full-size and from the very file that plays;
+    // TMDB's arrives at 300 px. The episode rail has always preferred kino.pub's.
+    .still: [.kinopub, .tmdb, .apple],
     .backdrop: [.apple, .tmdb, .kinopoisk, .kinopub],
     .logo: [.apple, .tmdb],
     .countries: [.kinopub, .tmdb, .kinopoisk],

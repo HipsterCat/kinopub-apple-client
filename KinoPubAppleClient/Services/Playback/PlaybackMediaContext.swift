@@ -99,6 +99,39 @@ enum PlaybackMediaContext {
     return draft
   }
 
+  // MARK: - Up Next
+
+  /// The episodes after `current`, in reading order, `limit` at most — the Up Next tab's
+  /// list. The same order the end-of-episode proposal follows (`NextPlayableEpisode`).
+  static func upcoming(after current: Episode, in series: MediaItem?, limit: Int = 6) -> [Episode] {
+    var result: [Episode] = []
+    var cursor = current
+    while result.count < limit, let next = NextPlayableEpisode.after(cursor, in: series) {
+      result.append(next)
+      cursor = next
+    }
+    return result
+  }
+
+  /// What the model says about one episode from kino.pub alone — the tile's name (never
+  /// «Эпизод 3»), its frame, its runtime. `enrich` adds TMDB's the same way it does for
+  /// the episode playing.
+  static func context(for episode: Episode, in series: MediaItem?) -> MediaContext? {
+    MediaAggregator.merge(draft(playing: episode, title: series, isTrailer: false))
+  }
+
+  /// Everything the enrichment sources know about each episode, keyed by episode id. One
+  /// cached title call and one cached season call per season, however many episodes.
+  static func enrichedContexts(_ jobs: [(id: Int, draft: MediaContextDraft, enrichment: Enrichment)],
+                               service: MetadataService) async -> [Int: MediaContext] {
+    var found: [Int: MediaContext] = [:]
+    for job in jobs {
+      let draft = await enrich(job.draft, with: job.enrichment, service: service)
+      if let context = MediaAggregator.merge(draft) { found[job.id] = context }
+    }
+    return found
+  }
+
   /// The words `PlayerInfo` needs, in the app's language: "Сезон 2, Серия 5".
   static var labels: PlayerInfo.Labels {
     let season = String(localized: "Season")
