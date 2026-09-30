@@ -18,6 +18,7 @@ struct PlayerView: View {
   /// Publishes the manager swap an accepted Up Next proposal performs, so this screen
   /// follows to the next episode instead of holding the finished one.
   @ObservedObject private var playbackSession = PlaybackSession.shared
+  @EnvironmentObject private var navigationState: NavigationState
 #endif
   @Environment(\.dismiss) private var dismiss
   @State private var showsFailureAlert = false
@@ -121,6 +122,22 @@ struct PlayerView: View {
     forgetWindowRequest(ifSessionEnded: PlaybackSession.shared.stop(liveManager))
   }
 
+#if os(tvOS)
+  /// Info tab's *Go to Show / Go to Movie*: leave the player for the title's page. The
+  /// player is the last route of the selected tab's stack; if the route under it already
+  /// is this title's page (Play was pressed there) leaving is enough, otherwise the page
+  /// takes the player's place. `onDisappear` ends the playback once the route is gone.
+  private func goToTitle(_ itemID: Int) {
+    let path = navigationState.path(for: navigationState.selectedTab)
+    var routes = path.wrappedValue
+    while let last = routes.last, last.isPlayerRoute { routes.removeLast() }
+    if routes.last?.detailsItemID != itemID {
+      routes.append(.detailsById(itemID))
+    }
+    path.wrappedValue = routes
+  }
+#endif
+
   /// The failure alert's way out: end the session, then leave the way this platform's
   /// player leaves — a route pop, or the window's own close on the Mac.
   private func closeAfterFailure() {
@@ -149,7 +166,7 @@ struct PlayerView: View {
     // The system player screen is the whole point: its transport bar is the only chrome,
     // and it's fully Siri-Remote navigable. `PlayerManager` hangs the title, subtitle and
     // the Subtitles/Audio menus off the controller.
-    TVVideoPlayer(manager: liveManager, onMenuPress: { dismiss() })
+    TVVideoPlayer(manager: liveManager, onMenuPress: { dismiss() }, onGoToTitle: goToTitle)
       .task {
         // Playback starts itself once the stream is ready and the resume point applied.
         await playerManager.preparePlayback()
@@ -221,6 +238,8 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
   /// player, so leaving the player never depends on how the hosting navigation happens
   /// to react to the hardware button.
   let onMenuPress: () -> Void
+  /// Info tab's *Go to Show / Go to Movie*, with the id of the page to show.
+  let onGoToTitle: (Int) -> Void
 
   func makeUIViewController(context: Context) -> AVPlayerViewController {
     let controller = AVPlayerViewController()
@@ -228,6 +247,7 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
     controller.delegate = context.coordinator
     controller.speeds = AVPlaybackSpeed.systemDefaultSpeeds
     controller.allowsPictureInPicturePlayback = true
+    context.coordinator.install(on: manager, controller: controller)
     manager.attach(to: controller)
     return controller
   }
@@ -242,7 +262,7 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
   }
 
   func makeCoordinator() -> Coordinator {
-    Coordinator(manager: manager, onMenuPress: onMenuPress)
+    Coordinator(manager: manager, onMenuPress: onMenuPress, onGoToTitle: onGoToTitle)
   }
 
   @MainActor
@@ -250,10 +270,24 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
     /// Tracks the session's current manager — an accepted Up Next replaces it.
     var manager: PlayerManager
     let onMenuPress: () -> Void
+    let onGoToTitle: (Int) -> Void
 
-    init(manager: PlayerManager, onMenuPress: @escaping () -> Void) {
+    init(manager: PlayerManager, onMenuPress: @escaping () -> Void,
+         onGoToTitle: @escaping (Int) -> Void) {
       self.manager = manager
       self.onMenuPress = onMenuPress
+      self.onGoToTitle = onGoToTitle
+    }
+
+    /// Answers the Info tab's buttons for `manager`. Installed again for every manager an
+    /// in-place swap brings in — the buttons are built by (and read from) the manager
+    /// playing at the time.
+    func install(on manager: PlayerManager, controller: AVPlayerViewController) {
+      manager.onPlayEpisode = { [weak self, weak controller] episode in
+        guard let self, let controller else { return }
+        self.advance(controller, to: episode)
+      }
+      manager.onGoToTitle = onGoToTitle
     }
 
     func playerViewControllerShouldDismiss(_ playerViewController: AVPlayerViewController) -> Bool {
@@ -283,6 +317,12 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
     func playerViewController(_ playerViewController: AVPlayerViewController,
                               didAccept proposal: AVContentProposal) {
       guard let episode = manager.pendingNextEpisode else { return }
+      advance(playerViewController, to: episode)
+    }
+
+    /// The one way to another episode — the Up Next panel, the Info tab's button and the
+    /// Up Next tab's tiles all end up here.
+    private func advance(_ playerViewController: AVPlayerViewController, to episode: Episode) {
       let context = AppContext.shared
       let next = PlaybackSession.shared.play(
         item: episode,
@@ -290,6 +330,7 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
         downloadedFilesDatabase: context.downloadedFilesDatabase,
         actionsService: context.actionsService
       )
+      install(on: next, controller: playerViewController)
       next.attach(to: playerViewController)
       // Swap immediately — waiting on the SwiftUI round-trip would hold the finished
       // episode's last frame behind the countdown panel. `updateUIViewController`

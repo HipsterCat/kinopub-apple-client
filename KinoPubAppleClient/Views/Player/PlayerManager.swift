@@ -12,6 +12,7 @@ import KinoPubBackend
 import KinoPubKit
 import KinoPubMedia
 import KinoPubMetadata
+import KinoPubUI
 import AVFoundation
 import KinoPubLogging
 import OSLog
@@ -145,6 +146,14 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// prepared. The player controller's delegate reads it when the panel is accepted —
   /// the proposal object itself is AVKit's and carries none of our model.
   private(set) var pendingNextEpisode: Episode?
+  /// What the Info tab's buttons do. The screen hosting this manager's controller owns
+  /// both answers — swapping the stream in place, leaving for a page — so it installs
+  /// them; the manager only decides which buttons exist (`rebuildInfoViewActions`).
+  var onPlayEpisode: ((Episode) -> Void)?
+  /// The episodes the Up Next tab was last built for, so a rebuild with the same list
+  /// does not replace a tab the viewer may be standing in.
+  private var upNextSignature: [Int] = []
+  var onGoToTitle: ((_ itemID: Int) -> Void)?
 #endif
 
   /// Optional on purpose: both of these used to force-unwrap, and `URL(string: "")`
@@ -1285,6 +1294,8 @@ extension PlayerManager {
       configureDefaultAudioWhenReady()
     }
     rebuildTransportBarMenus()
+    rebuildInfoViewActions()
+    rebuildUpNextTab()
   }
 
   /// The HLS legible group makes AVKit draw its own Subtitles control, so in sidecar mode
@@ -1367,6 +1378,7 @@ extension PlayerManager {
     let series = AppContext.shared.localProgressStore.snapshot(for: current.metadata.id)
     guard let next = NextPlayableEpisode.after(current, in: series) else { return }
     pendingNextEpisode = next
+    rebuildUpNextTab()
 
     // The panel appears at the credits — the same window `WatchProgress` calls
     // "finished". An unknown runtime leaves the API default: the very end of the item.
@@ -1399,6 +1411,144 @@ extension PlayerManager {
       guard player.currentItem === item else { return }
       item.nextContentProposal = proposal
     }
+  }
+}
+
+// MARK: - Fixed-height tab
+
+/// An Info-panel tab whose height is a constant. AVKit sizes a custom tab from
+/// `preferredContentSize` every time it presents it; a hosting controller answers that from
+/// its SwiftUI content, which follows the width it is offered, so the tab grew on every
+/// re-entry. This answers the same value always, and pins the content inside it.
+final class FixedHeightTab: UIViewController {
+  private let height: CGFloat
+
+  init(content: UIViewController, height: CGFloat) {
+    self.height = height
+    super.init(nibName: nil, bundle: nil)
+    addChild(content)
+    content.view.translatesAutoresizingMaskIntoConstraints = false
+    content.view.backgroundColor = .clear
+    view.addSubview(content.view)
+    NSLayoutConstraint.activate([
+      content.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      content.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      content.view.topAnchor.constraint(equalTo: view.topAnchor),
+      content.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+    content.didMove(toParent: self)
+    view.backgroundColor = .clear
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override var preferredContentSize: CGSize {
+    get { CGSize(width: 0, height: height) }
+    set {}
+  }
+}
+
+// MARK: - Info tab buttons
+
+extension PlayerManager {
+
+  nonisolated(unsafe) private static var systemInfoActionsKey = 0
+
+  /// The Apple-TV-style **Up Next** tab beside Info: the episodes that follow this one, as
+  /// the same wide tiles Continue Watching and the episode rail use — real stills, real
+  /// resume progress, the first one flagged «Next episode». Chosen from the lab's variants
+  /// (wide cards + badge and progress) on 2026-09-30.
+  ///
+  /// **Apple API limitation:** AVKit draws the tab strip but nothing native fills a tab
+  /// with next-episode cards, so the content is ours (`customInfoViewControllers`) — a
+  /// hosted `TVUIKitMediaItemRail`, not a second card implementation. Same Up Next source
+  /// as the end-of-episode panel: `NextPlayableEpisode`, no fetch.
+  func rebuildUpNextTab() {
+    guard let controller = playerViewController else { return }
+    guard watchMode == .media, let current = playItem as? Episode else {
+      controller.customInfoViewControllers = []
+      return
+    }
+    let series = AppContext.shared.localProgressStore.snapshot(for: current.metadata.id)
+    var upcoming: [Episode] = []
+    var cursor = current
+    while upcoming.count < 6, let next = NextPlayableEpisode.after(cursor, in: series) {
+      upcoming.append(next)
+      cursor = next
+    }
+    guard !upcoming.isEmpty else {
+      upNextSignature = []
+      controller.customInfoViewControllers = []
+      return
+    }
+    let signature = upcoming.map(\.id)
+    guard signature != upNextSignature || controller.customInfoViewControllers.isEmpty else { return }
+    upNextSignature = signature
+
+    let items = upcoming.enumerated().map { index, episode -> TVUIKitMediaItem in
+      let name = EpisodeTitle.meaningful(episode.title)
+      let base = TVUIKitMediaItem(card: MediaCard(episode: episode,
+                                                  title: name ?? "",
+                                                  episodeLabel: "\("Episode".localized) \(episode.number)"))
+      return TVUIKitMediaItem(id: episode.id,
+                              imageURL: base.imageURL,
+                              caption: TVUIKitCardText.episodeCaption(number: episode.number, name: name),
+                              status: base.status,
+                              timeLabel: base.timeLabel,
+                              badgeText: index == 0 ? "MediaItem_NextEpisode".localized : base.badgeText)
+    }
+    // The rail carries its own vertical padding, which reads as a wide gap under the tab
+    // strip. The panel is bottom-anchored, so shortening the tab by `trim` moves the strip
+    // down by `trim`, and pulling the rail up by the same amount leaves the tiles where
+    // they were — the gap halves (≈90 pt → ≈45 pt, measured in the simulator 2026-09-30).
+    let trim: CGFloat = 45
+    // One fixed height, never derived from content: the rail's own height follows the width it
+    // is offered, and the tab grew every time AVKit re-measured it (strip 605 → 232 after
+    // Up, Down — caught by `PlayerUpNextTabUITests`). `FixedHeightTab` answers the same
+    // `preferredContentSize` for its whole life.
+    let height = MainActor.assumeIsolated { TVUIKitMediaItemMetrics.railHeight(width: 1920) } - trim
+    let rail = UIHostingController(rootView: TVUIKitMediaItemRail(
+      items: items,
+      // No inset of our own: the tab already sits on the tab strip's leading edge, and 60
+      // here put the first tile a full margin to the right of «Info» (seen 2026-09-30).
+      contentInset: 0,
+      onSelect: { [weak self] id in
+        guard let episode = upcoming.first(where: { $0.id == id }) else { return }
+        self?.onPlayEpisode?(episode)
+      })
+      .padding(.top, -trim))
+    rail.sizingOptions = []
+    let tab = FixedHeightTab(content: rail, height: height)
+    tab.title = "Up Next".localized
+    controller.customInfoViewControllers = [tab]
+  }
+
+  /// The buttons under the Info tab's description: the system's own *From Beginning* on
+  /// top, then *Go to Show* / *Go to Movie* — the Apple TV app has both. *Next Episode* is
+  /// not here on purpose: the **Up Next** tab carries it (user's call, 2026-09-30).
+  ///
+  /// **Apple API limitation:** `AVPlayerViewController.infoViewActions` shows at most two
+  /// buttons — the SDK header says "up to 2", and a third set on tvOS 27.2 was dropped
+  /// from the tab whatever its order. Two is exactly what this needs.
+  func rebuildInfoViewActions() {
+    guard let controller = playerViewController else { return }
+    // The system's own list ("From Beginning") is only readable *before* the first set:
+    // after `= nil` the getter answers empty, not the default (tvOS 27.2 simulator). So it is
+    // read once per controller and kept — an in-place swap reuses the controller.
+    let system: [UIAction]
+    if let kept = objc_getAssociatedObject(controller, &Self.systemInfoActionsKey) as? [UIAction] {
+      system = kept
+    } else {
+      system = controller.infoViewActions ?? []
+      objc_setAssociatedObject(controller, &Self.systemInfoActionsKey, system, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
+
+    let goTo = UIAction(title: (playItem is Episode ? "Go to Show" : "Go to Movie").localized) {
+      [weak self] _ in
+      guard let self else { return }
+      self.onGoToTitle?(self.playItem.metadata.id)
+    }
+    controller.infoViewActions = Array((system + [goTo]).prefix(2))
   }
 }
 
