@@ -1579,7 +1579,7 @@ extension PlayerManager {
   func rebuildInfoViewActions() {
     guard let controller = playerViewController else { return }
     // Which page it goes to is the model's answer, not the Swift type of what plays: a
-    // series' trailer goes to the *show*, a film's episode-less trailer to the *movie*.
+    // series' trailer goes to the *show*, a film's trailer to the *movie*.
     let title = externalMetadataContext?.parent ?? externalMetadataContext?.item
     let label = title?.kind == .show ? "Go to Show" : "Go to Movie"
     let goTo = UIAction(title: label.localized) { [weak self] _ in
@@ -1588,6 +1588,8 @@ extension PlayerManager {
     }
     controller.infoViewActions = Array((systemInfoActions + [goTo]).prefix(2))
   }
+}
+
 #endif
 
 /// Witnesses to a public protocol from another module must be public, even though the
