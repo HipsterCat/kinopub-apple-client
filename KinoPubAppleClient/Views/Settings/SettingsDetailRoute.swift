@@ -20,6 +20,7 @@ enum SettingsDetailRoute: Hashable {
   case uiLab(UILabChrome)
   case typeStyles
   case libraryLab
+  case playerCases
 #endif
 }
 #endif

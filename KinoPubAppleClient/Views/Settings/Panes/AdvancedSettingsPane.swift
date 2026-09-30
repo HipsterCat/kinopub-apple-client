@@ -51,6 +51,7 @@ struct AdvancedSettingsPane: View {
         NavigationLink("UI Lab — Navigation Split", value: SettingsDetailRoute.uiLab(.navigationSplit))
 #endif
         NavigationLink("UI Lab — Library Sidebar", value: SettingsDetailRoute.libraryLab)
+        NavigationLink("Player cases", value: SettingsDetailRoute.playerCases)
       } header: {
         Text("UI Lab")
       } footer: {

@@ -284,6 +284,7 @@
               "path": "UILab",
               "children": [
                 { "path": "UILabRoot.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlayerCasesView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "UILabSearchToolbar.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SystemTypeStylesCatalogView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "TVUIKitComponentGalleryView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },

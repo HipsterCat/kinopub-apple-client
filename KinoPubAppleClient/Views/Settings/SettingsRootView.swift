@@ -96,6 +96,9 @@ struct SettingsRootView: View {
             case .libraryLab:
               LibrarySidebarLabView()
                 .settingsMacChrome(title: "Library Sidebar Lab", isRoot: false)
+            case .playerCases:
+              PlayerCasesView()
+                .settingsMacChrome(title: "Player cases", isRoot: false)
 #endif
             }
           }
@@ -196,6 +199,8 @@ struct SettingsRootView: View {
             SystemTypeStylesCatalogView()
           case .libraryLab:
             LibrarySidebarLabView()
+          case .playerCases:
+            PlayerCasesView()
 #endif
           }
         }

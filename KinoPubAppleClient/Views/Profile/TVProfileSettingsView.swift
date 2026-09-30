@@ -114,6 +114,8 @@ struct TVProfileSettingsView: View {
       NavigationFocusLabView()
     case .libraryLab:
       LibrarySidebarLabView()
+    case .playerCases:
+      PlayerCasesView()
 #endif
     }
   }
@@ -260,6 +262,7 @@ struct TVProfileSettingsView: View {
       diagnosticsRow("TVUIKit Gallery", route: .tvUIKitGallery, id: "tvUIKitGallery")
       diagnosticsRow("Navigation / Focus Lab", route: .navFocusLab, id: "navFocusLab")
       diagnosticsRow("Library Sidebar Lab", route: .libraryLab, id: "libraryLab")
+      diagnosticsRow("Player cases", route: .playerCases, id: "playerCases")
 #endif
     }
   }
@@ -422,6 +425,7 @@ private enum SettingsRoute: Hashable {
   case tvUIKitGallery
   case navFocusLab
   case libraryLab
+  case playerCases
 #endif
 }
 

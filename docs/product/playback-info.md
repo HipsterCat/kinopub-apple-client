@@ -135,6 +135,10 @@ app (2026-09-30): tab, tiles, badge, swap. Not seen on a physical Apple TV.
 
 ## Verification
 
+**Player cases** (DEBUG: tvOS Settings → Diagnostics, iOS/macOS Settings → Advanced → UI Lab) lists
+every case above on live titles, each row showing what we send and what this file expects, one press
+from the real player. Check a case there, not by hunting for a title.
+
 The **prd** rules above are the user's (2026-09-28), unit-tested field by field (`PlayerInfoTests`, `MediaContextTests`,
 `KinoPubMediaMappingTests`) — but none of it has been watched in the tvOS Info tab yet. The genre
 fix rests on Apple's documentation, not on a device.

@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Player cases in the UI Lab (2026-10-01)
+
+`PlayerCasesView` (DEBUG; tvOS Settings → Diagnostics, iOS/macOS Advanced → UI Lab): film, film and
+series trailer, named and placeholder-named episode, concert, documentary, docuseries, TV show,
+film version, download — on live titles, each showing the `PlayerInfo` the player's own pipeline
+computes (TMDB included) beside the expectation from `docs/product/playback-info.md`, opening the
+real player routes. Rows carry `playerCase.<id>` accessibility identifiers for a UI test.
+
 ### Up Next on the media model; review cleanup (2026-10-01)
 
 The Up Next tab's tiles take their name and frame from `MediaContext`
