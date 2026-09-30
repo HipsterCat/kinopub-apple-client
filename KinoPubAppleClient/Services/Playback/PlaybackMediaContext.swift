@@ -101,16 +101,17 @@ enum PlaybackMediaContext {
 
   // MARK: - Up Next
 
-  /// The episodes after `current`, in reading order, `limit` at most — the Up Next tab's
-  /// list. The same order the end-of-episode proposal follows (`NextPlayableEpisode`).
-  static func upcoming(after current: Episode, in series: MediaItem?, limit: Int = 6) -> [Episode] {
-    var result: [Episode] = []
+  /// The Up Next tab's first card: the first episode after `current`, in reading order
+  /// (`NextPlayableEpisode`), that the viewer has **not** watched. Nil when every episode
+  /// after this one is watched — Up Next never offers a watched one (user's call,
+  /// 2026-10-01).
+  static func nextUnwatched(after current: Episode, in series: MediaItem?) -> Episode? {
     var cursor = current
-    while result.count < limit, let next = NextPlayableEpisode.after(cursor, in: series) {
-      result.append(next)
+    while let next = NextPlayableEpisode.after(cursor, in: series) {
+      if !next.isWatched { return next }
       cursor = next
     }
-    return result
+    return nil
   }
 
   /// What the model says about one episode from kino.pub alone — the tile's name (never
@@ -136,13 +137,11 @@ enum PlaybackMediaContext {
   static var labels: PlayerInfo.Labels {
     let season = String(localized: "Season")
     let episode = String(localized: "Episode")
-    let trailer = String(localized: "Trailer")
     return PlayerInfo.Labels(
       languageCode: Bundle.main.preferredLocalizations.first,
       episode: { seasonNumber, number in
         seasonNumber.map { "\(season) \($0), \(episode) \(number)" } ?? "\(episode) \(number)"
-      },
-      extra: { kind in kind == .trailer ? trailer : nil })
+      })
   }
 
   // MARK: - Downloads

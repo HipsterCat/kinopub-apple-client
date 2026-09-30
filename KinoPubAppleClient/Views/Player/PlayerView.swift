@@ -290,9 +290,9 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
 
     func install(on manager: PlayerManager, controller: AVPlayerViewController) {
       manager.systemInfoActions = systemInfoActions
-      manager.onPlayEpisode = { [weak self, weak controller] episode in
+      manager.onPlay = { [weak self, weak controller] item in
         guard let self, let controller else { return }
-        self.advance(controller, to: episode)
+        self.advance(controller, to: item)
       }
       manager.onGoToTitle = onGoToTitle
     }
@@ -327,12 +327,12 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
       advance(playerViewController, to: episode)
     }
 
-    /// The one way to another episode — the Up Next panel, the Info tab's button and the
-    /// Up Next tab's tiles all end up here.
-    private func advance(_ playerViewController: AVPlayerViewController, to episode: Episode) {
+    /// The one way to play something else in place — the end-of-episode panel and the Up
+    /// Next tab's tiles (the next episode, or a Continue Watching title) all end up here.
+    private func advance(_ playerViewController: AVPlayerViewController, to item: any PlayableItem) {
       let context = AppContext.shared
       let next = PlaybackSession.shared.play(
-        item: episode,
+        item: item,
         mode: .media,
         downloadedFilesDatabase: context.downloadedFilesDatabase,
         actionsService: context.actionsService

@@ -42,22 +42,18 @@ public struct PlayerInfo: Hashable, Sendable {
   public struct Labels: Sendable {
     public var languageCode: String?
     public var episode: @Sendable (_ season: Int?, _ episode: Int) -> String
-    public var extra: @Sendable (ExtraKind) -> String?
 
     public init(languageCode: String?,
-                episode: @escaping @Sendable (_ season: Int?, _ episode: Int) -> String,
-                extra: @escaping @Sendable (ExtraKind) -> String?) {
+                episode: @escaping @Sendable (_ season: Int?, _ episode: Int) -> String) {
       self.languageCode = languageCode
       self.episode = episode
-      self.extra = extra
     }
 
     public static let english = Labels(
       languageCode: "en",
       episode: { season, episode in
         season.map { "Season \($0), Episode \(episode)" } ?? "Episode \(episode)"
-      },
-      extra: { kind in kind == .trailer ? "Trailer" : nil })
+      })
   }
 
   public init(title: String? = nil, subtitle: String? = nil, description: String? = nil,
@@ -84,7 +80,10 @@ public struct PlayerInfo: Hashable, Sendable {
   }
 
   /// Episode: "Season 2, Episode 5: Name", the name dropped when it only repeats the
-  /// title line. Trailer: what kind of extra it is. A film's edition: "48 fps".
+  /// title line. A film's edition: "48 fps". A trailer: nothing — the Info tab's heading
+  /// is the subtitle when there is one, and «Trailer» there says nothing the viewer did not
+  /// choose; with none, the heading is the film's or show's own name (user's call,
+  /// 2026-10-01).
   private static func subtitle(context: MediaContext, title: String?, labels: Labels) -> String? {
     let item = context.item
     switch item.kind {
@@ -93,11 +92,9 @@ public struct PlayerInfo: Hashable, Sendable {
       guard let number = item.episodeNumber else { return name }
       let line = labels.episode(item.seasonNumber ?? context.season?.seasonNumber, number)
       return name.map { "\(line): \($0)" } ?? line
-    case .extra:
-      return item.extraKind.flatMap(labels.extra)
     case .movie:
       return item.edition
-    case .show, .season:
+    case .show, .season, .extra:
       return nil
     }
   }

@@ -152,13 +152,13 @@ final class PlayerCasesModel: ObservableObject {
     PlayerCase(id: "film", name: "Film",
                expectation: "film name · no subtitle · plot · first genre · year · poster"),
     PlayerCase(id: "film-trailer", name: "Film trailer", expectation:
-                "film name · «Trailer» · film's plot, genre and poster · Info: Go to Movie"),
+                "film name, no subtitle · film's plot, genre, rating and poster · Info: only Go to Movie"),
     PlayerCase(id: "episode-named", name: "Episode with a name", expectation:
-                "show name · «Season N, Episode M: Name» · episode's own description (TMDB) or the show's · show's genre · episode still · Info: Go to Show · Up Next tab"),
+                "show name · «Season N, Episode M: Name» · episode's own description (TMDB) or the show's · show's genre · episode still · Info: Go to Show · Up Next: next unwatched episode, then Continue Watching, nothing watched"),
     PlayerCase(id: "episode-placeholder", name: "Episode named «Эпизод N» by kino.pub",
                expectation: "«Season N, Episode M» with no «: Эпизод N» — or TMDB's real name"),
     PlayerCase(id: "series-trailer", name: "Series trailer", expectation:
-                "show name · «Trailer» · show's plot · Info: Go to Show"),
+                "show name, no subtitle · show's plot · Info: only Go to Show"),
     PlayerCase(id: "concert", name: "Concert (126187)",
                expectation: "a music genre (Electronic), never «Concert»"),
     PlayerCase(id: "documovie", name: "Documentary film",

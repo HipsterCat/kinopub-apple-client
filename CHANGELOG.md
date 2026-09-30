@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Trailers are their title; Up Next is next-unwatched + Continue Watching (2026-10-01)
+
+A trailer sends no subtitle (the Info tab used «Trailer» as its heading) and its Info tab has only
+*Go to Movie / Show*. `PlayerInfo.Labels.extra` is gone. The Up Next tab is this show's next
+**unwatched** episode (`PlaybackMediaContext.nextUnwatched`) and then Home's Continue Watching cards
+(`HomeCatalog.paintedContinueWatchingCards`, now static) minus the playing title and anything
+watched; a card plays through `MediaCardMenuCoordinator.resolve`, shared with Home's Play.
+`PlaybackMediaContext.upcoming` is gone; `PlayerManager.onPlayEpisode` is `onPlay(any PlayableItem)`.
+
 ### Player cases in the UI Lab (2026-10-01)
 
 `PlayerCasesView` (DEBUG; tvOS Settings → Diagnostics, iOS/macOS Advanced → UI Lab): film, film and

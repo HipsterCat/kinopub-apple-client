@@ -73,12 +73,16 @@ final class PlayerInfoTests: XCTestCase {
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: film)).creationDate, "1999")
   }
 
-  func testATrailerSaysItIsOne() {
+  /// A trailer's Info is the title's: its name as the heading (no «Trailer» subtitle, which
+  /// the Info tab would put there instead), its description, genre and rating.
+  func testATrailerIsItsTitle() {
     let trailer = MediaEntity(kind: .extra, extraKind: .trailer)
     let info = PlayerInfo(context: MediaContext(item: trailer, parent: show))
     XCTAssertEqual(info.title, "Ted Lasso")
-    XCTAssertEqual(info.subtitle, "Trailer")
+    XCTAssertNil(info.subtitle)
     XCTAssertEqual(info.description, "A coach.")
+    XCTAssertEqual(info.genre, "Comedy")
+    XCTAssertEqual(info.contentRating, "16+")
   }
 
   /// A multi-version film names the version playing: "48 fps".
@@ -89,8 +93,7 @@ final class PlayerInfoTests: XCTestCase {
 
   func testLabelsComeFromTheCaller() {
     let labels = PlayerInfo.Labels(languageCode: "ru",
-                                   episode: { season, episode in "С\(season ?? 0) Э\(episode)" },
-                                   extra: { _ in "Трейлер" })
+                                   episode: { season, episode in "С\(season ?? 0) Э\(episode)" })
     let info = PlayerInfo(context: MediaContext(item: episode(title: nil), parent: show),
                           labels: labels)
     XCTAssertEqual(info.subtitle, "С2 Э5")

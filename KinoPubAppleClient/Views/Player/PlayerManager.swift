@@ -149,7 +149,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// What the Info tab's buttons do. The screen hosting this manager's controller owns
   /// both answers — swapping the stream in place, leaving for a page — so it installs
   /// them; the manager only decides which buttons exist (`rebuildInfoViewActions`).
-  var onPlayEpisode: ((Episode) -> Void)?
+  var onPlay: ((any PlayableItem) -> Void)?
   var onGoToTitle: ((_ itemID: Int) -> Void)?
   /// The system's own Info buttons (*From Beginning*), read by the screen before anything
   /// set the list — the getter answers empty once it has been set (tvOS 27.2).
@@ -1463,58 +1463,77 @@ final class FixedHeightTab: UIViewController {
 
 extension PlayerManager {
 
-  /// The Apple-TV-style **Up Next** tab beside Info: the episodes that follow this one, as
-  /// the same wide tiles Continue Watching and the episode rail use — the first one flagged
-  /// «Next episode». Chosen from the lab's variants (wide cards + badge and progress) on
-  /// 2026-09-30.
+  /// The Apple-TV-style **Up Next** tab beside Info (user's call, 2026-10-01):
   ///
-  /// **What a tile says comes from the media model**, like the Info tab: name and frame are
-  /// `MediaContext`'s (kino.pub's, then TMDB's once `PlaybackMediaContext.enrichedContexts`
-  /// answers — so «Эпизод 3» never shows as a name), progress is the viewer's own watch state.
+  /// 1. **this show's next unwatched episode**, when there is one, flagged «Next episode» —
+  ///    its name and frame from the media model (`MediaContext`), like the Info tab, so
+  ///    «Эпизод 3» never shows as a name;
+  /// 2. then **Continue Watching** — Home's own list (`HomeCatalog.paintedContinueWatchingCards`),
+  ///    the same cards Home draws, minus the title playing now.
+  ///
+  /// Nothing watched, ever. Selecting a tile plays it in place: an episode directly, a
+  /// Continue Watching card through the same resolution Home's Play uses
+  /// (`MediaCardMenuCoordinator.resolve`).
   ///
   /// **Apple API limitation:** AVKit draws the tab strip but nothing native fills a tab
-  /// with next-episode cards, so the content is ours (`customInfoViewControllers`) — a
-  /// hosted `TVUIKitMediaItemRail`, not a second card implementation.
+  /// with cards, so the content is ours (`customInfoViewControllers`) — a hosted
+  /// `TVUIKitMediaItemRail`, not a second card implementation.
   func rebuildUpNextTab() {
     guard let controller = playerViewController else { return }
-    guard watchMode == .media, let current = playItem as? Episode else {
-      controller.customInfoViewControllers = []
-      return
-    }
-    let series = AppContext.shared.localProgressStore.snapshot(for: current.metadata.id)
-    let upcoming = PlaybackMediaContext.upcoming(after: current, in: series)
-    guard !upcoming.isEmpty else {
+    guard watchMode == .media else {
       upNextSignature = []
       controller.customInfoViewControllers = []
       return
     }
-    let tiles = upcoming.map { episode in
-      (episode: episode,
-       context: upNextEnriched[episode.id] ?? PlaybackMediaContext.context(for: episode, in: series))
+    let playingID = playItem.metadata.id
+    let series = AppContext.shared.localProgressStore.snapshot(for: playingID)
+    let next = (playItem as? Episode).flatMap {
+      PlaybackMediaContext.nextUnwatched(after: $0, in: series)
     }
-    enrichUpNext(upcoming, series: series)
+    let nextContext = next.flatMap {
+      upNextEnriched[$0.id] ?? PlaybackMediaContext.context(for: $0, in: series)
+    }
+    if let next { enrichUpNext(next, series: series) }
+    let continueWatching = MainActor.assumeIsolated {
+      HomeCatalog.paintedContinueWatchingCards(
+        store: AppContext.shared.contentStore,
+        localProgressStore: AppContext.shared.localProgressStore)
+    }.filter { $0.itemID != playingID && !$0.isWatched }
 
-    let signature = tiles.map {
-      "\($0.episode.id)|\($0.context?.item.title ?? "")|\($0.context?.item.artwork.still?.absoluteString ?? "")"
+    guard next != nil || !continueWatching.isEmpty else {
+      upNextSignature = []
+      controller.customInfoViewControllers = []
+      return
     }
+
+    var items: [TVUIKitMediaItem] = []
+    var episodeByTile: [Int: Episode] = [:]
+    var cardByTile: [Int: MediaCard] = [:]
+    if let next {
+      let name = nextContext?.item.title
+      let base = TVUIKitMediaItem(card: MediaCard(
+        episode: next,
+        title: name ?? "",
+        episodeLabel: "\("Episode".localized) \(next.number)",
+        stillURL: nextContext?.item.artwork.still?.absoluteString))
+      items.append(TVUIKitMediaItem(id: next.id,
+                                    imageURL: base.imageURL,
+                                    caption: TVUIKitCardText.episodeCaption(number: next.number,
+                                                                            name: name),
+                                    status: base.status,
+                                    timeLabel: base.timeLabel,
+                                    badgeText: "MediaItem_NextEpisode".localized))
+      episodeByTile[next.id] = next
+    }
+    for card in continueWatching where episodeByTile[card.id] == nil && cardByTile[card.id] == nil {
+      items.append(TVUIKitMediaItem(card: card))
+      cardByTile[card.id] = card
+    }
+
+    let signature = items.map { "\($0.id)|\($0.caption ?? "")|\($0.imageURL?.absoluteString ?? "")" }
     guard signature != upNextSignature || controller.customInfoViewControllers.isEmpty else { return }
     upNextSignature = signature
 
-    let items = tiles.enumerated().map { index, tile -> TVUIKitMediaItem in
-      let name = tile.context?.item.title
-      let base = TVUIKitMediaItem(card: MediaCard(
-        episode: tile.episode,
-        title: name ?? "",
-        episodeLabel: "\("Episode".localized) \(tile.episode.number)",
-        stillURL: tile.context?.item.artwork.still?.absoluteString))
-      return TVUIKitMediaItem(id: tile.episode.id,
-                              imageURL: base.imageURL,
-                              caption: TVUIKitCardText.episodeCaption(number: tile.episode.number,
-                                                                      name: name),
-                              status: base.status,
-                              timeLabel: base.timeLabel,
-                              badgeText: index == 0 ? "MediaItem_NextEpisode".localized : base.badgeText)
-    }
     // The rail carries its own vertical padding, which reads as a wide gap under the tab
     // strip. The panel is bottom-anchored, so shortening the tab by `trim` moves the strip
     // down by `trim`, and pulling the rail up by the same amount leaves the tiles where
@@ -1525,15 +1544,25 @@ extension PlayerManager {
     // Up, Down — caught by `PlayerUpNextTabUITests`). `FixedHeightTab` answers the same
     // `preferredContentSize` for its whole life.
     let height = MainActor.assumeIsolated { TVUIKitMediaItemMetrics.railHeight(width: 1920) } - trim
-    let episodes = upcoming
+    let contentService = self.contentService
     let rail = UIHostingController(rootView: TVUIKitMediaItemRail(
       items: items,
       // No inset of our own: the tab already sits on the tab strip's leading edge, and 60
       // here put the first tile a full margin to the right of «Info» (seen 2026-09-30).
       contentInset: 0,
       onSelect: { [weak self] id in
-        guard let episode = episodes.first(where: { $0.id == id }) else { return }
-        self?.onPlayEpisode?(episode)
+        if let episode = episodeByTile[id] {
+          self?.onPlay?(episode)
+        } else if let card = cardByTile[id] {
+          Task { @MainActor [weak self] in
+            do {
+              let resolved = try await MediaCardMenuCoordinator.resolve(card, using: contentService)
+              self?.onPlay?(resolved.playable)
+            } catch {
+              Logger.app.error("Up Next: could not open item \(card.itemID): \(error.localizedDescription)")
+            }
+          }
+        }
       })
       .padding(.top, -trim))
     rail.sizingOptions = []
@@ -1542,21 +1571,16 @@ extension PlayerManager {
     controller.customInfoViewControllers = [tab]
   }
 
-  /// Asks the enrichment sources about the upcoming episodes once, then rebuilds the tab —
-  /// which replaces it only if a name or a frame actually changed.
-  private func enrichUpNext(_ episodes: [Episode], series: MediaItem?) {
-    let pending = episodes.filter { !upNextAsked.contains($0.id) }
-    guard !pending.isEmpty else { return }
-    upNextAsked.formUnion(pending.map(\.id))
-    let jobs = pending.compactMap { episode -> (id: Int, draft: MediaContextDraft,
-                                                enrichment: PlaybackMediaContext.Enrichment)? in
-      guard let enrichment = PlaybackMediaContext.enrichment(playing: episode, title: series,
-                                                             isTrailer: false) else { return nil }
-      return (episode.id,
-              PlaybackMediaContext.draft(playing: episode, title: series, isTrailer: false),
-              enrichment)
-    }
-    guard !jobs.isEmpty else { return }
+  /// Asks the enrichment sources about the next episode once, then rebuilds the tab —
+  /// which replaces it only if its name or frame actually changed.
+  private func enrichUpNext(_ episode: Episode, series: MediaItem?) {
+    guard !upNextAsked.contains(episode.id),
+          let enrichment = PlaybackMediaContext.enrichment(playing: episode, title: series,
+                                                           isTrailer: false) else { return }
+    upNextAsked.insert(episode.id)
+    let jobs = [(id: episode.id,
+                 draft: PlaybackMediaContext.draft(playing: episode, title: series, isTrailer: false),
+                 enrichment: enrichment)]
     let service = metadataService
     Task { [weak self] in
       let found = await PlaybackMediaContext.enrichedContexts(jobs, service: service)
@@ -1586,7 +1610,11 @@ extension PlayerManager {
       guard let self else { return }
       self.onGoToTitle?(self.playItem.metadata.id)
     }
-    controller.infoViewActions = Array((systemInfoActions + [goTo]).prefix(2))
+    // A trailer is not something to start again: *From Beginning* plays the trailer's first
+    // second, which nobody wants — its one button is the title (user's call, 2026-10-01).
+    controller.infoViewActions = watchMode == .trailer
+      ? [goTo]
+      : Array((systemInfoActions + [goTo]).prefix(2))
   }
 }
 

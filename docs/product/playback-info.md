@@ -56,8 +56,15 @@ still come from TMDB when kino.pub has none, which is always.
 **idea — Scores are never inherited.** A show's 8.8 on one of its episodes would be a number nobody
 gave that episode. (Not in the panel at all today — see above — but the model already refuses it.)
 
-**prd — A trailer describes its film.** Title, description, genre and poster are the film's; the
-subtitle says *Трейлер*.
+**prd — A trailer is its film or show.** Title, description, genre, rating and poster are the
+title's, and there is **no subtitle**: the Info tab's heading is the subtitle when there is one, and
+«Trailer» there said nothing (user's call, 2026-10-01). Its Info tab has one button, *Go to Movie /
+Show* — no *From Beginning*.
+
+**Apple API limitation, unprobed — the trailer's own runtime and HD/CC badges.** «1 min 57 sec · HD ·
+CC» in a trailer's Info tab is what AVKit reads off the trailer *stream*; no `externalMetadata`
+identifier sets or hides a runtime or those badges. Not probed beyond that — re-check
+`AVPlayerItem`'s presentation options on the next SDK before calling it settled.
 
 **idea — A version of a film says which.** One of a multi-version film's editions (24/48 fps)
 carries its name as the subtitle.
@@ -72,7 +79,7 @@ panel.
 | Film | film | — | film | film's primary | poster → backdrop |
 | Film edition | film | edition name | film | film's primary | poster → backdrop |
 | Episode | show | Season N, Episode M: name | episode → season → show | show's primary | still → season poster → show poster |
-| Trailer | film/show | Trailer | film/show | film/show's primary | trailer frame → film poster |
+| Trailer | film/show | — | film/show | film/show's primary | trailer frame → film poster |
 | Concert | concert | — | concert | first music genre | poster |
 | Documentary | film/show | as above | as above | Documentary | as above |
 | Download | saved name | — | title, if still cached | title's, if cached | saved poster |
@@ -112,13 +119,16 @@ surface and get no substitute.
   27.2 simulator a third was dropped whatever its order. Two is what this needs. Re-probe on the
   next SDK.
 
-**Up Next tab (tvOS), chosen 2026-09-30 from the lab's three variants.** Beside Info, the Apple-TV
-way: the episodes that follow this one (up to six, `NextPlayableEpisode`, no fetch) as the same
-wide tiles Continue Watching uses — resume progress, runtime — with the first flagged
-*Next episode*. **A tile's name and frame are the media model's**, the same as the Info tab's:
-kino.pub's, then TMDB's once it answers; «Эпизод 3» never shows as a name. The frame is
-kino.pub's when it has one (full-size, the file that plays), TMDB's otherwise — the episode rail's
-rule, now the model's (`MediaPrecedence` `.still`). Selecting one swaps the stream in place. **Apple API limitation:** nothing native
+**Up Next tab (tvOS).** Beside Info, the Apple-TV way.
+
+- **prd** — First, **this show's next unwatched episode**, when there is one, flagged *Next episode*.
+  Then **Continue Watching** — Home's own list, the same cards, minus the title playing now.
+  **Never anything watched.** (User's call, 2026-10-01; replaces "the next six episodes".)
+- The episode tile's name and frame are the media model's, the same as the Info tab's: kino.pub's,
+  then TMDB's once it answers; «Эпизод 3» never shows as a name. The frame is kino.pub's when it has
+  one (full-size, the file that plays), TMDB's otherwise (`MediaPrecedence` `.still`).
+- Selecting a tile plays it in place — a Continue Watching card through the same resolution Home's
+  Play uses (`MediaCardMenuCoordinator.resolve`). **Apple API limitation:** nothing native
 fills a tab with next-episode cards; AVKit draws only the tab strip (`customInfoViewControllers`),
 so the content is a hosted `TVUIKitMediaItemRail`. Seen working in the tvOS simulator with the real
 app (2026-09-30): tab, tiles, badge, swap. Not seen on a physical Apple TV.
