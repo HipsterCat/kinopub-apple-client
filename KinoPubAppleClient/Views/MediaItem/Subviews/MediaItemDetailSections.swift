@@ -225,7 +225,6 @@ struct MediaItemRatingsSection: View {
   /// Hidden while the hero/trailer owns the page — same chrome gate as season tabs,
   /// so "Ratings" doesn't caption the wide art peeking under the hero.
   var showsHeader: Bool = true
-  var onSectionFocused: (() -> Void)? = nil
   /// tvOS: when non-nil, the first tile accepts `.content` page entry focus.
   var pageEntryFocus: FocusState<MediaItemFocusTarget?>.Binding? = nil
   @Environment(\.openURL) private var openURL
@@ -273,19 +272,16 @@ struct MediaItemRatingsSection: View {
             if let aggregate {
               AggregateRatingTile(rating: aggregate,
                                   votes: aggregateVotes,
-                                  onSectionFocused: onSectionFocused,
                                   pageEntryFocus: pageEntryFocus)
             }
             ForEach(Array(scores.enumerated()), id: \.element.id) { index, score in
               RatingTile(score: score,
                          url: score.url,
                          openURL: openURL,
-                         onSectionFocused: onSectionFocused,
                          pageEntryFocus: aggregate == nil && index == 0 ? pageEntryFocus : nil)
             }
             if mediaItem.views > 0 {
               ViewsRatingTile(views: mediaItem.views,
-                              onSectionFocused: onSectionFocused,
                               pageEntryFocus: aggregate == nil && scores.isEmpty ? pageEntryFocus : nil)
             }
           }
@@ -329,7 +325,6 @@ static let captionFont: Font = .caption
 private struct AggregateRatingTile: View {
   let rating: Rating
   let votes: Int
-  var onSectionFocused: (() -> Void)? = nil
   var pageEntryFocus: FocusState<MediaItemFocusTarget?>.Binding? = nil
   @Environment(\.colorScheme) private var colorScheme
 
@@ -341,7 +336,6 @@ private struct AggregateRatingTile: View {
     Button {} label: { content }
       .buttonStyle(DetailTileStyle.buttonStyle)
       .modifier(OptionalPageEntryFocus(binding: pageEntryFocus))
-      .reportMediaItemSectionFocus(onSectionFocused)
 #else
     content
 #endif
@@ -384,7 +378,6 @@ private struct RatingTile: View {
   let score: RatingSources.Score
   let url: URL?
   let openURL: OpenURLAction
-  var onSectionFocused: (() -> Void)? = nil
   var pageEntryFocus: FocusState<MediaItemFocusTarget?>.Binding? = nil
   @State private var isHovered = false
 
@@ -399,7 +392,6 @@ private struct RatingTile: View {
     .buttonStyle(DetailTileStyle.buttonStyle)
 #if os(tvOS)
     .modifier(OptionalPageEntryFocus(binding: pageEntryFocus))
-    .reportMediaItemSectionFocus(onSectionFocused)
 #else
     .onHover { isHovered = $0 }
     .pointingHandCursorOnHover(enabled: isLink)
@@ -452,7 +444,6 @@ private struct RatingTile: View {
 
 private struct ViewsRatingTile: View {
   let views: Int
-  var onSectionFocused: (() -> Void)? = nil
   var pageEntryFocus: FocusState<MediaItemFocusTarget?>.Binding? = nil
 
   var body: some View {
@@ -462,7 +453,6 @@ private struct ViewsRatingTile: View {
     Button {} label: { content }
       .buttonStyle(DetailTileStyle.buttonStyle)
       .modifier(OptionalPageEntryFocus(binding: pageEntryFocus))
-      .reportMediaItemSectionFocus(onSectionFocused)
 #else
     content
 #endif
@@ -551,7 +541,6 @@ struct MediaItemCastSection: View {
   let mediaItem: MediaItem
   let linkProvider: NavigationLinkProvider
   var externalMetadata: TitleMetadata = TitleMetadata()
-  var onSectionFocused: (() -> Void)? = nil
 
 #if os(tvOS)
   /// The UIKit rail can't use a SwiftUI `NavigationLink`, so selection is pushed
@@ -620,8 +609,7 @@ struct MediaItemCastSection: View {
   ///
   /// Two things the SwiftUI rail had and this does not: `mediaZoomSource` (the zoom
   /// transition is a SwiftUI-`NavigationLink` affordance with no UIKit-cell analog
-  /// here) and per-card `reportMediaItemSectionFocus`; the wash now flips from this
-  /// section's own `.detailFocusSection()` wrapper at the page level instead.
+  /// here) and per-card focus reporting, which the page no longer needs.
   private var monogramRail: some View {
     TVUIKitPersonCollection(
       people: people.map { entry in
@@ -634,8 +622,7 @@ struct MediaItemCastSection: View {
       onSelect: { person in
         guard let entry = people.first(where: { $0.person.id == person.id }) else { return }
         mediaNavigation?(linkProvider.person(for: entry.person))
-      },
-      onCellFocused: onSectionFocused
+      }
     )
     .frame(height: TVUIKitPersonCollectionController.railHeight)
     .focusSection()
@@ -914,10 +901,9 @@ struct MediaItemRelatedRowsSection: View {
   /// Titles for shelves still loading — same skeleton, now interleaved in this one
   /// section instead of belonging to whichever standalone section it used to sit in.
   var pendingShelves: [String] = []
-  var onSectionFocused: (() -> Void)? = nil
 
   @Environment(ErrorHandler.self) private var errorHandler
-  @EnvironmentObject private var navigationState: NavigationState
+  @Environment(NavigationState.self) private var navigationState
   @Environment(\.openURL) private var openURL
 
   private struct CardKey: Hashable {
@@ -952,8 +938,7 @@ struct MediaItemRelatedRowsSection: View {
                                             openURL: { openURL($0) })
             },
             focusedCard: $focusedCard,
-            focusKey: { CardKey(row: row.id, card: $0.id) },
-            onCardFocused: onSectionFocused
+            focusKey: { CardKey(row: row.id, card: $0.id) }
           )
         }
 
@@ -1020,7 +1005,6 @@ private struct MediaItemPosterShelfSkeleton: View {
 /// entirely otherwise, same gate pattern as `MediaItemRatingsSection`.
 struct MediaItemAwardsSection: View {
   let awards: [Award]
-  var onSectionFocused: (() -> Void)? = nil
 
   var body: some View {
     if !awards.isEmpty {
@@ -1028,7 +1012,7 @@ struct MediaItemAwardsSection: View {
         MediaItemSectionHeader("Awards")
         VStack(alignment: .leading, spacing: 8) {
           ForEach(Array(awards.enumerated()), id: \.offset) { _, award in
-            AwardRow(award: award, onSectionFocused: onSectionFocused)
+            AwardRow(award: award)
           }
         }
         .padding(.horizontal, MediaItemLayout.horizontalInset)
@@ -1039,7 +1023,6 @@ struct MediaItemAwardsSection: View {
 
 private struct AwardRow: View {
   let award: Award
-  var onSectionFocused: (() -> Void)? = nil
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
@@ -1062,7 +1045,6 @@ private struct AwardRow: View {
     .padding(.vertical, 6)
 #if os(tvOS)
     .focusable(true)
-    .reportMediaItemSectionFocus(onSectionFocused)
 #endif
   }
 }
@@ -1071,7 +1053,6 @@ private struct AwardRow: View {
 
 struct MediaItemPhotosSection: View {
   let stills: [StillImage]
-  var onSectionFocused: (() -> Void)? = nil
   @State private var selectedStill: StillImage?
 
   var body: some View {
@@ -1088,7 +1069,6 @@ struct MediaItemPhotosSection: View {
               }
 #if os(tvOS)
               .buttonStyle(.borderless)
-              .reportMediaItemSectionFocus(onSectionFocused)
 #else
               .buttonStyle(.plain)
               .pointingHandCursorOnHover()
@@ -1145,7 +1125,6 @@ struct MediaItemCommunityVoteSection: View {
   let dislikeCount: Int
   let myVote: MediaItemUserVote
   var onVote: (Bool) -> Void
-  var onSectionFocused: (() -> Void)? = nil
 
   var body: some View {
     HStack(spacing: MediaItemRatingsSection.spacing) {
@@ -1189,9 +1168,6 @@ struct MediaItemCommunityVoteSection: View {
     .buttonStyle(DetailTileStyle.buttonStyle)
     .disabled(myVote != .none && !active)
     .accessibilityLabel(up ? "Like" : "Dislike")
-#if os(tvOS)
-    .reportMediaItemSectionFocus(onSectionFocused)
-#endif
   }
 
 #if os(tvOS)
@@ -1217,7 +1193,6 @@ struct MediaItemCommunityVoteSection: View {
 /// each card is `FillingText` alone, taking whatever height the rail gives it.
 struct MediaItemFactsSection: View {
   let facts: [Fact]
-  var onSectionFocused: (() -> Void)? = nil
 
   var body: some View {
     if !facts.isEmpty {
@@ -1226,7 +1201,7 @@ struct MediaItemFactsSection: View {
         BlockRail(height: BlockMetrics.textCardHeight,
                   inset: MediaItemLayout.horizontalInset) {
           ForEach(facts) { fact in
-            FactCard(fact: fact, onSectionFocused: onSectionFocused)
+            FactCard(fact: fact)
           }
         }
       }
@@ -1239,7 +1214,6 @@ struct MediaItemFactsSection: View {
 /// review cards use — and becomes a plain `.flat` card once tapped, in place.
 private struct FactCard: View {
   let fact: Fact
-  var onSectionFocused: (() -> Void)? = nil
   @State private var isRevealed = false
 
   private var isHidden: Bool { fact.isSpoiler && !isRevealed }
@@ -1268,9 +1242,6 @@ private struct FactCard: View {
         }
       }
     }
-#if os(tvOS)
-    .reportMediaItemSectionFocus(onSectionFocused)
-#endif
   }
 }
 
@@ -1299,7 +1270,6 @@ struct MediaItemRatingsAndReviewsSection: View {
   /// The section's page. Every card in the rail opens it too, so the whole block has
   /// exactly one destination.
   var destination: (any Hashable)? = nil
-  var onSectionFocused: (() -> Void)? = nil
   @Environment(\.openURL) private var openURL
 
   private var reviews: [Review] { externalMetadata.reviews }
@@ -1338,8 +1308,7 @@ struct MediaItemRatingsAndReviewsSection: View {
           }
           ForEach(visible) { review in
             ReviewCard(review: review,
-                       destination: destination,
-                       onSectionFocused: onSectionFocused)
+                       destination: destination)
           }
         }
       }
@@ -1363,7 +1332,6 @@ struct MediaItemReviewsSection: View {
   var summary: ReviewsSummary? = nil
   /// The full-list page. `nil` leaves the header plain — see `MediaItemSectionHeader`.
   var destination: (any Hashable)? = nil
-  var onSectionFocused: (() -> Void)? = nil
 
   private var visible: [Review] { Array(reviews.prefix(Self.limit)) }
 
@@ -1383,7 +1351,7 @@ struct MediaItemReviewsSection: View {
             ReviewsSummaryCard(summary: summary)
           }
           ForEach(visible) { review in
-            ReviewCard(review: review, onSectionFocused: onSectionFocused)
+            ReviewCard(review: review)
           }
         }
       }
@@ -1723,7 +1691,6 @@ struct ReviewCard: View {
   var destination: (any Hashable)? = nil
   /// The title's page at the source, for "read the rest where it was written".
   var sourceURL: URL? = nil
-  var onSectionFocused: (() -> Void)? = nil
 
   @Environment(\.openURL) private var openURL
 
@@ -1740,7 +1707,6 @@ struct ReviewCard: View {
       }
 #if os(tvOS)
       .focusable(true)
-      .reportMediaItemSectionFocus(onSectionFocused)
 #endif
     case .expanded:
       BlockCard { expandedBody }
@@ -1932,7 +1898,6 @@ extension Review {
 struct MediaItemBadgeCardsSection: View {
   let mediaItem: MediaItem
   var externalMetadata: TitleMetadata = TitleMetadata()
-  var onSectionFocused: (() -> Void)? = nil
 
   private var advisories: [String] { mediaItemAdvisories(mediaItem) }
   private var ageRating: String? { externalMetadata.ageRating }
@@ -1981,19 +1946,16 @@ struct MediaItemBadgeCardsSection: View {
                 inset: MediaItemLayout.horizontalInset) {
         if ageRating != nil || !advisories.isEmpty {
           ParentalAdvisoryCard(ageRating: ageRating,
-                               advisories: advisories,
-                               onSectionFocused: onSectionFocused)
+                               advisories: advisories)
         }
         if !audioGroups.isEmpty || !subtitleGroups.isEmpty {
           LanguagesCard(audioGroups: audioGroups,
                         subtitleGroups: subtitleGroups,
-                        preferredLanguages: preferredLanguages,
-                        onSectionFocused: onSectionFocused)
+                        preferredLanguages: preferredLanguages)
         }
         if !videoBadges.isEmpty {
           VideoCard(badges: videoBadges,
-                   qualityLines: mediaItem.videoTechLines,
-                   onSectionFocused: onSectionFocused)
+                   qualityLines: mediaItem.videoTechLines)
         }
       }
     }
@@ -2020,7 +1982,6 @@ private struct VideoCard: View {
   /// the top badge; the popup lists all of them, because "what am I about to
   /// download" is a download-quality decision, not a glance.
   var qualityLines: [String] = []
-  var onSectionFocused: (() -> Void)? = nil
 
   var body: some View {
     BlockCard(width: BlockMetrics.textCardWidth, fillsHeight: true) {
@@ -2073,9 +2034,6 @@ private struct VideoCard: View {
         }
       }
     }
-#if os(tvOS)
-    .reportMediaItemSectionFocus(onSectionFocused)
-#endif
   }
 
   @ViewBuilder
@@ -2132,7 +2090,6 @@ private struct VideoCard: View {
 private struct ParentalAdvisoryCard: View {
   let ageRating: String?
   let advisories: [String]
-  var onSectionFocused: (() -> Void)? = nil
 
   private var canExpand: Bool { ageRating != nil || !advisories.isEmpty }
 
@@ -2187,9 +2144,6 @@ private struct ParentalAdvisoryCard: View {
         }
       }
     }
-#if os(tvOS)
-    .reportMediaItemSectionFocus(onSectionFocused)
-#endif
   }
 }
 
@@ -2215,7 +2169,6 @@ private struct LanguagesCard: View {
   let audioGroups: [MediaLanguageGroup]
   let subtitleGroups: [MediaLanguageGroup]
   let preferredLanguages: [String]
-  var onSectionFocused: (() -> Void)? = nil
 
   private var subtitleKeys: Set<String> { Set(subtitleGroups.map(\.key)) }
   private var audioKeys: Set<String> { Set(audioGroups.map(\.key)) }
@@ -2280,9 +2233,6 @@ private struct LanguagesCard: View {
         }
       }
     }
-#if os(tvOS)
-    .reportMediaItemSectionFocus(onSectionFocused)
-#endif
   }
 
   private func row(_ group: MediaLanguageGroup, showsSubtitleBadge: Bool) -> some View {
@@ -2361,7 +2311,6 @@ struct MediaItemInfoColumns: View {
 
   let mediaItem: MediaItem
   var externalMetadata: TitleMetadata = TitleMetadata()
-  var onSectionFocused: (() -> Void)? = nil
 
   /// System preferred languages plus the app's second-subtitle choice — the set the
   /// Languages column keeps expanded by default.
@@ -2791,7 +2740,7 @@ struct MediaItemInfoColumns: View {
 #endif
 
       if !tagValues.isEmpty {
-        TagStrip(values: tagValues, onSectionFocused: onSectionFocused)
+        TagStrip(values: tagValues)
       }
 
       switch layout {
@@ -2805,8 +2754,7 @@ struct MediaItemInfoColumns: View {
                  attribution: externalMetadata.attribution,
                  tmdbId: externalMetadata.tmdbId,
                  isSeries: mediaItem.isSeries,
-                 debugLog: externalMetadata.debugLog,
-                 onSectionFocused: onSectionFocused)
+                 debugLog: externalMetadata.debugLog)
     }
     .padding(.horizontal, MediaItemLayout.horizontalInset)
   }
@@ -2909,8 +2857,7 @@ struct MediaItemInfoColumns: View {
   /// have, but reachable in one place instead of scattered through three columns.
   private struct TagStrip: View {
     let values: [InfoValue]
-    var onSectionFocused: (() -> Void)? = nil
-    @EnvironmentObject var navigationState: NavigationState
+    @Environment(NavigationState.self) var navigationState
 
     var body: some View {
       // Wraps rather than scrolls: the whole set should be readable at a glance, and
@@ -2931,7 +2878,6 @@ struct MediaItemInfoColumns: View {
         }
       }
 #if os(tvOS)
-      .reportMediaItemSectionFocus(onSectionFocused)
       .focusSection()
 #endif
     }
@@ -3068,7 +3014,6 @@ struct MediaItemInfoColumns: View {
     let tmdbId: Int?
     let isSeries: Bool
     var debugLog: [SourceDebugEntry] = []
-    var onSectionFocused: (() -> Void)? = nil
     @Environment(\.openURL) private var openURL
     @State private var showsDebugSheet = false
 
@@ -3110,9 +3055,6 @@ struct MediaItemInfoColumns: View {
         }
       }
       .buttonStyle(SourceChipButtonStyle())
-#if os(tvOS)
-      .reportMediaItemSectionFocus(onSectionFocused)
-#endif
     }
 
     private var kinopubURL: URL {
@@ -3457,6 +3399,12 @@ struct MediaItemPlotView: View {
   /// Shared with the other hero controls so focusing the plot does not count as
   /// leaving the hero (and killing the trailer).
   @FocusState.Binding var focus: MediaItemFocusTarget?
+  /// tvOS: false until one of the hero's actions has taken focus. The synopsis sits above
+  /// Play, and tvOS hands entry focus to the topmost focusable element whatever
+  /// `defaultFocus` asks for — Plozz hit the same thing with its breadcrumb and fixed it
+  /// the same way, by keeping the higher control out of the focus system until focus has
+  /// landed. `.focusable(false)`, not `.disabled`, so the text never looks inert.
+  var acceptsFocus: Bool = true
 
   /// The two heights the truncation decision is made from, kept as state so it is
   /// remade every time the layout changes — the old `ViewThatFits` probe latched
@@ -3493,13 +3441,16 @@ struct MediaItemPlotView: View {
   /// a statement about the text, not about whether the control exists.
   private var content: some View {
     paragraph(showsMore: isTruncated)
-      .expandsIntoInfoPopup(title: Text(title)) {
+      .expandsIntoInfoPopup(title: Text(title), chrome: .text) {
         Text(plot)
           .font(InfoPopupMetrics.bodyFont)
           .foregroundStyle(Color.KinoPub.text)
           .multilineTextAlignment(.leading)
       }
       .focused($focus, equals: .plot)
+#if os(tvOS)
+      .focusable(acceptsFocus)
+#endif
   }
 
   private func paragraph(showsMore: Bool) -> some View {

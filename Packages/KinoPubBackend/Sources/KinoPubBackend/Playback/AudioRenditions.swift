@@ -136,8 +136,11 @@ public enum AudioRenditions {
 
   // MARK: - Reading a name
 
-  /// The API row number the CDN prefixes a name with: `"01. Многоголосый…"` → 1.
+  /// The API row number the CDN writes into a name. Two shapes, both built from the row
+  /// (captured 2026-09-28, docs/providers/kinopub/hls.md): `"01. Многоголосый. Rezka (RUS)"`
+  /// when the row has a type, `"Track 3 (RUS) AC3"` when it has none.
   public static func sourceIndex(in name: String) -> Int? {
+    if let untyped = name.firstMatch(of: #/^Track (\d+)\b/#) { return Int(untyped.1) }
     let digits = name.prefix(while: \.isNumber)
     guard !digits.isEmpty else { return nil }
     let rest = name.dropFirst(digits.count)
@@ -149,6 +152,8 @@ public enum AudioRenditions {
   /// any other shape — our own labels are read by `AudioTracks.authorFromDisplayName`.
   private static func sourceParts(of name: String, language: String) -> (kind: String, studio: String?)? {
     guard sourceIndex(in: name) != nil else { return nil }
+    // "Track N (LANG)": the row had no type and no studio, so the name has neither.
+    if name.hasPrefix("Track ") { return ("", nil) }
     var body = String(name.drop(while: \.isNumber).drop(while: { ".) ".contains($0) }))
     // A trailing "(RUS)" is the rendition's language, not a studio.
     if let open = body.lastIndex(of: "("), body.hasSuffix(")") {

@@ -190,6 +190,24 @@ final class AudioRenditionsTests: XCTestCase {
                    rezka18.signature)
   }
 
+  /// Item 127393 as captured: rows without a type are named `Track N (LANG)`, an AC-3 row
+  /// gets " AC3" on the end, and every group repeats all three.
+  func testUntypedRowsAreNamedTrackN() {
+    let aac = AudioTrackInfo(lang: "rus", channels: 6, codec: "aac", index: 1)
+    let original = AudioTrackInfo(lang: "rus", typeId: 6, typeTitle: "Оригинал", channels: 6, codec: "aac", index: 2)
+    let ac3 = AudioTrackInfo(lang: "rus", channels: 6, codec: "ac3", index: 3)
+    let group = [Rendition(renditionName: "Track 1 (RUS)"),
+                 Rendition(renditionName: "02. Оригинал (RUS)"),
+                 Rendition(renditionName: "Track 3 (RUS) AC3")]
+    let renditions = group + group + group
+    let paired = AudioRenditions.pairing(renditions, apiTracks: [aac, original, ac3], naming: .asDelivered)
+    XCTAssertEqual(paired, [aac, original, ac3, aac, original, ac3, aac, original, ac3])
+
+    let menu = AudioRenditions.menu(from: group)
+    XCTAssertEqual(menu.map(\.kindRank), [AudioTracks.kindRankUnknown, 5, AudioTracks.kindRankUnknown])
+    XCTAssertEqual(menu.map(\.authorTitle), [nil, nil, nil], "(RUS) is a language, not a studio")
+  }
+
   /// No numbers to go by: same-language dubs are listed in the same order on both sides,
   /// so the API's `index` order is the pairing — each row taken once.
   func testUnnumberedNamesPairByLanguageInListingOrder() {

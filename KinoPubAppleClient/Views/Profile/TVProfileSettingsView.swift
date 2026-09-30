@@ -103,6 +103,8 @@ struct TVProfileSettingsView: View {
       TVKinopoiskKeyView(keyProvider: kinopoiskKeyProvider)
     case .networkLog:
       NetworkConsoleView()
+    case .featureFlags:
+      TVFeatureFlagsPage()
 #if DEBUG
     case .streamSurvey:
       StreamSurveyView()
@@ -246,6 +248,7 @@ struct TVProfileSettingsView: View {
       // Not DEBUG-only: this is the platform the slow launches happen on, and the
       // builds they happen in are TestFlight ones with no Xcode attached.
       diagnosticsRow("Network log", route: .networkLog, id: "networkLog")
+      diagnosticsRow("Feature flags", route: .featureFlags, id: "featureFlags")
       // Reading a log on a television with a remote is nobody's idea of a good time;
       // this is the row that moves it to a Mac.
       Button {
@@ -419,6 +422,7 @@ private enum SettingsRoute: Hashable {
   case streamQuality
   case kinopoisk
   case networkLog
+  case featureFlags
 #if DEBUG
   case streamSurvey
   case typeStyles
@@ -598,6 +602,76 @@ private struct SettingsChoiceView: View {
       if focusedID == nil {
         focusedID = selection
       }
+    }
+  }
+}
+
+// MARK: - Feature flags destination
+
+/// Every `FeatureFlag` that matters on tvOS, as the pills the rest of Settings uses. The
+/// left panel explains the focused one. The iOS / macOS half is `FeatureFlagsView`.
+private struct TVFeatureFlagsPage: View {
+  /// One focus value per row — never one shared case (see `diagnosticsRow`).
+  private enum Row: Hashable {
+    case flag(FeatureFlag)
+    case quit
+    case reset
+  }
+
+  @State private var values = Dictionary(uniqueKeysWithValues: FeatureFlag.allCases.map { ($0, $0.storedValue) })
+  @FocusState private var focused: Row?
+  private let flags = FeatureFlag.allCases.filter(\.isRelevantHere)
+
+  var body: some View {
+    SettingsSplitLayout(title: "Feature flags", pageSymbol: "flag", tipKey: tip) {
+      SettingsSection("Applies on next launch") { rows(appliesAtLaunch: true) }
+      SettingsSection("Applies when next opened") { rows(appliesAtLaunch: false) }
+      SettingsSection("Defaults") {
+        if flags.contains(where: { $0.appliesAtLaunch && values[$0] != $0.isEnabled }) {
+          Button { FeatureFlag.quitToApply() } label: {
+            SettingsPillLabel(title: "Quit to apply")
+          }
+          .buttonStyle(SettingsPillButtonStyle())
+          .focused($focused, equals: .quit)
+        }
+        Button {
+          FeatureFlag.resetAll()
+          values = Dictionary(uniqueKeysWithValues: FeatureFlag.allCases.map { ($0, $0.storedValue) })
+        } label: {
+          SettingsPillLabel(title: "Reset to defaults", isDestructive: true)
+        }
+        .buttonStyle(SettingsPillButtonStyle())
+        .focused($focused, equals: .reset)
+      }
+    }
+    .background(Color.KinoPub.background.ignoresSafeArea())
+  }
+
+  private func rows(appliesAtLaunch: Bool) -> some View {
+    ForEach(flags.filter { $0.appliesAtLaunch == appliesAtLaunch }) { flag in
+      let isOn = values[flag] ?? flag.defaultValue
+      Button {
+        flag.set(!isOn)
+        values[flag] = !isOn
+      } label: {
+        SettingsPillLabel(title: "",
+                          verbatimTitle: flag.title,
+                          value: isOn ? "On".localized : "Off".localized)
+      }
+      .buttonStyle(SettingsPillButtonStyle())
+      .focused($focused, equals: .flag(flag))
+    }
+  }
+
+  private var tip: LocalizedStringKey {
+    switch focused {
+    case .flag(let flag)?:
+      let changed = values[flag] == flag.defaultValue ? "" : " Ships \(flag.defaultValue ? "on" : "off")."
+      return LocalizedStringKey(flag.summary + changed)
+    case .quit?:
+      return "Launch-time switches take hold on the next launch. This quits the app."
+    default:
+      return "Stored on this device only. A build ships with the defaults."
     }
   }
 }

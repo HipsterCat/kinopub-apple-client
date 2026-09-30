@@ -82,6 +82,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   private static let serverMarkInterval: TimeInterval = 30
   /// Held strongly: `AVAssetResourceLoader` only keeps a weak reference to its delegate.
   private var masterLoader: HLSMasterResourceLoader?
+  /// Set once a stream failed through the master rewrite; this session plays the plain
+  /// URL from then on (`fallBackWithoutMasterRewrite`).
+  private var bypassesMasterRewrite = false
   private var statusObservation: NSKeyValueObservation?
   private var seekObservation: NSKeyValueObservation?
   private var playbackFailureObserver: NSObjectProtocol?
@@ -260,6 +263,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       try? await Task.sleep(for: .seconds(Self.prepareTimeout))
       guard !Task.isCancelled, let self, self.playbackState == .preparing else { return }
       Logger.app.error("Prepare watchdog fired: item \(self.playItem.id) never became ready")
+      if self.fallBackWithoutMasterRewrite(reason: "prepare timed out") { return }
       self.playbackState = .failed("The stream took too long to respond".localized)
     }
 
@@ -344,6 +348,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// for trailers and downloaded files — the player gets the URL as it is.
   private func playbackAsset(for source: URL) -> AVURLAsset {
     guard FeatureFlags.rewritesStreamTrackMenus,
+          !bypassesMasterRewrite,
           watchMode == .media,
           let scheme = source.scheme?.lowercased(),
           scheme == "http" || scheme == "https",
@@ -379,6 +384,8 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
           Task { await self.fetchWatchMark() }
         case .failed:
           self.prepareWatchdog?.cancel()
+          let reason = item.error?.localizedDescription ?? "item failed"
+          if MainActor.assumeIsolated({ self.fallBackWithoutMasterRewrite(reason: reason) }) { return }
           self.playbackState = .failed(Self.failureMessage(for: item))
         default:
           break
@@ -473,6 +480,21 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
 #endif
     isPlaying = false
     playbackState = .preparing
+  }
+
+  /// A stream that failed *through our master rewrite* gets one more try without it,
+  /// before the viewer sees an error: a custom-scheme asset has no loader of last resort,
+  /// so whatever broke in the rewrite path would otherwise cost the whole title. Returns
+  /// whether a retry was started. The reason goes to the log so the next occurrence names
+  /// its own cause.
+  @MainActor
+  private func fallBackWithoutMasterRewrite(reason: String) -> Bool {
+    guard let loader = masterLoader, !bypassesMasterRewrite else { return false }
+    let cause = loader.lastFailure ?? reason
+    Logger.app.error("tracks · master rewrite failed (\(cause, privacy: .public)); retrying on the plain URL")
+    bypassesMasterRewrite = true
+    retryAfterFailure()
+    return true
   }
 
   /// The failure alert's "Try Again": tear the stalled attempt down and prepare once

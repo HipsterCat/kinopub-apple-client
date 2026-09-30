@@ -18,7 +18,7 @@ struct PlayerView: View {
   /// Publishes the manager swap an accepted Up Next proposal performs, so this screen
   /// follows to the next episode instead of holding the finished one.
   @ObservedObject private var playbackSession = PlaybackSession.shared
-  @EnvironmentObject private var navigationState: NavigationState
+  @Environment(NavigationState.self) private var navigationState
 #endif
   @Environment(\.dismiss) private var dismiss
   @State private var showsFailureAlert = false

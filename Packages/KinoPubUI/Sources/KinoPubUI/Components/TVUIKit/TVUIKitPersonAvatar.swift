@@ -75,14 +75,15 @@ public final class TVUIKitPersonAvatarView: UIView {
 
     var config = TVMonogramContentConfiguration.cell()
     config.personNameComponents = TVUIKitPerson.nameComponents(from: name)
-    config.image = TVUIKitRemoteImage.cached(url: photoURL)
+    let cached = TVUIKitRemoteImage.cached(url: photoURL)
+    config.image = TVUIKitPersonPhoto.displayable(cached, url: photoURL)
     content.configuration = config
 
     guard let url = photoURL else {
       ArtworkLog.skipped(by: "person-hero/\(name)", reason: "no photo URL")
       return
     }
-    if config.image != nil {
+    if cached != nil {
       ArtworkLog.servedFromMemory(url, by: "person-hero/\(name)")
       return
     }
@@ -90,10 +91,11 @@ public final class TVUIKitPersonAvatarView: UIView {
     imageTask = Task { [weak self] in
       let image = await TVUIKitRemoteImage.load(url: url)
       await MainActor.run {
-        guard let self, self.currentURL == url, let image,
+        guard let self, self.currentURL == url,
+              let photo = TVUIKitPersonPhoto.displayable(image, url: url),
               var config = self.content.configuration as? TVMonogramContentConfiguration
         else { return }
-        config.image = image
+        config.image = photo
         self.content.configuration = config
       }
     }

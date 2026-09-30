@@ -19,7 +19,7 @@ struct PersonItemsView: View {
   private let metadataService: MetadataService
 
   @Environment(ErrorHandler.self) var errorHandler
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(\.dismiss) private var dismiss
   @Environment(\.openURL) private var openURL
   /// The margin the credits grid below actually landed on. Padding this page's hero and

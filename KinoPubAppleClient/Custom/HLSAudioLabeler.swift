@@ -386,8 +386,28 @@ final class HLSMasterResourceLoader: NSObject, AVAssetResourceLoaderDelegate, @u
       Logger.app.debug("HLS master served: \(body.count) bytes")
     } catch {
       Logger.app.error("HLS master fetch failed, failing the item: \(error.localizedDescription)")
+      recordFailure("master fetch failed: \(error.localizedDescription)")
       request.finishLoading(with: error)
     }
+  }
+
+  /// Why this loader failed the item, if it did. A custom-scheme asset has no fallback of
+  /// its own, so the player reads this, says it in the log and retries on the plain URL
+  /// (`PlayerManager.fallBackWithoutMasterRewrite`) — the idea is Rivulet's
+  /// `HLSManifestEnricher`, which does the same for its Plex master.
+  var lastFailure: String? {
+    failureLock.lock()
+    defer { failureLock.unlock() }
+    return _lastFailure
+  }
+
+  private let failureLock = NSLock()
+  private var _lastFailure: String?
+
+  private func recordFailure(_ reason: String) {
+    failureLock.lock()
+    _lastFailure = reason
+    failureLock.unlock()
   }
 
   private func relabeledIfPossible(_ data: Data) -> Data {

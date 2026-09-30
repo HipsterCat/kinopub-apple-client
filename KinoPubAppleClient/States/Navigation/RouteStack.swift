@@ -27,7 +27,7 @@ struct RouteStack<Content: View>: View {
   var zoom: Bool = false
   @ViewBuilder var content: () -> Content
 
-  @EnvironmentObject private var navigationState: NavigationState
+  @Environment(NavigationState.self) private var navigationState
   @Namespace private var zoomNamespace
 
   var body: some View {

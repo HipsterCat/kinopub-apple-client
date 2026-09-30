@@ -166,14 +166,17 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       containerSafeArea = max(0, geometry.safeArea)
     }
 #if os(tvOS)
-    .onGeometryChange(for: CGRect.self) { proxy in
-      proxy.frame(in: .global)
-    } action: { frame in
+    // Only the horizontal position: observing the whole global frame fired this action on
+    // every frame of the page's vertical scroll, for every shelf on it.
+    .onGeometryChange(for: CGFloat?.self) { proxy in
+      let frame = proxy.frame(in: .global)
       // Ignore the zero/off-screen first frame (Movies/Series tab create).
       // That frame reported minX=0 → leading 80 while Home had already
       // settled at minX≈80 → leading 0: same rail, two insets, two sizes.
-      guard frame.width > 100 else { return }
-      contentLeadingInset = max(0, ShelfMetrics.tvContentMargin - frame.minX)
+      return frame.width > 100 ? frame.minX : nil
+    } action: { minX in
+      guard let minX else { return }
+      contentLeadingInset = max(0, ShelfMetrics.tvContentMargin - minX)
     }
 #endif
   }

@@ -258,7 +258,11 @@ final class TVUIKitPersonCell: UICollectionViewCell {
     currentURL = person.photoURL
 
     // The monogram draws its own focus; the cell's default tvOS background painted a
-    // dark square behind the circle when focused.
+    // dark square behind the circle when focused. Setting `.clear()` alone is not
+    // enough: with automatic updates on, UIKit re-derives the background for the
+    // focused state, and a light square still showed behind the focused circle on
+    // device (2026-09-28).
+    automaticallyUpdatesBackgroundConfiguration = false
     backgroundConfiguration = .clear()
     var config = TVMonogramContentConfiguration.cell()
     config.text = person.name
@@ -267,14 +271,15 @@ final class TVUIKitPersonCell: UICollectionViewCell {
     // Decoded art up front. The monogram is the *fallback* for someone we have no
     // portrait of — a recycled cell must not flash initials over a face that was on
     // screen a moment ago, which is what rebuilding the configuration empty did.
-    config.image = TVUIKitRemoteImage.cached(url: person.photoURL)
+    let cached = TVUIKitRemoteImage.cached(url: person.photoURL)
+    config.image = TVUIKitPersonPhoto.displayable(cached, url: person.photoURL)
     contentConfiguration = config
 
     guard let url = person.photoURL else {
       ArtworkLog.skipped(by: "cast/\(person.name)", reason: "no photo URL")
       return
     }
-    if config.image != nil {
+    if cached != nil {
       ArtworkLog.servedFromMemory(url, by: "cast/\(person.name)")
       return
     }
@@ -283,9 +288,10 @@ final class TVUIKitPersonCell: UICollectionViewCell {
       let image = await TVUIKitRemoteImage.load(url: url)
       await MainActor.run {
         guard let self, !Task.isCancelled, self.currentURL == url,
-              let image, var config = self.contentConfiguration as? TVMonogramContentConfiguration
+              let photo = TVUIKitPersonPhoto.displayable(image, url: url),
+              var config = self.contentConfiguration as? TVMonogramContentConfiguration
         else { return }
-        config.image = image
+        config.image = photo
         self.contentConfiguration = config
       }
     }

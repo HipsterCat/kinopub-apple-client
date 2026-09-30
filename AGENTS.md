@@ -100,7 +100,7 @@ wrong one level up — stop and ask.
 | One `@FocusState` case bound by several sibling views | Six hero buttons shared `heroOther`: focus froze dead on Play, Right and Down both no-ops, **and Menu quit the app** instead of popping — the confused focus state broke the NavigationStack back-context too. Cost a misdiagnosed revert of an unrelated change | One case per focusable view, or no `@FocusState` |
 | Manual focus delays — `asyncAfter`, same-press guards | Racing the engine's own animator; the race returns on a different box | React to where focus landed |
 | Hand-rolled focus chrome — `scaleEffect` / `brightness` / shadow / parallax on focus | Verdict was "не выглядит нативно", and it was right | `.buttonStyle(.card)` on tvOS; system cells; `.borderless` + `.hoverEffect` only where the label *is* an image |
-| Continuous scroll-progress choreography (`washProgress`, "at 0.37 move the artwork") | Keyed the blur to incidental content geometry, so it "only worked for series"; re-ran the whole page body — every shelf, every `updateUIViewController` — on every scroll frame | Discrete state: hero owns focus, or it does not |
+| Continuous scroll-progress choreography (`washProgress`, "at 0.37 move the artwork") | Keyed the blur to incidental content geometry, so it "only worked for series"; re-ran the whole page body — every shelf, every `updateUIViewController` — on every scroll frame | No page-wide scroll or fold state at all (see [The detail page](#the-detail-page)) |
 | Hand-driven scrolling (`isScrollEnabled = false` + `CADisplayLink` on `contentOffset`) | Replacing the focus engine's scroll animator to win a fight we started | Let focus scroll the page; if the landing is wrong, fix layout or use a collection view |
 | A custom hero focus graph (hero as a detached layer with its own rules) | Broke directional continuity *and* the responder chain | One connected focus graph |
 | A SwiftUI state machine around preview / trailer playback | The reference app's least attractive code, and ours was worse | UIKit, if it is ever built |
@@ -117,8 +117,8 @@ wrong one level up — stop and ask.
   badge with a scrim, checkmark and progress bar, which move together — but state *that*.
 - **Cross-platform geometry parity.** "iOS shows two lines under a poster, so tvOS must too" is a
   reflex, not a requirement. The two-line tvOS caption cost tile width and rendered nothing.
-- **"The hero must live outside the scrolling container."** Described one broken attempt. What is
-  outside the scroll is the *artwork layer*.
+- **"The hero must live outside the scrolling container."** Described one broken attempt. Nothing
+  on the detail page lives outside the scroll, the artwork included.
 - **A compact title / floating header logo.** Dropped 2026-08-13 unless navigation chrome needs one.
 
 ### ✅ Accepted adapters
@@ -157,8 +157,8 @@ An adapter that stops being needed gets deleted, not kept "in case".
 - **Every state keeps a focus escape path.** A dead end on tvOS is unrecoverable — the remote has
   nowhere else to go:
   1. Do not enter a "scrolled past the hero" state until at least one focusable row exists below.
-  2. Do not drop the hero's focusability until focus has actually landed below it. Fading chrome is
-     not removing it — the 0.35 opacity floor exists so Play/More stay in the focus graph.
+  2. Never drop the hero's focusability. Play/More stay in the focus graph wherever the page is
+     scrolled.
   3. Empty and error states are **focusable sections with a Retry control**, never an empty list.
 - No inert reserved space above the first focusable row — it steals Up and traps focus in the tab bar.
 - **A known-bad focus pattern sitting in a checklist as a "someday" item is a bug to fix on sight.**
@@ -204,13 +204,32 @@ file, and delete the losers with the switch.
 
 ## The detail page
 
-- **The artwork layer sits behind the scroll** — parallax, blur and crop live there, and nothing
-  focuses it. **The hero's own content scrolls with the page**, in one connected focus and view
-  graph with the sections below. Splitting them into independent scroll/focus worlds broke
-  directional continuity and the responder chain.
-- **Two discrete states, not a scrub.** The hero either owns focus or it does not; that flag is
-  derived from focus, never from scroll offset, and has exactly **one writer**. Two writers racing
-  one page-wide flag has broken this page twice.
+- **One scroll, and the artwork is part of the hero** (Sasha, 2026-09-27, after comparing with
+  Plozz). The artwork is the hero's own `.background`, so it adds nothing to the layout and scrolls
+  away with the hero. It is **as tall as the screen, not the hero** (`containerRelativeFrame`), so
+  the first section peeks over the picture, and the picture's own alpha dissolves into the page at
+  the bottom — no second colour to match. The hero, its artwork and the sections are one focus and
+  view graph; nothing is pinned behind the page. Splitting them into independent scroll/focus
+  worlds broke directional continuity and the responder chain.
+- **The hero scrim follows light/dark.** Black in dark mode, white in light mode, same geometry
+  (Plozz's `scrimTone`): the hero text and buttons are system colours, dark in light mode, and a
+  black scrim under them was unreadable (Sasha, on device, 2026-09-28). Keep it where the text is
+  (bottom band, left edge); a stacked 0.92 diagonal read as a black slab.
+- **Prose in the hero has no chrome at rest.** The synopsis opens the info popup with
+  `expandsIntoInfoPopup(chrome: .text)` (stock `.borderless` on tvOS). `.card` draws its platter
+  whether focused or not, and next to the focused Play it read as a second focus.
+- **Play is the entry focus, by name.** `defaultFocus(priority: .userInitiated)`, the hero sets
+  `focus = .play` in `.task`, and the synopsis — the one control above Play — stays
+  `.focusable(false)` until an action has taken focus. tvOS otherwise hands entry focus to the
+  topmost focusable element. The written column is a `focusSection` so Right from Play reaches it.
+- **No page-wide hero state.** No fold flag, no wash, no chrome fade, no custom
+  `ScrollTargetBehavior`. The focus engine scrolls the page. The one scroll the page asks for is
+  back to the top when a hero control takes focus (`ScrollViewReader.scrollTo`), because the
+  controls sit at the hero's bottom edge and the engine otherwise nudges the page to frame each
+  one. The fold state it replaces changed one step after focus moved, so the snap worked from stale
+  state, and every write re-ran the whole page body and every shelf under it.
+- **The page body reads no focus.** Hero focus is observed inside `MediaItemHeroView`; the page
+  passes the `@FocusState` binding down and reads nothing from it.
 - **Lead with what can be played.** The cheapest path on a remote is `hero button → playable rail →
   everything else`. Episodes, parts, versions and trailers are one rail directly under the hero;
   related titles, ratings, cast and info follow. Ordering is by what the user can do now, not by
@@ -319,13 +338,18 @@ Details: skill `apple-chrome`.
   family, not a string at the call site.
 - **Downloads are non-TV only.** Feature-gate incomplete surfaces (`FeatureFlags`) rather than
   inventing half-UI. An off flag must skip the work — network, sampling — not only hide UI.
+  **Every flag is a `FeatureFlag` case** (default, title, one-line summary, platforms, launch-time
+  or not) and so is switchable in Settings › Diagnostics › Feature flags in every build — a
+  `static let` flag can only be judged by rebuilding, and there is no Xcode next to a TV.
 
 ## What is dead — do not revive
 
 If you find a comment or a doc referencing these, it is stale.
 
 - `washProgress` / `onScrollGeometryChange` scroll scrub, `MediaItemHeroScrollDriver`,
-  `HeroMaterialBackdropView`, the `ZStack` hero-outside-scroll structure, the overlay title logo.
+  `HeroMaterialBackdropView`, the `ZStack` hero-outside-scroll structure, the overlay title logo,
+  `MediaItemHeroBackdrop` (pinned still + fold material), `MediaItemFoldSnappingBehavior`, the
+  per-section `onSectionFocused` / `reportMediaItemSectionFocus` reporters.
 - `focusBridge`-style routing, `SiriRemoteTilt` / Game Controller fake parallax,
   `ExpandableButtonStyle`, `ExpandableLabel`, `RatingTileButtonStyle`, `DetailTileFocusChrome`.
 - `MediaItemDetailSheet` / `MediaItemSheetLayout` — replaced by `InfoPopup`, where **the clipped

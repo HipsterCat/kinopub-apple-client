@@ -9,7 +9,7 @@ import KinoPubBackend
 
 /// One bookmark folder as a sidebar tab — own stack so folder switches stay isolated.
 struct BookmarkFolderTabView: View {
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @Environment(\.appContext) var appContext

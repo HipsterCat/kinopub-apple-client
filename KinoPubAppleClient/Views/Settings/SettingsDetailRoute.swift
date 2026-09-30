@@ -14,6 +14,9 @@ enum SettingsDetailRoute: Hashable {
   /// Not DEBUG-only on purpose: the launches worth reading a log for happen on a real
   /// Apple TV running a TestFlight build, with no Xcode attached.
   case networkLog
+  /// Every `FeatureFlag`, switchable — in TestFlight builds too, which is where a flag
+  /// gets judged on a real screen.
+  case featureFlags
 #if DEBUG
   case streamSurvey
   /// Opens the in-process UI lab (iOS). macOS uses `openWindow` instead.

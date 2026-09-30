@@ -22,6 +22,7 @@ struct AdvancedSettingsPane: View {
 
       Section {
         NavigationLink("Network log", value: SettingsDetailRoute.networkLog)
+        NavigationLink("Feature flags", value: SettingsDetailRoute.featureFlags)
         Toggle("Show in-flight requests", isOn: $showsActivityOverlay)
         Toggle("Stream to Pulse on Mac", isOn: $streamsToPulse)
 #if DEBUG

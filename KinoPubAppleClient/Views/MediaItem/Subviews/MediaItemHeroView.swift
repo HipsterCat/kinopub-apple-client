@@ -213,189 +213,6 @@ final class TrailerLayerHostView: UIView {
 }
 #endif
 
-#if os(tvOS)
-/// Full-screen stack pinned behind the detail `ScrollView` — the Apple TV shape.
-///
-/// One wide still with a material over it, masked by a gradient — Apple's documented
-/// tvOS above/below-the-fold treatment, built entirely in SwiftUI.
-///
-/// Two earlier versions of this are worth remembering. The first cross-faded a
-/// *different* asset (a downsampled poster, separately blurred) under the sharp one,
-/// which is why the colours visibly disagreed mid-wash. The second fixed the colours
-/// by dropping to a `UIVisualEffectView` bridge, on my claim that SwiftUI cannot
-/// animate a material — it can: you animate the gradient mask in front of it, not the
-/// material itself. What must never come back is fading a material by `.opacity()`,
-/// which draws the same full-strength effect semi-transparently instead of weakening
-/// it.
-/// Ambient trailer is intentionally off (policy: no blur-over-video; scrims +
-/// still until a dedicated hero pass). `trailer` is kept for a later pass /
-/// Up-to-fullscreen when ambient returns.
-struct MediaItemHeroBackdrop: View {
-
-  var mediaItem: MediaItem
-  @ObservedObject var trailer: TrailerPreviewModel
-  /// Read directly from `phase` inside this view's own `body` (never pre-extracted by
-  /// the caller) — that is what makes `MediaItemHeroPhase` changes re-render only this
-  /// view instead of the whole page. See `MediaItemHeroPhase`.
-  var phase: MediaItemHeroPhase
-
-  /// 0 = hero sharp; 1 = below-fold wash. **Section state, not scroll offset.**
-  ///
-  /// This used to be scrubbed per-frame from the scroll offset (`offset / 600`), which
-  /// made the blur a function of how far the page happened to scroll — and the page only
-  /// scrolls as far as it needs to reveal the next focusable thing. A tall season rail
-  /// forced a long scroll and a full wash; a short ratings row (a movie's first section)
-  /// forced a short one and almost none. That is why the blur looked "tied to episodes"
-  /// and why it arrived in visible steps. It also re-ran this whole page's body on every
-  /// scroll frame, re-rendering every shelf underneath.
-  ///
-  /// Now it is binary and driven by whether focus is in the hero section — the SwiftUI
-  /// gradient layers below still key off it directly; the material wash itself is driven
-  /// by the same `isHeroOnScreen` passed straight into the UIKit representable, which
-  /// owns its own transition timing.
-  private var effectiveWash: CGFloat {
-    phase.isHeroOnScreen ? 0 : 1
-  }
-
-  var body: some View {
-    ZStack {
-      Color.KinoPub.background
-
-      // Loading placeholder only — a cheap blurred wash from the *small* poster
-      // (120×180 raster) until the real wide still decodes. Do not `drawingGroup`
-      // +scale a full-bleed buffer: that path plus eager Home shelves was blowing
-      // past 1.5GB (CVPixelBuffer -6680).
-      blurredPoster
-
-      // One wide still, with the material laid over it and *masked* by a gradient
-      // whose stop opacities are what animate. This is Apple's documented tvOS
-      // above/below-the-fold treatment, and it replaces the `UIVisualEffectView`
-      // bridge that used to live here.
-      //
-      // I had told you SwiftUI has no animatable material intensity and dropped to
-      // UIKit for it. That was wrong: you do not animate the material, you animate
-      // the mask in front of it — the docs call this out explicitly, "rather than
-      // swapping out the mask view, you achieve a smooth animation". Worth being
-      // precise about what it does, though: this changes how much of the frame the
-      // material *covers*, not the blur radius. Above the fold the material fades
-      // out toward the top and the still reads sharp; below the fold it covers the
-      // whole frame and the still is fully washed.
-      heroStill
-        .overlay { foldMaterial }
-
-      topGradient
-        .opacity(1 - effectiveWash)
-
-      bottomScrim
-      titleScrim
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .clipped()
-    .ignoresSafeArea()
-    .animation(.easeOut(duration: 0.35), value: phase.isHeroOnScreen)
-  }
-
-  /// The single source of every pixel behind this page — sharp above the fold,
-  /// washed below it. Prefer `/wide/`, falling back to `medium` rather than `big` so
-  /// a multi-MB 4K poster is never decoded into a full-screen layer.
-  private var heroStill: some View {
-    CachedRemoteImage(url: URL(string: heroStillURL), contentMode: .fill)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .clipped()
-  }
-
-  /// Material over the still, revealed by a gradient mask. Only the stop opacities
-  /// change between states, which is what keeps the transition smooth.
-  private var foldMaterial: some View {
-    let belowFold = !phase.isHeroOnScreen
-    return Rectangle()
-      .fill(.regularMaterial)
-      .mask {
-        LinearGradient(stops: [
-          .init(color: .black, location: 0.25),
-          .init(color: .black.opacity(belowFold ? 1 : 0.3), location: 0.375),
-          .init(color: .black.opacity(belowFold ? 1 : 0), location: 0.5)
-        ], startPoint: .bottom, endPoint: .top)
-      }
-  }
-
-  /// Scale is derived from the real container so a portrait buffer still covers
-  /// a 16:9 screen — a fixed `scaleEffect` of 10 left ~1200pt of width and the
-  /// sides fell back to the page colour.
-  private var blurredPoster: some View {
-    GeometryReader { geo in
-      let scale = max(geo.size.width / Self.blurBuffer.width,
-                      geo.size.height / Self.blurBuffer.height) * 1.05
-
-      CachedRemoteImage(url: URL(string: mediaItem.posters.small), contentMode: .fill)
-        .frame(width: Self.blurBuffer.width, height: Self.blurBuffer.height)
-        .clipped()
-        .blur(radius: Self.blurRadius, opaque: true)
-        .saturation(1.4)
-        .scaleEffect(scale)
-        .frame(width: geo.size.width, height: geo.size.height)
-        .clipped()
-    }
-  }
-
-  private var heroStillURL: String {
-    // Prefer `/wide/` when present; fall back to `medium` rather than `big` so we
-    // don't decode a multi‑MB 4K poster into a full-screen layer on the simulator.
-    mediaItem.posters.wideURL ?? mediaItem.posters.medium
-  }
-
-  /// Very light black wash from the top edge down to about mid-frame — enough to
-  /// settle the status area without dulling the still. Fades out with the hero.
-  private var topGradient: some View {
-    LinearGradient(stops: [
-      .init(color: .black.opacity(0.32), location: 0),
-      .init(color: .black.opacity(0.12), location: 0.28),
-      .init(color: .clear, location: 0.55)
-    ], startPoint: .top, endPoint: .bottom)
-  }
-
-  /// Soft shade under the title and buttons. Stronger under the material wash so
-  /// section text sits cleanly. Full width: unlike a narrow single-column hero, our
-  /// tvOS/macOS text runs the whole bottom edge (title + actions on the leading side,
-  /// synopsis / credits / metadata filling the trailing side — `MediaItemHeroView.content`),
-  /// so the right column needs the same floor as the left, not a lighter one.
-  private var bottomScrim: some View {
-    let bottom = 0.35 + (0.25 * effectiveWash)
-    return LinearGradient(stops: [
-      .init(color: .clear, location: 0),
-      .init(color: .clear, location: 0.2),
-      .init(color: .black.opacity(0.3 + 0.1 * effectiveWash), location: 0.38),
-      .init(color: .black.opacity(bottom), location: 1)
-    ], startPoint: .top, endPoint: .bottom)
-  }
-
-  /// Extra contrast anchored where the title actually sits (bottom-leading — Rivulet's
-  /// diagonal scrim, adapted). Their version can fade all the way to clear at the
-  /// opposite corner because their text is a single narrow left-hand column; ours runs
-  /// full width, so `bottomScrim` above still has to hold the floor for the trailing
-  /// (right) side on its own. This only ADDS weight over the title block itself — the
-  /// largest, least-shadowed element (a title-logo image has no `heroTextShadow()` of
-  /// its own) — and is gone by the time it reaches the trailing edge.
-  /// Values are Rivulet's, measured rather than guessed: their `ScrimGradientView` is
-  /// `0.92 → 0.55 → clear` at stops `0 / 0.45 / 1`, bottom-leading → top-trailing. Ours
-  /// shipped at `0.5 → 0.18 → clear` on `0 / 0.5 / 1` — roughly **half** the darkness at
-  /// the anchor and a **third** at the midpoint, which over a bright backdrop reads as
-  /// no scrim at all. It was never missing, just far too weak to see. Matched now.
-  private var titleScrim: some View {
-    LinearGradient(stops: [
-      .init(color: .black.opacity(min(1, 0.92 + 0.08 * effectiveWash)), location: 0),
-      .init(color: .black.opacity(0.55), location: 0.45),
-      .init(color: .clear, location: 1)
-    ], startPoint: .bottomLeading, endPoint: .topTrailing)
-  }
-
-  /// Portrait small, rasterised once. Scale is computed at layout time to cover
-  /// the screen on both axes.
-  private static let blurBuffer = CGSize(width: 120, height: 180)
-  private static let blurRadius: CGFloat = 12
-}
-
-#endif // SEEMS VERY RESOURCEFUL FOR WHAT?? I
 
 /// The item page's secondary actions, as menu content. Shared so the same list can be
 /// a circle in the hero row (tvOS) or a toolbar item (iPhone / Mac) without either
@@ -437,13 +254,12 @@ struct MediaItemHeroView: View {
   /// The page's focus target — the primary action claims it, so a page whose content
   /// lands late still opens at the top rather than wherever the focus engine drifted.
   @FocusState.Binding var focus: MediaItemFocusTarget?
-  /// Owned by the page so the same player can sit in the pinned tvOS backdrop and in
-  /// the hero's Up-to-fullscreen gesture.
+  /// Owned by the page so the same player plays behind the artwork and in the hero's
+  /// Up-to-fullscreen gesture.
   @ObservedObject var trailer: TrailerPreviewModel
-  /// Drives trailer pause / the blurred still on the pinned backdrop. The hero never
-  /// leaves the hierarchy on scroll, so this is measured rather than `onDisappear`.
-  /// Read/written directly through `phase` inside this view's own `body` — never
-  /// pre-extracted by the caller. See `MediaItemHeroPhase`.
+  /// iOS / macOS: pauses the ambient trailer once the hero has scrolled away. The hero
+  /// never leaves the hierarchy on scroll, so this is measured rather than
+  /// `onDisappear`. Read and written only inside this view. See `MediaItemHeroPhase`.
   var phase: MediaItemHeroPhase
   var linkProvider: NavigationLinkProvider
   var isWatched: Bool
@@ -471,12 +287,18 @@ struct MediaItemHeroView: View {
   /// (optimistic: a logo is expected). Defaults to `true` so previews without the
   /// enrichment pipeline still show the lettered title.
   var externalMetadataLoaded: Bool = true
+  /// tvOS: called whenever one of the hero's own controls takes focus, including moves
+  /// between them. The page scrolls back to the top with it.
+  var onFocusEntered: (() -> Void)? = nil
 
   /// tvOS only: the Up gesture lifts the muted inline preview into a real full-screen
   /// player. Kept here so the same view that owns the preview owns its promotion.
   @State private var isTrailerFullScreen = false
   @State private var showNewFolderAlert = false
   @State private var newFolderName = ""
+  /// tvOS: the synopsis joins the focus graph once an action has taken focus. See
+  /// `MediaItemPlotView.acceptsFocus`.
+  @State private var plotAcceptsFocus = false
 
   /// Opt-in, off by default. Read as `@AppStorage` so flipping it in Settings redraws
   /// the metadata row without leaving the page.
@@ -484,7 +306,10 @@ struct MediaItemHeroView: View {
   private var showsAgeRatingBadge = false
 
   @Environment(\.openURL) private var openURL
-  @EnvironmentObject private var navigationState: NavigationState
+  @Environment(NavigationState.self) private var navigationState
+#if os(tvOS)
+  @Environment(\.colorScheme) private var colorScheme
+#endif
 
   private var isSeries: Bool {
     !(mediaItem.seasons?.isEmpty ?? true)
@@ -497,43 +322,42 @@ struct MediaItemHeroView: View {
     !isWatched
   }
 
-  /// Fade title/actions when focus leaves the hero — never hard-zero. Opacity 0 on the
-  /// whole hero dropped Play/More from the focus graph, so Up from seasons could
-  /// not return (Rivulet keeps a focusable return path; we keep the buttons alive).
-  ///
-  /// Keyed to the same section state as `MediaItemHeroBackdrop.effectiveWash`, so chrome
-  /// and backdrop can never disagree — they previously did, because this read the raw
-  /// per-frame scroll value while the backdrop read a guarded one.
-  private var chromeAlpha: CGFloat {
-#if os(tvOS)
-    phase.isHeroOnScreen ? 1 : 0.35
-#else
-    1
-#endif
-  }
-
   var body: some View {
     platformBody
-      // Moved down from the page level: this is the one view that already reads
-      // `phase.isHeroOnScreen` in its own body (via `chromeAlpha`/`visibilityProbe`),
-      // so adding the trailer side effect here costs nothing extra structurally —
-      // doing it at `MediaItemView` would have re-coupled the page's body to the value.
+      // The hero is the only reader of `phase`, so the write lands here alone and the
+      // page's body never re-runs for it.
       .onChange(of: phase.isHeroOnScreen) { _, onScreen in
         trailer.setActive(onScreen)
       }
+#if os(tvOS)
+      // `focus` is non-nil exactly while a hero control holds focus. Read here rather
+      // than on the page, so a focus move re-renders the hero and nothing else.
+      .onChange(of: focus) { _, target in
+        guard target != nil else { return }
+        plotAcceptsFocus = true
+        onFocusEntered?()
+      }
+      // `defaultFocus` is only a request, and loses to the topmost focusable element on
+      // entry. Naming Play outright is what holds (Plozz, `ItemDetailView`).
+      .task {
+        if focus == nil { focus = .play }
+      }
+#endif
   }
 
   @ViewBuilder
   private var platformBody: some View {
 #if os(tvOS)
-    // Fills the hero slideshow slide; bottom-aligned over the pinned backdrop.
-    // Force dark so `Color.primary` / scores / plot stay light over the artwork —
-    // same always-readable chrome as the Apple TV app, without hard-coding whites.
+    // The page gives the hero its height (`MediaItemLayout.heroFraction` of the screen)
+    // and the chrome sits at its bottom edge. The artwork is the hero's `.background`, so
+    // it adds nothing to the layout and scrolls away with the hero, but it is as tall as
+    // the screen, not the hero: the first section peeks over the picture instead of over
+    // a band of bare page, and the picture dissolves into the page at the bottom.
     content
-      .opacity(chromeAlpha)
-      .animation(.easeOut(duration: 0.25), value: chromeAlpha)
-//      .environment(\.colorScheme, .dark)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+      .background(alignment: .top) {
+        backdropLayer
+      }
       // The same muted preview, promoted to sound and full screen without restarting.
       // Menu on the remote dismisses it — no chrome of our own over the picture.
       .fullScreenCover(isPresented: $isTrailerFullScreen, onDismiss: { trailer.setFullScreen(false) }) {
@@ -622,16 +446,9 @@ struct MediaItemHeroView: View {
   private var debugArtworkURLs: [URL] {
     var urls: [URL] = []
     var seen = Set<String>()
-#if os(tvOS)
-    let wide = mediaItem.posters.wideURL ?? mediaItem.posters.big
-    if !wide.isEmpty, seen.insert(wide).inserted, let url = URL(string: wide) {
-      urls.append(url)
-    }
-#else
     if let primary = backdropCandidates.first, seen.insert(primary.absoluteString).inserted {
       urls.append(primary)
     }
-#endif
     if let titleLogoURL, seen.insert(titleLogoURL.absoluteString).inserted {
       urls.append(titleLogoURL)
     }
@@ -670,6 +487,7 @@ struct MediaItemHeroView: View {
         }
     }
   }
+#endif
 
   /// wide → big → medium. Same chain as Home banners — list/detail payloads differ and
   /// a `/wide/` derivation frequently 404s, so one URL is not enough. See
@@ -706,6 +524,63 @@ struct MediaItemHeroView: View {
     .animation(.easeInOut(duration: 0.6), value: trailer.isReady)
   }
 
+#if os(tvOS)
+  /// Artwork, then the legibility scrim, both dissolved into the page at the bottom and
+  /// sized to the screen (`containerRelativeFrame` resolves against the page's scroll
+  /// view, not the hero).
+  private var backdropLayer: some View {
+    ZStack {
+      scrollingBackdrop
+      scrollingScrim
+    }
+    .containerRelativeFrame(.vertical, alignment: .top)
+    .mask {
+      // The picture's own alpha goes to zero, so whatever the page is drawn on shows
+      // through: no second colour to match, in light or dark.
+      LinearGradient(stops: [
+        .init(color: .black, location: 0),
+        .init(color: .black, location: 0.72),
+        .init(color: .clear, location: 1)
+      ], startPoint: .top, endPoint: .bottom)
+    }
+  }
+
+  /// Dark in dark mode, light in light mode: the hero's text and buttons use the system
+  /// colours, which are dark in light mode, and a black scrim under dark text is what
+  /// made the light theme unreadable. Only the tone flips; the geometry is the same.
+  private var scrimTone: Color {
+    colorScheme == .dark ? .black : .white
+  }
+
+  /// Where our text is, and nowhere else: the chrome runs the whole bottom edge (title
+  /// and actions on the left, synopsis and credits on the right), so the floor is full
+  /// width; the left edge gets extra weight for the title. The top of the picture is left
+  /// alone. Stops are in screen height — the hero's content spans roughly 0.3 to 0.75.
+  /// The old scrim stacked a 0.92 diagonal on a 0.45 floor, which is what read as black.
+  private var scrollingScrim: some View {
+    ZStack {
+      scrimTone.opacity(0.08)
+
+      LinearGradient(stops: [
+        .init(color: .clear, location: 0.25),
+        .init(color: scrimTone.opacity(0.35), location: 0.45),
+        .init(color: scrimTone.opacity(0.6), location: 0.7),
+        .init(color: scrimTone.opacity(0.6), location: 1)
+      ], startPoint: .top, endPoint: .bottom)
+
+      LinearGradient(stops: [
+        .init(color: scrimTone.opacity(0.45), location: 0),
+        .init(color: .clear, location: 0.45)
+      ], startPoint: .leading, endPoint: .trailing)
+      .mask {
+        LinearGradient(stops: [
+          .init(color: .clear, location: 0.2),
+          .init(color: .black, location: 0.45)
+        ], startPoint: .top, endPoint: .bottom)
+      }
+    }
+  }
+#else
   /// Barely there, the way the Apple TV app leaves its hero video alone: clear for
   /// most of the frame, a light shade under the text, and the background colour only
   /// at the last few percent — without that the hero would meet the page on a visible
@@ -781,11 +656,18 @@ struct MediaItemHeroView: View {
   /// so they sit at the foot of the column rather than heading it.
   private var detailColumn: some View {
     VStack(alignment: .leading, spacing: Self.contentSpacing) {
-      MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus)
+      MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus,
+                        acceptsFocus: plotAcceptsFocus)
       credits
       metadata
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+#if os(tvOS)
+    // The synopsis is the only control in this column and sits at its top, above the
+    // band Right from Play travels along, so a plain Right found nothing. As a section
+    // the whole column is the target.
+    .focusSection()
+#endif
 //    .heroTextShadow()
   }
 
@@ -1345,7 +1227,7 @@ private extension View {
 private struct MediaItemHeroPreview: View {
   @FocusState private var focus: MediaItemFocusTarget?
   @StateObject private var trailer = TrailerPreviewModel()
-  @StateObject private var navigationState = NavigationState()
+  @State private var navigationState = NavigationState()
   @State private var heroPhase = MediaItemHeroPhase()
 
   var body: some View {
@@ -1363,7 +1245,7 @@ private struct MediaItemHeroPreview: View {
       onFolderToggle: { _ in },
       titleLogoURL: nil
     )
-    .environmentObject(navigationState)
+    .environment(navigationState)
     .aspectRatio(16 / 9, contentMode: .fit)
     .frame(maxWidth: 960)
 //    .background(Color.black)

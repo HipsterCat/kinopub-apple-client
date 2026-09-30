@@ -40,7 +40,7 @@ struct TabsNavigationView: View {
 #if os(iOS)
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 #endif
-  @EnvironmentObject var navigationState: NavigationState
+  @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @EnvironmentObject var networkMonitor: NetworkMonitor
@@ -55,7 +55,7 @@ struct TabsNavigationView: View {
 
   var body: some View {
     modernTabs
-      .environmentObject(navigationState)
+      .environment(navigationState)
       .environment(errorHandler)
       .environment(\.usesTVUIKitPosters, FeatureFlags.tvUIKitPosters)
       .environment(\.mediaNavigation) { value in
