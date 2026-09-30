@@ -145,7 +145,11 @@ public enum MediaAggregator {
 
     // A blank string is a source with nothing to say, not a value that wins the field —
     // kino.pub ships `""` for every episode it never named.
-    entity.title = pick(.title) { $0.title.nonBlank }
+    // An episode's "Эпизод 1" is its number, not its name (`EpisodeTitle`) — it loses to a
+    // real name from any source, and is never shown as one.
+    entity.title = first.kind == .episode
+      ? pick(.title) { EpisodeTitle.meaningful($0.title) }
+      : pick(.title) { $0.title.nonBlank }
     entity.originalTitle = pick(.originalTitle) { $0.originalTitle.nonBlank }
     entity.edition = pick(.edition) { $0.edition.nonBlank }
     let synopsis = mergeSynopsis(ranked(.synopsis))

@@ -431,8 +431,13 @@ tvOS-only properties.
 - [x] Per-show subtitle track memory; dual subtitles (tvOS, parked defaults)
 - [x] Ambient hero preview stops when a real playback session starts elsewhere. **General rule:** any
       preview player outside `PlaybackSession` must be wired to that signal — it does not get it free
-- [ ] tvOS Info tabs (`customInfoViewControllers`), `infoViewActions` (Watchlist, From beginning)
-- [ ] Up Next via `AVContentProposal`, driven by the existing next-episode logic
+- [ ] Year slot shows a number («12175») instead of the year: find the value shape AVKit wants
+      for `commonIdentifierCreationDate` and fix it in `PlayerInfo.metadataItems()` only
+- [ ] tvOS Info tabs (`customInfoViewControllers`), `infoViewActions` (Watchlist, From beginning,
+      **Next Episode**, **Go to Show / Go to Movie** — the Apple TV app has both; asked for
+      2026-09-29)
+- [ ] Up Next via `AVContentProposal` / `contextualActions` near the end, driven by the existing
+      next-episode logic (`NextPlayableEpisode`)
 - [ ] Chapters via `navigationMarkerGroups`, once any marker source exists
 - [ ] Subtitle overlay inside the controller (`customOverlayViewController` + `unobscuredContentGuide`,
       styling from `MediaAccessibility`) instead of a SwiftUI sibling in a `ZStack`

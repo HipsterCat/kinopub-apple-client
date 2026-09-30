@@ -5,6 +5,12 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Placeholder episode names are not names (2026-09-30)
+
+`EpisodeTitle` (KinoPubMedia) recognises «Эпизод 1», «Серия №3», "Episode 12", "S01E01": the merge
+treats them as blank for episodes, so a real name from another source wins and the player's line
+is *Season 1, Episode 1* instead of *Season 1, Episode 1: Эпизод 1*. The episode rail uses it too.
+
 ### Labels; one genre file for app, ingest and worker; document v2 (2026-09-29)
 
 "Эксклюзив" is kept as a `MediaLabel` (`MediaEntity.labels`, union-merged; source key

@@ -77,6 +77,21 @@ panel.
 | Documentary | film/show | as above | as above | Documentary | as above |
 | Download | saved name | — | title, if still cached | title's, if cached | saved poster |
 
+**prd — A number spelled out is not a name.** «Эпизод 1», «Серия 3», "Episode 12", "S01E01" in
+the title field are the episode's number, not its name (`EpisodeTitle`): they lose to a real name
+from any source, and with none the line is just *Season 1, Episode 1*. Same on the episode rail.
+(User's call after the device check, 2026-09-29.)
+
+## Seen on device (2026-09-29)
+
+- Poster, description, one genre, runtime and age rating show for films and episodes; the episode
+  shows its own still.
+- **A number where the year should be** — «Action · 12175 · 1 hr 38 min · 16+», and in the title
+  view «12171 • Season 1, Episode 1». It sits in the year slot and the only date we send is
+  `commonIdentifierCreationDate` as an ISO string ("2025", "2025-03-14"), so AVKit is misreading
+  that value. Open: which value shape it wants.
+- No *Next Episode* and no *Go to Show / Go to Movie* — not built (ROADMAP stage 7).
+
 ## Not decided
 
 - **idea — an episode's date falls back to its show's first year.** Kept from the old panel; a
