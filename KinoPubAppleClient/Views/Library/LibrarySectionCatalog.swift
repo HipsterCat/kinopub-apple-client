@@ -145,7 +145,10 @@ final class LibrarySectionCatalog: ObservableObject {
 
   private func publishCards() {
     let cached = section.rowKey.map { store.cards($0) } ?? []
-    cards = cached + pagedCards
+    // Page 2 can return while the store is still refreshing page 1, and the two
+    // lists then share an id. The grid's identity is that id, so the first copy wins.
+    var seen = Set<Int>()
+    cards = (cached + pagedCards).filter { seen.insert($0.id).inserted }
   }
 
   // MARK: - Pagination
@@ -202,9 +205,10 @@ final class LibrarySectionCatalog: ObservableObject {
         // first and silently drops the rest: three requests, nothing new on screen —
         // and, because the last card never changed, its `onAppear` kept asking. Still
         // needed with grouping off: two pages can carry the same play, and ids are
-        // synthesised from the entry precisely so identical plays collide here.
-        let known = Set(cards.map(\.id))
-        let fresh = result.cards.filter { !known.contains($0.id) }
+        // synthesised from the entry precisely so identical plays collide here. One
+        // response can repeat an id too, so the set grows as the page is accepted.
+        var seen = Set(cards.map(\.id))
+        let fresh = result.cards.filter { seen.insert($0.id).inserted }
 
         pagedCards.append(contentsOf: fresh)
         pagination = result.pagination
