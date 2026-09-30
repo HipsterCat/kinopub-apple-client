@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Year slot fixed; Next Episode and Go to Show on the tvOS Info tab (2026-09-30)
+
+AVKit renders a date-shaped *string* as a stray number (`"2025-01-01"` → 12169); the creation
+date now goes out as an `NSDate` at noon UTC (`PlayerInfo.metadataItems()`, probed on the tvOS 27.2
+simulator). The Info tab gets *From Beginning* (system) and *Go to Show / Go to Movie* through
+`infoViewActions` — which shows two buttons at most; Next Episode lives in the Up Next tab. An **Up Next** tab beside Info lists the
+following episodes on our wide rail tile (badge on the next one, resume progress). Device check still
+pending. `tools/player-lab/` is the throwaway app the variants were judged in.
+
 ### Placeholder episode names are not names (2026-09-30)
 
 `EpisodeTitle` (KinoPubMedia) recognises «Эпизод 1», «Серия №3», "Episode 12", "S01E01": the merge
