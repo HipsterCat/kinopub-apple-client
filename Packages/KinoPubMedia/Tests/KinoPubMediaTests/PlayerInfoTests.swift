@@ -102,6 +102,28 @@ final class PlayerInfoTests: XCTestCase {
     items.first { $0.identifier == identifier }?.stringValue
   }
 
+  private func utcNoon(_ y: Int, _ m: Int, _ d: Int) -> Date {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    return calendar.date(from: DateComponents(year: y, month: m, day: d, hour: 12))!
+  }
+
+  /// A date-shaped *string* renders as a stray number in tvOS's title view ("2025" → 2026,
+  /// "2025-01-01" → 12169); an `NSDate` renders the year. Noon UTC survives every viewer
+  /// time zone — midnight showed the previous year west of Greenwich.
+  func testTheDateReachesAVKitAsADateAtNoonUTC() {
+    func sent(_ film: MediaEntity) -> AVMetadataItem? {
+      PlayerInfo(context: MediaContext(item: film)).metadataItems()
+        .first { $0.identifier == .commonIdentifierCreationDate }
+    }
+    let yearOnly = sent(MediaEntity(kind: .movie, title: "F", release: .year(2025)))
+    XCTAssertEqual(yearOnly?.dateValue, utcNoon(2025, 1, 1))
+    XCTAssertNil(yearOnly?.stringValue.flatMap { Int($0) })
+    XCTAssertEqual(PlayerInfo.panelDate("2025-03-14"), utcNoon(2025, 3, 14))
+    XCTAssertNil(PlayerInfo.panelDate("soon"))
+    XCTAssertNil(PlayerInfo.panelDate(""))
+  }
+
   /// Apple's documented identifiers, and only those plus the creation date.
   func testEachFieldGoesThroughItsDocumentedIdentifier() {
     let items = PlayerInfo(context: MediaContext(item: episode(), parent: show)).metadataItems()
@@ -111,7 +133,8 @@ final class PlayerInfoTests: XCTestCase {
     XCTAssertEqual(value(.commonIdentifierDescription, in: items), "A coach.")
     XCTAssertEqual(value(.quickTimeMetadataGenre, in: items), "Comedy")
     XCTAssertEqual(value(.iTunesMetadataContentRating, in: items), "16+")
-    XCTAssertEqual(value(.commonIdentifierCreationDate, in: items), "2020-08-14")
+    XCTAssertEqual(items.first { $0.identifier == .commonIdentifierCreationDate }?.dateValue,
+                   utcNoon(2020, 8, 14))
     // Where genres went before — no Apple surface reads it as a genre.
     XCTAssertNil(value(.commonIdentifierType, in: items))
   }

@@ -31,9 +31,8 @@ public struct PlayerInfo: Hashable, Sendable {
   public var genre: String?
   /// "16+", "PG-13".
   public var contentRating: String?
-  /// ISO 8601 at the precision we have. Not in Apple's documented tvOS set above —
-  /// `commonIdentifierCreationDate` is sent because it costs nothing and other
-  /// `externalMetadata` readers (AirPlay receivers) may show it. Unverified on device.
+  /// ISO 8601 at the precision we have — "2025" or "2025-03-14". The model keeps that
+  /// precision; only `metadataItems()` turns it into the date AVKit wants.
   public var creationDate: String?
   /// Best first. The caller downloads the first that loads.
   public var artworkCandidates: [URL]
@@ -108,18 +107,43 @@ public struct PlayerInfo: Hashable, Sendable {
 extension PlayerInfo {
 
   /// Everything but the artwork, which arrives later as bytes (`artworkItem`).
+  ///
+  /// **The year slot — an adapter for what AVKit does with `commonIdentifierCreationDate`.**
+  /// Observed in the tvOS 27.2 simulator's title view (paused player, `AVPlayerViewController`):
+  /// - a *string* "2025" renders as **2026** and "2025-01-01" as **12169** — the number seen
+  ///   on device («12175 • …») — so a date-shaped string is not read as a date;
+  /// - a string with a time ("2025-01-01T00:00:00Z"), an `NSDate`, and the same under
+  ///   `quickTimeMetadataCreationDate` all render **2025**; leaving it out drops the year.
+  ///
+  /// So it is sent as an `NSDate`. The panel formats it in the *viewer's* time zone: midnight
+  /// UTC on 1 January showed **2024** with `TZ=Pacific/Honolulu`, noon UTC showed 2025 there
+  /// and at UTC+14. Hence noon. A year-only release becomes 1 January of that year, *here
+  /// only* — the model keeps year precision and nothing else may read this date as a day.
   public func metadataItems() -> [AVMetadataItem] {
-    let fields: [(AVMetadataIdentifier, String?)] = [
-      (.commonIdentifierTitle, title),
-      (.iTunesMetadataTrackSubTitle, subtitle),
-      (.commonIdentifierDescription, description),
-      (.quickTimeMetadataGenre, genre),
-      (.iTunesMetadataContentRating, contentRating),
-      (.commonIdentifierCreationDate, creationDate),
+    let fields: [(AVMetadataIdentifier, (NSCopying & NSObjectProtocol)?)] = [
+      (.commonIdentifierTitle, title.nonBlank as NSString?),
+      (.iTunesMetadataTrackSubTitle, subtitle.nonBlank as NSString?),
+      (.commonIdentifierDescription, description.nonBlank as NSString?),
+      (.quickTimeMetadataGenre, genre.nonBlank as NSString?),
+      (.iTunesMetadataContentRating, contentRating.nonBlank as NSString?),
+      (.commonIdentifierCreationDate, creationDate.flatMap(Self.panelDate) as NSDate?),
     ]
     return fields.compactMap { identifier, value in
-      value.nonBlank.map { Self.item(identifier, $0) }
+      value.map { Self.item(identifier, $0) }
     }
+  }
+
+  /// "2025" or "2025-03-14" → that day at 12:00 UTC (see `metadataItems()`).
+  static func panelDate(_ iso: String) -> Date? {
+    let parts = iso.split(separator: "-", omittingEmptySubsequences: false).map { Int($0) }
+    guard (1...3).contains(parts.count), let year = parts[0], parts.allSatisfy({ $0 != nil }) else {
+      return nil
+    }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    return calendar.date(from: DateComponents(
+      year: year, month: parts.count > 1 ? parts[1] : 1, day: parts.count > 2 ? parts[2] : 1,
+      hour: 12))
   }
 
   /// The panel wants the image itself, not a URL.
@@ -133,10 +157,11 @@ extension PlayerInfo {
     return artwork
   }
 
-  private static func item(_ identifier: AVMetadataIdentifier, _ value: String) -> AVMetadataItem {
+  private static func item(_ identifier: AVMetadataIdentifier,
+                           _ value: NSCopying & NSObjectProtocol) -> AVMetadataItem {
     let item = AVMutableMetadataItem()
     item.identifier = identifier
-    item.value = value as NSString
+    item.value = value
     // "und", as Apple's sample does: a tagged language makes AVFoundation filter the item
     // against the viewer's own, and the panel then shows nothing.
     item.extendedLanguageTag = "und"
