@@ -5,6 +5,13 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Home banner on the page (2026-10-01)
+
+The banner was drawn only by the SwiftUI `MediaRowsView`; with `tvPageSections` on, tvOS
+Home never showed it whatever `homeBanner` said. `MainView.pageSections` now puts
+`catalog.bannerCards` first as an untitled `TVPageSection.stills` row, two across, caption
+always on — the system wide cell, not `HomeBannerCardView`.
+
 ### Card shapes and collection categories (2026-09-27)
 
 TVPage gains `TVPageCellKind.square`, `TVPageItem.tile` (flat or gradient
