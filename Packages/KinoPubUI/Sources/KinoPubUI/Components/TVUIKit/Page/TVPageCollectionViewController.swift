@@ -504,9 +504,15 @@ public final class TVPageCollectionViewController: UIViewController {
       collectionView.remembersLastFocusedIndexPath = remembersFocus
       return
     }
-    // The snapshot's cells are not in the hierarchy on this turn. One ask on the
-    // next turn, capped so a refresh loop cannot keep pulling focus back.
-    guard posterFocusAttempts < 4 else { return }
+    // Masthead / chips may hold focus while posters are still skeletons. Once a
+    // real poster exists, land there — but only until the user has had a poster
+    // stop. A late biography paint must not yank focus back from a poster the
+    // user already left (or from one we already placed).
+    guard posterFocusAttempts < 4 else {
+      didPlacePosterFocus = true
+      collectionView.remembersLastFocusedIndexPath = remembersFocus
+      return
+    }
     posterFocusAttempts += 1
     collectionView.remembersLastFocusedIndexPath = false
     setNeedsFocusUpdate()
@@ -523,7 +529,8 @@ public final class TVPageCollectionViewController: UIViewController {
   /// A grid with more pages coming ends on a full row: its last row is topped up with
   /// skeleton tiles (a full row of them when it is already full), and the layout puts a
   /// spinner under it. A ragged last row with the next section right under it read as
-  /// the end of the list.
+  /// the end of the list. Complete lists (collections) keep their short last row — the
+  /// layout sizes every cell at the measured envelope, so a short row no longer grows.
   private func withLoadingTail(_ section: TVPageSection) -> TVPageSection {
     guard section.loadsMore, section.flow == .grid, !section.items.isEmpty, !section.isPlaceholder
     else { return section }
@@ -578,10 +585,10 @@ public final class TVPageCollectionViewController: UIViewController {
 
   private static func layoutSignature(_ section: TVPageSection) -> String {
     var signature = "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.loadsMore)|\(section.kind == .chip ? chipSignature(section) : "")"
-    // A biography or a stat line changes the header's height, which the estimated
-    // section will not notice unless the layout runs again.
+    // Rest geometry only. Biography opens under focus and must not invalidate the
+    // page when metadata arrives — that jump stole focus off the first poster.
     if case .masthead(let header) = section.items.first {
-      signature += "|\(header.biography?.count ?? 0)|\(header.detail ?? "")|\(header.stats.count)|\(header.title.count)"
+      signature += "|\(header.detail ?? "")|\(header.stats.count)|\(header.title.count)"
     }
     return signature
   }
@@ -675,11 +682,11 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   }
 
   public func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
-    // Skeleton tiles are not destinations; a header is not a control. The page keeps
-    // its focus escape on the grid, or on the sort chip when the grid is empty.
+    // Skeleton tiles are not destinations. The masthead is: Up from the grid reaches
+    // person / collection detail. Empty grid keeps its escape on the sort chip.
     guard let id = dataSource.itemIdentifier(for: indexPath), let item = itemsByID[id] else { return false }
     switch item {
-    case .placeholder, .masthead: return false
+    case .placeholder: return false
     default: return true
     }
   }

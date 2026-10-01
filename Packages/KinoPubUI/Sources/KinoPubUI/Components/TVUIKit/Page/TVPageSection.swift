@@ -40,8 +40,8 @@ public enum TVPageCellKind: Hashable, Sendable {
   /// name), plot, scores, genre and running time over the bottom and the poster inset
   /// at the trailing edge. The Home banner; items are `.feature`.
   case banner
-  /// A full-width header that scrolls with the page. Not focusable. One item, a
-  /// `TVPageMasthead`: a person's photo and text, or a collection's title and stats.
+  /// A full-width header that scrolls with the page. Focusable as one band so Up
+  /// from the grid reaches person / collection detail. One item, a `TVPageMasthead`.
   case masthead
 }
 
@@ -249,9 +249,9 @@ public struct TVPageFeature: Hashable {
 }
 
 /// The block at the top of a catalog page, in the same collection as the grid so it
-/// scrolls away with it. A person leaves room under the name for a biography that may
-/// arrive later; a collection is a centered title and the counts the payload actually
-/// has. The avatar is not a control — nothing in this block is focusable.
+/// scrolls away with it. One focus stop: a person shows name / role at rest and opens
+/// the biography when focused; a collection is the title plus the stats strip. The
+/// avatar image is not a separate control — the cell is.
 public struct TVPageMasthead: Hashable, Sendable {
   public enum Style: Hashable, Sendable {
     case person
@@ -497,7 +497,8 @@ public struct TVPageSection: Identifiable, Hashable {
                          caption: .always, startIndex: features.count * (laps / 2), items: items)
   }
 
-  /// The scrolling header above a catalog. Not focusable; the grid under it is.
+  /// The scrolling header above a catalog. Focusable so Up from the grid reaches it;
+  /// entry focus still prefers the first poster when the page asks for that.
   public static func masthead(id: String, _ masthead: TVPageMasthead) -> TVPageSection {
     TVPageSection(id: id, title: nil, kind: .masthead, flow: .rail, columns: 1,
                   caption: .never, items: [.masthead(masthead)])

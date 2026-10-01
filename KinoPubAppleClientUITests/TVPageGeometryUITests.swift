@@ -589,7 +589,7 @@ final class TVPageGeometryUITests: XCTestCase {
 
   /// A person page scrolls its header with the credits grid: sort and the type
   /// pull-down, reached by Enter on a face in a title's cast rail. Focus starts on
-  /// a poster, not the sort control.
+  /// a poster, not the sort control. Sort defaults to Year.
   func testPersonPageFromCastRail() throws {
     let app = launchSignedIn()
     XCTAssertTrue(revealHomePoster(app), "Home never showed a poster")

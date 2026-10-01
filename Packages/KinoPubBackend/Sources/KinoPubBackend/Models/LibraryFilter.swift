@@ -326,8 +326,7 @@ public extension LibraryFilter {
   /// The filter's sort applied on the device. A collection's response cannot be
   /// sorted by the server — `/v1/collections/view` takes no parameters — so the
   /// sort control reorders the list the page already holds. This is not a filter:
-  /// it does not drop items. The caller decides whether to honor the rest state
-  /// at all — a collection's editorial order must survive `recentlyAdded`.
+  /// it does not drop items. Default for those pages is year descending.
   func sortingLocally(_ items: [MediaItem]) -> [MediaItem] {
     switch sort {
     case .recentlyAdded:

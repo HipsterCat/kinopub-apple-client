@@ -14,9 +14,8 @@ import KinoPubLogging
 ///
 /// The endpoint takes no parameters. The page does not invent a local filter for
 /// genre, year, or rating: the only control is sort, which reorders the list the
-/// response already held. The curator's order is the rest state — it survives
-/// until a sort is picked, because `recentlyAdded` applied blindly would scramble
-/// a ranked list.
+/// response already held. Default sort is year descending (`sort=year` / `-year`
+/// on listings that accept it; here it is applied on the device).
 @MainActor
 class CollectionDetailModel: ObservableObject {
 
@@ -30,8 +29,8 @@ class CollectionDetailModel: ObservableObject {
   @Published public private(set) var loadFailed: Bool = false
   @Published public private(set) var loadError: Error?
 
-  /// Sort only. Other fields stay at their defaults; the page does not offer them.
-  @Published public private(set) var filter = LibraryFilter()
+  /// Sort only. Default year desc; other fields stay at their defaults.
+  @Published public private(set) var filter = LibraryFilter(sort: .year)
 
   private let collectionID: Int
   private let collectionsService: CollectionsService
@@ -80,14 +79,14 @@ class CollectionDetailModel: ObservableObject {
   }
 
   func clearFilters() {
-    guard filter.sort != .recentlyAdded else { return }
-    filter.sort = .recentlyAdded
+    guard filter.sort != .year else { return }
+    filter.sort = .year
     applySort()
   }
 
-  /// A picked sort reorders the fetched list. At rest the curator's order stands.
+  /// Reorders the fetched list. Year desc is the default the chip shows.
   private func applySort() {
-    items = filter.sort == .recentlyAdded ? allItems : filter.sortingLocally(allItems)
+    items = filter.sortingLocally(allItems)
   }
 }
 

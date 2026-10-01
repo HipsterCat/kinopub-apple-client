@@ -104,8 +104,8 @@ struct CollectionDetailView: View {
     )
   }
 
-  /// Title and counts, then the sort pill, then the poster grid. The header is a
-  /// section, so it scrolls with the posters.
+  /// Title and counts (the focus band), then the sort pill, then the poster grid.
+  /// Default sort is year descending.
   private var tvSections: [TVPageSection] {
     let header = TVPageSection.masthead(id: "collection-header", collectionMasthead)
     let sort = TVSearchFilters.controls(catalog: model, includeType: false, sortAlignment: .center)

@@ -153,8 +153,8 @@ struct PersonItemsView: View {
   }
 
   /// Header, then sort and the type pull-down, then the credits grid. The header is
-  /// the first section, so it scrolls away with the posters. The biography slot is
-  /// empty until metadata arrives, and the cell grows when it does.
+  /// one focus stop (biography opens when it is focused). Entry focus is the first
+  /// poster. Default sort is year descending.
   private var tvSections: [TVPageSection] {
     let header = TVPageSection.masthead(id: "person-header", personMasthead)
     let controls = TVSearchFilters.controls(catalog: catalog, includeType: true)
@@ -317,7 +317,7 @@ struct PersonItemsView: View {
                     catalog: LibraryCatalog(itemsService: context.contentService,
                                             authState: authState,
                                             errorHandler: errorHandler,
-                                            filter: LibraryFilter(person: person)))
+                                            filter: LibraryFilter(sort: .year, person: person)))
   }
 
 #if !os(tvOS)

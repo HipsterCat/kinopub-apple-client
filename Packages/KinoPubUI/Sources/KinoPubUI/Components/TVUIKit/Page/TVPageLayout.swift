@@ -191,35 +191,26 @@ public enum TVPageLayout {
 
   /// Wrapping rows. A fractional item in `repeatingSubitem:count:` grows to fill a
   /// short last group, and a poster lockup then draws its 2:3 art across the whole
-  /// cell — the footer title disappears (collection grids, 2026-10-01). Search hid it
-  /// by padding a loading row to full. An absolute width, repeated until the row is
-  /// full, keeps that cell on a short row and leaves the rest empty. A custom group
-  /// that always returned a full row of frames asked for items the last group did
-  /// not have.
+  /// cell — the footer title disappears (collection grids, 2026-10-01). Items use the
+  /// measured envelope (`recipe.itemSize`), same as a rail: a width derived by dividing
+  /// the group did not match the recipe cache key, so the cell fell back to treating
+  /// the envelope as art and painted a taller poster over its title. Absolute envelopes
+  /// leave the short last row's leftover empty; the page also pads that row so a group
+  /// is never asked for fewer items than `columns`.
   @MainActor
   private static func grid(_ section: TVPageSection,
                            contentWidth: CGFloat,
                            sideInset: CGFloat) -> NSCollectionLayoutSection {
-    let (columns, art) = TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth)
+    let (_, art) = TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth)
     let recipe = TVPageCellMetrics.recipe(kind: section.kind, artWidth: art, caption: section.caption)
     let spacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
-    let height = recipe.itemSize.height
-    let leading = max(sideInset - recipe.artInsets.leading, 0)
-    let trailing = max(sideInset - recipe.artInsets.trailing, 0)
-    // The group is the content box. `contentWidth` already took a full side inset
-    // off each edge; the art inset lives inside the item, so it comes back.
-    let groupWidth = max(contentWidth + sideInset * 2 - leading - trailing, 1)
-    let slots = CGFloat(max(columns, 1))
-    // A fraction under the slot. An exact fit is a fraction over once spacing is
-    // applied, and the row then wraps to one fewer column.
-    let itemWidth = max((groupWidth - spacing * (slots - 1)) / slots - 0.25, 1)
     let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(
-      widthDimension: .absolute(itemWidth),
-      heightDimension: .absolute(height)
+      widthDimension: .absolute(recipe.itemSize.width),
+      heightDimension: .absolute(recipe.itemSize.height)
     ))
     let group = NSCollectionLayoutGroup.horizontal(
       layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
-                                         heightDimension: .absolute(height)),
+                                         heightDimension: .absolute(recipe.itemSize.height)),
       subitems: [item]
     )
     group.interItemSpacing = .fixed(spacing)
@@ -232,11 +223,12 @@ public enum TVPageLayout {
     return layoutSection
   }
 
-  /// One full-width block that scrolls with the page — a person or a collection header.
-  /// Not a focus stop. Height is estimated; the cell reports its own.
+  /// One full-width focusable header that scrolls with the page. Estimated height is
+  /// the *rest* size (name / title / stats) — biography opens only when the header is
+  /// focused, so a late metadata paint does not shove the grid and steal focus.
   @MainActor
   private static func masthead(_ section: TVPageSection, sideInset: CGFloat) -> NSCollectionLayoutSection {
-    let height = mastheadHeight(section)
+    let height = mastheadRestHeight(section)
     let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
                                       heightDimension: .estimated(height))
     let item = NSCollectionLayoutItem(layoutSize: size)
@@ -246,16 +238,14 @@ public enum TVPageLayout {
     return layoutSection
   }
 
-  /// A first guess so the header does not pop in at a chip's height. The cell's
-  /// self-size replaces it once the text is known — a biography has to be able to grow.
-  private static func mastheadHeight(_ section: TVPageSection) -> CGFloat {
+  /// Rest height only. Expanded biography is measured by the cell when it takes focus.
+  private static func mastheadRestHeight(_ section: TVPageSection) -> CGFloat {
     guard case .masthead(let header) = section.items.first else { return 220 }
     switch header.style {
     case .person:
-      let bio = header.biography?.isEmpty == false ? 160.0 : 0
-      return 220 + bio
+      return 220
     case .collection:
-      return header.stats.isEmpty ? 180 : 280
+      return header.stats.isEmpty ? 160 : 260
     }
   }
 
