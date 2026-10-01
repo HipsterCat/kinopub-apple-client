@@ -92,7 +92,7 @@ struct SearchView: View {
             navigationState.push(.person(match))
           case .chip(let chip) where chip.id == TVSearchFilters.clear:
             catalog.clearFilters()
-          case .chip, .tile, .feature, .placeholder:
+          case .chip, .tile, .feature, .masthead, .placeholder:
             break
           }
         },
@@ -619,6 +619,49 @@ enum TVSearchFilters {
   /// The kinds on — empty is "Все".
   static func selectedKinds(_ filter: LibraryFilter) -> Set<CatalogKind> { filter.kinds }
 
+  /// Sort, and — when the page's listing can actually be narrowed — the type
+  /// pull-down. Search keeps the full row (`row`); a collection can only be
+  /// reordered, and a person's credits take type because `/v1/items` does.
+  @MainActor
+  static func controls<Catalog: FilterBarDriver>(catalog: Catalog,
+                                                 includeType: Bool,
+                                                 sortAlignment: TVPageChip.Alignment = .leading) -> TVPageSection {
+    let filter = catalog.filter
+    let sortChip = TVPageChip(
+      id: sort,
+      title: filter.sort.titleKey.localized,
+      systemImage: "arrow.up.arrow.down",
+      menu: .init(options: MediaSortOrder.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
+                  selectedID: filter.sort.rawValue),
+      alignment: sortAlignment,
+      showsTitle: true
+    )
+    let chips = includeType ? [sortChip, typeChip(for: filter)] : [sortChip]
+    return .chips(id: "filters", title: nil, chips: chips)
+  }
+
+  /// Type — "Все" on top, checked by default. Types combine freely; the presets
+  /// (anime, cartoons, shorts, stand-up) stand alone under a divider.
+  @MainActor
+  static func typeChip(for filter: LibraryFilter) -> TVPageChip {
+    let kinds = selectedKinds(filter)
+    let presets: [CatalogKind] = [.anime, .cartoons, .shorts, .standup]
+    let kindOption = { (kind: CatalogKind) in option(kind.rawValue, kind.titleKey.localized, kinds.contains(kind)) }
+    return TVPageChip(
+      id: type,
+      title: kindsTitle(kinds),
+      menu: .init(nodes: [.section(title: nil, children: [option(any, "All".localized, kinds.isEmpty)]
+                                    + CatalogKind.allCases.filter { $0.axis == .type }.map(kindOption)),
+                          .section(title: nil, children: presets.map(kindOption))],
+                  keepsPresented: true, exclusiveOptionID: any,
+                  optionGroups: Dictionary(uniqueKeysWithValues: CatalogKind.allCases.map {
+                    ($0.rawValue, $0.axis == .type ? 0 : 1)
+                  }),
+                  soloGroups: [1]),
+      isActive: !kinds.isEmpty
+    )
+  }
+
   /// A genre's filter name — the plural ("Военные", "Вестерны") where there is one.
   static func genreTitle(_ genre: MediaGenre) -> String {
     let key = "Genre_\(genre.id)"
@@ -641,26 +684,7 @@ enum TVSearchFilters {
     let filter = catalog.filter
     let kinds = selectedKinds(filter)
     let genreAxis = kinds.contains { $0.axis == .genre }
-
-    // Type — "Все" on top, checked by default (so the menu's checkmark column is there
-    // from the start). Types combine freely; below a divider the presets (anime,
-    // cartoons, shorts, stand-up) stand alone: a preset is type + genre on the server
-    // and cannot be ORed with a type.
-    let presets: [CatalogKind] = [.anime, .cartoons, .shorts, .standup]
-    let kindOption = { (kind: CatalogKind) in option(kind.rawValue, kind.titleKey.localized, kinds.contains(kind)) }
-    let typeChip = TVPageChip(
-      id: type,
-      title: kindsTitle(kinds),
-      menu: .init(nodes: [.section(title: nil, children: [option(any, "All".localized, kinds.isEmpty)]
-                                    + CatalogKind.allCases.filter { $0.axis == .type }.map(kindOption)),
-                          .section(title: nil, children: presets.map(kindOption))],
-                  keepsPresented: true, exclusiveOptionID: any,
-                  optionGroups: Dictionary(uniqueKeysWithValues: CatalogKind.allCases.map {
-                    ($0.rawValue, $0.axis == .type ? 0 : 1)
-                  }),
-                  soloGroups: [1]),
-      isActive: !kinds.isEmpty
-    )
+    let typeChip = Self.typeChip(for: filter)
 
     // Genre — one list, a divider between sets, each set largest first; only the sets
     // the chosen kinds use. Gone while a preset is on: the preset owns the `genre`

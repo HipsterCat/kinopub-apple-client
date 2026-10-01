@@ -40,6 +40,9 @@ public enum TVPageCellKind: Hashable, Sendable {
   /// name), plot, scores, genre and running time over the bottom and the poster inset
   /// at the trailing edge. The Home banner; items are `.feature`.
   case banner
+  /// A full-width header that scrolls with the page. Not focusable. One item, a
+  /// `TVPageMasthead`: a person's photo and text, or a collection's title and stats.
+  case masthead
 }
 
 public enum TVPageFlow: Hashable, Sendable {
@@ -79,6 +82,9 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
     /// Pushed to the row's trailing edge, with every later chip after it — the sort
     /// pull-down sits apart from the filters.
     case trailing
+    /// The row's chips as one group in the middle. A collection's sort under a
+    /// centered title.
+    case center
   }
 
   public struct Option: Identifiable, Hashable, Sendable {
@@ -242,6 +248,59 @@ public struct TVPageFeature: Hashable {
   }
 }
 
+/// The block at the top of a catalog page, in the same collection as the grid so it
+/// scrolls away with it. A person leaves room under the name for a biography that may
+/// arrive later; a collection is a centered title and the counts the payload actually
+/// has. The avatar is not a control — nothing in this block is focusable.
+public struct TVPageMasthead: Hashable, Sendable {
+  public enum Style: Hashable, Sendable {
+    case person
+    case collection
+  }
+
+  public struct Stat: Hashable, Sendable {
+    public let value: String
+    public let caption: String
+
+    public init(value: String, caption: String) {
+      self.value = value
+      self.caption = caption
+    }
+  }
+
+  public let style: Style
+  public let title: String
+  /// A second line under the name — an original name, when one exists.
+  public let subtitle: String?
+  /// Role, place, age. One line.
+  public let detail: String?
+  /// Prose under the detail line. Empty until a biography is known; the cell grows
+  /// when it is set, so the grid below is not drawn on top of it.
+  public let biography: String?
+  public let photoURL: URL?
+  /// SF Symbol above a collection title. No plate behind it.
+  public let symbolName: String?
+  public let stats: [Stat]
+
+  public init(style: Style,
+              title: String,
+              subtitle: String? = nil,
+              detail: String? = nil,
+              biography: String? = nil,
+              photoURL: URL? = nil,
+              symbolName: String? = nil,
+              stats: [Stat] = []) {
+    self.style = style
+    self.title = title
+    self.subtitle = subtitle
+    self.detail = detail
+    self.biography = biography
+    self.photoURL = photoURL
+    self.symbolName = symbolName
+    self.stats = stats
+  }
+}
+
 /// One entry in a section. A `.placeholder` is an exact-geometry skeleton for a section
 /// whose data has not arrived; it takes the same cell shape so the swap is a repaint,
 /// not a reflow.
@@ -253,6 +312,8 @@ public enum TVPageItem: Hashable {
   case tile(TVPageTile)
   /// A banner title — see `TVPageCellKind.banner`.
   case feature(TVPageFeature)
+  /// The scrolling header. One per section.
+  case masthead(TVPageMasthead)
   case placeholder(Int)
 
   /// Stable within one section. Two sections can hold the same card, so the page
@@ -264,6 +325,7 @@ public enum TVPageItem: Hashable {
     case .chip(let chip): return "chip.\(chip.id)"
     case .tile(let tile): return "tile.\(tile.id)"
     case .feature(let feature): return "feature.\(feature.lap).\(feature.card.id)"
+    case .masthead: return "masthead"
     case .placeholder(let n): return "placeholder.\(n)"
     }
   }
@@ -433,6 +495,12 @@ public struct TVPageSection: Identifiable, Hashable {
     }
     return TVPageSection(id: id, title: nil, kind: .banner, flow: .rail, columns: columns,
                          caption: .always, startIndex: features.count * (laps / 2), items: items)
+  }
+
+  /// The scrolling header above a catalog. Not focusable; the grid under it is.
+  public static func masthead(id: String, _ masthead: TVPageMasthead) -> TVPageSection {
+    TVPageSection(id: id, title: nil, kind: .masthead, flow: .rail, columns: 1,
+                  caption: .never, items: [.masthead(masthead)])
   }
 
   public static func chips(id: String,

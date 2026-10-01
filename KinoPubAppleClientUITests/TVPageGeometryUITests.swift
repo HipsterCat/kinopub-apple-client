@@ -558,19 +558,29 @@ final class TVPageGeometryUITests: XCTestCase {
     Thread.sleep(forTimeInterval: 4)
     try shoot(app, name: "collection-1-inside")
 
-    // Inside: the search chips over the collection's poster grid.
+    // Inside: the collection's poster grid, with the sort pill and not the search
+    // filter row. Focus starts on a poster.
     let page = app.collectionViews["kinopub.page.collection"]
     XCTAssertTrue(page.waitForExistence(timeout: 15), "collection page never appeared")
-    XCTAssertTrue(app.descendants(matching: .any)["kinopub.chip.type"].waitForExistence(timeout: 5),
-                  "no search filter chips inside the collection")
+    XCTAssertTrue(app.descendants(matching: .any)["kinopub.chip.sort"].waitForExistence(timeout: 5),
+                  "no sort control inside the collection")
+    XCTAssertFalse(app.descendants(matching: .any)["kinopub.chip.type"].exists,
+                   "collection page invented a type filter")
     let posters = app.descendants(matching: .any)
       .matching(NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.poster."))
     XCTAssertGreaterThan(posters.count, 0, "no poster grid inside the collection")
+    let focused = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "hasFocus == true")).firstMatch
+    if focused.exists {
+      XCTAssertTrue(focused.identifier.hasPrefix("kinopub.poster."),
+                    "focus landed on \(focused.identifier) instead of a poster")
+    }
     app.terminate()
   }
 
-  /// A person page is the search catalog narrowed to one name: the credits grid with
-  /// the full filter bar, reached by Enter on a face in a title's cast rail.
+  /// A person page scrolls its header with the credits grid: sort and the type
+  /// pull-down, reached by Enter on a face in a title's cast rail. Focus starts on
+  /// a poster, not the sort control.
   func testPersonPageFromCastRail() throws {
     let app = launchSignedIn()
     XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 240),
@@ -602,8 +612,10 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "person-2-page")
     XCTAssertTrue(app.collectionViews["kinopub.page.person"].waitForExistence(timeout: 15),
                   "person page never appeared")
+    XCTAssertTrue(app.descendants(matching: .any)["kinopub.chip.sort"].waitForExistence(timeout: 5),
+                  "no sort control on the person page")
     XCTAssertTrue(app.descendants(matching: .any)["kinopub.chip.type"].waitForExistence(timeout: 5),
-                  "no search filter chips on the person page")
+                  "no type filter on the person page")
     app.terminate()
   }
 

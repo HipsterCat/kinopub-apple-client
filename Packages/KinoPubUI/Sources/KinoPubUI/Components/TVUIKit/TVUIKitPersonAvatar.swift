@@ -3,18 +3,14 @@
 //  TVUIKitPersonAvatar.swift
 //  KinoPubUI
 //
-//  A single person circle, outside a collection — the person page's hero.
-//
-//  Same component as the cast rail, deliberately: `TVMonogramContentConfiguration` is
-//  what draws a person on tvOS, and the page you land on after selecting a face in the
-//  rail must not show that face in a different shape. Title and subtitle stay nil here
-//  because the hero already prints the name and role beside the circle; the
-//  configuration draws the circle, the photo, and the initials fallback.
+//  A single person circle. Not a control: it cannot take focus, and it draws no
+//  plate. A photo is the circle; no photo is the same initials image the search
+//  cards use. `TVMonogramContentConfiguration` is deliberately not used — it paints
+//  a filled disc and a focus plate, and the header exposes no way to turn either off.
 //
 
 import SwiftUI
 import UIKit
-import TVUIKit
 
 public struct TVUIKitPersonAvatar: UIViewRepresentable {
   public let name: String
@@ -29,12 +25,12 @@ public struct TVUIKitPersonAvatar: UIViewRepresentable {
 
   public func makeUIView(context: Context) -> TVUIKitPersonAvatarView {
     let view = TVUIKitPersonAvatarView()
-    view.configure(name: name, photoURL: photoURL)
+    view.configure(name: name, photoURL: photoURL, diameter: diameter)
     return view
   }
 
   public func updateUIView(_ view: TVUIKitPersonAvatarView, context: Context) {
-    view.configure(name: name, photoURL: photoURL)
+    view.configure(name: name, photoURL: photoURL, diameter: diameter)
   }
 
   public func sizeThatFits(_ proposal: ProposedViewSize,
@@ -46,44 +42,58 @@ public struct TVUIKitPersonAvatar: UIViewRepresentable {
 
 @MainActor
 public final class TVUIKitPersonAvatarView: UIView {
-  /// Built through `makeContentView()` rather than an initializer: that is the
-  /// `UIContentConfiguration` contract, and it works the same whether or not the
-  /// framework exposes a Swift init for the content view itself.
-  private let content: UIView & UIContentView
+  public override var canBecomeFocused: Bool { false }
+
+  private let imageView = UIImageView()
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
+  private var name = ""
+  private var showsMonogram = false
+  private var monogramDiameter: CGFloat = 0
 
   public override init(frame: CGRect) {
-    content = TVMonogramContentConfiguration.cell().makeContentView()
     super.init(frame: frame)
-    content.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(content)
+    isUserInteractionEnabled = false
+    backgroundColor = .clear
+    imageView.translatesAutoresizingMaskIntoConstraints = false
+    imageView.contentMode = .scaleAspectFill
+    imageView.clipsToBounds = true
+    imageView.backgroundColor = .clear
+    imageView.isUserInteractionEnabled = false
+    imageView.adjustsImageWhenAncestorFocused = false
+    addSubview(imageView)
     NSLayoutConstraint.activate([
-      content.topAnchor.constraint(equalTo: topAnchor),
-      content.bottomAnchor.constraint(equalTo: bottomAnchor),
-      content.leadingAnchor.constraint(equalTo: leadingAnchor),
-      content.trailingAnchor.constraint(equalTo: trailingAnchor)
+      imageView.topAnchor.constraint(equalTo: topAnchor),
+      imageView.bottomAnchor.constraint(equalTo: bottomAnchor),
+      imageView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      imageView.trailingAnchor.constraint(equalTo: trailingAnchor)
     ])
   }
 
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  public func configure(name: String, photoURL: URL?) {
+  public func configure(name: String, photoURL: URL?, diameter: CGFloat) {
     imageTask?.cancel()
     imageTask = nil
     currentURL = photoURL
+    self.name = name
 
-    var config = TVMonogramContentConfiguration.cell()
-    config.personNameComponents = TVUIKitPerson.nameComponents(from: name)
     let cached = TVUIKitRemoteImage.cached(url: photoURL)
-    config.image = TVUIKitPersonPhoto.displayable(cached, url: photoURL)
-    content.configuration = config
+    if let photo = TVUIKitPersonPhoto.displayable(cached, url: photoURL) {
+      showsMonogram = false
+      imageView.image = photo
+    } else {
+      showsMonogram = true
+      monogramDiameter = 0
+      let side = diameter > 1 ? diameter : 180
+      imageView.image = TVUIKitTileArtwork.monogram(name: name, diameter: side, traits: traitCollection)
+    }
 
     guard let url = photoURL else {
       ArtworkLog.skipped(by: "person-hero/\(name)", reason: "no photo URL")
       return
     }
-    if cached != nil {
+    if cached != nil, !showsMonogram {
       ArtworkLog.servedFromMemory(url, by: "person-hero/\(name)")
       return
     }
@@ -91,14 +101,22 @@ public final class TVUIKitPersonAvatarView: UIView {
     imageTask = Task { [weak self] in
       let image = await TVUIKitRemoteImage.load(url: url)
       await MainActor.run {
-        guard let self, self.currentURL == url,
-              let photo = TVUIKitPersonPhoto.displayable(image, url: url),
-              var config = self.content.configuration as? TVMonogramContentConfiguration
-        else { return }
-        config.image = photo
-        self.content.configuration = config
+        guard let self, self.currentURL == url else { return }
+        if let photo = TVUIKitPersonPhoto.displayable(image, url: url) {
+          self.showsMonogram = false
+          self.imageView.image = photo
+        }
       }
     }
+  }
+
+  public override func layoutSubviews() {
+    super.layoutSubviews()
+    let diameter = min(bounds.width, bounds.height)
+    imageView.layer.cornerRadius = diameter / 2
+    guard showsMonogram, diameter > 1, abs(diameter - monogramDiameter) > 0.5 else { return }
+    monogramDiameter = diameter
+    imageView.image = TVUIKitTileArtwork.monogram(name: name, diameter: diameter, traits: traitCollection)
   }
 
   deinit {

@@ -26,6 +26,7 @@ public struct TVPageTemplatesGallery: View {
         case .chip(let chip): lastSelection = "\(section.id): \(chip.title)"
         case .tile(let tile): lastSelection = "\(section.id): \(tile.title)"
         case .feature(let feature): lastSelection = "\(section.id): \(feature.card.title)"
+        case .masthead(let header): lastSelection = "\(section.id): \(header.title)"
         case .placeholder: break
         }
       }

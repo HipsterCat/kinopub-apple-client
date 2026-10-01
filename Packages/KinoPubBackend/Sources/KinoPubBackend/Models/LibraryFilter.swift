@@ -323,68 +323,11 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
 // MARK: - Local application
 
 public extension LibraryFilter {
-  /// The whole filter applied on the device — for lists the server cannot scope. A
-  /// collection's items (`/v1/collections/view`) arrive as one fixed editorial list
-  /// and the endpoint takes no parameters, so the filter bar there works locally.
-  /// Mirrors `serverParameters` field by field, `clientSideMatches` included.
-  ///
-  /// A missing value never matches a set bound: a title with no Kinopoisk rating fails
-  /// `КП 7+`, the way the server's `conditions[]` drops NULL rows.
-  func locallyMatches(_ item: MediaItem) -> Bool {
-    // Type axis: `kinds` wins over `contentTypes` wins over `contentType`, and a genre
-    // kind (anime, cartoons, shorts, stand-up) owns the genre parameter — as on the
-    // server.
-    let genreKinds = kinds.filter { $0.axis == .genre }
-    if !kinds.isEmpty {
-      let active = genreKinds.isEmpty ? kinds : genreKinds
-      let types = Set(active.flatMap(\.types).map(\.rawValue))
-      guard types.contains(item.type) else { return false }
-      if !genreKinds.isEmpty {
-        let ids = Set(genreKinds.compactMap(\.genreID))
-        guard item.genres.contains(where: { ids.contains($0.id) }) else { return false }
-      }
-    } else if !contentTypes.isEmpty {
-      guard contentTypes.contains(where: { $0.rawValue == item.type }) else { return false }
-    } else if let contentType {
-      guard item.type == contentType.rawValue else { return false }
-    }
-
-    // Genre and country are OR within their list — a comma on the server.
-    let itemGenreIDs = Set(item.genres.map(\.id))
-    if !genreIDs.isEmpty, genreIDs.allSatisfy({ !itemGenreIDs.contains($0) }) { return false }
-    if let genreID, !itemGenreIDs.contains(genreID) { return false }
-    let itemCountryIDs = Set(item.countries.map(\.id))
-    if !countryIDs.isEmpty, countryIDs.allSatisfy({ !itemCountryIDs.contains($0) }) { return false }
-    if let countryID, !itemCountryIDs.contains(countryID) { return false }
-
-    if finishedOnly, !item.finished { return false }
-
-    if let years, !(years.from...years.to).contains(item.year) { return false }
-    if let yearFrom, item.year < yearFrom { return false }
-    if let yearTo, item.year > yearTo { return false }
-
-    if let kinopoiskMin, (item.kinopoiskRating ?? 0) < kinopoiskMin { return false }
-    if let kinopoiskMax, (item.kinopoiskRating ?? 0) > kinopoiskMax { return false }
-    if let imdbMin, (item.imdbRating ?? 0) < imdbMin { return false }
-    if let imdbMax, (item.imdbRating ?? 0) > imdbMax { return false }
-
-    // `quality=<id>` is "at least" — the id maps to the advertised height floor.
-    if let minimumQuality {
-      let floor: Int = switch minimumQuality {
-      case .sd480: 480
-      case .hd720: 720
-      case .fullHD1080: 1080
-      case .uhd4K: 2160
-      }
-      guard item.quality >= floor else { return false }
-    }
-
-    return clientSideMatches(item)
-  }
-
-  /// The filter's sort applied on the device. The server's descending orders stay
-  /// descending; unrated titles sink. The caller decides whether to honor the rest
-  /// state at all — a collection's editorial order must survive `recentlyAdded`.
+  /// The filter's sort applied on the device. A collection's response cannot be
+  /// sorted by the server — `/v1/collections/view` takes no parameters — so the
+  /// sort control reorders the list the page already holds. This is not a filter:
+  /// it does not drop items. The caller decides whether to honor the rest state
+  /// at all — a collection's editorial order must survive `recentlyAdded`.
   func sortingLocally(_ items: [MediaItem]) -> [MediaItem] {
     switch sort {
     case .recentlyAdded:

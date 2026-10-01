@@ -10,16 +10,14 @@ import KinoPubMetadata
 
 /// Everything kino.pub has under one name, reached from the credits on an item page.
 /// The web client calls this a search with `mode=actor`; it is the same `/v1/items`
-/// listing as the library, narrowed to a person. On tvOS it is the search catalog:
-/// `TVSearchFilters` and the poster grid. Elsewhere the same filters sit over the
-/// shared list, under the person's photo and bio.
+/// listing as the library, narrowed to a person. On tvOS the header scrolls with
+/// the poster grid: photo, name, role, and room for a biography, then sort and the
+/// type pull-down. Elsewhere the same filters sit over the shared list.
 struct PersonItemsView: View {
 
   private let person: MediaPerson
   private let linkProvider: NavigationLinkProvider
-#if !os(tvOS)
   private let metadataService: MetadataService
-#endif
 
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(NavigationState.self) var navigationState
@@ -32,8 +30,8 @@ struct PersonItemsView: View {
   @Environment(\.openURL) private var openURL
   @StateObject private var catalog: LibraryCatalog
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
-#if !os(tvOS)
   @State private var personMetadata = PersonMetadata()
+#if !os(tvOS)
   @State private var bioExpanded = false
 #endif
 
@@ -43,12 +41,7 @@ struct PersonItemsView: View {
        catalog: @autoclosure @escaping () -> LibraryCatalog) {
     self.person = person
     self.linkProvider = linkProvider
-#if os(tvOS)
-    // The photo and bio stay on iOS and macOS. tvOS is the search catalog.
-    _ = metadataService
-#else
     self.metadataService = metadataService
-#endif
     _catalog = StateObject(wrappedValue: catalog())
   }
 
@@ -83,12 +76,10 @@ struct PersonItemsView: View {
     }
     .task { await cardMenu.refreshFolders() }
     .mediaCardNewFolderAlert(cardMenu)
-#if !os(tvOS)
     .task(id: person.tmdbPersonId) {
       guard let id = person.tmdbPersonId else { return }
       personMetadata = await metadataService.person(id: id)
     }
-#endif
   }
 
 #if !os(tvOS)
@@ -100,12 +91,8 @@ struct PersonItemsView: View {
   @ViewBuilder
   private var catalogBody: some View {
 #if os(tvOS)
-    // The photo stays; the catalog under it is search's — pull-down chips, poster grid.
-    VStack(alignment: .leading, spacing: 0) {
-      personHeader
-      tvCatalog
-    }
-    .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
+    tvCatalog
+      .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
 #else
     ContentItemsListView(
       items: $catalog.items,
@@ -130,29 +117,6 @@ struct PersonItemsView: View {
   }
 
 #if os(tvOS)
-  /// The face from the cast rail, beside the name. Not a focus stop — the catalog below
-  /// is the page.
-  private var personHeader: some View {
-    HStack(alignment: .center, spacing: 28) {
-      TVUIKitPersonAvatar(name: person.name,
-                          photoURL: person.photoURL ?? ActorImageProvider.photoURL(for: person.name),
-                          diameter: 220)
-        .frame(width: 220, height: 220)
-      VStack(alignment: .leading, spacing: 8) {
-        Text(person.name)
-          .font(.title)
-          .foregroundStyle(Color.KinoPub.text)
-        Text(person.role.titleKey.localized)
-          .font(.title3)
-          .foregroundStyle(Color.KinoPub.subtitle)
-      }
-    }
-    .padding(.horizontal, TVHIGGrid.sideInset)
-    .padding(.top, 16)
-    .padding(.bottom, 8)
-    .accessibilityElement(children: .combine)
-  }
-
   private var tvCatalog: some View {
     TVPage(
       sections: tvSections,
@@ -183,19 +147,44 @@ struct PersonItemsView: View {
           openURL: { openURL($0) }
         )
       },
-      onRetry: { Task { await catalog.refresh() } }
+      onRetry: { Task { await catalog.refresh() } },
+      prefersFirstPosterFocus: true
     )
   }
 
+  /// Header, then sort and the type pull-down, then the credits grid. The header is
+  /// the first section, so it scrolls away with the posters. The biography slot is
+  /// empty until metadata arrives, and the cell grows when it does.
   private var tvSections: [TVPageSection] {
-    let filters = TVSearchFilters.row(catalog: catalog, searching: false)
+    let header = TVPageSection.masthead(id: "person-header", personMasthead)
+    let controls = TVSearchFilters.controls(catalog: catalog, includeType: true)
+    let creditsTitle = person.role == .actor ? "Acting".localized : "Directing".localized
     if catalog.items.isEmpty && catalog.isLoading {
-      return [filters, .placeholder(id: "credits", title: nil, kind: .poster, columns: 6, flow: .grid)]
+      return [header, controls, .placeholder(id: "credits", title: creditsTitle, kind: .poster, columns: 6, flow: .grid)]
     }
     let cards = catalog.items.map { MediaCard($0) }
-    guard !cards.isEmpty else { return [filters] }
-    return [filters, .posters(id: "credits", title: nil, flow: .grid, caption: .always,
-                              loadsMore: catalog.hasMorePages, cards: cards)]
+    guard !cards.isEmpty else { return [header, controls] }
+    return [header, controls, .posters(id: "credits", title: creditsTitle, flow: .grid, caption: .always,
+                                       loadsMore: catalog.hasMorePages, cards: cards)]
+  }
+
+  private var personMasthead: TVPageMasthead {
+    let photoURL = person.photoURL
+      ?? personMetadata.photo
+      ?? ActorImageProvider.photoURL(for: person.name)
+    return TVPageMasthead(style: .person,
+                          title: person.name,
+                          detail: personDetail,
+                          biography: biography,
+                          photoURL: photoURL)
+  }
+
+  /// Role, then place and birthday when metadata has them. The biography is its own
+  /// line under this, so this stays one short line.
+  private var personDetail: String {
+    var parts = [person.role.titleKey.localized]
+    if let metaLine, !metaLine.isEmpty { parts.append(metaLine) }
+    return parts.joined(separator: "  ")
   }
 
   private var tvStatus: TVPageStatus {
@@ -251,21 +240,6 @@ struct PersonItemsView: View {
     .padding(.bottom, 8)
   }
 
-  private var biography: String? {
-    personMetadata.biography.flatMap { $0.isEmpty ? nil : $0 }
-  }
-
-  private var metaLine: String? {
-    var parts: [String] = []
-    if let birthday = personMetadata.birthday {
-      parts.append(Self.birthdayFormatter.string(from: birthday))
-    }
-    if let place = personMetadata.placeOfBirth, !place.isEmpty {
-      parts.append(place)
-    }
-    return parts.isEmpty ? nil : parts.joined(separator: " · ")
-  }
-
   @ViewBuilder
   private func bioBlock(_ text: String) -> some View {
     let truncated = text.count > Self.bioPreviewLimit && !bioExpanded
@@ -309,6 +283,28 @@ struct PersonItemsView: View {
   }
 #endif
 
+  private var biography: String? {
+    personMetadata.biography.flatMap { $0.isEmpty ? nil : $0 }
+  }
+
+  private var metaLine: String? {
+    var parts: [String] = []
+    if let birthday = personMetadata.birthday {
+      parts.append(Self.birthdayFormatter.string(from: birthday))
+    }
+    if let place = personMetadata.placeOfBirth, !place.isEmpty {
+      parts.append(place)
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  }
+
+  private static let birthdayFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .none
+    return formatter
+  }()
+
   /// Built the same way from every navigation stack; only the routes differ.
   static func make(person: MediaPerson,
                    linkProvider: NavigationLinkProvider,
@@ -325,13 +321,6 @@ struct PersonItemsView: View {
   }
 
 #if !os(tvOS)
-  private static let birthdayFormatter: DateFormatter = {
-    let f = DateFormatter()
-    f.dateStyle = .medium
-    f.timeStyle = .none
-    return f
-  }()
-
   static let heroSpacing: CGFloat = 16
   static let verticalPadding: CGFloat = 8
   static let bioPreviewLimit = 160

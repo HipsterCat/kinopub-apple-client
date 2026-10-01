@@ -3,16 +3,15 @@
 //  TVUIKitPersonCollection.swift
 //  KinoPubUI
 //
-//  Circular person rail — `TVMonogramContentConfiguration` (system-drawn initials
-//  from `personNameComponents` when there's no photo, native focus motion) instead of
-//  a hand-rolled avatar view. Same shape as `TVUIKitMediaCollection`, much smaller:
-//  the system content configuration owns focus scale/motion itself, so unlike
-//  `TVUIKitPosterCell` there is no custom `didUpdateFocus`/stale-appearance reset here.
+//  Circular person rail. The circle is a photo, or the same initials image search
+//  uses when there is no photo — not `TVMonogramContentConfiguration`. That
+//  configuration paints a filled disc and a focus plate, and it has no property
+//  for either (image, text, name components only). The cell stays focusable; the
+//  picture does not carry a background of its own.
 //
 
 import SwiftUI
 import UIKit
-import TVUIKit
 
 /// One row entry for `TVUIKitPersonCollection` — cast/crew today, any person rail later.
 public struct TVUIKitPerson: Identifiable, Hashable {
@@ -241,45 +240,96 @@ extension TVUIKitPersonCollectionController: UICollectionViewDataSource, UIColle
   }
 }
 
-/// `TVMonogramContentConfiguration` on a plain `UICollectionViewListCell` — the system
-/// draws the circle, the focus scale, and the initials-from-name fallback; this only
-/// owns fetching the photo (when there is one) and re-applying the configuration once
-/// it arrives, same async-load-with-cancellation shape as `TVUIKitPosterCell`.
+/// A person circle and the two lines under it. The circle is an image: a photo, or
+/// search's initials disc when there is no photo. No filled plate, and the image
+/// view is not itself a focusable lockup — the cell is the control.
 @MainActor
 final class TVUIKitPersonCell: UICollectionViewCell {
   static let reuseID = "TVUIKitPersonCell"
 
+  private let avatar = UIImageView()
+  private let nameLabel = UILabel()
+  private let captionLabel = UILabel()
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
+  private var monogramName: String?
+  private var monogramDiameter: CGFloat = 0
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    // The monogram configuration drew the white disc and the focus plate. A clear
+    // cell background is not enough while that view is the content: it paints both
+    // itself (2026-09-28, and still on device 2026-10-01).
+    backgroundView = nil
+    selectedBackgroundView = nil
+    automaticallyUpdatesBackgroundConfiguration = false
+    backgroundConfiguration = .clear()
+    backgroundColor = .clear
+    contentView.backgroundColor = .clear
+    clipsToBounds = false
+    contentView.clipsToBounds = false
+
+    avatar.translatesAutoresizingMaskIntoConstraints = false
+    avatar.contentMode = .scaleAspectFill
+    avatar.clipsToBounds = true
+    avatar.backgroundColor = .clear
+    avatar.isUserInteractionEnabled = false
+    avatar.adjustsImageWhenAncestorFocused = false
+    contentView.addSubview(avatar)
+
+    nameLabel.font = UIFont.preferredFont(forTextStyle: .caption1)
+    nameLabel.adjustsFontForContentSizeCategory = true
+    nameLabel.textAlignment = .center
+    nameLabel.numberOfLines = 2
+    nameLabel.textColor = .secondaryLabel
+
+    captionLabel.font = UIFont.preferredFont(forTextStyle: .caption2)
+    captionLabel.adjustsFontForContentSizeCategory = true
+    captionLabel.textAlignment = .center
+    captionLabel.numberOfLines = 1
+    captionLabel.textColor = .tertiaryLabel
+
+    let text = UIStackView(arrangedSubviews: [nameLabel, captionLabel])
+    text.axis = .vertical
+    text.alignment = .fill
+    text.spacing = 2
+    text.translatesAutoresizingMaskIntoConstraints = false
+    contentView.addSubview(text)
+
+    NSLayoutConstraint.activate([
+      avatar.topAnchor.constraint(equalTo: contentView.topAnchor),
+      avatar.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+      avatar.widthAnchor.constraint(equalTo: contentView.widthAnchor, constant: -32),
+      avatar.heightAnchor.constraint(equalTo: avatar.widthAnchor),
+      text.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 10),
+      text.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      text.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
+    ])
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func configure(person: TVUIKitPerson) {
     imageTask?.cancel()
     imageTask = nil
     currentURL = person.photoURL
+    nameLabel.text = person.name
+    captionLabel.text = person.caption
+    captionLabel.isHidden = person.caption?.isEmpty != false
+    accessibilityLabel = [person.name, person.caption].compactMap { $0 }.joined(separator: ", ")
 
-    // The monogram draws its own focus; the cell's default tvOS background painted a
-    // dark square behind the circle when focused. Setting `.clear()` alone is not
-    // enough: with automatic updates on, UIKit re-derives the background for the
-    // focused state, and a light square still showed behind the focused circle on
-    // device (2026-09-28).
-    automaticallyUpdatesBackgroundConfiguration = false
-    backgroundConfiguration = .clear()
-    var config = TVMonogramContentConfiguration.cell()
-    config.text = person.name
-    config.secondaryText = person.caption
-    config.personNameComponents = person.nameComponents
-    // Decoded art up front. The monogram is the *fallback* for someone we have no
-    // portrait of — a recycled cell must not flash initials over a face that was on
-    // screen a moment ago, which is what rebuilding the configuration empty did.
     let cached = TVUIKitRemoteImage.cached(url: person.photoURL)
-    config.image = TVUIKitPersonPhoto.displayable(cached, url: person.photoURL)
-    contentConfiguration = config
+    if let photo = TVUIKitPersonPhoto.displayable(cached, url: person.photoURL) {
+      showPhoto(photo)
+    } else {
+      showMonogram(person.name)
+    }
 
     guard let url = person.photoURL else {
       ArtworkLog.skipped(by: "cast/\(person.name)", reason: "no photo URL")
       return
     }
-    if cached != nil {
+    if cached != nil, monogramName == nil {
       ArtworkLog.servedFromMemory(url, by: "cast/\(person.name)")
       return
     }
@@ -287,13 +337,30 @@ final class TVUIKitPersonCell: UICollectionViewCell {
     imageTask = Task { [weak self] in
       let image = await TVUIKitRemoteImage.load(url: url)
       await MainActor.run {
-        guard let self, !Task.isCancelled, self.currentURL == url,
-              let photo = TVUIKitPersonPhoto.displayable(image, url: url),
-              var config = self.contentConfiguration as? TVMonogramContentConfiguration
-        else { return }
-        config.image = photo
-        self.contentConfiguration = config
+        guard let self, !Task.isCancelled, self.currentURL == url else { return }
+        if let photo = TVUIKitPersonPhoto.displayable(image, url: url) {
+          self.showPhoto(photo)
+        }
       }
+    }
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let diameter = avatar.bounds.width
+    guard diameter > 1 else { return }
+    avatar.layer.cornerRadius = diameter / 2
+    guard let monogramName, abs(diameter - monogramDiameter) > 0.5 else { return }
+    monogramDiameter = diameter
+    avatar.image = TVUIKitTileArtwork.monogram(name: monogramName, diameter: diameter, traits: traitCollection)
+  }
+
+  override func didUpdateFocus(in context: UIFocusUpdateContext,
+                               with coordinator: UIFocusAnimationCoordinator) {
+    super.didUpdateFocus(in: context, with: coordinator)
+    let focused = context.nextFocusedView == self
+    coordinator.addCoordinatedAnimations { [weak self] in
+      self?.nameLabel.textColor = focused ? .label : .secondaryLabel
     }
   }
 
@@ -302,6 +369,21 @@ final class TVUIKitPersonCell: UICollectionViewCell {
     imageTask?.cancel()
     imageTask = nil
     currentURL = nil
+    monogramName = nil
+    monogramDiameter = 0
+    avatar.image = nil
+  }
+
+  private func showPhoto(_ image: UIImage) {
+    monogramName = nil
+    avatar.image = image
+  }
+
+  private func showMonogram(_ name: String) {
+    monogramName = name
+    monogramDiameter = 0
+    let diameter = avatar.bounds.width > 1 ? avatar.bounds.width : 168
+    avatar.image = TVUIKitTileArtwork.monogram(name: name, diameter: diameter, traits: traitCollection)
   }
 }
 #endif

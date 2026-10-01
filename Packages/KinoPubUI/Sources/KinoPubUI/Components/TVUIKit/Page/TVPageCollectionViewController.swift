@@ -125,7 +125,9 @@ public final class TVPageCollectionViewController: UIViewController {
       collectionView.layer.borderWidth = 3
     }
 
-    collectionView.remembersLastFocusedIndexPath = remembersFocus
+    // A catalog that wants its first stop on a poster must not remember the sort
+    // chip the engine touches while the grid is still a skeleton.
+    collectionView.remembersLastFocusedIndexPath = remembersFocus && !prefersFirstPosterFocus
     // Dynamic Type: captions and card text change height, so every recipe is re-measured.
     registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _) in
       self.collectionView.collectionViewLayout.invalidateLayout()
@@ -261,7 +263,7 @@ public final class TVPageCollectionViewController: UIViewController {
   private func headerDodge(for section: Int) -> CGAffineTransform {
     guard sections.indices.contains(section) else { return .identity }
     let target = sections[section]
-    guard target.kind != .chip else { return .identity }
+    guard target.kind != .chip, target.kind != .masthead else { return .identity }
     let contentWidth = max(collectionView.bounds.width - sideInset * 2, 1)
     let art = TVHIGGrid.resolve(columns: target.columns, contentWidth: contentWidth).cardWidth
     let recipe = TVPageCellMetrics.recipe(kind: target.kind, artWidth: art, caption: target.caption)
@@ -384,6 +386,12 @@ public final class TVPageCollectionViewController: UIViewController {
       cell.configure(feature: feature)
     }
 
+    let masthead = UICollectionView.CellRegistration<TVPageMastheadCell, TVPageItemID> {
+      [weak self] cell, _, id in
+      guard let self, case .masthead(let header)? = self.itemsByID[id] else { return }
+      cell.configure(header)
+    }
+
     let header = UICollectionView.SupplementaryRegistration<TVPageHeaderView>(
       elementKind: TVPageLayout.headerKind
     ) { [weak self] view, _, indexPath in
@@ -415,6 +423,8 @@ public final class TVPageCollectionViewController: UIViewController {
         return collectionView.dequeueConfiguredReusableCell(using: card, for: indexPath, item: id)
       case .banner:
         return collectionView.dequeueConfiguredReusableCell(using: banner, for: indexPath, item: id)
+      case .masthead:
+        return collectionView.dequeueConfiguredReusableCell(using: masthead, for: indexPath, item: id)
       }
     }
     let loadingFooter = UICollectionView.SupplementaryRegistration<TVPageLoadingFooterView>(
@@ -472,6 +482,38 @@ public final class TVPageCollectionViewController: UIViewController {
     if status != self.status || sectionsChanged {
       self.status = status
       applyStatus()
+    }
+    focusFirstPosterIfNeeded()
+  }
+
+  /// Entry focus is a poster, once the grid has real cells. A sort chip is the first
+  /// focusable view while the page is still a header and skeletons. Remembering that
+  /// index path makes `indexPathForPreferredFocusedView` lose, so the chip stays
+  /// focused after the posters arrive.
+  private var didPlacePosterFocus = false
+  private var posterFocusAttempts = 0
+
+  private func focusFirstPosterIfNeeded() {
+    guard prefersFirstPosterFocus, !didPlacePosterFocus, isViewLoaded else { return }
+    guard firstPosterIndexPath != nil else { return }
+    if let index = focusedSectionIndex,
+       sections.indices.contains(index),
+       sections[index].kind == .poster,
+       !sections[index].isPlaceholder {
+      didPlacePosterFocus = true
+      collectionView.remembersLastFocusedIndexPath = remembersFocus
+      return
+    }
+    // The snapshot's cells are not in the hierarchy on this turn. One ask on the
+    // next turn, capped so a refresh loop cannot keep pulling focus back.
+    guard posterFocusAttempts < 4 else { return }
+    posterFocusAttempts += 1
+    collectionView.remembersLastFocusedIndexPath = false
+    setNeedsFocusUpdate()
+    collectionView.setNeedsFocusUpdate()
+    Task { @MainActor [weak self] in
+      guard let self, !self.didPlacePosterFocus else { return }
+      self.collectionView.updateFocusIfNeeded()
     }
   }
 
@@ -535,7 +577,13 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   private static func layoutSignature(_ section: TVPageSection) -> String {
-    "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.loadsMore)|\(section.kind == .chip ? chipSignature(section) : "")"
+    var signature = "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.loadsMore)|\(section.kind == .chip ? chipSignature(section) : "")"
+    // A biography or a stat line changes the header's height, which the estimated
+    // section will not notice unless the layout runs again.
+    if case .masthead(let header) = section.items.first {
+      signature += "|\(header.biography?.count ?? 0)|\(header.detail ?? "")|\(header.stats.count)|\(header.title.count)"
+    }
+    return signature
   }
 
   /// The status shows when the page has nothing but chrome: no sections, or only chip
@@ -543,7 +591,7 @@ public final class TVPageCollectionViewController: UIViewController {
   /// sort that emptied the page has to be undoable from where it was set.
   private func applyStatus() {
     guard isViewLoaded else { return }
-    let onlyChrome = sections.allSatisfy { $0.kind == .chip }
+    let onlyChrome = sections.allSatisfy { $0.kind == .chip || $0.kind == .masthead }
     let showsStatus = onlyChrome && status != .content
     statusView.isHidden = !showsStatus
     collectionView.isHidden = showsStatus && sections.isEmpty
@@ -573,10 +621,15 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   private var firstPosterIndexPath: IndexPath? {
-    guard let index = sections.firstIndex(where: { $0.kind == .poster && !$0.items.isEmpty }) else {
-      return nil
+    guard let index = sections.firstIndex(where: {
+      $0.kind == .poster && !$0.isPlaceholder && !$0.items.isEmpty
+    }) else { return nil }
+    let item = sections[index].items.firstIndex { item in
+      if case .placeholder = item { return false }
+      return true
     }
-    return IndexPath(item: 0, section: index)
+    guard let item else { return nil }
+    return IndexPath(item: item, section: index)
   }
 }
 
@@ -598,7 +651,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     guard sections.indices.contains(indexPath.section) else { return }
     let section = sections[indexPath.section]
     // A chip row has no pages, and skeleton tiles are not data.
-    guard section.kind != .chip, !section.isPlaceholder else { return }
+    guard section.kind != .chip, section.kind != .masthead, !section.isPlaceholder else { return }
     let loaded = section.loadedCount
     guard indexPath.item >= loaded - 1 else { return }
     // Once per length: re-displaying the same last card (a snapshot rebuild, a relayout)
@@ -622,10 +675,13 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   }
 
   public func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
-    // Skeleton tiles are not destinations; the page keeps its focus escape elsewhere.
+    // Skeleton tiles are not destinations; a header is not a control. The page keeps
+    // its focus escape on the grid, or on the sort chip when the grid is empty.
     guard let id = dataSource.itemIdentifier(for: indexPath), let item = itemsByID[id] else { return false }
-    if case .placeholder = item { return false }
-    return true
+    switch item {
+    case .placeholder, .masthead: return false
+    default: return true
+    }
   }
 
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
@@ -642,6 +698,14 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     let previousSection = context.previouslyFocusedIndexPath?.section
     let nextSection = context.nextFocusedIndexPath?.section
     focusedSectionIndex = nextSection
+    if prefersFirstPosterFocus, !didPlacePosterFocus,
+       let nextSection,
+       sections.indices.contains(nextSection),
+       sections[nextSection].kind == .poster,
+       !sections[nextSection].isPlaceholder {
+      didPlacePosterFocus = true
+      collectionView.remembersLastFocusedIndexPath = remembersFocus
+    }
     coordinator.addCoordinatedAnimations({ [weak self] in
       guard let self else { return }
       if let previousSection, previousSection != nextSection {
@@ -701,6 +765,8 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
       return person.photoURL
     case .feature(let feature):
       return URL(string: feature.card.backdropImageURL)
+    case .masthead(let header):
+      return header.photoURL
     case .chip, .tile, .placeholder:
       return nil
     }

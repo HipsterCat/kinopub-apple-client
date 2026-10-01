@@ -105,13 +105,20 @@ public enum TVPageLayout {
 
     let layoutSection: NSCollectionLayoutSection
     switch (section.kind, section.flow) {
+    case (.masthead, _):
+      layoutSection = masthead(section, sideInset: sideInset)
     case (.chip, _):
+      let centered = section.items.contains(where: Self.isCenterChip)
       let pinned = section.items.contains(where: Self.isTrailingChip)
       let bottom = chipRowBottom(before: next, contentWidth: contentWidth,
-                                 otherwise: pinned ? TVHIGGrid.titledRowGap / 2 : TVHIGGrid.titledRowGap)
-      layoutSection = pinned
-        ? chipRow(section, sideInset: sideInset, bottom: bottom)
-        : chipRail(section, sideInset: sideInset, bottom: bottom)
+                                 otherwise: pinned || centered ? TVHIGGrid.titledRowGap / 2 : TVHIGGrid.titledRowGap)
+      if centered {
+        layoutSection = centeredChipRow(section, sideInset: sideInset, bottom: bottom)
+      } else if pinned {
+        layoutSection = chipRow(section, sideInset: sideInset, bottom: bottom)
+      } else {
+        layoutSection = chipRail(section, sideInset: sideInset, bottom: bottom)
+      }
     case (_, .rail):
       layoutSection = rail(section, contentWidth: contentWidth, sideInset: sideInset)
     case (_, .grid):
@@ -182,28 +189,40 @@ public enum TVPageLayout {
     return layoutSection
   }
 
-  /// Wrapping rows. `repeatingSubitem` + a fixed inter-item spacing is the HIG formula:
-  /// the group is the content width, the gutters come off first, the rest is divided by
-  /// the count — applied to envelopes, so that the art inside lands on the grid.
+  /// Wrapping rows. A fractional item in `repeatingSubitem:count:` grows to fill a
+  /// short last group, and a poster lockup then draws its 2:3 art across the whole
+  /// cell — the footer title disappears (collection grids, 2026-10-01). Search hid it
+  /// by padding a loading row to full. An absolute width, repeated until the row is
+  /// full, keeps that cell on a short row and leaves the rest empty. A custom group
+  /// that always returned a full row of frames asked for items the last group did
+  /// not have.
   @MainActor
   private static func grid(_ section: TVPageSection,
                            contentWidth: CGFloat,
                            sideInset: CGFloat) -> NSCollectionLayoutSection {
     let (columns, art) = TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth)
     let recipe = TVPageCellMetrics.recipe(kind: section.kind, artWidth: art, caption: section.caption)
-    // `count:` places the items; it does not size them — an item at fractionalWidth(1)
-    // is the whole group, and the row became one banner per line.
+    let spacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
+    let height = recipe.itemSize.height
+    let leading = max(sideInset - recipe.artInsets.leading, 0)
+    let trailing = max(sideInset - recipe.artInsets.trailing, 0)
+    // The group is the content box. `contentWidth` already took a full side inset
+    // off each edge; the art inset lives inside the item, so it comes back.
+    let groupWidth = max(contentWidth + sideInset * 2 - leading - trailing, 1)
+    let slots = CGFloat(max(columns, 1))
+    // A fraction under the slot. An exact fit is a fraction over once spacing is
+    // applied, and the row then wraps to one fewer column.
+    let itemWidth = max((groupWidth - spacing * (slots - 1)) / slots - 0.25, 1)
     let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(
-      widthDimension: .fractionalWidth(1 / CGFloat(columns)),
-      heightDimension: .fractionalHeight(1)
+      widthDimension: .absolute(itemWidth),
+      heightDimension: .absolute(height)
     ))
     let group = NSCollectionLayoutGroup.horizontal(
       layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
-                                         heightDimension: .absolute(recipe.itemSize.height)),
-      repeatingSubitem: item,
-      count: columns
+                                         heightDimension: .absolute(height)),
+      subitems: [item]
     )
-    group.interItemSpacing = .fixed(TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing)
+    group.interItemSpacing = .fixed(spacing)
     let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.interGroupSpacing = hasStandingCaption(section)
       ? captionedRowGap
@@ -213,10 +232,42 @@ public enum TVPageLayout {
     return layoutSection
   }
 
+  /// One full-width block that scrolls with the page — a person or a collection header.
+  /// Not a focus stop. Height is estimated; the cell reports its own.
+  @MainActor
+  private static func masthead(_ section: TVPageSection, sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let height = mastheadHeight(section)
+    let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                      heightDimension: .estimated(height))
+    let item = NSCollectionLayoutItem(layoutSize: size)
+    let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [item])
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: sideInset, bottom: 8, trailing: sideInset)
+    return layoutSection
+  }
+
+  /// A first guess so the header does not pop in at a chip's height. The cell's
+  /// self-size replaces it once the text is known — a biography has to be able to grow.
+  private static func mastheadHeight(_ section: TVPageSection) -> CGFloat {
+    guard case .masthead(let header) = section.items.first else { return 220 }
+    switch header.style {
+    case .person:
+      let bio = header.biography?.isEmpty == false ? 160.0 : 0
+      return 220 + bio
+    case .collection:
+      return header.stats.isEmpty ? 180 : 280
+    }
+  }
+
   static let debugBackgroundKind = "TVPageDebugSectionBackground"
 
   private static func isTrailingChip(_ item: TVPageItem) -> Bool {
     if case .chip(let chip) = item { return chip.alignment == .trailing }
+    return false
+  }
+
+  private static func isCenterChip(_ item: TVPageItem) -> Bool {
+    if case .chip(let chip) = item { return chip.alignment == .center }
     return false
   }
 
@@ -251,6 +302,35 @@ public enum TVPageLayout {
         end -= chipSpacing
       }
       return frames.map { NSCollectionLayoutGroupCustomItem(frame: $0) }
+    }
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(
+      top: TVHIGGrid.headerToItems, leading: sideInset,
+      bottom: bottom, trailing: sideInset
+    )
+    return layoutSection
+  }
+
+  /// One non-scrolling row, the pills as a group in the middle of the content width.
+  /// A collection's sort sits under a centered title; a leading row would look stranded.
+  @MainActor
+  private static func centeredChipRow(_ section: TVPageSection, sideInset: CGFloat,
+                                      bottom: CGFloat) -> NSCollectionLayoutSection {
+    let widths: [CGFloat] = section.items.map { entry in
+      guard case .chip(let chip) = entry else { return 180 }
+      return TVPageChipCell.fittingWidth(for: chip)
+    }
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(chipHeight))
+    ) { environment in
+      let width = environment.container.effectiveContentSize.width - sideInset * 2
+      let total = widths.reduce(0, +) + chipSpacing * CGFloat(max(widths.count - 1, 0))
+      var x = max((width - total) / 2, 0)
+      return widths.map { chipWidth in
+        let frame = CGRect(x: x, y: 0, width: chipWidth, height: chipHeight)
+        x += chipWidth + chipSpacing
+        return NSCollectionLayoutGroupCustomItem(frame: frame)
+      }
     }
     let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.contentInsets = NSDirectionalEdgeInsets(
@@ -410,6 +490,10 @@ public enum TVPageCellMetrics {
     case .person: recipe = person(artWidth: key.width)
     case .chip:
       let size = CGSize(width: key.width, height: TVPageLayout.chipHeight)
+      recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                                artSize: size, posterContentSize: size)
+    case .masthead:
+      let size = CGSize(width: key.width, height: 220)
       recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
                                 artSize: size, posterContentSize: size)
     case .card: recipe = measureCard(artWidth: key.width, height: TVPageLayout.cardHeight)

@@ -595,9 +595,9 @@ final class TVPageWideCardCell: UICollectionViewCell {
   private let cardView = TVCardView()
   private let thumbnail = UIImageView()
   /// A person's photo or initials in a circle — a still image, like the poster
-  /// thumbnail. Not `TVUIKitPersonAvatarView`: its monogram content is a focusable
-  /// lockup that lifted itself in layers inside the focused card and kept stale
-  /// initials across reuse ("KT" on Stephen Robert Morse, 2026-09-26).
+  /// thumbnail. Not a monogram content view: that lockup is focusable and lifts
+  /// itself, layer by layer, inside the focused card, and it kept stale initials
+  /// across reuse ("KT" on Stephen Robert Morse, 2026-09-26).
   private let avatar = UIImageView()
   private let titleLabel = UILabel()
   private let originalLabel = UILabel()

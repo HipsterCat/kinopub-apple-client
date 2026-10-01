@@ -8,8 +8,8 @@ import KinoPubUI
 import KinoPubBackend
 
 /// What `LibraryFiltersBar` drives: a filter, the picker contents, and the apply/clear
-/// verbs. `LibraryCatalog` applies picks server-side (`/v1/items`); a collection's
-/// fixed editorial list applies them on the device (`LibraryFilter.locallyMatches`).
+/// verbs. `LibraryCatalog` applies picks server-side (`/v1/items`). A collection does
+/// not: `/v1/collections/view` takes no parameters, so that page only offers sort.
 @MainActor
 protocol FilterBarDriver: ObservableObject {
   var filter: LibraryFilter { get }
@@ -29,6 +29,14 @@ extension FilterBarDriver {
 
 extension LibraryCatalog: FilterBarDriver {}
 
+/// How much of the filter bar a page shows. `.full` is search, the library, and a
+/// person's credits — those listings accept the picks. `.sort` is a collection:
+/// the endpoint cannot filter, and a local copy of the search row is not a filter.
+enum LibraryFiltersBarChrome {
+  case full
+  case sort
+}
+
 /// Sort and filter dropdowns — system `.glass` / `.glassProminent` capsules.
 /// On macOS Search they sit centered in the toolbar accessory bar under the
 /// trailing search field; on iOS/tvOS they scroll with the grid.
@@ -38,15 +46,10 @@ extension LibraryCatalog: FilterBarDriver {}
 struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
 
   @ObservedObject var catalog: Catalog
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-  @Environment(\.colorSchemeContrast) private var contrast
+  var chrome: LibraryFiltersBarChrome = .full
 
   private var years: [YearRange] {
     YearRange.decades(upTo: Calendar.current.component(.year, from: Date()))
-  }
-
-  private var solidChrome: Bool {
-    reduceTransparency || contrast == .increased
   }
 
   var body: some View {
@@ -72,18 +75,19 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
   private var filterChips: some View {
     HStack(spacing: LibraryFilterMetrics.spacing) {
       sortMenu
-      typeMenu
-      genreMenu
-      countryMenu
-      yearMenu
+      if chrome == .full {
+        typeMenu
+        genreMenu
+        countryMenu
+        yearMenu
 
-      if catalog.filter.hasActiveFilters {
-        Button {
-          catalog.clearFilters()
-        } label: {
-          Label("Clear", systemImage: "xmark")
+        if catalog.filter.hasActiveFilters {
+          Button {
+            catalog.clearFilters()
+          } label: {
+            Label("Clear", systemImage: "xmark")
+          }
         }
-//        .modifier(LibraryFilterGlassStyle(isProminent: false, useSolid: solidChrome))
       }
     }
 #if os(macOS)
