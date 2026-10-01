@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Media actions: download phases, Follow-primary, series long-press (2026-10-01)
+
+Download is available on any title when the flag/platform allows it: idle circle → circular
+progress + pause while downloading → gone from the row once on disk (delete lives in More).
+Series long-press on Mark Watched / Download offers season · unwatched-in-season · all.
+When a series is ongoing, everything is watched, and the next episode airs within ~2 weeks,
+Follow leads as a labelled primary (`Отслеживать` / `Track`) and Play demotes to Replay.
+Copy: EN `S1, E2` / `53m left`; RU `1 сезон, 2 серия` / `Ещё 53 мин`. Product matrix:
+`docs/product/media-actions.md`.
 ### tvOS Home banner on the page (2026-10-01)
 
 The banner was drawn only by the SwiftUI `MediaRowsView`; with `tvPageSections` on, tvOS
