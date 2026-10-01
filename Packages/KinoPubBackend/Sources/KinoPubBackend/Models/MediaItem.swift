@@ -398,8 +398,18 @@ public extension MediaItem {
     if year > 0 { parts.append("\(year)") }
     if isSeries, let seasons {
       // `duration.total` sums every episode, which reads as a nonsense runtime for a
-      // series — season count is what the Apple TV app shows.
-      parts.append("\(seasons.count) \(seasons.count == 1 ? "season" : "seasons")")
+      // series — season count is what the Apple TV app shows. One season says how
+      // many episodes instead: "1 season" tells a miniseries or an anime nothing.
+      if seasons.count == 1 {
+        let episodes = seasons[0].episodes.count
+        if episodes > 0 { parts.append(String(localized: "\(episodes) episodes", bundle: .module)) }
+      } else {
+        parts.append(String(localized: "\(seasons.count) seasons", bundle: .module))
+      }
+    } else if isEpisodicType {
+      // A listing payload never carries `seasons`, so a series from a shelf lands here
+      // with only `duration.total` — every episode summed ("11 h" for an anime). No
+      // runtime is better than that one; the details payload fills the count in.
     } else {
       // …and it sums every *version* for a multi-version film, which is the same
       // nonsense one level down: item 124447 ships 24 fps and 48 fps at 8634 s each and

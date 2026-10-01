@@ -386,8 +386,11 @@ public extension MediaCard {
     // paints (detail payloads often have a working `wide`; catalogue lists often don't).
     let wide = item.posters.wide.flatMap { $0.isEmpty ? nil : $0 }
     let genres = item.genres.compactMap(\.title).prefix(2)
+    // A shelf's payload never carries `seasons`, so `isSeries` alone calls every listed
+    // series a film — and its `duration.total` (every episode summed) its runtime.
+    let isSeries = item.isSeries || item.isEpisodicType
     let durationSeconds: Int? = {
-      if item.isSeries { return nil }
+      if isSeries { return nil }
       let total = Int(item.duration.total)
       return total >= 60 ? total : nil
     }()
@@ -400,7 +403,7 @@ public extension MediaCard {
               backdropURL: wide ?? item.posters.wideURL,
               metaLine: item.metadataLine,
               overview: item.plot,
-              isSeries: item.isSeries,
+              isSeries: isSeries,
               isInWatchlist: item.inWatchlist ?? false,
               is4K: badges.is4K,
               isHDR: badges.isHDR,

@@ -5,6 +5,26 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Home banner round 2; series meta from the shared line (2026-10-01)
+
+- **Series meta, everywhere.** `MediaItem.releaseParts` (behind `metadataLine` and
+  `releaseLine`) now says "N серий" for a one-season series and "N сезонов" otherwise
+  (plural strings in the backend catalog), and nothing for a listed series without
+  `seasons` instead of `duration.total` (every episode summed: "11h" on an anime).
+  `MediaCard(item)` counts `isEpisodicType` as a series, so listed series lose the bogus
+  runtime and get series menus.
+- **Banner data.** `HomeCatalog.bannerDetails` re-reads each banner title through
+  `fetchDetails(excludeLinks: true)`, so the meta has the season/episode count and the
+  logo lookup has the IMDb id even for cached shelf cards.
+- **Banner cell.** Meta is the shared format only: scores as `MediaScoresView` draws them
+  (template logo at its fixed height, width from the art, then the value), then the
+  card's `metaLine`. Plot cut to its first sentence, same style as the meta, secondary at
+  rest and white on focus. Name (no logo) takes the full width in a smaller font. Separate
+  top and bottom scrims. 16:9 platter.
+- **Centred row.** `TVPageLayout.bannerRail`: width `(container − 2·gutter) / 2`, centring
+  insets, `.groupPagingCentered`, and the focused banner's row scroller is centred with the
+  focus animation (`centerBanner`). Not yet checked on a device.
+
 ### tvOS Home banner: rich platters, title logos, looped (2026-10-01)
 
 The banner row is `TVPageSection.banner` of `TVPageItem.feature` items drawn by

@@ -37,8 +37,9 @@ public enum TVPageCellKind: Hashable, Sendable {
   /// art: search's top results, where a title and a person sit side by side.
   case card
   /// A large `TVCardView` platter whose art is the title's backdrop, with its logo (or
-  /// name), plot, scores, genre and running time over the bottom and the poster inset
-  /// at the trailing edge. The Home banner; items are `.feature`.
+  /// name) under a top scrim, the plot's first sentence and the shared meta line (scores,
+  /// then `metaLine`) under a bottom one, and the poster inset at the trailing edge. The
+  /// Home banner; items are `.feature`.
   case banner
 }
 
@@ -420,7 +421,8 @@ public struct TVPageSection: Identifiable, Hashable {
                   columns: columns, caption: .always, rows: rows, match: match, items: items)
   }
 
-  /// The Home banner: large platters, 2 across (HIG 2-column at 1920), untitled. The
+  /// The Home banner: large platters, one centred with half a neighbour on either side
+  /// (`TVPageLayout.bannerWidth`), untitled. The
   /// titles repeat for `laps` laps and focus starts in the middle one, so the row
   /// reads as endless in both directions — a carousel, not a list with an end.
   public static func banner(id: String,
