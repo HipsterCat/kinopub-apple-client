@@ -25,6 +25,7 @@ public struct TVPageTemplatesGallery: View {
         case .person(let person): lastSelection = "\(section.id): \(person.name)"
         case .chip(let chip): lastSelection = "\(section.id): \(chip.title)"
         case .tile(let tile): lastSelection = "\(section.id): \(tile.title)"
+        case .feature(let feature): lastSelection = "\(section.id): \(feature.card.title)"
         case .placeholder: break
         }
       }
@@ -46,6 +47,8 @@ public struct TVPageTemplatesGallery: View {
   /// point is to compare shapes on a TV side by side, so each row says what it is.
   public static var sections: [TVPageSection] {
     [
+      // First, so focus starts in its middle lap the way the Home page does.
+      .banner(id: "banner", features: posters(seed: 3, rated: true).prefix(6).map { TVPageFeature(card: $0) }),
       .chips(id: "filters", title: nil, chips: filters),
       .chips(id: "collection-chips", title: "Collections · chips with a mark", chips: collectionChips),
       .stills(id: "up-next", title: "Watch Next · stills with progress, 4 across", columns: 4,
