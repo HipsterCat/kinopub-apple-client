@@ -174,30 +174,41 @@ private struct MediaActionCatalogPreviewRow: View {
           isSeries: false,
           showsMarkWatched: true,
           showsTrailer: true,
-          showsDownload: true,
+          download: .idle,
           showsMore: true
         )
       )
       MediaActionCatalogPreviewRow(
         title: "Movie · watched → Пересмотреть",
         context: MediaActionContext(
-          playback: .playAgain,
+          playback: .playAgain(season: nil, episode: nil),
           kind: .fiction,
           isSeries: false,
           showsTrailer: true,
-          showsDownload: true,
+          download: .idle,
           showsMore: true
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Movie · in progress → 34 мин (remaining)",
+        title: "Movie · in progress → Ещё … / … left",
         context: MediaActionContext(
           playback: .resume(progress: 0.35, season: nil, episode: nil, durationSeconds: 52 * 60),
           kind: .fiction,
           isSeries: false,
           showsMarkWatched: true,
           showsTrailer: true,
-          showsDownload: true,
+          download: .idle,
+          showsMore: true
+        )
+      )
+      MediaActionCatalogPreviewRow(
+        title: "Movie · downloading → pause ring",
+        context: MediaActionContext(
+          playback: .play(season: nil, episode: nil),
+          kind: .fiction,
+          isSeries: false,
+          showsTrailer: true,
+          download: .downloading(progress: 0.45),
           showsMore: true
         )
       )
@@ -230,7 +241,18 @@ private struct MediaActionCatalogPreviewRow: View {
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Concert · unwatched → Смотреть концерт",
+        title: "Series · awaiting next → Отслеживать primary",
+        context: MediaActionContext(
+          playback: .playAgain(season: 1, episode: 1),
+          kind: .fiction,
+          isSeries: true,
+          showsTrailer: true,
+          showsMore: true,
+          promoteFollow: true
+        )
+      )
+      MediaActionCatalogPreviewRow(
+        title: "Concert · unwatched → Смотреть",
         context: MediaActionContext(
           playback: .play(season: nil, episode: nil),
           kind: .concert,
@@ -241,7 +263,7 @@ private struct MediaActionCatalogPreviewRow: View {
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Documentary · unwatched → Смотреть док",
+        title: "Documentary · unwatched → Смотреть фильм",
         context: MediaActionContext(
           playback: .play(season: nil, episode: nil),
           kind: .documentary,

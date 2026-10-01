@@ -4408,7 +4408,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Season %lld, Episode %lld"
+            "value" : "S%lld, E%lld"
           }
         },
         "ru" : {
@@ -4425,13 +4425,222 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld min"
+            "value" : "%lldm"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld мин"
+          }
+        }
+      }
+    },
+    "MediaAction_HoursMinutes" : {
+      "extractionState" : "manual",
+      "comment" : "Compact hours+minutes core for remaining-time labels.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldh %lldm"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldч %lldм"
+          }
+        }
+      }
+    },
+    "MediaAction_TimeLeft" : {
+      "extractionState" : "manual",
+      "comment" : "Remaining runtime on film resume capsules.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ left"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё %@"
+          }
+        }
+      }
+    },
+    "MediaAction_WatchNow" : {
+      "extractionState" : "manual",
+      "comment" : "Fresh Play title for concert / stand-up (not the Watch Now tab).",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch Now"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смотреть"
+          }
+        }
+      }
+    },
+    "Track" : {
+      "extractionState" : "manual",
+      "comment" : "Labelled Follow primary when awaiting the next episode.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отслеживать"
+          }
+        }
+      }
+    },
+    "Tracking" : {
+      "extractionState" : "manual",
+      "comment" : "Follow primary while already subscribed.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracking"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отслеживаю"
+          }
+        }
+      }
+    },
+    "Pause Download" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause Download"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пауза"
+          }
+        }
+      }
+    },
+    "Delete Download" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Download"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить загрузку"
+          }
+        }
+      }
+    },
+    "Download Season" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Season"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать сезон"
+          }
+        }
+      }
+    },
+    "Download Unwatched in Season" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Unwatched in Season"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать непросмотренные"
+          }
+        }
+      }
+    },
+    "Download All Episodes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download All Episodes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать все серии"
+          }
+        }
+      }
+    },
+    "Mark Unwatched in Season" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark Unwatched in Season"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отметить непросмотренные"
+          }
+        }
+      }
+    },
+    "Mark All Episodes Watched" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark All Episodes Watched"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отметить все серии"
           }
         }
       }

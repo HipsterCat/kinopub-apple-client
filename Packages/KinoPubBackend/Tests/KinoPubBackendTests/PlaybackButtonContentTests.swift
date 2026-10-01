@@ -75,7 +75,7 @@ final class PlaybackButtonContentTests: XCTestCase {
   }
 
   func testWatchedFilmOffersPlayAgain() {
-    XCTAssertEqual(item(videos: [video(watched: 1, time: 7200)]).playbackButtonContent, .playAgain)
+    XCTAssertEqual(item(videos: [video(watched: 1, time: 7200)]).playbackButtonContent, .playAgain(season: nil, episode: nil))
   }
 
   // MARK: - Series
@@ -98,7 +98,7 @@ final class PlaybackButtonContentTests: XCTestCase {
 
   func testFullyWatchedSeriesOffersPlayAgain() {
     let seasons = [season(1, episodes: [episode(number: 1, watched: 1), episode(number: 2, watched: 1)])]
-    XCTAssertEqual(item(seasons: seasons).playbackButtonContent, .playAgain)
+    XCTAssertEqual(item(seasons: seasons).playbackButtonContent, .playAgain(season: 1, episode: 1))
   }
 
   func testPrimaryEpisodeSkipsWatchedOnes() {

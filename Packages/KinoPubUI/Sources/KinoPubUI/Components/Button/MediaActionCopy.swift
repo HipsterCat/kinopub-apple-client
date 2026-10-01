@@ -2,10 +2,7 @@
 //  MediaActionCopy.swift
 //  KinoPubUI
 //
-//  Human labels for media action controls. Numbers come from
-//  `PlaybackButtonContent`; this is the only place that turns them into
-//  `1 сезон, 2 серия` / `34 мин` / `Смотреть фильм`. See
-//  `docs/product/media-actions.md`.
+//  Human labels for media action controls. See `docs/product/media-actions.md`.
 //
 
 import Foundation
@@ -13,39 +10,53 @@ import KinoPubBackend
 
 public enum MediaActionCopy {
 
-  /// `1 сезон, 2 серия` / `Season 1, Episode 2`. Never `S1, E2`.
+  /// RU `1 сезон, 2 серия` · EN `S1, E2`.
   public static func episodeLabel(season: Int, episode: Int) -> String {
     let format = localizedFormat("MediaAction_SeasonEpisode",
-                                 fallback: "Season %lld, Episode %lld")
+                                 fallback: "S%lld, E%lld")
     return String(format: format, locale: .current, Int64(season), Int64(episode))
   }
 
-  /// Remaining (or total when progress is unknown) minutes: `34 мин` / `34 min`.
-  public static func minutesLabel(seconds: Int) -> String {
-    let minutes = max(1, Int((Double(seconds) / 60.0).rounded()))
-    let format = localizedFormat("MediaAction_Minutes", fallback: "%lld min")
-    return String(format: format, locale: .current, Int64(minutes))
+  /// Compact remaining runtime core: `53 мин` / `53m`, `1ч 24м` / `1h 24m`.
+  public static func compactDuration(seconds: Int) -> String {
+    let totalMinutes = max(1, Int((Double(seconds) / 60.0).rounded()))
+    let hours = totalMinutes / 60
+    let minutes = totalMinutes % 60
+    if hours == 0 {
+      let format = localizedFormat("MediaAction_Minutes", fallback: "%lldm")
+      return String(format: format, locale: .current, Int64(totalMinutes))
+    }
+    let format = localizedFormat("MediaAction_HoursMinutes",
+                                 fallback: "%lldh %lldm")
+    return String(format: format, locale: .current, Int64(hours), Int64(minutes))
   }
 
-  /// Remaining time from a resume progress fraction.
-  public static func remainingMinutesLabel(progress: Double, durationSeconds: Int) -> String {
+  /// `Ещё 53 мин` / `53 min left`.
+  public static func remainingLabel(progress: Double, durationSeconds: Int) -> String {
     let clamped = min(max(progress, 0), 1)
-    let remaining = Int((Double(durationSeconds) * (1.0 - clamped)).rounded())
-    return minutesLabel(seconds: max(60, remaining))
+    let remaining = max(60, Int((Double(durationSeconds) * (1.0 - clamped)).rounded()))
+    let core = compactDuration(seconds: remaining)
+    let format = localizedFormat("MediaAction_TimeLeft", fallback: "%@ left")
+    return String(format: format, locale: .current, core)
   }
 
-  /// Fresh Play on a non-episodic title — kind-specific. Series use `episodeLabel` instead.
+  /// Fresh Play on a non-episodic title.
   public static func playTitle(kind: MediaPresentationKind) -> String {
     switch kind {
-    case .concert:
-      return localized("Watch Concert")
-    case .documentary:
-      return localized("Watch Documentary")
-    case .standup, .show:
-      return localized("Play")
-    case .fiction, .animation:
+    case .concert, .standup:
+      let value = localized("MediaAction_WatchNow")
+      return value == "MediaAction_WatchNow" ? "Watch Now" : value
+    case .documentary, .fiction, .animation:
       return localized("Watch Movie")
+    case .show:
+      return localized("Play")
     }
+  }
+
+  public static func followTitle(isFollowing: Bool) -> String {
+    isFollowing
+      ? localized("Tracking")
+      : localized("Track")
   }
 
   /// Primary play capsule title for a given playback state + presentation kind.
@@ -67,20 +78,23 @@ public enum MediaActionCopy {
         let title = episodeLabel(season: season, episode: episode)
         return (title, progress, localized("Resume") + " " + title)
       }
-      let title = remainingMinutesLabel(progress: progress, durationSeconds: durationSeconds)
-      return (title, progress, localized("Resume") + " " + title)
+      let title = remainingLabel(progress: progress, durationSeconds: durationSeconds)
+      return (title, progress, title)
 
-    case .playAgain:
+    case .playAgain(let season, let episode):
+      if let season, let episode {
+        let title = episodeLabel(season: season, episode: episode)
+        return (title, nil, localized("Play Again") + " " + title)
+      }
       let title = localized("Play Again")
       return (title, nil, title)
     }
   }
 
-  static func localized(_ key: String) -> String {
+  public static func localized(_ key: String) -> String {
     NSLocalizedString(key, comment: "")
   }
 
-  /// Prefer the app catalogue; fall back so package tests still produce English copy.
   private static func localizedFormat(_ key: String, fallback: String) -> String {
     let value = NSLocalizedString(key, comment: "")
     return value == key ? fallback : value

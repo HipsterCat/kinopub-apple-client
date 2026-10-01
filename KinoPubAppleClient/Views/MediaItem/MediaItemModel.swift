@@ -265,6 +265,12 @@ class MediaItemModel: ObservableObject {
         serverWatched: knownItem.playbackAction == .playAgain
       )
     }
+    // Download chrome lives on `libraryState`; republish so the hero circle tracks
+    // progress / downloaded without a second observer in the view.
+    libraryState.objectWillChange
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in self?.objectWillChange.send() }
+      .store(in: &libraryCancellables)
   }
 
   /// True when this page fetched its item with `nolinks=1` — episode links then arrive
@@ -465,6 +471,7 @@ class MediaItemModel: ObservableObject {
   }
 
   private var folderSubscription: AnyCancellable?
+  private var libraryCancellables = Set<AnyCancellable>()
 
   // MARK: - Local watch progress
 
@@ -1027,6 +1034,163 @@ class MediaItemModel: ObservableObject {
       quality: quality
     )
 #endif
+  }
+
+  // MARK: - Hero download / bulk mark
+
+  /// Video + season the hero download circle speaks for (current playable).
+  var currentDownloadTarget: (video: Int?, season: Int?) {
+    if let (season, episode) = mediaItem.primaryEpisode {
+      return (episode.number, season.number)
+    }
+    return (mediaItem.primaryVideo?.number, nil)
+  }
+
+  /// `nil` when downloads are off for this platform / flag.
+  var downloadPhase: MediaActionDownloadPhase? {
+#if os(tvOS)
+    return nil
+#else
+    guard FeatureFlags.downloadsEnabled else { return nil }
+    let target = currentDownloadTarget
+    switch libraryState.downloadStatus(
+      itemId: mediaItemId,
+      video: target.video,
+      season: target.season
+    ) {
+    case .none: return .idle
+    case .downloading(let progress): return .downloading(progress: progress)
+    case .downloaded: return .downloaded
+    }
+#endif
+  }
+
+  /// Next unaired episode from enrichment — drives Follow-as-primary.
+  var nextEpisodeAirDate: Date? {
+    externalMetadata.nextEpisode?.airDate
+  }
+
+  /// Start the current title / episode at the best available file.
+  func startCurrentDownload() {
+#if os(tvOS)
+    return
+#else
+    guard FeatureFlags.downloadsEnabled else { return }
+    if let (season, episode) = mediaItem.primaryEpisode {
+      let item = DownloadableMediaItem(
+        name: "S\(season.number)E\(episode.number)",
+        files: episode.files,
+        mediaItem: mediaItem,
+        watchingMetadata: WatchingMetadata(
+          id: mediaItemId,
+          video: episode.number,
+          season: season.number
+        )
+      )
+      guard let file = Self.preferredDownloadFile(in: episode.files) else { return }
+      startDownload(item: item, file: file)
+      return
+    }
+    guard let video = mediaItem.primaryVideo,
+          let file = Self.preferredDownloadFile(in: video.files) else { return }
+    let item = DownloadableMediaItem(
+      name: mediaItem.localizedTitle,
+      files: video.files,
+      mediaItem: mediaItem,
+      watchingMetadata: WatchingMetadata(id: mediaItemId, video: video.number, season: nil)
+    )
+    startDownload(item: item, file: file)
+#endif
+  }
+
+  func pauseCurrentDownload() {
+#if os(tvOS)
+    return
+#else
+    let target = currentDownloadTarget
+#if os(iOS)
+    if let active = AppContext.shared.hlsDownloadManager.activeDownloads.first(where: {
+      $0.meta.id == mediaItemId
+        && $0.meta.metadata.video == target.video
+        && $0.meta.metadata.season == target.season
+    }) {
+      // HLS has no pause API — cancel leaves a restartable idle circle.
+      AppContext.shared.hlsDownloadManager.cancelDownload(key: active.id)
+      return
+    }
+#endif
+    if let (url, download) = downloadManager.activeDownloads.first(where: {
+      $0.value.metadata.id == mediaItemId
+        && $0.value.metadata.metadata.video == target.video
+        && $0.value.metadata.metadata.season == target.season
+    }) {
+      if download.state == .inProgress {
+        download.pause()
+      } else {
+        downloadManager.removeDownload(for: url)
+      }
+    }
+#endif
+  }
+
+  func deleteCurrentDownload() {
+#if os(tvOS)
+    return
+#else
+    let target = currentDownloadTarget
+    libraryState.deleteDownload(
+      itemId: mediaItemId,
+      video: target.video,
+      season: target.season
+    )
+#endif
+  }
+
+  func downloadSeason(_ season: Season) {
+    _ = startSeasonDownload(
+      mediaId: mediaItemId,
+      seriesTitle: mediaItem.localizedTitle,
+      season: season,
+      quality: nil
+    )
+  }
+
+  func downloadUnwatchedInSeason(_ season: Season) {
+    let unwatched = season.episodes.filter { !$0.isWatched }
+    guard !unwatched.isEmpty else { return }
+    let filtered = Season(
+      id: season.id,
+      title: season.title,
+      number: season.number,
+      watching: season.watching,
+      episodes: unwatched
+    )
+    filtered.mediaId = season.mediaId
+    downloadSeason(filtered)
+  }
+
+  func downloadAllEpisodes() {
+    guard let seasons = mediaItem.seasons else { return }
+    for season in seasons {
+      downloadSeason(season)
+    }
+  }
+
+  /// Marks only still-unwatched episodes in the season (no-op when already complete).
+  func markUnwatchedInSeason(_ season: Season) {
+    guard season.episodes.contains(where: { !$0.isWatched }) else { return }
+    toggleWatched(season: season)
+  }
+
+  func markAllEpisodesWatched() {
+    guard let seasons = mediaItem.seasons else { return }
+    for season in seasons where season.episodes.contains(where: { !$0.isWatched }) {
+      toggleWatched(season: season)
+    }
+  }
+
+  private static func preferredDownloadFile(in files: [FileInfo]) -> FileInfo? {
+    files.max(by: { $0.resolution < $1.resolution })
   }
 
 }

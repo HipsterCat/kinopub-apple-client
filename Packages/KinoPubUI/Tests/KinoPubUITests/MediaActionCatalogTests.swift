@@ -16,7 +16,7 @@ final class MediaActionCatalogTests: XCTestCase {
       isSeries: false,
       showsMarkWatched: true,
       showsTrailer: true,
-      showsDownload: true,
+      download: .idle,
       showsMore: true
     ))
     XCTAssertEqual(row.map(\.id), [.play, .trailer, .bookmark, .markWatched, .download, .more])
@@ -26,23 +26,45 @@ final class MediaActionCatalogTests: XCTestCase {
     XCTAssertEqual(row.first(where: { $0.id == .markWatched })?.chrome, .circle)
   }
 
-  func testConcertUsesConcertPlayTitle() {
+  func testConcertUsesWatchNowTitle() {
     let play = MediaActionCatalog.play(for: MediaActionContext(
       playback: .play(season: nil, episode: nil),
       kind: .concert,
       isSeries: false
     ))
     XCTAssertEqual(play.title, MediaActionCopy.playTitle(kind: .concert))
+    XCTAssertEqual(play.title, "Watch Now")
   }
 
   func testMovieWatchedUsesQuieterReplay() {
     let play = MediaActionCatalog.play(for: MediaActionContext(
-      playback: .playAgain,
+      playback: .playAgain(season: nil, episode: nil),
       isSeries: false
     ))
     XCTAssertEqual(play.chrome, .pill)
     XCTAssertEqual(play.systemImage, "arrow.clockwise")
     XCTAssertEqual(play.title, MediaActionCopy.localized("Play Again"))
+  }
+
+  func testDownloadedHidesDownloadCircle() {
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: .play(season: nil, episode: nil),
+      isSeries: false,
+      showsTrailer: true,
+      download: .downloaded,
+      showsMore: true
+    ))
+    XCTAssertFalse(row.contains { $0.id == .download })
+  }
+
+  func testDownloadingShowsCircularProgressAndPause() {
+    let appearance = MediaActionCatalog.download(for: MediaActionContext(
+      playback: .play(season: nil, episode: nil),
+      isSeries: false,
+      download: .downloading(progress: 0.4)
+    ))
+    XCTAssertEqual(appearance?.systemImage, "pause.fill")
+    XCTAssertEqual(appearance?.circularProgress, 0.4)
   }
 
   func testInProgressSeriesUsesEpisodeLabelWithoutTime() {
@@ -64,7 +86,7 @@ final class MediaActionCatalogTests: XCTestCase {
     XCTAssertEqual(row.first(where: { $0.id == .shuffle })?.chrome, .circle)
   }
 
-  func testInProgressMovieUsesRemainingMinutesOnly() {
+  func testInProgressMovieUsesRemainingTimeOnly() {
     let play = MediaActionCatalog.play(for: MediaActionContext(
       playback: .resume(progress: 0.35, season: nil, episode: nil, durationSeconds: 52 * 60),
       isSeries: false
@@ -72,7 +94,7 @@ final class MediaActionCatalogTests: XCTestCase {
     XCTAssertEqual(play.progress, 0.35)
     XCTAssertEqual(
       play.title,
-      MediaActionCopy.remainingMinutesLabel(progress: 0.35, durationSeconds: 52 * 60)
+      MediaActionCopy.remainingLabel(progress: 0.35, durationSeconds: 52 * 60)
     )
   }
 
@@ -82,8 +104,15 @@ final class MediaActionCatalogTests: XCTestCase {
       isSeries: true
     ))
     XCTAssertEqual(play.title, MediaActionCopy.episodeLabel(season: 1, episode: 1))
-    XCTAssertFalse(play.title?.contains("S1") == true)
-    XCTAssertFalse(play.title?.contains("E1") == true)
+  }
+
+  func testSeriesReplayKeepsEpisodeOnPlayAgain() {
+    let play = MediaActionCatalog.play(for: MediaActionContext(
+      playback: .playAgain(season: 1, episode: 1),
+      isSeries: true
+    ))
+    XCTAssertEqual(play.chrome, .pill)
+    XCTAssertEqual(play.title, MediaActionCopy.episodeLabel(season: 1, episode: 1))
   }
 
   func testShuffleIsLabelledPillWhenNotMidTitle() {
@@ -100,6 +129,43 @@ final class MediaActionCatalogTests: XCTestCase {
     let shuffle = row.first { $0.id == .shuffle }
     XCTAssertEqual(shuffle?.chrome, .pill)
     XCTAssertEqual(shuffle?.title, MediaActionCopy.localized("Shuffle"))
+  }
+
+  func testPromoteFollowLeadsWithLabelledBell() {
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: .playAgain(season: 1, episode: 1),
+      isSeries: true,
+      showsTrailer: true,
+      showsFollow: false,
+      showsMore: true,
+      promoteFollow: true
+    ))
+    XCTAssertEqual(row.map(\.id), [.follow, .trailer, .play, .bookmark, .more])
+    XCTAssertEqual(row[0].chrome, .playPill)
+    XCTAssertEqual(row[0].title, MediaActionCopy.followTitle(isFollowing: false))
+  }
+
+  func testShouldPromoteFollowWithinTwoWeeks() {
+    let air = Date().addingTimeInterval(7 * 24 * 60 * 60)
+    XCTAssertTrue(MediaActionCatalog.shouldPromoteFollow(
+      isSeries: true,
+      playback: .playAgain(season: 1, episode: 1),
+      seriesFinished: false,
+      nextEpisodeAirDate: air
+    ))
+    let later = Date().addingTimeInterval(30 * 24 * 60 * 60)
+    XCTAssertFalse(MediaActionCatalog.shouldPromoteFollow(
+      isSeries: true,
+      playback: .playAgain(season: 1, episode: 1),
+      seriesFinished: false,
+      nextEpisodeAirDate: later
+    ))
+    XCTAssertFalse(MediaActionCatalog.shouldPromoteFollow(
+      isSeries: true,
+      playback: .playAgain(season: 1, episode: 1),
+      seriesFinished: true,
+      nextEpisodeAirDate: air
+    ))
   }
 
   func testFollowIconReflectsSubscription() {

@@ -7,14 +7,15 @@ import Foundation
 /// What the detail page's primary play control should show.
 ///
 /// Prefer the resume case with a mini progress bar (same capsule as Continue
-/// Watching cards). Season/episode are numbers — the UI formats them as
-/// `1 сезон, 2 серия` / `Season 1, Episode 2`, never `S1, E2`.
+/// Watching cards). Season/episode are numbers — the UI formats them via
+/// `MediaActionCopy` (`1 сезон, 2 серия` / `S1, E2`).
 public enum PlaybackButtonContent: Equatable, Sendable {
   /// Mid-title: progress bar + episode label *or* remaining minutes (not both).
   case resume(progress: Double, season: Int?, episode: Int?, durationSeconds: Int)
   /// Fresh start, or the next unwatched episode after finishing a previous one.
   case play(season: Int?, episode: Int?)
-  case playAgain
+  /// Fully watched. Series carry the episode Replay would reopen (usually S1E1).
+  case playAgain(season: Int?, episode: Int?)
 }
 
 public extension MediaItem {
@@ -33,7 +34,12 @@ public extension MediaItem {
   }
 
   var playbackButtonContent: PlaybackButtonContent {
-    if playbackAction == .playAgain { return .playAgain }
+    if playbackAction == .playAgain {
+      if let (season, episode) = primaryEpisode {
+        return .playAgain(season: season.number, episode: episode.number)
+      }
+      return .playAgain(season: nil, episode: nil)
+    }
 
     if isSeries {
       guard let (season, episode) = primaryEpisode else {

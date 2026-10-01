@@ -2,12 +2,8 @@
 //  MediaActionCatalog.swift
 //  KinoPubUI
 //
-//  Label / chrome / order for media primary-action rows. One mapping, used by the
-//  detail hero today and reusable anywhere the same buttons appear — the view that
-//  hosts them does not invent icons or weights per screen.
-//
-//  Human copy lives in `MediaActionCopy` and `docs/product/media-actions.md`.
-//  The visual mold is `#Preview("Action chrome")` in `MediaActionButtonStyle.swift`.
+//  Label / chrome / order for media primary-action rows.
+//  Copy rules: `docs/product/media-actions.md`.
 //
 
 import Foundation
@@ -15,8 +11,6 @@ import KinoPubBackend
 
 // MARK: - Identity
 
-/// Which control this is. Call sites wire behaviour by id; the catalog never owns
-/// navigation, menus, or network.
 public enum MediaActionID: String, Hashable, Sendable, CaseIterable {
   case play
   case markWatched
@@ -28,31 +22,27 @@ public enum MediaActionID: String, Hashable, Sendable, CaseIterable {
   case more
 }
 
-/// System chrome vocabulary from `MediaActionButtonStyle` — nothing hand-drawn.
-/// `playPill` is `.glassProminent`, `pill` / `circle` are `.glass`. White elevated
-/// fill is focus, never a permanent tint on Play.
 public enum MediaActionChrome: Hashable, Sendable {
-  /// Entry Play / Resume — `.glassProminent` capsule.
   case playPill
-  /// Labelled secondary — `.glass` capsule (Trailer, Mark Watched mid-title, Replay, Shuffle).
   case pill
-  /// Icon-only — `.glass` circle (bookmark / follow / watched / download / more).
   case circle
 }
 
-// MARK: - Appearance
+/// Download control phase. `downloaded` means the circle is absent — Delete lives in More.
+public enum MediaActionDownloadPhase: Equatable, Sendable {
+  case idle
+  case downloading(progress: Double)
+  case downloaded
+}
 
-/// Everything a button needs to draw, and nothing about what tapping it does.
 public struct MediaActionAppearance: Equatable, Identifiable, Sendable {
   public var id: MediaActionID
   public var chrome: MediaActionChrome
-  /// SF Symbol name.
   public var systemImage: String
-  /// Nil → icon-only circle (or loading spinner in its place).
   public var title: String?
-  /// When set, the play label shows `MediaActionProgressTrack` between the glyph and
-  /// the title — the one non-system piece of chrome.
   public var progress: Double?
+  /// Circle download: ring progress with a pause glyph in the middle.
+  public var circularProgress: Double?
   public var accessibilityLabel: String
   public var isLoading: Bool
 
@@ -62,6 +52,7 @@ public struct MediaActionAppearance: Equatable, Identifiable, Sendable {
     systemImage: String,
     title: String? = nil,
     progress: Double? = nil,
+    circularProgress: Double? = nil,
     accessibilityLabel: String,
     isLoading: Bool = false
   ) {
@@ -70,15 +61,12 @@ public struct MediaActionAppearance: Equatable, Identifiable, Sendable {
     self.systemImage = systemImage
     self.title = title
     self.progress = progress
+    self.circularProgress = circularProgress
     self.accessibilityLabel = accessibilityLabel
     self.isLoading = isLoading
   }
 }
 
-// MARK: - Context
-
-/// Facts the catalog needs. Kept free of `MediaItem` / view models so cards, sheets
-/// and the hero can all build one.
 public struct MediaActionContext: Equatable, Sendable {
   public var playback: PlaybackButtonContent
   public var kind: MediaPresentationKind
@@ -88,9 +76,12 @@ public struct MediaActionContext: Equatable, Sendable {
   public var showsMarkWatched: Bool
   public var showsTrailer: Bool
   public var showsFollow: Bool
-  public var showsDownload: Bool
+  /// `nil` = downloads off for this surface/platform. Otherwise the live phase.
+  public var download: MediaActionDownloadPhase?
   public var showsShuffle: Bool
   public var showsMore: Bool
+  /// Series ongoing, all watched, next episode within ~2 weeks → labelled Follow leads.
+  public var promoteFollow: Bool
   public var loading: Set<MediaActionID>
 
   public init(
@@ -102,9 +93,10 @@ public struct MediaActionContext: Equatable, Sendable {
     showsMarkWatched: Bool = false,
     showsTrailer: Bool = false,
     showsFollow: Bool = false,
-    showsDownload: Bool = false,
+    download: MediaActionDownloadPhase? = nil,
     showsShuffle: Bool = false,
     showsMore: Bool = false,
+    promoteFollow: Bool = false,
     loading: Set<MediaActionID> = []
   ) {
     self.playback = playback
@@ -115,10 +107,28 @@ public struct MediaActionContext: Equatable, Sendable {
     self.showsMarkWatched = showsMarkWatched
     self.showsTrailer = showsTrailer
     self.showsFollow = showsFollow
-    self.showsDownload = showsDownload
+    self.download = download
     self.showsShuffle = showsShuffle
     self.showsMore = showsMore
+    self.promoteFollow = promoteFollow
     self.loading = loading
+  }
+
+  /// Backward-compatible bool for older call sites / tests.
+  public var showsDownload: Bool {
+    get {
+      switch download {
+      case .idle, .downloading: return true
+      case .downloaded, .none: return false
+      }
+    }
+    set {
+      if newValue {
+        if download == nil || download == .downloaded { download = .idle }
+      } else {
+        download = nil
+      }
+    }
   }
 
   var isMidTitle: Bool {
@@ -127,25 +137,22 @@ public struct MediaActionContext: Equatable, Sendable {
   }
 }
 
-// MARK: - Catalog
-
 public enum MediaActionCatalog {
 
-  /// Ordered primary row for the given state. Empty slots are simply absent — callers
-  /// do not filter.
   public static func row(for context: MediaActionContext) -> [MediaActionAppearance] {
+    if context.promoteFollow {
+      return awaitingNextEpisodeRow(for: context)
+    }
+
     var row: [MediaActionAppearance] = [play(for: context)]
 
     let mark = context.showsMarkWatched ? markWatched(for: context) : nil
-    // Mid-title Mark Watched is a labelled pill and sits next to Play (preview mold).
-    // Fresh-start checkmark is a circle and joins the state cluster after Trailer.
     if let mark, mark.chrome == .pill {
       row.append(mark)
     }
     if context.showsTrailer {
       row.append(trailer(for: context))
     }
-    // Labelled Shuffle peers Trailer when the row is not already dense with Mark Watched.
     if context.showsShuffle, !context.isMidTitle {
       row.append(shuffle(for: context))
     }
@@ -156,12 +163,32 @@ public enum MediaActionCatalog {
     if let mark, mark.chrome == .circle {
       row.append(mark)
     }
-    if context.showsDownload {
-      row.append(download(for: context))
+    if let download = download(for: context) {
+      row.append(download)
     }
-    // In-progress: Shuffle is a quiet circle after the state cluster.
     if context.showsShuffle, context.isMidTitle {
       row.append(shuffle(for: context))
+    }
+    if context.showsMore {
+      row.append(more(for: context))
+    }
+    return row
+  }
+
+  /// `[Отслеживать] · Trailer · Replay · bookmark · …`
+  private static func awaitingNextEpisodeRow(
+    for context: MediaActionContext
+  ) -> [MediaActionAppearance] {
+    var row: [MediaActionAppearance] = [
+      follow(for: context, chrome: .playPill, titled: true)
+    ]
+    if context.showsTrailer {
+      row.append(trailer(for: context))
+    }
+    row.append(play(for: context)) // Replay — playAgain chrome/title
+    row.append(bookmark(for: context))
+    if let download = download(for: context) {
+      row.append(download)
     }
     if context.showsMore {
       row.append(more(for: context))
@@ -232,35 +259,51 @@ public enum MediaActionCatalog {
     )
   }
 
-  public static func follow(for context: MediaActionContext) -> MediaActionAppearance {
+  public static func follow(
+    for context: MediaActionContext,
+    chrome: MediaActionChrome = .circle,
+    titled: Bool = false
+  ) -> MediaActionAppearance {
     let following = context.isFollowing
+    let title = titled ? MediaActionCopy.followTitle(isFollowing: following) : nil
     return MediaActionAppearance(
       id: .follow,
-      chrome: .circle,
+      chrome: chrome,
       systemImage: following
         ? "bell.and.waves.left.and.right.fill"
         : "bell",
-      accessibilityLabel: following
-        ? MediaActionCopy.localized("Remove from Watchlist")
-        : MediaActionCopy.localized("Add to Watchlist"),
+      title: title,
+      accessibilityLabel: MediaActionCopy.followTitle(isFollowing: following),
       isLoading: context.loading.contains(.follow)
     )
   }
 
-  public static func download(for context: MediaActionContext) -> MediaActionAppearance {
-    MediaActionAppearance(
-      id: .download,
-      chrome: .circle,
-      systemImage: "arrow.down.to.line",
-      accessibilityLabel: MediaActionCopy.localized("Download"),
-      isLoading: context.loading.contains(.download)
-    )
+  public static func download(for context: MediaActionContext) -> MediaActionAppearance? {
+    switch context.download {
+    case .none, .downloaded:
+      return nil
+    case .idle:
+      return MediaActionAppearance(
+        id: .download,
+        chrome: .circle,
+        systemImage: "arrow.down.to.line",
+        accessibilityLabel: MediaActionCopy.localized("Download"),
+        isLoading: context.loading.contains(.download)
+      )
+    case .downloading(let progress):
+      return MediaActionAppearance(
+        id: .download,
+        chrome: .circle,
+        systemImage: "pause.fill",
+        circularProgress: progress,
+        accessibilityLabel: MediaActionCopy.localized("Pause Download"),
+        isLoading: false
+      )
+    }
   }
 
   public static func shuffle(for context: MediaActionContext) -> MediaActionAppearance {
     let title = MediaActionCopy.localized("Shuffle")
-    // Preview: labelled "Случайно" next to Trailer when the row is not mid-title;
-    // quiet circle once Mark Watched is already a pill.
     let labelled = !context.isMidTitle
     return MediaActionAppearance(
       id: .shuffle,
@@ -280,5 +323,19 @@ public enum MediaActionCatalog {
       accessibilityLabel: MediaActionCopy.localized("More"),
       isLoading: context.loading.contains(.more)
     )
+  }
+
+  /// Next episode within two weeks, series not finished, everything watched.
+  public static func shouldPromoteFollow(
+    isSeries: Bool,
+    playback: PlaybackButtonContent,
+    seriesFinished: Bool,
+    nextEpisodeAirDate: Date?,
+    now: Date = Date()
+  ) -> Bool {
+    guard isSeries, !seriesFinished, case .playAgain = playback,
+          let air = nextEpisodeAirDate, air > now else { return false }
+    let fortnight: TimeInterval = 14 * 24 * 60 * 60
+    return air.timeIntervalSince(now) <= fortnight
   }
 }

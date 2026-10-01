@@ -45,12 +45,26 @@ public struct MediaActionLabel: View {
   private var content: some View {
     switch appearance.chrome {
     case .circle:
-      Image(systemName: appearance.systemImage)
-        .contentTransition(.symbolEffect(.replace))
-        .symbolEffect(.bounce, value: appearance.systemImage)
+      if let circular = appearance.circularProgress {
+        ZStack {
+          Circle()
+            .stroke(.tertiary, lineWidth: 2)
+          Circle()
+            .trim(from: 0, to: min(max(circular, 0), 1))
+            .stroke(.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+          Image(systemName: appearance.systemImage)
+        }
         .frame(width: MediaActionMetrics.circleGlyphSlot,
                height: MediaActionMetrics.circleGlyphSlot)
-        .animation(.easeOut(duration: 0.25), value: appearance.systemImage)
+      } else {
+        Image(systemName: appearance.systemImage)
+          .contentTransition(.symbolEffect(.replace))
+          .symbolEffect(.bounce, value: appearance.systemImage)
+          .frame(width: MediaActionMetrics.circleGlyphSlot,
+                 height: MediaActionMetrics.circleGlyphSlot)
+          .animation(.easeOut(duration: 0.25), value: appearance.systemImage)
+      }
     case .playPill, .pill:
       HStack(spacing: MediaActionMetrics.contentSpacing) {
         Image(systemName: appearance.systemImage)

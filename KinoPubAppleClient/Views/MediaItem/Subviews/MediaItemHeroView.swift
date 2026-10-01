@@ -278,6 +278,18 @@ struct MediaItemHeroView: View {
   /// Series watchlist toggle for the shared context menu (not the hero checkmark).
   var isInWatchlist: Bool = false
   var onToggleWatchlist: (() -> Void)? = nil
+  /// Next unaired episode's date (enrichment). Drives Follow-as-primary.
+  var nextEpisodeAirDate: Date? = nil
+  /// Download phase for the current playable; `nil` hides the control (flag off / TV).
+  var downloadPhase: MediaActionDownloadPhase? = nil
+  var onDownload: (() -> Void)? = nil
+  var onPauseDownload: (() -> Void)? = nil
+  var onDeleteDownload: (() -> Void)? = nil
+  var onDownloadSeason: ((Season) -> Void)? = nil
+  var onDownloadUnwatchedInSeason: ((Season) -> Void)? = nil
+  var onDownloadAllEpisodes: (() -> Void)? = nil
+  var onMarkUnwatchedInSeason: ((Season) -> Void)? = nil
+  var onMarkAllEpisodesWatched: (() -> Void)? = nil
   /// TMDB / Kinopoisk title logo when enrichment supplied one.
   var titleLogoURL: URL? = nil
   /// Certification from enrichment ("TV-14", "16+"). Rendered as one more capability
@@ -877,18 +889,26 @@ struct MediaItemHeroView: View {
 #else
     let showsMore = false
 #endif
+    let playback = mediaItem.playbackButtonContent
+    let promote = MediaActionCatalog.shouldPromoteFollow(
+      isSeries: isSeries,
+      playback: playback,
+      seriesFinished: mediaItem.finished,
+      nextEpisodeAirDate: nextEpisodeAirDate
+    )
     return MediaActionContext(
-      playback: mediaItem.playbackButtonContent,
+      playback: playback,
       kind: mediaItem.presentation.kind,
       isSeries: isSeries,
       isBookmarked: isBookmarked,
       isFollowing: isInWatchlist,
-      showsMarkWatched: showsWatchedButton,
+      showsMarkWatched: showsWatchedButton && !promote,
       showsTrailer: mediaItem.trailerURL != nil,
-      showsFollow: isSeries && onToggleWatchlist != nil,
-      showsDownload: false,
-      showsShuffle: showsShuffleButton,
+      showsFollow: isSeries && onToggleWatchlist != nil && !promote,
+      download: downloadPhase,
+      showsShuffle: showsShuffleButton && !promote,
       showsMore: showsMore,
+      promoteFollow: promote && onToggleWatchlist != nil,
       loading: loadingActions
     )
   }
@@ -919,9 +939,43 @@ struct MediaItemHeroView: View {
     case .more:
       moreControl(appearance)
     case .download:
-      MediaActionButton(appearance) {}
+      downloadControl(appearance)
     case .shuffle:
       shuffleControl(appearance)
+    }
+  }
+
+  @ViewBuilder
+  private func downloadControl(_ appearance: MediaActionAppearance) -> some View {
+    Button {
+      switch downloadPhase {
+      case .downloading:
+        onPauseDownload?()
+      default:
+        onDownload?()
+      }
+    } label: {
+      MediaActionLabel(appearance)
+    }
+    .mediaActionStyle(appearance.chrome)
+    .contextMenu {
+      if isSeries, let (season, _) = mediaItem.primaryEpisode {
+        Button {
+          onDownloadSeason?(season)
+        } label: {
+          Label("Download Season", systemImage: "arrow.down.to.line")
+        }
+        Button {
+          onDownloadUnwatchedInSeason?(season)
+        } label: {
+          Label("Download Unwatched in Season", systemImage: "arrow.down.to.line")
+        }
+        Button {
+          onDownloadAllEpisodes?()
+        } label: {
+          Label("Download All Episodes", systemImage: "arrow.down.to.line")
+        }
+      }
     }
   }
 
@@ -999,7 +1053,7 @@ struct MediaItemHeroView: View {
           }
         }
       } header: {
-        Text("Save to")
+        Text("Bookmarks")
       }
 
       if onCreateFolder != nil {
@@ -1013,7 +1067,9 @@ struct MediaItemHeroView: View {
     } label: {
       MediaActionLabel(appearance)
     }
+#if !os(macOS)
     .menuActionDismissBehavior(.disabled)
+#endif
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .bookmark)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
@@ -1040,8 +1096,7 @@ struct MediaItemHeroView: View {
     .focused($focus, equals: .watchlist)
   }
 
-  /// Tap marks watched. Long-press / context menu (series) offers episode vs season —
-  /// that is the supplementary path from the sketch, not a Menu on every tap.
+  /// Tap marks watched. Long-press (series): episode · season · unwatched in season · all.
   @ViewBuilder
   private func markWatchedControl(_ appearance: MediaActionAppearance) -> some View {
     Button {
@@ -1055,7 +1110,7 @@ struct MediaItemHeroView: View {
     .focused($focus, equals: .watched)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .contextMenu {
-      if let (season, episode) = mediaItem.primaryEpisode, onSeasonWatchedToggle != nil {
+      if let (season, episode) = mediaItem.primaryEpisode {
         Button {
           beginMarkWatched()
           onWatchedToggle()
@@ -1063,12 +1118,30 @@ struct MediaItemHeroView: View {
           Label("\("Mark Episode Watched".localized) · S\(season.number), E\(episode.number)",
                 systemImage: "checkmark")
         }
-        Button {
-          beginMarkWatched()
-          onSeasonWatchedToggle?(season)
-        } label: {
-          Label("\("Mark Season Watched".localized) · \(season.number)",
-                systemImage: "checkmark.circle")
+        if onSeasonWatchedToggle != nil {
+          Button {
+            beginMarkWatched()
+            onSeasonWatchedToggle?(season)
+          } label: {
+            Label("\("Mark Season Watched".localized) · \(season.number)",
+                  systemImage: "checkmark.circle")
+          }
+        }
+        if onMarkUnwatchedInSeason != nil {
+          Button {
+            beginMarkWatched()
+            onMarkUnwatchedInSeason?(season)
+          } label: {
+            Label("Mark Unwatched in Season", systemImage: "checkmark.circle")
+          }
+        }
+        if onMarkAllEpisodesWatched != nil {
+          Button {
+            beginMarkWatched()
+            onMarkAllEpisodesWatched?()
+          } label: {
+            Label("Mark All Episodes Watched", systemImage: "checkmark.circle.fill")
+          }
         }
       }
     }
@@ -1087,6 +1160,12 @@ struct MediaItemHeroView: View {
                             onWatchedToggle: onWatchedToggle,
                             onClearFromContinueWatching: onClearFromContinueWatching,
                             onBrowseWatchlist: onBrowseWatchlist)
+      if downloadPhase == .downloaded, let onDeleteDownload {
+        Divider()
+        Button(role: .destructive, action: onDeleteDownload) {
+          Label("Delete Download", systemImage: "trash")
+        }
+      }
     } label: {
       MediaActionLabel(appearance)
     }
