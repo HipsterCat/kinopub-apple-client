@@ -23,6 +23,71 @@ the art. Person circles (the page avatar and the cast rail) are a photo or
 high-contrast initials on a solid disc, with no monogram plate. iOS and macOS keep
 `LibraryFiltersBar`; a collection there shows sort only.
 
+### tvOS: context menu on vertical poster shelves (2026-10-01)
+
+Long-press / Play-Pause opened the card menu on Continue Watching stills, but not
+on 2:3 posters (Hot Movies, Series, catalog shelves). Stills focus the **cell**, so
+`collectionView(_:contextMenuConfigurationForItemsAt:)` fires. Vertical posters used
+`TVPosterView` (a `UIControl`); focus landed on lockup internals even after
+`canBecomeFocused = false` (7a8bd62) — lift looked right via ancestor rules, but the
+collection PCM hook never saw a cell-focused leaf. Menu-host / `UIButton.menu`
+attempts also failed: Play-Pause never reached `configurationForMenuAtLocation`.
+
+Fix: `TVUIKitNonFocusablePosterView` sets `isUserInteractionEnabled = false` so the
+whole lockup subtree cannot take focus; the **cell** is the focused leaf (same shape
+as CW / `TVPageWideCardCell`). Cell + collection both own context-menu paths.
+DEBUG builds log `[PCM]` (focus leaf, attach, presses, configuration requested /
+returned / nil). CW stills unchanged.
+
+### tvOS Search: Down from the Search tab reaches the keyboard (2026-10-01)
+
+On tvOS 26.5/26.6, Down from the focused Search tab icon did nothing (Select still
+entered the field). `TVSearchPage` now embeds `UISearchContainerViewController` in
+`TVSearchPageHostViewController` with a tab-bar-band `UIFocusGuide` into the search
+chrome and preferred focus on the search bar. Verified on Apple TV 4K (1080p) /
+tvOS 26.5 simulator: Down lights a keyboard key; tab-bar focus pill dims.
+`testSearchTabDownFromTabBar` captures the sequence.
+
+### Hero: no cover context menu; label title until logo (2026-10-01)
+
+The detail hero cover is no longer wrapped in `MediaCardContextMenuModifier` —
+long-press/PCM was shrinking the artwork and exposing card actions (Play, Hide,
+raw image URLs) that belong on shelves, not the page you are already on. Title
+chrome always shows the label text until the TMDB logo has actually painted
+(`.empty` / loading / missing URL), instead of holding an empty space.
+
+### Home banner round 3 (2026-10-01)
+
+Device feedback on round 2. Banner meta is now only: score logos + values, season count,
+one genre; no year, runtime, country or dots; caption size; stays secondary on focus (the
+plot, 4 lines, goes primary). Seasons are always counted as seasons (`MediaItem.seasonsLabel`,
+carried as `MediaCard.seasonsLabel`); the one-season "N episodes" rule is gone. Scrims are
+Auto Layout gradient views: the old layers took their frame in `layoutSubviews`, before the
+card view sized the platter, so reused cells drew no scrim. Score logos are template image
+views (the text attachments did not draw). The row is centred on its start banner when it
+first shows; the per-focus centring that fought the focus engine's scroll is removed, and
+focus moves rely on `.groupPagingCentered` alone (to verify on device).
+
+### Home banner round 2; series meta from the shared line (2026-10-01)
+
+- **Series meta, everywhere.** `MediaItem.releaseParts` (behind `metadataLine` and
+  `releaseLine`) now says "N серий" for a one-season series and "N сезонов" otherwise
+  (plural strings in the backend catalog), and nothing for a listed series without
+  `seasons` instead of `duration.total` (every episode summed: "11h" on an anime).
+  `MediaCard(item)` counts `isEpisodicType` as a series, so listed series lose the bogus
+  runtime and get series menus.
+- **Banner data.** `HomeCatalog.bannerDetails` re-reads each banner title through
+  `fetchDetails(excludeLinks: true)`, so the meta has the season/episode count and the
+  logo lookup has the IMDb id even for cached shelf cards.
+- **Banner cell.** Meta is the shared format only: scores as `MediaScoresView` draws them
+  (template logo at its fixed height, width from the art, then the value), then the
+  card's `metaLine`. Plot cut to its first sentence, same style as the meta, secondary at
+  rest and white on focus. Name (no logo) takes the full width in a smaller font. Separate
+  top and bottom scrims. 16:9 platter.
+- **Centred row.** `TVPageLayout.bannerRail`: width `(container − 2·gutter) / 2`, centring
+  insets, `.groupPagingCentered`, and the focused banner's row scroller is centred with the
+  focus animation (`centerBanner`). Not yet checked on a device.
+
 ### tvOS Home banner: rich platters, title logos, looped (2026-10-01)
 
 The banner row is `TVPageSection.banner` of `TVPageItem.feature` items drawn by
@@ -33,6 +98,14 @@ page's call and cache) via `HomeCatalog.bannerLogos`; `MediaCard` now carries `i
 `kinopoiskID` for that lookup, so cards cached before this have no logo until their row
 refreshes. The six titles repeat for 41 laps and focus starts in the middle one
 (`TVPageSection.startIndex`), so the row scrolls either way for ~120 presses.
+### Hero actions: no focus-disable; always-dark chrome (2026-10-01)
+
+Steering Down-from-plot by `.disabled`-ing secondary hero actions left Trailer /
+Bookmark / More dim whenever `@FocusState` lagged, and broke bookmark Menus.
+Removed. Down → Play is separate `.focusSection()`s + `defaultFocus`. Hero content
+forces dark color scheme and a stronger black scrim so the synopsis stays readable
+on light artwork / light appearance.
+
 
 ### Optimistic auth launch — no splash while refreshing (2026-10-01)
 

@@ -319,10 +319,16 @@ public final class TVPageCollectionViewController: UIViewController {
       switch self.itemsByID[id] {
       case .card(let card)?:
         cell.configure(card: card, recipe: recipe, caption: section.caption, showsRating: section.showsRating)
+        cell.contextMenuEntries = { [weak self] in
+          guard let self, let card = self.itemsByID[id]?.card else { return [] }
+          return self.contextMenuProvider?(card) ?? []
+        }
       case .tile(let tile)?:
         cell.configure(tile: tile, recipe: recipe, caption: section.caption)
+        cell.contextMenuEntries = nil
       default:
         cell.configurePlaceholder(recipe: recipe)
+        cell.contextMenuEntries = nil
       }
     }
 
@@ -523,6 +529,8 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   private var pendingReconfigure: [TVPageItemID] = []
+  /// Banner rows already scrolled to their start, by section id.
+  private var centeredBanners: Set<String> = []
   private var hasAppliedOnce = false
 
   /// A grid with more pages coming ends on a full row: its last row is topped up with
@@ -660,6 +668,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     if DebugLaunch.layoutDebug { cell.contentView.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.25) }
     guard sections.indices.contains(indexPath.section) else { return }
     let section = sections[indexPath.section]
+    centerBannerAtStart(section, sectionIndex: indexPath.section, cell: cell)
     // A chip row has no pages, and skeleton tiles are not data.
     guard section.kind != .chip, section.kind != .masthead, !section.isPlaceholder else { return }
     let loaded = section.loadedCount
@@ -741,19 +750,77 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
                     to: name(context.nextFocusedIndexPath))
   }
 
+  /// A banner row starts with its `startIndex` banner (the middle lap) in the middle of
+  /// the screen, half a neighbour either side, before anything in it has focus. Focus
+  /// moves after that are the layout's: `.groupPagingCentered` centres them as the focus
+  /// engine scrolls, in its one animation. Moving the row ourselves alongside it drew
+  /// two motions per press (2026-10-01, "дёрганый").
+  private func centerBannerAtStart(_ section: TVPageSection, sectionIndex: Int, cell: UICollectionViewCell) {
+    guard section.kind == .banner, !centeredBanners.contains(section.id),
+          section.items.indices.contains(section.startIndex) else { return }
+    centeredBanners.insert(section.id)
+    let start = IndexPath(item: section.startIndex, section: sectionIndex)
+    DispatchQueue.main.async { [weak self, weak cell] in
+      guard let self, let cell,
+            let row = cell.superview as? UIScrollView, row !== self.collectionView,
+            let target = self.collectionView.layoutAttributesForItem(at: start) else { return }
+      let inset = row.adjustedContentInset
+      let lowest = -inset.left
+      let highest = max(row.contentSize.width + inset.right - row.bounds.width, lowest)
+      row.contentOffset.x = min(max(target.center.x - row.bounds.width / 2, lowest), highest)
+    }
+  }
+
   // tvOS routes long-press-Select to the focused view's responder chain; the
   // collection's own delegate hook is the one UIKit wires to the focus engine, and
   // only the `…ForItemsAt indexPaths:` variant exists on tvOS.
+  //
+  // Stills and vertical posters both focus the *cell* (poster lockup subtree is
+  // non-interactive). UIKit then fills `indexPaths`. Cell also owns its own
+  // `UIContextMenuInteraction` as a belt-and-suspenders path.
   public func collectionView(_ collectionView: UICollectionView,
                              contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
                              point: CGPoint) -> UIContextMenuConfiguration? {
-    guard let indexPath = indexPaths.first,
-          let id = dataSource.itemIdentifier(for: indexPath),
-          let card = itemsByID[id]?.card,
-          let entries = contextMenuProvider?(card),
-          !entries.isEmpty else { return nil }
+    PosterContextMenuLog.log(
+      "collection request indexPaths=\(indexPaths.map { "\($0.section):\($0.item)" }) point=\(Int(point.x)),\(Int(point.y)) focused=\(PosterContextMenuLog.focusedChainDescription(startingFrom: PosterContextMenuLog.focusedView(in: collectionView)))"
+    )
+    guard let indexPath = TVUIKitContextMenuIndexPath.resolve(
+            in: collectionView, indexPaths: indexPaths, point: point) else {
+      PosterContextMenuLog.log("collection menu → nil (no indexPath)")
+      return nil
+    }
+    guard let id = dataSource.itemIdentifier(for: indexPath) else {
+      PosterContextMenuLog.log("collection menu → nil (no item id at \(indexPath.section):\(indexPath.item))")
+      return nil
+    }
+    guard let card = itemsByID[id]?.card else {
+      PosterContextMenuLog.log("collection menu → nil (no card for \(id.item) section=\(id.section))")
+      return nil
+    }
+    let entries = contextMenuProvider?(card) ?? []
+    PosterContextMenuLog.log(
+      "collection resolved \(indexPath.section):\(indexPath.item) title=\(card.title) id=\(card.id) entries=\(entries.count)"
+    )
+    guard !entries.isEmpty else {
+      PosterContextMenuLog.log("collection menu → nil (empty entries)")
+      return nil
+    }
+    PosterContextMenuLog.log("collection menu → UIContextMenuConfiguration")
     return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
       TVUIKitContextMenuBuilder.menu(from: entries)
+    }
+  }
+
+  public func collectionView(
+    _ collectionView: UICollectionView,
+    willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
+    animator: (any UIContextMenuInteractionAnimating)?
+  ) {
+    let reset: () -> Void = { [weak self] in self?.resetStrandedFocusAppearance() }
+    if let animator {
+      animator.addCompletion(reset)
+    } else {
+      reset()
     }
   }
 }

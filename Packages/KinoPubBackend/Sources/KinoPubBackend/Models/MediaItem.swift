@@ -396,10 +396,14 @@ public extension MediaItem {
   private var releaseParts: [String] {
     var parts: [String] = []
     if year > 0 { parts.append("\(year)") }
-    if isSeries, let seasons {
+    if let seasonsLabel {
       // `duration.total` sums every episode, which reads as a nonsense runtime for a
       // series — season count is what the Apple TV app shows.
-      parts.append("\(seasons.count) \(seasons.count == 1 ? "season" : "seasons")")
+      parts.append(seasonsLabel)
+    } else if isEpisodicType {
+      // A listing payload never carries `seasons`, so a series from a shelf lands here
+      // with only `duration.total` — every episode summed ("11 h" for an anime). No
+      // runtime is better than that one; the details payload fills the count in.
     } else {
       // …and it sums every *version* for a multi-version film, which is the same
       // nonsense one level down: item 124447 ships 24 fps and 48 fps at 8634 s each and
@@ -412,6 +416,13 @@ public extension MediaItem {
     return parts
   }
 
+  /// "3 сезона" — how many seasons kino.pub has, plural-correct; nil for a film and for
+  /// a listed series (a listing payload never carries `seasons`).
+  var seasonsLabel: String? {
+    guard isSeries, let count = seasons?.count else { return nil }
+    return String(localized: "\(count) seasons", bundle: .module)
+  }
+
   /// "2025 · 1 h 55 min · Боевик, Драма · Япония" — everything about a title in one
   /// line, for the home screen's focus preview.
   var metadataLine: String {
@@ -419,14 +430,14 @@ public extension MediaItem {
     let genres = genres.compactMap(\.title).prefix(2)
     if !genres.isEmpty { parts.append(genres.joined(separator: ", ")) }
     if let country = countries.first?.title { parts.append(country) }
-    return parts.joined(separator: " · ")
+    return parts.joined(separator: "   ")
   }
 
   /// "2025 · 1 h 55 min" — when and how long, nothing else. The item page's hero
   /// metadata row carries the scores and capability chips beside it, and genres and
   /// country sit with the cast under the synopsis instead.
   var releaseLine: String {
-    releaseParts.joined(separator: " · ")
+    releaseParts.joined(separator: "   ")
   }
 
   var originalTitle: String {

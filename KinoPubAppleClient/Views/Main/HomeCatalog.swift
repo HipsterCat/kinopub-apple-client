@@ -98,8 +98,12 @@ class HomeCatalog: ObservableObject {
   @Published public private(set) var rows: [MediaRow] = []
   /// Up to six contained banner cards sampled from the catalog shelves below.
   @Published public private(set) var bannerCards: [MediaCard] = [] {
-    didSet { resolveBannerLogos() }
+    didSet { resolveBannerDetails() }
   }
+  /// The banner cards re-read from the details payload, by card id. A shelf's payload
+  /// has no seasons, so its card cannot say "12 episodes"; the details one can, and it
+  /// carries the IMDb id the logo lookup needs. Until it lands the shelf card draws.
+  @Published public private(set) var bannerDetails: [Int: MediaCard] = [:]
   /// Title logos for the banner cards, by card id, as external metadata finds them.
   /// A card without one draws its name instead.
   @Published public private(set) var bannerLogos: [Int: URL] = [:]
@@ -119,8 +123,8 @@ class HomeCatalog: ObservableObject {
   private var store: ContentStore
   private var localProgressStore: LocalWatchProgressStore
   private let metadataService: MetadataService
-  /// Banner cards whose logo was already asked for, found or not.
-  private var logoLookups: Set<Int> = []
+  /// Banner cards whose details and logo were already asked for, found or not.
+  private var bannerLookups: Set<Int> = []
   private var bag = Set<AnyCancellable>()
 
   init(itemsService: VideoContentService,
@@ -459,12 +463,17 @@ class HomeCatalog: ObservableObject {
     bannerCards = Array(source.shuffled().prefix(6))
   }
 
-  /// One metadata lookup per banner title, the same call (and cache) a detail page
-  /// makes — so opening a banner title afterwards costs nothing more.
-  private func resolveBannerLogos() {
-    for card in bannerCards where logoLookups.insert(card.id).inserted {
-      guard let identity = MediaIdentity(card: card) else { continue }
-      Task { [weak self, metadataService] in
+  /// One details call and one metadata lookup per banner title — the same calls (and
+  /// caches) a detail page makes, so opening a banner title afterwards costs nothing
+  /// more. The logo waits for the details card: a cached shelf card may predate the
+  /// IMDb id and would skip the lookup.
+  private func resolveBannerDetails() {
+    for card in bannerCards where bannerLookups.insert(card.id).inserted {
+      Task { [weak self, itemsService, metadataService] in
+        let item = try? await itemsService.fetchDetails(for: "\(card.itemID)", excludeLinks: true).item
+        let detailed = item.map { MediaCard($0) }
+        if let detailed { self?.bannerDetails[card.id] = detailed }
+        guard let identity = MediaIdentity(card: detailed ?? card) else { return }
         let url = await metadataService.metadata(for: identity).titleLogoURL
         guard let self, let url else { return }
         self.bannerLogos[card.id] = url

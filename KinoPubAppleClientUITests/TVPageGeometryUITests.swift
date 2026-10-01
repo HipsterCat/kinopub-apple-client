@@ -168,6 +168,24 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "gallery-right")
   }
 
+  /// Down from the Search tab while the tab bar still holds focus must enter the
+  /// search chrome (field / keyboard), not stay on the magnifying-glass tab. Shots
+  /// only — XCUI does not expose focus inside `UISearchContainerViewController`.
+  func testSearchTabDownFromTabBar() throws {
+    let app = launchSignedIn()
+    XCTAssertTrue(app.collectionViews["kinopub.page.home"].waitForExistence(timeout: 90),
+                  "Watch Now never appeared")
+    XCUIRemote.shared.press(.left)
+    Thread.sleep(forTimeInterval: 3)
+    try shoot(app, name: "tabbar-search-focused")
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot(app, name: "tabbar-down-into-search")
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1)
+    try shoot(app, name: "tabbar-down-into-search-2")
+  }
+
   /// Search (the tab left of Watch Now) and Library (three right): shots of each
   /// landing, then one step into the content.
   func testSearchAndLibraryShots() throws {

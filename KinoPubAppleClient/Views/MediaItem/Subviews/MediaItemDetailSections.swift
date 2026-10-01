@@ -3602,7 +3602,7 @@ private struct PlotParagraphLabel: View {
     .background {
       if isFocused {
         RoundedRectangle(cornerRadius: 20, style: .continuous)
-          .fill(.regularMaterial)
+          .fill(.thinMaterial)
       }
     }
     .animation(.easeOut(duration: 0.2), value: isFocused)

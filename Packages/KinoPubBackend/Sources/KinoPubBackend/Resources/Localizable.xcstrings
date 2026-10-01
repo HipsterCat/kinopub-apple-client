@@ -1,6 +1,60 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%lld seasons": {
+      "comment": "Season count in a series' metadata line: “2025 · 3 seasons · Drama”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld season"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld seasons"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld сезон"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld сезона"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld сезонов"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld сезона"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Author's": {
       "comment": "Audio dub kind: author's / AVO.",
       "extractionState": "manual",

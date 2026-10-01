@@ -487,6 +487,7 @@
         { "path": "PlaybackPreflightTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlayerTrackSelectionTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LibraryCatalogSearchTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "MediaItemHeroActionAvailabilityTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {
       "kind": "group",
@@ -541,10 +542,10 @@
           "product-name": "KinoPubLogging",
           "build-phase": { "build-phase": "frameworks" },
         }, {
-          "product-name": "KinoPubMetadata",
+          "product-name": "KinoPubMedia",
           "build-phase": { "build-phase": "frameworks" },
         }, {
-          "product-name": "KinoPubMedia",
+          "product-name": "KinoPubMetadata",
           "build-phase": { "build-phase": "frameworks" },
         }, {
           "product-name": "KinoPubUI",
@@ -610,7 +611,7 @@
         "SWIFT_EMIT_LOC_STRINGS": "YES",
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1,2,3",
-        "TVOS_DEPLOYMENT_TARGET": "26.6",
+        "TVOS_DEPLOYMENT_TARGET": "26.5",
       },
     }, {
       "name": "KinoPubAppleClientTests",
@@ -743,7 +744,7 @@
     "SWIFT_OPTIMIZATION_LEVEL[config=Debug]": "-Onone",
     "SWIFT_OPTIMIZATION_LEVEL[config=Release]": "-O",
     "SWIFT_VERSION": "6.0",
-    "TVOS_DEPLOYMENT_TARGET": "26.6",
+    "TVOS_DEPLOYMENT_TARGET": "26.5",
   },
   "last-upgrade": "27.2",
   "last-swift-update": "14.3",
