@@ -68,8 +68,8 @@ struct MediaItemView: View {
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(NavigationState.self) var navigationState
 #if os(tvOS)
-  /// The stack's zoom sources, for the art of the card this page was opened from.
-  @Environment(\.zoomSourceStore) private var zoomSources
+  /// The colours of the card this page grew out of, when it did (`TVZoomSource`).
+  @Environment(\.zoomBackdrop) private var zoomBackdrop
 #endif
   @StateObject private var itemModel: MediaItemModel
   /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
@@ -232,26 +232,21 @@ struct MediaItemView: View {
   }
 
 #if os(tvOS)
-  /// Until the item loads the page has nothing to draw, and the zoom out of the card
-  /// grew an empty frame. It opens on the card's own picture instead, blurred to its
-  /// colours, and the hero's artwork lands over it.
+  /// Until the item loads the page has nothing to draw, and a zoom out of the card grew
+  /// an empty frame. It opens on the card's colours instead — a bitmap already in
+  /// memory, so there is no frame without them — and the hero lands over them.
   @ViewBuilder
   private var loadingArt: some View {
-    if let url = zoomSources?.art(for: "media-\(itemModel.mediaItemId)") {
-      GeometryReader { geometry in
-        let buffer = CGSize(width: 160, height: 90)
-        let scale = max(geometry.size.width / buffer.width,
-                        geometry.size.height / buffer.height) * 1.05
-        CachedRemoteImage(url: url, contentMode: .fill)
-          .frame(width: buffer.width, height: buffer.height)
-          .clipped()
-          .blur(radius: 10, opaque: true)
-          .scaleEffect(scale)
-          .frame(width: geometry.size.width, height: geometry.size.height)
-          .clipped()
-      }
-      .ignoresSafeArea()
-      .accessibilityHidden(true)
+    if let zoomBackdrop, zoomBackdrop.id == "media-\(itemModel.mediaItemId)" {
+      Color.clear
+        .overlay {
+          Image(uiImage: zoomBackdrop.image)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFill()
+        }
+        .clipped()
+        .accessibilityHidden(true)
     } else {
       Color.clear
     }
@@ -557,6 +552,9 @@ struct MediaItemView: View {
 #if os(macOS)
     navigationState.selectedTab = .watchlist
 #else
+#if os(tvOS)
+    navigationState.closePresentedPage()
+#endif
     navigationState.selectedTab = .library
 #endif
   }

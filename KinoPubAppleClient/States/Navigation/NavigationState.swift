@@ -8,6 +8,9 @@
 import Foundation
 import SwiftUI
 import KinoPubBackend
+#if os(tvOS)
+import KinoPubUI
+#endif
 
 /// Filter + display title handed to Search when opening from an item-page chip.
 struct PendingSearch: Equatable {
@@ -62,6 +65,19 @@ final class NavigationState {
   private(set) var playerWindowRequestID: UUID?
 #endif
 
+#if os(tvOS)
+  /// A title or a person opened from a card is presented over the tabs and grows out of
+  /// that card (`KinoPubUI.TVZoomPresentedController`), instead of being pushed onto the
+  /// tab's stack. `presentedRoot` is the route it opened on and `presentedRoutes` its own
+  /// stack: while it is up, every push lands there. Nil when no page is presented.
+  private(set) var presentedRoot: Route?
+  var presentedRoutes: [Route] = []
+  /// Builds and presents the page. Installed by the tab shell, which holds the
+  /// environment a page presented outside it has to be handed.
+  @ObservationIgnored var presentPage: (@MainActor (Route, TVZoomSource) -> Void)?
+  @ObservationIgnored weak var presentedPage: TVZoomPresentedController?
+#endif
+
 #if os(tvOS) && DEBUG
   /// `-KINOPUBSidebarSandbox <config>` opens straight on the sidebar sandbox tab;
   /// `-KINOPUBInitialTab settings` on Settings (the simulator's remote is too unreliable
@@ -78,7 +94,11 @@ final class NavigationState {
   var canReturnFromSearch: Bool { searchReturnTab != nil }
 
   /// Switch to Search with a filter already selected (and the stack at root).
+  @MainActor
   func openSearch(filter: LibraryFilter, title: String) {
+#if os(tvOS)
+    closePresentedPage()
+#endif
     if selectedTab != .search {
       searchReturnTab = selectedTab
     }
@@ -228,9 +248,78 @@ final class NavigationState {
       break
     }
 #endif
+#if os(tvOS)
+    if presentedRoot != nil {
+      // A page on its way out (`closePresentedPage`) takes no more pushes; they go to
+      // the tab it is uncovering.
+      if presentedPage?.isBeingDismissed != true {
+        presentedRoutes.append(route)
+        return
+      }
+    } else if let zoomID = route.zoomSourceID, let presentPage, let source = TVZoomSource.take(id: zoomID) {
+      presentedRoot = route
+      presentedRoutes = []
+      presentPage(route, source)
+      return
+    }
+#endif
     guard let keyPath = Self.routes(for: selectedTab) else { return }
     self[keyPath: keyPath].append(route)
   }
+
+  /// The stack Play and "Go to title" act on: the presented page's own while one is up,
+  /// otherwise the selected tab's.
+  func currentPath() -> Binding<[Route]> {
+#if os(tvOS)
+    if presentedRoot != nil { return presentedPath }
+#endif
+    return path(for: selectedTab)
+  }
+
+  /// The page under an empty `currentPath()`: the presented page's route, or nil for a
+  /// tab's root, which is not a route.
+  var currentRoot: Route? {
+#if os(tvOS)
+    presentedRoot
+#else
+    nil
+#endif
+  }
+
+#if os(tvOS)
+  var presentedPath: Binding<[Route]> {
+    Binding(get: { self.presentedRoutes },
+            set: { self.presentedRoutes = $0 })
+  }
+
+  /// Menu reached the presented page itself: pop its stack if anything is pushed.
+  func popPresentedPage() -> Bool {
+    guard !presentedRoutes.isEmpty else { return false }
+    presentedRoutes.removeLast()
+    return true
+  }
+
+  /// The page has gone (Menu at its root, or `closePresentedPage`).
+  func endPresentation() {
+    presentedRoot = nil
+    presentedRoutes = []
+    presentedPage = nil
+  }
+
+  /// A presented page hides the tabs, so leaving for another tab starts by closing it.
+  /// It does not zoom back: the card it came from is about to go out of view.
+  @MainActor
+  func closePresentedPage() {
+    presentedPage?.dismissPage(zoomingBack: false)
+  }
+
+  /// The page could not be presented after all: open it the ordinary way.
+  @MainActor
+  func presentationFailed(_ route: Route) {
+    endPresentation()
+    push(route)
+  }
+#endif
 }
 
 extension View {

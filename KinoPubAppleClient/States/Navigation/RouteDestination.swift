@@ -113,34 +113,22 @@ struct RouteDestination: View {
 
 /// Applies `navigationTransition(.zoom)` when a matched source namespace is present.
 ///
-/// tvOS: only when a `TVPage` registered a source for this id (`TVZoomSourceStore`).
-/// Asking for a zoom with no source on screen is what made the card jump and vanish in
-/// one frame; every other push stays the plain system push.
+/// iOS only. On tvOS it showed as a cross-fade on device (2026-10-01); a card's page
+/// is presented over the tabs instead and zooms out of the card in UIKit
+/// (`KinoPubUI.TVZoomPresentedController`), and every push stays the plain system push.
 private struct ZoomDestinationModifier: ViewModifier {
   let route: Route
   let namespace: Namespace.ID?
 
-#if os(tvOS)
-  @Environment(\.zoomSourceStore) private var zoomSources
-#endif
-
   func body(content: Content) -> some View {
-#if os(iOS) || os(tvOS)
-    if let namespace, let sourceID = route.zoomSourceID, hasSource(for: sourceID) {
+#if os(iOS)
+    if let namespace, let sourceID = route.zoomSourceID {
       content.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
     } else {
       content
     }
 #else
     content
-#endif
-  }
-
-  private func hasSource(for sourceID: String) -> Bool {
-#if os(tvOS)
-    zoomSources?.hasSource(for: sourceID) ?? false
-#else
-    true
 #endif
   }
 }
@@ -172,7 +160,8 @@ private struct MacPlayerRouteGuard: View {
 #endif
 
 extension Route {
-  /// Stable zoom source id shared with `matchedTransitionSource` on cards.
+  /// Stable zoom source id shared with `matchedTransitionSource` on iOS cards and with
+  /// `KinoPubUI.TVZoomSource` on tvOS ones.
   var zoomSourceID: String? {
     switch self {
     case .details(let item):

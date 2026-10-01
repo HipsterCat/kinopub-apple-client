@@ -5,18 +5,23 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
-### tvOS: cards zoom into the detail page (2026-10-01)
+### tvOS: a card's page zooms out of the card (2026-10-01)
 
-Opening a title from Home (posters, Continue Watching, the banner, and "Go to title" in a
-card's menu) now uses the system zoom transition (`navigationTransition(.zoom)`, tvOS 18+):
-the page grows out of the card and shrinks back into it on Menu. SwiftUI's zoom needs a
-SwiftUI source and the cards are UIKit cells, so `TVPage` reports the selected cell's frame
-and lays a clear `matchedTransitionSource` view over it (`KinoPubUI/TVZoomSource.swift`); the
-cell itself is untouched, which is why the old iOS-only source modifier stays iOS-only.
-The destination used to request the zoom with no source on tvOS, which is what made the card
-jump and vanish in one frame; it now zooms only for an id a page registered and pushes
-plainly otherwise. While the item loads, the page shows the card's own art blurred, and the
-hero draws the small poster blurred under the wide still. **Not run on device yet.**
+Opening a title or a person from a card (posters, stills, Continue Watching, the banner,
+search results, and "Go to title" in a card's menu) presents the page over the tabs
+(`.overFullScreen`) instead of pushing it, and our own UIKit animator grows it out of the
+card: the full-size page is scaled onto the card and masked to its shape, and both run to
+identity while a copy of the card dissolves into it. Menu at the page's root shrinks it
+back into the card, which then takes focus again; pushes from inside the page (cast,
+related titles, the player) go on the page's own stack (`NavigationState.presentedRoot`,
+`TVPresentedPageStack`). Files: `KinoPubUI/TVZoomSource.swift` (which card, looked up again
+by item id so a reloaded row never zooms into the wrong title) and
+`KinoPubUI/TVZoomPresentation.swift` (controller, Menu, animator). While the item loads, the
+page shows the card's colours: its art averaged to a few pixels and stretched, a bitmap
+already in memory rather than a remote image. Before this, SwiftUI's
+`navigationTransition(.zoom)` on the push showed as a cross-fade on device, with or without
+a matched source; that path is iOS-only again. `-KINOPUBSystemZoom` (DEBUG) presents with
+the system `preferredTransition = .zoom` instead, to compare. **Not run on device yet.**
 
 ### tvOS Search: Down from the Search tab reaches the keyboard (2026-10-01)
 

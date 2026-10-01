@@ -379,6 +379,14 @@ final class TVPageBannerCell: UICollectionViewCell {
     applyFocusColors(false)
   }
 }
+
+extension TVPageBannerCell: TVZoomSourceCell {
+  /// The whole platter — backdrop, poster, logo and words: the snapshot is the banner
+  /// as drawn.
+  var zoomSourceView: UIView { cardView }
+  var zoomCornerRadius: CGFloat { Self.cornerRadius }
+  var zoomArtwork: UIImage? { backdrop.image ?? poster.image }
+}
 #endif
 
 #if os(tvOS)

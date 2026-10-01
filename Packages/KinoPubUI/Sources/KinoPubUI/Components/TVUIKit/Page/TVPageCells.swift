@@ -265,6 +265,18 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 }
 
+extension TVPageLockupPosterCell: TVZoomSourceCell {
+  /// The art without its footer caption. The lockup's image view, so it carries the
+  /// focus lift the card had when it was picked.
+  var zoomSourceView: UIView { posterView.imageView }
+  var zoomCornerRadius: CGFloat { Self.placeholderCornerRadius }
+  var zoomArtwork: UIImage? { posterView.image }
+
+  func zoomSnapshot() -> UIView? {
+    TVZoomSource.artworkSnapshot(posterView.image, cornerRadius: Self.placeholderCornerRadius)
+  }
+}
+
 // MARK: - Rating chip
 
 /// The score in a poster's corner: a dark rounded plate with the number on it. Lives in
@@ -864,6 +876,13 @@ final class TVPageWideCardCell: UICollectionViewCell {
     accessibilityIdentifier = nil
     applyFocusColors(false)
   }
+}
+
+extension TVPageWideCardCell: TVZoomSourceCell {
+  /// The whole platter, words included: the snapshot is the card as drawn.
+  var zoomSourceView: UIView { cardView }
+  var zoomCornerRadius: CGFloat { Self.cornerRadius }
+  var zoomArtwork: UIImage? { thumbnail.isHidden ? nil : thumbnail.image }
 }
 
 // MARK: - Layout debug

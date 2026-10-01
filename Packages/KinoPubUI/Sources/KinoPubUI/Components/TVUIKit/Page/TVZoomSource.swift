@@ -3,76 +3,160 @@
 //  TVZoomSource.swift
 //  KinoPubUI
 //
-//  The system zoom transition (`navigationTransition(.zoom)`, tvOS 18+) for cards that
-//  live in a UIKit collection.
+//  The card a page was opened from, for `TVZoomPresentedController`.
 //
-//  SwiftUI's zoom needs a SwiftUI source view (`matchedTransitionSource`), and every
-//  tvOS card is a UIKit cell inside `TVPage`. So the page reports the selected cell's
-//  frame, and an invisible SwiftUI view laid over the page at exactly that frame is the
-//  source. The detail page zooms out of the card's rectangle and back into it on Menu;
-//  the transition itself is the system's.
+//  Selecting a card, or opening its context menu (whose "Go to title" opens the title),
+//  records which item of which page it was. The app asks for it by zoom id when it opens
+//  the matching page, and the presentation grows the page out of that card and shrinks it
+//  back into it on Menu.
 //
-//  Two earlier shapes are worth remembering:
-//  - `matchedTransitionSource` on the card itself masked the lockup and clipped the
-//    system focus lift (`MediaZoomSourceModifier`, iOS only for that reason). The source
-//    here is a separate clear view; the cell is untouched.
-//  - The destination used to ask for a zoom whenever its stack published a namespace,
-//    with no source on tvOS at all — the card jumped and vanished in one frame
-//    (Sasha, on device, 2026-09-28). The destination now zooms only for an id a page has
-//    registered (`hasSource(for:)`), and pushes plainly otherwise.
+//  The cell itself is never kept. It is looked up again by the item's id each time the
+//  transition needs it: by the time the page is dismissed the row may have reloaded, and
+//  the cell that showed the card may be showing another title.
+//
+//  Two earlier shapes, so they are not tried a third time. Both were SwiftUI's
+//  `navigationTransition(.zoom)` on a push:
+//  - with no source on tvOS at all: the card jumped and vanished in one frame
+//    (Sasha, on device, 2026-09-28);
+//  - with a clear `matchedTransitionSource` laid over the selected cell: a plain
+//    cross-fade on device (2026-10-01).
 //
 
 import SwiftUI
-import Observation
+import UIKit
 
-/// One per navigation stack: which card the next push zooms out of.
+/// A card cell that knows where its art is.
 @MainActor
-@Observable
-public final class TVZoomSourceStore {
+protocol TVZoomSourceCell: UICollectionViewCell {
+  /// The zoom grows out of this view's frame and shrinks back into it: the art, not the
+  /// caption under it.
+  var zoomSourceView: UIView { get }
+  /// The rounding of that frame's corners.
+  var zoomCornerRadius: CGFloat { get }
+  /// The picture the card shows, once it has loaded.
+  var zoomArtwork: UIImage? { get }
+  /// The card as the zoom starts from it. The page fades in under it while it grows.
+  func zoomSnapshot() -> UIView?
+}
 
-  public struct Anchor: Equatable {
-    public let id: String
-    /// In the reporting page's own coordinate space.
-    public let frame: CGRect
-    let owner: UUID
+extension TVZoomSourceCell {
+  func zoomSnapshot() -> UIView? {
+    zoomSourceView.snapshotView(afterScreenUpdates: false)
+  }
+}
+
+/// The card a page is being opened from.
+@MainActor
+public final class TVZoomSource {
+
+  /// Matches the app's `Route.zoomSourceID` for the page this card opens.
+  public let id: String
+  private weak var page: TVPageCollectionViewController?
+  private let item: TVPageItemID
+  private let artwork: UIImage?
+
+  init(id: String, page: TVPageCollectionViewController, item: TVPageItemID, artwork: UIImage?) {
+    self.id = id
+    self.page = page
+    self.item = item
+    self.artwork = artwork
   }
 
-  /// Read only by the overlay of the page that owns it, so a selection re-renders that
-  /// one clear view and nothing else.
-  public private(set) var anchor: Anchor?
+  /// What the card showed, reduced to its colours: the page's ground while its own
+  /// artwork loads, so the zoom grows the card's light instead of an empty frame.
+  public private(set) lazy var backdrop: UIImage? = artwork.map(TVZoomSource.colours(of:))
 
-  /// Every id a page has offered as a source. Not observed: the destination checks it
-  /// once when it is built, and it only ever grows, so a destination rebuilt later keeps
-  /// the transition it was pushed with.
-  @ObservationIgnored private var registeredIDs: Set<String> = []
-  /// The art the card was showing, by zoom id. The detail page has nothing to draw
-  /// until its item loads, and a zoom out of a card into an empty page reads as a blink;
-  /// this lets it open on the card's own picture, blurred.
-  @ObservationIgnored private var art: [String: URL] = [:]
+  /// The window the card is in, while it is on screen.
+  public var window: UIWindow? { sourceView?.window }
 
-  public init() {}
+  // MARK: - For the transition
 
-  func register(id: String, frame: CGRect, owner: UUID, art url: URL?) {
-    registeredIDs.insert(id)
-    if let url { art[id] = url }
-    let next = Anchor(id: id, frame: frame, owner: owner)
-    if anchor != next { anchor = next }
+  private var cell: UICollectionViewCell? { page?.visibleCell(for: item) }
+
+  /// Where the card is right now; nil once it has scrolled away or its page has gone.
+  var sourceView: UIView? {
+    guard let cell else { return nil }
+    let view = (cell as? TVZoomSourceCell)?.zoomSourceView ?? cell.contentView
+    return view.window == nil ? nil : view
   }
 
-  /// Whether a push to this zoom id has a source to zoom out of.
-  public func hasSource(for id: String) -> Bool {
-    registeredIDs.contains(id)
+  var cornerRadius: CGFloat {
+    (cell as? TVZoomSourceCell)?.zoomCornerRadius ?? 16
   }
 
-  /// What the source card was showing, for a page that has nothing of its own yet.
-  public func art(for id: String) -> URL? {
-    art[id]
+  func snapshot() -> UIView? {
+    guard let cell else { return nil }
+    return (cell as? TVZoomSourceCell)?.zoomSnapshot()
+      ?? cell.contentView.snapshotView(afterScreenUpdates: false)
+  }
+
+  // MARK: - The pending card
+
+  private static var pending: TVZoomSource?
+
+  /// Called by the page as a card is picked, or its menu opens.
+  static func record(_ source: TVZoomSource) {
+    pending = source
+  }
+
+  /// The card a page with this zoom id is being opened from — only if one was just
+  /// picked and is still on screen. Taken once.
+  public static func take(id: String) -> TVZoomSource? {
+    guard let source = pending, source.id == id, source.sourceView != nil else { return nil }
+    pending = nil
+    return source
+  }
+
+  // MARK: - Art
+
+  /// An image view of the art alone, for a card that is all art.
+  static func artworkSnapshot(_ image: UIImage?, cornerRadius: CGFloat) -> UIView? {
+    guard let image else { return nil }
+    let view = UIImageView(image: image)
+    view.contentMode = .scaleAspectFill
+    view.clipsToBounds = true
+    view.layer.cornerRadius = cornerRadius
+    view.layer.cornerCurve = .continuous
+    return view
+  }
+
+  /// The art averaged down to a few pixels across, then drawn back up to a small smooth
+  /// bitmap: its colours and where they sit, nothing of the picture. Stretched over the
+  /// screen it reads as the card's light rather than a blurry copy of it, and it is two
+  /// tiny draws instead of a blur pass over a full-screen layer on every frame.
+  nonisolated private static func colours(of image: UIImage) -> UIImage {
+    let aspect = max(image.size.width, 1) / max(image.size.height, 1)
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = true
+    let tiny = CGSize(width: 6, height: max(2, (6 / aspect).rounded()))
+    let averaged = UIGraphicsImageRenderer(size: tiny, format: format).image { context in
+      context.cgContext.interpolationQuality = .high
+      image.draw(in: CGRect(origin: .zero, size: tiny))
+    }
+    let smooth = CGSize(width: 48, height: max(16, (48 / aspect).rounded()))
+    return UIGraphicsImageRenderer(size: smooth, format: format).image { context in
+      context.cgContext.interpolationQuality = .high
+      averaged.draw(in: CGRect(origin: .zero, size: smooth))
+    }
+  }
+}
+
+/// The card's colours, handed to the page it opened. The page draws them only while it
+/// has nothing of its own and only if it is the page the card opened (`id`): a page
+/// pushed further down the same stack gets the same environment.
+public struct TVZoomBackdrop {
+  public let id: String
+  public let image: UIImage
+
+  public init(id: String, image: UIImage) {
+    self.id = id
+    self.image = image
   }
 }
 
 public extension EnvironmentValues {
-  /// Published by a tab's stack together with `zoomTransitionNamespace`.
-  @Entry var zoomSourceStore: TVZoomSourceStore? = nil
+  @Entry var zoomBackdrop: TVZoomBackdrop? = nil
 }
 
 extension TVPageItem {
@@ -83,26 +167,6 @@ extension TVPageItem {
     case .feature(let feature): return "media-\(feature.card.id)"
     case .person(let person): return "person-\(person.id)"
     case .chip, .tile, .placeholder: return nil
-    }
-  }
-}
-
-/// The clear stand-in laid over the page at the selected card's frame.
-struct TVZoomSourceOverlay: View {
-  let store: TVZoomSourceStore
-  let owner: UUID
-  let namespace: Namespace.ID
-
-  var body: some View {
-    if let anchor = store.anchor, anchor.owner == owner {
-      Color.clear
-        .frame(width: anchor.frame.width, height: anchor.frame.height)
-        .matchedTransitionSource(id: anchor.id, in: namespace)
-        // Layout, not `.offset`: the transition reads the source's laid-out frame.
-        .padding(EdgeInsets(top: anchor.frame.minY, leading: anchor.frame.minX,
-                            bottom: 0, trailing: 0))
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
   }
 }
