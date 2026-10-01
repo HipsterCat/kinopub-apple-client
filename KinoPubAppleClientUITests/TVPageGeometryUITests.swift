@@ -536,7 +536,10 @@ final class TVPageGeometryUITests: XCTestCase {
     let app = launchSignedIn()
     // A cold install on a loaded machine loads Home slowly; the disk snapshot from a
     // previous run paints it fast.
-    if !firstPoster(in: app, page: "home").waitForExistence(timeout: 240) {
+    // Banners and Continue Watching are on screen first. Poster cells are not in
+    // the tree until focus scrolls a poster row on, so waiting without moving
+    // times out on a loaded home.
+    if !revealHomePoster(app) {
       try shoot(app, name: "collection-launch-failed")
       XCTFail("Home never showed a poster")
       return
@@ -583,8 +586,7 @@ final class TVPageGeometryUITests: XCTestCase {
   /// a poster, not the sort control.
   func testPersonPageFromCastRail() throws {
     let app = launchSignedIn()
-    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 240),
-                  "Home never showed a poster")
+    XCTAssertTrue(revealHomePoster(app), "Home never showed a poster")
 
     // Open the first poster on Home — a Hot title with a cast.
     for _ in 0..<6 where focusedPoster(in: app) == nil {
@@ -639,6 +641,19 @@ final class TVPageGeometryUITests: XCTestCase {
   private func focusDescription(_ app: XCUIApplication) -> String {
     let focused = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true"))
     return (0..<min(focused.count, 5)).map { focused.element(boundBy: $0).debugDescription.prefix(200).description }.joined(separator: "\n")
+  }
+
+  /// Move down until a poster cell exists. Watch Now's first rows are banners
+  /// and Continue Watching; those cells are not `kinopub.poster.*`.
+  private func revealHomePoster(_ app: XCUIApplication) -> Bool {
+    guard app.collectionViews["kinopub.page.home"].waitForExistence(timeout: 90) else { return false }
+    if firstPoster(in: app, page: "home").exists { return true }
+    for _ in 0..<24 {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.7)
+      if firstPoster(in: app, page: "home").exists { return true }
+    }
+    return firstPoster(in: app, page: "home").waitForExistence(timeout: 5)
   }
 
   private func firstPoster(in app: XCUIApplication, page: String) -> XCUIElement {
