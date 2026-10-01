@@ -31,7 +31,7 @@ public enum TypeScale {
 
   public static let heroTitle: Font = {
 #if os(tvOS)
-       .title2.weight(.semibold)
+       .title2.weight(.bold)
 #elseif os(macOS)
     .title.bold()
 #else
@@ -79,7 +79,7 @@ public enum TypeScale {
   /// instead of sitting still while the rest of the badge scales around it.
   public static let ratingBadge: Font = {
 #if os(tvOS)
-      .system(.caption2, design: .rounded, weight: .heavy)
+      .system(.caption, design: .rounded, weight: .semibold)
 #else
       .system(.body, design: .rounded, weight: .bold)
 #endif
@@ -90,7 +90,7 @@ public enum TypeScale {
   /// as `ratingBadge`.
   public static let ratingAggregate: Font = {
 #if os(tvOS)
-      .system(.title3, design: .rounded, weight: .bold)
+      .system(.title3, design: .rounded, weight: .semibold)
 
 #else
       .system(.largeTitle, design: .rounded, weight: .semibold)

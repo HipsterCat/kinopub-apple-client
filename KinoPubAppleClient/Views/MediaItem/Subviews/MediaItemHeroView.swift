@@ -588,8 +588,8 @@ struct MediaItemHeroView: View {
       // The picture's own alpha goes to zero, so whatever the page is drawn on shows
       // through: no second colour to match, in light or dark.
       LinearGradient(stops: [
-        .init(color: .black, location: 0),
-        .init(color: .black, location: 0.5),
+        .init(color: .clear, location: 0),
+        .init(color: .black, location: 0.4),
         .init(color: .black, location: 1)
       ], startPoint: .top, endPoint: .bottom)
     }
@@ -609,24 +609,24 @@ struct MediaItemHeroView: View {
   /// The old scrim stacked a 0.92 diagonal on a 0.45 floor, which is what read as black.
   private var scrollingScrim: some View {
     ZStack {
-      scrimTone.opacity(0.08)
+      scrimTone.opacity(0.16)
 
       LinearGradient(stops: [
-          .init(color: .clear, location: 0.4),
-        .init(color: scrimTone.opacity(0.15), location: 0.6),
-        .init(color: scrimTone.opacity(0.35), location: 0.9),
-        .init(color: scrimTone.opacity(0.4), location: 1)
+          .init(color: .clear, location: 0.3),
+        .init(color: scrimTone.opacity(0.25), location: 0.6),
+        .init(color: scrimTone.opacity(0.5), location: 0.9),
+        .init(color: scrimTone.opacity(0.6), location: 1)
       ], startPoint: .top, endPoint: .bottom)
 
       LinearGradient(stops: [
         .init(color: scrimTone.opacity(0.3), location: 0),
         .init(color: .clear, location: 0.3)
-      ], startPoint: .top, endPoint: .bottom)
+      ], startPoint: .topLeading, endPoint: .bottomTrailing)
       .mask {
         LinearGradient(stops: [
           .init(color: .clear, location: 0),
           .init(color: .black, location: 1)
-        ], startPoint: .bottom, endPoint: .top)
+        ], startPoint: .bottomTrailing, endPoint: .topLeading)
       }
     }
   }
@@ -679,9 +679,9 @@ struct MediaItemHeroView: View {
 //         leadingColumn
 //           .frame(width: Self.leadingWidth, alignment: .leading)
     }
-    .padding(Self.horizontalInset)
-//    .padding(.vertical, Self.bottomInset)
-    .frame(maxWidth: .infinity,  maxHeight: .infinity, alignment: .leading)
+    .padding(.bottom, Self.horizontalInset)
+    .padding(.horizontal, Self.bottomInset)
+    .frame(maxWidth: .infinity,  maxHeight: .infinity, alignment: .bottomLeading)
 #endif
   }
 
@@ -745,9 +745,11 @@ struct MediaItemHeroView: View {
               .resizable()
               .scaledToFit()
               .frame(maxWidth: Self.logoMaxWidth, maxHeight: Self.logoMaxHeight, alignment: .leading)
+              .padding(.top, Self.bottomInset/1.5)
               .transition(.opacity)
           case .failure:
             titleTextBlock
+              .padding(.top, Self.bottomInset)
               .transition(.opacity)
           case .empty:
             EmptyView()
@@ -755,6 +757,7 @@ struct MediaItemHeroView: View {
         }
       } else {
         titleTextBlock
+                .padding(.top, Self.bottomInset)
           .transition(.opacity)
       }
     }
@@ -783,25 +786,27 @@ struct MediaItemHeroView: View {
   /// scores the same wherever it is shown, so it should not be spelled two ways.
   private var metadata: some View {
     HStack(spacing: Self.metaSpacing) {
-         let releaseLine = mediaItem.releaseLine
-         if !releaseLine.isEmpty {
-           Text(releaseLine)
-             .lineLimit(1)
+         if FeatureFlags.combinedRatingEnabled {
+           if let rating = MediaScores(mediaItem).aggregate {
+             RatingBadgeView(rating: rating)
+               MediaScoresView(MediaScores(mediaItem))
+
+           }
+         } else {
+           // No aggregate: each score keeps its own logo rather than becoming one number.
+           MediaScoresView(MediaScores(mediaItem))
          }
          if !genreCountryLine.isEmpty {
            Text(genreCountryLine)
              .foregroundStyle(Color.KinoPub.subtitle)
          }
+         let releaseLine = mediaItem.releaseLine
+         if !releaseLine.isEmpty {
+           Text(releaseLine)
+             .lineLimit(1)
+         }
          
 
-      if FeatureFlags.combinedRatingEnabled {
-        if let rating = MediaScores(mediaItem).aggregate {
-          RatingBadgeView(rating: rating)
-        }
-      } else {
-        // No aggregate: each score keeps its own logo rather than becoming one number.
-        MediaScoresView(MediaScores(mediaItem))
-      }
 
 
       // Certification only when it was asked for — see `MediaItemDisplayPreferences`.
@@ -840,7 +845,7 @@ struct MediaItemHeroView: View {
 #if os(iOS)
     false
 #else
-    !creditLines.isEmpty
+       !creditLines.isEmpty // and not anime, animation, documentary, tvshow
 #endif
   }
 
@@ -848,7 +853,7 @@ struct MediaItemHeroView: View {
   /// overloads that return `Text` are either iOS 17 or deprecated, and the label has
   /// to flow into the names on the same line anyway.
   private func creditLine(_ line: (role: String, names: String)) -> AttributedString {
-    var label = AttributedString(line.role.localized + " ")
+    var label = AttributedString(line.role.localized + "  ")
     label.foregroundColor = Color.KinoPub.subtitle
 
     var names = AttributedString(line.names)
@@ -864,10 +869,10 @@ struct MediaItemHeroView: View {
   private var genreCountryLine: String {
     var parts: [String] = []
     let genres = mediaItem.genreNames.prefix(Self.genreLimit)
-    if !genres.isEmpty { parts.append(genres.joined(separator: ", ")) }
-    let countries = mediaItem.countryNames.prefix(Self.countryLimit)
-    if !countries.isEmpty { parts.append(countries.joined(separator: ", ")) }
-    return parts.joined(separator: " · ")
+    if !genres.isEmpty { parts.append(genres.joined(separator: "  ")) }
+//    let countries = mediaItem.countryNames.prefix(Self.countryLimit)
+//    if !countries.isEmpty { parts.append(countries.joined(separator: "  ")) }
+    return parts.joined(separator: "  ")
   }
 
   /// A handful of leads and whoever directed it — the whole cast is what the section
@@ -1127,7 +1132,7 @@ struct MediaItemHeroView: View {
           newFolderName = ""
           showNewFolderAlert = true
         } label: {
-          Label("New Folder", systemImage: "folder.badge.plus")
+          Label("New Folder", systemImage: "circle.plus")
         }
       }
     } label: {
@@ -1276,10 +1281,10 @@ struct MediaItemHeroView: View {
   static let creditNameLimit = 3
 
   /// Genres shown above the names; kino.pub happily returns six.
-  static let genreLimit = 3
+  static let genreLimit = 2
 
   /// Co-productions run long — two is enough to say where a title is from.
-  static let countryLimit = 2
+  static let countryLimit = 1
 
   /// Everything under the title is one size — real body text, not a caption — and it
   /// is the same size the ratings captions and the information table use further down
@@ -1297,9 +1302,9 @@ struct MediaItemHeroView: View {
   static let horizontalInset: CGFloat = 80
   static let bottomInset: CGFloat = 80
   static let contentSpacing: CGFloat = 12
- static let leadingWidth: CGFloat = .infinity
-  static let logoMaxWidth: CGFloat = 640
-  static let logoMaxHeight: CGFloat = 220
+  static let leadingWidth: CGFloat = .infinity
+  static let logoMaxWidth: CGFloat = 680
+  static let logoMaxHeight: CGFloat = 170
   static let titleFont: Font = TypeScale.heroTitle
   static let metaSpacing: CGFloat = 20
   static let actionsGap: CGFloat = 20
