@@ -59,6 +59,11 @@ enum FeatureFlags {
   /// suggestions and scope bar were laid out *under* the tab bar, so the focus engine
   /// had nothing below the bar but the results. Found with `-UIFocusLoggingEnabled YES`;
   /// `testSearchFocusRoundTrip` walks the whole column both ways.
+  ///
+  /// tvOS 26.5+ again: Down from the Search *tab* while the bar holds focus was a no-op
+  /// (Select still entered the field). `TVSearchPageHostViewController` embeds the
+  /// container with a tab-bar `UIFocusGuide` into the search chrome; see
+  /// `testSearchTabDownFromTabBar`.
   static var tvUIKitSearch: Bool { FeatureFlag.tvUIKitSearch.isEnabled }
 
   /// A series detail page fetches its item with `nolinks=1` and resolves an episode's

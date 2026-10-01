@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Search: Down from the Search tab reaches the keyboard (2026-10-01)
+
+On tvOS 26.5/26.6, Down from the focused Search tab icon did nothing (Select still
+entered the field). `TVSearchPage` now embeds `UISearchContainerViewController` in
+`TVSearchPageHostViewController` with a tab-bar-band `UIFocusGuide` into the search
+chrome and preferred focus on the search bar. Verified on Apple TV 4K (1080p) /
+tvOS 26.5 simulator: Down lights a keyboard key; tab-bar focus pill dims.
+`testSearchTabDownFromTabBar` captures the sequence.
+
 ### Hero: no cover context menu; label title until logo (2026-10-01)
 
 The detail hero cover is no longer wrapped in `MediaCardContextMenuModifier` —

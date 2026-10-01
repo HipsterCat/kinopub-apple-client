@@ -120,6 +120,7 @@ struct SearchView: View {
         },
         onRetry: { Task { await catalog.refresh() } }
       )
+      .focusSection()
       // Horizontal and bottom only, never the top: the search container lays its
       // keyboard out below the tab bar from the top safe area — ignoring that put the
       // keyboard, suggestions and scope bar *under* the bar, and the focus engine found

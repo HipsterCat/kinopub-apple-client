@@ -108,7 +108,7 @@ public struct TVSearchPage: UIViewControllerRepresentable {
 
   public func makeCoordinator() -> Coordinator { Coordinator() }
 
-  public func makeUIViewController(context: Context) -> UISearchContainerViewController {
+  public func makeUIViewController(context: Context) -> UIViewController {
     let results = TVPageCollectionViewController()
     results.accessibilityID = "kinopub.page.search"
     results.claimsInitialFocus = false
@@ -134,10 +134,12 @@ public struct TVSearchPage: UIViewControllerRepresentable {
       container.view.layer.borderColor = UIColor.systemPink.cgColor
       container.view.layer.borderWidth = 4
     }
-    return container
+    return TVSearchPageHostViewController(searchController: search,
+                                          searchContainer: container,
+                                          results: results)
   }
 
-  public func updateUIViewController(_ controller: UISearchContainerViewController, context: Context) {
+  public func updateUIViewController(_ controller: UIViewController, context: Context) {
     let coordinator = context.coordinator
     guard let search = coordinator.search else { return }
     // Only an outside change is written into the field; echoing our own report back
