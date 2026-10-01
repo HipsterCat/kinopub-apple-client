@@ -103,9 +103,11 @@ public enum TVUIKitTileArtwork {
   /// hierarchy in dark mode is *bright* all the way down — `.quaternaryLabel` resolves
   /// to (220, 220, 220) there — so a label-tier colour at its own alpha reads as a
   /// white card on a dark page, not as an empty slot.
-  /// A person with no photo: initials on a quiet disc, the look of the system
-  /// monogram, as a plain image. The monogram *view* is a focusable lockup of its own
-  /// and lifts itself, layer by layer, inside a focused card — this does nothing.
+  /// A person with no photo: initials on a solid disc, as a plain image — not the
+  /// system monogram lockup (that paints a white plate and lifts itself). Label-tier
+  /// fills wash out on tvOS (secondaryLabel on white@0.16, or light gray on glass).
+  /// Solid mid/dark discs with high-contrast ink stay readable on light and dark,
+  /// matching the search person cards.
   public static func monogram(name: String, diameter: CGFloat, traits: UITraitCollection? = nil) -> UIImage {
     let traits = traits ?? .current
     let formatter = PersonNameComponentsFormatter()
@@ -118,10 +120,17 @@ public enum TVUIKitTileArtwork {
       initials = name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined()
     }
     let size = CGSize(width: diameter, height: diameter)
-    let fill = UIColor.label.withAlphaComponent(0.16).resolvedColor(with: traits)
-    let ink = UIColor.secondaryLabel.resolvedColor(with: traits)
-    let font = UIFont.systemFont(ofSize: diameter * 0.36, weight: .medium)
-    return UIGraphicsImageRenderer(size: size).image { _ in
+    let dark = traits.userInterfaceStyle == .dark
+    // Solid fills, not label@alpha. Dark page: charcoal disc + white letters.
+    // Light page: medium gray disc + near-black letters. No white plate.
+    let fill = (dark ? UIColor(white: 0.22, alpha: 1) : UIColor(white: 0.62, alpha: 1))
+      .resolvedColor(with: traits)
+    let ink = (dark ? UIColor(white: 1.0, alpha: 1) : UIColor(white: 0.08, alpha: 1))
+      .resolvedColor(with: traits)
+    let font = UIFont.systemFont(ofSize: diameter * 0.36, weight: .semibold)
+    let key = "mono-v2-\(initials)-\(Int(diameter))-\(dark ? "d" : "l")" as NSString
+    if let cached = cache.object(forKey: key) { return cached }
+    let drawn = UIGraphicsImageRenderer(size: size).image { _ in
       fill.setFill()
       UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).fill()
       let text = initials.uppercased() as NSString
@@ -130,6 +139,8 @@ public enum TVUIKitTileArtwork {
       text.draw(at: CGPoint(x: (size.width - box.width) / 2, y: (size.height - box.height) / 2),
                 withAttributes: attributes)
     }
+    cache.setObject(drawn, forKey: key)
+    return drawn
   }
 
   public static func placeholder(size: CGSize = wideSize,

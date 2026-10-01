@@ -172,9 +172,9 @@ class LibraryCatalog: ObservableObject {
     isLoadingMore = !isFirstPage
     defer { isLoadingMore = false }
 
-    // A person's credits show a sort control and nothing else, so their pickers would
-    // be two requests for lists nobody can open.
-    if filter.person == nil, genres.isEmpty || countries.isEmpty {
+    // A person's credits take the full filter bar like any catalog, so their pickers
+    // load too — the genre list is scoped to the credits' type below.
+    if genres.isEmpty || countries.isEmpty {
       await loadPickerData()
     }
 
@@ -325,7 +325,8 @@ class LibraryCatalog: ObservableObject {
 
   func clearFilters() {
     guard filter.hasActiveFilters else { return }
-    filter = LibraryFilter(sort: filter.sort)
+    // The person scope is the page itself, not a filter — clearing keeps it.
+    filter = LibraryFilter(sort: filter.sort, person: filter.person)
     genres = []
     Task { await refresh() }
   }

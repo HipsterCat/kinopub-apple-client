@@ -36,6 +36,12 @@ struct CollectionDetailView: View {
 
   @ViewBuilder
   private var content: some View {
+#if os(tvOS)
+    // Header, a sort pill, and the search poster grid — one collection, so the
+    // header scrolls away with the posters. Entry focus is the first poster.
+    tvCatalog
+      .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
+#else
     if model.items.isEmpty && model.isLoading {
       LoadingIndicatorView()
     } else if model.items.isEmpty && model.loadFailed {
@@ -61,9 +67,114 @@ struct CollectionDetailView: View {
             openURL: { openURL($0) }
           )
         }
-      )
+      ) {
+        filterBar
+      }
+    }
+#endif
+  }
+
+#if os(tvOS)
+  private var tvCatalog: some View {
+    TVPage(
+      sections: tvSections,
+      status: tvStatus,
+      accessibilityID: "kinopub.page.collection",
+      onSelect: { _, item in
+        guard let card = item.card,
+              let media = model.items.first(where: { $0.id == card.itemID })
+                ?? model.allItems.first(where: { $0.id == card.itemID }) else { return }
+        navigationState.push(.details(media))
+      },
+      onChipOption: { chip, option in
+        TVSearchFilters.apply(chip: chip, option: option, to: model)
+      },
+      onChipSelection: { _, _ in },
+      contextMenuProvider: { card in
+        MediaCardContextMenus.entries(
+          for: card,
+          surface: .shelf,
+          menu: cardMenu,
+          pushRoute: { navigationState.push($0) },
+          openURL: { openURL($0) }
+        )
+      },
+      onRetry: { Task { await model.fetch() } },
+      prefersFirstPosterFocus: true
+    )
+  }
+
+  /// Title and counts (the focus band), then the sort pill, then the poster grid.
+  /// Default sort is year descending.
+  private var tvSections: [TVPageSection] {
+    let header = TVPageSection.masthead(id: "collection-header", collectionMasthead)
+    let sort = TVSearchFilters.controls(catalog: model, includeType: false, sortAlignment: .center)
+    if model.allItems.isEmpty && model.isLoading {
+      return [header, sort, .placeholder(id: "collection", title: nil, kind: .poster, columns: 6, flow: .grid)]
+    }
+    let cards = model.items.map { MediaCard($0) }
+    guard !cards.isEmpty else { return [header, sort] }
+    return [header, sort, .posters(id: "collection", title: nil, flow: .grid, caption: .always, cards: cards)]
+  }
+
+  private var collectionMasthead: TVPageMasthead {
+    TVPageMasthead(style: .collection,
+                   title: model.title,
+                   symbolName: "film.stack",
+                   stats: collectionStats)
+  }
+
+  private var collectionStats: [TVPageMasthead.Stat] {
+    let collection = model.collection
+    var stats: [TVPageMasthead.Stat] = []
+    let count = collection.itemsCount ?? model.allItems.count
+    if count > 0 {
+      stats.append(.init(value: count.formatted(.number), caption: titlesUnit(count)))
+    }
+    if let views = collection.views, views > 0 {
+      stats.append(.init(value: views.formatted(.number), caption: "MediaItem_CatalogViews".localized))
+    }
+    if let watchers = collection.watchers, watchers > 0 {
+      stats.append(.init(value: watchers.formatted(.number), caption: "Collection_Watchers".localized))
+    }
+    if let updated = collection.updated, updated > 0 {
+      let date = Date(timeIntervalSince1970: TimeInterval(updated))
+      stats.append(.init(value: date.formatted(.dateTime.month(.abbreviated).year()),
+                          caption: "Updated".localized))
+    }
+    // Every collection this client shows comes from kino.pub. The payload has no
+    // source field; the draft's "Источник" column is that fact, not a second catalog.
+    stats.append(.init(value: "Collection_SourceName".localized,
+                       caption: "Collection_Source".localized))
+    return stats
+  }
+
+  private func titlesUnit(_ count: Int) -> String {
+    switch localizedPluralForm(count) {
+    case 0: return "MediaItem_UnitTitleOne".localized
+    case 1: return "MediaItem_UnitTitleFew".localized
+    default: return "MediaItem_UnitTitleMany".localized
     }
   }
+
+  private var tvStatus: TVPageStatus {
+    if model.items.isEmpty && model.loadFailed && model.allItems.isEmpty {
+      return .failed(message: model.loadError?.userFacingMessage
+                       ?? "Check your connection and try again.".localized,
+                     retryTitle: "Try Again".localized)
+    }
+    if model.items.isEmpty && !model.isLoading {
+      return .message("No Results".localized)
+    }
+    return .content
+  }
+#else
+  /// Sort only. The collection endpoint takes no parameters, so the rest of the
+  /// search filter row is not offered here.
+  private var filterBar: some View {
+    LibraryFiltersBar(catalog: model, chrome: .sort)
+  }
+#endif
 
   static func make(collection: Collection,
                    context: AppContextProtocol,

@@ -10,8 +10,9 @@ import KinoPubMetadata
 
 /// Everything kino.pub has under one name, reached from the credits on an item page.
 /// The web client calls this a search with `mode=actor`; it is the same `/v1/items`
-/// listing as the library, narrowed to a person, so it is built from the same catalog
-/// and grid — sorting only, since a filter bar on a couple of dozen credits is noise.
+/// listing as the library, narrowed to a person. On tvOS the header scrolls with
+/// the poster grid: photo, name, role, and room for a biography, then sort and the
+/// type pull-down. Elsewhere the same filters sit over the shared list.
 struct PersonItemsView: View {
 
   private let person: MediaPerson
@@ -20,15 +21,19 @@ struct PersonItemsView: View {
 
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(NavigationState.self) var navigationState
+#if !os(tvOS)
   @Environment(\.dismiss) private var dismiss
-  @Environment(\.openURL) private var openURL
   /// The margin the credits grid below actually landed on. Padding this page's hero and
   /// section header by a constant of their own is what put them off the first column.
   @Environment(\.shelfGridInset) private var gridInset
+#endif
+  @Environment(\.openURL) private var openURL
   @StateObject private var catalog: LibraryCatalog
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
   @State private var personMetadata = PersonMetadata()
+#if !os(tvOS)
   @State private var bioExpanded = false
+#endif
 
   init(person: MediaPerson,
        linkProvider: NavigationLinkProvider,
@@ -41,6 +46,54 @@ struct PersonItemsView: View {
   }
 
   var body: some View {
+    catalogBody
+    .background(Color.KinoPub.background)
+    .platformNavigationTitle(person.name)
+    .overlay {
+#if !os(tvOS)
+      if catalog.loadFailed {
+        UnavailableView(
+          title: "Couldn't Load",
+          systemImage: "wifi.exclamationmark",
+          message: catalog.loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
+          retryTitle: "Try Again",
+          onRetry: {
+            Task { await catalog.refresh() }
+          },
+          secondaryTitle: "Back",
+          onSecondary: { dismiss() }
+        )
+      } else if catalog.isLoading && catalog.items.isEmpty {
+        LoadingIndicatorView(delay: .milliseconds(700))
+      }
+#endif
+    }
+    .animation(.easeInOut(duration: 0.3), value: catalog.isLoading)
+    .animation(.easeInOut(duration: 0.3), value: catalog.loadFailed)
+    .task {
+      cardMenu.bind(errorHandler: errorHandler)
+      await catalog.load()
+    }
+    .task { await cardMenu.refreshFolders() }
+    .mediaCardNewFolderAlert(cardMenu)
+    .task(id: person.tmdbPersonId) {
+      guard let id = person.tmdbPersonId else { return }
+      personMetadata = await metadataService.person(id: id)
+    }
+  }
+
+#if !os(tvOS)
+  private var showsEmptyMessage: Bool {
+    !catalog.isLoading && !catalog.loadFailed && catalog.items.isEmpty
+  }
+#endif
+
+  @ViewBuilder
+  private var catalogBody: some View {
+#if os(tvOS)
+    tvCatalog
+      .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
+#else
     ContentItemsListView(
       items: $catalog.items,
       onLoadMoreContent: { catalog.loadMoreContent(after: $0) },
@@ -60,43 +113,96 @@ struct PersonItemsView: View {
       hero
       creditsHeader
     }
-    .background(Color.KinoPub.background)
-    .platformNavigationTitle(person.name)
-    .overlay {
-      if catalog.loadFailed {
-        UnavailableView(
-          title: "Couldn't Load",
-          systemImage: "wifi.exclamationmark",
-          message: catalog.loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
-          retryTitle: "Try Again",
-          onRetry: {
-            Task { await catalog.refresh() }
-          },
-          secondaryTitle: "Back",
-          onSecondary: { dismiss() }
+#endif
+  }
+
+#if os(tvOS)
+  private var tvCatalog: some View {
+    TVPage(
+      sections: tvSections,
+      status: tvStatus,
+      accessibilityID: "kinopub.page.person",
+      onSelect: { _, item in
+        guard let card = item.card,
+              let media = catalog.items.first(where: { $0.id == card.itemID }),
+              let route = linkProvider.link(for: media) as? Route else { return }
+        navigationState.push(route)
+      },
+      onChipOption: { chip, option in
+        TVSearchFilters.apply(chip: chip, option: option, to: catalog)
+      },
+      onChipSelection: { chip, selection in
+        TVSearchFilters.applySelection(chip: chip, selection: selection, to: catalog)
+      },
+      onNearEnd: { section in
+        guard section.id == "credits", let last = catalog.items.last else { return }
+        catalog.loadMoreContent(after: last)
+      },
+      contextMenuProvider: { card in
+        MediaCardContextMenus.entries(
+          for: card,
+          surface: .shelf,
+          menu: cardMenu,
+          pushRoute: { navigationState.push($0) },
+          openURL: { openURL($0) }
         )
-      } else if catalog.isLoading && catalog.items.isEmpty {
-        LoadingIndicatorView(delay: .milliseconds(700))
-      }
-    }
-    .animation(.easeInOut(duration: 0.3), value: catalog.isLoading)
-    .animation(.easeInOut(duration: 0.3), value: catalog.loadFailed)
-    .task {
-      cardMenu.bind(errorHandler: errorHandler)
-      await catalog.load()
-    }
-    .task { await cardMenu.refreshFolders() }
-    .mediaCardNewFolderAlert(cardMenu)
-    .task(id: person.tmdbPersonId) {
-      guard let id = person.tmdbPersonId else { return }
-      personMetadata = await metadataService.person(id: id)
-    }
+      },
+      onRetry: { Task { await catalog.refresh() } },
+      prefersFirstPosterFocus: true
+    )
   }
 
-  private var showsEmptyMessage: Bool {
-    !catalog.isLoading && !catalog.loadFailed && catalog.items.isEmpty
+  /// Header, then sort and the type pull-down, then the credits grid. The header is
+  /// one focus stop (biography opens when it is focused). Entry focus is the first
+  /// poster. Default sort is year descending.
+  private var tvSections: [TVPageSection] {
+    let header = TVPageSection.masthead(id: "person-header", personMasthead)
+    let controls = TVSearchFilters.controls(catalog: catalog, includeType: true)
+    let creditsTitle = person.role == .actor ? "Acting".localized : "Directing".localized
+    if catalog.items.isEmpty && catalog.isLoading {
+      return [header, controls, .placeholder(id: "credits", title: creditsTitle, kind: .poster, columns: 6, flow: .grid)]
+    }
+    let cards = catalog.items.map { MediaCard($0) }
+    guard !cards.isEmpty else { return [header, controls] }
+    return [header, controls, .posters(id: "credits", title: creditsTitle, flow: .grid, caption: .always,
+                                       loadsMore: catalog.hasMorePages, cards: cards)]
   }
 
+  private var personMasthead: TVPageMasthead {
+    let photoURL = person.photoURL
+      ?? personMetadata.photo
+      ?? ActorImageProvider.photoURL(for: person.name)
+    return TVPageMasthead(style: .person,
+                          title: person.name,
+                          detail: personDetail,
+                          biography: biography,
+                          photoURL: photoURL)
+  }
+
+  /// Role, then place and birthday when metadata has them. The biography is its own
+  /// line under this, so this stays one short line.
+  private var personDetail: String {
+    var parts = [person.role.titleKey.localized]
+    if let metaLine, !metaLine.isEmpty { parts.append(metaLine) }
+    return parts.joined(separator: "  ")
+  }
+
+  private var tvStatus: TVPageStatus {
+    if catalog.items.isEmpty && catalog.loadFailed {
+      return .failed(message: catalog.loadError?.userFacingMessage
+                       ?? "Check your connection and try again.".localized,
+                     retryTitle: "Try Again".localized)
+    }
+    if catalog.items.isEmpty && !catalog.isLoading {
+      return .message((catalog.filter.hasActiveFilters
+                       ? "Nothing Matches These Filters"
+                       : "No Results").localized)
+    }
+    return .content
+  }
+#endif
+
+#if !os(tvOS)
   // MARK: - Hero
 
   private var hero: some View {
@@ -106,16 +212,7 @@ struct PersonItemsView: View {
       let photoURL = person.photoURL
         ?? personMetadata.photo
         ?? ActorImageProvider.photoURL(for: person.name)
-#if os(tvOS)
-      // The same circle the cast rail draws. A face selected from a round lockup must
-      // not arrive as a rectangle on the page it opens.
-      TVUIKitPersonAvatar(name: person.name,
-                          photoURL: photoURL,
-                          diameter: Self.avatarDiameter)
-        .frame(width: Self.avatarDiameter, height: Self.avatarDiameter)
-#else
       CastAvatarView(name: person.name, photoURL: photoURL)
-#endif
 
       VStack(alignment: .leading, spacing: 8) {
         Text(person.name)
@@ -143,21 +240,6 @@ struct PersonItemsView: View {
     .padding(.bottom, 8)
   }
 
-  private var biography: String? {
-    personMetadata.biography.flatMap { $0.isEmpty ? nil : $0 }
-  }
-
-  private var metaLine: String? {
-    var parts: [String] = []
-    if let birthday = personMetadata.birthday {
-      parts.append(Self.birthdayFormatter.string(from: birthday))
-    }
-    if let place = personMetadata.placeOfBirth, !place.isEmpty {
-      parts.append(place)
-    }
-    return parts.isEmpty ? nil : parts.joined(separator: " · ")
-  }
-
   @ViewBuilder
   private func bioBlock(_ text: String) -> some View {
     let truncated = text.count > Self.bioPreviewLimit && !bioExpanded
@@ -180,21 +262,48 @@ struct PersonItemsView: View {
 
   // MARK: - Credits row
 
+  /// The credits are the same `/v1/items` listing as Search narrowed to one name, so
+  /// they carry the search catalog's full filter bar — sort, type, genre, country,
+  /// years — not a sort menu alone.
   private var creditsHeader: some View {
-    HStack(alignment: .firstTextBaseline, spacing: Self.heroSpacing) {
-      SectionHeader(
-        "Credits",
-        count: catalog.items.isEmpty ? nil : "\(catalog.items.count)"
-      )
+    VStack(alignment: .leading, spacing: 0) {
+      HStack(alignment: .firstTextBaseline, spacing: Self.heroSpacing) {
+        SectionHeader(
+          "Credits",
+          count: catalog.items.isEmpty ? nil : "\(catalog.items.count)"
+        )
 
-      Spacer(minLength: Self.heroSpacing)
+        Spacer(minLength: Self.heroSpacing)
+      }
+      .padding(.horizontal, gridInset)
+      .padding(.vertical, Self.verticalPadding)
 
-      LibrarySortMenu(catalog: catalog)
-        .font(LibraryFiltersBar.font)
+      LibraryFiltersBar(catalog: catalog)
     }
-    .padding(.horizontal, gridInset)
-    .padding(.vertical, Self.verticalPadding)
   }
+#endif
+
+  private var biography: String? {
+    personMetadata.biography.flatMap { $0.isEmpty ? nil : $0 }
+  }
+
+  private var metaLine: String? {
+    var parts: [String] = []
+    if let birthday = personMetadata.birthday {
+      parts.append(Self.birthdayFormatter.string(from: birthday))
+    }
+    if let place = personMetadata.placeOfBirth, !place.isEmpty {
+      parts.append(place)
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  }
+
+  private static let birthdayFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .none
+    return formatter
+  }()
 
   /// Built the same way from every navigation stack; only the routes differ.
   static func make(person: MediaPerson,
@@ -208,28 +317,10 @@ struct PersonItemsView: View {
                     catalog: LibraryCatalog(itemsService: context.contentService,
                                             authState: authState,
                                             errorHandler: errorHandler,
-                                            filter: LibraryFilter(person: person)))
+                                            filter: LibraryFilter(sort: .year, person: person)))
   }
 
-  private static let birthdayFormatter: DateFormatter = {
-    let f = DateFormatter()
-    f.dateStyle = .medium
-    f.timeStyle = .none
-    return f
-  }()
-
-#if os(tvOS)
-  static let heroSpacing: CGFloat = 28
-  /// A hero reads larger than a rail entry; the rail's circle is 168.
-  static let avatarDiameter: CGFloat = 220
-  static let verticalPadding: CGFloat = 16
-  static let bioPreviewLimit = 220
-  static let nameFont: Font = .system(size: 44, weight: .bold)
-  static let roleFont: Font = .system(size: 24, weight: .regular)
-  static let metaFont: Font = .system(size: 22, weight: .regular)
-  static let bioFont: Font = .system(size: 22, weight: .regular)
-  static let sectionFont: Font = .system(size: 28, weight: .semibold)
-#else
+#if !os(tvOS)
   static let heroSpacing: CGFloat = 16
   static let verticalPadding: CGFloat = 8
   static let bioPreviewLimit = 160
