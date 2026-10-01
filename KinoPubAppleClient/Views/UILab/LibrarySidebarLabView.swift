@@ -2,7 +2,7 @@
 //  LibrarySidebarLabView.swift
 //  KinoPubAppleClient
 //
-//  DEBUG-only. A/B for the shape docs/archive/plans/library-sidebar.md leaves open:
+//  A/B for the shape docs/archive/plans/library-sidebar.md leaves open:
 //  `NavigationSplitView` vs `TabView(.sidebarAdaptable)` nested **inside** the
 //  Library tab of a plain top-level `TabView(.tabBarOnly)` — the outer chrome stays
 //  exactly as shipped; only what sits inside the Library tab changes. This is the
@@ -12,7 +12,6 @@
 //  Delete alongside Views/UILab/ once a candidate ships.
 //
 
-#if DEBUG
 import SwiftUI
 
 // MARK: - Candidates
@@ -244,4 +243,3 @@ private struct LibraryLabDetail: View {
   LibrarySidebarLabView()
 }
 
-#endif

@@ -242,8 +242,20 @@ def archive_xcargs(build_number)
   "CURRENT_PROJECT_VERSION=#{build_number} DEVELOPMENT_TEAM=#{TEAM_ID} -allowProvisioningUpdates -skipMacroValidation"
 end
 
+# tvOS Settings shows the build's "What to Test" text (`Bundle.releaseNotes`). The
+# checkout is throwaway, so the plist is edited in place rather than through xcargs,
+# which do not survive a multi-line value.
+def write_release_notes!
+  set_info_plist_value(
+    path: File.expand_path("../KinoPubAppleClient/Info.plist", __dir__),
+    key: "KPReleaseNotes",
+    value: changelog_text
+  )
+end
+
 def build_platform!(spec:, build_number:, profile_name:)
   apply_app_signing!(profile_name: profile_name)
+  write_release_notes!
 
   common = {
     project: PROJECT,

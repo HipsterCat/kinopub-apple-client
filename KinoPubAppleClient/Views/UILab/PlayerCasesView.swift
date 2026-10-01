@@ -2,10 +2,9 @@
 //  PlayerCasesView.swift
 //  KinoPubAppleClient
 //
-//  DEBUG-only. Settings → Diagnostics / Advanced → Player cases.
+//  tvOS Settings › For developers (every build); iOS/macOS Advanced → Player cases (DEBUG).
 //
 
-#if DEBUG
 import SwiftUI
 import KinoPubBackend
 import KinoPubKit
@@ -297,4 +296,3 @@ final class PlayerCasesModel: ObservableObject {
 #Preview {
   PlayerCasesView()
 }
-#endif

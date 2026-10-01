@@ -2,7 +2,7 @@
 //  NavigationFocusLabBridges.swift
 //  KinoPubAppleClient
 //
-//  DEBUG-only, tvOS-only. The UIKit half of the navigation / focus lab: a probe that
+//  tvOS-only, in every build. The UIKit half of the navigation / focus lab: a probe that
 //  reads what the system actually thinks, and one collection that hosts several rails
 //  as sections rather than as siblings.
 //
@@ -15,7 +15,7 @@
 //  behaviour is how two passes of this work already went wrong — so read it instead.
 //
 
-#if os(tvOS) && DEBUG
+#if os(tvOS)
 import SwiftUI
 import UIKit
 import TVUIKit

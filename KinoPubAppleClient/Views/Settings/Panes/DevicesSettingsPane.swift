@@ -9,8 +9,7 @@ import KinoPubBackend
 import UIKit
 #endif
 
-#if !os(tvOS)
-
+/// Shared by the iOS / macOS pane below and tvOS Settings › Server & connection / Device.
 @MainActor
 final class DeviceSettingsPaneModel: ObservableObject {
   @Published var settings = DeviceSettings()
@@ -60,6 +59,8 @@ final class DeviceSettingsPaneModel: ObservableObject {
     }
   }
 }
+
+#if !os(tvOS)
 
 struct DevicesSettingsPane: View {
   @Environment(\.appContext) private var appContext

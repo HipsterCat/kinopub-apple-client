@@ -38,7 +38,7 @@ struct ProfileView: View {
 }
 
 #if os(tvOS)
-/// Keeps tvOS bindings and alerts next to the legacy TV settings chrome.
+/// Keeps tvOS bindings and alerts next to whichever tvOS Settings this OS can show.
 private struct TVProfileSettingsHost: View {
   @Bindable var model: ProfileModel
   @Environment(\.appContext) private var appContext
@@ -53,18 +53,7 @@ private struct TVProfileSettingsHost: View {
   @State private var showLogoutAlert = false
 
   var body: some View {
-    TVProfileSettingsView(
-      model: model,
-      kinopoiskKeyProvider: appContext.kinopoiskKeyProvider,
-      selectedLanguage: $selectedLanguage,
-      preferEnglishSubtitles: $preferEnglishSubtitles,
-      preferNonCCSubtitles: $preferNonCCSubtitles,
-      dualSubtitlesEnabled: $dualSubtitlesEnabled,
-      secondSubtitleLanguage: $secondSubtitleLanguage,
-      streamQualityRaw: $streamQualityRaw,
-      onLogout: { showLogoutAlert = true },
-      onLanguageChange: { model.changeLanguage(to: $0) }
-    )
+    settings
     .background(Color.KinoPub.background.ignoresSafeArea())
     .onAppear { model.fetch() }
     .alert("Are you sure?", isPresented: $showLogoutAlert) {
@@ -79,6 +68,47 @@ private struct TVProfileSettingsHost: View {
         secondaryButton: .cancel()
       )
     }
+  }
+
+  /// Apple's own Settings machinery when this tvOS has it (`TVSettingKit.swift`); the
+  /// SwiftUI Settings otherwise.
+  @ViewBuilder
+  private var settings: some View {
+    if TVSettingKit.isAvailable && !Self.forcesSwiftUISettings {
+      TVSettingKitSettingsView(
+        model: model,
+        kinopoiskKeyProvider: appContext.kinopoiskKeyProvider,
+        onLogout: { showLogoutAlert = true },
+        onLanguageChange: { model.changeLanguage(to: $0) }
+      )
+    } else {
+      fallbackSettings
+    }
+  }
+
+  /// DEBUG `-KINOPUBSwiftUISettings YES` shows the fallback, which otherwise never appears
+  /// while TVSettingKit exists.
+  private static var forcesSwiftUISettings: Bool {
+#if DEBUG
+    UserDefaults.standard.bool(forKey: "KINOPUBSwiftUISettings")
+#else
+    false
+#endif
+  }
+
+  private var fallbackSettings: some View {
+    TVProfileSettingsView(
+      model: model,
+      kinopoiskKeyProvider: appContext.kinopoiskKeyProvider,
+      selectedLanguage: $selectedLanguage,
+      preferEnglishSubtitles: $preferEnglishSubtitles,
+      preferNonCCSubtitles: $preferNonCCSubtitles,
+      dualSubtitlesEnabled: $dualSubtitlesEnabled,
+      secondSubtitleLanguage: $secondSubtitleLanguage,
+      streamQualityRaw: $streamQualityRaw,
+      onLogout: { showLogoutAlert = true },
+      onLanguageChange: { model.changeLanguage(to: $0) }
+    )
   }
 }
 #endif

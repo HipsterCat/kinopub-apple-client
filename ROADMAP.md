@@ -179,6 +179,22 @@ a slightly stale token gets a 400 while the session is alive under the new one; 
       first; then Downloads (non-TV), Devices, Appearance, Sidebar, Notifications, Content/Metadata,
       Advanced. Native `Form` / `List` sections; hide platform-inappropriate groups
 - [ ] Feature-gate incomplete panes rather than shipping fake toggles
+- [x] **tvOS Settings grouped into categories** (2026-10-01): Kinopub account · Server & connection ·
+      Device · Video & audio · Appearance · Data sources · Advanced · Experiments · For developers ·
+      About, each its own page. With nothing in the list focused, the left panel is the app —
+      plate, version · build, this build's notes (`Bundle.releaseNotes`, written by the TestFlight
+      lane). Developer tools are listed in **every** build (Sasha: "показывай все для всех").
+      Server & connection and Device save to kino.pub on each change — there is no Save on a remote
+- [x] tvOS Settings colours are hierarchical styles only (`.primary` plate, `.background` label on
+      focus, `.fill.tertiary` at rest), so the focused row reads in Light too. Dark-only is still
+      not actually forced on this screen (tvOS 27.2 simulator) — a separate question
+- [x] **tvOS Settings on Apple's own TVSettingKit** (2026-10-01, Sasha: "integrate it carefully",
+      after github.com/zhrispineda/Settings-tvOS). Still preview column, list-only shift on push,
+      title crossfade, Apple's cells, toggles and value pickers. Adapter + SwiftUI fallback: see
+      AGENTS.md. Not walked on a real remote yet; Kinopoisk key entry (Apple's text screen) and
+      the value pickers are untested on screen
+- [ ] tvOS Settings › Data & storage: the iOS / macOS `StorageSettingsView` (caches, snapshots,
+      network log size) has no tvOS page yet, so that category is "Data sources" for now
 - [ ] Auth changes must not wipe the Kinopoisk keychain service (separate — keep it that way)
 
 **Validation:** cold launch → activation → authorized shell on tvOS and macOS · a code arriving and

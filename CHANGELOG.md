@@ -5,6 +5,45 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Settings in categories; developer tools in every build (2026-10-01)
+
+`TVProfileSettingsView`'s root is a list of categories (`TVSettingsCategory`), each pushing a
+`SettingsCategoryPage` with its own `@FocusState`; Experiments and About are their own pages. With
+focus still on the tab bar the left panel is `SettingsAppInfoPanel`: the `kinopub_icon` plate,
+version and build, and `Bundle.releaseNotes` — `KPReleaseNotes`, which the Fastfile writes into
+`Info.plist` from the TestFlight changelog before archiving (a local build has none). Server &
+connection and Device are new on tvOS: `DeviceSettingsPaneModel` is no longer iOS/macOS-only, and
+each change is POSTed as it is made. The labs (`PlayerCasesView`, `TVUIKitComponentGalleryView`,
+`NavigationFocusLabView`, `LibrarySidebarLabView`, `SystemTypeStylesCatalogView`,
+`StreamSurveyView` + `StreamSurvey`) lost their `DEBUG` guard and are listed under For developers
+in every build; iOS / macOS still link them from DEBUG only. `fakeSeasonsOnMovies` and the sidebar
+sandbox tabs stay DEBUG.
+
+Second pass, same day: every row is a focus stop (`SettingsInfoRow` — read-only rows too), the
+root is one list, labels are `.headline`, colours are hierarchical styles only. About is Version ·
+Build · *What's new* (its own page, one row per note line); Remembered tracks and Data sources are
+rows, not text blocks. A pushed page draws its title in the tab bar's band and hides the system
+bar: `.navigationTitle` landed under the hidden tab bar's inset, level with the list. The left
+panel shifts (`.push(from: .trailing)`) instead of crossfading.
+
+Third pass, same day: **tvOS Settings runs on Apple's private `TVSettingKit`**
+(`TVSettingKit.swift` adapter, `TVSettingsCatalog.swift` content). `_TSKSplitViewController`
+around a `UINavigationController` of `TSKViewController`s, one runtime subclass
+(`KinoPubTSKPageController`) supplying `loadSettingGroups`, `previewForItemAtIndexPath:` and a nil
+`defaultIndexPathForPreview` for the root, so the app plate shows while the tab bar has focus.
+Rows are `TSKSettingItem` title / toggle / multi-value / text-input / action items bound by KVC
+to `TSKValueStore`, which reads and writes the existing `@AppStorage` keys, `DeviceSettingsPaneModel`,
+`KinopoiskKeySettingsModel` and `FeatureFlag`. Labs and the network log are presented full screen
+(each in its own `NavigationStack` — Player cases pushes routes) with the environment forwarded.
+`TVProfileSettingsView` is now only the fallback when TVSettingKit is missing. Probed: a plain
+`UINavigationController` push on tvOS crossfades like SwiftUI's, so the system slide comes only
+with TVSettingKit's `_TSKSlideAnimator`; my interim full-page slide (`TVSlideNavigationStack`) is
+deleted. Findings while wiring it: an action selector named `perform(_:)` resolves to NSObject's
+`performSelector:` under `#selector` (crash); an info row shows its value only through
+`representedObject.keyPath` + a formatter, not `localizedValue`; a group's description is not
+rendered as a footer. DEBUG launch arguments `-KINOPUBInitialTab settings`,
+`-KINOPUBSettingsPage <category>`, `-KINOPUBSettingsLab <lab>`, `-KINOPUBSwiftUISettings YES`.
+
 ### Trailers are their title; Up Next is next-unwatched + Continue Watching (2026-10-01)
 
 A trailer sends no subtitle (the Info tab used «Trailer» as its heading) and its Info tab has only

@@ -2,7 +2,7 @@
 //  NavigationFocusLabView.swift
 //  KinoPubAppleClient
 //
-//  DEBUG-only, tvOS-only. Four shells of the same two-tab app, each isolating exactly
+//  tvOS-only. Four shells of the same two-tab app, each isolating exactly
 //  one variable behind the two open tvOS bugs: the tab bar that flickers and does not
 //  come back after Menu, and focus stranding when several collections sit on one page.
 //
@@ -17,10 +17,10 @@
 //  tab it would find the *app's* tab bar controller in its ancestor chain and measure
 //  that instead of its own.
 //
-//  Reached from Settings → Diagnostics → "Navigation / Focus Lab".
+//  Reached from Settings › For developers › "Navigation / Focus Lab", in every build.
 //
 
-#if os(tvOS) && DEBUG
+#if os(tvOS)
 import SwiftUI
 import KinoPubUI
 

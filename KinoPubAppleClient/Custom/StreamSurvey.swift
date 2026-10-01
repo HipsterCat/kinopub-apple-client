@@ -5,7 +5,6 @@
 //  Created by Sasha Romanov on 24.07.2026.
 //
 
-#if DEBUG
 import Foundation
 import KinoPubBackend
 import KinoPubLogging
@@ -308,4 +307,3 @@ enum CodecNames {
     }
   }
 }
-#endif

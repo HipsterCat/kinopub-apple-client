@@ -436,6 +436,8 @@
                 { "path": "StreamSurveyView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "ProfileView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "TVProfileSettingsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TVSettingKit.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TVSettingsCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "DataSourcesAttributionView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "KinopoiskKeySettingsModel.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "KinopoiskSettingsSection.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },

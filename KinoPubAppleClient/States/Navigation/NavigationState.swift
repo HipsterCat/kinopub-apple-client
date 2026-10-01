@@ -63,10 +63,14 @@ final class NavigationState {
 #endif
 
 #if os(tvOS) && DEBUG
-  /// `-KINOPUBSidebarSandbox <config>` opens straight on the sidebar sandbox tab.
+  /// `-KINOPUBSidebarSandbox <config>` opens straight on the sidebar sandbox tab;
+  /// `-KINOPUBInitialTab settings` on Settings (the simulator's remote is too unreliable
+  /// to walk there for every check).
   init() {
     if SidebarSandboxConfig.launchValue != nil {
       selectedTab = .sidebarLab(SidebarSandboxConfig.fromLaunchArguments().engine)
+    } else if UserDefaults.standard.string(forKey: "KINOPUBInitialTab") == "settings" {
+      selectedTab = .settings
     }
   }
 #endif

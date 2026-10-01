@@ -138,6 +138,15 @@ Allowed to exist, one place each, limitation in the doc comment:
   so there is no server picker to present. "First server found, then remembered" is the only
   selection model its public API offers. Re-probe if that view goes public.
 
+- **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`
+  (`_TSKSplitViewController`, `TSKViewController`, `TSKSettingItem`, `TSKPreviewViewController`):
+  the still preview column, the list-only slide-and-crossfade on push, Apple's cells and value
+  pickers have no public API, and a hand-built copy was rejected. Only that file touches private
+  API; classes and selectors are checked once (`TVSettingKit.isAvailable`) and the SwiftUI
+  `TVProfileSettingsView` is the fallback. Rows bind by KVC through `TSKValueStore` onto the
+  existing `@AppStorage` keys and models. Full-screen tools are presented over it, each in its
+  own `NavigationStack`, with the environment forwarded. Re-probe every tvOS.
+
 An adapter that stops being needed gets deleted, not kept "in case".
 
 ## Focus (tvOS)

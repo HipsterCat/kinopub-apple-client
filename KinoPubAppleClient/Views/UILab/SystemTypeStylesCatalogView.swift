@@ -2,11 +2,10 @@
 //  SystemTypeStylesCatalogView.swift
 //  KinoPubAppleClient
 //
-//  DEBUG reference: system text styles × semantic / vibrant color roles.
+//  Reference: system text styles × semantic / vibrant color roles.
 //  Tap any sample card for a full material preview over a blurred backdrop.
 //
 
-#if DEBUG
 import SwiftUI
 import KinoPubUI
 #if os(macOS)
@@ -942,4 +941,3 @@ private struct FontWeightSpec: Identifiable {
     ).comparisonGrid
 }
 
-#endif

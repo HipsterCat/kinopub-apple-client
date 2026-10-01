@@ -5,10 +5,9 @@
 //  Created by Sasha Romanov on 24.07.2026.
 //
 
-#if DEBUG
 import SwiftUI
 
-/// Debug-only. Answers "what does kino.pub actually send us?" — the question behind
+/// Answers "what does kino.pub actually send us?" — the question behind
 /// whether an FFmpeg-backed player would buy us anything. See `StreamSurvey.swift`.
 struct StreamSurveyView: View {
 
@@ -56,4 +55,3 @@ struct StreamSurveyView: View {
 #Preview {
   StreamSurveyView()
 }
-#endif

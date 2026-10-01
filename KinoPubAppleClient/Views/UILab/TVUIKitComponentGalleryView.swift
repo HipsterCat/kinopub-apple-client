@@ -2,17 +2,18 @@
 //  TVUIKitComponentGalleryView.swift
 //  KinoPubAppleClient
 //
-//  DEBUG-only, tvOS-only. Every native TVUIKit component, bare — no custom focus code,
+//  tvOS-only. Every native TVUIKit component, bare — no custom focus code,
 //  no custom scale/highlight/shadow, nothing borrowed from the rest of the app. The
 //  point is to see what "native" actually looks and feels like on a real remote before
 //  judging our own hand-built chrome against it, and to A/B how `.focusSection()`
 //  groups rows that are shaped very differently (a wide media rail vs. a row of six
 //  cards vs. a single button).
 //
-//  Reached from Settings → Diagnostics → "TVUIKit Gallery" (`TVProfileSettingsView`).
+//  Reached from Settings › For developers › "TVUIKit Gallery" (`TVProfileSettingsView`),
+//  in every build.
 //
 
-#if os(tvOS) && DEBUG
+#if os(tvOS)
 import SwiftUI
 import TVUIKit
 import UIKit

@@ -2,10 +2,19 @@
 //  TVProfileSettingsView.swift
 //  KinoPubAppleClient
 //
-//  System-settings-shaped layout for tvOS: persistent left panel (page icon +
-//  per-row tip), right list of pill rows. Read-only account rows have no plate.
-//  Root has no page title (the tab bar is enough); pushed pages show a centered
-//  title and hide the tab bar.
+//  The SwiftUI fallback for tvOS Settings, shown only when TVSettingKit is missing on this
+//  OS (`TVSettingKit.swift`, `TVSettingsCatalog.swift` are the real thing). Same categories
+//  and rows; a plain `NavigationStack`, so pages crossfade.
+//
+//  Persistent left panel, right list of pill rows. With nothing in the list focused the
+//  left panel is the app itself; a focused category shows its icon and tip. Pushed pages
+//  draw their title in the tab bar's band and hide the tab bar.
+//
+//  Every row is focusable, read-only ones included — on a remote, what focus cannot reach
+//  cannot be read, and a page with nothing focusable is a dead end.
+//
+//  Every page is in every build, developer tools included: the builds worth looking at
+//  are TestFlight ones on a real Apple TV, with no Xcode attached.
 //
 
 #if os(tvOS)
@@ -26,13 +35,19 @@ struct TVProfileSettingsView: View {
   var onLogout: () -> Void
   var onLanguageChange: (String) -> Void
 
-  @FocusState private var focusedItem: SettingsFocusItem?
+  @Environment(\.appContext) private var appContext
+  @Environment(ErrorHandler.self) private var errorHandler
+  // Forwarded to every pushed page: UIKit-hosted pages do not inherit the environment.
+  /// kino.pub's per-device streaming profile — shared by Server & connection and Device,
+  /// loaded the first time either is opened.
+  @StateObject private var device = DeviceSettingsPaneModel()
   @State private var path = NavigationPath()
   @AppStorage(DiagnosticsSettings.remoteLoggingKey) private var streamsToPulse = false
+  @AppStorage(DiagnosticsSettings.activityOverlayKey) private var showsActivityOverlay = false
 
   var body: some View {
     NavigationStack(path: $path) {
-      rootPage
+      TVSettingsRootPage { path.append(SettingsRoute.category($0)) }
         .navigationDestination(for: SettingsRoute.self) { route in
           destination(for: route)
             .toolbar(.hidden, for: .tabBar)
@@ -41,33 +56,16 @@ struct TVProfileSettingsView: View {
     .toolbar(path.isEmpty ? .automatic : .hidden, for: .tabBar)
   }
 
-  // MARK: - Root
-
-  private var rootPage: some View {
-    SettingsSplitLayout(
-      title: nil,
-      pageSymbol: "gear",
-      tipKey: tip.messageKey
-    ) {
-      accountSection
-      languageSection
-      playbackSection
-      trackMemorySection
-      // DESIGN: Devices section — `DeviceService.listDevices` / `removeDevice` are ready
-      // (identity + HEVC/4K/HDR already sync on auth). Focusable Settings list TBD.
-      kinopoiskSection
-      dataSourcesSection
-      diagnosticsSection
-      logoutSection
-    }
-    .defaultFocus($focusedItem, .language)
-  }
+  /// The left panel shifts sideways instead of crossfading.
+  fileprivate static let panelTransition = AnyTransition.push(from: .trailing)
 
   // MARK: - Destinations
 
   @ViewBuilder
   private func destination(for route: SettingsRoute) -> some View {
     switch route {
+    case .category(let category):
+      categoryPage(category)
     case .language:
       SettingsChoiceView(
         title: "Language",
@@ -99,87 +97,175 @@ struct TVProfileSettingsView: View {
         },
         selection: $streamQualityRaw
       )
+    case .streamType:
+      SettingsChoiceView(
+        title: "Stream type",
+        pageSymbol: TVSettingsCategory.server.symbol,
+        tipKey: TVSettingsCategory.server.tipKey,
+        options: device.settings.streamingTypeOptions.map { SettingsChoiceOption(id: String($0.id), title: $0.label) },
+        selection: deviceChoice(\.streamingType)
+      )
+    case .serverLocation:
+      SettingsChoiceView(
+        title: "Server location",
+        pageSymbol: TVSettingsCategory.server.symbol,
+        tipKey: TVSettingsCategory.server.tipKey,
+        options: device.settings.serverLocationOptions.map { SettingsChoiceOption(id: String($0.id), title: $0.label) },
+        selection: deviceChoice(\.serverLocation)
+      )
+    case .rememberedTracks:
+      TVRememberedTracksPage()
+    case .releaseNotes:
+      TVReleaseNotesPage()
     case .kinopoisk:
       TVKinopoiskKeyView(keyProvider: kinopoiskKeyProvider)
     case .networkLog:
       NetworkConsoleView()
-    case .featureFlags:
-      TVFeatureFlagsPage()
-#if DEBUG
-    case .streamSurvey:
-      StreamSurveyView()
-    case .typeStyles:
-      SystemTypeStylesCatalogView()
-    case .tvUIKitGallery:
-      TVUIKitComponentGalleryView()
-    case .navFocusLab:
-      NavigationFocusLabView()
-    case .libraryLab:
-      LibrarySidebarLabView()
-    case .playerCases:
-      PlayerCasesView()
-#endif
+    case .lab(let lab):
+      lab.page
     }
   }
 
-  // MARK: - Sections
-
-  private var tip: SettingsTip {
-    SettingsTip.tip(for: focusedItem)
+  @ViewBuilder
+  private func categoryPage(_ category: TVSettingsCategory) -> some View {
+    switch category {
+    case .experiments:
+      TVFeatureFlagsPage()
+    default:
+      SettingsCategoryPage(category: category) { focus in
+        rows(for: category, focus: focus)
+      }
+      .task(id: category) {
+        guard category.usesDeviceSettings else { return }
+        await loadDeviceSettingsIfNeeded()
+      }
+    }
   }
 
-  private var accountSection: some View {
-    SettingsSection("Account") {
-      infoRow(label: "User Name", value: model.userData.username)
+  // MARK: - Category rows
+
+  @ViewBuilder
+  private func rows(for category: TVSettingsCategory,
+                    focus: FocusState<SettingsFocusItem?>.Binding) -> some View {
+    switch category {
+    case .account:
+      accountRows(focus: focus)
+    case .server:
+      serverRows(focus: focus)
+    case .device:
+      deviceRows(focus: focus)
+    case .videoAudio:
+      videoAudioRows(focus: focus)
+    case .appearance:
+      appearanceRows(focus: focus)
+    case .dataSources:
+      dataSourcesRows(focus: focus)
+    case .advanced:
+      advancedRows(focus: focus)
+    case .developer:
+      SettingsSection {
+        ForEach(TVSettingsLab.allCases) { lab in
+          navigationRow(lab.titleKey, route: .lab(lab), focus: focus, equals: .lab(lab))
+        }
+      }
+    case .about:
+      aboutRows(focus: focus)
+    case .experiments:
+      // Its own page — see `categoryPage(_:)`.
+      EmptyView()
+    }
+  }
+
+  @ViewBuilder
+  private func accountRows(focus: FocusState<SettingsFocusItem?>.Binding) -> some View {
+    SettingsSection {
+      infoRow(label: "User Name", value: model.userData.username, focus: focus, id: "username")
       infoRow(
         label: "User Subscription",
-        value: "\(model.userData.subscription.days) \("days".localized)"
+        value: "\(model.userData.subscription.days) \("days".localized)",
+        focus: focus,
+        id: "subscription"
       )
-      infoRow(label: "Registration Date", value: model.userData.registrationDateFormatted)
-      infoRow(label: "App version", value: Bundle.main.appVersionLong)
+      infoRow(label: "Registration Date",
+              value: model.userData.registrationDateFormatted,
+              focus: focus,
+              id: "registration")
+      Button(action: onLogout) {
+        SettingsPillLabel(title: "Logout", isDestructive: true)
+      }
+      .buttonStyle(SettingsPillButtonStyle())
+      .focused(focus, equals: .logout)
     }
   }
 
-  private var languageSection: some View {
-    SettingsSection("Language") {
-      Button {
-        path.append(SettingsRoute.language)
-      } label: {
-        SettingsPillLabel(
-          title: "Language",
-          value: model.availableLanguages[selectedLanguage] ?? selectedLanguage,
-          showsChevron: true
+  @ViewBuilder
+  private func serverRows(focus: FocusState<SettingsFocusItem?>.Binding) -> some View {
+    deviceSettingsGate(focus: focus) {
+      SettingsSection {
+        navigationRow(
+          "Stream type",
+          value: label(of: device.settings.streamingType, in: device.settings.streamingTypeOptions),
+          route: .streamType,
+          focus: focus,
+          equals: .streamType
         )
+        navigationRow(
+          "Server location",
+          value: label(of: device.settings.serverLocation, in: device.settings.serverLocationOptions),
+          route: .serverLocation,
+          focus: focus,
+          equals: .serverLocation
+        )
+        deviceSaveFootnote
       }
-      .buttonStyle(SettingsPillButtonStyle())
-      .focused($focusedItem, equals: .language)
     }
   }
 
-  private var playbackSection: some View {
-    SettingsSection("Playback") {
-      Button {
-        path.append(SettingsRoute.streamQuality)
-      } label: {
-        SettingsPillLabel(
-          title: "Stream quality",
-          value: (StreamQuality(rawValue: streamQualityRaw) ?? .auto).title,
-          showsChevron: true
-        )
+  @ViewBuilder
+  private func deviceRows(focus: FocusState<SettingsFocusItem?>.Binding) -> some View {
+    deviceSettingsGate(focus: focus) {
+      SettingsSection {
+        if !device.deviceTitle.isEmpty {
+          infoRow(label: "This device", value: device.deviceTitle, focus: focus, id: "thisDevice")
+        }
+        toggleRow(title: "4K", isOn: deviceToggle(\.support4k), focus: focus, equals: .capability("4k"))
+        toggleRow(title: "HEVC", isOn: deviceToggle(\.supportHevc), focus: focus, equals: .capability("hevc"))
+        toggleRow(title: "HDR", isOn: deviceToggle(\.supportHdr), focus: focus, equals: .capability("hdr"))
+        toggleRow(title: "Mixed playlists",
+                  isOn: deviceToggle(\.mixedPlaylist),
+                  focus: focus,
+                  equals: .capability("mixedPlaylist"))
+        deviceSaveFootnote
       }
-      .buttonStyle(SettingsPillButtonStyle())
-      .focused($focusedItem, equals: .streamQuality)
+    }
+  }
 
+  @ViewBuilder
+  private func videoAudioRows(focus: FocusState<SettingsFocusItem?>.Binding) -> some View {
+    SettingsSection {
+      navigationRow(
+        "Stream quality",
+        value: (StreamQuality(rawValue: streamQualityRaw) ?? .auto).title,
+        route: .streamQuality,
+        focus: focus,
+        equals: .streamQuality
+      )
+      navigationRow("Remembered tracks", route: .rememberedTracks, focus: focus, equals: .rememberedTracks)
+    }
+
+    SettingsSection("Subtitles") {
       toggleRow(
         title: "Default English subtitles",
         isOn: $preferEnglishSubtitles,
-        focus: .englishSubs
+        focus: focus,
+        equals: .englishSubs
       )
 
       toggleRow(
         title: "Prefer non-CC / non-SDH",
         isOn: $preferNonCCSubtitles,
-        focus: .nonCC
+        focus: focus,
+        equals: .nonCC
       )
       .disabled(!preferEnglishSubtitles)
 
@@ -188,67 +274,60 @@ struct TVProfileSettingsView: View {
         toggleRow(
           title: "Dual subtitles",
           isOn: $dualSubtitlesEnabled,
-          focus: .dual
+          focus: focus,
+          equals: .dual
         )
 
-        Button {
-          path.append(SettingsRoute.secondSubtitleLanguage)
-        } label: {
-          SettingsPillLabel(
-            title: "Second subtitle language",
-            value: LanguageNames.name(for: secondSubtitleLanguage),
-            showsChevron: true
-          )
-        }
-        .buttonStyle(SettingsPillButtonStyle())
-        .focused($focusedItem, equals: .secondLang)
+        navigationRow(
+          "Second subtitle language",
+          value: LanguageNames.name(for: secondSubtitleLanguage),
+          route: .secondSubtitleLanguage,
+          focus: focus,
+          equals: .secondLang
+        )
         .disabled(!dualSubtitlesEnabled)
       }
     }
   }
 
-  private var kinopoiskSection: some View {
+  @ViewBuilder
+  private func appearanceRows(focus: FocusState<SettingsFocusItem?>.Binding) -> some View {
+    SettingsSection {
+      navigationRow(
+        "Language",
+        value: model.availableLanguages[selectedLanguage] ?? selectedLanguage,
+        route: .language,
+        focus: focus,
+        equals: .language
+      )
+      infoRow(label: "Theme", value: "Dark".localized, focus: focus, id: "theme")
+    }
+  }
+
+  @ViewBuilder
+  private func dataSourcesRows(focus: FocusState<SettingsFocusItem?>.Binding) -> some View {
     SettingsSection("Kinopoisk") {
-      Button {
-        path.append(SettingsRoute.kinopoisk)
-      } label: {
-        SettingsPillLabel(title: "API key", showsChevron: true)
+      navigationRow("API key", route: .kinopoisk, focus: focus, equals: .kinopoisk)
+    }
+    // Each source is a row; what it supplies is the row's tip on the left.
+    SettingsSection("Sources") {
+      ForEach(TVDataSource.current) { source in
+        infoRow(label: source.titleKey, value: source.host, focus: focus, item: .source(source))
       }
-      .buttonStyle(SettingsPillButtonStyle())
-      .focused($focusedItem, equals: .kinopoisk)
-    }
-  }
-
-  /// Read-only, and on the root page rather than behind a push: it is a short answer to
-  /// "why did it pick that", not a screen anybody navigates to on purpose.
-  private var trackMemorySection: some View {
-    SettingsSection("Remembered tracks") {
-      TVTrackMemoryList()
+      Text("This product uses the TMDB API but is not endorsed or certified by TMDB.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
         .padding(.horizontal, Metrics.pillHorizontalPadding)
+        .padding(.top, 4)
     }
   }
 
-  private var dataSourcesSection: some View {
-    SettingsSection("Data sources") {
-      DataSourcesAttributionView()
-        .padding(.horizontal, Metrics.pillHorizontalPadding)
-        .padding(.vertical, Metrics.infoVerticalPadding)
-        .focusable()
-        .focused($focusedItem, equals: .dataSources)
-    }
-  }
-
-  private var diagnosticsSection: some View {
-    // Every row carries its own focus value. They all shared `.diagnostics` before,
-    // which is the exact pattern `.claude/skills/tvos-surface/SKILL.md` bans —
-    // several sibling views bound to one `@FocusState` equals-value leave the engine
-    // unable to resolve which one is focused, and that cost a whole misdiagnosed
-    // detour on the detail page. The payload only disambiguates; the tip stays shared.
+  @ViewBuilder
+  private func advancedRows(focus: FocusState<SettingsFocusItem?>.Binding) -> some View {
+    // Not DEBUG-only: this is the platform the slow launches happen on, and the builds
+    // they happen in are TestFlight ones with no Xcode attached.
     SettingsSection("Diagnostics") {
-      // Not DEBUG-only: this is the platform the slow launches happen on, and the
-      // builds they happen in are TestFlight ones with no Xcode attached.
-      diagnosticsRow("Network log", route: .networkLog, id: "networkLog")
-      diagnosticsRow("Feature flags", route: .featureFlags, id: "featureFlags")
+      navigationRow("Network log", route: .networkLog, focus: focus, equals: .networkLog)
       // Reading a log on a television with a remote is nobody's idea of a good time;
       // this is the row that moves it to a Mac.
       Button {
@@ -258,55 +337,133 @@ struct TVProfileSettingsView: View {
         SettingsPillLabel(title: "Stream to Pulse on Mac", showsCheckmark: streamsToPulse)
       }
       .buttonStyle(SettingsPillButtonStyle())
-      .focused($focusedItem, equals: .diagnostics("streamToPulse"))
-#if DEBUG
-      diagnosticsRow("Stream survey", route: .streamSurvey, id: "streamSurvey")
-      diagnosticsRow("Type Styles", route: .typeStyles, id: "typeStyles")
-      diagnosticsRow("TVUIKit Gallery", route: .tvUIKitGallery, id: "tvUIKitGallery")
-      diagnosticsRow("Navigation / Focus Lab", route: .navFocusLab, id: "navFocusLab")
-      diagnosticsRow("Library Sidebar Lab", route: .libraryLab, id: "libraryLab")
-      diagnosticsRow("Player cases", route: .playerCases, id: "playerCases")
-#endif
+      .focused(focus, equals: .streamToPulse)
+      toggleRow(
+        title: "Show in-flight requests",
+        isOn: $showsActivityOverlay,
+        focus: focus,
+        equals: .activityOverlay
+      )
     }
   }
 
-  private func diagnosticsRow(_ title: LocalizedStringKey,
-                              route: SettingsRoute,
-                              id: String) -> some View {
+  @ViewBuilder
+  private func aboutRows(focus: FocusState<SettingsFocusItem?>.Binding) -> some View {
+    SettingsSection {
+      infoRow(label: "Version", value: Bundle.main.appVersionLong, focus: focus, id: "version")
+      infoRow(label: "Build", value: Bundle.main.appBuild, focus: focus, id: "build")
+      navigationRow("What's new", route: .releaseNotes, focus: focus, equals: .releaseNotes)
+    }
+  }
+
+  // MARK: - Device settings
+
+  /// Shows `content` once kino.pub has answered. Until then a spinner, and after a failed
+  /// load a Retry pill — a page with nothing focusable is a dead end on a remote.
+  @ViewBuilder
+  private func deviceSettingsGate<Content: View>(
+    focus: FocusState<SettingsFocusItem?>.Binding,
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    if !device.settings.streamingTypeOptions.isEmpty {
+      content()
+    } else if device.isLoading {
+      ProgressView()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Metrics.pillVerticalPadding)
+    } else {
+      SettingsSection {
+        Button {
+          Task { await loadDeviceSettingsIfNeeded() }
+        } label: {
+          SettingsPillLabel(title: "Retry")
+        }
+        .buttonStyle(SettingsPillButtonStyle())
+        .focused(focus, equals: .retry)
+      }
+    }
+  }
+
+  private var deviceSaveFootnote: some View {
+    Text(device.didSave ? "Saved. Changes take effect within a minute." : "Changes take effect within a minute.")
+      .font(.caption)
+      .foregroundStyle(.secondary)
+      .padding(.horizontal, Metrics.pillHorizontalPadding)
+      .padding(.top, 4)
+  }
+
+  private func loadDeviceSettingsIfNeeded() async {
+    guard device.settings.streamingTypeOptions.isEmpty, !device.isLoading else { return }
+    await device.load(deviceService: appContext.deviceService, errorHandler: errorHandler)
+  }
+
+  /// There is no Save button on a remote: every change is sent as it is made.
+  private func saveDeviceSettings() {
+    Task { await device.save(deviceService: appContext.deviceService, errorHandler: errorHandler) }
+  }
+
+  private func deviceToggle(_ keyPath: WritableKeyPath<DeviceSettings, Bool>) -> Binding<Bool> {
+    Binding(
+      get: { device.settings[keyPath: keyPath] },
+      set: { newValue in
+        device.settings[keyPath: keyPath] = newValue
+        saveDeviceSettings()
+      }
+    )
+  }
+
+  /// `SettingsChoiceView` speaks string ids; kino.pub's options are numbered.
+  private func deviceChoice(_ keyPath: WritableKeyPath<DeviceSettings, Int>) -> Binding<String> {
+    Binding(
+      get: { String(device.settings[keyPath: keyPath]) },
+      set: { newValue in
+        guard let id = Int(newValue), id != device.settings[keyPath: keyPath] else { return }
+        device.settings[keyPath: keyPath] = id
+        saveDeviceSettings()
+      }
+    )
+  }
+
+  private func label(of id: Int, in options: [DeviceSettingOption]) -> String? {
+    options.first { $0.id == id }?.label
+  }
+
+  // MARK: - Row helpers
+
+  private func navigationRow(_ title: LocalizedStringKey,
+                             value: String? = nil,
+                             route: SettingsRoute,
+                             focus: FocusState<SettingsFocusItem?>.Binding,
+                             equals item: SettingsFocusItem) -> some View {
     Button {
       path.append(route)
     } label: {
-      SettingsPillLabel(title: title, showsChevron: true)
+      SettingsPillLabel(title: title, value: value, showsChevron: true)
     }
     .buttonStyle(SettingsPillButtonStyle())
-    .focused($focusedItem, equals: .diagnostics(id))
+    .focused(focus, equals: item)
   }
 
-  private var logoutSection: some View {
-    Button(action: onLogout) {
-      SettingsPillLabel(title: "Logout", isDestructive: true)
-    }
-    .buttonStyle(SettingsPillButtonStyle())
-    .focused($focusedItem, equals: .logout)
+  private func infoRow(label: LocalizedStringKey,
+                       value: String,
+                       focus: FocusState<SettingsFocusItem?>.Binding,
+                       id: String) -> some View {
+    infoRow(label: label, value: value, focus: focus, item: .info(id))
   }
 
-  private func infoRow(label: LocalizedStringKey, value: String) -> some View {
-    HStack(spacing: 16) {
-      Text(label)
-        .foregroundStyle(.primary)
-      Spacer(minLength: 12)
-      Text(value)
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.trailing)
-    }
-    .padding(.horizontal, Metrics.pillHorizontalPadding)
-    .padding(.vertical, Metrics.infoVerticalPadding)
+  private func infoRow(label: LocalizedStringKey,
+                       value: String,
+                       focus: FocusState<SettingsFocusItem?>.Binding,
+                       item: SettingsFocusItem) -> some View {
+    SettingsInfoRow(title: label, value: value)
+      .focused(focus, equals: item)
   }
 
   private func toggleRow(
     title: LocalizedStringKey,
     isOn: Binding<Bool>,
-    focus: SettingsFocusItem
+    focus: FocusState<SettingsFocusItem?>.Binding,
+    equals item: SettingsFocusItem
   ) -> some View {
     Button {
       isOn.wrappedValue.toggle()
@@ -317,170 +474,501 @@ struct TVProfileSettingsView: View {
       )
     }
     .buttonStyle(SettingsPillButtonStyle())
-    .focused($focusedItem, equals: focus)
+    .focused(focus, equals: item)
+  }
+}
+
+// MARK: - Root
+
+/// The category list. Its own view, so its focus state lives in the page that is hosted.
+private struct TVSettingsRootPage: View {
+  let onSelect: (TVSettingsCategory) -> Void
+
+  @FocusState private var focusedCategory: TVSettingsCategory?
+
+  var body: some View {
+    SettingsSplitLayout(title: nil) {
+      ZStack(alignment: .top) {
+        if let focusedCategory {
+          SettingsLeftPanel(symbol: focusedCategory.symbol, tipKey: focusedCategory.tipKey)
+            .transition(TVProfileSettingsView.panelTransition)
+        } else {
+          SettingsAppInfoPanel()
+            .transition(TVProfileSettingsView.panelTransition)
+        }
+      }
+      .animation(.smooth(duration: 0.3), value: focusedCategory == nil)
+    } content: {
+      // One list, not one group per row: these are siblings.
+      SettingsSection {
+        ForEach(TVSettingsCategory.allCases) { category in
+          Button {
+            onSelect(category)
+          } label: {
+            SettingsPillLabel(title: category.titleKey, showsChevron: true)
+          }
+          .buttonStyle(SettingsPillButtonStyle())
+          .focused($focusedCategory, equals: category)
+        }
+      }
+    }
+    .defaultFocus($focusedCategory, .account)
+  }
+}
+
+// MARK: - Categories
+
+/// tvOS's own catalogue: the iOS / macOS one (`SettingsCategory`) still carries demo panes
+/// that have nothing behind them, and a TV page with nothing focusable on it is a trap.
+private enum TVSettingsCategory: String, CaseIterable, Identifiable, Hashable {
+  case account
+  case server
+  case device
+  case videoAudio
+  case appearance
+  case dataSources
+  case advanced
+  case experiments
+  case developer
+  case about
+
+  var id: String { rawValue }
+
+  var titleKey: LocalizedStringKey {
+    switch self {
+    case .account: "Kinopub account"
+    case .server: "Server & connection"
+    case .device: "Device"
+    case .videoAudio: "Video & audio"
+    case .appearance: "Appearance"
+    case .dataSources: "Data sources"
+    case .advanced: "Advanced"
+    case .experiments: "Feature flags"
+    case .developer: "For developers"
+    case .about: "About"
+    }
+  }
+
+  var symbol: String {
+    switch self {
+    case .account: "person.crop.circle"
+    case .server: "server.rack"
+    case .device: "appletv"
+    case .videoAudio: "play.rectangle"
+    case .appearance: "paintbrush"
+    case .dataSources: "square.stack.3d.up"
+    case .advanced: "gearshape.2"
+    case .experiments: "flask"
+    case .developer: "hammer"
+    case .about: "info.circle"
+    }
+  }
+
+  var tipKey: LocalizedStringKey {
+    switch self {
+    case .account: "Settings_Tip_Account"
+    case .server: "Settings_Tip_Server"
+    case .device: "Settings_Tip_Device"
+    case .videoAudio: "Settings_Tip_VideoAudio"
+    case .appearance: "Settings_Tip_Appearance"
+    case .dataSources: "Settings_Tip_DataSourcesCategory"
+    case .advanced: "Settings_Tip_Advanced"
+    case .experiments: "Settings_Tip_Experiments"
+    case .developer: "Settings_Tip_Developer"
+    case .about: "Settings_Tip_About"
+    }
+  }
+
+  var usesDeviceSettings: Bool {
+    self == .server || self == .device
+  }
+}
+
+/// Developer tools — labs, galleries, probes. Listed in every build.
+private enum TVSettingsLab: String, CaseIterable, Identifiable, Hashable {
+  case playerCases
+  case tvUIKitGallery
+  case navFocusLab
+  case libraryLab
+  case typeStyles
+  case streamSurvey
+
+  var id: String { rawValue }
+
+  var titleKey: LocalizedStringKey {
+    switch self {
+    case .playerCases: "Player cases"
+    case .tvUIKitGallery: "TVUIKit Gallery"
+    case .navFocusLab: "Navigation / Focus Lab"
+    case .libraryLab: "Library Sidebar Lab"
+    case .typeStyles: "Type Styles"
+    case .streamSurvey: "Stream survey"
+    }
+  }
+
+  @MainActor @ViewBuilder
+  var page: some View {
+    switch self {
+    case .playerCases: PlayerCasesView()
+    case .tvUIKitGallery: TVUIKitComponentGalleryView()
+    case .navFocusLab: NavigationFocusLabView()
+    case .libraryLab: LibrarySidebarLabView()
+    case .typeStyles: SystemTypeStylesCatalogView()
+    case .streamSurvey: StreamSurveyView()
+    }
+  }
+}
+
+/// Where metadata comes from — the tvOS rows of `DataSourcesAttributionView`.
+private enum TVDataSource: String, CaseIterable, Identifiable, Hashable {
+  case tmdb
+  case kinopoiskProxy
+  case kinopoiskUnofficial
+
+  var id: String { rawValue }
+
+  /// The keyed Kinopoisk API is only a source once the user's key has validated.
+  static var current: [TVDataSource] {
+    allCases.filter { $0 != .kinopoiskUnofficial || KinopoiskKeyValidation.isValidated }
+  }
+
+  var titleKey: LocalizedStringKey {
+    switch self {
+    case .tmdb: "TMDB"
+    case .kinopoiskProxy: "Kinopoisk"
+    case .kinopoiskUnofficial: "Kinopoisk Unofficial API"
+    }
+  }
+
+  var host: String {
+    switch self {
+    case .tmdb: "themoviedb.org"
+    case .kinopoiskProxy: "kpapp.link"
+    case .kinopoiskUnofficial: "kinopoiskapiunofficial.tech"
+    }
+  }
+
+  var tipKey: LocalizedStringKey {
+    switch self {
+    case .tmdb: "Settings_Tip_DataSources"
+    case .kinopoiskProxy:
+      "Facts, stills, reviews and some cast details come from a third-party Kinopoisk data proxy (kpapp.link), not an official Kinopoisk product."
+    case .kinopoiskUnofficial:
+      "Awards and richer metadata also use your own Kinopoisk Unofficial API key (kinopoiskapiunofficial.tech)."
+    }
   }
 }
 
 // MARK: - Split chrome
 
-/// Full-width optional title + 50/50 left tip panel and right list.
-private struct SettingsSplitLayout<Content: View>: View {
+/// 50/50 left panel and right list. A pushed page's title sits where the tab bar was.
+///
+/// Not `.navigationTitle`: on tvOS the system bar is laid out under the hidden tab bar's
+/// top inset, which put the title a tab bar's height down, level with the list (tvOS 27.2
+/// simulator). The system bar is hidden instead and the title drawn in the tab bar's band.
+private struct SettingsSplitLayout<Leading: View, Content: View>: View {
   let title: LocalizedStringKey?
-  let pageSymbol: String
-  let tipKey: LocalizedStringKey
+  @ViewBuilder var leading: () -> Leading
   @ViewBuilder var content: () -> Content
 
   var body: some View {
-    VStack(spacing: 0) {
-      if let title {
-        Text(title)
-          .font(.system(size: Metrics.titlePointSize, weight: .bold))
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity)
-          .padding(.top, Metrics.titleTopPadding)
-          .padding(.bottom, Metrics.titleBottomPadding)
-      }
-
-      HStack(alignment: .top, spacing: 0) {
-        SettingsLeftPanel(symbol: pageSymbol, tipKey: tipKey)
-          .frame(maxWidth: .infinity)
-
-        ScrollView {
-          VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
-            content()
-          }
-          .padding(.horizontal, Metrics.listHorizontalPadding)
-          .padding(.top, title == nil ? Metrics.listTopPaddingRoot : Metrics.listTopPaddingPushed)
-          .padding(.bottom, Metrics.listBottomPadding)
-          .frame(maxWidth: .infinity, alignment: .leading)
+    if let title {
+      split
+        .toolbar(.hidden, for: .navigationBar)
+        .overlay(alignment: .top) {
+          Text(title)
+            .font(.title3.weight(.bold))
+            .foregroundStyle(.secondary)
+            .padding(.top, Metrics.titleTopInset)
+            .ignoresSafeArea(.container, edges: .top)
         }
+    } else {
+      split
+    }
+  }
+
+  private var split: some View {
+    HStack(alignment: .top, spacing: 0) {
+      leading()
+        .padding(.top, topPadding)
         .frame(maxWidth: .infinity)
+
+      ScrollView {
+        VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
+          content()
+        }
+        .padding(.horizontal, Metrics.listHorizontalPadding)
+        .padding(.top, topPadding)
+        .padding(.bottom, Metrics.listBottomPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
+      .frame(maxWidth: .infinity)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
+
+  /// Both columns start on one line.
+  private var topPadding: CGFloat {
+    title == nil ? Metrics.listTopPaddingRoot : Metrics.listTopPaddingPushed
+  }
 }
 
-/// Page icon is fixed; only the tip text crossfades when focus moves.
+private extension SettingsSplitLayout where Leading == SettingsLeftPanel {
+  /// A page whose left panel is its icon plus a tip.
+  init(title: LocalizedStringKey?,
+       pageSymbol: String,
+       tipKey: LocalizedStringKey,
+       @ViewBuilder content: @escaping () -> Content) {
+    self.init(title: title,
+              leading: { SettingsLeftPanel(symbol: pageSymbol, tipKey: tipKey) },
+              content: content)
+  }
+}
+
+/// Icon over tip. When either changes it shifts in sideways, never crossfades.
 private struct SettingsLeftPanel: View {
   let symbol: String
   let tipKey: LocalizedStringKey
 
   var body: some View {
     VStack(spacing: Metrics.previewSpacing) {
-      Image(systemName: symbol)
-        .font(.system(size: Metrics.iconPointSize, weight: .medium))
-        .foregroundStyle(.secondary)
-        .frame(width: Metrics.iconFrame, height: Metrics.iconFrame)
+      ZStack {
+        Image(systemName: symbol)
+          .font(.system(size: Metrics.iconPointSize, weight: .medium))
+          .foregroundStyle(.secondary)
+          .id(symbol)
+          .transition(TVProfileSettingsView.panelTransition)
+      }
+      .frame(width: Metrics.iconFrame, height: Metrics.iconFrame)
+      .background(
+        RoundedRectangle(cornerRadius: Metrics.iconCornerRadius, style: .continuous)
+          .fill(.fill.tertiary)
+      )
+      .clipShape(RoundedRectangle(cornerRadius: Metrics.iconCornerRadius, style: .continuous))
+
+      ZStack(alignment: .top) {
+        Text(tipKey)
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity)
+          .id(tipID)
+          .transition(TVProfileSettingsView.panelTransition)
+      }
+      .frame(minHeight: Metrics.tipMinHeight, alignment: .top)
+      .padding(.horizontal, Metrics.tipHorizontalPadding)
+      .clipped()
+    }
+    .animation(.smooth(duration: 0.3), value: symbol)
+    .animation(.smooth(duration: 0.3), value: tipID)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .padding(.horizontal, Metrics.previewSidePadding)
+  }
+
+  /// `LocalizedStringKey` is not `Hashable`; its description is stable per key.
+  private var tipID: String { String(describing: tipKey) }
+}
+
+/// The left panel while nothing in the list has focus, and on About: the app's own
+/// plate, its version and build, and what changed in this build.
+private struct SettingsAppInfoPanel: View {
+  var showsReleaseNotes = true
+
+  var body: some View {
+    VStack(spacing: Metrics.previewSpacing) {
+      Image("kinopub_icon")
+        .resizable()
+        .scaledToFit()
+        .frame(width: Metrics.appLogoSize, height: Metrics.appLogoSize)
+        .frame(width: Metrics.appPlateWidth, height: Metrics.appPlateHeight)
+        // Brand, not chrome: the mark is drawn on a black disc, so the plate is black too.
         .background(
-          RoundedRectangle(cornerRadius: Metrics.iconCornerRadius, style: .continuous)
-            .fill(Color.KinoPub.selectionBackground)
+          RoundedRectangle(cornerRadius: Metrics.appPlateCornerRadius, style: .continuous)
+            .fill(.black)
         )
 
-      Text(tipKey)
-        .font(.system(size: Metrics.tipPointSize))
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: Metrics.tipMinHeight, alignment: .top)
-        .padding(.horizontal, Metrics.tipHorizontalPadding)
-        .animation(.easeOut(duration: 0.25), value: String(describing: tipKey))
+      VStack(spacing: 8) {
+        Text("KinoPub")
+          .font(.title3.weight(.bold))
+        Text(SettingsAppInfoPanel.versionLine)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      if showsReleaseNotes, let notes = Bundle.main.releaseNotes {
+        Text(verbatim: notes)
+          .font(.callout)
+          .multilineTextAlignment(.center)
+          .lineLimit(Metrics.releaseNotesLineLimit)
+          .padding(.horizontal, Metrics.tipHorizontalPadding)
+      }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .padding(.top, Metrics.previewTopPadding)
     .padding(.horizontal, Metrics.previewSidePadding)
+  }
+
+  static var versionLine: LocalizedStringKey {
+    "Version \(Bundle.main.appVersionLong) • Build \(Bundle.main.appBuild)"
   }
 }
 
 private struct SettingsSection<Content: View>: View {
-  let title: LocalizedStringKey
+  let title: Text?
   @ViewBuilder var content: () -> Content
 
-  init(_ title: LocalizedStringKey, @ViewBuilder content: @escaping () -> Content) {
-    self.title = title
+  init(_ title: LocalizedStringKey? = nil, @ViewBuilder content: @escaping () -> Content) {
+    self.title = title.map { Text($0) }
+    self.content = content
+  }
+
+  init(verbatim title: String, @ViewBuilder content: @escaping () -> Content) {
+    self.title = Text(verbatim: title)
     self.content = content
   }
 
   var body: some View {
     VStack(alignment: .leading, spacing: Metrics.rowSpacing) {
-      Text(title)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .textCase(.uppercase)
-        .padding(.horizontal, Metrics.pillHorizontalPadding)
-        .padding(.bottom, 4)
+      if let title {
+        title
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .textCase(.uppercase)
+          .padding(.horizontal, Metrics.pillHorizontalPadding)
+          .padding(.bottom, 4)
+      }
       content()
     }
+  }
+}
+
+/// One category's page: its icon on the left with the focused row's tip — or the
+/// category's own when the row has none. About shows the app instead.
+private struct SettingsCategoryPage<Content: View>: View {
+  let category: TVSettingsCategory
+  @ViewBuilder var content: (FocusState<SettingsFocusItem?>.Binding) -> Content
+
+  @FocusState private var focused: SettingsFocusItem?
+
+  var body: some View {
+    SettingsSplitLayout(title: category.titleKey) {
+      if category == .about {
+        SettingsAppInfoPanel(showsReleaseNotes: false)
+      } else {
+        SettingsLeftPanel(symbol: category.symbol, tipKey: focused?.tipKey ?? category.tipKey)
+      }
+    } content: {
+      content($focused)
+    }
+    .background(Color.KinoPub.background.ignoresSafeArea())
+  }
+}
+
+// MARK: - What's new
+
+/// This build's notes, one focusable row per line — a block of text focus cannot reach
+/// cannot be scrolled on a remote.
+private struct TVReleaseNotesPage: View {
+  @FocusState private var focused: Int?
+
+  private let lines: [String] = (Bundle.main.releaseNotes ?? "")
+    .split(whereSeparator: \.isNewline)
+    .map { line in
+      var line = line.trimmingCharacters(in: .whitespaces)
+      if line.hasPrefix("- ") || line.hasPrefix("• ") { line.removeFirst(2) }
+      return line
+    }
+    .filter { !$0.isEmpty }
+
+  var body: some View {
+    SettingsSplitLayout(title: "What's new") {
+      SettingsAppInfoPanel(showsReleaseNotes: false)
+    } content: {
+      SettingsSection {
+        if lines.isEmpty {
+          SettingsInfoRow(title: "A local build carries no release notes. TestFlight builds show their What to Test text here.")
+            .focused($focused, equals: 0)
+        } else {
+          ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+            SettingsInfoRow(title: "", verbatimTitle: line)
+              .focused($focused, equals: index)
+          }
+        }
+      }
+    }
+    .background(Color.KinoPub.background.ignoresSafeArea())
+    .defaultFocus($focused, 0)
   }
 }
 
 // MARK: - Routes / focus / tips
 
 private enum SettingsRoute: Hashable {
+  case category(TVSettingsCategory)
   case language
   case secondSubtitleLanguage
   case streamQuality
+  case streamType
+  case serverLocation
+  case rememberedTracks
+  case releaseNotes
   case kinopoisk
   case networkLog
-  case featureFlags
-#if DEBUG
-  case streamSurvey
-  case typeStyles
-  case tvUIKitGallery
-  case navFocusLab
-  case libraryLab
-  case playerCases
-#endif
+  case lab(TVSettingsLab)
 }
 
+/// One case per focusable row on a page — never one value shared by siblings (the
+/// pattern `.claude/skills/tvos-surface/SKILL.md` bans: the engine cannot tell which of
+/// them is focused). Payloads only keep siblings apart.
 private enum SettingsFocusItem: Hashable {
   case language
   case streamQuality
+  case rememberedTracks
   case englishSubs
   case nonCC
   case dual
   case secondLang
+  case streamType
+  case serverLocation
+  case capability(String)
+  case info(String)
+  case retry
   case kinopoisk
-  case dataSources
+  case source(TVDataSource)
   case logout
-  /// The payload only keeps sibling rows from sharing one focus value — see the note
-  /// on `diagnosticsRow`. Every diagnostics row still shows the same tip.
-  case diagnostics(String)
-}
+  case networkLog
+  case streamToPulse
+  case activityOverlay
+  case releaseNotes
+  case lab(TVSettingsLab)
 
-private struct SettingsTip {
-  let messageKey: LocalizedStringKey
-
-  static func tip(for item: SettingsFocusItem?) -> SettingsTip {
-    switch item {
-    case .language:
-      return SettingsTip(messageKey: "Settings_Tip_Language")
-    case .streamQuality:
-      return SettingsTip(messageKey: "Settings_Tip_StreamQuality")
-    case .englishSubs:
-      return SettingsTip(messageKey: "Settings_Tip_EnglishSubtitles")
-    case .nonCC:
-      return SettingsTip(messageKey: "Settings_Tip_PreferNonCC")
-    case .dual:
-      return SettingsTip(messageKey: "Settings_Tip_DualSubtitles")
-    case .secondLang:
-      return SettingsTip(messageKey: "Settings_Tip_SecondLanguage")
-    case .kinopoisk:
-      return SettingsTip(messageKey: "Settings_Tip_Kinopoisk")
-    case .dataSources:
-      return SettingsTip(messageKey: "Settings_Tip_DataSources")
-    case .logout:
-      return SettingsTip(messageKey: "Settings_Tip_Logout")
-    case .diagnostics:
-      return SettingsTip(messageKey: "Settings_Tip_Diagnostics")
-    case nil:
-      return SettingsTip(messageKey: "Settings_Tip_Default")
+  /// The row's own tip; `nil` falls back to its category's.
+  var tipKey: LocalizedStringKey? {
+    switch self {
+    case .language: "Settings_Tip_Language"
+    case .streamQuality: "Settings_Tip_StreamQuality"
+    case .rememberedTracks: "Settings_Tip_RememberedTracks"
+    case .englishSubs: "Settings_Tip_EnglishSubtitles"
+    case .nonCC: "Settings_Tip_PreferNonCC"
+    case .dual: "Settings_Tip_DualSubtitles"
+    case .secondLang: "Settings_Tip_SecondLanguage"
+    case .capability: "Settings_Tip_DeviceCapabilities"
+    case .kinopoisk: "Settings_Tip_Kinopoisk"
+    case .source(let source): source.tipKey
+    case .logout: "Settings_Tip_Logout"
+    case .networkLog: "Settings_Tip_NetworkLog"
+    case .streamToPulse: "Settings_Tip_StreamToPulse"
+    case .activityOverlay: "Settings_Tip_ActivityOverlay"
+    case .lab(.streamSurvey): "Settings_Tip_Diagnostics"
+    case .streamType, .serverLocation, .info, .retry, .releaseNotes, .lab: nil
     }
   }
 }
 
 // MARK: - Pill pieces
 
+/// Title, then an optional value, checkmark or chevron. Colours are the hierarchical
+/// styles only: on the focused plate (`.primary`) the label takes the inverse,
+/// `.background`, so it reads in dark and light alike.
 private struct SettingsPillLabel: View {
   let title: LocalizedStringKey
   var verbatimTitle: String? = nil
@@ -494,23 +982,26 @@ private struct SettingsPillLabel: View {
   var body: some View {
     HStack(spacing: 16) {
       titleText
-        .foregroundStyle(titleColor)
+        .foregroundStyle(titleStyle)
+        .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
       if let value {
         Text(verbatim: value)
-          .foregroundStyle(valueColor)
+          .foregroundStyle(valueStyle)
+          // One line, so the capsule keeps even ends; a long value truncates.
+          .lineLimit(1)
       }
       if showsCheckmark {
         Image(systemName: "checkmark")
-          .font(.body.weight(.semibold))
-          .foregroundStyle(valueColor)
+          .foregroundStyle(valueStyle)
       }
       if showsChevron {
         Image(systemName: "chevron.right")
           .font(.caption.weight(.semibold))
-          .foregroundStyle(valueColor)
+          .foregroundStyle(valueStyle)
       }
     }
+    .font(.headline)
   }
 
   @ViewBuilder
@@ -522,15 +1013,29 @@ private struct SettingsPillLabel: View {
     }
   }
 
-  private var titleColor: Color {
-    if isFocused { return .black }
-    if isDestructive { return .red }
-    return .primary
+  private var titleStyle: AnyShapeStyle {
+    if isFocused { return AnyShapeStyle(.background) }
+    if isDestructive { return AnyShapeStyle(.red) }
+    return AnyShapeStyle(.primary)
   }
 
-  private var valueColor: Color {
-    if isFocused { return .black.opacity(0.55) }
-    return .secondary
+  private var valueStyle: AnyShapeStyle {
+    isFocused ? AnyShapeStyle(.background.secondary) : AnyShapeStyle(.secondary)
+  }
+}
+
+/// A read-only row. Still a focus stop: it is how the remote reaches — and the page
+/// scrolls to — what it says. Select does nothing.
+private struct SettingsInfoRow: View {
+  let title: LocalizedStringKey
+  var verbatimTitle: String? = nil
+  var value: String? = nil
+
+  var body: some View {
+    Button {} label: {
+      SettingsPillLabel(title: title, verbatimTitle: verbatimTitle, value: value)
+    }
+    .buttonStyle(SettingsPillButtonStyle())
   }
 }
 
@@ -549,13 +1054,14 @@ private struct SettingsPillButtonStyle: ButtonStyle {
         .padding(.horizontal, Metrics.pillHorizontalPadding)
         .padding(.vertical, Metrics.pillVerticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-          Capsule(style: .continuous)
-            .fill(isFocused ? .primary : Color.KinoPub.selectionBackground)
-        )
+        .background(plate, in: Capsule(style: .continuous))
         .scaleEffect(isFocused ? 1.02 : (configuration.isPressed ? 0.98 : 1.0))
         .opacity(isEnabled ? 1.0 : 0.4)
         .animation(.easeOut(duration: 0.2), value: isFocused)
+    }
+
+    private var plate: AnyShapeStyle {
+      isFocused ? AnyShapeStyle(.primary) : AnyShapeStyle(.fill.tertiary)
     }
   }
 }
@@ -611,7 +1117,7 @@ private struct SettingsChoiceView: View {
 /// Every `FeatureFlag` that matters on tvOS, as the pills the rest of Settings uses. The
 /// left panel explains the focused one. The iOS / macOS half is `FeatureFlagsView`.
 private struct TVFeatureFlagsPage: View {
-  /// One focus value per row — never one shared case (see `diagnosticsRow`).
+  /// One focus value per row — never one shared case (see `SettingsFocusItem`).
   private enum Row: Hashable {
     case flag(FeatureFlag)
     case quit
@@ -699,7 +1205,7 @@ private struct TVKinopoiskKeyView: View {
         .padding(.vertical, Metrics.pillVerticalPadding)
         .background(
           Capsule(style: .continuous)
-            .fill(isFieldFocused ? .primary: Color.KinoPub.selectionBackground)
+            .fill(isFieldFocused ? AnyShapeStyle(.fill.secondary) : AnyShapeStyle(.fill.tertiary))
         )
         .focused($isFieldFocused)
 
@@ -712,7 +1218,7 @@ private struct TVKinopoiskKeyView: View {
       .disabled(!model.isValidateEnabled)
 
       Text(model.statusText)
-        .font(.system(size: Metrics.tipPointSize))
+        .font(.callout)
         .foregroundStyle(.secondary)
         .padding(.horizontal, Metrics.pillHorizontalPadding)
         .fixedSize(horizontal: false, vertical: true)
@@ -722,46 +1228,65 @@ private struct TVKinopoiskKeyView: View {
   }
 }
 
-// MARK: - Metrics
 
-/// The tvOS half of `TrackMemorySections`. Same digest, same order; plain text because
-/// nothing here is actionable, and a focusable row that does nothing is a trap on a remote.
-private struct TVTrackMemoryList: View {
+// MARK: - Remembered tracks destination
 
-  @State private var sections: [TrackPreferenceDigest.Section] = []
+/// The tvOS half of `TrackMemorySections`: same digest, same order. One section per
+/// title, one focusable row per scope with its leading choice — the full ladder is noise
+/// at ten feet.
+private struct TVRememberedTracksPage: View {
+  private struct Row: Identifiable {
+    let id: String
+    let scope: String
+    let choice: String
+  }
 
-  private static let maxSections = 6
+  private struct Group: Identifiable {
+    let id: String
+    let title: String
+    let rows: [Row]
+  }
+
+  @State private var groups: [Group] = []
+  @FocusState private var focused: String?
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      if sections.isEmpty {
-        Text("Nothing remembered yet. Pick a dub or a subtitle track in the player and it will show up here.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+    SettingsSplitLayout(title: "Remembered tracks",
+                        pageSymbol: "captions.bubble",
+                        tipKey: "Settings_Tip_RememberedTracks") {
+      if groups.isEmpty {
+        SettingsSection {
+          SettingsInfoRow(title: "Nothing remembered yet. Pick a dub or a subtitle track in the player and it will show up here.")
+            .focused($focused, equals: "empty")
+        }
       } else {
-        ForEach(Array(sections.prefix(Self.maxSections)), id: \.titleID) { section in
-          VStack(alignment: .leading, spacing: 2) {
-            Text(title(for: section))
-              .font(.caption)
-            ForEach(Array(lines(for: section).enumerated()), id: \.offset) { _, line in
-              Text(line)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+        ForEach(groups) { group in
+          SettingsSection(verbatim: group.title) {
+            ForEach(group.rows) { row in
+              SettingsInfoRow(title: "", verbatimTitle: row.scope, value: row.choice)
+                .focused($focused, equals: row.id)
             }
           }
         }
       }
     }
+    .background(Color.KinoPub.background.ignoresSafeArea())
     .onAppear {
-      sections = TrackPreferenceDigest.sections(from: AppContext.shared.trackPreferences.storedScopes)
-    }
-  }
-
-  /// One line per scope, leader only: on a 10-foot screen the full ladder is noise.
-  private func lines(for section: TrackPreferenceDigest.Section) -> [String] {
-    section.groups.compactMap { group in
-      guard let leader = group.audio.first ?? group.subtitles.first else { return nil }
-      return "\(scopeLabel(for: group.scope)) — \(leader.label) · \(leader.weight)"
+      groups = TrackPreferenceDigest.sections(from: AppContext.shared.trackPreferences.storedScopes)
+        .enumerated()
+        .map { index, section in
+          Group(
+            id: "\(index)",
+            title: title(for: section),
+            rows: section.groups.enumerated().compactMap { rowIndex, group in
+              guard let leader = group.audio.first ?? group.subtitles.first else { return nil }
+              return Row(id: "\(index).\(rowIndex)",
+                         scope: scopeLabel(for: group.scope),
+                         choice: "\(leader.label) · \(leader.weight)")
+            }
+          )
+        }
+        .filter { !$0.rows.isEmpty }
     }
   }
 
@@ -785,23 +1310,28 @@ private struct TVTrackMemoryList: View {
   }
 }
 
+// MARK: - Metrics
+
 private enum Metrics {
-  // Title spans the full page (not the list column).
-  static let titlePointSize: CGFloat = 48
-  static let titleTopPadding: CGFloat = 20
-  static let titleBottomPadding: CGFloat = 12
+  // A pushed page's title, from the top of the screen: the tab bar's band.
+  static let titleTopInset: CGFloat = 52
 
   // Left panel — icon stays put; tip text has a reserved height so focus
   // changes don't reflow the stack.
-  static let previewTopPadding: CGFloat = 72
   static let previewSidePadding: CGFloat = 40
   static let previewSpacing: CGFloat = 28
   static let iconFrame: CGFloat = 260
   static let iconPointSize: CGFloat = 100
   static let iconCornerRadius: CGFloat = 52
-  static let tipPointSize: CGFloat = 28
   static let tipMinHeight: CGFloat = 120
   static let tipHorizontalPadding: CGFloat = 24
+
+  // App plate on the left panel — a TV icon's 5:3, the mark inside it.
+  static let appPlateWidth: CGFloat = 400
+  static let appPlateHeight: CGFloat = 240
+  static let appPlateCornerRadius: CGFloat = 44
+  static let appLogoSize: CGFloat = 132
+  static let releaseNotesLineLimit = 8
 
   // Right list fills its half; only inset, no fixed width clamp.
   static let listHorizontalPadding: CGFloat = 32
@@ -812,7 +1342,6 @@ private enum Metrics {
   static let rowSpacing: CGFloat = 12
   static let pillHorizontalPadding: CGFloat = 28
   static let pillVerticalPadding: CGFloat = 18
-  static let infoVerticalPadding: CGFloat = 14
 }
 
 #endif
