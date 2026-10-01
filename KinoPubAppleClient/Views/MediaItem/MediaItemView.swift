@@ -67,6 +67,10 @@ struct MediaItemView: View {
 
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(NavigationState.self) var navigationState
+#if os(tvOS)
+  /// The stack's zoom sources, for the art of the card this page was opened from.
+  @Environment(\.zoomSourceStore) private var zoomSources
+#endif
   @StateObject private var itemModel: MediaItemModel
   /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
   @StateObject private var trailer: TrailerPreviewModel
@@ -219,9 +223,40 @@ struct MediaItemView: View {
         // takes the topmost focusable element. The hero also names Play in its `.task`.
         .defaultFocus($focus, .play, priority: .userInitiated)
     } else {
+#if os(tvOS)
+      loadingArt
+#else
+      Color.clear
+#endif
+    }
+  }
+
+#if os(tvOS)
+  /// Until the item loads the page has nothing to draw, and the zoom out of the card
+  /// grew an empty frame. It opens on the card's own picture instead, blurred to its
+  /// colours, and the hero's artwork lands over it.
+  @ViewBuilder
+  private var loadingArt: some View {
+    if let url = zoomSources?.art(for: "media-\(itemModel.mediaItemId)") {
+      GeometryReader { geometry in
+        let buffer = CGSize(width: 160, height: 90)
+        let scale = max(geometry.size.width / buffer.width,
+                        geometry.size.height / buffer.height) * 1.05
+        CachedRemoteImage(url: url, contentMode: .fill)
+          .frame(width: buffer.width, height: buffer.height)
+          .clipped()
+          .blur(radius: 10, opaque: true)
+          .scaleEffect(scale)
+          .frame(width: geometry.size.width, height: geometry.size.height)
+          .clipped()
+      }
+      .ignoresSafeArea()
+      .accessibilityHidden(true)
+    } else {
       Color.clear
     }
   }
+#endif
 
   /// One native vertical scroll: the hero, its artwork and the sections below are one
   /// view and focus graph, and the focus engine scrolls it. The only scroll this page

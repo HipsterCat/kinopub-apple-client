@@ -11,7 +11,7 @@
 import SwiftUI
 import UIKit
 
-public struct TVPage: UIViewControllerRepresentable {
+public struct TVPage: View {
   public let sections: [TVPageSection]
   public let status: TVPageStatus
   /// Leading/trailing content inset. 80 for a full-width page; a pane beside a
@@ -45,25 +45,52 @@ public struct TVPage: UIViewControllerRepresentable {
     self.prefersFirstPosterFocus = prefersFirstPosterFocus
   }
 
-  public func makeUIViewController(context: Context) -> TVPageCollectionViewController {
-    let controller = TVPageCollectionViewController(sideInset: sideInset,
-                                                    prefersFirstPosterFocus: prefersFirstPosterFocus)
+  /// Present when the enclosing stack offers the zoom transition (`RouteStack(zoom:)`).
+  @Environment(\.zoomSourceStore) private var zoomSources
+  @Environment(\.zoomTransitionNamespace) private var zoomNamespace
+  @State private var zoomOwner = UUID()
+
+  public var body: some View {
+    TVPageRepresentable(page: self, onZoomSource: zoomSourceReporter)
+      .overlay(alignment: .topLeading) {
+        if let zoomSources, let zoomNamespace {
+          TVZoomSourceOverlay(store: zoomSources, owner: zoomOwner, namespace: zoomNamespace)
+        }
+      }
+  }
+
+  private var zoomSourceReporter: ((String, CGRect, URL?) -> Void)? {
+    guard let zoomSources, zoomNamespace != nil else { return nil }
+    let owner = zoomOwner
+    return { id, frame, art in zoomSources.register(id: id, frame: frame, owner: owner, art: art) }
+  }
+}
+
+/// The collection itself. `TVPage` wraps it so the zoom source can sit over it in SwiftUI.
+private struct TVPageRepresentable: UIViewControllerRepresentable {
+  let page: TVPage
+  let onZoomSource: ((String, CGRect, URL?) -> Void)?
+
+  func makeUIViewController(context: Context) -> TVPageCollectionViewController {
+    let controller = TVPageCollectionViewController(sideInset: page.sideInset,
+                                                    prefersFirstPosterFocus: page.prefersFirstPosterFocus)
     bind(controller)
-    controller.apply(sections: sections, status: status, animated: false)
+    controller.apply(sections: page.sections, status: page.status, animated: false)
     return controller
   }
 
-  public func updateUIViewController(_ controller: TVPageCollectionViewController, context: Context) {
+  func updateUIViewController(_ controller: TVPageCollectionViewController, context: Context) {
     bind(controller)
-    controller.apply(sections: sections, status: status, animated: true)
+    controller.apply(sections: page.sections, status: page.status, animated: true)
   }
 
   private func bind(_ controller: TVPageCollectionViewController) {
-    controller.accessibilityID = accessibilityID
-    controller.onSelect = onSelect
-    controller.onNearEnd = onNearEnd
-    controller.contextMenuProvider = contextMenuProvider
-    controller.onRetry = onRetry
+    controller.accessibilityID = page.accessibilityID
+    controller.onSelect = page.onSelect
+    controller.onNearEnd = page.onNearEnd
+    controller.contextMenuProvider = page.contextMenuProvider
+    controller.onRetry = page.onRetry
+    controller.onZoomSource = onZoomSource
   }
 }
 #endif

@@ -477,6 +477,11 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var scrollingBackdrop: some View {
     ZStack {
+      // The smallest poster, blurred and stretched: on screen the moment the page is,
+      // so the zoom in carries the title's own colours instead of an empty frame while
+      // the wide still decodes over it.
+      blurredPosterPlaceholder
+
       FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill)
         .onAppear {
 #if DEBUG
@@ -494,6 +499,25 @@ struct MediaItemHeroView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .clipped()
     .animation(.easeInOut(duration: 0.6), value: trailer.isReady)
+  }
+
+  /// A 120×180 raster blurred in place and scaled up to cover the frame. The scale comes
+  /// from the real container, so it covers a 16:9 screen; never `drawingGroup` a
+  /// full-bleed buffer here (that path was blowing past 1.5 GB with Home loaded).
+  private var blurredPosterPlaceholder: some View {
+    GeometryReader { geometry in
+      let buffer = CGSize(width: 120, height: 180)
+      let scale = max(geometry.size.width / buffer.width,
+                      geometry.size.height / buffer.height) * 1.05
+      CachedRemoteImage(url: URL(string: mediaItem.posters.small), contentMode: .fill)
+        .frame(width: buffer.width, height: buffer.height)
+        .clipped()
+        .blur(radius: 12, opaque: true)
+        .scaleEffect(scale)
+        .frame(width: geometry.size.width, height: geometry.size.height)
+        .clipped()
+    }
+    .accessibilityHidden(true)
   }
 
 #if os(tvOS)

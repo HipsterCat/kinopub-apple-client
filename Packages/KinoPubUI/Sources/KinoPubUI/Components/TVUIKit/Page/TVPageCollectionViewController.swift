@@ -35,6 +35,10 @@ public enum TVPageStatus: Equatable {
 public final class TVPageCollectionViewController: UIViewController {
 
   public var onSelect: ((TVPageSection, TVPageItem) -> Void)?
+  /// The card a push is about to zoom out of: its zoom id, its frame in this
+  /// controller's view, and the art it shows. Reported just before `onSelect`, and when a card's context menu
+  /// opens (its "Go to title" pushes the detail page). See `TVZoomSource`.
+  var onZoomSource: ((String, CGRect, URL?) -> Void)?
   /// A pull-down chip's option was picked: (chip id, option id).
   public var onChipOption: ((String, String) -> Void)?
   /// A multi-select pull-down closed with a new selection: (chip id, option ids).
@@ -590,7 +594,13 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
           let section = sectionsByID[id.section],
           let item = itemsByID[id] else { return }
     if case .placeholder = item { return }
+    reportZoomSource(id: item.zoomSourceID, at: indexPath)
     onSelect?(section, item)
+  }
+
+  private func reportZoomSource(id: String?, at indexPath: IndexPath) {
+    guard let onZoomSource, let id, let cell = collectionView.cellForItem(at: indexPath) else { return }
+    onZoomSource(id, cell.convert(cell.bounds, to: view), artworkURL(at: indexPath))
   }
 
   public func collectionView(_ collectionView: UICollectionView,
@@ -702,6 +712,9 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
           let card = itemsByID[id]?.card,
           let entries = contextMenuProvider?(card),
           !entries.isEmpty else { return nil }
+    // "Go to title" opens the title, not the card: an episode or a Continue Watching
+    // tile still zooms out of the tile it was opened from.
+    reportZoomSource(id: "media-\(card.itemID)", at: indexPath)
     return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
       TVUIKitContextMenuBuilder.menu(from: entries)
     }

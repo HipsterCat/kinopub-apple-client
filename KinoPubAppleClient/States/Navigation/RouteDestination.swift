@@ -112,19 +112,35 @@ struct RouteDestination: View {
 }
 
 /// Applies `navigationTransition(.zoom)` when a matched source namespace is present.
+///
+/// tvOS: only when a `TVPage` registered a source for this id (`TVZoomSourceStore`).
+/// Asking for a zoom with no source on screen is what made the card jump and vanish in
+/// one frame; every other push stays the plain system push.
 private struct ZoomDestinationModifier: ViewModifier {
   let route: Route
   let namespace: Namespace.ID?
 
+#if os(tvOS)
+  @Environment(\.zoomSourceStore) private var zoomSources
+#endif
+
   func body(content: Content) -> some View {
 #if os(iOS) || os(tvOS)
-    if let namespace, let sourceID = route.zoomSourceID {
+    if let namespace, let sourceID = route.zoomSourceID, hasSource(for: sourceID) {
       content.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
     } else {
       content
     }
 #else
     content
+#endif
+  }
+
+  private func hasSource(for sourceID: String) -> Bool {
+#if os(tvOS)
+    zoomSources?.hasSource(for: sourceID) ?? false
+#else
+    true
 #endif
   }
 }

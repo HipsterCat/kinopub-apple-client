@@ -5,6 +5,19 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS: cards zoom into the detail page (2026-10-01)
+
+Opening a title from Home (posters, Continue Watching, the banner, and "Go to title" in a
+card's menu) now uses the system zoom transition (`navigationTransition(.zoom)`, tvOS 18+):
+the page grows out of the card and shrinks back into it on Menu. SwiftUI's zoom needs a
+SwiftUI source and the cards are UIKit cells, so `TVPage` reports the selected cell's frame
+and lays a clear `matchedTransitionSource` view over it (`KinoPubUI/TVZoomSource.swift`); the
+cell itself is untouched, which is why the old iOS-only source modifier stays iOS-only.
+The destination used to request the zoom with no source on tvOS, which is what made the card
+jump and vanish in one frame; it now zooms only for an id a page registered and pushes
+plainly otherwise. While the item loads, the page shows the card's own art blurred, and the
+hero draws the small poster blurred under the wide still. **Not run on device yet.**
+
 ### tvOS Search: Down from the Search tab reaches the keyboard (2026-10-01)
 
 On tvOS 26.5/26.6, Down from the focused Search tab icon did nothing (Select still
