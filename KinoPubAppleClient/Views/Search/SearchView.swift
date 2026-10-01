@@ -637,7 +637,7 @@ enum TVSearchFilters {
   }
 
   @MainActor
-  static func row(catalog: LibraryCatalog, searching: Bool) -> TVPageSection {
+  static func row<Catalog: FilterBarDriver>(catalog: Catalog, searching: Bool) -> TVPageSection {
     let filter = catalog.filter
     let kinds = selectedKinds(filter)
     let genreAxis = kinds.contains { $0.axis == .genre }
@@ -893,7 +893,7 @@ enum TVSearchFilters {
   // MARK: Picks
 
   @MainActor
-  static func apply(chip: String, option: String, to catalog: LibraryCatalog) {
+  static func apply<Catalog: FilterBarDriver>(chip: String, option: String, to catalog: Catalog) {
     // Type, genre and country are multi-selects: they arrive whole, through
     // `applySelection`, when their menu closes.
     switch chip {
@@ -930,7 +930,7 @@ enum TVSearchFilters {
 
   /// A multi-select menu closed: its whole selection at once.
   @MainActor
-  static func applySelection(chip: String, selection: Set<String>, to catalog: LibraryCatalog) {
+  static func applySelection<Catalog: FilterBarDriver>(chip: String, selection: Set<String>, to catalog: Catalog) {
     let everything = selection.contains(any) || selection.isEmpty
     switch chip {
     case type:
@@ -964,7 +964,7 @@ enum TVSearchFilters {
   }
 
   @MainActor
-  private static func applyFacet(_ option: String, to catalog: LibraryCatalog) {
+  private static func applyFacet<Catalog: FilterBarDriver>(_ option: String, to catalog: Catalog) {
     let parts = option.split(separator: ".").map(String.init)
     if parts.count == 2, parts[0] == "status" {
       catalog.update { $0.finishedOnly = parts[1] == "finished" }

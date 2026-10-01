@@ -5,6 +5,16 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS collection and person pages use the search catalog (2026-10-01)
+
+Opening a collection, or a person's credits, is a `TVPage`: the search pull-down chips
+(`TVSearchFilters` — sort, filters, type, genre, rating, year, country) and the same
+6-column poster grid search uses while browsing. `/v1/collections/view` takes no
+parameters, so a collection applies those picks on the device
+(`LibraryFilter.locallyMatches`); the menus only offer genres and countries the
+collection holds. A person page is the same `/v1/items` catalog as search, scoped to
+the name, with the face beside it. iOS and macOS keep `LibraryFiltersBar`.
+
 ### tvOS Home banner: rich platters, title logos, looped (2026-10-01)
 
 The banner row is `TVPageSection.banner` of `TVPageItem.feature` items drawn by

@@ -10,27 +10,27 @@ import OSLog
 import KinoPubLogging
 import Combine
 
-/// The full collections browser: a paginated grid of curated collection covers
-/// (`GET /v1/collections`). Each cover opens that collection's item grid — no
-/// per-collection preview fetch (covers already ship on the list endpoint).
+/// The full collections browser: a paginated list of the curated collections
+/// (`GET /v1/collections`), rows without covers. Each row opens that collection's
+/// item grid — no per-collection preview fetch.
 @MainActor
 class CollectionsModel: ObservableObject {
 
-  @Published public private(set) var cards: [MediaCard] = []
+  @Published public private(set) var collections: [Collection] = []
   @Published public private(set) var isLoaded: Bool = false
   @Published public private(set) var loadFailed: Bool = false
   @Published public private(set) var loadError: Error?
   @Published public private(set) var paginationError: Bool = false
-  /// A page past the first is in flight. Published so the grid footer can say so —
+  /// A page past the first is in flight. Published so the list footer can say so —
   /// `isFetchingMore` below is the reentrancy guard and stays private.
   @Published public private(set) var isLoadingMore: Bool = false
 
-  /// What the grid footer should say.
+  /// What the list footer should say.
   var paginationState: PaginationState {
-    if isLoadingMore { return PaginationState(phase: .loading, loadedCount: cards.count) }
-    if paginationError { return PaginationState(phase: .failed, loadedCount: cards.count) }
+    if isLoadingMore { return PaginationState(phase: .loading, loadedCount: collections.count) }
+    if paginationError { return PaginationState(phase: .failed, loadedCount: collections.count) }
     guard let pagination, pagination.current >= pagination.total else { return .idle }
-    return PaginationState(phase: .complete, loadedCount: cards.count)
+    return PaginationState(phase: .complete, loadedCount: collections.count)
   }
 
   private var authState: AuthState
@@ -61,15 +61,14 @@ class CollectionsModel: ObservableObject {
     errorHandler.reset()
     isLoaded = false
     pagination = nil
-    cards = []
+    collections = []
     paginationError = false
     await loadFirstPage()
   }
 
-  /// Fires from `MediaCardsListView.onLoadMoreContent` — pages in more covers
-  /// once the last loaded card is on screen.
-  func loadMoreIfNeeded(after card: MediaCard) {
-    guard card.id == cards.last?.id,
+  /// Fires from the list's last row appearing — pages in more collections.
+  func loadMoreIfNeeded(after collection: Collection) {
+    guard collection.id == collections.last?.id,
           let pagination, pagination.current < pagination.total,
           !isFetchingMore else { return }
     Task { await fetchNextPage() }
@@ -84,7 +83,7 @@ class CollectionsModel: ObservableObject {
     do {
       let data = try await collectionsService.fetchCollections(page: nil, sort: "views-")
       pagination = data.pagination
-      cards = data.collections.map(CollectionMediaCard.make(from:))
+      collections = data.collections
       loadFailed = false
       loadError = nil
       paginationError = false
@@ -105,7 +104,7 @@ class CollectionsModel: ObservableObject {
     do {
       let data = try await collectionsService.fetchCollections(page: pagination.current + 1, sort: "views-")
       self.pagination = data.pagination
-      cards.append(contentsOf: data.collections.map(CollectionMediaCard.make(from:)))
+      collections.append(contentsOf: data.collections)
       paginationError = false
     } catch {
       Logger.app.debug("fetch more collections error: \(error)")

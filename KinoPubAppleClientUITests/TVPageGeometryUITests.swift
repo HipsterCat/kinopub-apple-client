@@ -530,6 +530,83 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "layout-5-right")
   }
 
+  /// The collections row is Watch Now's last row: Select on a collection card opens
+  /// the collection — the search catalog, pull-down chips over the poster grid.
+  func testCollectionPageFromHomeRow() throws {
+    let app = launchSignedIn()
+    // A cold install on a loaded machine loads Home slowly; the disk snapshot from a
+    // previous run paints it fast.
+    if !firstPoster(in: app, page: "home").waitForExistence(timeout: 240) {
+      try shoot(app, name: "collection-launch-failed")
+      XCTFail("Home never showed a poster")
+      return
+    }
+
+    // Walk to the bottom until focus stops moving — the collections row is last.
+    var lastFocusedID: String?
+    for _ in 0..<30 {
+      let focused = app.descendants(matching: .any)
+        .matching(NSPredicate(format: "hasFocus == true")).firstMatch
+      let id = focused.exists ? focused.identifier : nil
+      if let id, id == lastFocusedID { break }
+      lastFocusedID = id
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.7)
+    }
+    try shoot(app, name: "collection-0-home-bottom")
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 4)
+    try shoot(app, name: "collection-1-inside")
+
+    // Inside: the search chips over the collection's poster grid.
+    let page = app.collectionViews["kinopub.page.collection"]
+    XCTAssertTrue(page.waitForExistence(timeout: 15), "collection page never appeared")
+    XCTAssertTrue(app.descendants(matching: .any)["kinopub.chip.type"].waitForExistence(timeout: 5),
+                  "no search filter chips inside the collection")
+    let posters = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.poster."))
+    XCTAssertGreaterThan(posters.count, 0, "no poster grid inside the collection")
+    app.terminate()
+  }
+
+  /// A person page is the search catalog narrowed to one name: the credits grid with
+  /// the full filter bar, reached by Enter on a face in a title's cast rail.
+  func testPersonPageFromCastRail() throws {
+    let app = launchSignedIn()
+    XCTAssertTrue(firstPoster(in: app, page: "home").waitForExistence(timeout: 240),
+                  "Home never showed a poster")
+
+    // Open the first poster on Home — a Hot title with a cast.
+    for _ in 0..<6 where focusedPoster(in: app) == nil {
+      press(.down)
+    }
+    guard focusedPoster(in: app) != nil else {
+      return XCTFail("never focused a poster")
+    }
+    press(.select, wait: 5)
+    Thread.sleep(forTimeInterval: 6)
+    try shoot(app, name: "person-0-detail")
+
+    // The cast rail is the circles row on the detail page; walk until a face holds
+    // focus, then Enter opens the person's page.
+    let castRail = app.collectionViews["cast-rail"]
+    let focusedFace = castRail.cells
+      .matching(NSPredicate(format: "hasFocus == true")).firstMatch
+    for _ in 0..<24 where !focusedFace.exists {
+      press(.down, wait: 0.8)
+    }
+    XCTAssertTrue(focusedFace.waitForExistence(timeout: 5),
+                  "focus never reached the cast rail on the detail page")
+    try shoot(app, name: "person-1-cast-rail")
+    press(.select, wait: 4)
+    try shoot(app, name: "person-2-page")
+    XCTAssertTrue(app.collectionViews["kinopub.page.person"].waitForExistence(timeout: 15),
+                  "person page never appeared")
+    XCTAssertTrue(app.descendants(matching: .any)["kinopub.chip.type"].waitForExistence(timeout: 5),
+                  "no search filter chips on the person page")
+    app.terminate()
+  }
+
   private func launchSignedIn() -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark"]
