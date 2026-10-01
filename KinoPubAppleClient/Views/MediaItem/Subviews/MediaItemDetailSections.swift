@@ -859,6 +859,7 @@ private struct PortraitButtonStyle: ButtonStyle {
     var body: some View {
       configuration.label
         .scaleEffect(isFocused ? 1.05 : (configuration.isPressed ? 0.96 : 1.0))
+//        .scaleEffect(isFocused ? 1.05 : (configuration.isPressed ? 0.96 : 1.0))
         // Radius (not just opacity) changes with focus — SwiftUI has to re-render the
         // shadow's blur every tick, on every cast/crew circle in the row. Off on tvOS,
         // where this style backs a `LazyHGrid` of many simultaneously-visible circles.
@@ -2971,10 +2972,7 @@ struct MediaItemInfoColumns: View {
       // Equal share of the row — cards fill the page width instead of stacking to
       // the left at a fixed width.
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background {
-        RoundedRectangle(cornerRadius: MediaItemInfoColumns.cardCornerRadius, style: .continuous)
-          .fill(.thinMaterial)
-      }
+
     }
 
     @ViewBuilder
@@ -3348,13 +3346,13 @@ enum MediaItemLayout {
   static let horizontalInset: CGFloat = 80
   static let sectionSpacing: CGFloat = 44
   /// Clears focus lift under the info panel + safe area.
-  static let bottomPadding: CGFloat = 120
+  static let bottomPadding: CGFloat = 0
   /// Share of the viewport the hero occupies at rest — the remainder is the peek of
   /// the first section that says "there is more below". Expressed as a fraction, not
   /// a point inset, because that is the form Apple's tvOS layout guidance uses for a
   /// showcase header, and because it holds on any screen height rather than being
   /// tuned for one.
-  static let heroFraction: CGFloat = 0.8
+  static let heroFraction: CGFloat = 1
 #elseif os(macOS)
   static let horizontalInset: CGFloat = 32
   static let sectionSpacing: CGFloat = 28
@@ -3385,13 +3383,13 @@ private struct PlotFullHeightKey: PreferenceKey {
   }
 }
 
-/// The synopsis, clamped to a few lines and focusable as a single control. Selecting
-/// it opens the full text when truncated, rather than expanding in place and pushing
-/// the artwork around.
+/// The synopsis, clamped to a few lines. Selecting it opens the full text in the
+/// info popup rather than expanding in place.
 ///
-/// On tvOS it always takes focus (below the action row): Down from Play lands here,
-/// Up from here returns to Play, and Up from Play — with nothing above — opens the
-/// fullscreen trailer. Off tvOS it is only a button when there is more to read.
+/// On tvOS the paragraph is always a `.borderless` button: focus and Select belong
+/// to that button, and Select opens the popup. A `.focusable()` wrapper on top of
+/// it takes the focus itself, so the button never highlights and Select never
+/// presses it.
 struct MediaItemPlotView: View {
 
   let title: String
@@ -3399,12 +3397,6 @@ struct MediaItemPlotView: View {
   /// Shared with the other hero controls so focusing the plot does not count as
   /// leaving the hero (and killing the trailer).
   @FocusState.Binding var focus: MediaItemFocusTarget?
-  /// tvOS: false until one of the hero's actions has taken focus. The synopsis sits above
-  /// Play, and tvOS hands entry focus to the topmost focusable element whatever
-  /// `defaultFocus` asks for — Plozz hit the same thing with its breadcrumb and fixed it
-  /// the same way, by keeping the higher control out of the focus system until focus has
-  /// landed. `.focusable(false)`, not `.disabled`, so the text never looks inert.
-  var acceptsFocus: Bool = true
 
   /// The two heights the truncation decision is made from, kept as state so it is
   /// remade every time the layout changes — the old `ViewThatFits` probe latched
@@ -3414,6 +3406,7 @@ struct MediaItemPlotView: View {
   /// lets the answer go back to false when the text genuinely fits.
   @State private var fullHeight: CGFloat = 0
   @State private var clampedHeight: CGFloat = 0
+  @State private var isPresented = false
 
   /// The full copy needs more room than the clamped three lines leave it. A point of
   /// slack absorbs sub-pixel rounding so a paragraph that exactly fills the clamp is
@@ -3427,32 +3420,64 @@ struct MediaItemPlotView: View {
   var body: some View {
     content
       .frame(maxWidth: Self.maxWidth, alignment: .leading)
-      // Measured whichever branch is showing, so the decision keeps up with the plot
-      // changing and with the frame it is laid out in.
+      // Measured outside the button. The unclamped copy used to live in the label,
+      // and the tvOS focus effect snapshots that label — the full text is much
+      // taller than the six lines on screen, so the focus shape was a tall slab.
+      // .background { plotMeasurement }
       .onPreferenceChange(PlotClampedHeightKey.self) { clampedHeight = $0 }
       .onPreferenceChange(PlotFullHeightKey.self) { fullHeight = $0 }
   }
 
   /// Always the control, on every platform — the synopsis is the canonical "there is
-  /// more of this" surface, so it always opens rather than only when the clamp bit. It
-  /// used to be a dead press on tvOS whenever the text happened to fit, and plain
-  /// unfocusable copy off tvOS, which meant the same paragraph behaved two ways for a
-  /// reason the reader cannot see. The "More" hint still depends on truncation: that is
-  /// a statement about the text, not about whether the control exists.
+  /// more of this" surface, so it always opens rather than only when the clamp bit.
+  /// The "More" hint still depends on truncation: that is a statement about the text,
+  /// not about whether the control exists.
+  ///
+  /// On tvOS this is a `.borderless` button, the same style as a season tab. The
+  /// stock style paints its highlight onto the first `Image` in the label, so a
+  /// text-only paragraph gets nothing visible — `PlotParagraphLabel` draws the
+  /// plate itself, and only while that button is focused. `.hoverEffect(.lift)`
+  /// painted the same plate whether or not the button was focused. A
+  /// `.focusSection()` on the button kept Up from the action row from landing on
+  /// it. The inset sits inside the label so the plate clears the glyphs; the same
+  /// amount is removed outside the button so the lines under it do not move.
+  @ViewBuilder
   private var content: some View {
+#if os(tvOS)
+    Button {
+      isPresented = true
+    } label: {
+      PlotParagraphLabel(plot: plot, showsMore: isTruncated)
+    }
+    .focused($focus, equals: .plot)
+    .buttonStyle(.borderless)
+    .padding(.horizontal, -Self.focusInsetH)
+    .padding(.vertical, -Self.focusInsetV)
+    .accessibilityIdentifier("hero.plot")
+    .infoPopup(Text(title), isPresented: $isPresented) {
+      expandedPlot
+    }
+    // The sheet does not hand focus back to this button. Without this, Menu
+    // returns to whichever action happened to be focused earlier.
+    .onChange(of: isPresented) { _, presented in
+      if !presented { focus = .plot }
+    }
+#else
     paragraph(showsMore: isTruncated)
       .expandsIntoInfoPopup(title: Text(title), chrome: .text) {
-        Text(plot)
-          .font(InfoPopupMetrics.bodyFont)
-          .foregroundStyle(Color.KinoPub.text)
-          .multilineTextAlignment(.leading)
+        expandedPlot
       }
-      .focused($focus, equals: .plot)
-#if os(tvOS)
-      .focusable(acceptsFocus)
 #endif
   }
 
+  private var expandedPlot: some View {
+    Text(plot)
+      .font(InfoPopupMetrics.bodyFont)
+      .foregroundStyle(.primary)
+      .multilineTextAlignment(.leading)
+  }
+
+#if !os(tvOS)
   private func paragraph(showsMore: Bool) -> some View {
     HStack(alignment: .lastTextBaseline, spacing: 14) {
       Text(plot)
@@ -3461,33 +3486,7 @@ struct MediaItemPlotView: View {
         .lineLimit(Self.lineLimit)
         .multilineTextAlignment(.leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // The clamped text reports its own drawn height, and the same copy is measured
-        // unclamped in the same width beside it. Both are backgrounds of the visible
-        // line, so both are proposed the width it actually got — the width already
-        // narrowed by the "More" label when one is shown.
-        .background {
-          GeometryReader { geometry in
-            Color.clear.preference(key: PlotClampedHeightKey.self, value: geometry.size.height)
-          }
-        }
-        .background {
-          Text(plot)
-            .font(Self.font)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-              GeometryReader { geometry in
-                Color.clear.preference(key: PlotFullHeightKey.self, value: geometry.size.height)
-              }
-            }
-            .hidden()
-        }
 
-      // Only laid out when shown: with the plot fitting there is nothing more to read,
-      // so the label is gone rather than reserved-and-invisible — its width no longer
-      // narrows a paragraph that has room to spare. The whole synopsis control opens
-      // the sheet; this label is a hint, not a second button.
       if showsMore {
         Text("More")
           .font(Self.moreFont.weight(.semibold))
@@ -3496,6 +3495,37 @@ struct MediaItemPlotView: View {
       }
     }
   }
+#endif
+
+  /// Clamped and unclamped heights, proposed the synopsis width. Hidden, and not
+  /// part of the button label, so neither one changes what focus snapshots.
+  private var plotMeasurement: some View {
+    Text(plot)
+      .font(Self.font)
+      .lineLimit(Self.lineLimit)
+      .multilineTextAlignment(.leading)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .hidden()
+      .background {
+        GeometryReader { geometry in
+          Color.clear.preference(key: PlotClampedHeightKey.self, value: geometry.size.height)
+        }
+      }
+      .background {
+        Text(plot)
+          .font(Self.font)
+          .multilineTextAlignment(.leading)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .hidden()
+          .background {
+            GeometryReader { geometry in
+              Color.clear.preference(key: PlotFullHeightKey.self, value: geometry.size.height)
+            }
+          }
+      }
+  }
+     
 
   /// A step below the paragraph, so it reads as a hint rather than as a fourth line.
   static let moreOpacity: Double = 0.65
@@ -3503,13 +3533,17 @@ struct MediaItemPlotView: View {
   /// System text styles rather than hand-picked point sizes: the synopsis sits next
   /// to real tvOS controls and has to be on the same scale they are. The label is a
   /// step below the paragraph.
-  static let moreFont: Font = .footnote
+     static let moreFont: Font = TypeScale.detailBody
 
 #if os(tvOS)
-  static let lineLimit = 5
+  /// Room between the glyphs and a focused shape's corner radius. Cancelled by the
+  /// negative padding on the button, so it does not move the lines around it.
+  static let focusInsetH: CGFloat = 20
+  static let focusInsetV: CGFloat = 12
+  static let lineLimit = 6
   /// Fills its column: the hero's written column already caps the width, and a
   /// second, narrower ceiling here left the synopsis short of the lines beneath it.
-  static let maxWidth: CGFloat = .infinity
+  static let maxWidth: CGFloat = 960
   static let moreTracking: CGFloat = 1
 #else
   static let lineLimit = 4
@@ -3520,6 +3554,48 @@ struct MediaItemPlotView: View {
   /// Same size as the metadata line above it and the information table below it.
   static let font: Font = TypeScale.detailBody
 }
+
+#if os(tvOS)
+/// The synopsis label. `.borderless` paints its focus highlight onto the first
+/// `Image` in a label; a paragraph has none, so nothing shows when it is focused.
+/// A `.regularMaterial` plate fills that in, and only while this button is focused.
+/// `isFocused` is read here, inside the label, because outside the button (after
+/// `.buttonStyle`) the environment stays false.
+private struct PlotParagraphLabel: View {
+  let plot: String
+  let showsMore: Bool
+
+  @Environment(\.isFocused) private var isFocused
+
+  var body: some View {
+    HStack(alignment: .lastTextBaseline, spacing: 14) {
+      Text(plot)
+        .font(MediaItemPlotView.font)
+        .foregroundStyle(Color.KinoPub.text)
+        .lineLimit(MediaItemPlotView.lineLimit)
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+      if showsMore {
+        Text("More")
+          .font(MediaItemPlotView.moreFont.weight(.semibold))
+          .foregroundStyle(Color.KinoPub.subtitle)
+          .textCase(.uppercase)
+          .accessibilityHidden(true)
+      }
+    }
+    .padding(.horizontal, MediaItemPlotView.focusInsetH)
+    .padding(.vertical, MediaItemPlotView.focusInsetV)
+    .background {
+      if isFocused {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+          .fill(.regularMaterial)
+      }
+    }
+    .animation(.easeOut(duration: 0.2), value: isFocused)
+  }
+}
+#endif
 
 #if DEBUG
         private struct PlotPreviewHost: View {
@@ -3532,7 +3608,8 @@ struct MediaItemPlotView: View {
                     focus: $focus
                 )
                 .padding()
-                .frame(maxWidth: 960, alignment: .leading)
+                .frame(maxWidth: 1080, alignment: .leading)
+     
                 //    .background(Color.black)
                 // .preferredColorScheme(.dark)
             }

@@ -95,7 +95,7 @@ struct MediaItemView: View {
 #if os(macOS)
       .ignoresSafeArea(edges: .top)
 #else
-      .ignoresSafeArea(edges: [.top, .horizontal])
+      .ignoresSafeArea()
 #endif
       // Tabs stay visible over the detail page for now (2026-08-09): the hide-on-enter
       // here plus the system's own tab-bar minimize timing was reading as "tabs fade in
@@ -244,13 +244,13 @@ struct MediaItemView: View {
             // Apple's tvOS layout guidance: without a full-width focus section on the
             // header, Up from the right side of the shelves below can miss it or jump
             // to the tab bar, because the engine searches straight up.
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .focusSection()
 #endif
 
           contentSections
         }
-        .padding(.bottom, MediaItemLayout.bottomPadding)
+//        .padding(.bottom, MediaItemLayout.bottomPadding)
       }
       .coordinateSpace(name: MediaItemLayout.scrollSpace)
 #if os(tvOS)
@@ -425,7 +425,7 @@ struct MediaItemView: View {
   @ViewBuilder
   private var pageBackground: some View {
 #if os(tvOS)
-    genericBackground
+       Color.clear
 #else
     if FeatureFlags.detailAmbientBackdropEnabled {
       ambientBackground
@@ -438,7 +438,7 @@ struct MediaItemView: View {
   /// What the page sits on with `detailAmbientBackdropEnabled` off: the app background
   /// and nothing else — no still, no blur buffer, nothing decoded for it.
   private var genericBackground: some View {
-    Color.KinoPub.background
+    Color.clear
 #if os(macOS)
       // Same reason as `ambientBackground`: ignoring horizontally paints under the
       // sidebar and makes every rail look clipped.

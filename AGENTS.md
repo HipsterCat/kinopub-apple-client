@@ -215,13 +215,14 @@ file, and delete the losers with the switch.
   (Plozz's `scrimTone`): the hero text and buttons are system colours, dark in light mode, and a
   black scrim under them was unreadable (Sasha, on device, 2026-09-28). Keep it where the text is
   (bottom band, left edge); a stacked 0.92 diagonal read as a black slab.
-- **Prose in the hero has no chrome at rest.** The synopsis opens the info popup with
-  `expandsIntoInfoPopup(chrome: .text)` (stock `.borderless` on tvOS). `.card` draws its platter
-  whether focused or not, and next to the focused Play it read as a second focus.
-- **Play is the entry focus, by name.** `defaultFocus(priority: .userInitiated)`, the hero sets
-  `focus = .play` in `.task`, and the synopsis — the one control above Play — stays
-  `.focusable(false)` until an action has taken focus. tvOS otherwise hands entry focus to the
-  topmost focusable element. The written column is a `focusSection` so Right from Play reaches it.
+- **Prose in the hero has no chrome at rest.** On tvOS the synopsis is always a `.borderless`
+  button, and Select on that button opens the info popup. Do not add `.focusable()` on it: the
+  wrapper takes the focus and Select never presses the button, so the popup never opens (Sasha,
+  2026-10-01). `.card` is for fact containers — it draws a platter at rest and read as a second
+  focus next to Play.
+- **Play is the entry focus, by name.** `defaultFocus(priority: .userInitiated)`, and the hero
+  sets `focus = .play` in `.task`. The written column is a `focusSection` so Right from Play
+  reaches the synopsis.
 - **No page-wide hero state.** No fold flag, no wash, no chrome fade, no custom
   `ScrollTargetBehavior`. The focus engine scrolls the page. The one scroll the page asks for is
   back to the top when a hero control takes focus (`ScrollViewReader.scrollTo`), because the

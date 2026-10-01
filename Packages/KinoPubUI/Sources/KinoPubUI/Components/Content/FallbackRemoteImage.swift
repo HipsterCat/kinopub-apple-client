@@ -35,9 +35,9 @@ public struct FallbackRemoteImage: View {
           .aspectRatio(contentMode: contentMode)
           .transition(.opacity)
       } else if loading {
-          Color.KinoPub.placeholder
+          Color.clear
       } else {
-          Color.KinoPub.placeholder
+          Color.clear
       }
     }
     .task(id: urls.map(\.absoluteString).joined(separator: "|")) {

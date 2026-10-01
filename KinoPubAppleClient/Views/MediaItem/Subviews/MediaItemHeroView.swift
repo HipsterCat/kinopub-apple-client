@@ -296,10 +296,6 @@ struct MediaItemHeroView: View {
   @State private var isTrailerFullScreen = false
   @State private var showNewFolderAlert = false
   @State private var newFolderName = ""
-  /// tvOS: the synopsis joins the focus graph once an action has taken focus. See
-  /// `MediaItemPlotView.acceptsFocus`.
-  @State private var plotAcceptsFocus = false
-
   /// Opt-in, off by default. Read as `@AppStorage` so flipping it in Settings redraws
   /// the metadata row without leaving the page.
   @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
@@ -334,13 +330,15 @@ struct MediaItemHeroView: View {
       // than on the page, so a focus move re-renders the hero and nothing else.
       .onChange(of: focus) { _, target in
         guard target != nil else { return }
-        plotAcceptsFocus = true
         onFocusEntered?()
       }
       // `defaultFocus` is only a request, and loses to the topmost focusable element on
-      // entry. Naming Play outright is what holds (Plozz, `ItemDetailView`).
+      // entry. The synopsis is that element — it sits above Play and is always a
+      // button — so by the time this runs `focus` is already `.plot`, and a nil-check
+      // leaves the paragraph looking selected when the page opens. Naming Play
+      // outright is what holds (Plozz, `ItemDetailView`).
       .task {
-        if focus == nil { focus = .play }
+        focus = .play
       }
 #endif
   }
@@ -657,20 +655,13 @@ struct MediaItemHeroView: View {
   /// so they sit at the foot of the column rather than heading it.
   private var detailColumn: some View {
        VStack(alignment: .leading, spacing: Self.contentSpacing*1.75) {
-      MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus,
-                        acceptsFocus: plotAcceptsFocus)
+      MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus)
          VStack(alignment: .leading, spacing: Self.contentSpacing) {
               credits
               metadata
          }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-#if os(tvOS)
-    // The synopsis is the only control in this column and sits at its top, above the
-    // band Right from Play travels along, so a plain Right found nothing. As a section
-    // the whole column is the target.
-    .focusSection()
-#endif
 //    .heroTextShadow()
   }
 
@@ -850,16 +841,6 @@ struct MediaItemHeroView: View {
   private var actions: some View {
     HStack(alignment: .center, spacing: Self.actionsRowGap) {
       primaryAction
-#if os(tvOS)
-        // Dead-end Up opens the trailer; Down lands on the circles, then scrolls on
-        // into the content below. Scoped to the primary row: from the circles, Up is
-        // a real move to Play and must not be swallowed.
-        .onMoveCommand { direction in
-          if direction == .up, trailer.player != nil, trailer.isReady {
-            isTrailerFullScreen = true
-          }
-        }
-#endif
 
       HStack(spacing: MediaActionMetrics.rowSpacing) {
         // Trailer leads the row, directly under Play: it is the other thing you can
