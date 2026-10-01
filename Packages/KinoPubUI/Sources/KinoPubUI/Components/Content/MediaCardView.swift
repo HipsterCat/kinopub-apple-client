@@ -110,6 +110,10 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let opensCollection: Bool
   /// Icon + counter stack under the title (watchers / views on collection covers).
   public let captionStats: [MediaCardCaptionStat]
+  /// kino.pub's numeric IMDb and Kinopoisk ids, so a card can be looked up in external
+  /// metadata (the Home banner's title logo) without fetching the item first.
+  public let imdbID: Int?
+  public let kinopoiskID: Int?
 
   public var isLandscape: Bool { landscapeImageURL != nil }
 
@@ -177,7 +181,9 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               bookmarkFolderIDs: [Int] = [],
               primaryAction: MediaCardPrimaryAction = .openDetail,
               opensCollection: Bool = false,
-              captionStats: [MediaCardCaptionStat] = []) {
+              captionStats: [MediaCardCaptionStat] = [],
+              imdbID: Int? = nil,
+              kinopoiskID: Int? = nil) {
     self.id = id
     self.posterURL = posterURL
     self.title = title
@@ -218,6 +224,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.primaryAction = primaryAction
     self.opensCollection = opensCollection
     self.captionStats = captionStats
+    self.imdbID = imdbID
+    self.kinopoiskID = kinopoiskID
   }
 
   /// Continue Watching paint-time overlay: progress / offered S/E change without
@@ -261,7 +269,9 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               bookmarkFolderIDs: bookmarkFolderIDs,
               primaryAction: primaryAction,
               opensCollection: opensCollection,
-              captionStats: captionStats)
+              captionStats: captionStats,
+              imdbID: imdbID,
+              kinopoiskID: kinopoiskID)
   }
 
   public init(from decoder: Decoder) throws {
@@ -308,6 +318,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
       ?? .openDetail
     opensCollection = try c.decodeIfPresent(Bool.self, forKey: .opensCollection) ?? false
     captionStats = try c.decodeIfPresent([MediaCardCaptionStat].self, forKey: .captionStats) ?? []
+    imdbID = try c.decodeIfPresent(Int.self, forKey: .imdbID)
+    kinopoiskID = try c.decodeIfPresent(Int.self, forKey: .kinopoiskID)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -350,6 +362,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encode(primaryAction, forKey: .primaryAction)
     try c.encode(opensCollection, forKey: .opensCollection)
     try c.encode(captionStats, forKey: .captionStats)
+    try c.encodeIfPresent(imdbID, forKey: .imdbID)
+    try c.encodeIfPresent(kinopoiskID, forKey: .kinopoiskID)
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -359,7 +373,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     case isWatched, isSeries, isInHistory, isInWatchlist, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, durationSeconds
     case genreLine, countryLine, isBookmarked, bookmarkFolderIDs, primaryAction
-    case opensCollection, captionStats
+    case opensCollection, captionStats, imdbID, kinopoiskID
   }
 }
 
@@ -398,7 +412,9 @@ public extension MediaCard {
               genreLine: genres.isEmpty ? nil : genres.joined(separator: ", "),
               countryLine: item.countries.first?.title,
               isBookmarked: !bookmarkFolderIDs.isEmpty,
-              bookmarkFolderIDs: bookmarkFolderIDs)
+              bookmarkFolderIDs: bookmarkFolderIDs,
+              imdbID: item.imdb.flatMap { $0 > 0 ? $0 : nil },
+              kinopoiskID: item.kinopoisk.flatMap { $0 > 0 ? $0 : nil })
   }
 }
 

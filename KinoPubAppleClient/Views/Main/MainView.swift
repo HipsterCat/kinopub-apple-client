@@ -99,7 +99,7 @@ struct MainView: View {
       status: pageStatus,
       accessibilityID: "kinopub.page.\(tab)",
       onSelect: { _, item in
-        guard case .card(let card) = item else { return }
+        guard let card = item.card else { return }
         if card.primaryAction == .play {
           cardMenu.play(card) { navigationState.push($0) }
         } else if card.opensCollection {
@@ -132,15 +132,14 @@ struct MainView: View {
   private static let continueWatchingColumns = 3
 
   /// The Home banner as the page's first row: the same sampled `bannerCards` the
-  /// SwiftUI path draws, as large untitled stills, two across.
-  private static let bannerColumns = 2
+  /// SwiftUI path draws, with their title logos, looped (`TVPageSection.banner`).
   private static let bannerSectionID = "home-banner"
 
   private var pageSections: [TVPageSection] {
     let banner = tab == .home && FeatureFlags.homeBannerEnabled ? catalog.bannerCards : []
     let bannerSection: [TVPageSection] = banner.isEmpty ? [] : [
-      .stills(id: Self.bannerSectionID, title: nil, columns: Self.bannerColumns,
-              caption: .always, cards: banner)
+      .banner(id: Self.bannerSectionID,
+              features: banner.map { TVPageFeature(card: $0, logoURL: catalog.bannerLogos[$0.id]) })
     ]
     return bannerSection + homeRows.map { row in
       if row.cards.first?.isLandscape == true {

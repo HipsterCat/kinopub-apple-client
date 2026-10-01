@@ -374,6 +374,16 @@ public final class TVPageCollectionViewController: UIViewController {
       }
     }
 
+    let banner = UICollectionView.CellRegistration<TVPageBannerCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self else { return }
+      let width = self.collectionView.layoutAttributesForItem(at: indexPath)?.size.width
+        ?? cell.bounds.width
+      cell.apply(recipe: TVPageCellMetrics.recipe(kind: .banner, itemWidth: width, caption: .always))
+      guard case .feature(let feature)? = self.itemsByID[id] else { return }
+      cell.configure(feature: feature)
+    }
+
     let header = UICollectionView.SupplementaryRegistration<TVPageHeaderView>(
       elementKind: TVPageLayout.headerKind
     ) { [weak self] view, _, indexPath in
@@ -403,6 +413,8 @@ public final class TVPageCollectionViewController: UIViewController {
         return collectionView.dequeueConfiguredReusableCell(using: chip, for: indexPath, item: id)
       case .card:
         return collectionView.dequeueConfiguredReusableCell(using: card, for: indexPath, item: id)
+      case .banner:
+        return collectionView.dequeueConfiguredReusableCell(using: banner, for: indexPath, item: id)
       }
     }
     let loadingFooter = UICollectionView.SupplementaryRegistration<TVPageLoadingFooterView>(
@@ -617,8 +629,11 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   }
 
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
-    guard prefersFirstPosterFocus else { return nil }
-    return firstPosterIndexPath
+    if prefersFirstPosterFocus { return firstPosterIndexPath }
+    // A looped banner on top starts in its middle lap, so Left works from the start.
+    guard let first = sections.first, first.startIndex > 0, first.items.indices.contains(first.startIndex)
+    else { return nil }
+    return IndexPath(item: first.startIndex, section: 0)
   }
 
   public func collectionView(_ collectionView: UICollectionView,
@@ -684,6 +699,8 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
       return URL(string: string)
     case .person(let person):
       return person.photoURL
+    case .feature(let feature):
+      return URL(string: feature.card.backdropImageURL)
     case .chip, .tile, .placeholder:
       return nil
     }

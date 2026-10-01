@@ -5,6 +5,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Home banner: rich platters, title logos, looped (2026-10-01)
+
+The banner row is `TVPageSection.banner` of `TVPageItem.feature` items drawn by
+`TVPageBannerCell`: a `TVCardView` platter (system lift and tilt) holding the backdrop, the
+title logo or the name, the plot, one meta line (IMDb, КП, first genre, running time or year)
+and the poster inset at the trailing edge. Logos come from `MetadataService` (the detail
+page's call and cache) via `HomeCatalog.bannerLogos`; `MediaCard` now carries `imdbID` /
+`kinopoiskID` for that lookup, so cards cached before this have no logo until their row
+refreshes. The six titles repeat for 41 laps and focus starts in the middle one
+(`TVPageSection.startIndex`), so the row scrolls either way for ~120 presses.
+
 ### tvOS Home banner on the page (2026-10-01)
 
 The banner was drawn only by the SwiftUI `MediaRowsView`; with `tvPageSections` on, tvOS

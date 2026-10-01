@@ -52,6 +52,10 @@ public enum TVPageLayout {
   }
   public static let cardPadding: CGFloat = 16
 
+  /// Width over height of a banner platter: a little taller than 16:9, so the plot and
+  /// the meta line sit under the art's subject instead of across it.
+  public static let bannerAspect: CGFloat = 1.45
+
   /// The layout for one page: a section provider that resolves the section at that
   /// index from `sections()` at layout time, so a snapshot swap and its geometry can
   /// never disagree.
@@ -408,7 +412,8 @@ public enum TVPageCellMetrics {
       let size = CGSize(width: key.width, height: TVPageLayout.chipHeight)
       recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
                                 artSize: size, posterContentSize: size)
-    case .card: recipe = measureCard(artWidth: key.width)
+    case .card: recipe = measureCard(artWidth: key.width, height: TVPageLayout.cardHeight)
+    case .banner: recipe = measureCard(artWidth: key.width, height: (key.width / TVPageLayout.bannerAspect).rounded())
     }
     cache[key] = recipe
     return recipe
@@ -467,8 +472,8 @@ public enum TVPageCellMetrics {
   /// the platter sits inside it at rest (measured 2026-09-25: a 557 × 160 frame drew a
   /// 464 × 120 platter). Same method as the poster — ask, read back where the platter
   /// landed, correct, repeat — so the resting platter is the HIG column.
-  private static func measureCard(artWidth: CGFloat) -> TVPageCellRecipe {
-    let art = CGSize(width: artWidth, height: TVPageLayout.cardHeight)
+  private static func measureCard(artWidth: CGFloat, height: CGFloat) -> TVPageCellRecipe {
+    let art = CGSize(width: artWidth, height: height)
     var contentSize = art
     var envelope = CGSize.zero
     var landed = CGRect.zero
