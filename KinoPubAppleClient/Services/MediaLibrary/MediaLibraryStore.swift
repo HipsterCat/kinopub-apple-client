@@ -227,6 +227,22 @@ final class MediaLibraryStore: ObservableObject {
     return nil
   }
 
+  /// Removes a completed download (HLS and/or mp4) for this playable and refreshes the index.
+  func deleteDownload(itemId: Int, video: Int?, season: Int?) {
+    if let asset = hlsStore.asset(forId: itemId, video: video, season: season) {
+      hlsStore.remove(asset)
+    }
+    if let file = (downloadedFilesDatabase.readData() ?? []).first(where: {
+      $0.metadata.id == itemId
+        && $0.metadata.metadata.video == video
+        && $0.metadata.metadata.season == season
+    }) {
+      downloadedFilesDatabase.remove(fileInfo: file)
+    }
+    rebuildDownloadedIndex()
+    objectWillChange.send()
+  }
+
   // MARK: - Watch progress (delegated)
 
   func watchProgress(itemId: Int, season: Int?, episode: Int?) -> Double? {

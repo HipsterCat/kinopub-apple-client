@@ -4402,6 +4402,285 @@
         }
       }
     },
+    "MediaAction_SeasonEpisode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "S%lld, E%lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld сезон, %lld серия"
+          }
+        }
+      }
+    },
+    "MediaAction_PlayEpisode" : {
+      "extractionState" : "manual",
+      "comment" : "Fresh Play capsule for an unwatched episode. EN keeps the Play verb; RU is the full episode phrase. Compact S1,E2 is only for resume.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play S%lld, E%lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld сезон, %lld серия"
+          }
+        }
+      }
+    },
+    "MediaAction_ReplayEpisode" : {
+      "extractionState" : "manual",
+      "comment" : "Replay capsule for a fully watched series. EN keeps Replay; RU is the episode phrase (↻ is the glyph).",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replay S%lld, E%lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld сезон, %lld серия"
+          }
+        }
+      }
+    },
+    "MediaAction_Minutes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldm"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld мин"
+          }
+        }
+      }
+    },
+    "MediaAction_HoursMinutes" : {
+      "extractionState" : "manual",
+      "comment" : "Compact hours+minutes core for remaining-time labels.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldh %lldm"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldч %lldм"
+          }
+        }
+      }
+    },
+    "MediaAction_TimeLeft" : {
+      "extractionState" : "manual",
+      "comment" : "Remaining runtime on film resume capsules.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ left"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё %@"
+          }
+        }
+      }
+    },
+    "MediaAction_WatchNow" : {
+      "extractionState" : "manual",
+      "comment" : "Fresh Play title for concert / stand-up (not the Watch Now tab).",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch Now"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смотреть"
+          }
+        }
+      }
+    },
+    "Track" : {
+      "extractionState" : "manual",
+      "comment" : "Labelled Follow primary when awaiting the next episode.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отслеживать"
+          }
+        }
+      }
+    },
+    "Tracking" : {
+      "extractionState" : "manual",
+      "comment" : "Follow primary while already subscribed.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracking"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отслеживаю"
+          }
+        }
+      }
+    },
+    "Pause Download" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause Download"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пауза"
+          }
+        }
+      }
+    },
+    "Delete Download" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Download"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить загрузку"
+          }
+        }
+      }
+    },
+    "Download Season" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Season"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать сезон"
+          }
+        }
+      }
+    },
+    "Download Unwatched in Season" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Unwatched in Season"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать непросмотренные"
+          }
+        }
+      }
+    },
+    "Download All Episodes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download All Episodes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать все серии"
+          }
+        }
+      }
+    },
+    "Mark Unwatched in Season" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark Unwatched in Season"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отметить непросмотренные"
+          }
+        }
+      }
+    },
+    "Mark All Episodes Watched" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark All Episodes Watched"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отметить все серии"
+          }
+        }
+      }
+    },
     "Mark as Watched" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6599,6 +6878,23 @@
       "comment" : "A toggle that enables or disables notifications for new episodes.",
       "isCommentAutoGenerated" : true
     },
+    "No bookmark folders yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No bookmark folders yet"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока нет папок закладок"
+          }
+        }
+      }
+    },
     "New Folder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7856,6 +8152,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Готово"
+          }
+        }
+      }
+    },
+    "Save to" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save to"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить в"
           }
         }
       }
@@ -9797,6 +10110,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "голосов"
+          }
+        }
+      }
+    },
+    "Watch Concert" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch Concert"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смотреть концерт"
+          }
+        }
+      }
+    },
+    "Watch Documentary" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch Documentary"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смотреть док"
+          }
+        }
+      }
+    },
+    "Watch Movie" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch Movie"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смотреть фильм"
           }
         }
       }

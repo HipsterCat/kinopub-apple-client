@@ -74,7 +74,9 @@ struct MediaItemView: View {
     details
       .background(pageBackground)
       .overlay {
-        if itemModel.loadFailed {
+        // Full-page error only on a true cold miss — never over a card snapshot /
+        // already-loaded item. Soft refresh failures use `hudToast` instead.
+        if itemModel.loadFailed && !itemModel.hasPaintedItem {
           UnavailableView(
             title: "Couldn't Load",
             systemImage: "wifi.exclamationmark",
@@ -84,7 +86,7 @@ struct MediaItemView: View {
               itemModel.fetchData()
             }
           )
-        } else if !itemModel.itemLoaded {
+        } else if !itemModel.itemLoaded && !itemModel.hasPaintedItem {
           LoadingIndicatorView(delay: .milliseconds(700))
         }
       }
@@ -226,6 +228,16 @@ struct MediaItemView: View {
                             onBrowseWatchlist: { Self.openWatchlist(navigationState) },
                             isInWatchlist: itemModel.isInWatchlist,
                             onToggleWatchlist: { itemModel.toggleWatchlist() },
+                            nextEpisodeAirDate: itemModel.nextEpisodeAirDate,
+                            downloadPhase: itemModel.downloadPhase,
+                            onDownload: { itemModel.startCurrentDownload() },
+                            onPauseDownload: { itemModel.pauseCurrentDownload() },
+                            onDeleteDownload: { itemModel.deleteCurrentDownload() },
+                            onDownloadSeason: { itemModel.downloadSeason($0) },
+                            onDownloadUnwatchedInSeason: { itemModel.downloadUnwatchedInSeason($0) },
+                            onDownloadAllEpisodes: { itemModel.downloadAllEpisodes() },
+                            onMarkUnwatchedInSeason: { itemModel.markUnwatchedInSeason($0) },
+                            onMarkAllEpisodesWatched: { itemModel.markAllEpisodesWatched() },
                             titleLogoURL: itemModel.externalMetadata.titleLogoURL,
                             ageRating: itemModel.externalMetadata.ageRating,
                             externalMetadataLoaded: itemModel.externalMetadataLoaded,
@@ -233,6 +245,9 @@ struct MediaItemView: View {
                               withAnimation(.easeInOut(duration: 0.4)) {
                                 proxy.scrollTo(Self.heroAnchor, anchor: .top)
                               }
+                            },
+                            ensureBookmarkFoldersLoaded: {
+                              await itemModel.ensureBookmarkFoldersLoaded()
                             })
             .id(Self.heroAnchor)
 #if os(tvOS)

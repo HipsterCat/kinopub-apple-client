@@ -16,6 +16,27 @@ page's call and cache) via `HomeCatalog.bannerLogos`; `MediaCard` now carries `i
 refreshes. The six titles repeat for 41 laps and focus starts in the middle one
 (`TVPageSection.startIndex`), so the row scrolls either way for ~120 presses.
 
+### Optimistic auth launch — no splash while refreshing (2026-10-01)
+
+A Keychain token mounts Tabs immediately (`AuthPhase.signedIn`). Refresh is driven by the stored
+access-token expiry (`expires_in` → Keychain clock, proactive ~90s early) and by content 401s —
+not a blocking splash. `APIClient` awaits token recovery and **retries the failed request once**
+instead of failing every shelf while refresh is in flight. Detail pages that already have a card
+snapshot keep the paint and toast on soft failure; only a true cold miss shows `UnavailableView`.
+Transient refresh failures keep the session and back off; only a fatal grant rejection clears
+Keychain and shows activation. Cold start with no token is unchanged. DEBUG `DevSessionMirror`
+behavior is unchanged.
+
+### Media actions: download phases, Follow-primary, series long-press (2026-10-01)
+
+Download is available on any title when the flag/platform allows it: idle circle → circular
+progress + pause while downloading → gone from the row once on disk (delete lives in More).
+Series long-press on Mark Watched / Download offers season · unwatched-in-season · all.
+When a series is ongoing, everything is watched, and the next episode airs within ~2 weeks,
+Follow leads as a labelled primary (`Отслеживать` / `Track`) and Play demotes to Replay.
+Copy: EN `S1, E2` / `53m left`; RU `1 сезон, 2 серия` / `Ещё 53 мин`. Product matrix:
+`docs/product/media-actions.md`.
+
 ### tvOS Home banner on the page (2026-10-01)
 
 The banner was drawn only by the SwiftUI `MediaRowsView`; with `tvPageSections` on, tvOS
@@ -37,7 +58,7 @@ findings (genre 107 Дорама, api2 without token, `logos.s`) live as notes i
 
 `TVProfileSettingsView`'s root is a list of categories (`TVSettingsCategory`), each pushing a
 `SettingsCategoryPage` with its own `@FocusState`; Experiments and About are their own pages. With
-focus still on the tab bar the left panel is `SettingsAppInfoPanel`: the `kinopub_icon` plate,
+focus still on the tab bar the left panel is `SettingsAppInfoPlate`: the `kinopub_icon` plate,
 version and build, and `Bundle.releaseNotes` — `KPReleaseNotes`, which the Fastfile writes into
 `Info.plist` from the TestFlight changelog before archiving (a local build has none). Server &
 connection and Device are new on tvOS: `DeviceSettingsPaneModel` is no longer iOS/macOS-only, and
@@ -71,6 +92,15 @@ deleted. Findings while wiring it: an action selector named `perform(_:)` resolv
 `representedObject.keyPath` + a formatter, not `localizedValue`; a group's description is not
 rendered as a footer. DEBUG launch arguments `-KINOPUBInitialTab settings`,
 `-KINOPUBSettingsPage <category>`, `-KINOPUBSettingsLab <lab>`, `-KINOPUBSwiftUISettings YES`.
+
+### Hero action white fill is focus, not a Play tint (2026-10-01)
+
+Hero actions use system glass again (`.glassProminent` Play, `.glass` pills/circles), forced
+dark on the row for now. White elevated look is focus — no `.tint(.primary)`. Bookmark menu
+is multi-select with a **Save to** section, stays open, and no longer rebuilds identity on
+toggle (that was dumping focus back to Play). Mark Watched is tap-to-toggle; episode/season
+choices are long-press context menu only. Circle glyphs keep a fixed slot + symbol replace
+bounce so the bell toggle cannot look like row spacing grew.
 
 ### Trailers are their title; Up Next is next-unwatched + Continue Watching (2026-10-01)
 

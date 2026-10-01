@@ -20,6 +20,11 @@ protocol AccessTokenService {
   /// `false` when the backend ended the session rather than the user — see the
   /// implementation for why the two cannot be treated the same.
   func clear(userInitiated: Bool)
+  /// Absolute expiry of the current access token, recorded when it was stored.
+  /// `nil` for tokens written before we persisted the clock (treat as unknown).
+  var accessTokenExpiresAt: Date? { get }
+  /// `true` when there is no known expiry, or expiry is within `interval` seconds.
+  func isAccessTokenExpiring(within interval: TimeInterval) -> Bool
 }
 
 protocol AccessTokenServiceProvider {
@@ -27,6 +32,7 @@ protocol AccessTokenServiceProvider {
 }
 
 struct AccessTokenServiceMock: AccessTokenService {
+  var accessTokenExpiresAt: Date?
 
   func set<T>(token: T) where T: Token {
 
@@ -42,5 +48,9 @@ struct AccessTokenServiceMock: AccessTokenService {
 
   func clear(userInitiated: Bool) {
 
+  }
+
+  func isAccessTokenExpiring(within interval: TimeInterval) -> Bool {
+    true
   }
 }
