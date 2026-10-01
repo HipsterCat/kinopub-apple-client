@@ -129,7 +129,7 @@ final class MediaActionCatalogTests: XCTestCase {
     XCTAssertEqual(play.title, "Replay S1, E1")
   }
 
-  func testShuffleIsLabelledPillWhenNotMidTitle() {
+  func testShuffleIsIconCircleBeforeMore() {
     let row = MediaActionCatalog.row(for: MediaActionContext(
       playback: .play(season: 1, episode: 1),
       isSeries: true,
@@ -139,10 +139,25 @@ final class MediaActionCatalogTests: XCTestCase {
       showsMore: true
     ))
     XCTAssertEqual(row.map(\.id),
-                   [.play, .trailer, .shuffle, .bookmark, .follow, .more])
+                   [.play, .trailer, .bookmark, .follow, .shuffle, .more])
     let shuffle = row.first { $0.id == .shuffle }
-    XCTAssertEqual(shuffle?.chrome, .pill)
-    XCTAssertEqual(shuffle?.title, MediaActionCopy.localized("Shuffle"))
+    XCTAssertEqual(shuffle?.chrome, .circle)
+    XCTAssertNil(shuffle?.title)
+  }
+
+  func testInProgressSeriesKeepsShuffleAsCircleBeforeMore() {
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: .resume(progress: 0.4, season: 1, episode: 2, durationSeconds: 2400),
+      isSeries: true,
+      showsMarkWatched: true,
+      showsTrailer: true,
+      showsFollow: true,
+      showsShuffle: true,
+      showsMore: true
+    ))
+    XCTAssertEqual(row.map(\.id),
+                   [.play, .markWatched, .trailer, .bookmark, .follow, .shuffle, .more])
+    XCTAssertEqual(row.first(where: { $0.id == .shuffle })?.chrome, .circle)
   }
 
   func testPromoteFollowLeadsWithLabelledBell() {

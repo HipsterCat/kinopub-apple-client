@@ -963,10 +963,11 @@ struct MediaItemHeroView: View {
     )
   }
 
-  /// Random unwatched episode — series with enough episodes (preview mold).
+  /// Random episode — only long series that are not already on the watchlist.
+  /// Interim rule: more than five seasons and not subscribed. Icon sits before More.
   private var showsShuffleButton: Bool {
-    guard isSeries, let seasons = mediaItem.seasons else { return false }
-    return seasons.reduce(0) { $0 + $1.episodes.count } >= 5
+    guard isSeries, !isInWatchlist, let seasons = mediaItem.seasons else { return false }
+    return seasons.count > 5
   }
 
   private var actionAppearances: [MediaActionAppearance] {
@@ -1033,7 +1034,7 @@ struct MediaItemHeroView: View {
     }
   }
 
-  /// Random unwatched episode — same player entry as Play, different target.
+  /// Random unwatched episode — circle before More; same player entry as Play.
   @ViewBuilder
   private func shuffleControl(_ appearance: MediaActionAppearance) -> some View {
     if let target = randomUnwatchedEpisode {
