@@ -1932,6 +1932,23 @@
     "Downloaded files" : {
 
     },
+    "Download" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать"
+          }
+        }
+      }
+    },
     "Downloads" : {
       "localizations" : {
         "en" : {
@@ -6977,7 +6994,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Смотреть снова"
+            "value" : "Пересмотреть"
           }
         }
       }
@@ -7563,6 +7580,23 @@
     "Reset to defaults" : {
 
     },
+    "Resume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить"
+          }
+        }
+      }
+    },
     "Restarting the app" : {
       "localizations" : {
         "en" : {
@@ -8102,6 +8136,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Настройки…"
+          }
+        }
+      }
+    },
+    "Shuffle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuffle"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Случайно"
           }
         }
       }

@@ -296,6 +296,9 @@ struct MediaItemHeroView: View {
   @State private var isTrailerFullScreen = false
   @State private var showNewFolderAlert = false
   @State private var newFolderName = ""
+  /// Actions currently showing a spinner (Mark Watched, Follow, …). Cleared when the
+  /// underlying flag flips, or by the control itself once the tap returns.
+  @State private var loadingActions: Set<MediaActionID> = []
   /// Opt-in, off by default. Read as `@AppStorage` so flipping it in Settings redraws
   /// the metadata row without leaving the page.
   @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
@@ -836,48 +839,121 @@ struct MediaItemHeroView: View {
     return lines
   }
 
-  /// Primary on its own row, secondaries as one row of identical circles underneath —
-  /// the shape the reference layout uses. Nothing here competes with Play for width.
+  /// One catalog-driven row: Play / Replay, then Mark Watched (when mid-title), Trailer,
+  /// state circles, More. Order and chrome come from `MediaActionCatalog` — this view
+  /// only wires behaviour (PlayerLink, Menu, callbacks).
   private var actions: some View {
-    HStack(alignment: .center, spacing: Self.actionsRowGap) {
-      primaryAction
-
-      HStack(spacing: MediaActionMetrics.rowSpacing) {
-        // Trailer leads the row, directly under Play: it is the other thing you can
-        // watch, not another piece of state.
-        if mediaItem.trailerURL != nil {
-          trailerButton
-        }
-        // Three different questions, three different controls: am I following this,
-        // where have I filed it, how far did I get. They were two controls wired to
-        // the same folder menu, which made the first two indistinguishable.
-        if isSeries, onToggleWatchlist != nil {
-          watchlistButton
-        }
-        bookmarkButton
-        if showsWatchedButton {
-          watchedButton
-        }
-#if os(tvOS)
-        // No toolbar on a TV — overflow stays in the row there and only there.
-        moreButton
-#endif
+    MediaActionRow {
+      ForEach(actionAppearances) { appearance in
+        actionControl(for: appearance)
+          .transition(.asymmetric(
+            insertion: .scale(scale: 0.85).combined(with: .opacity),
+            removal: .scale(scale: 0.85).combined(with: .opacity)
+          ))
       }
     }
+    .animation(.easeOut(duration: 0.25), value: actionAppearances.map(\.id))
+    .onChange(of: isWatched) { _, _ in
+      loadingActions.remove(.markWatched)
+    }
+    .onChange(of: isInWatchlist) { _, _ in
+      loadingActions.remove(.follow)
+    }
+  }
+
+  private var actionContext: MediaActionContext {
+#if os(tvOS)
+    let showsMore = true
+#else
+    let showsMore = false
+#endif
+    return MediaActionContext(
+      playback: mediaItem.playbackButtonContent,
+      isSeries: isSeries,
+      isBookmarked: isBookmarked,
+      isFollowing: isInWatchlist,
+      showsMarkWatched: showsWatchedButton,
+      showsTrailer: mediaItem.trailerURL != nil,
+      showsFollow: isSeries && onToggleWatchlist != nil,
+      showsDownload: false,
+      showsShuffle: false,
+      showsMore: showsMore,
+      loading: loadingActions
+    )
+  }
+
+  private var actionAppearances: [MediaActionAppearance] {
+    MediaActionCatalog.row(for: actionContext)
+  }
+
+  @ViewBuilder
+  private func actionControl(for appearance: MediaActionAppearance) -> some View {
+    switch appearance.id {
+    case .play:
+      playControl(appearance)
+    case .trailer:
+      trailerControl(appearance)
+    case .bookmark:
+      bookmarkControl(appearance)
+    case .follow:
+      followControl(appearance)
+    case .markWatched:
+      markWatchedControl(appearance)
+    case .more:
+      moreControl(appearance)
+    case .download, .shuffle:
+      // Not wired on the hero yet — catalog can still emit them for other surfaces.
+      MediaActionButton(appearance) {}
+    }
+  }
+
+  private func focusTarget(for id: MediaActionID) -> MediaItemFocusTarget {
+    switch id {
+    case .play: return .play
+    case .trailer: return .trailer
+    case .bookmark: return .bookmark
+    case .follow: return .watchlist
+    case .markWatched: return .watched
+    case .more, .download, .shuffle: return .more
+    }
+  }
+
+  @ViewBuilder
+  private func playControl(_ appearance: MediaActionAppearance) -> some View {
+    let target = playTarget
+    PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
+      MediaActionLabel(appearance)
+    }
+    .mediaActionStyle(appearance.chrome)
+    .focused($focus, equals: .play)
+    .accessibilityLabel(Text(appearance.accessibilityLabel))
+    .accessibilityHint(Text("Starts playback"))
+    // A series episode arrives without its links, and the player fetches them on open —
+    // dead time the viewer spends on a spinner. Fetching while the page is on screen moves
+    // that request out of the tap. Idempotent and deduplicated, so re-running it is free.
+    .task(id: target.id) {
+      await PlaybackPreflight.shared.warm(target)
+    }
+  }
+
+  @ViewBuilder
+  private func trailerControl(_ appearance: MediaActionAppearance) -> some View {
+    PlayerLink(route: linkProvider.trailerPlayer(for: mediaItem), item: mediaItem, mode: .trailer) {
+      MediaActionLabel(appearance)
+    }
+    .mediaActionStyle(appearance.chrome)
+    .focused($focus, equals: .trailer)
   }
 
   /// Bookmark folders — icon only. Fills once the title is in at least one folder.
   @ViewBuilder
-  private var bookmarkButton: some View {
+  private func bookmarkControl(_ appearance: MediaActionAppearance) -> some View {
     folderMenuLabel {
-      Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-            .font(MediaActionMetrics.labelFont)
-
-//        .font(.system(size: MediaActionMetrics.circleIconPointSize, weight: .semibold))
+      MediaActionLabel(appearance)
     }
-    .mediaActionCircleStyle()
+    .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .bookmark)
-    .accessibilityLabel("Bookmarks")
+    .accessibilityLabel(Text(appearance.accessibilityLabel))
     .alert("New Folder", isPresented: $showNewFolderAlert) {
       TextField("Folder name", text: $newFolderName)
       Button("Create") {
@@ -888,84 +964,71 @@ struct MediaItemHeroView: View {
     }
   }
 
-  /// Follow the series — `/v1/watching/togglewatchlist`, so new episodes turn up in
-  /// Watchlist. Not bookmark folders, and not watched: `minus` rather than a second
-  /// checkmark for the active state, because the checkmark next door means something
-  /// else entirely.
+  /// Follow the series — `/v1/watching/togglewatchlist`. Bell fills when subscribed
+  /// (catalog), distinct from the bookmark circle next door.
   @ViewBuilder
-  private var watchlistButton: some View {
+  private func followControl(_ appearance: MediaActionAppearance) -> some View {
     Button {
+      loadingActions.insert(.follow)
       onToggleWatchlist?()
     } label: {
-      Image(systemName: isInWatchlist ? "minus" : "plus")
-            .font(MediaActionMetrics.labelFont)
-
-//        .font(.system(size: MediaActionMetrics.circleIconPointSize, weight: .semibold))
+      MediaActionLabel(appearance)
     }
-    .mediaActionCircleStyle()
+    .mediaActionStyle(appearance.chrome)
+    .disabled(appearance.isLoading)
     .focused($focus, equals: .watchlist)
-    .accessibilityLabel(isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist")
   }
 
   /// Mark as watched. A film flips straight away; a series has to be asked which —
   /// the episode you are on, or the whole season it belongs to. Gone once everything
   /// is watched: there is nothing left to mark, and More carries Mark as New.
   @ViewBuilder
-  private var watchedButton: some View {
+  private func markWatchedControl(_ appearance: MediaActionAppearance) -> some View {
     if let (season, episode) = mediaItem.primaryEpisode, onSeasonWatchedToggle != nil {
       Menu {
-        Button(action: onWatchedToggle) {
+        Button {
+          beginMarkWatched()
+          onWatchedToggle()
+        } label: {
           Label("\("Mark Episode Watched".localized) · S\(season.number), E\(episode.number)",
                 systemImage: "checkmark")
         }
         Button {
+          beginMarkWatched()
           onSeasonWatchedToggle?(season)
         } label: {
           Label("\("Mark Season Watched".localized) · \(season.number)",
                 systemImage: "checkmark.circle")
         }
       } label: {
-        watchedGlyph
+        MediaActionLabel(appearance)
       }
-      .mediaActionPillStyle()
+      .mediaActionStyle(appearance.chrome)
       .focused($focus, equals: .watched)
-      .accessibilityLabel("Mark as Watched")
+      .accessibilityLabel(Text(appearance.accessibilityLabel))
     } else {
-      Button(action: onWatchedToggle) {
-        watchedGlyph
+      Button {
+        beginMarkWatched()
+        onWatchedToggle()
+      } label: {
+        MediaActionLabel(appearance)
       }
-      .mediaActionCircleStyle()
+      .mediaActionStyle(appearance.chrome)
+      .disabled(appearance.isLoading)
       .focused($focus, equals: .watched)
-      .accessibilityLabel("Mark as Watched")
+      .accessibilityLabel(Text(appearance.accessibilityLabel))
     }
   }
 
-  private var watchedGlyph: some View {
-    Image(systemName: "checkmark")
-          .font(MediaActionMetrics.labelFont)
-//      .font(.system(size: MediaActionMetrics.circleIconPointSize, weight: .semibold))
-  }
-
-  /// The trailer says what it is. It sits directly under Play, first in the row, as a
-  /// labelled capsule rather than one more anonymous circle: the circles are all
-  /// *state* — am I following this, where is it filed, how far did I get — and the
-  /// trailer is the second thing on the page you can actually watch. A film glyph
-  /// among four state glyphs read as a fifth toggle. Only present when there is one.
-  @ViewBuilder
-  private var trailerButton: some View {
-    PlayerLink(route: linkProvider.trailerPlayer(for: mediaItem), item: mediaItem, mode: .trailer) {
-      Label("Trailer", systemImage: "film")
-        .font(MediaActionMetrics.labelFont)
-    }
-    .mediaActionPillStyle()
-    .focused($focus, equals: .trailer)
+  private func beginMarkWatched() {
+    loadingActions.insert(.markWatched)
   }
 
   /// tvOS only: overflow as one more circle in the row, because a TV has no toolbar to
   /// put it in. iPhone and Mac hoist the same menu into the navigation toolbar — that
   /// is where a platform's secondary actions belong, and it buys the row a slot back.
   @ViewBuilder
-  private var moreButton: some View {
+  private func moreControl(_ appearance: MediaActionAppearance) -> some View {
     Menu {
       MediaItemOverflowMenu(isSeries: isSeries,
                             isWatched: isWatched,
@@ -974,14 +1037,11 @@ struct MediaItemHeroView: View {
                             onClearFromContinueWatching: onClearFromContinueWatching,
                             onBrowseWatchlist: onBrowseWatchlist)
     } label: {
-      Image(systemName: "ellipsis")
-            .font(MediaActionMetrics.labelFont)
-
-//        .font(.system(size: MediaActionMetrics.circleIconPointSize, weight: .bold))
+      MediaActionLabel(appearance)
     }
-    .mediaActionCircleStyle()
+    .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .more)
-    .accessibilityLabel("More")
+    .accessibilityLabel(Text(appearance.accessibilityLabel))
   }
 
   /// kino.pub bookmarks are folders — the circle opens the list (plus create).
@@ -1019,78 +1079,6 @@ struct MediaItemHeroView: View {
     .id("\(isBookmarked)-\(folders.count)")
   }
 
-  @ViewBuilder
-  private var primaryAction: some View {
-    let content = mediaItem.playbackButtonContent
-    let target = playTarget
-    PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
-      primaryActionLabel(for: content)
-    }
-    .mediaActionPillStyle()
-    .focused($focus, equals: .play)
-    .accessibilityLabel(Text(playAccessibilityLabel(for: content)))
-    .accessibilityHint(Text("Starts playback"))
-    // A series episode arrives without its links, and the player fetches them on open —
-    // dead time the viewer spends on a spinner. Fetching while the page is on screen moves
-    // that request out of the tap. Idempotent and deduplicated, so re-running it is free.
-    .task(id: target.id) {
-      await PlaybackPreflight.shared.warm(target)
-    }
-  }
-
-  private func playAccessibilityLabel(for content: PlaybackButtonContent) -> String {
-    switch content {
-    case .resume(_, let episodeLabel, _):
-      if let episodeLabel { return "Resume \(episodeLabel)" }
-      return "Resume"
-    case .play(let episodeLabel):
-      if let episodeLabel { return "Play \(episodeLabel)" }
-      return "Play"
-    case .playAgain:
-      return "Play Again"
-    }
-  }
-
-  /// Play glyph, optional mini resume bar (only when playback has started), then the title.
-  @ViewBuilder
-  private func primaryActionLabel(for content: PlaybackButtonContent) -> some View {
-    HStack(spacing: MediaActionMetrics.contentSpacing) {
-      Image(systemName: "play.fill")
-            .font(MediaActionMetrics.labelFont)
-//        .font(.system(size: MediaActionMetrics.iconPointSize, weight: .semibold))
-
-      switch content {
-      case .resume(let progress, let episodeLabel, let durationSeconds):
-        MediaActionProgressTrack(progress: progress)
-        Text(Self.resumeMeta(episodeLabel: episodeLabel, durationSeconds: durationSeconds)
-          ?? Self.resumeFallback(episodeLabel: episodeLabel))
-          .font(MediaActionMetrics.labelFont)
-          .foregroundColor(.primary)
-          .lineLimit(1)
-      case .play(let episodeLabel):
-        if let episodeLabel {
-          Text("\("Play".localized) \(episodeLabel)")
-            .font(MediaActionMetrics.labelFont)
-            .lineLimit(1)
-            .foregroundColor(.primary)
-        } else {
-          Text("Play")
-            .font(MediaActionMetrics.labelFont)
-            .lineLimit(1)
-            .foregroundColor(.primary)
-        }
-      case .playAgain:
-        Text("Play Again")
-          .font(MediaActionMetrics.labelFont)
-          .lineLimit(1)
-          .foregroundColor(.primary)
-      }
-    }
-    // On the label, not the button: the system styles hug their content, and a bare
-    // "Play" next to a labelled Trailer would otherwise be the narrower of the two.
-//    .frame(minWidth: MediaActionMetrics.playPillMinWidth)
-  }
-
   /// For a series, play the first episode that still has something left; the rail
   /// below is there for picking any other one.
   private var playTarget: any PlayableItem {
@@ -1099,24 +1087,6 @@ struct MediaItemHeroView: View {
     episode.mediaId = season.mediaId
     episode.seriesTitle = mediaItem.localizedTitle
     return episode
-  }
-
-  /// Meta beside the bar — "S1, E2 · 39 min" or "39 min". Nil means use the Resume word.
-  private static func resumeMeta(episodeLabel: String?, durationSeconds: Int) -> String? {
-    var parts: [String] = []
-    if let episodeLabel { parts.append(episodeLabel) }
-    if durationSeconds >= 60 {
-      let duration = Duration.compactHoursMinutes(seconds: durationSeconds)
-      if !duration.isEmpty { parts.append(duration) }
-    }
-    return parts.isEmpty ? nil : parts.joined(separator: " · ")
-  }
-
-  private static func resumeFallback(episodeLabel: String?) -> String {
-    if let episodeLabel {
-      return "\("Resume".localized) \(episodeLabel)"
-    }
-    return "Resume".localized
   }
 
   // MARK: - Metrics
