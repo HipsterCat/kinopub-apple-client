@@ -349,9 +349,11 @@ Details: skill `apple-chrome`.
   overlay only. Add a key to `Localizable.xcstrings` (RU + EN) when you add an endpoint family, not
   a string at the call site.
 - **Auth launch is optimistic.** A Keychain token mounts the main shell immediately; token refresh
-  runs in the background. Do **not** reintroduce a full-screen gate that waits on `refreshToken` —
-  that splash ("Signing in") was the hostile cold-launch wait. Only a real grant rejection sends
-  the user to activation; network blips keep the session and back off.
+  is driven by the stored access-token expiry (proactive ~90s early) and by content 401s. Do **not**
+  reintroduce a full-screen gate that waits on `refreshToken` — that splash ("Signing in") was the
+  hostile cold-launch wait. `APIClient` must await recovery and retry a content 401 once — failing
+  the caller's request while refresh is in flight replaces painted pages with Try Again. Only a
+  real grant rejection sends the user to activation; network blips keep the session and back off.
 - **Downloads are non-TV only.** Feature-gate incomplete surfaces (`FeatureFlags`) rather than
   inventing half-UI. An off flag must skip the work — network, sampling — not only hide UI.
   **Every flag is a `FeatureFlag` case** (default, title, one-line summary, platforms, launch-time
