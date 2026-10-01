@@ -12,6 +12,11 @@ extension Key where Value: Token {
   static var token: Key { .init(rawValue: "com.soda.kinopub.token") }
 }
 
+extension Key where Value == Date {
+  /// Absolute access-token expiry, written beside the token on every `set`.
+  static var tokenExpiresAt: Key { .init(rawValue: "com.soda.kinopub.token.expiresAt") }
+}
+
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
 /// Dev-loop convenience, DEBUG only: mirrors the activated token to **one** dotfile in
 /// the Mac user's home — `~/.kinopub-dev-session.json`, outside the repo, never
@@ -84,6 +89,9 @@ public final class AccessTokenServiceImpl: AccessTokenService {
 
   func set<T>(token: T) where T: Token {
     storage.setObject(token, for: .token)
+    // kino.pub gives `expires_in` as seconds from *now* on every grant/refresh.
+    let expiresAt = Date().addingTimeInterval(TimeInterval(max(token.expiresIn, 0)))
+    storage.setObject(expiresAt, for: .tokenExpiresAt)
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
     DevSessionMirror.save(token)
 #endif
@@ -106,11 +114,22 @@ public final class AccessTokenServiceImpl: AccessTokenService {
     // the mirrored dev session and reseed the real Keychain from it, so this
     // fallback only ever fires once per reinstall.
     if let dev = DevSessionMirror.load(), let seeded = dev as? T {
-      storage.setObject(dev, for: .token)
+      // `set` also writes expiresAt from expiresIn relative to now — the mirror
+      // file has no absolute clock, so "now + expires_in" is the best we can do.
+      set(token: dev)
       return seeded
     }
 #endif
     return nil
+  }
+
+  var accessTokenExpiresAt: Date? {
+    storage.object(for: .tokenExpiresAt)
+  }
+
+  func isAccessTokenExpiring(within interval: TimeInterval) -> Bool {
+    guard let expiresAt = accessTokenExpiresAt else { return true }
+    return expiresAt.timeIntervalSinceNow <= interval
   }
 
   /// `userInitiated` is the difference between "the user signed out" and "the backend

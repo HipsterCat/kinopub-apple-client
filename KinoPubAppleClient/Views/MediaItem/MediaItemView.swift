@@ -74,7 +74,9 @@ struct MediaItemView: View {
     details
       .background(pageBackground)
       .overlay {
-        if itemModel.loadFailed {
+        // Full-page error only on a true cold miss — never over a card snapshot /
+        // already-loaded item. Soft refresh failures use `hudToast` instead.
+        if itemModel.loadFailed && !itemModel.hasPaintedItem {
           UnavailableView(
             title: "Couldn't Load",
             systemImage: "wifi.exclamationmark",
@@ -84,7 +86,7 @@ struct MediaItemView: View {
               itemModel.fetchData()
             }
           )
-        } else if !itemModel.itemLoaded {
+        } else if !itemModel.itemLoaded && !itemModel.hasPaintedItem {
           LoadingIndicatorView(delay: .milliseconds(700))
         }
       }

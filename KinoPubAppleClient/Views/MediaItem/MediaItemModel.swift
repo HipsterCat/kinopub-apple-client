@@ -33,10 +33,16 @@ class MediaItemModel: ObservableObject {
   
   @Published public var mediaItem: MediaItem = MediaItem.mock()
   @Published public var itemLoaded: Bool = false
-  /// True after `fetchDetails` fails — the page shows `UnavailableView` instead of a stuck spinner.
+  /// True after `fetchDetails` fails **with nothing painted** — cold open shows
+  /// `UnavailableView`. When a card snapshot (or a prior fetch) is already on
+  /// screen, failure stays a toast; do not replace the page.
   @Published public var loadFailed: Bool = false
   /// The failure behind `loadFailed`, so the retry state can say what actually went wrong.
   @Published public var loadError: Error?
+
+  /// Card → detail already handed us the item, or a previous fetch succeeded.
+  /// Auth blips and revalidation failures must not wipe this paint.
+  var hasPaintedItem: Bool { mediaItem.id == mediaItemId }
 
   /// "More like this", loaded alongside the page. Empty until it arrives, and left
   /// empty when it fails — the section hides itself rather than erroring over the art.
@@ -350,8 +356,17 @@ class MediaItemModel: ObservableObject {
         }
       } catch {
         Logger.app.error("Failed to load item \(self.mediaItemId): \(error)")
-        loadFailed = true
         loadError = error
+        if hasPaintedItem {
+          // Keep the cached / already-loaded page. A toast is enough — the API
+          // client retries after token refresh; forcing Try Again over the hero
+          // was the mid-session failure mode that felt broken.
+          loadFailed = false
+          hudToast = HudToast(systemImage: "wifi.exclamationmark",
+                              title: "Couldn't Load".localized)
+        } else {
+          loadFailed = true
+        }
         externalMetadataLoaded = true
         moreFromDirectorLoaded = true
         moreWithActorLoaded = true
