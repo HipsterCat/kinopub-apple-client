@@ -18,6 +18,10 @@ public struct TVPage: UIViewControllerRepresentable {
   /// sidebar passes what the sidebar already leaves.
   public let sideInset: CGFloat
   public let onSelect: (TVPageSection, TVPageItem) -> Void
+  /// A pull-down chip's option was picked: (chip id, option id). Search's filter row.
+  public let onChipOption: (String, String) -> Void
+  /// A multi-select pull-down closed with a new selection: (chip id, option ids).
+  public let onChipSelection: (String, Set<String>) -> Void
   public let onNearEnd: ((TVPageSection) -> Void)?
   public let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   public let onRetry: (() -> Void)?
@@ -30,6 +34,8 @@ public struct TVPage: UIViewControllerRepresentable {
               sideInset: CGFloat = TVHIGGrid.sideInset,
               accessibilityID: String? = nil,
               onSelect: @escaping (TVPageSection, TVPageItem) -> Void,
+              onChipOption: @escaping (String, String) -> Void = { _, _ in },
+              onChipSelection: @escaping (String, Set<String>) -> Void = { _, _ in },
               onNearEnd: ((TVPageSection) -> Void)? = nil,
               contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               onRetry: (() -> Void)? = nil,
@@ -39,6 +45,8 @@ public struct TVPage: UIViewControllerRepresentable {
     self.sideInset = sideInset
     self.accessibilityID = accessibilityID
     self.onSelect = onSelect
+    self.onChipOption = onChipOption
+    self.onChipSelection = onChipSelection
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
     self.onRetry = onRetry
@@ -61,6 +69,8 @@ public struct TVPage: UIViewControllerRepresentable {
   private func bind(_ controller: TVPageCollectionViewController) {
     controller.accessibilityID = accessibilityID
     controller.onSelect = onSelect
+    controller.onChipOption = onChipOption
+    controller.onChipSelection = onChipSelection
     controller.onNearEnd = onNearEnd
     controller.contextMenuProvider = contextMenuProvider
     controller.onRetry = onRetry

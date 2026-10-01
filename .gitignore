@@ -12,6 +12,8 @@ pics/
 build/
 DerivedData/
 .derivedData-tvos/
+.derivedData-ios/
+.derivedData-macos/
 
 *.moved-aside
 *.pbxuser

@@ -19,6 +19,9 @@ public struct TVPageTemplatesGallery: View {
   public var body: some View {
     TVPage(
       sections: Self.sections,
+      // So UITests can wait for the collection itself — section header labels are not
+      // reliable in the AX tree on CI runners (supplementary views often stay off-tree).
+      accessibilityID: "kinopub.page.templates",
       onSelect: { section, item in
         switch item {
         case .card(let card): lastSelection = "\(section.id): \(card.title)"
@@ -26,8 +29,26 @@ public struct TVPageTemplatesGallery: View {
         case .chip(let chip): lastSelection = "\(section.id): \(chip.title)"
         case .tile(let tile): lastSelection = "\(section.id): \(tile.title)"
         case .feature(let feature): lastSelection = "\(section.id): \(feature.card.title)"
+        case .masthead(let header): lastSelection = "\(section.id): \(header.title)"
         case .placeholder: break
         }
+      },
+      contextMenuProvider: { card in
+        // Sample entries so Play-Pause / long-Select can be verified without auth.
+        [
+          .action(MediaCardContextAction(
+            id: "gallery.play.\(card.id)",
+            title: "Play",
+            systemImage: "play.fill",
+            handler: {}
+          )),
+          .action(MediaCardContextAction(
+            id: "gallery.info.\(card.id)",
+            title: "Go to Movie",
+            systemImage: "info.circle",
+            handler: {}
+          ))
+        ]
       }
     )
     .ignoresSafeArea()

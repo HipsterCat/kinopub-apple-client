@@ -111,13 +111,20 @@ public enum TVPageLayout {
 
     let layoutSection: NSCollectionLayoutSection
     switch (section.kind, section.flow) {
+    case (.masthead, _):
+      layoutSection = masthead(section, sideInset: sideInset)
     case (.chip, _):
+      let centered = section.items.contains(where: Self.isCenterChip)
       let pinned = section.items.contains(where: Self.isTrailingChip)
       let bottom = chipRowBottom(before: next, contentWidth: contentWidth,
-                                 otherwise: pinned ? TVHIGGrid.titledRowGap / 2 : TVHIGGrid.titledRowGap)
-      layoutSection = pinned
-        ? chipRow(section, sideInset: sideInset, bottom: bottom)
-        : chipRail(section, sideInset: sideInset, bottom: bottom)
+                                 otherwise: pinned || centered ? TVHIGGrid.titledRowGap / 2 : TVHIGGrid.titledRowGap)
+      if centered {
+        layoutSection = centeredChipRow(section, sideInset: sideInset, bottom: bottom)
+      } else if pinned {
+        layoutSection = chipRow(section, sideInset: sideInset, bottom: bottom)
+      } else {
+        layoutSection = chipRail(section, sideInset: sideInset, bottom: bottom)
+      }
     case (.banner, _):
       layoutSection = bannerRail(section, containerWidth: containerWidth)
     case (_, .rail):
@@ -212,41 +219,84 @@ public enum TVPageLayout {
     return layoutSection
   }
 
-  /// Wrapping rows. `repeatingSubitem` + a fixed inter-item spacing is the HIG formula:
-  /// the group is the content width, the gutters come off first, the rest is divided by
-  /// the count — applied to envelopes, so that the art inside lands on the grid.
+  /// Wrapping rows. A fractional item in `repeatingSubitem:count:` grows to fill a
+  /// short last group, and a poster lockup then draws its 2:3 art across the whole
+  /// cell — the footer title disappears (collection grids, 2026-10-01). One custom
+  /// group places every cell at the measured envelope (`recipe.itemSize`): a short
+  /// last row keeps the same poster size as a full one, leftover width stays empty,
+  /// and the recipe cache key always matches what the cell is given.
   @MainActor
   private static func grid(_ section: TVPageSection,
                            contentWidth: CGFloat,
                            sideInset: CGFloat) -> NSCollectionLayoutSection {
     let (columns, art) = TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth)
     let recipe = TVPageCellMetrics.recipe(kind: section.kind, artWidth: art, caption: section.caption)
-    // `count:` places the items; it does not size them — an item at fractionalWidth(1)
-    // is the whole group, and the row became one banner per line.
-    let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(
-      widthDimension: .fractionalWidth(1 / CGFloat(columns)),
-      heightDimension: .fractionalHeight(1)
-    ))
-    let group = NSCollectionLayoutGroup.horizontal(
-      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
-                                         heightDimension: .absolute(recipe.itemSize.height)),
-      repeatingSubitem: item,
-      count: columns
-    )
-    group.interItemSpacing = .fixed(TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing)
-    let layoutSection = NSCollectionLayoutSection(group: group)
-    layoutSection.interGroupSpacing = hasStandingCaption(section)
+    let spacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
+    let itemW = recipe.itemSize.width
+    let itemH = recipe.itemSize.height
+    let rowGap = hasStandingCaption(section)
       ? captionedRowGap
       : gridRowSpacing + recipe.belowItem - recipe.artInsets.top - recipe.artInsets.bottom
+    let count = max(section.items.count, 1)
+    let cols = max(columns, 1)
+    let rows = Int(ceil(Double(count) / Double(cols)))
+    let height = CGFloat(rows) * itemH + CGFloat(max(rows - 1, 0)) * rowGap
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                         heightDimension: .absolute(max(height, itemH)))
+    ) { _ in
+      (0..<count).map { index in
+        let col = index % cols
+        let row = index / cols
+        let frame = CGRect(x: CGFloat(col) * (itemW + spacing),
+                           y: CGFloat(row) * (itemH + rowGap),
+                           width: itemW,
+                           height: itemH)
+        return NSCollectionLayoutGroupCustomItem(frame: frame)
+      }
+    }
+    let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil,
                                          captioned: hasStandingCaption(section))
     return layoutSection
+  }
+
+  /// One full-width focusable header that scrolls with the page. Estimated height is
+  /// the *rest* size (name / title / stats). The cell reports that same rest height
+  /// until it is focused with a biography — so a late detail / metadata paint does
+  /// not shove the grid and steal focus.
+  @MainActor
+  private static func masthead(_ section: TVPageSection, sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let height = mastheadRestHeight(section)
+    let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                      heightDimension: .estimated(height))
+    let item = NSCollectionLayoutItem(layoutSize: size)
+    let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [item])
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: sideInset, bottom: 8, trailing: sideInset)
+    return layoutSection
+  }
+
+  /// Rest height only. Expanded biography is measured by the cell when it takes focus.
+  static func mastheadRestHeight(_ section: TVPageSection) -> CGFloat {
+    guard case .masthead(let header) = section.items.first else { return 220 }
+    switch header.style {
+    case .person:
+      return 220
+    case .collection:
+      return header.stats.isEmpty ? 160 : 260
+    }
   }
 
   static let debugBackgroundKind = "TVPageDebugSectionBackground"
 
   private static func isTrailingChip(_ item: TVPageItem) -> Bool {
     if case .chip(let chip) = item { return chip.alignment == .trailing }
+    return false
+  }
+
+  private static func isCenterChip(_ item: TVPageItem) -> Bool {
+    if case .chip(let chip) = item { return chip.alignment == .center }
     return false
   }
 
@@ -281,6 +331,35 @@ public enum TVPageLayout {
         end -= chipSpacing
       }
       return frames.map { NSCollectionLayoutGroupCustomItem(frame: $0) }
+    }
+    let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(
+      top: TVHIGGrid.headerToItems, leading: sideInset,
+      bottom: bottom, trailing: sideInset
+    )
+    return layoutSection
+  }
+
+  /// One non-scrolling row, the pills as a group in the middle of the content width.
+  /// A collection's sort sits under a centered title; a leading row would look stranded.
+  @MainActor
+  private static func centeredChipRow(_ section: TVPageSection, sideInset: CGFloat,
+                                      bottom: CGFloat) -> NSCollectionLayoutSection {
+    let widths: [CGFloat] = section.items.map { entry in
+      guard case .chip(let chip) = entry else { return 180 }
+      return TVPageChipCell.fittingWidth(for: chip)
+    }
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(chipHeight))
+    ) { environment in
+      let width = environment.container.effectiveContentSize.width - sideInset * 2
+      let total = widths.reduce(0, +) + chipSpacing * CGFloat(max(widths.count - 1, 0))
+      var x = max((width - total) / 2, 0)
+      return widths.map { chipWidth in
+        let frame = CGRect(x: x, y: 0, width: chipWidth, height: chipHeight)
+        x += chipWidth + chipSpacing
+        return NSCollectionLayoutGroupCustomItem(frame: frame)
+      }
     }
     let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.contentInsets = NSDirectionalEdgeInsets(
@@ -440,6 +519,10 @@ public enum TVPageCellMetrics {
     case .person: recipe = person(artWidth: key.width)
     case .chip:
       let size = CGSize(width: key.width, height: TVPageLayout.chipHeight)
+      recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                                artSize: size, posterContentSize: size)
+    case .masthead:
+      let size = CGSize(width: key.width, height: 220)
       recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
                                 artSize: size, posterContentSize: size)
     case .card: recipe = measureCard(artWidth: key.width, height: TVPageLayout.cardHeight)

@@ -31,7 +31,12 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   /// applies the same, so the envelope it measures includes this.
   static let footerGap: CGFloat = 12
 
-  private let posterView = TVPosterView(image: nil)
+  /// Non-focusable lockup (`isUserInteractionEnabled = false` on the whole subtree).
+  /// The **cell** is the focused leaf — same shape as Continue Watching /
+  /// `TVPageWideCardCell` — so collection + cell `UIContextMenuInteraction` both see
+  /// Play-Pause. `canBecomeFocused = false` alone left focus on `_TVPosterContentView`
+  /// (7a8bd62): lift looked right, PCM never opened.
+  private let posterView = TVUIKitNonFocusablePosterView(image: nil)
   private let watchedGlyph = UIImageView()
   /// The title's score, top-trailing, for rows that set `showsRating`.
   private let ratingChip = TVPageRatingChip()
@@ -39,6 +44,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
   private var recipe: TVPageCellRecipe?
+  /// Built lazily when the cell's own context-menu interaction asks for a configuration.
+  var contextMenuEntries: (() -> [MediaCardContextEntry])?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -46,6 +53,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override var canBecomeFocused: Bool { true }
 
   private func setUp() {
     // The lockup's focus lift and shadow extend past the cell; the collection view is
@@ -69,15 +78,23 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     let host = posterView.contentView
     let image = posterView.imageView
 
+    // Belt-and-suspenders with the collection-view delegate: interaction on the focused
+    // cell itself (CW stills only need the collection path because focus is already
+    // exactly on the cell via `TVMediaItemContentConfiguration`).
+    addInteraction(UIContextMenuInteraction(delegate: self))
+    PosterContextMenuLog.log("attach UIContextMenuInteraction on TVPageLockupPosterCell")
+
     watchedGlyph.translatesAutoresizingMaskIntoConstraints = false
     watchedGlyph.image = UIImage(systemName: "checkmark.circle.fill")
     watchedGlyph.tintColor = .white
     watchedGlyph.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold)
+    watchedGlyph.isUserInteractionEnabled = false
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: watchedGlyph.layer)
     watchedGlyph.isHidden = true
     host.addSubview(watchedGlyph)
 
     ratingChip.translatesAutoresizingMaskIntoConstraints = false
+    ratingChip.isUserInteractionEnabled = false
     ratingChip.isHidden = true
     host.addSubview(ratingChip)
 
@@ -97,6 +114,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
     let posterID = "kinopub.poster.\(card.id)"
     accessibilityIdentifier = posterID
+    accessibilityLabel = card.title
     posterView.accessibilityIdentifier = posterID
     posterView.accessibilityLabel = card.title
 
@@ -115,10 +133,12 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.contentSize = recipe.posterContentSize
     applyCaption(caption, title: tile.title)
     accessibilityIdentifier = "kinopub.tile.\(tile.id)"
+    accessibilityLabel = tile.title
     posterView.accessibilityIdentifier = accessibilityIdentifier
     posterView.accessibilityLabel = tile.title
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
+    contextMenuEntries = nil
     imageTask?.cancel()
     imageTask = nil
     currentURL = nil
@@ -136,6 +156,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     applyCaption(.never, title: nil)
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
+    contextMenuEntries = nil
     imageTask?.cancel()
     imageTask = nil
     currentURL = nil
@@ -217,18 +238,33 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   /// Caption colour is the one focus response that is ours: secondary at rest, label
   /// when focused (the footer's own default is label always). Colour only — motion,
-  /// lift and the footer's reveal stay the lockup's.
+  /// lift and the footer's reveal stay the lockup's (ancestor-focused).
   override func didUpdateFocus(in context: UIFocusUpdateContext,
                                with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
-    let focused = context.nextFocusedView === self
+    let leafIsSelf = context.nextFocusedView === self
+    let focused = leafIsSelf
       || context.nextFocusedView?.isDescendant(of: self) == true
+    if focused {
+      PosterContextMenuLog.log(
+        "poster cell focus title=\(accessibilityLabel ?? "?") id=\(accessibilityIdentifier ?? "?") leafIsCell=\(leafIsSelf) posterUserInteraction=\(posterView.isUserInteractionEnabled) chain=\(PosterContextMenuLog.focusedChainDescription(startingFrom: context.nextFocusedView))"
+      )
+    }
     coordinator.addCoordinatedAnimations({ [weak self] in
       self?.posterView.footerView?.titleLabel?.textColor = focused ? .label : .secondaryLabel
     }, completion: { [weak self] in
       guard let self, !focused else { return }
       self.resetStaleFocusAppearance()
     })
+  }
+
+  override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    for press in presses {
+      PosterContextMenuLog.log(
+        "poster cell pressesBegan \(PosterContextMenuLog.pressTypeName(press.type)) id=\(accessibilityIdentifier ?? "?") isFocused=\(isFocused) leaf=\(PosterContextMenuLog.focusedChainDescription(startingFrom: PosterContextMenuLog.focusedView(in: self)))"
+      )
+    }
+    super.pressesBegan(presses, with: event)
   }
 
   /// Accepted adapter, carried over from `TVUIKitPosterCell`: `TVPosterView`'s
@@ -258,10 +294,44 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.title = nil
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
+    contextMenuEntries = nil
     resetStaleFocusAppearance()
     accessibilityIdentifier = nil
+    accessibilityLabel = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
+  }
+}
+
+extension TVPageLockupPosterCell: UIContextMenuInteractionDelegate {
+  func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    configurationForMenuAtLocation location: CGPoint
+  ) -> UIContextMenuConfiguration? {
+    PosterContextMenuLog.log(
+      "cell configurationForMenuAtLocation id=\(accessibilityIdentifier ?? "?") loc=\(Int(location.x)),\(Int(location.y))"
+    )
+    guard let entries = contextMenuEntries?(), !entries.isEmpty else {
+      PosterContextMenuLog.log("cell menu → nil (no entries) id=\(accessibilityIdentifier ?? "?")")
+      return nil
+    }
+    PosterContextMenuLog.log("cell menu → UIContextMenuConfiguration entries=\(entries.count)")
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+      TVUIKitContextMenuBuilder.menu(from: entries)
+    }
+  }
+
+  func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    willEndFor configuration: UIContextMenuConfiguration,
+    animator: (any UIContextMenuInteractionAnimating)?
+  ) {
+    let reset: () -> Void = { [weak self] in self?.resetStaleFocusAppearance() }
+    if let animator {
+      animator.addCompletion(reset)
+    } else {
+      reset()
+    }
   }
 }
 
@@ -595,9 +665,9 @@ final class TVPageWideCardCell: UICollectionViewCell {
   private let cardView = TVCardView()
   private let thumbnail = UIImageView()
   /// A person's photo or initials in a circle — a still image, like the poster
-  /// thumbnail. Not `TVUIKitPersonAvatarView`: its monogram content is a focusable
-  /// lockup that lifted itself in layers inside the focused card and kept stale
-  /// initials across reuse ("KT" on Stephen Robert Morse, 2026-09-26).
+  /// thumbnail. Not a monogram content view: that lockup is focusable and lifts
+  /// itself, layer by layer, inside the focused card, and it kept stale initials
+  /// across reuse ("KT" on Stephen Robert Morse, 2026-09-26).
   private let avatar = UIImageView()
   private let titleLabel = UILabel()
   private let originalLabel = UILabel()

@@ -7,24 +7,49 @@ import SwiftUI
 import KinoPubUI
 import KinoPubBackend
 
+/// What `LibraryFiltersBar` drives: a filter, the picker contents, and the apply/clear
+/// verbs. `LibraryCatalog` applies picks server-side (`/v1/items`). A collection does
+/// not: `/v1/collections/view` takes no parameters, so that page only offers sort.
+@MainActor
+protocol FilterBarDriver: ObservableObject {
+  var filter: LibraryFilter { get }
+  var genres: [MediaGenre] { get }
+  var countries: [Country] { get }
+  /// Where a typed query looks. `nil` on a page that is not a text search.
+  var searchField: SearchItemsRequest.Field? { get }
+  func update(_ transform: (inout LibraryFilter) -> Void)
+  func updateSearchField(_ field: SearchItemsRequest.Field?)
+  func clearFilters()
+}
+
+extension FilterBarDriver {
+  var searchField: SearchItemsRequest.Field? { nil }
+  func updateSearchField(_ field: SearchItemsRequest.Field?) {}
+}
+
+extension LibraryCatalog: FilterBarDriver {}
+
+/// How much of the filter bar a page shows. `.full` is search, the library, and a
+/// person's credits — those listings accept the picks. `.sort` is a collection:
+/// the endpoint cannot filter, and a local copy of the search row is not a filter.
+enum LibraryFiltersBarChrome {
+  case full
+  case sort
+}
+
 /// Sort and filter dropdowns — system `.glass` / `.glassProminent` capsules.
 /// On macOS Search they sit centered in the toolbar accessory bar under the
 /// trailing search field; on iOS/tvOS they scroll with the grid.
 ///
 /// DESIGN: `CatalogPeriod` (`LibraryFilter.period`) is wired into `/v1/items` — add a
 /// Period menu here when the filter chrome is designed (day/week/month/year).
-struct LibraryFiltersBar: View {
+struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
 
-  @ObservedObject var catalog: LibraryCatalog
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-  @Environment(\.colorSchemeContrast) private var contrast
+  @ObservedObject var catalog: Catalog
+  var chrome: LibraryFiltersBarChrome = .full
 
   private var years: [YearRange] {
     YearRange.decades(upTo: Calendar.current.component(.year, from: Date()))
-  }
-
-  private var solidChrome: Bool {
-    reduceTransparency || contrast == .increased
   }
 
   var body: some View {
@@ -36,35 +61,38 @@ struct LibraryFiltersBar: View {
       Spacer(minLength: 0)
     }
     .frame(maxWidth: .infinity)
+    .accessibilityIdentifier("kinopub.filter-bar")
 #else
     ScrollView(.horizontal, showsIndicators: false) {
       filterChips
-        .padding(.horizontal, Self.horizontalInset)
-        .padding(.vertical, Self.verticalPadding)
+        .padding(.horizontal, LibraryFilterMetrics.horizontalInset)
+        .padding(.vertical, LibraryFilterMetrics.verticalPadding)
     }
+    .accessibilityIdentifier("kinopub.filter-bar")
 #endif
   }
 
   private var filterChips: some View {
-    HStack(spacing: Self.spacing) {
+    HStack(spacing: LibraryFilterMetrics.spacing) {
       sortMenu
-      typeMenu
-      genreMenu
-      countryMenu
-      yearMenu
+      if chrome == .full {
+        typeMenu
+        genreMenu
+        countryMenu
+        yearMenu
 
-      if catalog.filter.hasActiveFilters {
-        Button {
-          catalog.clearFilters()
-        } label: {
-          Label("Clear", systemImage: "xmark")
+        if catalog.filter.hasActiveFilters {
+          Button {
+            catalog.clearFilters()
+          } label: {
+            Label("Clear", systemImage: "xmark")
+          }
         }
-//        .modifier(LibraryFilterGlassStyle(isProminent: false, useSolid: solidChrome))
       }
     }
 #if os(macOS)
-    .padding(.horizontal, Self.horizontalInset)
-    .padding(.vertical, Self.verticalPadding)
+    .padding(.horizontal, LibraryFilterMetrics.horizontalInset)
+    .padding(.vertical, LibraryFilterMetrics.verticalPadding)
 #endif
   }
 
@@ -227,7 +255,11 @@ struct LibraryFiltersBar: View {
   static func checkmarkLabel(_ title: LocalizedStringKey, selected: Bool) -> some View {
     Label(title, systemImage: selected ? "checkmark" : "")
   }
+}
 
+/// The filter capsules' metrics — a generic `LibraryFiltersBar` cannot hold static
+/// stored properties, so they live here.
+enum LibraryFilterMetrics {
 #if os(tvOS)
   static let spacing: CGFloat = 16
   static let horizontalInset: CGFloat = 80
@@ -254,7 +286,7 @@ struct LibraryFiltersBar: View {
 struct LibraryFilterGlassStyle: ViewModifier {
   var isProminent: Bool
   var useSolid: Bool = false
-  var controlSize: ControlSize = LibraryFiltersBar.controlSize
+  var controlSize: ControlSize = LibraryFilterMetrics.controlSize
 
   func body(content: Content) -> some View {
     Group {
@@ -282,34 +314,6 @@ struct LibraryFilterGlassStyle: ViewModifier {
     }
     .buttonBorderShape(.capsule)
     .controlSize(controlSize)
-  }
-}
-
-/// The sort dropdown on its own. A person's credits are the same listing narrowed to
-/// one name, so they get sorting without the filter pickers around it.
-struct LibrarySortMenu: View {
-
-  @ObservedObject var catalog: LibraryCatalog
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-  @Environment(\.colorSchemeContrast) private var contrast
-
-  var body: some View {
-    LibraryFiltersBar.filterMenu(
-      label: LocalizedStringKey(catalog.filter.sort.titleKey),
-      icon: "arrow.up.arrow.down",
-      isActive: false,
-      reduceTransparency: reduceTransparency,
-      highContrast: contrast == .increased
-    ) {
-      ForEach(MediaSortOrder.allCases) { order in
-        Button {
-          catalog.update { $0.sort = order }
-        } label: {
-          LibraryFiltersBar.checkmarkLabel(LocalizedStringKey(order.titleKey),
-                                           selected: catalog.filter.sort == order)
-        }
-      }
-    }
   }
 }
 

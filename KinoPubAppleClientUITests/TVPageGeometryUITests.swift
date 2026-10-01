@@ -548,6 +548,103 @@ final class TVPageGeometryUITests: XCTestCase {
     try shoot(app, name: "layout-5-right")
   }
 
+  /// The collections row is Watch Now's last row: Select on a collection card opens
+  /// the collection — the search catalog, pull-down chips over the poster grid.
+  func testCollectionPageFromHomeRow() throws {
+    let app = launchSignedIn()
+    // A cold install on a loaded machine loads Home slowly; the disk snapshot from a
+    // previous run paints it fast.
+    // Banners and Continue Watching are on screen first. Poster cells are not in
+    // the tree until focus scrolls a poster row on, so waiting without moving
+    // times out on a loaded home.
+    if !revealHomePoster(app) {
+      try shoot(app, name: "collection-launch-failed")
+      XCTFail("Home never showed a poster")
+      return
+    }
+
+    // Walk to the bottom until focus stops moving — the collections row is last.
+    var lastFocusedID: String?
+    for _ in 0..<30 {
+      let focused = app.descendants(matching: .any)
+        .matching(NSPredicate(format: "hasFocus == true")).firstMatch
+      let id = focused.exists ? focused.identifier : nil
+      if let id, id == lastFocusedID { break }
+      lastFocusedID = id
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.7)
+    }
+    try shoot(app, name: "collection-0-home-bottom")
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 4)
+    try shoot(app, name: "collection-1-inside")
+
+    // Inside: the collection's poster grid, with the sort pill and not the search
+    // filter row. Focus starts on a poster.
+    let page = app.collectionViews["kinopub.page.collection"]
+    XCTAssertTrue(page.waitForExistence(timeout: 15), "collection page never appeared")
+    XCTAssertTrue(app.descendants(matching: .any)["kinopub.chip.sort"].waitForExistence(timeout: 5),
+                  "no sort control inside the collection")
+    XCTAssertFalse(app.descendants(matching: .any)["kinopub.chip.type"].exists,
+                   "collection page invented a type filter")
+    let posters = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.poster."))
+    XCTAssertGreaterThan(posters.count, 0, "no poster grid inside the collection")
+    let focused = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "hasFocus == true")).firstMatch
+    if focused.exists {
+      XCTAssertTrue(focused.identifier.hasPrefix("kinopub.poster."),
+                    "focus landed on \(focused.identifier) instead of a poster")
+    }
+    // The short last row is where a fractional cell used to swallow its title.
+    for _ in 0..<12 {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.45)
+    }
+    try shoot(app, name: "collection-2-last-row")
+    app.terminate()
+  }
+
+  /// A person page scrolls its header with the credits grid: sort and the type
+  /// pull-down, reached by Enter on a face in a title's cast rail. Focus starts on
+  /// a poster, not the sort control. Sort defaults to Year.
+  func testPersonPageFromCastRail() throws {
+    let app = launchSignedIn()
+    XCTAssertTrue(revealHomePoster(app), "Home never showed a poster")
+
+    // Open the first poster on Home — a Hot title with a cast.
+    for _ in 0..<6 where focusedPoster(in: app) == nil {
+      press(.down)
+    }
+    guard focusedPoster(in: app) != nil else {
+      return XCTFail("never focused a poster")
+    }
+    press(.select, wait: 5)
+    Thread.sleep(forTimeInterval: 6)
+    try shoot(app, name: "person-0-detail")
+
+    // The cast rail is the circles row on the detail page; walk until a face holds
+    // focus, then Enter opens the person's page.
+    let castRail = app.collectionViews["cast-rail"]
+    let focusedFace = castRail.cells
+      .matching(NSPredicate(format: "hasFocus == true")).firstMatch
+    for _ in 0..<24 where !focusedFace.exists {
+      press(.down, wait: 0.8)
+    }
+    XCTAssertTrue(focusedFace.waitForExistence(timeout: 5),
+                  "focus never reached the cast rail on the detail page")
+    try shoot(app, name: "person-1-cast-rail")
+    press(.select, wait: 4)
+    try shoot(app, name: "person-2-page")
+    XCTAssertTrue(app.collectionViews["kinopub.page.person"].waitForExistence(timeout: 15),
+                  "person page never appeared")
+    XCTAssertTrue(app.descendants(matching: .any)["kinopub.chip.sort"].waitForExistence(timeout: 5),
+                  "no sort control on the person page")
+    XCTAssertTrue(app.descendants(matching: .any)["kinopub.chip.type"].waitForExistence(timeout: 5),
+                  "no type filter on the person page")
+    app.terminate()
+  }
+
   private func launchSignedIn() -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark"]
@@ -568,6 +665,19 @@ final class TVPageGeometryUITests: XCTestCase {
   private func focusDescription(_ app: XCUIApplication) -> String {
     let focused = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true"))
     return (0..<min(focused.count, 5)).map { focused.element(boundBy: $0).debugDescription.prefix(200).description }.joined(separator: "\n")
+  }
+
+  /// Move down until a poster cell exists. Watch Now's first rows are banners
+  /// and Continue Watching; those cells are not `kinopub.poster.*`.
+  private func revealHomePoster(_ app: XCUIApplication) -> Bool {
+    guard app.collectionViews["kinopub.page.home"].waitForExistence(timeout: 90) else { return false }
+    if firstPoster(in: app, page: "home").exists { return true }
+    for _ in 0..<24 {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.7)
+      if firstPoster(in: app, page: "home").exists { return true }
+    }
+    return firstPoster(in: app, page: "home").waitForExistence(timeout: 5)
   }
 
   private func firstPoster(in app: XCUIApplication, page: String) -> XCUIElement {

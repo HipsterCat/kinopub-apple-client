@@ -320,6 +320,33 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   }
 }
 
+// MARK: - Local application
+
+public extension LibraryFilter {
+  /// The filter's sort applied on the device. A collection's response cannot be
+  /// sorted by the server — `/v1/collections/view` takes no parameters — so the
+  /// sort control reorders the list the page already holds. This is not a filter:
+  /// it does not drop items. Default for those pages is year descending.
+  func sortingLocally(_ items: [MediaItem]) -> [MediaItem] {
+    switch sort {
+    case .recentlyAdded:
+      return items.sorted { $0.createdAt > $1.createdAt }
+    case .recentlyUpdated:
+      return items.sorted { $0.updatedAt > $1.updatedAt }
+    case .views:
+      return items.sorted { $0.views > $1.views }
+    case .title:
+      return items.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    case .year:
+      return items.sorted { $0.year > $1.year }
+    case .kinopoiskRating:
+      return items.sorted { ($0.kinopoiskRating ?? 0) > ($1.kinopoiskRating ?? 0) }
+    case .imdbRating:
+      return items.sorted { ($0.imdbRating ?? 0) > ($1.imdbRating ?? 0) }
+    }
+  }
+}
+
 // MARK: - Saved
 
 extension LibraryFilter {

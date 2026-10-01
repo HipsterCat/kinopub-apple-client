@@ -5,6 +5,40 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS collection and person pages use the search catalog (2026-10-01)
+
+Opening a collection, or a person's credits, is a `TVPage`. The header — a collection's
+title and counts, or a person's photo, name and role — is the first section, so it
+scrolls away with the grid, and is one focus stop (Up from the grid reaches it; a
+person's biography opens under that focus). Under it: a labeled sort pull-down, and on
+a person page the type pull-down as well. Default sort is year descending
+(`sort=-year` on `/v1/items`; the same order applied on the device for a collection).
+The rest of the search filter row stays on search. `/v1/collections/view` takes no
+parameters, so a collection only reorders the list it already fetched; it does not
+filter locally. Entry focus is the first poster; the page asks once and then stops
+fighting the remote, so Up into the masthead sticks. Masthead rest height is fixed —
+detail / bio metadata must not reflow the grid. Poster grids are one custom group of
+absolute envelopes, so a short last row keeps the same poster size and the title under
+the art. Person circles (the page avatar and the cast rail) are a photo or
+high-contrast initials on a solid disc, with no monogram plate. iOS and macOS keep
+`LibraryFiltersBar`; a collection there shows sort only.
+
+### tvOS: context menu on vertical poster shelves (2026-10-01)
+
+Long-press / Play-Pause opened the card menu on Continue Watching stills, but not
+on 2:3 posters (Hot Movies, Series, catalog shelves). Stills focus the **cell**, so
+`collectionView(_:contextMenuConfigurationForItemsAt:)` fires. Vertical posters used
+`TVPosterView` (a `UIControl`); focus landed on lockup internals even after
+`canBecomeFocused = false` (7a8bd62) — lift looked right via ancestor rules, but the
+collection PCM hook never saw a cell-focused leaf. Menu-host / `UIButton.menu`
+attempts also failed: Play-Pause never reached `configurationForMenuAtLocation`.
+
+Fix: `TVUIKitNonFocusablePosterView` sets `isUserInteractionEnabled = false` so the
+whole lockup subtree cannot take focus; the **cell** is the focused leaf (same shape
+as CW / `TVPageWideCardCell`). Cell + collection both own context-menu paths.
+DEBUG builds log `[PCM]` (focus leaf, attach, presses, configuration requested /
+returned / nil). CW stills unchanged.
+
 ### tvOS Search: Down from the Search tab reaches the keyboard (2026-10-01)
 
 On tvOS 26.5/26.6, Down from the focused Search tab icon did nothing (Select still
