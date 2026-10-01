@@ -513,6 +513,12 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     let width = layoutWidth > 1 ? layoutWidth : max(tileSize.width, ShelfMetrics.tvCardWidth)
     let size = CGSize(width: width, height: width / CardAspect.poster.ratio)
     cell.configure(card: card, size: size)
+    let itemID = card.id
+    cell.contextMenuEntries = { [weak self] in
+      guard let self,
+            let current = self.cards.first(where: { $0.id == itemID }) else { return [] }
+      return self.contextMenuProvider?(current) ?? []
+    }
     return cell
   }
 
@@ -586,24 +592,34 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
 
   // MARK: - Context menu
   //
-  // tvOS routes the long-press-Select gesture to the *focused* view and up its
-  // responder chain, so an interaction installed on a cell's `contentView` (a
-  // descendant of the focus item) never fires. The collection view's own delegate
-  // hook is the path UIKit wires to the focus engine — and on tvOS only the
-  // `…ForItemsAt indexPaths:` variant exists; the single-indexPath one is
-  // `API_UNAVAILABLE(tvos)`.
+  // Landscape stills and vertical posters both focus the *cell* (poster lockup
+  // subtree is non-interactive). Collection path is the primary CW hook; poster
+  // cells also install their own interaction.
 
   public func collectionView(
     _ collectionView: UICollectionView,
     contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
     point: CGPoint
   ) -> UIContextMenuConfiguration? {
-    guard let indexPath = indexPaths.first,
-          cards.indices.contains(indexPath.item),
-          let entries = contextMenuProvider?(cards[indexPath.item]),
-          !entries.isEmpty
-    else { return nil }
-
+    PosterContextMenuLog.log(
+      "mediaCollection request indexPaths=\(indexPaths.map { "\($0.section):\($0.item)" }) landscape=\(isLandscape) focused=\(PosterContextMenuLog.focusedChainDescription(startingFrom: PosterContextMenuLog.focusedView(in: collectionView)))"
+    )
+    guard let indexPath = TVUIKitContextMenuIndexPath.resolve(
+            in: collectionView, indexPaths: indexPaths, point: point),
+          cards.indices.contains(indexPath.item) else {
+      PosterContextMenuLog.log("mediaCollection menu → nil (no indexPath)")
+      return nil
+    }
+    let card = cards[indexPath.item]
+    let entries = contextMenuProvider?(card) ?? []
+    PosterContextMenuLog.log(
+      "mediaCollection resolved \(indexPath.item) title=\(card.title) entries=\(entries.count)"
+    )
+    guard !entries.isEmpty else {
+      PosterContextMenuLog.log("mediaCollection menu → nil (empty entries)")
+      return nil
+    }
+    PosterContextMenuLog.log("mediaCollection menu → UIContextMenuConfiguration")
     return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
       TVUIKitContextMenuBuilder.menu(from: entries)
     }
@@ -611,7 +627,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
 
   public func collectionView(
     _ collectionView: UICollectionView,
-    willEndContextMenuInteractionWith configuration: UIContextMenuConfiguration,
+    willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
     animator: (any UIContextMenuInteractionAnimating)?
   ) {
     // Same TVPosterView stranding as after a focus change — the lifted poster can

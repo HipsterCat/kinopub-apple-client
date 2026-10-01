@@ -317,10 +317,16 @@ public final class TVPageCollectionViewController: UIViewController {
       switch self.itemsByID[id] {
       case .card(let card)?:
         cell.configure(card: card, recipe: recipe, caption: section.caption, showsRating: section.showsRating)
+        cell.contextMenuEntries = { [weak self] in
+          guard let self, let card = self.itemsByID[id]?.card else { return [] }
+          return self.contextMenuProvider?(card) ?? []
+        }
       case .tile(let tile)?:
         cell.configure(tile: tile, recipe: recipe, caption: section.caption)
+        cell.contextMenuEntries = nil
       default:
         cell.configurePlaceholder(recipe: recipe)
+        cell.contextMenuEntries = nil
       }
     }
 
@@ -694,16 +700,53 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   // tvOS routes long-press-Select to the focused view's responder chain; the
   // collection's own delegate hook is the one UIKit wires to the focus engine, and
   // only the `…ForItemsAt indexPaths:` variant exists on tvOS.
+  //
+  // Stills and vertical posters both focus the *cell* (poster lockup subtree is
+  // non-interactive). UIKit then fills `indexPaths`. Cell also owns its own
+  // `UIContextMenuInteraction` as a belt-and-suspenders path.
   public func collectionView(_ collectionView: UICollectionView,
                              contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
                              point: CGPoint) -> UIContextMenuConfiguration? {
-    guard let indexPath = indexPaths.first,
-          let id = dataSource.itemIdentifier(for: indexPath),
-          let card = itemsByID[id]?.card,
-          let entries = contextMenuProvider?(card),
-          !entries.isEmpty else { return nil }
+    PosterContextMenuLog.log(
+      "collection request indexPaths=\(indexPaths.map { "\($0.section):\($0.item)" }) point=\(Int(point.x)),\(Int(point.y)) focused=\(PosterContextMenuLog.focusedChainDescription(startingFrom: PosterContextMenuLog.focusedView(in: collectionView)))"
+    )
+    guard let indexPath = TVUIKitContextMenuIndexPath.resolve(
+            in: collectionView, indexPaths: indexPaths, point: point) else {
+      PosterContextMenuLog.log("collection menu → nil (no indexPath)")
+      return nil
+    }
+    guard let id = dataSource.itemIdentifier(for: indexPath) else {
+      PosterContextMenuLog.log("collection menu → nil (no item id at \(indexPath.section):\(indexPath.item))")
+      return nil
+    }
+    guard let card = itemsByID[id]?.card else {
+      PosterContextMenuLog.log("collection menu → nil (no card for \(id.item) section=\(id.section))")
+      return nil
+    }
+    let entries = contextMenuProvider?(card) ?? []
+    PosterContextMenuLog.log(
+      "collection resolved \(indexPath.section):\(indexPath.item) title=\(card.title) id=\(card.id) entries=\(entries.count)"
+    )
+    guard !entries.isEmpty else {
+      PosterContextMenuLog.log("collection menu → nil (empty entries)")
+      return nil
+    }
+    PosterContextMenuLog.log("collection menu → UIContextMenuConfiguration")
     return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
       TVUIKitContextMenuBuilder.menu(from: entries)
+    }
+  }
+
+  public func collectionView(
+    _ collectionView: UICollectionView,
+    willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
+    animator: (any UIContextMenuInteractionAnimating)?
+  ) {
+    let reset: () -> Void = { [weak self] in self?.resetStrandedFocusAppearance() }
+    if let animator {
+      animator.addCompletion(reset)
+    } else {
+      reset()
     }
   }
 }

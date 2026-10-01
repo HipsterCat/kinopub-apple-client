@@ -5,6 +5,22 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS: context menu on vertical poster shelves (2026-10-01)
+
+Long-press / Play-Pause opened the card menu on Continue Watching stills, but not
+on 2:3 posters (Hot Movies, Series, catalog shelves). Stills focus the **cell**, so
+`collectionView(_:contextMenuConfigurationForItemsAt:)` fires. Vertical posters used
+`TVPosterView` (a `UIControl`); focus landed on lockup internals even after
+`canBecomeFocused = false` (7a8bd62) — lift looked right via ancestor rules, but the
+collection PCM hook never saw a cell-focused leaf. Menu-host / `UIButton.menu`
+attempts also failed: Play-Pause never reached `configurationForMenuAtLocation`.
+
+Fix: `TVUIKitNonFocusablePosterView` sets `isUserInteractionEnabled = false` so the
+whole lockup subtree cannot take focus; the **cell** is the focused leaf (same shape
+as CW / `TVPageWideCardCell`). Cell + collection both own context-menu paths.
+DEBUG builds log `[PCM]` (focus leaf, attach, presses, configuration requested /
+returned / nil). CW stills unchanged.
+
 ### tvOS Search: Down from the Search tab reaches the keyboard (2026-10-01)
 
 On tvOS 26.5/26.6, Down from the focused Search tab icon did nothing (Select still
