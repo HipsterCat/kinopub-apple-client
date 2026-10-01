@@ -7,11 +7,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ### Optimistic auth launch — no splash while refreshing (2026-10-01)
 
-A Keychain token mounts Tabs immediately (`AuthPhase.signedIn`); `AuthState.check()` still runs
-`refreshToken` once in the background. Transient failures keep the session and back off as before;
-only a fatal grant rejection (400/401 on refresh) clears Keychain and shows activation. The
-blocking `.resolving` splash ("Signing in" / "Start auth state checking…") is gone. Cold start with
-no token is unchanged. DEBUG `DevSessionMirror` behavior is unchanged.
+A Keychain token mounts Tabs immediately (`AuthPhase.signedIn`). Refresh is driven by the stored
+access-token expiry (`expires_in` → Keychain clock, proactive ~90s early) and by content 401s —
+not a blocking splash. `APIClient` awaits token recovery and **retries the failed request once**
+instead of failing every shelf while refresh is in flight. Detail pages that already have a card
+snapshot keep the paint and toast on soft failure; only a true cold miss shows `UnavailableView`.
+Transient refresh failures keep the session and back off; only a fatal grant rejection clears
+Keychain and shows activation. Cold start with no token is unchanged. DEBUG `DevSessionMirror`
+behavior is unchanged.
 
 ### Media actions: download phases, Follow-primary, series long-press (2026-10-01)
 
