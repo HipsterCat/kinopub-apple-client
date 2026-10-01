@@ -324,8 +324,6 @@ struct MediaItemHeroView: View {
   @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
   private var showsAgeRatingBadge = false
 
-  @Environment(\.openURL) private var openURL
-  @Environment(NavigationState.self) private var navigationState
 
   private var isSeries: Bool {
     !(mediaItem.seasons?.isEmpty ?? true)
@@ -403,7 +401,6 @@ struct MediaItemHeroView: View {
       .fullScreenCover(isPresented: $isTrailerFullScreen, onDismiss: { trailer.setFullScreen(false) }) {
         fullScreenTrailer
       }
-      .modifier(MediaCardContextMenuModifier(entries: contextMenuEntries))
 #else
     // 16:9 is the floor rather than the height, so a narrow window or a phone grows
     // the band instead of clipping the buttons off the top of it.
@@ -426,74 +423,9 @@ struct MediaItemHeroView: View {
     }
     .clipped()
     .background(visibilityProbe)
-    .modifier(MediaCardContextMenuModifier(entries: contextMenuEntries))
 #endif
   }
 
-  /// Same builder as Home / Library cards — Play, library, watched, hide, DEBUG art URLs.
-  private var contextMenuEntries: [MediaCardContextEntry] {
-    let card = MediaCard(
-      id: mediaItem.id,
-      posterURL: mediaItem.posters.medium,
-      title: mediaItem.localizedTitle,
-      subtitle: mediaItem.originalTitle,
-      scores: MediaScores(mediaItem),
-      backdropURL: mediaItem.posters.wideURL ?? mediaItem.posters.big,
-      metaLine: mediaItem.metadataLine,
-      overview: mediaItem.plot,
-      itemID: mediaItem.id,
-      video: isSeries ? nil : 1,
-      isWatched: isWatched,
-      isSeries: isSeries,
-      isInWatchlist: isInWatchlist
-    )
-    let folderOptions = folders.map {
-      MediaCardContextMenus.BookmarkFolderOption(
-        id: $0.id,
-        title: $0.title,
-        isContaining: folderIDsContainingItem.contains($0.id)
-      )
-    }
-    return MediaCardContextMenus.entries(
-      for: card,
-      surface: .banner,
-      bookmarkFolders: folderOptions,
-      onPlay: {
-        if let route = linkProvider.player(for: playTarget) as? Route {
-          navigationState.push(route)
-        }
-      },
-      onGoToTitle: nil,
-      onToggleWatchlist: isSeries ? onToggleWatchlist : nil,
-      onToggleBookmarkFolder: { folderID in
-        guard let folder = folders.first(where: { $0.id == folderID }) else { return }
-        onFolderToggle(folder)
-      },
-      onCreateBookmarkFolder: onCreateFolder == nil
-        ? nil
-        : {
-          newFolderName = ""
-          showNewFolderAlert = true
-        },
-      onToggleWatched: onWatchedToggle,
-      onHide: onClearFromContinueWatching,
-      onOpenImageURL: { openURL($0) },
-      debugImageURLs: debugArtworkURLs
-    )
-  }
-
-  /// Wide backdrop first, then title-logo art when TMDB supplied one.
-  private var debugArtworkURLs: [URL] {
-    var urls: [URL] = []
-    var seen = Set<String>()
-    if let primary = backdropCandidates.first, seen.insert(primary.absoluteString).inserted {
-      urls.append(primary)
-    }
-    if let titleLogoURL, seen.insert(titleLogoURL.absoluteString).inserted {
-      urls.append(titleLogoURL)
-    }
-    return urls
-  }
 
 #if os(tvOS)
   /// The trailer with nothing on it: black surround, aspect-fit so nothing is cropped,
@@ -578,8 +510,8 @@ struct MediaItemHeroView: View {
       // The picture's own alpha goes to zero, so whatever the page is drawn on shows
       // through: no second colour to match, in light or dark.
       LinearGradient(stops: [
-        .init(color: .black, location: 0),
-        .init(color: .black, location: 0.5),
+        .init(color: .clear, location: 0),
+        .init(color: .black, location: 0.4),
         .init(color: .black, location: 1)
       ], startPoint: .top, endPoint: .bottom)
     }
@@ -671,9 +603,9 @@ struct MediaItemHeroView: View {
 //         leadingColumn
 //           .frame(width: Self.leadingWidth, alignment: .leading)
     }
-    .padding(Self.horizontalInset)
-//    .padding(.vertical, Self.bottomInset)
-    .frame(maxWidth: .infinity,  maxHeight: .infinity, alignment: .leading)
+    .padding(.bottom, Self.horizontalInset)
+    .padding(.horizontal, Self.bottomInset)
+    .frame(maxWidth: .infinity,  maxHeight: .infinity, alignment: .bottomLeading)
 #endif
   }
 
@@ -724,13 +656,12 @@ struct MediaItemHeroView: View {
 
   @ViewBuilder
   private var titleBlock: some View {
-    // Optimistic hold: do not paint letters until enrichment has settled and any
-    // logo URL has either drawn or failed. Bottom-aligned column keeps meta/actions put.
-    // 150ms opacity fade — same transaction pattern as the wide still.
+    // Label title is always on until the logo actually paints. Holding an empty
+    // view while TMDB settles (or while the image is still downloading) left the
+    // hero without a name; long-press PCM on the cover is gone for the same reason
+    // — the cover is not a card.
     Group {
-      if !externalMetadataLoaded {
-        EmptyView()
-      } else if let titleLogoURL {
+      if let titleLogoURL, externalMetadataLoaded {
         ArtworkImage(
           url: titleLogoURL,
           transaction: Transaction(animation: .easeOut(duration: 0.15))
@@ -741,20 +672,22 @@ struct MediaItemHeroView: View {
               .resizable()
               .scaledToFit()
               .frame(maxWidth: Self.logoMaxWidth, maxHeight: Self.logoMaxHeight, alignment: .leading)
+              .padding(.top, Self.bottomInset/1.5)
               .transition(.opacity)
-          case .failure:
+          case .failure, .empty:
             titleTextBlock
+              .padding(.top, Self.bottomInset)
               .transition(.opacity)
-          case .empty:
-            EmptyView()
           }
         }
       } else {
         titleTextBlock
+          .padding(.top, Self.bottomInset)
           .transition(.opacity)
       }
     }
     .animation(.easeOut(duration: 0.15), value: externalMetadataLoaded)
+    .animation(.easeOut(duration: 0.15), value: titleLogoURL)
   }
 
   private var titleTextBlock: some View {
@@ -779,25 +712,27 @@ struct MediaItemHeroView: View {
   /// scores the same wherever it is shown, so it should not be spelled two ways.
   private var metadata: some View {
     HStack(spacing: Self.metaSpacing) {
-         let releaseLine = mediaItem.releaseLine
-         if !releaseLine.isEmpty {
-           Text(releaseLine)
-             .lineLimit(1)
+         if FeatureFlags.combinedRatingEnabled {
+           if let rating = MediaScores(mediaItem).aggregate {
+             RatingBadgeView(rating: rating)
+               MediaScoresView(MediaScores(mediaItem))
+
+           }
+         } else {
+           // No aggregate: each score keeps its own logo rather than becoming one number.
+           MediaScoresView(MediaScores(mediaItem))
          }
          if !genreCountryLine.isEmpty {
            Text(genreCountryLine)
              .foregroundStyle(Color.KinoPub.subtitle)
          }
+         let releaseLine = mediaItem.releaseLine
+         if !releaseLine.isEmpty {
+           Text(releaseLine)
+             .lineLimit(1)
+         }
          
 
-      if FeatureFlags.combinedRatingEnabled {
-        if let rating = MediaScores(mediaItem).aggregate {
-          RatingBadgeView(rating: rating)
-        }
-      } else {
-        // No aggregate: each score keeps its own logo rather than becoming one number.
-        MediaScoresView(MediaScores(mediaItem))
-      }
 
 
       // Certification only when it was asked for — see `MediaItemDisplayPreferences`.
@@ -836,7 +771,7 @@ struct MediaItemHeroView: View {
 #if os(iOS)
     false
 #else
-    !creditLines.isEmpty
+       !creditLines.isEmpty // and not anime, animation, documentary, tvshow
 #endif
   }
 
@@ -844,7 +779,7 @@ struct MediaItemHeroView: View {
   /// overloads that return `Text` are either iOS 17 or deprecated, and the label has
   /// to flow into the names on the same line anyway.
   private func creditLine(_ line: (role: String, names: String)) -> AttributedString {
-    var label = AttributedString(line.role.localized + " ")
+    var label = AttributedString(line.role.localized + "  ")
     label.foregroundColor = Color.KinoPub.subtitle
 
     var names = AttributedString(line.names)
@@ -860,10 +795,10 @@ struct MediaItemHeroView: View {
   private var genreCountryLine: String {
     var parts: [String] = []
     let genres = mediaItem.genreNames.prefix(Self.genreLimit)
-    if !genres.isEmpty { parts.append(genres.joined(separator: ", ")) }
-    let countries = mediaItem.countryNames.prefix(Self.countryLimit)
-    if !countries.isEmpty { parts.append(countries.joined(separator: ", ")) }
-    return parts.joined(separator: " · ")
+    if !genres.isEmpty { parts.append(genres.joined(separator: "  ")) }
+//    let countries = mediaItem.countryNames.prefix(Self.countryLimit)
+//    if !countries.isEmpty { parts.append(countries.joined(separator: "  ")) }
+    return parts.joined(separator: "  ")
   }
 
   /// A handful of leads and whoever directed it — the whole cast is what the section
@@ -1109,7 +1044,7 @@ struct MediaItemHeroView: View {
           newFolderName = ""
           showNewFolderAlert = true
         } label: {
-          Label("New Folder", systemImage: "folder.badge.plus")
+          Label("New Folder", systemImage: "circle.plus")
         }
       }
     } label: {
@@ -1244,10 +1179,10 @@ struct MediaItemHeroView: View {
   static let creditNameLimit = 3
 
   /// Genres shown above the names; kino.pub happily returns six.
-  static let genreLimit = 3
+  static let genreLimit = 2
 
   /// Co-productions run long — two is enough to say where a title is from.
-  static let countryLimit = 2
+  static let countryLimit = 1
 
   /// Everything under the title is one size — real body text, not a caption — and it
   /// is the same size the ratings captions and the information table use further down
@@ -1265,9 +1200,9 @@ struct MediaItemHeroView: View {
   static let horizontalInset: CGFloat = 80
   static let bottomInset: CGFloat = 80
   static let contentSpacing: CGFloat = 12
- static let leadingWidth: CGFloat = .infinity
-  static let logoMaxWidth: CGFloat = 640
-  static let logoMaxHeight: CGFloat = 220
+  static let leadingWidth: CGFloat = .infinity
+  static let logoMaxWidth: CGFloat = 680
+  static let logoMaxHeight: CGFloat = 170
   static let titleFont: Font = TypeScale.heroTitle
   static let metaSpacing: CGFloat = 20
   static let actionsGap: CGFloat = 20

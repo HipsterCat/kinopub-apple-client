@@ -429,14 +429,14 @@ public extension MediaItem {
     let genres = genres.compactMap(\.title).prefix(2)
     if !genres.isEmpty { parts.append(genres.joined(separator: ", ")) }
     if let country = countries.first?.title { parts.append(country) }
-    return parts.joined(separator: " · ")
+    return parts.joined(separator: "   ")
   }
 
   /// "2025 · 1 h 55 min" — when and how long, nothing else. The item page's hero
   /// metadata row carries the scores and capability chips beside it, and genres and
   /// country sit with the cast under the synopsis instead.
   var releaseLine: String {
-    releaseParts.joined(separator: " · ")
+    releaseParts.joined(separator: "   ")
   }
 
   var originalTitle: String {

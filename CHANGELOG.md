@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Hero: no cover context menu; label title until logo (2026-10-01)
+
+The detail hero cover is no longer wrapped in `MediaCardContextMenuModifier` —
+long-press/PCM was shrinking the artwork and exposing card actions (Play, Hide,
+raw image URLs) that belong on shelves, not the page you are already on. Title
+chrome always shows the label text until the TMDB logo has actually painted
+(`.empty` / loading / missing URL), instead of holding an empty space.
+
 ### Home banner round 2; series meta from the shared line (2026-10-01)
 
 - **Series meta, everywhere.** `MediaItem.releaseParts` (behind `metadataLine` and
