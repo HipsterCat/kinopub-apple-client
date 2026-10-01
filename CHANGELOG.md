@@ -14,6 +14,7 @@ When a series is ongoing, everything is watched, and the next episode airs withi
 Follow leads as a labelled primary (`Отслеживать` / `Track`) and Play demotes to Replay.
 Copy: EN `S1, E2` / `53m left`; RU `1 сезон, 2 серия` / `Ещё 53 мин`. Product matrix:
 `docs/product/media-actions.md`.
+
 ### tvOS Home banner on the page (2026-10-01)
 
 The banner was drawn only by the SwiftUI `MediaRowsView`; with `tvPageSections` on, tvOS
