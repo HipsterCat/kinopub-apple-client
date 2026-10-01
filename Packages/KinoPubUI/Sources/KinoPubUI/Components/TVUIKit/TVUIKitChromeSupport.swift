@@ -10,6 +10,7 @@ import UIKit
 import SwiftUI
 import TVUIKit
 import OSLog
+import NukeExtensions
 
 public enum TVUIKitChromeSupport {
   /// A drop shadow instead of a pill behind small white chrome over artwork. Used by
@@ -179,8 +180,14 @@ enum TVUIKitContextMenuIndexPath {
 ///
 /// `isUserInteractionEnabled = false` disables focus for the whole lockup subtree so
 /// the **cell** is the focused leaf (Continue Watching / `TVPageWideCardCell` shape).
+///
+/// Nuke's `TVPosterView` display path (`nuke_display`) is overridden to assign the
+/// image on the next main-queue turn — `TVPosterView` only computes a non-zero
+/// `focusSizeIncrease` when the image lands outside a layout pass (tvOS 27.2 adapter).
 @MainActor
 final class TVUIKitNonFocusablePosterView: TVPosterView {
+  private var pendingImageToken: UInt = 0
+
   override var canBecomeFocused: Bool { false }
 
   override func didMoveToWindow() {
@@ -197,6 +204,20 @@ final class TVUIKitNonFocusablePosterView: TVPosterView {
     super.layoutSubviews()
     // TVPosterView may re-enable interaction while wiring chrome — keep it off.
     suppressFocusStealing()
+  }
+
+  /// NukeExtensions calls this for `loadImage(into:)`. Defer so focus envelope math runs.
+  override func nuke_display(image: UIImage?, data: Data?) {
+    pendingImageToken &+= 1
+    let token = pendingImageToken
+    guard let image else {
+      self.image = nil
+      return
+    }
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.pendingImageToken == token else { return }
+      self.image = image
+    }
   }
 
   private func suppressFocusStealing() {

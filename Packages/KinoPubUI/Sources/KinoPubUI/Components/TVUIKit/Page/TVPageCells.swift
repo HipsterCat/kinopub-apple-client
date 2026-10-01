@@ -41,7 +41,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   /// The title's score, top-trailing, for rows that set `showsRating`.
   private let ratingChip = TVPageRatingChip()
 
-  private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
   private var recipe: TVPageCellRecipe?
   /// Built lazily when the cell's own context-menu interaction asks for a configuration.
@@ -110,7 +109,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
                  showsRating: Bool = false) {
     self.recipe = recipe
     posterView.contentSize = recipe.posterContentSize
-    applyCaption(caption, title: card.title)
+    applyCaption(caption, title: card.title, subtitle: Self.posterSubtitle(for: card))
 
     let posterID = "kinopub.poster.\(card.id)"
     accessibilityIdentifier = posterID
@@ -131,7 +130,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   func configure(tile: TVPageTile, recipe: TVPageCellRecipe, caption: TVPageCaption) {
     self.recipe = recipe
     posterView.contentSize = recipe.posterContentSize
-    applyCaption(caption, title: tile.title)
+    applyCaption(caption, title: tile.title, subtitle: nil)
     accessibilityIdentifier = "kinopub.tile.\(tile.id)"
     accessibilityLabel = tile.title
     posterView.accessibilityIdentifier = accessibilityIdentifier
@@ -139,9 +138,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
     contextMenuEntries = nil
-    imageTask?.cancel()
-    imageTask = nil
     currentURL = nil
+    TVUIKitRemoteImage.cancel(into: posterView)
     setImage(TVUIKitTileArtwork.image(tint: tile.resolvedTint,
                                       symbol: tile.symbol,
                                       size: recipe.posterContentSize,
@@ -153,33 +151,26 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   func configurePlaceholder(recipe: TVPageCellRecipe) {
     self.recipe = recipe
     posterView.contentSize = recipe.posterContentSize
-    applyCaption(.never, title: nil)
+    applyCaption(.never, title: nil, subtitle: nil)
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
     contextMenuEntries = nil
-    imageTask?.cancel()
-    imageTask = nil
     currentURL = nil
+    TVUIKitRemoteImage.cancel(into: posterView)
     setImage(placeholder)
   }
 
-  /// Accepted adapter (tvOS 27.2, measured 2026-09-21). `TVPosterView` computes its
-  /// `focusSizeIncrease` — the inset the *unfocused* art sits at inside the envelope —
-  /// only for an image assigned **outside a layout pass**. Assigned from a cell
-  /// registration handler or `layoutSubviews` (both run inside the collection view's
-  /// layout) the increase is 0 and stays 0 on every later layout, and the art fills the
-  /// whole envelope: 286 wide instead of 260. Assigned from a later run-loop turn it is
-  /// 13 / 20 on the next layout. Being in a window makes no difference — measured both.
-  /// So the image is handed over on the next main-queue turn, one frame late, which is
-  /// what the async artwork path does anyway.
-  private var desiredImage: UIImage?
+  /// Year under the title when the lockup footer is on — what TVPosterView's subtitle
+  /// is for. Original title is reserved for search's wide cards (match highlighting).
+  private static func posterSubtitle(for card: MediaCard) -> String? {
+    card.year.map(String.init)
+  }
 
+  /// Accepted adapter (tvOS 27.2, measured 2026-09-21). Image assignment for
+  /// `focusSizeIncrease` is deferred inside `TVUIKitNonFocusablePosterView.nuke_display`
+  /// (and `setImage` for drawn tiles / placeholders that skip Nuke).
   private func setImage(_ image: UIImage) {
-    desiredImage = image
-    DispatchQueue.main.async { [weak self] in
-      guard let self, self.desiredImage === image else { return }
-      self.posterView.image = image
-    }
+    posterView.nuke_display(image: image, data: nil)
   }
 
   /// Always an image of the content size, never nil: the lockup computes its focus
@@ -195,12 +186,14 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   private static let placeholderCornerRadius: CGFloat = 14
 
-  private func applyCaption(_ caption: TVPageCaption, title: String?) {
+  private func applyCaption(_ caption: TVPageCaption, title: String?, subtitle: String?) {
     switch caption {
     case .never:
       posterView.title = nil
+      posterView.subtitle = nil
     case .always, .onFocus:
       posterView.title = title
+      posterView.subtitle = subtitle
       // The footer is the system's: it hides and reveals itself, and a long title
       // marquees inside the lockup's width while focused (a screenshot mid-scroll
       // looks clipped on the left — it is not).
@@ -210,30 +203,11 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   private func loadImage(_ url: URL?) {
-    imageTask?.cancel()
-    imageTask = nil
     currentURL = url
-    guard let url else {
-      setImage(placeholder)
-      ArtworkLog.skipped(by: "poster", reason: "no artwork URL")
-      return
-    }
-    // Decode at the focused size (the content size *is* the focused envelope of the
-    // art), so the lifted lockup stays sharp. kino.pub's "big" poster is 250 × 375, so
-    // in practice the source is the ceiling.
     let decodeSize = recipe?.posterContentSize ?? CGSize(width: 260, height: 390)
-    if let hit = TVUIKitRemoteImage.cached(url: url, size: decodeSize) {
-      setImage(hit)
-      ArtworkLog.servedFromMemory(url, by: "poster")
-      return
-    }
-    setImage(placeholder)
-    ArtworkLog.requested(url, by: "poster")
-    imageTask = Task { [weak self] in
-      let image = await TVUIKitRemoteImage.load(url: url, size: decodeSize)
-      guard let self, !Task.isCancelled, self.currentURL == url, let image else { return }
-      self.setImage(image)
-    }
+    // Nuke's `TVPosterView` path — lockup owns aspect / focus scale. No extra
+    // UIImageView crop/fill stack.
+    _ = TVUIKitRemoteImage.load(into: posterView, url: url, size: decodeSize, placeholder: placeholder)
   }
 
   /// Caption colour is the one focus response that is ours: secondary at rest, label
@@ -286,12 +260,11 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   override func prepareForReuse() {
     super.prepareForReuse()
-    imageTask?.cancel()
-    imageTask = nil
+    TVUIKitRemoteImage.cancel(into: posterView)
     currentURL = nil
-    desiredImage = nil
     posterView.image = nil
     posterView.title = nil
+    posterView.subtitle = nil
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
     contextMenuEntries = nil

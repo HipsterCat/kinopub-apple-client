@@ -13,10 +13,17 @@
 //  behaviours still hold; `Artwork` provides them now, on every platform instead of only
 //  this one. See `ArtworkPipeline.swift` for why they are needed at all.
 //
+//  Catalog / person poster grids load through `load(into: TVPosterView…)` — Nuke's
+//  `TVPosterView` display path (`NukeExtensions`) — so the lockup owns aspect and focus
+//  scale. Do not put a second `UIImageView` crop/fill stack over a poster lockup.
+//
 
 import UIKit
+import TVUIKit
 import Nuke
+import NukeExtensions
 
+@MainActor
 public enum TVUIKitRemoteImage {
 
   /// Prefetching stops at the **data** cache: it downloads bytes and does not decode.
@@ -58,6 +65,55 @@ public enum TVUIKitRemoteImage {
     }
   }
 
+  /// Load into a `TVPosterView` via Nuke's integrated display path (`NukeExtensions`).
+  ///
+  /// Never set `contentModes` here: changing `imageView.contentMode` / clipping the
+  /// lockup kills parallax (AGENTS.md). Deferred image assignment for
+  /// `focusSizeIncrease` lives on `TVUIKitNonFocusablePosterView.nuke_display`.
+  @discardableResult
+  public static func load(into posterView: TVPosterView,
+                          url: URL?,
+                          size: CGSize,
+                          placeholder: UIImage) -> ImageTask? {
+    guard let url else {
+      // `nil` request cancels any in-flight Nuke task tied to this view.
+      _ = loadImage(with: nil as ImageRequest?, options: reuseOptions(placeholder: placeholder), into: posterView) { _ in }
+      posterView.nuke_display(image: placeholder, data: nil)
+      ArtworkLog.skipped(by: "poster", reason: "no artwork URL")
+      return nil
+    }
+    if cached(url: url, size: size) != nil {
+      ArtworkLog.servedFromMemory(url, by: "poster")
+    } else {
+      ArtworkLog.requested(url, by: "poster")
+    }
+    var options = ImageLoadingOptions(
+      placeholder: placeholder,
+      transition: nil,
+      failureImage: placeholder,
+      failureImageTransition: nil,
+      contentModes: nil
+    )
+    options.pipeline = Artwork.pipeline
+    // Keep the current image until the new decode lands — blanking mid-scroll is worse
+    // than a one-frame-stale poster. `nuke_display` still defers the real assignment.
+    options.isPrepareForReuseEnabled = false
+    options.isProgressiveRenderingEnabled = false
+    return loadImage(with: Artwork.request(url, size: size), options: options, into: posterView) { result in
+      switch result {
+      case .success(let response):
+        ArtworkLog.loaded(url, from: tier(of: response))
+      case .failure(let error):
+        ArtworkLog.failed(url, reason: error.localizedDescription)
+      }
+    }
+  }
+
+  /// Drop any in-flight Nuke request tied to this lockup (reuse / reconfigure).
+  public static func cancel(into posterView: TVPosterView) {
+    _ = loadImage(with: nil as ImageRequest?, options: reuseOptions(placeholder: nil), into: posterView) { _ in }
+  }
+
   /// Warm the data cache for art that is about to scroll into view.
   public static func prefetch(_ urls: [URL?]) {
     prefetcher.startPrefetching(with: requests(urls))
@@ -70,6 +126,15 @@ public enum TVUIKitRemoteImage {
 
   private static func requests(_ urls: [URL?]) -> [ImageRequest] {
     urls.compactMap { $0 }.map { Artwork.request($0) }
+  }
+
+  private static func reuseOptions(placeholder: UIImage?) -> ImageLoadingOptions {
+    var options = ImageLoadingOptions(placeholder: placeholder, transition: nil,
+                                      failureImage: placeholder, failureImageTransition: nil,
+                                      contentModes: nil)
+    options.pipeline = Artwork.pipeline
+    options.isPrepareForReuseEnabled = true
+    return options
   }
 
   private static func tier(of response: ImageResponse) -> String {
