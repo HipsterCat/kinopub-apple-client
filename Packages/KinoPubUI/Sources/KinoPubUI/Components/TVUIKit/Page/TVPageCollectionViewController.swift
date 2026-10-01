@@ -708,6 +708,19 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       TVUIKitContextMenuBuilder.menu(from: entries)
     }
   }
+
+  public func collectionView(
+    _ collectionView: UICollectionView,
+    willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
+    animator: (any UIContextMenuInteractionAnimating)?
+  ) {
+    let reset: () -> Void = { [weak self] in self?.resetStrandedFocusAppearance() }
+    if let animator {
+      animator.addCompletion(reset)
+    } else {
+      reset()
+    }
+  }
 }
 
 // MARK: - Prefetch
