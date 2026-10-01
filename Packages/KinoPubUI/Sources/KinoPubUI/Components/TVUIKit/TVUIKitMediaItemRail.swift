@@ -720,19 +720,6 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   override var canBecomeFocused: Bool { cellAllowsFocus }
 }
 
-extension TVUIKitMediaItemCell: TVZoomSourceCell {
-  /// The system pins the overlay over the artwork and lifts it with it, so its frame is
-  /// the art's — the image view itself belongs to the content configuration.
-  var zoomSourceView: UIView { overlay }
-  /// The system wide cell's rounding; it publishes no value for it.
-  var zoomCornerRadius: CGFloat { 12 }
-  var zoomArtwork: UIImage? { artwork }
-
-  func zoomSnapshot() -> UIView? {
-    TVZoomSource.artworkSnapshot(artwork, cornerRadius: zoomCornerRadius)
-  }
-}
-
 // MARK: - Overlay
 
 /// Sits on `TVMediaItemContentConfiguration.overlayView`, which the system pins over the

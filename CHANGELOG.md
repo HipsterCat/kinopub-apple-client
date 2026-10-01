@@ -5,24 +5,6 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
-### tvOS: a card's page zooms out of the card (2026-10-01)
-
-Opening a title or a person from a card (posters, stills, Continue Watching, the banner,
-search results, and "Go to title" in a card's menu) presents the page over the tabs
-(`.overFullScreen`) instead of pushing it, and our own UIKit animator grows it out of the
-card: the full-size page is scaled onto the card and masked to its shape, and both run to
-identity while a copy of the card dissolves into it. Menu at the page's root shrinks it
-back into the card, which then takes focus again; pushes from inside the page (cast,
-related titles, the player) go on the page's own stack (`NavigationState.presentedRoot`,
-`TVPresentedPageStack`). Files: `KinoPubUI/TVZoomSource.swift` (which card, looked up again
-by item id so a reloaded row never zooms into the wrong title) and
-`KinoPubUI/TVZoomPresentation.swift` (controller, Menu, animator). While the item loads, the
-page shows the card's colours: its art averaged to a few pixels and stretched, a bitmap
-already in memory rather than a remote image. Before this, SwiftUI's
-`navigationTransition(.zoom)` on the push showed as a cross-fade on device, with or without
-a matched source; that path is iOS-only again. `-KINOPUBSystemZoom` (DEBUG) presents with
-the system `preferredTransition = .zoom` instead, to compare. **Not run on device yet.**
-
 ### tvOS Search: Down from the Search tab reaches the keyboard (2026-10-01)
 
 On tvOS 26.5/26.6, Down from the focused Search tab icon did nothing (Select still

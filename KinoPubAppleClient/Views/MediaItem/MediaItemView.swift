@@ -67,10 +67,6 @@ struct MediaItemView: View {
 
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(NavigationState.self) var navigationState
-#if os(tvOS)
-  /// The colours of the card this page grew out of, when it did (`TVZoomSource`).
-  @Environment(\.zoomBackdrop) private var zoomBackdrop
-#endif
   @StateObject private var itemModel: MediaItemModel
   /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
   @StateObject private var trailer: TrailerPreviewModel
@@ -223,35 +219,9 @@ struct MediaItemView: View {
         // takes the topmost focusable element. The hero also names Play in its `.task`.
         .defaultFocus($focus, .play, priority: .userInitiated)
     } else {
-#if os(tvOS)
-      loadingArt
-#else
-      Color.clear
-#endif
-    }
-  }
-
-#if os(tvOS)
-  /// Until the item loads the page has nothing to draw, and a zoom out of the card grew
-  /// an empty frame. It opens on the card's colours instead — a bitmap already in
-  /// memory, so there is no frame without them — and the hero lands over them.
-  @ViewBuilder
-  private var loadingArt: some View {
-    if let zoomBackdrop, zoomBackdrop.id == "media-\(itemModel.mediaItemId)" {
-      Color.clear
-        .overlay {
-          Image(uiImage: zoomBackdrop.image)
-            .resizable()
-            .interpolation(.high)
-            .scaledToFill()
-        }
-        .clipped()
-        .accessibilityHidden(true)
-    } else {
       Color.clear
     }
   }
-#endif
 
   /// One native vertical scroll: the hero, its artwork and the sections below are one
   /// view and focus graph, and the focus engine scrolls it. The only scroll this page
@@ -552,9 +522,6 @@ struct MediaItemView: View {
 #if os(macOS)
     navigationState.selectedTab = .watchlist
 #else
-#if os(tvOS)
-    navigationState.closePresentedPage()
-#endif
     navigationState.selectedTab = .library
 #endif
   }

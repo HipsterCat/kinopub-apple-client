@@ -71,9 +71,6 @@ struct TabsNavigationView: View {
         guard authState.phase == .signedIn else { return }
         Task { await syncSidebarFolders() }
       }
-#if os(tvOS)
-      .onAppear(perform: installPagePresenter)
-#endif
       // DESIGN: offline / reachability banner when `networkMonitor.isOnline` flips false.
       .onChange(of: networkMonitor.isOnline) { _, _ in }
   }
@@ -331,41 +328,6 @@ struct TabsNavigationView: View {
     } else {
       Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
         content(for: spec.tab)
-      }
-    }
-  }
-#endif
-
-#if os(tvOS)
-  // MARK: - Presented pages
-
-  /// A title or a person opened from a card comes up over the tabs, growing out of that
-  /// card (`NavigationState.push`, `KinoPubUI.TVZoomPresentedController`). The page is
-  /// hosted outside this view tree, so it is handed the same environment the tabs get
-  /// here and from the app root — miss one and the page crashes on its first read of it.
-  private func installPagePresenter() {
-    navigationState.presentPage = { [navigationState, errorHandler, appContext, authState, networkMonitor] route, source in
-      let backdrop = source.backdrop.map { TVZoomBackdrop(id: source.id, image: $0) }
-      let page = TVPresentedPageStack(root: route)
-        .environment(\.zoomBackdrop, backdrop)
-        .environment(\.appContext, appContext)
-        .environment(navigationState)
-        .environmentObject(authState)
-        .environment(errorHandler)
-        .environmentObject(networkMonitor)
-        .environment(\.usesTVUIKitPosters, FeatureFlags.tvUIKitPosters)
-        .environment(\.mediaNavigation) { value in
-          if let route = value as? Route {
-            navigationState.push(route)
-          }
-        }
-      let controller = TVZoomPresentedController(content: UIHostingController(rootView: page),
-                                                 source: source)
-      controller.popOnMenu = { navigationState.popPresentedPage() }
-      controller.onDismiss = { navigationState.endPresentation() }
-      navigationState.presentedPage = controller
-      controller.present(in: source.window) {
-        navigationState.presentationFailed(route)
       }
     }
   }

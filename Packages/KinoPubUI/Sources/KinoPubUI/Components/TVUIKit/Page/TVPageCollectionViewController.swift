@@ -590,22 +590,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
           let section = sectionsByID[id.section],
           let item = itemsByID[id] else { return }
     if case .placeholder = item { return }
-    recordZoomSource(id: item.zoomSourceID, item: id, at: indexPath)
     onSelect?(section, item)
-  }
-
-  /// The card the page this selection opens may grow out of (`TVZoomSource`).
-  private func recordZoomSource(id zoomID: String?, item: TVPageItemID, at indexPath: IndexPath) {
-    guard let zoomID, let cell = collectionView.cellForItem(at: indexPath) else { return }
-    TVZoomSource.record(TVZoomSource(id: zoomID, page: self, item: item,
-                                     artwork: (cell as? TVZoomSourceCell)?.zoomArtwork))
-  }
-
-  /// The cell showing this item now, or nil once it has scrolled away or a reload
-  /// dropped it.
-  func visibleCell(for item: TVPageItemID) -> UICollectionViewCell? {
-    guard let indexPath = dataSource.indexPath(for: item) else { return nil }
-    return collectionView.cellForItem(at: indexPath)
   }
 
   public func collectionView(_ collectionView: UICollectionView,
@@ -717,9 +702,6 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
           let card = itemsByID[id]?.card,
           let entries = contextMenuProvider?(card),
           !entries.isEmpty else { return nil }
-    // "Go to title" opens the title, not the card: an episode or a Continue Watching
-    // tile still zooms out of the tile it was opened from.
-    recordZoomSource(id: "media-\(card.itemID)", item: id, at: indexPath)
     return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
       TVUIKitContextMenuBuilder.menu(from: entries)
     }

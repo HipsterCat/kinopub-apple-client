@@ -112,16 +112,12 @@ struct RouteDestination: View {
 }
 
 /// Applies `navigationTransition(.zoom)` when a matched source namespace is present.
-///
-/// iOS only. On tvOS it showed as a cross-fade on device (2026-10-01); a card's page
-/// is presented over the tabs instead and zooms out of the card in UIKit
-/// (`KinoPubUI.TVZoomPresentedController`), and every push stays the plain system push.
 private struct ZoomDestinationModifier: ViewModifier {
   let route: Route
   let namespace: Namespace.ID?
 
   func body(content: Content) -> some View {
-#if os(iOS)
+#if os(iOS) || os(tvOS)
     if let namespace, let sourceID = route.zoomSourceID {
       content.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
     } else {
@@ -160,8 +156,7 @@ private struct MacPlayerRouteGuard: View {
 #endif
 
 extension Route {
-  /// Stable zoom source id shared with `matchedTransitionSource` on iOS cards and with
-  /// `KinoPubUI.TVZoomSource` on tvOS ones.
+  /// Stable zoom source id shared with `matchedTransitionSource` on cards.
   var zoomSourceID: String? {
     switch self {
     case .details(let item):

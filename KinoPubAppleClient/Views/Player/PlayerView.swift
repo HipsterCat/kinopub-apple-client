@@ -124,15 +124,14 @@ struct PlayerView: View {
 
 #if os(tvOS)
   /// Info tab's *Go to Show / Go to Movie*: leave the player for the title's page. The
-  /// player is the last route of the current stack (the tab's, or a presented page's);
-  /// if the page under it already is this title's (Play was pressed there) leaving is
-  /// enough, otherwise the page takes the player's place. `onDisappear` ends the playback
-  /// once the route is gone.
+  /// player is the last route of the selected tab's stack; if the route under it already
+  /// is this title's page (Play was pressed there) leaving is enough, otherwise the page
+  /// takes the player's place. `onDisappear` ends the playback once the route is gone.
   private func goToTitle(_ itemID: Int) {
-    let path = navigationState.currentPath()
+    let path = navigationState.path(for: navigationState.selectedTab)
     var routes = path.wrappedValue
     while let last = routes.last, last.isPlayerRoute { routes.removeLast() }
-    if (routes.last ?? navigationState.currentRoot)?.detailsItemID != itemID {
+    if routes.last?.detailsItemID != itemID {
       routes.append(.detailsById(itemID))
     }
     path.wrappedValue = routes
