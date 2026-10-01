@@ -131,8 +131,18 @@ struct MainView: View {
   /// 1920), the rest scrolls — not three items (Sasha, 2026-09-23).
   private static let continueWatchingColumns = 3
 
+  /// The Home banner as the page's first row: the same sampled `bannerCards` the
+  /// SwiftUI path draws, as large untitled stills, two across.
+  private static let bannerColumns = 2
+  private static let bannerSectionID = "home-banner"
+
   private var pageSections: [TVPageSection] {
-    homeRows.map { row in
+    let banner = tab == .home && FeatureFlags.homeBannerEnabled ? catalog.bannerCards : []
+    let bannerSection: [TVPageSection] = banner.isEmpty ? [] : [
+      .stills(id: Self.bannerSectionID, title: nil, columns: Self.bannerColumns,
+              caption: .always, cards: banner)
+    ]
+    return bannerSection + homeRows.map { row in
       if row.cards.first?.isLandscape == true {
         let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : 5
         return .stills(id: row.id, title: row.title, count: row.count, columns: columns, cards: row.cards)

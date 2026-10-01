@@ -33,6 +33,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   private let posterView = TVPosterView(image: nil)
   private let watchedGlyph = UIImageView()
+  /// The title's score, top-trailing, for rows that set `showsRating`.
+  private let ratingChip = TVPageRatingChip()
 
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
@@ -75,13 +77,20 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     watchedGlyph.isHidden = true
     host.addSubview(watchedGlyph)
 
+    ratingChip.translatesAutoresizingMaskIntoConstraints = false
+    ratingChip.isHidden = true
+    host.addSubview(ratingChip)
+
     NSLayoutConstraint.activate([
       watchedGlyph.leadingAnchor.constraint(equalTo: image.leadingAnchor, constant: 16),
-      watchedGlyph.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -14)
+      watchedGlyph.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -14),
+      ratingChip.topAnchor.constraint(equalTo: image.topAnchor, constant: 12),
+      ratingChip.trailingAnchor.constraint(equalTo: image.trailingAnchor, constant: -12)
     ])
   }
 
-  func configure(card: MediaCard, recipe: TVPageCellRecipe, caption: TVPageCaption) {
+  func configure(card: MediaCard, recipe: TVPageCellRecipe, caption: TVPageCaption,
+                 showsRating: Bool = false) {
     self.recipe = recipe
     posterView.contentSize = recipe.posterContentSize
     applyCaption(caption, title: card.title)
@@ -92,8 +101,33 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.accessibilityLabel = card.title
 
     watchedGlyph.isHidden = !card.isWatched
+    let rating = showsRating ? card.rating?.formatted : nil
+    ratingChip.text = rating
+    ratingChip.isHidden = rating == nil
 
     loadImage(URL(string: card.posterURL))
+  }
+
+  /// A drawn tile in the lockup: the tint and glyph are the artwork, the name is the
+  /// footer caption like any poster's.
+  func configure(tile: TVPageTile, recipe: TVPageCellRecipe, caption: TVPageCaption) {
+    self.recipe = recipe
+    posterView.contentSize = recipe.posterContentSize
+    applyCaption(caption, title: tile.title)
+    accessibilityIdentifier = "kinopub.tile.\(tile.id)"
+    posterView.accessibilityIdentifier = accessibilityIdentifier
+    posterView.accessibilityLabel = tile.title
+    watchedGlyph.isHidden = true
+    ratingChip.isHidden = true
+    imageTask?.cancel()
+    imageTask = nil
+    currentURL = nil
+    setImage(TVUIKitTileArtwork.image(tint: tile.resolvedTint,
+                                      symbol: tile.symbol,
+                                      size: recipe.posterContentSize,
+                                      cornerRadius: Self.placeholderCornerRadius,
+                                      style: tile.style,
+                                      traits: traitCollection))
   }
 
   func configurePlaceholder(recipe: TVPageCellRecipe) {
@@ -101,6 +135,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.contentSize = recipe.posterContentSize
     applyCaption(.never, title: nil)
     watchedGlyph.isHidden = true
+    ratingChip.isHidden = true
     imageTask?.cancel()
     imageTask = nil
     currentURL = nil
@@ -222,10 +257,51 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.image = nil
     posterView.title = nil
     watchedGlyph.isHidden = true
+    ratingChip.isHidden = true
     resetStaleFocusAppearance()
     accessibilityIdentifier = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
+  }
+}
+
+// MARK: - Rating chip
+
+/// The score in a poster's corner: a dark rounded plate with the number on it. Lives in
+/// the lockup's `contentView`, so it rides the system focus motion with the art. No
+/// shadow (tvOS cards and badges carry none); the plate is what keeps it legible on
+/// light artwork.
+@MainActor
+final class TVPageRatingChip: UIView {
+  private let label = UILabel()
+
+  var text: String? {
+    get { label.text }
+    set { label.text = newValue }
+  }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = UIColor.black.withAlphaComponent(0.6)
+    layer.cornerCurve = .continuous
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = UIFont.preferredFont(forTextStyle: .caption1)
+    label.adjustsFontForContentSizeCategory = true
+    label.textColor = .white
+    addSubview(label)
+    NSLayoutConstraint.activate([
+      label.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+      label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
+      label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+      label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10)
+    ])
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    layer.cornerRadius = bounds.height / 2
   }
 }
 
@@ -710,8 +786,11 @@ final class TVPageWideCardCell: UICollectionViewCell {
 
   /// "2021  Боевик, Фантастика" — year and genres. No running time: in a result list the
   /// year and genre are what tell two same-named titles apart.
+  /// Year and genre for a title; a collection has neither, so its counters (items,
+  /// views) take the line instead.
   private static func detail(for card: MediaCard) -> String? {
-    let parts = [card.year.map(String.init), card.genreLine].compactMap { $0 }.filter { !$0.isEmpty }
+    var parts = [card.year.map(String.init), card.genreLine].compactMap { $0 }.filter { !$0.isEmpty }
+    if parts.isEmpty { parts = card.captionStats.map(\.value).filter { !$0.isEmpty } }
     return parts.isEmpty ? nil : parts.joined(separator: "\u{2003}")
   }
 

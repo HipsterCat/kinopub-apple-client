@@ -5,6 +5,23 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Home banner on the page (2026-10-01)
+
+The banner was drawn only by the SwiftUI `MediaRowsView`; with `tvPageSections` on, tvOS
+Home never showed it whatever `homeBanner` said. `MainView.pageSections` now puts
+`catalog.bannerCards` first as an untitled `TVPageSection.stills` row, two across, caption
+always on — the system wide cell, not `HomeBannerCardView`.
+
+### Card shapes and collection categories (2026-09-27)
+
+TVPage gains `TVPageCellKind.square`, `TVPageItem.tile` (flat or gradient
+`TVUIKitTileArtwork`) and an opt-in poster score chip (`showsRating`); all
+are previewed in `TVPageTemplatesGallery`, none is placed on a screen yet.
+Collection categories are not in the API: `CollectionCategory.catalog` reads a
+bundled snapshot of kpapp.link `categories.html` (38 categories, 531 ids). kpapp
+findings (genre 107 Дорама, api2 without token, `logos.s`) live as notes in
+`docs/providers/kinopub/`.
+
 ### tvOS Settings in categories; developer tools in every build (2026-10-01)
 
 `TVProfileSettingsView`'s root is a list of categories (`TVSettingsCategory`), each pushing a

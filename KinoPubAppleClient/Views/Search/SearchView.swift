@@ -92,7 +92,7 @@ struct SearchView: View {
             navigationState.push(.person(match))
           case .chip(let chip) where chip.id == TVSearchFilters.clear:
             catalog.clearFilters()
-          case .chip, .placeholder:
+          case .chip, .tile, .placeholder:
             break
           }
         },
