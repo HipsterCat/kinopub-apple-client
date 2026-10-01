@@ -30,10 +30,13 @@ public enum MediaActionID: String, Hashable, Sendable, CaseIterable {
 }
 
 /// System chrome vocabulary from `MediaActionButtonStyle` — nothing hand-drawn.
+/// `playPill` and `pill` draw the same plate; `playPill` only names the entry control
+/// (default focus). White fill is focus, never a permanent tint on Play.
 public enum MediaActionChrome: Hashable, Sendable {
-  /// `.glassProminent` capsule — the entry play control.
+  /// Capsule for Play / Resume — same look as `pill`; kept distinct so callers can
+  /// still ask "is this the entry action?" without inventing a second visual system.
   case playPill
-  /// `.borderedProminent` capsule — Trailer, Mark Watched (mid-title), quieter Replay.
+  /// `.borderedProminent` capsule — Trailer, Mark Watched (mid-title), Replay.
   case pill
   /// `.bordered` circle — bookmark / follow / watched / download / more.
   case circle
@@ -197,7 +200,7 @@ public enum MediaActionCatalog {
       )
 
     case .playAgain:
-      // Watched mold: quieter capsule + clockwise glyph, not another glass Play.
+      // Watched: clockwise glyph + same capsule weight as Trailer. White is focus.
       let title = localized("Play Again")
       return MediaActionAppearance(
         id: .play,

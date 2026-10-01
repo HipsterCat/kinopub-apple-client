@@ -61,6 +61,12 @@ deleted. Findings while wiring it: an action selector named `perform(_:)` resolv
 rendered as a footer. DEBUG launch arguments `-KINOPUBInitialTab settings`,
 `-KINOPUBSettingsPage <category>`, `-KINOPUBSettingsLab <lab>`, `-KINOPUBSwiftUISettings YES`.
 
+### Hero action white fill is focus, not a Play tint (2026-10-01)
+
+`mediaActionPlayPillStyle()` no longer forces `.glassProminent` + `.tint(.primary)`. Play shares
+the same capsule plate as Trailer / Mark Watched; the white elevated look is system focus (the
+preview painted Play white only as default focus). AGENTS.md updated.
+
 ### Trailers are their title; Up Next is next-unwatched + Continue Watching (2026-10-01)
 
 A trailer sends no subtitle (the Info tab used «Trailer» as its heading) and its Info tab has only

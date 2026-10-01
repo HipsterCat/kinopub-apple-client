@@ -30,6 +30,7 @@ final class MediaActionCatalogTests: XCTestCase {
       playback: .playAgain,
       isSeries: false
     ))
+    // Same capsule plate as Trailer; clockwise glyph marks replay. White = focus.
     XCTAssertEqual(play.chrome, .pill)
     XCTAssertEqual(play.systemImage, "arrow.clockwise")
     XCTAssertEqual(play.title, NSLocalizedString("Play Again", comment: ""))

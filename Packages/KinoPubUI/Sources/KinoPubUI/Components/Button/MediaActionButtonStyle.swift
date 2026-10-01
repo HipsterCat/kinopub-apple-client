@@ -78,17 +78,17 @@ public extension View {
 // MARK: - System styles
 
 public extension View {
-  /// Play / Resume — the primary call to action.
+  /// Entry Play / Resume capsule. Same plate as every other labelled action — the
+  /// white fill is **focus**, not a permanent primary tint. The preview painted Play
+  /// white only because it is the default-focus control; when focus moves, Trailer /
+  /// Mark Watched / etc. take that treatment instead. Do not reintroduce
+  /// `.glassProminent` + `.tint(.primary)` here: that freezes Play white at rest.
   func mediaActionPlayPillStyle() -> some View {
-    buttonStyle(.glassProminent)
-      .tint(.primary)
-      .buttonBorderShape(.capsule)
-#if !os(tvOS)
-      .controlSize(.large)
-#endif
+    mediaActionPillStyle()
   }
 
-  /// A labelled secondary control (Trailer, Watchlist) — same capsule, quieter weight.
+  /// A labelled capsule (Play, Trailer, Mark Watched, Replay). System focus owns the
+  /// white / elevated look; at rest the plate matches the other capsules in the row.
   func mediaActionPillStyle() -> some View {
     buttonStyle(.borderedProminent)
       .buttonBorderShape(.capsule)

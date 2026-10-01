@@ -273,7 +273,9 @@ file, and delete the losers with the switch.
   (sidebars displace content — there is nothing to bleed under).
 - Blur: private `CAFilter` `variableBlur` over **static** art only. **No blur over video on
   tvOS/macOS**; blur over video is fine on iOS/iPadOS.
-- Hero CTAs are a white Play pill + translucent circular secondaries — not glass.
+- Hero CTAs share one capsule/circle system chrome; the white elevated fill is **focus**,
+  not a permanent Play tint (Sasha, 2026-10-01 — the preview painted Play white only as
+  default focus). Do not force `.glassProminent` / `.tint(.primary)` on Play.
 - **Tab bar:** system `TabView` on tvOS and macOS, adaptive on iPad. No pinning requirement, no
   `.toolbar(.hidden, for: .tabBar)`, no custom bar layered over content.
 - No shadows on tvOS cards / badges / action buttons.
