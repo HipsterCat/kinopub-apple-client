@@ -317,10 +317,16 @@ public final class TVPageCollectionViewController: UIViewController {
       switch self.itemsByID[id] {
       case .card(let card)?:
         cell.configure(card: card, recipe: recipe, caption: section.caption, showsRating: section.showsRating)
+        cell.contextMenuEntries = { [weak self] in
+          guard let self, let card = self.itemsByID[id]?.card else { return [] }
+          return self.contextMenuProvider?(card) ?? []
+        }
       case .tile(let tile)?:
         cell.configure(tile: tile, recipe: recipe, caption: section.caption)
+        cell.contextMenuEntries = nil
       default:
         cell.configurePlaceholder(recipe: recipe)
+        cell.contextMenuEntries = nil
       }
     }
 
@@ -692,6 +698,10 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   // tvOS routes long-press-Select to the focused view's responder chain; the
   // collection's own delegate hook is the one UIKit wires to the focus engine, and
   // only the `…ForItemsAt indexPaths:` variant exists on tvOS.
+  //
+  // Stills / media-item cells focus the *cell*, so this fires for Continue Watching.
+  // Vertical posters focus the nested `TVPosterView` lockup instead — their menu is
+  // installed on that lockup in `TVPageLockupPosterCell`. Keep this path for stills.
   public func collectionView(_ collectionView: UICollectionView,
                              contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
                              point: CGPoint) -> UIContextMenuConfiguration? {

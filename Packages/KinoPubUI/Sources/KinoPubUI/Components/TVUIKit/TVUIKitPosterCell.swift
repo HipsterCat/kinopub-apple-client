@@ -33,6 +33,10 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
   private var posterHeightConstraint: NSLayoutConstraint!
   private var captionTopConstraint: NSLayoutConstraint!
   private var progressFillWidth: NSLayoutConstraint!
+  /// Built lazily when the menu opens. Focus lands on `posterView`, so the
+  /// collection's `contextMenuConfigurationForItemsAt` does not see the press —
+  /// the interaction has to sit on the lockup itself.
+  public var contextMenuEntries: (() -> [MediaCardContextEntry])?
 
   public override init(frame: CGRect) {
     super.init(frame: frame)
@@ -49,6 +53,8 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     posterView.title = nil
     posterView.subtitle = nil
     posterView.translatesAutoresizingMaskIntoConstraints = false
+    // On the lockup (focused view), not `contentView` — see `TVPageLockupPosterCell`.
+    posterView.addInteraction(UIContextMenuInteraction(delegate: self))
     contentView.addSubview(posterView)
 
     overlayContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -264,6 +270,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     watchedGlyph.isHidden = true
     captionLabel.alpha = 1
     captionLabel.textColor = .secondaryLabel
+    contextMenuEntries = nil
     accessibilityIdentifier = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
@@ -312,5 +319,30 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
   }
 
   public override var canBecomeFocused: Bool { true }
+}
+
+extension TVUIKitPosterCell: UIContextMenuInteractionDelegate {
+  public func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    configurationForMenuAtLocation location: CGPoint
+  ) -> UIContextMenuConfiguration? {
+    guard let entries = contextMenuEntries?(), !entries.isEmpty else { return nil }
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+      TVUIKitContextMenuBuilder.menu(from: entries)
+    }
+  }
+
+  public func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    willEndFor configuration: UIContextMenuConfiguration,
+    animator: (any UIContextMenuInteractionAnimating)?
+  ) {
+    let reset: () -> Void = { [weak self] in self?.resetStaleFocusAppearance() }
+    if let animator {
+      animator.addCompletion(reset)
+    } else {
+      reset()
+    }
+  }
 }
 #endif

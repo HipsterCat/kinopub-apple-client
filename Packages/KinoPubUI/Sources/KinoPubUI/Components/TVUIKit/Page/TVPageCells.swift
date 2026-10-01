@@ -39,6 +39,11 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
   private var recipe: TVPageCellRecipe?
+  /// Built lazily when the menu opens. The focus engine lands on `posterView`
+  /// (the lockup), not the cell — so the collection's
+  /// `contextMenuConfigurationForItemsAt` never sees these presses. The
+  /// interaction has to live on the focused view itself.
+  var contextMenuEntries: (() -> [MediaCardContextEntry])?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -55,6 +60,11 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
     posterView.translatesAutoresizingMaskIntoConstraints = false
     posterView.contentViewInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: -Self.footerGap, trailing: 0)
+    // On the lockup, not `contentView`: tvOS delivers long-press-Select to the
+    // focused view. `TVPosterView` is that view; an interaction on a descendant
+    // or on an unfocused ancestor never fires (same trap that killed the earlier
+    // `contentView.addInteraction` path on `TVUIKitPosterCell`).
+    posterView.addInteraction(UIContextMenuInteraction(delegate: self))
     contentView.addSubview(posterView)
     NSLayoutConstraint.activate([
       posterView.topAnchor.constraint(equalTo: contentView.topAnchor),
@@ -258,10 +268,37 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.title = nil
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
+    contextMenuEntries = nil
     resetStaleFocusAppearance()
     accessibilityIdentifier = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
+  }
+}
+
+extension TVPageLockupPosterCell: UIContextMenuInteractionDelegate {
+  func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    configurationForMenuAtLocation location: CGPoint
+  ) -> UIContextMenuConfiguration? {
+    guard let entries = contextMenuEntries?(), !entries.isEmpty else { return nil }
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+      TVUIKitContextMenuBuilder.menu(from: entries)
+    }
+  }
+
+  func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    willEndFor configuration: UIContextMenuConfiguration,
+    animator: (any UIContextMenuInteractionAnimating)?
+  ) {
+    // Preview hand-back can strand the lockup enlarged, same as a focus change.
+    let reset: () -> Void = { [weak self] in self?.resetStaleFocusAppearance() }
+    if let animator {
+      animator.addCompletion(reset)
+    } else {
+      reset()
+    }
   }
 }
 

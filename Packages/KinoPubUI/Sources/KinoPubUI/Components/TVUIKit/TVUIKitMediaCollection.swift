@@ -513,6 +513,12 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     let width = layoutWidth > 1 ? layoutWidth : max(tileSize.width, ShelfMetrics.tvCardWidth)
     let size = CGSize(width: width, height: width / CardAspect.poster.ratio)
     cell.configure(card: card, size: size)
+    let itemID = card.id
+    cell.contextMenuEntries = { [weak self] in
+      guard let self,
+            let current = self.cards.first(where: { $0.id == itemID }) else { return [] }
+      return self.contextMenuProvider?(current) ?? []
+    }
     return cell
   }
 
@@ -586,12 +592,11 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
 
   // MARK: - Context menu
   //
-  // tvOS routes the long-press-Select gesture to the *focused* view and up its
-  // responder chain, so an interaction installed on a cell's `contentView` (a
-  // descendant of the focus item) never fires. The collection view's own delegate
-  // hook is the path UIKit wires to the focus engine — and on tvOS only the
-  // `…ForItemsAt indexPaths:` variant exists; the single-indexPath one is
-  // `API_UNAVAILABLE(tvos)`.
+  // Stills focus the cell, so this collection-view hook fires for landscape rails.
+  // Vertical posters focus the nested `TVPosterView`; their menu is installed on that
+  // lockup in `TVUIKitPosterCell`. Keep this path for stills / mixed reuse.
+  // On tvOS only the `…ForItemsAt indexPaths:` variant exists; the single-indexPath
+  // one is `API_UNAVAILABLE(tvos)`.
 
   public func collectionView(
     _ collectionView: UICollectionView,

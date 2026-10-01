@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS: context menu on vertical poster shelves (2026-10-01)
+
+Long-press / Play-Pause opened the card menu on Continue Watching stills, but not
+on 2:3 posters (Hot Movies, Series, catalog shelves). Stills focus the cell, so
+`collectionView(_:contextMenuConfigurationForItemsAt:)` fires; vertical posters
+focus the nested `TVPosterView` lockup, and that hook never sees the press.
+`TVPageLockupPosterCell` and `TVUIKitPosterCell` now install `UIContextMenuInteraction`
+on the lockup itself. CW stills keep the collection-view path.
+
 ### Hero: no cover context menu; label title until logo (2026-10-01)
 
 The detail hero cover is no longer wrapped in `MediaCardContextMenuModifier` —
