@@ -6,6 +6,7 @@
 //  Shared blur band + UIKit context-menu bridge for TVUIKit Home cells.
 //
 
+import OSLog
 import UIKit
 import SwiftUI
 import TVUIKit
@@ -19,6 +20,55 @@ public enum TVUIKitChromeSupport {
     layer.shadowOpacity = 0
     layer.shadowRadius = 0
     layer.shadowOffset = .zero
+  }
+}
+
+/// DEBUG poster context-menu trace. Filter Console / `log stream` for `[PCM]`.
+/// Always on in DEBUG — this is the on-device diagnosis path for vertical shelves.
+enum PCMLog {
+  static var isEnabled: Bool {
+#if DEBUG
+    true
+#else
+    false
+#endif
+  }
+
+  private static let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Kinopub Soda",
+    category: "pcm"
+  )
+
+  static func focus(cell: String, focusedView: String, posterCanFocus: Bool, hostFocused: Bool) {
+    guard isEnabled else { return }
+    logger.info("[PCM] focus cell=\(cell, privacy: .public) focusedView=\(focusedView, privacy: .public) posterCanFocus=\(posterCanFocus, privacy: .public) hostFocused=\(hostFocused, privacy: .public)")
+  }
+
+  static func attach(view: String, cell: String) {
+    guard isEnabled else { return }
+    logger.info("[PCM] attach interaction view=\(view, privacy: .public) cell=\(cell, privacy: .public)")
+  }
+
+  static func configurationRequested(source: String, detail: String) {
+    guard isEnabled else { return }
+    logger.info("[PCM] configuration requested source=\(source, privacy: .public) \(detail, privacy: .public)")
+  }
+
+  static func configurationReturned(source: String, entryCount: Int) {
+    guard isEnabled else { return }
+    logger.info("[PCM] configuration returned source=\(source, privacy: .public) entries=\(entryCount, privacy: .public)")
+  }
+
+  static func configurationNil(source: String, reason: String) {
+    guard isEnabled else { return }
+    logger.info("[PCM] configuration nil source=\(source, privacy: .public) reason=\(reason, privacy: .public)")
+  }
+
+  static func describe(_ view: UIView?) -> String {
+    guard let view else { return "nil" }
+    let type = String(describing: type(of: view))
+    let id = view.accessibilityIdentifier.map { " id=\($0)" } ?? ""
+    return "\(type)\(id)"
   }
 }
 
@@ -70,8 +120,10 @@ public final class TVUIKitBottomInfoBlurView: UIView {
 }
 
 /// Resolves which collection item a tvOS context-menu press belongs to.
-/// Prefers `indexPaths` when UIKit fills it; otherwise walks from the focused view
-/// (or the press point) up to the enclosing cell.
+///
+/// Continue Watching stills focus the **cell**, so `indexPaths` is filled.
+/// Vertical posters focus a plain host *inside* the lockup — UIKit then often
+/// hands an empty `indexPaths` array; walk from the focused view (or press point).
 enum TVUIKitContextMenuIndexPath {
   static func resolve(
     in collectionView: UICollectionView,
@@ -91,9 +143,30 @@ enum TVUIKitContextMenuIndexPath {
   }
 }
 
-/// `TVPosterView` is a `UIControl` and steals focus from its enclosing cell unless
-/// focusability is turned off. The cell must hold focus so the collection-view
-/// context menu fires (same pattern as `TVPageWideCardCell`).
+/// Plain focusable host that lives *inside* a `TVPosterView` content view so:
+/// 1. the lockup still lifts (Apple animates when a lockup **subview** is focused), and
+/// 2. `UIContextMenuInteraction` sits on the focused view itself — installing it on
+///    `TVPosterView` (a `UIControl`) does not receive long-press / Play-Pause on tvOS.
+///
+/// Cell-only focus (`canBecomeFocused` on the cell, lockup non-focusable) matched
+/// Continue Watching in theory but did **not** open vertical poster menus on device
+/// (PR #36 tip `7a8bd62`). The host is the path that can own the interaction.
+@MainActor
+final class TVUIKitLockupMenuHost: UIView {
+  override var canBecomeFocused: Bool { true }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .clear
+    isUserInteractionEnabled = true
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// `TVPosterView` is a `UIControl` and steals focus from an inner menu host unless
+/// focusability is turned off on the lockup itself. Lift/parallax still run when the
+/// inner host (a lockup subview) is focused.
 @MainActor
 final class TVUIKitNonFocusablePosterView: TVPosterView {
   override var canBecomeFocused: Bool { false }

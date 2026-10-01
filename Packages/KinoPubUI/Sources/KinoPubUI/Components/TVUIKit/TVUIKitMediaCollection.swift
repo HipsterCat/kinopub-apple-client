@@ -513,6 +513,12 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     let width = layoutWidth > 1 ? layoutWidth : max(tileSize.width, ShelfMetrics.tvCardWidth)
     let size = CGSize(width: width, height: width / CardAspect.poster.ratio)
     cell.configure(card: card, size: size)
+    let itemID = card.id
+    cell.contextMenuEntries = { [weak self] in
+      guard let self,
+            let current = self.cards.first(where: { $0.id == itemID }) else { return [] }
+      return self.contextMenuProvider?(current) ?? []
+    }
     return cell
   }
 
@@ -586,8 +592,9 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
 
   // MARK: - Context menu
   //
-  // Poster and still cells both hold focus on the cell (lockup is non-focusable),
-  // so the collection-view hook fires. Resolver covers empty-`indexPaths` edge cases.
+  // Stills focus the cell (`indexPaths` filled). Vertical posters focus a host
+  // inside the lockup — resolve empty `indexPaths` via focused view / press point,
+  // and the cell also installs its own interaction on that host.
   // On tvOS only the `…ForItemsAt indexPaths:` variant exists.
 
   public func collectionView(
@@ -595,13 +602,25 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
     point: CGPoint
   ) -> UIContextMenuConfiguration? {
+    PCMLog.configurationRequested(
+      source: "MediaCollection.collection",
+      detail: "indexPaths=\(indexPaths.count) focused=\(PCMLog.describe(UIScreen.main.focusedView)) point=\(Int(point.x)),\(Int(point.y))"
+    )
     guard let indexPath = TVUIKitContextMenuIndexPath.resolve(
-            in: collectionView, indexPaths: indexPaths, point: point),
-          cards.indices.contains(indexPath.item),
-          let entries = contextMenuProvider?(cards[indexPath.item]),
-          !entries.isEmpty
-    else { return nil }
+            in: collectionView, indexPaths: indexPaths, point: point) else {
+      PCMLog.configurationNil(source: "MediaCollection.collection", reason: "unresolved indexPath")
+      return nil
+    }
+    guard cards.indices.contains(indexPath.item) else {
+      PCMLog.configurationNil(source: "MediaCollection.collection", reason: "out of range \(indexPath)")
+      return nil
+    }
+    guard let entries = contextMenuProvider?(cards[indexPath.item]), !entries.isEmpty else {
+      PCMLog.configurationNil(source: "MediaCollection.collection", reason: "no entries at \(indexPath.item)")
+      return nil
+    }
 
+    PCMLog.configurationReturned(source: "MediaCollection.collection", entryCount: entries.count)
     return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
       TVUIKitContextMenuBuilder.menu(from: entries)
     }

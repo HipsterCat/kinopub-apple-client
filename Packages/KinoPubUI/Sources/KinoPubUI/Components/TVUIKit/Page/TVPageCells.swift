@@ -31,11 +31,14 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   /// applies the same, so the envelope it measures includes this.
   static let footerGap: CGFloat = 12
 
-  /// Non-focusable lockup: the **cell** holds focus so selection, focus memory and the
-  /// context menu stay on the collection view — same pattern as `TVPageWideCardCell`
-  /// (measured there 2026-09-25). `TVPosterView` as a `UIControl` otherwise steals
-  /// focus and the collection never sees long-press / Play-Pause.
+  /// Non-focusable lockup so focus can land on `menuFocusHost` (a plain UIView).
+  /// Installing `UIContextMenuInteraction` on `TVPosterView` (a `UIControl`) never
+  /// receives long-press / Play-Pause. Cell-only focus matched CW in theory but did
+  /// not open vertical menus on device — the host owns the interaction.
   private let posterView = TVUIKitNonFocusablePosterView(image: nil)
+  /// Focus + context-menu target inside the lockup. The lockup still lifts because
+  /// Apple animates when a lockup **subview** is focused.
+  private let menuFocusHost = TVUIKitLockupMenuHost()
   private let watchedGlyph = UIImageView()
   /// The title's score, top-trailing, for rows that set `showsRating`.
   private let ratingChip = TVPageRatingChip()
@@ -43,6 +46,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
   private var recipe: TVPageCellRecipe?
+  /// Built lazily when the menu opens.
+  var contextMenuEntries: (() -> [MediaCardContextEntry])?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -51,7 +56,9 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  override var canBecomeFocused: Bool { true }
+  override var preferredFocusEnvironments: [UIFocusEnvironment] {
+    [menuFocusHost]
+  }
 
   private func setUp() {
     // The lockup's focus lift and shadow extend past the cell; the collection view is
@@ -75,6 +82,11 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     let host = posterView.contentView
     let image = posterView.imageView
 
+    menuFocusHost.translatesAutoresizingMaskIntoConstraints = false
+    menuFocusHost.addInteraction(UIContextMenuInteraction(delegate: self))
+    host.insertSubview(menuFocusHost, at: 0)
+    PCMLog.attach(view: PCMLog.describe(menuFocusHost), cell: "TVPageLockupPosterCell")
+
     watchedGlyph.translatesAutoresizingMaskIntoConstraints = false
     watchedGlyph.image = UIImage(systemName: "checkmark.circle.fill")
     watchedGlyph.tintColor = .white
@@ -88,6 +100,10 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     host.addSubview(ratingChip)
 
     NSLayoutConstraint.activate([
+      menuFocusHost.topAnchor.constraint(equalTo: image.topAnchor),
+      menuFocusHost.leadingAnchor.constraint(equalTo: image.leadingAnchor),
+      menuFocusHost.trailingAnchor.constraint(equalTo: image.trailingAnchor),
+      menuFocusHost.bottomAnchor.constraint(equalTo: image.bottomAnchor),
       watchedGlyph.leadingAnchor.constraint(equalTo: image.leadingAnchor, constant: 16),
       watchedGlyph.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -14),
       ratingChip.topAnchor.constraint(equalTo: image.topAnchor, constant: 12),
@@ -105,6 +121,9 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     accessibilityIdentifier = posterID
     posterView.accessibilityIdentifier = posterID
     posterView.accessibilityLabel = card.title
+    // Focus lands on the menu host; XCUITest waits on `kinopub.poster.*` + hasFocus.
+    menuFocusHost.accessibilityIdentifier = posterID
+    menuFocusHost.accessibilityLabel = card.title
 
     watchedGlyph.isHidden = !card.isWatched
     let rating = showsRating ? card.rating?.formatted : nil
@@ -123,8 +142,11 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     accessibilityIdentifier = "kinopub.tile.\(tile.id)"
     posterView.accessibilityIdentifier = accessibilityIdentifier
     posterView.accessibilityLabel = tile.title
+    menuFocusHost.accessibilityIdentifier = accessibilityIdentifier
+    menuFocusHost.accessibilityLabel = tile.title
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
+    contextMenuEntries = nil
     imageTask?.cancel()
     imageTask = nil
     currentURL = nil
@@ -142,6 +164,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     applyCaption(.never, title: nil)
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
+    contextMenuEntries = nil
     imageTask?.cancel()
     imageTask = nil
     currentURL = nil
@@ -229,6 +252,14 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     super.didUpdateFocus(in: context, with: coordinator)
     let focused = context.nextFocusedView === self
       || context.nextFocusedView?.isDescendant(of: self) == true
+    if focused {
+      PCMLog.focus(
+        cell: accessibilityIdentifier ?? "TVPageLockupPosterCell",
+        focusedView: PCMLog.describe(context.nextFocusedView),
+        posterCanFocus: posterView.canBecomeFocused,
+        hostFocused: context.nextFocusedView === menuFocusHost
+      )
+    }
     coordinator.addCoordinatedAnimations({ [weak self] in
       self?.posterView.footerView?.titleLabel?.textColor = focused ? .label : .secondaryLabel
     }, completion: { [weak self] in
@@ -242,7 +273,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   /// leaves every lockup of the row lifted, tilting and captioned while nothing is
   /// focused. This undoes the system's stranded motion; it runs no motion of its own.
   func resetStaleFocusAppearance() {
-    guard !isFocused else { return }
+    // Focus lives on `menuFocusHost`, not the cell — `isFocused` alone is not enough.
+    guard !isFocused, !menuFocusHost.isFocused else { return }
     func clear(_ view: UIView) {
       if !view.transform.isIdentity { view.transform = .identity }
       if !CATransform3DIsIdentity(view.layer.transform) { view.layer.transform = CATransform3DIdentity }
@@ -264,10 +296,47 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.title = nil
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
+    contextMenuEntries = nil
     resetStaleFocusAppearance()
     accessibilityIdentifier = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
+    menuFocusHost.accessibilityIdentifier = nil
+    menuFocusHost.accessibilityLabel = nil
+  }
+}
+
+extension TVPageLockupPosterCell: UIContextMenuInteractionDelegate {
+  func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    configurationForMenuAtLocation location: CGPoint
+  ) -> UIContextMenuConfiguration? {
+    PCMLog.configurationRequested(
+      source: "TVPageLockupPosterCell.host",
+      detail: "id=\(accessibilityIdentifier ?? "?") loc=\(Int(location.x)),\(Int(location.y))"
+    )
+    guard let entries = contextMenuEntries?(), !entries.isEmpty else {
+      PCMLog.configurationNil(source: "TVPageLockupPosterCell.host", reason: "no entries")
+      return nil
+    }
+    PCMLog.configurationReturned(source: "TVPageLockupPosterCell.host", entryCount: entries.count)
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+      TVUIKitContextMenuBuilder.menu(from: entries)
+    }
+  }
+
+  func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    willEndFor configuration: UIContextMenuConfiguration,
+    animator: (any UIContextMenuInteractionAnimating)?
+  ) {
+    // Preview hand-back can strand the lockup enlarged, same as a focus change.
+    let reset: () -> Void = { [weak self] in self?.resetStaleFocusAppearance() }
+    if let animator {
+      animator.addCompletion(reset)
+    } else {
+      reset()
+    }
   }
 }
 
