@@ -396,16 +396,10 @@ public extension MediaItem {
   private var releaseParts: [String] {
     var parts: [String] = []
     if year > 0 { parts.append("\(year)") }
-    if isSeries, let seasons {
+    if let seasonsLabel {
       // `duration.total` sums every episode, which reads as a nonsense runtime for a
-      // series — season count is what the Apple TV app shows. One season says how
-      // many episodes instead: "1 season" tells a miniseries or an anime nothing.
-      if seasons.count == 1 {
-        let episodes = seasons[0].episodes.count
-        if episodes > 0 { parts.append(String(localized: "\(episodes) episodes", bundle: .module)) }
-      } else {
-        parts.append(String(localized: "\(seasons.count) seasons", bundle: .module))
-      }
+      // series — season count is what the Apple TV app shows.
+      parts.append(seasonsLabel)
     } else if isEpisodicType {
       // A listing payload never carries `seasons`, so a series from a shelf lands here
       // with only `duration.total` — every episode summed ("11 h" for an anime). No
@@ -420,6 +414,13 @@ public extension MediaItem {
       if !formatted.isEmpty { parts.append(formatted) }
     }
     return parts
+  }
+
+  /// "3 сезона" — how many seasons kino.pub has, plural-correct; nil for a film and for
+  /// a listed series (a listing payload never carries `seasons`).
+  var seasonsLabel: String? {
+    guard isSeries, let count = seasons?.count else { return nil }
+    return String(localized: "\(count) seasons", bundle: .module)
   }
 
   /// "2025 · 1 h 55 min · Боевик, Драма · Япония" — everything about a title in one

@@ -1,60 +1,6 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "%lld episodes": {
-      "comment": "Episode count in a one-season series' metadata line: “2025 · 12 episodes · Anime”.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld episode"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld episodes"
-                }
-              }
-            }
-          }
-        },
-        "ru": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld серия"
-                }
-              },
-              "few": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld серии"
-                }
-              },
-              "many": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld серий"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld серии"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "%lld seasons": {
       "comment": "Season count in a series' metadata line: “2025 · 3 seasons · Drama”.",
       "extractionState": "manual",

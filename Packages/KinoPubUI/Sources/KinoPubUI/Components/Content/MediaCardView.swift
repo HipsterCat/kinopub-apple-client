@@ -98,6 +98,9 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let genreLine: String?
   /// First production country for the caption meta row.
   public let countryLine: String?
+  /// "3 сезона" — a series' season count as the details payload has it; nil for films
+  /// and for listed series, whose payload carries no seasons.
+  public let seasonsLabel: String?
   /// Title sits in at least one bookmark folder (not the watchlist flag).
   public let isBookmarked: Bool
   /// Folder ids from `MediaItem.bookmarks` when the payload carried them. Empty when
@@ -177,6 +180,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               durationSeconds: Int? = nil,
               genreLine: String? = nil,
               countryLine: String? = nil,
+              seasonsLabel: String? = nil,
               isBookmarked: Bool = false,
               bookmarkFolderIDs: [Int] = [],
               primaryAction: MediaCardPrimaryAction = .openDetail,
@@ -219,6 +223,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.durationSeconds = durationSeconds
     self.genreLine = genreLine
     self.countryLine = countryLine
+    self.seasonsLabel = seasonsLabel
     self.isBookmarked = isBookmarked
     self.bookmarkFolderIDs = bookmarkFolderIDs
     self.primaryAction = primaryAction
@@ -265,6 +270,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               durationSeconds: durationSeconds ?? self.durationSeconds,
               genreLine: genreLine,
               countryLine: countryLine,
+              seasonsLabel: seasonsLabel,
               isBookmarked: isBookmarked,
               bookmarkFolderIDs: bookmarkFolderIDs,
               primaryAction: primaryAction,
@@ -311,6 +317,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
     genreLine = try c.decodeIfPresent(String.self, forKey: .genreLine)
     countryLine = try c.decodeIfPresent(String.self, forKey: .countryLine)
+    seasonsLabel = try c.decodeIfPresent(String.self, forKey: .seasonsLabel)
     isBookmarked = try c.decodeIfPresent(Bool.self, forKey: .isBookmarked) ?? false
     bookmarkFolderIDs = try c.decodeIfPresent([Int].self, forKey: .bookmarkFolderIDs) ?? []
     // Old row snapshots omit this key — keep opening detail until the next CW fetch.
@@ -357,6 +364,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
     try c.encodeIfPresent(genreLine, forKey: .genreLine)
     try c.encodeIfPresent(countryLine, forKey: .countryLine)
+    try c.encodeIfPresent(seasonsLabel, forKey: .seasonsLabel)
     try c.encode(isBookmarked, forKey: .isBookmarked)
     try c.encode(bookmarkFolderIDs, forKey: .bookmarkFolderIDs)
     try c.encode(primaryAction, forKey: .primaryAction)
@@ -372,7 +380,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     case landscapeImageURL, overlayLabel, itemID, video, season, mediaID
     case isWatched, isSeries, isInHistory, isInWatchlist, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, durationSeconds
-    case genreLine, countryLine, isBookmarked, bookmarkFolderIDs, primaryAction
+    case genreLine, countryLine, seasonsLabel, isBookmarked, bookmarkFolderIDs, primaryAction
     case opensCollection, captionStats, imdbID, kinopoiskID
   }
 }
@@ -414,6 +422,7 @@ public extension MediaCard {
               durationSeconds: durationSeconds,
               genreLine: genres.isEmpty ? nil : genres.joined(separator: ", "),
               countryLine: item.countries.first?.title,
+              seasonsLabel: item.seasonsLabel,
               isBookmarked: !bookmarkFolderIDs.isEmpty,
               bookmarkFolderIDs: bookmarkFolderIDs,
               imdbID: item.imdb.flatMap { $0 > 0 ? $0 : nil },
