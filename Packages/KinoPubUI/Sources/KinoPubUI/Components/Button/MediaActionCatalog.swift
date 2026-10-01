@@ -153,9 +153,6 @@ public enum MediaActionCatalog {
     if context.showsTrailer {
       row.append(trailer(for: context))
     }
-    if context.showsShuffle, !context.isMidTitle {
-      row.append(shuffle(for: context))
-    }
     row.append(bookmark(for: context))
     if context.showsFollow {
       row.append(follow(for: context))
@@ -166,7 +163,8 @@ public enum MediaActionCatalog {
     if let download = download(for: context) {
       row.append(download)
     }
-    if context.showsShuffle, context.isMidTitle {
+    // Icon only, always just before More — never a labelled Trailer peer.
+    if context.showsShuffle {
       row.append(shuffle(for: context))
     }
     if context.showsMore {
@@ -304,12 +302,11 @@ public enum MediaActionCatalog {
 
   public static func shuffle(for context: MediaActionContext) -> MediaActionAppearance {
     let title = MediaActionCopy.localized("Shuffle")
-    let labelled = !context.isMidTitle
     return MediaActionAppearance(
       id: .shuffle,
-      chrome: labelled ? .pill : .circle,
+      chrome: .circle,
       systemImage: "shuffle",
-      title: labelled ? title : nil,
+      title: nil,
       accessibilityLabel: title,
       isLoading: context.loading.contains(.shuffle)
     )

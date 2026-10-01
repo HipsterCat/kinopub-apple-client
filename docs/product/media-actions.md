@@ -42,14 +42,14 @@ Legend: `[pill]` · `(circle)` · `…` = More (tvOS)
 \* download only while not yet on disk — see Download below.
 
 ### Series · unwatched
-`[1 сезон, 1 серия]` / `[Play S1, E1]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(✓)` · `[Случайно]†` · `(…)`  
-† labelled Shuffle/Random when Mark Watched is not already a pill in the row.
+`[1 сезон, 1 серия]` / `[Play S1, E1]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(✓)` · `(…)`  
+Shuffle (icon before `…`) only when seasons > 5 and not subscribed — see below.
 
 ### Series · in progress
-`[▶ ▬ 1 сезон, 2 серия]` · `[Просмотрено]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(shuffle circle)` · `(…)`
+`[▶ ▬ 1 сезон, 2 серия]` · `[Просмотрено]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(…)`
 
 ### Series · watched / rewatch
-`[↻ 1 сезон, 1 серия]` · `[Случайно]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(…)`
+`[↻ 1 сезон, 1 серия]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(…)`
 
 ### Series · awaiting next episode (promote Follow)
 When the series is **ongoing**, **everything watched**, and the **next episode airs within ~2 weeks** (same season / next to air):
@@ -81,5 +81,7 @@ Tap idle download = start current title/episode.
 
 - **Mark Watched:** tap = mark current episode/film. **Long-press** (series): current episode · whole season · all unwatched in season · all episodes.
 - **Bookmark:** multi-select folders, section **Bookmarks / Закладки**, New Folder; menu stays open.
-- **Shuffle:** random unwatched episode when the title has enough episodes; labelled pill as a Trailer peer, circle when the row is mid-title.
+- **Shuffle:** interim — icon circle immediately before More, only when the series has
+  **more than 5 seasons** and is **not** on the watchlist. Never a labelled pill (that
+  taller focus plate lifted the whole hero). Finer unwatched-count rules deferred.
 - **Follow:** circle by default; **labelled primary** in the awaiting-next-episode case above.

@@ -16,6 +16,13 @@ Transient refresh failures keep the session and back off; only a fatal grant rej
 Keychain and shows activation. Cold start with no token is unchanged. DEBUG `DevSessionMirror`
 behavior is unchanged.
 
+### Hero Shuffle: icon-only, long series only (2026-10-01)
+
+Shuffle is no longer a labelled Trailer peer — that taller focus plate lifted the whole
+hero. It is always a circle immediately before More, and only when the series has **more
+than 5 seasons** and is **not** on the watchlist. Finer unwatched-count rules deferred.
+Product: `docs/product/media-actions.md`.
+
 ### Media actions: download phases, Follow-primary, series long-press (2026-10-01)
 
 Download is available on any title when the flag/platform allows it: idle circle → circular
