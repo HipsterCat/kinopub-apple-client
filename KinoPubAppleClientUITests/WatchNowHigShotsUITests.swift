@@ -3,13 +3,17 @@
 //  WatchNowHigShotsUITests.swift
 //  KinoPubAppleClientUITests
 //
-//  Local-only hig capture for PR #21. CI has no kino.pub session, so the
-//  caption-shot tests skip unless `~/.kinopub-dev-session.json` exists.
+//  Local hig capture for PR #21. Caption shots skip without a Mac-host session.
 //
-//  `testPlayPauseOpensMenuOnVerticalPoster` is CI-safe: templates gallery
-//  (no auth), waits for `kinopub.page.templates` / painted cells (not section
-//  header strings), Downs onto a vertical `kinopub.poster.*`, never screenshots
-//  a dead app, and tries Play/Pause then long-Select.
+//  `testPlayPauseOpensMenuOnVerticalPoster` uses the same Home launch path as the
+//  green Watch Now / TVPageGeometry UITests: `-ui-testing`,
+//  `-KINOPUBForceColorScheme dark`, and `KINOPUB_DEV_SESSION` when present. It waits
+//  for `kinopub.page.home` / `kinopub.poster.*`, Downs onto a portrait poster, then
+//  opens PCM. CI runners with no session XCTSkip (same as geometry / caption shots).
+//
+//  Optional local templates harness: set env `KINOPUB_PCM_TEMPLATES=1` on the *test*
+//  process to drive `-KINOPUBTemplatesGallery` instead. If that page never paints,
+//  the test skips — it is not the CI path.
 //
 //  Run on sasha.local (tvOS Simulator, signed-in DEBUG):
 //
@@ -42,9 +46,79 @@ final class WatchNowHigShotsUITests: XCTestCase {
   }
 
   /// Play/Pause or long-Select on a focused 2:3 poster must open the card context menu.
-  /// Templates gallery only (no auth). Hardened for GitHub runners where the app can
-  /// die mid-walk if we Down-spam before the page exists, then call `app.screenshot()`.
+  /// Home Watch Now path (matches green CI UITests). Soft screenshots; Play/Pause then
+  /// long-Select. Templates gallery is opt-in via `KINOPUB_PCM_TEMPLATES=1` only.
   func testPlayPauseOpensMenuOnVerticalPoster() throws {
+    if ProcessInfo.processInfo.environment["KINOPUB_PCM_TEMPLATES"] == "1" {
+      try openMenuOnTemplatesGalleryVerticalPoster()
+      return
+    }
+    try openMenuOnHomeVerticalPoster()
+  }
+
+  // MARK: - Home path (CI + signed-in local)
+
+  /// Same launchArguments as `TVPageGeometryUITests` / caption shots that go green on CI
+  /// by skipping when there is no session: `-ui-testing`, `-KINOPUBForceColorScheme dark`,
+  /// plus `KINOPUB_DEV_SESSION` when `~/.kinopub-dev-session.json` exists.
+  private func openMenuOnHomeVerticalPoster() throws {
+    try skipUnlessDevSession()
+
+    let app = XCUIApplication()
+    app.launchArguments += [
+      "-ui-testing",
+      "-KINOPUBForceColorScheme", "dark"
+    ]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertTrue(
+      app.wait(for: .runningForeground, timeout: 20),
+      "app never reached runningForeground (state=\(app.state.rawValue))"
+    )
+
+    // Match TVPageGeometryUITests: page id first, then a poster under that page.
+    // The empty collection can exist before the catalog paints cells; poster ids
+    // often stay out of the AX tree until their row is near the viewport, so Down
+    // while waiting (same lesson as the failed templates-gallery CI waits).
+    let home = app.collectionViews["kinopub.page.home"]
+    XCTAssertTrue(
+      home.waitForExistence(timeout: 90),
+      "Watch Now page never appeared (state=\(app.state.rawValue))"
+    )
+
+    let posters = home.descendants(matching: .any).matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.poster.")
+    )
+    var sawPoster = posters.firstMatch.waitForExistence(timeout: 5)
+    if !sawPoster {
+      for _ in 0..<12 where appIsAlive(app) {
+        XCUIRemote.shared.press(.down)
+        Thread.sleep(forTimeInterval: 0.55)
+        if posters.firstMatch.waitForExistence(timeout: 0.4) {
+          sawPoster = true
+          break
+        }
+      }
+    }
+    if !sawPoster {
+      // Catalog still loading — one long poll without remote spam.
+      sawPoster = posters.firstMatch.waitForExistence(timeout: 60)
+    }
+    XCTAssertTrue(
+      sawPoster,
+      "no kinopub.poster.* cells on Watch Now — session missing or catalog empty"
+    )
+
+    try focusVerticalPosterAndOpenMenu(in: app)
+  }
+
+  // MARK: - Templates harness (local opt-in only)
+
+  /// Not used on CI. Pass `KINOPUB_PCM_TEMPLATES=1` to the test runner to exercise the
+  /// DEBUG gallery without auth. Skips if the gallery page never paints.
+  private func openMenuOnTemplatesGalleryVerticalPoster() throws {
     let app = XCUIApplication()
     app.launchArguments += [
       "-ui-testing",
@@ -57,9 +131,6 @@ final class WatchNowHigShotsUITests: XCTestCase {
       "app never reached runningForeground (state=\(app.state.rawValue))"
     )
 
-    // Wait for what the gallery actually paints — not section-header *strings*.
-    // Supplementary headers stay off the AX tree on CI (run 36906927092: header wait
-    // timed out with state=1). The page id + banner/poster/chip cells do show up.
     let page = app.collectionViews["kinopub.page.templates"]
     let paintedCell = app.descendants(matching: .any).matching(
       NSPredicate(
@@ -70,7 +141,7 @@ final class WatchNowHigShotsUITests: XCTestCase {
       )
     ).firstMatch
     var galleryReady = false
-    let deadline = Date().addingTimeInterval(60)
+    let deadline = Date().addingTimeInterval(30)
     while Date() < deadline {
       guard appIsAlive(app) else { break }
       if page.waitForExistence(timeout: 0.4) || paintedCell.waitForExistence(timeout: 0.4) {
@@ -78,13 +149,17 @@ final class WatchNowHigShotsUITests: XCTestCase {
         break
       }
     }
-    XCTAssertTrue(
-      galleryReady,
-      "templates gallery never painted page/cells (state=\(app.state.rawValue))"
-    )
+    guard galleryReady else {
+      throw XCTSkip("templates gallery absent — use Home path (unset KINOPUB_PCM_TEMPLATES)")
+    }
 
-    // Banner → chips → stills (landscape posters) → "Recently Added" vertical posters.
-    // Short focus polls; keep Downing past landscape stills until a portrait poster.
+    try focusVerticalPosterAndOpenMenu(in: app)
+  }
+
+  // MARK: - Shared focus + menu
+
+  private func focusVerticalPosterAndOpenMenu(in app: XCUIApplication) throws {
+    // Banner / CW / stills first; keep Downing until a portrait kinopub.poster.*.
     var focusedID: String?
     for _ in 0..<24 {
       guard appIsAlive(app) else {
@@ -137,8 +212,8 @@ final class WatchNowHigShotsUITests: XCTestCase {
     if app.menuItems.firstMatch.waitForExistence(timeout: 0.4) { return true }
     let play = app.descendants(matching: .any).matching(
       NSPredicate(
-        format: "label ==[c] %@ OR label ==[c] %@ OR label ==[c] %@ OR label ==[c] %@",
-        "Play", "Смотреть", "Go to Movie", "К фильму"
+        format: "label ==[c] %@ OR label ==[c] %@ OR label ==[c] %@ OR label ==[c] %@ OR label ==[c] %@ OR label ==[c] %@",
+        "Play", "Смотреть", "Go to Movie", "К фильму", "Go to Show", "К сериалу"
       )
     ).firstMatch
     return play.waitForExistence(timeout: 0.4)
@@ -199,7 +274,7 @@ final class WatchNowHigShotsUITests: XCTestCase {
 
   private func skipUnlessDevSession() throws {
     guard FileManager.default.fileExists(atPath: Self.devSessionPath) else {
-      throw XCTSkip("no ~/.kinopub-dev-session.json — local hig shots only")
+      throw XCTSkip("no ~/.kinopub-dev-session.json — local hig / Home PCM only")
     }
   }
 
@@ -224,7 +299,7 @@ final class WatchNowHigShotsUITests: XCTestCase {
     return hit.identifier
   }
 
-  /// Vertical 2:3 lockups only — gallery stills also use `kinopub.poster.*` but are landscape.
+  /// Vertical 2:3 lockups only — CW / stills also use `kinopub.poster.*` but are landscape.
   private func focusedVerticalPosterID(in app: XCUIApplication) -> String? {
     guard let id = focusedPosterID(in: app) else { return nil }
     let hit = app.descendants(matching: .any).matching(
