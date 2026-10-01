@@ -7,8 +7,9 @@
 //  caption-shot tests skip unless `~/.kinopub-dev-session.json` exists.
 //
 //  `testPlayPauseOpensMenuOnVerticalPoster` is CI-safe: templates gallery
-//  (no auth), waits for `kinopub.poster.*` before Downs, never screenshots a
-//  dead app, and tries Play/Pause then long-Select.
+//  (no auth), waits for `kinopub.page.templates` / painted cells (not section
+//  header strings), Downs onto a vertical `kinopub.poster.*`, never screenshots
+//  a dead app, and tries Play/Pause then long-Select.
 //
 //  Run on sasha.local (tvOS Simulator, signed-in DEBUG):
 //
@@ -56,30 +57,41 @@ final class WatchNowHigShotsUITests: XCTestCase {
       "app never reached runningForeground (state=\(app.state.rawValue))"
     )
 
-    // Gallery shell first — poster cells often stay out of the AX tree until their
-    // orthogonal row is near the viewport (CI run 36902062516 Down-spammed a blank
-    // launch, then `app.screenshot()` crashed on a dead process).
-    let galleryMarker = app.descendants(matching: .any).matching(
+    // Wait for what the gallery actually paints — not section-header *strings*.
+    // Supplementary headers stay off the AX tree on CI (run 36906927092: header wait
+    // timed out with state=1). The page id + banner/poster/chip cells do show up.
+    let page = app.collectionViews["kinopub.page.templates"]
+    let paintedCell = app.descendants(matching: .any).matching(
       NSPredicate(
-        format: "label CONTAINS[c] %@ OR label CONTAINS[c] %@",
-        "Recently Added",
-        "Watch Next"
+        format: "identifier BEGINSWITH %@ OR identifier BEGINSWITH %@ OR identifier BEGINSWITH %@",
+        "kinopub.banner.",
+        "kinopub.poster.",
+        "kinopub.chip."
       )
     ).firstMatch
+    var galleryReady = false
+    let deadline = Date().addingTimeInterval(60)
+    while Date() < deadline {
+      guard appIsAlive(app) else { break }
+      if page.waitForExistence(timeout: 0.4) || paintedCell.waitForExistence(timeout: 0.4) {
+        galleryReady = true
+        break
+      }
+    }
     XCTAssertTrue(
-      galleryMarker.waitForExistence(timeout: 30),
-      "templates gallery never showed a section header (state=\(app.state.rawValue))"
+      galleryReady,
+      "templates gallery never painted page/cells (state=\(app.state.rawValue))"
     )
 
-    // Banner → chips → stills → "Recently Added" posters. Short focus polls so a
-    // miss does not burn XCTest's default exists-retry (~3s) twelve times.
+    // Banner → chips → stills (landscape posters) → "Recently Added" vertical posters.
+    // Short focus polls; keep Downing past landscape stills until a portrait poster.
     var focusedID: String?
-    for _ in 0..<16 {
+    for _ in 0..<24 {
       guard appIsAlive(app) else {
         XCTFail("app died while moving focus onto a vertical poster (state=\(app.state.rawValue))")
         return
       }
-      if let id = focusedPosterID(in: app) {
+      if let id = focusedVerticalPosterID(in: app) {
         focusedID = id
         break
       }
@@ -89,7 +101,7 @@ final class WatchNowHigShotsUITests: XCTestCase {
 
     guard let focusedID else {
       softScreenshot(app, colorScheme: "dark", suffix: "pcm-no-focus")
-      XCTFail("never focused a kinopub.poster.* after Downs (state=\(app.state.rawValue))")
+      XCTFail("never focused a vertical kinopub.poster.* after Downs (state=\(app.state.rawValue))")
       return
     }
 
@@ -210,6 +222,19 @@ final class WatchNowHigShotsUITests: XCTestCase {
     let hit = posters.firstMatch
     guard hit.waitForExistence(timeout: 0.35) else { return nil }
     return hit.identifier
+  }
+
+  /// Vertical 2:3 lockups only — gallery stills also use `kinopub.poster.*` but are landscape.
+  private func focusedVerticalPosterID(in app: XCUIApplication) -> String? {
+    guard let id = focusedPosterID(in: app) else { return nil }
+    let hit = app.descendants(matching: .any).matching(
+      NSPredicate(format: "identifier == %@ AND hasFocus == true", id)
+    ).firstMatch
+    guard hit.waitForExistence(timeout: 0.2) else { return nil }
+    let frame = hit.frame
+    // Portrait art: taller than wide. Landscape stills / CW tiles are the opposite.
+    guard frame.height > frame.width else { return nil }
+    return id
   }
 
   // MARK: - Output

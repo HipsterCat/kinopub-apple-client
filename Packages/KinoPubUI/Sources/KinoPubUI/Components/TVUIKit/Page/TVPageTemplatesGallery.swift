@@ -19,6 +19,9 @@ public struct TVPageTemplatesGallery: View {
   public var body: some View {
     TVPage(
       sections: Self.sections,
+      // So UITests can wait for the collection itself — section header labels are not
+      // reliable in the AX tree on CI runners (supplementary views often stay off-tree).
+      accessibilityID: "kinopub.page.templates",
       onSelect: { section, item in
         switch item {
         case .card(let card): lastSelection = "\(section.id): \(card.title)"
