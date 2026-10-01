@@ -148,6 +148,7 @@
               "children": [
                 { "path": "TrackPreferenceStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PlaybackPreflight.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlaybackMediaContext.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",
@@ -284,6 +285,7 @@
               "path": "UILab",
               "children": [
                 { "path": "UILabRoot.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlayerCasesView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "UILabSearchToolbar.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SystemTypeStylesCatalogView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "TVUIKitComponentGalleryView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
@@ -491,6 +493,7 @@
         { "path": "LaunchUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "WatchNowHigShotsUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVPageGeometryUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+        { "path": "PlayerUpNextTabUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
       ],
     }, {
       "kind": "group",
@@ -501,6 +504,7 @@
         { "path": "Packages/KinoPubBackend" },
         { "path": "Packages/KinoPubUI" },
         { "path": "Packages/KinoPubMetadata" },
+        { "path": "Packages/KinoPubMedia" },
       ],
     }, {
       "kind": "group",
@@ -536,6 +540,9 @@
           "build-phase": { "build-phase": "frameworks" },
         }, {
           "product-name": "KinoPubMetadata",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "product-name": "KinoPubMedia",
           "build-phase": { "build-phase": "frameworks" },
         }, {
           "product-name": "KinoPubUI",

@@ -347,10 +347,18 @@ class HomeCatalog: ObservableObject {
     refreshBannerCards(from: assembled)
   }
 
+  private func paintedContinueWatchingCards() -> [MediaCard] {
+    Self.paintedContinueWatchingCards(store: store, localProgressStore: localProgressStore)
+  }
+
   /// Read-time overlay: `ContentStore` still holds the last server snapshot (and its
   /// TTL). Local progress paints the bar, hides a just-finished film, and steps a
   /// series to the next episode without rewriting `rows-v2.json` on every player tick.
-  private func paintedContinueWatchingCards() -> [MediaCard] {
+  ///
+  /// Static because it is **the** Continue Watching list, not Home's copy of it: the
+  /// player's Up Next tab reads the same cards.
+  static func paintedContinueWatchingCards(store: ContentStore,
+                                           localProgressStore: LocalWatchProgressStore) -> [MediaCard] {
     let stored = store.cards(.continueWatching)
     let entries = localProgressStore.allEntries()
     let locals = entries.map { entry in

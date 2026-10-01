@@ -7,6 +7,7 @@ import SwiftUI
 import KinoPubUI
 import KinoPubBackend
 import KinoPubMetadata
+import KinoPubMedia
 
 /// Season tabs over one continuous horizontal rail of every episode in the series —
 /// S1E1 through the finale — the way the Apple TV app presents a show. Tabs scroll the
@@ -658,10 +659,10 @@ struct SeasonsRailView: View {
               primaryAction: primaryAction)
   }
 
+  /// kino.pub's name, else TMDB's — and neither when it is only the number spelled out
+  /// («Эпизод 1»): the caption already says which episode it is (`EpisodeTitle`).
   private static func displayTitle(episode: Episode, schedule: EpisodeSchedule?) -> String {
-    let kino = episode.title.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !kino.isEmpty { return kino }
-    return schedule?.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    EpisodeTitle.meaningful(episode.title) ?? EpisodeTitle.meaningful(schedule?.name) ?? ""
   }
 
   private static func stillURL(episode: Episode, schedule: EpisodeSchedule?) -> String? {

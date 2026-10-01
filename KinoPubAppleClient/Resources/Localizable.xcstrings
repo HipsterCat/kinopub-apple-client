@@ -6631,6 +6631,23 @@
         }
       }
     },
+    "Up Next" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up Next"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Далее"
+          }
+        }
+      }
+    },
     "Off" : {
       "extractionState" : "manual",
       "localizations" : {

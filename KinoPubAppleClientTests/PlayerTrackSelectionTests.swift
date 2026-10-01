@@ -16,6 +16,7 @@ import XCTest
 import AVFoundation
 import KinoPubBackend
 import KinoPubKit
+import KinoPubMedia
 // The app target's module is `KinoPub` — see `PlaybackPreflightTests`.
 @testable import KinoPub
 
@@ -152,18 +153,35 @@ final class PlayerTrackSelectionTests: XCTestCase {
 
   // MARK: - What the system player is told
 
-  /// The panel cannot be asserted without a device, but the fact that an episode now
-  /// carries its series' description, genres and year into it can — and that this happens
-  /// on the platforms whose panel we are talking about.
-  func testAnEpisodeCarriesItsSeriesIntoTheInfoPanel() {
+  /// The panel cannot be asserted without a device, but what the player hands it can —
+  /// on the platforms whose panel we are talking about: an episode carries its series'
+  /// name, description and **one** genre, through the identifiers Apple documents.
+  func testAnEpisodeCarriesItsSeriesIntoTheInfoPanel() throws {
     let series = MediaItem.mock()
-    let items = PlaybackMetadata.items(title: "Series",
-                                       subtitle: "Season 1, Episode 2",
-                                       context: series)
-    XCTAssertEqual(items.first { $0.identifier == .commonIdentifierTitle }?.stringValue, "Series")
-    XCTAssertEqual(items.first { $0.identifier == .commonIdentifierDescription }?.stringValue,
-                   series.plot)
-    XCTAssertNotNil(items.first { $0.identifier == .commonIdentifierCreationDate })
+    let episode = Episode(id: 900, title: "Pilot", thumbnail: "", duration: 1500, tracks: 1,
+                          number: 2, ac3: 0, audios: [], watched: 0,
+                          watching: EpisodeWatching(status: 0, time: 0), subtitles: [],
+                          files: [])
+    episode.seasonNumber = 1
+    let draft = PlaybackMediaContext.draft(playing: episode, title: series, isTrailer: false)
+    let context = try XCTUnwrap(MediaAggregator.merge(draft))
+    let items = PlayerInfo(context: context).metadataItems()
+    func value(_ identifier: AVMetadataIdentifier) -> String? {
+      items.first { $0.identifier == identifier }?.stringValue
+    }
+    XCTAssertEqual(value(.commonIdentifierTitle), series.localizedTitle)
+    XCTAssertEqual(value(.iTunesMetadataTrackSubTitle), "Season 1, Episode 2: Pilot")
+    XCTAssertEqual(value(.commonIdentifierDescription), series.plot)
+    XCTAssertEqual(value(.quickTimeMetadataGenre), "Comedy")
+    XCTAssertNil(value(.commonIdentifierType), "genres went here once, and never showed")
+  }
+
+  /// A download's "S4E4" marker is the only numbering it keeps.
+  func testADownloadMarkerReadsAsSeasonAndEpisode() {
+    let numbers = PlaybackMediaContext.episodeNumbers("S4E12")
+    XCTAssertEqual(numbers?.season, 4)
+    XCTAssertEqual(numbers?.episode, 12)
+    XCTAssertNil(PlaybackMediaContext.episodeNumbers("Film"))
   }
 
   private struct StubRendition: SubtitleRendition, Equatable {

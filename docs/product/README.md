@@ -37,5 +37,7 @@ at on screen stays **prd** — do not promote it because it compiles.
 - [continue-watching.md](continue-watching.md) — what the Home row offers, in what order, and what it
   leaves out
 - [media-presentation.md](media-presentation.md) — what a title's type and genre change on screen
+- [playback-info.md](playback-info.md) — what the system player's title view and Info tab say about
+  what is playing, per kind
 - [playback-tracks.md](playback-tracks.md) — which dub and which subtitles a title opens with
 - [related-sections.md](related-sections.md) — what a detail page recommends, per type

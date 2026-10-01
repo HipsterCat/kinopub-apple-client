@@ -5,6 +5,89 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Trailers are their title; Up Next is next-unwatched + Continue Watching (2026-10-01)
+
+A trailer sends no subtitle (the Info tab used «Trailer» as its heading) and its Info tab has only
+*Go to Movie / Show*. `PlayerInfo.Labels.extra` is gone. The Up Next tab is this show's next
+**unwatched** episode (`PlaybackMediaContext.nextUnwatched`) and then Home's Continue Watching cards
+(`HomeCatalog.paintedContinueWatchingCards`, now static) minus the playing title and anything
+watched; a card plays through `MediaCardMenuCoordinator.resolve`, shared with Home's Play.
+`PlaybackMediaContext.upcoming` is gone; `PlayerManager.onPlayEpisode` is `onPlay(any PlayableItem)`.
+
+### Player cases in the UI Lab (2026-10-01)
+
+`PlayerCasesView` (DEBUG; tvOS Settings → Diagnostics, iOS/macOS Advanced → UI Lab): film, film and
+series trailer, named and placeholder-named episode, concert, documentary, docuseries, TV show,
+film version, download — on live titles, each showing the `PlayerInfo` the player's own pipeline
+computes (TMDB included) beside the expectation from `docs/product/playback-info.md`, opening the
+real player routes. Rows carry `playerCase.<id>` accessibility identifiers for a UI test.
+
+### Up Next on the media model; review cleanup (2026-10-01)
+
+The Up Next tab's tiles take their name and frame from `MediaContext`
+(`PlaybackMediaContext.upcoming` / `context(for:in:)` / `enrichedContexts`) instead of reading
+kino.pub's `Episode` fields directly, so TMDB names replace «Эпизод N» there too. `MediaPrecedence`
+ranks kino.pub's still first, as the episode rail always did. *Go to Show / Go to Movie* follows the
+context's kind (a series' trailer goes to the show). The system Info buttons are captured by the
+player's coordinator, not stashed on the controller with `objc_setAssociatedObject`.
+`tools/player-lab/` is deleted: it needed another repo's catalogue to run.
+
+### Year slot fixed; Next Episode and Go to Show on the tvOS Info tab (2026-09-30)
+
+AVKit renders a date-shaped *string* as a stray number (`"2025-01-01"` → 12169); the creation
+date now goes out as an `NSDate` at noon UTC (`PlayerInfo.metadataItems()`, probed on the tvOS 27.2
+simulator). The Info tab gets *From Beginning* (system) and *Go to Show / Go to Movie* through
+`infoViewActions` — which shows two buttons at most; Next Episode lives in the Up Next tab. An **Up Next** tab beside Info lists the
+following episodes on our wide rail tile (badge on the next one, resume progress). Device check still
+pending. `tools/player-lab/` is the throwaway app the variants were judged in.
+
+### Placeholder episode names are not names (2026-09-30)
+
+`EpisodeTitle` (KinoPubMedia) recognises «Эпизод 1», «Серия №3», "Episode 12", "S01E01": the merge
+treats them as blank for episodes, so a real name from another source wins and the player's line
+is *Season 1, Episode 1* instead of *Season 1, Episode 1: Эпизод 1*. The episode rail uses it too.
+
+### Labels; one genre file for app, ingest and worker; document v2 (2026-09-29)
+
+"Эксклюзив" is kept as a `MediaLabel` (`MediaEntity.labels`, union-merged; source key
+`genre:128`) instead of being dropped. The genre table moved out of Swift into
+`KinoPubMedia/Resources/genres.json`, read by `GenreVocabulary`, `tools/metadata-ingest/genres.py`
+and `workers/tmdb-proxy/src/genres.js`; each genre carries a `GenreGroup`. `tvshow` implies a new
+*TV Show* genre. `MediaPresentationProfile` reads our genres and `KinoPubMediaMapping.typeMapping`
+— its genre-title word lists are gone. Documents are version 2: `kind` `movie | show`, `genres` our
+ids primary first, raw rows in `genre_sources`. Test fixtures that invented kino.pub genre ids
+(id 9 as «Документальный», 2 as «Аниме») now use the real ones.
+
+### kino.pub's full genre list in the media model; Documentary leads (2026-09-29)
+
+`GenreVocabulary`'s `kinopub` column is now kino.pub's whole reference list
+(`kpapp.link/config.json` v2.12.7 → `filter.genres`, all four sets), kept verbatim as
+`KinoPubBackendTests/Fixtures/kinopub_config.json` and tested id by id. kino.pub ids decide; names
+only rescue an unknown id. New genres for the documentary subjects and TV formats kino.pub files
+(space, universe, survival, quiz, entertainment, …) and its music set; genres no source listed
+(ambient, techno, punk, …) are gone. `GenreVocabulary.kinopub` returns nil for "Эксклюзив"
+(128, 133): a badge, not a genre. Documentaries lead with Documentary
+(`TypeMapping.impliedGenreLeads`); concerts still lead with their music.
+
+### The media model: `KinoPubMedia`, and the player's info panel on it (2026-09-28)
+
+New package `Packages/KinoPubMedia` — our provider-neutral model in Apple's vocabulary: shapes
+`movie / show / season / episode / extra`, `MediaEntity` (short/long synopsis, ordered genres whose
+first is primary, dated release at the precision the source had, age rating, `Score` per provider,
+artwork, provenance), `GenreVocabulary` (our genre ids; kino.pub ids, TMDB ids and RU/EN names as
+columns), `MediaAggregator` with `MediaPrecedence.standard`, `MediaContext` (what an episode
+borrows and never borrows), and `PlayerInfo`, the projection onto Apple's documented player fields.
+KinoPubBackend and KinoPubMetadata depend on it; each maps its own payload
+(`KinoPubMediaMapping`, `MediaFragments.swift`).
+
+`PlaybackMetadata` (KinoPubBackend) is **gone**: genres were a comma list in
+`commonIdentifierType`, which no Apple surface reads as a genre, and the series poster always beat
+the episode's still. `PlayerManager` stamps `PlayerInfo` now, via
+`Services/Playback/PlaybackMediaContext.swift`; `displaySubtitle` is gone with it (the episode line
+is localized: *Сезон 2, Серия 5*). TMDB's show overview, genres, season overview/score and
+per-episode score are decoded and carried (`TitleMetadata.overview/genres`,
+`SeasonSummary.overview/voteAverage`, `EpisodeSchedule.voteAverage/voteCount`). The kino.pub →
+TMDB season match moved out of `MediaItemModel` into `TMDBSeasonMatch`.
 ### Feature flags switchable in the app (2026-09-28)
 
 `FeatureFlags.*` are computed now, read from `FeatureFlag` — compiled default plus a per-device

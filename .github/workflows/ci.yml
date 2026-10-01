@@ -197,7 +197,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [KinoPubKit, KinoPubUI, KinoPubBackend, KinoPubLogging]
+        package: [KinoPubKit, KinoPubUI, KinoPubBackend, KinoPubLogging, KinoPubMedia]
     steps:
       - uses: actions/checkout@v4
 

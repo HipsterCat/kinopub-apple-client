@@ -117,17 +117,26 @@ final class MediaCardMenuCoordinator: ObservableObject {
   func play(_ card: MediaCard, push: @escaping (Route) -> Void) {
     Task {
       do {
-        let item = try await contentService.fetchDetails(for: "\(card.itemID)").item
-        // Stamp the seasons before an episode leaves this scope: `/v1/watching*` keys
-        // on the item id and an episode carries it only from here.
-        item.seasons?.forEach { $0.mediaId = item.id }
+        let (item, playable) = try await Self.resolve(card, using: contentService)
         membership.seed(from: item)
-        AppContext.shared.localProgressStore.cacheItem(item)
-        push(.player(playable(from: item, preferring: card), token: UUID()))
+        push(.player(playable, token: UUID()))
       } catch {
         errorHandler?.setError(error)
       }
     }
+  }
+
+  /// **What Play on a card plays** — the title's details, its seasons stamped, cached for
+  /// the player, and the episode the card points at (or the title's next one). One answer
+  /// for every surface that plays a card: Home, and the player's own Up Next tab.
+  static func resolve(_ card: MediaCard, using contentService: VideoContentService)
+    async throws -> (item: MediaItem, playable: any PlayableItem) {
+    let item = try await contentService.fetchDetails(for: "\(card.itemID)").item
+    // Stamp the seasons before an episode leaves this scope: `/v1/watching*` keys
+    // on the item id and an episode carries it only from here.
+    item.seasons?.forEach { $0.mediaId = item.id }
+    AppContext.shared.localProgressStore.cacheItem(item)
+    return (item, playable(from: item, preferring: card))
   }
 
   func toggleWatchlist(_ card: MediaCard) {
@@ -193,7 +202,7 @@ final class MediaCardMenuCoordinator: ObservableObject {
 
   // MARK: - Play target
 
-  private func playable(from item: MediaItem, preferring card: MediaCard) -> any PlayableItem {
+  private static func playable(from item: MediaItem, preferring card: MediaCard) -> any PlayableItem {
     if let seasonNum = card.season, let video = card.video,
        let season = item.seasons?.first(where: { $0.number == seasonNum }),
        let episode = season.episodes.first(where: { $0.number == video }) {

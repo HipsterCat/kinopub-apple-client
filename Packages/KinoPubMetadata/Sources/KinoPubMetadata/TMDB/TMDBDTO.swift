@@ -107,16 +107,19 @@ struct TMDBTitleDetails: Codable, Sendable {
 struct TMDBSeasonRef: Codable, Sendable {
   let seasonNumber: Int?
   let name: String?
+  let overview: String?
   let episodeCount: Int?
   let airDate: String?
   let posterPath: String?
+  let voteAverage: Double?
 
   enum CodingKeys: String, CodingKey {
     case seasonNumber = "season_number"
-    case name
+    case name, overview
     case episodeCount = "episode_count"
     case airDate = "air_date"
     case posterPath = "poster_path"
+    case voteAverage = "vote_average"
   }
 }
 
@@ -341,12 +344,16 @@ struct TMDBSeasonEpisode: Codable, Sendable {
   let airDate: String?
   let runtime: Int?
   let stillPath: String?
+  let voteAverage: Double?
+  let voteCount: Int?
 
   enum CodingKeys: String, CodingKey {
     case name, overview, runtime
     case episodeNumber = "episode_number"
     case airDate = "air_date"
     case stillPath = "still_path"
+    case voteAverage = "vote_average"
+    case voteCount = "vote_count"
   }
 }
 

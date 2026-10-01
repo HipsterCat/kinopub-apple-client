@@ -38,6 +38,22 @@ enum Route: Hashable {
   /// A detail page's Ratings and Reviews block, opened in full.
   case ratingsAndReviews(RatingsAndReviews)
 
+  var isPlayerRoute: Bool {
+    switch self {
+    case .player, .trailerPlayer: true
+    default: false
+    }
+  }
+
+  /// The title a details route opens, whichever way it carries it.
+  var detailsItemID: Int? {
+    switch self {
+    case .details(let item): item.id
+    case .detailsById(let id): id
+    default: nil
+    }
+  }
+
   func hash(into hasher: inout Hasher) {
     switch self {
     case .details(let item):

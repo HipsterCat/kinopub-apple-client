@@ -28,9 +28,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import genres as genre_table  # noqa: E402
 from common import DEFAULT_DB, connect, now, pushbr_url  # noqa: E402
 
-VERSION = 1
+# 2: `kind` speaks the app's media model (`movie` / `show`), and `genres` are
+# our ids (`genres.json`) with the primary first; the raw rows moved to
+# `genre_sources`.
+VERSION = 2
+
+# The record says `series`; the app's model, like Apple's, says `show`.
+KINDS = {"movie": "movie", "series": "show"}
 
 
 def _rows(conn, query, *params):
@@ -214,6 +221,9 @@ def build(conn, title_id: int) -> dict | None:
         " WHERE title_id=? AND season IS NULL ORDER BY votes IS NULL, votes DESC",
         (title_id,))]
 
+    genre_rows = _rows(conn, "SELECT source, name FROM genre WHERE title_id=? ORDER BY rowid",
+                       title_id)
+
     seasons = _rows(conn, "SELECT number, name, synopsis, air_date, end_date, episode_cnt,"
                           " poster, source FROM season WHERE title_id=? ORDER BY number",
                     title_id)
@@ -251,7 +261,7 @@ def build(conn, title_id: int) -> dict | None:
         "version": VERSION,
         "built_at": now(),
         "id": title_id,
-        "kind": title["kind"],
+        "kind": KINDS.get(title["kind"], title["kind"]),
         "title": {"ru": title["title_ru"], "original": title["title_original"]},
         "year": title["year"],
         "ids": ids,
@@ -259,7 +269,9 @@ def build(conn, title_id: int) -> dict | None:
         "ratings": ratings,
         "synopsis": _rows(conn, "SELECT source, lang, variant, text FROM synopsis"
                                 " WHERE title_id=?", title_id),
-        "genres": _rows(conn, "SELECT source, name FROM genre WHERE title_id=?", title_id),
+        # Ordered, primary first, one source's list whole — see genres.merge.
+        "genres": genre_table.merge(genre_rows),
+        "genre_sources": genre_rows,
         "countries": _rows(conn, "SELECT source, name FROM country WHERE title_id=?", title_id),
         "credits": build_credits(conn, title_id),
         "facts": _rows(conn, "SELECT source, text, spoiler FROM fact WHERE title_id=?",

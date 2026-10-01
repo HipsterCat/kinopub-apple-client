@@ -1,0 +1,1305 @@
+{
+  "version": "2.12.7",
+  "default_settings": {
+    "type": "pwa",
+    "app": {
+      "mirror": "https://kino.watch/",
+      "start": "home",
+      "to_continue": true,
+      "thumbnail": false,
+      "child_mode": false,
+      "start_folder": 0
+    },
+    "menu": {
+      "concert": true,
+      "cartoon": true,
+      "multserial": true,
+      "anime": true,
+      "documovie": true,
+      "docuserial": true,
+      "tvshow": true,
+      "standup": true,
+      "3d": true,
+      "sporttv": true
+    },
+    "list": {
+      "hide_anime": false,
+      "hide_indian": false,
+      "hide_russian": false,
+      "director": false,
+      "genres": false,
+      "year": true
+    },
+    "card": {
+      "comments": false,
+      "director": true,
+      "new_genre": true,
+      "similar": true,
+      "collection": true
+    },
+    "play": {
+      "player": "auto",
+      "fullscreen": false,
+      "auto": false,
+      "forced_st": false
+    },
+    "theme": {
+      "style": "kp",
+      "blur": true,
+      "animate": false
+    }
+  },
+  "home_blocks_shortcut": [
+    {
+      "title": "Горячие фильмы",
+      "mode": "hot",
+      "type": "movie",
+      "section": "movie"
+    },
+    {
+      "title": "Популярные фильмы",
+      "mode": "popular",
+      "type": "movie",
+      "section": "movie"
+    },
+    {
+      "title": "Горячие сериалы",
+      "mode": "hot",
+      "type": "serial",
+      "section": "serial"
+    },
+    {
+      "title": "Популярные сериалы",
+      "mode": "popular",
+      "type": "serial",
+      "section": "serial"
+    },
+    {
+      "title": "Горячие документальные фильмы",
+      "mode": "hot",
+      "type": "documovie",
+      "section": "documovie"
+    },
+    {
+      "title": "Популярные документальные фильмы",
+      "mode": "popular",
+      "type": "documovie",
+      "section": "documovie"
+    },
+    {
+      "title": "Горячие документальные сериалы",
+      "mode": "hot",
+      "type": "docuserial",
+      "section": "docuserial"
+    },
+    {
+      "title": "Популярные документальные сериалы",
+      "mode": "popular",
+      "type": "docuserial",
+      "section": "docuserial"
+    },
+    {
+      "title": "Горячие концерты",
+      "mode": "hot",
+      "type": "concert",
+      "section": "concert"
+    },
+    {
+      "title": "Популярные концерты",
+      "mode": "popular",
+      "type": "concert",
+      "section": "concert"
+    },
+    {
+      "title": "Горячие ТВ Шоу",
+      "mode": "hot",
+      "type": "tvshow",
+      "section": "tvshow"
+    },
+    {
+      "title": "Популярные ТВ Шоу",
+      "mode": "popular",
+      "type": "tvshow",
+      "section": "tvshow"
+    }
+  ],
+  "home_blocks": [
+    {
+      "title": "Фильмы",
+      "type": "movie",
+      "genre_id": 0,
+      "section": "movie"
+    },
+    {
+      "title": "Сериалы",
+      "type": "serial",
+      "genre_id": 0,
+      "section": "serial"
+    },
+    {
+      "title": "Концерты",
+      "type": "concert",
+      "genre_id": 0,
+      "section": "concert"
+    },
+    {
+      "title": "Мультфильмы",
+      "type": "movie",
+      "genre_id": 23,
+      "section": "cartoon"
+    },
+    {
+      "title": "Мультсериалы",
+      "type": "serial",
+      "genre_id": 23,
+      "section": "multserial"
+    },
+    {
+      "title": "Аниме",
+      "type": "movie,serial",
+      "genre_id": 25,
+      "section": "anime"
+    },
+    {
+      "title": "Док. Фильмы",
+      "type": "documovie",
+      "genre_id": 0,
+      "section": "documovie"
+    },
+    {
+      "title": "Док. Сериалы",
+      "type": "docuserial",
+      "genre_id": 0,
+      "section": "docuserial"
+    },
+    {
+      "title": "ТВ Шоу",
+      "type": "tvshow",
+      "genre_id": 0,
+      "section": "tvshow"
+    },
+    {
+      "title": "3D",
+      "type": "3d",
+      "genre_id": 0,
+      "section": "3d"
+    },
+    {
+      "title": "Стендапы",
+      "type": "movie",
+      "genre_id": 101,
+      "section": "standup"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Фильмы",
+      "type": "movie"
+    },
+    {
+      "title": "Сериалы",
+      "type": "serial"
+    },
+    {
+      "title": "Концерты",
+      "type": "concert"
+    },
+    {
+      "title": "Мультфильмы",
+      "type": "cartoon"
+    },
+    {
+      "title": "Мультсериалы",
+      "type": "multserial"
+    },
+    {
+      "title": "Аниме",
+      "type": "anime"
+    },
+    {
+      "title": "Док. Фильмы",
+      "type": "documovie"
+    },
+    {
+      "title": "Док. Сериалы",
+      "type": "docuserial"
+    },
+    {
+      "title": "ТВ Шоу",
+      "type": "tvshow"
+    },
+    {
+      "title": "3D",
+      "type": "3d"
+    },
+    {
+      "title": "Стендапы",
+      "type": "standup"
+    }
+  ],
+  "filter": {
+    "types": [
+      {
+        "id": "movie",
+        "title": "Фильмы",
+        "genres": "movie"
+      },
+      {
+        "id": "serial",
+        "title": "Сериалы",
+        "genres": "movie"
+      },
+      {
+        "id": "documovie",
+        "title": "Документальные фильмы",
+        "genres": "docu"
+      },
+      {
+        "id": "docuserial",
+        "title": "Документальные сериалы",
+        "genres": "docu"
+      },
+      {
+        "id": "concert",
+        "title": "Концерты",
+        "genres": "music"
+      },
+      {
+        "id": "tvshow",
+        "title": "ТВ шоу",
+        "genres": "tvshow"
+      },
+      {
+        "id": "3d",
+        "title": "3D",
+        "genres": "movie"
+      }
+    ],
+    "genres": {
+      "movie": [
+        {
+          "id": 25,
+          "title": "Аниме"
+        },
+        {
+          "id": 3,
+          "title": "Биография"
+        },
+        {
+          "id": 2,
+          "title": "Боевик"
+        },
+        {
+          "id": 14,
+          "title": "Вестерн"
+        },
+        {
+          "id": 116,
+          "title": "Водевиль"
+        },
+        {
+          "id": 15,
+          "title": "Военный"
+        },
+        {
+          "id": 13,
+          "title": "Детектив"
+        },
+        {
+          "id": 24,
+          "title": "Документальный"
+        },
+        {
+          "id": 107,
+          "title": "Дорама"
+        },
+        {
+          "id": 9,
+          "title": "Драма"
+        },
+        {
+          "id": 18,
+          "title": "Исторический"
+        },
+        {
+          "id": 1,
+          "title": "Комедия"
+        },
+        {
+          "id": 26,
+          "title": "Короткометражка"
+        },
+        {
+          "id": 17,
+          "title": "Криминал"
+        },
+        {
+          "id": 10,
+          "title": "Мелодрама"
+        },
+        {
+          "id": 11,
+          "title": "Мистика"
+        },
+        {
+          "id": 19,
+          "title": "Музыкальный"
+        },
+        {
+          "id": 23,
+          "title": "Мультфильм"
+        },
+        {
+          "id": 105,
+          "title": "Нуар"
+        },
+        {
+          "id": 8,
+          "title": "Приключения"
+        },
+        {
+          "id": 6,
+          "title": "Семейный"
+        },
+        {
+          "id": 27,
+          "title": "Спектакль"
+        },
+        {
+          "id": 20,
+          "title": "Спорт"
+        },
+        {
+          "id": 101,
+          "title": "Стендап"
+        },
+        {
+          "id": 7,
+          "title": "Триллер"
+        },
+        {
+          "id": 12,
+          "title": "Ужасы"
+        },
+        {
+          "id": 4,
+          "title": "Фантастика"
+        },
+        {
+          "id": 5,
+          "title": "Фэнтези"
+        },
+        {
+          "id": 128,
+          "title": "Эксклюзив"
+        },
+        {
+          "id": 21,
+          "title": "Эротика"
+        }
+      ],
+      "docu": [
+        {
+          "id": 93,
+          "title": "IT технологии"
+        },
+        {
+          "id": 90,
+          "title": "Авиация"
+        },
+        {
+          "id": 87,
+          "title": "Автомобили"
+        },
+        {
+          "id": 62,
+          "title": "Аномалии"
+        },
+        {
+          "id": 64,
+          "title": "Бизнес"
+        },
+        {
+          "id": 78,
+          "title": "Биография"
+        },
+        {
+          "id": 52,
+          "title": "Все обо всем"
+        },
+        {
+          "id": 81,
+          "title": "Вселенная"
+        },
+        {
+          "id": 122,
+          "title": "Выживание"
+        },
+        {
+          "id": 61,
+          "title": "Здоровье и медицина"
+        },
+        {
+          "id": 57,
+          "title": "Знаменитости"
+        },
+        {
+          "id": 92,
+          "title": "Золото"
+        },
+        {
+          "id": 68,
+          "title": "Искусство"
+        },
+        {
+          "id": 51,
+          "title": "История"
+        },
+        {
+          "id": 66,
+          "title": "Катастрофы"
+        },
+        {
+          "id": 82,
+          "title": "Кино"
+        },
+        {
+          "id": 60,
+          "title": "Космос"
+        },
+        {
+          "id": 63,
+          "title": "Криминал"
+        },
+        {
+          "id": 75,
+          "title": "Лженаука"
+        },
+        {
+          "id": 84,
+          "title": "Литература"
+        },
+        {
+          "id": 83,
+          "title": "Люди"
+        },
+        {
+          "id": 58,
+          "title": "Мир животных"
+        },
+        {
+          "id": 104,
+          "title": "Мода"
+        },
+        {
+          "id": 70,
+          "title": "Музыка"
+        },
+        {
+          "id": 55,
+          "title": "Наука"
+        },
+        {
+          "id": 76,
+          "title": "Обучающее видео"
+        },
+        {
+          "id": 85,
+          "title": "Океан"
+        },
+        {
+          "id": 67,
+          "title": "Он и она"
+        },
+        {
+          "id": 56,
+          "title": "Оружие / Война"
+        },
+        {
+          "id": 88,
+          "title": "Открытия"
+        },
+        {
+          "id": 59,
+          "title": "Политика"
+        },
+        {
+          "id": 73,
+          "title": "Природа"
+        },
+        {
+          "id": 80,
+          "title": "Пришельцы"
+        },
+        {
+          "id": 65,
+          "title": "Психология"
+        },
+        {
+          "id": 54,
+          "title": "Путешествия"
+        },
+        {
+          "id": 77,
+          "title": "Расследование"
+        },
+        {
+          "id": 69,
+          "title": "Религия"
+        },
+        {
+          "id": 71,
+          "title": "Спорт"
+        },
+        {
+          "id": 79,
+          "title": "Строительство"
+        },
+        {
+          "id": 53,
+          "title": "Техника"
+        },
+        {
+          "id": 98,
+          "title": "Физиология"
+        },
+        {
+          "id": 91,
+          "title": "Флот"
+        },
+        {
+          "id": 86,
+          "title": "Фотография"
+        },
+        {
+          "id": 74,
+          "title": "Хобби"
+        },
+        {
+          "id": 72,
+          "title": "Экология"
+        },
+        {
+          "id": 133,
+          "title": "Эксклюзив"
+        }
+      ],
+      "tvshow": [
+        {
+          "id": 123,
+          "title": "Выживание"
+        },
+        {
+          "id": 124,
+          "title": "Интелектуальные"
+        },
+        {
+          "id": 111,
+          "title": "Кулинария"
+        },
+        {
+          "id": 112,
+          "title": "Путешествия"
+        },
+        {
+          "id": 110,
+          "title": "Развлекательные"
+        },
+        {
+          "id": 114,
+          "title": "Реалити-шоу"
+        },
+        {
+          "id": 113,
+          "title": "Ток-шоу"
+        }
+      ],
+      "music": [
+        {
+          "id": 30,
+          "title": "Alternative"
+        },
+        {
+          "id": 31,
+          "title": "Blues"
+        },
+        {
+          "id": 102,
+          "title": "Chillout"
+        },
+        {
+          "id": 32,
+          "title": "Classical"
+        },
+        {
+          "id": 33,
+          "title": "Country"
+        },
+        {
+          "id": 34,
+          "title": "Dance"
+        },
+        {
+          "id": 103,
+          "title": "Downtempo"
+        },
+        {
+          "id": 35,
+          "title": "Easy Listening"
+        },
+        {
+          "id": 36,
+          "title": "Electronic"
+        },
+        {
+          "id": 118,
+          "title": "Folk"
+        },
+        {
+          "id": 37,
+          "title": "Hip-Hop/Rap"
+        },
+        {
+          "id": 99,
+          "title": "House"
+        },
+        {
+          "id": 119,
+          "title": "Indie"
+        },
+        {
+          "id": 38,
+          "title": "Industrial"
+        },
+        {
+          "id": 39,
+          "title": "Instrumental"
+        },
+        {
+          "id": 40,
+          "title": "Jazz"
+        },
+        {
+          "id": 117,
+          "title": "K-pop"
+        },
+        {
+          "id": 41,
+          "title": "Latin"
+        },
+        {
+          "id": 50,
+          "title": "Metal"
+        },
+        {
+          "id": 42,
+          "title": "New Age"
+        },
+        {
+          "id": 43,
+          "title": "Opera"
+        },
+        {
+          "id": 44,
+          "title": "Pop"
+        },
+        {
+          "id": 120,
+          "title": "Progressive"
+        },
+        {
+          "id": 45,
+          "title": "R&B/Soul"
+        },
+        {
+          "id": 46,
+          "title": "Reggae"
+        },
+        {
+          "id": 47,
+          "title": "Rock"
+        },
+        {
+          "id": 100,
+          "title": "Trance"
+        },
+        {
+          "id": 121,
+          "title": "Trip-Hop"
+        },
+        {
+          "id": 48,
+          "title": "Vocal"
+        },
+        {
+          "id": 49,
+          "title": "World"
+        },
+        {
+          "id": 109,
+          "title": "Балет"
+        }
+      ]
+    },
+    "countries": [
+      {
+        "id": 10,
+        "title": "Австралия"
+      },
+      {
+        "id": 16,
+        "title": "Австрия"
+      },
+      {
+        "id": 79,
+        "title": "Азербайджан"
+      },
+      {
+        "id": 82,
+        "title": "Албания"
+      },
+      {
+        "id": 89,
+        "title": "Алжир"
+      },
+      {
+        "id": 41,
+        "title": "Аргентина"
+      },
+      {
+        "id": 55,
+        "title": "Армения"
+      },
+      {
+        "id": 69,
+        "title": "Афганистан"
+      },
+      {
+        "id": 70,
+        "title": "Багамы"
+      },
+      {
+        "id": 47,
+        "title": "Беларусь"
+      },
+      {
+        "id": 27,
+        "title": "Бельгия"
+      },
+      {
+        "id": 42,
+        "title": "Болгария"
+      },
+      {
+        "id": 78,
+        "title": "Боливия"
+      },
+      {
+        "id": 81,
+        "title": "Босния-Герцеговина"
+      },
+      {
+        "id": 71,
+        "title": "Ботсвана"
+      },
+      {
+        "id": 50,
+        "title": "Бразилия"
+      },
+      {
+        "id": 83,
+        "title": "Буркина-Фасо"
+      },
+      {
+        "id": 5,
+        "title": "Великобритания"
+      },
+      {
+        "id": 32,
+        "title": "Венгрия"
+      },
+      {
+        "id": 67,
+        "title": "Венесуэла"
+      },
+      {
+        "id": 66,
+        "title": "Вьетнам"
+      },
+      {
+        "id": 88,
+        "title": "Гана"
+      },
+      {
+        "id": 4,
+        "title": "Германия"
+      },
+      {
+        "id": 17,
+        "title": "Гонконг"
+      },
+      {
+        "id": 65,
+        "title": "Греция"
+      },
+      {
+        "id": 56,
+        "title": "Грузия"
+      },
+      {
+        "id": 21,
+        "title": "Дания"
+      },
+      {
+        "id": 72,
+        "title": "Египет"
+      },
+      {
+        "id": 24,
+        "title": "Израиль"
+      },
+      {
+        "id": 38,
+        "title": "Индия"
+      },
+      {
+        "id": 49,
+        "title": "Индонезия"
+      },
+      {
+        "id": 39,
+        "title": "Иран"
+      },
+      {
+        "id": 20,
+        "title": "Ирландия"
+      },
+      {
+        "id": 40,
+        "title": "Исландия"
+      },
+      {
+        "id": 9,
+        "title": "Испания"
+      },
+      {
+        "id": 19,
+        "title": "Италия"
+      },
+      {
+        "id": 64,
+        "title": "Казахстан"
+      },
+      {
+        "id": 14,
+        "title": "Канада"
+      },
+      {
+        "id": 87,
+        "title": "Кипр"
+      },
+      {
+        "id": 6,
+        "title": "Китай"
+      },
+      {
+        "id": 98,
+        "title": "Колумбия"
+      },
+      {
+        "id": 97,
+        "title": "Коста-Рика"
+      },
+      {
+        "id": 43,
+        "title": "Куба"
+      },
+      {
+        "id": 94,
+        "title": "Кувейт"
+      },
+      {
+        "id": 44,
+        "title": "Латвия"
+      },
+      {
+        "id": 93,
+        "title": "Ливан"
+      },
+      {
+        "id": 92,
+        "title": "Ливия"
+      },
+      {
+        "id": 45,
+        "title": "Литва"
+      },
+      {
+        "id": 25,
+        "title": "Люксембург"
+      },
+      {
+        "id": 95,
+        "title": "Мавритания"
+      },
+      {
+        "id": 77,
+        "title": "Мадагаскар"
+      },
+      {
+        "id": 53,
+        "title": "Македония"
+      },
+      {
+        "id": 48,
+        "title": "Малайзия"
+      },
+      {
+        "id": 90,
+        "title": "Мальта"
+      },
+      {
+        "id": 86,
+        "title": "Марокко"
+      },
+      {
+        "id": 18,
+        "title": "Мексика"
+      },
+      {
+        "id": 73,
+        "title": "Молдова"
+      },
+      {
+        "id": 99,
+        "title": "Монголия"
+      },
+      {
+        "id": 100,
+        "title": "Непал"
+      },
+      {
+        "id": 112,
+        "title": "Нигерия"
+      },
+      {
+        "id": 11,
+        "title": "Нидерланды"
+      },
+      {
+        "id": 15,
+        "title": "Новая Зеландия"
+      },
+      {
+        "id": 12,
+        "title": "Норвегия"
+      },
+      {
+        "id": 63,
+        "title": "ОАЭ"
+      },
+      {
+        "id": 84,
+        "title": "Пакистан"
+      },
+      {
+        "id": 96,
+        "title": "Панама"
+      },
+      {
+        "id": 74,
+        "title": "Перу"
+      },
+      {
+        "id": 13,
+        "title": "Польша"
+      },
+      {
+        "id": 85,
+        "title": "Португалия"
+      },
+      {
+        "id": 2,
+        "title": "Россия"
+      },
+      {
+        "id": 33,
+        "title": "Румыния"
+      },
+      {
+        "id": 75,
+        "title": "Саудовская Аравия"
+      },
+      {
+        "id": 80,
+        "title": "Северная Корея"
+      },
+      {
+        "id": 51,
+        "title": "Сербия"
+      },
+      {
+        "id": 29,
+        "title": "Сингапур"
+      },
+      {
+        "id": 76,
+        "title": "Словакия"
+      },
+      {
+        "id": 31,
+        "title": "Словения"
+      },
+      {
+        "id": 3,
+        "title": "СССР"
+      },
+      {
+        "id": 1,
+        "title": "США"
+      },
+      {
+        "id": 36,
+        "title": "Таиланд"
+      },
+      {
+        "id": 68,
+        "title": "Тайвань"
+      },
+      {
+        "id": 59,
+        "title": "Тунис"
+      },
+      {
+        "id": 30,
+        "title": "Турция"
+      },
+      {
+        "id": 106,
+        "title": "Узбекистан"
+      },
+      {
+        "id": 23,
+        "title": "Украина"
+      },
+      {
+        "id": 60,
+        "title": "Уругвай"
+      },
+      {
+        "id": 57,
+        "title": "Филиппины"
+      },
+      {
+        "id": 37,
+        "title": "Финляндия"
+      },
+      {
+        "id": 8,
+        "title": "Франция"
+      },
+      {
+        "id": 35,
+        "title": "Хорватия"
+      },
+      {
+        "id": 52,
+        "title": "Черногория"
+      },
+      {
+        "id": 62,
+        "title": "Чехия"
+      },
+      {
+        "id": 54,
+        "title": "Чехословакия"
+      },
+      {
+        "id": 58,
+        "title": "Чили"
+      },
+      {
+        "id": 26,
+        "title": "Швейцария"
+      },
+      {
+        "id": 22,
+        "title": "Швеция"
+      },
+      {
+        "id": 91,
+        "title": "Шотландия"
+      },
+      {
+        "id": 46,
+        "title": "Эстония"
+      },
+      {
+        "id": 28,
+        "title": "ЮАР"
+      },
+      {
+        "id": 61,
+        "title": "Югославия"
+      },
+      {
+        "id": 34,
+        "title": "Южная Корея"
+      },
+      {
+        "id": 7,
+        "title": "Япония"
+      }
+    ],
+    "sort": [
+      {
+        "id": "updated",
+        "title": "Обновлено"
+      },
+      {
+        "id": "year",
+        "title": "Год"
+      },
+      {
+        "id": "title",
+        "title": "Название"
+      },
+      {
+        "id": "created",
+        "title": "Добавлено"
+      },
+      {
+        "id": "rating",
+        "title": "Рейтинг КиноПаб"
+      },
+      {
+        "id": "kinopoisk_rating",
+        "title": "Рейтинг Кинопоиск"
+      },
+      {
+        "id": "imdb_rating",
+        "title": "Рейтинг IMDb"
+      },
+      {
+        "id": "views",
+        "title": "Просмотры"
+      },
+      {
+        "id": "watchers",
+        "title": "Зрители"
+      }
+    ],
+    "subtitles": [
+      {
+        "id": "rus",
+        "title": "Русские"
+      },
+      {
+        "id": "eng",
+        "title": "Английские"
+      },
+      {
+        "id": "ukr",
+        "title": "Украинские"
+      },
+      {
+        "id": "fre",
+        "title": "Французские"
+      },
+      {
+        "id": "ger",
+        "title": "Немецкие"
+      },
+      {
+        "id": "spa",
+        "title": "Испанские"
+      },
+      {
+        "id": "ita",
+        "title": "Итальянские"
+      },
+      {
+        "id": "por",
+        "title": "Португальские"
+      },
+      {
+        "id": "fin",
+        "title": "Финские"
+      },
+      {
+        "id": "pol",
+        "title": "Польские"
+      },
+      {
+        "id": "chi",
+        "title": "Китайские"
+      },
+      {
+        "id": "jpn",
+        "title": "Японские"
+      },
+      {
+        "id": "kor",
+        "title": "Корейские"
+      },
+      {
+        "id": "hin",
+        "title": "Хинди"
+      },
+      {
+        "id": "heb",
+        "title": "Иврит"
+      },
+      {
+        "id": "swe",
+        "title": "Шведские"
+      },
+      {
+        "id": "nor",
+        "title": "Норвежские"
+      },
+      {
+        "id": "dan",
+        "title": "Датские"
+      },
+      {
+        "id": "ron",
+        "title": "Румынские"
+      },
+      {
+        "id": "kaz",
+        "title": "Казахские"
+      },
+      {
+        "id": "uzb",
+        "title": "Узбекские"
+      },
+      {
+        "id": "phi",
+        "title": "Филиппинские"
+      },
+      {
+        "id": "tur",
+        "title": "Турецкие"
+      },
+      {
+        "id": "ai",
+        "title": "РусскийAI"
+      }
+    ]
+  },
+  "quality_list": {
+    "auto": "Авто",
+    "2160": "4K",
+    "1080": "FHD",
+    "720": "HD",
+    "480": "SD"
+  },
+  "quality_list_w": {
+    "auto": "Авто",
+    "3840": "4K",
+    "1920": "FHD",
+    "1280": "HD",
+    "720": "SD"
+  }
+}

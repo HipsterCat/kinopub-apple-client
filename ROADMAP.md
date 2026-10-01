@@ -297,8 +297,17 @@ Media
       `api2/v1.1` branch, wired best-effort, never seen answering. The log line is `item collections`
 - [ ] Confirm `genre=5,23,101` really is OR (the vendor docs say nothing about it). The floor falls
       back to one genre when it answers empty; the log line is `genre floor`
-- [ ] Fold `filter.genres` from `kpapp.link/config.json` into the app so the profile matches genre
-      **ids** instead of RU/EN title strings — and so genre pickers stop needing a request
+- [x] `filter.genres` from `kpapp.link/config.json` folded in: every id of the four sets is the
+      `kinopub` column of `GenreVocabulary` (KinoPubMedia); the file is a test fixture
+- [ ] Genre pickers read `GenreVocabulary` instead of `GET /v1/genres`, with our RU/EN names
+      (Localizable when a third language comes)
+- [ ] An Apple column in `GenreVocabulary`: iTunes Store genre ids/names per genre, from the
+      store's genres endpoint (`MZStoreServices.woa/ws/genres`) — unreachable from the
+      2026-09-28 session, so nothing Apple-specific is in the table yet
+- [x] `MediaPresentationProfile` reads the media model's genres and the type mapping instead of
+      kino.pub's `type` string and genre-title words
+- [ ] Sections and filters on `MediaLabel` (Эксклюзив) and `GenreGroup` (documentary subjects,
+      TV formats) — the data is in the model, nothing reads it yet
 - [ ] Close the two open questions in that product doc: the poster / horizontal-card treatment per
       kind, and whether the actor shelf names the person while the author shelf names the role
 - [ ] "Known for" ordering proper for person shelves — lead with the films the person is known for
@@ -381,6 +390,13 @@ image fails.
 - [ ] Decide the recommendations approach — Trakt scrobble, local taste, editorial-only, or none
 - [ ] Editorial Home rows, if a legitimate source is chosen
 - [ ] Server-side "donate" of pulled metadata — postponed until there is a backend
+- [x] The `/v1/title` document meets the media model (version 2): `kind` `movie / show`, genres
+      as our ids with a primary, from the shared `genres.json` — `document.py` and the worker
+- [ ] The app reads `/v1/title` as a source (a `MediaFragment` per level from the document's
+      title, seasons and episodes), so `PlaybackMediaContext.enrich` becomes one call. Needs the
+      document's seasons to carry kino.pub's block numbering or the season match
+- [ ] Detail page, cards and Top Shelf read `MediaContext` instead of `MediaItem` + `TitleMetadata`
+      (season facts, per-episode scores and descriptions are in the model already)
 
 ---
 
@@ -399,19 +415,32 @@ per-platform API matrix is in the `player-avkit` skill — do not plan iOS or ma
 tvOS-only properties.
 
 - [x] Custom centre panel deleted; a failure shows a system alert and we stay in the player
-- [x] `externalMetadata` on iOS as well as tvOS, filled from the **title** rather than from
-      what is playing: an episode carries its series' description, genres, year and poster
-      into the panel instead of showing two lines and nothing else (`PlaybackMetadata`,
-      tested without an asset). Capability badges are not reachable this way — no identifier
-      carries one; that is what `customInfoViewControllers` below is for
+- [x] `externalMetadata` on iOS as well as tvOS, projected from the media model
+      (`PlayerInfo` ← `MediaContext`, KinoPubMedia): Apple's documented fields only — one
+      primary genre through `quickTimeMetadataGenre` (it went to `commonIdentifierType` before
+      and never showed), the age rating through `iTunesMetadataContentRating`, an episode's own
+      still, description, date and name from TMDB. Rules:
+      [docs/product/playback-info.md](docs/product/playback-info.md). Scores and capability
+      badges are not reachable this way — no identifier carries one; that is what
+      `customInfoViewControllers` below is for
+- [ ] Watch the Info tab on a device: primary genre, age rating, an episode's own still and
+      description. Everything in that product doc is unit-tested only
 - [x] Every play entry point goes through `PlayerLink`; `NavigationState.push` redirects player
       routes into the macOS playback window, with a `RouteDestination` guard behind it
 - [x] macOS `AVPlayerView` bridge (speeds, PiP, fullscreen toggle, sharing)
 - [x] Per-show subtitle track memory; dual subtitles (tvOS, parked defaults)
 - [x] Ambient hero preview stops when a real playback session starts elsewhere. **General rule:** any
       preview player outside `PlaybackSession` must be wired to that signal — it does not get it free
-- [ ] tvOS Info tabs (`customInfoViewControllers`), `infoViewActions` (Watchlist, From beginning)
-- [ ] Up Next via `AVContentProposal`, driven by the existing next-episode logic
+- [x] Year slot shows a number («12175») instead of the year: AVKit wants an `NSDate`, not a
+      string — sent at noon UTC from `PlayerInfo.metadataItems()` only (2026-09-30, simulator)
+- [x] tvOS `infoViewActions`: **From Beginning** + **Go to Show / Go to Movie** (asked for
+      2026-09-29). Built 2026-09-30, validation pending on a device; two buttons max; Next Episode moved
+      to the Up Next tab — `docs/product/playback-info.md`
+- [x] tvOS **Up Next** Info tab (`customInfoViewControllers`): wide tiles with badge and progress,
+      2026-09-30, simulator-verified; device check pending
+- [ ] More `infoViewActions` (Watchlist)
+- [ ] Up Next via `AVContentProposal` / `contextualActions` near the end, driven by the existing
+      next-episode logic (`NextPlayableEpisode`)
 - [ ] Chapters via `navigationMarkerGroups`, once any marker source exists
 - [ ] Subtitle overlay inside the controller (`customOverlayViewController` + `unobscuredContentGuide`,
       styling from `MediaAccessibility`) instead of a SwiftUI sibling in a `ZStack`

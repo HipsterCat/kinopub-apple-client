@@ -30,8 +30,8 @@ final class MediaPresentationTests: XCTestCase {
 
   /// A documentary filed as a plain movie is only knowable from the genre.
   func testDocumentaryGenreOnAPlainMovie() {
-    XCTAssertEqual(profile(type: "movie", genres: [(9, "Документальный")]).kind, .documentary)
-    XCTAssertEqual(profile(type: "movie", genres: [(9, "Documentary")]).kind, .documentary)
+    XCTAssertEqual(profile(type: "movie", genres: [(24, "Документальный")]).kind, .documentary)
+    XCTAssertEqual(profile(type: "movie", genres: [(555, "Documentary")]).kind, .documentary)
   }
 
   func testConcertType() {
@@ -52,20 +52,20 @@ final class MediaPresentationTests: XCTestCase {
   /// Anime and cartoons are drawn the same way, so they share a `kind` — but only one of
   /// them is normally watched in the original with subtitles, so `isAnime` is separate.
   func testAnimeIsTheOnlyAnimationThatIsAnime() {
-    XCTAssertTrue(profile(type: "serial", genres: [(2, "Аниме")]).isAnime)
-    XCTAssertTrue(profile(type: "serial", genres: [(2, "Anime")]).isAnime)
+    XCTAssertTrue(profile(type: "serial", genres: [(25, "Аниме")]).isAnime)
+    XCTAssertTrue(profile(type: "serial", genres: [(555, "Anime")]).isAnime)
     XCTAssertFalse(profile(type: "movie", genres: [(23, "Мультфильм")]).isAnime)
     XCTAssertFalse(profile(type: "serial", genres: [(23, "Мультсериал")]).isAnime)
     XCTAssertFalse(profile(type: "movie", genres: [(1, "Комедия")]).isAnime)
   }
 
   func testAnimeStillPresentsAsAnimation() {
-    XCTAssertEqual(profile(type: "serial", genres: [(2, "Аниме")]).kind, .animation)
+    XCTAssertEqual(profile(type: "serial", genres: [(25, "Аниме")]).kind, .animation)
   }
 
   func testAnimeGenre() {
-    XCTAssertEqual(profile(type: "serial", genres: [(2, "Аниме")]).kind, .animation)
-    XCTAssertEqual(profile(type: "movie", genres: [(2, "Anime")]).kind, .animation)
+    XCTAssertEqual(profile(type: "serial", genres: [(25, "Аниме")]).kind, .animation)
+    XCTAssertEqual(profile(type: "movie", genres: [(555, "Anime")]).kind, .animation)
   }
 
   /// Genre 23 is "Мультфильм" — a cartoon gets the same treatment as an anime, and it
@@ -148,7 +148,7 @@ final class RelatedShelfPolicyTests: XCTestCase {
   }
 
   private func anime() -> MediaPresentationProfile {
-    profile(type: "serial", genres: [(2, "Аниме")])
+    profile(type: "serial", genres: [(25, "Аниме")])
   }
 
   // MARK: Who the cast shelf asks for

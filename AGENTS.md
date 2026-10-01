@@ -28,7 +28,7 @@ semantic component is not a DRY violation; two components for one idea on one pl
 - **Our docs are English-only** — but a vendor's own documentation is kept **verbatim, in its
   language** (`docs/providers/kinopub/` is Russian). Do not translate or delete it; it has been
   deleted once already. UI strings are RU + EN through `Localizable.xcstrings`.
-- **Repo layout:** `KinoPubAppleClient/` (app), `Packages/KinoPub{UI,Backend,Kit,Metadata,Logging}/`,
+- **Repo layout:** `KinoPubAppleClient/` (app), `Packages/KinoPub{UI,Backend,Kit,Metadata,Media,Logging}/`,
   `workers/` (Cloudflare), `tools/` (offline crawlers/probes).
 - **Third-party SPM:** `KeychainAccess`, `PopupView`, `Reachability`, `Nuke` (artwork),
   `Pulse` (network log). Allowed — see [Dependencies](#dependencies).

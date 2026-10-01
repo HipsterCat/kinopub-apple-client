@@ -10,6 +10,9 @@ import SwiftUI
 import Combine
 import KinoPubBackend
 import KinoPubKit
+import KinoPubMedia
+import KinoPubMetadata
+import KinoPubUI
 import AVFoundation
 import KinoPubLogging
 import OSLog
@@ -67,6 +70,8 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   private var actionsService: UserActionsService
   /// Only for resolving missing stream links — see `resolveStreamLinksIfNeeded`.
   private let contentService: VideoContentService
+  /// What the info panel is enriched from, beyond kino.pub — see `PlaybackMediaContext`.
+  private let metadataService: MetadataService
   private var cues: [SubtitleCue] = []
   private var secondaryCues: [SubtitleCue] = []
   private var cueLoadTasks: [Task<Void, Never>] = []
@@ -127,10 +132,13 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// own menu is read back from.
   private var legibleGroup: AVMediaSelectionGroup?
 #if os(iOS) || os(tvOS)
-  /// The facts the info panel currently shows and the poster already fetched for it, kept
+  /// What the info panel currently shows and the picture already fetched for it, kept
   /// apart so a late enrichment re-stamp doesn't drop the artwork and vice versa.
-  private var externalMetadataContext: MediaItem?
+  private var externalMetadataContext: MediaContext?
   private var externalMetadataArtwork: AVMetadataItem?
+  /// The candidate the artwork above was asked for, so a re-stamp only downloads again
+  /// when it now has a better one.
+  private var externalMetadataArtworkURL: URL?
   private var metadataEnrichmentTask: Task<Void, Never>?
 #endif
 #if os(tvOS)
@@ -141,6 +149,21 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// prepared. The player controller's delegate reads it when the panel is accepted —
   /// the proposal object itself is AVKit's and carries none of our model.
   private(set) var pendingNextEpisode: Episode?
+  /// What the Info tab's buttons do. The screen hosting this manager's controller owns
+  /// both answers — swapping the stream in place, leaving for a page — so it installs
+  /// them; the manager only decides which buttons exist (`rebuildInfoViewActions`).
+  var onPlay: ((any PlayableItem) -> Void)?
+  var onGoToTitle: ((_ itemID: Int) -> Void)?
+  /// The system's own Info buttons (*From Beginning*), read by the screen before anything
+  /// set the list — the getter answers empty once it has been set (tvOS 27.2).
+  var systemInfoActions: [UIAction] = []
+  /// What the Up Next tab was last built from — ids, names, stills — so a rebuild with the
+  /// same facts does not replace a tab the viewer may be standing in, and one with better
+  /// facts (TMDB's name for «Эпизод 3») does.
+  private var upNextSignature: [String] = []
+  /// The model's facts per upcoming episode once the enrichment sources answered.
+  private var upNextEnriched: [Int: MediaContext] = [:]
+  private var upNextAsked: Set<Int> = []
 #endif
 
   /// Optional on purpose: both of these used to force-unwrap, and `URL(string: "")`
@@ -190,6 +213,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
        downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>,
        actionsService: UserActionsService,
        contentService: VideoContentService = AppContext.shared.contentService,
+       metadataService: MetadataService = AppContext.shared.metadataService,
        trackProfile: TitleTrackProfile = TitleTrackProfile(),
        trackPreferences: TrackPreferenceStore = .shared,
        preflight: PlaybackPreflight = .shared,
@@ -200,6 +224,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     self.actionsService = actionsService
     self.downloadedFilesDatabase = downloadedFilesDatabase
     self.contentService = contentService
+    self.metadataService = metadataService
     self.trackProfile = trackProfile
     self.trackPreferences = trackPreferences
     self.preflight = preflight
@@ -916,24 +941,6 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     return nil
   }
 
-    /// "Season 2, Episode 5 — <episode title>" for a series episode; "S2, E5 • Lanterns" when it has a title for episode; nothing for a movie.
-  var displaySubtitle: String? {
-    guard let episode = playItem as? Episode else { return nil }
-    var parts: [String] = []
-    if let season = episode.seasonNumber {
-      parts.append("Season \(season)")
-    }
-    parts.append("Episode \(episode.number)")
-    let line = parts.joined(separator: ", ")
-    // The title line already shows the episode name, so only append it when it adds
-    // something the "Episode N" label doesn't already say.
-    let epTitle = episode.title.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !epTitle.isEmpty, epTitle != displayTitle {
-      return "\(line): \(epTitle)"
-    }
-    return line
-  }
-
 }
 
 #if os(iOS) || os(tvOS)
@@ -944,6 +951,11 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
 /// iOS 12.2+ system player / Control Center / lock screen, and AirPlay — everywhere but
 /// macOS, which has no `externalMetadata` and carries the title on the window title bar
 /// instead (see the customization-surface table in player-and-media.md).
+///
+/// **What goes in is decided elsewhere.** `PlaybackMediaContext` gathers the sources,
+/// `MediaAggregator` merges them, `MediaContext` decides what an episode borrows from its
+/// show, `PlayerInfo` projects that onto Apple's fields. This only stamps the result:
+/// first with what kino.pub already told us, again as each enrichment answers.
 extension PlayerManager {
 
   func configureExternalMetadata() {
@@ -952,55 +964,84 @@ extension PlayerManager {
       return
     }
     metadataEnrichmentTask?.cancel()
+    externalMetadataContext = nil
     externalMetadataArtwork = nil
-    externalMetadataContext = titleContext
-    restampExternalMetadata(on: item)
+    externalMetadataArtworkURL = nil
+    let title = titleContext
+    let isTrailer = watchMode == .trailer
+    stamp(PlaybackMediaContext.draft(playing: playItem, title: title, isTrailer: isTrailer),
+          on: item)
+    enrichExternalMetadata(title: title, isTrailer: isTrailer, on: item)
+  }
 
-    let artwork = PlaybackMetadata.artworkURL(context: externalMetadataContext,
-                                              fallback: episodeStill)
-    if let artwork {
-      Task { [weak self] in
-        await self?.attachArtwork(from: artwork, to: item)
-      }
+  private func stamp(_ draft: MediaContextDraft, on item: AVPlayerItem) {
+    guard let context = MediaAggregator.merge(draft) else {
+      Logger.app.warning("Info panel skipped: nothing is known about item \(self.playItem.id)")
+      return
     }
-    enrichExternalMetadataIfNeeded(for: item)
+    externalMetadataContext = context
+    restampExternalMetadata(on: item)
+#if os(tvOS)
+    // Go to *Show* or *Movie* is the context's answer, so the buttons follow it.
+    rebuildInfoViewActions()
+#endif
+    attachArtworkIfNeeded(to: item)
   }
 
   private func restampExternalMetadata(on item: AVPlayerItem) {
-    var metadata = PlaybackMetadata.items(title: displayTitle,
-                                          subtitle: displaySubtitle,
-                                          context: externalMetadataContext)
+    guard let context = externalMetadataContext else { return }
+    let info = PlayerInfo(context: context, labels: PlaybackMediaContext.labels)
+    var metadata = info.metadataItems()
     if let externalMetadataArtwork {
       metadata.append(externalMetadataArtwork)
     }
     item.externalMetadata = metadata
+    // An unmapped genre still shows under the source's own name; the log is how the
+    // genre table learns about it.
+    let unmapped = context.genres.filter { !$0.isMapped }.map(\.id).joined(separator: ",")
     Logger.app.info(
-      "Info panel stamped: title=\(self.displayTitle ?? "nil", privacy: .public) subtitle=\(self.displaySubtitle ?? "nil", privacy: .public) items=\(metadata.count) context=\(self.externalMetadataContext == nil ? "none" : "full")"
+      "Info panel stamped: title=\(info.title ?? "nil", privacy: .public) subtitle=\(info.subtitle ?? "nil", privacy: .public) genre=\(info.genre ?? "nil", privacy: .public) rating=\(info.contentRating ?? "nil", privacy: .public) date=\(info.creationDate ?? "nil", privacy: .public) items=\(metadata.count) unmappedGenres=\(unmapped, privacy: .public)"
     )
   }
 
-  /// The lists a playback can start straight from (Continue Watching, search, bookmarks)
-  /// carry a title and posters and nothing else — no plot, genres or year, which is most
-  /// of the panel. One light `nolinks` details call fills them in and the panel is
-  /// re-stamped in place; the title already on screen never flickers.
-  private func enrichExternalMetadataIfNeeded(for item: AVPlayerItem) {
-    guard watchMode == .media,
-          externalMetadataContext?.plot.isEmpty != false else { return }
+  /// The lists a playback can start from (Continue Watching, search, bookmarks) carry a
+  /// title and posters and nothing else, so a thin title is filled first from one light
+  /// `nolinks` details call; then the enrichment sources are asked about the title, the
+  /// season and the episode. Each answer re-stamps in place; the title never flickers.
+  private func enrichExternalMetadata(title: MediaItem?, isTrailer: Bool, on item: AVPlayerItem) {
     let id = playItem.metadata.id
+    let needsDetails = watchMode == .media && title?.plot.isEmpty != false
     metadataEnrichmentTask = Task { [weak self] in
       guard let self else { return }
-      do {
-        let details = try await self.contentService.fetchDetails(for: String(id),
-                                                                 excludeLinks: true)
-        guard !Task.isCancelled else { return }
+      var title = title
+      if needsDetails {
+        do {
+          title = try await self.contentService.fetchDetails(for: String(id),
+                                                             excludeLinks: true).item
+        } catch {
+          guard !Task.isCancelled else { return }
+          Logger.app.debug("Info panel details skipped: \(error.localizedDescription)")
+        }
+      }
+      guard !Task.isCancelled else { return }
+      let known = title
+      let (draft, enrichment) = await MainActor.run {
+        (PlaybackMediaContext.draft(playing: self.playItem, title: known, isTrailer: isTrailer),
+         PlaybackMediaContext.enrichment(playing: self.playItem, title: known, isTrailer: isTrailer))
+      }
+      if needsDetails, known != nil {
         await MainActor.run {
           guard self.player.currentItem === item else { return }
-          self.externalMetadataContext = details.item
-          self.restampExternalMetadata(on: item)
+          self.stamp(draft, on: item)
         }
-      } catch {
-        guard !Task.isCancelled else { return }
-        Logger.app.debug("Info panel enrichment skipped: \(error.localizedDescription)")
+      }
+      guard let enrichment else { return }
+      let enriched = await PlaybackMediaContext.enrich(draft, with: enrichment,
+                                                       service: self.metadataService)
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        guard self.player.currentItem === item else { return }
+        self.stamp(enriched, on: item)
       }
     }
   }
@@ -1017,28 +1058,39 @@ extension PlayerManager {
       ?? AppContext.shared.localProgressStore.snapshot(for: playItem.metadata.id)
   }
 
-  /// An episode's own still, for the case where the series snapshot is gone — better than
-  /// no artwork at all, and it is the frame the rail was showing a moment ago.
-  private var episodeStill: String? {
-    (playItem as? Episode)?.thumbnail
-  }
-
-  private func attachArtwork(from url: URL, to item: AVPlayerItem) async {
-    do {
-      let (data, _) = try await URLSession.shared.data(from: url)
-      guard !data.isEmpty else { return }
-      let artwork = PlaybackMetadata.artworkItem(data)
-      await MainActor.run {
-        // The stream may have been left while the poster was being fetched.
-        guard self.player.currentItem === item else { return }
-        self.externalMetadataArtwork = artwork
-        self.restampExternalMetadata(on: item)
-      }
-    } catch {
-      Logger.app.debug("Player artwork metadata skipped: \(error.localizedDescription)")
+  /// Downloads the best picture the context offers — and again only when a later stamp
+  /// offers a better one, such as TMDB's still for an episode kino.pub had no frame for.
+  private func attachArtworkIfNeeded(to item: AVPlayerItem) {
+    guard let candidates = externalMetadataContext?.artworkCandidates,
+          let best = candidates.first,
+          best != externalMetadataArtworkURL else { return }
+    externalMetadataArtworkURL = best
+    Task { [weak self] in
+      await self?.attachArtwork(from: candidates, to: item)
     }
   }
 
+  /// Walks the candidates until one loads.
+  private func attachArtwork(from candidates: [URL], to item: AVPlayerItem) async {
+    let wanted = candidates.first
+    for url in candidates {
+      do {
+        let (data, _) = try await URLSession.shared.data(from: url)
+        guard !data.isEmpty else { continue }
+        let artwork = PlayerInfo.artworkItem(data)
+        await MainActor.run {
+          // The stream may have been left, or a better picture asked for, meanwhile.
+          guard self.player.currentItem === item,
+                self.externalMetadataArtworkURL == wanted else { return }
+          self.externalMetadataArtwork = artwork
+          self.restampExternalMetadata(on: item)
+        }
+        return
+      } catch {
+        Logger.app.debug("Player artwork skipped: \(error.localizedDescription)")
+      }
+    }
+  }
 }
 
 #endif
@@ -1275,6 +1327,8 @@ extension PlayerManager {
       configureDefaultAudioWhenReady()
     }
     rebuildTransportBarMenus()
+    rebuildInfoViewActions()
+    rebuildUpNextTab()
   }
 
   /// The HLS legible group makes AVKit draw its own Subtitles control, so in sidecar mode
@@ -1357,6 +1411,7 @@ extension PlayerManager {
     let series = AppContext.shared.localProgressStore.snapshot(for: current.metadata.id)
     guard let next = NextPlayableEpisode.after(current, in: series) else { return }
     pendingNextEpisode = next
+    rebuildUpNextTab()
 
     // The panel appears at the credits — the same window `WatchProgress` calls
     // "finished". An unknown runtime leaves the API default: the very end of the item.
@@ -1389,6 +1444,199 @@ extension PlayerManager {
       guard player.currentItem === item else { return }
       item.nextContentProposal = proposal
     }
+  }
+}
+
+// MARK: - Fixed-height tab
+
+/// An Info-panel tab whose height is a constant. AVKit sizes a custom tab from
+/// `preferredContentSize` every time it presents it; a hosting controller answers that from
+/// its SwiftUI content, which follows the width it is offered, so the tab grew on every
+/// re-entry. This answers the same value always, and pins the content inside it.
+final class FixedHeightTab: UIViewController {
+  private let height: CGFloat
+
+  init(content: UIViewController, height: CGFloat) {
+    self.height = height
+    super.init(nibName: nil, bundle: nil)
+    addChild(content)
+    content.view.translatesAutoresizingMaskIntoConstraints = false
+    content.view.backgroundColor = .clear
+    view.addSubview(content.view)
+    NSLayoutConstraint.activate([
+      content.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      content.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      content.view.topAnchor.constraint(equalTo: view.topAnchor),
+      content.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+    content.didMove(toParent: self)
+    view.backgroundColor = .clear
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override var preferredContentSize: CGSize {
+    get { CGSize(width: 0, height: height) }
+    set {}
+  }
+}
+
+// MARK: - Info tab buttons
+
+extension PlayerManager {
+
+  /// The Apple-TV-style **Up Next** tab beside Info (user's call, 2026-10-01):
+  ///
+  /// 1. **this show's next unwatched episode**, when there is one, flagged «Next episode» —
+  ///    its name and frame from the media model (`MediaContext`), like the Info tab, so
+  ///    «Эпизод 3» never shows as a name;
+  /// 2. then **Continue Watching** — Home's own list (`HomeCatalog.paintedContinueWatchingCards`),
+  ///    the same cards Home draws, minus the title playing now.
+  ///
+  /// Nothing watched, ever. Selecting a tile plays it in place: an episode directly, a
+  /// Continue Watching card through the same resolution Home's Play uses
+  /// (`MediaCardMenuCoordinator.resolve`).
+  ///
+  /// **Apple API limitation:** AVKit draws the tab strip but nothing native fills a tab
+  /// with cards, so the content is ours (`customInfoViewControllers`) — a hosted
+  /// `TVUIKitMediaItemRail`, not a second card implementation.
+  func rebuildUpNextTab() {
+    guard let controller = playerViewController else { return }
+    guard watchMode == .media else {
+      upNextSignature = []
+      controller.customInfoViewControllers = []
+      return
+    }
+    let playingID = playItem.metadata.id
+    let series = AppContext.shared.localProgressStore.snapshot(for: playingID)
+    let next = (playItem as? Episode).flatMap {
+      PlaybackMediaContext.nextUnwatched(after: $0, in: series)
+    }
+    let nextContext = next.flatMap {
+      upNextEnriched[$0.id] ?? PlaybackMediaContext.context(for: $0, in: series)
+    }
+    if let next { enrichUpNext(next, series: series) }
+    let continueWatching = MainActor.assumeIsolated {
+      HomeCatalog.paintedContinueWatchingCards(
+        store: AppContext.shared.contentStore,
+        localProgressStore: AppContext.shared.localProgressStore)
+    }.filter { $0.itemID != playingID && !$0.isWatched }
+
+    guard next != nil || !continueWatching.isEmpty else {
+      upNextSignature = []
+      controller.customInfoViewControllers = []
+      return
+    }
+
+    var items: [TVUIKitMediaItem] = []
+    var episodeByTile: [Int: Episode] = [:]
+    var cardByTile: [Int: MediaCard] = [:]
+    if let next {
+      let name = nextContext?.item.title
+      let base = TVUIKitMediaItem(card: MediaCard(
+        episode: next,
+        title: name ?? "",
+        episodeLabel: "\("Episode".localized) \(next.number)",
+        stillURL: nextContext?.item.artwork.still?.absoluteString))
+      items.append(TVUIKitMediaItem(id: next.id,
+                                    imageURL: base.imageURL,
+                                    caption: TVUIKitCardText.episodeCaption(number: next.number,
+                                                                            name: name),
+                                    status: base.status,
+                                    timeLabel: base.timeLabel,
+                                    badgeText: "MediaItem_NextEpisode".localized))
+      episodeByTile[next.id] = next
+    }
+    for card in continueWatching where episodeByTile[card.id] == nil && cardByTile[card.id] == nil {
+      items.append(TVUIKitMediaItem(card: card))
+      cardByTile[card.id] = card
+    }
+
+    let signature = items.map { "\($0.id)|\($0.caption ?? "")|\($0.imageURL?.absoluteString ?? "")" }
+    guard signature != upNextSignature || controller.customInfoViewControllers.isEmpty else { return }
+    upNextSignature = signature
+
+    // The rail carries its own vertical padding, which reads as a wide gap under the tab
+    // strip. The panel is bottom-anchored, so shortening the tab by `trim` moves the strip
+    // down by `trim`, and pulling the rail up by the same amount leaves the tiles where
+    // they were — the gap halves (≈90 pt → ≈45 pt, measured in the simulator 2026-09-30).
+    let trim: CGFloat = 45
+    // One fixed height, never derived from content: the rail's own height follows the width it
+    // is offered, and the tab grew every time AVKit re-measured it (strip 605 → 232 after
+    // Up, Down — caught by `PlayerUpNextTabUITests`). `FixedHeightTab` answers the same
+    // `preferredContentSize` for its whole life.
+    let height = MainActor.assumeIsolated { TVUIKitMediaItemMetrics.railHeight(width: 1920) } - trim
+    let contentService = self.contentService
+    let rail = UIHostingController(rootView: TVUIKitMediaItemRail(
+      items: items,
+      // No inset of our own: the tab already sits on the tab strip's leading edge, and 60
+      // here put the first tile a full margin to the right of «Info» (seen 2026-09-30).
+      contentInset: 0,
+      onSelect: { [weak self] id in
+        if let episode = episodeByTile[id] {
+          self?.onPlay?(episode)
+        } else if let card = cardByTile[id] {
+          Task { @MainActor [weak self] in
+            do {
+              let resolved = try await MediaCardMenuCoordinator.resolve(card, using: contentService)
+              self?.onPlay?(resolved.playable)
+            } catch {
+              Logger.app.error("Up Next: could not open item \(card.itemID): \(error.localizedDescription)")
+            }
+          }
+        }
+      })
+      .padding(.top, -trim))
+    rail.sizingOptions = []
+    let tab = FixedHeightTab(content: rail, height: height)
+    tab.title = "Up Next".localized
+    controller.customInfoViewControllers = [tab]
+  }
+
+  /// Asks the enrichment sources about the next episode once, then rebuilds the tab —
+  /// which replaces it only if its name or frame actually changed.
+  private func enrichUpNext(_ episode: Episode, series: MediaItem?) {
+    guard !upNextAsked.contains(episode.id),
+          let enrichment = PlaybackMediaContext.enrichment(playing: episode, title: series,
+                                                           isTrailer: false) else { return }
+    upNextAsked.insert(episode.id)
+    let jobs = [(id: episode.id,
+                 draft: PlaybackMediaContext.draft(playing: episode, title: series, isTrailer: false),
+                 enrichment: enrichment)]
+    let service = metadataService
+    Task { [weak self] in
+      let found = await PlaybackMediaContext.enrichedContexts(jobs, service: service)
+      guard !found.isEmpty else { return }
+      await MainActor.run {
+        guard let self else { return }
+        self.upNextEnriched.merge(found) { _, new in new }
+        self.rebuildUpNextTab()
+      }
+    }
+  }
+
+  /// The buttons under the Info tab's description: the system's own *From Beginning* on
+  /// top, then *Go to Show* / *Go to Movie* — the Apple TV app has both. *Next Episode* is
+  /// not here on purpose: the **Up Next** tab carries it (user's call, 2026-09-30).
+  ///
+  /// **Apple API limitation:** `AVPlayerViewController.infoViewActions` shows at most two
+  /// buttons — the SDK header says "up to 2", and a third set on tvOS 27.2 was dropped
+  /// from the tab whatever its order. Two is exactly what this needs.
+  func rebuildInfoViewActions() {
+    guard let controller = playerViewController else { return }
+    // Which page it goes to is the model's answer, not the Swift type of what plays: a
+    // series' trailer goes to the *show*, a film's trailer to the *movie*.
+    let title = externalMetadataContext?.parent ?? externalMetadataContext?.item
+    let label = title?.kind == .show ? "Go to Show" : "Go to Movie"
+    let goTo = UIAction(title: label.localized) { [weak self] _ in
+      guard let self else { return }
+      self.onGoToTitle?(self.playItem.metadata.id)
+    }
+    // A trailer is not something to start again: *From Beginning* plays the trailer's first
+    // second, which nobody wants — its one button is the title (user's call, 2026-10-01).
+    controller.infoViewActions = watchMode == .trailer
+      ? [goTo]
+      : Array((systemInfoActions + [goTo]).prefix(2))
   }
 }
 

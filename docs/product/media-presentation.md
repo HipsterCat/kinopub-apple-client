@@ -14,8 +14,9 @@ the only place these rules exist.
 | `animation` | anime and cartoons (**genre 23**), any type |
 | `show` | type `tvshow` |
 
-Type decides first, genre second. Genres 101 and 23 are matched by id — the two we have confirmed;
-everything else matches the genre title in RU and EN, because we hold no genre-id table yet.
+Type decides first, genre second. Genres are read in our vocabulary (`GenreVocabulary`,
+KinoPubMedia), which holds kino.pub's whole id list; a name only decides for an id that list lacks.
+`tvshow` implies the *TV Show* genre, `documovie`/`docuserial` *Documentary*, `concert` *Concert*.
 
 ## Rules
 
