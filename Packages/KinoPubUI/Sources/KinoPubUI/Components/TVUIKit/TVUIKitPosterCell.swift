@@ -15,7 +15,9 @@ import TVUIKit
 public final class TVUIKitPosterCell: UICollectionViewCell {
   public static let reuseID = "TVUIKitPosterCell"
 
-  private let posterView = TVPosterView()
+  private let posterView = TVUIKitNonFocusablePosterView()
+  /// Focus + context-menu target inside the lockup — see `TVPageLockupPosterCell`.
+  private let menuFocusHost = TVUIKitLockupMenuHost()
   private let overlayContainer = UIView()
   private let placeholderPanel = UIView()
   private let progressTrack = UIView()
@@ -33,9 +35,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
   private var posterHeightConstraint: NSLayoutConstraint!
   private var captionTopConstraint: NSLayoutConstraint!
   private var progressFillWidth: NSLayoutConstraint!
-  /// Built lazily when the menu opens. Focus lands on `posterView`, so the
-  /// collection's `contextMenuConfigurationForItemsAt` does not see the press —
-  /// the interaction has to sit on the lockup itself.
+  /// Built lazily when the menu opens.
   public var contextMenuEntries: (() -> [MediaCardContextEntry])?
 
   public override init(frame: CGRect) {
@@ -45,6 +45,10 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
 
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+  public override var preferredFocusEnvironments: [UIFocusEnvironment] {
+    [menuFocusHost]
+  }
+
   private func setUp() {
     contentView.clipsToBounds = false
     clipsToBounds = false
@@ -53,9 +57,17 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     posterView.title = nil
     posterView.subtitle = nil
     posterView.translatesAutoresizingMaskIntoConstraints = false
-    // On the lockup (focused view), not `contentView` — see `TVPageLockupPosterCell`.
-    posterView.addInteraction(UIContextMenuInteraction(delegate: self))
     contentView.addSubview(posterView)
+
+    menuFocusHost.translatesAutoresizingMaskIntoConstraints = false
+    menuFocusHost.addInteraction(UIContextMenuInteraction(delegate: self))
+    posterView.contentView.insertSubview(menuFocusHost, at: 0)
+    NSLayoutConstraint.activate([
+      menuFocusHost.topAnchor.constraint(equalTo: posterView.imageView.topAnchor),
+      menuFocusHost.leadingAnchor.constraint(equalTo: posterView.imageView.leadingAnchor),
+      menuFocusHost.trailingAnchor.constraint(equalTo: posterView.imageView.trailingAnchor),
+      menuFocusHost.bottomAnchor.constraint(equalTo: posterView.imageView.bottomAnchor)
+    ])
 
     overlayContainer.translatesAutoresizingMaskIntoConstraints = false
     overlayContainer.isUserInteractionEnabled = false
@@ -156,6 +168,8 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     accessibilityIdentifier = posterID
     posterView.accessibilityIdentifier = posterID
     posterView.accessibilityLabel = card.title
+    menuFocusHost.accessibilityIdentifier = posterID
+    menuFocusHost.accessibilityLabel = card.title
     if size.width > 1 {
       applyPosterSize(size, reloadIfChanged: false)
     } else {
@@ -274,6 +288,8 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     accessibilityIdentifier = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
+    menuFocusHost.accessibilityIdentifier = nil
+    menuFocusHost.accessibilityLabel = nil
     resetStaleFocusAppearance()
   }
 
@@ -302,7 +318,8 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
 
   /// TVPosterView sometimes strands enlarged after focus leaves the collection.
   public func resetStaleFocusAppearance() {
-    guard !isFocused else { return }
+    // Focus lives on `menuFocusHost`, not the cell — `isFocused` alone is not enough.
+    guard !isFocused, !menuFocusHost.isFocused else { return }
     func clear(_ view: UIView) {
       if !view.transform.isIdentity { view.transform = .identity }
       if !CATransform3DIsIdentity(view.layer.transform) {

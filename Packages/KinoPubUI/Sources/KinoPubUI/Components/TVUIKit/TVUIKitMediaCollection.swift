@@ -592,18 +592,18 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
 
   // MARK: - Context menu
   //
-  // Stills focus the cell, so this collection-view hook fires for landscape rails.
-  // Vertical posters focus the nested `TVPosterView`; their menu is installed on that
-  // lockup in `TVUIKitPosterCell`. Keep this path for stills / mixed reuse.
-  // On tvOS only the `…ForItemsAt indexPaths:` variant exists; the single-indexPath
-  // one is `API_UNAVAILABLE(tvos)`.
+  // Stills focus the cell (`indexPaths` filled). Vertical posters focus a host
+  // inside the lockup — resolve empty `indexPaths` via focused view / press point,
+  // and the cell also installs its own interaction on that host.
+  // On tvOS only the `…ForItemsAt indexPaths:` variant exists.
 
   public func collectionView(
     _ collectionView: UICollectionView,
     contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
     point: CGPoint
   ) -> UIContextMenuConfiguration? {
-    guard let indexPath = indexPaths.first,
+    guard let indexPath = TVUIKitContextMenuIndexPath.resolve(
+            in: collectionView, indexPaths: indexPaths, point: point),
           cards.indices.contains(indexPath.item),
           let entries = contextMenuProvider?(cards[indexPath.item]),
           !entries.isEmpty

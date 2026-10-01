@@ -8,6 +8,7 @@
 
 import UIKit
 import SwiftUI
+import TVUIKit
 
 public enum TVUIKitChromeSupport {
   /// A drop shadow instead of a pill behind small white chrome over artwork. Used by
@@ -66,6 +67,55 @@ public final class TVUIKitBottomInfoBlurView: UIView {
     fadeMask.frame = bounds
     CATransaction.commit()
   }
+}
+
+/// Resolves which collection item a tvOS context-menu press belongs to.
+///
+/// Stills focus the cell, so `indexPaths` is already filled. Vertical posters focus a
+/// nested lockup (or a host inside it), and UIKit then often hands an **empty**
+/// `indexPaths` array — walk from the focused view (or the press point) up to the cell.
+enum TVUIKitContextMenuIndexPath {
+  static func resolve(
+    in collectionView: UICollectionView,
+    indexPaths: [IndexPath],
+    point: CGPoint
+  ) -> IndexPath? {
+    if let first = indexPaths.first { return first }
+    var view: UIView? = UIScreen.main.focusedView
+    while let current = view {
+      if let cell = current as? UICollectionViewCell,
+         let path = collectionView.indexPath(for: cell) {
+        return path
+      }
+      view = current.superview
+    }
+    return collectionView.indexPathForItem(at: point)
+  }
+}
+
+/// Plain focusable host that lives *inside* a `TVPosterView` content view so:
+/// 1. the lockup still lifts (Apple animates when a lockup **subview** is focused), and
+/// 2. `UIContextMenuInteraction` sits on the focused view itself — installing it on
+///    `TVPosterView` (a `UIControl`) does not receive long-press / Play-Pause on tvOS.
+@MainActor
+final class TVUIKitLockupMenuHost: UIView {
+  override var canBecomeFocused: Bool { true }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .clear
+    isUserInteractionEnabled = true
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// `TVPosterView` is a `UIControl` and steals focus from an inner menu host unless
+/// focusability is turned off on the lockup itself. Lift/parallax still run when the
+/// inner host (a lockup subview) is focused.
+@MainActor
+final class TVUIKitNonFocusablePosterView: TVPosterView {
+  override var canBecomeFocused: Bool { false }
 }
 
 public enum TVUIKitContextMenuBuilder {

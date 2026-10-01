@@ -240,7 +240,9 @@ public final class TVPageCollectionViewController: UIViewController {
   /// captioned (the system's unfocus animation never ran). Undo it whenever the page
   /// comes or goes, and after every focus move — see `TVPageLockupPosterCell`.
   private func resetStrandedFocusAppearance() {
-    for cell in collectionView.visibleCells where !cell.isFocused {
+    // Poster cells focus an inner host; the cell's own `isFocused` stays false.
+    // `resetStaleFocusAppearance` guards on the host.
+    for cell in collectionView.visibleCells {
       (cell as? TVPageLockupPosterCell)?.resetStaleFocusAppearance()
     }
   }
@@ -699,13 +701,15 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   // collection's own delegate hook is the one UIKit wires to the focus engine, and
   // only the `…ForItemsAt indexPaths:` variant exists on tvOS.
   //
-  // Stills / media-item cells focus the *cell*, so this fires for Continue Watching.
-  // Vertical posters focus the nested `TVPosterView` lockup instead — their menu is
-  // installed on that lockup in `TVPageLockupPosterCell`. Keep this path for stills.
+  // Continue Watching stills focus the cell → `indexPaths` is filled. Vertical
+  // posters focus a host inside the lockup → UIKit often passes an empty array;
+  // resolve via focused view / press point. Poster cells also install their own
+  // interaction on that host (`TVPageLockupPosterCell`) so either path can win.
   public func collectionView(_ collectionView: UICollectionView,
                              contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
                              point: CGPoint) -> UIContextMenuConfiguration? {
-    guard let indexPath = indexPaths.first,
+    guard let indexPath = TVUIKitContextMenuIndexPath.resolve(
+            in: collectionView, indexPaths: indexPaths, point: point),
           let id = dataSource.itemIdentifier(for: indexPath),
           let card = itemsByID[id]?.card,
           let entries = contextMenuProvider?(card),
