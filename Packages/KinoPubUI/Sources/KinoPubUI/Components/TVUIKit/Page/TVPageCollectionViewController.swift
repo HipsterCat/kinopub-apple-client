@@ -653,6 +653,10 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     }, completion: { [weak self] in
       self?.resetStrandedFocusAppearance()
     })
+    if let next = context.nextFocusedIndexPath, sections.indices.contains(next.section),
+       sections[next.section].kind == .banner {
+      centerBanner(at: next, with: coordinator)
+    }
 
     guard FocusLog.isEnabled else { return }
     let name: (IndexPath?) -> String? = { [weak self] path in
@@ -665,6 +669,24 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     FocusLog.engine(section: sectionName,
                     from: name(context.previouslyFocusedIndexPath),
                     to: name(context.nextFocusedIndexPath))
+  }
+
+  /// `.groupPagingCentered` centres a swipe, but the focus engine scrolls a row only
+  /// until the focused item is in view, which would park the banner off centre. The
+  /// row's own scroll view (the cell's superview in an orthogonal section) is moved with
+  /// the focus animation instead, so the focused banner sits in the middle and half of
+  /// each neighbour shows on either side.
+  private func centerBanner(at indexPath: IndexPath, with coordinator: UIFocusAnimationCoordinator) {
+    guard let cell = collectionView.cellForItem(at: indexPath),
+          let row = cell.superview as? UIScrollView, row !== collectionView else { return }
+    let inset = row.adjustedContentInset
+    let lowest = -inset.left
+    let highest = max(row.contentSize.width + inset.right - row.bounds.width, lowest)
+    let x = min(max(cell.center.x - row.bounds.width / 2, lowest), highest)
+    guard abs(row.contentOffset.x - x) > 0.5 else { return }
+    coordinator.addCoordinatedAnimations({
+      row.contentOffset.x = x
+    })
   }
 
   // tvOS routes long-press-Select to the focused view's responder chain; the

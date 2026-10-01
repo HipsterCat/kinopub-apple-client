@@ -139,7 +139,9 @@ struct MainView: View {
     let banner = tab == .home && FeatureFlags.homeBannerEnabled ? catalog.bannerCards : []
     let bannerSection: [TVPageSection] = banner.isEmpty ? [] : [
       .banner(id: Self.bannerSectionID,
-              features: banner.map { TVPageFeature(card: $0, logoURL: catalog.bannerLogos[$0.id]) })
+              features: banner.map {
+                TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0, logoURL: catalog.bannerLogos[$0.id])
+              })
     ]
     return bannerSection + homeRows.map { row in
       if row.cards.first?.isLandscape == true {
