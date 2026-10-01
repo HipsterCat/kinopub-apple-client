@@ -301,6 +301,153 @@ public struct MediaActionProgressTrack: View {
           LazyHStack(spacing: MediaActionMetrics.rowSpacing) {
                Button {} label: {
                     HStack(spacing: MediaActionMetrics.contentSpacing) {
+                         Image(systemName: "arrow.clockwise")
+                         Text("Пересмотреть")
+                              .font(MediaActionMetrics.labelFont)
+                    }
+               }
+               .mediaActionPillStyle() //
+               
+               
+               
+
+               
+               
+               
+               //               Button {} label: {
+               //                    Label("Просмотрено", systemImage: "checkmark")
+               //                         .font(MediaActionMetrics.labelFont)
+               //               }.mediaActionPillStyle() // Mark as Watched, only visible on in progress/unwatched items. Spinner until success, button disappears animated scale down when marked, updates play button state and shows toast on success
+               
+               
+               
+               //               Button {} label: {
+               //                    Label("Random", systemImage: "shuffle")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }.mediaActionPillStyle()
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "arrow.trianglehead.counterclockwise")
+               //               }.mediaActionCircleStyle()
+               
+               
+               Button {} label: {
+                    Label("Трейлер", systemImage: "play.fill")
+                         .font(MediaActionMetrics.labelFont)
+                    //                    .padding(.horizontal, 2)
+               }
+               //    .buttonStyle(.glass)
+               .mediaActionPillStyle()
+               
+               
+//               Button {} label: { Text("Инфо").font(MediaActionMetrics.labelFont)
+//
+//                    //                    .padding(.horizontal, 2)
+//               }
+//               //    .buttonStyle(.glass)
+//               .mediaActionPillStyle()
+               
+
+//               Button {} label: {
+//                    Image(systemName: "checkmark")
+//               }.mediaActionCircleStyle() // Mark as Watched, only visible on in progress/unwatched items. Spinner until success, button disappears animated scale down when marked, updates play button state and shows toast on success
+//
+//               // Long press for more options - "Серия 4", "2 сезон", "Все серии"
+               
+          
+               
+               //               Button {} label: {
+               //                    Label("Трейлер", systemImage: "video.fill")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionPillStyle()
+               
+               
+               //               Button {} label: {
+               //                    Label("Выбрать серию", systemImage: "rectangle.on.rectangle")
+               //                         .font(MediaActionMetrics.labelFont)
+               //               }.mediaActionPillStyle() // Выбрать сезон
+               
+               
+               
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "video.fill")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionCircleStyle()
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "info")
+               //               }.mediaActionCircleStyle()
+               
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "checkmark")
+               //               }.mediaActionCircleStyle() // Mark as Watched, only visible on in progress/unwatched items. Spinner until success, button disappears animated scale down when marked, updates play button state and shows toast on success
+               
+               //
+               //               Button {} label: {
+               //                    Label("Подписаться", systemImage: "plus")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionPillStyle()
+               
+               
+               
+
+               
+               //               Button {} label: {
+               //                    Image(systemName: "plus")
+               //               }.mediaActionCircleStyle() // // bookmark.fill when bookmarked
+               
+               
+               Button {} label: {
+                    Image(systemName: "bookmark")
+               }.mediaActionCircleStyle() // // bookmark.fill when bookmarked
+               
+               
+               
+               Button {} label: {
+                    Image(systemName: "arrow.down.to.line")
+               }.mediaActionCircleStyle() // Download
+               
+               
+               //               Button {} label: {
+               //                    //      Image(systemName: "bookmark")
+               //
+               //                    //            .font(MediaActionMetrics.labelFont)
+               //                    Label("Save", systemImage: "bookmark")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //                    //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+               //                    // bookmark.fill when bookmarked, label = Name of folder or "2 Lists"
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionPillStyle()
+               //               //    .mediaActionCircleStyle()
+               
+               
+               
+               
+               Button {} label: {
+                    Image(systemName: "ellipsis")
+               }.mediaActionCircleStyle()
+          }
+          LazyHStack(spacing: MediaActionMetrics.rowSpacing) {
+               Button {} label: {
+                    HStack(spacing: MediaActionMetrics.contentSpacing) {
                          Image(systemName: "play.fill")
                          MediaActionProgressTrack(progress: 0.35)
                          Text("34 мин")
@@ -399,6 +546,12 @@ public struct MediaActionProgressTrack: View {
                
                
                
+    
+               
+               Button {} label: {
+                    Image(systemName: "bookmark")
+               }.mediaActionCircleStyle() // // bookmark.fill when bookmarked
+               
                Button {} label: {
                     Image(systemName: "bell")
                }.mediaActionCircleStyle() // Follow/subscribe/add to watchlist. Только для сериалов и шоу. "bell.fill" когда подписан. Клик spinner потом тост.
@@ -406,11 +559,6 @@ public struct MediaActionProgressTrack: View {
 //               Button {} label: {
 //                    Image(systemName: "plus")
 //               }.mediaActionCircleStyle() // // bookmark.fill when bookmarked
-               
-               
-               Button {} label: {
-                    Image(systemName: "bookmark")
-               }.mediaActionCircleStyle() // // bookmark.fill when bookmarked
                
    
                Button {} label: {
@@ -554,9 +702,7 @@ public struct MediaActionProgressTrack: View {
 //               .mediaActionPillStyle()
 //               
                
-               Button {} label: {
-                    Image(systemName: "bell.and.waves.left.and.right.fill")
-               }.mediaActionCircleStyle()
+
 //               Button {} label: {
 //                    Image(systemName: "bell.badge.fill")
 //               }.mediaActionCircleStyle() // Follow/subscribe/add to watchlist. Только для сериалов и шоу. "bell.fill" когда подписан. Клик spinner потом тост.
@@ -595,6 +741,9 @@ public struct MediaActionProgressTrack: View {
                //               .mediaActionPillStyle()
                //               //    .mediaActionCircleStyle()
                
+               Button {} label: {
+                    Image(systemName: "bell.and.waves.left.and.right.fill")
+               }.mediaActionCircleStyle()
                
                Button {} label: {
                     Image(systemName: "checkmark")
@@ -662,9 +811,7 @@ public struct MediaActionProgressTrack: View {
                //    .buttonStyle(.glass)
                .mediaActionPillStyle()
                
-               Button {} label: {
-                    Image(systemName: "bell")
-               }.mediaActionCircleStyle()
+
                
                Button {} label: {
                     Image(systemName: "bookmark")
@@ -686,6 +833,9 @@ public struct MediaActionProgressTrack: View {
                //               //    .mediaActionCircleStyle()
                
                
+               Button {} label: {
+                    Image(systemName: "bell")
+               }.mediaActionCircleStyle()
                
                Button {} label: {
                     Image(systemName: "shuffle")
@@ -769,10 +919,89 @@ public struct MediaActionProgressTrack: View {
                //               .mediaActionPillStyle()
                //               //    .mediaActionCircleStyle()
                
-               
+               Button {} label: {
+                    Image(systemName: "bell")
+               }.mediaActionCircleStyle()
                Button {} label: {
                     Image(systemName: "checkmark")
                }.mediaActionCircleStyle() // Mark as Watched, only visible on in progress/unwatched items. Spinner until success, button disappears animated scale down when marked, updates play button state and shows toast on success
+               
+
+               Button {} label: {
+                    Image(systemName: "ellipsis")
+               }.mediaActionCircleStyle()
+          }
+          LazyHStack(spacing: MediaActionMetrics.rowSpacing) {
+               //               Button {} label: {
+               //                    Label("From Beggining", systemImage: "arrow.trianglehead.counterclockwise")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionPillStyle()
+               //               Button {} label: {
+               //                    Image(systemName: "arrow.trianglehead.counterclockwise")
+               //               }.mediaActionCircleStyle() // Mark as Watched, only visible on in progress/unwatched items
+               Button {} label: {
+                    HStack(spacing: MediaActionMetrics.contentSpacing) {
+                         Image(systemName: "bell")
+                         Text("Отслеживать")
+                              .font(MediaActionMetrics.labelFont)
+                    }
+                    //                    .padding(.horizontal, 6)
+                    //      HStack(spacing: MediaActionMetrics.contentSpacing) {
+                    //        Image(systemName: "play.fill")
+                    ////          .font(MediaActionMetrics.labelFont)
+                    //        Text("Play")
+                    //          .font(MediaActionMetrics.labelFont)
+                    //          .padding(.horizontal, 4)
+                    //      }
+                    //      .frame(minWidth: MediaActionMetrics.playPillMinWidth)
+               }
+               .mediaActionPlayPillStyle()
+               
+               //               Button {} label: {
+               //                    Label("Random", systemImage: "shuffle")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //               }.mediaActionPillStyle()
+               
+               
+               //               Button {} label: {
+               //                    Image(systemName: "arrow.trianglehead.counterclockwise")
+               //               }.mediaActionCircleStyle()
+               Button {} label: {
+                    Label("Трейлер", systemImage: "video.fill")
+                         .font(MediaActionMetrics.labelFont)
+                    //                    .padding(.horizontal, 2)
+               }
+               //    .buttonStyle(.glass)
+               .mediaActionPillStyle()
+
+               Button {} label: {
+                    Label("Пересмотреть", systemImage: "arrow.clockwise")
+               }.mediaActionPillStyle() // // bookmark.fill
+               
+               Button {} label: {
+                    Image(systemName: "bookmark")
+               }.mediaActionCircleStyle() // // bookmark.fill when bookmarked
+               
+               
+               //               Button {} label: {
+               //                    //      Image(systemName: "bookmark")
+               //
+               //                    //            .font(MediaActionMetrics.labelFont)
+               //                    Label("Save", systemImage: "bookmark")
+               //                         .font(MediaActionMetrics.labelFont)
+               //                    //                    .padding(.horizontal, 2)
+               //                    //        .mediaActionIconFont(size: MediaActionMetrics.circleIconPointSize, weight: .semibold)
+               //                    // bookmark.fill when bookmarked, label = Name of folder or "2 Lists"
+               //               }
+               //               //    .buttonStyle(.glass)
+               //               .mediaActionPillStyle()
+               //               //    .mediaActionCircleStyle()
+               
+
                
 
                Button {} label: {
