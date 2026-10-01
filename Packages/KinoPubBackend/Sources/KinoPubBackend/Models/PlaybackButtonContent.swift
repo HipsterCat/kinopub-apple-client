@@ -8,7 +8,7 @@ import Foundation
 ///
 /// Prefer the resume case with a mini progress bar (same capsule as Continue
 /// Watching cards). When a bar can't be drawn, fall back to a "Resume …" title.
-public enum PlaybackButtonContent: Equatable {
+public enum PlaybackButtonContent: Equatable, Sendable {
   /// Mid-title: progress bar + "S1, E2 · 39 min" / "39 min", or "Resume …" without a bar.
   case resume(progress: Double, episodeLabel: String?, durationSeconds: Int)
   /// Fresh start, or the next unwatched episode after finishing a previous one.
