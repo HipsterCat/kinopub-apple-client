@@ -22,6 +22,18 @@ raw image URLs) that belong on shelves, not the page you are already on. Title
 chrome always shows the label text until the TMDB logo has actually painted
 (`.empty` / loading / missing URL), instead of holding an empty space.
 
+### Home banner round 3 (2026-10-01)
+
+Device feedback on round 2. Banner meta is now only: score logos + values, season count,
+one genre; no year, runtime, country or dots; caption size; stays secondary on focus (the
+plot, 4 lines, goes primary). Seasons are always counted as seasons (`MediaItem.seasonsLabel`,
+carried as `MediaCard.seasonsLabel`); the one-season "N episodes" rule is gone. Scrims are
+Auto Layout gradient views: the old layers took their frame in `layoutSubviews`, before the
+card view sized the platter, so reused cells drew no scrim. Score logos are template image
+views (the text attachments did not draw). The row is centred on its start banner when it
+first shows; the per-focus centring that fought the focus engine's scroll is removed, and
+focus moves rely on `.groupPagingCentered` alone (to verify on device).
+
 ### Home banner round 2; series meta from the shared line (2026-10-01)
 
 - **Series meta, everywhere.** `MediaItem.releaseParts` (behind `metadataLine` and

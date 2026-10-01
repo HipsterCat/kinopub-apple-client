@@ -476,6 +476,8 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   private var pendingReconfigure: [TVPageItemID] = []
+  /// Banner rows already scrolled to their start, by section id.
+  private var centeredBanners: Set<String> = []
   private var hasAppliedOnce = false
 
   /// A grid with more pages coming ends on a full row: its last row is topped up with
@@ -597,6 +599,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     if DebugLaunch.layoutDebug { cell.contentView.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.25) }
     guard sections.indices.contains(indexPath.section) else { return }
     let section = sections[indexPath.section]
+    centerBannerAtStart(section, sectionIndex: indexPath.section, cell: cell)
     // A chip row has no pages, and skeleton tiles are not data.
     guard section.kind != .chip, !section.isPlaceholder else { return }
     let loaded = section.loadedCount
@@ -653,10 +656,6 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     }, completion: { [weak self] in
       self?.resetStrandedFocusAppearance()
     })
-    if let next = context.nextFocusedIndexPath, sections.indices.contains(next.section),
-       sections[next.section].kind == .banner {
-      centerBanner(at: next, with: coordinator)
-    }
 
     guard FocusLog.isEnabled else { return }
     let name: (IndexPath?) -> String? = { [weak self] path in
@@ -671,22 +670,25 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
                     to: name(context.nextFocusedIndexPath))
   }
 
-  /// `.groupPagingCentered` centres a swipe, but the focus engine scrolls a row only
-  /// until the focused item is in view, which would park the banner off centre. The
-  /// row's own scroll view (the cell's superview in an orthogonal section) is moved with
-  /// the focus animation instead, so the focused banner sits in the middle and half of
-  /// each neighbour shows on either side.
-  private func centerBanner(at indexPath: IndexPath, with coordinator: UIFocusAnimationCoordinator) {
-    guard let cell = collectionView.cellForItem(at: indexPath),
-          let row = cell.superview as? UIScrollView, row !== collectionView else { return }
-    let inset = row.adjustedContentInset
-    let lowest = -inset.left
-    let highest = max(row.contentSize.width + inset.right - row.bounds.width, lowest)
-    let x = min(max(cell.center.x - row.bounds.width / 2, lowest), highest)
-    guard abs(row.contentOffset.x - x) > 0.5 else { return }
-    coordinator.addCoordinatedAnimations({
-      row.contentOffset.x = x
-    })
+  /// A banner row starts with its `startIndex` banner (the middle lap) in the middle of
+  /// the screen, half a neighbour either side, before anything in it has focus. Focus
+  /// moves after that are the layout's: `.groupPagingCentered` centres them as the focus
+  /// engine scrolls, in its one animation. Moving the row ourselves alongside it drew
+  /// two motions per press (2026-10-01, "дёрганый").
+  private func centerBannerAtStart(_ section: TVPageSection, sectionIndex: Int, cell: UICollectionViewCell) {
+    guard section.kind == .banner, !centeredBanners.contains(section.id),
+          section.items.indices.contains(section.startIndex) else { return }
+    centeredBanners.insert(section.id)
+    let start = IndexPath(item: section.startIndex, section: sectionIndex)
+    DispatchQueue.main.async { [weak self, weak cell] in
+      guard let self, let cell,
+            let row = cell.superview as? UIScrollView, row !== self.collectionView,
+            let target = self.collectionView.layoutAttributesForItem(at: start) else { return }
+      let inset = row.adjustedContentInset
+      let lowest = -inset.left
+      let highest = max(row.contentSize.width + inset.right - row.bounds.width, lowest)
+      row.contentOffset.x = min(max(target.center.x - row.bounds.width / 2, lowest), highest)
+    }
   }
 
   // tvOS routes long-press-Select to the focused view's responder chain; the
