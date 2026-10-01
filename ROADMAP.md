@@ -74,8 +74,10 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       screens a tab name does not label: search, filter results, a collection, a person, "similar
       to". Once the page's own header scrolls away those screens say nothing about what is in them.
       Home does not need it — the tab is the label
-- [ ] Launch: paint tabs and cached rails first; never block the shell on the whole session
-      (a launch trace showed `history?perpage=20` alone at 96 KB, re-fetched every cold start)
+- [x] Launch: paint tabs and cached rails first when Keychain already has a session — do not block
+      the shell on `refreshToken` (auth splash removed 2026-10-01). Content fetches may still wait
+      on the network; a launch trace showed `history?perpage=20` alone at 96 KB, re-fetched every
+      cold start
 
 ### Detail page
 

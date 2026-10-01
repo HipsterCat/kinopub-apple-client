@@ -22,8 +22,8 @@ struct RootView: View {
 #endif
 
   var body: some View {
-    // `.resolving` is a blank splash on purpose: mounting Tabs with a Keychain token that
-    // then fails refresh is what used to DDoS `/v1/items/*` + spam 401→refresh.
+    // Keychain token → Tabs immediately; `authState.check()` refreshes underneath.
+    // No full-screen auth spinner — that gate was the hostile cold-launch wait.
     //
     // iOS/tvOS still swap Auth↔Tabs entirely — a live catalog behind the code used to
     // keep loading artwork, and UIKit's TabView asserts when tabs are removed mid-update.
@@ -31,8 +31,6 @@ struct RootView: View {
     // macOS keeps the tab shell mounted and presents Auth as a non-dismissible sheet so
     // the window chrome does not jump from a title-less auth layout into the library.
     rootContent
-      // Above everything, including the blank `.resolving` splash — that splash is
-      // exactly the screen whose "what is it waiting for" was unanswerable.
       .networkActivityOverlay(isEnabled: showsActivityOverlay)
       .task {
         await authState.check()
@@ -66,16 +64,6 @@ struct RootView: View {
   @ViewBuilder
   private var phaseContent: some View {
     switch authState.phase {
-    case .resolving:
-      ZStack {
-        Color.KinoPub.background.ignoresSafeArea()
-        VStack(spacing: 16) {
-             ProgressView(label: {
-                 Text("Signing in")
-             })
-//          LaunchStatusLabel()
-        }
-      }
 #if os(macOS)
     case .signedOut, .signedIn:
       TabsNavigationView()
@@ -99,18 +87,13 @@ struct RootView: View {
 #endif
 }
 
-/// What the launch is waiting for, in words, instead of a bare spinner.
+/// What outstanding network work is waiting for, in words.
 ///
-/// The empty loader was the complaint: it says "something is happening" when the
-/// interesting question is *what*, and the wait is not one thing but several at once. So
-/// this renders **everything** currently outstanding — "Проверяем сессию · Загружаем
-/// историю" — because a single-line "Loading…" is the empty spinner with extra steps.
+/// Used to label the old blocking auth splash. Auth no longer gates on refresh
+/// (optimistic Keychain launch), but the label still names in-flight families via
+/// `NetworkActivity` — useful in previews and anywhere a surface wants the same copy.
 ///
-/// It reads `NetworkActivity`, which is fed once inside `URLSessionImpl`, so nothing
-/// registers by hand, the label cannot fall out of step with the traffic it describes,
-/// and a new endpoint shows up here without anyone wiring it.
-///
-/// Ships in release. Product decision, 2026-08-16.
+/// Ships in release. Product decision, 2026-08-16 (label); gate removed 2026-10-01.
 struct LaunchStatusLabel: View {
   @StateObject private var activity = NetworkActivity.shared
 
@@ -147,14 +130,10 @@ struct RootView_Previews: PreviewProvider {
 #Preview("Launch status") {
   ZStack {
     Color.KinoPub.background.ignoresSafeArea()
-    VStack(spacing: 16) {
-         ProgressView(label: {
-             Text("Signing in")
-         })    }
+    LaunchStatusLabel()
   }
   .task {
     _ = NetworkActivity.begin(nameKey: "Activity_Session", detail: "/v1/user")
     _ = NetworkActivity.begin(nameKey: "Activity_History", detail: "/v1/history")
   }
-  // .preferredColorScheme(.dark)
 }

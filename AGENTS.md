@@ -343,12 +343,17 @@ Details: skill `apple-chrome`.
   per body, in `Caches/`. Adding a media host to the app means adding it to `excludedHosts`.
 - **"What are we waiting for" is `NetworkActivity`** (`KinoPubLogging`), hooked once in
   `URLSessionImpl` so no call site has to remember to report. Pulse logs completed tasks; this is
-  the live one. It feeds two readers: the debug overlay, and **`LaunchStatusLabel`, which ships** —
-  the launch splash names what is outstanding ("Проверяем сессию · Загружаем историю") instead of
-  showing a bare spinner. Entries carry a **localization key**, never a path: a raw `/v1/items/…`
-  on a user's TV is worse than saying less, so an unmapped endpoint reads "Загружаем" and keeps the
-  path for the overlay only. Add a key to `Localizable.xcstrings` (RU + EN) when you add an endpoint
-  family, not a string at the call site.
+  the live one. It feeds the debug overlay (and `LaunchStatusLabel` where a surface wants the same
+  copy). Entries carry a **localization key**, never a path: a raw `/v1/items/…` on a user's TV is
+  worse than saying less, so an unmapped endpoint reads "Загружаем" and keeps the path for the
+  overlay only. Add a key to `Localizable.xcstrings` (RU + EN) when you add an endpoint family, not
+  a string at the call site.
+- **Auth launch is optimistic.** A Keychain token mounts the main shell immediately; token refresh
+  is driven by the stored access-token expiry (proactive ~90s early) and by content 401s. Do **not**
+  reintroduce a full-screen gate that waits on `refreshToken` — that splash ("Signing in") was the
+  hostile cold-launch wait. `APIClient` must await recovery and retry a content 401 once — failing
+  the caller's request while refresh is in flight replaces painted pages with Try Again. Only a
+  real grant rejection sends the user to activation; network blips keep the session and back off.
 - **Downloads are non-TV only.** Feature-gate incomplete surfaces (`FeatureFlags`) rather than
   inventing half-UI. An off flag must skip the work — network, sampling — not only hide UI.
   **Every flag is a `FeatureFlag` case** (default, title, one-line summary, platforms, launch-time
@@ -359,6 +364,8 @@ Details: skill `apple-chrome`.
 
 If you find a comment or a doc referencing these, it is stale.
 
+- `AuthPhase.resolving` / a root splash that waits on `refreshToken` before mounting Tabs — removed
+  2026-10-01 for optimistic Keychain launch. Refresh still runs; it does not gate the shell.
 - `washProgress` / `onScrollGeometryChange` scroll scrub, `MediaItemHeroScrollDriver`,
   `HeroMaterialBackdropView`, the `ZStack` hero-outside-scroll structure, the overlay title logo,
   `MediaItemHeroBackdrop` (pinned still + fold material), `MediaItemFoldSnappingBehavior`, the
@@ -432,7 +439,7 @@ Deferred verification is allowed. Silent "everything landed" claims are not.
 | Blur/choreography "only works for series" | Something is keyed to incidental content geometry instead of state |
 | The page moves a little, then stops; background changes but layout doesn't | A threshold copied from a swipe-driven Apple sample onto a focus-driven page |
 | macOS: sidebar and player on screen together | A play entry point used `NavigationLink` instead of `PlayerLink` |
-| tvOS launch is slow with an empty loader | Nothing is stored; the launch blocks on the whole session instead of painting cached rows. Read Settings › Diagnostics › Network log, and switch on the in-flight overlay — do not guess from a spinner |
+| tvOS launch is slow with empty shelves | Auth no longer blocks on refresh when Keychain has a token — if the shell is up but rails are empty, nothing is cached / the content fetch is still in flight. Read Settings › Diagnostics › Network log, and switch on the in-flight overlay — do not guess from a spinner |
 | "What did the server actually reply?" | Settings › Diagnostics › Network log — full bodies, headers, timing. The one-line `ResponseLoggingPlugin` never had the body |
 
 **Standing lesson:** copy a sample's *mechanism*, re-derive its *constants*. Two passes in a row

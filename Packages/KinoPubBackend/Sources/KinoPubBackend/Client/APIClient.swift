@@ -38,16 +38,7 @@ public class APIClient {
       return cached
     }
 
-    guard let request = requestBuilder.build(with: requestData) else {
-      throw APIClientError.invalidUrlParams
-    }
-
-    let preparedRequest = plugins.reduce(request) { $1.prepare($0) }
-    plugins.forEach { $0.willSend(preparedRequest) }
-
-    let (data, response) = try await session.data(for: preparedRequest)
-
-    plugins.forEach { $0.didReceive(response, data: data) }
+    let (data, response) = try await execute(requestData, allowUnauthorizedRetry: true)
 
     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
       // Keep structured kino.pub / OAuth envelopes as BackendError so auth
@@ -69,6 +60,40 @@ public class APIClient {
   /// genres/countries lists that are shared across accounts.
   public func clearCache() {
     cache?.clear()
+  }
+
+  /// Runs one HTTP round-trip. On a content 401, awaits token recovery once and
+  /// retries with a freshly prepared Authorization header — callers never see the
+  /// first 401 when refresh succeeds.
+  private func execute(_ requestData: Endpoint,
+                       allowUnauthorizedRetry: Bool) async throws -> (Data, URLResponse) {
+    guard let request = requestBuilder.build(with: requestData) else {
+      throw APIClientError.invalidUrlParams
+    }
+
+    let preparedRequest = plugins.reduce(request) { $1.prepare($0) }
+    plugins.forEach { $0.willSend(preparedRequest) }
+
+    let (data, response) = try await session.data(for: preparedRequest)
+    plugins.forEach { $0.didReceive(response, data: data) }
+
+    if allowUnauthorizedRetry,
+       let http = response as? HTTPURLResponse,
+       http.statusCode == 401,
+       Self.isContentPath(http.url?.path) {
+      let recovered = await UnauthorizedRequestRecovery.shared.recover()
+      if recovered {
+        return try await execute(requestData, allowUnauthorizedRetry: false)
+      }
+    }
+
+    return (data, response)
+  }
+
+  /// OAuth endpoints handle their own failures; retrying `/oauth2/token` on 401 would loop.
+  private static func isContentPath(_ path: String?) -> Bool {
+    guard let path else { return true }
+    return !path.contains("oauth2")
   }
 
   private func decode<T: Decodable>(_ type: T.Type,
