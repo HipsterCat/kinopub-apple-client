@@ -578,6 +578,12 @@ final class TVPageGeometryUITests: XCTestCase {
       XCTAssertTrue(focused.identifier.hasPrefix("kinopub.poster."),
                     "focus landed on \(focused.identifier) instead of a poster")
     }
+    // The short last row is where a fractional cell used to swallow its title.
+    for _ in 0..<12 {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.45)
+    }
+    try shoot(app, name: "collection-2-last-row")
     app.terminate()
   }
 
