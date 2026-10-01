@@ -240,9 +240,7 @@ public final class TVPageCollectionViewController: UIViewController {
   /// captioned (the system's unfocus animation never ran). Undo it whenever the page
   /// comes or goes, and after every focus move — see `TVPageLockupPosterCell`.
   private func resetStrandedFocusAppearance() {
-    // Poster cells focus an inner host; the cell's own `isFocused` stays false.
-    // `resetStaleFocusAppearance` guards on the host.
-    for cell in collectionView.visibleCells {
+    for cell in collectionView.visibleCells where !cell.isFocused {
       (cell as? TVPageLockupPosterCell)?.resetStaleFocusAppearance()
     }
   }
@@ -319,16 +317,10 @@ public final class TVPageCollectionViewController: UIViewController {
       switch self.itemsByID[id] {
       case .card(let card)?:
         cell.configure(card: card, recipe: recipe, caption: section.caption, showsRating: section.showsRating)
-        cell.contextMenuEntries = { [weak self] in
-          guard let self, let card = self.itemsByID[id]?.card else { return [] }
-          return self.contextMenuProvider?(card) ?? []
-        }
       case .tile(let tile)?:
         cell.configure(tile: tile, recipe: recipe, caption: section.caption)
-        cell.contextMenuEntries = nil
       default:
         cell.configurePlaceholder(recipe: recipe)
-        cell.contextMenuEntries = nil
       }
     }
 
@@ -701,10 +693,8 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   // collection's own delegate hook is the one UIKit wires to the focus engine, and
   // only the `…ForItemsAt indexPaths:` variant exists on tvOS.
   //
-  // Continue Watching stills focus the cell → `indexPaths` is filled. Vertical
-  // posters focus a host inside the lockup → UIKit often passes an empty array;
-  // resolve via focused view / press point. Poster cells also install their own
-  // interaction on that host (`TVPageLockupPosterCell`) so either path can win.
+  // Poster cells hold focus on the cell (lockup is non-focusable), same as stills /
+  // wide cards — so `indexPaths` is filled. Resolver kept for empty-array edge cases.
   public func collectionView(_ collectionView: UICollectionView,
                              contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
                              point: CGPoint) -> UIContextMenuConfiguration? {

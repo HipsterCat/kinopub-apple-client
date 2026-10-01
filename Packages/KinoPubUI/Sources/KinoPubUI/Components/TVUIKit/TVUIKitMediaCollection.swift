@@ -513,12 +513,6 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     let width = layoutWidth > 1 ? layoutWidth : max(tileSize.width, ShelfMetrics.tvCardWidth)
     let size = CGSize(width: width, height: width / CardAspect.poster.ratio)
     cell.configure(card: card, size: size)
-    let itemID = card.id
-    cell.contextMenuEntries = { [weak self] in
-      guard let self,
-            let current = self.cards.first(where: { $0.id == itemID }) else { return [] }
-      return self.contextMenuProvider?(current) ?? []
-    }
     return cell
   }
 
@@ -592,9 +586,8 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
 
   // MARK: - Context menu
   //
-  // Stills focus the cell (`indexPaths` filled). Vertical posters focus a host
-  // inside the lockup — resolve empty `indexPaths` via focused view / press point,
-  // and the cell also installs its own interaction on that host.
+  // Poster and still cells both hold focus on the cell (lockup is non-focusable),
+  // so the collection-view hook fires. Resolver covers empty-`indexPaths` edge cases.
   // On tvOS only the `…ForItemsAt indexPaths:` variant exists.
 
   public func collectionView(
@@ -616,7 +609,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
 
   public func collectionView(
     _ collectionView: UICollectionView,
-    willEndContextMenuInteractionWith configuration: UIContextMenuConfiguration,
+    willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
     animator: (any UIContextMenuInteractionAnimating)?
   ) {
     // Same TVPosterView stranding as after a focus change — the lifted poster can

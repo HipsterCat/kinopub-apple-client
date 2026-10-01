@@ -9,15 +9,13 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 Long-press / Play-Pause opened the card menu on Continue Watching stills, but not
 on 2:3 posters (Hot Movies, Series, catalog shelves). Stills focus the cell, so
-`collectionView(_:contextMenuConfigurationForItemsAt:)` gets a filled `indexPaths`.
-Vertical posters focus inside `TVPosterView` (a `UIControl`); installing
-`UIContextMenuInteraction` on the lockup itself does not receive the press, and
-UIKit often hands the collection an **empty** `indexPaths` array.
+`collectionView(_:contextMenuConfigurationForItemsAt:)` fires. Vertical posters
+let `TVPosterView` (a `UIControl`) steal focus, and the collection never sees the
+press.
 
-Fix: a plain focusable `TVUIKitLockupMenuHost` inside the lockup content view —
-the lockup still lifts (subview focused), the interaction sits on the focused
-view, and the collection delegate resolves empty `indexPaths` via the focused
-view / press point. CW stills keep the collection-view path unchanged.
+Fix (same pattern as `TVPageWideCardCell`, 2026-09-25): `TVUIKitNonFocusablePosterView`
+so the **cell** holds focus; menu stays on the collection-view path (with an
+empty-`indexPaths` resolver). CW stills unchanged.
 
 ### Hero: no cover context menu; label title until logo (2026-10-01)
 

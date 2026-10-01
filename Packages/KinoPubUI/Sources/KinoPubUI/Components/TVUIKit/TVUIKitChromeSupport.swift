@@ -70,10 +70,8 @@ public final class TVUIKitBottomInfoBlurView: UIView {
 }
 
 /// Resolves which collection item a tvOS context-menu press belongs to.
-///
-/// Stills focus the cell, so `indexPaths` is already filled. Vertical posters focus a
-/// nested lockup (or a host inside it), and UIKit then often hands an **empty**
-/// `indexPaths` array — walk from the focused view (or the press point) up to the cell.
+/// Prefers `indexPaths` when UIKit fills it; otherwise walks from the focused view
+/// (or the press point) up to the enclosing cell.
 enum TVUIKitContextMenuIndexPath {
   static func resolve(
     in collectionView: UICollectionView,
@@ -93,26 +91,9 @@ enum TVUIKitContextMenuIndexPath {
   }
 }
 
-/// Plain focusable host that lives *inside* a `TVPosterView` content view so:
-/// 1. the lockup still lifts (Apple animates when a lockup **subview** is focused), and
-/// 2. `UIContextMenuInteraction` sits on the focused view itself — installing it on
-///    `TVPosterView` (a `UIControl`) does not receive long-press / Play-Pause on tvOS.
-@MainActor
-final class TVUIKitLockupMenuHost: UIView {
-  override var canBecomeFocused: Bool { true }
-
-  override init(frame: CGRect) {
-    super.init(frame: frame)
-    backgroundColor = .clear
-    isUserInteractionEnabled = true
-  }
-
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-}
-
-/// `TVPosterView` is a `UIControl` and steals focus from an inner menu host unless
-/// focusability is turned off on the lockup itself. Lift/parallax still run when the
-/// inner host (a lockup subview) is focused.
+/// `TVPosterView` is a `UIControl` and steals focus from its enclosing cell unless
+/// focusability is turned off. The cell must hold focus so the collection-view
+/// context menu fires (same pattern as `TVPageWideCardCell`).
 @MainActor
 final class TVUIKitNonFocusablePosterView: TVPosterView {
   override var canBecomeFocused: Bool { false }

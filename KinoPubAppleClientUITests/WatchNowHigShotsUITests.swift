@@ -60,12 +60,23 @@ final class WatchNowHigShotsUITests: XCTestCase {
     app.launch()
     XCTAssertEqual(app.state, .runningForeground)
 
+    // Movies tab: title posters without Home's collection rail.
+    let moviesTab = app.buttons["Movies"].firstMatch
+    if moviesTab.waitForExistence(timeout: 30) {
+      // Focus the tab bar then move to Movies (Watch Now is selected at launch).
+      for _ in 0..<6 { XCUIRemote.shared.press(.up); Thread.sleep(forTimeInterval: 0.2) }
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 0.5)
+      XCUIRemote.shared.press(.select)
+      Thread.sleep(forTimeInterval: 1.5)
+    }
+
     let posters = app.descendants(matching: .any).matching(
       NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.poster.")
     )
     XCTAssertTrue(
       posters.firstMatch.waitForExistence(timeout: 90),
-      "no kinopub.poster.* cells after catalog wait — session missing or Watch Now empty"
+      "no kinopub.poster.* cells after catalog wait — session missing or Movies empty"
     )
 
     for _ in 0..<24 {
@@ -80,24 +91,29 @@ final class WatchNowHigShotsUITests: XCTestCase {
       return
     }
 
-    Thread.sleep(forTimeInterval: 1.0)
+    Thread.sleep(forTimeInterval: 0.8)
     try writeScreenshots(app.screenshot(), colorScheme: "dark", suffix: "pcm-focused")
 
+    // Play/Pause only — long-Select without a menu navigates into the title.
     XCUIRemote.shared.press(.playPause)
     Thread.sleep(forTimeInterval: 1.5)
-    try writeScreenshots(app.screenshot(), colorScheme: "dark", suffix: "pcm-after-playpause")
+    try writeScreenshots(app.screenshot(), colorScheme: "dark", suffix: "pcm-after-menu")
 
-    let menuOpened = app.menus.firstMatch.waitForExistence(timeout: 3)
-      || app.menuItems.firstMatch.waitForExistence(timeout: 1)
-    if !menuOpened {
-      let play = app.descendants(matching: .any).matching(
-        NSPredicate(format: "label ==[c] %@ OR label ==[c] %@", "Play", "Смотреть")
-      ).firstMatch
-      XCTAssertTrue(
-        play.waitForExistence(timeout: 2),
-        "Play/Pause on focused poster \(poster.identifier) did not open a context menu\n\(app.debugDescription)"
+    XCTAssertTrue(
+      menuVisible(in: app),
+      "Play/Pause on focused poster \(poster.identifier) did not open a context menu\n\(app.debugDescription)"
+    )
+  }
+
+  private func menuVisible(in app: XCUIApplication) -> Bool {
+    if app.menus.firstMatch.exists || app.menuItems.firstMatch.exists { return true }
+    let play = app.descendants(matching: .any).matching(
+      NSPredicate(
+        format: "label ==[c] %@ OR label ==[c] %@ OR label ==[c] %@ OR label ==[c] %@",
+        "Play", "Смотреть", "Go to Movie", "К фильму"
       )
-    }
+    ).firstMatch
+    return play.exists
   }
 
   // MARK: - Capture

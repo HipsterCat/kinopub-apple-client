@@ -15,9 +15,8 @@ import TVUIKit
 public final class TVUIKitPosterCell: UICollectionViewCell {
   public static let reuseID = "TVUIKitPosterCell"
 
+  /// Non-focusable lockup; the cell holds focus — same pattern as `TVPageLockupPosterCell`.
   private let posterView = TVUIKitNonFocusablePosterView()
-  /// Focus + context-menu target inside the lockup — see `TVPageLockupPosterCell`.
-  private let menuFocusHost = TVUIKitLockupMenuHost()
   private let overlayContainer = UIView()
   private let placeholderPanel = UIView()
   private let progressTrack = UIView()
@@ -35,8 +34,6 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
   private var posterHeightConstraint: NSLayoutConstraint!
   private var captionTopConstraint: NSLayoutConstraint!
   private var progressFillWidth: NSLayoutConstraint!
-  /// Built lazily when the menu opens.
-  public var contextMenuEntries: (() -> [MediaCardContextEntry])?
 
   public override init(frame: CGRect) {
     super.init(frame: frame)
@@ -44,10 +41,6 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
   }
 
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-  public override var preferredFocusEnvironments: [UIFocusEnvironment] {
-    [menuFocusHost]
-  }
 
   private func setUp() {
     contentView.clipsToBounds = false
@@ -58,16 +51,6 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     posterView.subtitle = nil
     posterView.translatesAutoresizingMaskIntoConstraints = false
     contentView.addSubview(posterView)
-
-    menuFocusHost.translatesAutoresizingMaskIntoConstraints = false
-    menuFocusHost.addInteraction(UIContextMenuInteraction(delegate: self))
-    posterView.contentView.insertSubview(menuFocusHost, at: 0)
-    NSLayoutConstraint.activate([
-      menuFocusHost.topAnchor.constraint(equalTo: posterView.imageView.topAnchor),
-      menuFocusHost.leadingAnchor.constraint(equalTo: posterView.imageView.leadingAnchor),
-      menuFocusHost.trailingAnchor.constraint(equalTo: posterView.imageView.trailingAnchor),
-      menuFocusHost.bottomAnchor.constraint(equalTo: posterView.imageView.bottomAnchor)
-    ])
 
     overlayContainer.translatesAutoresizingMaskIntoConstraints = false
     overlayContainer.isUserInteractionEnabled = false
@@ -168,8 +151,6 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     accessibilityIdentifier = posterID
     posterView.accessibilityIdentifier = posterID
     posterView.accessibilityLabel = card.title
-    menuFocusHost.accessibilityIdentifier = posterID
-    menuFocusHost.accessibilityLabel = card.title
     if size.width > 1 {
       applyPosterSize(size, reloadIfChanged: false)
     } else {
@@ -284,12 +265,9 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     watchedGlyph.isHidden = true
     captionLabel.alpha = 1
     captionLabel.textColor = .secondaryLabel
-    contextMenuEntries = nil
     accessibilityIdentifier = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
-    menuFocusHost.accessibilityIdentifier = nil
-    menuFocusHost.accessibilityLabel = nil
     resetStaleFocusAppearance()
   }
 
@@ -318,8 +296,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
 
   /// TVPosterView sometimes strands enlarged after focus leaves the collection.
   public func resetStaleFocusAppearance() {
-    // Focus lives on `menuFocusHost`, not the cell — `isFocused` alone is not enough.
-    guard !isFocused, !menuFocusHost.isFocused else { return }
+    guard !isFocused else { return }
     func clear(_ view: UIView) {
       if !view.transform.isIdentity { view.transform = .identity }
       if !CATransform3DIsIdentity(view.layer.transform) {
@@ -336,30 +313,5 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
   }
 
   public override var canBecomeFocused: Bool { true }
-}
-
-extension TVUIKitPosterCell: UIContextMenuInteractionDelegate {
-  public func contextMenuInteraction(
-    _ interaction: UIContextMenuInteraction,
-    configurationForMenuAtLocation location: CGPoint
-  ) -> UIContextMenuConfiguration? {
-    guard let entries = contextMenuEntries?(), !entries.isEmpty else { return nil }
-    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
-      TVUIKitContextMenuBuilder.menu(from: entries)
-    }
-  }
-
-  public func contextMenuInteraction(
-    _ interaction: UIContextMenuInteraction,
-    willEndFor configuration: UIContextMenuConfiguration,
-    animator: (any UIContextMenuInteractionAnimating)?
-  ) {
-    let reset: () -> Void = { [weak self] in self?.resetStaleFocusAppearance() }
-    if let animator {
-      animator.addCompletion(reset)
-    } else {
-      reset()
-    }
-  }
 }
 #endif
