@@ -213,7 +213,7 @@ private struct MediaActionCatalogPreviewRow: View {
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Series · unwatched → 1 сезон, 1 серия",
+        title: "Series · unwatched → Play S1, E1 / 1 сезон, 1 серия",
         context: MediaActionContext(
           playback: .play(season: 1, episode: 1),
           kind: .fiction,

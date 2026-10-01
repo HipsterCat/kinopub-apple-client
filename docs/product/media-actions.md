@@ -7,11 +7,13 @@ White / elevated fill is **focus**, not a permanent Play tint.
 
 ## Episode & time format (prd)
 
-| Locale | Episode | Remaining time |
-| --- | --- | --- |
-| **ru** | `1 сезон, 2 серия` | `Ещё 53 мин` · `Ещё 1ч 24м` |
-| **en** | `S1, E2` | `53 min left` · `1h 24m left` |
+| Locale | Episode (with progress bar) | Fresh unwatched Play | Remaining time |
+| --- | --- | --- | --- |
+| **ru** | `1 сезон, 2 серия` | `1 сезон, 1 серия` | `Ещё 53 мин` · `Ещё 1ч 24м` |
+| **en** | `S1, E2` | `Play S1, E1` | `53 min left` · `1h 24m left` |
 
+- Compact `S1, E2` / bare episode phrase is **only** when the progress bar is on the capsule.
+- Unwatched series EN is `Play S1, E1` — not bare `S1, E1`.
 - Series in progress: progress bar + episode label only (no time on the capsule).
 - Film in progress: progress bar + remaining time only (`Ещё …` / `… left`).
 
@@ -21,7 +23,7 @@ White / elevated fill is **focus**, not a permanent Play tint.
 | --- | --- | --- |
 | Fiction / animation / documentary film | Watch Movie | Смотреть фильм |
 | Concert / stand-up | Watch Now | Смотреть |
-| Series / show / docuseries (unwatched) | episode label / `Play S1, E1` a11y | episode label |
+| Series / show / docuseries (unwatched) | `Play S1, E1` | `1 сезон, 1 серия` |
 | Series watched (replay) | `Replay S1, E1` | `↻ 1 сезон, 1 серия` |
 | Film watched | Play Again | Пересмотреть |
 
@@ -40,7 +42,7 @@ Legend: `[pill]` · `(circle)` · `…` = More (tvOS)
 \* download only while not yet on disk — see Download below.
 
 ### Series · unwatched
-`[1 сезон, 1 серия]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(✓)` · `[Случайно]†` · `(…)`  
+`[1 сезон, 1 серия]` / `[Play S1, E1]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(✓)` · `[Случайно]†` · `(…)`  
 † labelled Shuffle/Random when Mark Watched is not already a pill in the row.
 
 ### Series · in progress

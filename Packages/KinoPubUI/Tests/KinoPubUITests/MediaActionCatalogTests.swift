@@ -98,21 +98,35 @@ final class MediaActionCatalogTests: XCTestCase {
     )
   }
 
-  func testSeriesPlayUsesLocalizedEpisodeLabel() {
+  func testSeriesUnwatchedPlayIncludesVerbInEnglishFallback() {
     let play = MediaActionCatalog.play(for: MediaActionContext(
       playback: .play(season: 1, episode: 1),
       isSeries: true
     ))
-    XCTAssertEqual(play.title, MediaActionCopy.episodeLabel(season: 1, episode: 1))
+    // Package tests resolve via fallback: EN-shaped `Play S1, E1`.
+    // Compact `S1, E1` is resume-only (progress bar).
+    XCTAssertEqual(play.title, MediaActionCopy.playEpisodeTitle(season: 1, episode: 1))
+    XCTAssertEqual(play.title, "Play S1, E1")
+    XCTAssertNotEqual(play.title, MediaActionCopy.episodeLabel(season: 1, episode: 1))
   }
 
-  func testSeriesReplayKeepsEpisodeOnPlayAgain() {
+  func testSeriesInProgressUsesCompactEpisodeOnly() {
+    let play = MediaActionCatalog.play(for: MediaActionContext(
+      playback: .resume(progress: 0.4, season: 1, episode: 2, durationSeconds: 2400),
+      isSeries: true
+    ))
+    XCTAssertEqual(play.title, MediaActionCopy.episodeLabel(season: 1, episode: 2))
+    XCTAssertEqual(play.progress, 0.4)
+  }
+
+  func testSeriesReplayUsesReplayTitle() {
     let play = MediaActionCatalog.play(for: MediaActionContext(
       playback: .playAgain(season: 1, episode: 1),
       isSeries: true
     ))
     XCTAssertEqual(play.chrome, .pill)
-    XCTAssertEqual(play.title, MediaActionCopy.episodeLabel(season: 1, episode: 1))
+    XCTAssertEqual(play.title, MediaActionCopy.replayEpisodeTitle(season: 1, episode: 1))
+    XCTAssertEqual(play.title, "Replay S1, E1")
   }
 
   func testShuffleIsLabelledPillWhenNotMidTitle() {

@@ -4419,6 +4419,42 @@
         }
       }
     },
+    "MediaAction_PlayEpisode" : {
+      "extractionState" : "manual",
+      "comment" : "Fresh Play capsule for an unwatched episode. EN keeps the Play verb; RU is the full episode phrase. Compact S1,E2 is only for resume.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play S%lld, E%lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld сезон, %lld серия"
+          }
+        }
+      }
+    },
+    "MediaAction_ReplayEpisode" : {
+      "extractionState" : "manual",
+      "comment" : "Replay capsule for a fully watched series. EN keeps Replay; RU is the episode phrase (↻ is the glyph).",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replay S%lld, E%lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld сезон, %lld серия"
+          }
+        }
+      }
+    },
     "MediaAction_Minutes" : {
       "extractionState" : "manual",
       "localizations" : {
