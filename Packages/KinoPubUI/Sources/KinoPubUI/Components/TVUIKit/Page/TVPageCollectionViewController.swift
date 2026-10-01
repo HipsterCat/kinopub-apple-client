@@ -240,9 +240,7 @@ public final class TVPageCollectionViewController: UIViewController {
   /// captioned (the system's unfocus animation never ran). Undo it whenever the page
   /// comes or goes, and after every focus move — see `TVPageLockupPosterCell`.
   private func resetStrandedFocusAppearance() {
-    // Poster cells focus an inner host; the cell's own `isFocused` stays false.
-    // `resetStaleFocusAppearance` guards on the host.
-    for cell in collectionView.visibleCells {
+    for cell in collectionView.visibleCells where !cell.isFocused {
       (cell as? TVPageLockupPosterCell)?.resetStaleFocusAppearance()
     }
   }
@@ -701,32 +699,37 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   // collection's own delegate hook is the one UIKit wires to the focus engine, and
   // only the `…ForItemsAt indexPaths:` variant exists on tvOS.
   //
-  // Continue Watching stills focus the cell → `indexPaths` is filled. Vertical
-  // posters focus a host inside the lockup → UIKit often passes an empty array;
-  // resolve via focused view / press point. Poster cells also install their own
-  // interaction on that host (`TVPageLockupPosterCell`) so either path can win.
+  // Stills and vertical posters both focus the *cell* (poster lockup subtree is
+  // non-interactive). UIKit then fills `indexPaths`. Cell also owns its own
+  // `UIContextMenuInteraction` as a belt-and-suspenders path.
   public func collectionView(_ collectionView: UICollectionView,
                              contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
                              point: CGPoint) -> UIContextMenuConfiguration? {
-    PCMLog.configurationRequested(
-      source: "TVPage.collection",
-      detail: "indexPaths=\(indexPaths.count) focused=\(PCMLog.describe(UIScreen.main.focusedView)) point=\(Int(point.x)),\(Int(point.y))"
+    PosterContextMenuLog.log(
+      "collection request indexPaths=\(indexPaths.map { "\($0.section):\($0.item)" }) point=\(Int(point.x)),\(Int(point.y)) focused=\(PosterContextMenuLog.focusedChainDescription(startingFrom: PosterContextMenuLog.focusedView(in: collectionView)))"
     )
     guard let indexPath = TVUIKitContextMenuIndexPath.resolve(
             in: collectionView, indexPaths: indexPaths, point: point) else {
-      PCMLog.configurationNil(source: "TVPage.collection", reason: "unresolved indexPath")
+      PosterContextMenuLog.log("collection menu → nil (no indexPath)")
       return nil
     }
-    guard let id = dataSource.itemIdentifier(for: indexPath),
-          let card = itemsByID[id]?.card else {
-      PCMLog.configurationNil(source: "TVPage.collection", reason: "no card at \(indexPath)")
+    guard let id = dataSource.itemIdentifier(for: indexPath) else {
+      PosterContextMenuLog.log("collection menu → nil (no item id at \(indexPath.section):\(indexPath.item))")
       return nil
     }
-    guard let entries = contextMenuProvider?(card), !entries.isEmpty else {
-      PCMLog.configurationNil(source: "TVPage.collection", reason: "no entries for card \(card.id)")
+    guard let card = itemsByID[id]?.card else {
+      PosterContextMenuLog.log("collection menu → nil (no card for \(id.item) section=\(id.section))")
       return nil
     }
-    PCMLog.configurationReturned(source: "TVPage.collection", entryCount: entries.count)
+    let entries = contextMenuProvider?(card) ?? []
+    PosterContextMenuLog.log(
+      "collection resolved \(indexPath.section):\(indexPath.item) title=\(card.title) id=\(card.id) entries=\(entries.count)"
+    )
+    guard !entries.isEmpty else {
+      PosterContextMenuLog.log("collection menu → nil (empty entries)")
+      return nil
+    }
+    PosterContextMenuLog.log("collection menu → UIContextMenuConfiguration")
     return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { _ in
       TVUIKitContextMenuBuilder.menu(from: entries)
     }

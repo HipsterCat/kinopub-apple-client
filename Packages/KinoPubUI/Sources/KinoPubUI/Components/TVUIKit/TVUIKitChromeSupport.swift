@@ -6,10 +6,10 @@
 //  Shared blur band + UIKit context-menu bridge for TVUIKit Home cells.
 //
 
-import OSLog
 import UIKit
 import SwiftUI
 import TVUIKit
+import OSLog
 
 public enum TVUIKitChromeSupport {
   /// A drop shadow instead of a pill behind small white chrome over artwork. Used by
@@ -20,55 +20,6 @@ public enum TVUIKitChromeSupport {
     layer.shadowOpacity = 0
     layer.shadowRadius = 0
     layer.shadowOffset = .zero
-  }
-}
-
-/// DEBUG poster context-menu trace. Filter Console / `log stream` for `[PCM]`.
-/// Always on in DEBUG — this is the on-device diagnosis path for vertical shelves.
-enum PCMLog {
-  static var isEnabled: Bool {
-#if DEBUG
-    true
-#else
-    false
-#endif
-  }
-
-  private static let logger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "Kinopub Soda",
-    category: "pcm"
-  )
-
-  static func focus(cell: String, focusedView: String, posterCanFocus: Bool, hostFocused: Bool) {
-    guard isEnabled else { return }
-    logger.info("[PCM] focus cell=\(cell, privacy: .public) focusedView=\(focusedView, privacy: .public) posterCanFocus=\(posterCanFocus, privacy: .public) hostFocused=\(hostFocused, privacy: .public)")
-  }
-
-  static func attach(view: String, cell: String) {
-    guard isEnabled else { return }
-    logger.info("[PCM] attach interaction view=\(view, privacy: .public) cell=\(cell, privacy: .public)")
-  }
-
-  static func configurationRequested(source: String, detail: String) {
-    guard isEnabled else { return }
-    logger.info("[PCM] configuration requested source=\(source, privacy: .public) \(detail, privacy: .public)")
-  }
-
-  static func configurationReturned(source: String, entryCount: Int) {
-    guard isEnabled else { return }
-    logger.info("[PCM] configuration returned source=\(source, privacy: .public) entries=\(entryCount, privacy: .public)")
-  }
-
-  static func configurationNil(source: String, reason: String) {
-    guard isEnabled else { return }
-    logger.info("[PCM] configuration nil source=\(source, privacy: .public) reason=\(reason, privacy: .public)")
-  }
-
-  static func describe(_ view: UIView?) -> String {
-    guard let view else { return "nil" }
-    let type = String(describing: type(of: view))
-    let id = view.accessibilityIdentifier.map { " id=\($0)" } ?? ""
-    return "\(type)\(id)"
   }
 }
 
@@ -119,19 +70,96 @@ public final class TVUIKitBottomInfoBlurView: UIView {
   }
 }
 
+/// `[PCM]` console tracing for poster context menus. Always on in DEBUG so a device /
+/// simulator run shows why vertical shelves open or fail without flipping FocusLog.
+enum PosterContextMenuLog {
+  private static let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Kinopub Soda",
+    category: "PCM"
+  )
+
+  static var isEnabled: Bool {
+#if DEBUG
+    true
+#else
+    false
+#endif
+  }
+
+  static func log(_ message: String) {
+    guard isEnabled else { return }
+    let line = "[PCM] \(message)"
+    logger.info("\(line, privacy: .public)")
+    // NSLog + print so Xcode console / Console.app always show the line even when
+    // Logger category filters swallow `info`.
+    NSLog("%@", line)
+    print(line)
+  }
+
+  /// Focused-view chain from the leaf up — class names + accessibility ids.
+  /// Never use `UIScreen.main.focusedView` here: on Apple TV Simulator it asserts
+  /// `_screenBasedFocusUnsupported` (crash in `didUpdateFocus`, 2026-10-01).
+  @MainActor
+  static func focusedChainDescription(startingFrom leaf: UIView? = nil) -> String {
+    var view: UIView? = leaf ?? focusedView(in: nil)
+    var parts: [String] = []
+    var depth = 0
+    while let current = view, depth < 12 {
+      let id = current.accessibilityIdentifier.map { "#\($0)" } ?? ""
+      let title = current.accessibilityLabel.map { "\"\($0)\"" } ?? ""
+      parts.append("\(type(of: current))\(id)\(title.isEmpty ? "" : " \(title)")")
+      view = current.superview
+      depth += 1
+    }
+    return parts.isEmpty ? "(none)" : parts.joined(separator: " ← ")
+  }
+
+  /// Focus leaf via the window's focus system — safe on tvOS Simulator.
+  @MainActor
+  static func focusedView(in hint: UIView?) -> UIView? {
+    if let hint,
+       let item = UIFocusSystem.focusSystem(for: hint)?.focusedItem as? UIView {
+      return item
+    }
+    for scene in UIApplication.shared.connectedScenes {
+      guard let windowScene = scene as? UIWindowScene else { continue }
+      for window in windowScene.windows {
+        if let item = UIFocusSystem.focusSystem(for: window)?.focusedItem as? UIView {
+          return item
+        }
+      }
+    }
+    return nil
+  }
+
+  @MainActor
+  static func pressTypeName(_ type: UIPress.PressType) -> String {
+    switch type {
+    case .upArrow: return "upArrow"
+    case .downArrow: return "downArrow"
+    case .leftArrow: return "leftArrow"
+    case .rightArrow: return "rightArrow"
+    case .select: return "select"
+    case .menu: return "menu"
+    case .playPause: return "playPause"
+    default: return "other(\(type.rawValue))"
+    }
+  }
+}
+
 /// Resolves which collection item a tvOS context-menu press belongs to.
-///
-/// Continue Watching stills focus the **cell**, so `indexPaths` is filled.
-/// Vertical posters focus a plain host *inside* the lockup — UIKit then often
-/// hands an empty `indexPaths` array; walk from the focused view (or press point).
+/// Prefers `indexPaths` when UIKit fills it; otherwise walks from the focused view
+/// (or the press point) up to the enclosing cell.
 enum TVUIKitContextMenuIndexPath {
+  @MainActor
   static func resolve(
     in collectionView: UICollectionView,
     indexPaths: [IndexPath],
     point: CGPoint
   ) -> IndexPath? {
     if let first = indexPaths.first { return first }
-    var view: UIView? = UIScreen.main.focusedView
+    // Do not use `UIScreen.main.focusedView` — asserts on Apple TV Simulator.
+    var view: UIView? = PosterContextMenuLog.focusedView(in: collectionView)
     while let current = view {
       if let cell = current as? UICollectionViewCell,
          let path = collectionView.indexPath(for: cell) {
@@ -143,33 +171,39 @@ enum TVUIKitContextMenuIndexPath {
   }
 }
 
-/// Plain focusable host that lives *inside* a `TVPosterView` content view so:
-/// 1. the lockup still lifts (Apple animates when a lockup **subview** is focused), and
-/// 2. `UIContextMenuInteraction` sits on the focused view itself — installing it on
-///    `TVPosterView` (a `UIControl`) does not receive long-press / Play-Pause on tvOS.
+/// `TVPosterView` is a `UIControl` / lockup whose **internals** stay focusable even when
+/// the subclass returns `canBecomeFocused = false`. Focus then lands on
+/// `_TVPosterContentView` (lift looks fine via ancestor rules) but
+/// `collectionView(_:contextMenuConfigurationForItemsAt:)` never fires — the same
+/// failure mode as 7a8bd62 on device.
 ///
-/// Cell-only focus (`canBecomeFocused` on the cell, lockup non-focusable) matched
-/// Continue Watching in theory but did **not** open vertical poster menus on device
-/// (PR #36 tip `7a8bd62`). The host is the path that can own the interaction.
-@MainActor
-final class TVUIKitLockupMenuHost: UIView {
-  override var canBecomeFocused: Bool { true }
-
-  override init(frame: CGRect) {
-    super.init(frame: frame)
-    backgroundColor = .clear
-    isUserInteractionEnabled = true
-  }
-
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-}
-
-/// `TVPosterView` is a `UIControl` and steals focus from an inner menu host unless
-/// focusability is turned off on the lockup itself. Lift/parallax still run when the
-/// inner host (a lockup subview) is focused.
+/// `isUserInteractionEnabled = false` disables focus for the whole lockup subtree so
+/// the **cell** is the focused leaf (Continue Watching / `TVPageWideCardCell` shape).
 @MainActor
 final class TVUIKitNonFocusablePosterView: TVPosterView {
   override var canBecomeFocused: Bool { false }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    suppressFocusStealing()
+  }
+
+  override func didMoveToSuperview() {
+    super.didMoveToSuperview()
+    suppressFocusStealing()
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    // TVPosterView may re-enable interaction while wiring chrome — keep it off.
+    suppressFocusStealing()
+  }
+
+  private func suppressFocusStealing() {
+    guard isUserInteractionEnabled else { return }
+    isUserInteractionEnabled = false
+    PosterContextMenuLog.log("NonFocusablePosterView cleared isUserInteractionEnabled")
+  }
 }
 
 public enum TVUIKitContextMenuBuilder {

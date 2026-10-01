@@ -7,6 +7,9 @@
 //  reserves footer space that crops 2:3 art), overlays in a sibling that mirrors
 //  focus scale + stale-appearance reset.
 //
+//  Context menu: the **cell** is the focused leaf (non-interactive lockup subtree),
+//  matching Continue Watching / `TVPageLockupPosterCell`.
+//
 
 import UIKit
 import TVUIKit
@@ -15,10 +18,8 @@ import TVUIKit
 public final class TVUIKitPosterCell: UICollectionViewCell {
   public static let reuseID = "TVUIKitPosterCell"
 
-  /// Non-focusable lockup; focus + menu live on `menuFocusHost` inside it.
+  /// Non-focusable lockup; cell holds focus — see `TVPageLockupPosterCell`.
   private let posterView = TVUIKitNonFocusablePosterView()
-  /// Focus + context-menu target inside the lockup — see `TVPageLockupPosterCell`.
-  private let menuFocusHost = TVUIKitLockupMenuHost()
   private let overlayContainer = UIView()
   private let placeholderPanel = UIView()
   private let progressTrack = UIView()
@@ -36,7 +37,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
   private var posterHeightConstraint: NSLayoutConstraint!
   private var captionTopConstraint: NSLayoutConstraint!
   private var progressFillWidth: NSLayoutConstraint!
-  /// Built lazily when the menu opens.
+  /// Built lazily when the cell's own context-menu interaction asks for a configuration.
   public var contextMenuEntries: (() -> [MediaCardContextEntry])?
 
   public override init(frame: CGRect) {
@@ -46,9 +47,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
 
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  public override var preferredFocusEnvironments: [UIFocusEnvironment] {
-    [menuFocusHost]
-  }
+  public override var canBecomeFocused: Bool { true }
 
   private func setUp() {
     contentView.clipsToBounds = false
@@ -60,16 +59,8 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     posterView.translatesAutoresizingMaskIntoConstraints = false
     contentView.addSubview(posterView)
 
-    menuFocusHost.translatesAutoresizingMaskIntoConstraints = false
-    menuFocusHost.addInteraction(UIContextMenuInteraction(delegate: self))
-    posterView.contentView.insertSubview(menuFocusHost, at: 0)
-    PCMLog.attach(view: PCMLog.describe(menuFocusHost), cell: "TVUIKitPosterCell")
-    NSLayoutConstraint.activate([
-      menuFocusHost.topAnchor.constraint(equalTo: posterView.imageView.topAnchor),
-      menuFocusHost.leadingAnchor.constraint(equalTo: posterView.imageView.leadingAnchor),
-      menuFocusHost.trailingAnchor.constraint(equalTo: posterView.imageView.trailingAnchor),
-      menuFocusHost.bottomAnchor.constraint(equalTo: posterView.imageView.bottomAnchor)
-    ])
+    addInteraction(UIContextMenuInteraction(delegate: self))
+    PosterContextMenuLog.log("attach UIContextMenuInteraction on TVUIKitPosterCell")
 
     overlayContainer.translatesAutoresizingMaskIntoConstraints = false
     overlayContainer.isUserInteractionEnabled = false
@@ -164,14 +155,12 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
 
   public func configure(card: MediaCard, size: CGSize) {
     captionLabel.text = card.title
-    // XCUITest waits on this id. TVPosterView is the lockup the engine focuses, so
-    // the identifier has to live on it — the cell id alone does not surface.
+    // XCUITest waits on this id. Focus lands on the cell.
     let posterID = "kinopub.poster.\(card.id)"
     accessibilityIdentifier = posterID
+    accessibilityLabel = card.title
     posterView.accessibilityIdentifier = posterID
     posterView.accessibilityLabel = card.title
-    menuFocusHost.accessibilityIdentifier = posterID
-    menuFocusHost.accessibilityLabel = card.title
     if size.width > 1 {
       applyPosterSize(size, reloadIfChanged: false)
     } else {
@@ -225,6 +214,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     watchedGlyph.isHidden = !(card.isWatched && card.progress == nil)
   }
 
+  @discardableResult
   private func ensureBottomInfoBlur() -> TVUIKitBottomInfoBlurView {
     if let existing = bottomInfoBlur { return existing }
     let blur = TVUIKitBottomInfoBlurView()
@@ -288,24 +278,21 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     captionLabel.textColor = .secondaryLabel
     contextMenuEntries = nil
     accessibilityIdentifier = nil
+    accessibilityLabel = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
-    menuFocusHost.accessibilityIdentifier = nil
-    menuFocusHost.accessibilityLabel = nil
     resetStaleFocusAppearance()
   }
 
   public override func didUpdateFocus(in context: UIFocusUpdateContext,
                                with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
-    let nowFocused = context.nextFocusedView === self
+    let leafIsSelf = context.nextFocusedView === self
+    let nowFocused = leafIsSelf
       || context.nextFocusedView?.isDescendant(of: self) == true
     if nowFocused {
-      PCMLog.focus(
-        cell: accessibilityIdentifier ?? "TVUIKitPosterCell",
-        focusedView: PCMLog.describe(context.nextFocusedView),
-        posterCanFocus: posterView.canBecomeFocused,
-        hostFocused: context.nextFocusedView === menuFocusHost
+      PosterContextMenuLog.log(
+        "TVUIKitPosterCell focus title=\(accessibilityLabel ?? "?") id=\(accessibilityIdentifier ?? "?") leafIsCell=\(leafIsSelf) posterUserInteraction=\(posterView.isUserInteractionEnabled) chain=\(PosterContextMenuLog.focusedChainDescription(startingFrom: context.nextFocusedView))"
       )
     }
     coordinator.addCoordinatedAnimations({
@@ -326,10 +313,18 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     })
   }
 
+  public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    for press in presses {
+      PosterContextMenuLog.log(
+        "TVUIKitPosterCell pressesBegan \(PosterContextMenuLog.pressTypeName(press.type)) id=\(accessibilityIdentifier ?? "?") isFocused=\(isFocused)"
+      )
+    }
+    super.pressesBegan(presses, with: event)
+  }
+
   /// TVPosterView sometimes strands enlarged after focus leaves the collection.
   public func resetStaleFocusAppearance() {
-    // Focus lives on `menuFocusHost`, not the cell — `isFocused` alone is not enough.
-    guard !isFocused, !menuFocusHost.isFocused else { return }
+    guard !isFocused else { return }
     func clear(_ view: UIView) {
       if !view.transform.isIdentity { view.transform = .identity }
       if !CATransform3DIsIdentity(view.layer.transform) {
@@ -344,8 +339,6 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     captionLabel.textColor = .secondaryLabel
     captionLabel.alpha = 1
   }
-
-  public override var canBecomeFocused: Bool { true }
 }
 
 extension TVUIKitPosterCell: UIContextMenuInteractionDelegate {
@@ -353,15 +346,14 @@ extension TVUIKitPosterCell: UIContextMenuInteractionDelegate {
     _ interaction: UIContextMenuInteraction,
     configurationForMenuAtLocation location: CGPoint
   ) -> UIContextMenuConfiguration? {
-    PCMLog.configurationRequested(
-      source: "TVUIKitPosterCell.host",
-      detail: "id=\(accessibilityIdentifier ?? "?") loc=\(Int(location.x)),\(Int(location.y))"
+    PosterContextMenuLog.log(
+      "TVUIKitPosterCell configurationForMenuAtLocation id=\(accessibilityIdentifier ?? "?") loc=\(Int(location.x)),\(Int(location.y))"
     )
     guard let entries = contextMenuEntries?(), !entries.isEmpty else {
-      PCMLog.configurationNil(source: "TVUIKitPosterCell.host", reason: "no entries")
+      PosterContextMenuLog.log("TVUIKitPosterCell menu → nil (no entries)")
       return nil
     }
-    PCMLog.configurationReturned(source: "TVUIKitPosterCell.host", entryCount: entries.count)
+    PosterContextMenuLog.log("TVUIKitPosterCell menu → UIContextMenuConfiguration entries=\(entries.count)")
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
       TVUIKitContextMenuBuilder.menu(from: entries)
     }

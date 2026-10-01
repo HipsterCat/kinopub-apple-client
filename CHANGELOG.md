@@ -8,17 +8,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 ### tvOS: context menu on vertical poster shelves (2026-10-01)
 
 Long-press / Play-Pause opened the card menu on Continue Watching stills, but not
-on 2:3 posters (Hot Movies, Series, catalog shelves). Stills focus the cell, so
-`collectionView(_:contextMenuConfigurationForItemsAt:)` fires. Vertical posters
-focus inside `TVPosterView` (a `UIControl`); installing the interaction on that
-control never receives the press, and cell-only focus (`TVUIKitNonFocusablePosterView`
-+ collection path, tip `7a8bd62`) still did not open menus on device.
+on 2:3 posters (Hot Movies, Series, catalog shelves). Stills focus the **cell**, so
+`collectionView(_:contextMenuConfigurationForItemsAt:)` fires. Vertical posters used
+`TVPosterView` (a `UIControl`); focus landed on lockup internals even after
+`canBecomeFocused = false` (7a8bd62) — lift looked right via ancestor rules, but the
+collection PCM hook never saw a cell-focused leaf. Menu-host / `UIButton.menu`
+attempts also failed: Play-Pause never reached `configurationForMenuAtLocation`.
 
-Fix: plain focusable `TVUIKitLockupMenuHost` inside the lockup content view
-(`TVPageLockupPosterCell`, `TVUIKitPosterCell`) owns `UIContextMenuInteraction`.
-Lockup still lifts (Apple animates when a lockup subview is focused). Collection
-delegate kept as fallback with empty-`indexPaths` resolver. CW stills unchanged.
-DEBUG builds log `[PCM]` (focus / attach / configuration requested|returned|nil).
+Fix: `TVUIKitNonFocusablePosterView` sets `isUserInteractionEnabled = false` so the
+whole lockup subtree cannot take focus; the **cell** is the focused leaf (same shape
+as CW / `TVPageWideCardCell`). Cell + collection both own context-menu paths.
+DEBUG builds log `[PCM]` (focus leaf, attach, presses, configuration requested /
+returned / nil). CW stills unchanged.
 
 ### Hero: no cover context menu; label title until logo (2026-10-01)
 

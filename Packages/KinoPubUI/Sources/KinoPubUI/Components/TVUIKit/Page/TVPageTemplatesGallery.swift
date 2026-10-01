@@ -28,6 +28,23 @@ public struct TVPageTemplatesGallery: View {
         case .feature(let feature): lastSelection = "\(section.id): \(feature.card.title)"
         case .placeholder: break
         }
+      },
+      contextMenuProvider: { card in
+        // Sample entries so Play-Pause / long-Select can be verified without auth.
+        [
+          .action(MediaCardContextAction(
+            id: "gallery.play.\(card.id)",
+            title: "Play",
+            systemImage: "play.fill",
+            handler: {}
+          )),
+          .action(MediaCardContextAction(
+            id: "gallery.info.\(card.id)",
+            title: "Go to Movie",
+            systemImage: "info.circle",
+            handler: {}
+          ))
+        ]
       }
     )
     .ignoresSafeArea()

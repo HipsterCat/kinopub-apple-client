@@ -31,14 +31,12 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   /// applies the same, so the envelope it measures includes this.
   static let footerGap: CGFloat = 12
 
-  /// Non-focusable lockup so focus can land on `menuFocusHost` (a plain UIView).
-  /// Installing `UIContextMenuInteraction` on `TVPosterView` (a `UIControl`) never
-  /// receives long-press / Play-Pause. Cell-only focus matched CW in theory but did
-  /// not open vertical menus on device — the host owns the interaction.
+  /// Non-focusable lockup (`isUserInteractionEnabled = false` on the whole subtree).
+  /// The **cell** is the focused leaf — same shape as Continue Watching /
+  /// `TVPageWideCardCell` — so collection + cell `UIContextMenuInteraction` both see
+  /// Play-Pause. `canBecomeFocused = false` alone left focus on `_TVPosterContentView`
+  /// (7a8bd62): lift looked right, PCM never opened.
   private let posterView = TVUIKitNonFocusablePosterView(image: nil)
-  /// Focus + context-menu target inside the lockup. The lockup still lifts because
-  /// Apple animates when a lockup **subview** is focused.
-  private let menuFocusHost = TVUIKitLockupMenuHost()
   private let watchedGlyph = UIImageView()
   /// The title's score, top-trailing, for rows that set `showsRating`.
   private let ratingChip = TVPageRatingChip()
@@ -46,7 +44,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
   private var recipe: TVPageCellRecipe?
-  /// Built lazily when the menu opens.
+  /// Built lazily when the cell's own context-menu interaction asks for a configuration.
   var contextMenuEntries: (() -> [MediaCardContextEntry])?
 
   override init(frame: CGRect) {
@@ -56,9 +54,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  override var preferredFocusEnvironments: [UIFocusEnvironment] {
-    [menuFocusHost]
-  }
+  override var canBecomeFocused: Bool { true }
 
   private func setUp() {
     // The lockup's focus lift and shadow extend past the cell; the collection view is
@@ -82,28 +78,27 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     let host = posterView.contentView
     let image = posterView.imageView
 
-    menuFocusHost.translatesAutoresizingMaskIntoConstraints = false
-    menuFocusHost.addInteraction(UIContextMenuInteraction(delegate: self))
-    host.insertSubview(menuFocusHost, at: 0)
-    PCMLog.attach(view: PCMLog.describe(menuFocusHost), cell: "TVPageLockupPosterCell")
+    // Belt-and-suspenders with the collection-view delegate: interaction on the focused
+    // cell itself (CW stills only need the collection path because focus is already
+    // exactly on the cell via `TVMediaItemContentConfiguration`).
+    addInteraction(UIContextMenuInteraction(delegate: self))
+    PosterContextMenuLog.log("attach UIContextMenuInteraction on TVPageLockupPosterCell")
 
     watchedGlyph.translatesAutoresizingMaskIntoConstraints = false
     watchedGlyph.image = UIImage(systemName: "checkmark.circle.fill")
     watchedGlyph.tintColor = .white
     watchedGlyph.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold)
+    watchedGlyph.isUserInteractionEnabled = false
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: watchedGlyph.layer)
     watchedGlyph.isHidden = true
     host.addSubview(watchedGlyph)
 
     ratingChip.translatesAutoresizingMaskIntoConstraints = false
+    ratingChip.isUserInteractionEnabled = false
     ratingChip.isHidden = true
     host.addSubview(ratingChip)
 
     NSLayoutConstraint.activate([
-      menuFocusHost.topAnchor.constraint(equalTo: image.topAnchor),
-      menuFocusHost.leadingAnchor.constraint(equalTo: image.leadingAnchor),
-      menuFocusHost.trailingAnchor.constraint(equalTo: image.trailingAnchor),
-      menuFocusHost.bottomAnchor.constraint(equalTo: image.bottomAnchor),
       watchedGlyph.leadingAnchor.constraint(equalTo: image.leadingAnchor, constant: 16),
       watchedGlyph.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -14),
       ratingChip.topAnchor.constraint(equalTo: image.topAnchor, constant: 12),
@@ -119,11 +114,9 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
     let posterID = "kinopub.poster.\(card.id)"
     accessibilityIdentifier = posterID
+    accessibilityLabel = card.title
     posterView.accessibilityIdentifier = posterID
     posterView.accessibilityLabel = card.title
-    // Focus lands on the menu host; XCUITest waits on `kinopub.poster.*` + hasFocus.
-    menuFocusHost.accessibilityIdentifier = posterID
-    menuFocusHost.accessibilityLabel = card.title
 
     watchedGlyph.isHidden = !card.isWatched
     let rating = showsRating ? card.rating?.formatted : nil
@@ -140,10 +133,9 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.contentSize = recipe.posterContentSize
     applyCaption(caption, title: tile.title)
     accessibilityIdentifier = "kinopub.tile.\(tile.id)"
+    accessibilityLabel = tile.title
     posterView.accessibilityIdentifier = accessibilityIdentifier
     posterView.accessibilityLabel = tile.title
-    menuFocusHost.accessibilityIdentifier = accessibilityIdentifier
-    menuFocusHost.accessibilityLabel = tile.title
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
     contextMenuEntries = nil
@@ -246,18 +238,16 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   /// Caption colour is the one focus response that is ours: secondary at rest, label
   /// when focused (the footer's own default is label always). Colour only — motion,
-  /// lift and the footer's reveal stay the lockup's.
+  /// lift and the footer's reveal stay the lockup's (ancestor-focused).
   override func didUpdateFocus(in context: UIFocusUpdateContext,
                                with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
-    let focused = context.nextFocusedView === self
+    let leafIsSelf = context.nextFocusedView === self
+    let focused = leafIsSelf
       || context.nextFocusedView?.isDescendant(of: self) == true
     if focused {
-      PCMLog.focus(
-        cell: accessibilityIdentifier ?? "TVPageLockupPosterCell",
-        focusedView: PCMLog.describe(context.nextFocusedView),
-        posterCanFocus: posterView.canBecomeFocused,
-        hostFocused: context.nextFocusedView === menuFocusHost
+      PosterContextMenuLog.log(
+        "poster cell focus title=\(accessibilityLabel ?? "?") id=\(accessibilityIdentifier ?? "?") leafIsCell=\(leafIsSelf) posterUserInteraction=\(posterView.isUserInteractionEnabled) chain=\(PosterContextMenuLog.focusedChainDescription(startingFrom: context.nextFocusedView))"
       )
     }
     coordinator.addCoordinatedAnimations({ [weak self] in
@@ -268,13 +258,21 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     })
   }
 
+  override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    for press in presses {
+      PosterContextMenuLog.log(
+        "poster cell pressesBegan \(PosterContextMenuLog.pressTypeName(press.type)) id=\(accessibilityIdentifier ?? "?") isFocused=\(isFocused) leaf=\(PosterContextMenuLog.focusedChainDescription(startingFrom: PosterContextMenuLog.focusedView(in: self)))"
+      )
+    }
+    super.pressesBegan(presses, with: event)
+  }
+
   /// Accepted adapter, carried over from `TVUIKitPosterCell`: `TVPosterView`'s
   /// coordinated *unfocus* animation sometimes never runs — a tab switched mid-motion
   /// leaves every lockup of the row lifted, tilting and captioned while nothing is
   /// focused. This undoes the system's stranded motion; it runs no motion of its own.
   func resetStaleFocusAppearance() {
-    // Focus lives on `menuFocusHost`, not the cell — `isFocused` alone is not enough.
-    guard !isFocused, !menuFocusHost.isFocused else { return }
+    guard !isFocused else { return }
     func clear(_ view: UIView) {
       if !view.transform.isIdentity { view.transform = .identity }
       if !CATransform3DIsIdentity(view.layer.transform) { view.layer.transform = CATransform3DIdentity }
@@ -299,10 +297,9 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     contextMenuEntries = nil
     resetStaleFocusAppearance()
     accessibilityIdentifier = nil
+    accessibilityLabel = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
-    menuFocusHost.accessibilityIdentifier = nil
-    menuFocusHost.accessibilityLabel = nil
   }
 }
 
@@ -311,15 +308,14 @@ extension TVPageLockupPosterCell: UIContextMenuInteractionDelegate {
     _ interaction: UIContextMenuInteraction,
     configurationForMenuAtLocation location: CGPoint
   ) -> UIContextMenuConfiguration? {
-    PCMLog.configurationRequested(
-      source: "TVPageLockupPosterCell.host",
-      detail: "id=\(accessibilityIdentifier ?? "?") loc=\(Int(location.x)),\(Int(location.y))"
+    PosterContextMenuLog.log(
+      "cell configurationForMenuAtLocation id=\(accessibilityIdentifier ?? "?") loc=\(Int(location.x)),\(Int(location.y))"
     )
     guard let entries = contextMenuEntries?(), !entries.isEmpty else {
-      PCMLog.configurationNil(source: "TVPageLockupPosterCell.host", reason: "no entries")
+      PosterContextMenuLog.log("cell menu → nil (no entries) id=\(accessibilityIdentifier ?? "?")")
       return nil
     }
-    PCMLog.configurationReturned(source: "TVPageLockupPosterCell.host", entryCount: entries.count)
+    PosterContextMenuLog.log("cell menu → UIContextMenuConfiguration entries=\(entries.count)")
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
       TVUIKitContextMenuBuilder.menu(from: entries)
     }
@@ -330,7 +326,6 @@ extension TVPageLockupPosterCell: UIContextMenuInteractionDelegate {
     willEndFor configuration: UIContextMenuConfiguration,
     animator: (any UIContextMenuInteractionAnimating)?
   ) {
-    // Preview hand-back can strand the lockup enlarged, same as a focus change.
     let reset: () -> Void = { [weak self] in self?.resetStaleFocusAppearance() }
     if let animator {
       animator.addCompletion(reset)
