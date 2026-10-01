@@ -132,7 +132,8 @@ struct MainView: View {
   private static let continueWatchingColumns = 3
 
   /// The Home banner as the page's first row: the same sampled `bannerCards` the
-  /// SwiftUI path draws, with their title logos, looped (`TVPageSection.banner`).
+  /// SwiftUI path draws (six at most), with their title logos, each once
+  /// (`TVPageSection.banner`).
   private static let bannerSectionID = "home-banner"
 
   private var pageSections: [TVPageSection] {

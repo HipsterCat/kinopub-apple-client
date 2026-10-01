@@ -5,6 +5,20 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Home banner on the system full-screen layout (2026-10-01)
+
+The banner is one full-width page item (`TVPageItem.banner`) drawn by
+`TVPageBannerCarouselCell`: a nested collection view on TVUIKit's
+`TVCollectionViewFullScreenLayout`, the layout Top Shelf's carousel uses. One card in the
+middle, a sliver of each neighbour past its sides, and the layout's own parallax between
+the backdrop (`maskedBackgroundView`) and the words (`maskedContentView`). The six titles
+show once each: the 41 laps, `TVPageSection.startIndex` and the start-centring code are
+gone. The row starts on the middle title; the page hands focus to it, and Select and the
+card menu report the title as `.feature` as before. Geometry: cards 240 in from the sides,
+`interitemSpacing` = gutter, 12:5 cards, the layout's default top mask; read from the docs
+and WWDC19 211, not yet checked on a device. The UIKit zoom into the detail page is parked
+in 095eee9; reverting that commit brings it back.
+
 ### tvOS collection and person pages use the search catalog (2026-10-01)
 
 Opening a collection, or a person's credits, is a `TVPage`. The header — a collection's

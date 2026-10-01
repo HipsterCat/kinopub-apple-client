@@ -52,16 +52,6 @@ public enum TVPageLayout {
   }
   public static let cardPadding: CGFloat = 16
 
-  /// Width over height of a banner platter: the backdrop's own 16:9, so the art is not
-  /// cropped; the scrims carry the words.
-  public static let bannerAspect: CGFloat = 16 / 9
-
-  /// One banner in the middle and half of its neighbour on either side: two banners and
-  /// two gutters fill the container.
-  public static func bannerWidth(containerWidth: CGFloat) -> CGFloat {
-    max(((containerWidth - TVHIGGrid.gutter * 2) / 2).rounded(.down), 1)
-  }
-
   /// The layout for one page: a section provider that resolves the section at that
   /// index from `sections()` at layout time, so a snapshot swap and its geometry can
   /// never disagree.
@@ -126,7 +116,7 @@ public enum TVPageLayout {
         layoutSection = chipRail(section, sideInset: sideInset, bottom: bottom)
       }
     case (.banner, _):
-      layoutSection = bannerRail(section, containerWidth: containerWidth)
+      layoutSection = bannerBand(containerWidth: containerWidth)
     case (_, .rail):
       layoutSection = rail(section, contentWidth: contentWidth, sideInset: sideInset)
     case (_, .grid):
@@ -197,25 +187,21 @@ public enum TVPageLayout {
     return layoutSection
   }
 
-  /// The banner row: centred paging rather than the 80 pt rail. The insets put the
-  /// first banner in the middle of the screen, so every banner the row pages to sits
-  /// there, with half a banner showing past each gutter.
+  /// The banner band: one item the container's full width, edge to edge. The cell is a
+  /// `TVCollectionViewFullScreenLayout` of its own, which insets its cards and shows the
+  /// neighbours in that margin (`TVPageBannerCarouselCell`), so the section adds no side
+  /// insets and no paging. The next row's title is the usual titled-row gap below.
   @MainActor
-  private static func bannerRail(_ section: TVPageSection,
-                                 containerWidth: CGFloat) -> NSCollectionLayoutSection {
-    let recipe = TVPageCellMetrics.recipe(kind: .banner, artWidth: bannerWidth(containerWidth: containerWidth),
-                                          caption: .always)
-    let size = NSCollectionLayoutSize(widthDimension: .absolute(recipe.itemSize.width),
-                                      heightDimension: .absolute(recipe.itemSize.height))
+  private static func bannerBand(containerWidth: CGFloat) -> NSCollectionLayoutSection {
+    let size = NSCollectionLayoutSize(
+      widthDimension: .absolute(containerWidth),
+      heightDimension: .absolute(TVPageBannerCarouselCell.height(containerWidth: containerWidth))
+    )
     let group = NSCollectionLayoutGroup.horizontal(layoutSize: size,
                                                    subitems: [NSCollectionLayoutItem(layoutSize: size)])
     let layoutSection = NSCollectionLayoutSection(group: group)
-    layoutSection.orthogonalScrollingBehavior = .groupPagingCentered
-    layoutSection.interGroupSpacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
-    let side = max(((containerWidth - recipe.itemSize.width) / 2).rounded(.down), 0)
-    let standard = insets(for: recipe, sideInset: TVHIGGrid.sideInset, titled: false)
-    layoutSection.contentInsets = NSDirectionalEdgeInsets(top: standard.top, leading: side,
-                                                          bottom: standard.bottom, trailing: side)
+    layoutSection.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0,
+                                                          bottom: TVHIGGrid.titledRowGap, trailing: 0)
     return layoutSection
   }
 
@@ -526,7 +512,10 @@ public enum TVPageCellMetrics {
       recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
                                 artSize: size, posterContentSize: size)
     case .card: recipe = measureCard(artWidth: key.width, height: TVPageLayout.cardHeight)
-    case .banner: recipe = measureCard(artWidth: key.width, height: (key.width / TVPageLayout.bannerAspect).rounded())
+    case .banner:
+      let size = CGSize(width: key.width, height: TVPageBannerCarouselCell.height(containerWidth: key.width))
+      recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                                artSize: size, posterContentSize: size)
     }
     cache[key] = recipe
     return recipe
