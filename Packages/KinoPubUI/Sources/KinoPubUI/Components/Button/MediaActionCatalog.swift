@@ -6,9 +6,8 @@
 //  detail hero today and reusable anywhere the same buttons appear — the view that
 //  hosts them does not invent icons or weights per screen.
 //
-//  The visual mold is the `#Preview` at the bottom of `MediaActionButtonStyle.swift`
-//  (settled LazyHStack rows): play weight, quieter replay, labelled Mark Watched only
-//  mid-title, Trailer as a pill, state circles after that.
+//  Human copy lives in `MediaActionCopy` and `docs/product/media-actions.md`.
+//  The visual mold is `#Preview("Action chrome")` in `MediaActionButtonStyle.swift`.
 //
 
 import Foundation
@@ -35,7 +34,7 @@ public enum MediaActionID: String, Hashable, Sendable, CaseIterable {
 public enum MediaActionChrome: Hashable, Sendable {
   /// Entry Play / Resume — `.glassProminent` capsule.
   case playPill
-  /// Labelled secondary — `.glass` capsule (Trailer, Mark Watched mid-title, Replay).
+  /// Labelled secondary — `.glass` capsule (Trailer, Mark Watched mid-title, Replay, Shuffle).
   case pill
   /// Icon-only — `.glass` circle (bookmark / follow / watched / download / more).
   case circle
@@ -82,6 +81,7 @@ public struct MediaActionAppearance: Equatable, Identifiable, Sendable {
 /// and the hero can all build one.
 public struct MediaActionContext: Equatable, Sendable {
   public var playback: PlaybackButtonContent
+  public var kind: MediaPresentationKind
   public var isSeries: Bool
   public var isBookmarked: Bool
   public var isFollowing: Bool
@@ -95,6 +95,7 @@ public struct MediaActionContext: Equatable, Sendable {
 
   public init(
     playback: PlaybackButtonContent,
+    kind: MediaPresentationKind = .fiction,
     isSeries: Bool,
     isBookmarked: Bool = false,
     isFollowing: Bool = false,
@@ -107,6 +108,7 @@ public struct MediaActionContext: Equatable, Sendable {
     loading: Set<MediaActionID> = []
   ) {
     self.playback = playback
+    self.kind = kind
     self.isSeries = isSeries
     self.isBookmarked = isBookmarked
     self.isFollowing = isFollowing
@@ -117,6 +119,11 @@ public struct MediaActionContext: Equatable, Sendable {
     self.showsShuffle = showsShuffle
     self.showsMore = showsMore
     self.loading = loading
+  }
+
+  var isMidTitle: Bool {
+    if case .resume = playback { return true }
+    return false
   }
 }
 
@@ -138,6 +145,10 @@ public enum MediaActionCatalog {
     if context.showsTrailer {
       row.append(trailer(for: context))
     }
+    // Labelled Shuffle peers Trailer when the row is not already dense with Mark Watched.
+    if context.showsShuffle, !context.isMidTitle {
+      row.append(shuffle(for: context))
+    }
     row.append(bookmark(for: context))
     if context.showsFollow {
       row.append(follow(for: context))
@@ -148,7 +159,8 @@ public enum MediaActionCatalog {
     if context.showsDownload {
       row.append(download(for: context))
     }
-    if context.showsShuffle {
+    // In-progress: Shuffle is a quiet circle after the state cluster.
+    if context.showsShuffle, context.isMidTitle {
       row.append(shuffle(for: context))
     }
     if context.showsMore {
@@ -161,64 +173,33 @@ public enum MediaActionCatalog {
 
   public static func play(for context: MediaActionContext) -> MediaActionAppearance {
     let loading = context.loading.contains(.play)
+    let caption = MediaActionCopy.playCaption(playback: context.playback, kind: context.kind)
     switch context.playback {
-    case .play(let episodeLabel):
-      let title: String
-      let accessibility: String
-      if let episodeLabel, !episodeLabel.isEmpty {
-        // Series mold: the episode *is* the label — no "Play" prefix beside Trailer.
-        title = episodeLabel
-        accessibility = localized("Play") + " " + episodeLabel
-      } else {
-        title = localized("Play")
-        accessibility = title
-      }
-      return MediaActionAppearance(
-        id: .play,
-        chrome: .playPill,
-        systemImage: "play.fill",
-        title: title,
-        accessibilityLabel: accessibility,
-        isLoading: loading
-      )
-
-    case .resume(let progress, let episodeLabel, let durationSeconds):
-      let title = resumeTitle(episodeLabel: episodeLabel, durationSeconds: durationSeconds)
-      let accessibility: String = {
-        if let episodeLabel { return localized("Resume") + " " + episodeLabel }
-        return localized("Resume")
-      }()
-      return MediaActionAppearance(
-        id: .play,
-        chrome: .playPill,
-        systemImage: "play.fill",
-        title: title,
-        progress: progress,
-        accessibilityLabel: accessibility,
-        isLoading: loading
-      )
-
     case .playAgain:
-      // Watched: clockwise glyph + same capsule weight as Trailer. White is focus.
-      let title = localized("Play Again")
       return MediaActionAppearance(
         id: .play,
         chrome: .pill,
         systemImage: "arrow.clockwise",
-        title: title,
-        accessibilityLabel: title,
+        title: caption.title,
+        accessibilityLabel: caption.accessibility,
+        isLoading: loading
+      )
+    case .play, .resume:
+      return MediaActionAppearance(
+        id: .play,
+        chrome: .playPill,
+        systemImage: "play.fill",
+        title: caption.title,
+        progress: caption.progress,
+        accessibilityLabel: caption.accessibility,
         isLoading: loading
       )
     }
   }
 
   public static func markWatched(for context: MediaActionContext) -> MediaActionAppearance {
-    let title = localized("Mark as Watched")
-    // Mid-title: labelled pill. Fresh start: icon circle. Matches the preview rows.
-    let midTitle: Bool = {
-      if case .resume = context.playback { return true }
-      return false
-    }()
+    let title = MediaActionCopy.localized("Mark as Watched")
+    let midTitle = context.isMidTitle
     return MediaActionAppearance(
       id: .markWatched,
       chrome: midTitle ? .pill : .circle,
@@ -230,7 +211,7 @@ public enum MediaActionCatalog {
   }
 
   public static func trailer(for context: MediaActionContext) -> MediaActionAppearance {
-    let title = localized("Trailer")
+    let title = MediaActionCopy.localized("Trailer")
     return MediaActionAppearance(
       id: .trailer,
       chrome: .pill,
@@ -246,7 +227,7 @@ public enum MediaActionCatalog {
       id: .bookmark,
       chrome: .circle,
       systemImage: context.isBookmarked ? "bookmark.fill" : "bookmark",
-      accessibilityLabel: localized("Bookmarks"),
+      accessibilityLabel: MediaActionCopy.localized("Bookmarks"),
       isLoading: context.loading.contains(.bookmark)
     )
   }
@@ -260,8 +241,8 @@ public enum MediaActionCatalog {
         ? "bell.and.waves.left.and.right.fill"
         : "bell",
       accessibilityLabel: following
-        ? localized("Remove from Watchlist")
-        : localized("Add to Watchlist"),
+        ? MediaActionCopy.localized("Remove from Watchlist")
+        : MediaActionCopy.localized("Add to Watchlist"),
       isLoading: context.loading.contains(.follow)
     )
   }
@@ -271,17 +252,21 @@ public enum MediaActionCatalog {
       id: .download,
       chrome: .circle,
       systemImage: "arrow.down.to.line",
-      accessibilityLabel: localized("Download"),
+      accessibilityLabel: MediaActionCopy.localized("Download"),
       isLoading: context.loading.contains(.download)
     )
   }
 
   public static func shuffle(for context: MediaActionContext) -> MediaActionAppearance {
-    let title = localized("Shuffle")
+    let title = MediaActionCopy.localized("Shuffle")
+    // Preview: labelled "Случайно" next to Trailer when the row is not mid-title;
+    // quiet circle once Mark Watched is already a pill.
+    let labelled = !context.isMidTitle
     return MediaActionAppearance(
       id: .shuffle,
-      chrome: .circle,
+      chrome: labelled ? .pill : .circle,
       systemImage: "shuffle",
+      title: labelled ? title : nil,
       accessibilityLabel: title,
       isLoading: context.loading.contains(.shuffle)
     )
@@ -292,32 +277,8 @@ public enum MediaActionCatalog {
       id: .more,
       chrome: .circle,
       systemImage: "ellipsis",
-      accessibilityLabel: localized("More"),
+      accessibilityLabel: MediaActionCopy.localized("More"),
       isLoading: context.loading.contains(.more)
     )
-  }
-
-  // MARK: Copy helpers
-
-  /// Meta beside the resume bar — "S1, E2 · 39m" or "39m". Falls back to Resume copy
-  /// when neither episode nor duration is worth saying.
-  public static func resumeTitle(episodeLabel: String?, durationSeconds: Int) -> String {
-    var parts: [String] = []
-    if let episodeLabel, !episodeLabel.isEmpty { parts.append(episodeLabel) }
-    if durationSeconds >= 60 {
-      let duration = Duration.compactHoursMinutes(seconds: durationSeconds)
-      if !duration.isEmpty { parts.append(duration) }
-    }
-    if !parts.isEmpty { return parts.joined(separator: " · ") }
-    if let episodeLabel, !episodeLabel.isEmpty {
-      return localized("Resume") + " " + episodeLabel
-    }
-    return localized("Resume")
-  }
-
-  /// Package code has no `String.localized`; resolve against the app catalogue the
-  /// same way `PaginationState` does.
-  static func localized(_ key: String) -> String {
-    NSLocalizedString(key, comment: "")
   }
 }

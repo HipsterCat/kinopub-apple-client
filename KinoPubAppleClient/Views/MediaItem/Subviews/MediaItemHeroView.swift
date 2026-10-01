@@ -879,6 +879,7 @@ struct MediaItemHeroView: View {
 #endif
     return MediaActionContext(
       playback: mediaItem.playbackButtonContent,
+      kind: mediaItem.presentation.kind,
       isSeries: isSeries,
       isBookmarked: isBookmarked,
       isFollowing: isInWatchlist,
@@ -886,10 +887,16 @@ struct MediaItemHeroView: View {
       showsTrailer: mediaItem.trailerURL != nil,
       showsFollow: isSeries && onToggleWatchlist != nil,
       showsDownload: false,
-      showsShuffle: false,
+      showsShuffle: showsShuffleButton,
       showsMore: showsMore,
       loading: loadingActions
     )
+  }
+
+  /// Random unwatched episode — series with enough episodes (preview mold).
+  private var showsShuffleButton: Bool {
+    guard isSeries, let seasons = mediaItem.seasons else { return false }
+    return seasons.reduce(0) { $0 + $1.episodes.count } >= 5
   }
 
   private var actionAppearances: [MediaActionAppearance] {
@@ -911,9 +918,40 @@ struct MediaItemHeroView: View {
       markWatchedControl(appearance)
     case .more:
       moreControl(appearance)
-    case .download, .shuffle:
+    case .download:
       MediaActionButton(appearance) {}
+    case .shuffle:
+      shuffleControl(appearance)
     }
+  }
+
+  /// Random unwatched episode — same player entry as Play, different target.
+  @ViewBuilder
+  private func shuffleControl(_ appearance: MediaActionAppearance) -> some View {
+    if let target = randomUnwatchedEpisode {
+      PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
+        MediaActionLabel(appearance)
+      }
+      .mediaActionStyle(appearance.chrome)
+      .accessibilityLabel(Text(appearance.accessibilityLabel))
+    } else {
+      MediaActionButton(appearance) {}
+        .disabled(true)
+    }
+  }
+
+  private var randomUnwatchedEpisode: Episode? {
+    guard let seasons = mediaItem.seasons else { return nil }
+    var pool: [Episode] = []
+    for season in seasons {
+      for episode in season.episodes where !episode.isWatched {
+        episode.seasonNumber = season.number
+        episode.mediaId = season.mediaId
+        episode.seriesTitle = mediaItem.localizedTitle
+        pool.append(episode)
+      }
+    }
+    return pool.randomElement()
   }
 
   @ViewBuilder

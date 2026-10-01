@@ -165,10 +165,12 @@ private struct MediaActionCatalogPreviewRow: View {
 #Preview("Action chrome") {
   ScrollView(.vertical) {
     VStack(alignment: .leading, spacing: 28) {
+      // Labels match docs/product/media-actions.md — open that file to read the matrix.
       MediaActionCatalogPreviewRow(
-        title: "Movie · unwatched",
+        title: "Movie · unwatched → Смотреть фильм",
         context: MediaActionContext(
-          playback: .play(episodeLabel: nil),
+          playback: .play(season: nil, episode: nil),
+          kind: .fiction,
           isSeries: false,
           showsMarkWatched: true,
           showsTrailer: true,
@@ -177,9 +179,10 @@ private struct MediaActionCatalogPreviewRow: View {
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Movie · watched",
+        title: "Movie · watched → Пересмотреть",
         context: MediaActionContext(
           playback: .playAgain,
+          kind: .fiction,
           isSeries: false,
           showsTrailer: true,
           showsDownload: true,
@@ -187,9 +190,10 @@ private struct MediaActionCatalogPreviewRow: View {
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Movie · in progress",
+        title: "Movie · in progress → 34 мин (remaining)",
         context: MediaActionContext(
-          playback: .resume(progress: 0.35, episodeLabel: nil, durationSeconds: 34 * 60),
+          playback: .resume(progress: 0.35, season: nil, episode: nil, durationSeconds: 52 * 60),
+          kind: .fiction,
           isSeries: false,
           showsMarkWatched: true,
           showsTrailer: true,
@@ -198,22 +202,25 @@ private struct MediaActionCatalogPreviewRow: View {
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Series · unwatched",
+        title: "Series · unwatched → 1 сезон, 1 серия",
         context: MediaActionContext(
-          playback: .play(episodeLabel: "S1, E1"),
+          playback: .play(season: 1, episode: 1),
+          kind: .fiction,
           isSeries: true,
           isBookmarked: true,
           isFollowing: true,
           showsMarkWatched: true,
           showsTrailer: true,
           showsFollow: true,
+          showsShuffle: true,
           showsMore: true
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Series · in progress",
+        title: "Series · in progress → 1 сезон, 2 серия (no · time)",
         context: MediaActionContext(
-          playback: .resume(progress: 0.35, episodeLabel: "S1, E2", durationSeconds: 42 * 60),
+          playback: .resume(progress: 0.35, season: 1, episode: 2, durationSeconds: 42 * 60),
+          kind: .fiction,
           isSeries: true,
           showsMarkWatched: true,
           showsTrailer: true,
@@ -223,20 +230,32 @@ private struct MediaActionCatalogPreviewRow: View {
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Series · watched (replay + shuffle)",
+        title: "Concert · unwatched → Смотреть концерт",
         context: MediaActionContext(
-          playback: .playAgain,
-          isSeries: true,
+          playback: .play(season: nil, episode: nil),
+          kind: .concert,
+          isSeries: false,
+          showsMarkWatched: true,
           showsTrailer: true,
-          showsFollow: true,
-          showsShuffle: true,
+          showsMore: true
+        )
+      )
+      MediaActionCatalogPreviewRow(
+        title: "Documentary · unwatched → Смотреть док",
+        context: MediaActionContext(
+          playback: .play(season: nil, episode: nil),
+          kind: .documentary,
+          isSeries: false,
+          showsMarkWatched: true,
+          showsTrailer: true,
           showsMore: true
         )
       )
       MediaActionCatalogPreviewRow(
         title: "Loading mark-watched",
         context: MediaActionContext(
-          playback: .resume(progress: 0.5, episodeLabel: nil, durationSeconds: 90 * 60),
+          playback: .resume(progress: 0.5, season: nil, episode: nil, durationSeconds: 90 * 60),
+          kind: .fiction,
           isSeries: false,
           showsMarkWatched: true,
           showsTrailer: true,
@@ -246,7 +265,9 @@ private struct MediaActionCatalogPreviewRow: View {
       )
     }
     .padding(24)
+    .environment(\.colorScheme, .dark)
   }
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  .background(Color.black)
 }
 #endif
