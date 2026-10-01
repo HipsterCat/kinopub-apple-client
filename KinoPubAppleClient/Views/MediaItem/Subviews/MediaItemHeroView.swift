@@ -278,6 +278,18 @@ struct MediaItemHeroView: View {
   /// Series watchlist toggle for the shared context menu (not the hero checkmark).
   var isInWatchlist: Bool = false
   var onToggleWatchlist: (() -> Void)? = nil
+  /// Next unaired episode's date (enrichment). Drives Follow-as-primary.
+  var nextEpisodeAirDate: Date? = nil
+  /// Download phase for the current playable; `nil` hides the control (flag off / TV).
+  var downloadPhase: MediaActionDownloadPhase? = nil
+  var onDownload: (() -> Void)? = nil
+  var onPauseDownload: (() -> Void)? = nil
+  var onDeleteDownload: (() -> Void)? = nil
+  var onDownloadSeason: ((Season) -> Void)? = nil
+  var onDownloadUnwatchedInSeason: ((Season) -> Void)? = nil
+  var onDownloadAllEpisodes: (() -> Void)? = nil
+  var onMarkUnwatchedInSeason: ((Season) -> Void)? = nil
+  var onMarkAllEpisodesWatched: (() -> Void)? = nil
   /// TMDB / Kinopoisk title logo when enrichment supplied one.
   var titleLogoURL: URL? = nil
   /// Certification from enrichment ("TV-14", "16+"). Rendered as one more capability
@@ -290,6 +302,8 @@ struct MediaItemHeroView: View {
   /// tvOS: called whenever one of the hero's own controls takes focus, including moves
   /// between them. The page scrolls back to the top with it.
   var onFocusEntered: (() -> Void)? = nil
+  /// Warm `BookmarkFoldersStore` once so a cold install is not an empty bookmark menu.
+  var ensureBookmarkFoldersLoaded: (() async -> Void)? = nil
 
   /// tvOS only: the Up gesture lifts the muted inline preview into a real full-screen
   /// player. Kept here so the same view that owns the preview owns its promotion.
@@ -839,9 +853,9 @@ struct MediaItemHeroView: View {
     return lines
   }
 
-  /// One catalog-driven row: Play / Replay, then Mark Watched (when mid-title), Trailer,
-  /// state circles, More. Order and chrome come from `MediaActionCatalog` — this view
-  /// only wires behaviour (PlayerLink, Menu, callbacks).
+  /// One catalog-driven row. Order/chrome from `MediaActionCatalog`; this view wires
+  /// behaviour. Forced dark for now so glass samples against the hero artwork the
+  /// same way in light and dark until the light-theme stage owns these controls.
   private var actions: some View {
     MediaActionRow {
       ForEach(actionAppearances) { appearance in
@@ -852,12 +866,20 @@ struct MediaItemHeroView: View {
           ))
       }
     }
+    .environment(\.colorScheme, .dark)
+    // Animate only membership changes (Mark Watched appearing/disappearing) — not
+    // glyph swaps inside a stable id, which used to look like the gaps grew.
     .animation(.easeOut(duration: 0.25), value: actionAppearances.map(\.id))
     .onChange(of: isWatched) { _, _ in
       loadingActions.remove(.markWatched)
     }
     .onChange(of: isInWatchlist) { _, _ in
       loadingActions.remove(.follow)
+    }
+    .task {
+      // Folder names live in BookmarkFoldersStore; cold installs have nothing until
+      // Library/Bookmarks adopt. Ask once so the menu is not an empty "New Folder".
+      await ensureBookmarkFoldersLoaded?()
     }
   }
 
@@ -867,19 +889,34 @@ struct MediaItemHeroView: View {
 #else
     let showsMore = false
 #endif
+    let playback = mediaItem.playbackButtonContent
+    let promote = MediaActionCatalog.shouldPromoteFollow(
+      isSeries: isSeries,
+      playback: playback,
+      seriesFinished: mediaItem.finished,
+      nextEpisodeAirDate: nextEpisodeAirDate
+    )
     return MediaActionContext(
-      playback: mediaItem.playbackButtonContent,
+      playback: playback,
+      kind: mediaItem.presentation.kind,
       isSeries: isSeries,
       isBookmarked: isBookmarked,
       isFollowing: isInWatchlist,
-      showsMarkWatched: showsWatchedButton,
+      showsMarkWatched: showsWatchedButton && !promote,
       showsTrailer: mediaItem.trailerURL != nil,
-      showsFollow: isSeries && onToggleWatchlist != nil,
-      showsDownload: false,
-      showsShuffle: false,
+      showsFollow: isSeries && onToggleWatchlist != nil && !promote,
+      download: downloadPhase,
+      showsShuffle: showsShuffleButton && !promote,
       showsMore: showsMore,
+      promoteFollow: promote && onToggleWatchlist != nil,
       loading: loadingActions
     )
+  }
+
+  /// Random unwatched episode — series with enough episodes (preview mold).
+  private var showsShuffleButton: Bool {
+    guard isSeries, let seasons = mediaItem.seasons else { return false }
+    return seasons.reduce(0) { $0 + $1.episodes.count } >= 5
   }
 
   private var actionAppearances: [MediaActionAppearance] {
@@ -901,21 +938,74 @@ struct MediaItemHeroView: View {
       markWatchedControl(appearance)
     case .more:
       moreControl(appearance)
-    case .download, .shuffle:
-      // Not wired on the hero yet — catalog can still emit them for other surfaces.
-      MediaActionButton(appearance) {}
+    case .download:
+      downloadControl(appearance)
+    case .shuffle:
+      shuffleControl(appearance)
     }
   }
 
-  private func focusTarget(for id: MediaActionID) -> MediaItemFocusTarget {
-    switch id {
-    case .play: return .play
-    case .trailer: return .trailer
-    case .bookmark: return .bookmark
-    case .follow: return .watchlist
-    case .markWatched: return .watched
-    case .more, .download, .shuffle: return .more
+  @ViewBuilder
+  private func downloadControl(_ appearance: MediaActionAppearance) -> some View {
+    Button {
+      switch downloadPhase {
+      case .downloading:
+        onPauseDownload?()
+      default:
+        onDownload?()
+      }
+    } label: {
+      MediaActionLabel(appearance)
     }
+    .mediaActionStyle(appearance.chrome)
+    .contextMenu {
+      if isSeries, let (season, _) = mediaItem.primaryEpisode {
+        Button {
+          onDownloadSeason?(season)
+        } label: {
+          Label("Download Season", systemImage: "arrow.down.to.line")
+        }
+        Button {
+          onDownloadUnwatchedInSeason?(season)
+        } label: {
+          Label("Download Unwatched in Season", systemImage: "arrow.down.to.line")
+        }
+        Button {
+          onDownloadAllEpisodes?()
+        } label: {
+          Label("Download All Episodes", systemImage: "arrow.down.to.line")
+        }
+      }
+    }
+  }
+
+  /// Random unwatched episode — same player entry as Play, different target.
+  @ViewBuilder
+  private func shuffleControl(_ appearance: MediaActionAppearance) -> some View {
+    if let target = randomUnwatchedEpisode {
+      PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
+        MediaActionLabel(appearance)
+      }
+      .mediaActionStyle(appearance.chrome)
+      .accessibilityLabel(Text(appearance.accessibilityLabel))
+    } else {
+      MediaActionButton(appearance) {}
+        .disabled(true)
+    }
+  }
+
+  private var randomUnwatchedEpisode: Episode? {
+    guard let seasons = mediaItem.seasons else { return nil }
+    var pool: [Episode] = []
+    for season in seasons {
+      for episode in season.episodes where !episode.isWatched {
+        episode.seasonNumber = season.number
+        episode.mediaId = season.mediaId
+        episode.seriesTitle = mediaItem.localizedTitle
+        pool.append(episode)
+      }
+    }
+    return pool.randomElement()
   }
 
   @ViewBuilder
@@ -928,9 +1018,6 @@ struct MediaItemHeroView: View {
     .focused($focus, equals: .play)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .accessibilityHint(Text("Starts playback"))
-    // A series episode arrives without its links, and the player fetches them on open —
-    // dead time the viewer spends on a spinner. Fetching while the page is on screen moves
-    // that request out of the tap. Idempotent and deduplicated, so re-running it is free.
     .task(id: target.id) {
       await PlaybackPreflight.shared.warm(target)
     }
@@ -945,12 +1032,44 @@ struct MediaItemHeroView: View {
     .focused($focus, equals: .trailer)
   }
 
-  /// Bookmark folders — icon only. Fills once the title is in at least one folder.
+  /// Bookmark folders — multi-select with a section title (the circle has no label).
+  /// Stays open while toggling; do **not** `.id` the menu on membership or focus
+  /// jumps back to Play after one checkmark.
   @ViewBuilder
   private func bookmarkControl(_ appearance: MediaActionAppearance) -> some View {
-    folderMenuLabel {
+    Menu {
+      Section {
+        if folders.isEmpty {
+          Text("No bookmark folders yet")
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(folders, id: \.id) { folder in
+            Toggle(isOn: Binding(
+              get: { folderIDsContainingItem.contains(folder.id) },
+              set: { _ in onFolderToggle(folder) }
+            )) {
+              Text(folder.title)
+            }
+          }
+        }
+      } header: {
+        Text("Bookmarks")
+      }
+
+      if onCreateFolder != nil {
+        Button {
+          newFolderName = ""
+          showNewFolderAlert = true
+        } label: {
+          Label("New Folder", systemImage: "folder.badge.plus")
+        }
+      }
+    } label: {
       MediaActionLabel(appearance)
     }
+#if !os(macOS)
+    .menuActionDismissBehavior(.disabled)
+#endif
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .bookmark)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
@@ -964,8 +1083,6 @@ struct MediaItemHeroView: View {
     }
   }
 
-  /// Follow the series — `/v1/watching/togglewatchlist`. Bell fills when subscribed
-  /// (catalog), distinct from the bookmark circle next door.
   @ViewBuilder
   private func followControl(_ appearance: MediaActionAppearance) -> some View {
     Button {
@@ -979,13 +1096,21 @@ struct MediaItemHeroView: View {
     .focused($focus, equals: .watchlist)
   }
 
-  /// Mark as watched. A film flips straight away; a series has to be asked which —
-  /// the episode you are on, or the whole season it belongs to. Gone once everything
-  /// is watched: there is nothing left to mark, and More carries Mark as New.
+  /// Tap marks watched. Long-press (series): episode · season · unwatched in season · all.
   @ViewBuilder
   private func markWatchedControl(_ appearance: MediaActionAppearance) -> some View {
-    if let (season, episode) = mediaItem.primaryEpisode, onSeasonWatchedToggle != nil {
-      Menu {
+    Button {
+      beginMarkWatched()
+      onWatchedToggle()
+    } label: {
+      MediaActionLabel(appearance)
+    }
+    .mediaActionStyle(appearance.chrome)
+    .disabled(appearance.isLoading)
+    .focused($focus, equals: .watched)
+    .accessibilityLabel(Text(appearance.accessibilityLabel))
+    .contextMenu {
+      if let (season, episode) = mediaItem.primaryEpisode {
         Button {
           beginMarkWatched()
           onWatchedToggle()
@@ -993,30 +1118,32 @@ struct MediaItemHeroView: View {
           Label("\("Mark Episode Watched".localized) · S\(season.number), E\(episode.number)",
                 systemImage: "checkmark")
         }
-        Button {
-          beginMarkWatched()
-          onSeasonWatchedToggle?(season)
-        } label: {
-          Label("\("Mark Season Watched".localized) · \(season.number)",
-                systemImage: "checkmark.circle")
+        if onSeasonWatchedToggle != nil {
+          Button {
+            beginMarkWatched()
+            onSeasonWatchedToggle?(season)
+          } label: {
+            Label("\("Mark Season Watched".localized) · \(season.number)",
+                  systemImage: "checkmark.circle")
+          }
         }
-      } label: {
-        MediaActionLabel(appearance)
+        if onMarkUnwatchedInSeason != nil {
+          Button {
+            beginMarkWatched()
+            onMarkUnwatchedInSeason?(season)
+          } label: {
+            Label("Mark Unwatched in Season", systemImage: "checkmark.circle")
+          }
+        }
+        if onMarkAllEpisodesWatched != nil {
+          Button {
+            beginMarkWatched()
+            onMarkAllEpisodesWatched?()
+          } label: {
+            Label("Mark All Episodes Watched", systemImage: "checkmark.circle.fill")
+          }
+        }
       }
-      .mediaActionStyle(appearance.chrome)
-      .focused($focus, equals: .watched)
-      .accessibilityLabel(Text(appearance.accessibilityLabel))
-    } else {
-      Button {
-        beginMarkWatched()
-        onWatchedToggle()
-      } label: {
-        MediaActionLabel(appearance)
-      }
-      .mediaActionStyle(appearance.chrome)
-      .disabled(appearance.isLoading)
-      .focused($focus, equals: .watched)
-      .accessibilityLabel(Text(appearance.accessibilityLabel))
     }
   }
 
@@ -1024,9 +1151,6 @@ struct MediaItemHeroView: View {
     loadingActions.insert(.markWatched)
   }
 
-  /// tvOS only: overflow as one more circle in the row, because a TV has no toolbar to
-  /// put it in. iPhone and Mac hoist the same menu into the navigation toolbar — that
-  /// is where a platform's secondary actions belong, and it buys the row a slot back.
   @ViewBuilder
   private func moreControl(_ appearance: MediaActionAppearance) -> some View {
     Menu {
@@ -1036,47 +1160,18 @@ struct MediaItemHeroView: View {
                             onWatchedToggle: onWatchedToggle,
                             onClearFromContinueWatching: onClearFromContinueWatching,
                             onBrowseWatchlist: onBrowseWatchlist)
+      if downloadPhase == .downloaded, let onDeleteDownload {
+        Divider()
+        Button(role: .destructive, action: onDeleteDownload) {
+          Label("Delete Download", systemImage: "trash")
+        }
+      }
     } label: {
       MediaActionLabel(appearance)
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .more)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
-  }
-
-  /// kino.pub bookmarks are folders — the circle opens the list (plus create).
-  @ViewBuilder
-  private func folderMenuLabel<Content: View>(@ViewBuilder label: () -> Content) -> some View {
-    Menu {
-      ForEach(folders, id: \.id) { folder in
-        Button {
-          onFolderToggle(folder)
-        } label: {
-          Label {
-            Text(folder.title)
-          } icon: {
-            // Invisible checkmark keeps the column aligned; an empty symbol name
-            // here logged "No symbol named ''" per folder per render.
-            Image(systemName: "checkmark")
-              .opacity(folderIDsContainingItem.contains(folder.id) ? 1 : 0)
-          }
-        }
-      }
-      if onCreateFolder != nil {
-        if !folders.isEmpty { Divider() }
-        Button {
-          newFolderName = ""
-          showNewFolderAlert = true
-        } label: {
-          SwiftUI.Label("New Folder", systemImage: "folder.badge.plus")
-        }
-      }
-    } label: {
-      label()
-    }
-    // Folder membership arrives after first paint; rebuild the menu when it flips
-    // so `bookmark` → `bookmark.fill` actually reaches the screen.
-    .id("\(isBookmarked)-\(folders.count)")
   }
 
   /// For a series, play the first episode that still has something left; the rail

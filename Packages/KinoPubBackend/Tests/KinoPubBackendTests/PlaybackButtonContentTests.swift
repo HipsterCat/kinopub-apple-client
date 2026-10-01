@@ -66,39 +66,39 @@ final class PlaybackButtonContentTests: XCTestCase {
   // MARK: - Films
 
   func testUnwatchedFilmOffersPlay() {
-    XCTAssertEqual(item(videos: [video(watched: 0, time: 0)]).playbackButtonContent, .play(episodeLabel: nil))
+    XCTAssertEqual(item(videos: [video(watched: 0, time: 0)]).playbackButtonContent, .play(season: nil, episode: nil))
   }
 
   func testPartWatchedFilmOffersResumeWithProgress() {
     let content = item(videos: [video(watched: 0, time: 1800, duration: 7200)]).playbackButtonContent
-    XCTAssertEqual(content, .resume(progress: 0.25, episodeLabel: nil, durationSeconds: 7200))
+    XCTAssertEqual(content, .resume(progress: 0.25, season: nil, episode: nil, durationSeconds: 7200))
   }
 
   func testWatchedFilmOffersPlayAgain() {
-    XCTAssertEqual(item(videos: [video(watched: 1, time: 7200)]).playbackButtonContent, .playAgain)
+    XCTAssertEqual(item(videos: [video(watched: 1, time: 7200)]).playbackButtonContent, .playAgain(season: nil, episode: nil))
   }
 
   // MARK: - Series
 
   func testUntouchedSeriesOffersPlayFirstEpisode() {
     let seasons = [season(1, episodes: [episode(number: 1, watched: 0), episode(number: 2, watched: 0)])]
-    XCTAssertEqual(item(seasons: seasons).playbackButtonContent, .play(episodeLabel: "S1, E1"))
+    XCTAssertEqual(item(seasons: seasons).playbackButtonContent, .play(season: 1, episode: 1))
   }
 
   func testNextUnwatchedEpisodeAfterFinishingOneOffersPlay() {
     let seasons = [season(1, episodes: [episode(number: 1, watched: 1), episode(number: 2, watched: 0)])]
-    XCTAssertEqual(item(seasons: seasons).playbackButtonContent, .play(episodeLabel: "S1, E2"))
+    XCTAssertEqual(item(seasons: seasons).playbackButtonContent, .play(season: 1, episode: 2))
   }
 
   func testEpisodeInProgressOffersResumeWithProgress() {
     let seasons = [season(1, episodes: [episode(number: 2, watched: 0, time: 600, duration: 2400)])]
     let content = item(seasons: seasons).playbackButtonContent
-    XCTAssertEqual(content, .resume(progress: 0.25, episodeLabel: "S1, E2", durationSeconds: 2400))
+    XCTAssertEqual(content, .resume(progress: 0.25, season: 1, episode: 2, durationSeconds: 2400))
   }
 
   func testFullyWatchedSeriesOffersPlayAgain() {
     let seasons = [season(1, episodes: [episode(number: 1, watched: 1), episode(number: 2, watched: 1)])]
-    XCTAssertEqual(item(seasons: seasons).playbackButtonContent, .playAgain)
+    XCTAssertEqual(item(seasons: seasons).playbackButtonContent, .playAgain(season: 1, episode: 1))
   }
 
   func testPrimaryEpisodeSkipsWatchedOnes() {

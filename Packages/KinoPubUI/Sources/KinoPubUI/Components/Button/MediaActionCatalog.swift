@@ -2,13 +2,8 @@
 //  MediaActionCatalog.swift
 //  KinoPubUI
 //
-//  Label / chrome / order for media primary-action rows. One mapping, used by the
-//  detail hero today and reusable anywhere the same buttons appear — the view that
-//  hosts them does not invent icons or weights per screen.
-//
-//  The visual mold is the `#Preview` at the bottom of `MediaActionButtonStyle.swift`
-//  (settled LazyHStack rows): play weight, quieter replay, labelled Mark Watched only
-//  mid-title, Trailer as a pill, state circles after that.
+//  Label / chrome / order for media primary-action rows.
+//  Copy rules: `docs/product/media-actions.md`.
 //
 
 import Foundation
@@ -16,8 +11,6 @@ import KinoPubBackend
 
 // MARK: - Identity
 
-/// Which control this is. Call sites wire behaviour by id; the catalog never owns
-/// navigation, menus, or network.
 public enum MediaActionID: String, Hashable, Sendable, CaseIterable {
   case play
   case markWatched
@@ -29,29 +22,27 @@ public enum MediaActionID: String, Hashable, Sendable, CaseIterable {
   case more
 }
 
-/// System chrome vocabulary from `MediaActionButtonStyle` — nothing hand-drawn.
 public enum MediaActionChrome: Hashable, Sendable {
-  /// `.glassProminent` capsule — the entry play control.
   case playPill
-  /// `.borderedProminent` capsule — Trailer, Mark Watched (mid-title), quieter Replay.
   case pill
-  /// `.bordered` circle — bookmark / follow / watched / download / more.
   case circle
 }
 
-// MARK: - Appearance
+/// Download control phase. `downloaded` means the circle is absent — Delete lives in More.
+public enum MediaActionDownloadPhase: Equatable, Sendable {
+  case idle
+  case downloading(progress: Double)
+  case downloaded
+}
 
-/// Everything a button needs to draw, and nothing about what tapping it does.
 public struct MediaActionAppearance: Equatable, Identifiable, Sendable {
   public var id: MediaActionID
   public var chrome: MediaActionChrome
-  /// SF Symbol name.
   public var systemImage: String
-  /// Nil → icon-only circle (or loading spinner in its place).
   public var title: String?
-  /// When set, the play label shows `MediaActionProgressTrack` between the glyph and
-  /// the title — the one non-system piece of chrome.
   public var progress: Double?
+  /// Circle download: ring progress with a pause glyph in the middle.
+  public var circularProgress: Double?
   public var accessibilityLabel: String
   public var isLoading: Bool
 
@@ -61,6 +52,7 @@ public struct MediaActionAppearance: Equatable, Identifiable, Sendable {
     systemImage: String,
     title: String? = nil,
     progress: Double? = nil,
+    circularProgress: Double? = nil,
     accessibilityLabel: String,
     isLoading: Bool = false
   ) {
@@ -69,72 +61,100 @@ public struct MediaActionAppearance: Equatable, Identifiable, Sendable {
     self.systemImage = systemImage
     self.title = title
     self.progress = progress
+    self.circularProgress = circularProgress
     self.accessibilityLabel = accessibilityLabel
     self.isLoading = isLoading
   }
 }
 
-// MARK: - Context
-
-/// Facts the catalog needs. Kept free of `MediaItem` / view models so cards, sheets
-/// and the hero can all build one.
 public struct MediaActionContext: Equatable, Sendable {
   public var playback: PlaybackButtonContent
+  public var kind: MediaPresentationKind
   public var isSeries: Bool
   public var isBookmarked: Bool
   public var isFollowing: Bool
   public var showsMarkWatched: Bool
   public var showsTrailer: Bool
   public var showsFollow: Bool
-  public var showsDownload: Bool
+  /// `nil` = downloads off for this surface/platform. Otherwise the live phase.
+  public var download: MediaActionDownloadPhase?
   public var showsShuffle: Bool
   public var showsMore: Bool
+  /// Series ongoing, all watched, next episode within ~2 weeks → labelled Follow leads.
+  public var promoteFollow: Bool
   public var loading: Set<MediaActionID>
 
   public init(
     playback: PlaybackButtonContent,
+    kind: MediaPresentationKind = .fiction,
     isSeries: Bool,
     isBookmarked: Bool = false,
     isFollowing: Bool = false,
     showsMarkWatched: Bool = false,
     showsTrailer: Bool = false,
     showsFollow: Bool = false,
-    showsDownload: Bool = false,
+    download: MediaActionDownloadPhase? = nil,
     showsShuffle: Bool = false,
     showsMore: Bool = false,
+    promoteFollow: Bool = false,
     loading: Set<MediaActionID> = []
   ) {
     self.playback = playback
+    self.kind = kind
     self.isSeries = isSeries
     self.isBookmarked = isBookmarked
     self.isFollowing = isFollowing
     self.showsMarkWatched = showsMarkWatched
     self.showsTrailer = showsTrailer
     self.showsFollow = showsFollow
-    self.showsDownload = showsDownload
+    self.download = download
     self.showsShuffle = showsShuffle
     self.showsMore = showsMore
+    self.promoteFollow = promoteFollow
     self.loading = loading
+  }
+
+  /// Backward-compatible bool for older call sites / tests.
+  public var showsDownload: Bool {
+    get {
+      switch download {
+      case .idle, .downloading: return true
+      case .downloaded, .none: return false
+      }
+    }
+    set {
+      if newValue {
+        if download == nil || download == .downloaded { download = .idle }
+      } else {
+        download = nil
+      }
+    }
+  }
+
+  var isMidTitle: Bool {
+    if case .resume = playback { return true }
+    return false
   }
 }
 
-// MARK: - Catalog
-
 public enum MediaActionCatalog {
 
-  /// Ordered primary row for the given state. Empty slots are simply absent — callers
-  /// do not filter.
   public static func row(for context: MediaActionContext) -> [MediaActionAppearance] {
+    if context.promoteFollow {
+      return awaitingNextEpisodeRow(for: context)
+    }
+
     var row: [MediaActionAppearance] = [play(for: context)]
 
     let mark = context.showsMarkWatched ? markWatched(for: context) : nil
-    // Mid-title Mark Watched is a labelled pill and sits next to Play (preview mold).
-    // Fresh-start checkmark is a circle and joins the state cluster after Trailer.
     if let mark, mark.chrome == .pill {
       row.append(mark)
     }
     if context.showsTrailer {
       row.append(trailer(for: context))
+    }
+    if context.showsShuffle, !context.isMidTitle {
+      row.append(shuffle(for: context))
     }
     row.append(bookmark(for: context))
     if context.showsFollow {
@@ -143,11 +163,32 @@ public enum MediaActionCatalog {
     if let mark, mark.chrome == .circle {
       row.append(mark)
     }
-    if context.showsDownload {
-      row.append(download(for: context))
+    if let download = download(for: context) {
+      row.append(download)
     }
-    if context.showsShuffle {
+    if context.showsShuffle, context.isMidTitle {
       row.append(shuffle(for: context))
+    }
+    if context.showsMore {
+      row.append(more(for: context))
+    }
+    return row
+  }
+
+  /// `[Отслеживать] · Trailer · Replay · bookmark · …`
+  private static func awaitingNextEpisodeRow(
+    for context: MediaActionContext
+  ) -> [MediaActionAppearance] {
+    var row: [MediaActionAppearance] = [
+      follow(for: context, chrome: .playPill, titled: true)
+    ]
+    if context.showsTrailer {
+      row.append(trailer(for: context))
+    }
+    row.append(play(for: context)) // Replay — playAgain chrome/title
+    row.append(bookmark(for: context))
+    if let download = download(for: context) {
+      row.append(download)
     }
     if context.showsMore {
       row.append(more(for: context))
@@ -159,64 +200,33 @@ public enum MediaActionCatalog {
 
   public static func play(for context: MediaActionContext) -> MediaActionAppearance {
     let loading = context.loading.contains(.play)
+    let caption = MediaActionCopy.playCaption(playback: context.playback, kind: context.kind)
     switch context.playback {
-    case .play(let episodeLabel):
-      let title: String
-      let accessibility: String
-      if let episodeLabel, !episodeLabel.isEmpty {
-        // Series mold: the episode *is* the label — no "Play" prefix beside Trailer.
-        title = episodeLabel
-        accessibility = localized("Play") + " " + episodeLabel
-      } else {
-        title = localized("Play")
-        accessibility = title
-      }
-      return MediaActionAppearance(
-        id: .play,
-        chrome: .playPill,
-        systemImage: "play.fill",
-        title: title,
-        accessibilityLabel: accessibility,
-        isLoading: loading
-      )
-
-    case .resume(let progress, let episodeLabel, let durationSeconds):
-      let title = resumeTitle(episodeLabel: episodeLabel, durationSeconds: durationSeconds)
-      let accessibility: String = {
-        if let episodeLabel { return localized("Resume") + " " + episodeLabel }
-        return localized("Resume")
-      }()
-      return MediaActionAppearance(
-        id: .play,
-        chrome: .playPill,
-        systemImage: "play.fill",
-        title: title,
-        progress: progress,
-        accessibilityLabel: accessibility,
-        isLoading: loading
-      )
-
     case .playAgain:
-      // Watched mold: quieter capsule + clockwise glyph, not another glass Play.
-      let title = localized("Play Again")
       return MediaActionAppearance(
         id: .play,
         chrome: .pill,
         systemImage: "arrow.clockwise",
-        title: title,
-        accessibilityLabel: title,
+        title: caption.title,
+        accessibilityLabel: caption.accessibility,
+        isLoading: loading
+      )
+    case .play, .resume:
+      return MediaActionAppearance(
+        id: .play,
+        chrome: .playPill,
+        systemImage: "play.fill",
+        title: caption.title,
+        progress: caption.progress,
+        accessibilityLabel: caption.accessibility,
         isLoading: loading
       )
     }
   }
 
   public static func markWatched(for context: MediaActionContext) -> MediaActionAppearance {
-    let title = localized("Mark as Watched")
-    // Mid-title: labelled pill. Fresh start: icon circle. Matches the preview rows.
-    let midTitle: Bool = {
-      if case .resume = context.playback { return true }
-      return false
-    }()
+    let title = MediaActionCopy.localized("Mark as Watched")
+    let midTitle = context.isMidTitle
     return MediaActionAppearance(
       id: .markWatched,
       chrome: midTitle ? .pill : .circle,
@@ -228,7 +238,7 @@ public enum MediaActionCatalog {
   }
 
   public static func trailer(for context: MediaActionContext) -> MediaActionAppearance {
-    let title = localized("Trailer")
+    let title = MediaActionCopy.localized("Trailer")
     return MediaActionAppearance(
       id: .trailer,
       chrome: .pill,
@@ -244,42 +254,62 @@ public enum MediaActionCatalog {
       id: .bookmark,
       chrome: .circle,
       systemImage: context.isBookmarked ? "bookmark.fill" : "bookmark",
-      accessibilityLabel: localized("Bookmarks"),
+      accessibilityLabel: MediaActionCopy.localized("Bookmarks"),
       isLoading: context.loading.contains(.bookmark)
     )
   }
 
-  public static func follow(for context: MediaActionContext) -> MediaActionAppearance {
+  public static func follow(
+    for context: MediaActionContext,
+    chrome: MediaActionChrome = .circle,
+    titled: Bool = false
+  ) -> MediaActionAppearance {
     let following = context.isFollowing
+    let title = titled ? MediaActionCopy.followTitle(isFollowing: following) : nil
     return MediaActionAppearance(
       id: .follow,
-      chrome: .circle,
+      chrome: chrome,
       systemImage: following
         ? "bell.and.waves.left.and.right.fill"
         : "bell",
-      accessibilityLabel: following
-        ? localized("Remove from Watchlist")
-        : localized("Add to Watchlist"),
+      title: title,
+      accessibilityLabel: MediaActionCopy.followTitle(isFollowing: following),
       isLoading: context.loading.contains(.follow)
     )
   }
 
-  public static func download(for context: MediaActionContext) -> MediaActionAppearance {
-    MediaActionAppearance(
-      id: .download,
-      chrome: .circle,
-      systemImage: "arrow.down.to.line",
-      accessibilityLabel: localized("Download"),
-      isLoading: context.loading.contains(.download)
-    )
+  public static func download(for context: MediaActionContext) -> MediaActionAppearance? {
+    switch context.download {
+    case .none, .downloaded:
+      return nil
+    case .idle:
+      return MediaActionAppearance(
+        id: .download,
+        chrome: .circle,
+        systemImage: "arrow.down.to.line",
+        accessibilityLabel: MediaActionCopy.localized("Download"),
+        isLoading: context.loading.contains(.download)
+      )
+    case .downloading(let progress):
+      return MediaActionAppearance(
+        id: .download,
+        chrome: .circle,
+        systemImage: "pause.fill",
+        circularProgress: progress,
+        accessibilityLabel: MediaActionCopy.localized("Pause Download"),
+        isLoading: false
+      )
+    }
   }
 
   public static func shuffle(for context: MediaActionContext) -> MediaActionAppearance {
-    let title = localized("Shuffle")
+    let title = MediaActionCopy.localized("Shuffle")
+    let labelled = !context.isMidTitle
     return MediaActionAppearance(
       id: .shuffle,
-      chrome: .circle,
+      chrome: labelled ? .pill : .circle,
       systemImage: "shuffle",
+      title: labelled ? title : nil,
       accessibilityLabel: title,
       isLoading: context.loading.contains(.shuffle)
     )
@@ -290,32 +320,22 @@ public enum MediaActionCatalog {
       id: .more,
       chrome: .circle,
       systemImage: "ellipsis",
-      accessibilityLabel: localized("More"),
+      accessibilityLabel: MediaActionCopy.localized("More"),
       isLoading: context.loading.contains(.more)
     )
   }
 
-  // MARK: Copy helpers
-
-  /// Meta beside the resume bar — "S1, E2 · 39m" or "39m". Falls back to Resume copy
-  /// when neither episode nor duration is worth saying.
-  public static func resumeTitle(episodeLabel: String?, durationSeconds: Int) -> String {
-    var parts: [String] = []
-    if let episodeLabel, !episodeLabel.isEmpty { parts.append(episodeLabel) }
-    if durationSeconds >= 60 {
-      let duration = Duration.compactHoursMinutes(seconds: durationSeconds)
-      if !duration.isEmpty { parts.append(duration) }
-    }
-    if !parts.isEmpty { return parts.joined(separator: " · ") }
-    if let episodeLabel, !episodeLabel.isEmpty {
-      return localized("Resume") + " " + episodeLabel
-    }
-    return localized("Resume")
-  }
-
-  /// Package code has no `String.localized`; resolve against the app catalogue the
-  /// same way `PaginationState` does.
-  static func localized(_ key: String) -> String {
-    NSLocalizedString(key, comment: "")
+  /// Next episode within two weeks, series not finished, everything watched.
+  public static func shouldPromoteFollow(
+    isSeries: Bool,
+    playback: PlaybackButtonContent,
+    seriesFinished: Bool,
+    nextEpisodeAirDate: Date?,
+    now: Date = Date()
+  ) -> Bool {
+    guard isSeries, !seriesFinished, case .playAgain = playback,
+          let air = nextEpisodeAirDate, air > now else { return false }
+    let fortnight: TimeInterval = 14 * 24 * 60 * 60
+    return air.timeIntervalSince(now) <= fortnight
   }
 }

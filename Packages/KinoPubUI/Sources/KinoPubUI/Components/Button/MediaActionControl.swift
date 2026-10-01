@@ -3,9 +3,9 @@
 //  KinoPubUI
 //
 //  The button that draws a `MediaActionAppearance`. Owns spacing, the loading
-//  swap, and the system chrome application so callers do not re-pad or restyle
-//  each time. Behaviour (Menu / PlayerLink / plain action) stays at the call site
-//  — wrap `MediaActionLabel` or use `MediaActionButton` for a plain `Button`.
+//  swap, symbol transitions, and the system chrome application so callers do
+//  not re-pad or restyle each time. Behaviour (Menu / PlayerLink / plain action)
+//  stays at the call site — wrap `MediaActionLabel` or use `MediaActionButton`.
 //
 
 import SwiftUI
@@ -28,6 +28,10 @@ public struct MediaActionLabel: View {
 #if !os(tvOS)
           .controlSize(.small)
 #endif
+          .frame(
+            width: appearance.chrome == .circle ? MediaActionMetrics.circleGlyphSlot : nil,
+            height: appearance.chrome == .circle ? MediaActionMetrics.circleGlyphSlot : nil
+          )
       } else {
         content
       }
@@ -41,18 +45,42 @@ public struct MediaActionLabel: View {
   private var content: some View {
     switch appearance.chrome {
     case .circle:
-      Image(systemName: appearance.systemImage)
+      if let circular = appearance.circularProgress {
+        ZStack {
+          Circle()
+            .stroke(.tertiary, lineWidth: 2)
+          Circle()
+            .trim(from: 0, to: min(max(circular, 0), 1))
+            .stroke(.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+          Image(systemName: appearance.systemImage)
+        }
+        .frame(width: MediaActionMetrics.circleGlyphSlot,
+               height: MediaActionMetrics.circleGlyphSlot)
+      } else {
+        Image(systemName: appearance.systemImage)
+          .contentTransition(.symbolEffect(.replace))
+          .symbolEffect(.bounce, value: appearance.systemImage)
+          .frame(width: MediaActionMetrics.circleGlyphSlot,
+                 height: MediaActionMetrics.circleGlyphSlot)
+          .animation(.easeOut(duration: 0.25), value: appearance.systemImage)
+      }
     case .playPill, .pill:
       HStack(spacing: MediaActionMetrics.contentSpacing) {
         Image(systemName: appearance.systemImage)
+          .contentTransition(.symbolEffect(.replace))
+          .symbolEffect(.bounce, value: appearance.systemImage)
         if let progress = appearance.progress {
           MediaActionProgressTrack(progress: progress)
         }
         if let title = appearance.title {
           Text(title)
             .lineLimit(1)
+            .contentTransition(.opacity)
         }
       }
+      .animation(.easeOut(duration: 0.25), value: appearance.systemImage)
+      .animation(.easeOut(duration: 0.25), value: appearance.title)
     }
   }
 }
@@ -83,7 +111,8 @@ public struct MediaActionButton: View {
 // MARK: - Row
 
 /// Horizontal stack with catalog row spacing. Insert/remove transitions match the
-/// Mark Watched "scale out on success" sketch.
+/// Mark Watched "scale out on success" sketch — animate **ids only**, not glyph
+/// swaps, so a bell toggle cannot look like the gaps grew.
 public struct MediaActionRow<Content: View>: View {
   private let content: Content
 

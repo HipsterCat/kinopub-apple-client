@@ -38,6 +38,9 @@ public enum MediaActionMetrics {
   public static let progressHeight: CGFloat = 8
   public static let contentSpacing: CGFloat = 14
   public static let rowSpacing: CGFloat = 16
+  /// Fixed glyph box inside circle chrome so `bell` → `bell.and.waves…` (or a
+  /// spinner) cannot widen the button and look like row spacing grew.
+  public static let circleGlyphSlot: CGFloat = 28
 #else
   public static let playPillMinWidth: CGFloat = 60
   public static let labelFont = TypeScale.actionLabel
@@ -45,6 +48,7 @@ public enum MediaActionMetrics {
   public static let progressHeight: CGFloat = 3
   public static let contentSpacing: CGFloat = 6
   public static let rowSpacing: CGFloat = 12
+  public static let circleGlyphSlot: CGFloat = 18
 #endif
 }
 
@@ -78,29 +82,31 @@ public extension View {
 // MARK: - System styles
 
 public extension View {
-  /// Play / Resume — the primary call to action.
+  /// Entry Play / Resume capsule. Glass adapts with the environment; white elevated
+  /// fill is **focus**, not a forced tint. Do not add `.tint(.primary)` — that froze
+  /// Play white at rest (the preview only painted it white as default focus).
   func mediaActionPlayPillStyle() -> some View {
     buttonStyle(.glassProminent)
-      .tint(.primary)
       .buttonBorderShape(.capsule)
 #if !os(tvOS)
       .controlSize(.large)
 #endif
   }
 
-  /// A labelled secondary control (Trailer, Watchlist) — same capsule, quieter weight.
+  /// Labelled secondary capsule (Trailer, Mark Watched, Replay). System `.glass` so
+  /// the plate tracks light/dark / materials instead of a flat bordered fill.
   func mediaActionPillStyle() -> some View {
-    buttonStyle(.borderedProminent)
+    buttonStyle(.glass)
       .buttonBorderShape(.capsule)
 #if !os(tvOS)
       .controlSize(.large)
 #endif
   }
 
-  /// An icon-only secondary control. `.circle` is a real `ButtonBorderShape`, so the
-  /// plate, its focus treatment and its press feedback are all the system's.
+  /// Icon-only circle. Same glass family as the labelled pills — focus owns the
+  /// lift; the glyph slot is fixed so a wider SF Symbol does not shove neighbours.
   func mediaActionCircleStyle() -> some View {
-    buttonStyle(.bordered)
+    buttonStyle(.glass)
       .buttonBorderShape(.circle)
 #if !os(tvOS)
       .controlSize(.large)
@@ -159,55 +165,73 @@ private struct MediaActionCatalogPreviewRow: View {
 #Preview("Action chrome") {
   ScrollView(.vertical) {
     VStack(alignment: .leading, spacing: 28) {
+      // Labels match docs/product/media-actions.md — open that file to read the matrix.
       MediaActionCatalogPreviewRow(
-        title: "Movie · unwatched",
+        title: "Movie · unwatched → Смотреть фильм",
         context: MediaActionContext(
-          playback: .play(episodeLabel: nil),
+          playback: .play(season: nil, episode: nil),
+          kind: .fiction,
           isSeries: false,
           showsMarkWatched: true,
           showsTrailer: true,
-          showsDownload: true,
+          download: .idle,
           showsMore: true
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Movie · watched",
+        title: "Movie · watched → Пересмотреть",
         context: MediaActionContext(
-          playback: .playAgain,
+          playback: .playAgain(season: nil, episode: nil),
+          kind: .fiction,
           isSeries: false,
           showsTrailer: true,
-          showsDownload: true,
+          download: .idle,
           showsMore: true
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Movie · in progress",
+        title: "Movie · in progress → Ещё … / … left",
         context: MediaActionContext(
-          playback: .resume(progress: 0.35, episodeLabel: nil, durationSeconds: 34 * 60),
+          playback: .resume(progress: 0.35, season: nil, episode: nil, durationSeconds: 52 * 60),
+          kind: .fiction,
           isSeries: false,
           showsMarkWatched: true,
           showsTrailer: true,
-          showsDownload: true,
+          download: .idle,
           showsMore: true
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Series · unwatched",
+        title: "Movie · downloading → pause ring",
         context: MediaActionContext(
-          playback: .play(episodeLabel: "S1, E1"),
+          playback: .play(season: nil, episode: nil),
+          kind: .fiction,
+          isSeries: false,
+          showsTrailer: true,
+          download: .downloading(progress: 0.45),
+          showsMore: true
+        )
+      )
+      MediaActionCatalogPreviewRow(
+        title: "Series · unwatched → Play S1, E1 / 1 сезон, 1 серия",
+        context: MediaActionContext(
+          playback: .play(season: 1, episode: 1),
+          kind: .fiction,
           isSeries: true,
           isBookmarked: true,
           isFollowing: true,
           showsMarkWatched: true,
           showsTrailer: true,
           showsFollow: true,
+          showsShuffle: true,
           showsMore: true
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Series · in progress",
+        title: "Series · in progress → 1 сезон, 2 серия (no · time)",
         context: MediaActionContext(
-          playback: .resume(progress: 0.35, episodeLabel: "S1, E2", durationSeconds: 42 * 60),
+          playback: .resume(progress: 0.35, season: 1, episode: 2, durationSeconds: 42 * 60),
+          kind: .fiction,
           isSeries: true,
           showsMarkWatched: true,
           showsTrailer: true,
@@ -217,20 +241,43 @@ private struct MediaActionCatalogPreviewRow: View {
         )
       )
       MediaActionCatalogPreviewRow(
-        title: "Series · watched (replay + shuffle)",
+        title: "Series · awaiting next → Отслеживать primary",
         context: MediaActionContext(
-          playback: .playAgain,
+          playback: .playAgain(season: 1, episode: 1),
+          kind: .fiction,
           isSeries: true,
           showsTrailer: true,
-          showsFollow: true,
-          showsShuffle: true,
+          showsMore: true,
+          promoteFollow: true
+        )
+      )
+      MediaActionCatalogPreviewRow(
+        title: "Concert · unwatched → Смотреть",
+        context: MediaActionContext(
+          playback: .play(season: nil, episode: nil),
+          kind: .concert,
+          isSeries: false,
+          showsMarkWatched: true,
+          showsTrailer: true,
+          showsMore: true
+        )
+      )
+      MediaActionCatalogPreviewRow(
+        title: "Documentary · unwatched → Смотреть фильм",
+        context: MediaActionContext(
+          playback: .play(season: nil, episode: nil),
+          kind: .documentary,
+          isSeries: false,
+          showsMarkWatched: true,
+          showsTrailer: true,
           showsMore: true
         )
       )
       MediaActionCatalogPreviewRow(
         title: "Loading mark-watched",
         context: MediaActionContext(
-          playback: .resume(progress: 0.5, episodeLabel: nil, durationSeconds: 90 * 60),
+          playback: .resume(progress: 0.5, season: nil, episode: nil, durationSeconds: 90 * 60),
+          kind: .fiction,
           isSeries: false,
           showsMarkWatched: true,
           showsTrailer: true,
@@ -240,7 +287,9 @@ private struct MediaActionCatalogPreviewRow: View {
       )
     }
     .padding(24)
+    .environment(\.colorScheme, .dark)
   }
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  .background(Color.black)
 }
 #endif

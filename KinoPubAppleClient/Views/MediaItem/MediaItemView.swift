@@ -226,6 +226,16 @@ struct MediaItemView: View {
                             onBrowseWatchlist: { Self.openWatchlist(navigationState) },
                             isInWatchlist: itemModel.isInWatchlist,
                             onToggleWatchlist: { itemModel.toggleWatchlist() },
+                            nextEpisodeAirDate: itemModel.nextEpisodeAirDate,
+                            downloadPhase: itemModel.downloadPhase,
+                            onDownload: { itemModel.startCurrentDownload() },
+                            onPauseDownload: { itemModel.pauseCurrentDownload() },
+                            onDeleteDownload: { itemModel.deleteCurrentDownload() },
+                            onDownloadSeason: { itemModel.downloadSeason($0) },
+                            onDownloadUnwatchedInSeason: { itemModel.downloadUnwatchedInSeason($0) },
+                            onDownloadAllEpisodes: { itemModel.downloadAllEpisodes() },
+                            onMarkUnwatchedInSeason: { itemModel.markUnwatchedInSeason($0) },
+                            onMarkAllEpisodesWatched: { itemModel.markAllEpisodesWatched() },
                             titleLogoURL: itemModel.externalMetadata.titleLogoURL,
                             ageRating: itemModel.externalMetadata.ageRating,
                             externalMetadataLoaded: itemModel.externalMetadataLoaded,
@@ -233,6 +243,9 @@ struct MediaItemView: View {
                               withAnimation(.easeInOut(duration: 0.4)) {
                                 proxy.scrollTo(Self.heroAnchor, anchor: .top)
                               }
+                            },
+                            ensureBookmarkFoldersLoaded: {
+                              await itemModel.ensureBookmarkFoldersLoaded()
                             })
             .id(Self.heroAnchor)
 #if os(tvOS)

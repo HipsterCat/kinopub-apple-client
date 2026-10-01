@@ -7,13 +7,15 @@ import Foundation
 /// What the detail page's primary play control should show.
 ///
 /// Prefer the resume case with a mini progress bar (same capsule as Continue
-/// Watching cards). When a bar can't be drawn, fall back to a "Resume …" title.
+/// Watching cards). Season/episode are numbers — the UI formats them via
+/// `MediaActionCopy` (`1 сезон, 2 серия` / `S1, E2`).
 public enum PlaybackButtonContent: Equatable, Sendable {
-  /// Mid-title: progress bar + "S1, E2 · 39 min" / "39 min", or "Resume …" without a bar.
-  case resume(progress: Double, episodeLabel: String?, durationSeconds: Int)
+  /// Mid-title: progress bar + episode label *or* remaining minutes (not both).
+  case resume(progress: Double, season: Int?, episode: Int?, durationSeconds: Int)
   /// Fresh start, or the next unwatched episode after finishing a previous one.
-  case play(episodeLabel: String?)
-  case playAgain
+  case play(season: Int?, episode: Int?)
+  /// Fully watched. Series carry the episode Replay would reopen (usually S1E1).
+  case playAgain(season: Int?, episode: Int?)
 }
 
 public extension MediaItem {
@@ -32,26 +34,38 @@ public extension MediaItem {
   }
 
   var playbackButtonContent: PlaybackButtonContent {
-    if playbackAction == .playAgain { return .playAgain }
+    if playbackAction == .playAgain {
+      if let (season, episode) = primaryEpisode {
+        return .playAgain(season: season.number, episode: episode.number)
+      }
+      return .playAgain(season: nil, episode: nil)
+    }
 
     if isSeries {
-      guard let (season, episode) = primaryEpisode else { return .play(episodeLabel: nil) }
-      let label = "S\(season.number), E\(episode.number)"
+      guard let (season, episode) = primaryEpisode else {
+        return .play(season: nil, episode: nil)
+      }
       if let progress = Self.progress(watched: episode.watched,
                                       time: episode.watching.time,
                                       duration: episode.duration) {
-        return .resume(progress: progress, episodeLabel: label, durationSeconds: episode.duration)
+        return .resume(progress: progress,
+                       season: season.number,
+                       episode: episode.number,
+                       durationSeconds: episode.duration)
       }
-      return .play(episodeLabel: label)
+      return .play(season: season.number, episode: episode.number)
     }
 
-    guard let video = videos?.first else { return .play(episodeLabel: nil) }
+    guard let video = videos?.first else { return .play(season: nil, episode: nil) }
     if let progress = Self.progress(watched: video.watched,
                                     time: video.watching.time,
                                     duration: video.duration) {
-      return .resume(progress: progress, episodeLabel: nil, durationSeconds: video.duration)
+      return .resume(progress: progress,
+                     season: nil,
+                     episode: nil,
+                     durationSeconds: video.duration)
     }
-    return .play(episodeLabel: nil)
+    return .play(season: nil, episode: nil)
   }
 
   private static func progress(watched: Int, time: Int, duration: Int) -> Double? {
