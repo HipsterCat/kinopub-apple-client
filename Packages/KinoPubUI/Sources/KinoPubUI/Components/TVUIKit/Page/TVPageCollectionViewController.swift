@@ -476,6 +476,8 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   private var pendingReconfigure: [TVPageItemID] = []
+  /// Banner rows already scrolled to their start, by section id.
+  private var centeredBanners: Set<String> = []
   private var hasAppliedOnce = false
 
   /// A grid with more pages coming ends on a full row: its last row is topped up with
@@ -667,9 +669,6 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
                     from: name(context.previouslyFocusedIndexPath),
                     to: name(context.nextFocusedIndexPath))
   }
-
-  /// Banner rows already scrolled to their start, by section id.
-  private var centeredBanners: Set<String> = []
 
   /// A banner row starts with its `startIndex` banner (the middle lap) in the middle of
   /// the screen, half a neighbour either side, before anything in it has focus. Focus
