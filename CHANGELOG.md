@@ -21,6 +21,15 @@ as CW / `TVPageWideCardCell`). Cell + collection both own context-menu paths.
 DEBUG builds log `[PCM]` (focus leaf, attach, presses, configuration requested /
 returned / nil). CW stills unchanged.
 
+### tvOS Search: Down from the Search tab reaches the keyboard (2026-10-01)
+
+On tvOS 26.5/26.6, Down from the focused Search tab icon did nothing (Select still
+entered the field). `TVSearchPage` now embeds `UISearchContainerViewController` in
+`TVSearchPageHostViewController` with a tab-bar-band `UIFocusGuide` into the search
+chrome and preferred focus on the search bar. Verified on Apple TV 4K (1080p) /
+tvOS 26.5 simulator: Down lights a keyboard key; tab-bar focus pill dims.
+`testSearchTabDownFromTabBar` captures the sequence.
+
 ### Hero: no cover context menu; label title until logo (2026-10-01)
 
 The detail hero cover is no longer wrapped in `MediaCardContextMenuModifier` —
@@ -28,6 +37,18 @@ long-press/PCM was shrinking the artwork and exposing card actions (Play, Hide,
 raw image URLs) that belong on shelves, not the page you are already on. Title
 chrome always shows the label text until the TMDB logo has actually painted
 (`.empty` / loading / missing URL), instead of holding an empty space.
+
+### Home banner round 3 (2026-10-01)
+
+Device feedback on round 2. Banner meta is now only: score logos + values, season count,
+one genre; no year, runtime, country or dots; caption size; stays secondary on focus (the
+plot, 4 lines, goes primary). Seasons are always counted as seasons (`MediaItem.seasonsLabel`,
+carried as `MediaCard.seasonsLabel`); the one-season "N episodes" rule is gone. Scrims are
+Auto Layout gradient views: the old layers took their frame in `layoutSubviews`, before the
+card view sized the platter, so reused cells drew no scrim. Score logos are template image
+views (the text attachments did not draw). The row is centred on its start banner when it
+first shows; the per-focus centring that fought the focus engine's scroll is removed, and
+focus moves rely on `.groupPagingCentered` alone (to verify on device).
 
 ### Home banner round 2; series meta from the shared line (2026-10-01)
 

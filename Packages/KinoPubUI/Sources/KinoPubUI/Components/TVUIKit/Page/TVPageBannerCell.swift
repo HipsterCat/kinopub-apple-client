@@ -9,11 +9,11 @@
 //  there is no logo) and one at the bottom behind the words, the plot's first sentence
 //  and the meta line, and the poster inset at the trailing edge.
 //
-//  The meta line is the shared one, not a banner format: the scores as
-//  `MediaScoresView` draws them (logo at a fixed height, then the value), then the
-//  card's `metaLine` (`MediaItem.metadataLine`: year, seasons or episodes or runtime,
-//  genres, country). Plot and meta share one style, secondary at rest and primary
-//  while focused, the way a lockup's caption follows focus.
+//  The meta line is short on purpose (Sasha, 2026-10-01): the scores as
+//  `MediaScoresView` draws them (logo at a fixed height, then the value), the season
+//  count for a series (`MediaCard.seasonsLabel`) and one genre. No year, runtime,
+//  country or dots. Plot and meta are both caption-sized; the plot goes primary while
+//  focused, the meta stays secondary.
 //
 
 import TVUIKit
@@ -23,13 +23,13 @@ import UIKit
 final class TVPageBannerCell: UICollectionViewCell {
   private let cardView = TVCardView()
   private let backdrop = UIImageView()
-  private let topScrim = CAGradientLayer()
-  private let bottomScrim = CAGradientLayer()
+  private let topScrim = GradientView()
+  private let bottomScrim = GradientView()
   private let poster = UIImageView()
   private let logo = UIImageView()
   private let titleLabel = UILabel()
   private let overviewLabel = UILabel()
-  private let metaLabel = UILabel()
+  private let meta = UIStackView()
   private var logoWidth: NSLayoutConstraint!
 
   private var tasks: [Task<Void, Never>] = []
@@ -43,9 +43,10 @@ final class TVPageBannerCell: UICollectionViewCell {
   private static let posterHeightRatio: CGFloat = 0.42
   private static let logoHeightRatio: CGFloat = 0.2
   private static let logoMaxWidthRatio: CGFloat = 0.6
-  /// How far down each scrim reaches, as a share of the platter's height.
-  private static let topScrimReach: CGFloat = 0.4
-  private static let bottomScrimReach: CGFloat = 0.6
+  /// How far each scrim reaches into the platter, as a share of its height.
+  private static let topScrimReach: CGFloat = 0.45
+  private static let bottomScrimReach: CGFloat = 0.65
+  private static let resting = UIColor.white.withAlphaComponent(0.6)
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -68,13 +69,17 @@ final class TVPageBannerCell: UICollectionViewCell {
 
     // Two scrims, not one: the title at the top and the words at the bottom each get
     // their own dark edge, and the middle, where the art's subject usually is, stays clear.
-    topScrim.colors = [UIColor.black.withAlphaComponent(0.6).cgColor, UIColor.clear.cgColor]
-    bottomScrim.colors = [UIColor.clear.cgColor,
-                          UIColor.black.withAlphaComponent(0.6).cgColor,
-                          UIColor.black.withAlphaComponent(0.85).cgColor]
-    bottomScrim.locations = [0, 0.5, 1]
-    host.layer.addSublayer(topScrim)
-    host.layer.addSublayer(bottomScrim)
+    // Views pinned with constraints, not layers sized in `layoutSubviews`: the platter
+    // is sized by the card view after the cell lays out, so a reused cell kept a stale
+    // (often zero) layer frame and drew white text on white art (2026-10-01).
+    topScrim.colors = [UIColor.black.withAlphaComponent(0.65), UIColor.black.withAlphaComponent(0)]
+    bottomScrim.colors = [UIColor.black.withAlphaComponent(0), UIColor.black.withAlphaComponent(0.65), UIColor.black.withAlphaComponent(0.9)]
+    bottomScrim.locations = [0, 0.45, 1]
+    for scrim in [topScrim, bottomScrim] {
+      scrim.translatesAutoresizingMaskIntoConstraints = false
+      scrim.isUserInteractionEnabled = false
+      host.addSubview(scrim)
+    }
 
     logo.translatesAutoresizingMaskIntoConstraints = false
     logo.contentMode = .scaleAspectFit
@@ -86,20 +91,18 @@ final class TVPageBannerCell: UICollectionViewCell {
     titleLabel.numberOfLines = 2
     host.addSubview(titleLabel)
 
-    // One style for both lines, as the meta's.
-    for label in [overviewLabel, metaLabel] {
-      label.font = UIFont.preferredFont(forTextStyle: .callout)
-    }
-    overviewLabel.numberOfLines = 2
-    metaLabel.numberOfLines = 1
-    let text = UIStackView(arrangedSubviews: [overviewLabel, metaLabel])
+    overviewLabel.font = UIFont.preferredFont(forTextStyle: .caption1)
+    overviewLabel.numberOfLines = 4
+    overviewLabel.adjustsFontForContentSizeCategory = true
+    meta.axis = .horizontal
+    meta.alignment = .center
+    meta.spacing = MediaScoresView.groupSpacing
+    let text = UIStackView(arrangedSubviews: [overviewLabel, meta])
     text.axis = .vertical
     text.spacing = 8
     text.translatesAutoresizingMaskIntoConstraints = false
     host.addSubview(text)
-    for label in [titleLabel, overviewLabel, metaLabel] {
-      label.adjustsFontForContentSizeCategory = true
-    }
+    titleLabel.adjustsFontForContentSizeCategory = true
 
     poster.translatesAutoresizingMaskIntoConstraints = false
     poster.contentMode = .scaleAspectFill
@@ -120,6 +123,15 @@ final class TVPageBannerCell: UICollectionViewCell {
       backdrop.leadingAnchor.constraint(equalTo: host.leadingAnchor),
       backdrop.trailingAnchor.constraint(equalTo: host.trailingAnchor),
       backdrop.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+
+      topScrim.topAnchor.constraint(equalTo: host.topAnchor),
+      topScrim.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+      topScrim.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+      topScrim.heightAnchor.constraint(equalTo: host.heightAnchor, multiplier: Self.topScrimReach),
+      bottomScrim.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+      bottomScrim.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+      bottomScrim.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+      bottomScrim.heightAnchor.constraint(equalTo: host.heightAnchor, multiplier: Self.bottomScrimReach),
 
       logo.topAnchor.constraint(equalTo: host.topAnchor, constant: pad),
       logo.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: pad),
@@ -147,15 +159,6 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    let bounds = cardView.contentView.bounds
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    topScrim.frame = CGRect(x: 0, y: 0, width: bounds.width,
-                            height: bounds.height * Self.topScrimReach)
-    let bottomHeight = bounds.height * Self.bottomScrimReach
-    bottomScrim.frame = CGRect(x: 0, y: bounds.height - bottomHeight, width: bounds.width,
-                               height: bottomHeight)
-    CATransaction.commit()
     updateLogoWidth()
   }
 
@@ -174,9 +177,10 @@ final class TVPageBannerCell: UICollectionViewCell {
     titleLabel.text = card.title
     overviewLabel.text = card.overview.flatMap { Self.firstSentence(of: $0) }
     overviewLabel.isHidden = overviewLabel.text?.isEmpty ?? true
-    applyMeta()
+    let metaParts = Self.metaParts(for: card)
+    applyMeta(card, parts: metaParts)
     accessibilityIdentifier = "kinopub.banner.\(card.id)"
-    cardView.accessibilityLabel = [card.title, overviewLabel.text, card.metaLine].compactMap { $0 }
+    cardView.accessibilityLabel = ([card.title, overviewLabel.text].compactMap { $0 } + metaParts)
       .joined(separator: ", ")
 
     // A reconfigure of the same title (its details or logo arrived) keeps what is
@@ -220,68 +224,72 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   // MARK: - Meta
 
-  /// "[IMDb] 6.9   [КП] 7.2   2024 · 12 серий · Аниме, Фэнтези · Япония". The scores
-  /// are `MediaScoresView`'s, in its order, its logo heights and its spacing; the rest
-  /// is the card's own `metaLine`. Drawn as one attributed line so it takes the label's
-  /// colour, focus included.
-  private func applyMeta() {
-    guard let card = feature?.card else {
-      metaLabel.attributedText = nil
-      metaLabel.isHidden = true
-      return
+  /// The words after the scores: season count for a series, then one genre.
+  private static func metaParts(for card: MediaCard) -> [String] {
+    var parts: [String] = []
+    if let seasons = card.seasonsLabel, !seasons.isEmpty { parts.append(seasons) }
+    if let genre = card.genreLine?.components(separatedBy: ", ").first, !genre.isEmpty {
+      parts.append(genre)
     }
-    let font = metaLabel.font ?? UIFont.preferredFont(forTextStyle: .callout)
-    let color = metaLabel.textColor ?? .secondaryLabel
-    let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-    let line = NSMutableAttributedString()
-    func gap(_ width: CGFloat) {
-      let spacer = NSTextAttachment()
-      spacer.bounds = CGRect(x: 0, y: 0, width: width, height: 0)
-      line.append(NSAttributedString(attachment: spacer))
-    }
+    return parts
+  }
+
+  /// "[IMDb] 6.9   [КП] 7.2   3 сезона   Аниме": `MediaScoresView`'s scores (its order,
+  /// logo heights and spacing; template logos in image views, which draw the vector
+  /// assets reliably where text attachments did not), then the words, one gap apart.
+  private func applyMeta(_ card: MediaCard, parts: [String]) {
+    meta.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    let font = UIFont.preferredFont(forTextStyle: .caption1)
     let scores: [(MediaScoreLogo.Source, Double?, CGFloat)] = [
       (.imdb, card.scores.imdbScore, MediaScoresView.imdbHeight),
       (.kinopoisk, card.scores.kinopoiskScore, MediaScoresView.kinopoiskHeight)
     ]
     for (source, value, height) in scores {
       guard let value else { continue }
-      if line.length > 0 { gap(MediaScoresView.groupSpacing) }
-      if let mark = Self.scoreLogo(source, height: height, font: font, color: color) {
-        line.append(NSAttributedString(attachment: mark))
-        gap(7)
-      }
-      let number = UIFont(descriptor: font.fontDescriptor.withDesign(.rounded)?
+      let group = UIStackView()
+      group.axis = .horizontal
+      group.alignment = .center
+      group.spacing = 7
+      if let mark = Self.scoreLogo(source, height: height) { group.addArrangedSubview(mark) }
+      let number = UILabel()
+      number.font = UIFont(descriptor: font.fontDescriptor.withDesign(.rounded)?
         .addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: UIFont.Weight.semibold]])
         ?? font.fontDescriptor, size: 0)
-      line.append(NSAttributedString(string: String(format: "%.1f", value),
-                                     attributes: [.font: number, .foregroundColor: color]))
+      number.textColor = Self.resting
+      number.text = String(format: "%.1f", value)
+      group.addArrangedSubview(number)
+      meta.addArrangedSubview(group)
     }
-    if let meta = card.metaLine, !meta.isEmpty {
-      if line.length > 0 { gap(MediaScoresView.groupSpacing) }
-      line.append(NSAttributedString(string: meta, attributes: attributes))
+    for part in parts {
+      let label = UILabel()
+      label.font = font
+      label.textColor = Self.resting
+      label.text = part
+      meta.addArrangedSubview(label)
     }
-    metaLabel.attributedText = line.length > 0 ? line : nil
-    metaLabel.isHidden = line.length == 0
+    meta.isHidden = meta.arrangedSubviews.isEmpty
   }
 
-  /// The source's template mark at a fixed height, its width following the artwork,
-  /// centred on the text's cap height — `MediaScoreLogo(.template)` in UIKit.
-  private static func scoreLogo(_ source: MediaScoreLogo.Source, height: CGFloat,
-                                font: UIFont, color: UIColor) -> NSTextAttachment? {
+  /// The source's template mark at a fixed height, its width following the artwork —
+  /// `MediaScoreLogo(.template)` in UIKit.
+  private static func scoreLogo(_ source: MediaScoreLogo.Source, height: CGFloat) -> UIImageView? {
     guard let image = UIImage(named: source.rawValue, in: .module, compatibleWith: nil),
           image.size.height > 0 else { return nil }
-    let attachment = NSTextAttachment()
-    attachment.image = image.withTintColor(color, renderingMode: .alwaysOriginal)
-    let width = (height * image.size.width / image.size.height).rounded()
-    attachment.bounds = CGRect(x: 0, y: ((font.capHeight - height) / 2).rounded(),
-                               width: width, height: height)
-    return attachment
+    let view = UIImageView(image: image.withRenderingMode(.alwaysTemplate))
+    view.tintColor = resting
+    view.contentMode = .scaleAspectFit
+    view.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      view.heightAnchor.constraint(equalToConstant: height),
+      view.widthAnchor.constraint(equalToConstant: (height * image.size.width / image.size.height).rounded())
+    ])
+    return view
   }
 
   // MARK: - Focus
 
   /// The cell holds focus and the card follows it as an ancestor, as in
-  /// `TVPageWideCardCell`; the words go primary with the lift.
+  /// `TVPageWideCardCell`; the plot goes primary with the lift, the meta does not.
   override func didUpdateFocus(in context: UIFocusUpdateContext,
                                with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
@@ -297,10 +305,7 @@ final class TVPageBannerCell: UICollectionViewCell {
   /// secondary is the same white the system's secondary label is on dark.
   private func applyFocusColors(_ focused: Bool) {
     isFocusedLook = focused
-    let color = focused ? UIColor.white : UIColor.white.withAlphaComponent(0.6)
-    overviewLabel.textColor = color
-    metaLabel.textColor = color
-    applyMeta()
+    overviewLabel.textColor = focused ? .white : Self.resting
   }
 
   // MARK: - Logo
@@ -369,9 +374,26 @@ final class TVPageBannerCell: UICollectionViewCell {
     showLogo(nil)
     titleLabel.text = nil
     overviewLabel.text = nil
-    metaLabel.attributedText = nil
+    meta.arrangedSubviews.forEach { $0.removeFromSuperview() }
     accessibilityIdentifier = nil
     applyFocusColors(false)
+  }
+}
+#endif
+
+#if os(tvOS)
+/// A gradient that follows its view's bounds — sized by Auto Layout like any view.
+@MainActor
+private final class GradientView: UIView {
+  override class var layerClass: AnyClass { CAGradientLayer.self }
+  private var gradient: CAGradientLayer { layer as! CAGradientLayer } // swiftlint:disable:this force_cast
+
+  var colors: [UIColor] = [] {
+    didSet { gradient.colors = colors.map(\.cgColor) }
+  }
+  var locations: [NSNumber]? {
+    get { gradient.locations }
+    set { gradient.locations = newValue }
   }
 }
 #endif
