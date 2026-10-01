@@ -5,6 +5,7 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+<<<<<<< HEAD
 ### Media actions: download phases, Follow-primary, series long-press (2026-10-01)
 
 Download is available on any title when the flag/platform allows it: idle circle → circular
@@ -79,6 +80,15 @@ is multi-select with a **Save to** section, stays open, and no longer rebuilds i
 toggle (that was dumping focus back to Play). Mark Watched is tap-to-toggle; episode/season
 choices are long-press context menu only. Circle glyphs keep a fixed slot + symbol replace
 bounce so the bell toggle cannot look like row spacing grew.
+=======
+### Optimistic auth launch — no splash while refreshing (2026-10-01)
+
+A Keychain token mounts Tabs immediately (`AuthPhase.signedIn`); `AuthState.check()` still runs
+`refreshToken` once in the background. Transient failures keep the session and back off as before;
+only a fatal grant rejection (400/401 on refresh) clears Keychain and shows activation. The
+blocking `.resolving` splash ("Signing in" / "Start auth state checking…") is gone. Cold start with
+no token is unchanged. DEBUG `DevSessionMirror` behavior is unchanged.
+>>>>>>> 68ff9ae (Optimistic auth launch: Keychain token mounts shell immediately)
 
 ### Trailers are their title; Up Next is next-unwatched + Continue Watching (2026-10-01)
 

@@ -16,15 +16,16 @@ enum UserState {
   case authorized
 }
 
-/// Gate for the root UI. Content tabs must not mount until a Keychain token has
-/// survived a refresh — otherwise a dead token paints Home for one frame, floods
-/// every shelf with 401s, and each 401 tries to refresh again.
+/// Gate for the root UI.
+///
+/// A Keychain token is enough to mount Tabs immediately (`signedIn`). Refresh /
+/// validation runs in the background; only a real grant rejection drops to
+/// `signedOut`. Product decision, 2026-10-01 — do not reintroduce a blocking
+/// splash that waits on `refreshToken`.
 enum AuthPhase: Equatable {
-  /// Keychain had a token; refresh is in flight. Show a splash, not Tabs.
-  case resolving
   /// No usable session — device-activation screen.
   case signedOut
-  /// Refresh succeeded (or a transient failure kept a still-plausible session).
+  /// Keychain had a token (or activation / refresh just succeeded).
   case signedIn
 }
 
@@ -53,6 +54,10 @@ final class AuthState: ObservableObject {
   /// token the server has already retired and gets a 400 that says nothing about the
   /// session.
   private var lastRefreshWasCancelled = false
+  /// Root `.task` re-fires when the hierarchy churns (iOS player orientation used to).
+  /// Bootstrap refresh runs once per signed-in stretch; mid-session expiry is the
+  /// 401 observer's job.
+  private var didBootstrapRefresh = false
 
   /// Initializes the `AuthState` with the provided services.
   /// - Parameters:
@@ -61,13 +66,14 @@ final class AuthState: ObservableObject {
   init(authService: AuthorizationService, accessTokenService: AccessTokenService) {
     self.authService = authService
     self.accessTokenService = accessTokenService
-    // Never claim `.authorized` / show Tabs until `check()` finishes. A stale
-    // Keychain token used to mount Home immediately, fire every shelf + sidebar
-    // fetch, then tear it all down when refresh returned 400 — a self-DDoS.
+    // Optimistic: a Keychain token is enough to show the shell and cached shelves.
+    // `check()` still refreshes in the background; only a fatal grant rejection
+    // (and the 401 path) send the user to activation. The old blocking `.resolving`
+    // splash waited on that refresh and felt hostile on every cold launch.
     let hasToken = (accessTokenService.token() as AccessToken?) != nil
     if hasToken {
-      self.phase = .resolving
-      self.userState = .unauthorized
+      self.phase = .signedIn
+      self.userState = .authorized
       self.shouldShowAuthentication = false
     } else {
       self.phase = .signedOut
@@ -91,21 +97,16 @@ final class AuthState: ObservableObject {
       return
     }
 
-    // A re-run with the app already open (the root `.task` re-fires when the
-    // hierarchy churns — the iOS player's orientation change used to tear it down
-    // and back up under a film) must not bounce the UI to the splash: flipping
-    // `.signedIn → .resolving` tears the tab shell down with the player route still
-    // in its path, and the rebuild re-presented the player in a loop. Mid-session
-    // expiry is the 401 observer's job, not this one's.
-    guard phase != .signedIn else { return }
-
-    // Stay on `.resolving` (splash) while we prove the token — do not flip to
-    // signed-in optimistically.
-    if phase != .resolving {
-      phase = .resolving
+    // Already painted the shell from Keychain — keep it. First bootstrap still
+    // refreshes underneath; later `.task` re-fires must not rotate the token again
+    // (kino.pub retires the previous refresh token on every success).
+    if phase != .signedIn {
+      phase = .signedIn
+      userState = .authorized
       shouldShowAuthentication = false
-      userState = .unauthorized
     }
+    guard !didBootstrapRefresh else { return }
+    didBootstrapRefresh = true
     await refreshToken()
   }
 
@@ -117,6 +118,8 @@ final class AuthState: ObservableObject {
     refreshRetryAttempt = 0
     if activated {
       didActivateDevice = true
+      // Fresh grant from device code — no bootstrap refresh needed this stretch.
+      didBootstrapRefresh = true
     }
     phase = .signedIn
     userState = .authorized
@@ -128,8 +131,8 @@ final class AuthState: ObservableObject {
   /// refresh decides: success rotates quietly, rejection brings the activation
   /// screen, a network failure falls back to the scheduled retries.
   private func handleUnauthorizedResponse() {
-    // Already signed out / still resolving / refresh in flight — swallow. In-flight
-    // Home fetches after a fatal refresh used to log this line once per shelf.
+    // Already signed out / refresh in flight — swallow. In-flight Home fetches after
+    // a fatal refresh used to log this line once per shelf.
     guard phase == .signedIn else { return }
     guard !isRefreshing else { return }
     guard let _: AccessToken = accessTokenService.token() else {
@@ -216,6 +219,7 @@ final class AuthState: ObservableObject {
 
   private func markSignedOut(reason: String) {
     didActivateDevice = false
+    didBootstrapRefresh = false
     phase = .signedOut
     userState = .unauthorized
     shouldShowAuthentication = true
