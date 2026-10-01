@@ -97,6 +97,7 @@ wrong one level up — stop and ask.
 | Banned | Cost when we did it | Instead |
 | --- | --- | --- |
 | A focus-routing layer of our own (`focusBridge`-shaped) | We do not own the focus engine; UIKit does, and it is spatial | `.focusSection()`, `defaultFocus`, `indexPathForPreferredFocusedView(in:)` |
+| `.disabled` on sibling hero actions to steer Down/Up | Trailer/Bookmark/More stayed dim; bookmark `Menu` would not open when `@FocusState` lagged | Separate `.focusSection()`s + `defaultFocus` |
 | One `@FocusState` case bound by several sibling views | Six hero buttons shared `heroOther`: focus froze dead on Play, Right and Down both no-ops, **and Menu quit the app** instead of popping — the confused focus state broke the NavigationStack back-context too. Cost a misdiagnosed revert of an unrelated change | One case per focusable view, or no `@FocusState` |
 | Manual focus delays — `asyncAfter`, same-press guards | Racing the engine's own animator; the race returns on a different box | React to where focus landed |
 | Hand-rolled focus chrome — `scaleEffect` / `brightness` / shadow / parallax on focus | Verdict was "не выглядит нативно", and it was right | `.buttonStyle(.card)` on tvOS; system cells; `.borderless` + `.hoverEffect` only where the label *is* an image |
@@ -232,9 +233,15 @@ file, and delete the losers with the switch.
 - **Play is the entry focus, by name.** `defaultFocus(priority: .userInitiated)`, and the hero
   claims Play (or Follow-primary) in `onAppear` / `.task`. The synopsis stays out of the focus
   chain until that entry lands — otherwise it is the topmost focusable and steals open, blinking
-  Play when focus is corrected. Down from the synopsis must return to the entry control, not the
-  geometrically nearest trailing circle: secondary actions are gated out of the chain while focus
-  is outside the action row (`.focusSection` + entry-only enable).
+  Play when focus is corrected. Down from the synopsis returns to Play via separate
+  `.focusSection()`s on the plot column and the action row — **never** by `.disabled`-ing
+  Trailer / Bookmark / More to steer the remote. That left those controls dim forever whenever
+  `@FocusState` lagged the visual focus, and a disabled `Menu` cannot open bookmarks
+  (Sasha, 2026-10-01).
+- **Hero chrome is always dark.** Force `.environment(\.colorScheme, .dark)` on the hero
+  content and keep a black scrim under the written column. tvOS does not pin
+  `preferredColorScheme`; without the force, light appearance paints `Color.primary` black
+  on dark artwork and the synopsis disappears.
 - **No page-wide hero state.** No fold flag, no wash, no chrome fade, no custom
   `ScrollTargetBehavior`. The focus engine scrolls the page. The one scroll the page asks for is
   back to the top when a hero control takes focus (`ScrollViewReader.scrollTo`), because the

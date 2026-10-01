@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Hero: no cover context menu; label title until logo (2026-10-01)
+
+The detail hero cover is no longer wrapped in `MediaCardContextMenuModifier` —
+long-press/PCM was shrinking the artwork and exposing card actions (Play, Hide,
+raw image URLs) that belong on shelves, not the page you are already on. Title
+chrome always shows the label text until the TMDB logo has actually painted
+(`.empty` / loading / missing URL), instead of holding an empty space.
+
 ### Home banner round 2; series meta from the shared line (2026-10-01)
 
 - **Series meta, everywhere.** `MediaItem.releaseParts` (behind `metadataLine` and
@@ -35,6 +43,14 @@ page's call and cache) via `HomeCatalog.bannerLogos`; `MediaCard` now carries `i
 `kinopoiskID` for that lookup, so cards cached before this have no logo until their row
 refreshes. The six titles repeat for 41 laps and focus starts in the middle one
 (`TVPageSection.startIndex`), so the row scrolls either way for ~120 presses.
+### Hero actions: no focus-disable; always-dark chrome (2026-10-01)
+
+Steering Down-from-plot by `.disabled`-ing secondary hero actions left Trailer /
+Bookmark / More dim whenever `@FocusState` lagged, and broke bookmark Menus.
+Removed. Down → Play is separate `.focusSection()`s + `defaultFocus`. Hero content
+forces dark color scheme and a stronger black scrim so the synopsis stays readable
+on light artwork / light appearance.
+
 
 ### Optimistic auth launch — no splash while refreshing (2026-10-01)
 

@@ -39,6 +39,20 @@ enum MediaItemFocusTarget: Hashable {
   }
 }
 
+
+/// Whether a hero action control may accept input.
+///
+/// Focus must **never** feed this. Steering Down-from-plot by `.disabled`-ing
+/// Trailer / Bookmark / More left those controls dim forever whenever
+/// `@FocusState` lagged the visual focus, and a disabled `Menu` cannot open
+/// bookmarks (Sasha, 2026-10-01). Down → Play is `focusSection` + `defaultFocus`.
+enum MediaItemHeroActionAvailability {
+  static func isInteractable(isLoading: Bool = false) -> Bool {
+    !isLoading
+  }
+}
+
+
 /// Whether the hero is on screen, measured by the hero's own frame on iOS and macOS and
 /// used for one thing: pausing the ambient trailer once it has scrolled away. An
 /// `@Observable` held by reference so the write lands in `MediaItemHeroView` alone and
