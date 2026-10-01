@@ -11,6 +11,8 @@
 pics/
 build/
 DerivedData/
+.derivedData-tvos/
+
 *.moved-aside
 *.pbxuser
 !default.pbxuser
