@@ -49,6 +49,57 @@ final class WatchNowHigShotsUITests: XCTestCase {
     try captureHotMoviesCaptionShot(colorScheme: "dark")
   }
 
+  /// Play/Pause on a focused 2:3 poster must open the card context menu
+  /// (the CW stills path already works via the collection-view hook).
+  func testPlayPauseOpensMenuOnVerticalPoster() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    XCTAssertEqual(app.state, .runningForeground)
+
+    let posters = app.descendants(matching: .any).matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.poster.")
+    )
+    XCTAssertTrue(
+      posters.firstMatch.waitForExistence(timeout: 90),
+      "no kinopub.poster.* cells after catalog wait — session missing or Watch Now empty"
+    )
+
+    for _ in 0..<24 {
+      if Self.focusedPoster(in: app) != nil { break }
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.45)
+    }
+
+    guard let poster = Self.focusedPoster(in: app) else {
+      try writeScreenshots(app.screenshot(), colorScheme: "dark", suffix: "pcm-no-focus")
+      XCTFail("never focused a kinopub.poster.* cell\n\(app.debugDescription)")
+      return
+    }
+
+    Thread.sleep(forTimeInterval: 1.0)
+    try writeScreenshots(app.screenshot(), colorScheme: "dark", suffix: "pcm-focused")
+
+    XCUIRemote.shared.press(.playPause)
+    Thread.sleep(forTimeInterval: 1.5)
+    try writeScreenshots(app.screenshot(), colorScheme: "dark", suffix: "pcm-after-playpause")
+
+    let menuOpened = app.menus.firstMatch.waitForExistence(timeout: 3)
+      || app.menuItems.firstMatch.waitForExistence(timeout: 1)
+    if !menuOpened {
+      let play = app.descendants(matching: .any).matching(
+        NSPredicate(format: "label ==[c] %@ OR label ==[c] %@", "Play", "Смотреть")
+      ).firstMatch
+      XCTAssertTrue(
+        play.waitForExistence(timeout: 2),
+        "Play/Pause on focused poster \(poster.identifier) did not open a context menu\n\(app.debugDescription)"
+      )
+    }
+  }
+
   // MARK: - Capture
 
   private func captureHotMoviesCaptionShot(colorScheme: String) throws {
