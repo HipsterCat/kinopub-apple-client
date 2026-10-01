@@ -200,17 +200,19 @@ final class TVPageMastheadCell: UICollectionViewCell {
   }
 
   /// Person: biography opens with focus. Collection: a light scale so the band reads
-  /// as the focused stop; stats stay visible either way.
+  /// as the focused stop; stats stay visible either way. Both scale slightly so Up
+  /// from the grid into this band is visible.
   private func applyExpanded(_ expanded: Bool, invalidate: Bool) {
+    let scale: CGFloat = expanded ? 1.03 : 1
     if isPerson {
       let text = expanded ? biography : nil
       let wasHidden = bioLabel.isHidden
       set(bioLabel, text)
+      personRow.transform = CGAffineTransform(scaleX: scale, y: scale)
       if invalidate, wasHidden != bioLabel.isHidden {
         invalidateIntrinsicSize()
       }
     } else {
-      let scale: CGFloat = expanded ? 1.03 : 1
       collectionColumn.transform = CGAffineTransform(scaleX: scale, y: scale)
       statsRow.alpha = 1
     }
@@ -234,15 +236,22 @@ final class TVPageMastheadCell: UICollectionViewCell {
     avatar.image = TVUIKitTileArtwork.monogram(name: monogramName, diameter: diameter, traits: traitCollection)
   }
 
+  /// Rest height is fixed so a late detail / stats paint cannot shove the grid.
+  /// Only a focused person biography is allowed to grow the cell.
   override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
     let attributes = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
     let width = layoutAttributes.size.width
-    let fitting = contentView.systemLayoutSizeFitting(
-      CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
-      withHorizontalFittingPriority: .required,
-      verticalFittingPriority: .fittingSizeLevel
-    )
-    attributes.size = CGSize(width: width, height: max(ceil(fitting.height), 1))
+    let rest: CGFloat = isPerson ? 220 : (statsRow.isHidden ? 160 : 260)
+    if isPerson, isFocused, biography != nil, bioLabel.isHidden == false {
+      let fitting = contentView.systemLayoutSizeFitting(
+        CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+        withHorizontalFittingPriority: .required,
+        verticalFittingPriority: .fittingSizeLevel
+      )
+      attributes.size = CGSize(width: width, height: max(ceil(fitting.height), rest))
+    } else {
+      attributes.size = CGSize(width: width, height: rest)
+    }
     return attributes
   }
 
@@ -255,6 +264,7 @@ final class TVPageMastheadCell: UICollectionViewCell {
     biography = nil
     bioLabel.text = nil
     bioLabel.isHidden = true
+    personRow.transform = .identity
     collectionColumn.transform = .identity
   }
 

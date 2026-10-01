@@ -274,8 +274,8 @@ public struct TVPageMasthead: Hashable, Sendable {
   public let subtitle: String?
   /// Role, place, age. One line.
   public let detail: String?
-  /// Prose under the detail line. Empty until a biography is known; the cell grows
-  /// when it is set, so the grid below is not drawn on top of it.
+  /// Prose under the detail line. Empty until a biography is known; the cell opens
+  /// it only when focused, so a late metadata paint does not shove the grid.
   public let biography: String?
   public let photoURL: URL?
   /// SF Symbol above a collection title. No plate behind it.

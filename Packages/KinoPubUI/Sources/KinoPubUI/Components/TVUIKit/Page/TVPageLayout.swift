@@ -191,41 +191,50 @@ public enum TVPageLayout {
 
   /// Wrapping rows. A fractional item in `repeatingSubitem:count:` grows to fill a
   /// short last group, and a poster lockup then draws its 2:3 art across the whole
-  /// cell — the footer title disappears (collection grids, 2026-10-01). Items use the
-  /// measured envelope (`recipe.itemSize`), same as a rail: a width derived by dividing
-  /// the group did not match the recipe cache key, so the cell fell back to treating
-  /// the envelope as art and painted a taller poster over its title. Absolute envelopes
-  /// leave the short last row's leftover empty; the page also pads that row so a group
-  /// is never asked for fewer items than `columns`.
+  /// cell — the footer title disappears (collection grids, 2026-10-01). One custom
+  /// group places every cell at the measured envelope (`recipe.itemSize`): a short
+  /// last row keeps the same poster size as a full one, leftover width stays empty,
+  /// and the recipe cache key always matches what the cell is given.
   @MainActor
   private static func grid(_ section: TVPageSection,
                            contentWidth: CGFloat,
                            sideInset: CGFloat) -> NSCollectionLayoutSection {
-    let (_, art) = TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth)
+    let (columns, art) = TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth)
     let recipe = TVPageCellMetrics.recipe(kind: section.kind, artWidth: art, caption: section.caption)
     let spacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
-    let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(
-      widthDimension: .absolute(recipe.itemSize.width),
-      heightDimension: .absolute(recipe.itemSize.height)
-    ))
-    let group = NSCollectionLayoutGroup.horizontal(
-      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
-                                         heightDimension: .absolute(recipe.itemSize.height)),
-      subitems: [item]
-    )
-    group.interItemSpacing = .fixed(spacing)
-    let layoutSection = NSCollectionLayoutSection(group: group)
-    layoutSection.interGroupSpacing = hasStandingCaption(section)
+    let itemW = recipe.itemSize.width
+    let itemH = recipe.itemSize.height
+    let rowGap = hasStandingCaption(section)
       ? captionedRowGap
       : gridRowSpacing + recipe.belowItem - recipe.artInsets.top - recipe.artInsets.bottom
+    let count = max(section.items.count, 1)
+    let cols = max(columns, 1)
+    let rows = Int(ceil(Double(count) / Double(cols)))
+    let height = CGFloat(rows) * itemH + CGFloat(max(rows - 1, 0)) * rowGap
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
+                                         heightDimension: .absolute(max(height, itemH)))
+    ) { _ in
+      (0..<count).map { index in
+        let col = index % cols
+        let row = index / cols
+        let frame = CGRect(x: CGFloat(col) * (itemW + spacing),
+                           y: CGFloat(row) * (itemH + rowGap),
+                           width: itemW,
+                           height: itemH)
+        return NSCollectionLayoutGroupCustomItem(frame: frame)
+      }
+    }
+    let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil,
                                          captioned: hasStandingCaption(section))
     return layoutSection
   }
 
   /// One full-width focusable header that scrolls with the page. Estimated height is
-  /// the *rest* size (name / title / stats) — biography opens only when the header is
-  /// focused, so a late metadata paint does not shove the grid and steal focus.
+  /// the *rest* size (name / title / stats). The cell reports that same rest height
+  /// until it is focused with a biography — so a late detail / metadata paint does
+  /// not shove the grid and steal focus.
   @MainActor
   private static func masthead(_ section: TVPageSection, sideInset: CGFloat) -> NSCollectionLayoutSection {
     let height = mastheadRestHeight(section)
@@ -239,7 +248,7 @@ public enum TVPageLayout {
   }
 
   /// Rest height only. Expanded biography is measured by the cell when it takes focus.
-  private static func mastheadRestHeight(_ section: TVPageSection) -> CGFloat {
+  static func mastheadRestHeight(_ section: TVPageSection) -> CGFloat {
     guard case .masthead(let header) = section.items.first else { return 220 }
     switch header.style {
     case .person:

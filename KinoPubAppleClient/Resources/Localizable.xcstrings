@@ -9344,12 +9344,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Release Year"
+            "value" : "Year"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "По году"
           }
         }

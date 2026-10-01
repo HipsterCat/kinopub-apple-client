@@ -491,7 +491,9 @@ public final class TVPageCollectionViewController: UIViewController {
   /// index path makes `indexPathForPreferredFocusedView` lose, so the chip stays
   /// focused after the posters arrive.
   private var didPlacePosterFocus = false
-  private var posterFocusAttempts = 0
+  /// One request only — retrying after the remote moves Up into the masthead yanks
+  /// focus back to the poster.
+  private var didRequestPosterFocus = false
 
   private func focusFirstPosterIfNeeded() {
     guard prefersFirstPosterFocus, !didPlacePosterFocus, isViewLoaded else { return }
@@ -505,21 +507,18 @@ public final class TVPageCollectionViewController: UIViewController {
       return
     }
     // Masthead / chips may hold focus while posters are still skeletons. Once a
-    // real poster exists, land there — but only until the user has had a poster
-    // stop. A late biography paint must not yank focus back from a poster the
-    // user already left (or from one we already placed).
-    guard posterFocusAttempts < 4 else {
-      didPlacePosterFocus = true
-      collectionView.remembersLastFocusedIndexPath = remembersFocus
-      return
-    }
-    posterFocusAttempts += 1
+    // real poster exists, ask once — then stop. Fighting the remote after Up into
+    // the header is how focus "jumps" after init.
+    guard !didRequestPosterFocus else { return }
+    didRequestPosterFocus = true
     collectionView.remembersLastFocusedIndexPath = false
     setNeedsFocusUpdate()
     collectionView.setNeedsFocusUpdate()
     Task { @MainActor [weak self] in
-      guard let self, !self.didPlacePosterFocus else { return }
+      guard let self else { return }
       self.collectionView.updateFocusIfNeeded()
+      self.didPlacePosterFocus = true
+      self.collectionView.remembersLastFocusedIndexPath = self.remembersFocus
     }
   }
 
@@ -585,10 +584,14 @@ public final class TVPageCollectionViewController: UIViewController {
 
   private static func layoutSignature(_ section: TVPageSection) -> String {
     var signature = "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.loadsMore)|\(section.kind == .chip ? chipSignature(section) : "")"
-    // Rest geometry only. Biography opens under focus and must not invalidate the
-    // page when metadata arrives — that jump stole focus off the first poster.
+    // Grid height is one custom group sized from item count — a page of results
+    // must remeasure. Masthead rest geometry is fixed per style; detail / bio /
+    // stats text must not invalidate (that jump stole focus off the first poster).
+    if section.flow == .grid {
+      signature += "|\(section.items.count)"
+    }
     if case .masthead(let header) = section.items.first {
-      signature += "|\(header.detail ?? "")|\(header.stats.count)|\(header.title.count)"
+      signature += "|\(header.style)|\(header.stats.isEmpty ? 0 : 1)"
     }
     return signature
   }

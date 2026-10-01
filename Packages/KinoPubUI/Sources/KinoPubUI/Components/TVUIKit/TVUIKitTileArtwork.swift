@@ -103,10 +103,11 @@ public enum TVUIKitTileArtwork {
   /// hierarchy in dark mode is *bright* all the way down — `.quaternaryLabel` resolves
   /// to (220, 220, 220) there — so a label-tier colour at its own alpha reads as a
   /// white card on a dark page, not as an empty slot.
-  /// A person with no photo: initials on a quiet disc, as a plain image — not the
+  /// A person with no photo: initials on a solid disc, as a plain image — not the
   /// system monogram lockup (that paints a white plate and lifts itself). Label-tier
-  /// fills wash out on tvOS dark (secondaryLabel on white@0.16); a mid gray disc with
-  /// primary ink stays readable in both appearances, matching the search cards.
+  /// fills wash out on tvOS (secondaryLabel on white@0.16, or light gray on glass).
+  /// Solid mid/dark discs with high-contrast ink stay readable on light and dark,
+  /// matching the search person cards.
   public static func monogram(name: String, diameter: CGFloat, traits: UITraitCollection? = nil) -> UIImage {
     let traits = traits ?? .current
     let formatter = PersonNameComponentsFormatter()
@@ -120,14 +121,14 @@ public enum TVUIKitTileArtwork {
     }
     let size = CGSize(width: diameter, height: diameter)
     let dark = traits.userInterfaceStyle == .dark
-    // Solid mid tones — not label@alpha. Dark: lifted gray + near-white letters.
-    // Light: soft gray + near-black letters. No white plate behind either.
-    let fill = (dark ? UIColor(white: 0.30, alpha: 1) : UIColor(white: 0.78, alpha: 1))
+    // Solid fills, not label@alpha. Dark page: charcoal disc + white letters.
+    // Light page: medium gray disc + near-black letters. No white plate.
+    let fill = (dark ? UIColor(white: 0.22, alpha: 1) : UIColor(white: 0.62, alpha: 1))
       .resolvedColor(with: traits)
-    let ink = (dark ? UIColor(white: 0.96, alpha: 1) : UIColor(white: 0.14, alpha: 1))
+    let ink = (dark ? UIColor(white: 1.0, alpha: 1) : UIColor(white: 0.08, alpha: 1))
       .resolvedColor(with: traits)
     let font = UIFont.systemFont(ofSize: diameter * 0.36, weight: .semibold)
-    let key = "mono-\(initials)-\(Int(diameter))-\(dark ? "d" : "l")" as NSString
+    let key = "mono-v2-\(initials)-\(Int(diameter))-\(dark ? "d" : "l")" as NSString
     if let cached = cache.object(forKey: key) { return cached }
     let drawn = UIGraphicsImageRenderer(size: size).image { _ in
       fill.setFill()

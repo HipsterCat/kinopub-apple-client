@@ -15,12 +15,13 @@ a person page the type pull-down as well. Default sort is year descending
 (`sort=-year` on `/v1/items`; the same order applied on the device for a collection).
 The rest of the search filter row stays on search. `/v1/collections/view` takes no
 parameters, so a collection only reorders the list it already fetched; it does not
-filter locally. Entry focus is the first poster and stays there through late header
-paints. Poster cells use the measured envelope size on every row, so a short last row
-keeps the same poster size and the title under the art. Person circles (the page
-avatar and the cast rail) are a photo or high-contrast initials on a quiet disc, with
-no monogram plate. iOS and macOS keep `LibraryFiltersBar`; a collection there shows
-sort only.
+filter locally. Entry focus is the first poster; the page asks once and then stops
+fighting the remote, so Up into the masthead sticks. Masthead rest height is fixed —
+detail / bio metadata must not reflow the grid. Poster grids are one custom group of
+absolute envelopes, so a short last row keeps the same poster size and the title under
+the art. Person circles (the page avatar and the cast rail) are a photo or
+high-contrast initials on a solid disc, with no monogram plate. iOS and macOS keep
+`LibraryFiltersBar`; a collection there shows sort only.
 
 ### tvOS Home banner: rich platters, title logos, looped (2026-10-01)
 
