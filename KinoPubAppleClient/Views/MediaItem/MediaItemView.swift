@@ -233,6 +233,9 @@ struct MediaItemView: View {
                               withAnimation(.easeInOut(duration: 0.4)) {
                                 proxy.scrollTo(Self.heroAnchor, anchor: .top)
                               }
+                            },
+                            ensureBookmarkFoldersLoaded: {
+                              await itemModel.ensureBookmarkFoldersLoaded()
                             })
             .id(Self.heroAnchor)
 #if os(tvOS)

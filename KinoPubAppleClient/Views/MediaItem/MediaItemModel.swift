@@ -456,6 +456,14 @@ class MediaItemModel: ObservableObject {
       .sink { [weak self] in self?.folders = $0 }
   }
 
+  /// Detail pages read the store and never poll; call once from the hero so a cold
+  /// install still gets folder names for the multi-select menu.
+  func ensureBookmarkFoldersLoaded() async {
+    let loaded = await BookmarkFoldersStore.shared.ensureLoaded(using: itemsService)
+      .recentlyUpdatedFirst()
+    folders = loaded
+  }
+
   private var folderSubscription: AnyCancellable?
 
   // MARK: - Local watch progress
@@ -736,6 +744,13 @@ class MediaItemModel: ObservableObject {
     let previous = isWatched
     isWatched.toggle()
     libraryState.setMovieWatched(itemId: mediaItemId, value: isWatched)
+    // Optimistic: flip the payload flag so `playbackButtonContent` reorders Play →
+    // Play Again (and Mark Watched scales out) without waiting on the network.
+    if var videos = mediaItem.videos, !videos.isEmpty {
+      videos[videos.startIndex].watched = isWatched ? 1 : 0
+      mediaItem.videos = videos
+      mediaItem = mediaItem
+    }
     presentWatchedHud(nowWatched: isWatched)
     Task {
       do {
@@ -744,6 +759,11 @@ class MediaItemModel: ObservableObject {
       } catch {
         isWatched = previous
         libraryState.setMovieWatched(itemId: mediaItemId, value: previous)
+        if var videos = mediaItem.videos, !videos.isEmpty {
+          videos[videos.startIndex].watched = previous ? 1 : 0
+          mediaItem.videos = videos
+          mediaItem = mediaItem
+        }
         errorHandler.setError(error)
       }
     }

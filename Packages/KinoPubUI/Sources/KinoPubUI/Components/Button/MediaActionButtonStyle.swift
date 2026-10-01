@@ -38,6 +38,9 @@ public enum MediaActionMetrics {
   public static let progressHeight: CGFloat = 8
   public static let contentSpacing: CGFloat = 14
   public static let rowSpacing: CGFloat = 16
+  /// Fixed glyph box inside circle chrome so `bell` → `bell.and.waves…` (or a
+  /// spinner) cannot widen the button and look like row spacing grew.
+  public static let circleGlyphSlot: CGFloat = 28
 #else
   public static let playPillMinWidth: CGFloat = 60
   public static let labelFont = TypeScale.actionLabel
@@ -45,6 +48,7 @@ public enum MediaActionMetrics {
   public static let progressHeight: CGFloat = 3
   public static let contentSpacing: CGFloat = 6
   public static let rowSpacing: CGFloat = 12
+  public static let circleGlyphSlot: CGFloat = 18
 #endif
 }
 
@@ -78,29 +82,31 @@ public extension View {
 // MARK: - System styles
 
 public extension View {
-  /// Entry Play / Resume capsule. Same plate as every other labelled action — the
-  /// white fill is **focus**, not a permanent primary tint. The preview painted Play
-  /// white only because it is the default-focus control; when focus moves, Trailer /
-  /// Mark Watched / etc. take that treatment instead. Do not reintroduce
-  /// `.glassProminent` + `.tint(.primary)` here: that freezes Play white at rest.
+  /// Entry Play / Resume capsule. Glass adapts with the environment; white elevated
+  /// fill is **focus**, not a forced tint. Do not add `.tint(.primary)` — that froze
+  /// Play white at rest (the preview only painted it white as default focus).
   func mediaActionPlayPillStyle() -> some View {
-    mediaActionPillStyle()
-  }
-
-  /// A labelled capsule (Play, Trailer, Mark Watched, Replay). System focus owns the
-  /// white / elevated look; at rest the plate matches the other capsules in the row.
-  func mediaActionPillStyle() -> some View {
-    buttonStyle(.borderedProminent)
+    buttonStyle(.glassProminent)
       .buttonBorderShape(.capsule)
 #if !os(tvOS)
       .controlSize(.large)
 #endif
   }
 
-  /// An icon-only secondary control. `.circle` is a real `ButtonBorderShape`, so the
-  /// plate, its focus treatment and its press feedback are all the system's.
+  /// Labelled secondary capsule (Trailer, Mark Watched, Replay). System `.glass` so
+  /// the plate tracks light/dark / materials instead of a flat bordered fill.
+  func mediaActionPillStyle() -> some View {
+    buttonStyle(.glass)
+      .buttonBorderShape(.capsule)
+#if !os(tvOS)
+      .controlSize(.large)
+#endif
+  }
+
+  /// Icon-only circle. Same glass family as the labelled pills — focus owns the
+  /// lift; the glyph slot is fixed so a wider SF Symbol does not shove neighbours.
   func mediaActionCircleStyle() -> some View {
-    buttonStyle(.bordered)
+    buttonStyle(.glass)
       .buttonBorderShape(.circle)
 #if !os(tvOS)
       .controlSize(.large)

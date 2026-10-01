@@ -63,9 +63,12 @@ rendered as a footer. DEBUG launch arguments `-KINOPUBInitialTab settings`,
 
 ### Hero action white fill is focus, not a Play tint (2026-10-01)
 
-`mediaActionPlayPillStyle()` no longer forces `.glassProminent` + `.tint(.primary)`. Play shares
-the same capsule plate as Trailer / Mark Watched; the white elevated look is system focus (the
-preview painted Play white only as default focus). AGENTS.md updated.
+Hero actions use system glass again (`.glassProminent` Play, `.glass` pills/circles), forced
+dark on the row for now. White elevated look is focus — no `.tint(.primary)`. Bookmark menu
+is multi-select with a **Save to** section, stays open, and no longer rebuilds identity on
+toggle (that was dumping focus back to Play). Mark Watched is tap-to-toggle; episode/season
+choices are long-press context menu only. Circle glyphs keep a fixed slot + symbol replace
+bounce so the bell toggle cannot look like row spacing grew.
 
 ### Trailers are their title; Up Next is next-unwatched + Continue Watching (2026-10-01)
 
