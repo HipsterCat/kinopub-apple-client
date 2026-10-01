@@ -5,6 +5,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubMetadata
 import KinoPubUI
 import OSLog
 import KinoPubLogging
@@ -96,7 +97,12 @@ class HomeCatalog: ObservableObject {
   /// stand-in artwork, the way the Apple TV app waits.
   @Published public private(set) var rows: [MediaRow] = []
   /// Up to six contained banner cards sampled from the catalog shelves below.
-  @Published public private(set) var bannerCards: [MediaCard] = []
+  @Published public private(set) var bannerCards: [MediaCard] = [] {
+    didSet { resolveBannerLogos() }
+  }
+  /// Title logos for the banner cards, by card id, as external metadata finds them.
+  /// A card without one draws its name instead.
+  @Published public private(set) var bannerLogos: [Int: URL] = [:]
   @Published public private(set) var isLoaded: Bool = false
   /// True when every shelf failed and there is nothing cached to show — the view
   /// swaps the blank screen for a retry state. Cached rows always win over this flag.
@@ -112,6 +118,9 @@ class HomeCatalog: ObservableObject {
   private var collectionsService: CollectionsService
   private var store: ContentStore
   private var localProgressStore: LocalWatchProgressStore
+  private let metadataService: MetadataService
+  /// Banner cards whose logo was already asked for, found or not.
+  private var logoLookups: Set<Int> = []
   private var bag = Set<AnyCancellable>()
 
   init(itemsService: VideoContentService,
@@ -121,6 +130,7 @@ class HomeCatalog: ObservableObject {
        collectionsService: CollectionsService = AppContext.shared.collectionsService,
        store: ContentStore = AppContext.shared.contentStore,
        localProgressStore: LocalWatchProgressStore = AppContext.shared.localProgressStore,
+       metadataService: MetadataService = AppContext.shared.metadataService,
        contentType: MediaType? = nil) {
     self.itemsService = itemsService
     self.authState = authState
@@ -129,6 +139,7 @@ class HomeCatalog: ObservableObject {
     self.collectionsService = collectionsService
     self.store = store
     self.localProgressStore = localProgressStore
+    self.metadataService = metadataService
     self.contentType = contentType
     NotificationCenter.default.publisher(for: .localWatchProgressDidChange)
       .receive(on: RunLoop.main)
@@ -446,6 +457,19 @@ class HomeCatalog: ObservableObject {
     }
 
     bannerCards = Array(source.shuffled().prefix(6))
+  }
+
+  /// One metadata lookup per banner title, the same call (and cache) a detail page
+  /// makes — so opening a banner title afterwards costs nothing more.
+  private func resolveBannerLogos() {
+    for card in bannerCards where logoLookups.insert(card.id).inserted {
+      guard let identity = MediaIdentity(card: card) else { continue }
+      Task { [weak self, metadataService] in
+        let url = await metadataService.metadata(for: identity).titleLogoURL
+        guard let self, let url else { return }
+        self.bannerLogos[card.id] = url
+      }
+    }
   }
 
   // MARK: - Continue watching actions
@@ -843,4 +867,21 @@ private enum ContinueWatchingFetchError: Error {
   /// outage, not "nothing to continue watching". Signals `ContentStore` to keep the
   /// cached row instead of overwriting it with an empty one.
   case allSourcesFailed
+}
+
+private extension MediaIdentity {
+  /// From a catalog card: nil when it carries neither an IMDb nor a Kinopoisk id
+  /// (cards cached before the ids were stored, collections, episodes).
+  init?(card: MediaCard) {
+    guard !card.opensCollection, card.imdbID != nil || card.kinopoiskID != nil else { return nil }
+    self.init(
+      kinopubId: card.itemID,
+      imdb: card.imdbID.map(TMDBIDFormatter.imdbString(from:)),
+      kinopoisk: card.kinopoiskID,
+      title: card.title,
+      originalTitle: card.subtitle ?? card.title,
+      year: card.year ?? 0,
+      isSeries: card.isSeries
+    )
+  }
 }
