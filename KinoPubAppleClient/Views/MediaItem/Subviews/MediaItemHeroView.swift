@@ -326,9 +326,6 @@ struct MediaItemHeroView: View {
 
   @Environment(\.openURL) private var openURL
   @Environment(NavigationState.self) private var navigationState
-#if os(tvOS)
-  @Environment(\.colorScheme) private var colorScheme
-#endif
 
   private var isSeries: Bool {
     !(mediaItem.seasons?.isEmpty ?? true)
@@ -380,13 +377,6 @@ struct MediaItemHeroView: View {
     actionContext.promoteFollow ? .watchlist : .play
   }
 
-  /// Outside the action row (synopsis / nil), only the entry control is focusable —
-  /// so Down from the wide plot lands on Play, not the geometrically-nearest
-  /// trailing circle. Inside the row every control stays reachable.
-  private func gatesSecondaryAction(_ target: MediaItemFocusTarget) -> Bool {
-    let inside = focus?.isActionControl == true
-    return !inside && target != actionEntryTarget
-  }
 
   private func claimActionEntryFocus() {
     if focus == nil || focus == .plot {
@@ -595,12 +585,9 @@ struct MediaItemHeroView: View {
     }
   }
 
-  /// Dark in dark mode, light in light mode: the hero's text and buttons use the system
-  /// colours, which are dark in light mode, and a black scrim under dark text is what
-  /// made the light theme unreadable. Only the tone flips; the geometry is the same.
-  private var scrimTone: Color {
-    colorScheme == .dark ? .black : .black
-  }
+  /// Always black under the hero chrome. Content forces `.colorScheme(.dark)`, so
+  /// text is light; the scrim stays dark regardless of the ambient scheme.
+  private var scrimTone: Color { .black }
 
   /// Where our text is, and nowhere else: the chrome runs the whole bottom edge (title
   /// and actions on the left, synopsis and credits on the right), so the floor is full
@@ -609,25 +596,21 @@ struct MediaItemHeroView: View {
   /// The old scrim stacked a 0.92 diagonal on a 0.45 floor, which is what read as black.
   private var scrollingScrim: some View {
     ZStack {
-      scrimTone.opacity(0.08)
+      // Floor under the written column — light artwork otherwise washes out
+      // white `.primary` copy even with colorScheme forced dark.
+      scrimTone.opacity(0.22)
 
       LinearGradient(stops: [
-          .init(color: .clear, location: 0.4),
-        .init(color: scrimTone.opacity(0.15), location: 0.6),
-        .init(color: scrimTone.opacity(0.35), location: 0.9),
-        .init(color: scrimTone.opacity(0.4), location: 1)
+        .init(color: .clear, location: 0.35),
+        .init(color: scrimTone.opacity(0.28), location: 0.55),
+        .init(color: scrimTone.opacity(0.55), location: 0.82),
+        .init(color: scrimTone.opacity(0.72), location: 1)
       ], startPoint: .top, endPoint: .bottom)
 
       LinearGradient(stops: [
-        .init(color: scrimTone.opacity(0.3), location: 0),
-        .init(color: .clear, location: 0.3)
-      ], startPoint: .top, endPoint: .bottom)
-      .mask {
-        LinearGradient(stops: [
-          .init(color: .clear, location: 0),
-          .init(color: .black, location: 1)
-        ], startPoint: .bottom, endPoint: .top)
-      }
+        .init(color: scrimTone.opacity(0.35), location: 0),
+        .init(color: .clear, location: 0.35)
+      ], startPoint: .leading, endPoint: .trailing)
     }
   }
 #else
@@ -652,7 +635,16 @@ struct MediaItemHeroView: View {
   /// Wide screens (tvOS / Mac): two columns — title + actions | everything written.
   /// The third "starring" column is gone; its lines moved under the synopsis.
   /// Phone keeps a single stacked column, with the metadata row above the buttons.
+  /// Hero chrome always reads as dark: plot/credits use `Color.primary` via
+  /// `Color.KinoPub.text`, and tvOS does not pin `preferredColorScheme` — light
+  /// appearance made the synopsis black on dark artwork (unreadable).
   private var content: some View {
+    contentBody
+      .environment(\.colorScheme, .dark)
+  }
+
+  @ViewBuilder
+  private var contentBody: some View {
 #if os(iOS)
     VStack(alignment: .leading, spacing: Self.contentSpacing) {
       titleBlock
@@ -723,7 +715,11 @@ struct MediaItemHeroView: View {
          }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-//    .heroTextShadow()
+#if os(tvOS)
+    // Separate from the action row so Down leaves this section at the page's
+    // `defaultFocus` (Play), not the geometrically nearest trailing circle.
+    .focusSection()
+#endif
   }
 
   @ViewBuilder
@@ -912,9 +908,8 @@ struct MediaItemHeroView: View {
     }
     .environment(\.colorScheme, .dark)
 #if os(tvOS)
-    // One section for the row: entry from the synopsis (or from below) is gated to
-    // the primary control via `gatesSecondaryAction`, so geometry cannot favour the
-    // trailing circle.
+    // Own focus section so Down from the plot section enters here at `defaultFocus`
+    // Play — never `.disabled` on siblings to steer the remote (that killed Menus).
     .focusSection()
 #endif
     // Animate only membership changes (Mark Watched appearing/disappearing) — not
@@ -1010,9 +1005,6 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .download)
-#if os(tvOS)
-    .disabled(gatesSecondaryAction(.download))
-#endif
     .contextMenu {
       if isSeries, let (season, _) = mediaItem.primaryEpisode {
         Button {
@@ -1043,9 +1035,6 @@ struct MediaItemHeroView: View {
       }
       .mediaActionStyle(appearance.chrome)
       .focused($focus, equals: .shuffle)
-#if os(tvOS)
-      .disabled(gatesSecondaryAction(.shuffle))
-#endif
       .accessibilityLabel(Text(appearance.accessibilityLabel))
     } else {
       MediaActionButton(appearance) {}
@@ -1075,10 +1064,6 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .play)
-#if os(tvOS)
-    // Play is the entry target (unless Follow is promoted) — never gate it out.
-    .disabled(gatesSecondaryAction(.play))
-#endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .accessibilityHint(Text("Starts playback"))
     .task(id: target.id) {
@@ -1093,9 +1078,6 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .trailer)
-#if os(tvOS)
-    .disabled(gatesSecondaryAction(.trailer))
-#endif
   }
 
   /// Bookmark folders — multi-select with a section title (the circle has no label).
@@ -1138,9 +1120,6 @@ struct MediaItemHeroView: View {
 #endif
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .bookmark)
-#if os(tvOS)
-    .disabled(gatesSecondaryAction(.bookmark))
-#endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .alert("New Folder", isPresented: $showNewFolderAlert) {
       TextField("Folder name", text: $newFolderName)
@@ -1162,11 +1141,7 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .watchlist)
-#if os(tvOS)
-    .disabled(appearance.isLoading || gatesSecondaryAction(.watchlist))
-#else
-    .disabled(appearance.isLoading)
-#endif
+    .disabled(!MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading))
   }
 
   /// Tap marks watched. Long-press (series): episode · season · unwatched in season · all.
@@ -1180,11 +1155,7 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .watched)
-#if os(tvOS)
-    .disabled(appearance.isLoading || gatesSecondaryAction(.watched))
-#else
-    .disabled(appearance.isLoading)
-#endif
+    .disabled(!MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading))
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .contextMenu {
       if let (season, episode) = mediaItem.primaryEpisode {
@@ -1248,9 +1219,6 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .more)
-#if os(tvOS)
-    .disabled(gatesSecondaryAction(.more))
-#endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
   }
 

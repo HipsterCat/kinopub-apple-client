@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Hero actions: no focus-disable; always-dark chrome (2026-10-01)
+
+Steering Down-from-plot by `.disabled`-ing secondary hero actions left Trailer /
+Bookmark / More dim whenever `@FocusState` lagged, and broke bookmark Menus.
+Removed. Down → Play is separate `.focusSection()`s + `defaultFocus`. Hero content
+forces dark color scheme and a stronger black scrim so the synopsis stays readable
+on light artwork / light appearance.
+
 ### Optimistic auth launch — no splash while refreshing (2026-10-01)
 
 A Keychain token mounts Tabs immediately (`AuthPhase.signedIn`). Refresh is driven by the stored

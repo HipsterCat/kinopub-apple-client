@@ -487,6 +487,7 @@
         { "path": "PlaybackPreflightTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlayerTrackSelectionTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LibraryCatalogSearchTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "MediaItemHeroActionAvailabilityTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {
       "kind": "group",
