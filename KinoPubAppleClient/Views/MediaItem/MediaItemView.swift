@@ -24,7 +24,19 @@ enum MediaItemFocusTarget: Hashable {
   case watched
   case trailer
   case more
+  case download
+  case shuffle
   case plot
+
+  /// Hero action-row controls (not the synopsis).
+  var isActionControl: Bool {
+    switch self {
+    case .play, .watchlist, .bookmark, .watched, .trailer, .more, .download, .shuffle:
+      return true
+    case .plot:
+      return false
+    }
+  }
 }
 
 /// Whether the hero is on screen, measured by the hero's own frame on iOS and macOS and

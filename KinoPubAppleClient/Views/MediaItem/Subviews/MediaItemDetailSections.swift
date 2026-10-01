@@ -3397,6 +3397,10 @@ struct MediaItemPlotView: View {
   /// Shared with the other hero controls so focusing the plot does not count as
   /// leaving the hero (and killing the trailer).
   @FocusState.Binding var focus: MediaItemFocusTarget?
+  /// tvOS: the synopsis stays out of the focus chain until an action has claimed
+  /// entry focus — otherwise it is the topmost focusable and steals Play on open
+  /// (blink). Once true, Up from Play reaches it as usual.
+  var allowsFocus: Bool = true
 
   /// The two heights the truncation decision is made from, kept as state so it is
   /// remade every time the layout changes — the old `ViewThatFits` probe latched
@@ -3444,23 +3448,32 @@ struct MediaItemPlotView: View {
   @ViewBuilder
   private var content: some View {
 #if os(tvOS)
-    Button {
-      isPresented = true
-    } label: {
-      PlotParagraphLabel(plot: plot, showsMore: isTruncated)
-    }
-    .focused($focus, equals: .plot)
-    .buttonStyle(.borderless)
-    .padding(.horizontal, -Self.focusInsetH)
-    .padding(.vertical, -Self.focusInsetV)
-    .accessibilityIdentifier("hero.plot")
-    .infoPopup(Text(title), isPresented: $isPresented) {
-      expandedPlot
-    }
-    // The sheet does not hand focus back to this button. Without this, Menu
-    // returns to whichever action happened to be focused earlier.
-    .onChange(of: isPresented) { _, presented in
-      if !presented { focus = .plot }
+    Group {
+      if allowsFocus {
+        Button {
+          isPresented = true
+        } label: {
+          PlotParagraphLabel(plot: plot, showsMore: isTruncated)
+        }
+        .focused($focus, equals: .plot)
+        .buttonStyle(.borderless)
+        .padding(.horizontal, -Self.focusInsetH)
+        .padding(.vertical, -Self.focusInsetV)
+        .accessibilityIdentifier("hero.plot")
+        .infoPopup(Text(title), isPresented: $isPresented) {
+          expandedPlot
+        }
+        .onChange(of: isPresented) { _, presented in
+          if !presented { focus = .plot }
+        }
+      } else {
+        // Identical paint to the button label, not in the focus chain — Play owns
+        // entry until an action has claimed focus (then this swaps to the Button).
+        PlotParagraphLabel(plot: plot, showsMore: isTruncated)
+          .padding(.horizontal, -Self.focusInsetH)
+          .padding(.vertical, -Self.focusInsetV)
+          .accessibilityIdentifier("hero.plot")
+      }
     }
 #else
     paragraph(showsMore: isTruncated)

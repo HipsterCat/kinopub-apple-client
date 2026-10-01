@@ -313,6 +313,12 @@ struct MediaItemHeroView: View {
   /// Actions currently showing a spinner (Mark Watched, Follow, …). Cleared when the
   /// underlying flag flips, or by the control itself once the tap returns.
   @State private var loadingActions: Set<MediaActionID> = []
+#if os(tvOS)
+  /// Once Play (or Follow-primary) has held focus, the synopsis joins the focus
+  /// chain. Until then it stays a plain paragraph so it cannot steal entry focus
+  /// and blink Play when `.task` corrects it.
+  @State private var actionEntryClaimed = false
+#endif
   /// Opt-in, off by default. Read as `@AppStorage` so flipping it in Settings redraws
   /// the metadata row without leaving the page.
   @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
@@ -346,19 +352,48 @@ struct MediaItemHeroView: View {
       // `focus` is non-nil exactly while a hero control holds focus. Read here rather
       // than on the page, so a focus move re-renders the hero and nothing else.
       .onChange(of: focus) { _, target in
-        guard target != nil else { return }
+        guard let target else { return }
         onFocusEntered?()
+        if target.isActionControl, !actionEntryClaimed {
+          // Defer unlocking the synopsis until after Play has settled — swapping
+          // the paragraph for a Button in the same turn can steal entry focus back.
+          Task { @MainActor in
+            actionEntryClaimed = true
+          }
+        }
       }
-      // `defaultFocus` is only a request, and loses to the topmost focusable element on
-      // entry. The synopsis is that element — it sits above Play and is always a
-      // button — so by the time this runs `focus` is already `.plot`, and a nil-check
-      // leaves the paragraph looking selected when the page opens. Naming Play
-      // outright is what holds (Plozz, `ItemDetailView`).
+      // Claim Play (or Follow-primary) as early as the hero appears. The synopsis
+      // stays out of the chain until this lands (`allowsFocus`), so we do not
+      // briefly paint plot-focused and then jump — that was the entry blink.
+      .onAppear {
+        claimActionEntryFocus()
+      }
       .task {
-        focus = .play
+        claimActionEntryFocus()
       }
 #endif
   }
+
+#if os(tvOS)
+  /// Entry control for the action row: Follow when promote-Follow leads, else Play.
+  private var actionEntryTarget: MediaItemFocusTarget {
+    actionContext.promoteFollow ? .watchlist : .play
+  }
+
+  /// Outside the action row (synopsis / nil), only the entry control is focusable —
+  /// so Down from the wide plot lands on Play, not the geometrically-nearest
+  /// trailing circle. Inside the row every control stays reachable.
+  private func gatesSecondaryAction(_ target: MediaItemFocusTarget) -> Bool {
+    let inside = focus?.isActionControl == true
+    return !inside && target != actionEntryTarget
+  }
+
+  private func claimActionEntryFocus() {
+    if focus == nil || focus == .plot {
+      focus = actionEntryTarget
+    }
+  }
+#endif
 
   @ViewBuilder
   private var platformBody: some View {
@@ -672,7 +707,16 @@ struct MediaItemHeroView: View {
   /// so they sit at the foot of the column rather than heading it.
   private var detailColumn: some View {
        VStack(alignment: .leading, spacing: Self.contentSpacing*1.75) {
+#if os(tvOS)
+      MediaItemPlotView(
+        title: mediaItem.localizedTitle,
+        plot: mediaItem.plot,
+        focus: $focus,
+        allowsFocus: actionEntryClaimed
+      )
+#else
       MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus)
+#endif
          VStack(alignment: .leading, spacing: Self.contentSpacing) {
               credits
               metadata
@@ -867,6 +911,12 @@ struct MediaItemHeroView: View {
       }
     }
     .environment(\.colorScheme, .dark)
+#if os(tvOS)
+    // One section for the row: entry from the synopsis (or from below) is gated to
+    // the primary control via `gatesSecondaryAction`, so geometry cannot favour the
+    // trailing circle.
+    .focusSection()
+#endif
     // Animate only membership changes (Mark Watched appearing/disappearing) — not
     // glyph swaps inside a stable id, which used to look like the gaps grew.
     .animation(.easeOut(duration: 0.25), value: actionAppearances.map(\.id))
@@ -958,6 +1008,10 @@ struct MediaItemHeroView: View {
       MediaActionLabel(appearance)
     }
     .mediaActionStyle(appearance.chrome)
+    .focused($focus, equals: .download)
+#if os(tvOS)
+    .disabled(gatesSecondaryAction(.download))
+#endif
     .contextMenu {
       if isSeries, let (season, _) = mediaItem.primaryEpisode {
         Button {
@@ -987,6 +1041,10 @@ struct MediaItemHeroView: View {
         MediaActionLabel(appearance)
       }
       .mediaActionStyle(appearance.chrome)
+      .focused($focus, equals: .shuffle)
+#if os(tvOS)
+      .disabled(gatesSecondaryAction(.shuffle))
+#endif
       .accessibilityLabel(Text(appearance.accessibilityLabel))
     } else {
       MediaActionButton(appearance) {}
@@ -1016,6 +1074,10 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .play)
+#if os(tvOS)
+    // Play is the entry target (unless Follow is promoted) — never gate it out.
+    .disabled(gatesSecondaryAction(.play))
+#endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .accessibilityHint(Text("Starts playback"))
     .task(id: target.id) {
@@ -1030,6 +1092,9 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .trailer)
+#if os(tvOS)
+    .disabled(gatesSecondaryAction(.trailer))
+#endif
   }
 
   /// Bookmark folders — multi-select with a section title (the circle has no label).
@@ -1072,6 +1137,9 @@ struct MediaItemHeroView: View {
 #endif
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .bookmark)
+#if os(tvOS)
+    .disabled(gatesSecondaryAction(.bookmark))
+#endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .alert("New Folder", isPresented: $showNewFolderAlert) {
       TextField("Folder name", text: $newFolderName)
@@ -1092,8 +1160,12 @@ struct MediaItemHeroView: View {
       MediaActionLabel(appearance)
     }
     .mediaActionStyle(appearance.chrome)
-    .disabled(appearance.isLoading)
     .focused($focus, equals: .watchlist)
+#if os(tvOS)
+    .disabled(appearance.isLoading || gatesSecondaryAction(.watchlist))
+#else
+    .disabled(appearance.isLoading)
+#endif
   }
 
   /// Tap marks watched. Long-press (series): episode · season · unwatched in season · all.
@@ -1106,8 +1178,12 @@ struct MediaItemHeroView: View {
       MediaActionLabel(appearance)
     }
     .mediaActionStyle(appearance.chrome)
-    .disabled(appearance.isLoading)
     .focused($focus, equals: .watched)
+#if os(tvOS)
+    .disabled(appearance.isLoading || gatesSecondaryAction(.watched))
+#else
+    .disabled(appearance.isLoading)
+#endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .contextMenu {
       if let (season, episode) = mediaItem.primaryEpisode {
@@ -1171,6 +1247,9 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .more)
+#if os(tvOS)
+    .disabled(gatesSecondaryAction(.more))
+#endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
   }
 

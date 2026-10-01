@@ -230,8 +230,11 @@ file, and delete the losers with the switch.
   2026-10-01). `.card` is for fact containers — it draws a platter at rest and read as a second
   focus next to Play.
 - **Play is the entry focus, by name.** `defaultFocus(priority: .userInitiated)`, and the hero
-  sets `focus = .play` in `.task`. The written column is a `focusSection` so Right from Play
-  reaches the synopsis.
+  claims Play (or Follow-primary) in `onAppear` / `.task`. The synopsis stays out of the focus
+  chain until that entry lands — otherwise it is the topmost focusable and steals open, blinking
+  Play when focus is corrected. Down from the synopsis must return to the entry control, not the
+  geometrically nearest trailing circle: secondary actions are gated out of the chain while focus
+  is outside the action row (`.focusSection` + entry-only enable).
 - **No page-wide hero state.** No fold flag, no wash, no chrome fade, no custom
   `ScrollTargetBehavior`. The focus engine scrolls the page. The one scroll the page asks for is
   back to the top when a hero control takes focus (`ScrollViewReader.scrollTo`), because the
