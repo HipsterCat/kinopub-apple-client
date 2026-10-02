@@ -194,7 +194,8 @@ class LibraryCatalog: ObservableObject {
     }
 
     let task = Task { [weak self] in
-      await self?.runLoad(generation: generation, isFirstPage: isFirstPage)
+      guard let self else { return }
+      await self.runLoad(generation: generation, isFirstPage: isFirstPage)
     }
     inFlight = task
     await task.value
@@ -206,11 +207,12 @@ class LibraryCatalog: ObservableObject {
     if isFirstPage { isLoading = true }
 
     defer {
-      guard generation == loadGeneration else { return }
-      isFetching = false
-      isLoadingMore = false
-      isLoading = false
-      inFlight = nil
+      if generation == loadGeneration {
+        isFetching = false
+        isLoadingMore = false
+        isLoading = false
+        inFlight = nil
+      }
     }
 
     // A person's credits take the full filter bar like any catalog, so their pickers
