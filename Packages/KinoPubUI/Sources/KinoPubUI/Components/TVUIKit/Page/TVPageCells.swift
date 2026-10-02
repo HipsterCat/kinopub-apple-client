@@ -44,8 +44,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
   private var recipe: TVPageCellRecipe?
-  /// Built lazily when the cell's own context-menu interaction asks for a configuration.
-  var contextMenuEntries: (() -> [MediaCardContextEntry])?
+
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -77,12 +76,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     // a poster is a title, not a playable item — the bar belongs to stills.
     let host = posterView.contentView
     let image = posterView.imageView
-
-    // Belt-and-suspenders with the collection-view delegate: interaction on the focused
-    // cell itself (CW stills only need the collection path because focus is already
-    // exactly on the cell via `TVMediaItemContentConfiguration`).
-    addInteraction(UIContextMenuInteraction(delegate: self))
-    PosterContextMenuLog.log("attach UIContextMenuInteraction on TVPageLockupPosterCell")
 
     watchedGlyph.translatesAutoresizingMaskIntoConstraints = false
     watchedGlyph.image = UIImage(systemName: "checkmark.circle.fill")
@@ -138,7 +131,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.accessibilityLabel = tile.title
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
-    contextMenuEntries = nil
     imageTask?.cancel()
     imageTask = nil
     currentURL = nil
@@ -156,7 +148,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     applyCaption(.never, title: nil)
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
-    contextMenuEntries = nil
     imageTask?.cancel()
     imageTask = nil
     currentURL = nil
@@ -294,44 +285,11 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.title = nil
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
-    contextMenuEntries = nil
     resetStaleFocusAppearance()
     accessibilityIdentifier = nil
     accessibilityLabel = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
-  }
-}
-
-extension TVPageLockupPosterCell: UIContextMenuInteractionDelegate {
-  func contextMenuInteraction(
-    _ interaction: UIContextMenuInteraction,
-    configurationForMenuAtLocation location: CGPoint
-  ) -> UIContextMenuConfiguration? {
-    PosterContextMenuLog.log(
-      "cell configurationForMenuAtLocation id=\(accessibilityIdentifier ?? "?") loc=\(Int(location.x)),\(Int(location.y))"
-    )
-    guard let entries = contextMenuEntries?(), !entries.isEmpty else {
-      PosterContextMenuLog.log("cell menu → nil (no entries) id=\(accessibilityIdentifier ?? "?")")
-      return nil
-    }
-    PosterContextMenuLog.log("cell menu → UIContextMenuConfiguration entries=\(entries.count)")
-    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
-      TVUIKitContextMenuBuilder.menu(from: entries)
-    }
-  }
-
-  func contextMenuInteraction(
-    _ interaction: UIContextMenuInteraction,
-    willEndFor configuration: UIContextMenuConfiguration,
-    animator: (any UIContextMenuInteractionAnimating)?
-  ) {
-    let reset: () -> Void = { [weak self] in self?.resetStaleFocusAppearance() }
-    if let animator {
-      animator.addCompletion(reset)
-    } else {
-      reset()
-    }
   }
 }
 

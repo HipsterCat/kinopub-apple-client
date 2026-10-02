@@ -330,16 +330,10 @@ public final class TVPageCollectionViewController: UIViewController {
       switch self.itemsByID[id] {
       case .card(let card)?:
         cell.configure(card: card, recipe: recipe, caption: section.caption, showsRating: section.showsRating)
-        cell.contextMenuEntries = { [weak self] in
-          guard let self, let card = self.itemsByID[id]?.card else { return [] }
-          return self.contextMenuProvider?(card) ?? []
-        }
       case .tile(let tile)?:
         cell.configure(tile: tile, recipe: recipe, caption: section.caption)
-        cell.contextMenuEntries = nil
       default:
         cell.configurePlaceholder(recipe: recipe)
-        cell.contextMenuEntries = nil
       }
     }
 
@@ -787,8 +781,8 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   // only the `…ForItemsAt indexPaths:` variant exists on tvOS.
   //
   // Stills and vertical posters both focus the *cell* (poster lockup subtree is
-  // non-interactive). UIKit then fills `indexPaths`. Cell also owns its own
-  // `UIContextMenuInteraction` as a belt-and-suspenders path.
+  // non-interactive). UIKit then fills `indexPaths`. One menu path: this collection
+  // delegate — the cell does not install a second `UIContextMenuInteraction`.
   public func collectionView(_ collectionView: UICollectionView,
                              contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
                              point: CGPoint) -> UIContextMenuConfiguration? {

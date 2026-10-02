@@ -513,12 +513,6 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     let width = layoutWidth > 1 ? layoutWidth : max(tileSize.width, ShelfMetrics.tvCardWidth)
     let size = CGSize(width: width, height: width / CardAspect.poster.ratio)
     cell.configure(card: card, size: size)
-    let itemID = card.id
-    cell.contextMenuEntries = { [weak self] in
-      guard let self,
-            let current = self.cards.first(where: { $0.id == itemID }) else { return [] }
-      return self.contextMenuProvider?(current) ?? []
-    }
     return cell
   }
 
@@ -593,8 +587,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
   // MARK: - Context menu
   //
   // Landscape stills and vertical posters both focus the *cell* (poster lockup
-  // subtree is non-interactive). Collection path is the primary CW hook; poster
-  // cells also install their own interaction.
+  // subtree is non-interactive). One menu path: this collection delegate.
 
   public func collectionView(
     _ collectionView: UICollectionView,
