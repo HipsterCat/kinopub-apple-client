@@ -39,10 +39,18 @@ def main(path):
             print(f"  {index:2} {frame_line(frame, images)}")
     threads = body.get("threads", [])
     crashed = body.get("faultingThread", 0)
-    if crashed < len(threads):
-        thread = threads[crashed]
-        print(f"crashed thread {crashed} ({thread.get('queue', thread.get('name', ''))}):")
-        for index, frame in enumerate(thread.get("frames", [])[:80]):
+    # The crashed thread first, then every other thread: a crash on a worker (a
+    # `dispatch_apply` slice) only shows who started the work on the caller's thread.
+    order = [crashed] + [index for index in range(len(threads)) if index != crashed]
+    for number in order:
+        if number >= len(threads):
+            continue
+        thread = threads[number]
+        frames = thread.get("frames", [])
+        label = "crashed thread" if number == crashed else "thread"
+        print(f"{label} {number} ({thread.get('queue', thread.get('name', ''))}):")
+        limit = 80 if number == crashed else 40
+        for index, frame in enumerate(frames[:limit]):
             print(f"  {index:2} {frame_line(frame, images)}")
 
 
