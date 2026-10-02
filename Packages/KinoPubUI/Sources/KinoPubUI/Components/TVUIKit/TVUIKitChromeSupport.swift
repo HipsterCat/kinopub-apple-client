@@ -70,30 +70,18 @@ public final class TVUIKitBottomInfoBlurView: UIView {
   }
 }
 
-/// `[PCM]` console tracing for poster context menus. Always on in DEBUG so a device /
-/// simulator run shows why vertical shelves open or fail without flipping FocusLog.
+/// `[PCM]` console tracing for poster context menus. Compiled out of Release so
+/// focus-chain strings are never built on a user's TV.
 enum PosterContextMenuLog {
   private static let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Kinopub Soda",
     category: "PCM"
   )
 
-  static var isEnabled: Bool {
+  static func log(_ message: @autoclosure () -> String) {
 #if DEBUG
-    true
-#else
-    false
+    logger.info("[PCM] \(message(), privacy: .public)")
 #endif
-  }
-
-  static func log(_ message: String) {
-    guard isEnabled else { return }
-    let line = "[PCM] \(message)"
-    logger.info("\(line, privacy: .public)")
-    // NSLog + print so Xcode console / Console.app always show the line even when
-    // Logger category filters swallow `info`.
-    NSLog("%@", line)
-    print(line)
   }
 
   /// Focused-view chain from the leaf up — class names + accessibility ids.
