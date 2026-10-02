@@ -54,12 +54,11 @@ final class TVPageMastheadCell: UICollectionViewCell {
   override func updateConfiguration(using state: UICellConfigurationState) {
     var background = UIBackgroundConfiguration.clear()
     if state.isFocused {
-      // System cell fill — the UIKit stand-in for `.buttonStyle(.card)` on a
-      // header that is not a lockup. Without this, removing the 1.03 scale left
-      // the collection masthead with no focus cue (plain cell, no ring).
-      background.backgroundColor = .tertiarySystemFill
+      // UIKit stand-in for `.buttonStyle(.card)` on a header that is not a lockup.
+      // `tertiarySystemFill` and `cornerCurve` are iOS-only; tvOS has no semantic
+      // fill token, so a light white plate plus `cornerRadius` is the public surface.
+      background.backgroundColor = UIColor.white.withAlphaComponent(0.14)
       background.cornerRadius = 24
-      background.cornerCurve = .continuous
     }
     backgroundConfiguration = background
   }
