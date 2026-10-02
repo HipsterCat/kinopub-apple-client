@@ -189,6 +189,20 @@ jobs:
             exit 1
           fi
 
+      # A UI test only says the app "does not exist" when it dies under it; the crash
+      # report the simulator leaves on the runner says why.
+      - name: Crash reports
+        if: failure()
+        run: |
+          shopt -s nullglob nocaseglob
+          reports=(~/Library/Logs/DiagnosticReports/*kinopub*.ips)
+          if [ ${#reports[@]} -eq 0 ]; then
+            echo "No KinoPub crash report. Newest reports on the runner:"
+            ls -t ~/Library/Logs/DiagnosticReports | head -20
+            exit 0
+          fi
+          python3 .github/scripts/ips-summary.py "${reports[@]}"
+
   test-packages:
     name: Test ${{ matrix.package }}
     needs: filter
