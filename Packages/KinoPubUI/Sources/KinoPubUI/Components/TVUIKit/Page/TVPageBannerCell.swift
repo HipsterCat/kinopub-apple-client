@@ -4,12 +4,20 @@
 //  KinoPubUI
 //
 //  One title in the Home banner: a `TVCollectionViewFullScreenCell`, laid out by the
-//  carousel's `TVCollectionViewFullScreenLayout` (`TVPageBannerCarouselCell`). The
-//  backdrop is the parallax layer, in `maskedBackgroundView`, filling the cell as the
-//  layout expects; the words and the poster are in `maskedContentView`, inside the card
-//  the layout's mask leaves visible (`cardInsets`, the layout's `maskInset`): the title
-//  logo (or the name when there is no logo) under a top scrim, the plot's first sentence
-//  and the meta line under a bottom one, and the poster inset at the trailing edge.
+//  carousel's `TVCollectionViewFullScreenLayout` (`TVPageBannerCarouselCell`), built the
+//  way Apple's full-screen layout sample builds its cell. The cell's bounds are the
+//  card; its two masked views bleed out to the carousel's bounds, so everything here is
+//  laid out in carousel coordinates and kept inside the card window (`cardInsets`, the
+//  layout's `maskInset`). The backdrop fills `maskedBackgroundView`, the parallax layer.
+//  The words and the poster are in `maskedContentView` — the title logo (or the name)
+//  under a top scrim, the plot's first sentence and the meta line under a bottom one,
+//  the poster at the trailing edge — and the layout fades them while the row moves.
+//  When the mask opens (Select) they stay where they are and the art grows around them.
+//
+//  Focus is the system's image focus: the backdrop and the poster set
+//  `adjustsImageWhenAncestorFocused`, so the centred card's art zooms inside the mask
+//  with the specular highlight and the poster lifts with its shadow, and both settle
+//  when focus leaves the banner. The poster's corners are the system's as well.
 //
 //  The meta line is short on purpose (Sasha, 2026-10-01): the scores as
 //  `MediaScoresView` draws them (logo at a fixed height, then the value), the season
@@ -43,7 +51,6 @@ final class TVPageBannerCell: TVCollectionViewFullScreenCell {
   private var isFocusedLook = false
 
   private static let padding: CGFloat = 32
-  private static let posterCornerRadius: CGFloat = 10
   /// The poster's share of the card's height, and the logo's box.
   private static let posterHeightRatio: CGFloat = 0.42
   private static let logoHeightRatio: CGFloat = 0.2
@@ -64,7 +71,7 @@ final class TVPageBannerCell: TVCollectionViewFullScreenCell {
     background.backgroundColor = UIColor(white: 0.12, alpha: 1)
     backdrop.translatesAutoresizingMaskIntoConstraints = false
     backdrop.contentMode = .scaleAspectFill
-    backdrop.clipsToBounds = true
+    backdrop.adjustsImageWhenAncestorFocused = true
     background.addSubview(backdrop)
 
     let host = maskedContentView
@@ -100,15 +107,16 @@ final class TVPageBannerCell: TVCollectionViewFullScreenCell {
     meta.spacing = MediaScoresView.groupSpacing
     let text = UIStackView(arrangedSubviews: [overviewLabel, meta])
     text.axis = .vertical
+    // The meta line hugs its words; stretched, its last label (the genre) was pushed
+    // to the far edge of the column.
+    text.alignment = .leading
     text.spacing = 8
     text.translatesAutoresizingMaskIntoConstraints = false
     host.addSubview(text)
 
     poster.translatesAutoresizingMaskIntoConstraints = false
     poster.contentMode = .scaleAspectFill
-    poster.clipsToBounds = true
-    poster.layer.cornerRadius = Self.posterCornerRadius
-    poster.layer.cornerCurve = .continuous
+    poster.adjustsImageWhenAncestorFocused = true
     host.addSubview(poster)
 
     let pad = Self.padding
@@ -129,13 +137,15 @@ final class TVPageBannerCell: TVCollectionViewFullScreenCell {
       backdrop.trailingAnchor.constraint(equalTo: background.trailingAnchor),
       backdrop.bottomAnchor.constraint(equalTo: background.bottomAnchor),
 
-      topScrim.topAnchor.constraint(equalTo: cardGuide.topAnchor),
-      topScrim.leadingAnchor.constraint(equalTo: cardGuide.leadingAnchor),
-      topScrim.trailingAnchor.constraint(equalTo: cardGuide.trailingAnchor),
+      // The scrims run the full width of the masked view, so the art keeps one tone
+      // wherever the mask opens to (Select).
+      topScrim.topAnchor.constraint(equalTo: host.topAnchor),
+      topScrim.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+      topScrim.trailingAnchor.constraint(equalTo: host.trailingAnchor),
       topScrim.heightAnchor.constraint(equalTo: cardGuide.heightAnchor, multiplier: Self.topScrimReach),
-      bottomScrim.bottomAnchor.constraint(equalTo: cardGuide.bottomAnchor),
-      bottomScrim.leadingAnchor.constraint(equalTo: cardGuide.leadingAnchor),
-      bottomScrim.trailingAnchor.constraint(equalTo: cardGuide.trailingAnchor),
+      bottomScrim.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+      bottomScrim.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+      bottomScrim.trailingAnchor.constraint(equalTo: host.trailingAnchor),
       bottomScrim.heightAnchor.constraint(equalTo: cardGuide.heightAnchor, multiplier: Self.bottomScrimReach),
 
       logo.topAnchor.constraint(equalTo: cardGuide.topAnchor, constant: pad),
@@ -169,7 +179,7 @@ final class TVPageBannerCell: TVCollectionViewFullScreenCell {
   }
 
   /// - Parameters:
-  ///   - cardInsets: the layout's `maskInset` — where the visible card sits in the cell.
+  ///   - cardInsets: the layout's `maskInset` — where the card sits in the carousel.
   ///   - size: the cell's size, for decoding the backdrop at what it fills.
   func configure(feature: TVPageFeature, cardInsets: UIEdgeInsets, size: CGSize) {
     if cardInsets != self.cardInsets {
@@ -325,9 +335,10 @@ final class TVPageBannerCell: TVCollectionViewFullScreenCell {
   }
 
   /// Aspect-fit inside a box `logoHeightRatio` tall and at most `logoMaxWidthRatio`
-  /// wide, pinned to the leading edge rather than centred in the box.
+  /// wide, pinned to the leading edge rather than centred in the box. The cell's
+  /// bounds are the card.
   private func updateLogoWidth() {
-    let host = bounds.inset(by: cardInsets).size
+    let host = bounds.size
     guard let image = logo.image, image.size.height > 0, host.height > 0 else {
       logoWidth.constant = 0
       return

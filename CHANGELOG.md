@@ -5,6 +5,34 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Home banner: built the way Apple's full-screen layout sample is (2026-10-02)
+
+The first device build of the full-screen banner (below) did not browse: focus moved
+but the row never scrolled, focus was invisible, the words were cut, and the app
+crashed. Checked this time against Apple's "Creating immersive experiences using a
+full-screen layout" sample and a probe app in the tvOS 27.2 simulator, with the focus log:
+
+- **No scroll:** `indexPathForPreferredFocusedView(in:)` is asked on *every* move inside
+  the row, and answering with the centred title pinned focus there. It now answers the
+  middle title once, on the first entry, and nil after that.
+- **No hand scrolling:** `scrollToItem` at start left the centred card unpainted, and it
+  ran inside `layoutSubviews`, moving focus during a layout pass — the likely source of
+  the device crash (focus update → `_UIStackedImageContainerLayer` → `CALayer setBounds`
+  under `layout_is_active`). Not reproduced in the simulator; validation pending on device.
+- **`maskAmount` is not a focus state:** at any value but 1 the layout's cards cannot take
+  focus (Left / Right and Up stop). It is the sample's Expand: Select opens the card edge
+  to edge, reports the title, closes it.
+- **Focus is the system image focus:** backdrop and poster set
+  `adjustsImageWhenAncestorFocused` — the centred card's art zooms inside its mask with
+  the specular highlight and the poster lifts; both settle when focus leaves the banner.
+- The cell *is* the card; its masked views bleed to the carousel's bounds. Logo width was
+  computed from a card inset twice; the meta line stretched its last label (the genre) to
+  the column's far edge. The card hangs from the top (rounded top corners only, straight
+  bottom on the layout's edge) — that is the system shape, not a crop.
+- `TVHomeBannerUITests` walks the gallery: start centred on the middle title, Right /
+  Left centre the neighbour, the row ends after six, Down leaves, Up returns, Select
+  closes again and the row still browses. Screenshots attached.
+
 ### tvOS Home banner on the system full-screen layout (2026-10-01)
 
 The banner is one full-width page item (`TVPageItem.banner`) drawn by

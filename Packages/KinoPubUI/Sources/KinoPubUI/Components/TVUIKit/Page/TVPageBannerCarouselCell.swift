@@ -4,15 +4,40 @@
 //  KinoPubUI
 //
 //  The Home banner row: one page item the width of the screen holding a collection of
-//  its own, laid out by the system's `TVCollectionViewFullScreenLayout` (TVUIKit, the
-//  layout Top Shelf's carousel uses — WWDC19 211). The page is a compositional layout
-//  and this one is a whole layout, not a section, so it nests.
+//  its own, laid out by the system's `TVCollectionViewFullScreenLayout` (TVUIKit, WWDC19
+//  211, Apple's "Creating immersive experiences using a full-screen layout" sample).
+//  The page is a compositional layout and this one is a whole layout, so it nests.
 //
-//  One card in the middle, a sliver of each neighbour past its sides; focus moves the
-//  row a card at a time and the layout centres it, with its own parallax between the
-//  backdrop and the words. Each title once: no laps, no repeats (Sasha, 2026-10-01).
-//  The page hands focus here (`preferredFocusEnvironments`) and the row starts on its
-//  middle title, so there is a neighbour on either side from the first frame.
+//  How the layout works, measured on the tvOS 27.2 simulator (2026-10-02) rather than
+//  read from the headers:
+//  - Each cell *is* the visible card: the collection's bounds less `maskInset`. Its
+//    `maskedBackgroundView` and `maskedContentView` bleed out to the collection's bounds
+//    (less the bottom inset), so a cell lays its content out in collection coordinates
+//    and keeps it inside the card window, the way the sample does.
+//  - The layout owns the scroll. Focus moves a card at a time and the focus engine's
+//    scroll animator centres it; the words in `maskedContentView` fade out in flight and
+//    back in on the new card, the backdrop runs at the parallax rate.
+//  - The card hangs from the top: rounded top corners, a straight bottom edge on the
+//    layout's bottom. The bottom inset is never filled, so the band ends at the card.
+//  - `maskAmount` opens the mask: 1 is the card with its neighbours, 0 is edge to edge.
+//    At any other value than 1 the layout stops browsing: its cards cannot take focus,
+//    so Left / Right and Up into the row do nothing (tried 0.5 and 1.3 as a focus
+//    look). It is the sample's Expand, not a focus state: Select opens the card edge to
+//    edge, reports the title, and closes it again.
+//  - Focus is drawn by the system, on the images: the backdrop and the poster set
+//    `adjustsImageWhenAncestorFocused`, so the focused card's art zooms inside its mask
+//    with the specular highlight and the poster lifts (`TVPageBannerCell`).
+//
+//  Two things the layout does not survive, both seen in the simulator:
+//  - `indexPathForPreferredFocusedView(in:)` is asked on *every* move inside the row.
+//    Answering with a title pins focus there and the row stops scrolling (what the
+//    device showed on 2026-10-01). It answers once — the middle title, on the first
+//    entry — and nil after that; `remembersLastFocusedIndexPath` brings focus back.
+//  - Scrolling it by hand (`scrollToItem`, `contentOffset`) leaves the centred card
+//    unpainted, and doing it inside `layoutSubviews` moved focus during a layout pass.
+//    Nothing here sets the offset.
+//
+//  Each title once: no laps, no repeats (Sasha, 2026-10-01).
 //
 
 import TVUIKit
@@ -27,23 +52,21 @@ final class TVPageBannerCarouselCell: UICollectionViewCell {
 
   // MARK: - Geometry
 
-  /// How far each card sits in from the band's sides. The layout places its cells (each
-  /// as wide as the band) one card plus `interitemSpacing` apart, so a neighbour shows
-  /// `sideMask − gutter` past either side: about 200 at 1920. Read from the docs and
-  /// WWDC19 211, not yet seen on a device.
+  /// How far each card sits in from the band's sides. A neighbour shows
+  /// `sideMask − interitemSpacing` past either side: 196 at 1920.
   static let sideMask: CGFloat = 240
   /// Card width over height. Wider than the backdrop's 16:9: the band stays short
   /// enough for the first row under it to show.
   static let cardAspect: CGFloat = 12 / 5
-  /// The layout's own top and bottom mask (32 and 0 by default): room over the card.
-  private static let systemMaskInset = TVCollectionViewFullScreenLayout().maskInset
+  /// The layout's own room over the card (40 at 1920). The bottom is 0: the layout
+  /// never fills it (see the header).
+  private static let systemTopInset = TVCollectionViewFullScreenLayout().maskInset.top
 
   static var maskInset: UIEdgeInsets {
-    UIEdgeInsets(top: systemMaskInset.top, left: sideMask, bottom: systemMaskInset.bottom, right: sideMask)
+    UIEdgeInsets(top: systemTopInset, left: sideMask, bottom: 0, right: sideMask)
   }
 
-  /// The band's height at this width: the card at `cardAspect`, plus the mask over and
-  /// under it.
+  /// The band's height at this width: the card at `cardAspect` and the room over it.
   static func height(containerWidth: CGFloat) -> CGFloat {
     let card = max(containerWidth - sideMask * 2, 1) / cardAspect
     return (card + maskInset.top + maskInset.bottom).rounded()
@@ -62,9 +85,11 @@ final class TVPageBannerCarouselCell: UICollectionViewCell {
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
     view.backgroundColor = .clear
     view.showsHorizontalScrollIndicator = false
+    // The layout sets its own content inset from `maskInset`.
     view.contentInsetAdjustmentBehavior = .never
     // Back into the row lands on the title it was left on — the centred one.
     view.remembersLastFocusedIndexPath = true
+    view.accessibilityIdentifier = "kinopub.banner"
     view.delegate = self
     return view
   }()
@@ -72,8 +97,9 @@ final class TVPageBannerCarouselCell: UICollectionViewCell {
   private var dataSource: UICollectionViewDiffableDataSource<Int, Int>!
   private var features: [Int: TVPageFeature] = [:]
   private var ids: [Int] = []
-  /// A new set of titles waits for the next layout pass to centre its middle one.
-  private var needsStartPosition = false
+  /// Focus has entered this set of titles once; after that the row's own memory and
+  /// the layout decide where it lands.
+  private var hasEntered = false
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -94,7 +120,7 @@ final class TVPageBannerCarouselCell: UICollectionViewCell {
 
   /// The titles, each once. The same titles again (their details or logo arrived)
   /// repaint in place and the row stays where it is; a different set starts over in
-  /// the middle.
+  /// the middle the next time focus comes in.
   func configure(features: [TVPageFeature]) {
     var seen = Set<Int>()
     let unique = features.filter { seen.insert($0.card.id).inserted }
@@ -106,13 +132,12 @@ final class TVPageBannerCarouselCell: UICollectionViewCell {
 
     if nextIDs != ids {
       ids = nextIDs
+      hasEntered = false
       var snapshot = NSDiffableDataSourceSnapshot<Int, Int>()
       snapshot.appendSections([0])
       snapshot.appendItems(nextIDs, toSection: 0)
       dataSource.apply(snapshot, animatingDifferences: false)
       TVUIKitRemoteImage.prefetch(unique.map { URL(string: $0.card.backdropImageURL) })
-      needsStartPosition = true
-      setNeedsLayout()
     } else if !changed.isEmpty {
       var snapshot = dataSource.snapshot()
       snapshot.reconfigureItems(changed)
@@ -125,15 +150,6 @@ final class TVPageBannerCarouselCell: UICollectionViewCell {
     ids.isEmpty ? nil : IndexPath(item: (ids.count - 1) / 2, section: 0)
   }
 
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    collectionView.frame = contentView.bounds
-    guard needsStartPosition, collectionView.bounds.width > 0, let start = startIndexPath else { return }
-    needsStartPosition = false
-    collectionView.layoutIfNeeded()
-    collectionView.scrollToItem(at: start, at: .centeredHorizontally, animated: false)
-  }
-
   /// The page cannot focus this cell; it hands focus to the row, which picks its title.
   override var preferredFocusEnvironments: [UIFocusEnvironment] { [collectionView] }
 }
@@ -141,13 +157,35 @@ final class TVPageBannerCarouselCell: UICollectionViewCell {
 // MARK: - Delegate
 
 extension TVPageBannerCarouselCell: UICollectionViewDelegate {
+  /// Once, for the first entry: the middle title. Every later call — and there is one
+  /// on every move inside the row — answers nil (see the header).
   func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
-    layout.centerIndexPath ?? startIndexPath
+    guard !hasEntered else { return nil }
+    hasEntered = true
+    return startIndexPath
   }
 
+  /// The sample's Expand: the card opens edge to edge, the title is reported, and the
+  /// card closes again — the row cannot be browsed while it is open (see the header),
+  /// so it never stays open, whether or not the page navigates.
   func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
     guard let id = dataSource.itemIdentifier(for: indexPath), let feature = features[id] else { return }
-    onSelect?(feature)
+    setMaskAmount(0) { [weak self] in
+      self?.onSelect?(feature)
+      self?.setMaskAmount(1)
+    }
+  }
+
+  /// `maskAmount` only invalidates the layout; the cards move on the next layout pass,
+  /// so the pass runs inside the animation (without it the change lands unanimated and
+  /// the completion fires at once).
+  private func setMaskAmount(_ amount: CGFloat, completion: (() -> Void)? = nil) {
+    UIView.animate(withDuration: 0.35, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState]) {
+      self.layout.maskAmount = amount
+      self.collectionView.layoutIfNeeded()
+    } completion: { _ in
+      completion?()
+    }
   }
 
   func collectionView(_ collectionView: UICollectionView,
