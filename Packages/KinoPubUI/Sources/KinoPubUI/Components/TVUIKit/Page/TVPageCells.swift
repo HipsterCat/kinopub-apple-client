@@ -170,10 +170,10 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   /// Accepted adapter (tvOS 27.2, measured 2026-09-21). Image assignment for
-  /// `focusSizeIncrease` is deferred inside `TVUIKitNonFocusablePosterView.nuke_display`
-  /// (and `setImage` for drawn tiles / placeholders that skip Nuke).
+  /// `focusSizeIncrease` is deferred inside `TVUIKitDeferredPosterView` (and
+  /// `setImage` for drawn tiles / placeholders that skip Nuke).
   private func setImage(_ image: UIImage) {
-    posterView.nuke_display(image: image, data: nil)
+    TVUIKitRemoteImage.display(image, on: posterView)
   }
 
   /// Always an image of the content size, never nil: the lockup computes its focus
