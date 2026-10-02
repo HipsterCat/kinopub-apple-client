@@ -101,11 +101,12 @@ final class TVPageMastheadCell: UICollectionViewCell {
     detailLabel.numberOfLines = 2
 
     // Biography opens with focus. Empty or collapsed, it takes no space — so a late
-    // metadata paint does not shove the grid under an unfocused header.
+    // metadata paint does not shove the grid under an unfocused header. Capped at
+    // eight lines; a More / info-popup path is not wired yet.
     bioLabel.font = UIFont.preferredFont(forTextStyle: .body)
     bioLabel.adjustsFontForContentSizeCategory = true
     bioLabel.textColor = .secondaryLabel
-    bioLabel.numberOfLines = 0
+    bioLabel.numberOfLines = 8
     bioLabel.isHidden = true
 
     personText.axis = .vertical
@@ -217,15 +218,12 @@ final class TVPageMastheadCell: UICollectionViewCell {
       || context.nextFocusedView?.isDescendant(of: self) == true
     coordinator.addCoordinatedAnimations { [weak self] in
       self?.applyExpanded(focused, invalidate: true)
-    } completion: { [weak self] in
-      guard let self, focused else { return }
-      self.ensureExpandedBioVisible()
     }
   }
 
   /// Person: biography opens with focus by growing the cell — no scale / transform
-  /// fake focus. Collection: stats stay visible either way; the Focus Engine's own
-  /// focus ring on the cell is the affordance.
+  /// fake focus. Collection: stats stay visible either way; the focused
+  /// `UIBackgroundConfiguration` is the affordance.
   private func applyExpanded(_ expanded: Bool, invalidate: Bool) {
     guard isPerson else { return }
     let text = expanded ? biography : nil
@@ -240,26 +238,11 @@ final class TVPageMastheadCell: UICollectionViewCell {
   }
 
   private func invalidateIntrinsicSize() {
-    // Self-sizing estimated cells only remeasure when the layout is asked.
-    guard let view = superview as? UICollectionView else { return }
-    UIView.performWithoutAnimation {
-      view.collectionViewLayout.invalidateLayout()
-      view.layoutIfNeeded()
-    }
-  }
-
-  /// After the bio opens, keep the expanded band on screen without moving focus off
-  /// the masthead (no `scrollToItem` that re-targets preferred focus).
-  private func ensureExpandedBioVisible() {
-    guard isPerson, isFocused, biography != nil, !bioLabel.isHidden,
-          let view = superview as? UICollectionView,
-          let path = view.indexPath(for: self),
-          let attributes = view.layoutAttributesForItem(at: path)
-    else { return }
-    let target = attributes.frame.insetBy(dx: 0, dy: -16)
-    let visible = view.bounds.inset(by: view.adjustedContentInset)
-    guard !visible.contains(target) else { return }
-    view.scrollRectToVisible(target, animated: false)
+    guard let view = superview as? UICollectionView,
+          let path = view.indexPath(for: self) else { return }
+    let context = UICollectionViewLayoutInvalidationContext()
+    context.invalidateItems(at: [path])
+    view.collectionViewLayout.invalidateLayout(with: context)
   }
 
   override func layoutSubviews() {
