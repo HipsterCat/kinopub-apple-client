@@ -446,6 +446,7 @@ Deferred verification is allowed. Silent "everything landed" claims are not.
 | Only the icon inside a button scales, and gains a shadow | `.hoverEffect(.highlight)` on an `icon + text` label — use `.card` |
 | Posters stranded enlarged, parallax-wiggling while unfocused | The system's coordinated unfocus animation never ran; several sibling collections in one page region is the suspect shape |
 | A tile repaints blank after recycling | The cell skipped the synchronous `TVUIKitRemoteImage.cached(url:size:)` probe, or asked at a size no cell decodes at — a byte cache does not help, decoded ones are keyed by size |
+| tvOS crash `EXC_BAD_ACCESS` in `vImageConvert_ARGB8888toPlanar8` under `_UIStackedImageContainerLayer` | An image drawn with `UIGraphicsImageRenderer` from colourless content (stored 16-bit grey) handed to `TVPosterView` or an `adjustsImageWhenAncestorFocused` view — draw it with `TVUIKitTileArtwork.render` (32-bit) |
 | Blur/choreography "only works for series" | Something is keyed to incidental content geometry instead of state |
 | The page moves a little, then stops; background changes but layout doesn't | A threshold copied from a swipe-driven Apple sample onto a focus-driven page |
 | macOS: sidebar and player on screen together | A play entry point used `NavigationLink` instead of `PlayerLink` |
