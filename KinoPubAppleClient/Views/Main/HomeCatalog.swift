@@ -125,6 +125,8 @@ class HomeCatalog: ObservableObject {
   private let metadataService: MetadataService
   /// Banner cards whose details and logo were already asked for, found or not.
   private var bannerLookups: Set<Int> = []
+  /// In-flight detail+logo tasks, cancelled when the banner set changes or on refresh.
+  private var bannerTasks: [Int: Task<Void, Never>] = [:]
   private var bag = Set<AnyCancellable>()
 
   init(itemsService: VideoContentService,
@@ -308,6 +310,7 @@ class HomeCatalog: ObservableObject {
     errorHandler.reset()
     loadFailed = false
     loadError = nil
+    cancelBannerLookups()
     if includesWatchNowExtras {
       store.invalidate(family: .watch)
     }
@@ -466,19 +469,35 @@ class HomeCatalog: ObservableObject {
   /// One details call and one metadata lookup per banner title — the same calls (and
   /// caches) a detail page makes, so opening a banner title afterwards costs nothing
   /// more. The logo waits for the details card: a cached shelf card may predate the
-  /// IMDb id and would skip the lookup.
+  /// IMDb id and would skip the lookup. Stale tasks are cancelled when the banner
+  /// set changes; failed ids retry on the next `refresh()`.
   private func resolveBannerDetails() {
+    let live = Set(bannerCards.map(\.id))
+    for id in bannerTasks.keys where !live.contains(id) {
+      bannerTasks[id]?.cancel()
+      bannerTasks.removeValue(forKey: id)
+    }
+    bannerLookups = bannerLookups.intersection(live)
+
     for card in bannerCards where bannerLookups.insert(card.id).inserted {
-      Task { [weak self, itemsService, metadataService] in
+      let id = card.id
+      bannerTasks[id] = Task { [weak self, itemsService, metadataService] in
         let item = try? await itemsService.fetchDetails(for: "\(card.itemID)", excludeLinks: true).item
+        guard let self, !Task.isCancelled, self.bannerCards.contains(where: { $0.id == id }) else { return }
         let detailed = item.map { MediaCard($0) }
-        if let detailed { self?.bannerDetails[card.id] = detailed }
+        if let detailed { self.bannerDetails[id] = detailed }
         guard let identity = MediaIdentity(card: detailed ?? card) else { return }
         let url = await metadataService.metadata(for: identity).titleLogoURL
-        guard let self, let url else { return }
-        self.bannerLogos[card.id] = url
+        guard let url, !Task.isCancelled, self.bannerCards.contains(where: { $0.id == id }) else { return }
+        self.bannerLogos[id] = url
       }
     }
+  }
+
+  private func cancelBannerLookups() {
+    bannerTasks.values.forEach { $0.cancel() }
+    bannerTasks.removeAll()
+    bannerLookups.removeAll()
   }
 
   // MARK: - Continue watching actions
