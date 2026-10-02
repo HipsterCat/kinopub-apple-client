@@ -5,6 +5,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS drawn artwork is 32-bit: the focus effect read past the placeholder (2026-10-02)
+
+The tvOS UI tests died on CI with EXC_BAD_ACCESS in `vImageConvert_ARGB8888toPlanar8`,
+inside the focus effect's image stack (`_UIStackedImageContainerLayer`), under
+`TVPosterView(image:)` from the poster probe in `TVPageCellMetrics`. `UIGraphicsImageRenderer`
+picks its bitmap format from what is drawn, and the grey placeholder and monogram came back
+as grey with alpha, 16 bits a pixel (`TVUIKitTileArtworkTests`, measured on the CI simulator);
+the focus effect reads 32. `TVUIKitTileArtwork.render` now draws placeholders, tiles,
+monograms and cropped person photos into an explicit 32-bit BGRA sRGB bitmap. The same
+placeholder sits in Continue Watching cells while their stills load; whether it explains
+the device crash there (a different stack) is not proven.
+
 ### tvOS Home banner: built the way Apple's full-screen layout sample is (2026-10-02)
 
 The first device build of the full-screen banner (below) did not browse: focus moved
