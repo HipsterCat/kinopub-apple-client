@@ -148,7 +148,11 @@ struct MainView: View {
         let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : 5
         return .stills(id: row.id, title: row.title, count: row.count, columns: columns, cards: row.cards)
       }
-      return .posters(id: row.id, title: row.title, count: row.count, cards: row.cards)
+      // Watch Now poster rails: no title/subtitle under the art (cleaner). Catalog /
+      // search / category grids keep `.always` two-line footers elsewhere.
+      // Movies / Series tabs still reveal caption on focus.
+      let caption: TVPageCaption = tab == .home ? .never : .onFocus
+      return .posters(id: row.id, title: row.title, count: row.count, caption: caption, cards: row.cards)
     }
   }
 

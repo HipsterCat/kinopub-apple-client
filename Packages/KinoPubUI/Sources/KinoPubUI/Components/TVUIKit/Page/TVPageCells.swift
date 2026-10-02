@@ -109,7 +109,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
                  showsRating: Bool = false) {
     self.recipe = recipe
     posterView.contentSize = recipe.posterContentSize
-    applyCaption(caption, title: card.title, subtitle: Self.posterSubtitle(for: card))
+    applyCaption(caption, title: card.title, subtitle: Self.posterSubtitle(for: card, caption: caption))
 
     let posterID = "kinopub.poster.\(card.id)"
     accessibilityIdentifier = posterID
@@ -126,11 +126,13 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   /// A drawn tile in the lockup: the tint and glyph are the artwork, the name is the
-  /// footer caption like any poster's.
+  /// footer caption like any poster's. Catalog-style `.always` still reserves a second
+  /// line so a mixed collection does not jump between one- and two-line cells.
   func configure(tile: TVPageTile, recipe: TVPageCellRecipe, caption: TVPageCaption) {
     self.recipe = recipe
     posterView.contentSize = recipe.posterContentSize
-    applyCaption(caption, title: tile.title, subtitle: nil)
+    let subtitle: String? = caption == .always ? "\u{00A0}" : nil
+    applyCaption(caption, title: tile.title, subtitle: subtitle)
     accessibilityIdentifier = "kinopub.tile.\(tile.id)"
     accessibilityLabel = tile.title
     posterView.accessibilityIdentifier = accessibilityIdentifier
@@ -162,8 +164,19 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   /// Year under the title when the lockup footer is on — what TVPosterView's subtitle
   /// is for. Original title is reserved for search's wide cards (match highlighting).
-  private static func posterSubtitle(for card: MediaCard) -> String? {
-    card.year.map(String.init)
+  ///
+  /// Catalog / search / category grids (`.always`) **always** reserve a second line so
+  /// a collection never mixes one-line and two-line cells (Sasha, 2026-10-02). Missing
+  /// year → NBSP placeholder (empty string collapses the footer line).
+  private static func posterSubtitle(for card: MediaCard, caption: TVPageCaption) -> String? {
+    switch caption {
+    case .never:
+      return nil
+    case .always:
+      return card.year.map(String.init) ?? "\u{00A0}"
+    case .onFocus:
+      return card.year.map(String.init)
+    }
   }
 
   /// Accepted adapter (tvOS 27.2, measured 2026-09-21). Image assignment for

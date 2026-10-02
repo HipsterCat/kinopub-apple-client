@@ -44,17 +44,19 @@ public enum TVUIKitRemoteImage {
 
   /// Already-decoded art for this URL at this tile size, or nil. Synchronous on purpose:
   /// a cell calls this while configuring so a recycled tile never paints a placeholder.
-  public static func cached(url: URL?, size: CGSize = .zero) -> UIImage? {
+  public static func cached(url: URL?, size: CGSize = .zero,
+                            mode: Artwork.ResizeMode = .fill) -> UIImage? {
     guard let url else { return nil }
-    return Artwork.cachedImage(for: url, size: size)
+    return Artwork.cachedImage(for: url, size: size, mode: mode)
   }
 
   /// - Parameter size: the tile this art is going into, in points. Artwork is decoded
   ///   down to it — passing `.zero` keeps full resolution and should be rare.
-  public static func load(url: URL?, size: CGSize = .zero) async -> UIImage? {
+  public static func load(url: URL?, size: CGSize = .zero,
+                          mode: Artwork.ResizeMode = .fill) async -> UIImage? {
     guard let url else { return nil }
     do {
-      let response = try await Artwork.pipeline.imageTask(with: Artwork.request(url, size: size)).response
+      let response = try await Artwork.pipeline.imageTask(with: Artwork.request(url, size: size, mode: mode)).response
       ArtworkLog.loaded(url, from: tier(of: response))
       return response.image
     } catch {
@@ -67,6 +69,8 @@ public enum TVUIKitRemoteImage {
 
   /// Load into a `TVPosterView` via Nuke's integrated display path (`NukeExtensions`).
   ///
+  /// Decodes with `.fit` (no centre crop) so cover lettering stays readable — the
+  /// shared `.fill` path is for still / landscape boxes that need a fixed aspect.
   /// Never set `contentModes` here: changing `imageView.contentMode` / clipping the
   /// lockup kills parallax (AGENTS.md). Deferred image assignment for
   /// `focusSizeIncrease` lives on `TVUIKitNonFocusablePosterView.nuke_display`.
@@ -82,7 +86,7 @@ public enum TVUIKitRemoteImage {
       ArtworkLog.skipped(by: "poster", reason: "no artwork URL")
       return nil
     }
-    if cached(url: url, size: size) != nil {
+    if cached(url: url, size: size, mode: .fit) != nil {
       ArtworkLog.servedFromMemory(url, by: "poster")
     } else {
       ArtworkLog.requested(url, by: "poster")
@@ -99,7 +103,7 @@ public enum TVUIKitRemoteImage {
     // than a one-frame-stale poster. `nuke_display` still defers the real assignment.
     options.isPrepareForReuseEnabled = false
     options.isProgressiveRenderingEnabled = false
-    return loadImage(with: Artwork.request(url, size: size), options: options, into: posterView) { result in
+    return loadImage(with: Artwork.request(url, size: size, mode: .fit), options: options, into: posterView) { result in
       switch result {
       case .success(let response):
         ArtworkLog.loaded(url, from: tier(of: response))
