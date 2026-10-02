@@ -5,6 +5,23 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Review fixes (2026-10-02)
+
+Deep-review follow-up on main since the catalog/person TVPage work. Library catalog
+first-page loads cancel the previous Task and ignore stale completions. Hero actions
+never use `.disabled` (loading is a handler guard). Search tab Down/Up no longer
+races the focus animator with an async press rescue. Catalog pages take live
+safe-area insets instead of stacking 80 pt on a 1920 canvas. Masthead cells
+self-size for Dynamic Type and invalidate only their own item. Poster context-menu
+logging is compiled out of Release. Banner detail Tasks are cancelled on refresh.
+KinoPubConfig loads coalesce on an actor. Initials discs redraw on light/dark.
+Nuke stays behind `Artwork` (`ArtworkImage` no longer imports NukeUI). Poster
+cells keep one collection-view context-menu path.
+
+Deployment floor in the docs is **tvOS 26.6**: Xcode's default when tvOS 26 is the
+minimum, and the latest 26.x every tvOS 26 device can install. The Xcode target is
+unchanged.
+
 ### tvOS collection and person pages use the search catalog (2026-10-01)
 
 Opening a collection, or a person's credits, is a `TVPage`. The header — a collection's
