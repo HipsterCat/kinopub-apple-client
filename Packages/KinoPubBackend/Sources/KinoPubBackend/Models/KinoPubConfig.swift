@@ -55,12 +55,30 @@ public struct KinoPubConfig: Decodable, Sendable {
     CountryPopularity.sorted(filter.countries.map { Country(id: $0.id, title: $0.title) })
   }
 
-  private static var cached: KinoPubConfig?
+  private actor ConfigLoader {
+    static let shared = ConfigLoader()
+    private var cached: KinoPubConfig?
+    private var inFlight: Task<KinoPubConfig?, Never>?
+
+    func load(session: URLSession) async -> KinoPubConfig? {
+      if let cached { return cached }
+      if let inFlight { return await inFlight.value }
+      let task = Task { await KinoPubConfig.fetch(session: session) }
+      inFlight = task
+      let result = await task.value
+      inFlight = nil
+      if let result { cached = result }
+      return result
+    }
+  }
 
   /// Memory, then a copy in Caches, then the network. The file changes rarely; a stale
-  /// copy is better than empty pickers.
+  /// copy is better than empty pickers. Concurrent callers share one in-flight fetch.
   public static func load(session: URLSession = .shared) async -> KinoPubConfig? {
-    if let cached { return cached }
+    await ConfigLoader.shared.load(session: session)
+  }
+
+  private static func fetch(session: URLSession) async -> KinoPubConfig? {
     let disk = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
       .appendingPathComponent("kinopub-config.json")
     var request = URLRequest(url: url)
@@ -69,12 +87,10 @@ public struct KinoPubConfig: Decodable, Sendable {
        (response as? HTTPURLResponse)?.statusCode == 200,
        let config = try? JSONDecoder().decode(KinoPubConfig.self, from: data) {
       if let disk { try? data.write(to: disk) }
-      cached = config
       return config
     }
     if let disk, let data = try? Data(contentsOf: disk),
        let config = try? JSONDecoder().decode(KinoPubConfig.self, from: data) {
-      cached = config
       return config
     }
     return nil
