@@ -10,6 +10,7 @@ final class MediaItemHeroActionAvailabilityTests: XCTestCase {
     XCTAssertTrue(MediaItemHeroActionAvailability.isInteractable(isLoading: false))
   }
 
+  /// Loading is a no-op in the handler, never `.disabled` on the control.
   func testLoadingControlIsNotInteractable() {
     XCTAssertFalse(MediaItemHeroActionAvailability.isInteractable(isLoading: true))
   }
