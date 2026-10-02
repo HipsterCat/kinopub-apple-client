@@ -3,8 +3,9 @@
 //  KinoPubUI
 //
 //  The one artwork cache. Every remote image on every platform goes through this
-//  pipeline — `CachedRemoteImage` (SwiftUI), `TVUIKitRemoteImage` (tvOS cells) and
-//  `FallbackRemoteImage` are its only callers, and nothing else imports Nuke.
+//  pipeline — `ArtworkImage` / `CachedRemoteImage` (SwiftUI), `TVUIKitRemoteImage`
+//  (tvOS cells) and `FallbackRemoteImage` are its only callers, and nothing else
+//  imports Nuke.
 //
 //  Why a library and not `AsyncImage`: `URLCache` stores *bytes*. A recycled tile that
 //  hits it still pays a full decode, and the default shared cache holds a handful of
@@ -89,6 +90,12 @@ public enum Artwork {
   /// while configuring so a recycled tile never paints a placeholder.
   public static func cachedImage(for url: URL, size: CGSize = .zero) -> PlatformImage? {
     pipeline.cache[request(url, size: size)]?.image
+  }
+
+  /// Decode (or cache-hit) off the call site's actor. `FallbackRemoteImage` and
+  /// `ArtworkImage` go through this so they never import Nuke.
+  public static func image(for url: URL, size: CGSize = .zero) async throws -> PlatformImage {
+    try await pipeline.image(for: request(url, size: size))
   }
 
   // MARK: - Accounting, for Settings › Storage
