@@ -51,11 +51,23 @@ final class TVPageMastheadCell: UICollectionViewCell {
   /// collection detail. Select does nothing — there is no action.
   override var canBecomeFocused: Bool { true }
 
+  override func updateConfiguration(using state: UICellConfigurationState) {
+    var background = UIBackgroundConfiguration.clear()
+    if state.isFocused {
+      // System cell fill — the UIKit stand-in for `.buttonStyle(.card)` on a
+      // header that is not a lockup. Without this, removing the 1.03 scale left
+      // the collection masthead with no focus cue (plain cell, no ring).
+      background.backgroundColor = .tertiarySystemFill
+      background.cornerRadius = 24
+      background.cornerCurve = .continuous
+    }
+    backgroundConfiguration = background
+  }
+
   override init(frame: CGRect) {
     super.init(frame: frame)
     isUserInteractionEnabled = true
-    automaticallyUpdatesBackgroundConfiguration = false
-    backgroundConfiguration = .clear()
+    automaticallyUpdatesBackgroundConfiguration = true
     backgroundColor = .clear
     contentView.backgroundColor = .clear
     clipsToBounds = false
