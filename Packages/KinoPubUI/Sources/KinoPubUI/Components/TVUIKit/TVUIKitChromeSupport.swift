@@ -80,7 +80,8 @@ enum PosterContextMenuLog {
 
   static func log(_ message: @autoclosure () -> String) {
 #if DEBUG
-    logger.info("[PCM] \(message(), privacy: .public)")
+    let line = message()
+    logger.info("[PCM] \(line, privacy: .public)")
 #endif
   }
 
