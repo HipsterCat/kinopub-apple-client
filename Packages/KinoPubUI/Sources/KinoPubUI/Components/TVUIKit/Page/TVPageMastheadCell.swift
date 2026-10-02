@@ -274,23 +274,21 @@ final class TVPageMastheadCell: UICollectionViewCell {
     avatar.image = TVUIKitTileArtwork.monogram(name: monogramName, diameter: diameter, traits: traitCollection)
   }
 
-  /// Rest height is fixed so a late detail / stats paint cannot shove the grid.
-  /// Only a focused person biography is allowed to grow the cell.
+  /// Measure rest and focused height from Auto Layout so Dynamic Type and long
+  /// titles fit. Biography is hidden until focus, so it does not grow the
+  /// unfocused band.
   override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
     let attributes = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
     let width = layoutAttributes.size.width
-    let rest: CGFloat = isPerson ? 220 : (statsRow.isHidden ? 160 : 260)
-    if isPerson, isFocused, biography != nil, bioLabel.isHidden == false {
+    if isPerson, !bioLabel.isHidden {
       bioLabel.preferredMaxLayoutWidth = max(width - Self.avatarSide - 28, 200)
-      let fitting = contentView.systemLayoutSizeFitting(
-        CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
-        withHorizontalFittingPriority: .required,
-        verticalFittingPriority: .fittingSizeLevel
-      )
-      attributes.size = CGSize(width: width, height: max(ceil(fitting.height), rest))
-    } else {
-      attributes.size = CGSize(width: width, height: rest)
     }
+    let fitting = contentView.systemLayoutSizeFitting(
+      CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+      withHorizontalFittingPriority: .required,
+      verticalFittingPriority: .fittingSizeLevel
+    )
+    attributes.size = CGSize(width: width, height: max(ceil(fitting.height), 1))
     return attributes
   }
 
