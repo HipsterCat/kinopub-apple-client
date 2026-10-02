@@ -51,8 +51,9 @@ public enum TVHIGGrid {
   /// 260 wide: ~1.10×). Half of the growth lands above the unfocused top edge.
   public static let focusGrowth: CGFloat = 0.10
 
-  /// The HIG content box: 1920 minus two side insets. The column counts in the table
-  /// are stated for this width; a section's `columns` is read against it.
+  /// The HIG content box used as a **density example**, not a layout canvas:
+  /// 1920 minus two 80 pt side insets. Column counts in the table are stated for
+  /// this width; a section's live width comes from the container + `safeAreaInsets`.
   public static let referenceContentWidth: CGFloat = 1920 - sideInset * 2
 
   /// Unfocused card width for `columns` cards across `contentWidth` (the container

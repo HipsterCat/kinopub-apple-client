@@ -63,7 +63,7 @@ public final class TVPageCollectionViewController: UIViewController {
 
   private lazy var collectionView: UICollectionView = {
     let layout = TVPageLayout.makeLayout(
-      sideInset: sideInset,
+      sideInset: { [weak self] in self?.resolvedSideInset ?? TVHIGGrid.sideInset },
       adjustedLeading: { [weak self] in self?.currentLeading() ?? 0 },
       sections: { [weak self] in self?.sections ?? [] }
     )
@@ -146,6 +146,7 @@ public final class TVPageCollectionViewController: UIViewController {
   public override func viewSafeAreaInsetsDidChange() {
     super.viewSafeAreaInsetsDidChange()
     updateContentInsets()
+    collectionView.collectionViewLayout.invalidateLayout()
   }
 
   public override func viewDidLayoutSubviews() {
@@ -201,8 +202,8 @@ public final class TVPageCollectionViewController: UIViewController {
 
   /// How far the collection's content already starts from the screen's leading edge:
   /// its own frame in the window (the search container lays its results controller out
-  /// inside the 80 pt safe area — measured x = 80, width 1760) plus the scroll view's
-  /// adjusted inset. A tab page is full screen with neither.
+  /// inside the overscan safe area — measured x = 80, width 1760 on a 1920 display)
+  /// plus the scroll view's adjusted inset. A tab page is full screen with neither.
   private func updateAdjustedLeading() {
     guard view.window != nil else { return }
     let leading = currentLeading()
@@ -253,6 +254,16 @@ public final class TVPageCollectionViewController: UIViewController {
   /// the right place.
   private var focusedSectionIndex: Int?
 
+  /// Live overscan inset. Hosts that already sit inside the safe area report 0 here
+  /// and `adjustedLeading` removes the remaining gap, so Search is not cut twice.
+  /// Full-bleed catalog pages (collection / person) read the real overscan instead of
+  /// a hardcoded 80 pt / 1920 canvas.
+  private var resolvedSideInset: CGFloat {
+    guard isViewLoaded else { return sideInset }
+    let safe = max(collectionView.safeAreaInsets.left, collectionView.safeAreaInsets.right)
+    return safe > 1 ? safe : sideInset
+  }
+
   private func header(at section: Int) -> UICollectionReusableView? {
     collectionView.supplementaryView(forElementKind: TVPageLayout.headerKind,
                                      at: IndexPath(item: 0, section: section))
@@ -264,7 +275,7 @@ public final class TVPageCollectionViewController: UIViewController {
     guard sections.indices.contains(section) else { return .identity }
     let target = sections[section]
     guard target.kind != .chip, target.kind != .masthead else { return .identity }
-    let contentWidth = max(collectionView.bounds.width - sideInset * 2, 1)
+    let contentWidth = max(collectionView.bounds.width - resolvedSideInset * 2, 1)
     let art = TVHIGGrid.resolve(columns: target.columns, contentWidth: contentWidth).cardWidth
     let recipe = TVPageCellMetrics.recipe(kind: target.kind, artWidth: art, caption: target.caption)
     let lift = recipe.artInsets.top > 0
@@ -552,7 +563,7 @@ public final class TVPageCollectionViewController: UIViewController {
   private func gridColumns(for section: TVPageSection) -> Int {
     let width = isViewLoaded ? collectionView.bounds.width : 0
     guard width > 0 else { return max(section.columns, 1) }
-    let inset = max(sideInset - currentLeading(), 0)
+    let inset = max(resolvedSideInset - currentLeading(), 0)
     return TVHIGGrid.resolve(columns: section.columns, contentWidth: max(width - inset * 2, 1)).columns
   }
 
