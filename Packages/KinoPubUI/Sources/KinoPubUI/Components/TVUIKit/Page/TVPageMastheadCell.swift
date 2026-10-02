@@ -174,6 +174,9 @@ final class TVPageMastheadCell: UICollectionViewCell {
       statsRow.widthAnchor.constraint(lessThanOrEqualTo: collectionColumn.widthAnchor)
     ]
     accessibilityIdentifier = "kinopub.masthead"
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (cell: TVPageMastheadCell, _) in
+      cell.redrawMonogramIfNeeded()
+    }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -255,6 +258,12 @@ final class TVPageMastheadCell: UICollectionViewCell {
     guard let monogramName, diameter > 1, abs(diameter - monogramDiameter) > 0.5 else { return }
     monogramDiameter = diameter
     avatar.image = TVUIKitTileArtwork.monogram(name: monogramName, diameter: diameter, traits: traitCollection)
+  }
+
+  private func redrawMonogramIfNeeded() {
+    guard monogramName != nil else { return }
+    monogramDiameter = 0
+    setNeedsLayout()
   }
 
   /// Measure rest and focused height from Auto Layout so Dynamic Type and long
