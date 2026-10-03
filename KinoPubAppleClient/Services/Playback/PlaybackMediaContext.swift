@@ -101,17 +101,15 @@ enum PlaybackMediaContext {
 
   // MARK: - Up Next
 
-  /// The Up Next tab's first card: the first episode after `current`, in reading order
-  /// (`NextPlayableEpisode`), that the viewer has **not** watched. Nil when every episode
-  /// after this one is watched — Up Next never offers a watched one (user's call,
-  /// 2026-10-01).
-  static func nextUnwatched(after current: Episode, in series: MediaItem?) -> Episode? {
-    var cursor = current
-    while let next = NextPlayableEpisode.after(cursor, in: series) {
-      if !next.isWatched { return next }
-      cursor = next
+  /// The Up Next tab's first card: the first episode after `current` the viewer has
+  /// **not** watched — by this device's own state too, not only the payload's
+  /// (`EpisodeQueue.nextUnwatched`). Nil when every episode after it is watched.
+  static func nextUnwatched(after current: Episode, in series: MediaItem?,
+                            viewer: ViewerStateReading) -> Episode? {
+    EpisodeQueue(series: series) { ref, episode in
+      viewer.state(for: ref, reported: ViewerState(reportedBy: episode))
     }
-    return nil
+    .nextUnwatched(after: current)?.episode
   }
 
   /// What the model says about one episode from kino.pub alone — the tile's name (never

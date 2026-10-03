@@ -120,7 +120,7 @@ row painted from cache shows yesterday's state until the next fetch overlays it.
 | --- | --- | --- |
 | Continue Watching | `HomeCatalog` + `ContinueWatchingEpisode.forSeries` + `ContinueWatchingLocalOverlay` | `Selection.continueWatching(records, state)` |
 | Up Next (player) | `PlaybackMediaContext.nextUnwatched` + CW cards | same function as Continue Watching's "next episode" |
-| Next episode for a series | `NextPlayableEpisode`, `ContinueWatchingEpisode.forSeries`, `nextUnwatched` — three answers | one `Selection.nextEpisode(series, state)` |
+| Next episode for a series | `primaryEpisode`, `NextPlayableEpisode`, `ContinueWatchingEpisode.forSeries`, `nextUnwatched` — four answers | **done**: `EpisodeQueue` (named queries over one ordered list, watched-ness from `ViewerState`); the card's list-less guess stays until D17 |
 | History | `HistoryView` from `/v1/history` | query over records + `lastWatchedAt` |
 | Watchlist / subscriptions | `WatchlistView` | query |
 | Bookmarks | `PersonalLibraryCatalog` | query |
@@ -183,7 +183,11 @@ Each step is one reviewable slice with tests, merged before the next.
    its `MediaRef` in one store. Rows keep only the order of refs; a card is worded at paint
    time from the record + `ViewerState` + `MediaSurface`. `MediaItem` / `Episode` / `Season`
    reach it through `KinoPubMediaMapping`, as the player's already do.
-5. Selection functions, starting with the single "next episode" answer (three today).
+5. Selection functions. **Started**: `EpisodeQueue` (KinoPubBackend) answers every "which
+   episode" question — `next(after:)` for the end-of-episode proposal, `nextUnwatched(after:)`
+   for Up Next (now by this device's state too), `continueTarget` for the hero and Continue
+   Watching; `primaryEpisode` and `NextPlayableEpisode` read it. Next: Continue Watching,
+   history, unwatched as queries.
 6. Surfaces move one at a time, each with its rows in the surface table: player (done) →
    Up Next → Continue Watching → History → Watchlist → Bookmarks → catalog shelves → Home
    banner → detail hero → Top Shelf.
@@ -213,3 +217,4 @@ Each step is one reviewable slice with tests, merged before the next.
 | ~~D14~~ | **Decided**: detail page (season switch beside it, or one season) — «7. Name», no name «Episode 7» / «Серия 7»; elsewhere «S1, E1: Name» / «1 сезон, 1 серия: Name» | — |
 | ~~D15~~ | **Decided**: the card carries the season count (`MediaCard.seasonCount`); the hero passes it too | — |
 | ~~D16~~ | **Decided**: only whole episodes count as watched; a series or season has no runtime in the ring | — |
+| D17 | "Where the viewer is" in a series with E1, E2, E4, E5 watched and E6 half-way: E3 (the first unwatched — the hero today), or E6 (in progress / after the furthest watched — a Continue Watching card without details today)? One answer for both | E3 on the hero, E6 on a card without details |

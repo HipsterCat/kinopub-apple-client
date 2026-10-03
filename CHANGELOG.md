@@ -5,6 +5,16 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### One queue for "which episode" (2026-10-03)
+
+`EpisodeQueue` (KinoPubBackend) is a series' episodes in reading order with each one's
+`ViewerState`, and every "which episode" question is a named query on it: `next(after:)` (the
+end-of-episode proposal), `nextUnwatched(after:)` (Up Next — now by this device's own marks and
+resume points too), `continueTarget` (the hero's Play, Continue Watching with details, the card
+menu). `primaryEpisode` reads it — and now in sorted order, not the payload's;
+`NextPlayableEpisode` is deprecated. The one disagreement left — a card without an episode list
+guesses "after the furthest watched", the hero says "the first unwatched" — is decision D17.
+
 ### Concert setlists; the worker's own doc (2026-10-03)
 
 `MediaItem.tracklist` (`TracklistEntry`, reads both `artists` and the documented `artist`) maps

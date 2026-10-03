@@ -1409,7 +1409,7 @@ extension PlayerManager {
   func installNextEpisodeProposal(on item: AVPlayerItem) {
     guard watchMode == .media, let current = playItem as? Episode else { return }
     let series = AppContext.shared.localProgressStore.snapshot(for: current.metadata.id)
-    guard let next = NextPlayableEpisode.after(current, in: series) else { return }
+    guard let next = EpisodeQueue(series: series).next(after: current)?.episode else { return }
     pendingNextEpisode = next
     rebuildUpNextTab()
 
@@ -1510,7 +1510,8 @@ extension PlayerManager {
     let playingID = playItem.metadata.id
     let series = AppContext.shared.localProgressStore.snapshot(for: playingID)
     let next = (playItem as? Episode).flatMap {
-      PlaybackMediaContext.nextUnwatched(after: $0, in: series)
+      PlaybackMediaContext.nextUnwatched(after: $0, in: series,
+                                         viewer: AppContext.shared.viewerState)
     }
     let nextContext = next.flatMap {
       upNextEnriched[$0.id] ?? PlaybackMediaContext.context(for: $0, in: series)
