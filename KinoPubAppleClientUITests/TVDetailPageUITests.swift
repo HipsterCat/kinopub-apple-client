@@ -11,6 +11,7 @@
 //  - after watching the last episode from the hero's Play and coming back, *something*
 //    has focus — the main button, which is now labelled Follow («Отслеживать»);
 //  - a series caught up on kino.pub with the next episode dated opens on Follow;
+//  - Replay, when it leads, has the focus on opening and after the player too;
 //  - episodes TMDB lists and kino.pub does not have: a lock, «Сегодня» … «3 дня назад»,
 //    «Позже» (the screenshots are the check; the badge is drawn, not an element);
 //  - a film in versions has a play button per version (two at most), named after the
@@ -58,7 +59,7 @@ final class TVDetailPageUITests: XCTestCase {
 
     // And it stays there: nothing takes it back a moment later.
     Thread.sleep(forTimeInterval: 2.0)
-    XCTAssertTrue(control("follow").hasFocus, "focus left Follow: \(focusedDescription)")
+    XCTAssertTrue(focused("follow").exists, "focus left Follow: \(focusedDescription)")
     try shoot("awaiting-3-settled")
   }
 
@@ -67,6 +68,24 @@ final class TVDetailPageUITests: XCTestCase {
     try waitForFocus(on: "follow", timeout: 20, "open")
     XCTAssertTrue(control("follow").label.contains("Отслеживать"), control("follow").label)
     try shoot("missing-0-open")
+  }
+
+  /// Replay leading is still the main button: focus on opening, and again after the player.
+  func testReplayHasFocusOnOpeningAndAfterThePlayer() throws {
+    launch("rewatch")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    try shoot("rewatch-0-open")
+
+    XCUIRemote.shared.press(.select)
+    let player = app.descendants(matching: .any).matching(identifier: "kinopub.fixture.player").firstMatch
+    XCTAssertTrue(player.waitForExistence(timeout: 10), "Replay did not open the player")
+    Thread.sleep(forTimeInterval: 1.0)
+
+    XCUIRemote.shared.press(.menu)
+    try waitForFocus(on: "play", timeout: 10, "back from the player")
+    Thread.sleep(forTimeInterval: 2.0)
+    XCTAssertTrue(focused("play").exists, "focus left Replay: \(focusedDescription)")
+    try shoot("rewatch-1-back")
   }
 
   // MARK: - Episodes kino.pub does not have
@@ -119,7 +138,7 @@ final class TVDetailPageUITests: XCTestCase {
     let playButtons = app.descendants(matching: .any)
       .matching(NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.hero.play"))
       .allElementsBoundByIndex
-      .map(\.identifier)
+      .map { $0.identifier }
     XCTAssertEqual(Set(playButtons), ["kinopub.hero.play", "kinopub.hero.playAlternate"],
                    "a third version must not be a button")
     try shoot("versions-unnamed-0-open")
@@ -138,8 +157,19 @@ final class TVDetailPageUITests: XCTestCase {
     app.launch()
   }
 
+  /// The hero control by id — the button itself, in case SwiftUI also hands the
+  /// identifier to a wrapper around it.
   private func control(_ id: String) -> XCUIElement {
-    app.descendants(matching: .any).matching(identifier: "kinopub.hero.\(id)").firstMatch
+    let identifier = "kinopub.hero.\(id)"
+    let button = app.buttons.matching(identifier: identifier).firstMatch
+    return button.exists ? button : app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+  }
+
+  /// That control, only while it has focus.
+  private func focused(_ id: String) -> XCUIElement {
+    app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier == %@ AND hasFocus == true", "kinopub.hero.\(id)"))
+      .firstMatch
   }
 
   private var anyHeroControlHasFocus: Bool {
@@ -161,9 +191,9 @@ final class TVDetailPageUITests: XCTestCase {
   private struct NoFocus: Error {}
 
   private func waitForFocus(on id: String, timeout: TimeInterval, _ moment: String) throws {
-    let focused = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hasFocus == true"),
-                                            object: control(id))
-    guard XCTWaiter().wait(for: [focused], timeout: timeout) == .completed else {
+    let landed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"),
+                                           object: focused(id))
+    guard XCTWaiter().wait(for: [landed], timeout: timeout) == .completed else {
       try shoot("no-focus-\(moment.replacingOccurrences(of: " ", with: "-"))")
       XCTFail("\(moment): \(id) does not have focus — focused: \(focusedDescription)")
       throw NoFocus()

@@ -400,7 +400,8 @@ struct MediaItemHeroView: View {
       .onChange(of: actionEntryTarget) { old, new in
         guard focus == old else { return }
         Task { @MainActor in
-          guard focus == old else { return }
+          // The old control may already be gone and have taken focus with it.
+          guard focus == old || (focus == nil && TVFocusProbe.nothingFocused) else { return }
           claim(new, reason: "entry control changed \(old) → \(new)")
         }
       }
@@ -480,12 +481,13 @@ struct MediaItemHeroView: View {
       || focusLeftRowAt.map { Date().timeIntervalSince($0) < 0.5 } == true
     guard heldFocus, !isCovered else { return }
     Task { @MainActor in
-      for delay in [80, 200, 320] {
+      // Until focus lands: a control still running its insertion transition does not
+      // take it, so one claim can come to nothing.
+      for delay in [80, 120, 150, 200, 250, 400] {
         try? await Task.sleep(for: .milliseconds(delay))
         guard !isCovered, focus == nil else { return }
         if TVFocusProbe.nothingFocused {
           claim(actionEntryTarget, reason: "row changed under the focused control")
-          return
         }
       }
     }

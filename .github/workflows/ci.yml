@@ -133,6 +133,9 @@ jobs:
     needs: filter
     if: needs.filter.outputs.test_app == 'true'
     runs-on: xcode-27
+    # Write only for the screenshot ref below.
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -190,21 +193,35 @@ jobs:
           fi
 
       # The detail-page UI tests check what the remote can query; the badges and the lock
-      # are drawn, so their screenshots are the check. Printed into this log (small JPEGs,
-      # base64 between markers) so they can be read without downloading an artifact.
+      # are drawn, so their screenshots are the check. Job logs and artifacts are served
+      # from hosts an agent's sandbox cannot reach, so the screenshots go to a hidden git
+      # ref instead (`git fetch origin refs/ci-shots/<run>-<attempt>`), not a branch. Only
+      # the newest run's ref is kept.
       - name: Detail page screenshots
-        if: always() && matrix.platform == 'tvOS'
+        if: always() && matrix.platform == 'tvOS' && github.event_name != 'pull_request'
+        env:
+          REF: refs/ci-shots/${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           shopt -s nullglob
           shots=(/tmp/kinopub-detail-shots/*.png)
           echo "${#shots[@]} screenshot(s)"
+          [ ${#shots[@]} -gt 0 ] || exit 0
+          dir="$RUNNER_TEMP/detail-shots"
+          mkdir -p "$dir"
           for shot in "${shots[@]}"; do
-            name=$(basename "$shot" .png)
-            sips -s format jpeg -s formatOptions 45 -Z 960 "$shot" --out "/tmp/$name.jpg" >/dev/null
-            echo "===KINOPUB-SHOT $name==="
-            base64 -i "/tmp/$name.jpg" | fold -w 160
-            echo "===KINOPUB-SHOT-END==="
+            sips -s format jpeg -s formatOptions 70 -Z 1280 "$shot" \
+              --out "$dir/$(basename "$shot" .png).jpg" >/dev/null
           done
+          export GIT_INDEX_FILE="$RUNNER_TEMP/detail-shots.index"
+          git -C "$dir" --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$dir" add -A .
+          tree=$(git --git-dir="$GITHUB_WORKSPACE/.git" write-tree)
+          commit=$(git --git-dir="$GITHUB_WORKSPACE/.git" -c user.name="CI" -c user.email="ci@users.noreply.github.com" \
+            commit-tree "$tree" -m "Detail page screenshots, run ${{ github.run_id }} (${{ github.sha }})")
+          for old in $(git ls-remote origin 'refs/ci-shots/*' | cut -f2); do
+            git push origin --delete "$old" || true
+          done
+          git push origin "$commit:$REF"
+          echo "::notice::Detail page screenshots: git fetch origin $REF"
 
       # A UI test only says the app "does not exist" when it dies under it; the crash
       # report the simulator leaves on the runner says why.

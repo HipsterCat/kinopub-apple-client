@@ -32,6 +32,8 @@ enum DetailFixture: String, CaseIterable, Identifiable {
   case versions
   /// A film in three unnamed versions.
   case versionsUnnamed
+  /// A finished series watched to the end: Replay leads, and keeps the focus.
+  case rewatch
 
   var id: String { rawValue }
 
@@ -47,6 +49,7 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     case .missing: 9_900_002
     case .versions: 9_900_003
     case .versionsUnnamed: 9_900_004
+    case .rewatch: 9_900_005
     }
   }
 
@@ -56,12 +59,13 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     case .missing: "Нет на KinoPub / Missing Episodes"
     case .versions: "Две версии / Two Versions"
     case .versionsUnnamed: "Версии без названий / Unnamed Versions"
+    case .rewatch: "Пересмотр / Rewatch"
     }
   }
 
   private var isSeries: Bool {
     switch self {
-    case .awaiting, .missing: true
+    case .awaiting, .missing, .rewatch: true
     case .versions, .versionsUnnamed: false
     }
   }
@@ -111,6 +115,11 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       ]
     case .versionsUnnamed:
       json["videos"] = (1...3).map { video(number: $0, title: "", position: 0) }
+    case .rewatch:
+      json["finished"] = true
+      json["seasons"] = [
+        season(1, episodes: (1...3).map { episode(season: 1, number: $0, watched: true) })
+      ]
     }
     do {
       let data = try JSONSerialization.data(withJSONObject: json)
@@ -171,6 +180,9 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       meta.status = "Returning Series"
       meta.seasonSummaries = [SeasonSummary(seasonNumber: 1, episodeCount: 10)]
       meta.nextEpisode = EpisodeRef(seasonNumber: 1, episodeNumber: 8, airDate: Self.day(2))
+    case .rewatch:
+      meta.status = "Ended"
+      meta.seasonSummaries = [SeasonSummary(seasonNumber: 1, episodeCount: 3)]
     case .versions, .versionsUnnamed:
       break
     }
@@ -185,6 +197,7 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     // E1–E2 on kino.pub; E3 aired long ago; E4…E7 three days ago to today; E8 in two
     // days, E9 in twenty; E10 undated.
     case (.missing, 1): days = [-514, -507, -500, -3, -2, -1, 0, 2, 20, nil]
+    case (.rewatch, 1): days = [-400, -393, -386]
     default: return []
     }
     return days.enumerated().map { index, day in
