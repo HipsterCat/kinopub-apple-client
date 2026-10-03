@@ -10,8 +10,10 @@
 //  session: focus on coming back from the player, episodes kino.pub does not have,
 //  films in several versions.
 //
-//  The stand-in player writes "watched to the end" for what it was handed and does
-//  nothing else; Menu leaves it, the way it leaves the real one.
+//  The stand-in player writes "watched to the end" for what it was handed — locally, and
+//  to the stand-in server, so the details call the page makes on coming back answers with
+//  it the way kino.pub does after `marktime` — and does nothing else; Menu leaves it, the
+//  way it leaves the real one.
 //
 
 import Foundation
@@ -134,34 +136,36 @@ enum DetailFixture: String, CaseIterable, Identifiable {
      "watching": ["status": 0], "episodes": episodes]
   }
 
-  private func episode(season: Int, number: Int, watched: Bool) -> [String: Any] {
-    ["id": itemID * 1000 + season * 100 + number,
-     "title": "Серия \(number)",
-     "thumbnail": "",
-     "duration": 2400,
-     "tracks": 1,
-     "number": number,
-     "ac3": 0,
-     "audios": [Any](),
-     "watched": watched ? 1 : 0,
-     "watching": ["status": watched ? 1 : -1, "time": watched ? 2400 : 0],
-     "subtitles": [Any](),
-     "files": [Any]()]
+  private func episode(season: Int, number: Int, watched seeded: Bool) -> [String: Any] {
+    let watched = seeded || DetailFixtureServer.shared.isWatched(item: itemID, season: season, video: number)
+    return ["id": itemID * 1000 + season * 100 + number,
+            "title": "Серия \(number)",
+            "thumbnail": "",
+            "duration": 2400,
+            "tracks": 1,
+            "number": number,
+            "ac3": 0,
+            "audios": [Any](),
+            "watched": watched ? 1 : 0,
+            "watching": ["status": watched ? 1 : -1, "time": watched ? 2400 : 0],
+            "subtitles": [Any](),
+            "files": [Any]()]
   }
 
   private func video(number: Int, title: String, position: Int) -> [String: Any] {
-    ["id": itemID * 10 + number,
-     "title": title,
-     "thumbnail": "",
-     "duration": 6000,
-     "tracks": 1,
-     "number": number,
-     "ac3": 0,
-     "audios": [Any](),
-     "watched": 0,
-     "watching": ["status": position > 0 ? 0 : -1, "time": position],
-     "subtitles": [Any](),
-     "files": [Any]()]
+    let watched = DetailFixtureServer.shared.isWatched(item: itemID, season: nil, video: number)
+    return ["id": itemID * 10 + number,
+            "title": title,
+            "thumbnail": "",
+            "duration": 6000,
+            "tracks": 1,
+            "number": number,
+            "ac3": 0,
+            "audios": [Any](),
+            "watched": watched ? 1 : 0,
+            "watching": ["status": watched ? 1 : (position > 0 ? 0 : -1), "time": watched ? 6000 : position],
+            "subtitles": [Any](),
+            "files": [Any]()]
   }
 
   // MARK: - TMDB
@@ -225,6 +229,27 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     context.collectionsService = CollectionsServiceMock()
     context.metadataService = MetadataService(sources: [DetailFixtureMetadataSource()])
     return context
+  }
+}
+
+/// kino.pub's memory of what was watched, as far as the fixtures need it: the stand-in
+/// player marks, the next details payload carries it.
+final class DetailFixtureServer: @unchecked Sendable {
+  static let shared = DetailFixtureServer()
+
+  private let lock = NSLock()
+  private var watched: Set<String> = []
+
+  func markWatched(item: Int, season: Int?, video: Int?) {
+    lock.withLock { _ = watched.insert(Self.key(item, season, video)) }
+  }
+
+  func isWatched(item: Int, season: Int?, video: Int?) -> Bool {
+    lock.withLock { watched.contains(Self.key(item, season, video)) }
+  }
+
+  private static func key(_ item: Int, _ season: Int?, _ video: Int?) -> String {
+    "\(item)/\(season ?? 0)/\(video ?? 0)"
   }
 }
 
@@ -303,6 +328,9 @@ struct DetailFixturePlayer: View {
   private func finish() {
     guard mode == .media else { return }
     let duration = (item as? Episode)?.duration ?? (item as? PlaybackVariant)?.duration ?? 3600
+    DetailFixtureServer.shared.markWatched(item: item.metadata.id,
+                                           season: item.metadata.season,
+                                           video: item.metadata.video)
     AppContext.shared.localProgressStore.recordFinished(
       mediaId: item.metadata.id,
       duration: Double(duration),

@@ -398,12 +398,8 @@ struct MediaItemHeroView: View {
       // Follow became the main button (TMDB answered after the page opened, or the last
       // episode was just watched) while focus still sat on the old one: move with it.
       .onChange(of: actionEntryTarget) { old, new in
-        guard focus == old else { return }
-        Task { @MainActor in
-          // The old control may already be gone and have taken focus with it.
-          guard focus == old || (focus == nil && TVFocusProbe.nothingFocused) else { return }
-          claim(new, reason: "entry control changed \(old) → \(new)")
-        }
+        guard focus == old || focus == nil else { return }
+        moveEntryFocus(from: old, to: new)
       }
       // A row change can take the focused control with it: Play turning into Replay is
       // a different button style, so SwiftUI builds a new control and the focused one
@@ -473,6 +469,26 @@ struct MediaItemHeroView: View {
         }
       }
       returnsFromPlayer = false
+    }
+  }
+
+  /// The main control changed — Follow promoted once TMDB dated the next episode, or
+  /// after the last episode was watched — while focus sat on the old one (or nowhere).
+  /// Retried until it lands: Follow arrives with an insertion transition, and a control
+  /// mid-transition does not take focus, so the first claim can come to nothing (on
+  /// opening, focus stayed on Replay beside a promoted Follow). Stops as soon as focus
+  /// is somewhere the viewer put it.
+  private func moveEntryFocus(from old: MediaItemFocusTarget, to new: MediaItemFocusTarget) {
+    Task { @MainActor in
+      for delay in [0, 80, 120, 150, 200, 250, 400] {
+        try? await Task.sleep(for: .milliseconds(delay))
+        guard !isCovered, actionEntryTarget == new, focus != new else { return }
+        if focus == old || (focus == nil && TVFocusProbe.nothingFocused) {
+          claim(new, reason: "entry control changed \(old) → \(new)")
+        } else if focus != nil {
+          return
+        }
+      }
     }
   }
 
