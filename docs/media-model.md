@@ -39,50 +39,9 @@ when a service may be down, when its requests are limited. A viewer's **own conn
 (their Kinopoisk key, their Trakt account) is called by the app directly, for whatever it
 can answer. Either way the answer lands as fragments in this model.
 
-**What happens today** (audited 2026-10-03):
-
-| Call | From | Through | Used for |
-| --- | --- | --- | --- |
-| TMDB `/3/…`, images `/t/p/…` | app (`TMDBSource`) | worker, as a **plain forwarder** (holds the token, edge-caches 6 h) | find by IMDb id, details, seasons, people, logos, backdrops |
-| kpapp.link `/kpapi/films/{id}/{facts,images,staff,reviews}` | app (`KinopoiskProxySource`) | direct | facts, stills, cast character names, reviews |
-| kinopoiskapiunofficial.tech | app (`KinopoiskSource`) | direct, viewer's own key | details (names, plot, slogan, ratings), staff, awards, stills, facts |
-| worker `/v1/title/by/kinopub/{id}`, `/img/…` | **nobody** | — | the worker resolves TMDB + kpapp facts into a cached document (v2) the app never asks for |
-
-So the app does not ask twice: it asks TMDB itself (through the forwarder) and never reads
-the worker's own document. The aggregating route exists and is unused.
-
-**Next — one call for the details.** The app asks the worker's `/v1/title` once and gets
-fragments in this model's own JSON (below); the worker fills them from TMDB, kpapp.link and
-Trakt's public data under the built-in or owner keys, caches, and answers from whatever is
-warm. The app's direct TMDB and kpapp calls then switch off behind a `FeatureFlag` — **not
-before** the worker answers in the model's shape, or the enrichment disappears in between.
-Kinopoisk with a viewer's own key stays in the app.
-
-Proposed document (v3) — the model's `Codable` JSON, nothing worker-specific:
-
-```json
-{
-  "version": 3,
-  "ref": {"itemID": 87940},
-  "title":    [{"source": "tmdb", "language": "ru-RU", "entity": {"kind": "show", "...": "..."}},
-               {"source": "trakt", "entity": {"kind": "show", "seasonCount": 3, "ended": "..."}}],
-  "seasons":  {"2": [{"source": "tmdb", "entity": {"kind": "season", "seasonNumber": 2}}]},
-  "episodes": {"2": {"5": [{"source": "tmdb", "entity": {"kind": "episode", "...": "..."}}]}},
-  "extras":   {"cast": [], "facts": [], "reviews": [], "trailers": []}
-}
-```
-
-The app decodes `title` / `seasons` / `episodes` straight into `MediaContextDraft` and merges
-as it does now. TODO: give the wire types explicit, flat coding keys first (`release:
-"2020-08-14"` rather than Swift's synthesized enum shape; a genre as its id), so the worker
-writes plain JSON; and decide what of `extras` (cast, facts, reviews) becomes model types.
-
-**Trakt.** Its public data needs only an app key — seasons, episodes and air dates, a show's
-status, ratings, related titles — so it belongs on the worker under the owner's key. What is
-a person's (watched history, scrobbling, recommendations) needs their own OAuth and would be
-the app talking to Trakt directly; not planned. How kino.pub's own Trakt link works (it
-reportedly syncs watches, takes ratings and season data from there) is not documented here
-and not verified — `docs/providers/trakt.md` comes first, before any integration (AGENTS.md).
+**The worker, today and next** — what the app calls and through what, the unused
+aggregating route, the banner that fetches everything for a logo, caching, the v3 document
+in this model's JSON, Trakt: [workers/tmdb-proxy/README.md](../workers/tmdb-proxy/README.md).
 
 ### 1 · Facts — nothing a source said is lost (done 2026-10-03)
 
@@ -216,14 +175,20 @@ Each step is one reviewable slice with tests, merged before the next.
    settings rows, episode tiles, the corner time chip, every `Duration.compact` caller, the
    episode-name filter. Follow is a series' alone; `ViewerState` tallies watched and
    downloaded for a series or a season.
-4. `MediaItem` / `Episode` / `Season` → `MediaContext` everywhere through
-   `KinoPubMediaMapping` (already used by the player); a `MediaRecordStore` keyed by
-   `MediaRef` replaces `TitleSnapshot` payloads and the card snapshots in `ContentStore`.
+4. **One cache of titles, as facts.** Today the app keeps a title three ways: Home and
+   Library rows keep ready-made `MediaCard`s on disk (`ContentStore` → `rows-v2.json`, with
+   words and yesterday's watched state baked in); the player keeps the raw kino.pub JSON of
+   every title it played (`TitleSnapshot` in `WatchLibrary`); the detail page refetches. A
+   *record* is one title as the merged model — `MediaContext` with its claims — kept under
+   its `MediaRef` in one store. Rows keep only the order of refs; a card is worded at paint
+   time from the record + `ViewerState` + `MediaSurface`. `MediaItem` / `Episode` / `Season`
+   reach it through `KinoPubMediaMapping`, as the player's already do.
 5. Selection functions, starting with the single "next episode" answer (three today).
 6. Surfaces move one at a time, each with its rows in the surface table: player (done) →
    Up Next → Continue Watching → History → Watchlist → Bookmarks → catalog shelves → Home
    banner → detail hero → Top Shelf.
-7. The worker's `/v1/title` answers in the model's own JSON (document v3, above) from
+7. The worker's `/v1/title` answers in the model's own JSON (document v3, in the worker's
+   README) from
    TMDB, kpapp.link and Trakt's public data; the app's details become one call and its
    direct TMDB / kpapp calls switch off behind a flag. A viewer's own connections
    (Kinopoisk key, Trakt account) stay app-side.

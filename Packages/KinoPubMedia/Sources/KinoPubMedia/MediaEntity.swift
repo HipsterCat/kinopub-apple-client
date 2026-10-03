@@ -50,6 +50,8 @@ public struct MediaEntity: Hashable, Sendable, Codable {
   public var scores: [Score]
   public var artwork: ArtworkSet
   public var countries: [String]
+  /// A concert's setlist, in order. Empty for everything else.
+  public var setlist: [SetlistEntry]
   /// What a platform says about its copy or its catalogue rather than about the work —
   /// kino.pub's "Эксклюзив". Not genres, never the one word shown; kept for badges,
   /// filters and sections. Every source's are kept.
@@ -78,6 +80,7 @@ public struct MediaEntity: Hashable, Sendable, Codable {
               scores: [Score] = [],
               artwork: ArtworkSet = ArtworkSet(),
               countries: [String] = [],
+              setlist: [SetlistEntry] = [],
               labels: [MediaLabel] = [],
               provenance: [MediaField: MediaSource] = [:],
               claims: [MediaFragment] = []) {
@@ -99,6 +102,7 @@ public struct MediaEntity: Hashable, Sendable, Codable {
     self.scores = scores
     self.artwork = artwork
     self.countries = countries
+    self.setlist = setlist
     self.labels = labels
     self.provenance = provenance
     self.claims = claims
@@ -148,6 +152,22 @@ public struct MediaEntity: Hashable, Sendable, Codable {
     var seen: [MediaSource] = []
     for fragment in claims where !seen.contains(fragment.source) { seen.append(fragment.source) }
     return seen
+  }
+}
+
+/// One song of a concert's setlist. A song nobody could name keeps its place in the order
+/// with no title — kino.pub writes those as «N/A».
+public struct SetlistEntry: Hashable, Codable, Sendable {
+  public var title: String?
+  public var artists: String?
+  /// The song's own audio, when the source gives one.
+  public var audio: URL?
+
+  public init(title: String?, artists: String? = nil, audio: URL? = nil) {
+    let title = title.nonBlank
+    self.title = title == "N/A" ? nil : title
+    self.artists = artists.nonBlank
+    self.audio = audio
   }
 }
 

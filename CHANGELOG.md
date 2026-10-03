@@ -5,6 +5,16 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Concert setlists; the worker's own doc (2026-10-03)
+
+`MediaItem.tracklist` (`TracklistEntry`, reads both `artists` and the documented `artist`) maps
+to `MediaEntity.setlist`; «N/A» stays an unnamed place in the order. kino.pub's age rating is in
+the API (the official Apple TV app shows it) but no captured payload has the field yet — a TODO
+in `MediaItem`, `MediaPrecedence` and `docs/providers/kinopub/video.md`. The worker's README
+now records how the app calls it today (it never reads `/v1/title` or `/img/`; the Home banner
+runs the whole metadata pipeline per card for a logo), the two layers it should serve, and the
+v3 document.
+
 ### Episode wording by place, season count on cards, deprecations (2026-10-03)
 
 The detail page lists an episode as «7. Name» / «Серия 7»; Up Next says «S1, E2: Name»;

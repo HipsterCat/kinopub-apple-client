@@ -16,11 +16,11 @@ import KinoPubMedia
 /// (and documovie / docuserial / tvshow / 3D) — field by field against
 /// `docs/providers/kinopub/video.md`, and record what each type does and does not carry.
 /// Known so far:
-/// - **No age rating.** kino.pub sends none for any type; the model's `contentRating`
-///   comes from Kinopoisk or TMDB only.
-/// - **`tracklist` is sent for concerts and not decoded** (`artists`, `title`, `url` per
-///   song; `ConcertItemTests.testTracklistIsNotDecodedYet` keeps the gap visible). Decode
-///   it and give the model a setlist.
+/// - **Age rating: in the API, not found yet.** The official Apple TV app shows one, so the
+///   API carries it — but no payload captured so far (fixtures, `video.md`) has the field.
+///   Capture live: details for each type, listings, and the PWA's own requests; then decode
+///   it here and map it to the model's `contentRating` (source `.kinopub`).
+/// - `tracklist` (concerts) is decoded (`TracklistEntry`) and mapped to `MediaEntity.setlist`.
 /// - A listing payload carries no `seasons` and no `videos`; only details do.
 /// - `subscribed` / `in_watchlist`: which one each endpoint fills is unverified.
 public struct MediaItem: Codable, Hashable, @unchecked Sendable {
@@ -62,6 +62,8 @@ public struct MediaItem: Codable, Hashable, @unchecked Sendable {
   public let bookmarks: [TypeClass]?
   public var seasons: [Season]?
   public var videos: [Video]?
+  /// A concert's setlist (`TracklistEntry`). Nil for every other type, and in listings.
+  public let tracklist: [TracklistEntry]?
 
   public init(
     id: Int,
@@ -101,7 +103,8 @@ public struct MediaItem: Codable, Hashable, @unchecked Sendable {
     ac3: Int?,
     bookmarks: [TypeClass]?,
     seasons: [Season]?,
-    videos: [Video]?
+    videos: [Video]?,
+    tracklist: [TracklistEntry]? = nil
   ) {
     self.id = id
     self.type = type
@@ -141,6 +144,7 @@ public struct MediaItem: Codable, Hashable, @unchecked Sendable {
     self.bookmarks = bookmarks
     self.seasons = seasons
     self.videos = videos
+    self.tracklist = tracklist
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -182,6 +186,7 @@ public struct MediaItem: Codable, Hashable, @unchecked Sendable {
     case ac3 = "ac3"
     case seasons = "seasons"
     case videos = "videos"
+    case tracklist = "tracklist"
   }
 
   /// Listing payloads sometimes send `null` for timestamps and other soft ints
@@ -227,6 +232,7 @@ public struct MediaItem: Codable, Hashable, @unchecked Sendable {
     bookmarks = try c.decodeIfPresent([TypeClass].self, forKey: .bookmarks)
     seasons = try c.decodeIfPresent([Season].self, forKey: .seasons)
     videos = try c.decodeIfPresent([Video].self, forKey: .videos)
+    tracklist = try c.decodeIfPresent([TracklistEntry].self, forKey: .tracklist)
   }
 }
 

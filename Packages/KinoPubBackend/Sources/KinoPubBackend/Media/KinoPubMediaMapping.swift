@@ -186,6 +186,9 @@ public extension MediaItem {
       entity.artwork = ArtworkSet(poster: KinoPubMediaMapping.poster(posters),
                                   backdrop: ArtworkSet.url(posters.wideURL))
       entity.countries = countries.map(\.title)
+      entity.setlist = (tracklist ?? []).map {
+        SetlistEntry(title: $0.title, artists: $0.artists, audio: ArtworkSet.url($0.url))
+      }
     }
   }
 

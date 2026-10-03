@@ -10,7 +10,7 @@ public enum MediaSource: String, Hashable, Sendable, Codable, CaseIterable {
 /// own: a tagline is not a part of somebody's plot, so it is ranked — and kept — apart.
 public enum MediaField: String, Hashable, Sendable, Codable, CaseIterable {
   case title, originalTitle, edition, seasonCount, genres, release, ended, runtime,
-       contentRating, scores, poster, still, backdrop, logo, countries
+       contentRating, scores, poster, still, backdrop, logo, countries, setlist
   /// `Synopsis.full` — the plot.
   case synopsis
   /// `Synopsis.short` — a line or two; Kinopoisk's `shortDescription`.
@@ -102,6 +102,9 @@ public struct MediaPrecedence: Sendable {
     // TODO(decision): one age rating per title, Russian first. Kinopoisk also knows the
     // MPAA rating and TMDB has per-country certifications; `ContentRating.region` can
     // hold either. Should the viewer's region pick, and should the panel ever show two?
+    // TODO: kino.pub's own age rating — in the API (the official Apple TV app shows it), field
+    // not found yet (docs/providers/kinopub/video.md). Once decoded it is the rating kino.pub
+    // itself shows; rank it first?
     .contentRating: [.kinopoisk, .tmdb, .apple, .kinopub],
     // A score is best reported by whoever gave it: IMDb's own dataset beats kino.pub's
     // copy of the same IMDb number.
@@ -115,6 +118,8 @@ public struct MediaPrecedence: Sendable {
     .backdrop: [.apple, .tmdb, .kinopoisk, .kinopub],
     .logo: [.apple, .tmdb, .kinopoisk],
     .countries: [.kinopub, .tmdb, .kinopoisk],
+    // The setlist of the recording that plays.
+    .setlist: [.kinopub],
   ])
 }
 
@@ -215,6 +220,7 @@ public enum MediaAggregator {
       backdrop: pick(.backdrop) { $0.artwork.backdrop },
       logo: pick(.logo) { $0.artwork.logo })
     entity.countries = pick(.countries) { $0.countries.isEmpty ? nil : $0.countries } ?? []
+    entity.setlist = pick(.setlist) { $0.setlist.isEmpty ? nil : $0.setlist } ?? []
 
     // Scores are kept side by side: one per provider, reported by the best-ranked source.
     var scores: [Score] = []
