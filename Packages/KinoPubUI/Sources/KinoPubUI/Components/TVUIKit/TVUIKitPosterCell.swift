@@ -240,7 +240,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     // re-downloading art that was on screen a moment ago. The only piece of the
     // 2026-08-11 poster experiment kept after the revert — it changes nothing visually
     // except that the tile stops going blank.
-    if let hit = TVUIKitRemoteImage.cached(url: url, size: posterSize) {
+    if let hit = TVUIKitRemoteImage.cached(url: url, size: posterSize, mode: .fit) {
       posterView.image = hit
       placeholderPanel.isHidden = true
       ArtworkLog.servedFromMemory(url, by: "poster")
@@ -251,7 +251,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     ArtworkLog.requested(url, by: "poster")
     let size = posterSize
     imageTask = Task { [weak self] in
-      let image = await TVUIKitRemoteImage.load(url: url, size: size)
+      let image = await TVUIKitRemoteImage.load(url: url, size: size, mode: .fit)
       await MainActor.run {
         guard let self, self.currentURL == url else { return }
         self.posterView.image = image

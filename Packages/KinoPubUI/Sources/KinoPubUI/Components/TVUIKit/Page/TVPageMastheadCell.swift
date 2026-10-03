@@ -9,6 +9,11 @@
 //  in the band). Entry focus still prefers the first poster — see
 //  `prefersFirstPosterFocus`. The photo is an image, not a monogram lockup.
 //
+//  No fake focus chrome: the Focus Engine lights the cell; we do not scale or move
+//  siblings to "show" focus. Biography opens under focus by growing the cell's
+//  measured height — top-aligned so the bio is readable, never cropped into the
+//  avatar band.
+//
 
 import TVUIKit
 import UIKit
@@ -46,11 +51,22 @@ final class TVPageMastheadCell: UICollectionViewCell {
   /// collection detail. Select does nothing — there is no action.
   override var canBecomeFocused: Bool { true }
 
+  override func updateConfiguration(using state: UICellConfigurationState) {
+    var background = UIBackgroundConfiguration.clear()
+    if state.isFocused {
+      // UIKit stand-in for `.buttonStyle(.card)` on a header that is not a lockup.
+      // `tertiarySystemFill` and `cornerCurve` are iOS-only; tvOS has no semantic
+      // fill token, so a light white plate plus `cornerRadius` is the public surface.
+      background.backgroundColor = UIColor.white.withAlphaComponent(0.14)
+      background.cornerRadius = 24
+    }
+    backgroundConfiguration = background
+  }
+
   override init(frame: CGRect) {
     super.init(frame: frame)
     isUserInteractionEnabled = true
-    automaticallyUpdatesBackgroundConfiguration = false
-    backgroundConfiguration = .clear()
+    automaticallyUpdatesBackgroundConfiguration = true
     backgroundColor = .clear
     contentView.backgroundColor = .clear
     clipsToBounds = false
@@ -84,7 +100,8 @@ final class TVPageMastheadCell: UICollectionViewCell {
     detailLabel.numberOfLines = 2
 
     // Biography opens with focus. Empty or collapsed, it takes no space — so a late
-    // metadata paint does not shove the grid under an unfocused header.
+    // metadata paint does not shove the grid under an unfocused header. Capped at
+    // eight lines; a More / info-popup path is not wired yet.
     bioLabel.font = UIFont.preferredFont(forTextStyle: .body)
     bioLabel.adjustsFontForContentSizeCategory = true
     bioLabel.textColor = .secondaryLabel
@@ -99,8 +116,12 @@ final class TVPageMastheadCell: UICollectionViewCell {
     }
     personText.setCustomSpacing(12, after: detailLabel)
 
+    // Top-aligned: when the bio opens, growth is downward into a taller cell.
+    // `.center` cropped the expanded bio against the rest-height frame (and shoved
+    // the name upward out of view) — the "focused header shows bio but it's invisible"
+    // report on person pages.
     personRow.axis = .horizontal
-    personRow.alignment = .center
+    personRow.alignment = .top
     personRow.spacing = 28
     personRow.translatesAutoresizingMaskIntoConstraints = false
     personRow.addArrangedSubview(avatar)
@@ -202,22 +223,19 @@ final class TVPageMastheadCell: UICollectionViewCell {
     }
   }
 
-  /// Person: biography opens with focus. Collection: a light scale so the band reads
-  /// as the focused stop; stats stay visible either way. Both scale slightly so Up
-  /// from the grid into this band is visible.
+  /// Person: biography opens with focus by growing the cell — no scale / transform
+  /// fake focus. Collection: stats stay visible either way; the focused
+  /// `UIBackgroundConfiguration` is the affordance.
   private func applyExpanded(_ expanded: Bool, invalidate: Bool) {
-    let scale: CGFloat = expanded ? 1.03 : 1
-    if isPerson {
-      let text = expanded ? biography : nil
-      let wasHidden = bioLabel.isHidden
-      set(bioLabel, text)
-      personRow.transform = CGAffineTransform(scaleX: scale, y: scale)
-      if invalidate, wasHidden != bioLabel.isHidden {
-        invalidateIntrinsicSize()
-      }
-    } else {
-      collectionColumn.transform = CGAffineTransform(scaleX: scale, y: scale)
-      statsRow.alpha = 1
+    guard isPerson else { return }
+    let text = expanded ? biography : nil
+    let wasHidden = bioLabel.isHidden
+    set(bioLabel, text)
+    if let text, !text.isEmpty {
+      bioLabel.preferredMaxLayoutWidth = max(contentView.bounds.width - Self.avatarSide - 28, 200)
+    }
+    if invalidate, wasHidden != bioLabel.isHidden {
+      invalidateIntrinsicSize()
     }
   }
 
@@ -233,6 +251,9 @@ final class TVPageMastheadCell: UICollectionViewCell {
     super.layoutSubviews()
     let diameter = avatar.bounds.width
     avatar.layer.cornerRadius = diameter / 2
+    if !bioLabel.isHidden {
+      bioLabel.preferredMaxLayoutWidth = max(contentView.bounds.width - Self.avatarSide - 28, 200)
+    }
     guard let monogramName, diameter > 1, abs(diameter - monogramDiameter) > 0.5 else { return }
     monogramDiameter = diameter
     avatar.image = TVUIKitTileArtwork.monogram(name: monogramName, diameter: diameter, traits: traitCollection)
@@ -244,8 +265,8 @@ final class TVPageMastheadCell: UICollectionViewCell {
     setNeedsLayout()
   }
 
-  /// Measure the focused (and rest) height from Auto Layout so Dynamic Type and
-  /// long titles fit. Biography is hidden until focus, so it does not grow the
+  /// Measure rest and focused height from Auto Layout so Dynamic Type and long
+  /// titles fit. Biography is hidden until focus, so it does not grow the
   /// unfocused band.
   override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
     let attributes = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
@@ -271,8 +292,6 @@ final class TVPageMastheadCell: UICollectionViewCell {
     biography = nil
     bioLabel.text = nil
     bioLabel.isHidden = true
-    personRow.transform = .identity
-    collectionColumn.transform = .identity
   }
 
   private func set(_ label: UILabel, _ text: String?) {

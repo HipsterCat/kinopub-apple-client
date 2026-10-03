@@ -69,27 +69,38 @@ public enum Artwork {
     return cache
   }()
 
+  /// How a decode fills its target box. Still / landscape cells need a centre crop so
+  /// a 2:3 poster handed to a 16:9 tile does not letterbox; `TVPosterView` lockups must
+  /// **not** crop — cover lettering has to stay readable (Sasha, 2026-10-02).
+  public enum ResizeMode: Sendable, Hashable {
+    /// Centre-crop to the box (stills, wide cards, SwiftUI tiles).
+    case fill
+    /// Scale to fit inside the box, no crop — poster lockups.
+    case fit
+  }
+
   /// - Parameter size: the box this art is going into, in points. Artwork is decoded
   ///   down to it, and the size is part of the cache key — the same still in a rail and
   ///   in a grid is a different decode, and handing one out for the other is either
   ///   blurry or wasteful. `.zero` keeps full resolution and should be rare.
-  ///
-  /// The decode **crops** to the box's aspect (centre crop): a tile is a fixed shape —
-  /// 2:3 poster, 16:9 still — and art of another ratio fills the width and is cut to
-  /// the height. Without the crop a 2:3 poster handed to a 16:9 still arrived 2:3 and
-  /// the system cell squeezed it to fit.
-  public static func request(_ url: URL, size: CGSize = .zero) -> ImageRequest {
+  /// - Parameter mode: `.fill` (default) centre-crops; `.fit` preserves the whole cover
+  ///   for `TVPosterView` (see `ResizeMode`).
+  public static func request(_ url: URL, size: CGSize = .zero, mode: ResizeMode = .fill) -> ImageRequest {
     guard size != .zero else { return ImageRequest(url: url) }
-    return ImageRequest(
-      url: url,
-      processors: [ImageProcessors.Resize(size: size, unit: .points, contentMode: .aspectFill, crop: true)]
-    )
+    let processor: ImageProcessors.Resize
+    switch mode {
+    case .fill:
+      processor = ImageProcessors.Resize(size: size, unit: .points, contentMode: .aspectFill, crop: true)
+    case .fit:
+      processor = ImageProcessors.Resize(size: size, unit: .points, contentMode: .aspectFit, crop: false)
+    }
+    return ImageRequest(url: url, processors: [processor])
   }
 
   /// Already-decoded art at this size, or nil. Synchronous on purpose: a cell calls this
   /// while configuring so a recycled tile never paints a placeholder.
-  public static func cachedImage(for url: URL, size: CGSize = .zero) -> PlatformImage? {
-    pipeline.cache[request(url, size: size)]?.image
+  public static func cachedImage(for url: URL, size: CGSize = .zero, mode: ResizeMode = .fill) -> PlatformImage? {
+    pipeline.cache[request(url, size: size, mode: mode)]?.image
   }
 
   /// Decode (or cache-hit) off the call site's actor. `FallbackRemoteImage` and

@@ -27,6 +27,10 @@ let package = Package(
         .product(name: "KinoPubBackend", package: "KinoPubBackend"),
         .product(name: "KinoPubLogging", package: "KinoPubLogging"),
         .product(name: "Nuke", package: "Nuke"),
+        // `TVPosterView` display path (`loadImage(into:)`). Imported only from
+        // `TVUIKitRemoteImage` — no call site takes NukeExtensions. NukeUI is gone
+        // with `ArtworkImage`.
+        .product(name: "NukeExtensions", package: "Nuke"),
         .product(name: "Pulse", package: "Pulse"),
         .product(name: "PulseUI", package: "Pulse"),
         .product(name: "PulseProxy", package: "Pulse")

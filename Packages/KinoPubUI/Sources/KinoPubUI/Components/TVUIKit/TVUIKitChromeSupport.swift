@@ -168,8 +168,9 @@ enum TVUIKitContextMenuIndexPath {
 ///
 /// `isUserInteractionEnabled = false` disables focus for the whole lockup subtree so
 /// the **cell** is the focused leaf (Continue Watching / `TVPageWideCardCell` shape).
+/// Deferred image assignment lives on `TVUIKitDeferredPosterView` in the Artwork facade.
 @MainActor
-final class TVUIKitNonFocusablePosterView: TVPosterView {
+final class TVUIKitNonFocusablePosterView: TVUIKitDeferredPosterView {
   override var canBecomeFocused: Bool { false }
 
   override func didMoveToWindow() {

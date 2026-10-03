@@ -7,16 +7,22 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ### Review fixes (2026-10-02)
 
-Deep-review follow-up on main since the catalog/person TVPage work. Library catalog
-first-page loads cancel the previous Task and ignore stale completions. Hero actions
-never use `.disabled` (loading is a handler guard). Search tab Down/Up no longer
-races the focus animator with an async press rescue. Catalog pages take live
-safe-area insets instead of stacking 80 pt on a 1920 canvas. Masthead cells
-self-size for Dynamic Type and invalidate only their own item. Poster context-menu
-logging is compiled out of Release. Banner detail Tasks are cancelled on refresh.
-KinoPubConfig loads coalesce on an actor. Initials discs redraw on light/dark.
-Nuke stays behind `Artwork` (`ArtworkImage` no longer imports NukeUI). Poster
-cells keep one collection-view context-menu path.
+Deep-review follow-up, updated onto main after catalog PR #38 merged. Unique
+catalog follow-up from draft PR #40 is folded in here so that stack is not
+left targeting a dead base.
+
+Library catalog first-page loads cancel the previous Task and ignore stale
+completions. Hero actions never use `.disabled` (loading is a handler guard).
+Search tab Down/Up no longer races the focus animator with an async press
+rescue. Catalog pages take live safe-area insets instead of stacking 80 pt on
+a 1920 canvas. Masthead cells self-size for Dynamic Type, invalidate only
+their own item, cap biography at eight lines, and use a tvOS-available
+focused fill instead of a 1.03 scale. Poster context-menu logging is compiled
+out of Release. Banner detail Tasks are cancelled on refresh. KinoPubConfig
+loads coalesce on an actor. Initials discs redraw on light/dark. Nuke stays
+behind `Artwork` (`ArtworkImage` no longer imports NukeUI;
+`NukeExtensions` / `nuke_display` live on `TVUIKitRemoteImage`). Poster cells
+keep one collection-view context-menu path.
 
 Deployment floor in the docs is **tvOS 26.6**: Xcode's default when tvOS 26 is the
 minimum, and the latest 26.x every tvOS 26 device can install. The Xcode target is
