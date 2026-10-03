@@ -48,7 +48,7 @@ enum PlaybackMediaContext {
   }
 
   /// Nil when there is nothing to ask: TMDB is reached through the IMDb id, and a title
-  /// without one gets no enrichment at all (known defect 1 in the `metadata-service` skill).
+  /// without one gets no enrichment at all (TODO(decision): match by title + year when there is no IMDb id?).
   static func enrichment(playing item: any PlayableItem, title: MediaItem?,
                          isTrailer: Bool) -> Enrichment? {
     guard let title, (title.imdb ?? 0) > 0 else { return nil }

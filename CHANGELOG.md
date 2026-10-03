@@ -5,6 +5,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### The media model keeps every source's facts (2026-10-03)
+
+`MediaEntity.claims` holds every fragment an entity was merged from; the stored fields are
+only the default per field (`MediaPrecedence`). `claims(for:_:)` / `value(from:_:)` answer a
+particular source's fact — Kinopoisk's slogan, TMDB's plot. Tagline and short description
+are their own fields. Fragments carry their text's language; the model is `Codable`.
+`MetadataService` used to gap-fill its overlay in *arrival* order; it now merges in source
+order and keeps each source's part. Kinopoisk's details payload (names, plot, short
+description, slogan, age rating, scores, genres, countries) was decoded and dropped; it is
+Kinopoisk's own fragment now. Direction and plan: [docs/media-model.md](docs/media-model.md).
+
 ### tvOS collection and person pages use the search catalog (2026-10-01)
 
 Opening a collection, or a person's credits, is a `TVPage`. The header — a collection's

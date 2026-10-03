@@ -40,7 +40,7 @@ semantic component is not a DRY violation; two components for one idea on one pl
 | tvOS cells, rails, focus engine, on-device verification | skill `tvos-surface` |
 | Glass, materials, blur, tabs, search, navigation, layout containers | skill `apple-chrome` |
 | AVKit surfaces, subtitles, playback routing | skill `player-avkit` |
-| Metadata aggregator, providers, enrichment | skill `metadata-service` |
+| Media model: sources, facts, viewer state, presentation layers | [docs/media-model.md](docs/media-model.md) |
 | Where a new fact or decision belongs | skill `docs-upkeep` |
 | What we are building next | [ROADMAP.md](ROADMAP.md) |
 | What the product *does* — decided behavior, per feature | [docs/product/](docs/product/) |
@@ -337,7 +337,7 @@ Details: skill `apple-chrome`.
   model, including ones we do not want, into a sheet in `docs/providers/` *first*. Store every
   detail the API gives; decide what is redundant later, from evidence.
 - **New providers land server-side, not in the app.** The app gets one more field, not one more
-  network client, and never models a provider's response shape. Skill `metadata-service`.
+  network client, and never models a provider's response shape. See [docs/media-model.md](docs/media-model.md).
 - **Telemetry:** no third-party SDK. TestFlight / Xcode Organizer already deliver crashes. Do not
   add Firebase, Sentry or similar without an explicit decision. **This is a rule about *sending*
   data somewhere.** On-device diagnostics that leave nothing behind — `Pulse`'s local store behind

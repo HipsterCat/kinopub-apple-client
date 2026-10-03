@@ -1,8 +1,7 @@
 # Playback info — what the system player is told about what is playing
 
 Implemented by `PlayerInfo` (KinoPubMedia), projected from a `MediaContext`. Where the facts come
-from and which source wins is the media model's business (`metadata-service` skill, "The media
-model"); this file is only what reaches the screen.
+from and which source wins is the media model's business ([docs/media-model.md](../media-model.md)); this file is only what reaches the screen.
 
 ## The fields
 

@@ -10,7 +10,12 @@ import Foundation
 /// artwork, season/episode numbering), plus what we hold beyond it (scores from every
 /// source, countries). A field Apple has no slot for is still kept: it simply never
 /// reaches an Apple surface.
-public struct MediaEntity: Hashable, Sendable {
+///
+/// **Two readings of one entity.** The stored fields are the *default* answer — each from
+/// the source `MediaPrecedence` ranks first. `claims` is everything every source said,
+/// kept whole: ask it (`claims(for:_:)`, `value(from:_:)`) when a surface wants a
+/// particular source's fact, or every source's, rather than the default.
+public struct MediaEntity: Hashable, Sendable, Codable {
   public var kind: MediaKind
   public var extraKind: ExtraKind?
   public var ids: [ExternalID]
