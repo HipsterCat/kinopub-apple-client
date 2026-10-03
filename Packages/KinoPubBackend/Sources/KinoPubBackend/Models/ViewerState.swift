@@ -187,8 +187,9 @@ public extension ViewerState {
   /// A series or a season from its episodes' states, on top of the title's own (follow,
   /// folders, vote). Watched when every episode is.
   ///
-  /// TODO(decision): an episode half-watched counts as not watched in the ring today; a
-  /// download half-done counts by its progress. Count watching by progress too?
+  /// **Only whole episodes count as watched** — a half-watched one is not in the ring, and
+  /// a series or a season has no runtime of its own here (user's call, 2026-10-03). A
+  /// download counts by its progress.
   func aggregating(episodes: [ViewerState]) -> ViewerState {
     var state = self
     let watched = episodes.filter(\.isWatched).count

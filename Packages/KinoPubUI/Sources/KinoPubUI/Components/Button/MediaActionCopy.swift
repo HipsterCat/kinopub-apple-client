@@ -13,31 +13,31 @@ public enum MediaActionCopy {
 
   /// Compact episode id for mid-title (progress bar present): RU `1 сезон, 2 серия` · EN
   /// `S1, E2` — `EpisodeText` at the hero's length.
-  /// TODO(decision): the hero is not told the season count, so a show with only its first
-  /// season still says the season here.
-  public static func episodeLabel(season: Int, episode: Int) -> String {
-    EpisodeText(season: season, number: episode).text(for: .heroAction)
+  /// `seasonCount`: a show with only its first season says `E2` / `2 серия`.
+  @available(*, deprecated, message: "Use EpisodeText(season:number:seasonCount:).text(for: .heroAction).")
+  public static func episodeLabel(season: Int, episode: Int, seasonCount: Int? = nil) -> String {
+    EpisodeText(season: season, number: episode, seasonCount: seasonCount).text(for: .heroAction)
   }
 
   /// What VoiceOver reads for the same episode: «Season 1, Episode 2».
-  public static func episodeAccessibilityLabel(season: Int, episode: Int) -> String {
-    EpisodeText(season: season, number: episode).accessibilityLabel()
+  @available(*, deprecated, message: "Use EpisodeText(season:number:seasonCount:).accessibilityLabel().")
+  public static func episodeAccessibilityLabel(season: Int, episode: Int,
+                                               seasonCount: Int? = nil) -> String {
+    EpisodeText(season: season, number: episode, seasonCount: seasonCount).accessibilityLabel()
   }
 
   /// Fresh Play on an unwatched episode — EN includes the verb (`Play S1, E1`);
   /// RU is the full episode phrase alone (`1 сезон, 1 серия`). Compact `S1, E1`
   /// without a verb is only for the resume capsule (progress bar).
-  public static func playEpisodeTitle(season: Int, episode: Int) -> String {
-    let format = localizedFormat("MediaAction_PlayEpisode",
-                                 fallback: "Play S%lld, E%lld")
-    return String(format: format, locale: .current, Int64(season), Int64(episode))
+  public static func playEpisodeTitle(season: Int, episode: Int, seasonCount: Int? = nil) -> String {
+    let format = localizedFormat("MediaAction_PlayEpisodeRef", fallback: "Play %@")
+    return String(format: format, reference(season, episode, seasonCount))
   }
 
   /// Replay capsule title — EN `Replay S1, E1`; RU keeps the episode phrase (↻ is the glyph).
-  public static func replayEpisodeTitle(season: Int, episode: Int) -> String {
-    let format = localizedFormat("MediaAction_ReplayEpisode",
-                                 fallback: "Replay S%lld, E%lld")
-    return String(format: format, locale: .current, Int64(season), Int64(episode))
+  public static func replayEpisodeTitle(season: Int, episode: Int, seasonCount: Int? = nil) -> String {
+    let format = localizedFormat("MediaAction_ReplayEpisodeRef", fallback: "Replay %@")
+    return String(format: format, reference(season, episode, seasonCount))
   }
 
   /// Time left at the hero's length: `Ещё 53 мин` / `53 min left` (`RemainingText`).
@@ -74,12 +74,13 @@ public enum MediaActionCopy {
   /// Primary play capsule title for a given playback state + presentation kind.
   public static func playCaption(
     playback: PlaybackButtonContent,
-    kind: MediaPresentationKind
+    kind: MediaPresentationKind,
+    seasonCount: Int? = nil
   ) -> (title: String, progress: Double?, accessibility: String) {
     switch playback {
     case .play(let season, let episode):
       if let season, let episode {
-        let title = playEpisodeTitle(season: season, episode: episode)
+        let title = playEpisodeTitle(season: season, episode: episode, seasonCount: seasonCount)
         return (title, nil, title)
       }
       let title = playTitle(kind: kind)
@@ -88,8 +89,9 @@ public enum MediaActionCopy {
     case .resume(let progress, let season, let episode, let durationSeconds):
       if let season, let episode {
         // Progress bar is showing — compact episode only, no Play/Resume verb.
-        let title = episodeLabel(season: season, episode: episode)
-        let spoken = episodeAccessibilityLabel(season: season, episode: episode)
+        let text = EpisodeText(season: season, number: episode, seasonCount: seasonCount)
+        let title = text.text(for: .heroAction)
+        let spoken = text.accessibilityLabel()
         return (title, progress, localized("Resume") + " " + spoken)
       }
       let remaining = RemainingText(progress: progress, durationSeconds: durationSeconds)
@@ -98,12 +100,16 @@ public enum MediaActionCopy {
 
     case .playAgain(let season, let episode):
       if let season, let episode {
-        let title = replayEpisodeTitle(season: season, episode: episode)
+        let title = replayEpisodeTitle(season: season, episode: episode, seasonCount: seasonCount)
         return (title, nil, title)
       }
       let title = localized("Play Again")
       return (title, nil, title)
     }
+  }
+
+  private static func reference(_ season: Int, _ episode: Int, _ seasonCount: Int?) -> String {
+    EpisodeText(season: season, number: episode, seasonCount: seasonCount).text(for: .heroAction)
   }
 
   public static func localized(_ key: String) -> String {

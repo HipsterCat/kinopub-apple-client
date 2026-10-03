@@ -19,7 +19,7 @@ Each layer reads only the one below it. A layer is a package or a folder of plai
 
 | # | Layer | Answers | Lives in | State |
 | --- | --- | --- | --- | --- |
-| 0 | **Sources** | "what did kino.pub / TMDB / Kinopoisk say" | `KinoPubBackend` (kino.pub), `KinoPubMetadata` (TMDB, Kinopoisk); later our server `/v1/title` | done |
+| 0 | **Sources** | "what did kino.pub / TMDB / Kinopoisk / Trakt say" | `KinoPubBackend` (kino.pub), `KinoPubMetadata` (TMDB, Kinopoisk); our worker's `/v1/title` (next) | done |
 | 1 | **Facts** | "what is this thing, according to whom" | `KinoPubMedia`: `MediaFragment` → `MediaAggregator` → `MediaEntity` / `MediaContext` | done |
 | 2 | **Identity** | "which thing" — one key every store agrees on | `KinoPubMedia`: `MediaRef` | done |
 | 3 | **Viewer state** | "what has the viewer done with it" | `KinoPubBackend`: `ViewerState` + rules; app: `ViewerStateReader` over the stores | done (detail page reads it) |
@@ -30,8 +30,59 @@ Each layer reads only the one below it. A layer is a package or a folder of plai
 ### 0 · Sources — adapters only
 
 A source maps its payload into `MediaFragment`s and decides nothing else. Precedence,
-inheritance and wording are not an adapter's business. New providers land on our server,
-not in the app (AGENTS.md); the server document then becomes one more source of fragments.
+inheritance and wording are not an adapter's business.
+
+**Where a source is called from** (user's call, 2026-10-03). There is no backend of
+integrations. There is our Cloudflare worker (`workers/tmdb-proxy`), and it proxies, caches
+and aggregates **when that helps**: with a key built into the app or the owner's own key,
+when a service may be down, when its requests are limited. A viewer's **own connection**
+(their Kinopoisk key, their Trakt account) is called by the app directly, for whatever it
+can answer. Either way the answer lands as fragments in this model.
+
+**What happens today** (audited 2026-10-03):
+
+| Call | From | Through | Used for |
+| --- | --- | --- | --- |
+| TMDB `/3/…`, images `/t/p/…` | app (`TMDBSource`) | worker, as a **plain forwarder** (holds the token, edge-caches 6 h) | find by IMDb id, details, seasons, people, logos, backdrops |
+| kpapp.link `/kpapi/films/{id}/{facts,images,staff,reviews}` | app (`KinopoiskProxySource`) | direct | facts, stills, cast character names, reviews |
+| kinopoiskapiunofficial.tech | app (`KinopoiskSource`) | direct, viewer's own key | details (names, plot, slogan, ratings), staff, awards, stills, facts |
+| worker `/v1/title/by/kinopub/{id}`, `/img/…` | **nobody** | — | the worker resolves TMDB + kpapp facts into a cached document (v2) the app never asks for |
+
+So the app does not ask twice: it asks TMDB itself (through the forwarder) and never reads
+the worker's own document. The aggregating route exists and is unused.
+
+**Next — one call for the details.** The app asks the worker's `/v1/title` once and gets
+fragments in this model's own JSON (below); the worker fills them from TMDB, kpapp.link and
+Trakt's public data under the built-in or owner keys, caches, and answers from whatever is
+warm. The app's direct TMDB and kpapp calls then switch off behind a `FeatureFlag` — **not
+before** the worker answers in the model's shape, or the enrichment disappears in between.
+Kinopoisk with a viewer's own key stays in the app.
+
+Proposed document (v3) — the model's `Codable` JSON, nothing worker-specific:
+
+```json
+{
+  "version": 3,
+  "ref": {"itemID": 87940},
+  "title":    [{"source": "tmdb", "language": "ru-RU", "entity": {"kind": "show", "...": "..."}},
+               {"source": "trakt", "entity": {"kind": "show", "seasonCount": 3, "ended": "..."}}],
+  "seasons":  {"2": [{"source": "tmdb", "entity": {"kind": "season", "seasonNumber": 2}}]},
+  "episodes": {"2": {"5": [{"source": "tmdb", "entity": {"kind": "episode", "...": "..."}}]}},
+  "extras":   {"cast": [], "facts": [], "reviews": [], "trailers": []}
+}
+```
+
+The app decodes `title` / `seasons` / `episodes` straight into `MediaContextDraft` and merges
+as it does now. TODO: give the wire types explicit, flat coding keys first (`release:
+"2020-08-14"` rather than Swift's synthesized enum shape; a genre as its id), so the worker
+writes plain JSON; and decide what of `extras` (cast, facts, reviews) becomes model types.
+
+**Trakt.** Its public data needs only an app key — seasons, episodes and air dates, a show's
+status, ratings, related titles — so it belongs on the worker under the owner's key. What is
+a person's (watched history, scrobbling, recommendations) needs their own OAuth and would be
+the app talking to Trakt directly; not planned. How kino.pub's own Trakt link works (it
+reportedly syncs watches, takes ratings and season data from there) is not documented here
+and not verified — `docs/providers/trakt.md` comes first, before any integration (AGENTS.md).
 
 ### 1 · Facts — nothing a source said is lost (done 2026-10-03)
 
@@ -172,8 +223,10 @@ Each step is one reviewable slice with tests, merged before the next.
 6. Surfaces move one at a time, each with its rows in the surface table: player (done) →
    Up Next → Continue Watching → History → Watchlist → Bookmarks → catalog shelves → Home
    banner → detail hero → Top Shelf.
-7. Server `/v1/title` document carries claims per source (document v3); the app's
-   enrichment becomes one call, and providers stop being app clients.
+7. The worker's `/v1/title` answers in the model's own JSON (document v3, above) from
+   TMDB, kpapp.link and Trakt's public data; the app's details become one call and its
+   direct TMDB / kpapp calls switch off behind a flag. A viewer's own connections
+   (Kinopoisk key, Trakt account) stay app-side.
 
 ## Decisions needed
 
@@ -192,6 +245,6 @@ Each step is one reviewable slice with tests, merged before the next.
 | ~~D11~~ | **Decided**: follow is a series' alone; films have bookmarks only | — |
 | ~~D12~~ | **Decided**: downloaded is progress, like watched — a ring or a percentage for a series or a season | — |
 | D13 | Cross-device progress: the payload carries no time, so this device's resume point always wins over another device's newer one | local wins |
-| D14 | tvOS rails caption an episode `7. "Name"` (Apple TV's way) — keep as a fifth wording, or use `EpisodeText`? | kept |
-| D15 | Continue Watching cards and hero capsules do not know the season count, so a one-season show says its season there. Carry the count on the card? | season said |
-| D16 | Watched ring: does a half-watched episode count half, as a half-done download does? | counts zero |
+| ~~D14~~ | **Decided**: detail page (season switch beside it, or one season) — «7. Name», no name «Episode 7» / «Серия 7»; elsewhere «S1, E1: Name» / «1 сезон, 1 серия: Name» | — |
+| ~~D15~~ | **Decided**: the card carries the season count (`MediaCard.seasonCount`); the hero passes it too | — |
+| ~~D16~~ | **Decided**: only whole episodes count as watched; a series or season has no runtime in the ring | — |

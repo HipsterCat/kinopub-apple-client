@@ -890,7 +890,8 @@ struct MediaItemHeroView: View {
       showsShuffle: showsShuffleButton && !promote,
       showsMore: showsMore,
       promoteFollow: promote && onToggleWatchlist != nil,
-      loading: loadingActions
+      loading: loadingActions,
+      seasonCount: mediaItem.seasons?.count
     )
   }
 
@@ -1107,7 +1108,7 @@ struct MediaItemHeroView: View {
             beginMarkWatched()
             onSeasonWatchedToggle?(season)
           } label: {
-            Label("\("Mark Season Watched".localized) · \(SeasonText(season.number).formatted(MediaSurface.contextMenu.episodeLength))",
+            Label("\("Mark Season Watched".localized) · \(SeasonText(season.number).formatted(MediaSurface.contextMenu.textLength))",
                   systemImage: "checkmark.circle")
           }
         }

@@ -35,6 +35,7 @@ import SwiftUI
 import UIKit
 import TVUIKit
 import KinoPubBackend
+import KinoPubMedia
 
 // MARK: - Status
 
@@ -194,8 +195,7 @@ public extension TVUIKitMediaItem {
   /// is — better an empty corner than a made-up number.
   static func timeLabel(for card: MediaCard, status: TVUIKitMediaItemStatus) -> String? {
     guard status.showsRuntime, let duration = card.durationSeconds, duration >= 60 else { return nil }
-    let label = Duration.compact(seconds: duration)
-    return label.isEmpty ? nil : label
+    return RuntimeText(seconds: duration).text(for: .timeBadge)
   }
 
   /// Capability only. `MediaCard.badge` deliberately does **not** feed this — on Home it

@@ -52,6 +52,7 @@ public extension MediaItem {
 
   /// Runtime to display: per-episode average for a series; film total with minutes
   /// in parentheses when ≥ 1 hour (`1h 45m (105 min)`).
+  @available(*, deprecated, message: "Use RuntimeText at the surface length (MediaSurface.detailRuntime).")
   var displayDuration: String {
     let seconds = isSeries ? Int(duration.average) : Int(duration.total)
     return isSeries
@@ -60,6 +61,7 @@ public extension MediaItem {
   }
 
   /// End-to-end runtime for a series (`1d 12h 4m (5203 min)` when long enough).
+  @available(*, deprecated, message: "Use RuntimeText at the surface length (MediaSurface.detailRuntime).")
   var totalDurationDisplay: String? {
     guard isSeries, duration.total > 0 else { return nil }
     return Duration.compactWithMinutes(seconds: Int(duration.total))

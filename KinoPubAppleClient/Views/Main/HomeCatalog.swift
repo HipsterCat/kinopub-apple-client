@@ -5,6 +5,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubMedia
 import KinoPubMetadata
 import KinoPubUI
 import OSLog
@@ -396,7 +397,8 @@ class HomeCatalog: ObservableObject {
         ContinueWatchingLocalOverlay.Card(itemID: $0.itemID,
                                           isSeries: $0.isSeries,
                                           season: $0.season,
-                                          video: $0.video)
+                                          video: $0.video,
+                                          seasonCount: $0.seasonCount)
       },
       locals: locals
     )
@@ -778,7 +780,10 @@ class HomeCatalog: ObservableObject {
       ?? (isResuming
           ? (cached?.durationSeconds ?? Self.durationSeconds(history: history, local: local))
           : nil)
-    let overlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video)
+    // The details payload when it was fetched, else the snapshot the player cached.
+    let seasonCount = (detail?.seasons ?? local?.item.seasons)?.count
+    let overlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video,
+                                    seasonCount: seasonCount)
     let newCount = item.new.flatMap { $0 > 0 ? $0 : nil }
 
     return MediaCard(id: item.id,
@@ -794,6 +799,7 @@ class HomeCatalog: ObservableObject {
                      itemID: item.id,
                      video: video,
                      season: season,
+                     seasonCount: seasonCount,
                      mediaID: isResuming ? history?.media?.id : nil,
                      isWatched: false,
                      isSeries: isSeries,
@@ -826,9 +832,13 @@ class HomeCatalog: ObservableObject {
 
   /// Says whichever episode the card is actually offering — it used to derive its own
   /// S/E from history and could disagree with the one Play would open.
-  private static func overlayLabel(isSeries: Bool, season: Int?, episode: Int?) -> String? {
+  private static func overlayLabel(isSeries: Bool, season: Int?, episode: Int?,
+                                   seasonCount: Int?) -> String? {
     guard isSeries else { return nil }
-    return ContinueWatchingEpisode.overlayLabel(season: season, episode: episode)
+    guard let episode else { return nil }
+    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
+                       seasonCount: seasonCount)
+      .text(for: .continueWatchingCard)
   }
 
   // MARK: - Catalog shortcuts

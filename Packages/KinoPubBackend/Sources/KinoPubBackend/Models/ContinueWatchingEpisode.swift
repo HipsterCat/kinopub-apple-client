@@ -36,12 +36,13 @@ public struct ContinueWatchingEpisode: Equatable, Sendable {
 
   /// Overlay on a landscape Continue Watching card — the episode the card offers,
   /// not whichever history row happened to be newest.
-  /// TODO(decision): a card does not know how many seasons the show has, so a show with
-  /// only its first season still says «1 сезон, 2 серия» here (`EpisodeText` drops the
-  /// season only when told the count).
-  public static func overlayLabel(season: Int?, episode: Int?) -> String? {
+  /// `seasonCount`: one, and it is the first, and the card says «E2» / «2 серия» (user's
+  /// call, 2026-10-03). Nil when the card does not know — the season is then said.
+  @available(*, deprecated, message: "Use EpisodeText(season:number:seasonCount:).text(for: .continueWatchingCard).")
+  public static func overlayLabel(season: Int?, episode: Int?, seasonCount: Int? = nil) -> String? {
     guard let episode else { return nil }
-    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode)
+    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
+                       seasonCount: seasonCount)
       .text(for: .continueWatchingCard)
   }
 

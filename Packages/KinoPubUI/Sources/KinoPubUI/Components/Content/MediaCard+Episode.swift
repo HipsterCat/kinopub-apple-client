@@ -16,7 +16,7 @@ public extension MediaCard {
   ///
   /// The caller owns the strings the payload cannot compose on its own: `title`
   /// (kino.pub's name, or a schedule's when the episode has none), `episodeLabel`
-  /// (default: `EpisodeText` on the season's own rail — «Episode 9», «9 серия») and
+  /// (default: an unnamed `EpisodeText.listItem` — «Episode 9», «Серия 9») and
   /// `dateLabel` (already formatted — the UI package does not know this app's date rules). `stillURL` overrides the episode thumbnail when an
   /// external schedule carries a better one.
   ///
@@ -39,7 +39,7 @@ public extension MediaCard {
                                       number: episode.number,
                                       episodeLabel: episodeLabel
                                         ?? EpisodeText(season: nil, number: episode.number)
-                                          .text(for: .episodeTile),
+                                          .listItem(),
                                       dateLabel: dateLabel,
                                       fallbackTitle: episode.fixedTitle)
 

@@ -1421,8 +1421,8 @@ extension PlayerManager {
                preferredTimescale: 600)
       : .indefinite
 
-    let label = ContinueWatchingEpisode.overlayLabel(season: next.seasonNumber,
-                                                     episode: next.number)
+    let label = EpisodeText(season: next.seasonNumber, number: next.number)
+      .text(for: .continueWatchingCard)
     var parts = [label, next.seriesTitle].compactMap { $0 }
     if !next.title.isEmpty { parts.append(next.title) }
     let title = parts.isEmpty ? next.fixedTitle : parts.joined(separator: " — ")
@@ -1539,8 +1539,12 @@ extension PlayerManager {
         stillURL: nextContext?.item.artwork.still?.absoluteString))
       items.append(TVUIKitMediaItem(id: next.id,
                                     imageURL: base.imageURL,
-                                    caption: TVUIKitCardText.episodeCaption(number: next.number,
-                                                                            name: name),
+                                    // The next episode may open the next season, so it
+                                    // says which (`MediaSurface.upNextTile`).
+                                    caption: EpisodeText(season: next.seasonNumber,
+                                                         number: next.number, name: name,
+                                                         seasonCount: series?.seasons?.count)
+                                      .text(for: .upNextTile),
                                     status: base.status,
                                     timeLabel: base.timeLabel,
                                     badgeText: "MediaItem_NextEpisode".localized))

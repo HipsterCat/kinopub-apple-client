@@ -5,6 +5,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Episode wording by place, season count on cards, deprecations (2026-10-03)
+
+The detail page lists an episode as «7. Name» / «Серия 7»; Up Next says «S1, E2: Name»;
+Continue Watching cards and hero capsules carry the season count (`MediaCard.seasonCount`,
+`MediaActionContext.seasonCount`), so a one-season show says «E2» / «2 серия». The watched
+ring counts whole episodes only. Replaced helpers are `@available(*, deprecated)` with the
+replacement named — `Duration` formatting, `ContinueWatchingEpisode.overlayLabel`, the
+pre-worded and viewer-state fields of `MediaCard`, `MediaItem`'s display lines,
+`TitleMetadata.mediaFragment(kind:)`. Unused `MediaAction_*` strings removed. Provider policy
+corrected: the worker proxies and aggregates when it helps; a viewer's own connection stays
+in the app (`docs/media-model.md`).
+
 ### One wording per fact and surface (2026-10-03)
 
 `KinoPubMedia/Presentation`: `EpisodeText`, `SeasonText`, `RuntimeText`, `RemainingText` at

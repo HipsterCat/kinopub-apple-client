@@ -27,6 +27,7 @@ import KinoPubMedia
 /// republish sinks deliver on main, so `@Published` stays on the main thread.
 final class MediaLibraryStore: ObservableObject {
 
+  @available(*, deprecated, message: "Use ViewerState.Download.")
   typealias DownloadStatus = ViewerState.Download
 
   // MARK: - Owned optimistic state (persisted)
@@ -234,6 +235,7 @@ final class MediaLibraryStore: ObservableObject {
 
   // MARK: - Watch progress (delegated)
 
+  @available(*, deprecated, message: "Read AppContext.viewerState (ViewerStateReader): resumeFraction.")
   func watchProgress(itemId: Int, season: Int?, episode: Int?) -> Double? {
     progressStore.entry(forId: itemId, season: season, episode: episode)?.progress
   }

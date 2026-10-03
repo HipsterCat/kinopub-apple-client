@@ -6,7 +6,23 @@
 //
 
 import Foundation
+import KinoPubMedia
 
+/// kino.pub's item payload (`/v1/items/{id}`, listings), as the API sends it. The app's own
+/// description of a title is the media model's (`KinoPubMediaMapping` → `MediaEntity`);
+/// this type stays the wire shape.
+///
+/// TODO: reconcile this decoding against live payloads per type — film, concert, series
+/// (and documovie / docuserial / tvshow / 3D) — field by field against
+/// `docs/providers/kinopub/video.md`, and record what each type does and does not carry.
+/// Known so far:
+/// - **No age rating.** kino.pub sends none for any type; the model's `contentRating`
+///   comes from Kinopoisk or TMDB only.
+/// - **`tracklist` is sent for concerts and not decoded** (`artists`, `title`, `url` per
+///   song; `ConcertItemTests.testTracklistIsNotDecodedYet` keeps the gap visible). Decode
+///   it and give the model a setlist.
+/// - A listing payload carries no `seasons` and no `videos`; only details do.
+/// - `subscribed` / `in_watchlist`: which one each endpoint fills is unverified.
 public struct MediaItem: Codable, Hashable, @unchecked Sendable {
   public let id: Int
   public let type: String
@@ -410,14 +426,16 @@ public extension MediaItem {
       // reports `total: 17268`, so the page said 4 h 48 min for a 2 h 24 min film.
       // `average` is the runtime of the film; `total` is the runtime of the payload.
       let seconds = playbackVariants.isEmpty ? duration.total : duration.average
-      let formatted = Duration.compact(seconds: Int(seconds))
-      if !formatted.isEmpty { parts.append(formatted) }
+      if let formatted = RuntimeText(seconds: seconds).text(for: .detailRuntime) {
+        parts.append(formatted)
+      }
     }
     return parts
   }
 
   /// "3 сезона" — how many seasons kino.pub has, plural-correct; nil for a film and for
   /// a listed series (a listing payload never carries `seasons`).
+  @available(*, deprecated, message: "Words belong to the presentation layer: KinoPubMedia/Presentation and a MediaSurface row (docs/media-model.md step 6).")
   var seasonsLabel: String? {
     guard isSeries, let count = seasons?.count else { return nil }
     return String(localized: "\(count) seasons", bundle: .module)
@@ -425,6 +443,7 @@ public extension MediaItem {
 
   /// "2025 · 1 h 55 min · Боевик, Драма · Япония" — everything about a title in one
   /// line, for the home screen's focus preview.
+  @available(*, deprecated, message: "Words belong to the presentation layer: KinoPubMedia/Presentation and a MediaSurface row (docs/media-model.md step 6). Genres: one, the primary (MediaEntity.primaryGenre).")
   var metadataLine: String {
     var parts = releaseParts
     let genres = genres.compactMap(\.title).prefix(2)
@@ -436,6 +455,7 @@ public extension MediaItem {
   /// "2025 · 1 h 55 min" — when and how long, nothing else. The item page's hero
   /// metadata row carries the scores and capability chips beside it, and genres and
   /// country sit with the cast under the synopsis instead.
+  @available(*, deprecated, message: "Words belong to the presentation layer: KinoPubMedia/Presentation and a MediaSurface row (docs/media-model.md step 6).")
   var releaseLine: String {
     releaseParts.joined(separator: "   ")
   }

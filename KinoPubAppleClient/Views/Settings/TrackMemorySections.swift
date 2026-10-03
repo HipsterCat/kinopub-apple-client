@@ -128,7 +128,7 @@ extension TrackMemoryScope {
     case .title:
       return "Whole title".localized
     case let .season(_, season):
-      return SeasonText(season).formatted(MediaSurface.settingsRow.episodeLength)
+      return SeasonText(season).formatted(MediaSurface.settingsRow.textLength)
     case let .episode(_, season, episode):
       return EpisodeText(season: season, number: episode).text(for: .settingsRow)
     case let .contentClass(name):

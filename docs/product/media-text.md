@@ -23,8 +23,13 @@ line), **long** (spelled out). **VoiceOver always reads long**, whatever the scr
 without saying, on a season's own rail. A name that is only the number again («Эпизод 1»)
 is no name.
 
-**idea** — Continue Watching cards and the hero's capsules are not told the season count
-yet, so a one-season show still says its season there.
+**The detail page's episodes** — the season switch is right beside them, or there is only one
+season: `7. Name`, and with no name `Episode 7` / `Серия 7`. **Everywhere else** the season is
+said, the name after a colon: `S1, E1: Name` / `1 сезон, 1 серия: Name` (Up Next), `S1, E1` /
+`1 сезон, 1 серия` without one. (User's call, 2026-10-03.)
+
+Continue Watching cards and the hero's capsules carry the season count, so a one-season show
+says `E2` / `2 серия` there too.
 
 ## Season on its own
 
@@ -49,13 +54,11 @@ count days (`1д 12ч 4м`). Time left: `Ещё 53 мин` / `53 min left`.
 | --- | --- | --- |
 | Player subtitle | medium | — |
 | Hero capsules | short | medium (time left) |
-| Continue Watching / Up Next card | short | short |
-| Episode tile on its season's rail | long, no season | short |
+| Continue Watching card | short | short |
+| Up Next tile (player) | short + `: Name` | short |
+| Episode tile on the detail page | `7. Name` · `Серия 7` | short |
 | History row, context menu, settings row | short | — |
 | Corner time chip, detail meta line | — | short |
-
-**idea** — tvOS rails caption an episode Apple's way, `7. "Name"` (`TVUIKitCardText`): a
-fifth wording, kept until decided.
 
 ## Follow, bookmarks, progress
 
@@ -63,4 +66,5 @@ fifth wording, kept until decided.
   watchlist. Hero: «Отслеживать» / «Отслеживаю»; menu: «Отслеживать» / «Не отслеживать».
 - **Downloaded is progress, like watched**: a series or a season shows how much of it is
   watched and how much is on the device, as a ring or a percentage (`ViewerState`'s
-  `watchedEpisodes` / `downloadedEpisodes`). Partial downloads count by their progress.
+  `watchedEpisodes` / `downloadedEpisodes`). **Only whole episodes count as watched**, and a
+  series or season shows no runtime there; partial downloads count by their progress.

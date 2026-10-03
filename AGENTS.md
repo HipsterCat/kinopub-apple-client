@@ -336,8 +336,10 @@ Details: skill `apple-chrome`.
 - **Document an external source before integrating or extending it** — every method, field and
   model, including ones we do not want, into a sheet in `docs/providers/` *first*. Store every
   detail the API gives; decide what is redundant later, from evidence.
-- **New providers land server-side, not in the app.** The app gets one more field, not one more
-  network client, and never models a provider's response shape. See [docs/media-model.md](docs/media-model.md).
+- **Providers: our worker when it helps, the app for a viewer's own connection.** The
+  Cloudflare worker proxies, caches and aggregates with built-in or owner keys, or when a
+  service is flaky or rate-limited; a viewer's own key or account (Kinopoisk, Trakt) is called
+  by the app. Either way it lands as `MediaFragment`s. See [docs/media-model.md](docs/media-model.md).
 - **Telemetry:** no third-party SDK. TestFlight / Xcode Organizer already deliver crashes. Do not
   add Firebase, Sentry or similar without an explicit decision. **This is a rule about *sending*
   data somewhere.** On-device diagnostics that leave nothing behind — `Pulse`'s local store behind

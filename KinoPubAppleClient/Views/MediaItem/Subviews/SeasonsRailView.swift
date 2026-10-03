@@ -382,10 +382,9 @@ struct SeasonsRailView: View {
     case .playable(let season, let episode, let schedule):
       let card = Self.card(for: episode, in: season, schedule: schedule)
       let base = TVUIKitMediaItem(card: card)
-      let caption = TVUIKitCardText.episodeCaption(
-        number: episode.number,
-        name: Self.displayTitle(episode: episode, schedule: schedule)
-      )
+      let caption = EpisodeText(season: nil, number: episode.number,
+                                name: Self.displayTitle(episode: episode, schedule: schedule))
+        .text(for: .episodeTile)
       let status: TVUIKitMediaItemStatus = (schedule?.isUpcoming == true)
         ? (schedule?.airDate.map { .upcoming(Self.airDateLabel($0)) } ?? .unavailable)
         : base.status
@@ -403,8 +402,9 @@ struct SeasonsRailView: View {
         .map { .upcoming(Self.airDateLabel($0)) } ?? .unavailable
       return TVUIKitMediaItem(id: entry.id,
                               imageURL: schedule.still,
-                              caption: TVUIKitCardText.episodeCaption(number: schedule.episodeNumber,
-                                                                      name: schedule.name),
+                              caption: EpisodeText(season: nil, number: schedule.episodeNumber,
+                                                   name: schedule.name)
+                                .text(for: .episodeTile),
                               status: status)
 
     case .missingSeasons(let from, let to, let episodes, _, _):
@@ -671,7 +671,7 @@ struct SeasonsRailView: View {
   }
 
   private static func episodeLabel(number: Int) -> String {
-    EpisodeText(season: nil, number: number).text(for: .episodeTile)
+    EpisodeText(season: nil, number: number).listItem()
   }
 
   /// Inside a week either way the date is relative — "in 3 days", "7 days ago", and
@@ -909,7 +909,7 @@ struct VersionsRailView: View {
       caption: variant.title,
       status: status,
       timeLabel: variant.duration >= 60
-        ? Duration.compactHoursMinutes(seconds: variant.duration)
+        ? RuntimeText(seconds: variant.duration).text(for: .timeBadge)
         : nil
     )
   }

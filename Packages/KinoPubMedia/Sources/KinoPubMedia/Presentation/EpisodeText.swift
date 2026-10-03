@@ -15,6 +15,9 @@ import Foundation
 ///
 /// The name is shown only when it is one (`EpisodeTitle.meaningful`): «Эпизод 1» is the
 /// number again.
+///
+/// Two more shapes, for where the season is already said beside the episode: `titled`
+/// («S1, E2: Name» — Up Next) and `listItem` («7. Name» / «Серия 7» — a season's own list).
 public struct EpisodeText: Hashable, Sendable {
   /// Nil when the season goes without saying.
   public let season: Int?
@@ -45,13 +48,34 @@ public struct EpisodeText: Hashable, Sendable {
     }
   }
 
+  /// The reference at `length` with the name after a colon when there is one: «S1, E2:
+  /// Name», «1 сезон, 2 серия: Name», and the reference alone without one.
+  public func titled(_ length: TextLength, language: MediaLanguage = .current) -> String {
+    [reference(length, language), name].compactMap { $0 }.joined(separator: ": ")
+  }
+
+  /// An item of a season's own list — where the season is already said beside it (the
+  /// detail page's season switch) or there is only the one: «7. Name», and with no name
+  /// «Episode 7» / «Серия 7» (user's spec, 2026-10-03).
+  public func listItem(language: MediaLanguage = .current) -> String {
+    if let name { return "\(number). \(name)" }
+    switch language {
+    case .ru: return "Серия \(number)"
+    case .en: return "Episode \(number)"
+    }
+  }
+
   /// What VoiceOver reads, whatever the screen shows.
   public func accessibilityLabel(language: MediaLanguage = .current) -> String {
     formatted(.long, language: language)
   }
 
   public func text(for surface: MediaSurface, language: MediaLanguage = .current) -> String {
-    formatted(surface.episodeLength, language: language)
+    switch surface.episodeStyle {
+    case .formatted(let length): return formatted(length, language: language)
+    case .titled(let length): return titled(length, language: language)
+    case .listItem: return listItem(language: language)
+    }
   }
 
   private func reference(_ length: TextLength, _ language: MediaLanguage) -> String {

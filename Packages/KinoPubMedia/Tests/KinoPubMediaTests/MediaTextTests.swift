@@ -71,6 +71,25 @@ final class MediaTextTests: XCTestCase {
                    "Episode 9")
   }
 
+  /// The detail page: the season switch is beside the tile, so the season goes unsaid
+  /// (user's spec, 2026-10-03).
+  func testAListItem() {
+    let named = EpisodeText(season: 2, number: 7, name: "Rainbow")
+    XCTAssertEqual(named.listItem(language: .en), "7. Rainbow")
+    XCTAssertEqual(named.text(for: .episodeTile, language: .ru), "7. Rainbow")
+    XCTAssertEqual(EpisodeText(season: 2, number: 7).listItem(language: .ru), "Серия 7")
+    XCTAssertEqual(EpisodeText(season: 2, number: 7, name: "Эпизод 7").listItem(language: .en),
+                   "Episode 7", "a placeholder is no name")
+  }
+
+  /// Anywhere else: the season is said, the name after a colon.
+  func testTitled() {
+    XCTAssertEqual(manyNamed.text(for: .upNextTile, language: .en), "S1, E1: Pilot")
+    XCTAssertEqual(manyNamed.text(for: .upNextTile, language: .ru), "1 сезон, 1 серия: Pilot")
+    XCTAssertEqual(many.text(for: .upNextTile, language: .en), "S1, E1")
+    XCTAssertEqual(soleNamed.text(for: .upNextTile, language: .ru), "1 серия: Pilot")
+  }
+
   func testSeason() {
     XCTAssertEqual(SeasonText(2).formatted(.long, language: .en), "Season 2")
     XCTAssertEqual(SeasonText(2).formatted(.short, language: .en), "S2")
