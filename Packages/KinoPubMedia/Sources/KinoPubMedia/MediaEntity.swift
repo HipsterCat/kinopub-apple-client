@@ -132,7 +132,10 @@ public struct MediaEntity: Hashable, Sendable, Codable {
   /// One source's own answer, whatever won the default — Kinopoisk's short description,
   /// TMDB's English plot.
   public func value<Value>(from source: MediaSource, _ read: (MediaEntity) -> Value?) -> Value? {
-    claims.lazy.filter { $0.source == source }.compactMap { read($0.entity) }.first
+    for fragment in claims where fragment.source == source {
+      if let value = read(fragment.entity) { return value }
+    }
+    return nil
   }
 
   /// The sources that said anything at all about this entity.
