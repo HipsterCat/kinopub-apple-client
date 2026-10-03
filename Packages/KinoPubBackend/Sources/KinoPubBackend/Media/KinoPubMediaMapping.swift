@@ -168,6 +168,10 @@ public extension MediaItem {
       entity.genres = KinoPubMediaMapping.genres(genres, type: type)
       entity.labels = KinoPubMediaMapping.labels(genres)
       entity.release = ReleaseDate(year: year)
+      // Only a details payload lists seasons; a listing says nothing, not "none".
+      if mapping.kind == .show, let count = seasons?.count, count > 0 {
+        entity.seasonCount = count
+      }
       if mapping.kind == .movie {
         // `total` sums every version of a multi-version film; `average` is the film.
         let seconds = playbackVariants.isEmpty ? duration.total : duration.average

@@ -39,8 +39,8 @@ final class ViewerStateReader: ViewerStateReading {
     reported.overlaid(overlay(for: ref))
   }
 
-  /// Title-level facts — watchlist, folders, vote — are the title's whatever `ref` is:
-  /// an episode is on the watchlist when its series is.
+  /// Title-level facts — follow, folders, vote — are the title's whatever `ref` is: an
+  /// episode is followed when its series is.
   func overlay(for ref: MediaRef) -> ViewerOverlay {
     let watch = ref.watchRef
     let record = progress.records(forItem: ref.itemID).first {
@@ -51,10 +51,25 @@ final class ViewerStateReader: ViewerStateReading {
       progress: record?.watch,
       progressUpdatedAt: record?.updatedAt,
       isWatched: library.watched(watch),
-      isInWatchlist: library.inWatchlist(itemId: ref.itemID),
+      isFollowing: library.inWatchlist(itemId: ref.itemID),
       bookmarkFolderIDs: bookmarks.knownFolderIDs(for: ref.itemID),
       download: download(for: ref),
       vote: library.userVote(itemId: ref.itemID).map { $0 ? ViewerState.Vote.up : .down })
+  }
+
+  /// A series, or one of its seasons, from its episodes — the ring for watched and for
+  /// downloaded (`ViewerState.aggregating`). `season` nil: every season.
+  func state(forSeries item: MediaItem, season: Int? = nil) -> ViewerState {
+    let episodes = (item.seasons ?? [])
+      .filter { season == nil || $0.number == season }
+      .flatMap { block in
+        block.episodes.map { episode in
+          state(for: .episode(item.id, season: block.number, number: episode.number),
+                reported: ViewerState(reportedBy: episode))
+        }
+      }
+    return state(for: item.titleRef, reported: ViewerState(reportedBy: item))
+      .aggregating(episodes: episodes)
   }
 
   /// A file is one episode or one version. TODO(decision): what "downloaded" means for a

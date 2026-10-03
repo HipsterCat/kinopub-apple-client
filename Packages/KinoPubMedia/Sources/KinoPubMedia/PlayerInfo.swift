@@ -37,25 +37,6 @@ public struct PlayerInfo: Hashable, Sendable {
   /// Best first. The caller downloads the first that loads.
   public var artworkCandidates: [URL]
 
-  /// The words the projection needs in the viewer's language. The app passes its own
-  /// localized strings; the English default keeps the package usable without them.
-  public struct Labels: Sendable {
-    public var languageCode: String?
-    public var episode: @Sendable (_ season: Int?, _ episode: Int) -> String
-
-    public init(languageCode: String?,
-                episode: @escaping @Sendable (_ season: Int?, _ episode: Int) -> String) {
-      self.languageCode = languageCode
-      self.episode = episode
-    }
-
-    public static let english = Labels(
-      languageCode: "en",
-      episode: { season, episode in
-        season.map { "Season \($0), Episode \(episode)" } ?? "Episode \(episode)"
-      })
-  }
-
   public init(title: String? = nil, subtitle: String? = nil, description: String? = nil,
               genre: String? = nil, contentRating: String? = nil, creationDate: String? = nil,
               artworkCandidates: [URL] = []) {
@@ -68,30 +49,35 @@ public struct PlayerInfo: Hashable, Sendable {
     self.artworkCandidates = artworkCandidates
   }
 
-  public init(context: MediaContext, labels: Labels = .english) {
+  /// - Parameter language: the viewer's — for the episode line and the genre's name.
+  public init(context: MediaContext, language: MediaLanguage = .current) {
     let title = context.title
     self.init(title: title,
-              subtitle: Self.subtitle(context: context, title: title, labels: labels),
+              subtitle: Self.subtitle(context: context, title: title, language: language),
               description: context.synopsis,
-              genre: context.primaryGenre?.name.value(languageCode: labels.languageCode),
+              genre: context.primaryGenre?.name.value(languageCode: language.rawValue),
               contentRating: context.contentRating?.value,
               creationDate: context.release?.iso8601,
               artworkCandidates: context.artworkCandidates)
   }
 
-  /// Episode: "Season 2, Episode 5: Name", the name dropped when it only repeats the
-  /// title line. A film's edition: "48 fps". A trailer: nothing — the Info tab's heading
+  /// Episode: `EpisodeText` at the player's length — «S2, E5: Name», «Season 2, Episode 5»,
+  /// «Episode 1: Name» when the show has only its first season — the name dropped when it
+  /// only repeats the title line. A film's edition: "48 fps". A trailer: nothing — the Info tab's heading
   /// is the subtitle when there is one, and «Trailer» there says nothing the viewer did not
   /// choose; with none, the heading is the film's or show's own name (user's call,
   /// 2026-10-01).
-  private static func subtitle(context: MediaContext, title: String?, labels: Labels) -> String? {
+  private static func subtitle(context: MediaContext, title: String?,
+                               language: MediaLanguage) -> String? {
     let item = context.item
     switch item.kind {
     case .episode:
       let name = item.title.nonBlank.flatMap { $0 == title ? nil : $0 }
       guard let number = item.episodeNumber else { return name }
-      let line = labels.episode(item.seasonNumber ?? context.season?.seasonNumber, number)
-      return name.map { "\(line): \($0)" } ?? line
+      return EpisodeText(season: item.seasonNumber ?? context.season?.seasonNumber,
+                         number: number, name: name,
+                         seasonCount: context.parent?.seasonCount)
+        .text(for: .playerSubtitle, language: language)
     case .movie:
       return item.edition
     case .show, .season, .extra:

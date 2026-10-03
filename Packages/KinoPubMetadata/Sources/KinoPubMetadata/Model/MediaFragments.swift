@@ -23,6 +23,7 @@ public extension TitleMetadata {
       let premiere = kind == .show ? firstAirDate : releaseDate
       entity.release = premiere.map { ReleaseDate(date: $0) }
       entity.ended = kind == .show ? lastAirDate.map { ReleaseDate(date: $0) } : nil
+      entity.seasonCount = kind == .show ? numberOfSeasons : nil
       entity.contentRating = ContentRating(ageRating)
       entity.scores = [Score(.tmdb, value: tmdbRating, votes: tmdbVotes)].compactMap { $0 }
       entity.artwork = ArtworkSet(poster: artwork.poster, backdrop: artwork.backdrop,

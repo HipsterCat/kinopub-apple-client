@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import KinoPubMedia
 
 public struct Duration: Codable, Hashable {
   public let average: Double
@@ -18,40 +19,22 @@ public extension Duration {
     Self.hoursMinutes(seconds: Int(total))
   }
 
-  /// Seconds → "1 h 48 min" (or "48 min" under an hour).
+  /// «1ч 48 мин» — `RuntimeText`, medium.
   static func hoursMinutes(seconds: Int) -> String {
-    let totalMinutes = Int((Double(seconds) / 60).rounded())
-    guard totalMinutes > 0 else { return "" }
-    let hours = totalMinutes / 60
-    let minutes = totalMinutes % 60
-    if hours > 0 {
-      return minutes > 0 ? "\(hours) h \(minutes) min" : "\(hours) h"
-    }
-    return "\(minutes) min"
+    RuntimeText(seconds: seconds).formatted(.medium) ?? ""
   }
 
-  /// Compact runtime used across the app — "2h 35m", "39m", and past a day "1d 12h 4m".
+  /// «2ч 35м», «39м», past a day «1д 12ч 4м» — `RuntimeText`, short.
   static func compact(seconds: Int) -> String {
-    let totalMinutes = Int((Double(seconds) / 60).rounded())
-    guard totalMinutes > 0 else { return "" }
-    let days = totalMinutes / (60 * 24)
-    let hours = (totalMinutes % (60 * 24)) / 60
-    let minutes = totalMinutes % 60
-    var parts: [String] = []
-    if days > 0 { parts.append("\(days)d") }
-    if hours > 0 { parts.append("\(hours)h") }
-    if minutes > 0 || parts.isEmpty { parts.append("\(minutes)m") }
-    return parts.joined(separator: " ")
+    RuntimeText(seconds: seconds).formatted(.short) ?? ""
   }
 
-  /// Compact with a minutes total in parentheses once the runtime is an hour or more —
-  /// `1h 45m (105 min)`. Under an hour stays `39m`.
+  /// Short, with the minutes total once it is an hour or more — «1ч 45м (105 мин)».
   static func compactWithMinutes(seconds: Int) -> String {
-    let totalMinutes = Int((Double(seconds) / 60).rounded())
-    guard totalMinutes > 0 else { return "" }
-    let compact = Self.compact(seconds: seconds)
-    guard totalMinutes >= 60 else { return compact }
-    return "\(compact) (\(totalMinutes) min)"
+    let runtime = RuntimeText(seconds: seconds)
+    guard let short = runtime.formatted(.short) else { return "" }
+    guard runtime.minutes >= 60, let minutes = runtime.minutesOnly() else { return short }
+    return "\(short) (\(minutes))"
   }
 
   /// Alias kept for call sites that still say "hoursMinutes".

@@ -29,6 +29,9 @@ public struct MediaEntity: Hashable, Sendable, Codable {
   public var seasonNumber: Int?
   /// `.episode` only.
   public var episodeNumber: Int?
+  /// `.show`: how many seasons it has that the source knows of. One, and it is season 1 →
+  /// an episode's season goes without saying (`EpisodeText`).
+  public var seasonCount: Int?
   public var synopsis: Synopsis
   /// Ordered by significance. **The first is the primary genre** — the one field Apple
   /// shows where there is room for one word ("Comedy" on a card for a show filed under
@@ -65,6 +68,7 @@ public struct MediaEntity: Hashable, Sendable, Codable {
               edition: String? = nil,
               seasonNumber: Int? = nil,
               episodeNumber: Int? = nil,
+              seasonCount: Int? = nil,
               synopsis: Synopsis = Synopsis(),
               genres: [Genre] = [],
               release: ReleaseDate? = nil,
@@ -85,6 +89,7 @@ public struct MediaEntity: Hashable, Sendable, Codable {
     self.edition = edition.nonBlank
     self.seasonNumber = seasonNumber
     self.episodeNumber = episodeNumber
+    self.seasonCount = seasonCount.flatMap { $0 > 0 ? $0 : nil }
     self.synopsis = synopsis
     self.genres = genres
     self.release = release

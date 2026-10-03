@@ -671,7 +671,7 @@ struct SeasonsRailView: View {
   }
 
   private static func episodeLabel(number: Int) -> String {
-    "\("Episode".localized) \(number)"
+    EpisodeText(season: nil, number: number).text(for: .episodeTile)
   }
 
   /// Inside a week either way the date is relative — "in 3 days", "7 days ago", and

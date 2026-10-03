@@ -24,7 +24,7 @@ Each layer reads only the one below it. A layer is a package or a folder of plai
 | 2 | **Identity** | "which thing" — one key every store agrees on | `KinoPubMedia`: `MediaRef` | done |
 | 3 | **Viewer state** | "what has the viewer done with it" | `KinoPubBackend`: `ViewerState` + rules; app: `ViewerStateReader` over the stores | done (detail page reads it) |
 | 4 | **Selection** | "which things belong in this list, in what order" | pure functions: Continue Watching, Up Next, Unwatched, History, Watchlist, Bookmarks, shelves, banners | later |
-| 5 | **Presentation** | "what does this surface say about it, in which words" | `MediaPresenter` + formatters + one surface table | next |
+| 5 | **Presentation** | "what does this surface say about it, in which words" | `KinoPubMedia/Presentation`: formatters + `MediaSurface` table | started |
 | 6 | **Views** | drawing | `KinoPubUI`, `Views/` — no string building, no source knowledge | — |
 
 ### 0 · Sources — adapters only
@@ -158,10 +158,13 @@ Each step is one reviewable slice with tests, merged before the next.
    details as a fragment; deterministic metadata merge.
 2. **done** — `MediaRef` + `ViewerState` read façade over the existing stores. The detail
    page's watched and watchlist state read through it; no visible change.
-3. **next** — Presentation vocabulary: surfaces, styles, the formatters above, one strings
-   table. Every duplicate in the audit routes through it **keeping today's output**; each
-   difference becomes a row marked with its decision number. No visible change until a
-   decision lands.
+3. **done** — Presentation vocabulary (`TextLength`, `EpisodeText`, `SeasonText`,
+   `RuntimeText`, `RemainingText`, `MediaSurface`) with the user's wording
+   ([media-text.md](product/media-text.md)). Routed through it: the player subtitle, the hero
+   capsules, Continue Watching and Up Next labels, history rows, the hero's context menu,
+   settings rows, episode tiles, the corner time chip, every `Duration.compact` caller, the
+   episode-name filter. Follow is a series' alone; `ViewerState` tallies watched and
+   downloaded for a series or a season.
 4. `MediaItem` / `Episode` / `Season` → `MediaContext` everywhere through
    `KinoPubMediaMapping` (already used by the player); a `MediaRecordStore` keyed by
    `MediaRef` replaces `TitleSnapshot` payloads and the card snapshots in `ContentStore`.
@@ -181,11 +184,14 @@ Each step is one reviewable slice with tests, merged before the next.
 | D3 | Age rating: one per title by viewer region, or keep RU and US side by side? | one; Kinopoisk's RU first |
 | D4 | Poster: Kinopoisk's Russian one-sheet vs TMDB's for a Russian-speaking viewer? | TMDB first |
 | D5 | Keep `.apple` in precedence lines while no Apple source exists? | listed, never runs |
-| D6 | Episode reference: one format per style. Proposal — compact `S2, E5` / `2 сезон, 5 серия`; full `Season 2, Episode 5` / `Сезон 2, Серия 5`; file names `S02E05` | four formats |
+| ~~D6~~ | Episode reference — **decided 2026-10-03**, [media-text.md](product/media-text.md) | — |
 | D7 | Genres outside the player: one (primary) everywhere, or two on the focus preview? | two on cards, one in the player |
-| D8 | Runtime words: «53 мин» or «53m», «1 ч 24 мин» or «1ч 24м» — one per style | both |
+| ~~D8~~ | Runtime words — **decided 2026-10-03**, three lengths, long is the system's | — |
 | D9 | Precedence lines the user disagrees with — which? (each line is commented in `MediaPrecedence.standard`) | — |
 | D10 | A title with no IMDb id gets no TMDB enrichment at all. Match by title + year instead? | none |
-| D11 | Watchlist: the UI says Follow on a series and Watchlist on a film for one kino.pub flag. One word or two? | two |
-| D12 | "Downloaded" for a whole title: a film's only version, every episode, any episode? | a title reports none |
+| ~~D11~~ | **Decided**: follow is a series' alone; films have bookmarks only | — |
+| ~~D12~~ | **Decided**: downloaded is progress, like watched — a ring or a percentage for a series or a season | — |
 | D13 | Cross-device progress: the payload carries no time, so this device's resume point always wins over another device's newer one | local wins |
+| D14 | tvOS rails caption an episode `7. "Name"` (Apple TV's way) — keep as a fifth wording, or use `EpisodeText`? | kept |
+| D15 | Continue Watching cards and hero capsules do not know the season count, so a one-season show says its season there. Carry the count on the card? | season said |
+| D16 | Watched ring: does a half-watched episode count half, as a half-done download does? | counts zero |

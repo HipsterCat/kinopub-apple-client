@@ -133,17 +133,6 @@ enum PlaybackMediaContext {
     return found
   }
 
-  /// The words `PlayerInfo` needs, in the app's language: "Сезон 2, Серия 5".
-  static var labels: PlayerInfo.Labels {
-    let season = String(localized: "Season")
-    let episode = String(localized: "Episode")
-    return PlayerInfo.Labels(
-      languageCode: Bundle.main.preferredLocalizations.first,
-      episode: { seasonNumber, number in
-        seasonNumber.map { "\(season) \($0), \(episode) \(number)" } ?? "\(episode) \(number)"
-      })
-  }
-
   // MARK: - Downloads
 
   /// A download carries a name, a poster and an "S4E4" marker — the rest comes from the

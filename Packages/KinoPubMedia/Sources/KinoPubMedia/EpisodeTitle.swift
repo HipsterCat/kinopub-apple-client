@@ -11,7 +11,8 @@ public enum EpisodeTitle {
 
   /// Words that only ever *number* an episode, in the languages our sources answer in.
   private static let numberingWords: Set<String> = [
-    "эпизод", "серия", "выпуск", "часть", "эп", "episode", "ep", "part", "chapter", "no",
+    "эпизод", "серия", "серія", "выпуск", "часть", "эп", "episode", "ep", "e", "part", "chapter",
+    "no", "serija",
   ]
 
   /// "Эпизод 1", "Серия №3", "1 серия", "Episode 12", "Ep. 4", "S01E01", "#5", "7" — true.

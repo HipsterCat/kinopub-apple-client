@@ -5,6 +5,19 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### One wording per fact and surface (2026-10-03)
+
+`KinoPubMedia/Presentation`: `EpisodeText`, `SeasonText`, `RuntimeText`, `RemainingText` at
+three lengths, and `MediaSurface` — the table of which surface uses which. The user's wording
+([docs/product/media-text.md](docs/product/media-text.md)): «S1, E1: Name» in the player,
+«Episode 1» when the show has only its first season, «1ч 53м» / «1ч 53 мин» / the system's
+«1 час 53 минуты», VoiceOver always long. Replaced: four episode formats in about a dozen
+places, the English-only `Duration.compact` (Russian screens said «2h 35m»), a second
+«Эпизод 1» filter, two «time left» strings, three copies of the settings scope label.
+`PlayerInfo.Labels` is gone — the player passes a language. Follow is a series' alone;
+`ViewerState.isFollowing` replaces `isInWatchlist`, and the context menu offers it on series
+only. `ViewerState` tallies watched and downloaded episodes for a series or a season.
+
 ### One key and one read for what the viewer has done (2026-10-03)
 
 `MediaRef` (KinoPubMedia) names a title, an episode or a film's version; `watchRef` is what

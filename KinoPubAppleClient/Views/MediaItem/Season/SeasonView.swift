@@ -58,8 +58,6 @@ struct SeasonView: View {
   }
 
   private static func card(for episode: Episode, in season: Season) -> MediaCard {
-    MediaCard(episode: episode,
-              in: season,
-              episodeLabel: "\("Episode".localized) \(episode.number)")
+    MediaCard(episode: episode, in: season)
   }
 }

@@ -7,14 +7,21 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubMedia
 
 public enum MediaActionCopy {
 
-  /// Compact episode id for mid-title (progress bar present): RU `1 сезон, 2 серия` · EN `S1, E2`.
+  /// Compact episode id for mid-title (progress bar present): RU `1 сезон, 2 серия` · EN
+  /// `S1, E2` — `EpisodeText` at the hero's length.
+  /// TODO(decision): the hero is not told the season count, so a show with only its first
+  /// season still says the season here.
   public static func episodeLabel(season: Int, episode: Int) -> String {
-    let format = localizedFormat("MediaAction_SeasonEpisode",
-                                 fallback: "S%lld, E%lld")
-    return String(format: format, locale: .current, Int64(season), Int64(episode))
+    EpisodeText(season: season, number: episode).text(for: .heroAction)
+  }
+
+  /// What VoiceOver reads for the same episode: «Season 1, Episode 2».
+  public static func episodeAccessibilityLabel(season: Int, episode: Int) -> String {
+    EpisodeText(season: season, number: episode).accessibilityLabel()
   }
 
   /// Fresh Play on an unwatched episode — EN includes the verb (`Play S1, E1`);
@@ -33,27 +40,10 @@ public enum MediaActionCopy {
     return String(format: format, locale: .current, Int64(season), Int64(episode))
   }
 
-  /// Compact remaining runtime core: `53 мин` / `53m`, `1ч 24м` / `1h 24m`.
-  public static func compactDuration(seconds: Int) -> String {
-    let totalMinutes = max(1, Int((Double(seconds) / 60.0).rounded()))
-    let hours = totalMinutes / 60
-    let minutes = totalMinutes % 60
-    if hours == 0 {
-      let format = localizedFormat("MediaAction_Minutes", fallback: "%lldm")
-      return String(format: format, locale: .current, Int64(totalMinutes))
-    }
-    let format = localizedFormat("MediaAction_HoursMinutes",
-                                 fallback: "%lldh %lldm")
-    return String(format: format, locale: .current, Int64(hours), Int64(minutes))
-  }
-
-  /// `Ещё 53 мин` / `53 min left`.
+  /// Time left at the hero's length: `Ещё 53 мин` / `53 min left` (`RemainingText`).
   public static func remainingLabel(progress: Double, durationSeconds: Int) -> String {
-    let clamped = min(max(progress, 0), 1)
-    let remaining = max(60, Int((Double(durationSeconds) * (1.0 - clamped)).rounded()))
-    let core = compactDuration(seconds: remaining)
-    let format = localizedFormat("MediaAction_TimeLeft", fallback: "%@ left")
-    return String(format: format, locale: .current, core)
+    RemainingText(progress: progress, durationSeconds: durationSeconds)
+      .formatted(MediaSurface.heroAction.runtimeLength)
   }
 
   /// Fresh Play on a non-episodic title.
@@ -67,6 +57,12 @@ public enum MediaActionCopy {
     case .show:
       return localized("Play")
     }
+  }
+
+  /// A menu item does, where the hero's capsule says what is: «Отслеживать» / «Не
+  /// отслеживать». Series only.
+  public static func followMenuTitle(isFollowing: Bool) -> String {
+    isFollowing ? localized("Stop Tracking") : localized("Track")
   }
 
   public static func followTitle(isFollowing: Bool) -> String {
@@ -93,10 +89,12 @@ public enum MediaActionCopy {
       if let season, let episode {
         // Progress bar is showing — compact episode only, no Play/Resume verb.
         let title = episodeLabel(season: season, episode: episode)
-        return (title, progress, localized("Resume") + " " + title)
+        let spoken = episodeAccessibilityLabel(season: season, episode: episode)
+        return (title, progress, localized("Resume") + " " + spoken)
       }
-      let title = remainingLabel(progress: progress, durationSeconds: durationSeconds)
-      return (title, progress, title)
+      let remaining = RemainingText(progress: progress, durationSeconds: durationSeconds)
+      return (remaining.formatted(MediaSurface.heroAction.runtimeLength), progress,
+              remaining.accessibilityLabel())
 
     case .playAgain(let season, let episode):
       if let season, let episode {

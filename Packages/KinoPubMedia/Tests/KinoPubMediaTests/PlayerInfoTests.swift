@@ -28,9 +28,9 @@ final class PlayerInfoTests: XCTestCase {
   // MARK: - The fields
 
   func testAnEpisodeReadsAsItsShowWithItsNumberAndName() {
-    let info = PlayerInfo(context: MediaContext(item: episode(), parent: show))
+    let info = PlayerInfo(context: MediaContext(item: episode(), parent: show), language: .en)
     XCTAssertEqual(info.title, "Ted Lasso")
-    XCTAssertEqual(info.subtitle, "Season 2, Episode 5: Goodbye Earl")
+    XCTAssertEqual(info.subtitle, "S2, E5: Goodbye Earl")
     XCTAssertEqual(info.description, "A coach.")
     XCTAssertEqual(info.contentRating, "16+")
   }
@@ -38,25 +38,41 @@ final class PlayerInfoTests: XCTestCase {
   /// The name is dropped when it only repeats the title line, and absent when there is none.
   func testTheEpisodeLineCarriesTheNameOnlyWhenItSaysSomething() {
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: episode(title: "Ted Lasso"),
-                                                    parent: show)).subtitle,
+                                                    parent: show), language: .en).subtitle,
                    "Season 2, Episode 5")
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: episode(title: nil),
-                                                    parent: show)).subtitle,
+                                                    parent: show), language: .en).subtitle,
                    "Season 2, Episode 5")
   }
 
   /// **One genre.** Apple's card and panel say "Comedy" for a show filed under Comedy and
   /// Sport; a comma list there is what got truncated.
   func testOnlyThePrimaryGenreIsSent() {
-    let info = PlayerInfo(context: MediaContext(item: episode(), parent: show))
+    let info = PlayerInfo(context: MediaContext(item: episode(), parent: show), language: .en)
     XCTAssertEqual(info.genre, "Comedy")
   }
 
   func testTheGenreSpeaksTheViewersLanguage() {
-    var russian = PlayerInfo.Labels.english
-    russian.languageCode = "ru"
-    let info = PlayerInfo(context: MediaContext(item: episode(), parent: show), labels: russian)
+    let info = PlayerInfo(context: MediaContext(item: episode(), parent: show), language: .ru)
     XCTAssertEqual(info.genre, "Комедия")
+    XCTAssertEqual(info.subtitle, "2 сезон, 5 серия: Goodbye Earl")
+  }
+
+  /// Only one season known, and it is the first: the season goes without saying
+  /// (user's spec, 2026-10-03).
+  func testAShowWithOnlyItsFirstSeasonSaysTheEpisodeAlone() {
+    var single = show
+    single.seasonCount = 1
+    let first = MediaEntity(kind: .episode, title: "Pilot", seasonNumber: 1, episodeNumber: 1)
+    let unnamed = MediaEntity(kind: .episode, title: "Эпизод 1", seasonNumber: 1, episodeNumber: 1)
+    XCTAssertEqual(PlayerInfo(context: MediaContext(item: first, parent: single),
+                              language: .en).subtitle, "Episode 1: Pilot")
+    XCTAssertEqual(PlayerInfo(context: MediaContext(item: unnamed, parent: single),
+                              language: .en).subtitle, "Episode 1")
+    XCTAssertEqual(PlayerInfo(context: MediaContext(item: first, parent: single),
+                              language: .ru).subtitle, "1 серия: Pilot")
+    XCTAssertEqual(PlayerInfo(context: MediaContext(item: unnamed, parent: single),
+                              language: .ru).subtitle, "1 серия")
   }
 
   /// A concert leads with its music genre.
@@ -91,14 +107,6 @@ final class PlayerInfoTests: XCTestCase {
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: film)).subtitle, "48 fps")
   }
 
-  func testLabelsComeFromTheCaller() {
-    let labels = PlayerInfo.Labels(languageCode: "ru",
-                                   episode: { season, episode in "С\(season ?? 0) Э\(episode)" })
-    let info = PlayerInfo(context: MediaContext(item: episode(title: nil), parent: show),
-                          labels: labels)
-    XCTAssertEqual(info.subtitle, "С2 Э5")
-  }
-
   // MARK: - What reaches AVFoundation
 
   private func value(_ identifier: AVMetadataIdentifier, in items: [AVMetadataItem]) -> String? {
@@ -129,10 +137,10 @@ final class PlayerInfoTests: XCTestCase {
 
   /// Apple's documented identifiers, and only those plus the creation date.
   func testEachFieldGoesThroughItsDocumentedIdentifier() {
-    let items = PlayerInfo(context: MediaContext(item: episode(), parent: show)).metadataItems()
+    let items = PlayerInfo(context: MediaContext(item: episode(), parent: show), language: .en)
+      .metadataItems()
     XCTAssertEqual(value(.commonIdentifierTitle, in: items), "Ted Lasso")
-    XCTAssertEqual(value(.iTunesMetadataTrackSubTitle, in: items),
-                   "Season 2, Episode 5: Goodbye Earl")
+    XCTAssertEqual(value(.iTunesMetadataTrackSubTitle, in: items), "S2, E5: Goodbye Earl")
     XCTAssertEqual(value(.commonIdentifierDescription, in: items), "A coach.")
     XCTAssertEqual(value(.quickTimeMetadataGenre, in: items), "Comedy")
     XCTAssertEqual(value(.iTunesMetadataContentRating, in: items), "16+")

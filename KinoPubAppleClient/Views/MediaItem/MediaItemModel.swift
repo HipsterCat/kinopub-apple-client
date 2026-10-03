@@ -264,9 +264,12 @@ class MediaItemModel: ObservableObject {
     if let knownItem {
       self.mediaItem = knownItem
       AppContext.shared.localProgressStore.cacheItem(knownItem)
-      let serverWatchlist = knownItem.inWatchlist ?? knownItem.subscribed ?? false
-      libraryState.seedWatchlistIfAbsent(itemId: knownItem.id, value: serverWatchlist)
-      isInWatchlist = viewerState(of: knownItem).isInWatchlist ?? serverWatchlist
+      // Follow is a series' alone; a film has bookmarks (user's call, 2026-10-03).
+      let reported = ViewerState(reportedBy: knownItem)
+      if let serverFollowing = reported.isFollowing {
+        libraryState.seedWatchlistIfAbsent(itemId: knownItem.id, value: serverFollowing)
+      }
+      isInWatchlist = viewerState(of: knownItem).isFollowing ?? false
       isWatched = viewerState(of: knownItem).isWatched
     }
     // Download chrome lives on `libraryState`; republish so the hero circle tracks
@@ -313,9 +316,12 @@ class MediaItemModel: ObservableObject {
         applyBookmarkState()
         // Without this the hero's follow control opened as "not following" on every
         // visit, whatever the account actually had, and the first tap unfollowed.
-        let serverWatchlist = mediaItem.inWatchlist ?? mediaItem.subscribed ?? false
-        libraryState.seedWatchlistIfAbsent(itemId: mediaItem.id, value: serverWatchlist)
-        isInWatchlist = viewerState(of: mediaItem).isInWatchlist ?? serverWatchlist
+        // Follow is a series' alone; a film has bookmarks (user's call, 2026-10-03).
+        let reported = ViewerState(reportedBy: mediaItem)
+        if let serverFollowing = reported.isFollowing {
+          libraryState.seedWatchlistIfAbsent(itemId: mediaItem.id, value: serverFollowing)
+        }
+        isInWatchlist = viewerState(of: mediaItem).isFollowing ?? false
         seedVoteCounts()
         var reportedWatched: [MediaRef: Bool] = [
           mediaItem.titleRef: mediaItem.playbackAction == .playAgain

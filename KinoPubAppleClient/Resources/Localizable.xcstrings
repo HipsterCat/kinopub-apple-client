@@ -9405,6 +9405,24 @@
     "Storage" : {
 
     },
+    "Stop Tracking" : {
+      "comment" : "Context menu: stop following a series.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Tracking"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не отслеживать"
+          }
+        }
+      }
+    },
     "Stored on this device only. A build ships with the defaults." : {
 
     },

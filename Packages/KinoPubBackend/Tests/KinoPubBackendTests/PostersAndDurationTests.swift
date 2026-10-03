@@ -44,11 +44,11 @@ final class PostersAndDurationTests: XCTestCase {
   }
 
   func testDurationOverAnHourShowsBoth() {
-    XCTAssertEqual(Duration.hoursMinutes(seconds: 108 * 60), "1 h 48 min")
+    XCTAssertEqual(Duration.hoursMinutes(seconds: 108 * 60), "1h 48 min")
   }
 
   func testDurationOnAWholeHourOmitsMinutes() {
-    XCTAssertEqual(Duration.hoursMinutes(seconds: 120 * 60), "2 h")
+    XCTAssertEqual(Duration.hoursMinutes(seconds: 120 * 60), "2h")
   }
 
   func testZeroDurationIsEmpty() {

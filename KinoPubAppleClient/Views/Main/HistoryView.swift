@@ -5,6 +5,7 @@
 
 import SwiftUI
 import KinoPubBackend
+import KinoPubMedia
 import KinoPubUI
 import OSLog
 import KinoPubLogging
@@ -442,7 +443,7 @@ struct HistoryView: View {
                                                isSeries: isSeries)
     var label: [String] = []
     if entry.isEpisode, let season = entry.media?.snumber, let episode = entry.media?.number {
-      label.append("S\(season), E\(episode)")
+      label.append(EpisodeText(season: season, number: episode).text(for: .historyRow))
     }
     let durationSeconds = entry.media?.duration.flatMap { $0 >= 60 ? $0 : nil }
     return MediaCard(

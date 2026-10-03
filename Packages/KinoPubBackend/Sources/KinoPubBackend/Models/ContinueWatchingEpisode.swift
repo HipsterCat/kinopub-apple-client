@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import KinoPubMedia
 
 /// Which episode Continue Watching should offer for a series, and whether that episode
 /// is one the viewer is in the middle of.
@@ -35,10 +36,13 @@ public struct ContinueWatchingEpisode: Equatable, Sendable {
 
   /// Overlay on a landscape Continue Watching card — the episode the card offers,
   /// not whichever history row happened to be newest.
+  /// TODO(decision): a card does not know how many seasons the show has, so a show with
+  /// only its first season still says «1 сезон, 2 серия» here (`EpisodeText` drops the
+  /// season only when told the count).
   public static func overlayLabel(season: Int?, episode: Int?) -> String? {
     guard let episode else { return nil }
-    guard let season, season > 0 else { return "E\(episode)" }
-    return "S\(season), E\(episode)"
+    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode)
+      .text(for: .continueWatchingCard)
   }
 
   /// - Parameters:

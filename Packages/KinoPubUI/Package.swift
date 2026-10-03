@@ -13,6 +13,7 @@ let package = Package(
   dependencies: [
     .package(name: "KinoPubBackend", path: "../KinoPubBackend"),
     .package(name: "KinoPubLogging", path: "../KinoPubLogging"),
+    .package(name: "KinoPubMedia", path: "../KinoPubMedia"),
     // Artwork pipeline. Everything Nuke-shaped stays behind `Artwork` /
     // `CachedRemoteImage` / `TVUIKitRemoteImage` — no call site imports it.
     .package(url: "https://github.com/kean/Nuke.git", from: "13.2.0"),
@@ -26,6 +27,7 @@ let package = Package(
       dependencies: [
         .product(name: "KinoPubBackend", package: "KinoPubBackend"),
         .product(name: "KinoPubLogging", package: "KinoPubLogging"),
+        .product(name: "KinoPubMedia", package: "KinoPubMedia"),
         .product(name: "Nuke", package: "Nuke"),
         .product(name: "NukeUI", package: "Nuke"),
         // `TVPosterView` display path (`loadImage(into:)`). Still only imported from

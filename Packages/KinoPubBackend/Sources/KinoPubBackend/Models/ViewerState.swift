@@ -10,7 +10,8 @@ import Foundation
 import KinoPubMedia
 
 /// **What the viewer has done with one thing** (`MediaRef`): how far they got, whether it
-/// is watched, on their watchlist, in which bookmark folders, downloaded, voted on.
+/// is watched, whether they follow it, in which bookmark folders, downloaded, voted on.
+/// For a series or a season, also how much of it is watched and downloaded (`Tally`).
 ///
 /// Built in two steps, both here so every surface agrees:
 /// 1. `ViewerState(reportedBy:)` — what a kino.pub payload says;
@@ -35,11 +36,10 @@ public struct ViewerState: Hashable, Codable, Sendable {
   public var progress: WatchProgress?
   /// The server's flag, or watched to the credits, or a local mark.
   public var isWatched: Bool
-  /// kino.pub's "Я смотрю" — following a series, keeping a film to watch. Nil when the
-  /// payload did not say (catalogue listings never do).
-  /// TODO(decision): the UI calls this Follow on a series and Watchlist on a film. One
-  /// word for both, or keep two?
-  public var isInWatchlist: Bool?
+  /// Following a series — kino.pub's "Я смотрю" (`in_watchlist` / `subscribed`). **Series
+  /// only**: a film has bookmarks and no follow (user's call, 2026-10-03). Nil for a film,
+  /// and when the payload did not say (catalogue listings never do).
+  public var isFollowing: Bool?
   /// Bookmark folders holding the title. Nil when unknown — a listing payload carries none.
   public var bookmarkFolderIDs: Set<Int>?
   public var download: Download
@@ -48,21 +48,31 @@ public struct ViewerState: Hashable, Codable, Sendable {
   public var vote: Vote?
   /// When this was last played, for history.
   public var lastWatchedAt: Date?
+  /// A series or a season: how many of its episodes are watched. Drawn as a ring or a
+  /// percentage (user's call, 2026-10-03). Nil for a single episode or film.
+  public var watchedEpisodes: Tally?
+  /// A series or a season: how much of it is on this device, partial downloads counted by
+  /// their progress.
+  public var downloadedEpisodes: Tally?
 
   public init(progress: WatchProgress? = nil,
               isWatched: Bool = false,
-              isInWatchlist: Bool? = nil,
+              isFollowing: Bool? = nil,
               bookmarkFolderIDs: Set<Int>? = nil,
               download: Download = .none,
               vote: Vote? = nil,
-              lastWatchedAt: Date? = nil) {
+              lastWatchedAt: Date? = nil,
+              watchedEpisodes: Tally? = nil,
+              downloadedEpisodes: Tally? = nil) {
     self.progress = progress
     self.isWatched = isWatched
-    self.isInWatchlist = isInWatchlist
+    self.isFollowing = isFollowing
     self.bookmarkFolderIDs = bookmarkFolderIDs
     self.download = download
     self.vote = vote
     self.lastWatchedAt = lastWatchedAt
+    self.watchedEpisodes = watchedEpisodes
+    self.downloadedEpisodes = downloadedEpisodes
   }
 
   public static let unknown = ViewerState()
@@ -80,10 +90,11 @@ public extension ViewerState {
   /// A title as the details or listing payload describes it. A series' progress is its
   /// episodes', not its own — ask each `Episode`.
   init(reportedBy item: MediaItem) {
-    let video = item.isSeries || item.isEpisodicType ? nil : item.primaryVideo
+    let isSeries = item.isSeries || item.isEpisodicType
+    let video = isSeries ? nil : item.primaryVideo
     self.init(progress: video.map(\.watchProgress),
               isWatched: item.playbackAction == .playAgain,
-              isInWatchlist: item.inWatchlist ?? item.subscribed,
+              isFollowing: isSeries ? item.inWatchlist ?? item.subscribed : nil,
               bookmarkFolderIDs: item.bookmarks.map { Set($0.map(\.id)) })
   }
 
@@ -102,7 +113,7 @@ public struct ViewerOverlay: Hashable, Sendable {
   public var progress: WatchProgress?
   public var progressUpdatedAt: Date?
   public var isWatched: Bool?
-  public var isInWatchlist: Bool?
+  public var isFollowing: Bool?
   public var bookmarkFolderIDs: Set<Int>?
   public var download: ViewerState.Download?
   public var vote: ViewerState.Vote?
@@ -110,14 +121,14 @@ public struct ViewerOverlay: Hashable, Sendable {
   public init(progress: WatchProgress? = nil,
               progressUpdatedAt: Date? = nil,
               isWatched: Bool? = nil,
-              isInWatchlist: Bool? = nil,
+              isFollowing: Bool? = nil,
               bookmarkFolderIDs: Set<Int>? = nil,
               download: ViewerState.Download? = nil,
               vote: ViewerState.Vote? = nil) {
     self.progress = progress
     self.progressUpdatedAt = progressUpdatedAt
     self.isWatched = isWatched
-    self.isInWatchlist = isInWatchlist
+    self.isFollowing = isFollowing
     self.bookmarkFolderIDs = bookmarkFolderIDs
     self.download = download
     self.vote = vote
@@ -144,10 +155,55 @@ public extension ViewerState {
       state.lastWatchedAt = max(state.lastWatchedAt ?? .distantPast, updatedAt)
     }
     if let isWatched = overlay.isWatched { state.isWatched = isWatched }
-    if let isInWatchlist = overlay.isInWatchlist { state.isInWatchlist = isInWatchlist }
+    if let isFollowing = overlay.isFollowing { state.isFollowing = isFollowing }
     if let folders = overlay.bookmarkFolderIDs { state.bookmarkFolderIDs = folders }
     if let download = overlay.download { state.download = download }
     if let vote = overlay.vote { state.vote = vote }
+    return state
+  }
+}
+
+// MARK: - A series, a season
+
+/// How much of a container is done — «7 of 10 watched», «40% downloaded».
+public struct Tally: Hashable, Codable, Sendable {
+  /// Sum of each part's own completion: a watched episode is 1, a download at 40% is 0.4.
+  public let completed: Double
+  public let total: Int
+
+  public init(completed: Double, total: Int) {
+    self.completed = min(max(completed, 0), Double(max(total, 0)))
+    self.total = max(total, 0)
+  }
+
+  /// 0…1; nil for an empty container.
+  public var fraction: Double? { total > 0 ? completed / Double(total) : nil }
+  public var isComplete: Bool { total > 0 && completed >= Double(total) }
+  public var isEmpty: Bool { completed <= 0 }
+}
+
+public extension ViewerState {
+
+  /// A series or a season from its episodes' states, on top of the title's own (follow,
+  /// folders, vote). Watched when every episode is.
+  ///
+  /// TODO(decision): an episode half-watched counts as not watched in the ring today; a
+  /// download half-done counts by its progress. Count watching by progress too?
+  func aggregating(episodes: [ViewerState]) -> ViewerState {
+    var state = self
+    let watched = episodes.filter(\.isWatched).count
+    state.watchedEpisodes = Tally(completed: Double(watched), total: episodes.count)
+    let downloaded = episodes.reduce(0.0) { sum, episode in
+      switch episode.download {
+      case .downloaded: return sum + 1
+      case .downloading(let progress): return sum + min(max(progress, 0), 1)
+      case .none: return sum
+      }
+    }
+    state.downloadedEpisodes = Tally(completed: downloaded, total: episodes.count)
+    state.isWatched = !episodes.isEmpty && watched == episodes.count
+    state.progress = nil
+    state.lastWatchedAt = episodes.compactMap(\.lastWatchedAt).max() ?? state.lastWatchedAt
     return state
   }
 }

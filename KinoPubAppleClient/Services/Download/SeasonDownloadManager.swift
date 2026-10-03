@@ -9,6 +9,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubMedia
 import KinoPubKit
 import OSLog
 import KinoPubLogging
@@ -107,7 +108,7 @@ final class SeasonDownloadManager: ObservableObject {
   }
 
   private func seasonLabel(_ number: Int) -> String {
-    "\(NSLocalizedString("Season", comment: "")) \(number)"
+    SeasonText(number).formatted(.long)
   }
 
   /// Picks the file matching `quality`; otherwise the highest-resolution file available.

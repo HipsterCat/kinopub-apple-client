@@ -9,8 +9,10 @@ White / elevated fill is **focus**, not a permanent Play tint.
 
 | Locale | Episode (with progress bar) | Fresh unwatched Play | Remaining time |
 | --- | --- | --- | --- |
-| **ru** | `1 сезон, 2 серия` | `1 сезон, 1 серия` | `Ещё 53 мин` · `Ещё 1ч 24м` |
-| **en** | `S1, E2` | `Play S1, E1` | `53 min left` · `1h 24m left` |
+| **ru** | `1 сезон, 2 серия` | `1 сезон, 1 серия` | `Ещё 53 мин` · `Ещё 1ч 24 мин` |
+| **en** | `S1, E2` | `Play S1, E1` | `53 min left` · `1h 24 min left` |
+
+Episode and time wording come from [media-text.md](media-text.md) (short episode, medium time).
 
 - Compact `S1, E2` / bare episode phrase is **only** when the progress bar is on the capsule.
 - Unwatched series EN is `Play S1, E1` — not bare `S1, E1`.

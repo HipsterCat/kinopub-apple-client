@@ -36,6 +36,8 @@ at on screen stays **prd** — do not promote it because it compiles.
 
 - [continue-watching.md](continue-watching.md) — what the Home row offers, in what order, and what it
   leaves out
+- [media-text.md](media-text.md) — how an episode, a season and a runtime are worded, per surface;
+  follow, bookmarks and progress rings
 - [media-presentation.md](media-presentation.md) — what a title's type and genre change on screen
 - [playback-info.md](playback-info.md) — what the system player's title view and Info tab say about
   what is playing, per kind

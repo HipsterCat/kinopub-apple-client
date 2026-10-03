@@ -990,7 +990,7 @@ extension PlayerManager {
 
   private func restampExternalMetadata(on item: AVPlayerItem) {
     guard let context = externalMetadataContext else { return }
-    let info = PlayerInfo(context: context, labels: PlaybackMediaContext.labels)
+    let info = PlayerInfo(context: context)
     var metadata = info.metadataItems()
     if let externalMetadataArtwork {
       metadata.append(externalMetadataArtwork)
@@ -1536,7 +1536,6 @@ extension PlayerManager {
       let base = TVUIKitMediaItem(card: MediaCard(
         episode: next,
         title: name ?? "",
-        episodeLabel: "\("Episode".localized) \(next.number)",
         stillURL: nextContext?.item.artwork.still?.absoluteString))
       items.append(TVUIKitMediaItem(id: next.id,
                                     imageURL: base.imageURL,

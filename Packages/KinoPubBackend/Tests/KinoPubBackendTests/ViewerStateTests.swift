@@ -30,7 +30,7 @@ final class ViewerStateTests: XCTestCase {
   /// A listing payload says nothing about watchlist or folders — unknown, not "no".
   func testWhatAPayloadDoesNotSayStaysUnknown() {
     let state = ViewerState(reportedBy: episode())
-    XCTAssertNil(state.isInWatchlist)
+    XCTAssertNil(state.isFollowing)
     XCTAssertNil(state.bookmarkFolderIDs)
     XCTAssertFalse(state.isBookmarked)
   }
@@ -39,14 +39,14 @@ final class ViewerStateTests: XCTestCase {
 
   func testEveryLocalValueWins() {
     let reported = ViewerState(progress: WatchProgress(position: 100, duration: 3_000),
-                               isWatched: false, isInWatchlist: true,
+                               isWatched: false, isFollowing: true,
                                bookmarkFolderIDs: [1])
     let local = ViewerOverlay(progress: WatchProgress(position: 900, duration: 3_000),
-                              isInWatchlist: false, bookmarkFolderIDs: [2, 3],
+                              isFollowing: false, bookmarkFolderIDs: [2, 3],
                               download: .downloading(0.4), vote: .up)
     let state = reported.overlaid(local)
     XCTAssertEqual(state.progress?.position, 900)
-    XCTAssertEqual(state.isInWatchlist, false)
+    XCTAssertEqual(state.isFollowing, false)
     XCTAssertEqual(state.bookmarkFolderIDs, [2, 3])
     XCTAssertEqual(state.download, .downloading(0.4))
     XCTAssertEqual(state.vote, .up)
@@ -55,7 +55,7 @@ final class ViewerStateTests: XCTestCase {
   /// Nothing local: the payload stands as it is.
   func testAnEmptyOverlayChangesNothing() {
     let reported = ViewerState(progress: WatchProgress(position: 100, duration: 3_000),
-                               isWatched: true, isInWatchlist: true, bookmarkFolderIDs: [1])
+                               isWatched: true, isFollowing: true, bookmarkFolderIDs: [1])
     XCTAssertEqual(reported.overlaid(ViewerOverlay()), reported)
   }
 
@@ -86,10 +86,38 @@ final class ViewerStateTests: XCTestCase {
 
   func testCodable() throws {
     let state = ViewerState(progress: WatchProgress(position: 10, duration: 20), isWatched: true,
-                            isInWatchlist: false, bookmarkFolderIDs: [4],
+                            isFollowing: false, bookmarkFolderIDs: [4],
                             download: .downloading(0.5), vote: .down)
     XCTAssertEqual(try JSONDecoder().decode(ViewerState.self, from: JSONEncoder().encode(state)),
                    state)
+  }
+
+  // MARK: - A series, a season
+
+  /// Watched and downloaded are both progress for a container — a ring or a percentage.
+  func testASeriesTalliesItsEpisodes() {
+    let episodes = [
+      ViewerState(isWatched: true, download: .downloaded),
+      ViewerState(isWatched: true, download: .downloading(0.5)),
+      ViewerState(progress: WatchProgress(position: 600, duration: 3_000)),
+      ViewerState(),
+    ]
+    let series = ViewerState(isFollowing: true).aggregating(episodes: episodes)
+    XCTAssertEqual(series.watchedEpisodes, Tally(completed: 2, total: 4))
+    XCTAssertEqual(series.watchedEpisodes?.fraction, 0.5)
+    XCTAssertEqual(series.downloadedEpisodes?.fraction, 0.375)
+    XCTAssertFalse(series.isWatched)
+    XCTAssertEqual(series.isFollowing, true, "the title's own facts stay")
+    XCTAssertNil(series.progress)
+  }
+
+  func testASeriesIsWatchedWhenEveryEpisodeIs() {
+    let all = ViewerState().aggregating(episodes: [ViewerState(isWatched: true),
+                                                   ViewerState(isWatched: true)])
+    XCTAssertTrue(all.isWatched)
+    XCTAssertTrue(all.watchedEpisodes?.isComplete ?? false)
+    XCTAssertFalse(ViewerState().aggregating(episodes: []).isWatched, "nothing is not all watched")
+    XCTAssertNil(ViewerState().aggregating(episodes: []).watchedEpisodes?.fraction)
   }
 
   // MARK: - kino.pub's names for a thing

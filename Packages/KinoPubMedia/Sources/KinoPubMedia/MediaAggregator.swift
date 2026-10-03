@@ -9,7 +9,7 @@ public enum MediaSource: String, Hashable, Sendable, Codable, CaseIterable {
 /// The fields precedence is declared for. One case per fact a source can state on its
 /// own: a tagline is not a part of somebody's plot, so it is ranked — and kept — apart.
 public enum MediaField: String, Hashable, Sendable, Codable, CaseIterable {
-  case title, originalTitle, edition, genres, release, ended, runtime,
+  case title, originalTitle, edition, seasonCount, genres, release, ended, runtime,
        contentRating, scores, poster, still, backdrop, logo, countries
   /// `Synopsis.full` — the plot.
   case synopsis
@@ -79,6 +79,8 @@ public struct MediaPrecedence: Sendable {
     .title: [.kinopub, .apple, .tmdb, .kinopoisk],
     .originalTitle: [.tmdb, .apple, .imdb, .kinopub, .kinopoisk],
     .edition: [.kinopub],
+    // What the viewer can play is kino.pub's seasons, not every season that aired.
+    .seasonCount: [.kinopub, .tmdb],
     // kino.pub's plot describes the copy that plays. TODO(decision): Kinopoisk's
     // `description` is usually the fuller Russian text — rank it above kino.pub's?
     .synopsis: [.kinopub, .kinopoisk, .apple, .tmdb],
@@ -195,6 +197,7 @@ public enum MediaAggregator {
       : pick(.title) { $0.title.nonBlank }
     entity.originalTitle = pick(.originalTitle) { $0.originalTitle.nonBlank }
     entity.edition = pick(.edition) { $0.edition.nonBlank }
+    entity.seasonCount = pick(.seasonCount) { $0.seasonCount }
     entity.synopsis = Synopsis(short: pick(.shortSynopsis) { $0.synopsis.short.nonBlank },
                                full: pick(.synopsis) { $0.synopsis.full.nonBlank },
                                tagline: pick(.tagline) { $0.synopsis.tagline.nonBlank })
