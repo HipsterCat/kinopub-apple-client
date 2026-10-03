@@ -4786,24 +4786,6 @@
         }
       }
     },
-    "MediaItem_AiredNotOnKinoPub" : {
-      "comment" : "Toast for an episode TMDB says has aired but kino.pub does not have. %@ is a relative day or a date.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aired %@ · not on KinoPub yet"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вышла %@, на KinoPub пока нет"
-          }
-        }
-      }
-    },
     "MediaItem_AirsOn" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5651,6 +5633,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Пока недостаточно оценок"
+          }
+        }
+      }
+    },
+    "MediaItem_NotOnKinoPub" : {
+      "comment" : "Toast for an episode TMDB says has aired but kino.pub does not have yet. Fits the square HUD: two short lines.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not on KinoPub yet"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё нет на KinoPub"
           }
         }
       }

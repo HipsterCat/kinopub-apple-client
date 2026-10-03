@@ -821,12 +821,9 @@ enum MissingEpisodeAirState: Equatable {
     switch self {
     case .upcoming(let date):
       return (String(format: "MediaItem_AirsOn".localized, SeasonsRailView.airDateLabel(date)), "clock")
-    case .justAired(_, let daysAgo):
-      return (String(format: "MediaItem_AiredNotOnKinoPub".localized, SeasonsRailView.relativeDays(-daysAgo)),
-              "lock")
-    case .aired(let date):
-      return (String(format: "MediaItem_AiredNotOnKinoPub".localized, SeasonsRailView.absoluteAirDate(date)),
-              "lock")
+    // The HUD is a square for a short title; when it aired is already on the card.
+    case .justAired, .aired:
+      return ("MediaItem_NotOnKinoPub".localized, "lock")
     case .undated:
       return ("MediaItem_NotAvailableYet".localized, "clock")
     }
