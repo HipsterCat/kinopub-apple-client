@@ -5,6 +5,16 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### One key and one read for what the viewer has done (2026-10-03)
+
+`MediaRef` (KinoPubMedia) names a title, an episode or a film's version; `watchRef` is what
+a watch state is kept under. `ViewerState` (KinoPubBackend) is the payload's word with this
+device's optimistic writes on top, by one tested set of rules; `ViewerStateReader`
+(`AppContext.viewerState`) gathers those writes from the stores. `MediaLibraryStore` keeps
+watched marks by `MediaRef`: a film's old marks migrate, the per-episode map keyed by the
+episode's server id is dropped — it was written and never read. The detail page's watched
+and watchlist state read through the reader.
+
 ### The media model keeps every source's facts (2026-10-03)
 
 `MediaEntity.claims` holds every fragment an entity was merged from; the stored fields are

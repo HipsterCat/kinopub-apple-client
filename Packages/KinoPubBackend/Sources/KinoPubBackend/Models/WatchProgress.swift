@@ -16,7 +16,7 @@
 
 import Foundation
 
-public struct WatchProgress: Equatable, Hashable {
+public struct WatchProgress: Equatable, Hashable, Codable, Sendable {
 
   /// Seconds watched.
   public let position: Double

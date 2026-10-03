@@ -21,8 +21,8 @@ Each layer reads only the one below it. A layer is a package or a folder of plai
 | --- | --- | --- | --- | --- |
 | 0 | **Sources** | "what did kino.pub / TMDB / Kinopoisk say" | `KinoPubBackend` (kino.pub), `KinoPubMetadata` (TMDB, Kinopoisk); later our server `/v1/title` | done |
 | 1 | **Facts** | "what is this thing, according to whom" | `KinoPubMedia`: `MediaFragment` → `MediaAggregator` → `MediaEntity` / `MediaContext` | done |
-| 2 | **Identity** | "which thing" — one key every store agrees on | `KinoPubMedia`: `MediaRef` | next |
-| 3 | **Viewer state** | "what has the viewer done with it" | app stores, read through one `ViewerState` value | next |
+| 2 | **Identity** | "which thing" — one key every store agrees on | `KinoPubMedia`: `MediaRef` | done |
+| 3 | **Viewer state** | "what has the viewer done with it" | `KinoPubBackend`: `ViewerState` + rules; app: `ViewerStateReader` over the stores | done (detail page reads it) |
 | 4 | **Selection** | "which things belong in this list, in what order" | pure functions: Continue Watching, Up Next, Unwatched, History, Watchlist, Bookmarks, shelves, banners | later |
 | 5 | **Presentation** | "what does this surface say about it, in which words" | `MediaPresenter` + formatters + one surface table | next |
 | 6 | **Views** | drawing | `KinoPubUI`, `Views/` — no string building, no source knowledge | — |
@@ -59,7 +59,7 @@ own part. Kinopoisk's details payload — Russian title, plot, short description
 rating, scores, genres, countries — was decoded and dropped; it is now Kinopoisk's own
 fragment.
 
-### 2 · Identity — `MediaRef` (next)
+### 2 · Identity — `MediaRef` (done 2026-10-03)
 
 Today every store keys a thing its own way:
 
@@ -72,26 +72,32 @@ Today every store keys a thing its own way:
 | `MediaCard` | `id`, `itemID`, `video`, `season`, `mediaID` — five ints, meaning per card kind |
 | `/v1/watching/toggle` | item id + video number + season |
 
-`MediaRef` = kino.pub item id + optional season + episode/video number, `Codable`,
-`Hashable`. Every store reads and writes through it; each store's own key becomes a
-private encoding of it. The episode's kino.pub `id` stays a fact on the entity, not a key.
+`MediaRef` = title id (today kino.pub's item id) + season + number: `.title`, `.episode`,
+`.version` (one version of a multi-version film). `watchRef` is what a watch state is kept
+under — an episode its own, a film's versions the film's. Bridges: `WatchingMetadata`
+both ways, `PlayableItem.mediaRef`, `MediaItem.titleRef`. The episode's kino.pub `id`
+stays a fact on the entity, not a key.
 
-### 3 · Viewer state — one value, owners unchanged (next)
+Moved onto it so far: `MediaLibraryStore` watched marks (were split by item id and by
+episode server id — the episode map was written and never read). The other stores keep
+their own encodings behind the reader until each is touched.
+
+### 3 · Viewer state — one value, owners unchanged (done 2026-10-03)
 
 The owners stay as AGENTS.md assigns them (`LocalWatchProgressStore`, `MediaLibraryStore`,
 `BookmarkMembershipStore`, `BookmarkFoldersStore`). What is new is **one read**:
 
-```swift
-struct ViewerState: Codable, Hashable {
-  var progress: WatchProgress?      // the one watch-state type
-  var isWatched: Bool               // server flag or local finished, optimistic overlay applied
-  var isInWatchlist: Bool           // kino.pub "Я смотрю" — the series subscription
-  var bookmarkFolderIDs: [Int]
-  var download: DownloadStatus
-  var vote: Bool?
-  var lastWatchedAt: Date?          // history
-}
-```
+`ViewerState` (`KinoPubBackend`, beside `WatchProgress`) is built in two steps, both
+tested in `ViewerStateTests`:
+
+1. `ViewerState(reportedBy:)` — what a `MediaItem` / `Episode` payload says. What it does
+   not say (a listing's watchlist, folders) is `nil`, not "no".
+2. `overlaid(ViewerOverlay)` — this device's own knowledge on top. Every local value wins;
+   a local resume point that is finished marks the thing watched; a local "unwatched" beats
+   it.
+
+`ViewerStateReader` (app, `AppContext.viewerState`) gathers the overlay from the stores.
+Title-level facts (watchlist, folders, vote) are the title's for any ref.
 
 A card, a list and a button all ask `ViewerState(for: ref)`; none reads four stores. Today
 `MediaCard` copies this state in at build time (`isWatched`, `progress`, `isInWatchlist`,
@@ -150,8 +156,8 @@ Each step is one reviewable slice with tests, merged before the next.
 
 1. **done** — Facts kept: claims, per-part synopsis, fragment language, `Codable`; Kinopoisk
    details as a fragment; deterministic metadata merge.
-2. **next** — `MediaRef` + `ViewerState` read façade over the existing stores. No visible
-   change.
+2. **done** — `MediaRef` + `ViewerState` read façade over the existing stores. The detail
+   page's watched and watchlist state read through it; no visible change.
 3. **next** — Presentation vocabulary: surfaces, styles, the formatters above, one strings
    table. Every duplicate in the audit routes through it **keeping today's output**; each
    difference becomes a row marked with its decision number. No visible change until a
@@ -180,3 +186,6 @@ Each step is one reviewable slice with tests, merged before the next.
 | D8 | Runtime words: «53 мин» or «53m», «1 ч 24 мин» or «1ч 24м» — one per style | both |
 | D9 | Precedence lines the user disagrees with — which? (each line is commented in `MediaPrecedence.standard`) | — |
 | D10 | A title with no IMDb id gets no TMDB enrichment at all. Match by title + year instead? | none |
+| D11 | Watchlist: the UI says Follow on a series and Watchlist on a film for one kino.pub flag. One word or two? | two |
+| D12 | "Downloaded" for a whole title: a film's only version, every episode, any episode? | a title reports none |
+| D13 | Cross-device progress: the payload carries no time, so this device's resume point always wins over another device's newer one | local wins |

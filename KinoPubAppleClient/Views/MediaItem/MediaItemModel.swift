@@ -8,6 +8,7 @@
 import Combine
 import Foundation
 import KinoPubBackend
+import KinoPubMedia
 import OSLog
 import KinoPubLogging
 import KinoPubKit
@@ -265,11 +266,8 @@ class MediaItemModel: ObservableObject {
       AppContext.shared.localProgressStore.cacheItem(knownItem)
       let serverWatchlist = knownItem.inWatchlist ?? knownItem.subscribed ?? false
       libraryState.seedWatchlistIfAbsent(itemId: knownItem.id, value: serverWatchlist)
-      isInWatchlist = libraryState.inWatchlist(itemId: knownItem.id) ?? serverWatchlist
-      isWatched = libraryState.movieWatched(
-        itemId: knownItem.id,
-        serverWatched: knownItem.playbackAction == .playAgain
-      )
+      isInWatchlist = viewerState(of: knownItem).isInWatchlist ?? serverWatchlist
+      isWatched = viewerState(of: knownItem).isWatched
     }
     // Download chrome lives on `libraryState`; republish so the hero circle tracks
     // progress / downloaded without a second observer in the view.
@@ -311,25 +309,24 @@ class MediaItemModel: ObservableObject {
         let mediaId = mediaItem.id
         mediaItem.seasons = mediaItem.seasons?.map({ $0.mediaId = mediaId; return $0 })
         AppContext.shared.localProgressStore.cacheItem(mediaItem)
-        isWatched = libraryState.movieWatched(
-          itemId: mediaItem.id,
-          serverWatched: mediaItem.playbackAction == .playAgain
-        )
+        isWatched = viewerState(of: mediaItem).isWatched
         applyBookmarkState()
         // Without this the hero's follow control opened as "not following" on every
         // visit, whatever the account actually had, and the first tap unfollowed.
         let serverWatchlist = mediaItem.inWatchlist ?? mediaItem.subscribed ?? false
         libraryState.seedWatchlistIfAbsent(itemId: mediaItem.id, value: serverWatchlist)
-        isInWatchlist = libraryState.inWatchlist(itemId: mediaItem.id) ?? serverWatchlist
+        isInWatchlist = viewerState(of: mediaItem).isInWatchlist ?? serverWatchlist
         seedVoteCounts()
-        let episodeFlags = (mediaItem.seasons ?? []).flatMap(\.episodes).map {
-          (id: $0.id, watched: $0.watched > 0)
+        var reportedWatched: [MediaRef: Bool] = [
+          mediaItem.titleRef: mediaItem.playbackAction == .playAgain
+        ]
+        for season in mediaItem.seasons ?? [] {
+          for episode in season.episodes {
+            reportedWatched[.episode(mediaItem.id, season: season.number,
+                                     number: episode.number)] = episode.watched > 0
+          }
         }
-        libraryState.reconcileWatched(
-          movieItemId: mediaItem.id,
-          serverMovieWatched: mediaItem.playbackAction == .playAgain,
-          episodes: episodeFlags
-        )
+        libraryState.reconcileWatched(reportedWatched)
         // What the payload actually carried, so a "nothing plays" report can be told
         // apart from a link-resolution one without guessing.
         Logger.app.info(
@@ -531,10 +528,12 @@ class MediaItemModel: ObservableObject {
     // Episodes are classes; reassigning the item is what republishes it (same as the
     // watched toggles below).
     mediaItem = mediaItem
-    isWatched = libraryState.movieWatched(
-      itemId: mediaItemId,
-      serverWatched: mediaItem.playbackAction == .playAgain
-    )
+    isWatched = viewerState(of: mediaItem).isWatched
+  }
+
+  /// What the viewer has done with this title: the payload's word, this device's on top.
+  private func viewerState(of item: MediaItem) -> ViewerState {
+    AppContext.shared.viewerState.state(for: item.titleRef, reported: ViewerState(reportedBy: item))
   }
 
   private func applyBookmarkState() {
@@ -765,7 +764,7 @@ class MediaItemModel: ObservableObject {
     }
     let previous = isWatched
     isWatched.toggle()
-    libraryState.setMovieWatched(itemId: mediaItemId, value: isWatched)
+    libraryState.setWatched(.title(mediaItemId), isWatched)
     // Optimistic: flip the payload flag so `playbackButtonContent` reorders Play →
     // Play Again (and Mark Watched scales out) without waiting on the network.
     if var videos = mediaItem.videos, !videos.isEmpty {
@@ -780,7 +779,7 @@ class MediaItemModel: ObservableObject {
         contentStore.invalidate(family: .watch)
       } catch {
         isWatched = previous
-        libraryState.setMovieWatched(itemId: mediaItemId, value: previous)
+        libraryState.setWatched(.title(mediaItemId), previous)
         if var videos = mediaItem.videos, !videos.isEmpty {
           videos[videos.startIndex].watched = previous ? 1 : 0
           mediaItem.videos = videos
@@ -793,12 +792,13 @@ class MediaItemModel: ObservableObject {
 
   /// Marks one episode watched/unwatched from the season rail's context menu.
   func toggleWatched(episode: Episode, season: Season) {
+    let ref = MediaRef.episode(mediaItemId, season: season.number, number: episode.number)
     let previous = episode.watched
     episode.watched = previous > 0 ? 0 : 1
     // Force the published item to refresh so the rail redraws checkmarks/progress.
     mediaItem = mediaItem
     isWatched = mediaItem.playbackAction == .playAgain
-    libraryState.setEpisodeWatched(episodeId: episode.id, value: episode.watched > 0)
+    libraryState.setWatched(ref, episode.watched > 0)
     presentWatchedHud(nowWatched: episode.watched > 0)
     Task {
       do {
@@ -809,14 +809,14 @@ class MediaItemModel: ObservableObject {
           episode.watched = watched
           mediaItem = mediaItem
           isWatched = mediaItem.playbackAction == .playAgain
-          libraryState.setEpisodeWatched(episodeId: episode.id, value: watched > 0)
+          libraryState.setWatched(ref, watched > 0)
         }
         contentStore.invalidate(family: .watch)
       } catch {
         episode.watched = previous
         mediaItem = mediaItem
         isWatched = mediaItem.playbackAction == .playAgain
-        libraryState.setEpisodeWatched(episodeId: episode.id, value: previous > 0)
+        libraryState.setWatched(ref, previous > 0)
         errorHandler.setError(error)
       }
     }

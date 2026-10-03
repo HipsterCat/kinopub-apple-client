@@ -54,6 +54,7 @@ protocol AppContextProtocol: AuthorizationServiceProvider
 & DeviceServiceProvider
 & LocalWatchProgressProvider
 & MediaLibraryProvider
+& ViewerStateProvider
 & TrackPreferencesProvider {}
 
 // MARK: - AppContext
@@ -84,6 +85,11 @@ struct AppContext: AppContextProtocol {
   /// Which dub and which subtitles each title opens with. Local-only knowledge the
   /// server has no concept of, which is why it does not live on `MediaLibraryStore`.
   var trackPreferences = TrackPreferenceStore.shared
+
+  /// What the viewer has done with a thing — one read over the stores above.
+  var viewerState: ViewerStateReading {
+    ViewerStateReader(library: libraryState, progress: localProgressStore)
+  }
 
   @preconcurrency @MainActor static let shared: AppContext = {
     let configuration = BundleConfiguration()

@@ -144,6 +144,12 @@
               ],
             }, {
               "kind": "group",
+              "path": "ViewerState",
+              "children": [
+                { "path": "ViewerStateReader.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
               "path": "Playback",
               "children": [
                 { "path": "TrackPreferenceStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
