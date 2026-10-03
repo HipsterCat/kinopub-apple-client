@@ -16,6 +16,13 @@ final class MediaFragmentsTests: XCTestCase {
     TMDBSource.parseDate(raw)!
   }
 
+  private func fixture(_ name: String) throws -> Data {
+    let url = try XCTUnwrap(
+      Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures")
+      ?? Bundle.module.url(forResource: name, withExtension: "json"))
+    return try Data(contentsOf: url)
+  }
+
   // MARK: - Episode
 
   /// Everything kino.pub never had about an episode: its description, its air date, its
@@ -115,6 +122,80 @@ final class MediaFragmentsTests: XCTestCase {
     var meta = TitleMetadata()
     meta.attribution = [.kinopoiskProxy]
     XCTAssertEqual(meta.mediaFragment(kind: .movie).source, .kinopoisk)
+  }
+
+  // MARK: - Kinopoisk's own statement
+
+  /// Everything the details payload says about the title lands in the model under
+  /// Kinopoisk's name — the slogan, the short description and the Russian plot included,
+  /// which the gap-filling overlay used to drop.
+  func testKinopoiskDetailsAreKinopoisksOwnFragment() throws {
+    let data = try fixture("kinopoisk_details")
+    let details = try MetadataHTTPClient().decode(KinopoiskFilmDetails.self, from: data)
+    let fragment = KinopoiskSource.mediaFragment(details)
+    XCTAssertEqual(fragment.source, .kinopoisk)
+    XCTAssertEqual(fragment.language, "ru")
+    let entity = fragment.entity
+    XCTAssertEqual(entity.kind, .movie)
+    XCTAssertEqual(entity.id(.kinopoisk), "326")
+    XCTAssertEqual(entity.title, "Побег из Шоушенка")
+    XCTAssertEqual(entity.originalTitle, "The Shawshank Redemption")
+    XCTAssertEqual(entity.synopsis.tagline, "Страх - это кандалы. Надежда - это свобода")
+    XCTAssertNotNil(entity.synopsis.short)
+    XCTAssertNotNil(entity.synopsis.full)
+    XCTAssertEqual(entity.contentRating, ContentRating("18+", region: "RU"))
+    XCTAssertEqual(entity.primaryGenre?.id, "drama")
+    XCTAssertEqual(entity.release, .year(1994))
+    XCTAssertEqual(entity.runtime, 142 * 60)
+    XCTAssertEqual(Set(entity.scores.map(\.provider)), [.kinopoisk, .imdb])
+    XCTAssertEqual(entity.countries, ["США"])
+  }
+
+  func testKinopoiskAgeLimitsReadAsAgeRatings() {
+    XCTAssertEqual(KinopoiskSource.ageLimit("age18"), "18+")
+    XCTAssertEqual(KinopoiskSource.ageLimit("age0"), "0+")
+    XCTAssertNil(KinopoiskSource.ageLimit("r"))
+    XCTAssertNil(KinopoiskSource.ageLimit(nil))
+  }
+
+  /// The model gets TMDB's facts as TMDB's — from TMDB's own part, not from the overlay
+  /// Kinopoisk gap-filled — and Kinopoisk's beside them, filed under the caller's kind.
+  func testEachSourceReachesTheModelUnderItsOwnName() {
+    var tmdb = TitleMetadata()
+    tmdb.attribution = [.tmdb]
+    tmdb.language = "ru-RU"
+    tmdb.tagline = "Fear can hold you prisoner."
+
+    var kinopoisk = TitleMetadata()
+    kinopoisk.attribution = [.kinopoisk]
+    kinopoisk.artwork.poster = URL(string: "https://kinopoisk/poster.jpg")
+    kinopoisk.fragments = [MediaFragment(.kinopoisk, .movie, language: "ru") {
+      $0.synopsis = Synopsis(tagline: "Страх — это кандалы.")
+    }]
+
+    var overlay = TitleMetadata()
+    overlay.merge(tmdb)
+    overlay.merge(kinopoisk)
+    overlay.parts = [.tmdb: tmdb, .kinopoisk: kinopoisk]
+
+    let fragments = overlay.mediaFragments(kind: .show)
+    XCTAssertEqual(fragments.map(\.source), [.tmdb, .kinopoisk])
+    XCTAssertEqual(fragments.map(\.entity.kind), [.show, .show])
+    XCTAssertEqual(fragments[0].language, "ru-RU")
+    XCTAssertNil(fragments[0].entity.artwork.poster,
+                 "Kinopoisk's poster must not travel under TMDB's name")
+    XCTAssertEqual(fragments[1].entity.synopsis.tagline, "Страх — это кандалы.")
+  }
+
+  /// The overlay's merge concatenates statements and never lets one source's replace
+  /// another's.
+  func testMergeKeepsEverySourcesFragments() {
+    var one = TitleMetadata()
+    one.fragments = [MediaFragment(.kinopoisk, .movie) { $0.title = "А" }]
+    var two = TitleMetadata()
+    two.fragments = [MediaFragment(.tmdb, .movie) { $0.title = "B" }]
+    one.merge(two)
+    XCTAssertEqual(one.fragments.map(\.source), [.kinopoisk, .tmdb])
   }
 
   // MARK: - Decoding what TMDB already sent

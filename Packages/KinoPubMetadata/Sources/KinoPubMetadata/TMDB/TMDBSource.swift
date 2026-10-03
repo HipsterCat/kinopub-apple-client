@@ -243,6 +243,9 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
   private func mapDetails(_ details: TMDBTitleDetails, type: TMDBMediaType, tmdbId: Int) -> TitleMetadata {
     var meta = TitleMetadata()
     meta.attribution.insert(.tmdb)
+    // TMDB answers in the language it was asked; a missing translation comes back empty,
+    // not in English, so whatever text there is is in this language.
+    meta.language = configuration.language
     meta.tmdbId = tmdbId
     meta.status = details.status
     meta.inProduction = details.inProduction

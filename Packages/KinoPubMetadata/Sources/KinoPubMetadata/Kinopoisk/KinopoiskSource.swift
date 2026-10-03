@@ -1,4 +1,5 @@
 import Foundation
+import KinoPubMedia
 
 /// Supplies the per-user Kinopoisk Unofficial API key at call time (Settings can
 /// change it while the app is running — this is read fresh on every request, the
@@ -82,10 +83,11 @@ public final class KinopoiskSource: MetadataSource, @unchecked Sendable {
   // MARK: - Fetches (each independently failable — one endpoint erroring doesn't
   // blank the others; `titleMetadata` just gets a partial result)
 
-  /// Artwork only — a fallback for whatever TMDB didn't have, since `merge` only
-  /// fills gaps. Everything else on the details payload (ratings, description,
-  /// tagline...) already comes from kino.pub's own `MediaItem`, so it's not
-  /// re-modeled here.
+  /// Two readings of the details payload. Its artwork still gap-fills the overlay the
+  /// detail page reads today. **Everything it says about the title** — Russian names,
+  /// plot, short description, slogan, age rating, scores, genres — lands as Kinopoisk's
+  /// own `MediaFragment`, so the media model keeps it beside TMDB's and kino.pub's
+  /// instead of losing it to whichever source filled the overlay first.
   private func fetchDetailsPart(filmId: Int) async -> TitleMetadata {
     var part = TitleMetadata()
     let (details, debug) = await fetchDetails(filmId: filmId)
@@ -96,7 +98,44 @@ public final class KinopoiskSource: MetadataSource, @unchecked Sendable {
       poster: details.posterUrl.flatMap(URL.init(string:)),
       backdrop: details.coverUrl.flatMap(URL.init(string:))
     )
+    part.fragments = [Self.mediaFragment(details)]
     return part
+  }
+
+  /// Kinopoisk's details in our model. The kind is provisional — the caller files the
+  /// fragment under the kind kino.pub's type decided (`TitleMetadata.mediaFragments`).
+  static func mediaFragment(_ details: KinopoiskFilmDetails) -> MediaFragment {
+    let isSerial = details.serial == true
+    return MediaFragment(.kinopoisk, isSerial ? .show : .movie, language: "ru") { entity in
+      entity.ids = [ExternalID(.kinopoisk, String(details.kinopoiskId))]
+      entity.title = details.nameRu
+      entity.originalTitle = details.nameOriginal ?? details.nameEn
+      entity.synopsis = Synopsis(short: details.shortDescription,
+                                 full: details.description,
+                                 tagline: details.slogan)
+      entity.genres = (details.genres ?? []).compactMap(\.genre)
+        .map { GenreVocabulary.named($0, source: .kinopoisk, domain: .video) }
+      entity.release = details.year.flatMap { ReleaseDate(year: $0) }
+      // A series' `filmLength` is one episode's, not the show's.
+      entity.runtime = isSerial ? nil : details.filmLength.map { TimeInterval($0 * 60) }
+      // TODO(decision): `ratingMpaa` ("r") is a second, US rating. One `ContentRating`
+      // per source today — see `MediaPrecedence` `.contentRating`.
+      entity.contentRating = ContentRating(Self.ageLimit(details.ratingAgeLimits), region: "RU")
+      entity.scores = [
+        Score(.kinopoisk, value: details.ratingKinopoisk, votes: details.ratingKinopoiskVoteCount),
+        Score(.imdb, value: details.ratingImdb, votes: details.ratingImdbVoteCount),
+      ].compactMap { $0 }
+      entity.artwork = ArtworkSet(poster: ArtworkSet.url(details.posterUrl),
+                                  backdrop: ArtworkSet.url(details.coverUrl),
+                                  logo: ArtworkSet.url(details.logoUrl))
+      entity.countries = (details.countries ?? []).compactMap(\.country)
+    }
+  }
+
+  /// "age18" → "18+".
+  static func ageLimit(_ raw: String?) -> String? {
+    guard let raw, raw.hasPrefix("age"), let years = Int(raw.dropFirst(3)) else { return nil }
+    return "\(years)+"
   }
 
   private func fetchStaffPart(filmId: Int) async -> TitleMetadata {

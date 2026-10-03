@@ -163,4 +163,55 @@ final class MediaAggregatorTests: XCTestCase {
     XCTAssertEqual(context?.parent?.title, "Тед Лассо")
     XCTAssertNil(context?.season)
   }
+
+  // MARK: - Nothing a source said is lost
+
+  private var kinopoiskShow: MediaFragment {
+    MediaFragment(.kinopoisk, .show, language: "ru") { entity in
+      entity.title = "Тед Лассо"
+      entity.synopsis = Synopsis(short: "Тренер по американскому футболу едет в Лондон.",
+                                 full: "Полное описание Кинопоиска.",
+                                 tagline: "Верь.")
+    }
+  }
+
+  /// The merge picks a default per field; the losing sources' facts stay on the entity.
+  func testEverySourcesStatementIsKept() throws {
+    let show = try XCTUnwrap(MediaAggregator.merge([kinopubShow, tmdbShow, kinopoiskShow]))
+    XCTAssertEqual(show.synopsis.full, "Американский тренер…")
+    XCTAssertEqual(show.value(from: .tmdb) { $0.synopsis.full }, "An American coach…")
+    XCTAssertEqual(show.value(from: .kinopoisk) { $0.synopsis.full }, "Полное описание Кинопоиска.")
+    XCTAssertEqual(Set(show.sources), [.kinopub, .tmdb, .kinopoisk])
+  }
+
+  /// A tagline is its own fact, ranked on its own — not a leftover of somebody's plot.
+  func testTaglineAndShortDescriptionAreTheirOwnFacts() throws {
+    let show = try XCTUnwrap(MediaAggregator.merge([kinopubShow, tmdbShow, kinopoiskShow]))
+    XCTAssertEqual(show.synopsis.tagline, "Верь.")
+    XCTAssertEqual(show.provenance[.tagline], .kinopoisk)
+    XCTAssertEqual(show.synopsis.short, "Тренер по американскому футболу едет в Лондон.")
+    XCTAssertEqual(show.provenance[.synopsis], .kinopub)
+
+    let taglines = show.claims(for: .tagline) { $0.synopsis.tagline }
+    XCTAssertEqual(taglines.map(\.value), ["Верь.", "Believe."])
+    XCTAssertEqual(taglines.map(\.source), [.kinopoisk, .tmdb])
+    XCTAssertEqual(taglines.first?.language, "ru")
+  }
+
+  /// Claims are flat: merging a merged entity again neither nests nor duplicates them.
+  func testAReMergeKeepsClaimsFlat() throws {
+    let show = try XCTUnwrap(MediaAggregator.merge([kinopubShow, tmdbShow]))
+    let again = try XCTUnwrap(MediaAggregator.merge([MediaFragment(source: .kinopub, entity: show)]))
+    XCTAssertEqual(again.claims.count, 2)
+    XCTAssertTrue(again.claims.allSatisfy { $0.entity.claims.isEmpty })
+  }
+
+  /// The merged model is a value that can be stored and read back as is.
+  func testTheMergedModelRoundTripsThroughCodable() throws {
+    let context = try XCTUnwrap(MediaAggregator.merge(MediaContextDraft(
+      item: [MediaFragment(.kinopub, .episode) { $0.episodeNumber = 1; $0.seasonNumber = 2 }],
+      parent: [kinopubShow, tmdbShow, kinopoiskShow])))
+    let data = try JSONEncoder().encode(context)
+    XCTAssertEqual(try JSONDecoder().decode(MediaContext.self, from: data), context)
+  }
 }

@@ -75,11 +75,11 @@ enum PlaybackMediaContext {
     let meta = await service.metadata(for: identity)
     let kind = KinoPubMediaMapping.typeMapping(enrichment.title.type,
                                                hasSeasons: enrichment.title.isSeries).kind
-    let titleFragment = meta.mediaFragment(kind: kind)
+    let titleFragments = meta.mediaFragments(kind: kind)
     if enrichment.titleIsParent {
-      draft.parent.append(titleFragment)
+      draft.parent += titleFragments
     } else {
-      draft.item.append(titleFragment)
+      draft.item += titleFragments
     }
 
     guard let episode = enrichment.episode,
@@ -152,17 +152,17 @@ enum PlaybackMediaContext {
     let poster = ArtworkSet.url(download.imageUrl)
     let titleFragments = title.map { [$0.mediaFragment] } ?? []
     guard let marker = download.episode, let numbers = episodeNumbers(marker) else {
-      let movie = MediaFragment(.kinopub, .movie) { entity in
+      let movie = MediaFragment(.kinopub, .movie, language: KinoPubMediaMapping.language) { entity in
         entity.title = download.localizedTitle
         entity.artwork.poster = poster
       }
       return MediaContextDraft(item: [movie] + titleFragments)
     }
-    let episode = MediaFragment(.kinopub, .episode) { entity in
+    let episode = MediaFragment(.kinopub, .episode, language: KinoPubMediaMapping.language) { entity in
       entity.seasonNumber = numbers.season
       entity.episodeNumber = numbers.episode
     }
-    let show = MediaFragment(.kinopub, .show) { entity in
+    let show = MediaFragment(.kinopub, .show, language: KinoPubMediaMapping.language) { entity in
       entity.title = download.localizedTitle
       entity.artwork.poster = poster
     }

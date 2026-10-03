@@ -48,6 +48,9 @@ public struct MediaEntity: Hashable, Sendable {
   public var labels: [MediaLabel]
   /// Which source each field came from. Filled by `MediaAggregator`; empty on a fragment.
   public var provenance: [MediaField: MediaSource]
+  /// Every fragment this entity was merged from, as each source stated it. Filled by
+  /// `MediaAggregator`; empty on a fragment.
+  public var claims: [MediaFragment]
 
   public init(kind: MediaKind,
               extraKind: ExtraKind? = nil,
@@ -67,7 +70,8 @@ public struct MediaEntity: Hashable, Sendable {
               artwork: ArtworkSet = ArtworkSet(),
               countries: [String] = [],
               labels: [MediaLabel] = [],
-              provenance: [MediaField: MediaSource] = [:]) {
+              provenance: [MediaField: MediaSource] = [:],
+              claims: [MediaFragment] = []) {
     self.kind = kind
     self.extraKind = extraKind
     self.ids = ids
@@ -87,6 +91,7 @@ public struct MediaEntity: Hashable, Sendable {
     self.countries = countries
     self.labels = labels
     self.provenance = provenance
+    self.claims = claims
   }
 
   public var primaryGenre: Genre? { genres.first }
@@ -94,14 +99,68 @@ public struct MediaEntity: Hashable, Sendable {
   public func id(_ namespace: ExternalID.Namespace) -> String? {
     ids.first { $0.namespace == namespace }?.value
   }
+
+  // MARK: - Every source's facts
+
+  /// What every source said about one field, best-ranked first — the default answer is
+  /// the first. `read` takes the fact off one source's statement; nil means that source
+  /// said nothing about it.
+  ///
+  ///     show.claims(for: .tagline) { $0.synopsis.tagline }
+  ///     // [Claim(.kinopoisk, "ru", "Страх — это кандалы…"), Claim(.tmdb, "en", "Fear can hold you prisoner…")]
+  public func claims<Value>(for field: MediaField,
+                            precedence: MediaPrecedence = .standard,
+                            _ read: (MediaEntity) -> Value?) -> [Claim<Value>] {
+    claims.enumerated()
+      .sorted { lhs, rhs in
+        let left = precedence.rank(lhs.element.source, for: field)
+        let right = precedence.rank(rhs.element.source, for: field)
+        return left != right ? left < right : lhs.offset < rhs.offset
+      }
+      .compactMap { pair -> Claim<Value>? in
+        let fragment = pair.element
+        guard let value = read(fragment.entity) else { return nil }
+        return Claim(source: fragment.source, language: fragment.language, value: value)
+      }
+  }
+
+  /// One source's own answer, whatever won the default — Kinopoisk's short description,
+  /// TMDB's English plot.
+  public func value<Value>(from source: MediaSource, _ read: (MediaEntity) -> Value?) -> Value? {
+    claims.lazy.filter { $0.source == source }.compactMap { read($0.entity) }.first
+  }
+
+  /// The sources that said anything at all about this entity.
+  public var sources: [MediaSource] {
+    var seen: [MediaSource] = []
+    for fragment in claims where !seen.contains(fragment.source) { seen.append(fragment.source) }
+    return seen
+  }
 }
+
+/// One source's statement of one fact.
+public struct Claim<Value> {
+  public let source: MediaSource
+  public let language: String?
+  public let value: Value
+
+  public init(source: MediaSource, language: String? = nil, value: Value) {
+    self.source = source
+    self.language = language
+    self.value = value
+  }
+}
+
+extension Claim: Equatable where Value: Equatable {}
+extension Claim: Hashable where Value: Hashable {}
+extension Claim: Sendable where Value: Sendable {}
 
 // MARK: - Values
 
 /// A platform's statement about a title that is not a genre: "Эксклюзив" on kino.pub.
 /// `sourceKey` is how that platform itself asks for it (kino.pub's `genre=128`), so a
 /// section or a filter built on the label can query the source it came from.
-public struct MediaLabel: Hashable, Sendable {
+public struct MediaLabel: Hashable, Sendable, Codable {
   public let id: String
   public let name: LocalizedName
   public let source: MediaSource
@@ -130,7 +189,7 @@ public struct ExternalID: Hashable, Sendable, Codable {
 }
 
 /// Apple's catalogue carries a short and a long description; the record adds a tagline.
-public struct Synopsis: Hashable, Sendable {
+public struct Synopsis: Hashable, Sendable, Codable {
   public var short: String?
   public var full: String?
   public var tagline: String?
@@ -149,7 +208,7 @@ public struct Synopsis: Hashable, Sendable {
 
 /// A date with the precision the source actually had. kino.pub knows a year; TMDB knows
 /// a day. Inventing a first of January would be a fact nobody gave us.
-public enum ReleaseDate: Hashable, Sendable {
+public enum ReleaseDate: Hashable, Sendable, Codable {
   case year(Int)
   case day(year: Int, month: Int, day: Int)
 
@@ -200,7 +259,7 @@ public enum ScoreProvider: String, Hashable, Sendable, Codable, CaseIterable {
   case imdb, kinopoisk, tmdb, kinopub, rottenTomatoes, metacritic, trakt
 }
 
-public struct Score: Hashable, Sendable {
+public struct Score: Hashable, Sendable, Codable {
   public let provider: ScoreProvider
   public let value: Double
   public let scale: Double
@@ -219,7 +278,7 @@ public struct Score: Hashable, Sendable {
 
 /// The age rating, as the source prints it. `region` is the rating system's country
 /// when the source says which one it used ("RU" → 16+, "US" → PG-13).
-public struct ContentRating: Hashable, Sendable {
+public struct ContentRating: Hashable, Sendable, Codable {
   public let value: String
   public let region: String?
 
@@ -230,7 +289,7 @@ public struct ContentRating: Hashable, Sendable {
   }
 }
 
-public struct ArtworkSet: Hashable, Sendable {
+public struct ArtworkSet: Hashable, Sendable, Codable {
   /// Portrait, with lettering.
   public var poster: URL?
   /// A frame of this very thing — an episode's still, a trailer's thumbnail.
