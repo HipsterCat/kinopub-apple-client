@@ -174,27 +174,126 @@ final class MediaActionCatalogTests: XCTestCase {
     XCTAssertEqual(row[0].title, MediaActionCopy.followTitle(isFollowing: false))
   }
 
-  func testShouldPromoteFollowWithinTwoWeeks() {
-    let air = Date().addingTimeInterval(7 * 24 * 60 * 60)
-    XCTAssertTrue(MediaActionCatalog.shouldPromoteFollow(
-      isSeries: true,
-      playback: .playAgain(season: 1, episode: 1),
-      seriesFinished: false,
-      nextEpisodeAirDate: air
-    ))
-    let later = Date().addingTimeInterval(30 * 24 * 60 * 60)
+  /// The awaited episode's date is all it takes — a month out, or already aired and not
+  /// on kino.pub yet. There used to be a two-week window, which left a series with a
+  /// known date further out leading with Replay.
+  func testShouldPromoteFollowWheneverTheAwaitedEpisodeHasADate() {
+    let dates = [
+      Date().addingTimeInterval(7 * 24 * 60 * 60),
+      Date().addingTimeInterval(45 * 24 * 60 * 60),
+      Date().addingTimeInterval(-2 * 24 * 60 * 60)
+    ]
+    for date in dates {
+      XCTAssertTrue(MediaActionCatalog.shouldPromoteFollow(
+        isSeries: true,
+        playback: .playAgain(season: 1, episode: 1),
+        seriesFinished: false,
+        awaitedEpisodeAirDate: date
+      ), "\(date)")
+    }
+  }
+
+  func testShouldNotPromoteFollowWithoutADateOrWithSomethingToPlay() {
+    let date = Date().addingTimeInterval(3 * 24 * 60 * 60)
     XCTAssertFalse(MediaActionCatalog.shouldPromoteFollow(
       isSeries: true,
       playback: .playAgain(season: 1, episode: 1),
       seriesFinished: false,
-      nextEpisodeAirDate: later
-    ))
+      awaitedEpisodeAirDate: nil
+    ), "no date known")
+    XCTAssertFalse(MediaActionCatalog.shouldPromoteFollow(
+      isSeries: true,
+      playback: .play(season: 2, episode: 3),
+      seriesFinished: false,
+      awaitedEpisodeAirDate: date
+    ), "an unwatched episode is still there to play")
     XCTAssertFalse(MediaActionCatalog.shouldPromoteFollow(
       isSeries: true,
       playback: .playAgain(season: 1, episode: 1),
       seriesFinished: true,
-      nextEpisodeAirDate: air
+      awaitedEpisodeAirDate: date
+    ), "finished series")
+    XCTAssertFalse(MediaActionCatalog.shouldPromoteFollow(
+      isSeries: false,
+      playback: .playAgain(season: nil, episode: nil),
+      seriesFinished: false,
+      awaitedEpisodeAirDate: date
+    ), "film")
+  }
+
+  // MARK: - Versions of one film
+
+  /// Two named versions: two play pills in place of «Смотреть фильм», each labelled with
+  /// its version's name, the first prominent.
+  func testTwoVersionsAreTwoNamedPlayPills() {
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: .play(season: nil, episode: nil),
+      isSeries: false,
+      showsMarkWatched: true,
+      showsTrailer: true,
+      showsMore: true,
+      versions: [MediaActionVersion(name: "24 fps", playback: .play(season: nil, episode: nil)),
+                 MediaActionVersion(name: "48 fps", playback: .play(season: nil, episode: nil))]
     ))
+    XCTAssertEqual(row.map(\.id), [.play, .playAlternate, .trailer, .bookmark, .markWatched, .more])
+    XCTAssertEqual(row[0].title, "24 fps")
+    XCTAssertEqual(row[1].title, "48 fps")
+    XCTAssertEqual(row[0].chrome, .playPill)
+    XCTAssertEqual(row[1].chrome, .pill)
+    XCTAssertEqual(row[0].systemImage, "play.fill")
+    XCTAssertEqual(row[1].systemImage, "play.fill")
+    XCTAssertFalse(row.contains { $0.title == MediaActionCopy.playTitle(kind: .fiction) })
+  }
+
+  /// No names: «Смотреть» and «Вторая версия» (EN fallbacks in package tests). A third
+  /// version is not a button.
+  func testUnnamedVersionsFallBackAndAThirdIsNotAButton() {
+    let fresh = PlaybackButtonContent.play(season: nil, episode: nil)
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: fresh,
+      isSeries: false,
+      versions: [MediaActionVersion(name: nil, playback: fresh),
+                 MediaActionVersion(name: nil, playback: fresh),
+                 MediaActionVersion(name: nil, playback: fresh)]
+    ))
+    XCTAssertEqual(row.map(\.id), [.play, .playAlternate, .bookmark])
+    XCTAssertEqual(row[0].title, MediaActionCopy.versionTitle(name: nil, index: 0))
+    XCTAssertEqual(row[1].title, MediaActionCopy.versionTitle(name: nil, index: 1))
+    XCTAssertEqual(row[0].title, "Watch")
+    XCTAssertEqual(row[1].title, "Second Version")
+  }
+
+  /// Each pill shows its own version's state: a bar on the started one, Replay on the
+  /// watched one. The checkmark stays a circle so the row does not grow a third pill.
+  func testVersionPillsCarryTheirOwnState() {
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: .resume(progress: 0.3, season: nil, episode: nil, durationSeconds: 6000),
+      isSeries: false,
+      showsMarkWatched: true,
+      versions: [MediaActionVersion(name: "Theatrical",
+                                    playback: .resume(progress: 0.3, season: nil, episode: nil,
+                                                      durationSeconds: 6000)),
+                 MediaActionVersion(name: "Director's Cut",
+                                    playback: .playAgain(season: nil, episode: nil))]
+    ))
+    XCTAssertEqual(row.map(\.id), [.play, .playAlternate, .bookmark, .markWatched])
+    XCTAssertEqual(row[0].progress, 0.3)
+    XCTAssertEqual(row[0].title, "Theatrical")
+    XCTAssertNil(row[1].progress)
+    XCTAssertEqual(row[1].systemImage, "arrow.clockwise")
+    XCTAssertEqual(row[1].chrome, .pill)
+    XCTAssertEqual(row.first { $0.id == .markWatched }?.chrome, .circle)
+  }
+
+  /// One version is no choice: the single Play stays exactly as it was.
+  func testOneVersionKeepsTheSinglePlay() {
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: .play(season: nil, episode: nil),
+      isSeries: false,
+      versions: [MediaActionVersion(name: "24 fps", playback: .play(season: nil, episode: nil))]
+    ))
+    XCTAssertEqual(row.map(\.id), [.play, .bookmark])
+    XCTAssertEqual(row[0].title, MediaActionCopy.playTitle(kind: .fiction))
   }
 
   func testFollowIconReflectsSubscription() {

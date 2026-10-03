@@ -189,6 +189,23 @@ jobs:
             exit 1
           fi
 
+      # The detail-page UI tests check what the remote can query; the badges and the lock
+      # are drawn, so their screenshots are the check. Printed into this log (small JPEGs,
+      # base64 between markers) so they can be read without downloading an artifact.
+      - name: Detail page screenshots
+        if: always() && matrix.platform == 'tvOS'
+        run: |
+          shopt -s nullglob
+          shots=(/tmp/kinopub-detail-shots/*.png)
+          echo "${#shots[@]} screenshot(s)"
+          for shot in "${shots[@]}"; do
+            name=$(basename "$shot" .png)
+            sips -s format jpeg -s formatOptions 45 -Z 960 "$shot" --out "/tmp/$name.jpg" >/dev/null
+            echo "===KINOPUB-SHOT $name==="
+            base64 -i "/tmp/$name.jpg" | fold -w 160
+            echo "===KINOPUB-SHOT-END==="
+          done
+
       # A UI test only says the app "does not exist" when it dies under it; the crash
       # report the simulator leaves on the runner says why.
       - name: Crash reports

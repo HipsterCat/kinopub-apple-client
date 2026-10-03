@@ -38,8 +38,9 @@ struct SeasonsRailView: View {
   /// park focus on the selected season tab so Play cannot reclaim the remote.
   var pageEntryToken: Int = 0
 #endif
-  /// Pressing an unaired episode — the page turns this into a toast.
-  var onUnavailableSelected: ((String) -> Void)? = nil
+  /// Pressing an episode there is nothing to play for — the page turns the message and
+  /// its glyph (a clock for "not out yet", a lock for "not on kino.pub") into a toast.
+  var onUnavailableSelected: ((_ message: String, _ systemImage: String) -> Void)? = nil
   var onHide: ((Episode, Season) -> Void)?
   var onToggleWatched: ((Episode, Season) -> Void)?
   /// Full TMDB season schedules keyed by season number — used to date kino episodes
@@ -93,7 +94,8 @@ struct SeasonsRailView: View {
 
   private enum RailEntry: Identifiable {
     case playable(season: Season, episode: Episode, schedule: EpisodeSchedule?)
-    /// On TMDB but not uploaded to kino.pub yet (or future air date).
+    /// On TMDB but not on kino.pub: announced, or aired and not uploaded — sometimes
+    /// years ago. `MissingEpisodeAirState` says which.
     case unavailable(season: Season, schedule: EpisodeSchedule)
     /// Whole seasons between kino.pub's last and the next announced one — one dark
     /// info card instead of a row of untappable tabs.
@@ -387,7 +389,7 @@ struct SeasonsRailView: View {
         name: Self.displayTitle(episode: episode, schedule: schedule)
       )
       let status: TVUIKitMediaItemStatus = (schedule?.isUpcoming == true)
-        ? (schedule?.airDate.map { .upcoming(Self.airDateLabel($0)) } ?? .unavailable)
+        ? (schedule?.airDate.map { .upcoming(Self.airDateLabel($0, context: .beginningOfSentence)) } ?? .unavailable)
         : base.status
       return TVUIKitMediaItem(id: entry.id,
                               imageURL: base.imageURL,
@@ -398,9 +400,11 @@ struct SeasonsRailView: View {
 
     case .unavailable(_, let schedule):
       // An episode kino.pub has not uploaded must not read differently from one it has —
-      // only its status badge should say so.
-      let status: TVUIKitMediaItemStatus = schedule.airDate
-        .map { .upcoming(Self.airDateLabel($0)) } ?? .unavailable
+      // only the lock and the badge say so: when it airs, «Сегодня» … «3 дня назад» for
+      // one that has just aired, «Позже» with no date, nothing for one long aired.
+      let status = TVUIKitMediaItemStatus.locked(
+        MissingEpisodeAirState(airDate: schedule.airDate).badgeText
+      )
       return TVUIKitMediaItem(id: entry.id,
                               imageURL: schedule.still,
                               caption: TVUIKitCardText.episodeCaption(number: schedule.episodeNumber,
@@ -426,7 +430,7 @@ struct SeasonsRailView: View {
                               tint: TVUIKitTileArtwork.tint(for: "season-\(number)"),
                               symbol: "calendar",
                               caption: String(format: "MediaItem_SeasonSingle".localized, number),
-                              status: .upcoming(Self.airDateLabel(date)))
+                              status: .upcoming(Self.airDateLabel(date, context: .beginningOfSentence)))
     }
   }
 
@@ -442,11 +446,12 @@ struct SeasonsRailView: View {
       // through carries the identical route.
       mediaNavigation?(linkProvider.player(for: filled(episode, in: season)))
     case .playable(_, _, let schedule):
-      onUnavailableSelected?(Self.unavailableMessage(date: schedule?.airDate))
+      onUnavailableSelected?(Self.unavailableMessage(date: schedule?.airDate), "clock")
     case .unavailable(_, let schedule):
-      onUnavailableSelected?(Self.unavailableMessage(date: schedule.airDate))
+      let message = MissingEpisodeAirState(airDate: schedule.airDate).message
+      onUnavailableSelected?(message.text, message.systemImage)
     case .upcomingSeason(_, let date, _):
-      onUnavailableSelected?(Self.unavailableMessage(date: date))
+      onUnavailableSelected?(Self.unavailableMessage(date: date), "clock")
     case .missingSeasons:
       break
     }
@@ -483,10 +488,11 @@ struct SeasonsRailView: View {
   /// card style so the focus treatment is the platform's, not ours.
   private func unavailableCard<Content: View>(
     message: String,
+    systemImage: String = "clock",
     @ViewBuilder content: () -> Content
   ) -> some View {
     Button {
-      onUnavailableSelected?(message)
+      onUnavailableSelected?(message, systemImage)
     } label: {
       content().opacity(0.55)
     }
@@ -527,14 +533,16 @@ struct SeasonsRailView: View {
       }
 
     case .unavailable(_, let schedule):
+      let state = MissingEpisodeAirState(airDate: schedule.airDate)
       unavailableCard(
-        message: Self.unavailableMessage(date: schedule.airDate)
+        message: state.message.text,
+        systemImage: state.message.systemImage
       ) {
         MediaCardView(card: MediaCard(unavailableEpisodeID: entry.id,
                                       number: schedule.episodeNumber,
                                       title: schedule.name,
                                       episodeLabel: Self.episodeLabel(number: schedule.episodeNumber),
-                                      dateLabel: schedule.airDate.map(Self.airDateLabel),
+                                      dateLabel: state.badgeText,
                                       stillURL: schedule.still?.absoluteString),
                       caption: .always)
       }
@@ -654,7 +662,7 @@ struct SeasonsRailView: View {
               in: season,
               title: displayTitle(episode: episode, schedule: schedule),
               episodeLabel: episodeLabel(number: episode.number),
-              dateLabel: schedule?.airDate.map(airDateLabel),
+              dateLabel: schedule?.airDate.map { airDateLabel($0) },
               stillURL: stillURL(episode: episode, schedule: schedule),
               primaryAction: primaryAction)
   }
@@ -677,18 +685,47 @@ struct SeasonsRailView: View {
   /// Inside a week either way the date is relative — "in 3 days", "7 days ago", and
   /// "tomorrow" / "yesterday" for the ends. Further out it is an absolute date **with
   /// the year**: a rail spans seasons, so a bare "8 Jul" says nothing about which one.
-  static func airDateLabel(_ date: Date) -> String {
-    let calendar = Calendar.current
-    let days = calendar.dateComponents([.day],
-                                       from: calendar.startOfDay(for: Date()),
-                                       to: calendar.startOfDay(for: date)).day ?? 0
+  ///
+  /// `context` is where the words land: `.beginningOfSentence` on a card's badge
+  /// («Завтра»), mid-sentence in a toast («Выходит завтра»).
+  static func airDateLabel(_ date: Date,
+                           now: Date = Date(),
+                           context: Formatter.Context = .middleOfSentence,
+                           locale: Locale = .current) -> String {
+    let days = calendarDays(from: now, to: date)
     guard abs(days) > 7 else {
-      let formatter = RelativeDateTimeFormatter()
-      formatter.dateTimeStyle = .named
-      formatter.unitsStyle = .full
-      return formatter.localizedString(from: DateComponents(day: days))
+      return relativeDays(days, context: context, locale: locale)
     }
-    return airDateFormatter.string(from: date)
+    return absoluteAirDate(date, locale: locale)
+  }
+
+  /// "today", "yesterday", "the day before yesterday" (ru «позавчера»), "in 3 days" —
+  /// the locale's own named days where it has them.
+  static func relativeDays(_ days: Int,
+                           context: Formatter.Context = .middleOfSentence,
+                           locale: Locale = .current) -> String {
+    let formatter = RelativeDateTimeFormatter()
+    formatter.locale = locale
+    formatter.dateTimeStyle = .named
+    formatter.unitsStyle = .full
+    formatter.formattingContext = context
+    return formatter.localizedString(from: DateComponents(day: days))
+  }
+
+  /// "12 Mar 2023" — with the year, see `airDateLabel`.
+  static func absoluteAirDate(_ date: Date, locale: Locale = .current) -> String {
+    if locale == .current { return airDateFormatter.string(from: date) }
+    let formatter = DateFormatter()
+    formatter.locale = locale
+    formatter.setLocalizedDateFormatFromTemplate("d MMM yyyy")
+    return formatter.string(from: date)
+  }
+
+  /// Whole local calendar days from `now` to `date`; negative in the past.
+  static func calendarDays(from now: Date, to date: Date, calendar: Calendar = .current) -> Int {
+    calendar.dateComponents([.day],
+                            from: calendar.startOfDay(for: now),
+                            to: calendar.startOfDay(for: date)).day ?? 0
   }
 
   private static let airDateFormatter: DateFormatter = {
@@ -721,6 +758,78 @@ struct SeasonsRailView: View {
   static let tabFont: Font = .system(size: 16, weight: .semibold)
   static let referenceWidth: CGFloat = 390
 #endif
+}
+
+// MARK: - Episodes kino.pub does not have
+
+/// Where an episode TMDB lists and kino.pub does not have stands, by its air date in
+/// local calendar days. One rule for the card's badge, its lock and what Select says,
+/// on the TVUIKit rail and the SwiftUI cards alike. Product rules (Sasha, 2026-10-03):
+/// aired in the last three days → «Сегодня», «Вчера», «Позавчера», «3 дня назад» on the
+/// card; no date → «Позже»; not on kino.pub → a lock in the corner.
+enum MissingEpisodeAirState: Equatable {
+  /// Air date ahead: the badge says when.
+  case upcoming(Date)
+  /// Aired today or up to `recentDays` ago and not uploaded yet.
+  case justAired(Date, daysAgo: Int)
+  /// Aired before that — kino.pub simply does not have it. The lock alone.
+  case aired(Date)
+  /// TMDB lists the episode without a date.
+  case undated
+
+  /// How far back an aired episode still gets its day on the card.
+  static let recentDays = 3
+
+  // `@MainActor` like the rail's date helpers it words itself with (a `View`'s statics).
+  @MainActor
+  init(airDate: Date?, now: Date = Date(), calendar: Calendar = .current) {
+    guard let airDate else {
+      self = .undated
+      return
+    }
+    let days = SeasonsRailView.calendarDays(from: now, to: airDate, calendar: calendar)
+    if days > 0 {
+      self = .upcoming(airDate)
+    } else if -days <= Self.recentDays {
+      self = .justAired(airDate, daysAgo: -days)
+    } else {
+      self = .aired(airDate)
+    }
+  }
+
+  /// The card's badge, capitalised because it starts the chip. Nil for an episode long
+  /// aired: the lock says everything there is to say.
+  @MainActor var badgeText: String? { badge() }
+
+  @MainActor
+  func badge(now: Date = Date(), locale: Locale = .current) -> String? {
+    switch self {
+    case .upcoming(let date):
+      return SeasonsRailView.airDateLabel(date, now: now, context: .beginningOfSentence, locale: locale)
+    case .justAired(_, let daysAgo):
+      return SeasonsRailView.relativeDays(-daysAgo, context: .beginningOfSentence, locale: locale)
+    case .aired:
+      return nil
+    case .undated:
+      return "MediaItem_Later".localized
+    }
+  }
+
+  /// What pressing the card says, and the toast's glyph.
+  @MainActor var message: (text: String, systemImage: String) {
+    switch self {
+    case .upcoming(let date):
+      return (String(format: "MediaItem_AirsOn".localized, SeasonsRailView.airDateLabel(date)), "clock")
+    case .justAired(_, let daysAgo):
+      return (String(format: "MediaItem_AiredNotOnKinoPub".localized, SeasonsRailView.relativeDays(-daysAgo)),
+              "lock")
+    case .aired(let date):
+      return (String(format: "MediaItem_AiredNotOnKinoPub".localized, SeasonsRailView.absoluteAirDate(date)),
+              "lock")
+    case .undated:
+      return ("MediaItem_NotAvailableYet".localized, "clock")
+    }
+  }
 }
 
 /// A season tab: filled when selected, outlined otherwise, and lifting on focus.

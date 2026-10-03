@@ -1080,9 +1080,41 @@ class MediaItemModel: ObservableObject {
 #endif
   }
 
-  /// Next unaired episode from enrichment — drives Follow-as-primary.
-  var nextEpisodeAirDate: Date? {
-    externalMetadata.nextEpisode?.airDate
+  /// When the episode a viewer who has watched everything is waiting for comes out: the
+  /// next one in the season kino.pub is on, by TMDB — ahead, or already aired and not
+  /// uploaded yet. Nil when the next episode opens another season (Sasha, 2026-10-03:
+  /// "в рамках последнего просмотренного сезона") or has no date. Drives Follow as the
+  /// primary action.
+  ///
+  /// The season's schedule answers it once it has loaded (`fetchData` asks for the last
+  /// season's); until then TMDB's next-to-air episode does, when it is in that season.
+  var awaitedEpisodeAirDate: Date? {
+    guard let lastSeason = mediaItem.seasons?.last else { return nil }
+    return Self.awaitedEpisodeAirDate(
+      kinoEpisodeNumbers: lastSeason.episodes.map(\.number),
+      schedule: seasonSchedules[lastSeason.number],
+      nextEpisode: externalMetadata.nextEpisode,
+      tmdbSeason: tmdbSeasonNumber(forKinoSeason: lastSeason.number)
+    )
+  }
+
+  /// `awaitedEpisodeAirDate` without the model around it.
+  static func awaitedEpisodeAirDate(kinoEpisodeNumbers: [Int],
+                                    schedule: [EpisodeSchedule]?,
+                                    nextEpisode: EpisodeRef?,
+                                    tmdbSeason: Int?) -> Date? {
+    let lastOnKino = kinoEpisodeNumbers.max() ?? 0
+    if let next = schedule?
+      .filter({ $0.episodeNumber > lastOnKino })
+      .min(by: { $0.episodeNumber < $1.episodeNumber }),
+       let date = next.airDate {
+      return date
+    }
+    if let next = nextEpisode, let tmdbSeason,
+       next.seasonNumber == tmdbSeason, next.episodeNumber > lastOnKino {
+      return next.airDate
+    }
+    return nil
   }
 
   /// Start the current title / episode at the best available file.

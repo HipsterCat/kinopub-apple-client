@@ -78,28 +78,43 @@ struct RouteDestination: View {
 #if os(macOS)
       MacPlayerRouteGuard(item: item, mode: .media)
 #else
-      PlayerView(manager: PlaybackSession.shared.play(
-        item: item,
-        mode: .media,
-        token: token,
-        downloadedFilesDatabase: appContext.downloadedFilesDatabase,
-        actionsService: appContext.actionsService
-      ))
+      player(item, mode: .media, token: token)
 #endif
     case .trailerPlayer(let item, let token):
 #if os(macOS)
       MacPlayerRouteGuard(item: item, mode: .trailer)
 #else
-      PlayerView(manager: PlaybackSession.shared.play(
-        item: item,
-        mode: .trailer,
-        token: token,
-        downloadedFilesDatabase: appContext.downloadedFilesDatabase,
-        actionsService: appContext.actionsService
-      ))
+      player(item, mode: .trailer, token: token)
 #endif
     }
   }
+
+#if !os(macOS)
+  @ViewBuilder
+  private func player(_ item: any PlayableItem, mode: WatchMode, token: UUID) -> some View {
+#if DEBUG && os(tvOS)
+    // UI tests of the detail page: the stand-in records the title as watched and
+    // waits for Menu (`DetailFixture`).
+    if DetailFixture.isActive {
+      DetailFixturePlayer(item: item, mode: mode)
+    } else {
+      systemPlayer(item, mode: mode, token: token)
+    }
+#else
+    systemPlayer(item, mode: mode, token: token)
+#endif
+  }
+
+  private func systemPlayer(_ item: any PlayableItem, mode: WatchMode, token: UUID) -> some View {
+    PlayerView(manager: PlaybackSession.shared.play(
+      item: item,
+      mode: mode,
+      token: token,
+      downloadedFilesDatabase: appContext.downloadedFilesDatabase,
+      actionsService: appContext.actionsService
+    ))
+  }
+#endif
 
   private func detailsView(for id: Int, knownItem: MediaItem? = nil) -> some View {
     MediaItemView(model: MediaItemModel(mediaItemId: id,

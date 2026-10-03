@@ -5,6 +5,30 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Detail page: Follow first, focus after the player, missing episodes, film versions (2026-10-03)
+
+Sasha's list of 2026-10-03, checked on fixtures in the tvOS simulator (`TVDetailPageUITests`,
+`-KINOPUBDetailFixture`), not yet on device:
+
+- **Follow leads** a series with everything watched whenever the next episode of the last
+  season on kino.pub has a TMDB date — ahead at any distance, or aired and not uploaded. The
+  two-week window is gone; the next episode opening another season does not count
+  (`MediaItemModel.awaitedEpisodeAirDate`).
+- **Focus after the player.** Watching the last episode turned Play into Follow + Replay;
+  `mediaActionStyle` switches on chrome, so the focused control was rebuilt and tvOS was left
+  with nothing focused. The hero now claims its entry control on opening and on coming back
+  (Follow when it leads, else Play / Replay), and after a row change that took focus with it,
+  checked against the focus engine (`TVFocusProbe`) so a rail card keeps its focus.
+- **Episodes TMDB lists and kino.pub does not have** draw a lock in the corner; the badge says
+  «Сегодня» / «Вчера» / «Позавчера» / «3 дня назад» for the last three days, the date for one
+  ahead, «Позже» with no date, and nothing for one long aired. Select says why it cannot play
+  (`MissingEpisodeAirState`, `TVUIKitMediaItemStatus.locked`).
+- **Films in several versions** get a play pill per version for the first two, named after
+  the version («Смотреть» / «Вторая версия» without names), each with its own progress.
+- **Library refreshes after watching.** Local progress invalidates the Library's watching rows
+  (Subscriptions, Unwatched, History), and coming back to the Library root re-activates the
+  section, so a subscription watched to the end leaves the list.
+
 ### tvOS drawn artwork is 32-bit: the focus effect read past the placeholder (2026-10-02)
 
 The tvOS UI tests died on CI with EXC_BAD_ACCESS in `vImageConvert_ARGB8888toPlanar8`,

@@ -51,7 +51,9 @@ struct RootView: View {
   @ViewBuilder
   private var rootContent: some View {
 #if os(tvOS) && DEBUG
-    if DebugLaunch.templatesGallery {
+    if DetailFixture.isActive {
+      DetailFixtureRoot()
+    } else if DebugLaunch.templatesGallery {
       TVPageTemplatesGallery()
     } else {
       phaseContent

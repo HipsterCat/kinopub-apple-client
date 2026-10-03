@@ -72,6 +72,10 @@ protocol VideoContentServiceProvider {
 }
 
 struct VideoContentServiceMock: VideoContentService {
+  /// The item `fetchDetails` answers with, by id; `MediaItem.mock()` when nil or when it
+  /// has nothing for that id. The DEBUG detail fixture (`DetailFixture`) serves its
+  /// titles through this.
+  var details: (@Sendable (Int) -> MediaItem?)? = nil
 
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     return PaginatedData.mock(data: [])
@@ -88,6 +92,9 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchDetails(for id: String, excludeLinks: Bool) async throws -> SingleItemData<MediaItem> {
+    if let itemID = Int(id), let item = details?(itemID) {
+      return SingleItemData.mock(data: item)
+    }
     return SingleItemData.mock(data: MediaItem.mock())
   }
 

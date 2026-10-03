@@ -39,8 +39,8 @@ import KinoPubBackend
 // MARK: - Status
 
 /// What this tile can do, which drives the glyph, the bottom-trailing runtime, and the
-/// top badge. Episodes need all five: a rail spans "watched it", "half-way through",
-/// "not uploaded yet", and "airs in three days" side by side.
+/// top badge. Episodes need all of them: a rail spans "watched it", "half-way through",
+/// "not on kino.pub", and "airs in three days" side by side.
 public enum TVUIKitMediaItemStatus: Equatable {
   /// Nothing watched yet. Play glyph + runtime, no bar.
   case ready
@@ -57,12 +57,18 @@ public enum TVUIKitMediaItemStatus: Equatable {
   /// or "Mar 13, 2026" — computed by the caller, since only the caller knows today's
   /// date and the app's date-formatting rules (see `SeasonsRailView.airDateLabel`).
   case upcoming(String)
+  /// An episode kino.pub does not have, whatever TMDB says about it: a lock in the
+  /// glyph corner, and the badge says when — «Через 3 дня», «Сегодня», «Позже» — or
+  /// nothing for one that aired long ago. The caller words the badge
+  /// (`SeasonsRailView`), for the same reason as `.upcoming`.
+  case locked(String?)
 
   var glyph: String? {
     switch self {
 //    case .ready, .inProgress: "play.fill"
     case .ready, .inProgress, .watched: nil
     case .unavailable, .upcoming: nil
+    case .locked: "lock.fill"
     }
   }
 
@@ -78,7 +84,8 @@ public enum TVUIKitMediaItemStatus: Equatable {
   var showsRuntime: Bool {
     switch self {
     case .ready, .inProgress, .unavailable, .upcoming: true
-    case .watched: false
+    // Nothing to play, and TMDB's runtime is not on the item anyway.
+    case .watched, .locked: false
     }
   }
 
@@ -91,6 +98,7 @@ public enum TVUIKitMediaItemStatus: Equatable {
     switch self {
     case .watched: String(localized: "TVMediaItem_Watched")
     case .upcoming(let dateText): dateText
+    case .locked(let dateText): dateText
     case .ready, .inProgress, .unavailable: nil
     }
   }
