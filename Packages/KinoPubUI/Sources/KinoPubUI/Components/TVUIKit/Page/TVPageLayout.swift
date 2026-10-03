@@ -539,6 +539,9 @@ public enum TVPageCellMetrics {
       probe.traitOverrides.preferredContentSizeCategory = contentSizeCategory
       probe.contentSize = contentSize
       probe.title = caption == .never ? nil : "Ag"
+      // Subtitle (year) is part of the system footer on catalog grids — measure it so
+      // the envelope includes the second line and titles are not clipped into the art.
+      probe.subtitle = caption == .never ? nil : "0000"
       probe.contentViewInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: -TVPageLockupPosterCell.footerGap, trailing: 0)
       envelope = probe.intrinsicContentSize
       probe.frame = CGRect(origin: .zero, size: envelope)
