@@ -407,8 +407,9 @@ struct SeasonsRailView: View {
       )
       return TVUIKitMediaItem(id: entry.id,
                               imageURL: schedule.still,
+                              // Same title rule as a kino.pub episode: "Серия 3" is no name.
                               caption: TVUIKitCardText.episodeCaption(number: schedule.episodeNumber,
-                                                                      name: schedule.name),
+                                                                      name: EpisodeTitle.meaningful(schedule.name)),
                               status: status)
 
     case .missingSeasons(let from, let to, let episodes, _, _):

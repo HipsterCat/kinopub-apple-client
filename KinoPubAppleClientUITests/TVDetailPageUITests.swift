@@ -108,12 +108,21 @@ final class TVDetailPageUITests: XCTestCase {
       try shoot("missing-2-right-\(step)")
     }
 
-    // Select on one: a toast says why it cannot play.
+    // Select says why it cannot play: E9 is ahead (a clock, the date), E5 aired two days
+    // ago and kino.pub does not have it yet (a lock).
     XCUIRemote.shared.press(.left)
     Thread.sleep(forTimeInterval: 0.9)
     XCUIRemote.shared.press(.select)
     Thread.sleep(forTimeInterval: 0.4)
-    try shoot("missing-3-toast")
+    try shoot("missing-3-toast-ahead")
+    Thread.sleep(forTimeInterval: 2.5)
+    for _ in 1...4 {
+      XCUIRemote.shared.press(.left)
+      Thread.sleep(forTimeInterval: 0.7)
+    }
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 0.4)
+    try shoot("missing-4-toast-aired")
   }
 
   // MARK: - Versions of one film
