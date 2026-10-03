@@ -68,6 +68,9 @@ public final class TVUIKitPersonAvatarView: UIView {
       imageView.leadingAnchor.constraint(equalTo: leadingAnchor),
       imageView.trailingAnchor.constraint(equalTo: trailingAnchor)
     ])
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: TVUIKitPersonAvatarView, _) in
+      view.redrawMonogramIfNeeded()
+    }
   }
 
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -117,6 +120,12 @@ public final class TVUIKitPersonAvatarView: UIView {
     guard showsMonogram, diameter > 1, abs(diameter - monogramDiameter) > 0.5 else { return }
     monogramDiameter = diameter
     imageView.image = TVUIKitTileArtwork.monogram(name: name, diameter: diameter, traits: traitCollection)
+  }
+
+  private func redrawMonogramIfNeeded() {
+    guard showsMonogram else { return }
+    monogramDiameter = 0
+    setNeedsLayout()
   }
 
   deinit {

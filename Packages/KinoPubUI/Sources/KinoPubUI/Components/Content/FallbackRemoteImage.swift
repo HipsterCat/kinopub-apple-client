@@ -10,7 +10,6 @@
 
 import SwiftUI
 import OSLog
-import Nuke
 
 private let artLog = Logger(subsystem: "com.soda.kinopub", category: "Artwork")
 
@@ -59,7 +58,7 @@ public struct FallbackRemoteImage: View {
     for url in urls {
       if Task.isCancelled { return }
       do {
-        let loaded = try await Artwork.pipeline.image(for: Artwork.request(url))
+        let loaded = try await Artwork.image(for: url)
         image = Image(platformImage: loaded)
         artLog.debug("art OK \(url.absoluteString, privacy: .public)")
         #if DEBUG

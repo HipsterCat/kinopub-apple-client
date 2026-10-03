@@ -10,7 +10,6 @@ import UIKit
 import SwiftUI
 import TVUIKit
 import OSLog
-import NukeExtensions
 
 public enum TVUIKitChromeSupport {
   /// A drop shadow instead of a pill behind small white chrome over artwork. Used by
@@ -71,30 +70,19 @@ public final class TVUIKitBottomInfoBlurView: UIView {
   }
 }
 
-/// `[PCM]` console tracing for poster context menus. Always on in DEBUG so a device /
-/// simulator run shows why vertical shelves open or fail without flipping FocusLog.
+/// `[PCM]` console tracing for poster context menus. Compiled out of Release so
+/// focus-chain strings are never built on a user's TV.
 enum PosterContextMenuLog {
   private static let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Kinopub Soda",
     category: "PCM"
   )
 
-  static var isEnabled: Bool {
+  static func log(_ message: @autoclosure () -> String) {
 #if DEBUG
-    true
-#else
-    false
+    let line = message()
+    logger.info("[PCM] \(line, privacy: .public)")
 #endif
-  }
-
-  static func log(_ message: String) {
-    guard isEnabled else { return }
-    let line = "[PCM] \(message)"
-    logger.info("\(line, privacy: .public)")
-    // NSLog + print so Xcode console / Console.app always show the line even when
-    // Logger category filters swallow `info`.
-    NSLog("%@", line)
-    print(line)
   }
 
   /// Focused-view chain from the leaf up — class names + accessibility ids.
@@ -180,14 +168,9 @@ enum TVUIKitContextMenuIndexPath {
 ///
 /// `isUserInteractionEnabled = false` disables focus for the whole lockup subtree so
 /// the **cell** is the focused leaf (Continue Watching / `TVPageWideCardCell` shape).
-///
-/// Nuke's `TVPosterView` display path (`nuke_display`) is overridden to assign the
-/// image on the next main-queue turn — `TVPosterView` only computes a non-zero
-/// `focusSizeIncrease` when the image lands outside a layout pass (tvOS 27.2 adapter).
+/// Deferred image assignment lives on `TVUIKitDeferredPosterView` in the Artwork facade.
 @MainActor
-final class TVUIKitNonFocusablePosterView: TVPosterView {
-  private var pendingImageToken: UInt = 0
-
+final class TVUIKitNonFocusablePosterView: TVUIKitDeferredPosterView {
   override var canBecomeFocused: Bool { false }
 
   override func didMoveToWindow() {
@@ -204,20 +187,6 @@ final class TVUIKitNonFocusablePosterView: TVPosterView {
     super.layoutSubviews()
     // TVPosterView may re-enable interaction while wiring chrome — keep it off.
     suppressFocusStealing()
-  }
-
-  /// NukeExtensions calls this for `loadImage(into:)`. Defer so focus envelope math runs.
-  override func nuke_display(image: UIImage?, data: Data?) {
-    pendingImageToken &+= 1
-    let token = pendingImageToken
-    guard let image else {
-      self.image = nil
-      return
-    }
-    DispatchQueue.main.async { [weak self] in
-      guard let self, self.pendingImageToken == token else { return }
-      self.image = image
-    }
   }
 
   private func suppressFocusStealing() {

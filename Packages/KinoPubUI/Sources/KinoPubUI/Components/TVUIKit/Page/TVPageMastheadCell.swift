@@ -51,11 +51,22 @@ final class TVPageMastheadCell: UICollectionViewCell {
   /// collection detail. Select does nothing — there is no action.
   override var canBecomeFocused: Bool { true }
 
+  override func updateConfiguration(using state: UICellConfigurationState) {
+    var background = UIBackgroundConfiguration.clear()
+    if state.isFocused {
+      // UIKit stand-in for `.buttonStyle(.card)` on a header that is not a lockup.
+      // `tertiarySystemFill` and `cornerCurve` are iOS-only; tvOS has no semantic
+      // fill token, so a light white plate plus `cornerRadius` is the public surface.
+      background.backgroundColor = UIColor.white.withAlphaComponent(0.14)
+      background.cornerRadius = 24
+    }
+    backgroundConfiguration = background
+  }
+
   override init(frame: CGRect) {
     super.init(frame: frame)
     isUserInteractionEnabled = true
-    automaticallyUpdatesBackgroundConfiguration = false
-    backgroundConfiguration = .clear()
+    automaticallyUpdatesBackgroundConfiguration = true
     backgroundColor = .clear
     contentView.backgroundColor = .clear
     clipsToBounds = false
@@ -89,11 +100,12 @@ final class TVPageMastheadCell: UICollectionViewCell {
     detailLabel.numberOfLines = 2
 
     // Biography opens with focus. Empty or collapsed, it takes no space — so a late
-    // metadata paint does not shove the grid under an unfocused header.
+    // metadata paint does not shove the grid under an unfocused header. Capped at
+    // eight lines; a More / info-popup path is not wired yet.
     bioLabel.font = UIFont.preferredFont(forTextStyle: .body)
     bioLabel.adjustsFontForContentSizeCategory = true
     bioLabel.textColor = .secondaryLabel
-    bioLabel.numberOfLines = 0
+    bioLabel.numberOfLines = 8
     bioLabel.isHidden = true
 
     personText.axis = .vertical
@@ -161,6 +173,9 @@ final class TVPageMastheadCell: UICollectionViewCell {
       statsRow.widthAnchor.constraint(lessThanOrEqualTo: collectionColumn.widthAnchor)
     ]
     accessibilityIdentifier = "kinopub.masthead"
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (cell: TVPageMastheadCell, _) in
+      cell.redrawMonogramIfNeeded()
+    }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -205,15 +220,12 @@ final class TVPageMastheadCell: UICollectionViewCell {
       || context.nextFocusedView?.isDescendant(of: self) == true
     coordinator.addCoordinatedAnimations { [weak self] in
       self?.applyExpanded(focused, invalidate: true)
-    } completion: { [weak self] in
-      guard let self, focused else { return }
-      self.ensureExpandedBioVisible()
     }
   }
 
   /// Person: biography opens with focus by growing the cell — no scale / transform
-  /// fake focus. Collection: stats stay visible either way; the Focus Engine's own
-  /// focus ring on the cell is the affordance.
+  /// fake focus. Collection: stats stay visible either way; the focused
+  /// `UIBackgroundConfiguration` is the affordance.
   private func applyExpanded(_ expanded: Bool, invalidate: Bool) {
     guard isPerson else { return }
     let text = expanded ? biography : nil
@@ -228,26 +240,11 @@ final class TVPageMastheadCell: UICollectionViewCell {
   }
 
   private func invalidateIntrinsicSize() {
-    // Self-sizing estimated cells only remeasure when the layout is asked.
-    guard let view = superview as? UICollectionView else { return }
-    UIView.performWithoutAnimation {
-      view.collectionViewLayout.invalidateLayout()
-      view.layoutIfNeeded()
-    }
-  }
-
-  /// After the bio opens, keep the expanded band on screen without moving focus off
-  /// the masthead (no `scrollToItem` that re-targets preferred focus).
-  private func ensureExpandedBioVisible() {
-    guard isPerson, isFocused, biography != nil, !bioLabel.isHidden,
-          let view = superview as? UICollectionView,
-          let path = view.indexPath(for: self),
-          let attributes = view.layoutAttributesForItem(at: path)
-    else { return }
-    let target = attributes.frame.insetBy(dx: 0, dy: -16)
-    let visible = view.bounds.inset(by: view.adjustedContentInset)
-    guard !visible.contains(target) else { return }
-    view.scrollRectToVisible(target, animated: false)
+    guard let view = superview as? UICollectionView,
+          let path = view.indexPath(for: self) else { return }
+    let context = UICollectionViewLayoutInvalidationContext()
+    context.invalidateItems(at: [path])
+    view.collectionViewLayout.invalidateLayout(with: context)
   }
 
   override func layoutSubviews() {
@@ -262,23 +259,27 @@ final class TVPageMastheadCell: UICollectionViewCell {
     avatar.image = TVUIKitTileArtwork.monogram(name: monogramName, diameter: diameter, traits: traitCollection)
   }
 
-  /// Rest height is fixed so a late detail / stats paint cannot shove the grid.
-  /// Only a focused person biography is allowed to grow the cell.
+  private func redrawMonogramIfNeeded() {
+    guard monogramName != nil else { return }
+    monogramDiameter = 0
+    setNeedsLayout()
+  }
+
+  /// Measure rest and focused height from Auto Layout so Dynamic Type and long
+  /// titles fit. Biography is hidden until focus, so it does not grow the
+  /// unfocused band.
   override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
     let attributes = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
     let width = layoutAttributes.size.width
-    let rest: CGFloat = isPerson ? 220 : (statsRow.isHidden ? 160 : 260)
-    if isPerson, isFocused, biography != nil, bioLabel.isHidden == false {
+    if isPerson, !bioLabel.isHidden {
       bioLabel.preferredMaxLayoutWidth = max(width - Self.avatarSide - 28, 200)
-      let fitting = contentView.systemLayoutSizeFitting(
-        CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
-        withHorizontalFittingPriority: .required,
-        verticalFittingPriority: .fittingSizeLevel
-      )
-      attributes.size = CGSize(width: width, height: max(ceil(fitting.height), rest))
-    } else {
-      attributes.size = CGSize(width: width, height: rest)
     }
+    let fitting = contentView.systemLayoutSizeFitting(
+      CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+      withHorizontalFittingPriority: .required,
+      verticalFittingPriority: .fittingSizeLevel
+    )
+    attributes.size = CGSize(width: width, height: max(ceil(fitting.height), 1))
     return attributes
   }
 

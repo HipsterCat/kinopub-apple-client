@@ -14,7 +14,6 @@
 //
 
 import SwiftUI
-import NukeUI
 
 /// Mirrors `AsyncImagePhase` so a call site converts by changing the type name.
 public enum ArtworkPhase {
@@ -37,6 +36,7 @@ public struct ArtworkImage<Content: View>: View {
   private let url: URL?
   private let animation: Animation?
   private let content: (ArtworkPhase) -> Content
+  @State private var phase: ArtworkPhase = .empty
 
   public init(
     url: URL?,
@@ -49,16 +49,38 @@ public struct ArtworkImage<Content: View>: View {
   }
 
   public var body: some View {
-    LazyImage(request: url.map { Artwork.request($0) }) { state in
-      content(phase(of: state))
-    }
-    .pipeline(Artwork.pipeline)
-    .transaction { $0.animation = animation }
+    content(phase)
+      .task(id: url?.absoluteString) {
+        await load()
+      }
   }
 
-  private func phase(of state: LazyImageState) -> ArtworkPhase {
-    if let loaded = state.imageContainer?.image { return .success(Image(platformImage: loaded)) }
-    if let error = state.error { return .failure(error) }
-    return .empty
+  @MainActor
+  private func load() async {
+    guard let url else {
+      apply(.empty)
+      return
+    }
+    if let cached = Artwork.cachedImage(for: url) {
+      apply(.success(Image(platformImage: cached)))
+      return
+    }
+    apply(.empty)
+    do {
+      let loaded = try await Artwork.image(for: url)
+      apply(.success(Image(platformImage: loaded)))
+    } catch is CancellationError {
+      return
+    } catch {
+      apply(.failure(error))
+    }
+  }
+
+  private func apply(_ new: ArtworkPhase) {
+    if let animation {
+      withAnimation(animation) { phase = new }
+    } else {
+      phase = new
+    }
   }
 }

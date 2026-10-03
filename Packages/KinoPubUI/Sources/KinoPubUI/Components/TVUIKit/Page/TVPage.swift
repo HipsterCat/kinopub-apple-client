@@ -14,8 +14,8 @@ import UIKit
 public struct TVPage: UIViewControllerRepresentable {
   public let sections: [TVPageSection]
   public let status: TVPageStatus
-  /// Leading/trailing content inset. 80 for a full-width page; a pane beside a
-  /// sidebar passes what the sidebar already leaves.
+  /// Leading/trailing content inset. Defaults to the HIG 80 pt example; the
+  /// collection reads live `safeAreaInsets` and only uses this while they are 0.
   public let sideInset: CGFloat
   public let onSelect: (TVPageSection, TVPageItem) -> Void
   /// A pull-down chip's option was picked: (chip id, option id). Search's filter row.

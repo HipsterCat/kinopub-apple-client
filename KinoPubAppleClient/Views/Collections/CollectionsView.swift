@@ -114,7 +114,9 @@ struct CollectionsView: View {
 
 #if os(tvOS)
   private static let rowSpacing: CGFloat = 16
-  private static let horizontalInset: CGFloat = 80
+  /// The system overscan already insets this scroll; adding the HIG 80 pt example
+  /// on top doubled the margin (CURRENT.md). iOS/macOS still pick their own inset.
+  private static let horizontalInset: CGFloat = 0
   private static let verticalInset: CGFloat = 24
 #elseif os(macOS)
   private static let rowSpacing: CGFloat = 8

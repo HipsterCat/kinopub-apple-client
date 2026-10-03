@@ -2,19 +2,19 @@
 
 **Authority for agents and engineers.** If this file conflicts with `ROADMAP.md`, `CHANGELOG.md`, `docs/archive/**`, old PR descriptions, or code comments about iOS/macOS chrome — **this file wins**, until Sasha changes it.
 
-Last updated: 2026-09-26 · Owner: archi (architecture) · Implementer: max (Cursor) · Adaptive layout + Dynamic Type (HIG table = density examples)
+Last updated: 2026-10-02 · Owner: archi (architecture) · Implementer: max (Cursor) · Adaptive layout + Dynamic Type (HIG table = density examples)
 
 ---
 
 ## One-sentence goal
 
-Ship a **daily-driver Kinopub on tvOS 26+** using **standard Apple tvOS UI** (Sketch + HIG as orientation, not fixed-canvas religion), full basic product features, on the existing `kinopub-apple-client` pipes — not a research UI, not a multiplatform polish pass.
+Ship a **daily-driver Kinopub on tvOS 26.6** using **standard Apple tvOS UI** (Sketch + HIG as orientation, not fixed-canvas religion), full basic product features, on the existing `kinopub-apple-client` pipes — not a research UI, not a multiplatform polish pass.
 
 ## Active platform
 
 | Platform | Status |
 | --- | --- |
-| **tvOS 26+** (device floor includes Apple TV 4K 1st gen through **26.6**) | **Active — only** |
+| **tvOS 26.6** (Xcode's default when tvOS 26 is the minimum; the latest 26.x every tvOS 26 device can install, Apple TV 4K 1st gen through 26.6) | **Active — only** |
 | iOS / iPadOS / macOS | **Postponed.** Do not expand surface area, do not chase parity tickets, do not “fix while here.” When resumed: **same layout grammar, adaptive** — not a second design system. |
 
 Compiling for other destinations may still succeed; **do not spend MVP time** on their chrome, toolbars, or focus quirks unless Sasha explicitly unblocks.

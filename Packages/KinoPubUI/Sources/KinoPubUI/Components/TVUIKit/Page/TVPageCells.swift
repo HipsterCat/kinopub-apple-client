@@ -33,8 +33,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   /// Non-focusable lockup (`isUserInteractionEnabled = false` on the whole subtree).
   /// The **cell** is the focused leaf — same shape as Continue Watching /
-  /// `TVPageWideCardCell` — so collection + cell `UIContextMenuInteraction` both see
-  /// Play-Pause. `canBecomeFocused = false` alone left focus on `_TVPosterContentView`
+  /// `TVPageWideCardCell` — so the collection's context-menu delegate sees Play-Pause.
+  /// `canBecomeFocused = false` alone left focus on `_TVPosterContentView`
   /// (7a8bd62): lift looked right, PCM never opened.
   private let posterView = TVUIKitNonFocusablePosterView(image: nil)
   private let watchedGlyph = UIImageView()
@@ -43,8 +43,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   private var currentURL: URL?
   private var recipe: TVPageCellRecipe?
-  /// Built lazily when the cell's own context-menu interaction asks for a configuration.
-  var contextMenuEntries: (() -> [MediaCardContextEntry])?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -76,12 +74,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     // a poster is a title, not a playable item — the bar belongs to stills.
     let host = posterView.contentView
     let image = posterView.imageView
-
-    // Belt-and-suspenders with the collection-view delegate: interaction on the focused
-    // cell itself (CW stills only need the collection path because focus is already
-    // exactly on the cell via `TVMediaItemContentConfiguration`).
-    addInteraction(UIContextMenuInteraction(delegate: self))
-    PosterContextMenuLog.log("attach UIContextMenuInteraction on TVPageLockupPosterCell")
 
     watchedGlyph.translatesAutoresizingMaskIntoConstraints = false
     watchedGlyph.image = UIImage(systemName: "checkmark.circle.fill")
@@ -139,7 +131,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.accessibilityLabel = tile.title
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
-    contextMenuEntries = nil
     currentURL = nil
     TVUIKitRemoteImage.cancel(into: posterView)
     setImage(TVUIKitTileArtwork.image(tint: tile.resolvedTint,
@@ -156,7 +147,6 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     applyCaption(.never, title: nil, subtitle: nil)
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
-    contextMenuEntries = nil
     currentURL = nil
     TVUIKitRemoteImage.cancel(into: posterView)
     setImage(placeholder)
@@ -180,10 +170,10 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   /// Accepted adapter (tvOS 27.2, measured 2026-09-21). Image assignment for
-  /// `focusSizeIncrease` is deferred inside `TVUIKitNonFocusablePosterView.nuke_display`
-  /// (and `setImage` for drawn tiles / placeholders that skip Nuke).
+  /// `focusSizeIncrease` is deferred inside `TVUIKitDeferredPosterView` (and
+  /// `setImage` for drawn tiles / placeholders that skip Nuke).
   private func setImage(_ image: UIImage) {
-    posterView.nuke_display(image: image, data: nil)
+    TVUIKitRemoteImage.display(image, on: posterView)
   }
 
   /// Always an image of the content size, never nil: the lockup computes its focus
@@ -280,44 +270,11 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.subtitle = nil
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
-    contextMenuEntries = nil
     resetStaleFocusAppearance()
     accessibilityIdentifier = nil
     accessibilityLabel = nil
     posterView.accessibilityIdentifier = nil
     posterView.accessibilityLabel = nil
-  }
-}
-
-extension TVPageLockupPosterCell: UIContextMenuInteractionDelegate {
-  func contextMenuInteraction(
-    _ interaction: UIContextMenuInteraction,
-    configurationForMenuAtLocation location: CGPoint
-  ) -> UIContextMenuConfiguration? {
-    PosterContextMenuLog.log(
-      "cell configurationForMenuAtLocation id=\(accessibilityIdentifier ?? "?") loc=\(Int(location.x)),\(Int(location.y))"
-    )
-    guard let entries = contextMenuEntries?(), !entries.isEmpty else {
-      PosterContextMenuLog.log("cell menu → nil (no entries) id=\(accessibilityIdentifier ?? "?")")
-      return nil
-    }
-    PosterContextMenuLog.log("cell menu → UIContextMenuConfiguration entries=\(entries.count)")
-    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
-      TVUIKitContextMenuBuilder.menu(from: entries)
-    }
-  }
-
-  func contextMenuInteraction(
-    _ interaction: UIContextMenuInteraction,
-    willEndFor configuration: UIContextMenuConfiguration,
-    animator: (any UIContextMenuInteractionAnimating)?
-  ) {
-    let reset: () -> Void = { [weak self] in self?.resetStaleFocusAppearance() }
-    if let animator {
-      animator.addCompletion(reset)
-    } else {
-      reset()
-    }
   }
 }
 
@@ -744,6 +701,9 @@ final class TVPageWideCardCell: UICollectionViewCell {
       text.trailingAnchor.constraint(lessThanOrEqualTo: host.trailingAnchor, constant: -Self.textGap),
       text.centerYAnchor.constraint(equalTo: host.centerYAnchor)
     ])
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (cell: TVPageWideCardCell, _) in
+      cell.redrawMonogramIfNeeded()
+    }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -779,6 +739,10 @@ final class TVPageWideCardCell: UICollectionViewCell {
     let secondary = focused ? UIColor.black.withAlphaComponent(0.6) : .secondaryLabel
     originalLabel.textColor = secondary
     detailLabel.textColor = secondary
+  }
+
+  private func redrawMonogramIfNeeded() {
+    applyFocusColors(isFocusedLook)
   }
 
   /// The card view sizes its platter from `contentSize` (a system default otherwise,

@@ -8,9 +8,9 @@
 //  On tvOS 26.x a `TabView` tab whose root is only the search container loses the
 //  spatial link from the tab bar into the search keyboard — Down from the Search tab
 //  is a no-op while Select still enters the field. A `UIFocusGuide` in the tab-bar
-  //  band hands off downward to the search bar and container; `preferredFocusEnvironments`
-//  and a declined-press rescue cover keyboard ⇄ results the same way Rivulet does for
-//  UIKit tabs (technique only — PolyForm Noncommercial).
+//  band hands off downward to the search bar and container; `preferredFocusEnvironments`
+//  covers keyboard ⇄ results. No press-delay rescue — that raced the focus animator
+//  (AGENTS.md: no manual focus delays).
 //
 
 import UIKit
@@ -78,53 +78,14 @@ final class TVSearchPageHostViewController: UIViewController {
     }
   }
 
-  /// Down from the keyboard when the engine finds nothing below; Up from the top
-  /// results row when the collapsed keyboard is off screen. Tab bar → content is
-  /// handled by `tabEntryGuide`, not here — this controller does not receive those
-  /// presses while the bar still holds focus.
-  override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-    let down = presses.contains { $0.type == .downArrow }
-    let up = presses.contains { $0.type == .upArrow }
-    if down, !focusIsInResults {
-      rescueDownFromKeyboard()
-    } else if up, focusIsInResults {
-      rescueUpFromResults()
+  override func didUpdateFocus(in context: UIFocusUpdateContext,
+                               with coordinator: UIFocusAnimationCoordinator) {
+    super.didUpdateFocus(in: context, with: coordinator)
+    if focusIsInResults {
+      preferredHalf = .results
+    } else if context.nextFocusedView != nil {
+      preferredHalf = .keyboard
     }
-    super.pressesBegan(presses, with: event)
-  }
-
-  private func rescueDownFromKeyboard() {
-    let before = UIFocusSystem.focusSystem(for: view)?.focusedItem
-    DispatchQueue.main.async { [weak self] in
-      guard let self,
-            UIFocusSystem.focusSystem(for: self.view)?.focusedItem === before else { return }
-      guard !self.focusIsInResults else { return }
-      self.move(to: .results)
-    }
-  }
-
-  private func rescueUpFromResults() {
-    let before = UIFocusSystem.focusSystem(for: view)?.focusedItem
-    DispatchQueue.main.async { [weak self] in
-      guard let self,
-            UIFocusSystem.focusSystem(for: self.view)?.focusedItem === before else { return }
-      guard self.focusIsInResults else { return }
-      self.move(to: .keyboard)
-    }
-  }
-
-  private func move(to half: Half) {
-    preferredHalf = half
-    if half == .keyboard {
-      reopenKeyboard()
-    }
-    setNeedsFocusUpdate()
-    updateFocusIfNeeded()
-  }
-
-  private func reopenKeyboard() {
-    guard !searchController.searchBar.isFirstResponder else { return }
-    searchController.searchBar.becomeFirstResponder()
   }
 
   private var focusIsInResults: Bool {

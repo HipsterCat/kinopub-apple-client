@@ -69,9 +69,10 @@ public enum TVPageLayout {
   /// starts. A tab page is full screen and it is 0; the search container lays its
   /// results out inside its 80 pt safe area, and adding the section's own 80 on top put
   /// the first card at 160 (2026-09-25). The HIG 80 is from the screen edge, so the
-  /// section adds only what is missing.
+  /// section adds only what is missing. The live value is the collection's
+  /// `safeAreaInsets` (overscan), not a hardcoded 1920 canvas.
   @MainActor
-  public static func makeLayout(sideInset: CGFloat = TVHIGGrid.sideInset,
+  public static func makeLayout(sideInset: @escaping () -> CGFloat = { TVHIGGrid.sideInset },
                                 adjustedLeading: @escaping () -> CGFloat = { 0 },
                                 sections: @escaping () -> [TVPageSection]) -> UICollectionViewCompositionalLayout {
     let configuration = UICollectionViewCompositionalLayoutConfiguration()
@@ -85,7 +86,7 @@ public enum TVPageLayout {
       sectionProvider: { index, environment in
         let all = sections()
         guard all.indices.contains(index) else { return fallback }
-        let inset = max(sideInset - adjustedLeading(), 0)
+        let inset = max(sideInset() - adjustedLeading(), 0)
         let next = all.indices.contains(index + 1) ? all[index + 1] : nil
         let built = section(for: all[index], environment: environment, sideInset: inset, next: next)
         if DebugLaunch.layoutDebug {
@@ -262,9 +263,8 @@ public enum TVPageLayout {
   }
 
   /// One full-width focusable header that scrolls with the page. Estimated height is
-  /// the *rest* size (name / title / stats). The cell reports that same rest height
-  /// until it is focused with a biography — so a late detail / metadata paint does
-  /// not shove the grid and steal focus.
+  /// Rest height is estimated; the cell measures for Dynamic Type so a long title
+  /// or larger content size does not overflow into the sort row.
   @MainActor
   private static func masthead(_ section: TVPageSection, sideInset: CGFloat) -> NSCollectionLayoutSection {
     let height = mastheadRestHeight(section)
@@ -277,14 +277,15 @@ public enum TVPageLayout {
     return layoutSection
   }
 
-  /// Rest height only. Expanded biography is measured by the cell when it takes focus.
+  /// Starting estimate only. The cell's `preferredLayoutAttributesFitting` is the
+  /// measured height (avatar + Dynamic Type labels, or title + stats).
   static func mastheadRestHeight(_ section: TVPageSection) -> CGFloat {
-    guard case .masthead(let header) = section.items.first else { return 220 }
+    guard case .masthead(let header) = section.items.first else { return 180 }
     switch header.style {
     case .person:
-      return 220
+      return 180
     case .collection:
-      return header.stats.isEmpty ? 160 : 260
+      return header.stats.isEmpty ? 120 : 200
     }
   }
 

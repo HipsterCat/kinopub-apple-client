@@ -305,6 +305,9 @@ final class TVUIKitPersonCell: UICollectionViewCell {
       text.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       text.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
     ])
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (cell: TVUIKitPersonCell, _) in
+      cell.redrawMonogramIfNeeded()
+    }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -384,6 +387,12 @@ final class TVUIKitPersonCell: UICollectionViewCell {
     monogramDiameter = 0
     let diameter = avatar.bounds.width > 1 ? avatar.bounds.width : 168
     avatar.image = TVUIKitTileArtwork.monogram(name: name, diameter: diameter, traits: traitCollection)
+  }
+
+  private func redrawMonogramIfNeeded() {
+    guard monogramName != nil else { return }
+    monogramDiameter = 0
+    setNeedsLayout()
   }
 }
 #endif
