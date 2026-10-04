@@ -186,8 +186,9 @@ Each step is one reviewable slice with tests, merged before the next.
    **Started 2026-10-04:** every catalogue card is already built from the model —
    `MediaCard(_ item:)` maps the payload and calls `MediaCard(ref:entity:state:)`; the model
    gained what a card needs (`formats` — 4K / HD / 3D, `ArtworkSet.posterPreview`), the
-   vocabulary `SeasonCountText` and `TitleMetaLine`. Next: the store itself, rows keeping
-   refs.
+   vocabulary `SeasonCountText` and `TitleMetaLine`. **And** a cached row no longer paints
+   yesterday's state: `ContentStore.cards(_:)` lays `ViewerState` over every title card as it
+   is read (`MediaCard.withViewerState`). Next: the store of records itself, rows keeping refs.
 5. Selection functions. **Started**: `EpisodeQueue` (KinoPubBackend) answers every "which
    episode" question — `next(after:)` for the end-of-episode proposal, `nextUnwatched(after:)`
    for Up Next (now by this device's state too), `continueTarget` for the hero and Continue

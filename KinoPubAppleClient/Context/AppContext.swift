@@ -161,7 +161,6 @@ struct AppContext: AppContextProtocol {
       KinopoiskProxySource()
     ])
 
-    let contentStore = MainActor.assumeIsolated { ContentStore() }
     let localProgressStore = LocalWatchProgressStore()
     let libraryState = MediaLibraryStore(
       downloadManager: downloadManager,
@@ -170,6 +169,9 @@ struct AppContext: AppContextProtocol {
       downloadedFilesDatabase: downloadedFilesDatabase,
       progressStore: localProgressStore
     )
+    // Rows read the viewer's state at paint time, not from the cached cards.
+    let viewerState = ViewerStateReader(library: libraryState, progress: localProgressStore)
+    let contentStore = MainActor.assumeIsolated { ContentStore(viewer: viewerState) }
 
     return AppContext(
       configuration: configuration,

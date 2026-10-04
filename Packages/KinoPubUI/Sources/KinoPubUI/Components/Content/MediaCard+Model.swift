@@ -61,3 +61,45 @@ public extension MediaScores {
               tmdb: score(.tmdb)?.value, tmdbVotes: score(.tmdb)?.votes)
   }
 }
+
+// MARK: - The viewer's state, at paint time
+
+public extension MediaCard {
+
+  /// The thing this card stands for: the title, or the episode / version it offers.
+  var ref: MediaRef { MediaRef(itemID: itemID, season: season, number: video) }
+
+  /// What the card's payload said about the viewer when it was fetched — the "reported"
+  /// side of `ViewerState`, for a reader to lay this device's knowledge over.
+  var reportedState: ViewerState {
+    let watch = durationSeconds.flatMap { duration in
+      progress.map { WatchProgress(position: $0 * Double(duration), duration: Double(duration)) }
+    }
+    return ViewerState(progress: watch,
+                       isWatched: isWatched,
+                       isFollowing: isSeries ? isInWatchlist : nil,
+                       bookmarkFolderIDs: bookmarkFolderIDs.isEmpty ? nil : Set(bookmarkFolderIDs))
+  }
+
+  /// The same card with the viewer's state replaced — watched, progress, follow, folders.
+  /// Words and artwork are untouched.
+  func withViewerState(_ state: ViewerState) -> MediaCard {
+    let folders = (state.bookmarkFolderIDs ?? []).sorted()
+    return MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
+                     watchedAt: watchedAt, scores: scores,
+                     progress: state.resumeFraction ?? (state.isWatched ? nil : progress),
+                     badge: badge, backdropURL: backdropURL, metaLine: metaLine,
+                     overview: overview, landscapeImageURL: landscapeImageURL,
+                     overlayLabel: overlayLabel, itemID: itemID, video: video, season: season,
+                     seasonCount: seasonCount, mediaID: mediaID, isWatched: state.isWatched,
+                     isSeries: isSeries, isInHistory: isInHistory,
+                     isInWatchlist: isSeries && (state.isFollowing ?? false),
+                     is4K: is4K, isHDR: isHDR, isHD: isHD, is3D: is3D,
+                     hasClosedCaptions: hasClosedCaptions, year: year,
+                     durationSeconds: durationSeconds, genreLine: genreLine,
+                     countryLine: countryLine, seasonsLabel: seasonsLabel,
+                     isBookmarked: !folders.isEmpty, bookmarkFolderIDs: folders,
+                     primaryAction: primaryAction, opensCollection: opensCollection,
+                     captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
+  }
+}

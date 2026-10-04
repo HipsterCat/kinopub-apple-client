@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Cached rows paint today's viewer state (2026-10-04)
+
+`ContentStore.cards(_:)` lays `ViewerState` (`AppContext.viewerState`, the stores' marks over the
+payload's word) over every title card as it is read: a film finished on this device since the row
+was fetched reads watched, a series followed or a title bookmarked since reads so, without waiting
+for the row's TTL. Episode cards (Continue Watching, history) keep their own painting.
+`LocalWatchProgressStore.record(itemID:season:episode:)` makes the per-card lookup O(1).
+
 ### One genre on a card; anime and animation lead (2026-10-04)
 
 A card's line carries one genre, the primary (D7). The primary genre puts anime first, then

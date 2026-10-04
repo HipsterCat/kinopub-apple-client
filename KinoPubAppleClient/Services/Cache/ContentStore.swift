@@ -5,6 +5,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubMedia
 import KinoPubUI
 import OSLog
 import KinoPubLogging
@@ -12,6 +13,12 @@ import KinoPubLogging
 /// Owns Home/Library rows so views stop re-fetching them on every tab switch. Views
 /// read `cards(_:)` synchronously (paints instantly, even offline); callers kick
 /// `refreshIfStale`/`refresh` in the background and read again once it resolves.
+///
+/// **What the viewer has done is read at paint time, not cached.** A title's poster card
+/// comes out of `cards(_:)` with watched, progress, follow and folders from `ViewerState`
+/// — this device's marks over the payload's word — so a row served from disk never shows
+/// yesterday's state. Episode cards (Continue Watching, history) are left to their own
+/// rows, which already offer and paint the episode (`ContinueWatchingLocalOverlay`).
 ///
 /// Local mutations (`setCards`, `removeCard`) stamp `fetchedAt = now` — a toggle the
 /// user just made is not "stale", it's the freshest thing the store knows, and must
@@ -25,16 +32,24 @@ final class ContentStore {
   private(set) var lastErrors: [RowKey: Error] = [:]
   private var inFlight: [RowKey: Task<Void, Never>] = [:]
   private let disk: RowSnapshotStore
+  /// Nil in tests and previews: the cards come out as cached.
+  private let viewer: ViewerStateReading?
 
-  init(disk: RowSnapshotStore = RowSnapshotStore()) {
+  init(disk: RowSnapshotStore = RowSnapshotStore(), viewer: ViewerStateReading? = nil) {
     self.disk = disk
+    self.viewer = viewer
     self.rows = disk.loadAll()
   }
 
   // MARK: - Reading (synchronous, from memory)
 
   func cards(_ key: RowKey) -> [MediaCard] {
-    rows[key]?.cards ?? []
+    let cached = rows[key]?.cards ?? []
+    guard let viewer else { return cached }
+    return cached.map { card in
+      guard !card.opensCollection, card.ref.kind == .title else { return card }
+      return card.withViewerState(viewer.state(for: card.ref, reported: card.reportedState))
+    }
   }
 
   func lastError(_ key: RowKey) -> Error? {

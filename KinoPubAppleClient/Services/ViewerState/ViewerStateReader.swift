@@ -43,10 +43,7 @@ final class ViewerStateReader: ViewerStateReading {
   /// episode is followed when its series is.
   func overlay(for ref: MediaRef) -> ViewerOverlay {
     let watch = ref.watchRef
-    let record = progress.records(forItem: ref.itemID).first {
-      WatchRecord.key(itemID: $0.itemID, season: $0.season, episode: $0.episode)
-        == WatchRecord.key(itemID: watch.itemID, season: watch.season, episode: watch.number)
-    }
+    let record = progress.record(itemID: watch.itemID, season: watch.season, episode: watch.number)
     return ViewerOverlay(
       progress: record?.watch,
       progressUpdatedAt: record?.updatedAt,

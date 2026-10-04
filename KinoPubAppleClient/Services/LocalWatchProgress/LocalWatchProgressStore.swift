@@ -178,6 +178,13 @@ final class LocalWatchProgressStore: @unchecked Sendable {
       .compactMap(entryLocked(for:))
   }
 
+  /// One resume point by its key — what `ViewerStateReader` asks for every card it paints,
+  /// so a lookup, not a scan. Finished ones included.
+  func record(itemID: Int, season: Int?, episode: Int?) -> WatchRecordValue? {
+    lock.lock(); defer { lock.unlock() }
+    return records[WatchRecord.key(itemID: itemID, season: season, episode: episode)]
+  }
+
   /// Every resume point written for one title — each episode the player touched, not just
   /// the newest. The detail page lays these over its payload.
   func records(forItem itemID: Int) -> [WatchRecordValue] {
