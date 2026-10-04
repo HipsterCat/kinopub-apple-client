@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
   name: "KinoPubMetadata",
-  platforms: [.macOS(.v26), .iOS(.v26), .tvOS(.v26)],
+  platforms: [.macOS(.v26), .iOS(.v26), .tvOS("26.5")],
   products: [
     .library(
       name: "KinoPubMetadata",

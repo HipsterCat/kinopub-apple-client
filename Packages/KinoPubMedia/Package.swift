@@ -8,7 +8,7 @@ import PackageDescription
 /// result. See the `metadata-service` skill, "The media model".
 let package = Package(
   name: "KinoPubMedia",
-  platforms: [.macOS(.v26), .iOS(.v26), .tvOS(.v26)],
+  platforms: [.macOS(.v26), .iOS(.v26), .tvOS("26.5")],
   products: [
     .library(
       name: "KinoPubMedia",

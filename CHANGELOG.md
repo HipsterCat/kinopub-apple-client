@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS deployment floor is 26.5 (2026-10-04)
+
+Owner decision: **26.5**, not 26.6. That is the minimum tvOS 26 simulator
+runtime; real devices can all update to 26.6, but the simulator cannot.
+The app and project already said 26.5; the test and UI-test targets still
+said 26.6. iOS and macOS stay at 26.6. Packages declare `.tvOS("26.5")`
+(SPM has no `.v26_5` case).
+
 ### Review fixes (2026-10-02)
 
 Deep-review follow-up, updated onto main after catalog PR #38 merged. Unique
@@ -23,10 +31,6 @@ loads coalesce on an actor. Initials discs redraw on light/dark. Nuke stays
 behind `Artwork` (`ArtworkImage` no longer imports NukeUI;
 `NukeExtensions` / `nuke_display` live on `TVUIKitRemoteImage`). Poster cells
 keep one collection-view context-menu path.
-
-Deployment floor in the docs is **tvOS 26.6**: Xcode's default when tvOS 26 is the
-minimum, and the latest 26.x every tvOS 26 device can install. The Xcode target is
-unchanged.
 
 ### tvOS detail page: episode rail like Home, artwork no longer stuck behind the cast host (2026-10-04)
 
