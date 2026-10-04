@@ -118,7 +118,8 @@ struct MainView: View {
       onRetry: {
         Task { await catalog.refresh() }
       },
-      prefersFirstPosterFocus: DebugLaunch.focusFirstPoster
+      prefersFirstPosterFocus: DebugLaunch.focusFirstPoster,
+      returnsToTopOnMenu: true
     )
     // The page spans the screen — under the tab bar too, the way a UIKit tab's content
     // does: the bar's region comes back to the collection as its top inset, rows scroll

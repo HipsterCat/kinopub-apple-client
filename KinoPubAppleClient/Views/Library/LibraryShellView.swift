@@ -287,7 +287,8 @@ struct LibraryShellView: View {
                                       pushRoute: { navigationState.push($0) },
                                       openURL: { openURL($0) })
       },
-      onRetry: { Task { await catalog.refresh() } }
+      onRetry: { Task { await catalog.refresh() } },
+      returnsToTopOnMenu: true
     )
     // Runs under the tab bar like every tab page, and out to the right screen edge so
     // its own 80 pt inset is the same right margin as on the tabs. The sidebar keeps

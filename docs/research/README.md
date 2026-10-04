@@ -20,7 +20,7 @@ non-commercial, open-source, experimental). Name the source commit in our commit
 | [detail-page.md](detail-page.md) | Movie/show page | Pre-warm the backdrop; tinted below-fold A/B; stale-load guard on toggles | S · P2 |
 | [related-chain-memory.md](related-chain-memory.md) | Detail → Related → Detail stack | Measure, then shed pages ≥2 below the top | S · P1 |
 | [top-shelf.md](top-shelf.md) | tvOS Top Shelf | The app pre-renders cells into the App Group | M · P2 |
-| [tvos-menu-back.md](tvos-menu-back.md) | Menu returns to the top row first | Probe system hooks first; needs Sasha | M · P2 |
+| [tvos-menu-back.md](tvos-menu-back.md) | Menu returns to the top row first | Implemented on `TVPage` tab roots via `.onExitCommand` / `pressesBegan`; Sasha approved on device | M · P2 |
 | [tvos-focus.md](tvos-focus.md) | Focus sections, swipe tails | Device check of the episode rail | S · P2 |
 | [trailers.md](trailers.md) | Ambient and playable trailers | Stop on app background | S · P2 |
 | [player.md](player.md) | AVKit player | Skip markers (see upcoming), Insights tab | M · P1 |

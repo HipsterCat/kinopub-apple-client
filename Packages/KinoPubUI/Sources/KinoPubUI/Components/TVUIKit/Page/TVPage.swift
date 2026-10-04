@@ -11,7 +11,7 @@
 import SwiftUI
 import UIKit
 
-public struct TVPage: UIViewControllerRepresentable {
+public struct TVPage: View {
   public let sections: [TVPageSection]
   public let status: TVPageStatus
   /// Leading/trailing content inset. Defaults to the HIG 80 pt example; the
@@ -28,6 +28,12 @@ public struct TVPage: UIViewControllerRepresentable {
   public let prefersFirstPosterFocus: Bool
   /// Surfaces as `kinopub.page.<name>` on the collection view for UI tests.
   public let accessibilityID: String?
+  /// Catalog tab roots: Menu below the top row returns there first. Off on
+  /// Search and pushed pages so Menu still pops.
+  public let returnsToTopOnMenu: Bool
+
+  @State private var belowTop = false
+  @StateObject private var bridge = TVPageMenuBackBridge()
 
   public init(sections: [TVPageSection],
               status: TVPageStatus = .content,
@@ -39,7 +45,8 @@ public struct TVPage: UIViewControllerRepresentable {
               onNearEnd: ((TVPageSection) -> Void)? = nil,
               contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               onRetry: (() -> Void)? = nil,
-              prefersFirstPosterFocus: Bool = false) {
+              prefersFirstPosterFocus: Bool = false,
+              returnsToTopOnMenu: Bool = false) {
     self.sections = sections
     self.status = status
     self.sideInset = sideInset
@@ -51,19 +58,71 @@ public struct TVPage: UIViewControllerRepresentable {
     self.contextMenuProvider = contextMenuProvider
     self.onRetry = onRetry
     self.prefersFirstPosterFocus = prefersFirstPosterFocus
+    self.returnsToTopOnMenu = returnsToTopOnMenu
   }
 
-  public func makeUIViewController(context: Context) -> TVPageCollectionViewController {
+  public var body: some View {
+    // `.onExitCommand(perform: nil)` is the pass-through: at the top row the
+    // system TabView moves focus to the tab bar. Non-nil only while this page
+    // owns focus below the top row, so a pushed detail still pops on Menu.
+    TVPageRepresentable(
+      sections: sections,
+      status: status,
+      sideInset: sideInset,
+      accessibilityID: accessibilityID,
+      onSelect: onSelect,
+      onChipOption: onChipOption,
+      onChipSelection: onChipSelection,
+      onNearEnd: onNearEnd,
+      contextMenuProvider: contextMenuProvider,
+      onRetry: onRetry,
+      prefersFirstPosterFocus: prefersFirstPosterFocus,
+      returnsToTopOnMenu: returnsToTopOnMenu,
+      belowTop: $belowTop,
+      bridge: bridge
+    )
+    .onExitCommand(perform: returnsToTopOnMenu && belowTop ? { [bridge] in
+      _ = bridge.controller?.returnToTopRow()
+    } : nil)
+  }
+}
+
+/// Holds the page controller so `.onExitCommand` can ask it to return to the
+/// top row without making `TVPage` a representable itself.
+@MainActor
+final class TVPageMenuBackBridge: ObservableObject {
+  weak var controller: TVPageCollectionViewController?
+}
+
+private struct TVPageRepresentable: UIViewControllerRepresentable {
+  let sections: [TVPageSection]
+  let status: TVPageStatus
+  let sideInset: CGFloat
+  let accessibilityID: String?
+  let onSelect: (TVPageSection, TVPageItem) -> Void
+  let onChipOption: (String, String) -> Void
+  let onChipSelection: (String, Set<String>) -> Void
+  let onNearEnd: ((TVPageSection) -> Void)?
+  let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  let onRetry: (() -> Void)?
+  let prefersFirstPosterFocus: Bool
+  let returnsToTopOnMenu: Bool
+  @Binding var belowTop: Bool
+  let bridge: TVPageMenuBackBridge
+
+  func makeUIViewController(context: Context) -> TVPageCollectionViewController {
     let controller = TVPageCollectionViewController(sideInset: sideInset,
                                                     prefersFirstPosterFocus: prefersFirstPosterFocus)
     bind(controller)
     controller.apply(sections: sections, status: status, animated: false)
+    bridge.controller = controller
     return controller
   }
 
-  public func updateUIViewController(_ controller: TVPageCollectionViewController, context: Context) {
+  func updateUIViewController(_ controller: TVPageCollectionViewController, context: Context) {
     bind(controller)
     controller.apply(sections: sections, status: status, animated: true)
+    bridge.controller = controller
   }
 
   private func bind(_ controller: TVPageCollectionViewController) {
@@ -74,6 +133,10 @@ public struct TVPage: UIViewControllerRepresentable {
     controller.onNearEnd = onNearEnd
     controller.contextMenuProvider = contextMenuProvider
     controller.onRetry = onRetry
+    controller.returnsToTopOnMenu = returnsToTopOnMenu
+    controller.onBelowTopRowChange = { below in
+      belowTop = below
+    }
   }
 }
 #endif

@@ -49,7 +49,8 @@ public struct TVPageTemplatesGallery: View {
             handler: {}
           ))
         ]
-      }
+      },
+      returnsToTopOnMenu: true
     )
     .ignoresSafeArea()
     .overlay(alignment: .bottomTrailing) {

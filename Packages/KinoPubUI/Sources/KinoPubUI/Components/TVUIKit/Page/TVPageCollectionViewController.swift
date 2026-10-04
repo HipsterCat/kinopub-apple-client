@@ -43,6 +43,13 @@ public final class TVPageCollectionViewController: UIViewController {
   public var onNearEnd: ((TVPageSection) -> Void)?
   public var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   public var onRetry: (() -> Void)?
+  /// Catalog tab roots (Watch Now / Movies / Series / Library): Menu below the
+  /// top row returns there; at the top it passes through. Off on Search and on
+  /// pushed pages so Menu still pops. See `StagedMenuBack`.
+  public var returnsToTopOnMenu = false
+  /// SwiftUI `.onExitCommand` is attached only while this is true, so at the top
+  /// row the modifier is `nil` and the tab bar keeps the system default.
+  public var onBelowTopRowChange: ((Bool) -> Void)?
   /// `kinopub.page.<name>` — how a UI test tells this page's cells from another tab's.
   public var accessibilityID: String? {
     didSet { if isViewLoaded { collectionView.accessibilityIdentifier = accessibilityID } }
@@ -655,6 +662,142 @@ public final class TVPageCollectionViewController: UIViewController {
     guard let item else { return nil }
     return IndexPath(item: item, section: index)
   }
+
+  // MARK: - Staged Menu back
+
+  /// The cell the engine last reported, including a nested banner title walked
+  /// up to its page cell. `nil` when focus has left the collection (tab bar,
+  /// a pushed page).
+  private var focusedPath: IndexPath?
+  /// One-shot: `indexPathForPreferredFocusedView` answers the top row, then
+  /// `didUpdateFocus` clears it. Same shape as `didRequestPosterFocus`.
+  private var wantsTopFocus = false
+  /// Pair a Menu `.began` we consumed with its `.ended` / `.cancelled` so the
+  /// tab bar does not see a half press. Scoped to this controller's responder
+  /// methods — not `UIWindow.sendEvent`.
+  private var consumedMenuPress = false
+  private var lastPublishedBelowTop = false
+
+  /// True when this collection currently owns focus and that focus is below
+  /// the first row. Used to arm `.onExitCommand` only then.
+  public var isBelowTopRow: Bool {
+    guard returnsToTopOnMenu, ownsFocus else { return false }
+    guard let top = topSectionIndex else { return false }
+    return StagedMenuBack.shouldReturnToTop(
+      focusedSection: focusedPath?.section,
+      focusedItem: focusedPath.flatMap { nestedItemIndex(at: $0) },
+      topSection: top,
+      firstRowItemCount: topSectionFirstRowItemCount
+    )
+  }
+
+  /// Scrolls and focuses the top row. Returns `true` when the press should be
+  /// consumed; `false` passes through to the tab bar.
+  @discardableResult
+  public func returnToTopRow() -> Bool {
+    guard isBelowTopRow, topIndexPath != nil else { return false }
+    wantsTopFocus = true
+    collectionView.remembersLastFocusedIndexPath = false
+    lastPublishedBelowTop = false
+    onBelowTopRowChange?(false)
+    setNeedsFocusUpdate()
+    collectionView.setNeedsFocusUpdate()
+    collectionView.updateFocusIfNeeded()
+    return true
+  }
+
+  public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if presses.contains(where: { $0.type == .menu }), returnToTopRow() {
+      consumedMenuPress = true
+      return
+    }
+    super.pressesBegan(presses, with: event)
+  }
+
+  public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesEnded(presses, with: event)
+  }
+
+  public override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesCancelled(presses, with: event)
+  }
+
+  private var ownsFocus: Bool {
+    guard let item = UIFocusSystem.focusSystem(for: collectionView)?.focusedItem else { return false }
+    guard let view = item as? UIView else { return false }
+    return view === collectionView || view.isDescendant(of: collectionView)
+  }
+
+  private var topSectionIndex: Int? {
+    sections.firstIndex { section in
+      section.items.contains { item in
+        if case .placeholder = item { return false }
+        return true
+      }
+    }
+  }
+
+  private var topIndexPath: IndexPath? {
+    guard let section = topSectionIndex else { return nil }
+    let item = sections[section].items.firstIndex { item in
+      if case .placeholder = item { return false }
+      return true
+    }
+    guard let item else { return nil }
+    return IndexPath(item: item, section: section)
+  }
+
+  private var topSectionFirstRowItemCount: Int {
+    guard let section = topSectionIndex else { return 1 }
+    let page = sections[section]
+    let loaded = page.items.filter { item in
+      if case .placeholder = item { return false }
+      return true
+    }.count
+    return StagedMenuBack.firstRowItemCount(
+      flowIsGrid: page.flow == .grid,
+      columns: page.columns,
+      itemCount: loaded
+    )
+  }
+
+  /// A banner is one page item; its titles are a nested collection. Reporting
+  /// item `0` would look like the first row, which is correct. A wrapping grid
+  /// uses the real item index.
+  private func nestedItemIndex(at path: IndexPath) -> Int? {
+    guard sections.indices.contains(path.section) else { return path.item }
+    if sections[path.section].kind == .banner { return nil }
+    return path.item
+  }
+
+  private func resolveFocusedPath(from context: UICollectionViewFocusUpdateContext) -> IndexPath? {
+    if let path = context.nextFocusedIndexPath { return path }
+    var node: UIView? = context.nextFocusedView
+    while let view = node {
+      if view === collectionView { return nil }
+      if let cell = view as? UICollectionViewCell,
+         let path = collectionView.indexPath(for: cell) {
+        return path
+      }
+      node = view.superview
+    }
+    return nil
+  }
+
+  private func publishBelowTopIfNeeded() {
+    let next = isBelowTopRow
+    guard next != lastPublishedBelowTop else { return }
+    lastPublishedBelowTop = next
+    onBelowTopRowChange?(next)
+  }
 }
 
 // MARK: - Delegate
@@ -711,6 +854,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   }
 
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+    if wantsTopFocus { return topIndexPath }
     if prefersFirstPosterFocus { return firstPosterIndexPath }
     // A banner on top takes the first focus; its row hands it to its middle title
     // (`TVPageBannerCarouselCell.preferredFocusEnvironments`).
@@ -722,8 +866,15 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
                              didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
                              with coordinator: UIFocusAnimationCoordinator) {
     let previousSection = context.previouslyFocusedIndexPath?.section
-    let nextSection = context.nextFocusedIndexPath?.section
+    let resolved = resolveFocusedPath(from: context)
+    focusedPath = resolved
+    let nextSection = resolved?.section ?? context.nextFocusedIndexPath?.section
     focusedSectionIndex = nextSection
+    if wantsTopFocus, context.nextFocusedView != nil {
+      wantsTopFocus = false
+      collectionView.remembersLastFocusedIndexPath = remembersFocus
+    }
+    publishBelowTopIfNeeded()
     if prefersFirstPosterFocus, !didPlacePosterFocus,
        let nextSection,
        sections.indices.contains(nextSection),

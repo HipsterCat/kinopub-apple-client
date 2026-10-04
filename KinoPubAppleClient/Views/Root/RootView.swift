@@ -53,6 +53,8 @@ struct RootView: View {
 #if os(tvOS) && DEBUG
     if DetailFixture.isActive {
       DetailFixtureRoot()
+    } else if DebugLaunch.menuBackProbe {
+      TVPageMenuBackProbeRoot()
     } else if DebugLaunch.templatesGallery {
       TVPageTemplatesGallery()
     } else {
