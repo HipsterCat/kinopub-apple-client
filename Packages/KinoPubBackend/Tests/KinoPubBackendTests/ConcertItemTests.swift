@@ -12,6 +12,7 @@
 
 import XCTest
 @testable import KinoPubBackend
+import KinoPubMedia
 
 final class ConcertItemTests: XCTestCase {
 
@@ -74,12 +75,25 @@ final class ConcertItemTests: XCTestCase {
     XCTAssertEqual(tracks.count, 1)
   }
 
-  /// **Known gap, deliberately asserted so it is not forgotten:** `tracklist` is in the
-  /// payload (6 entries here) and `MediaItem` does not decode it at all, so the concert
-  /// setlist is dropped on the floor. See `docs/providers/kinopub/video.md`.
-  func testTracklistIsNotDecodedYet() throws {
-    let mirror = Mirror(reflecting: try item())
-    XCTAssertFalse(mirror.children.contains { $0.label == "tracklist" },
-                   "tracklist is now decoded — model the setlist and delete this test")
+  /// The setlist, in order: six songs, the unknown one kept in its place with no name
+  /// («N/A» on the wire), the empty `artists` and `url` read as nothing.
+  func testTheTracklistIsTheSetlist() throws {
+    let item = try item()
+    XCTAssertEqual(item.tracklist?.count, 6)
+    XCTAssertEqual(item.tracklist?.first?.title, "Ruhe")
+
+    let setlist = item.mediaFragment.entity.setlist
+    XCTAssertEqual(setlist.count, 6)
+    XCTAssertEqual(setlist.first?.title, "Ruhe")
+    XCTAssertNil(setlist.first?.artists)
+    XCTAssertNil(setlist.first?.audio)
+    XCTAssertNil(setlist[3].title, "«N/A» is a song nobody named, not a song called N/A")
+  }
+
+  /// The API documentation spells it `artist`; the live payload `artists`. Both read.
+  func testATracklistEntryReadsEitherSpelling() throws {
+    let documented = try JSONDecoder().decode(TracklistEntry.self, from: Data(
+      #"{"artist": "Schiller", "title": "Ruhe", "url": ""}"#.utf8))
+    XCTAssertEqual(documented.artists, "Schiller")
   }
 }

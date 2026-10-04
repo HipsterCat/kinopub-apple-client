@@ -1,8 +1,7 @@
 # Playback info — what the system player is told about what is playing
 
 Implemented by `PlayerInfo` (KinoPubMedia), projected from a `MediaContext`. Where the facts come
-from and which source wins is the media model's business (`metadata-service` skill, "The media
-model"); this file is only what reaches the screen.
+from and which source wins is the media model's business ([docs/media-model.md](../media-model.md)); this file is only what reaches the screen.
 
 ## The fields
 
@@ -46,8 +45,11 @@ it says who carries the copy, not what the work is, so it never becomes the one 
 poster, then the show's, only stand in when it has none. (Until 2026-09-28 the series poster always
 won — reversed on the user's call.)
 
-**prd — An episode is known by its show.** Title: the show's name. Subtitle: *Сезон 2, Серия 5:
-Name* (localized), the name dropped when it only repeats the title line.
+**prd — An episode is known by its show.** Title: the show's name. Subtitle: the episode at
+medium length ([media-text.md](media-text.md)) — *S2, E5: Name* / *2 сезон, 5 серия: Name*,
+*Season 2, Episode 5* without a name, and *Episode 1: Name* / *1 серия: Name* when the show has
+only its first season. The name is dropped when it only repeats the title line. (User's spec,
+2026-10-03; was «Сезон 2, Серия 5: Name».)
 
 **prd — An episode borrows its show's genres and age rating**, and its description when it has
 none of its own: a line about the show beats an empty panel. Its **own** description, date and
@@ -78,7 +80,7 @@ panel.
 | --- | --- | --- | --- | --- | --- |
 | Film | film | — | film | film's primary | poster → backdrop |
 | Film edition | film | edition name | film | film's primary | poster → backdrop |
-| Episode | show | Season N, Episode M: name | episode → season → show | show's primary | still → season poster → show poster |
+| Episode | show | SN, EM: name (media-text.md) | episode → season → show | show's primary | still → season poster → show poster |
 | Trailer | film/show | — | film/show | film/show's primary | trailer frame → film poster |
 | Concert | concert | — | concert | first music genre | poster |
 | Documentary | film/show | as above | as above | Documentary | as above |

@@ -165,12 +165,14 @@ final class PlayerTrackSelectionTests: XCTestCase {
     episode.seasonNumber = 1
     let draft = PlaybackMediaContext.draft(playing: episode, title: series, isTrailer: false)
     let context = try XCTUnwrap(MediaAggregator.merge(draft))
-    let items = PlayerInfo(context: context).metadataItems()
+    let items = PlayerInfo(context: context, language: .en).metadataItems()
     func value(_ identifier: AVMetadataIdentifier) -> String? {
       items.first { $0.identifier == identifier }?.stringValue
     }
     XCTAssertEqual(value(.commonIdentifierTitle), series.localizedTitle)
-    XCTAssertEqual(value(.iTunesMetadataTrackSubTitle), "Season 1, Episode 2: Pilot")
+    // The player's length (`MediaSurface.playerSubtitle`): a name makes room by shortening
+    // the reference (docs/product/media-text.md).
+    XCTAssertEqual(value(.iTunesMetadataTrackSubTitle), "S1, E2: Pilot")
     XCTAssertEqual(value(.commonIdentifierDescription), series.plot)
     XCTAssertEqual(value(.quickTimeMetadataGenre), "Comedy")
     XCTAssertNil(value(.commonIdentifierType), "genres went here once, and never showed")

@@ -100,15 +100,17 @@ enum MediaCardContextMenus {
 
     // MARK: Library
     let showBookmarks = onToggleBookmarkFolder != nil || onCreateBookmarkFolder != nil
-    let hasLibrary = onToggleWatchlist != nil || showBookmarks
+    // Follow is a series' alone; a film is kept with bookmarks (user's call, 2026-10-03).
+    let onToggleFollow = card.isSeries ? onToggleWatchlist : nil
+    let hasLibrary = onToggleFollow != nil || showBookmarks
     if hasLibrary {
       appendDivider()
-      if let onToggleWatchlist {
+      if let onToggleFollow {
         entries.append(.action(MediaCardContextAction(
           id: "toggle-watchlist",
-          title: (card.isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist").localized,
-          systemImage: card.isInWatchlist ? "minus.circle" : "bell",
-          handler: onToggleWatchlist
+          title: MediaActionCopy.followMenuTitle(isFollowing: card.isInWatchlist),
+          systemImage: card.isInWatchlist ? "bell.slash" : "bell",
+          handler: onToggleFollow
         )))
       }
       if showBookmarks {

@@ -8,6 +8,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubMedia
 
 public extension MediaCard {
 
@@ -15,8 +16,8 @@ public extension MediaCard {
   ///
   /// The caller owns the strings the payload cannot compose on its own: `title`
   /// (kino.pub's name, or a schedule's when the episode has none), `episodeLabel`
-  /// ("Episode 9") and `dateLabel` (already formatted — the UI package does not know
-  /// this app's date rules). `stillURL` overrides the episode thumbnail when an
+  /// (default: an unnamed `EpisodeText.listItem` — «Episode 9», «Серия 9») and
+  /// `dateLabel` (already formatted — the UI package does not know this app's date rules). `stillURL` overrides the episode thumbnail when an
   /// external schedule carries a better one.
   ///
   /// A name that is only the episode's own number — "Эпизод 1" against
@@ -36,7 +37,9 @@ public extension MediaCard {
     let progress = isWatched ? nil : episode.watchProgress.resumeFraction
     let caption = Self.episodeCaption(name: title ?? episode.title,
                                       number: episode.number,
-                                      episodeLabel: episodeLabel,
+                                      episodeLabel: episodeLabel
+                                        ?? EpisodeText(season: nil, number: episode.number)
+                                          .listItem(),
                                       dateLabel: dateLabel,
                                       fallbackTitle: episode.fixedTitle)
 
@@ -92,7 +95,7 @@ public extension MediaCard {
                                      dateLabel: String?,
                                      fallbackTitle: String) -> (title: String, meta: String?) {
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    let hasName = !trimmed.isEmpty && !isOwnNumber(trimmed, number: number)
+    let hasName = EpisodeTitle.meaningful(trimmed) != nil
     guard hasName else {
       return (episodeLabel ?? fallbackTitle, dateLabel)
     }
@@ -100,19 +103,5 @@ public extension MediaCard {
       .compactMap { $0?.isEmpty == false ? $0 : nil }
       .joined(separator: " · ")
     return (trimmed, meta.isEmpty ? nil : meta)
-  }
-
-  /// True for "Эпизод 1" / "Серия 1" / "Episode 1" / "Ep. 1" on episode 1 — a name that
-  /// only restates the number the caption already carries, in any of our languages.
-  private static func isOwnNumber(_ name: String, number: Int) -> Bool {
-    let words: Set<String> = ["эпизод", "серия", "серія", "episode", "ep", "e", "serija", "sezonas"]
-    let parts = name
-      .lowercased()
-      .components(separatedBy: CharacterSet.alphanumerics.inverted)
-      .filter { !$0.isEmpty }
-    guard parts.count == 2 else { return false }
-    let hasWord = parts.contains { words.contains($0) }
-    let hasNumber = parts.contains { Int($0) == number }
-    return hasWord && hasNumber
   }
 }

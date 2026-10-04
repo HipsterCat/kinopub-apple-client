@@ -10,7 +10,12 @@ import Foundation
 /// artwork, season/episode numbering), plus what we hold beyond it (scores from every
 /// source, countries). A field Apple has no slot for is still kept: it simply never
 /// reaches an Apple surface.
-public struct MediaEntity: Hashable, Sendable {
+///
+/// **Two readings of one entity.** The stored fields are the *default* answer — each from
+/// the source `MediaPrecedence` ranks first. `claims` is everything every source said,
+/// kept whole: ask it (`claims(for:_:)`, `value(from:_:)`) when a surface wants a
+/// particular source's fact, or every source's, rather than the default.
+public struct MediaEntity: Hashable, Sendable, Codable {
   public var kind: MediaKind
   public var extraKind: ExtraKind?
   public var ids: [ExternalID]
@@ -24,6 +29,9 @@ public struct MediaEntity: Hashable, Sendable {
   public var seasonNumber: Int?
   /// `.episode` only.
   public var episodeNumber: Int?
+  /// `.show`: how many seasons it has that the source knows of. One, and it is season 1 →
+  /// an episode's season goes without saying (`EpisodeText`).
+  public var seasonCount: Int?
   public var synopsis: Synopsis
   /// Ordered by significance. **The first is the primary genre** — the one field Apple
   /// shows where there is room for one word ("Comedy" on a card for a show filed under
@@ -42,12 +50,20 @@ public struct MediaEntity: Hashable, Sendable {
   public var scores: [Score]
   public var artwork: ArtworkSet
   public var countries: [String]
+  /// A concert's setlist, in order. Empty for everything else.
+  public var setlist: [SetlistEntry]
+  /// What the copy that plays offers — 4K, HD, 3D… A fact about one platform's copy,
+  /// not about the work, so only the source that serves the stream says it.
+  public var formats: Set<MediaFormat>
   /// What a platform says about its copy or its catalogue rather than about the work —
   /// kino.pub's "Эксклюзив". Not genres, never the one word shown; kept for badges,
   /// filters and sections. Every source's are kept.
   public var labels: [MediaLabel]
   /// Which source each field came from. Filled by `MediaAggregator`; empty on a fragment.
   public var provenance: [MediaField: MediaSource]
+  /// Every fragment this entity was merged from, as each source stated it. Filled by
+  /// `MediaAggregator`; empty on a fragment.
+  public var claims: [MediaFragment]
 
   public init(kind: MediaKind,
               extraKind: ExtraKind? = nil,
@@ -57,6 +73,7 @@ public struct MediaEntity: Hashable, Sendable {
               edition: String? = nil,
               seasonNumber: Int? = nil,
               episodeNumber: Int? = nil,
+              seasonCount: Int? = nil,
               synopsis: Synopsis = Synopsis(),
               genres: [Genre] = [],
               release: ReleaseDate? = nil,
@@ -66,8 +83,11 @@ public struct MediaEntity: Hashable, Sendable {
               scores: [Score] = [],
               artwork: ArtworkSet = ArtworkSet(),
               countries: [String] = [],
+              setlist: [SetlistEntry] = [],
+              formats: Set<MediaFormat> = [],
               labels: [MediaLabel] = [],
-              provenance: [MediaField: MediaSource] = [:]) {
+              provenance: [MediaField: MediaSource] = [:],
+              claims: [MediaFragment] = []) {
     self.kind = kind
     self.extraKind = extraKind
     self.ids = ids
@@ -76,6 +96,7 @@ public struct MediaEntity: Hashable, Sendable {
     self.edition = edition.nonBlank
     self.seasonNumber = seasonNumber
     self.episodeNumber = episodeNumber
+    self.seasonCount = seasonCount.flatMap { $0 > 0 ? $0 : nil }
     self.synopsis = synopsis
     self.genres = genres
     self.release = release
@@ -85,8 +106,11 @@ public struct MediaEntity: Hashable, Sendable {
     self.scores = scores
     self.artwork = artwork
     self.countries = countries
+    self.setlist = setlist
+    self.formats = formats
     self.labels = labels
     self.provenance = provenance
+    self.claims = claims
   }
 
   public var primaryGenre: Genre? { genres.first }
@@ -94,14 +118,99 @@ public struct MediaEntity: Hashable, Sendable {
   public func id(_ namespace: ExternalID.Namespace) -> String? {
     ids.first { $0.namespace == namespace }?.value
   }
+
+  // MARK: - Every source's facts
+
+  /// What every source said about one field, best-ranked first — the default answer is
+  /// the first. `read` takes the fact off one source's statement; nil means that source
+  /// said nothing about it.
+  ///
+  ///     show.claims(for: .tagline) { $0.synopsis.tagline }
+  ///     // [Claim(.kinopoisk, "ru", "Страх — это кандалы…"), Claim(.tmdb, "en", "Fear can hold you prisoner…")]
+  public func claims<Value>(for field: MediaField,
+                            precedence: MediaPrecedence = .standard,
+                            _ read: (MediaEntity) -> Value?) -> [Claim<Value>] {
+    claims.enumerated()
+      .sorted { lhs, rhs in
+        let left = precedence.rank(lhs.element.source, for: field)
+        let right = precedence.rank(rhs.element.source, for: field)
+        return left != right ? left < right : lhs.offset < rhs.offset
+      }
+      .compactMap { pair -> Claim<Value>? in
+        let fragment = pair.element
+        guard let value = read(fragment.entity) else { return nil }
+        return Claim(source: fragment.source, language: fragment.language, value: value)
+      }
+  }
+
+  /// One source's own answer, whatever won the default — Kinopoisk's short description,
+  /// TMDB's English plot.
+  public func value<Value>(from source: MediaSource, _ read: (MediaEntity) -> Value?) -> Value? {
+    for fragment in claims where fragment.source == source {
+      if let value = read(fragment.entity) { return value }
+    }
+    return nil
+  }
+
+  /// The sources that said anything at all about this entity.
+  public var sources: [MediaSource] {
+    var seen: [MediaSource] = []
+    for fragment in claims where !seen.contains(fragment.source) { seen.append(fragment.source) }
+    return seen
+  }
 }
+
+/// A format the copy offers, in Apple's vocabulary for its badges.
+public enum MediaFormat: String, Hashable, Codable, Sendable, CaseIterable {
+  case hd
+  /// 4K.
+  case uhd
+  case hdr
+  case dolbyVision
+  case threeD
+  case surround
+  case closedCaptions
+}
+
+/// One song of a concert's setlist. A song nobody could name keeps its place in the order
+/// with no title — kino.pub writes those as «N/A».
+public struct SetlistEntry: Hashable, Codable, Sendable {
+  public var title: String?
+  public var artists: String?
+  /// The song's own audio, when the source gives one.
+  public var audio: URL?
+
+  public init(title: String?, artists: String? = nil, audio: URL? = nil) {
+    let title = title.nonBlank
+    self.title = title == "N/A" ? nil : title
+    self.artists = artists.nonBlank
+    self.audio = audio
+  }
+}
+
+/// One source's statement of one fact.
+public struct Claim<Value> {
+  public let source: MediaSource
+  public let language: String?
+  public let value: Value
+
+  public init(source: MediaSource, language: String? = nil, value: Value) {
+    self.source = source
+    self.language = language
+    self.value = value
+  }
+}
+
+extension Claim: Equatable where Value: Equatable {}
+extension Claim: Hashable where Value: Hashable {}
+extension Claim: Sendable where Value: Sendable {}
 
 // MARK: - Values
 
 /// A platform's statement about a title that is not a genre: "Эксклюзив" on kino.pub.
 /// `sourceKey` is how that platform itself asks for it (kino.pub's `genre=128`), so a
 /// section or a filter built on the label can query the source it came from.
-public struct MediaLabel: Hashable, Sendable {
+public struct MediaLabel: Hashable, Sendable, Codable {
   public let id: String
   public let name: LocalizedName
   public let source: MediaSource
@@ -130,7 +239,7 @@ public struct ExternalID: Hashable, Sendable, Codable {
 }
 
 /// Apple's catalogue carries a short and a long description; the record adds a tagline.
-public struct Synopsis: Hashable, Sendable {
+public struct Synopsis: Hashable, Sendable, Codable {
   public var short: String?
   public var full: String?
   public var tagline: String?
@@ -149,7 +258,7 @@ public struct Synopsis: Hashable, Sendable {
 
 /// A date with the precision the source actually had. kino.pub knows a year; TMDB knows
 /// a day. Inventing a first of January would be a fact nobody gave us.
-public enum ReleaseDate: Hashable, Sendable {
+public enum ReleaseDate: Hashable, Sendable, Codable {
   case year(Int)
   case day(year: Int, month: Int, day: Int)
 
@@ -200,7 +309,7 @@ public enum ScoreProvider: String, Hashable, Sendable, Codable, CaseIterable {
   case imdb, kinopoisk, tmdb, kinopub, rottenTomatoes, metacritic, trakt
 }
 
-public struct Score: Hashable, Sendable {
+public struct Score: Hashable, Sendable, Codable {
   public let provider: ScoreProvider
   public let value: Double
   public let scale: Double
@@ -219,7 +328,7 @@ public struct Score: Hashable, Sendable {
 
 /// The age rating, as the source prints it. `region` is the rating system's country
 /// when the source says which one it used ("RU" → 16+, "US" → PG-13).
-public struct ContentRating: Hashable, Sendable {
+public struct ContentRating: Hashable, Sendable, Codable {
   public let value: String
   public let region: String?
 
@@ -230,7 +339,7 @@ public struct ContentRating: Hashable, Sendable {
   }
 }
 
-public struct ArtworkSet: Hashable, Sendable {
+public struct ArtworkSet: Hashable, Sendable, Codable {
   /// Portrait, with lettering.
   public var poster: URL?
   /// A frame of this very thing — an episode's still, a trailer's thumbnail.
@@ -238,12 +347,16 @@ public struct ArtworkSet: Hashable, Sendable {
   /// Landscape, without lettering.
   public var backdrop: URL?
   public var logo: URL?
+  /// The poster at a grid's size — what a card paints before, or instead of, `poster`.
+  public var posterPreview: URL?
 
-  public init(poster: URL? = nil, still: URL? = nil, backdrop: URL? = nil, logo: URL? = nil) {
+  public init(poster: URL? = nil, still: URL? = nil, backdrop: URL? = nil, logo: URL? = nil,
+              posterPreview: URL? = nil) {
     self.poster = poster
     self.still = still
     self.backdrop = backdrop
     self.logo = logo
+    self.posterPreview = posterPreview
   }
 
   /// Sources hand us strings, and blank ones: kino.pub ships `""` for a missing poster.

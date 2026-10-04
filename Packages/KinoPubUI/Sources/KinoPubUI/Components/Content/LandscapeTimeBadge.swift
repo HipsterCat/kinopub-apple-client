@@ -8,19 +8,24 @@
 
 import SwiftUI
 import KinoPubBackend
+import KinoPubMedia
 
 /// Watch-state chip for landscape cards (Continue Watching, History, etc.).
 public struct LandscapeTimeBadge: View {
   public enum Kind: Equatable {
     case unwatched(total: String)
+    /// The whole phrase — «53m left», «Ещё 53м».
     case inProgress(remaining: String)
     case watched(total: String)
   }
 
   public let kind: Kind
+  /// What VoiceOver reads: always the long, spelled-out time.
+  private let spoken: String?
 
   public init(kind: Kind) {
     self.kind = kind
+    self.spoken = nil
   }
 
   /// Builds a badge from a card that already classified through `WatchProgress`.
@@ -29,22 +34,23 @@ public struct LandscapeTimeBadge: View {
   /// `time / duration` and expect this init to recover the credits window — 0.95
   /// of a two-hour title is six minutes left; `WatchProgress` finishes at three.
   public init?(durationSeconds: Int?, progress: Double?, isWatched: Bool) {
-    guard let durationSeconds, durationSeconds >= 60,
-          let total = Self.compactLabel(seconds: durationSeconds) else {
-      return nil
-    }
+    guard let durationSeconds, durationSeconds >= 60 else { return nil }
+    let runtime = RuntimeText(seconds: durationSeconds)
+    guard let total = runtime.text(for: .timeBadge) else { return nil }
+    let spokenTotal = runtime.accessibilityLabel() ?? total
     if isWatched {
       self.kind = .watched(total: total)
+      self.spoken = "\(String(localized: "Watched")), \(spokenTotal)"
       return
     }
     if let fraction = progress {
-      let remaining = Int(Double(durationSeconds) * (1 - min(max(fraction, 0), 1)))
-      if let label = Self.compactLabel(seconds: max(remaining, 60)) {
-        self.kind = .inProgress(remaining: label)
-        return
-      }
+      let left = RemainingText(progress: fraction, durationSeconds: durationSeconds)
+      self.kind = .inProgress(remaining: left.formatted(MediaSurface.timeBadge.runtimeLength))
+      self.spoken = left.accessibilityLabel()
+      return
     }
     self.kind = .unwatched(total: total)
+    self.spoken = spokenTotal
   }
 
   public var body: some View {
@@ -87,32 +93,20 @@ public struct LandscapeTimeBadge: View {
 
   private var label: String {
     switch kind {
-    case .unwatched(let total), .watched(let total):
-      return total
-    case .inProgress(let remaining):
-      return String(format: String(localized: "%@ left"), remaining)
+    case .unwatched(let text), .watched(let text), .inProgress(let text):
+      return text
     }
   }
 
   private var accessibilityLabel: String {
-    switch kind {
-    case .unwatched(let total):
-      return total
-    case .watched(let total):
-      return "\(String(localized: "Watched")), \(total)"
-    case .inProgress(let remaining):
-      return String(format: String(localized: "%@ left"), remaining)
-    }
+    if let spoken { return spoken }
+    if case .watched(let total) = kind { return "\(String(localized: "Watched")), \(total)" }
+    return label
   }
 
   private var pillFill: Color {
     isWatchedStyle
       ? Color.KinoPub.subtitle.opacity(0.8)
       : Color.black.opacity(0.55)
-  }
-
-  private static func compactLabel(seconds: Int) -> String? {
-    let label = Duration.compact(seconds: seconds)
-    return label.isEmpty ? nil : label
   }
 }

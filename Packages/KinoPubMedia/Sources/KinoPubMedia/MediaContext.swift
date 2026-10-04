@@ -7,7 +7,7 @@ import Foundation
 /// its season and show, which it must never borrow, and which picture stands for it. A
 /// surface asks the context; it does not walk the chain itself, so the info panel, a card
 /// and Top Shelf cannot come to three different answers.
-public struct MediaContext: Hashable, Sendable {
+public struct MediaContext: Hashable, Sendable, Codable {
   public var item: MediaEntity
   public var season: MediaEntity?
   /// The show an episode or season belongs to; the film or show an extra belongs to.

@@ -13,24 +13,52 @@ The app and project already said 26.5; the test and UI-test targets still
 said 26.6. iOS and macOS stay at 26.6. Packages declare `.tvOS("26.5")`
 (SPM has no `.v26_5` case).
 
-### Review fixes (2026-10-02)
+### kino.pub's age rating says nothing (2026-10-04)
 
-Deep-review follow-up, updated onto main after catalog PR #38 merged. Unique
-catalog follow-up from draft PR #40 is folded in here so that stack is not
-left targeting a dead base.
+v1 item details and listings have no age field on any type; api2's `age_rating` is `null` or
+`-1` even on a title Kinopoisk knows (Sasha's capture). Recorded as no signal in `MediaItem`,
+`MediaPrecedence` and `video.md`; the age rating stays Kinopoisk's / TMDB's. The TODO is closed.
 
-Library catalog first-page loads cancel the previous Task and ignore stale
-completions. Hero actions never use `.disabled` (loading is a handler guard).
-Search tab Down/Up no longer races the focus animator with an async press
-rescue. Catalog pages take live safe-area insets instead of stacking 80 pt on
-a 1920 canvas. Masthead cells self-size for Dynamic Type, invalidate only
-their own item, cap biography at eight lines, and use a tvOS-available
-focused fill instead of a 1.03 scale. Poster context-menu logging is compiled
-out of Release. Banner detail Tasks are cancelled on refresh. KinoPubConfig
-loads coalesce on an actor. Initials discs redraw on light/dark. Nuke stays
-behind `Artwork` (`ArtworkImage` no longer imports NukeUI;
-`NukeExtensions` / `nuke_display` live on `TVUIKitRemoteImage`). Poster cells
-keep one collection-view context-menu path.
+### Rows keep refs; titles live in one record store (2026-10-04)
+
+`MediaRecordStore` keeps each title once, as the merged model under its `MediaRef`
+(`records-v1.json` beside the rows). Home's catalogue shelves and bookmark folders now store
+only refs and word their cards when read, so a title on two shelves paints the newest payload
+on both. Other rows still store cards; the old row file is read once as cards. Step 4,
+slice 1 of docs/media-model.md. Slice 2: opening a title's page refreshes its record, so the
+shelf it came from paints the details payload's facts afterwards.
+
+### Cached rows paint today's viewer state (2026-10-04)
+
+`ContentStore.cards(_:)` lays `ViewerState` (`AppContext.viewerState`, the stores' marks over the
+payload's word) over every title card as it is read: a film finished on this device since the row
+was fetched reads watched, a series followed or a title bookmarked since reads so, without waiting
+for the row's TTL. Episode cards (Continue Watching, history) keep their own painting.
+`LocalWatchProgressStore.record(itemID:season:episode:)` makes the per-card lookup O(1).
+
+### One genre on a card; anime and animation lead (2026-10-04)
+
+A card's line carries one genre, the primary (D7). The primary genre puts anime first, then
+animation (with both, anime) — `GenreVocabulary.primaryFirst`, applied by the merge; catalogue
+cards now go through the merge too.
+
+### Every catalogue card is built from the media model (2026-10-04)
+
+`MediaCard(_ item:)` maps the kino.pub payload into the model and words the card with
+`MediaCard(ref:entity:state:)`. What changes on screen: genre names come from our vocabulary
+(English in English, «Эксклюзив» no longer a genre, Documentary leads a documentary); a film's
+runtime on a multi-version film is the film's, not every version summed; a film never reads as
+followed; a medium poster missing falls back to the big one. The model gained `formats`
+(4K / HD / 3D) and `ArtworkSet.posterPreview`; the vocabulary `SeasonCountText` (plural-correct
+in Russian without a strings table) and `TitleMetaLine`.
+
+### Continue means the episode touched last (2026-10-04)
+
+`EpisodeQueue.continueTarget` — the hero's Play, Continue Watching, the card menu — is the
+episode the viewer touched last, as the Apple TV app does (D17): in progress → that one,
+finished → the next. By play time when known (this device's records), else by reading order.
+A skipped earlier episode stays skipped; after the finale with gaps, the first one missed. The
+list-less Continue Watching guess already followed this rule.
 
 ### tvOS detail page: episode rail like Home, artwork no longer stuck behind the cast host (2026-10-04)
 
@@ -53,6 +81,72 @@ keep one collection-view context-menu path.
   (probe app, tvOS 27.2 simulator). The release-date subtitle is parked: the target
   is the Apple TV app's episode tile (number, date, title, description; a footer
   with its own focus background), still to be researched.
+
+### One queue for "which episode" (2026-10-03)
+
+`EpisodeQueue` (KinoPubBackend) is a series' episodes in reading order with each one's
+`ViewerState`, and every "which episode" question is a named query on it: `next(after:)` (the
+end-of-episode proposal), `nextUnwatched(after:)` (Up Next — now by this device's own marks and
+resume points too), `continueTarget` (the hero's Play, Continue Watching with details, the card
+menu). `primaryEpisode` reads it — and now in sorted order, not the payload's;
+`NextPlayableEpisode` is deprecated. The one disagreement left — a card without an episode list
+guesses "after the furthest watched", the hero says "the first unwatched" — is decision D17.
+
+### Concert setlists; the worker's own doc (2026-10-03)
+
+`MediaItem.tracklist` (`TracklistEntry`, reads both `artists` and the documented `artist`) maps
+to `MediaEntity.setlist`; «N/A» stays an unnamed place in the order. kino.pub's age rating is in
+the API (the official Apple TV app shows it) but no captured payload has the field yet — a TODO
+in `MediaItem`, `MediaPrecedence` and `docs/providers/kinopub/video.md`. The worker's README
+now records how the app calls it today (it never reads `/v1/title` or `/img/`; the Home banner
+runs the whole metadata pipeline per card for a logo), the two layers it should serve, and the
+v3 document.
+
+### Episode wording by place, season count on cards, deprecations (2026-10-03)
+
+The detail page lists an episode as «7. Name» / «Серия 7»; Up Next says «S1, E2: Name»;
+Continue Watching cards and hero capsules carry the season count (`MediaCard.seasonCount`,
+`MediaActionContext.seasonCount`), so a one-season show says «E2» / «2 серия». The watched
+ring counts whole episodes only. Replaced helpers are `@available(*, deprecated)` with the
+replacement named — `Duration` formatting, `ContinueWatchingEpisode.overlayLabel`, the
+pre-worded and viewer-state fields of `MediaCard`, `MediaItem`'s display lines,
+`TitleMetadata.mediaFragment(kind:)`. Unused `MediaAction_*` strings removed. Provider policy
+corrected: the worker proxies and aggregates when it helps; a viewer's own connection stays
+in the app (`docs/media-model.md`).
+
+### One wording per fact and surface (2026-10-03)
+
+`KinoPubMedia/Presentation`: `EpisodeText`, `SeasonText`, `RuntimeText`, `RemainingText` at
+three lengths, and `MediaSurface` — the table of which surface uses which. The user's wording
+([docs/product/media-text.md](docs/product/media-text.md)): «S1, E1: Name» in the player,
+«Episode 1» when the show has only its first season, «1ч 53м» / «1ч 53 мин» / the system's
+«1 час 53 минуты», VoiceOver always long. Replaced: four episode formats in about a dozen
+places, the English-only `Duration.compact` (Russian screens said «2h 35m»), a second
+«Эпизод 1» filter, two «time left» strings, three copies of the settings scope label.
+`PlayerInfo.Labels` is gone — the player passes a language. Follow is a series' alone;
+`ViewerState.isFollowing` replaces `isInWatchlist`, and the context menu offers it on series
+only. `ViewerState` tallies watched and downloaded episodes for a series or a season.
+
+### One key and one read for what the viewer has done (2026-10-03)
+
+`MediaRef` (KinoPubMedia) names a title, an episode or a film's version; `watchRef` is what
+a watch state is kept under. `ViewerState` (KinoPubBackend) is the payload's word with this
+device's optimistic writes on top, by one tested set of rules; `ViewerStateReader`
+(`AppContext.viewerState`) gathers those writes from the stores. `MediaLibraryStore` keeps
+watched marks by `MediaRef`: a film's old marks migrate, the per-episode map keyed by the
+episode's server id is dropped — it was written and never read. The detail page's watched
+and watchlist state read through the reader.
+
+### The media model keeps every source's facts (2026-10-03)
+
+`MediaEntity.claims` holds every fragment an entity was merged from; the stored fields are
+only the default per field (`MediaPrecedence`). `claims(for:_:)` / `value(from:_:)` answer a
+particular source's fact — Kinopoisk's slogan, TMDB's plot. Tagline and short description
+are their own fields. Fragments carry their text's language; the model is `Codable`.
+`MetadataService` used to gap-fill its overlay in *arrival* order; it now merges in source
+order and keeps each source's part. Kinopoisk's details payload (names, plot, short
+description, slogan, age rating, scores, genres, countries) was decoded and dropped; it is
+Kinopoisk's own fragment now. Direction and plan: [docs/media-model.md](docs/media-model.md).
 
 ### Detail page: Follow first, focus after the player, missing episodes, film versions (2026-10-03)
 
@@ -77,6 +171,25 @@ Sasha's list of 2026-10-03, checked on fixtures in the tvOS simulator (`TVDetail
 - **Library refreshes after watching.** Local progress invalidates the Library's watching rows
   (Subscriptions, Unwatched, History), and coming back to the Library root re-activates the
   section, so a subscription watched to the end leaves the list.
+
+### Review fixes (2026-10-02)
+
+Deep-review follow-up, updated onto main after catalog PR #38 merged. Unique
+catalog follow-up from draft PR #40 is folded in here so that stack is not
+left targeting a dead base.
+
+Library catalog first-page loads cancel the previous Task and ignore stale
+completions. Hero actions never use `.disabled` (loading is a handler guard).
+Search tab Down/Up no longer races the focus animator with an async press
+rescue. Catalog pages take live safe-area insets instead of stacking 80 pt on
+a 1920 canvas. Masthead cells self-size for Dynamic Type, invalidate only
+their own item, cap biography at eight lines, and use a tvOS-available
+focused fill instead of a 1.03 scale. Poster context-menu logging is compiled
+out of Release. Banner detail Tasks are cancelled on refresh. KinoPubConfig
+loads coalesce on an actor. Initials discs redraw on light/dark. Nuke stays
+behind `Artwork` (`ArtworkImage` no longer imports NukeUI;
+`NukeExtensions` / `nuke_display` live on `TVUIKitRemoteImage`). Poster cells
+keep one collection-view context-menu path.
 
 ### tvOS drawn artwork is 32-bit: the focus effect read past the placeholder (2026-10-02)
 

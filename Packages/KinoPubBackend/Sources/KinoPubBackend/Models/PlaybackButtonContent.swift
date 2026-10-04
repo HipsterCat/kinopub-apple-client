@@ -19,18 +19,12 @@ public enum PlaybackButtonContent: Equatable, Sendable {
 }
 
 public extension MediaItem {
-  /// Season + episode the primary button would open — first unfinished, else the first.
+  /// Season + episode the primary button would open — `EpisodeQueue.continueTarget` (the
+  /// episode touched last) on the payload's own word. The detail page's Play, Continue Watching with details and the
+  /// card menu all read this.
   var primaryEpisode: (season: Season, episode: Episode)? {
-    guard isSeries, let seasons, !seasons.isEmpty else { return nil }
-    for season in seasons {
-      if let episode = season.episodes.first(where: { !$0.isWatched }) {
-        return (season, episode)
-      }
-    }
-    if let season = seasons.first, let episode = season.episodes.first {
-      return (season, episode)
-    }
-    return nil
+    guard isSeries else { return nil }
+    return EpisodeQueue(series: self).continueTarget.map { ($0.season, $0.episode) }
   }
 
   var playbackButtonContent: PlaybackButtonContent {

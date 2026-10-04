@@ -19,12 +19,15 @@ public actor MetadataService {
     let configured = sources.filter(\.isConfigured)
     guard !configured.isEmpty else { return result }
 
-    await withTaskGroup(of: TitleMetadata?.self) { group in
-      for source in configured {
+    // Parts are merged in the configured source order, never in arrival order: the
+    // overlay gap-fills, so "whoever answered first" would otherwise decide its fields.
+    var parts: [Int: TitleMetadata] = [:]
+    await withTaskGroup(of: (Int, TitleMetadata?).self) { group in
+      for (index, source) in configured.enumerated() {
         group.addTask {
           do {
             if let batch = try await source.titleMetadata(for: identity) {
-              return batch
+              return (index, batch)
             }
             // Fall back to piecemeal contributions.
             var part = TitleMetadata()
@@ -37,16 +40,21 @@ public actor MetadataService {
             if let next = try await source.nextEpisode(for: identity) {
               part.nextEpisode = next
             }
-            return part
+            return (index, part)
           } catch {
             Logger.metadata.error("Metadata source \(source.id.rawValue) failed: \(error.localizedDescription)")
-            return nil
+            return (index, nil)
           }
         }
       }
-      for await part in group {
-        if let part { result.merge(part) }
+      for await (index, part) in group {
+        if let part { parts[index] = part }
       }
+    }
+    for index in parts.keys.sorted() {
+      guard let part = parts[index] else { continue }
+      result.merge(part)
+      result.parts[configured[index].id] = part
     }
     return result
   }

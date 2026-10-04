@@ -15,7 +15,7 @@ public enum GenreDomain: String, Hashable, Sendable, Codable, CaseIterable {
 /// A name no table knows yet is not dropped. It keeps the source's own name under an id
 /// of the form `<source>:<key>`, so it still shows and still says it is unmapped —
 /// `isMapped` is how a test or a log finds the gap.
-public struct Genre: Hashable, Sendable, Identifiable {
+public struct Genre: Hashable, Sendable, Identifiable, Codable {
   public let id: String
   public let domain: GenreDomain
   public let name: LocalizedName
@@ -39,7 +39,7 @@ public struct Genre: Hashable, Sendable, Identifiable {
 }
 
 /// The two languages the app speaks. Anything that is not Russian reads English.
-public struct LocalizedName: Hashable, Sendable {
+public struct LocalizedName: Hashable, Sendable, Codable {
   public let en: String
   public let ru: String
 

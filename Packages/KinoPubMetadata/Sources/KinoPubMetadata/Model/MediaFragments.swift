@@ -11,23 +11,43 @@ import KinoPubMedia
 
 public extension TitleMetadata {
 
-  /// The title itself. Labeled by its main contributor: the overlay's gap-fill merge
-  /// keeps no per-field provenance (known defect 3 in the `metadata-service` skill), so a
-  /// poster Kinopoisk supplied travels under TMDB's name when TMDB answered too.
+  /// The title itself, labeled by its main contributor. On the gap-filled overlay a poster
+  /// Kinopoisk supplied travels under TMDB's name when TMDB answered too — which is why
+  /// `mediaFragments(kind:)` reads TMDB's own part instead.
+  @available(*, deprecated, message: "Use mediaFragments(kind:): each source under its own name.")
   func mediaFragment(kind: MediaKind) -> MediaFragment {
+    overlayFragment(kind: kind)
+  }
+
+  /// The gap-filled overlay as one fragment, labelled by its main contributor.
+  internal func overlayFragment(kind: MediaKind) -> MediaFragment {
     let source: MediaSource = attribution.contains(.tmdb) ? .tmdb : .kinopoisk
-    return MediaFragment(source, kind) { entity in
+    return MediaFragment(source, kind, language: language) { entity in
       if let tmdbId { entity.ids = [ExternalID(.tmdb, String(tmdbId))] }
       entity.synopsis = Synopsis(full: overview, tagline: tagline)
       entity.genres = genres
       let premiere = kind == .show ? firstAirDate : releaseDate
       entity.release = premiere.map { ReleaseDate(date: $0) }
       entity.ended = kind == .show ? lastAirDate.map { ReleaseDate(date: $0) } : nil
+      entity.seasonCount = kind == .show ? numberOfSeasons : nil
       entity.contentRating = ContentRating(ageRating)
       entity.scores = [Score(.tmdb, value: tmdbRating, votes: tmdbVotes)].compactMap { $0 }
       entity.artwork = ArtworkSet(poster: artwork.poster, backdrop: artwork.backdrop,
                                   logo: artwork.titleLogo)
     }
+  }
+
+  /// **Every enrichment source's statement about the title**, each under its own name:
+  /// TMDB's from its own part, Kinopoisk's details as Kinopoisk's. This is what the media
+  /// model merges; `mediaFragment(kind:)` alone is the gap-filled overlay under one label.
+  func mediaFragments(kind: MediaKind) -> [MediaFragment] {
+    let overlay = parts[.tmdb]?.overlayFragment(kind: kind) ?? overlayFragment(kind: kind)
+    let own = fragments.map { fragment -> MediaFragment in
+      var filed = fragment
+      filed.entity.kind = kind
+      return filed
+    }
+    return [overlay] + own
   }
 
   /// A season TMDB lists, by TMDB's number.

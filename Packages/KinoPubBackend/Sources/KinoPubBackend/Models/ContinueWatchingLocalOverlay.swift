@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import KinoPubMedia
 
 /// How local resume points paint the Continue Watching row **without** touching
 /// `ContentStore`'s TTL. The cached cards stay the last server-backed snapshot;
@@ -19,12 +20,15 @@ public enum ContinueWatchingLocalOverlay {
     public var isSeries: Bool
     public var season: Int?
     public var video: Int?
+    /// How many seasons the series has, when the card knows — for the overlay's wording.
+    public var seasonCount: Int?
 
-    public init(itemID: Int, isSeries: Bool, season: Int?, video: Int?) {
+    public init(itemID: Int, isSeries: Bool, season: Int?, video: Int?, seasonCount: Int? = nil) {
       self.itemID = itemID
       self.isSeries = isSeries
       self.season = season
       self.video = video
+      self.seasonCount = seasonCount
     }
   }
 
@@ -94,6 +98,14 @@ public enum ContinueWatchingLocalOverlay {
     }
   }
 
+  /// The card's episode at its surface's length (`EpisodeText`).
+  static func overlayLabel(season: Int?, episode: Int?, seasonCount: Int?) -> String? {
+    guard let episode else { return nil }
+    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
+                       seasonCount: seasonCount)
+      .text(for: .continueWatchingCard)
+  }
+
   public static func plan(cards: [Card], locals: [Local]) -> Plan {
     let cardByID = Dictionary(uniqueKeysWithValues: cards.map { ($0.itemID, $0) })
     let recents = locals.sorted { $0.updatedAt > $1.updatedAt }
@@ -129,7 +141,8 @@ public enum ContinueWatchingLocalOverlay {
           progress: nil,
           season: season,
           video: video,
-          overlayLabel: ContinueWatchingEpisode.overlayLabel(season: season, episode: video)
+          overlayLabel: Self.overlayLabel(season: season, episode: video,
+                                          seasonCount: card?.seasonCount)
         )
         if present {
           mutations[local.itemID] = mutation
@@ -147,7 +160,7 @@ public enum ContinueWatchingLocalOverlay {
         season: season,
         video: video,
         overlayLabel: local.isSeries
-          ? ContinueWatchingEpisode.overlayLabel(season: season, episode: video)
+          ? Self.overlayLabel(season: season, episode: video, seasonCount: card?.seasonCount)
           : nil
       )
       if present {

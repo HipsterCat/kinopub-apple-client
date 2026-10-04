@@ -12,6 +12,7 @@
 
 import SwiftUI
 import KinoPubBackend
+import KinoPubMedia
 
 #if !os(tvOS)
 struct TrackMemorySections: View {
@@ -100,17 +101,7 @@ struct TrackMemorySections: View {
   }
 
   private func scopeLabel(for scope: TrackMemoryScope) -> String {
-    switch scope {
-    case .title:
-      return "Whole title".localized
-    case let .season(_, season):
-      return "\("Season".localized) \(season)"
-    case let .episode(_, season, episode):
-      guard let season else { return "\("Episode".localized) \(episode)" }
-      return "S\(season)E\(episode)"
-    case let .contentClass(name):
-      return name.capitalized
-    }
+    scope.displayLabel
   }
 
   /// The title's own name when the app has seen it this session, and its id when it has
@@ -128,3 +119,20 @@ struct TrackMemorySections: View {
   }
 }
 #endif
+
+extension TrackMemoryScope {
+  /// How a remembered scope reads in Settings — one wording for every settings screen.
+  /// Episodes and seasons through the media text vocabulary («S2, E5», «2 сезон, 5 серия»).
+  var displayLabel: String {
+    switch self {
+    case .title:
+      return "Whole title".localized
+    case let .season(_, season):
+      return SeasonText(season).formatted(MediaSurface.settingsRow.textLength)
+    case let .episode(_, season, episode):
+      return EpisodeText(season: season, number: episode).text(for: .settingsRow)
+    case let .contentClass(name):
+      return name.capitalized
+    }
+  }
+}

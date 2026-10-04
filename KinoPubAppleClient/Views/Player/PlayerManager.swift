@@ -990,7 +990,7 @@ extension PlayerManager {
 
   private func restampExternalMetadata(on item: AVPlayerItem) {
     guard let context = externalMetadataContext else { return }
-    let info = PlayerInfo(context: context, labels: PlaybackMediaContext.labels)
+    let info = PlayerInfo(context: context)
     var metadata = info.metadataItems()
     if let externalMetadataArtwork {
       metadata.append(externalMetadataArtwork)
@@ -1409,7 +1409,7 @@ extension PlayerManager {
   func installNextEpisodeProposal(on item: AVPlayerItem) {
     guard watchMode == .media, let current = playItem as? Episode else { return }
     let series = AppContext.shared.localProgressStore.snapshot(for: current.metadata.id)
-    guard let next = NextPlayableEpisode.after(current, in: series) else { return }
+    guard let next = EpisodeQueue(series: series).next(after: current)?.episode else { return }
     pendingNextEpisode = next
     rebuildUpNextTab()
 
@@ -1421,8 +1421,8 @@ extension PlayerManager {
                preferredTimescale: 600)
       : .indefinite
 
-    let label = ContinueWatchingEpisode.overlayLabel(season: next.seasonNumber,
-                                                     episode: next.number)
+    let label = EpisodeText(season: next.seasonNumber, number: next.number)
+      .text(for: .continueWatchingCard)
     var parts = [label, next.seriesTitle].compactMap { $0 }
     if !next.title.isEmpty { parts.append(next.title) }
     let title = parts.isEmpty ? next.fixedTitle : parts.joined(separator: " — ")
@@ -1510,7 +1510,8 @@ extension PlayerManager {
     let playingID = playItem.metadata.id
     let series = AppContext.shared.localProgressStore.snapshot(for: playingID)
     let next = (playItem as? Episode).flatMap {
-      PlaybackMediaContext.nextUnwatched(after: $0, in: series)
+      PlaybackMediaContext.nextUnwatched(after: $0, in: series,
+                                         viewer: AppContext.shared.viewerState)
     }
     let nextContext = next.flatMap {
       upNextEnriched[$0.id] ?? PlaybackMediaContext.context(for: $0, in: series)
@@ -1536,12 +1537,15 @@ extension PlayerManager {
       let base = TVUIKitMediaItem(card: MediaCard(
         episode: next,
         title: name ?? "",
-        episodeLabel: "\("Episode".localized) \(next.number)",
         stillURL: nextContext?.item.artwork.still?.absoluteString))
       items.append(TVUIKitMediaItem(id: next.id,
                                     imageURL: base.imageURL,
-                                    caption: TVUIKitCardText.episodeCaption(number: next.number,
-                                                                            name: name),
+                                    // The next episode may open the next season, so it
+                                    // says which (`MediaSurface.upNextTile`).
+                                    caption: EpisodeText(season: next.seasonNumber,
+                                                         number: next.number, name: name,
+                                                         seasonCount: series?.seasons?.count)
+                                      .text(for: .upNextTile),
                                     status: base.status,
                                     timeLabel: base.timeLabel,
                                     badgeText: "MediaItem_NextEpisode".localized))

@@ -5,6 +5,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubMedia
 import KinoPubMetadata
 import KinoPubUI
 import OSLog
@@ -177,7 +178,7 @@ class HomeCatalog: ObservableObject {
         group.addTask { [store] in
           await store.refreshIfStale(.continueWatching) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
             guard let self else { throw CancellationError() }
-            return try await self.fetchContinueWatchingCards()
+            return try await self.fetchContinueWatchingCards().map(RowItem.card)
           }
         }
         group.addTask { [store] in
@@ -186,12 +187,12 @@ class HomeCatalog: ObservableObject {
           if collectionsNeedMigration {
             await store.refresh(.collections) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
               guard let self else { throw CancellationError() }
-              return try await self.fetchCollectionsPreviewCards()
+              return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
             }
           } else {
             await store.refreshIfStale(.collections) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
               guard let self else { throw CancellationError() }
-              return try await self.fetchCollectionsPreviewCards()
+              return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
             }
           }
         }
@@ -200,7 +201,7 @@ class HomeCatalog: ObservableObject {
         group.addTask { [store] in
           await store.refreshIfStale(.shortcut(shortcut.shortcut, shortcut.contentType)) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
             guard let self else { throw CancellationError() }
-            return try await self.fetchShortcutCards(shortcut)
+            return try await self.fetchShortcutItems(shortcut)
           }
         }
       }
@@ -239,14 +240,14 @@ class HomeCatalog: ObservableObject {
       guard let self else { return }
       defer { self.cursors[rowID]?.isLoading = false }
       do {
-        let cards = try await self.fetchPage(next, ofRow: rowID)
-        guard !cards.isEmpty else {
+        let items = try await self.fetchPage(next, ofRow: rowID)
+        guard !items.isEmpty else {
           // Server says there is another page and hands back nothing: stop asking,
           // rather than retrying on every scroll to the end for the rest of the session.
           self.cursors[rowID]?.total = self.cursors[rowID]?.loaded ?? next
           return
         }
-        self.store.appendCards(cards, for: try self.storeKey(forRow: rowID))
+        self.store.appendItems(items, for: try self.storeKey(forRow: rowID))
         self.cursors[rowID]?.loaded = next
         self.cursors[rowID]?.didFail = false
         self.assembleRows()
@@ -260,23 +261,23 @@ class HomeCatalog: ObservableObject {
     }
   }
 
-  private func fetchPage(_ page: Int, ofRow rowID: String) async throws -> [MediaCard] {
+  private func fetchPage(_ page: Int, ofRow rowID: String) async throws -> [RowItem] {
     if rowID == Self.collectionsRowID {
       let data = try await collectionsService.fetchCollections(page: page, sort: "views-")
       if let total = data.pagination?.total {
         cursors[rowID]?.total = max(total, 1)
       }
-      return data.collections.map(CollectionMediaCard.make(from:))
+      return data.collections.map { RowItem.card(CollectionMediaCard.make(from: $0)) }
     }
     guard let shortcut = Self.shortcuts.first(where: { $0.id == rowID }) else { return [] }
     let data = try await itemsService.fetch(shortcut: shortcut.shortcut,
                                             contentType: shortcut.contentType,
                                             page: page)
     cursors[rowID]?.total = max(data.pagination.total, 1)
-    return data.items.map(Self.card(for:))
+    return data.items.map(Self.item(for:))
   }
 
-  /// Warm cache skips `fetchShortcutCards`, so the cursor that paging reads was
+  /// Warm cache skips `fetchShortcutItems`, so the cursor that paging reads was
   /// never written. Reconstruct it from the cards already in the store: Home rails
   /// use the server default of 20 per page, and a later `fetchPage` overwrites
   /// `total` with the real pagination. Without this, Movies/Series (and Watch Now
@@ -399,7 +400,8 @@ class HomeCatalog: ObservableObject {
         ContinueWatchingLocalOverlay.Card(itemID: $0.itemID,
                                           isSeries: $0.isSeries,
                                           season: $0.season,
-                                          video: $0.video)
+                                          video: $0.video,
+                                          seasonCount: $0.seasonCount)
       },
       locals: locals
     )
@@ -797,7 +799,10 @@ class HomeCatalog: ObservableObject {
       ?? (isResuming
           ? (cached?.durationSeconds ?? Self.durationSeconds(history: history, local: local))
           : nil)
-    let overlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video)
+    // The details payload when it was fetched, else the snapshot the player cached.
+    let seasonCount = (detail?.seasons ?? local?.item.seasons)?.count
+    let overlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video,
+                                    seasonCount: seasonCount)
     let newCount = item.new.flatMap { $0 > 0 ? $0 : nil }
 
     return MediaCard(id: item.id,
@@ -813,6 +818,7 @@ class HomeCatalog: ObservableObject {
                      itemID: item.id,
                      video: video,
                      season: season,
+                     seasonCount: seasonCount,
                      mediaID: isResuming ? history?.media?.id : nil,
                      isWatched: false,
                      isSeries: isSeries,
@@ -845,25 +851,29 @@ class HomeCatalog: ObservableObject {
 
   /// Says whichever episode the card is actually offering — it used to derive its own
   /// S/E from history and could disagree with the one Play would open.
-  private static func overlayLabel(isSeries: Bool, season: Int?, episode: Int?) -> String? {
+  private static func overlayLabel(isSeries: Bool, season: Int?, episode: Int?,
+                                   seasonCount: Int?) -> String? {
     guard isSeries else { return nil }
-    return ContinueWatchingEpisode.overlayLabel(season: season, episode: episode)
+    guard let episode else { return nil }
+    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
+                       seasonCount: seasonCount)
+      .text(for: .continueWatchingCard)
   }
 
   // MARK: - Catalog shortcuts
 
-  private func fetchShortcutCards(_ shortcut: Shortcut) async throws -> [MediaCard] {
+  private func fetchShortcutItems(_ shortcut: Shortcut) async throws -> [RowItem] {
     let data = try await itemsService.fetch(shortcut: shortcut.shortcut,
                                              contentType: shortcut.contentType,
                                              page: nil)
     // Page 1 is also where we learn how many there are — the only place the API says so.
     cursors[shortcut.id] = PageCursor(loaded: 1, total: max(data.pagination.total, 1))
-    return data.items.map(Self.card(for:))
+    return data.items.map(Self.item(for:))
   }
 
-  private static func card(for item: MediaItem) -> MediaCard {
+  private static func item(for item: MediaItem) -> RowItem {
     BookmarkMembershipStore.shared.seed(from: item)
-    return MediaCard(item)
+    return .title(item)
   }
 
   // MARK: - Collections

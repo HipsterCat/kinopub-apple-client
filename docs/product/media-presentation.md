@@ -14,6 +14,11 @@ the only place these rules exist.
 | `animation` | anime and cartoons (**genre 23**), any type |
 | `show` | type `tvshow` |
 
+**prd — The primary genre** (the one word shown — player, cards): **anime leads**, then
+**animation** (*Мультфильм*); a title filed under both is anime first, the cartoon is the lesser
+fact (user's call, 2026-10-04). Documentary leads by its type. `GenreVocabulary.primaryFirst`,
+applied by the merge.
+
 Type decides first, genre second. Genres are read in our vocabulary (`GenreVocabulary`,
 KinoPubMedia), which holds kino.pub's whole id list; a name only decides for an id that list lacks.
 `tvshow` implies the *TV Show* genre, `documovie`/`docuserial` *Documentary*, `concert` *Concert*.

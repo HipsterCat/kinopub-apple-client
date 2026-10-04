@@ -11,6 +11,11 @@ import KinoPubMedia
 
 public enum KinoPubMediaMapping {
 
+  /// The language of everything kino.pub writes — titles, plots, episode names.
+  /// TODO(decision): kino.pub's `title` is "Русское / Original"; the original half is
+  /// another language and lands in `originalTitle` without a language of its own.
+  public static let language = "ru"
+
   /// kino.pub files seven content types. Our model knows shapes, and files the rest as
   /// genre, the way Apple does: `documovie` is a movie filed under Documentary, `concert`
   /// a movie whose genres are music genres, `3D` a movie (3D is a format of this copy,
@@ -118,7 +123,7 @@ public enum KinoPubMediaMapping {
       // Without the series payload, the name the page stamped on the episode is still
       // the show's name.
       if show.isEmpty, let name = episode.seriesTitle {
-        show = [MediaFragment(.kinopub, .show) { $0.title = name }]
+        show = [MediaFragment(.kinopub, .show, language: KinoPubMediaMapping.language) { $0.title = name }]
       }
       return MediaContextDraft(item: [episode.mediaFragment(in: season)],
                                season: season.map { [$0.mediaFragment] } ?? [],
@@ -154,7 +159,7 @@ public extension MediaItem {
   /// The title itself — a movie or a show.
   var mediaFragment: MediaFragment {
     let mapping = KinoPubMediaMapping.typeMapping(type, hasSeasons: isSeries)
-    return MediaFragment(.kinopub, mapping.kind) { entity in
+    return MediaFragment(.kinopub, mapping.kind, language: KinoPubMediaMapping.language) { entity in
       entity.ids = mediaIDs
       entity.title = localizedTitle
       // "Русское / Original" — without the slash there is no separate original title.
@@ -163,6 +168,10 @@ public extension MediaItem {
       entity.genres = KinoPubMediaMapping.genres(genres, type: type)
       entity.labels = KinoPubMediaMapping.labels(genres)
       entity.release = ReleaseDate(year: year)
+      // Only a details payload lists seasons; a listing says nothing, not "none".
+      if mapping.kind == .show, let count = seasons?.count, count > 0 {
+        entity.seasonCount = count
+      }
       if mapping.kind == .movie {
         // `total` sums every version of a multi-version film; `average` is the film.
         let seconds = playbackVariants.isEmpty ? duration.total : duration.average
@@ -175,14 +184,27 @@ public extension MediaItem {
         Score(.kinopub, value: ratingPercentage, scale: 100, votes: ratingVotes),
       ].compactMap { $0 }
       entity.artwork = ArtworkSet(poster: KinoPubMediaMapping.poster(posters),
-                                  backdrop: ArtworkSet.url(posters.wideURL))
+                                  backdrop: ArtworkSet.url(posters.wideURL),
+                                  posterPreview: ArtworkSet.url(posters.medium))
+      let badges = MediaCapabilityBadges.from(item: self)
+      entity.formats = Set([
+        badges.is4K ? MediaFormat.uhd : nil,
+        badges.isHD ? .hd : nil,
+        badges.is3D ? .threeD : nil,
+      ].compactMap { $0 })
+      // TODO: HDR, surround (ac3) and closed captions are known only partly — from a probed
+      // playlist or the subtitle list — and `MediaCapabilityBadges` keeps them off. Map them
+      // here when they are trusted.
       entity.countries = countries.map(\.title)
+      entity.setlist = (tracklist ?? []).map {
+        SetlistEntry(title: $0.title, artists: $0.artists, audio: ArtworkSet.url($0.url))
+      }
     }
   }
 
   /// This title's trailer, as an extra of it.
   var trailerFragment: MediaFragment {
-    MediaFragment(.kinopub, .extra) { entity in
+    MediaFragment(.kinopub, .extra, language: KinoPubMediaMapping.language) { entity in
       entity.extraKind = .trailer
     }
   }
@@ -203,7 +225,7 @@ public extension MediaItem {
 
 public extension Season {
   var mediaFragment: MediaFragment {
-    MediaFragment(.kinopub, .season) { entity in
+    MediaFragment(.kinopub, .season, language: KinoPubMediaMapping.language) { entity in
       entity.seasonNumber = KinoPubMediaMapping.seasonNumber(self)
       entity.title = title
     }
@@ -214,7 +236,7 @@ public extension Episode {
   /// The episode's season is passed in because an `Episode` does not know which block
   /// it came from, and only the season knows the real season number.
   func mediaFragment(in season: Season? = nil) -> MediaFragment {
-    MediaFragment(.kinopub, .episode) { entity in
+    MediaFragment(.kinopub, .episode, language: KinoPubMediaMapping.language) { entity in
       entity.title = title
       entity.seasonNumber = season.map(KinoPubMediaMapping.seasonNumber) ?? seasonNumber
       entity.episodeNumber = number
@@ -226,7 +248,7 @@ public extension Episode {
 
 public extension PlaybackVariant {
   var mediaFragment: MediaFragment {
-    MediaFragment(.kinopub, .movie) { entity in
+    MediaFragment(.kinopub, .movie, language: KinoPubMediaMapping.language) { entity in
       entity.title = movieTitle
       entity.edition = title
       entity.runtime = duration > 0 ? TimeInterval(duration) : nil

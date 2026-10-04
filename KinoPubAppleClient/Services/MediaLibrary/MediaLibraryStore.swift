@@ -20,17 +20,15 @@ import Foundation
 import Combine
 import KinoPubBackend
 import KinoPubKit
+import KinoPubMedia
 
 /// Not `@MainActor` so it can be built inside `AppContext.shared`'s nonisolated
 /// initializer; mutations come from views / `@MainActor` models, and the download
 /// republish sinks deliver on main, so `@Published` stays on the main thread.
 final class MediaLibraryStore: ObservableObject {
 
-  enum DownloadStatus: Equatable {
-    case none
-    case downloading(Double)   // 0...1
-    case downloaded
-  }
+  @available(*, deprecated, message: "Use ViewerState.Download.")
+  typealias DownloadStatus = ViewerState.Download
 
   // MARK: - Owned optimistic state (persisted)
 
@@ -39,10 +37,10 @@ final class MediaLibraryStore: ObservableObject {
   }
 
   @Published private var records: [Int: Record] = [:]
-  /// Optimistic "watched" overrides — win over the server's value until a fetch
-  /// reconciles them away (so the server can still drive auto-watched / cross-device).
-  @Published private var movieWatchedOverride: [Int: Bool] = [:]
-  @Published private var episodeWatchedOverride: [Int: Bool] = [:]
+  /// Optimistic "watched" overrides, by `MediaRef.watchRef` — a film's under its title,
+  /// an episode under itself. Win over the server's value until a fetch reconciles them
+  /// away (so the server can still drive auto-watched / cross-device).
+  @Published private var watchedOverride: [MediaRef: Bool] = [:]
   /// The user's like (`true`) / dislike (`false`) per item id.
   @Published private var userVotes: [Int: Bool] = [:]
 
@@ -52,9 +50,12 @@ final class MediaLibraryStore: ObservableObject {
 
   private struct Persisted: Codable {
     var records: [Int: Record] = [:]
-    var movieWatched: [Int: Bool] = [:]
-    var episodeWatched: [Int: Bool] = [:]
+    var watched: [MediaRef: Bool]?
     var userVotes: [Int: Bool]?
+    /// Before `MediaRef`: a film's override by item id. Read once, then folded into `watched`.
+    var movieWatched: [Int: Bool]?
+    // `episodeWatched` (by an episode's server id) is not read back: nothing ever read it,
+    // and a server id cannot be turned into a season and a number without the payload.
   }
 
   // MARK: - Façade dependencies (not owned)
@@ -119,33 +120,22 @@ final class MediaLibraryStore: ObservableObject {
 
   // MARK: - Watched (optimistic override over the server value)
 
-  func movieWatched(itemId: Int, serverWatched: Bool) -> Bool {
-    movieWatchedOverride[itemId] ?? serverWatched
+  /// The local watched mark for a thing, or nil when the server's flag stands.
+  /// Read it through `ViewerStateReader`, which applies it over the payload.
+  func watched(_ ref: MediaRef) -> Bool? {
+    watchedOverride[ref.watchRef]
   }
 
-  func episodeWatched(episodeId: Int, serverWatched: Bool) -> Bool {
-    episodeWatchedOverride[episodeId] ?? serverWatched
-  }
-
-  func setMovieWatched(itemId: Int, value: Bool) {
-    movieWatchedOverride[itemId] = value
-    persist()
-  }
-
-  func setEpisodeWatched(episodeId: Int, value: Bool) {
-    episodeWatchedOverride[episodeId] = value
+  func setWatched(_ ref: MediaRef, _ value: Bool) {
+    watchedOverride[ref.watchRef] = value
     persist()
   }
 
   /// Drop overrides that fresh server data now confirms, so the server drives again.
-  func reconcileWatched(movieItemId: Int, serverMovieWatched: Bool?, episodes: [(id: Int, watched: Bool)]) {
+  func reconcileWatched(_ reported: [MediaRef: Bool]) {
     var changed = false
-    if let server = serverMovieWatched, movieWatchedOverride[movieItemId] == server {
-      movieWatchedOverride[movieItemId] = nil
-      changed = true
-    }
-    for episode in episodes where episodeWatchedOverride[episode.id] == episode.watched {
-      episodeWatchedOverride[episode.id] = nil
+    for (ref, server) in reported where watchedOverride[ref.watchRef] == server {
+      watchedOverride[ref.watchRef] = nil
       changed = true
     }
     if changed { persist() }
@@ -245,6 +235,7 @@ final class MediaLibraryStore: ObservableObject {
 
   // MARK: - Watch progress (delegated)
 
+  @available(*, deprecated, message: "Read AppContext.viewerState (ViewerStateReader): resumeFraction.")
   func watchProgress(itemId: Int, season: Int?, episode: Int?) -> Double? {
     progressStore.entry(forId: itemId, season: season, episode: episode)?.progress
   }
@@ -255,8 +246,7 @@ final class MediaLibraryStore: ObservableObject {
   /// cleared (or not) by their own owners — genres/countries stay.
   func clear() {
     records = [:]
-    movieWatchedOverride = [:]
-    episodeWatchedOverride = [:]
+    watchedOverride = [:]
     userVotes = [:]
     try? FileManager.default.removeItem(at: fileURL)
     UserDefaults.standard.removeObject(forKey: Self.legacyVoteDefaultsKey)
@@ -269,8 +259,10 @@ final class MediaLibraryStore: ObservableObject {
     if let data = try? Data(contentsOf: fileURL),
        let decoded = try? JSONDecoder().decode(Persisted.self, from: data) {
       records = decoded.records
-      movieWatchedOverride = decoded.movieWatched
-      episodeWatchedOverride = decoded.episodeWatched
+      watchedOverride = decoded.watched ?? [:]
+      for (itemID, value) in decoded.movieWatched ?? [:] where watchedOverride[.title(itemID)] == nil {
+        watchedOverride[.title(itemID)] = value
+      }
       userVotes = decoded.userVotes ?? [:]
     }
     migrateLegacyVotesIfNeeded()
@@ -295,8 +287,7 @@ final class MediaLibraryStore: ObservableObject {
 
   private func persist() {
     let snapshot = Persisted(records: records,
-                             movieWatched: movieWatchedOverride,
-                             episodeWatched: episodeWatchedOverride,
+                             watched: watchedOverride,
                              userVotes: userVotes)
     guard let data = try? JSONEncoder().encode(snapshot) else { return }
     try? data.write(to: fileURL, options: .atomic)

@@ -41,6 +41,12 @@ final class BookmarkMembershipStore: @unchecked Sendable {
   }
 
   /// Replace membership from a trusted payload (`MediaItem.bookmarks` on detail, etc.).
+  /// The folders this device knows the title is in, or nil when it has never been told.
+  func knownFolderIDs(for itemID: Int) -> Set<Int>? {
+    lock.lock(); defer { lock.unlock() }
+    return map[itemID]
+  }
+
   func replace(itemID: Int, folderIDs: Set<Int>) {
     lock.lock(); defer { lock.unlock() }
     map[itemID] = folderIDs

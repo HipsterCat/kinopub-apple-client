@@ -144,6 +144,12 @@
               ],
             }, {
               "kind": "group",
+              "path": "ViewerState",
+              "children": [
+                { "path": "ViewerStateReader.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
               "path": "Playback",
               "children": [
                 { "path": "TrackPreferenceStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
@@ -200,6 +206,7 @@
                 { "path": "RowKey.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "RowSnapshotStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "ContentStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "MediaRecordStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "UserProfileCache.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
@@ -484,6 +491,7 @@
       "path": "KinoPubAppleClientTests",
       "children": [
         { "path": "TrackPreferenceStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "ContentStoreRecordTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LocalWatchProgressStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlaybackPreflightTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlayerTrackSelectionTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },

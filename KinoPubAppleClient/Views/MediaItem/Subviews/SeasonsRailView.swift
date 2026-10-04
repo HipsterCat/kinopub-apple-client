@@ -386,10 +386,9 @@ struct SeasonsRailView: View {
     case .playable(let season, let episode, let schedule):
       let card = Self.card(for: episode, in: season, schedule: schedule)
       let base = TVUIKitMediaItem(card: card)
-      let caption = TVUIKitCardText.episodeCaption(
-        number: episode.number,
-        name: Self.displayTitle(episode: episode, schedule: schedule)
-      )
+      let caption = EpisodeText(season: nil, number: episode.number,
+                                name: Self.displayTitle(episode: episode, schedule: schedule))
+        .text(for: .episodeTile)
       let status: TVUIKitMediaItemStatus = (schedule?.isUpcoming == true)
         ? (schedule?.airDate.map { .upcoming(Self.airDateLabel($0, context: .beginningOfSentence)) } ?? .unavailable)
         : base.status
@@ -408,9 +407,11 @@ struct SeasonsRailView: View {
         .badgeText.map { .upcoming($0) } ?? .locked
       return TVUIKitMediaItem(id: entry.id,
                               imageURL: schedule.still,
-                              // Same title rule as a kino.pub episode: "Серия 3" is no name.
-                              caption: TVUIKitCardText.episodeCaption(number: schedule.episodeNumber,
-                                                                      name: EpisodeTitle.meaningful(schedule.name)),
+                              // EpisodeText drops a name that is only the number («Серия 3»),
+                              // the same rule as a kino.pub episode.
+                              caption: EpisodeText(season: nil, number: schedule.episodeNumber,
+                                                   name: schedule.name)
+                                .text(for: .episodeTile),
                               status: status)
 
     case .missingSeasons(let from, let to, let episodes, _, _):
@@ -681,7 +682,7 @@ struct SeasonsRailView: View {
   }
 
   private static func episodeLabel(number: Int) -> String {
-    "\("Episode".localized) \(number)"
+    EpisodeText(season: nil, number: number).listItem()
   }
 
   /// Inside a week either way the date is relative — "in 3 days", "7 days ago", and
@@ -1017,7 +1018,7 @@ struct VersionsRailView: View {
       caption: variant.title,
       status: status,
       timeLabel: variant.duration >= 60
-        ? Duration.compactHoursMinutes(seconds: variant.duration)
+        ? RuntimeText(seconds: variant.duration).text(for: .timeBadge)
         : nil
     )
   }

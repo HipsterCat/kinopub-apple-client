@@ -101,6 +101,9 @@ public struct MediaActionContext: Equatable, Sendable {
   /// their own in place of Play; a third is reached from the Versions rail.
   public var versions: [MediaActionVersion]
   public var loading: Set<MediaActionID>
+  /// How many seasons the show has that we know of — one, and it is the first, drops the
+  /// season from the capsule (`EpisodeText`).
+  public var seasonCount: Int?
 
   public init(
     playback: PlaybackButtonContent,
@@ -116,7 +119,8 @@ public struct MediaActionContext: Equatable, Sendable {
     showsMore: Bool = false,
     promoteFollow: Bool = false,
     versions: [MediaActionVersion] = [],
-    loading: Set<MediaActionID> = []
+    loading: Set<MediaActionID> = [],
+    seasonCount: Int? = nil
   ) {
     self.playback = playback
     self.kind = kind
@@ -132,6 +136,7 @@ public struct MediaActionContext: Equatable, Sendable {
     self.promoteFollow = promoteFollow
     self.versions = versions
     self.loading = loading
+    self.seasonCount = seasonCount
   }
 
   /// Backward-compatible bool for older call sites / tests.
@@ -272,7 +277,8 @@ public enum MediaActionCatalog {
 
   public static func play(for context: MediaActionContext) -> MediaActionAppearance {
     let loading = context.loading.contains(.play)
-    let caption = MediaActionCopy.playCaption(playback: context.playback, kind: context.kind)
+    let caption = MediaActionCopy.playCaption(playback: context.playback, kind: context.kind,
+                                              seasonCount: context.seasonCount)
     switch context.playback {
     case .playAgain:
       return MediaActionAppearance(

@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import KinoPubMedia
 
 /// Which episode Continue Watching should offer for a series, and whether that episode
 /// is one the viewer is in the middle of.
@@ -35,10 +36,14 @@ public struct ContinueWatchingEpisode: Equatable, Sendable {
 
   /// Overlay on a landscape Continue Watching card — the episode the card offers,
   /// not whichever history row happened to be newest.
-  public static func overlayLabel(season: Int?, episode: Int?) -> String? {
+  /// `seasonCount`: one, and it is the first, and the card says «E2» / «2 серия» (user's
+  /// call, 2026-10-03). Nil when the card does not know — the season is then said.
+  @available(*, deprecated, message: "Use EpisodeText(season:number:seasonCount:).text(for: .continueWatchingCard).")
+  public static func overlayLabel(season: Int?, episode: Int?, seasonCount: Int? = nil) -> String? {
     guard let episode else { return nil }
-    guard let season, season > 0 else { return "E\(episode)" }
-    return "S\(season), E\(episode)"
+    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
+                       seasonCount: seasonCount)
+      .text(for: .continueWatchingCard)
   }
 
   /// - Parameters:
@@ -54,6 +59,9 @@ public struct ContinueWatchingEpisode: Equatable, Sendable {
   /// by when they were played, not by episode number, so "the last row + 1" offered E3
   /// on a series whose E1–E4 were all watched. Taking the maximum also survives a
   /// truncated history: 20 rows deep, an old E1 may be gone while E4 is still there.
+  /// The card's answer **without an episode list** — the same rule `EpisodeQueue.continueTarget`
+  /// applies with one (D17, 2026-10-04): an episode in progress, else the one after the
+  /// furthest finished.
   public static func forSeries(
     local: (season: Int?, episode: Int?, isFinished: Bool)?,
     history: (season: Int?, episode: Int?, isFinished: Bool)?,

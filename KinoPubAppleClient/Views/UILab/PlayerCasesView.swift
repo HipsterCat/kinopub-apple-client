@@ -255,7 +255,7 @@ final class PlayerCasesModel: ObservableObject {
     cases[index].playable = playable
     cases[index].source = title.map { "\($0.title) · kino.pub \($0.id) · \($0.type)" }
     cases[index].info = MediaAggregator.merge(draft).map {
-      PlayerInfo(context: $0, labels: PlaybackMediaContext.labels)
+      PlayerInfo(context: $0)
     }
     let unmapped = MediaAggregator.merge(draft)?.genres.filter { !$0.isMapped }.map(\.id) ?? []
     if !unmapped.isEmpty {

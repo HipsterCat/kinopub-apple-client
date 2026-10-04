@@ -358,6 +358,20 @@ public struct TitleMetadata: Sendable {
   public var tmdbRating: Double?
   public var tmdbVotes: Int?
   public var attribution: Set<MetadataSourceID> = []
+  /// The language this source's text was asked in — TMDB's `MetadataConfiguration.language`.
+  /// Nil where the source did not say; on a merged overlay, the first source's.
+  public var language: String?
+  /// What a source states about the title **in our model** — Kinopoisk's details.
+  /// Concatenated by `merge`, never gap-filled: each stays its own source's statement, so
+  /// nothing it said is lost to whichever source answered first.
+  public var fragments: [MediaFragment] = []
+  /// Each source's own answer, before the gap-filling merge, keyed by source. Filled by
+  /// `MetadataService`, so the media model can read TMDB's facts as TMDB's.
+  ///
+  /// TODO(decision): the gap-filled fields above are what the detail page reads today
+  /// (cast, artwork, awards…). Once those surfaces read the media model, the overlay can
+  /// stop gap-filling and become `parts` alone.
+  public var parts: [MetadataSourceID: TitleMetadata] = [:]
   /// Every raw HTTP call any source made for this title, across the whole merge —
   /// concatenated, not "fill gap" like the other fields. Dev/debug only.
   public var debugLog: [SourceDebugEntry] = []
@@ -405,6 +419,9 @@ public struct TitleMetadata: Sendable {
     if tmdbRating == nil { tmdbRating = other.tmdbRating }
     if tmdbVotes == nil { tmdbVotes = other.tmdbVotes }
     attribution.formUnion(other.attribution)
+    if language == nil { language = other.language }
+    fragments.append(contentsOf: other.fragments)
+    parts.merge(other.parts) { mine, _ in mine }
     debugLog.append(contentsOf: other.debugLog)
   }
 

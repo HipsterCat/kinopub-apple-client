@@ -911,9 +911,9 @@ Content-Type: application/js
 шести треков**, а неизвестный трек называется буквально `"N/A"`. Рассчитывать можно только на
 `title`, и `"N/A"` придётся отфильтровывать.
 
-🔴 **`tracklist` мы не декодируем вообще** — `MediaItem` его не знает, сетлист теряется. Тест
-`ConcertItemTests.testTracklistIsNotDecodedYet` держит гэп зафиксированным и упадёт, когда поле
-появится.
+✅ **`tracklist` декодируется** (2026-10-03): `MediaItem.tracklist` → `TracklistEntry` (читает и
+`artists`, и `artist` из документации), в модели — `MediaEntity.setlist`; `"N/A"` остаётся позицией
+без названия. Тесты `ConcertItemTests.testTheTracklistIsTheSetlist`.
 
 Остальное с того же ответа:
 
@@ -946,6 +946,12 @@ Content-Type: application/js
 
 Похоже на дешёвый эндпоинт для дозапроса пары полей. Стоит ли ради него ходить на второй хост —
 открытый вопрос.
+
+**`age_rating` carries no signal (checked 2026-10-04).** api2 returned `"age_rating": null` for
+127717 and `-1` for 126811 (Mayday, a title Kinopoisk knows, `kinopoisk: 6446910`). In v1,
+`/v1/items/{id}` has no age field at all on any type (movie, serial, concert, documovie,
+docuserial, tvshow, 3d; listings neither). We do not decode it; the age rating comes from
+Kinopoisk / TMDB.
 
 ##
 
@@ -1243,3 +1249,11 @@ GET https://api.service-kp.com/v1/items/popular
 **Ответ::**
 
 Видео контент
+
+### 🔴 Возрастной рейтинг — в API есть, поле не найдено
+
+Официальное приложение для Apple TV показывает возрастной рейтинг, значит API его отдаёт. Ни в
+одной снятой фикстуре и ни в документации выше поля нет. TODO: снять живые ответы — детали по
+каждому типу (фильм, сериал, концерт, документальное, ТВ-шоу, 3D), списки, и запросы PWA-версии —
+найти поле, задекодировать в `MediaItem` и отдать в модель как `contentRating` от kino.pub.
+

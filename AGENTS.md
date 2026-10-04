@@ -44,7 +44,7 @@ semantic component is not a DRY violation; two components for one idea on one pl
 | tvOS cells, rails, focus engine, on-device verification | skill `tvos-surface` |
 | Glass, materials, blur, tabs, search, navigation, layout containers | skill `apple-chrome` |
 | AVKit surfaces, subtitles, playback routing | skill `player-avkit` |
-| Metadata aggregator, providers, enrichment | skill `metadata-service` |
+| Media model: sources, facts, viewer state, presentation layers | [docs/media-model.md](docs/media-model.md) |
 | Where a new fact or decision belongs | skill `docs-upkeep` |
 | What we are building next | [ROADMAP.md](ROADMAP.md) |
 | What the product *does* — decided behavior, per feature | [docs/product/](docs/product/) |
@@ -319,8 +319,9 @@ Details: skill `apple-chrome`.
   grey as both loading and failure.
 - **One store ownership model.** `ContentStore` owns Home/Library *rows*; `MediaLibraryStore`
   owns per-item optimistic library state (watchlist / watched / votes, plus a download
-  façade); `Artwork` owns remote images; `MetadataCache` (when it lands) owns item-facts.
-  Do not invent a fifth cache beside those. Bookmarks stay on `BookmarkMembershipStore` /
+  façade); `Artwork` owns remote images; `MediaRecordStore` owns item facts — one
+  `MediaRecord` (merged model) per `MediaRef`, which `ContentStore` rows refer to
+  (docs/media-model.md step 4). Do not invent a fifth cache beside those. Bookmarks stay on `BookmarkMembershipStore` /
   `BookmarkFoldersStore` — the library store does not replace them. **All remote images go
   through `Artwork`** — one decoded memory
   cache keyed by target size, one disk entry per URL, coalescing and prefetch, on every platform.
@@ -346,8 +347,10 @@ Details: skill `apple-chrome`.
 - **Document an external source before integrating or extending it** — every method, field and
   model, including ones we do not want, into a sheet in `docs/providers/` *first*. Store every
   detail the API gives; decide what is redundant later, from evidence.
-- **New providers land server-side, not in the app.** The app gets one more field, not one more
-  network client, and never models a provider's response shape. Skill `metadata-service`.
+- **Providers: our worker when it helps, the app for a viewer's own connection.** The
+  Cloudflare worker proxies, caches and aggregates with built-in or owner keys, or when a
+  service is flaky or rate-limited; a viewer's own key or account (Kinopoisk, Trakt) is called
+  by the app. Either way it lands as `MediaFragment`s. See [docs/media-model.md](docs/media-model.md).
 - **Telemetry:** no third-party SDK. TestFlight / Xcode Organizer already deliver crashes. Do not
   add Firebase, Sentry or similar without an explicit decision. **This is a rule about *sending*
   data somewhere.** On-device diagnostics that leave nothing behind — `Pulse`'s local store behind

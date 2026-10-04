@@ -48,7 +48,7 @@ enum PlaybackMediaContext {
   }
 
   /// Nil when there is nothing to ask: TMDB is reached through the IMDb id, and a title
-  /// without one gets no enrichment at all (known defect 1 in the `metadata-service` skill).
+  /// without one gets no enrichment at all (TODO(decision): match by title + year when there is no IMDb id?).
   static func enrichment(playing item: any PlayableItem, title: MediaItem?,
                          isTrailer: Bool) -> Enrichment? {
     guard let title, (title.imdb ?? 0) > 0 else { return nil }
@@ -75,11 +75,11 @@ enum PlaybackMediaContext {
     let meta = await service.metadata(for: identity)
     let kind = KinoPubMediaMapping.typeMapping(enrichment.title.type,
                                                hasSeasons: enrichment.title.isSeries).kind
-    let titleFragment = meta.mediaFragment(kind: kind)
+    let titleFragments = meta.mediaFragments(kind: kind)
     if enrichment.titleIsParent {
-      draft.parent.append(titleFragment)
+      draft.parent += titleFragments
     } else {
-      draft.item.append(titleFragment)
+      draft.item += titleFragments
     }
 
     guard let episode = enrichment.episode,
@@ -101,17 +101,15 @@ enum PlaybackMediaContext {
 
   // MARK: - Up Next
 
-  /// The Up Next tab's first card: the first episode after `current`, in reading order
-  /// (`NextPlayableEpisode`), that the viewer has **not** watched. Nil when every episode
-  /// after this one is watched — Up Next never offers a watched one (user's call,
-  /// 2026-10-01).
-  static func nextUnwatched(after current: Episode, in series: MediaItem?) -> Episode? {
-    var cursor = current
-    while let next = NextPlayableEpisode.after(cursor, in: series) {
-      if !next.isWatched { return next }
-      cursor = next
+  /// The Up Next tab's first card: the first episode after `current` the viewer has
+  /// **not** watched — by this device's own state too, not only the payload's
+  /// (`EpisodeQueue.nextUnwatched`). Nil when every episode after it is watched.
+  static func nextUnwatched(after current: Episode, in series: MediaItem?,
+                            viewer: ViewerStateReading) -> Episode? {
+    EpisodeQueue(series: series) { ref, episode in
+      viewer.state(for: ref, reported: ViewerState(reportedBy: episode))
     }
-    return nil
+    .nextUnwatched(after: current)?.episode
   }
 
   /// What the model says about one episode from kino.pub alone — the tile's name (never
@@ -133,17 +131,6 @@ enum PlaybackMediaContext {
     return found
   }
 
-  /// The words `PlayerInfo` needs, in the app's language: "Сезон 2, Серия 5".
-  static var labels: PlayerInfo.Labels {
-    let season = String(localized: "Season")
-    let episode = String(localized: "Episode")
-    return PlayerInfo.Labels(
-      languageCode: Bundle.main.preferredLocalizations.first,
-      episode: { seasonNumber, number in
-        seasonNumber.map { "\(season) \($0), \(episode) \(number)" } ?? "\(episode) \(number)"
-      })
-  }
-
   // MARK: - Downloads
 
   /// A download carries a name, a poster and an "S4E4" marker — the rest comes from the
@@ -152,17 +139,17 @@ enum PlaybackMediaContext {
     let poster = ArtworkSet.url(download.imageUrl)
     let titleFragments = title.map { [$0.mediaFragment] } ?? []
     guard let marker = download.episode, let numbers = episodeNumbers(marker) else {
-      let movie = MediaFragment(.kinopub, .movie) { entity in
+      let movie = MediaFragment(.kinopub, .movie, language: KinoPubMediaMapping.language) { entity in
         entity.title = download.localizedTitle
         entity.artwork.poster = poster
       }
       return MediaContextDraft(item: [movie] + titleFragments)
     }
-    let episode = MediaFragment(.kinopub, .episode) { entity in
+    let episode = MediaFragment(.kinopub, .episode, language: KinoPubMediaMapping.language) { entity in
       entity.seasonNumber = numbers.season
       entity.episodeNumber = numbers.episode
     }
-    let show = MediaFragment(.kinopub, .show) { entity in
+    let show = MediaFragment(.kinopub, .show, language: KinoPubMediaMapping.language) { entity in
       entity.title = download.localizedTitle
       entity.artwork.poster = poster
     }

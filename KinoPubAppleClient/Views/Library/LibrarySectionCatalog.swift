@@ -134,8 +134,8 @@ final class LibrarySectionCatalog: ObservableObject {
 
     let section = self.section
     let service = contentService
-    let fetch: @Sendable () async throws -> [MediaCard] = {
-      try await Self.firstPage(of: section, using: service).cards
+    let fetch: @Sendable () async throws -> [RowItem] = {
+      try await Self.firstPage(of: section, using: service).cards.map(RowItem.card)
     }
     if force {
       await store.refresh(key, fetch: fetch)

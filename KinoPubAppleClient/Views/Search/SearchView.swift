@@ -197,13 +197,11 @@ struct SearchView: View {
     guard !query.isEmpty else { return [] }
     var seen = Set<Int>()
     var out: [MediaCard] = []
-    for state in appContext.contentStore.rows.values {
-      for card in state.cards where !card.isLandscape && !card.opensCollection {
-        guard !seen.contains(card.itemID),
-              prefix ? card.hasWord(startingWith: query) : card.matchesSearch(query) else { continue }
-        seen.insert(card.itemID)
-        out.append(card)
-      }
+    for card in appContext.contentStore.allCards where !card.isLandscape && !card.opensCollection {
+      guard !seen.contains(card.itemID),
+            prefix ? card.hasWord(startingWith: query) : card.matchesSearch(query) else { continue }
+      seen.insert(card.itemID)
+      out.append(card)
     }
     return out
   }

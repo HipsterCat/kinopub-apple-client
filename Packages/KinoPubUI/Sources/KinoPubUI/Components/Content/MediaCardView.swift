@@ -6,6 +6,7 @@
 import Foundation
 import SwiftUI
 import KinoPubBackend
+import KinoPubMedia
 
 /// What a single-click / Select on the card does.
 public enum MediaCardPrimaryAction: String, Codable, Hashable, Sendable {
@@ -49,6 +50,10 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public var rating: Rating? { scores.aggregate }
   /// `WatchProgress.resumeFraction` — 0…1 while this video is in progress, nil
   /// when unwatched or already finished. Do not re-threshold it in the view.
+  ///
+  /// TODO: a copy of viewer state, like `isWatched` — moves to `ViewerState` read at paint
+  /// time with the card's migration (docs/media-model.md step 4); not deprecated yet
+  /// because every card's chrome still paints from it.
   public let progress: Double?
   public let badge: String?
 
@@ -57,6 +62,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let backdropURL: String?
 
   /// "2025 · 1 h 55 min · Боевик" — shown in the focus preview, not on the card.
+  @available(*, deprecated, message: "Pre-worded on the card. The presenter words it at paint time from MediaContext + MediaSurface (docs/media-model.md step 4).")
   public let metaLine: String?
   /// The plot, for the focus preview.
   public let overview: String?
@@ -74,6 +80,9 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let video: Int?
   /// Season number for series episodes. Nil for films.
   public let season: Int?
+  /// How many seasons the series has that we know of: one, and it is the first, and the
+  /// card says «E2» / «2 серия» without the season (`EpisodeText`). Nil when unknown.
+  public let seasonCount: Int?
   /// History media id for `/v1/history/clear-for-media`. Nil clears the whole item.
   public let mediaID: Int?
   /// Whether this video is already marked watched — drives the context-menu label.
@@ -83,6 +92,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// Title appears in `/v1/history` — context menu can offer Browse History.
   public let isInHistory: Bool
   /// Title is on the user's watchlist — context menu can offer Browse Watchlist.
+  @available(*, deprecated, message: "A copy of viewer state on the card. Read ViewerState (AppContext.viewerState) at paint time (docs/media-model.md step 4). Follow is ViewerState.isFollowing, series only.")
   public let isInWatchlist: Bool
   /// Item-level 4K / HDR when known from the catalogue payload (not device caps).
   public let is4K: Bool
@@ -95,16 +105,21 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// Runtime in seconds (film total, or episode when the card is an episode still).
   public let durationSeconds: Int?
   /// One or two genre titles for the caption meta row.
+  @available(*, deprecated, message: "Pre-worded on the card. The presenter words it at paint time from MediaContext + MediaSurface (docs/media-model.md step 4). One genre, the primary.")
   public let genreLine: String?
   /// First production country for the caption meta row.
+  @available(*, deprecated, message: "Pre-worded on the card. The presenter words it at paint time from MediaContext + MediaSurface (docs/media-model.md step 4).")
   public let countryLine: String?
   /// "3 сезона" — a series' season count as the details payload has it; nil for films
   /// and for listed series, whose payload carries no seasons.
+  @available(*, deprecated, message: "Pre-worded on the card. The presenter words it at paint time from MediaContext + MediaSurface (docs/media-model.md step 4).")
   public let seasonsLabel: String?
   /// Title sits in at least one bookmark folder (not the watchlist flag).
+  @available(*, deprecated, message: "A copy of viewer state on the card. Read ViewerState (AppContext.viewerState) at paint time (docs/media-model.md step 4). ViewerState.isBookmarked.")
   public let isBookmarked: Bool
   /// Folder ids from `MediaItem.bookmarks` when the payload carried them. Empty when
   /// unknown — local `BookmarkMembershipStore` overlays toggles on top.
+  @available(*, deprecated, message: "A copy of viewer state on the card. Read ViewerState (AppContext.viewerState) at paint time (docs/media-model.md step 4). ViewerState.bookmarkFolderIDs.")
   public let bookmarkFolderIDs: [Int]
   /// Single-click / Select target. Continue Watching uses `.play`; History stays detail for now.
   public let primaryAction: MediaCardPrimaryAction
@@ -142,8 +157,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// Compact runtime for captions when `durationSeconds` is set.
   public var durationLabel: String? {
     guard let durationSeconds, durationSeconds >= 60 else { return nil }
-    let label = Duration.compact(seconds: durationSeconds)
-    return label.isEmpty ? nil : label
+    return RuntimeText(seconds: durationSeconds).formatted(.short)
   }
 
   public init(id: Int,
@@ -166,6 +180,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               itemID: Int? = nil,
               video: Int? = nil,
               season: Int? = nil,
+              seasonCount: Int? = nil,
               mediaID: Int? = nil,
               isWatched: Bool = false,
               isSeries: Bool = false,
@@ -209,6 +224,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.itemID = itemID ?? id
     self.video = video
     self.season = season
+    self.seasonCount = seasonCount
     self.mediaID = mediaID
     self.isWatched = isWatched
     self.isSeries = isSeries
@@ -256,6 +272,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               itemID: itemID,
               video: video,
               season: season,
+              seasonCount: seasonCount,
               mediaID: mediaID,
               isWatched: isWatched,
               isSeries: isSeries,
@@ -303,6 +320,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     itemID = try c.decodeIfPresent(Int.self, forKey: .itemID) ?? id
     video = try c.decodeIfPresent(Int.self, forKey: .video)
     season = try c.decodeIfPresent(Int.self, forKey: .season)
+    seasonCount = try c.decodeIfPresent(Int.self, forKey: .seasonCount)
     mediaID = try c.decodeIfPresent(Int.self, forKey: .mediaID)
     isWatched = try c.decodeIfPresent(Bool.self, forKey: .isWatched) ?? false
     isSeries = try c.decodeIfPresent(Bool.self, forKey: .isSeries) ?? false
@@ -350,6 +368,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encode(itemID, forKey: .itemID)
     try c.encodeIfPresent(video, forKey: .video)
     try c.encodeIfPresent(season, forKey: .season)
+    try c.encodeIfPresent(seasonCount, forKey: .seasonCount)
     try c.encodeIfPresent(mediaID, forKey: .mediaID)
     try c.encode(isWatched, forKey: .isWatched)
     try c.encode(isSeries, forKey: .isSeries)
@@ -377,7 +396,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   private enum CodingKeys: String, CodingKey {
     case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
     case progress, badge, backdropURL, metaLine, overview
-    case landscapeImageURL, overlayLabel, itemID, video, season, mediaID
+    case landscapeImageURL, overlayLabel, itemID, video, season, seasonCount, mediaID
     case isWatched, isSeries, isInHistory, isInWatchlist, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, durationSeconds
     case genreLine, countryLine, seasonsLabel, isBookmarked, bookmarkFolderIDs, primaryAction
@@ -386,47 +405,13 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
 }
 
 public extension MediaCard {
-  /// The standard mapping from a catalog item, so grids and rows draw the same card.
+  /// The standard mapping from a catalog item, so grids and rows draw the same card:
+  /// the payload into the media model (`KinoPubMediaMapping`), then the model's card
+  /// (`MediaCard(ref:entity:state:)`).
   init(_ item: MediaItem) {
-    let badges = MediaCapabilityBadges.from(item: item)
-    // Prefer a real API `wide`, else the derived `/wide/` path. Do not fold `big` into
-    // backdropURL — HomeBanner tries wide → big → medium so a 404'd derivation still
-    // paints (detail payloads often have a working `wide`; catalogue lists often don't).
-    let wide = item.posters.wide.flatMap { $0.isEmpty ? nil : $0 }
-    let genres = item.genres.compactMap(\.title).prefix(2)
-    // A shelf's payload never carries `seasons`, so `isSeries` alone calls every listed
-    // series a film — and its `duration.total` (every episode summed) its runtime.
-    let isSeries = item.isSeries || item.isEpisodicType
-    let durationSeconds: Int? = {
-      if isSeries { return nil }
-      let total = Int(item.duration.total)
-      return total >= 60 ? total : nil
-    }()
-    let bookmarkFolderIDs = (item.bookmarks ?? []).map(\.id)
-    self.init(id: item.id,
-              posterURL: item.posters.medium,
-              title: item.localizedTitle,
-              subtitle: item.originalTitle,
-              scores: MediaScores(item),
-              backdropURL: wide ?? item.posters.wideURL,
-              metaLine: item.metadataLine,
-              overview: item.plot,
-              isSeries: isSeries,
-              isInWatchlist: item.inWatchlist ?? false,
-              is4K: badges.is4K,
-              isHDR: badges.isHDR,
-              isHD: badges.isHD,
-              is3D: badges.is3D,
-              hasClosedCaptions: badges.hasClosedCaptions,
-              year: item.year > 0 ? item.year : nil,
-              durationSeconds: durationSeconds,
-              genreLine: genres.isEmpty ? nil : genres.joined(separator: ", "),
-              countryLine: item.countries.first?.title,
-              seasonsLabel: item.seasonsLabel,
-              isBookmarked: !bookmarkFolderIDs.isEmpty,
-              bookmarkFolderIDs: bookmarkFolderIDs,
-              imdbID: item.imdb.flatMap { $0 > 0 ? $0 : nil },
-              kinopoiskID: item.kinopoisk.flatMap { $0 > 0 ? $0 : nil })
+    // Through the merge, so the card's genres lead the way every other surface's do.
+    let entity = MediaAggregator.merge([item.mediaFragment]) ?? item.mediaFragment.entity
+    self.init(ref: item.titleRef, entity: entity, state: ViewerState(reportedBy: item))
   }
 }
 

@@ -62,6 +62,22 @@ public enum GenreVocabulary {
     byID[id]
   }
 
+  /// Genres that say what a title *is* before anything else, in the order they win: the
+  /// first of them a title has leads its list, so it is the one word shown. Anime over
+  /// animation — a title filed under both is anime first, the cartoon is the lesser fact
+  /// (user's call, 2026-10-04). Documentary leads too, by the type it comes with
+  /// (`KinoPubMediaMapping.TypeMapping.impliedGenreLeads`).
+  /// TODO: the Python and worker copies of the genre table do not apply this order yet.
+  public static let leadingGenreIDs = ["anime", "animation"]
+
+  /// `genres` with the first leading genre it has moved to the front; the rest keep their
+  /// order. Applied by `MediaAggregator` to whichever source's list wins.
+  public static func primaryFirst(_ genres: [Genre]) -> [Genre] {
+    guard let lead = leadingGenreIDs.lazy.compactMap({ id in genres.first { $0.id == id } }).first
+    else { return genres }
+    return [lead] + genres.filter { $0 != lead }
+  }
+
   /// A kino.pub genre. The **id** decides — the table holds kino.pub's whole list — and the
   /// name only rescues an id the list did not have. Nil for the ids that are not genres
   /// (`kinopubNonGenres`). `domain` is the set the title's type files under, so an unknown

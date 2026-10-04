@@ -436,14 +436,7 @@ final class TVSettingsCatalog {
   }
 
   private func scopeLabel(_ scope: TrackMemoryScope) -> String {
-    switch scope {
-    case .title: return "Whole title".localized
-    case let .season(_, season): return "\("Season".localized) \(season)"
-    case let .episode(_, season, episode):
-      guard let season else { return "\("Episode".localized) \(episode)" }
-      return "S\(season)E\(episode)"
-    case let .contentClass(name): return name.capitalized
-    }
+    scope.displayLabel
   }
 
   private func trackTitle(_ section: TrackPreferenceDigest.Section) -> String {

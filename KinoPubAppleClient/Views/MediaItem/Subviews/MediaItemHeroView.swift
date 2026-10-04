@@ -9,6 +9,7 @@ import AVFoundation
 import Combine
 import KinoPubUI
 import KinoPubBackend
+import KinoPubMedia
 
 /// Loads the trailer alongside the artwork and reports when it is actually ready to
 /// show, so the hero only swaps once there is something to swap to.
@@ -1017,7 +1018,8 @@ struct MediaItemHeroView: View {
       versions: mediaItem.playbackVariants.map {
         MediaActionVersion(name: $0.name, playback: $0.playbackButtonContent)
       },
-      loading: loadingActions
+      loading: loadingActions,
+      seasonCount: mediaItem.seasons?.count
     )
   }
 
@@ -1240,7 +1242,7 @@ struct MediaItemHeroView: View {
           beginMarkWatched()
           onWatchedToggle()
         } label: {
-          Label("\("Mark Episode Watched".localized) · S\(season.number), E\(episode.number)",
+          Label("\("Mark Episode Watched".localized) · \(EpisodeText(season: season.number, number: episode.number).text(for: .contextMenu))",
                 systemImage: "checkmark")
         }
         if onSeasonWatchedToggle != nil {
@@ -1249,7 +1251,7 @@ struct MediaItemHeroView: View {
             beginMarkWatched()
             onSeasonWatchedToggle?(season)
           } label: {
-            Label("\("Mark Season Watched".localized) · \(season.number)",
+            Label("\("Mark Season Watched".localized) · \(SeasonText(season.number).formatted(MediaSurface.contextMenu.textLength))",
                   systemImage: "checkmark.circle")
           }
         }
