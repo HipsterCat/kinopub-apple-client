@@ -143,11 +143,26 @@ export async function handleImage(url, env, ctx) {
   const chosen = stored && pickArtwork(stored, kind);
   if (chosen) return Response.redirect(chosen, 302);
 
-  // Nothing known yet: fall back to kino.pub's own artwork, which is always
-  // addressable from the id, and resolve in the background so the next request
-  // gets the good one. A layout never gets a hole while it waits.
+  // Nothing known yet: resolve in the background so the next request can get
+  // the good one. Poster/backdrop still fall back to kino.pub's own artwork
+  // (always addressable from the id). Logo has no kino.pub equivalent — a
+  // poster-as-logo is a lie the banner would paint instead of the lettered
+  // title — so kind=logo with nothing stored is 404, never a poster.
   const hints = readHints(url);
   if (!stored) ctx.waitUntil(resolveAndStore(env, id, hints, draftDocument(id, hints)));
+
+  if (kind === "logo") {
+    return new Response(JSON.stringify({ error: "not_found", hint: "no stored logo" }), {
+      status: 404,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        // Short: a cold miss 404s now, then the background resolve may fill a
+        // real logo. Do not pin that miss for the document TTL.
+        "Cache-Control": "public, max-age=30",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
 
   const fallbackSize = KINOPUB_SIZE[size] || (kind === "backdrop" ? "wide" : "medium");
   return Response.redirect(`${KINOPUB_POSTER}/${fallbackSize}/${id}.jpg`, 302);

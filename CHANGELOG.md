@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Worker `/img/logo` 404s when nothing is stored (2026-10-04)
+
+`GET /img/logo/{size}/kinopub/{id}` with no stored logo answers **404**, never a
+kino.pub poster. Poster and backdrop still fall back to `m.staticpop.net`. The
+deployed worker still 302s logos to posters; this is the contract the app banner
+path needs before it can take logos from the worker. Not deployed from this
+change — needs a go-ahead and redeploy.
+
 ### tvOS deployment floor is 26.5 (2026-10-04)
 
 Owner decision: **26.5**, not 26.6. That is the minimum tvOS 26 simulator
