@@ -14,16 +14,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
   behind them for half a minute while their own host (`m.staticpop.net`) answers in
   0.3 s. `Artwork.pipeline` now allows 24 downloads in flight (URLSession still caps
   each host) and gives a request 15 s. Cold-cache runs: stills in 1–3 s.
-- **The episode and version rails are Home's Continue Watching row:**
+- **The episode and version rails are a Home still row:**
   `TVUIKitMediaItemRail(columns:)` lays out with `TVPageLayout.stillRail` — the HIG
-  3-column still (557×313 at 1920), gutter, focus room — instead of the system
+  5-column still (`MainView.stillColumns`), gutter, focus room — instead of the system
   metrics × 1.18. Runtime shows on the focused tile, as on Home.
 - **The corner of an episode kino.pub lacks:** its date while it is ahead («Позже»
   undated), the lock once it has aired — never both. Dates drop the year when it is
   this year.
 - `TVMediaItemContentConfiguration.wideCell()` draws one line under the still:
   `secondaryText` stays hidden at any cell height and a newline in `text` is cut
-  (probe app, tvOS 27.2 simulator). A release-date subtitle needs a decision.
+  (probe app, tvOS 27.2 simulator). The release-date subtitle is parked: the target
+  is the Apple TV app's episode tile (number, date, title, description; a footer
+  with its own focus background), still to be researched.
 
 ### Detail page: Follow first, focus after the player, missing episodes, film versions (2026-10-03)
 

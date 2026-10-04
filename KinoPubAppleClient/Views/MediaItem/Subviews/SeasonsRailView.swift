@@ -359,8 +359,8 @@ struct SeasonsRailView: View {
     TVUIKitMediaItemRail(
       items: entries.map(railItem(for:)),
       contentInset: metrics.inset,
-      // Home's Continue Watching row, size and all (Sasha, 2026-10-04).
-      columns: MainView.continueWatchingColumns,
+      // Home's still row, size and all (Sasha, 2026-10-04).
+      columns: MainView.stillColumns,
       entryItemID: firstEpisodeInSelectedSeason,
       animatesEntryScroll: animatesRailScroll,
       onSelect: { id in select(entryID: id) },
@@ -991,7 +991,7 @@ struct VersionsRailView: View {
     TVUIKitMediaItemRail(
       items: variants.map(railItem(for:)),
       contentInset: metrics.inset,
-      columns: MainView.continueWatchingColumns,
+      columns: MainView.stillColumns,
       onSelect: { id in
         guard let variant = variants.first(where: { $0.id == id }) else { return }
         // A UIKit cell cannot host a `NavigationLink`; the same environment hook the
