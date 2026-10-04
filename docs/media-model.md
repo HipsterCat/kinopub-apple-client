@@ -183,6 +183,11 @@ Each step is one reviewable slice with tests, merged before the next.
    its `MediaRef` in one store. Rows keep only the order of refs; a card is worded at paint
    time from the record + `ViewerState` + `MediaSurface`. `MediaItem` / `Episode` / `Season`
    reach it through `KinoPubMediaMapping`, as the player's already do.
+   **Started 2026-10-04:** every catalogue card is already built from the model —
+   `MediaCard(_ item:)` maps the payload and calls `MediaCard(ref:entity:state:)`; the model
+   gained what a card needs (`formats` — 4K / HD / 3D, `ArtworkSet.posterPreview`), the
+   vocabulary `SeasonCountText` and `TitleMetaLine`. Next: the store itself, rows keeping
+   refs.
 5. Selection functions. **Started**: `EpisodeQueue` (KinoPubBackend) answers every "which
    episode" question — `next(after:)` for the end-of-episode proposal, `nextUnwatched(after:)`
    for Up Next (now by this device's state too), `continueTarget` for the hero and Continue

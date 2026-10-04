@@ -139,4 +139,37 @@ final class MediaTextTests: XCTestCase {
     XCTAssertEqual(RemainingText(progress: 1, durationSeconds: 3600).formatted(.medium, language: .en),
                    "1 min left", "a minute is always left")
   }
+
+  // MARK: - Seasons, a title's line
+
+  func testSeasonCountIsPluralCorrect() {
+    let ru = [1: "1 сезон", 3: "3 сезона", 5: "5 сезонов", 11: "11 сезонов", 21: "21 сезон",
+              22: "22 сезона", 112: "112 сезонов"]
+    for (count, text) in ru {
+      XCTAssertEqual(SeasonCountText(count)?.formatted(language: .ru), text)
+    }
+    XCTAssertEqual(SeasonCountText(1)?.formatted(language: .en), "1 season")
+    XCTAssertEqual(SeasonCountText(3)?.formatted(language: .en), "3 seasons")
+    XCTAssertNil(SeasonCountText(0))
+    XCTAssertNil(SeasonCountText(nil))
+  }
+
+  func testAFilmsLineIsYearRuntimeGenresCountry() {
+    let film = MediaEntity(kind: .movie, release: .year(2025), runtime: 115 * 60,
+                           countries: ["Япония"])
+    var withGenres = film
+    withGenres.genres = [GenreVocabulary.genre(id: "action")!, GenreVocabulary.genre(id: "drama")!,
+                         GenreVocabulary.genre(id: "comedy")!]
+    XCTAssertEqual(TitleMetaLine(withGenres).formatted(language: .ru),
+                   "2025   1ч 55м   Боевик, Драма   Япония")
+  }
+
+  /// A series says how many seasons, never every episode summed as a runtime.
+  func testASeriesLineCountsSeasons() {
+    let show = MediaEntity(kind: .show, seasonCount: 3, release: .year(2020), runtime: 99_999)
+    XCTAssertEqual(TitleMetaLine(show).formatted(language: .en), "2020   3 seasons")
+    let listed = MediaEntity(kind: .show, release: .year(2020), runtime: 99_999)
+    XCTAssertEqual(TitleMetaLine(listed).formatted(language: .en), "2020",
+                   "a listing knows no count, and says no runtime")
+  }
 }

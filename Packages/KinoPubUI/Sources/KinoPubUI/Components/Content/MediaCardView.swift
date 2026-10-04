@@ -405,47 +405,12 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
 }
 
 public extension MediaCard {
-  /// The standard mapping from a catalog item, so grids and rows draw the same card.
+  /// The standard mapping from a catalog item, so grids and rows draw the same card:
+  /// the payload into the media model (`KinoPubMediaMapping`), then the model's card
+  /// (`MediaCard(ref:entity:state:)`).
   init(_ item: MediaItem) {
-    let badges = MediaCapabilityBadges.from(item: item)
-    // Prefer a real API `wide`, else the derived `/wide/` path. Do not fold `big` into
-    // backdropURL — HomeBanner tries wide → big → medium so a 404'd derivation still
-    // paints (detail payloads often have a working `wide`; catalogue lists often don't).
-    let wide = item.posters.wide.flatMap { $0.isEmpty ? nil : $0 }
-    let genres = item.genres.compactMap(\.title).prefix(2)
-    // A shelf's payload never carries `seasons`, so `isSeries` alone calls every listed
-    // series a film — and its `duration.total` (every episode summed) its runtime.
-    let isSeries = item.isSeries || item.isEpisodicType
-    let durationSeconds: Int? = {
-      if isSeries { return nil }
-      let total = Int(item.duration.total)
-      return total >= 60 ? total : nil
-    }()
-    let bookmarkFolderIDs = (item.bookmarks ?? []).map(\.id)
-    self.init(id: item.id,
-              posterURL: item.posters.medium,
-              title: item.localizedTitle,
-              subtitle: item.originalTitle,
-              scores: MediaScores(item),
-              backdropURL: wide ?? item.posters.wideURL,
-              metaLine: item.metadataLine,
-              overview: item.plot,
-              isSeries: isSeries,
-              isInWatchlist: item.inWatchlist ?? false,
-              is4K: badges.is4K,
-              isHDR: badges.isHDR,
-              isHD: badges.isHD,
-              is3D: badges.is3D,
-              hasClosedCaptions: badges.hasClosedCaptions,
-              year: item.year > 0 ? item.year : nil,
-              durationSeconds: durationSeconds,
-              genreLine: genres.isEmpty ? nil : genres.joined(separator: ", "),
-              countryLine: item.countries.first?.title,
-              seasonsLabel: item.seasonsLabel,
-              isBookmarked: !bookmarkFolderIDs.isEmpty,
-              bookmarkFolderIDs: bookmarkFolderIDs,
-              imdbID: item.imdb.flatMap { $0 > 0 ? $0 : nil },
-              kinopoiskID: item.kinopoisk.flatMap { $0 > 0 ? $0 : nil })
+    self.init(ref: item.titleRef, entity: item.mediaFragment.entity,
+              state: ViewerState(reportedBy: item))
   }
 }
 

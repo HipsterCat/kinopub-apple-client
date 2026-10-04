@@ -43,7 +43,7 @@ let package = Package(
       resources: [.process("Media.xcassets")]),
     .testTarget(
       name: "KinoPubUITests",
-      dependencies: ["KinoPubUI"])
+      dependencies: ["KinoPubUI", .product(name: "KinoPubMedia", package: "KinoPubMedia")])
   ],
   // Tools 6.2 is required for `.v26` platforms; stay on language mode 5 until
   // ObservableObject view models move to @Observable (see research/en/04 §4.4).

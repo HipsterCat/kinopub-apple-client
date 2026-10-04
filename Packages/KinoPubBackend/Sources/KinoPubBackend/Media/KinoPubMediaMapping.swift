@@ -184,7 +184,17 @@ public extension MediaItem {
         Score(.kinopub, value: ratingPercentage, scale: 100, votes: ratingVotes),
       ].compactMap { $0 }
       entity.artwork = ArtworkSet(poster: KinoPubMediaMapping.poster(posters),
-                                  backdrop: ArtworkSet.url(posters.wideURL))
+                                  backdrop: ArtworkSet.url(posters.wideURL),
+                                  posterPreview: ArtworkSet.url(posters.medium))
+      let badges = MediaCapabilityBadges.from(item: self)
+      entity.formats = Set([
+        badges.is4K ? MediaFormat.uhd : nil,
+        badges.isHD ? .hd : nil,
+        badges.is3D ? .threeD : nil,
+      ].compactMap { $0 })
+      // TODO: HDR, surround (ac3) and closed captions are known only partly — from a probed
+      // playlist or the subtitle list — and `MediaCapabilityBadges` keeps them off. Map them
+      // here when they are trusted.
       entity.countries = countries.map(\.title)
       entity.setlist = (tracklist ?? []).map {
         SetlistEntry(title: $0.title, artists: $0.artists, audio: ArtworkSet.url($0.url))

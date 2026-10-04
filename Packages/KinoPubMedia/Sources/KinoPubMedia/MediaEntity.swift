@@ -52,6 +52,9 @@ public struct MediaEntity: Hashable, Sendable, Codable {
   public var countries: [String]
   /// A concert's setlist, in order. Empty for everything else.
   public var setlist: [SetlistEntry]
+  /// What the copy that plays offers — 4K, HD, 3D… A fact about one platform's copy,
+  /// not about the work, so only the source that serves the stream says it.
+  public var formats: Set<MediaFormat>
   /// What a platform says about its copy or its catalogue rather than about the work —
   /// kino.pub's "Эксклюзив". Not genres, never the one word shown; kept for badges,
   /// filters and sections. Every source's are kept.
@@ -81,6 +84,7 @@ public struct MediaEntity: Hashable, Sendable, Codable {
               artwork: ArtworkSet = ArtworkSet(),
               countries: [String] = [],
               setlist: [SetlistEntry] = [],
+              formats: Set<MediaFormat> = [],
               labels: [MediaLabel] = [],
               provenance: [MediaField: MediaSource] = [:],
               claims: [MediaFragment] = []) {
@@ -103,6 +107,7 @@ public struct MediaEntity: Hashable, Sendable, Codable {
     self.artwork = artwork
     self.countries = countries
     self.setlist = setlist
+    self.formats = formats
     self.labels = labels
     self.provenance = provenance
     self.claims = claims
@@ -153,6 +158,18 @@ public struct MediaEntity: Hashable, Sendable, Codable {
     for fragment in claims where !seen.contains(fragment.source) { seen.append(fragment.source) }
     return seen
   }
+}
+
+/// A format the copy offers, in Apple's vocabulary for its badges.
+public enum MediaFormat: String, Hashable, Codable, Sendable, CaseIterable {
+  case hd
+  /// 4K.
+  case uhd
+  case hdr
+  case dolbyVision
+  case threeD
+  case surround
+  case closedCaptions
 }
 
 /// One song of a concert's setlist. A song nobody could name keeps its place in the order
@@ -330,12 +347,16 @@ public struct ArtworkSet: Hashable, Sendable, Codable {
   /// Landscape, without lettering.
   public var backdrop: URL?
   public var logo: URL?
+  /// The poster at a grid's size — what a card paints before, or instead of, `poster`.
+  public var posterPreview: URL?
 
-  public init(poster: URL? = nil, still: URL? = nil, backdrop: URL? = nil, logo: URL? = nil) {
+  public init(poster: URL? = nil, still: URL? = nil, backdrop: URL? = nil, logo: URL? = nil,
+              posterPreview: URL? = nil) {
     self.poster = poster
     self.still = still
     self.backdrop = backdrop
     self.logo = logo
+    self.posterPreview = posterPreview
   }
 
   /// Sources hand us strings, and blank ones: kino.pub ships `""` for a missing poster.

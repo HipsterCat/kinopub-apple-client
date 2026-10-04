@@ -5,6 +5,16 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Every catalogue card is built from the media model (2026-10-04)
+
+`MediaCard(_ item:)` maps the kino.pub payload into the model and words the card with
+`MediaCard(ref:entity:state:)`. What changes on screen: genre names come from our vocabulary
+(English in English, «Эксклюзив» no longer a genre, Documentary leads a documentary); a film's
+runtime on a multi-version film is the film's, not every version summed; a film never reads as
+followed; a medium poster missing falls back to the big one. The model gained `formats`
+(4K / HD / 3D) and `ArtworkSet.posterPreview`; the vocabulary `SeasonCountText` (plural-correct
+in Russian without a strings table) and `TitleMetaLine`.
+
 ### Continue means the episode touched last (2026-10-04)
 
 `EpisodeQueue.continueTarget` — the hero's Play, Continue Watching, the card menu — is the

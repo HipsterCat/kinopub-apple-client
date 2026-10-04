@@ -10,7 +10,8 @@ public enum MediaSource: String, Hashable, Sendable, Codable, CaseIterable {
 /// own: a tagline is not a part of somebody's plot, so it is ranked — and kept — apart.
 public enum MediaField: String, Hashable, Sendable, Codable, CaseIterable {
   case title, originalTitle, edition, seasonCount, genres, release, ended, runtime,
-       contentRating, scores, poster, still, backdrop, logo, countries, setlist
+       contentRating, scores, poster, posterPreview, still, backdrop, logo, countries,
+       setlist, formats
   /// `Synopsis.full` — the plot.
   case synopsis
   /// `Synopsis.short` — a line or two; Kinopoisk's `shortDescription`.
@@ -120,6 +121,10 @@ public struct MediaPrecedence: Sendable {
     .countries: [.kinopub, .tmdb, .kinopoisk],
     // The setlist of the recording that plays.
     .setlist: [.kinopub],
+    // The stream's own formats: only the platform that serves it knows.
+    .formats: [.kinopub],
+    // A grid's poster comes from the same catalogue as the card it sits in.
+    .posterPreview: [.kinopub, .tmdb, .kinopoisk],
   ])
 }
 
@@ -218,9 +223,11 @@ public enum MediaAggregator {
       poster: pick(.poster) { $0.artwork.poster },
       still: pick(.still) { $0.artwork.still },
       backdrop: pick(.backdrop) { $0.artwork.backdrop },
-      logo: pick(.logo) { $0.artwork.logo })
+      logo: pick(.logo) { $0.artwork.logo },
+      posterPreview: pick(.posterPreview) { $0.artwork.posterPreview })
     entity.countries = pick(.countries) { $0.countries.isEmpty ? nil : $0.countries } ?? []
     entity.setlist = pick(.setlist) { $0.setlist.isEmpty ? nil : $0.setlist } ?? []
+    entity.formats = pick(.formats) { $0.formats.isEmpty ? nil : $0.formats } ?? []
 
     // Scores are kept side by side: one per provider, reported by the best-ranked source.
     var scores: [Score] = []
