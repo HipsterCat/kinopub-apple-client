@@ -128,8 +128,9 @@ struct MainView: View {
   }
 
   /// Continue Watching is the large still row: three across (HIG 3-column, 560 at
-  /// 1920), the rest scrolls — not three items (Sasha, 2026-09-23).
-  private static let continueWatchingColumns = 3
+  /// 1920), the rest scrolls — not three items (Sasha, 2026-09-23). The detail page's
+  /// episode and version rails take the same size: an episode tile is this tile.
+  static let continueWatchingColumns = 3
 
   /// The Home banner as the page's first row: the same sampled `bannerCards` the
   /// SwiftUI path draws (six at most), with their title logos, each once

@@ -5,6 +5,26 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS detail page: episode rail like Home, artwork no longer stuck behind the cast host (2026-10-04)
+
+- **Grey episode stills were a queue, not the cells.** Nuke downloads through one queue,
+  six at a time. The cast photos (`m.pushbr.com`) answer nothing for ~25 s and then fail
+  — measured from the Mac with curl and in the tvOS simulator's artwork log — and the
+  detail page asks for eight of them before its episode stills, so the stills waited
+  behind them for half a minute while their own host (`m.staticpop.net`) answers in
+  0.3 s. `Artwork.pipeline` now allows 24 downloads in flight (URLSession still caps
+  each host) and gives a request 15 s. Cold-cache runs: stills in 1–3 s.
+- **The episode and version rails are Home's Continue Watching row:**
+  `TVUIKitMediaItemRail(columns:)` lays out with `TVPageLayout.stillRail` — the HIG
+  3-column still (557×313 at 1920), gutter, focus room — instead of the system
+  metrics × 1.18. Runtime shows on the focused tile, as on Home.
+- **The corner of an episode kino.pub lacks:** its date while it is ahead («Позже»
+  undated), the lock once it has aired — never both. Dates drop the year when it is
+  this year.
+- `TVMediaItemContentConfiguration.wideCell()` draws one line under the still:
+  `secondaryText` stays hidden at any cell height and a newline in `text` is cut
+  (probe app, tvOS 27.2 simulator). A release-date subtitle needs a decision.
+
 ### Detail page: Follow first, focus after the player, missing episodes, film versions (2026-10-03)
 
 Sasha's list of 2026-10-03, checked on fixtures in the tvOS simulator (`TVDetailPageUITests`,

@@ -187,6 +187,40 @@ public enum TVPageLayout {
     return layoutSection
   }
 
+  /// The still rail a `TVPage` builds for a `.stills` row, for a rail that lives outside
+  /// a `TVPage` — the detail page's episodes and film versions, which sit in a SwiftUI
+  /// page (`TVUIKitMediaItemRail(columns:)`). Same HIG columns, envelope, gutter, focus
+  /// room and bottom gap as the Home row; the section is untitled (the caller draws its
+  /// own header) and scrolls sideways.
+  @MainActor
+  public static func stillRail(columns: Int,
+                               caption: TVPageCaption,
+                               containerWidth: CGFloat,
+                               sideInset: CGFloat) -> NSCollectionLayoutSection {
+    rail(stillRailSection(columns: columns, caption: caption),
+         contentWidth: max(containerWidth - sideInset * 2, 1), sideInset: sideInset)
+  }
+
+  /// The height `stillRail` takes at this width: focus room, the envelope, and the gap
+  /// under it.
+  @MainActor
+  public static func stillRailHeight(columns: Int,
+                                     caption: TVPageCaption,
+                                     containerWidth: CGFloat,
+                                     sideInset: CGFloat) -> CGFloat {
+    let section = stillRailSection(columns: columns, caption: caption)
+    let contentWidth = max(containerWidth - sideInset * 2, 1)
+    let art = TVHIGGrid.resolve(columns: columns, contentWidth: contentWidth).cardWidth
+    let recipe = TVPageCellMetrics.recipe(kind: .still, artWidth: art, caption: caption)
+    let edges = insets(for: recipe, sideInset: sideInset, titled: false,
+                       captioned: hasStandingCaption(section))
+    return (edges.top + recipe.itemSize.height + edges.bottom).rounded(.up)
+  }
+
+  private static func stillRailSection(columns: Int, caption: TVPageCaption) -> TVPageSection {
+    .stills(id: "still-rail", title: nil, columns: columns, caption: caption, cards: [])
+  }
+
   /// The banner band: one item the container's full width, edge to edge. The cell is a
   /// `TVCollectionViewFullScreenLayout` of its own, which insets its cards and shows the
   /// neighbours in that margin (`TVPageBannerCarouselCell`), so the section adds no side

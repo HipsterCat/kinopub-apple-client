@@ -359,6 +359,8 @@ struct SeasonsRailView: View {
     TVUIKitMediaItemRail(
       items: entries.map(railItem(for:)),
       contentInset: metrics.inset,
+      // Home's Continue Watching row, size and all (Sasha, 2026-10-04).
+      columns: MainView.continueWatchingColumns,
       entryItemID: firstEpisodeInSelectedSeason,
       animatesEntryScroll: animatesRailScroll,
       onSelect: { id in select(entryID: id) },
@@ -400,11 +402,10 @@ struct SeasonsRailView: View {
 
     case .unavailable(_, let schedule):
       // An episode kino.pub has not uploaded must not read differently from one it has —
-      // only the lock and the badge say so: when it airs, «Сегодня» … «3 дня назад» for
-      // one that has just aired, «Позже» with no date, nothing for one long aired.
-      let status = TVUIKitMediaItemStatus.locked(
-        MissingEpisodeAirState(airDate: schedule.airDate).badgeText
-      )
+      // only the corner says so: its date while it is still ahead («Позже» with none),
+      // the lock once it has aired. Never both (Sasha, 2026-10-04).
+      let status: TVUIKitMediaItemStatus = MissingEpisodeAirState(airDate: schedule.airDate)
+        .badgeText.map { .upcoming($0) } ?? .locked
       return TVUIKitMediaItem(id: entry.id,
                               imageURL: schedule.still,
                               // Same title rule as a kino.pub episode: "Серия 3" is no name.
@@ -684,8 +685,8 @@ struct SeasonsRailView: View {
   }
 
   /// Inside a week either way the date is relative — "in 3 days", "7 days ago", and
-  /// "tomorrow" / "yesterday" for the ends. Further out it is an absolute date **with
-  /// the year**: a rail spans seasons, so a bare "8 Jul" says nothing about which one.
+  /// "tomorrow" / "yesterday" for the ends. Further out it is an absolute date, with the
+  /// year only when it is not this year (Sasha, 2026-10-04).
   ///
   /// `context` is where the words land: `.beginningOfSentence` on a card's badge
   /// («Завтра»), mid-sentence in a toast («Выходит завтра»).
@@ -697,7 +698,7 @@ struct SeasonsRailView: View {
     guard abs(days) > 7 else {
       return relativeDays(days, context: context, locale: locale)
     }
-    return absoluteAirDate(date, locale: locale)
+    return absoluteAirDate(date, now: now, locale: locale)
   }
 
   /// "today", "yesterday", "the day before yesterday" (ru «позавчера»), "in 3 days" —
@@ -713,12 +714,17 @@ struct SeasonsRailView: View {
     return formatter.localizedString(from: DateComponents(day: days))
   }
 
-  /// "12 Mar 2023" — with the year, see `airDateLabel`.
-  static func absoluteAirDate(_ date: Date, locale: Locale = .current) -> String {
-    if locale == .current { return airDateFormatter.string(from: date) }
+  /// "12 Mar" this year, "12 Mar 2023" any other — see `airDateLabel`.
+  static func absoluteAirDate(_ date: Date,
+                              now: Date = Date(),
+                              locale: Locale = .current,
+                              calendar: Calendar = .current) -> String {
+    let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
     let formatter = DateFormatter()
     formatter.locale = locale
-    formatter.setLocalizedDateFormatFromTemplate("d MMM yyyy")
+    formatter.calendar = calendar
+    formatter.timeZone = calendar.timeZone
+    formatter.setLocalizedDateFormatFromTemplate(sameYear ? "d MMM" : "d MMM yyyy")
     return formatter.string(from: date)
   }
 
@@ -728,13 +734,6 @@ struct SeasonsRailView: View {
                             from: calendar.startOfDay(for: now),
                             to: calendar.startOfDay(for: date)).day ?? 0
   }
-
-  private static let airDateFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.locale = .current
-    formatter.setLocalizedDateFormatFromTemplate("d MMM yyyy")
-    return formatter
-  }()
 
   private static func seasonTitle(_ season: Season) -> String {
     if season.title.isEmpty {
@@ -765,9 +764,9 @@ struct SeasonsRailView: View {
 
 /// Where an episode TMDB lists and kino.pub does not have stands, by its air date in
 /// local calendar days. One rule for the card's badge, its lock and what Select says,
-/// on the TVUIKit rail and the SwiftUI cards alike. Product rules (Sasha, 2026-10-03):
-/// aired in the last three days → «Сегодня», «Вчера», «Позавчера», «3 дня назад» on the
-/// card; no date → «Позже»; not on kino.pub → a lock in the corner.
+/// on the TVUIKit rail and the SwiftUI cards alike. Product rules (Sasha, 2026-10-03,
+/// corner rule 2026-10-04): the corner holds the date while the episode is ahead
+/// («Позже» with no date) and the lock once it has aired — never both.
 enum MissingEpisodeAirState: Equatable {
   /// Air date ahead: the badge says when.
   case upcoming(Date)
@@ -798,8 +797,8 @@ enum MissingEpisodeAirState: Equatable {
     }
   }
 
-  /// The card's badge, capitalised because it starts the chip. Nil for an episode long
-  /// aired: the lock says everything there is to say.
+  /// The corner's date, capitalised because it starts the chip. Nil once the episode has
+  /// aired: the lock takes the corner instead.
   @MainActor var badgeText: String? { badge() }
 
   @MainActor
@@ -807,9 +806,7 @@ enum MissingEpisodeAirState: Equatable {
     switch self {
     case .upcoming(let date):
       return SeasonsRailView.airDateLabel(date, now: now, context: .beginningOfSentence, locale: locale)
-    case .justAired(_, let daysAgo):
-      return SeasonsRailView.relativeDays(-daysAgo, context: .beginningOfSentence, locale: locale)
-    case .aired:
+    case .justAired, .aired:
       return nil
     case .undated:
       return "MediaItem_Later".localized
@@ -891,11 +888,14 @@ private struct UpcomingSeasonCard: View {
   /// Artwork height of the neighbouring episode cards, so the poster lines up with them.
   let stillHeight: CGFloat
 
-  private static let dateFormatter: DateFormatter = {
+  /// "12 марта", or "12 марта 2027" when it is not this year (Sasha, 2026-10-04).
+  private var premiereText: String {
+    let calendar = Calendar.current
+    let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: Date())
     let formatter = DateFormatter()
-    formatter.setLocalizedDateFormatFromTemplate("d MMMM yyyy")
-    return formatter
-  }()
+    formatter.setLocalizedDateFormatFromTemplate(sameYear ? "d MMMM" : "d MMMM yyyy")
+    return formatter.string(from: date)
+  }
 
   private var countdown: String {
     let formatter = RelativeDateTimeFormatter()
@@ -921,7 +921,7 @@ private struct UpcomingSeasonCard: View {
         .foregroundStyle(Color.KinoPub.text)
         .lineLimit(1)
 
-      Text(String(format: "MediaItem_PremiereOn".localized, Self.dateFormatter.string(from: date)))
+      Text(String(format: "MediaItem_PremiereOn".localized, premiereText))
         .font(TypeScale.cardMeta)
         .foregroundStyle(Color.secondary)
         .lineLimit(2)
@@ -991,6 +991,7 @@ struct VersionsRailView: View {
     TVUIKitMediaItemRail(
       items: variants.map(railItem(for:)),
       contentInset: metrics.inset,
+      columns: MainView.continueWatchingColumns,
       onSelect: { id in
         guard let variant = variants.first(where: { $0.id == id }) else { return }
         // A UIKit cell cannot host a `NavigationLink`; the same environment hook the

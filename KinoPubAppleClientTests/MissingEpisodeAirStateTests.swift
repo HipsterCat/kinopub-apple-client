@@ -2,9 +2,9 @@
 //  MissingEpisodeAirStateTests.swift
 //  KinoPubAppleClientTests
 //
-//  Episodes TMDB lists and kino.pub does not have (Sasha, 2026-10-03): aired in the last
-//  three days → «Сегодня», «Вчера», «Позавчера», «3 дня назад» on the card; no date →
-//  «Позже»; long aired → the lock alone. And the date Follow waits for: the next episode
+//  Episodes TMDB lists and kino.pub does not have (Sasha, 2026-10-03, corner rule
+//  2026-10-04): ahead → its date in the corner; no date → «Позже»; aired → the lock,
+//  never with a date. Dates carry the year only when it is not this year. And the date Follow waits for: the next episode
 //  of the season kino.pub is on, ahead or already aired.
 //
 
@@ -60,16 +60,12 @@ final class MissingEpisodeAirStateTests: XCTestCase {
 
   // MARK: - Badge
 
-  func testJustAiredBadgesInRussian() {
-    XCTAssertEqual(state(0).badge(now: now, locale: russian), "Сегодня")
-    XCTAssertEqual(state(-1).badge(now: now, locale: russian), "Вчера")
-    XCTAssertEqual(state(-2).badge(now: now, locale: russian), "Позавчера")
-    XCTAssertEqual(state(-3).badge(now: now, locale: russian), "3 дня назад")
-  }
-
-  func testLongAiredEpisodeHasNoBadgeOnlyTheLock() {
-    XCTAssertNil(state(-4).badge(now: now, locale: russian))
-    XCTAssertNil(state(-514).badge(now: now, locale: russian))
+  /// Once it has aired the corner is the lock, not a date — however recent (Sasha,
+  /// 2026-10-04: the two are mutually exclusive).
+  func testAiredEpisodeHasNoDateInTheCornerOnlyTheLock() {
+    for offset in [0, -1, -2, -3, -4, -514] {
+      XCTAssertNil(state(offset).badge(now: now, locale: russian), "day \(offset)")
+    }
   }
 
   func testUndatedEpisodeSaysLater() {
@@ -83,6 +79,28 @@ final class MissingEpisodeAirStateTests: XCTestCase {
     let badge = try XCTUnwrap(MissingEpisodeAirState.upcoming(day(1, hour: 12))
       .badge(now: day(0, hour: 12), locale: russian))
     XCTAssertEqual(badge, "Завтра")
+  }
+
+  // MARK: - Dates
+
+  /// This year's dates drop the year; any other year keeps it (Sasha, 2026-10-04).
+  func testAbsoluteDateShowsTheYearOnlyWhenItIsNotThisYear() {
+    let thisYear = calendar.date(from: DateComponents(year: 2026, month: 3, day: 12, hour: 12))!
+    let lastYear = calendar.date(from: DateComponents(year: 2025, month: 3, day: 12, hour: 12))!
+    let nextYear = calendar.date(from: DateComponents(year: 2027, month: 3, day: 12, hour: 12))!
+    let this = SeasonsRailView.absoluteAirDate(thisYear, now: now, locale: russian, calendar: calendar)
+    XCTAssertFalse(this.contains("2026"), this)
+    XCTAssertTrue(this.contains("12"), this)
+    XCTAssertTrue(SeasonsRailView.absoluteAirDate(lastYear, now: now, locale: russian, calendar: calendar)
+      .contains("2025"))
+    XCTAssertTrue(SeasonsRailView.absoluteAirDate(nextYear, now: now, locale: russian, calendar: calendar)
+      .contains("2027"))
+  }
+
+  /// More than a week ahead: the absolute date, this year's without the year.
+  func testUpcomingBadgeFarAheadHasNoYearThisYear() throws {
+    let badge = try XCTUnwrap(state(30).badge(now: now, locale: russian))
+    XCTAssertFalse(badge.contains("2026"), badge)
   }
 
   // MARK: - Select
