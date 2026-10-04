@@ -315,8 +315,9 @@ Details: skill `apple-chrome`.
   grey as both loading and failure.
 - **One store ownership model.** `ContentStore` owns Home/Library *rows*; `MediaLibraryStore`
   owns per-item optimistic library state (watchlist / watched / votes, plus a download
-  façade); `Artwork` owns remote images; `MetadataCache` (when it lands) owns item-facts.
-  Do not invent a fifth cache beside those. Bookmarks stay on `BookmarkMembershipStore` /
+  façade); `Artwork` owns remote images; `MediaRecordStore` owns item facts — one
+  `MediaRecord` (merged model) per `MediaRef`, which `ContentStore` rows refer to
+  (docs/media-model.md step 4). Do not invent a fifth cache beside those. Bookmarks stay on `BookmarkMembershipStore` /
   `BookmarkFoldersStore` — the library store does not replace them. **All remote images go
   through `Artwork`** — one decoded memory
   cache keyed by target size, one disk entry per URL, coalescing and prefetch, on every platform.

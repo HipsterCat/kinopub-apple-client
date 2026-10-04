@@ -28,9 +28,11 @@ final class StorageSettingsModel: ObservableObject {
   @Published private(set) var downloadsBytes: Int64 = 0
 
   private let rowSnapshotStore = RowSnapshotStore()
+  /// The titles those rows refer to — one snapshot, so one number and one Clear.
+  private let recordDisk = MediaRecordDisk()
 
   func refresh(appContext: AppContextProtocol) {
-    rowSnapshotBytes = rowSnapshotStore.diskUsage
+    rowSnapshotBytes = rowSnapshotStore.diskUsage + recordDisk.diskUsage
     hlsTempBytes = HLSAudioLabeler.legacyTemporaryDirectorySize
     urlCacheDiskBytes = URLCache.shared.currentDiskUsage
     urlCacheMemoryBytes = URLCache.shared.currentMemoryUsage
@@ -49,6 +51,7 @@ final class StorageSettingsModel: ObservableObject {
 
   func clearRowSnapshots() {
     rowSnapshotStore.clear()
+    recordDisk.clear()
     rowSnapshotBytes = 0
   }
 

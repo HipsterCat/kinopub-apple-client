@@ -60,20 +60,20 @@ class PersonalLibraryCatalog: ObservableObject {
       group.addTask { [store] in
         await store.refreshIfStale(.watchlist) { [weak self] in //'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
           guard let self else { throw CancellationError() }
-          return try await self.fetchWatchlistCards()
+          return try await self.fetchWatchlistCards().map(RowItem.card)
         }
       }
       group.addTask { [store] in
         await store.refreshIfStale(.history) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
           guard let self else { throw CancellationError() }
-          return try await self.fetchHistoryCards()
+          return try await self.fetchHistoryCards().map(RowItem.card)
         }
       }
       for folder in folders {
         group.addTask { [store] in
           await store.refreshIfStale(.folder(folder.id)) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
             guard let self else { throw CancellationError() }
-            return try await self.fetchFolderCards(folder)
+            return try await self.fetchFolderItems(folder)
           }
         }
       }
@@ -169,8 +169,8 @@ class PersonalLibraryCatalog: ObservableObject {
     }
   }
 
-  private func fetchFolderCards(_ folder: Bookmark) async throws -> [MediaCard] {
-    try await contentService.fetchBookmarkItems(id: "\(folder.id)", page: nil).items.map(MediaCard.init)
+  private func fetchFolderItems(_ folder: Bookmark) async throws -> [RowItem] {
+    try await contentService.fetchBookmarkItems(id: "\(folder.id)", page: nil).items.map(RowItem.title)
   }
 
   private func subscribeForAuth() {

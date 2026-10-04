@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Rows keep refs; titles live in one record store (2026-10-04)
+
+`MediaRecordStore` keeps each title once, as the merged model under its `MediaRef`
+(`records-v1.json` beside the rows). Home's catalogue shelves and bookmark folders now store
+only refs and word their cards when read, so a title on two shelves paints the newest payload
+on both. Other rows still store cards; the old row file is read once as cards. Step 4,
+slice 1 of docs/media-model.md.
+
 ### Cached rows paint today's viewer state (2026-10-04)
 
 `ContentStore.cards(_:)` lays `ViewerState` (`AppContext.viewerState`, the stores' marks over the

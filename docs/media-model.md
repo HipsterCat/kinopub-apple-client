@@ -188,7 +188,20 @@ Each step is one reviewable slice with tests, merged before the next.
    gained what a card needs (`formats` — 4K / HD / 3D, `ArtworkSet.posterPreview`), the
    vocabulary `SeasonCountText` and `TitleMetaLine`. **And** a cached row no longer paints
    yesterday's state: `ContentStore.cards(_:)` lays `ViewerState` over every title card as it
-   is read (`MediaCard.withViewerState`). Next: the store of records itself, rows keeping refs.
+   is read (`MediaCard.withViewerState`).
+   **Slice 1, 2026-10-04 — the record store; catalogue rows keep refs.** `MediaRecordStore`
+   (`Services/Cache/`, `records-v1.json` beside the rows) keeps a `MediaRecord` per title
+   ref: the merged `MediaEntity` with its claims, and the payload's own word on the viewer
+   (`reported`). A row is a list of `RowEntry` — `.title(MediaRef)`, or `.card(MediaCard)`
+   for what is not on the model yet. A fetch hands `RowItem.title(MediaItem)` and
+   `ContentStore` ingests it; `cards(_:)` words a title's card from its record and lays
+   `ViewerState` over it, so a title on two shelves is one record and paints its newest
+   payload on both. Records no row refers to are dropped on every save. On refs now: Home's
+   catalogue shelves (Watch Now, Movies, Series…) and bookmark folders. Still cards:
+   Continue Watching and history (episode cards), collections, `/v1/watching` rows (not
+   `MediaItem`s), the Library section grid. A `rows-v2.json` from before is read once as
+   cards. Next: the detail page reads and writes the record; then the player's
+   `TitleSnapshot`, which needs the model to carry seasons and episodes first.
 5. Selection functions. **Started**: `EpisodeQueue` (KinoPubBackend) answers every "which
    episode" question — `next(after:)` for the end-of-episode proposal, `nextUnwatched(after:)`
    for Up Next (now by this device's state too), `continueTarget` for the hero and Continue

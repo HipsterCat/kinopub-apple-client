@@ -82,9 +82,9 @@ struct WatchlistView: View {
 
     let willFetch = force || store.isStale(.watchlist)
     let service = appContext.contentService
-    let fetch: @Sendable () async throws -> [MediaCard] = {
+    let fetch: @Sendable () async throws -> [RowItem] = {
       let items = try await service.fetchWatchingSerials(subscribedOnly: true).items // Capture of 'service' with non-Sendable type 'any VideoContentService' in a '@Sendable' closure
-      return items.map(Self.card(for:))
+      return items.map { RowItem.card(Self.card(for: $0)) }
     }
     if force {
       await store.refresh(.watchlist, fetch: fetch)
