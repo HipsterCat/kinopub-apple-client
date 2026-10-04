@@ -14,8 +14,10 @@ import SwiftUI
 import KinoPubUI
 
 struct TVPageMenuBackProbeRoot: View {
+  @State private var tab = 0
+
   var body: some View {
-    TabView {
+    TabView(selection: $tab) {
       Tab(value: 0) {
         TVPageTemplatesGallery()
       } label: {
