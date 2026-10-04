@@ -19,8 +19,8 @@ public enum PlaybackButtonContent: Equatable, Sendable {
 }
 
 public extension MediaItem {
-  /// Season + episode the primary button would open — `EpisodeQueue.continueTarget` on the
-  /// payload's own word. The detail page's Play, Continue Watching with details and the
+  /// Season + episode the primary button would open — `EpisodeQueue.continueTarget` (the
+  /// episode touched last) on the payload's own word. The detail page's Play, Continue Watching with details and the
   /// card menu all read this.
   var primaryEpisode: (season: Season, episode: Episode)? {
     guard isSeries else { return nil }

@@ -18,7 +18,7 @@ import KinoPubMedia
 /// | --- | --- | --- |
 /// | what plays after this one, watched or not | `next(after:)` | the end-of-episode proposal |
 /// | what to offer after this one | `nextUnwatched(after:)` | Up Next (never a watched one) |
-/// | where the viewer is in the series | `continueTarget` | hero Play, Continue Watching |
+/// | where the viewer is in the series (the one touched last) | `continueTarget` | hero Play, Continue Watching |
 ///
 /// Watched-ness comes from `ViewerState`, so a caller that passes the device's own state
 /// (`ViewerStateReader`) gets local marks and resume points, not only the payload's.
@@ -105,18 +105,26 @@ public struct EpisodeQueue {
   }
 
   /// **Where the viewer is in the series** — what Play opens and what Continue Watching
-  /// offers: the first episode not watched; with everything watched, the first one again
-  /// (Replay). The hero's behavior since it existed, kept as is until D17 is decided.
+  /// offers: the episode the viewer touched **last**, as the Apple TV app does (user's call,
+  /// D17, 2026-10-04). Started and not finished → that one. Finished → the one after it.
+  /// "Last" is by when it was played (`ViewerState.lastWatchedAt`) when the state knows,
+  /// else by reading order: with E1, E2, E4, E5 watched and E6 half-way, it is E6; with E6
+  /// untouched, it is E6 too — a skipped E3 stays skipped.
   ///
-  /// TODO(decision) D17: with E1, E2, E4, E5 watched (E3 skipped) and E6 half-way, which is
-  /// "where the viewer is"?
-  /// - E3, the first unwatched — this, today, on the hero and on a card with details;
-  /// - E6, the one in progress (`inProgress`) — what the viewer was last doing;
-  /// - E6 also as "after the furthest watched" (`afterFurthestWatched`) — what a Continue
-  ///   Watching card infers when it has no episode list (`ContinueWatchingEpisode.forSeries`).
-  /// One answer here and the card's inference follows it.
+  /// After the finale with earlier episodes skipped: the first unwatched. Everything
+  /// watched: the first episode again (Replay).
   public var continueTarget: Entry? {
-    firstUnwatched ?? entries.first
+    let touched = entries.indices.filter {
+      entries[$0].state.isWatched || entries[$0].state.resumeFraction != nil
+    }
+    let last = touched.max { lhs, rhs in
+      let left = entries[lhs].state.lastWatchedAt ?? .distantPast
+      let right = entries[rhs].state.lastWatchedAt ?? .distantPast
+      return left != right ? left < right : lhs < rhs
+    }
+    guard let last else { return entries.first }
+    if !entries[last].state.isWatched { return entries[last] }
+    return entries.dropFirst(last + 1).first ?? firstUnwatched ?? entries.first
   }
 
   /// Every episode watched.

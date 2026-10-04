@@ -59,10 +59,9 @@ public struct ContinueWatchingEpisode: Equatable, Sendable {
   /// by when they were played, not by episode number, so "the last row + 1" offered E3
   /// on a series whose E1–E4 were all watched. Taking the maximum also survives a
   /// truncated history: 20 rows deep, an old E1 may be gone while E4 is still there.
-  /// TODO(decision) D17: this is the card's guess **without an episode list**, and it
-  /// guesses "after the furthest watched" — while `EpisodeQueue.continueTarget`, which the
-  /// card uses when it has the list, answers "the first unwatched". Once D17 picks one, this
-  /// follows it.
+  /// The card's answer **without an episode list** — the same rule `EpisodeQueue.continueTarget`
+  /// applies with one (D17, 2026-10-04): an episode in progress, else the one after the
+  /// furthest finished.
   public static func forSeries(
     local: (season: Int?, episode: Int?, isFinished: Bool)?,
     history: (season: Int?, episode: Int?, isFinished: Bool)?,

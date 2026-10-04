@@ -74,13 +74,33 @@ final class EpisodeQueueTests: XCTestCase {
 
   // MARK: - Where the viewer is
 
-  /// Today's answer (D17 open): the first unwatched, skipped ones included.
-  func testContinueIsTheFirstUnwatched() {
-    let queue = EpisodeQueue(series: series(watched: [1, 2, 4, 5], inProgress: 6))
-    XCTAssertEqual(numbers(queue.continueTarget), "S1E3")
-    XCTAssertEqual(numbers(queue.firstUnwatched), "S1E3")
-    XCTAssertEqual(numbers(queue.inProgress), "S2E3")
-    XCTAssertEqual(numbers(queue.afterFurthestWatched), "S2E3")
+  /// D17 (2026-10-04): the episode touched last, as Apple does — a skipped E3 stays skipped.
+  func testContinueIsTheEpisodeTouchedLast() {
+    let halfway = EpisodeQueue(series: series(watched: [1, 2, 4, 5], inProgress: 6))
+    XCTAssertEqual(numbers(halfway.continueTarget), "S2E3", "E6 is in progress")
+    XCTAssertEqual(numbers(halfway.firstUnwatched), "S1E3")
+    XCTAssertEqual(numbers(halfway.inProgress), "S2E3")
+
+    let untouched = EpisodeQueue(series: series(watched: [1, 2, 4, 5]))
+    XCTAssertEqual(numbers(untouched.continueTarget), "S2E3", "the one after E5")
+  }
+
+  /// With play times known, "last" is by time, not by order: E2 played yesterday beats E5
+  /// played last month.
+  func testLastIsByTimeWhenKnown() {
+    let item = series(watched: [5], inProgress: 2)
+    let queue = EpisodeQueue(series: item) { ref, episode in
+      var state = ViewerState(reportedBy: episode)
+      if ref == .episode(87940, season: 1, number: 2) { state.lastWatchedAt = Date(timeIntervalSince1970: 2_000) }
+      if ref == .episode(87940, season: 2, number: 2) { state.lastWatchedAt = Date(timeIntervalSince1970: 1_000) }
+      return state
+    }
+    XCTAssertEqual(numbers(queue.continueTarget), "S1E2")
+  }
+
+  /// The finale watched, earlier ones skipped: back to the first one missed.
+  func testAfterTheFinaleTheFirstMissed() {
+    XCTAssertEqual(numbers(EpisodeQueue(series: series(watched: [1, 6])).continueTarget), "S1E2")
   }
 
   func testEverythingWatchedReplaysFromTheStart() {

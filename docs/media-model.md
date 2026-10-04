@@ -120,7 +120,7 @@ row painted from cache shows yesterday's state until the next fetch overlays it.
 | --- | --- | --- |
 | Continue Watching | `HomeCatalog` + `ContinueWatchingEpisode.forSeries` + `ContinueWatchingLocalOverlay` | `Selection.continueWatching(records, state)` |
 | Up Next (player) | `PlaybackMediaContext.nextUnwatched` + CW cards | same function as Continue Watching's "next episode" |
-| Next episode for a series | `primaryEpisode`, `NextPlayableEpisode`, `ContinueWatchingEpisode.forSeries`, `nextUnwatched` — four answers | **done**: `EpisodeQueue` (named queries over one ordered list, watched-ness from `ViewerState`); the card's list-less guess stays until D17 |
+| Next episode for a series | `primaryEpisode`, `NextPlayableEpisode`, `ContinueWatchingEpisode.forSeries`, `nextUnwatched` — four answers | **done**: `EpisodeQueue` (named queries over one ordered list, watched-ness from `ViewerState`); the card's list-less guess follows the same rule (D17) |
 | History | `HistoryView` from `/v1/history` | query over records + `lastWatchedAt` |
 | Watchlist / subscriptions | `WatchlistView` | query |
 | Bookmarks | `PersonalLibraryCatalog` | query |
@@ -217,4 +217,4 @@ Each step is one reviewable slice with tests, merged before the next.
 | ~~D14~~ | **Decided**: detail page (season switch beside it, or one season) — «7. Name», no name «Episode 7» / «Серия 7»; elsewhere «S1, E1: Name» / «1 сезон, 1 серия: Name» | — |
 | ~~D15~~ | **Decided**: the card carries the season count (`MediaCard.seasonCount`); the hero passes it too | — |
 | ~~D16~~ | **Decided**: only whole episodes count as watched; a series or season has no runtime in the ring | — |
-| D17 | "Where the viewer is" in a series with E1, E2, E4, E5 watched and E6 half-way: E3 (the first unwatched — the hero today), or E6 (in progress / after the furthest watched — a Continue Watching card without details today)? One answer for both | E3 on the hero, E6 on a card without details |
+| ~~D17~~ | **Decided 2026-10-04**: "where the viewer is" is the episode touched last, as Apple does — in progress, else the one after it (E6 in the example) | — |

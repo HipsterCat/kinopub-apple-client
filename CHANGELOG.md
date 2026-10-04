@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Continue means the episode touched last (2026-10-04)
+
+`EpisodeQueue.continueTarget` — the hero's Play, Continue Watching, the card menu — is the
+episode the viewer touched last, as the Apple TV app does (D17): in progress → that one,
+finished → the next. By play time when known (this device's records), else by reading order.
+A skipped earlier episode stays skipped; after the finale with gaps, the first one missed. The
+list-less Continue Watching guess already followed this rule.
+
 ### One queue for "which episode" (2026-10-03)
 
 `EpisodeQueue` (KinoPubBackend) is a series' episodes in reading order with each one's
