@@ -11,7 +11,8 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 (`records-v1.json` beside the rows). Home's catalogue shelves and bookmark folders now store
 only refs and word their cards when read, so a title on two shelves paints the newest payload
 on both. Other rows still store cards; the old row file is read once as cards. Step 4,
-slice 1 of docs/media-model.md.
+slice 1 of docs/media-model.md. Slice 2: opening a title's page refreshes its record, so the
+shelf it came from paints the details payload's facts afterwards.
 
 ### Cached rows paint today's viewer state (2026-10-04)
 

@@ -73,6 +73,17 @@ final class ContentStoreRecordTests: XCTestCase {
     XCTAssertEqual(Set(relaunched.records.records.keys), [.title(10)], "no row refers to 11 any more")
   }
 
+  func testTheDetailPagesPayloadRefreshesATitleARowShows() throws {
+    let store = makeStore()
+    store.setItems([.title(.mock(id: 10, type: "movie"))], for: .folder(1))
+    store.refreshRecord(with: try XCTUnwrap(Self.mock(id: 10, year: 1999)))
+    XCTAssertEqual(store.cards(.folder(1)).first?.year, 1999)
+
+    store.refreshRecord(with: .mock(id: 12, type: "movie"))
+    XCTAssertNil(store.records.record(for: .title(12)), "a title no row shows is not kept")
+    XCTAssertEqual(makeStore().cards(.folder(1)).first?.year, 1999, "and the refresh is on disk")
+  }
+
   func testCardsThatAreNotOnTheModelStayCards() {
     let store = makeStore()
     let card = MediaCard(id: 5, posterURL: "", title: "Collection", opensCollection: true)

@@ -174,6 +174,15 @@ final class ContentStore {
 
   // MARK: - Records
 
+  /// A fuller payload for a title a row already shows — the detail page's, once it has
+  /// loaded. The rows paint it the next time they are read. A title no row shows is not
+  /// kept: the store holds what the rows refer to.
+  func refreshRecord(with item: MediaItem) {
+    guard records.record(for: item.titleRef) != nil else { return }
+    records.ingest(item)
+    save()
+  }
+
   /// Titles go into the record store, rows keep their refs.
   private func entries(_ items: [RowItem]) -> [RowEntry] {
     items.map { item in

@@ -312,6 +312,7 @@ class MediaItemModel: ObservableObject {
         let mediaId = mediaItem.id
         mediaItem.seasons = mediaItem.seasons?.map({ $0.mediaId = mediaId; return $0 })
         AppContext.shared.localProgressStore.cacheItem(mediaItem)
+        contentStore.refreshRecord(with: mediaItem)
         isWatched = viewerState(of: mediaItem).isWatched
         applyBookmarkState()
         // Without this the hero's follow control opened as "not following" on every

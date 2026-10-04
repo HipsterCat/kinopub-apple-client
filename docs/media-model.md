@@ -200,8 +200,13 @@ Each step is one reviewable slice with tests, merged before the next.
    catalogue shelves (Watch Now, Movies, Series…) and bookmark folders. Still cards:
    Continue Watching and history (episode cards), collections, `/v1/watching` rows (not
    `MediaItem`s), the Library section grid. A `rows-v2.json` from before is read once as
-   cards. Next: the detail page reads and writes the record; then the player's
-   `TitleSnapshot`, which needs the model to carry seasons and episodes first.
+   cards.
+   **Slice 2** — the detail page's payload refreshes the record of a title a row already
+   shows (`ContentStore.refreshRecord(with:)`), so the shelf paints the fuller facts
+   (season count, folders) after a visit; a title on no row is not kept. Next: the detail
+   page *opening* from the record — it is drawn from a `MediaItem` throughout, so that is
+   the page's own move onto the model — and the player's `TitleSnapshot`, which needs the
+   model to carry seasons and episodes first.
 5. Selection functions. **Started**: `EpisodeQueue` (KinoPubBackend) answers every "which
    episode" question — `next(after:)` for the end-of-episode proposal, `nextUnwatched(after:)`
    for Up Next (now by this device's state too), `continueTarget` for the hero and Continue
