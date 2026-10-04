@@ -5,6 +5,12 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### kino.pub's age rating says nothing (2026-10-04)
+
+v1 item details and listings have no age field on any type; api2's `age_rating` is `null` or
+`-1` even on a title Kinopoisk knows (Sasha's capture). Recorded as no signal in `MediaItem`,
+`MediaPrecedence` and `video.md`; the age rating stays Kinopoisk's / TMDB's. The TODO is closed.
+
 ### Rows keep refs; titles live in one record store (2026-10-04)
 
 `MediaRecordStore` keeps each title once, as the merged model under its `MediaRef`

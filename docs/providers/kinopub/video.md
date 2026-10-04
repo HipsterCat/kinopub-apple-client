@@ -947,6 +947,12 @@ Content-Type: application/js
 Похоже на дешёвый эндпоинт для дозапроса пары полей. Стоит ли ради него ходить на второй хост —
 открытый вопрос.
 
+**`age_rating` carries no signal (checked 2026-10-04).** api2 returned `"age_rating": null` for
+127717 and `-1` for 126811 (Mayday, a title Kinopoisk knows, `kinopoisk: 6446910`). In v1,
+`/v1/items/{id}` has no age field at all on any type (movie, serial, concert, documovie,
+docuserial, tvshow, 3d; listings neither). We do not decode it; the age rating comes from
+Kinopoisk / TMDB.
+
 ##
 
 Внимание, поле status больше не используется в успешных ответах.

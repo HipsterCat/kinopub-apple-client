@@ -16,10 +16,10 @@ import KinoPubMedia
 /// (and documovie / docuserial / tvshow / 3D) — field by field against
 /// `docs/providers/kinopub/video.md`, and record what each type does and does not carry.
 /// Known so far:
-/// - **Age rating: in the API, not found yet.** The official Apple TV app shows one, so the
-///   API carries it — but no payload captured so far (fixtures, `video.md`) has the field.
-///   Capture live: details for each type, listings, and the PWA's own requests; then decode
-///   it here and map it to the model's `contentRating` (source `.kinopub`).
+/// - **No age rating to decode.** v1 details and listings carry no age field (checked live
+///   for movie, serial, concert, documovie, docuserial, tvshow, 3d — 2026-10-04). api2's
+///   `age_rating` is `null` or `-1` on the titles sampled, so it says nothing; the model's
+///   `contentRating` comes from Kinopoisk / TMDB (`docs/providers/kinopub/video.md`).
 /// - `tracklist` (concerts) is decoded (`TracklistEntry`) and mapped to `MediaEntity.setlist`.
 /// - A listing payload carries no `seasons` and no `videos`; only details do.
 /// - `subscribed` / `in_watchlist`: which one each endpoint fills is unverified.

@@ -103,9 +103,10 @@ public struct MediaPrecedence: Sendable {
     // TODO(decision): one age rating per title, Russian first. Kinopoisk also knows the
     // MPAA rating and TMDB has per-country certifications; `ContentRating.region` can
     // hold either. Should the viewer's region pick, and should the panel ever show two?
-    // TODO: kino.pub's own age rating — in the API (the official Apple TV app shows it), field
-    // not found yet (docs/providers/kinopub/video.md). Once decoded it is the rating kino.pub
-    // itself shows; rank it first?
+    // kino.pub has no age rating of its own worth reading: v1 `/v1/items/{id}` carries no
+    // field (checked live for every type, 2026-10-04), and api2's `age_rating` came back
+    // `null` (127717) and `-1` (126811, which Kinopoisk knows) — no signal (Sasha,
+    // 2026-10-04; docs/providers/kinopub/video.md). The rating comes from Kinopoisk / TMDB.
     .contentRating: [.kinopoisk, .tmdb, .apple, .kinopub],
     // A score is best reported by whoever gave it: IMDb's own dataset beats kino.pub's
     // copy of the same IMDb number.
