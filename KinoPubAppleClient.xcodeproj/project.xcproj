@@ -471,6 +471,7 @@
               "children": [
                 { "path": "TabsNavigationView.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "RootView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TVPageMenuBackProbeRoot.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "DetailFixture.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
@@ -510,6 +511,7 @@
         { "path": "PlayerUpNextTabUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVHomeBannerUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVDetailPageUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+        { "path": "TVMenuBackUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
       ],
     }, {
       "kind": "group",
