@@ -42,6 +42,7 @@ can answer. Either way the answer lands as fragments in this model.
 **The worker, today and next** — what the app calls and through what, the unused
 aggregating route, the banner that fetches everything for a logo, caching, the v3 document
 in this model's JSON, Trakt: [workers/tmdb-proxy/README.md](../workers/tmdb-proxy/README.md).
+Language, freshness TTLs, tvoe as ru source (plan): [docs/research/worker.md](research/worker.md).
 
 ### 1 · Facts — nothing a source said is lost (done 2026-10-03)
 

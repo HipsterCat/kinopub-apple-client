@@ -24,8 +24,8 @@
 import { tmdbGenres } from "./genres.js";
 
 const KINOPUB_POSTER = "https://m.staticpop.net/poster/item";
-// kino.pub's own sizes, which are addressable from the id alone. This is the
-// fallback that makes the image route incapable of returning a hole.
+// kino.pub's own sizes, addressable from the id. Poster and backdrop fall
+// back here; logo and unknown kinds 404 — never a different picture.
 const KINOPUB_SIZE = { sm: "small", md: "medium", lg: "big", orig: "big", wide: "wide" };
 
 const DOC_TTL = 60 * 60 * 24 * 30;
@@ -131,12 +131,19 @@ export async function handleTitle(url, env, ctx) {
   return json(draft, 200, { "X-Cache": "miss" });
 }
 
+const IMAGE_KINDS = new Set(["poster", "backdrop", "logo"]);
+
 export async function handleImage(url, env, ctx) {
   // /img/{kind}/{size}/kinopub/{id}
   const [, , kind, size, namespace, rawId] = url.pathname.split("/");
   const id = (rawId || "").replace(/\.\w+$/, "");
   if (namespace !== "kinopub" || !id) {
     return json({ error: "bad_request", hint: "/img/{kind}/{size}/kinopub/{id}" }, 400);
+  }
+  // Kind mismatch is a hole, never a different picture. A logo that 302s to a
+  // poster is what the banner would paint instead of the lettered title.
+  if (!IMAGE_KINDS.has(kind)) {
+    return json({ error: "not_found", hint: "kind must be poster, backdrop, or logo" }, 404);
   }
 
   const stored = await readDocument(env, id);

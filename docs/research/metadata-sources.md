@@ -16,4 +16,4 @@ kino.pub API + TMDB (resolved **only** by `/find/{imdb}`, via the Cloudflare wor
 1. If a title has no IMDb id: a worker-side search fallback with Plozz's exact-title/year rule; stamp the id. S · P2.
 2. Ratings: consider MDBList for RT/Metacritic in the aggregate (ROADMAP stage 6). S · P2.
 3. Recommendations (stage 6 open question): Trakt recommendations as a candidate source. M · P2.
-4. Worker hygiene: the deployed worker is older than `main` (see [title-logos.md](title-logos.md)); consider App Attest if the owner key is abused.
+4. Worker hygiene: `#43` is on `main`; live 404s wait on auto-deploy secrets (see [worker.md](worker.md)). Consider App Attest if the owner key is abused.

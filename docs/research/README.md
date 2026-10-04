@@ -16,6 +16,7 @@ non-commercial, open-source, experimental). Name the source commit in our commit
 |---|---|---|---|
 | [home-hero-banner.md](home-hero-banner.md) | Watch Now banner / hero | Persist the pick, fold refreshes, pre-warm detail | M · P2 |
 | [title-logos.md](title-logos.md) | Title logos: source, sizing, legibility | Logo in one request via the worker (**approved**, worker fix first); area-normalized sizing | S · P1 |
+| [worker.md](worker.md) | Worker: kind=404, `?lang=`, freshness TTL, tvoe host | Lang + freshness TTL; tvoe ru source; **storage TBD** | M · P1 |
 | [detail-page.md](detail-page.md) | Movie/show page | Pre-warm the backdrop; tinted below-fold A/B; stale-load guard on toggles | S · P2 |
 | [related-chain-memory.md](related-chain-memory.md) | Detail → Related → Detail stack | Measure, then shed pages ≥2 below the top | S · P1 |
 | [top-shelf.md](top-shelf.md) | tvOS Top Shelf | The app pre-renders cells into the App Group | M · P2 |

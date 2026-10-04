@@ -1,0 +1,79 @@
+# Deploy workers/tmdb-proxy. Tests always run; deploy runs on main (path
+# filter) and on workflow_dispatch. Missing GitHub secrets skip deploy with
+# a notice — they are not a failure. Never put Cloudflare tokens in the repo.
+#
+# GitHub secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN     Cloudflare API token, template "Edit Cloudflare Workers"
+#   CLOUDFLARE_ACCOUNT_ID    Cloudflare account id (Workers overview)
+#
+# TMDB_READ_TOKEN is a *Cloudflare Worker* secret (`wrangler secret put`),
+# already on the live worker. This workflow does not create or overwrite it.
+
+name: TMDB proxy worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "workers/tmdb-proxy/**"
+      - ".github/workflows/tmdb-proxy.yml"
+  pull_request:
+    paths:
+      - "workers/tmdb-proxy/**"
+      - ".github/workflows/tmdb-proxy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tmdb-proxy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Worker tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test
+        working-directory: workers/tmdb-proxy
+        run: npm test
+
+  deploy:
+    name: Deploy
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Cloudflare secrets
+        id: cf
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=()
+          [ -z "$CLOUDFLARE_API_TOKEN" ] && missing+=("CLOUDFLARE_API_TOKEN")
+          [ -z "$CLOUDFLARE_ACCOUNT_ID" ] && missing+=("CLOUDFLARE_ACCOUNT_ID")
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Skipping worker deploy::Missing GitHub Actions secrets: ${missing[*]}. Add them under Settings → Secrets and variables → Actions. Token: Cloudflare dashboard → API tokens → Create token → Edit Cloudflare Workers (Account: Workers Scripts Edit, Workers KV Storage Edit, Account Settings Read), scoped to this account. Account id: Workers overview. TMDB_READ_TOKEN stays a Cloudflare Worker secret (wrangler secret put), not a GitHub secret."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy with Wrangler
+        if: steps.cf.outputs.present == 'true'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/tmdb-proxy
+          command: deploy

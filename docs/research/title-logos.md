@@ -30,10 +30,12 @@ Banner cards take the logo from the worker `GET /img/logo/{size}/kinopub/{id}` i
 - `/v1/title/by/kinopub/{id}` → `version: 1, pending: true`, with no logo, even on retry. `main` writes `version: 2`, so the deployed worker is older than the repo. Without hints the background resolve never fills the document.
 
 Prerequisites, in order:
-1. Worker: `kind=logo` with no stored logo answers `404` (never a poster). Redeploy from `main`.
+1. **Done in repo (`#43`, `cd816c4`).** Worker: `kind=logo` with no stored logo answers `404` (never a poster). Redeploy is the GitHub Actions workflow on `main` (`.github/workflows/tmdb-proxy.yml`) once `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set — see [worker.md](worker.md).
 2. App: send hints on the request (`imdb`, `kinopoisk`, `title`, `original`, `year`, `type`) so a cold miss resolves in the background.
 3. App: treat any redirect to `m.staticpop.net/poster` as "no logo". Keep the lettered title.
 4. Keep `fetchDetails` only for platter facts, or make it lazy.
+
+Language (`?lang=ru|en`), freshness TTLs, and tvoe as preferred ru artwork: [worker.md](worker.md) (plan only).
 
 ### B. Area-normalized sizing, S · P1
 One pure `LogoBudget(aspect:container:)` in KinoPubUI, used by both the hero and the banner, with unit tests. Budget as a fraction of the container; Sodalite's curve, floor and ceiling.
