@@ -54,6 +54,18 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBDetailFixture <name>`: the app root is a stack of fixture titles served by
+  /// local stand-ins for the API, TMDB and the player, opened at the one named (see
+  /// `DetailFixture` in the app). For UI tests of the detail page — focus on return from
+  /// the player, episodes kino.pub does not have, film versions — with no session.
+  public static var detailFixture: String? {
+#if DEBUG
+    UserDefaults.standard.string(forKey: "KINOPUBDetailFixture")
+#else
+    nil
+#endif
+  }
+
   public static var focusFirstPoster: Bool {
 #if DEBUG
     ProcessInfo.processInfo.arguments.contains("-KINOPUBFocusFirstPoster")

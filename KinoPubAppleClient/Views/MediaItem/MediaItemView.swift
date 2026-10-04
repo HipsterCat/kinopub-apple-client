@@ -7,6 +7,9 @@
 
 import Foundation
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 import KinoPubUI
 import KinoPubBackend
 import KinoPubKit
@@ -19,6 +22,8 @@ import KinoPubMetadata
 /// group (including Right into the row, and Down past it) simply stop resolving.
 enum MediaItemFocusTarget: Hashable {
   case play
+  /// A film's second version, as its own play pill beside Play.
+  case playAlternate
   case watchlist
   case bookmark
   case watched
@@ -31,13 +36,47 @@ enum MediaItemFocusTarget: Hashable {
   /// Hero action-row controls (not the synopsis).
   var isActionControl: Bool {
     switch self {
-    case .play, .watchlist, .bookmark, .watched, .trailer, .more, .download, .shuffle:
+    case .play, .playAlternate, .watchlist, .bookmark, .watched, .trailer, .more, .download, .shuffle:
       return true
     case .plot:
       return false
     }
   }
+
+  /// Controls that push the player over the page.
+  var opensPlayer: Bool {
+    switch self {
+    case .play, .playAlternate, .shuffle, .trailer:
+      return true
+    case .watchlist, .bookmark, .watched, .more, .download, .plot:
+      return false
+    }
+  }
+
+  /// The row's main control: labelled Follow when it leads, else Play — whatever Play
+  /// reads, Replay included. Focus lands here on opening the page and on coming back
+  /// to it (Sasha, 2026-10-03).
+  static func entry(promotesFollow: Bool) -> MediaItemFocusTarget {
+    promotesFollow ? .watchlist : .play
+  }
 }
+
+#if os(tvOS)
+/// The focus engine's own answer to "is anything focused?". SwiftUI's `@FocusState`
+/// only knows the controls bound to it, so `nil` there can mean "a rail card below has
+/// focus" as easily as "nothing does" — the hero must not take focus back from the
+/// first.
+enum TVFocusProbe {
+  @MainActor static var nothingFocused: Bool {
+    let windows = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+    guard let window = windows.first(where: { $0.isKeyWindow }) ?? windows.first,
+          let system = UIFocusSystem.focusSystem(for: window) else { return false }
+    return system.focusedItem == nil
+  }
+}
+#endif
 
 
 /// Whether a hero action control may accept input.
@@ -218,11 +257,20 @@ struct MediaItemView: View {
     if itemModel.itemLoaded {
       scrollDetails
         // `.userInitiated`: the default `.automatic` is only a hint, and tvOS otherwise
-        // takes the topmost focusable element. The hero also names Play in its `.task`.
-        .defaultFocus($focus, .play, priority: .userInitiated)
+        // takes the topmost focusable element. The hero also names the same control in
+        // its `.task` — Follow when it leads, else Play.
+        .defaultFocus($focus, entryFocus, priority: .userInitiated)
     } else {
       Color.clear
     }
+  }
+
+  private var entryFocus: MediaItemFocusTarget {
+    .entry(promotesFollow: MediaItemHeroView.promotesFollow(
+      mediaItem: itemModel.mediaItem,
+      awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+      canFollow: true
+    ))
   }
 
   /// One native vertical scroll: the hero, its artwork and the sections below are one
@@ -256,7 +304,7 @@ struct MediaItemView: View {
                             onBrowseWatchlist: { Self.openWatchlist(navigationState) },
                             isInWatchlist: itemModel.isInWatchlist,
                             onToggleWatchlist: { itemModel.toggleWatchlist() },
-                            nextEpisodeAirDate: itemModel.nextEpisodeAirDate,
+                            awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
                             downloadPhase: itemModel.downloadPhase,
                             onDownload: { itemModel.startCurrentDownload() },
                             onPauseDownload: { itemModel.pauseCurrentDownload() },
@@ -372,8 +420,8 @@ struct MediaItemView: View {
                         linkProvider: itemModel.linkProvider,
                         seriesTitle: itemModel.mediaItem.localizedTitle,
                         showsChrome: true,
-                        onUnavailableSelected: { message in
-                          itemModel.hudToast = HudToast(systemImage: "clock", title: message)
+                        onUnavailableSelected: { message, systemImage in
+                          itemModel.hudToast = HudToast(systemImage: systemImage, title: message)
                         },
                         onHide: { episode, season in
                           itemModel.hide(episode: episode, season: season)

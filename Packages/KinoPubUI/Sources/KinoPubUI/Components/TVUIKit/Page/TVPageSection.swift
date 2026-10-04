@@ -36,10 +36,11 @@ public enum TVPageCellKind: Hashable, Sendable {
   /// SwiftUI's `.card` button style. For rows where the words matter as much as the
   /// art: search's top results, where a title and a person sit side by side.
   case card
-  /// A large `TVCardView` platter whose art is the title's backdrop, with its logo (or
-  /// name) under a top scrim, the plot's first sentence and the shared meta line (scores,
-  /// then `metaLine`) under a bottom one, and the poster inset at the trailing edge. The
-  /// Home banner; items are `.feature`.
+  /// The Home banner: one full-width item, `.banner`, that holds every title and draws
+  /// them with the system's full-screen layout — one card in the middle, a sliver of
+  /// each neighbour beside it (`TVPageBannerCarouselCell`). Each card is the title's
+  /// backdrop with its logo (or name) under a top scrim, the plot's first sentence and
+  /// the shared meta line under a bottom one, and the poster inset at the trailing edge.
   case banner
   /// A full-width header that scrolls with the page. Focusable as one band so Up
   /// from the grid reaches person / collection detail. One item, a `TVPageMasthead`.
@@ -235,17 +236,14 @@ public extension TVUIKitMediaItem {
   }
 }
 
-/// One title in a banner row: its card, the title logo when external metadata has
-/// one, and which lap of the looped row this copy sits in.
+/// One title in the banner: its card and the title logo when external metadata has one.
 public struct TVPageFeature: Hashable {
   public let card: MediaCard
   public let logoURL: URL?
-  public let lap: Int
 
-  public init(card: MediaCard, logoURL: URL? = nil, lap: Int = 0) {
+  public init(card: MediaCard, logoURL: URL? = nil) {
     self.card = card
     self.logoURL = logoURL
-    self.lap = lap
   }
 }
 
@@ -311,7 +309,9 @@ public enum TVPageItem: Hashable {
   case chip(TVPageChip)
   /// Drawn artwork, no photograph: a genre, a category, a "See All" entry.
   case tile(TVPageTile)
-  /// A banner title — see `TVPageCellKind.banner`.
+  /// Every title of the banner, as its one item — see `TVPageCellKind.banner`.
+  case banner([TVPageFeature])
+  /// The banner title that was picked, as `onSelect` reports it.
   case feature(TVPageFeature)
   /// The scrolling header. One per section.
   case masthead(TVPageMasthead)
@@ -325,7 +325,8 @@ public enum TVPageItem: Hashable {
     case .person(let person): return "person.\(person.id)"
     case .chip(let chip): return "chip.\(chip.id)"
     case .tile(let tile): return "tile.\(tile.id)"
-    case .feature(let feature): return "feature.\(feature.lap).\(feature.card.id)"
+    case .banner: return "banner"
+    case .feature(let feature): return "feature.\(feature.card.id)"
     case .masthead: return "masthead"
     case .placeholder(let n): return "placeholder.\(n)"
     }
@@ -372,9 +373,6 @@ public struct TVPageSection: Identifiable, Hashable {
   /// Posters and squares carry the title's score in a corner chip. Off by default: a
   /// row decides whether a number is what the user is choosing by.
   public let showsRating: Bool
-  /// The item focus starts on when the page first appears — the middle lap of a looped
-  /// banner row, so it can be scrolled either way.
-  public let startIndex: Int
 
   public init(id: String,
               title: String?,
@@ -387,7 +385,6 @@ public struct TVPageSection: Identifiable, Hashable {
               match: String? = nil,
               loadsMore: Bool = false,
               showsRating: Bool = false,
-              startIndex: Int = 0,
               items: [TVPageItem]) {
     self.id = id
     self.title = title
@@ -400,7 +397,6 @@ public struct TVPageSection: Identifiable, Hashable {
     self.match = match
     self.loadsMore = loadsMore
     self.showsRating = showsRating
-    self.startIndex = startIndex
     self.items = items
   }
 
@@ -483,20 +479,12 @@ public struct TVPageSection: Identifiable, Hashable {
                   columns: columns, caption: .always, rows: rows, match: match, items: items)
   }
 
-  /// The Home banner: large platters, one centred with half a neighbour on either side
-  /// (`TVPageLayout.bannerWidth`), untitled. The
-  /// titles repeat for `laps` laps and focus starts in the middle one, so the row
-  /// reads as endless in both directions — a carousel, not a list with an end.
-  public static func banner(id: String,
-                            features: [TVPageFeature],
-                            columns: Int = 2,
-                            laps: Int = 41) -> TVPageSection {
-    let laps = features.count > columns ? max(laps, 1) : 1
-    let items = (0..<laps).flatMap { lap in
-      features.map { TVPageItem.feature(TVPageFeature(card: $0.card, logoURL: $0.logoURL, lap: lap)) }
-    }
-    return TVPageSection(id: id, title: nil, kind: .banner, flow: .rail, columns: columns,
-                         caption: .always, startIndex: features.count * (laps / 2), items: items)
+  /// The Home banner, untitled: every title once, in one item the page draws with the
+  /// system's full-screen layout (`TVPageBannerCarouselCell`). Focus starts on the
+  /// middle title, a neighbour showing on either side.
+  public static func banner(id: String, features: [TVPageFeature]) -> TVPageSection {
+    TVPageSection(id: id, title: nil, kind: .banner, flow: .rail, columns: 1,
+                  caption: .always, items: features.isEmpty ? [] : [.banner(features)])
   }
 
   /// The scrolling header above a catalog. Focusable so Up from the grid reaches it;
@@ -530,7 +518,7 @@ public struct TVPageSection: Identifiable, Hashable {
   func appendingPlaceholders(_ count: Int) -> TVPageSection {
     TVPageSection(id: id, title: title, count: self.count, kind: kind, flow: flow, columns: columns,
                   caption: caption, rows: rows, match: match, loadsMore: loadsMore,
-                  showsRating: showsRating, startIndex: startIndex,
+                  showsRating: showsRating,
                   items: items + (0..<count).map(TVPageItem.placeholder))
   }
 

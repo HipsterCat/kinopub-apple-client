@@ -32,17 +32,35 @@ public enum Artwork {
   /// Artwork does not share `URLCache` with the API client — the loader's own session
   /// cache is off so bytes are stored once, by `dataCache`, and Storage settings can
   /// report a number that is only artwork.
+  ///
+  /// **One slow host must not hold the others.** Nuke runs every download through one
+  /// queue, six at a time. The cast photos live on `m.pushbr.com`, which answers nothing
+  /// for ~25 s and then fails (measured 2026-10-04, from the Mac and the tvOS simulator);
+  /// the detail page asks for eight of them before its episode stills, so the six slots
+  /// filled with requests going nowhere and the episode rail stayed grey for half a
+  /// minute while `m.staticpop.net` answers in 0.3 s. The queue is wide now and the
+  /// per-host cap is `URLSession`'s own (`httpMaximumConnectionsPerHost`), so a stalled
+  /// host only stalls itself; and a request gives up after `requestTimeout`, not the
+  /// session's 60 s.
   public static let pipeline: ImagePipeline = {
     let configuration = URLSessionConfiguration.default
     configuration.urlCache = nil
+    configuration.timeoutIntervalForRequest = requestTimeout
 
     return ImagePipeline {
       $0.dataLoader = DataLoader(configuration: configuration)
+      $0.dataLoadingQueue = TaskQueue(maxConcurrentOperationCount: concurrentDownloads)
       $0.dataCache = diskCache
       $0.imageCache = memoryCache
       $0.dataCachePolicy = .storeOriginalData
     }
   }()
+
+  /// Downloads in flight across all hosts. `URLSession` keeps each host to its own
+  /// connection limit, so this only has to be wide enough that one host cannot take it all.
+  static let concurrentDownloads = 24
+  /// No byte for this long and the request fails; the cell keeps its placeholder.
+  static let requestTimeout: TimeInterval = 15
 
   /// Decoded images. On tvOS this is the number that was measured: a 1 MB still decodes
   /// to ~8 MB at full resolution, so 64 MB held about eight of them — at tile size the

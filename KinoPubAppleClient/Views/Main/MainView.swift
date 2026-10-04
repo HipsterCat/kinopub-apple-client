@@ -129,10 +129,14 @@ struct MainView: View {
 
   /// Continue Watching is the large still row: three across (HIG 3-column, 560 at
   /// 1920), the rest scrolls — not three items (Sasha, 2026-09-23).
-  private static let continueWatchingColumns = 3
+  static let continueWatchingColumns = 3
+  /// Every other still row: HIG 5-column (320 at 1920). The detail page's episode and
+  /// version rails take it too (Sasha, 2026-10-04).
+  static let stillColumns = 5
 
   /// The Home banner as the page's first row: the same sampled `bannerCards` the
-  /// SwiftUI path draws, with their title logos, looped (`TVPageSection.banner`).
+  /// SwiftUI path draws (six at most), with their title logos, each once
+  /// (`TVPageSection.banner`).
   private static let bannerSectionID = "home-banner"
 
   private var pageSections: [TVPageSection] {
@@ -145,7 +149,7 @@ struct MainView: View {
     ]
     return bannerSection + homeRows.map { row in
       if row.cards.first?.isLandscape == true {
-        let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : 5
+        let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : Self.stillColumns
         return .stills(id: row.id, title: row.title, count: row.count, columns: columns, cards: row.cards)
       }
       // Watch Now poster rails: no title/subtitle under the art (cleaner). Catalog /

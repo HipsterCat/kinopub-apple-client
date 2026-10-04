@@ -44,8 +44,15 @@ public struct PlaybackVariant: Identifiable, Hashable {
   /// numbered fallback is for the rare payload that leaves it blank — "Version 2" still
   /// distinguishes it from its sibling, which is the whole job of this string.
   public var title: String {
+    name ?? "Version \(video.number)"
+  }
+
+  /// The name kino.pub gave this version, or nil when it left `title` blank. The detail
+  /// page's play buttons fall back to their own wording («Смотреть» / «Вторая версия»)
+  /// rather than to the numbered placeholder above.
+  public var name: String? {
     let trimmed = video.title.trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? "Version \(video.number)" : trimmed
+    return trimmed.isEmpty ? nil : trimmed
   }
 }
 

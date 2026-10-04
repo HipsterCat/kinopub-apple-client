@@ -39,8 +39,8 @@ import KinoPubBackend
 // MARK: - Status
 
 /// What this tile can do, which drives the glyph, the bottom-trailing runtime, and the
-/// top badge. Episodes need all five: a rail spans "watched it", "half-way through",
-/// "not uploaded yet", and "airs in three days" side by side.
+/// top badge. Episodes need all of them: a rail spans "watched it", "half-way through",
+/// "not on kino.pub", and "airs in three days" side by side.
 public enum TVUIKitMediaItemStatus: Equatable {
   /// Nothing watched yet. Play glyph + runtime, no bar.
   case ready
@@ -57,12 +57,15 @@ public enum TVUIKitMediaItemStatus: Equatable {
   /// or "Mar 13, 2026" — computed by the caller, since only the caller knows today's
   /// date and the app's date-formatting rules (see `SeasonsRailView.airDateLabel`).
   case upcoming(String)
+  /// An episode that has aired and kino.pub does not have: a lock in the badge corner,
+  /// where an upcoming one shows its date. The two never show together — a date says
+  /// "not out yet", the lock "out, but not here" (Sasha, 2026-10-04). One still ahead
+  /// of its air date is `.upcoming`, not this.
+  case locked
 
   var glyph: String? {
     switch self {
-//    case .ready, .inProgress: "play.fill"
-    case .ready, .inProgress, .watched: nil
-    case .unavailable, .upcoming: nil
+    case .ready, .inProgress, .watched, .unavailable, .upcoming, .locked: nil
     }
   }
 
@@ -78,7 +81,8 @@ public enum TVUIKitMediaItemStatus: Equatable {
   var showsRuntime: Bool {
     switch self {
     case .ready, .inProgress, .unavailable, .upcoming: true
-    case .watched: false
+    // Nothing to play, and TMDB's runtime is not on the item anyway.
+    case .watched, .locked: false
     }
   }
 
@@ -91,15 +95,19 @@ public enum TVUIKitMediaItemStatus: Equatable {
     switch self {
     case .watched: String(localized: "TVMediaItem_Watched")
     case .upcoming(let dateText): dateText
-    case .ready, .inProgress, .unavailable: nil
+    case .ready, .inProgress, .unavailable, .locked: nil
     }
   }
 
-  /// An upcoming date gets a clock beside it — the reason this badge is ours and not
-  /// the system's is partly that `badgeText` is a `String` with no room for a glyph.
-  var badgeShowsClock: Bool {
-    if case .watched = self { return true }
-    return false
+  /// The symbol the badge leads with: a checkmark beside "Watched", the lock alone in
+  /// place of a date. `badgeText` is a `String` with no room for a glyph, which is
+  /// part of why this badge is ours and not the system's.
+  var badgeSymbol: String? {
+    switch self {
+    case .watched: "checkmark"
+    case .locked: "lock.fill"
+    case .ready, .inProgress, .unavailable, .upcoming: nil
+    }
   }
 
   /// Watched tiles sit back so the unwatched ones beside them read first.
@@ -214,6 +222,8 @@ public extension TVUIKitMediaItem {
 public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   private let items: [TVUIKitMediaItem]
   private let contentInset: CGFloat
+  private let columns: Int?
+  private let caption: TVPageCaption
   private let entryItemID: Int?
   private let animatesEntryScroll: Bool
   private let onSelect: (Int) -> Void
@@ -225,6 +235,10 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   /// - Parameters:
   ///   - contentInset: leading/trailing inset, so the rail lines up with the section
   ///     header above it. Vertical spacing stays the system's.
+  ///   - columns: lay the rail out as a `TVPage` still row of this many HIG columns
+  ///     (`TVPageLayout.stillRail`) — the size, gutter and focus room Home's rows use.
+  ///     Nil keeps the system's `orthogonalLayoutSectionForMediaItems` proportions.
+  ///   - caption: with `columns`, when the line under the still shows.
   ///   - entryItemID: where the rail should sit and where focus should land when it
   ///     arrives — the resume episode, or the first episode of a season the user just
   ///     picked. Changing it scrolls the rail; it is *not* a focus binding, because the
@@ -234,6 +248,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   ///   - onSelect / onNearEnd / contextMenuProvider: all keyed by `TVUIKitMediaItem.id`.
   public init(items: [TVUIKitMediaItem],
               contentInset: CGFloat = 0,
+              columns: Int? = nil,
+              caption: TVPageCaption = .always,
               entryItemID: Int? = nil,
               animatesEntryScroll: Bool = true,
               onSelect: @escaping (Int) -> Void,
@@ -243,6 +259,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
               allowsFocus: Bool = true) {
     self.items = items
     self.contentInset = contentInset
+    self.columns = columns
+    self.caption = caption
     self.entryItemID = entryItemID
     self.animatesEntryScroll = animatesEntryScroll
     self.onSelect = onSelect
@@ -253,7 +271,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   }
 
   public func makeUIViewController(context: Context) -> TVUIKitMediaItemRailController {
-    let controller = TVUIKitMediaItemRailController(contentInset: contentInset)
+    let controller = TVUIKitMediaItemRailController(contentInset: contentInset, columns: columns,
+                                                    caption: caption)
     controller.apply(items: items,
                      entryItemID: entryItemID,
                      animatesEntryScroll: animatesEntryScroll,
@@ -281,6 +300,11 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
                            context: Context) -> CGSize? {
     guard let width = proposal.width, width > 1 else { return nil }
     guard !items.isEmpty else { return CGSize(width: width, height: 0) }
+    if let columns {
+      return CGSize(width: width, height: TVPageLayout.stillRailHeight(columns: columns, caption: caption,
+                                                                       containerWidth: width,
+                                                                       sideInset: contentInset))
+    }
     return CGSize(width: width, height: TVUIKitMediaItemMetrics.railHeight(width: width))
   }
 }
@@ -404,6 +428,8 @@ public enum TVUIKitMediaItemMetrics {
 public final class TVUIKitMediaItemRailController: UIViewController {
   private var items: [TVUIKitMediaItem] = []
   private let contentInset: CGFloat
+  private let columns: Int?
+  private let caption: TVPageCaption
 
   private var entryItemID: Int?
   private var onSelect: ((Int) -> Void)?
@@ -414,8 +440,14 @@ public final class TVUIKitMediaItemRailController: UIViewController {
 
   private lazy var collectionView: UICollectionView = {
     let inset = contentInset
+    let columns = columns
+    let caption = caption
     let layout = UICollectionViewCompositionalLayout { _, environment in
-      TVUIKitMediaItemMetrics.section(width: environment.container.contentSize.width, inset: inset)
+      let width = environment.container.contentSize.width
+      if let columns {
+        return TVPageLayout.stillRail(columns: columns, caption: caption, containerWidth: width, sideInset: inset)
+      }
+      return TVUIKitMediaItemMetrics.section(width: width, inset: inset)
     }
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
     view.backgroundColor = .clear
@@ -437,8 +469,10 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     return view
   }()
 
-  init(contentInset: CGFloat) {
+  init(contentInset: CGFloat, columns: Int? = nil, caption: TVPageCaption = .always) {
     self.contentInset = contentInset
+    self.columns = columns
+    self.caption = caption
     super.init(nibName: nil, bundle: nil)
   }
 
@@ -542,7 +576,8 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
       withReuseIdentifier: TVUIKitMediaItemCell.reuseID,
       for: indexPath
     ) as! TVUIKitMediaItemCell
-    cell.configure(items[indexPath.item], allowsFocus: allowsFocus)
+    cell.configure(items[indexPath.item], allowsFocus: allowsFocus,
+                   captionOnFocus: columns != nil && caption == .onFocus)
     return cell
   }
 
@@ -744,6 +779,9 @@ final class TVUIKitMediaItemOverlayView: UIView {
   private let badgeIcon = UIImageView()
   private let badgeLabel = UILabel()
   private var badgeIconWidth: NSLayoutConstraint!
+  private var badgeIconLeading: NSLayoutConstraint!
+  private var badgeLabelLeading: NSLayoutConstraint!
+  private var badgeLabelTrailing: NSLayoutConstraint!
   /// Ours, not the configuration's. `playbackProgress` only paints on the focused tile,
   /// and "started, not finished" is precisely what an idle rail has to say — so the bar
   /// moved here, where it is on whenever there is progress.
@@ -761,6 +799,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
   private static let runtimeInset: CGFloat = 12
   private static let runtimeInsetOverBar: CGFloat = 26
   private static let badgeIconSize: CGFloat = 16
+  private static let badgeHeight: CGFloat = 32
   /// Fraction of the tile height the legibility gradient covers, from the bottom up.
   private static let gradientHeightFraction: CGFloat = 0.5
   private var progressFraction: CGFloat = 0
@@ -835,6 +874,9 @@ final class TVUIKitMediaItemOverlayView: UIView {
     progressTrack.addSubview(progressFill)
 
     badgeIconWidth = badgeIcon.widthAnchor.constraint(equalToConstant: Self.badgeIconSize)
+    badgeIconLeading = badgeIcon.leadingAnchor.constraint(equalTo: badge.leadingAnchor, constant: 4)
+    badgeLabelLeading = badgeLabel.leadingAnchor.constraint(equalTo: badgeIcon.trailingAnchor, constant: 5)
+    badgeLabelTrailing = badgeLabel.trailingAnchor.constraint(equalTo: badge.trailingAnchor, constant: -10)
     progressFillWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
     runtimeBottom = runtimeLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.runtimeInset)
 
@@ -865,14 +907,14 @@ final class TVUIKitMediaItemOverlayView: UIView {
 
       badge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
       badge.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-      badge.heightAnchor.constraint(equalToConstant: 32),
+      badge.heightAnchor.constraint(equalToConstant: Self.badgeHeight),
 
-      badgeIcon.leadingAnchor.constraint(equalTo: badge.leadingAnchor, constant: 4),
+      badgeIconLeading,
       badgeIcon.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
       badgeIconWidth,
 
-      badgeLabel.leadingAnchor.constraint(equalTo: badgeIcon.trailingAnchor, constant: 5),
-      badgeLabel.trailingAnchor.constraint(equalTo: badge.trailingAnchor, constant: -10),
+      badgeLabelLeading,
+      badgeLabelTrailing,
       badgeLabel.centerYAnchor.constraint(equalTo: badge.centerYAnchor)
     ])
   }
@@ -909,13 +951,20 @@ final class TVUIKitMediaItemOverlayView: UIView {
     runtimeLabel.isHidden = !showsRuntime
     runtimeBottom.constant = -(status.progress > 0 ? Self.runtimeInsetOverBar : Self.runtimeInset)
 
-    if let text = status.overlayBadgeText {
+    let text = status.overlayBadgeText
+    let symbol = status.badgeSymbol
+    if text != nil || symbol != nil {
       badge.isHidden = false
       badgeLabel.text = text
-      let showsIcon = status.badgeShowsClock
-      badgeIcon.isHidden = !showsIcon
-      badgeIcon.image = showsIcon ? UIImage(systemName: "checkmark") : nil
-      badgeIconWidth.constant = showsIcon ? Self.badgeIconSize : 0
+      badgeIcon.isHidden = symbol == nil
+      badgeIcon.image = symbol.flatMap { UIImage(systemName: $0) }
+      badgeIconWidth.constant = symbol == nil ? 0 : Self.badgeIconSize
+      // A symbol alone (the lock) sits in a circle the badge's height; with words it
+      // leads them.
+      let iconOnly = text == nil
+      badgeIconLeading.constant = iconOnly ? (Self.badgeHeight - Self.badgeIconSize) / 2 : 4
+      badgeLabelLeading.constant = iconOnly ? 0 : 5
+      badgeLabelTrailing.constant = iconOnly ? -(Self.badgeHeight - Self.badgeIconSize) / 2 : -10
     } else {
       badge.isHidden = true
     }

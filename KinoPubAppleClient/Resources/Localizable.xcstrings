@@ -4715,6 +4715,24 @@
         }
       }
     },
+    "MediaAction_SecondVersion" : {
+      "comment" : "Play button for a film's second version when kino.pub gives it no name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Second Version"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вторая версия"
+          }
+        }
+      }
+    },
     "MediaAction_TimeLeft" : {
       "comment" : "Remaining runtime on film resume capsules.",
       "extractionState" : "manual",
@@ -5261,6 +5279,24 @@
         }
       }
     },
+    "MediaItem_Later" : {
+      "comment" : "Season rail badge for an episode with no known air date.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Позже"
+          }
+        }
+      }
+    },
     "MediaItem_Legend3D" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5597,6 +5633,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Пока недостаточно оценок"
+          }
+        }
+      }
+    },
+    "MediaItem_NotOnKinoPub" : {
+      "comment" : "Toast for an episode TMDB says has aired but kino.pub does not have yet. Fits the square HUD: two short lines.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not on KinoPub yet"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё нет на KinoPub"
           }
         }
       }

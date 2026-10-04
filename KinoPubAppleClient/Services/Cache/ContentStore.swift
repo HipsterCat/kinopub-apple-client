@@ -141,4 +141,12 @@ final class ContentStore {
       rows[key]?.fetchedAt = .distantPast
     }
   }
+
+  /// The same, for named rows only — when one family member must refetch and the rest
+  /// (Home's Continue Watching, which overlays local progress itself) must not.
+  func invalidate(_ keys: [RowKey]) {
+    for key in keys {
+      rows[key]?.fetchedAt = .distantPast
+    }
+  }
 }

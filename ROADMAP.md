@@ -93,6 +93,11 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
 - [ ] One season → the tab strip must not be focusable at all; Down from the hero lands on an
       episode, and the tabs are reached only by Up *from* one
 - [ ] Episode rail's leading card is the resume / next-unwatched episode, not chronological-first
+- [ ] Episode tile as in the Apple TV app (Sasha, 2026-10-04): episode number, release date,
+      title and description, built in two parts — the still, and a footer that takes a
+      background when its episode is focused and can hold focus of its own. Research and test
+      first. `TVMediaItemContentConfiguration.wideCell()` draws one caption line only
+      (`secondaryText` never shows — probe, tvOS 27.2), so it is not that cell as configured.
 - [ ] Replace the season tab strip with a real system pill/toggle component (`.borderless` is the
       interim, chosen so no hand-rolled focus code remains)
 - [ ] KinoPub rating card: fold likes / dislikes / views into a fourth tile in the Ratings row, and

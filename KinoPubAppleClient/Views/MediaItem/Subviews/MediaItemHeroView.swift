@@ -278,8 +278,9 @@ struct MediaItemHeroView: View {
   /// Series watchlist toggle for the shared context menu (not the hero checkmark).
   var isInWatchlist: Bool = false
   var onToggleWatchlist: (() -> Void)? = nil
-  /// Next unaired episode's date (enrichment). Drives Follow-as-primary.
-  var nextEpisodeAirDate: Date? = nil
+  /// When the next episode of the season kino.pub is on comes out — ahead, or aired and
+  /// not uploaded yet (`MediaItemModel.awaitedEpisodeAirDate`). Drives Follow-as-primary.
+  var awaitedEpisodeAirDate: Date? = nil
   /// Download phase for the current playable; `nil` hides the control (flag off / TV).
   var downloadPhase: MediaActionDownloadPhase? = nil
   var onDownload: (() -> Void)? = nil
@@ -318,6 +319,18 @@ struct MediaItemHeroView: View {
   /// chain. Until then it stays a plain paragraph so it cannot steal entry focus
   /// and blink Play when `.task` corrects it.
   @State private var actionEntryClaimed = false
+  /// The page is covered — the player, or another pushed page — so the next `onAppear`
+  /// is a return rather than the first appearance.
+  @State private var isCovered = false
+  /// The page went away while (or right after) a control that opens the player held
+  /// focus. On the way back focus goes to the entry control, whatever the row turned
+  /// into meanwhile — see `claimEntryAfterReturn`.
+  @State private var returnsFromPlayer = false
+  /// When focus last left a control of the row, and whether that control opens the
+  /// player. Read within a fraction of a second, to tell "the row changed under the
+  /// focused control" and "the player took focus" from a move down the page.
+  @State private var focusLeftRowAt: Date?
+  @State private var focusLeftPlayerControlAt: Date?
 #endif
   /// Opt-in, off by default. Read as `@AppStorage` so flipping it in Settings redraws
   /// the metadata row without leaving the page.
@@ -346,9 +359,13 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
       // `focus` is non-nil exactly while a hero control holds focus. Read here rather
       // than on the page, so a focus move re-renders the hero and nothing else.
-      .onChange(of: focus) { _, target in
+      .onChange(of: focus) { old, target in
+        noteFocusLeavingRow(from: old, to: target)
         guard let target else { return }
         onFocusEntered?()
+        if target == actionEntryTarget {
+          returnsFromPlayer = false
+        }
         if target.isActionControl, !actionEntryClaimed {
           // Defer unlocking the synopsis until after Play has settled — swapping
           // the paragraph for a Button in the same turn can steal entry focus back.
@@ -361,24 +378,134 @@ struct MediaItemHeroView: View {
       // stays out of the chain until this lands (`allowsFocus`), so we do not
       // briefly paint plot-focused and then jump — that was the entry blink.
       .onAppear {
+        if isCovered {
+          isCovered = false
+          claimEntryAfterReturn()
+        }
         claimActionEntryFocus()
+      }
+      .onDisappear {
+        isCovered = true
+        if let current = focus, current.opensPlayer {
+          returnsFromPlayer = true
+        } else if let left = focusLeftPlayerControlAt, Date().timeIntervalSince(left) < 2 {
+          returnsFromPlayer = true
+        }
       }
       .task {
         claimActionEntryFocus()
+      }
+      // Follow became the main button (TMDB answered after the page opened, or the last
+      // episode was just watched) while focus still sat on the old one: move with it.
+      .onChange(of: actionEntryTarget) { old, new in
+        guard focus == old || focus == nil else { return }
+        moveEntryFocus(from: old, to: new)
+      }
+      // A row change can take the focused control with it: Play turning into Replay is
+      // a different button style, so SwiftUI builds a new control and the focused one
+      // is gone. tvOS then has nothing focused at all (Sasha, 2026-10-03, after
+      // watching the last episodes). Hand focus to the entry control instead.
+      .onChange(of: actionRowSignature) { _, _ in
+        actionRowChanged()
       }
 #endif
   }
 
 #if os(tvOS)
-  /// Entry control for the action row: Follow when promote-Follow leads, else Play.
+  /// Entry control for the action row: Follow when promote-Follow leads, else Play
+  /// (whatever it reads — Replay included).
   private var actionEntryTarget: MediaItemFocusTarget {
-    actionContext.promoteFollow ? .watchlist : .play
+    .entry(promotesFollow: actionContext.promoteFollow)
   }
 
+  /// Ids and chrome, in order — what decides whether a control survives an update.
+  private var actionRowSignature: [String] {
+    actionAppearances.map { "\($0.id.rawValue):\($0.chrome)" }
+  }
 
   private func claimActionEntryFocus() {
     if focus == nil || focus == .plot {
       focus = actionEntryTarget
+    }
+  }
+
+  private func claim(_ target: MediaItemFocusTarget, reason: String) {
+    FocusLog.moved(section: "hero", element: "claim \(target) — \(reason)", focused: true)
+    focus = target
+  }
+
+  private func noteFocusLeavingRow(from old: MediaItemFocusTarget?, to new: MediaItemFocusTarget?) {
+    guard new == nil, let old, old.isActionControl else { return }
+    focusLeftRowAt = Date()
+    if old.opensPlayer {
+      focusLeftPlayerControlAt = Date()
+      // The page can be covered before focus lets go of the control.
+      if isCovered { returnsFromPlayer = true }
+    }
+  }
+
+  /// Back on the page. From the player opened by a hero control, focus goes to the entry
+  /// control — Follow when it leads, else Play / Replay — even where tvOS would restore
+  /// the control that opened the player, or nothing at all because that control was
+  /// rebuilt. From anywhere else the system's restoration stands, unless it restored
+  /// nothing. Retried for a moment: the row repaints from the player's progress on the
+  /// same appearance, and a control mid-transition does not take focus.
+  private func claimEntryAfterReturn() {
+    Task { @MainActor in
+      for delay in [0, 150, 250, 400, 500] {
+        try? await Task.sleep(for: .milliseconds(delay))
+        guard !isCovered else { return }
+        let target = actionEntryTarget
+        if focus == target {
+          returnsFromPlayer = false
+          return
+        }
+        if returnsFromPlayer {
+          if focus == nil || focus == .plot || focus?.isActionControl == true {
+            claim(target, reason: "back from the player")
+          }
+        } else if focus == nil, TVFocusProbe.nothingFocused {
+          claim(target, reason: "back with nothing focused")
+        }
+      }
+      returnsFromPlayer = false
+    }
+  }
+
+  /// The main control changed — Follow promoted once TMDB dated the next episode, or
+  /// after the last episode was watched — while focus sat on the old one (or nowhere).
+  /// Retried until it lands: Follow arrives with an insertion transition, and a control
+  /// mid-transition does not take focus, so the first claim can come to nothing (on
+  /// opening, focus stayed on Replay beside a promoted Follow). Stops as soon as focus
+  /// is somewhere the viewer put it.
+  private func moveEntryFocus(from old: MediaItemFocusTarget, to new: MediaItemFocusTarget) {
+    Task { @MainActor in
+      for delay in [0, 80, 120, 150, 200, 250, 400] {
+        try? await Task.sleep(for: .milliseconds(delay))
+        guard !isCovered, actionEntryTarget == new, focus != new else { return }
+        if focus == old || (focus == nil && TVFocusProbe.nothingFocused) {
+          claim(new, reason: "entry control changed \(old) → \(new)")
+        } else if focus != nil {
+          return
+        }
+      }
+    }
+  }
+
+  private func actionRowChanged() {
+    let heldFocus = focus?.isActionControl == true
+      || focusLeftRowAt.map { Date().timeIntervalSince($0) < 0.5 } == true
+    guard heldFocus, !isCovered else { return }
+    Task { @MainActor in
+      // Until focus lands: a control still running its insertion transition does not
+      // take it, so one claim can come to nothing.
+      for delay in [80, 120, 150, 200, 250, 400] {
+        try? await Task.sleep(for: .milliseconds(delay))
+        guard !isCovered, focus == nil else { return }
+        if TVFocusProbe.nothingFocused {
+          claim(actionEntryTarget, reason: "row changed under the focused control")
+        }
+      }
     }
   }
 #endif
@@ -835,6 +962,7 @@ struct MediaItemHeroView: View {
     MediaActionRow {
       ForEach(actionAppearances) { appearance in
         actionControl(for: appearance)
+          .accessibilityIdentifier("kinopub.hero.\(appearance.id.rawValue)")
           .transition(.asymmetric(
             insertion: .scale(scale: 0.85).combined(with: .opacity),
             removal: .scale(scale: 0.85).combined(with: .opacity)
@@ -870,12 +998,9 @@ struct MediaItemHeroView: View {
     let showsMore = false
 #endif
     let playback = mediaItem.playbackButtonContent
-    let promote = MediaActionCatalog.shouldPromoteFollow(
-      isSeries: isSeries,
-      playback: playback,
-      seriesFinished: mediaItem.finished,
-      nextEpisodeAirDate: nextEpisodeAirDate
-    )
+    let promote = Self.promotesFollow(mediaItem: mediaItem,
+                                      awaitedEpisodeAirDate: awaitedEpisodeAirDate,
+                                      canFollow: onToggleWatchlist != nil)
     return MediaActionContext(
       playback: playback,
       kind: mediaItem.presentation.kind,
@@ -888,8 +1013,24 @@ struct MediaItemHeroView: View {
       download: downloadPhase,
       showsShuffle: showsShuffleButton && !promote,
       showsMore: showsMore,
-      promoteFollow: promote && onToggleWatchlist != nil,
+      promoteFollow: promote,
+      versions: mediaItem.playbackVariants.map {
+        MediaActionVersion(name: $0.name, playback: $0.playbackButtonContent)
+      },
       loading: loadingActions
+    )
+  }
+
+  /// Whether labelled Follow leads the row. Shared with the page, whose `defaultFocus`
+  /// has to name the same control the hero claims.
+  static func promotesFollow(mediaItem: MediaItem,
+                             awaitedEpisodeAirDate: Date?,
+                             canFollow: Bool) -> Bool {
+    canFollow && MediaActionCatalog.shouldPromoteFollow(
+      isSeries: mediaItem.isSeries,
+      playback: mediaItem.playbackButtonContent,
+      seriesFinished: mediaItem.finished,
+      awaitedEpisodeAirDate: awaitedEpisodeAirDate
     )
   }
 
@@ -907,7 +1048,7 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private func actionControl(for appearance: MediaActionAppearance) -> some View {
     switch appearance.id {
-    case .play:
+    case .play, .playAlternate:
       playControl(appearance)
     case .trailer:
       trailerControl(appearance)
@@ -990,14 +1131,15 @@ struct MediaItemHeroView: View {
     return pool.randomElement()
   }
 
+  /// Play, or one version's pill — same control, different target.
   @ViewBuilder
   private func playControl(_ appearance: MediaActionAppearance) -> some View {
-    let target = playTarget
+    let target = playTarget(for: appearance.id)
     PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
       MediaActionLabel(appearance)
     }
     .mediaActionStyle(appearance.chrome)
-    .focused($focus, equals: .play)
+    .focused($focus, equals: Self.focusTarget(forPlay: appearance.id))
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .accessibilityHint(Text("Starts playback"))
     .task(id: target.id) {
@@ -1158,6 +1300,21 @@ struct MediaItemHeroView: View {
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .more)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
+  }
+
+  private static func focusTarget(forPlay id: MediaActionID) -> MediaItemFocusTarget {
+    id == .playAlternate ? .playAlternate : .play
+  }
+
+  /// What a play pill opens. A film shown as version pills: that version, by position
+  /// (`playbackVariants` is in number order, as the catalog's `versions` are).
+  /// Everything else: `playTarget`.
+  private func playTarget(for id: MediaActionID) -> any PlayableItem {
+    let variants = mediaItem.playbackVariants
+    if variants.count >= 2 {
+      return variants[id == .playAlternate ? 1 : 0]
+    }
+    return playTarget
   }
 
   /// For a series, play the first episode that still has something left; the rail

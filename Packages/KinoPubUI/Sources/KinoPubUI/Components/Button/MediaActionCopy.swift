@@ -69,6 +69,15 @@ public enum MediaActionCopy {
     }
   }
 
+  /// A version's play pill: kino.pub's name for it when there is one ("24 fps"), else
+  /// «Смотреть» for the first and «Вторая версия» for the second.
+  public static func versionTitle(name: String?, index: Int) -> String {
+    if let name, !name.isEmpty { return name }
+    return index == 0
+      ? localizedFormat("Watch", fallback: "Watch")
+      : localizedFormat("MediaAction_SecondVersion", fallback: "Second Version")
+  }
+
   public static func followTitle(isFollowing: Bool) -> String {
     isFollowing
       ? localized("Tracking")

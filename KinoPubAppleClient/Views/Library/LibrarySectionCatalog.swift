@@ -73,7 +73,21 @@ final class LibrarySectionCatalog: ObservableObject {
     self.authState = authState
     self.errorHandler = errorHandler
     self.store = store
+    // Watching something changes what the server lists here: a subscription whose last
+    // new episode was just watched leaves Subscriptions, a film finished leaves
+    // Unwatched, and History gains a row. The player writes local progress as it goes;
+    // the next `activate` — coming back to the Library — refetches instead of painting
+    // the cached page for the rest of its TTL (Sasha, 2026-10-03).
+    NotificationCenter.default.publisher(for: .localWatchProgressDidChange)
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in
+        self?.store.invalidate(Self.rowsWatchingChanges)
+      }
+      .store(in: &bag)
   }
+
+  /// The Library rows that playback changes on the server.
+  static let rowsWatchingChanges: [RowKey] = [.watchlist, .watchingMovies, .history]
 
   // MARK: - Section switching
 

@@ -17,12 +17,21 @@ final class MediaItemHeroActionAvailabilityTests: XCTestCase {
 
   func testFocusTargetClassificationKeepsPlotOutOfActionRow() {
     let actions: [MediaItemFocusTarget] = [
-      .play, .watchlist, .bookmark, .watched, .trailer, .more, .download, .shuffle
+      .play, .playAlternate, .watchlist, .bookmark, .watched, .trailer, .more, .download, .shuffle
     ]
     for target in actions {
       XCTAssertTrue(target.isActionControl, "\(target) should be an action control")
     }
     XCTAssertFalse(MediaItemFocusTarget.plot.isActionControl)
+  }
+
+  /// The page opens on, and comes back to, the row's main control: Follow when it leads,
+  /// else Play, whatever Play reads (Sasha, 2026-10-03).
+  func testEntryControlIsFollowWhenItLeadsElsePlay() {
+    XCTAssertEqual(MediaItemFocusTarget.entry(promotesFollow: true), .watchlist)
+    XCTAssertEqual(MediaItemFocusTarget.entry(promotesFollow: false), .play)
+    XCTAssertTrue(MediaItemFocusTarget.playAlternate.opensPlayer)
+    XCTAssertFalse(MediaItemFocusTarget.watchlist.opensPlayer)
   }
 
   /// Documents the contract: enablement ignores focus. There is no focus parameter

@@ -68,9 +68,24 @@ public extension MediaItem {
     return .play(season: nil, episode: nil)
   }
 
-  private static func progress(watched: Int, time: Int, duration: Int) -> Double? {
+  static func progress(watched: Int, time: Int, duration: Int) -> Double? {
     guard watched == 0 else { return nil }
     let watch = WatchProgress(position: Double(time), duration: Double(duration))
     return watch.resumeFraction
+  }
+}
+
+public extension PlaybackVariant {
+  /// The same three states as the film's own button, for this one version — its own
+  /// position, never its sibling's. Two versions are two buttons on the detail page,
+  /// and each says how far into *that* version you are.
+  var playbackButtonContent: PlaybackButtonContent {
+    if video.isWatched { return .playAgain(season: nil, episode: nil) }
+    if let progress = MediaItem.progress(watched: video.watched,
+                                         time: video.watching.time,
+                                         duration: video.duration) {
+      return .resume(progress: progress, season: nil, episode: nil, durationSeconds: video.duration)
+    }
+    return .play(season: nil, episode: nil)
   }
 }

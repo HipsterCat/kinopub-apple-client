@@ -165,7 +165,7 @@ struct AppContext: AppContextProtocol {
       progressStore: localProgressStore
     )
 
-    return AppContext(
+    let context = AppContext(
       configuration: configuration,
       authService: authService,
       contentService: VideoContentServiceImpl(apiClient: apiClient),
@@ -188,6 +188,13 @@ struct AppContext: AppContextProtocol {
       localProgressStore: localProgressStore,
       libraryState: libraryState
     )
+#if DEBUG && os(tvOS)
+    // `-KINOPUBDetailFixture`: the detail page against local stand-ins (UI tests).
+    if DetailFixture.isActive {
+      return DetailFixture.context(replacingServicesOf: context)
+    }
+#endif
+    return context
   }()
 
   // MARK: - API Client building

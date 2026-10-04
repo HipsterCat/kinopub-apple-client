@@ -28,6 +28,106 @@ Deployment floor in the docs is **tvOS 26.6**: Xcode's default when tvOS 26 is t
 minimum, and the latest 26.x every tvOS 26 device can install. The Xcode target is
 unchanged.
 
+### tvOS detail page: episode rail like Home, artwork no longer stuck behind the cast host (2026-10-04)
+
+- **Grey episode stills were a queue, not the cells.** Nuke downloads through one queue,
+  six at a time. The cast photos (`m.pushbr.com`) answer nothing for ~25 s and then fail
+  — measured from the Mac with curl and in the tvOS simulator's artwork log — and the
+  detail page asks for eight of them before its episode stills, so the stills waited
+  behind them for half a minute while their own host (`m.staticpop.net`) answers in
+  0.3 s. `Artwork.pipeline` now allows 24 downloads in flight (URLSession still caps
+  each host) and gives a request 15 s. Cold-cache runs: stills in 1–3 s.
+- **The episode and version rails are a Home still row:**
+  `TVUIKitMediaItemRail(columns:)` lays out with `TVPageLayout.stillRail` — the HIG
+  5-column still (`MainView.stillColumns`), gutter, focus room — instead of the system
+  metrics × 1.18. Runtime shows on the focused tile, as on Home.
+- **The corner of an episode kino.pub lacks:** its date while it is ahead («Позже»
+  undated), the lock once it has aired — never both. Dates drop the year when it is
+  this year.
+- `TVMediaItemContentConfiguration.wideCell()` draws one line under the still:
+  `secondaryText` stays hidden at any cell height and a newline in `text` is cut
+  (probe app, tvOS 27.2 simulator). The release-date subtitle is parked: the target
+  is the Apple TV app's episode tile (number, date, title, description; a footer
+  with its own focus background), still to be researched.
+
+### Detail page: Follow first, focus after the player, missing episodes, film versions (2026-10-03)
+
+Sasha's list of 2026-10-03, checked on fixtures in the tvOS simulator (`TVDetailPageUITests`,
+`-KINOPUBDetailFixture`), not yet on device:
+
+- **Follow leads** a series with everything watched whenever the next episode of the last
+  season on kino.pub has a TMDB date — ahead at any distance, or aired and not uploaded. The
+  two-week window is gone; the next episode opening another season does not count
+  (`MediaItemModel.awaitedEpisodeAirDate`).
+- **Focus after the player.** Watching the last episode turned Play into Follow + Replay;
+  `mediaActionStyle` switches on chrome, so the focused control was rebuilt and tvOS was left
+  with nothing focused. The hero now claims its entry control on opening and on coming back
+  (Follow when it leads, else Play / Replay), and after a row change that took focus with it,
+  checked against the focus engine (`TVFocusProbe`) so a rail card keeps its focus.
+- **Episodes TMDB lists and kino.pub does not have** draw a lock in the corner; the badge says
+  «Сегодня» / «Вчера» / «Позавчера» / «3 дня назад» for the last three days, the date for one
+  ahead, «Позже» with no date, and nothing for one long aired. Select says why it cannot play
+  (`MissingEpisodeAirState`, `TVUIKitMediaItemStatus.locked`).
+- **Films in several versions** get a play pill per version for the first two, named after
+  the version («Смотреть» / «Вторая версия» without names), each with its own progress.
+- **Library refreshes after watching.** Local progress invalidates the Library's watching rows
+  (Subscriptions, Unwatched, History), and coming back to the Library root re-activates the
+  section, so a subscription watched to the end leaves the list.
+
+### tvOS drawn artwork is 32-bit: the focus effect read past the placeholder (2026-10-02)
+
+The tvOS UI tests died on CI with EXC_BAD_ACCESS in `vImageConvert_ARGB8888toPlanar8`,
+inside the focus effect's image stack (`_UIStackedImageContainerLayer`), under
+`TVPosterView(image:)` from the poster probe in `TVPageCellMetrics`. `UIGraphicsImageRenderer`
+picks its bitmap format from what is drawn, and the grey placeholder and monogram came back
+as grey with alpha, 16 bits a pixel (`TVUIKitTileArtworkTests`, measured on the CI simulator);
+the focus effect reads 32. `TVUIKitTileArtwork.render` now draws placeholders, tiles,
+monograms and cropped person photos into an explicit 32-bit BGRA sRGB bitmap. The same
+placeholder sits in Continue Watching cells while their stills load; whether it explains
+the device crash there (a different stack) is not proven.
+
+### tvOS Home banner: built the way Apple's full-screen layout sample is (2026-10-02)
+
+The first device build of the full-screen banner (below) did not browse: focus moved
+but the row never scrolled, focus was invisible, the words were cut, and the app
+crashed. Checked this time against Apple's "Creating immersive experiences using a
+full-screen layout" sample and a probe app in the tvOS 27.2 simulator, with the focus log:
+
+- **No scroll:** `indexPathForPreferredFocusedView(in:)` is asked on *every* move inside
+  the row, and answering with the centred title pinned focus there. It now answers the
+  middle title once, on the first entry, and nil after that.
+- **No hand scrolling:** `scrollToItem` at start left the centred card unpainted, and it
+  ran inside `layoutSubviews`, moving focus during a layout pass — the likely source of
+  the device crash (focus update → `_UIStackedImageContainerLayer` → `CALayer setBounds`
+  under `layout_is_active`). Not reproduced in the simulator; validation pending on device.
+- **`maskAmount` is not a focus state:** at any value but 1 the layout's cards cannot take
+  focus (Left / Right and Up stop). It is the sample's Expand: Select opens the card edge
+  to edge, reports the title, closes it.
+- **Focus is the system image focus:** backdrop and poster set
+  `adjustsImageWhenAncestorFocused` — the centred card's art zooms inside its mask with
+  the specular highlight and the poster lifts; both settle when focus leaves the banner.
+- The cell *is* the card; its masked views bleed to the carousel's bounds. Logo width was
+  computed from a card inset twice; the meta line stretched its last label (the genre) to
+  the column's far edge. The card hangs from the top (rounded top corners only, straight
+  bottom on the layout's edge) — that is the system shape, not a crop.
+- `TVHomeBannerUITests` walks the gallery: start centred on the middle title, Right /
+  Left centre the neighbour, the row ends after six, Down leaves, Up returns, Select
+  closes again and the row still browses. Screenshots attached.
+
+### tvOS Home banner on the system full-screen layout (2026-10-01)
+
+The banner is one full-width page item (`TVPageItem.banner`) drawn by
+`TVPageBannerCarouselCell`: a nested collection view on TVUIKit's
+`TVCollectionViewFullScreenLayout`, the layout Top Shelf's carousel uses. One card in the
+middle, a sliver of each neighbour past its sides, and the layout's own parallax between
+the backdrop (`maskedBackgroundView`) and the words (`maskedContentView`). The six titles
+show once each: the 41 laps, `TVPageSection.startIndex` and the start-centring code are
+gone. The row starts on the middle title; the page hands focus to it, and Select and the
+card menu report the title as `.feature` as before. Geometry: cards 240 in from the sides,
+`interitemSpacing` = gutter, 12:5 cards, the layout's default top mask; read from the docs
+and WWDC19 211, not yet checked on a device. The UIKit zoom into the detail page is parked
+in 095eee9; reverting that commit brings it back.
+
 ### tvOS collection and person pages use the search catalog (2026-10-01)
 
 Opening a collection, or a person's credits, is a `TVPage`. The header — a collection's
