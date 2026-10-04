@@ -212,7 +212,7 @@ Each step is one reviewable slice with tests, merged before the next.
 | D4 | Poster: Kinopoisk's Russian one-sheet vs TMDB's for a Russian-speaking viewer? | TMDB first |
 | D5 | Keep `.apple` in precedence lines while no Apple source exists? | listed, never runs |
 | ~~D6~~ | Episode reference — **decided 2026-10-03**, [media-text.md](product/media-text.md) | — |
-| D7 | Genres outside the player: one (primary) everywhere, or two on the focus preview? | two on cards, one in the player |
+| ~~D7~~ | **Decided 2026-10-04**: one genre on cards, the primary; anime leads, then animation | — |
 | ~~D8~~ | Runtime words — **decided 2026-10-03**, three lengths, long is the system's | — |
 | D9 | Precedence lines the user disagrees with — which? (each line is commented in `MediaPrecedence.standard`) | — |
 | D10 | A title with no IMDb id gets no TMDB enrichment at all. Match by title + year instead? | none |

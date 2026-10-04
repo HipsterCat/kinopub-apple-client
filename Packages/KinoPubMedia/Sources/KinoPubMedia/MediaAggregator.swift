@@ -214,7 +214,9 @@ public enum MediaAggregator {
     // Genres are one list from one source, not a union: the order *is* the claim (its
     // first is the primary genre), and splicing two sources' orders makes a primary
     // genre neither of them gave.
-    entity.genres = pick(.genres) { $0.genres.isEmpty ? nil : $0.genres } ?? []
+    // Anime leads, then animation (`GenreVocabulary.primaryFirst`).
+    entity.genres = GenreVocabulary.primaryFirst(
+      pick(.genres) { $0.genres.isEmpty ? nil : $0.genres } ?? [])
     entity.release = pick(.release) { $0.release }
     entity.ended = pick(.ended) { $0.ended }
     entity.runtime = pick(.runtime) { $0.runtime }

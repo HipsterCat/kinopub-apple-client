@@ -160,4 +160,25 @@ final class GenreVocabularyTests: XCTestCase {
                      definition.genre.id)
     }
   }
+
+  /// Anime leads, then animation; with both, anime — the cartoon is the lesser fact.
+  func testAnimeThenAnimationLead() {
+    let g = { GenreVocabulary.genre(id: $0)! }
+    XCTAssertEqual(GenreVocabulary.primaryFirst([g("comedy"), g("anime")]).map(\.id),
+                   ["anime", "comedy"])
+    XCTAssertEqual(GenreVocabulary.primaryFirst([g("comedy"), g("animation"), g("family")]).map(\.id),
+                   ["animation", "comedy", "family"])
+    XCTAssertEqual(GenreVocabulary.primaryFirst([g("animation"), g("drama"), g("anime")]).map(\.id),
+                   ["anime", "animation", "drama"])
+    XCTAssertEqual(GenreVocabulary.primaryFirst([g("drama"), g("comedy")]).map(\.id),
+                   ["drama", "comedy"])
+  }
+
+  /// The merge applies it, whichever source's list wins.
+  func testTheMergedPrimaryGenreIsAnime() {
+    let fragment = MediaFragment(.kinopub, .show) {
+      $0.genres = [GenreVocabulary.genre(id: "animation")!, GenreVocabulary.genre(id: "anime")!]
+    }
+    XCTAssertEqual(MediaAggregator.merge([fragment])?.primaryGenre?.id, "anime")
+  }
 }

@@ -21,7 +21,8 @@ public extension MediaCard {
   init(ref: MediaRef, entity: MediaEntity, state: ViewerState,
        language: MediaLanguage = .current) {
     let line = TitleMetaLine(entity)
-    let genres = entity.genres.prefix(2).map { $0.name.value(languageCode: language.rawValue) }
+    // One genre, the primary (D7).
+    let genres = entity.genres.prefix(1).map { $0.name.value(languageCode: language.rawValue) }
     let folders = (state.bookmarkFolderIDs ?? []).sorted()
     self.init(id: ref.itemID,
               posterURL: (entity.artwork.posterPreview ?? entity.artwork.poster)?.absoluteString ?? "",

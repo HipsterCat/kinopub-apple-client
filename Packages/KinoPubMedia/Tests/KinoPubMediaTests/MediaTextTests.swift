@@ -161,7 +161,7 @@ final class MediaTextTests: XCTestCase {
     withGenres.genres = [GenreVocabulary.genre(id: "action")!, GenreVocabulary.genre(id: "drama")!,
                          GenreVocabulary.genre(id: "comedy")!]
     XCTAssertEqual(TitleMetaLine(withGenres).formatted(language: .ru),
-                   "2025   1ч 55м   Боевик, Драма   Япония")
+                   "2025   1ч 55м   Боевик   Япония", "one genre, the primary (D7)")
   }
 
   /// A series says how many seasons, never every episode summed as a runtime.

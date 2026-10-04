@@ -68,3 +68,9 @@ count days (`1д 12ч 4м`). Time left: `Ещё 53 мин` / `53 min left`.
   watched and how much is on the device, as a ring or a percentage (`ViewerState`'s
   `watchedEpisodes` / `downloadedEpisodes`). **Only whole episodes count as watched**, and a
   series or season shows no runtime there; partial downloads count by their progress.
+
+## Genres on a card
+
+**One**, the primary — as the player says (D7, 2026-10-04). Which one is primary:
+[media-presentation.md](media-presentation.md).
+

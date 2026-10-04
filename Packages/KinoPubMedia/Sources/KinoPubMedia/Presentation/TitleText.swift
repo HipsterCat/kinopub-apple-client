@@ -60,9 +60,9 @@ public struct TitleMetaLine: Hashable, Sendable {
     return parts
   }
 
-  /// - Parameter genreCount: how many genres. TODO(decision) D7: one (the primary, as the
-  ///   player says) or two (the focus preview today)?
-  public func formatted(genreCount: Int = 2, language: MediaLanguage = .current) -> String {
+  /// - Parameter genreCount: how many genres — **one**, the primary, as the player says
+  ///   (user's call, D7, 2026-10-04).
+  public func formatted(genreCount: Int = 1, language: MediaLanguage = .current) -> String {
     var parts = releaseParts(language: language)
     let genres = entity.genres.prefix(genreCount)
       .map { $0.name.value(languageCode: language.rawValue) }

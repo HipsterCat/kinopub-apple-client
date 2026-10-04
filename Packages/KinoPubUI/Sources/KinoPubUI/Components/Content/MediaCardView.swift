@@ -409,8 +409,9 @@ public extension MediaCard {
   /// the payload into the media model (`KinoPubMediaMapping`), then the model's card
   /// (`MediaCard(ref:entity:state:)`).
   init(_ item: MediaItem) {
-    self.init(ref: item.titleRef, entity: item.mediaFragment.entity,
-              state: ViewerState(reportedBy: item))
+    // Through the merge, so the card's genres lead the way every other surface's do.
+    let entity = MediaAggregator.merge([item.mediaFragment]) ?? item.mediaFragment.entity
+    self.init(ref: item.titleRef, entity: entity, state: ViewerState(reportedBy: item))
   }
 }
 

@@ -5,6 +5,12 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### One genre on a card; anime and animation lead (2026-10-04)
+
+A card's line carries one genre, the primary (D7). The primary genre puts anime first, then
+animation (with both, anime) — `GenreVocabulary.primaryFirst`, applied by the merge; catalogue
+cards now go through the merge too.
+
 ### Every catalogue card is built from the media model (2026-10-04)
 
 `MediaCard(_ item:)` maps the kino.pub payload into the model and words the card with
