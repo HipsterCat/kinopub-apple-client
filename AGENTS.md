@@ -51,6 +51,7 @@ semantic component is not a DRY violation; two components for one idea on one pl
 | Provider capability sheets | [docs/providers/](docs/providers/) |
 | Community fork rules | [docs/community-fork.md](docs/community-fork.md) |
 | Dated history — evidence, never law | [docs/archive/](docs/archive/) |
+| Competitive research — evidence, never law | [docs/research/README.md](docs/research/README.md) |
 
 ## Authority
 
