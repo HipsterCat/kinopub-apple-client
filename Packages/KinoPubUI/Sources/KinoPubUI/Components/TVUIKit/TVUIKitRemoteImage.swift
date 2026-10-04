@@ -23,6 +23,30 @@ import TVUIKit
 import Nuke
 import NukeExtensions
 
+/// Nuke's `TVPosterView` display path (`nuke_display`) is overridden to assign the
+/// image on the next main-queue turn — `TVPosterView` only computes a non-zero
+/// `focusSizeIncrease` when the image lands outside a layout pass (tvOS 27.2 adapter).
+///
+/// Lives here so NukeExtensions does not leak past `TVUIKitRemoteImage`.
+@MainActor
+class TVUIKitDeferredPosterView: TVPosterView {
+  private var pendingImageToken: UInt = 0
+
+  /// NukeExtensions calls this for `loadImage(into:)`. Defer so focus envelope math runs.
+  override func nuke_display(image: UIImage?, data: Data?) {
+    pendingImageToken &+= 1
+    let token = pendingImageToken
+    guard let image else {
+      self.image = nil
+      return
+    }
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.pendingImageToken == token else { return }
+      self.image = image
+    }
+  }
+}
+
 @MainActor
 public enum TVUIKitRemoteImage {
 
@@ -67,13 +91,19 @@ public enum TVUIKitRemoteImage {
     }
   }
 
+  /// Assign art through the deferred `TVPosterView` display path so
+  /// `focusSizeIncrease` is computed outside a layout pass.
+  public static func display(_ image: UIImage?, on posterView: TVPosterView) {
+    posterView.nuke_display(image: image, data: nil)
+  }
+
   /// Load into a `TVPosterView` via Nuke's integrated display path (`NukeExtensions`).
   ///
   /// Decodes with `.fit` (no centre crop) so cover lettering stays readable — the
   /// shared `.fill` path is for still / landscape boxes that need a fixed aspect.
   /// Never set `contentModes` here: changing `imageView.contentMode` / clipping the
   /// lockup kills parallax (AGENTS.md). Deferred image assignment for
-  /// `focusSizeIncrease` lives on `TVUIKitNonFocusablePosterView.nuke_display`.
+  /// `focusSizeIncrease` lives on `TVUIKitDeferredPosterView.nuke_display`.
   @discardableResult
   public static func load(into posterView: TVPosterView,
                           url: URL?,

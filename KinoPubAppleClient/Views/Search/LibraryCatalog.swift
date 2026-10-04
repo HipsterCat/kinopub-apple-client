@@ -106,6 +106,13 @@ class LibraryCatalog: ObservableObject {
   private var itemsService: VideoContentService
   private var bag = Set<AnyCancellable>()
   private var isFetching = false
+  /// Bumped on every first-page load / refresh. Completions whose generation is
+  /// no longer current must not replace items or clear loading state.
+  private var loadGeneration = 0
+  /// The in-flight first-page or pagination task — cancelled when a newer
+  /// first-page load starts, so two overlapping `refresh()` / `.task` loads
+  /// cannot paint a stale grid.
+  private var inFlight: Task<Void, Never>?
 
   var isSearching: Bool { !searchQuery.isEmpty }
 
@@ -154,32 +161,66 @@ class LibraryCatalog: ObservableObject {
   // MARK: - Loading
 
   func load() async {
+    await beginLoad(reset: pagination == nil)
+  }
+
+  /// Starts a load generation. First-page work cancels whatever was in flight so a
+  /// chip change cannot be overwritten by the `.task` that started first. Later
+  /// pages still coalesce on `isFetching`.
+  private func beginLoad(reset: Bool) async {
     guard authState.userState == .authorized else {
       isLoading = false
       subscribeForAuth()
       return
     }
 
-    let isFirstPage = pagination == nil
-    // Pagination triggers fire per visible cell — drop duplicates while a page is
-    // already on its way. First-page loads (refresh, filter change) always run.
+    let isFirstPage = reset || pagination == nil
     if !isFirstPage {
       guard !isFetching else { return }
     }
+
+    loadGeneration += 1
+    let generation = loadGeneration
+    inFlight?.cancel()
+
+    if reset {
+      isLoading = true
+      loadFailed = false
+      loadError = nil
+      paginationFailed = false
+      items = []
+      pagination = nil
+      errorHandler.reset()
+    }
+
+    let task = Task { [weak self] in
+      guard let self else { return }
+      await self.runLoad(generation: generation, isFirstPage: isFirstPage)
+    }
+    inFlight = task
+    await task.value
+  }
+
+  private func runLoad(generation: Int, isFirstPage: Bool) async {
     isFetching = true
-    defer { isFetching = false }
-    // Only pages after the first: the first page owns the full-screen loading state.
     isLoadingMore = !isFirstPage
-    defer { isLoadingMore = false }
+    if isFirstPage { isLoading = true }
+
+    defer {
+      if generation == loadGeneration {
+        isFetching = false
+        isLoadingMore = false
+        isLoading = false
+        inFlight = nil
+      }
+    }
 
     // A person's credits take the full filter bar like any catalog, so their pickers
     // load too — the genre list is scoped to the credits' type below.
     if genres.isEmpty || countries.isEmpty {
       await loadPickerData()
+      guard generation == loadGeneration, !Task.isCancelled else { return }
     }
-
-    if isFirstPage { isLoading = true }
-    defer { isLoading = false }
 
     do {
       // Page 1 stated, 20 a page — the server's default page is 50, more than a screen
@@ -214,11 +255,17 @@ class LibraryCatalog: ObservableObject {
       } else {
         data = try await itemsService.fetchItems(filter: filter, page: page, perPage: Self.pageSize)
       }
+      guard generation == loadGeneration, !Task.isCancelled else { return }
       handle(data, isFirstPage: isFirstPage)
       loadFailed = false
       loadError = nil
       paginationFailed = false
+    } catch is CancellationError {
+      return
+    } catch let error as URLError where error.code == .cancelled {
+      return
     } catch {
+      guard generation == loadGeneration, !Task.isCancelled else { return }
       if isFirstPage {
         items = []
         loadFailed = true
@@ -282,14 +329,7 @@ class LibraryCatalog: ObservableObject {
   }
 
   func refresh() async {
-    isLoading = true
-    loadFailed = false
-    loadError = nil
-    paginationFailed = false
-    items = []
-    pagination = nil
-    errorHandler.reset()
-    await load()
+    await beginLoad(reset: true)
   }
 
   // MARK: - Filter changes

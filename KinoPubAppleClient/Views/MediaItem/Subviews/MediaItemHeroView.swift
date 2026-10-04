@@ -1114,7 +1114,6 @@ struct MediaItemHeroView: View {
       .accessibilityLabel(Text(appearance.accessibilityLabel))
     } else {
       MediaActionButton(appearance) {}
-        .disabled(true)
     }
   }
 
@@ -1211,6 +1210,7 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private func followControl(_ appearance: MediaActionAppearance) -> some View {
     Button {
+      guard MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading) else { return }
       loadingActions.insert(.follow)
       onToggleWatchlist?()
     } label: {
@@ -1218,13 +1218,13 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .watchlist)
-    .disabled(!MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading))
   }
 
   /// Tap marks watched. Long-press (series): episode · season · unwatched in season · all.
   @ViewBuilder
   private func markWatchedControl(_ appearance: MediaActionAppearance) -> some View {
     Button {
+      guard MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading) else { return }
       beginMarkWatched()
       onWatchedToggle()
     } label: {
@@ -1232,11 +1232,11 @@ struct MediaItemHeroView: View {
     }
     .mediaActionStyle(appearance.chrome)
     .focused($focus, equals: .watched)
-    .disabled(!MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading))
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .contextMenu {
       if let (season, episode) = mediaItem.primaryEpisode {
         Button {
+          guard MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading) else { return }
           beginMarkWatched()
           onWatchedToggle()
         } label: {
@@ -1245,6 +1245,7 @@ struct MediaItemHeroView: View {
         }
         if onSeasonWatchedToggle != nil {
           Button {
+            guard MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading) else { return }
             beginMarkWatched()
             onSeasonWatchedToggle?(season)
           } label: {
@@ -1254,6 +1255,7 @@ struct MediaItemHeroView: View {
         }
         if onMarkUnwatchedInSeason != nil {
           Button {
+            guard MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading) else { return }
             beginMarkWatched()
             onMarkUnwatchedInSeason?(season)
           } label: {
@@ -1262,6 +1264,7 @@ struct MediaItemHeroView: View {
         }
         if onMarkAllEpisodesWatched != nil {
           Button {
+            guard MediaItemHeroActionAvailability.isInteractable(isLoading: appearance.isLoading) else { return }
             beginMarkWatched()
             onMarkAllEpisodesWatched?()
           } label: {

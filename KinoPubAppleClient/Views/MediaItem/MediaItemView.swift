@@ -81,6 +81,8 @@ enum TVFocusProbe {
 
 /// Whether a hero action control may accept input.
 ///
+/// Never applied as `.disabled` — that dimmed the glass and was rejected on
+/// device (Sasha, 2026-10-02). Loading is a no-op in the handler instead.
 /// Focus must **never** feed this. Steering Down-from-plot by `.disabled`-ing
 /// Trailer / Bookmark / More left those controls dim forever whenever
 /// `@FocusState` lagged the visual focus, and a disabled `Menu` cannot open
