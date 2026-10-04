@@ -1,0 +1,8 @@
+{
+  "name": "kinopub-tmdb-proxy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test src/title.test.js"
+  }
+}

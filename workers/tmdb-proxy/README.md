@@ -44,9 +44,11 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 **Two layers, kept apart:**
 
 1. **Instant, by kino.pub id, no details needed** — `/img/{kind}/{size}/kinopub/{id}`
-   (poster, backdrop, logo). Answers with a redirect to whatever is warm, falls back to
-   kino.pub's own artwork, never a hole, resolves the title behind the response. This is
-   what cards, shelves and banners want: a picture by id, fast.
+   (poster, backdrop, logo). Answers with a redirect to whatever is warm. Poster and
+   backdrop fall back to kino.pub's own artwork (never a hole). **Logo has no kino.pub
+   equivalent:** `kind=logo` with nothing stored answers **404**, never a poster. Resolves
+   the title behind the response. Cards and shelves want a picture by id, fast; a banner
+   logo wants an honest miss so the lettered title stays.
 2. **Details, when they are opened** — `/v1/title/by/kinopub/{id}`: what the detail page
    shows first. Heavy, rarely-seen parts (reviews, facts, full cast, awards) are not worth
    fetching until the viewer scrolls to them or opens them — they belong in a separate,
