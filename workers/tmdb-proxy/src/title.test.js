@@ -109,9 +109,9 @@ test("poster with no stored document still falls back to kino.pub artwork", asyn
   assert.equal(ctx.pending.length, 1);
 });
 
-test("backdrop with no stored document still falls back to the wide kino.pub still", async () => {
+test("backdrop with an unknown size still falls back to the wide kino.pub still", async () => {
   const ctx = ctxSpy();
-  const response = await handleImage(imageURL("backdrop", { size: "lg" }), kvEnv(), ctx);
+  const response = await handleImage(imageURL("backdrop", { size: "unknown" }), kvEnv(), ctx);
 
   assert.equal(response.status, 302);
   assert.equal(
