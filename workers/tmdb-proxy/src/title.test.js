@@ -109,6 +109,17 @@ test("poster with no stored document still falls back to kino.pub artwork", asyn
   assert.equal(ctx.pending.length, 1);
 });
 
+test("unknown kind answers 404, never a poster, and does not resolve", async () => {
+  const ctx = ctxSpy();
+  const response = await handleImage(imageURL("still"), kvEnv(), ctx);
+
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("location"), null);
+  const body = await response.json();
+  assert.equal(body.error, "not_found");
+  assert.equal(ctx.pending.length, 0);
+});
+
 test("backdrop with an unknown size still falls back to the wide kino.pub still", async () => {
   const ctx = ctxSpy();
   const response = await handleImage(imageURL("backdrop", { size: "unknown" }), kvEnv(), ctx);

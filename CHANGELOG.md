@@ -5,13 +5,20 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Worker auto-deploy + language/TTL/tvoe plan (2026-10-04)
+
+GitHub Actions `TMDB proxy worker` runs `npm test` then `cloudflare/wrangler-action`
+on push to `main` under `workers/tmdb-proxy/**` (and `workflow_dispatch`). Missing
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` skip deploy with a notice.
+Unknown `/img` kinds 404 (same contract as logo). Plan for `?lang=ru|en`, freshness
+TTLs, and tvoe as preferred ru source: `docs/research/worker.md`. Storage host is
+TBD. Not implemented in the worker yet.
+
 ### Worker `/img/logo` 404s when nothing is stored (2026-10-04)
 
 `GET /img/logo/{size}/kinopub/{id}` with no stored logo answers **404**, never a
-kino.pub poster. Poster and backdrop still fall back to `m.staticpop.net`. The
-deployed worker still 302s logos to posters; this is the contract the app banner
-path needs before it can take logos from the worker. Not deployed from this
-change — needs a go-ahead and redeploy.
+kino.pub poster. Poster and backdrop still fall back to `m.staticpop.net`. Merged
+`#43` (`cd816c4`). Live 404s wait on auto-deploy secrets.
 
 ### tvOS deployment floor is 26.5 (2026-10-04)
 

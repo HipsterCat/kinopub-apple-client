@@ -1,15 +1,21 @@
+# Live worker: kinopub-tmdb-proxy.<account>.workers.dev
+# Secrets stay out of this file:
+#   TMDB_READ_TOKEN        wrangler secret put (Cloudflare, not GitHub)
+#   CLOUDFLARE_API_TOKEN   GitHub Actions secret (deploy)
+#   CLOUDFLARE_ACCOUNT_ID  GitHub Actions secret (deploy) — do not add account_id here
 name = "kinopub-tmdb-proxy"
 main = "src/index.js"
 compatibility_date = "2026-07-01"
 workers_dev = true
 
-# Set with: wrangler secret put TMDB_READ_TOKEN
 # Optional override: vars.TMDB_API_BASE = "https://api.themoviedb.org"
 
 [vars]
+# TMDB /3/ forwarder only (see src/index.js proxyAPI). /v1/title and /img
+# do not use this; freshness-based TTLs are planned in docs/research/worker.md.
 CACHE_TTL_SECONDS = "21600"
 
-# Documents keyed by kino.pub id.
+# Documents keyed by kino.pub id (`title:kinopub:{id}`). Existing namespace.
 [[kv_namespaces]]
 binding = "DOCUMENTS"
 id = "013ec59b1a454f9e9d61b89713eaceb2"

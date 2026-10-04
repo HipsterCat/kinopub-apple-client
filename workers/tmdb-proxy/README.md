@@ -6,14 +6,37 @@ hijacks of `image.tmdb.org` (→ `127.0.0.1`) do not break cast photos and logos
 
 ## Deploy
 
+Push to `main` that touches `workers/tmdb-proxy/**` (or **Actions → TMDB proxy worker →
+Run workflow**) runs tests then `cloudflare/wrangler-action` from
+`.github/workflows/tmdb-proxy.yml`. Missing GitHub secrets skip the deploy with a
+notice; they do not fail the job.
+
+**GitHub Actions secrets** (Settings → Secrets and variables → Actions):
+
+| Name | What |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token. Create Token → **Edit Cloudflare Workers**. Needs Account: **Workers Scripts Edit**, **Workers KV Storage Edit**, **Account Settings Read**, scoped to this account. |
+| `CLOUDFLARE_ACCOUNT_ID` | Account id from the Workers overview (the hex in the dashboard URL). Not the API token. |
+
+`TMDB_READ_TOKEN` is **not** a GitHub secret. It is already on the live worker from
+`wrangler secret put`; a GitHub deploy does not overwrite Worker secrets. First-time
+or a new account still needs that once:
+
 ```bash
 cd workers/tmdb-proxy
 npx wrangler secret put TMDB_READ_TOKEN   # paste the TMDB API Read Access Token
-npx wrangler deploy
 ```
+
+Do not put `account_id` or tokens in `wrangler.toml`. The file already has `name`,
+`main`, `compatibility_date`, `workers_dev`, `CACHE_TTL_SECONDS`, and the `DOCUMENTS`
+KV binding.
 
 Copy the worker URL (e.g. `https://kinopub-tmdb-proxy.<account>.workers.dev`) into the
 app's `Info.plist` as `TMDBProxyBaseURL` — no trailing slash.
+
+Local tests: `npm test` in this directory (`node --test`).
+
+Manual `npx wrangler deploy` is for a laptop with Wrangler logged in, not for CI.
 
 ## Behaviour
 
@@ -44,11 +67,12 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 **Two layers, kept apart:**
 
 1. **Instant, by kino.pub id, no details needed** — `/img/{kind}/{size}/kinopub/{id}`
-   (poster, backdrop, logo). Answers with a redirect to whatever is warm. Poster and
-   backdrop fall back to kino.pub's own artwork (never a hole). **Logo has no kino.pub
-   equivalent:** `kind=logo` with nothing stored answers **404**, never a poster. Resolves
-   the title behind the response. Cards and shelves want a picture by id, fast; a banner
-   logo wants an honest miss so the lettered title stays.
+   (poster, backdrop, logo). Answers with a redirect to whatever is warm **of that kind**.
+   Poster and backdrop fall back to kino.pub's own artwork. **A missing or unknown kind
+   is 404**, never a different picture (a logo that 302s to a poster is what the banner
+   would paint instead of the lettered title). Resolves the title behind the response.
+   Language, freshness TTLs, and tvoe as the preferred ru source:
+   [docs/research/worker.md](../../docs/research/worker.md) (not implemented yet).
 2. **Details, when they are opened** — `/v1/title/by/kinopub/{id}`: what the detail page
    shows first. Heavy, rarely-seen parts (reviews, facts, full cast, awards) are not worth
    fetching until the viewer scrolls to them or opens them — they belong in a separate,
@@ -74,8 +98,8 @@ account) is called by the app directly. Whatever answers, it lands in the app as
   only `titleLogoURL`. `/img/logo/{size}/kinopub/{id}` is one request.
 - **The detail page asks for reviews and facts on open**, though they sit at the bottom.
 - **6 hours is short for the forwarder.** Titles, artwork and credits change rarely; the
-  KV document already lives 30 days. TODO: cache the forwarder's TMDB answers for days and
-  revalidate in the background, as the document route does.
+  KV document already lives 30 days. Proposed freshness buckets (1 h / 6 h / 7 d / 30 d)
+  and where today's 6 h is actually set: [docs/research/worker.md](../../docs/research/worker.md).
 
 ## Next (to be done separately)
 
@@ -86,7 +110,7 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 3. The app's direct TMDB and kpapp.link calls switch off behind a `FeatureFlag` — **only
    after** (2), or the enrichment disappears in between. Kinopoisk with a viewer's own key
    stays in the app.
-4. Longer caching (above).
+4. Freshness-based caching ([docs/research/worker.md](../../docs/research/worker.md)).
 
 **Document v3 — the media model's own JSON, nothing worker-specific:**
 
