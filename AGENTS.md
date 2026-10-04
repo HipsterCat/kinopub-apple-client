@@ -16,11 +16,12 @@ semantic component is not a DRY violation; two components for one idea on one pl
 
 ## Quick reference
 
-- **Platforms:** tvOS · iOS · iPadOS · macOS, deployment floor **26.6**, one target
-  `KinoPubAppleClient` (product `KinoPub`). Mark 27-only API explicitly. 26.6 is
-  Xcode's default when tvOS 26 is chosen as the minimum — the latest 26.x every
-  tvOS 26 device can install. Packages still declare `.v26` (SPM has no 26.6
-  case); that is the major, not a second floor.
+- **Platforms:** tvOS · iOS · iPadOS · macOS, one target
+  `KinoPubAppleClient` (product `KinoPub`). Mark 27-only API explicitly.
+  **tvOS deployment floor is 26.5** — the minimum tvOS 26 simulator runtime.
+  Real devices can all update to 26.6, but the simulator cannot. iOS and macOS
+  stay at 26.6. Packages declare `.tvOS("26.5")` (SPM has no `.v26_5` case);
+  iOS/macOS packages stay `.v26` (the major).
 - **Language:** Swift 5 mode in packages (`swift-tools-version: 6.2`).
 - **UI:** SwiftUI everywhere except tvOS media surfaces (UIKit + TVUIKit). See above.
 - **Player:** native `AVPlayerViewController` / `AVPlayerView`, one app-scoped `PlaybackSession`.

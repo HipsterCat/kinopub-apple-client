@@ -57,9 +57,9 @@ Verification gaps and unfinished edges live in [ROADMAP.md](ROADMAP.md) — not 
 
 ## Requirements
 
-- Xcode with tvOS / iOS / macOS **26.6** SDKs (deployment target **26.6** — Xcode's
-  default when the 26 major is chosen as the minimum, and the latest 26.x every
-  tvOS 26 device can install)
+- Xcode with tvOS / iOS / macOS **26** SDKs. tvOS deployment target **26.5**
+  (the minimum tvOS 26 simulator runtime; real devices can all update to 26.6,
+  but the simulator cannot). iOS and macOS stay at **26.6**.
 - Swift 5 language mode in packages (`swift-tools-version: 6.2`)
 - Single multiplatform target `KinoPubAppleClient` (product name `KinoPub`)
 - **Dark appearance only** until stage 5
