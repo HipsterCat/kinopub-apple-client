@@ -263,7 +263,7 @@ public final class TVPageCollectionViewController: UIViewController {
   private func headerDodge(for section: Int) -> CGAffineTransform {
     guard sections.indices.contains(section) else { return .identity }
     let target = sections[section]
-    guard target.kind != .chip, target.kind != .masthead else { return .identity }
+    guard target.kind != .chip, target.kind != .masthead, target.kind != .banner else { return .identity }
     let contentWidth = max(collectionView.bounds.width - sideInset * 2, 1)
     let art = TVHIGGrid.resolve(columns: target.columns, contentWidth: contentWidth).cardWidth
     let recipe = TVPageCellMetrics.recipe(kind: target.kind, artWidth: art, caption: target.caption)
@@ -382,14 +382,17 @@ public final class TVPageCollectionViewController: UIViewController {
       }
     }
 
-    let banner = UICollectionView.CellRegistration<TVPageBannerCell, TVPageItemID> {
-      [weak self] cell, indexPath, id in
-      guard let self else { return }
-      let width = self.collectionView.layoutAttributesForItem(at: indexPath)?.size.width
-        ?? cell.bounds.width
-      cell.apply(recipe: TVPageCellMetrics.recipe(kind: .banner, itemWidth: width, caption: .always))
-      guard case .feature(let feature)? = self.itemsByID[id] else { return }
-      cell.configure(feature: feature)
+    let banner = UICollectionView.CellRegistration<TVPageBannerCarouselCell, TVPageItemID> {
+      [weak self] cell, _, id in
+      guard let self, case .banner(let features)? = self.itemsByID[id] else { return }
+      cell.configure(features: features)
+      cell.onSelect = { [weak self] feature in
+        guard let self, let section = self.sectionsByID[id.section] else { return }
+        self.onSelect?(section, .feature(feature))
+      }
+      cell.contextMenuEntries = { [weak self] card in
+        self?.contextMenuProvider?(card) ?? []
+      }
     }
 
     let masthead = UICollectionView.CellRegistration<TVPageMastheadCell, TVPageItemID> {
@@ -529,8 +532,6 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   private var pendingReconfigure: [TVPageItemID] = []
-  /// Banner rows already scrolled to their start, by section id.
-  private var centeredBanners: Set<String> = []
   private var hasAppliedOnce = false
 
   /// A grid with more pages coming ends on a full row: its last row is topped up with
@@ -668,9 +669,9 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     if DebugLaunch.layoutDebug { cell.contentView.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.25) }
     guard sections.indices.contains(indexPath.section) else { return }
     let section = sections[indexPath.section]
-    centerBannerAtStart(section, sectionIndex: indexPath.section, cell: cell)
-    // A chip row has no pages, and skeleton tiles are not data.
-    guard section.kind != .chip, section.kind != .masthead, !section.isPlaceholder else { return }
+    // A chip row or the banner has no pages, and skeleton tiles are not data.
+    guard section.kind != .chip, section.kind != .masthead, section.kind != .banner,
+          !section.isPlaceholder else { return }
     let loaded = section.loadedCount
     guard indexPath.item >= loaded - 1 else { return }
     // Once per length: re-displaying the same last card (a snapshot rebuild, a relayout)
@@ -695,20 +696,21 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
 
   public func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
     // Skeleton tiles are not destinations. The masthead is: Up from the grid reaches
-    // person / collection detail. Empty grid keeps its escape on the sort chip.
+    // person / collection detail. Empty grid keeps its escape on the sort chip. The
+    // banner's titles take focus inside its own row, never the row itself.
     guard let id = dataSource.itemIdentifier(for: indexPath), let item = itemsByID[id] else { return false }
     switch item {
-    case .placeholder: return false
+    case .placeholder, .banner: return false
     default: return true
     }
   }
 
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
     if prefersFirstPosterFocus { return firstPosterIndexPath }
-    // A looped banner on top starts in its middle lap, so Left works from the start.
-    guard let first = sections.first, first.startIndex > 0, first.items.indices.contains(first.startIndex)
-    else { return nil }
-    return IndexPath(item: first.startIndex, section: 0)
+    // A banner on top takes the first focus; its row hands it to its middle title
+    // (`TVPageBannerCarouselCell.preferredFocusEnvironments`).
+    guard let first = sections.first, first.kind == .banner, !first.items.isEmpty else { return nil }
+    return IndexPath(item: 0, section: 0)
   }
 
   public func collectionView(_ collectionView: UICollectionView,
@@ -748,27 +750,6 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     FocusLog.engine(section: sectionName,
                     from: name(context.previouslyFocusedIndexPath),
                     to: name(context.nextFocusedIndexPath))
-  }
-
-  /// A banner row starts with its `startIndex` banner (the middle lap) in the middle of
-  /// the screen, half a neighbour either side, before anything in it has focus. Focus
-  /// moves after that are the layout's: `.groupPagingCentered` centres them as the focus
-  /// engine scrolls, in its one animation. Moving the row ourselves alongside it drew
-  /// two motions per press (2026-10-01, "дёрганый").
-  private func centerBannerAtStart(_ section: TVPageSection, sectionIndex: Int, cell: UICollectionViewCell) {
-    guard section.kind == .banner, !centeredBanners.contains(section.id),
-          section.items.indices.contains(section.startIndex) else { return }
-    centeredBanners.insert(section.id)
-    let start = IndexPath(item: section.startIndex, section: sectionIndex)
-    DispatchQueue.main.async { [weak self, weak cell] in
-      guard let self, let cell,
-            let row = cell.superview as? UIScrollView, row !== self.collectionView,
-            let target = self.collectionView.layoutAttributesForItem(at: start) else { return }
-      let inset = row.adjustedContentInset
-      let lowest = -inset.left
-      let highest = max(row.contentSize.width + inset.right - row.bounds.width, lowest)
-      row.contentOffset.x = min(max(target.center.x - row.bounds.width / 2, lowest), highest)
-    }
   }
 
   // tvOS routes long-press-Select to the focused view's responder chain; the
@@ -844,7 +825,8 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
       return URL(string: feature.card.backdropImageURL)
     case .masthead(let header):
       return header.photoURL
-    case .chip, .tile, .placeholder:
+    // The banner warms its own titles' art.
+    case .banner, .chip, .tile, .placeholder:
       return nil
     }
   }

@@ -62,21 +62,20 @@ public enum TVUIKitTileArtwork {
     if let cached = cache.object(forKey: key) { return cached }
 
     let bounds = CGRect(origin: .zero, size: size)
-    let renderer = UIGraphicsImageRenderer(size: size)
-    let drawn = renderer.image { context in
+    let drawn = render(size: size) { context in
       if cornerRadius > 0 {
         UIBezierPath(roundedRect: bounds, cornerRadius: cornerRadius).addClip()
       }
       switch style {
       case .flat:
-        resolved.withAlphaComponent(fillAlpha).setFill()
+        context.setFillColor(resolved.withAlphaComponent(fillAlpha).cgColor)
         context.fill(bounds)
       case .gradient:
         let colors = [shade(resolved, brightness: 1.25), shade(resolved, brightness: 0.55)]
           .map { $0.withAlphaComponent(fillAlpha).cgColor } as CFArray
         if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
-          context.cgContext.drawLinearGradient(gradient, start: .zero,
-                                               end: CGPoint(x: size.width, y: size.height), options: [])
+          context.drawLinearGradient(gradient, start: .zero,
+                                     end: CGPoint(x: size.width, y: size.height), options: [])
         }
       }
       guard let symbol else { return }
@@ -85,7 +84,7 @@ public enum TVUIKitTileArtwork {
         weight: .semibold
       )
       guard let glyph = UIImage(systemName: symbol, withConfiguration: config)?
-          .withTintColor(.label.withAlphaComponent(0.9), renderingMode: .alwaysOriginal)
+          .withTintColor(UIColor.label.resolvedColor(with: traits).withAlphaComponent(0.9), renderingMode: .alwaysOriginal)
       else { return }
       let x = style == .gradient
         ? size.width - glyph.size.width - size.height * 0.14
@@ -130,7 +129,7 @@ public enum TVUIKitTileArtwork {
     let font = UIFont.systemFont(ofSize: diameter * 0.36, weight: .semibold)
     let key = "mono-v2-\(initials)-\(Int(diameter))-\(dark ? "d" : "l")" as NSString
     if let cached = cache.object(forKey: key) { return cached }
-    let drawn = UIGraphicsImageRenderer(size: size).image { _ in
+    let drawn = render(size: size) { _ in
       fill.setFill()
       UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).fill()
       let text = initials.uppercased() as NSString
@@ -147,6 +146,36 @@ public enum TVUIKitTileArtwork {
                                  cornerRadius: CGFloat = 0,
                                  traits: UITraitCollection? = nil) -> UIImage {
     image(tint: .label, symbol: nil, size: size, cornerRadius: cornerRadius, fillAlpha: 0.12, traits: traits)
+  }
+
+  /// Draws `size` points into a 32-bit BGRA, premultiplied sRGB bitmap at the screen's
+  /// scale, origin top-left as in UIKit, and returns it as an image.
+  ///
+  /// Not `UIGraphicsImageRenderer`: it picks the bitmap format from what is drawn, and
+  /// content with no colour in it — the placeholder, the monogram — came back as grey
+  /// with alpha, two bytes a pixel (measured on the CI tvOS 27.2 simulator,
+  /// 2026-10-02). The focus effect `TVPosterView` and `adjustsImageWhenAncestorFocused`
+  /// put on an image reads it as ARGB8888 regardless and ran off the end of the
+  /// placeholder: EXC_BAD_ACCESS in `vImageConvert_ARGB8888toPlanar8` under
+  /// `TVPosterView(image:)`, from the poster probe in `TVPageCellMetrics`.
+  /// `TVUIKitTileArtworkTests` checks the format.
+  static func render(size: CGSize, scale: CGFloat? = nil, _ draw: (CGContext) -> Void) -> UIImage {
+    let scale = scale ?? UIGraphicsImageRendererFormat.preferred().scale
+    let width = max(Int((size.width * scale).rounded(.up)), 1)
+    let height = max(Int((size.height * scale).rounded(.up)), 1)
+    guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+          let context = CGContext(data: nil, width: width, height: height,
+                                  bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                                    | CGBitmapInfo.byteOrder32Little.rawValue)
+    else { return UIImage() }
+    context.translateBy(x: 0, y: CGFloat(height))
+    context.scaleBy(x: scale, y: -scale)
+    UIGraphicsPushContext(context)
+    draw(context)
+    UIGraphicsPopContext()
+    guard let image = context.makeImage() else { return UIImage() }
+    return UIImage(cgImage: image, scale: scale, orientation: .up)
   }
 
   /// `NSCache` is documented thread-safe, so the artwork helper does not need to be

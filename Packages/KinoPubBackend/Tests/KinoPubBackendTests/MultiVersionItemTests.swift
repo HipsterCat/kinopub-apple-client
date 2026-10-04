@@ -77,6 +77,38 @@ final class MultiVersionItemTests: XCTestCase {
     XCTAssertEqual(try item().playbackAction, .playAgain)
   }
 
+  /// Each version's play button says how far into *that* version you are. Both are
+  /// watched on this account, so both offer to start over; both carry their names.
+  func testEachVersionCarriesItsOwnPlaybackStateAndName() throws {
+    let variants = try item().playbackVariants
+    XCTAssertEqual(variants.map(\.playbackButtonContent),
+                   [.playAgain(season: nil, episode: nil), .playAgain(season: nil, episode: nil)])
+    XCTAssertEqual(variants.map(\.name), ["24 fps", "48 fps"])
+  }
+
+  /// One version half-watched, the other untouched, neither named: the started one
+  /// resumes at its own position, the other plays fresh, and there is no name for a
+  /// button to show (the numbered `title` stays for the rail).
+  func testVersionStateComesFromThatVersionAlone() throws {
+    func video(id: Int, number: Int, time: Int) -> Video {
+      Video(id: id, title: "  ", thumbnail: "", duration: 6000, tracks: 1, number: number, ac3: 0,
+            audios: [], watched: 0, watching: EpisodeWatching(status: 0, time: time),
+            subtitles: [], files: [])
+    }
+    let first = PlaybackVariant(video: video(id: 1, number: 1, time: 3000), mediaId: 9, movieTitle: "Film")
+    let second = PlaybackVariant(video: video(id: 2, number: 2, time: 0), mediaId: 9, movieTitle: "Film")
+    guard case .resume(let progress, let season, let episode, let duration) = first.playbackButtonContent else {
+      return XCTFail("a started version should resume, got \(first.playbackButtonContent)")
+    }
+    XCTAssertEqual(progress, 0.5, accuracy: 0.01)
+    XCTAssertNil(season)
+    XCTAssertNil(episode)
+    XCTAssertEqual(duration, 6000)
+    XCTAssertEqual(second.playbackButtonContent, .play(season: nil, episode: nil))
+    XCTAssertNil(first.name)
+    XCTAssertEqual(first.title, "Version 1")
+  }
+
   /// A single-video film has nothing to choose between, so no rail and no behaviour
   /// change: `playbackVariants` is empty and the runtime still comes from `total`.
   func testSingleVideoFilmHasNoVariants() throws {

@@ -47,9 +47,9 @@ enum TVUIKitPersonPhoto {
     guard size.width > 0, size.height > 0, abs(size.width - size.height) > 1 else { return image }
     let side = min(size.width, size.height)
     let origin = CGPoint(x: (size.width - side) / 2, y: (size.height - side) / 4)
-    let format = UIGraphicsImageRendererFormat.preferred()
-    format.scale = image.scale
-    return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { _ in
+    // Four bytes a pixel whatever the photo: a black-and-white one can come back grey from
+    // the system renderer, narrower than the focus effect reads (`TVUIKitTileArtwork.render`).
+    return TVUIKitTileArtwork.render(size: CGSize(width: side, height: side), scale: image.scale) { _ in
       image.draw(at: CGPoint(x: -origin.x, y: -origin.y))
     }
   }

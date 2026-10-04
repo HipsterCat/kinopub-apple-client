@@ -237,7 +237,13 @@ file, and delete the losers with the switch.
   `.focusSection()`s on the plot column and the action row — **never** by `.disabled`-ing
   Trailer / Bookmark / More to steer the remote. That left those controls dim forever whenever
   `@FocusState` lagged the visual focus, and a disabled `Menu` cannot open bookmarks
-  (Sasha, 2026-10-01).
+  (Sasha, 2026-10-01). Coming back from the player the hero claims the same entry control
+  again — Follow when it leads, else Play, Replay included — because the row usually changed
+  under the control that had focus (Sasha, 2026-10-03).
+- **Detail page UI tests run on fixtures.** `-KINOPUBDetailFixture <name>` (DEBUG, tvOS) makes
+  the root a stack of local titles served by stand-ins for the API, TMDB and the player
+  (`DetailFixture.swift`); `TVDetailPageUITests` walks them with the remote and CI prints the
+  screenshots into the tvOS test job's log.
 - **Hero chrome is always dark.** Force `.environment(\.colorScheme, .dark)` on the hero
   content and keep a black scrim under the written column. tvOS does not pin
   `preferredColorScheme`; without the force, light appearance paints `Color.primary` black
@@ -445,9 +451,11 @@ Deferred verification is allowed. Silent "everything landed" claims are not.
 | --- | --- |
 | Focus frozen on one control; Right/Down no-ops; Menu quits the app | Two sibling views share a `@FocusState` case |
 | Up from a section jumps to the tab bar or fails | The hero band has no full-width `.focusSection()` |
+| Back from the player, nothing on the detail page has focus | The focused hero control was rebuilt: `mediaActionStyle` switches on chrome, so Play turning into Replay is a new view and tvOS drops focus. The hero reclaims its entry control (`MediaItemHeroView.claimEntryAfterReturn`) |
 | Only the icon inside a button scales, and gains a shadow | `.hoverEffect(.highlight)` on an `icon + text` label — use `.card` |
 | Posters stranded enlarged, parallax-wiggling while unfocused | The system's coordinated unfocus animation never ran; several sibling collections in one page region is the suspect shape |
 | A tile repaints blank after recycling | The cell skipped the synchronous `TVUIKitRemoteImage.cached(url:size:)` probe, or asked at a size no cell decodes at — a byte cache does not help, decoded ones are keyed by size |
+| tvOS crash `EXC_BAD_ACCESS` in `vImageConvert_ARGB8888toPlanar8` under `_UIStackedImageContainerLayer` | An image drawn with `UIGraphicsImageRenderer` from colourless content (stored 16-bit grey) handed to `TVPosterView` or an `adjustsImageWhenAncestorFocused` view — draw it with `TVUIKitTileArtwork.render` (32-bit) |
 | Blur/choreography "only works for series" | Something is keyed to incidental content geometry instead of state |
 | The page moves a little, then stops; background changes but layout doesn't | A threshold copied from a swipe-driven Apple sample onto a focus-driven page |
 | macOS: sidebar and player on screen together | A play entry point used `NavigationLink` instead of `PlayerLink` |

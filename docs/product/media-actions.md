@@ -43,6 +43,16 @@ Legend: `[pill]` · `(circle)` · `…` = More (tvOS)
 `[↻ Пересмотреть]` · `[Трейлер]` · `(bookmark)` · `(download*)` · `(…)`  
 \* download only while not yet on disk — see Download below.
 
+### Movie · several versions (`videos` > 1)
+`[▶ 24 fps]` · `[▶ 48 fps]` · `[Трейлер]` · `(bookmark)` · `(✓)` · `(…)`
+
+One play pill per version, for the **first two** in number order; a third version is
+not a button (the Versions rail under the hero has it). Play icon, labelled with the
+version's name; without names `[Смотреть]` · `[Вторая версия]`. Each pill carries **its own**
+version's state: progress bar when started, `↻` and the quieter pill when watched. The
+first stays the filled play pill. `(✓)` stays a circle here even mid-title.
+(Sasha, 2026-10-03.)
+
 ### Series · unwatched
 `[1 сезон, 1 серия]` / `[Play S1, E1]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(✓)` · `(…)`  
 Shuffle (icon before `…`) only when seasons > 5 and not subscribed — see below.
@@ -54,11 +64,18 @@ Shuffle (icon before `…`) only when seasons > 5 and not subscribed — see bel
 `[↻ 1 сезон, 1 серия]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(…)`
 
 ### Series · awaiting next episode (promote Follow)
-When the series is **ongoing**, **everything watched**, and the **next episode airs within ~2 weeks** (same season / next to air):
+When the series is **ongoing**, **everything watched**, and the **next episode of the
+last season on kino.pub has a date** on TMDB — ahead (any distance) or already aired and
+not uploaded yet. The next episode opening another season does not count. (Sasha,
+2026-10-03; was "airs within ~2 weeks".)
 
 `[🔔 Отслеживать]` · `[Трейлер]` · `[↻ Пересмотреть]` · `(bookmark)` · `(…)`
 
 Follow is the labelled primary; Play is demoted to Replay beside Trailer.
+
+**Focus:** the page opens on the row's main control (Follow here, else Play — Replay
+included) and comes back to it from the player, even when the row changed meanwhile
+(the last episode watched turns Play into Follow + Replay).
 
 ### Concert / documentary (non-episodic)
 Same shape as movie, with the kind-specific Play title. No follow. No shuffle.

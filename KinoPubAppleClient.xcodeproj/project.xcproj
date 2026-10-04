@@ -470,6 +470,7 @@
               "children": [
                 { "path": "TabsNavigationView.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "RootView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "DetailFixture.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",
@@ -494,6 +495,8 @@
         { "path": "PlayerTrackSelectionTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LibraryCatalogSearchTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "MediaItemHeroActionAvailabilityTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "TVUIKitTileArtworkTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "MissingEpisodeAirStateTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {
       "kind": "group",
@@ -503,6 +506,8 @@
         { "path": "WatchNowHigShotsUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVPageGeometryUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "PlayerUpNextTabUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+        { "path": "TVHomeBannerUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+        { "path": "TVDetailPageUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
       ],
     }, {
       "kind": "group",

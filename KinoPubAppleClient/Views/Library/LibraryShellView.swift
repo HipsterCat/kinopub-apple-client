@@ -72,6 +72,14 @@ struct LibraryShellView: View {
     .task(id: model.selection) {
       await catalog.activate(model.selection)
     }
+    // Back at the Library's own root from a pushed title (and whatever it opened): the
+    // grid underneath never went away, so nothing above runs again. Activating repaints
+    // from the store and refetches what went stale meanwhile — a title watched to the
+    // end invalidates the watching rows (`LibrarySectionCatalog.rowsWatchingChanges`).
+    .onChange(of: navigationState.libraryRoutes.isEmpty) { _, atRoot in
+      guard atRoot else { return }
+      Task { await catalog.activate(model.selection) }
+    }
     // Only Recently Watched has anything to arrange, so the View menu's items go dim
     // on every other section rather than staying live and doing nothing.
     .focusedSceneValue(\.showsListArrangement, model.selection == .history)
