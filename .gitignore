@@ -46,10 +46,7 @@ playground.xcworkspace
 workers/**/.dev.vars
 workers/**/node_modules/
 
-## tvoe.live scrape artifacts (6+ GB of posters/covers/logos)
-tools/tvoe_data/images/
-
-## Original-language research archive (condensed English versions are tracked; these stay local)
+tools/tvoe/tvoe_data/images/
 docs/archive/research-2026-07/*.ru.md
 
 ## Fastlane / TestFlight artifacts (the Gemfile.lock is tracked)
