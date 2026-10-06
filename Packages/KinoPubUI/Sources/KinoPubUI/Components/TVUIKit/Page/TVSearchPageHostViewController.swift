@@ -68,6 +68,35 @@ final class TVSearchPageHostViewController: UIViewController {
     tabEntryGuideHeight?.constant = max(view.safeAreaInsets.top, 1)
   }
 
+  /// Pair a Menu `.began` we consumed with its `.ended` / `.cancelled`. Same
+  /// contract as `TVPageCollectionViewController` — the search container can
+  /// see the press before the results collection does.
+  private var consumedMenuPress = false
+
+  override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if presses.contains(where: { $0.type == .menu }), results?.returnToTopRow() == true {
+      consumedMenuPress = true
+      return
+    }
+    super.pressesBegan(presses, with: event)
+  }
+
+  override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesEnded(presses, with: event)
+  }
+
+  override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesCancelled(presses, with: event)
+  }
+
   override var preferredFocusEnvironments: [UIFocusEnvironment] {
     switch preferredHalf {
     case .keyboard:

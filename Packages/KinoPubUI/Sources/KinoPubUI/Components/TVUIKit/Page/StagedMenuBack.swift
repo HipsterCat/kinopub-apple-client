@@ -1,7 +1,8 @@
 import Foundation
 
 /// Staged Menu ("back") on a catalog page: below the top row, Menu returns there;
-/// at the top row it passes through to the tab bar.
+/// at the top row it passes through — tab bar on a tab root, pop on a pushed
+/// page, search field on Search.
 ///
 /// Policy from Rivulet `StagedMenuBack` (`6c5355f`), which itself matches the
 /// Apple TV app. Extended so a wrapping grid (Library) counts rows inside one

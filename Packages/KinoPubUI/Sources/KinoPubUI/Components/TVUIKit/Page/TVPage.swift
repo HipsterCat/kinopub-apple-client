@@ -28,8 +28,10 @@ public struct TVPage: View {
   public let prefersFirstPosterFocus: Bool
   /// Surfaces as `kinopub.page.<name>` on the collection view for UI tests.
   public let accessibilityID: String?
-  /// Catalog tab roots: Menu below the top row returns there first. Off on
-  /// Search and pushed pages so Menu still pops.
+  /// Menu below the top row returns there first; at the top it passes through
+  /// (tab bar, NavigationStack pop, or Search's field). Default on — every
+  /// `TVPage` list shares this. Search uses the same collection controller
+  /// through `TVSearchPage`. The detail page's `TVEmbeddedPage` stays off.
   public let returnsToTopOnMenu: Bool
 
   @State private var belowTop = false
@@ -46,7 +48,7 @@ public struct TVPage: View {
               contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               onRetry: (() -> Void)? = nil,
               prefersFirstPosterFocus: Bool = false,
-              returnsToTopOnMenu: Bool = false) {
+              returnsToTopOnMenu: Bool = true) {
     self.sections = sections
     self.status = status
     self.sideInset = sideInset
@@ -63,8 +65,8 @@ public struct TVPage: View {
 
   public var body: some View {
     // `.onExitCommand(perform: nil)` is the pass-through: at the top row the
-    // system TabView moves focus to the tab bar. Non-nil only while this page
-    // owns focus below the top row, so a pushed detail still pops on Menu.
+    // system TabView moves focus to the tab bar, and a pushed page still pops.
+    // Non-nil only while this page owns focus below the top row.
     TVPageRepresentable(
       sections: sections,
       status: status,
@@ -81,17 +83,26 @@ public struct TVPage: View {
       belowTop: $belowTop,
       bridge: bridge
     )
-    .onExitCommand(perform: returnsToTopOnMenu && belowTop ? { [bridge] in
-      _ = bridge.controller?.returnToTopRow()
-    } : nil)
+    .stagedMenuBack(enabled: returnsToTopOnMenu, belowTop: belowTop, bridge: bridge)
   }
 }
 
 /// Holds the page controller so `.onExitCommand` can ask it to return to the
-/// top row without making `TVPage` a representable itself.
+/// top row without making `TVPage` a representable itself. Search uses the
+/// same bridge.
 @MainActor
 final class TVPageMenuBackBridge: ObservableObject {
   weak var controller: TVPageCollectionViewController?
+}
+
+extension View {
+  /// Arms `.onExitCommand` only while focus is below the top row. `nil` is
+  /// Apple's documented pass-through (tab bar, stack pop, search field).
+  func stagedMenuBack(enabled: Bool, belowTop: Bool, bridge: TVPageMenuBackBridge) -> some View {
+    onExitCommand(perform: enabled && belowTop ? { [bridge] in
+      _ = bridge.controller?.returnToTopRow()
+    } : nil)
+  }
 }
 
 private struct TVPageRepresentable: UIViewControllerRepresentable {

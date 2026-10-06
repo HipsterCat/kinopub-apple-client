@@ -18,6 +18,8 @@
 //    `setContentScrollView(_:for:)` (the replacement for the deprecated
 //    `searchControllerObservedScrollView`), so the keyboard scrolls away with results.
 //  Remembering recent queries is the app's job — the system keeps no search history.
+//  Menu-back is the same `StagedMenuBack` path as every other `TVPage`: below the
+//  top results row, Menu returns there; at that row it passes through to the field.
 //
 
 import SwiftUI
@@ -48,7 +50,7 @@ public struct TVSearchSuggestion: Hashable, Sendable {
   }
 }
 
-public struct TVSearchPage: UIViewControllerRepresentable {
+public struct TVSearchPage: View {
   public let sections: [TVPageSection]
   public let status: TVPageStatus
   /// What the field shows. Set from outside for a jump into search ("more by this
@@ -106,14 +108,64 @@ public struct TVSearchPage: UIViewControllerRepresentable {
     self.onRetry = onRetry
   }
 
-  public func makeCoordinator() -> Coordinator { Coordinator() }
+  @State private var belowTop = false
+  @StateObject private var bridge = TVPageMenuBackBridge()
 
-  public func makeUIViewController(context: Context) -> UIViewController {
+  public var body: some View {
+    TVSearchPageRepresentable(
+      sections: sections,
+      status: status,
+      text: text,
+      placeholder: placeholder,
+      suggestions: suggestions,
+      scopes: scopes,
+      selectedScope: selectedScope,
+      onTextChange: onTextChange,
+      onScopeChange: onScopeChange,
+      onCommit: onCommit,
+      onSelect: onSelect,
+      onChipOption: onChipOption,
+      onChipSelection: onChipSelection,
+      onNearEnd: onNearEnd,
+      contextMenuProvider: contextMenuProvider,
+      onRetry: onRetry,
+      belowTop: $belowTop,
+      bridge: bridge
+    )
+    .stagedMenuBack(enabled: true, belowTop: belowTop, bridge: bridge)
+  }
+}
+
+private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
+  let sections: [TVPageSection]
+  let status: TVPageStatus
+  let text: String
+  let placeholder: String
+  let suggestions: [TVSearchSuggestion]
+  let scopes: [String]
+  let selectedScope: Int
+  let onTextChange: (String) -> Void
+  let onScopeChange: (Int) -> Void
+  let onCommit: (String) -> Void
+  let onSelect: (TVPageSection, TVPageItem) -> Void
+  let onChipOption: (String, String) -> Void
+  let onChipSelection: (String, Set<String>) -> Void
+  let onNearEnd: ((TVPageSection) -> Void)?
+  let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  let onRetry: (() -> Void)?
+  @Binding var belowTop: Bool
+  let bridge: TVPageMenuBackBridge
+
+  func makeCoordinator() -> Coordinator { Coordinator() }
+
+  func makeUIViewController(context: Context) -> UIViewController {
     let results = TVPageCollectionViewController()
     results.accessibilityID = "kinopub.page.search"
     results.claimsInitialFocus = false
     results.remembersFocus = false
     results.spansScreenWidth = true
+    results.returnsToTopOnMenu = true
+    bindMenuBack(results)
     let search = UISearchController(searchResultsController: results)
     search.searchResultsUpdater = context.coordinator
     // Never take the search bar's delegate: the search controller drives its tvOS
@@ -139,7 +191,7 @@ public struct TVSearchPage: UIViewControllerRepresentable {
                                           results: results)
   }
 
-  public func updateUIViewController(_ controller: UIViewController, context: Context) {
+  func updateUIViewController(_ controller: UIViewController, context: Context) {
     let coordinator = context.coordinator
     guard let search = coordinator.search else { return }
     // Only an outside change is written into the field; echoing our own report back
@@ -150,6 +202,17 @@ public struct TVSearchPage: UIViewControllerRepresentable {
     }
     search.searchBar.placeholder = placeholder
     update(coordinator, animated: true)
+    if let results = coordinator.results {
+      bindMenuBack(results)
+    }
+  }
+
+  private func bindMenuBack(_ results: TVPageCollectionViewController) {
+    results.returnsToTopOnMenu = true
+    results.onBelowTopRowChange = { below in
+      belowTop = below
+    }
+    bridge.controller = results
   }
 
   private func update(_ coordinator: Coordinator, animated: Bool) {
