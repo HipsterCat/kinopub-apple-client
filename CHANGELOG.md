@@ -14,6 +14,15 @@ Unknown `/img` kinds 404 (same contract as logo). Plan for `?lang=ru|en`, freshn
 TTLs, and tvoe as preferred ru source: `docs/research/worker.md`. Storage host is
 TBD. Not implemented in the worker yet.
 
+### tvOS Menu returns to the top row first (2026-10-04)
+
+On Watch Now / Movies / Series / Library, Menu from a deep shelf scrolls to and
+focuses the top row; a second press passes through to the tab bar. Delivery is
+`.onExitCommand` (nil at the top row) plus `pressesBegan` on `TVPage`, not a
+window interceptor — we ship `.tabBarOnly`, which is the difference from
+Rivulet `6c5355f` (their `.sidebarAdaptable` never delivered Menu to the page).
+Search and pushed pages are unchanged. Sasha approved on device (2026-10-06).
+
 ### Worker `/img/logo` 404s when nothing is stored (2026-10-04)
 
 `GET /img/logo/{size}/kinopub/{id}` with no stored logo answers **404**, never a

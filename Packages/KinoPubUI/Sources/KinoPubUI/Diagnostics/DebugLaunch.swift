@@ -74,4 +74,16 @@ public enum DebugLaunch {
     false
 #endif
   }
+
+  /// `-KINOPUBMenuBackProbe`: templates gallery inside a `.tabBarOnly` `TabView`,
+  /// matching production chrome, so a UI test can see whether Menu reaches the
+  /// page under the system tab bar (Rivulet measured that `.sidebarAdaptable`
+  /// never did).
+  public static var menuBackProbe: Bool {
+#if DEBUG
+    ProcessInfo.processInfo.arguments.contains("-KINOPUBMenuBackProbe")
+#else
+    false
+#endif
+  }
 }
