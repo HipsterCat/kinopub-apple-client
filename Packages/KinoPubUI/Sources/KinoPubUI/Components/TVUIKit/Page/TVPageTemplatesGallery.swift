@@ -30,7 +30,8 @@ public struct TVPageTemplatesGallery: View {
         case .tile(let tile): lastSelection = "\(section.id): \(tile.title)"
         case .feature(let feature): lastSelection = "\(section.id): \(feature.card.title)"
         case .masthead(let header): lastSelection = "\(section.id): \(header.title)"
-        case .banner, .placeholder: break
+        case .info(let info): lastSelection = "\(section.id): \(info.id)"
+        case .banner, .groupTitle, .placeholder: break
         }
       },
       contextMenuProvider: { card in
@@ -76,7 +77,7 @@ public struct TVPageTemplatesGallery: View {
       .stills(id: "up-next", title: "Watch Next · stills with progress, 4 across", columns: 4,
               cards: stills(progress: true)),
       .posters(id: "recent", title: "Recently Added · posters with a score", columns: 6,
-               caption: .always, showsRating: true, cards: posters(seed: 1, rated: true)),
+               caption: .always, showsRating: true, cards: posters(seed: 1, rated: true, followed: true)),
       .tiles(id: "categories", title: "Categories · gradient tiles, 3 across", columns: 3,
              tiles: categoryTiles),
       .people(id: "people", title: "People · photos by name", people: photographedPeople),
@@ -93,17 +94,130 @@ public struct TVPageTemplatesGallery: View {
              items: posters(seed: 3).prefix(2).map(TVPageItem.card)
                + people.prefix(2).map(TVPageItem.person)
                + posters(seed: 3).dropFirst(2).prefix(4).map(TVPageItem.card)),
+      // Rows of two, the way the detail page lays itself out under its hero.
+      .strip(id: "strip-ratings", groups: [
+        TVPageGroup(id: "scores", title: "Ratings · cards, 6 across", columns: 6, items: sampleRatings.map { .info(.rating($0)) }),
+        TVPageGroup(id: "reviews", title: "Reviews · cards, 4 across", columns: 4, items: sampleReviews.map { .info(.review($0)) })
+      ]),
+      .strip(id: "strip-credits", title: "Cast & Crew · a heading over subheadings", groups: [
+        TVPageGroup(id: "directors", title: "Director", columns: 3, subheading: true,
+                    items: people.prefix(1).map(TVPageItem.person)),
+        TVPageGroup(id: "cast", title: "Starring", columns: 3, subheading: true,
+                    items: people.dropFirst().prefix(4).map(TVPageItem.person))
+      ]),
+      .strip(id: "strip-facts", groups: [
+        TVPageGroup(id: "stills", title: "Stills · a mosaic", columns: 3, items: [.info(.gallery(sampleGallery))]),
+        TVPageGroup(id: "facts", title: "Did You Know…", columns: 4, items: sampleFacts.map { .info(.fact($0)) })
+      ]),
+      .strip(id: "strip-tags", groups: [
+        TVPageGroup(id: "type", title: "Type", columns: 0, items: [.chip(TVPageChip(id: "t1", title: "🎬 Movie"))]),
+        TVPageGroup(id: "year", title: "Year", columns: 0, items: [.chip(TVPageChip(id: "t2", title: "2026"))]),
+        TVPageGroup(id: "countries", title: "Countries", columns: 0, items: [
+          .chip(TVPageChip(id: "t3", title: "🇺🇸 USA")), .chip(TVPageChip(id: "t4", title: "🇬🇧 United Kingdom"))
+        ]),
+        TVPageGroup(id: "genres", title: "Genres", columns: 0, items: [
+          .chip(TVPageChip(id: "t5", title: "🧬 Sci-Fi")), .chip(TVPageChip(id: "t6", title: "💥 Action"))
+        ])
+      ]),
+      .strip(id: "strip-specs", groups: [
+        TVPageGroup(id: "specs", title: nil, columns: 3, items: sampleSpecs.map { .info(.spec($0)) })
+      ]),
       .posters(id: "fresh", title: "Fresh Series · 5 across", columns: 5, cards: posters(seed: 8)),
       .stills(id: "featured", title: "Featured · 4 across", columns: 4, cards: stills(progress: false)),
       .people(id: "cast", title: "Cast · monograms", people: people),
       .chips(id: "tags", title: "Tags", chips: chips),
       .placeholder(id: "loading", title: "Loading row", kind: .poster, columns: 6),
       .stills(id: "grid", title: "Library grid · 4 across", columns: 4, flow: .grid,
-              cards: stills(progress: true) + stills(progress: false))
+              cards: stills(progress: true) + stills(progress: false)),
+      // The shape of search, a catalog, a collection: a long grid, a title and a second line under
+      // every cover — a year, how many episodes are left, or nothing to say.
+      .posters(id: "catalog", title: "Catalog · poster grid, a year or nothing", flow: .grid,
+               cards: catalogPosters(count: 120))
     ]
   }
 
-  static func posters(seed: Int, rated: Bool = false) -> [MediaCard] {
+  /// A page of a catalog: titles of every length, a year for most, none for every fifth, and
+  /// "N episodes left" for every seventh.
+  static func catalogPosters(count: Int) -> [MediaCard] {
+    let names = ["Война", "Фантазии Речных", "Padre Guilherme", "Неблагодарные с острова", "Округ Юнион",
+                 "Астрал 6: Они уже здесь", "Де Голль. Часть 1", "Частные сыщики", "NG. Африка: Дикий дом",
+                 "Вампир поневоле", "Я очнулся будучи", "Подруга моей девушки"]
+    return (1...count).map { n in
+      MediaCard(
+        id: 3000 + n,
+        posterURL: "https://m.staticpop.net/poster/item/big/\(10600 + n).jpg",
+        title: names[n % names.count],
+        year: n % 5 == 0 ? nil : 2020 + n % 7,
+        unwatchedEpisodes: n % 7 == 0 ? n % 23 + 1 : nil
+      )
+    }
+  }
+
+  // MARK: Info cards
+
+  static var sampleRatings: [TVPageInfoCard.Rating] {
+    [
+      .init(id: "imdb", source: .imdb, title: "IMDb", value: "6.5", caption: "1 567 ratings"),
+      .init(id: "kp", source: .kinopoisk, title: "Kinopoisk", showsName: true, value: "6.5", caption: "1 034 ratings"),
+      .init(id: "kinopub", source: .kinopub, title: "KinoPub", showsName: true, value: "88%",
+            thumbs: .init(up: "145", down: "19")),
+      .init(id: "tmdb", source: .tmdb, title: "TMDB", value: "6.5", caption: "25 ratings")
+    ]
+  }
+
+  static var sampleReviews: [TVPageInfoCard.Review] {
+    [
+      .init(id: "0", headline: "A solid return",
+            body: "The film holds its pace from the first minutes and does not stop to explain itself. Good camera work, a decent soundtrack and, above all, a living hero worth following.",
+            sentiment: "Positive", tone: .positive, date: "18.07.2026"),
+      .init(id: "1", headline: "Lintandil",
+            body: "Loud, pretty and at times pointless. The first half works, the second drags.",
+            sentiment: "Neutral", tone: .neutral, date: "20.07.2026"),
+      .init(id: "2", headline: "Expected more",
+            body: "After the trailers I expected something else. The emotional scenes do not add up.",
+            sentiment: "Negative", tone: .negative, date: "22.07.2026")
+    ]
+  }
+
+  static var sampleGallery: TVPageInfoCard.Gallery {
+    .init(id: "stills",
+          images: (1...5).compactMap { URL(string: "https://m.staticpop.net/poster/item/wide/\(10600 + $0).jpg") },
+          accessibilityLabel: "Stills")
+  }
+
+  static var sampleFacts: [TVPageInfoCard.Fact] {
+    [
+      .init(id: "0", text: "During filming the lead suffered a concussion and spent several days in hospital while production was paused.",
+            isSpoiler: false, isRevealed: true, warning: "", revealTitle: ""),
+      .init(id: "1", text: "The ending was shot twice, and one of the versions will never be seen.",
+            isSpoiler: true, isRevealed: false, warning: "This fact contains spoilers. Be careful.", revealTitle: "Show")
+    ]
+  }
+
+  static var sampleSpecs: [TVPageInfoCard.Spec] {
+    [
+      .init(id: "video", symbol: "play.fill", title: "Video", rows: [
+        .init(id: "a", text: "Runtime", style: .caption), .init(id: "b", text: "2 hours 20 minutes"),
+        .init(id: "c", text: "Resolution", style: .caption), .init(id: "d", text: "3840×1600", badges: ["4K"])
+      ]),
+      .init(id: "audio", symbol: "waveform", title: "Audio", rows: [
+        .init(id: "a", text: "English", secondary: "Original", leading: .emoji("🇺🇸"), style: .language),
+        .init(id: "b", text: "Russian", leading: .emoji("🇷🇺"), style: .language),
+        .init(id: "c", text: "Dubbed: Mosfilm", leading: .symbol("checkmark"), style: .detail),
+        .init(id: "d", text: "Cubic, Pifagor", leading: .symbol("person.3.fill"), style: .detail),
+        .init(id: "e", text: "4 more languages", style: .more)
+      ]),
+      .init(id: "subtitles", symbol: "captions.bubble", title: "Subtitles", rows: [
+        .init(id: "a", text: "English", badges: ["CC"], leading: .emoji("🇺🇸"), style: .language),
+        .init(id: "b", text: "Russian", secondary: "Forced", leading: .emoji("🇷🇺"), style: .language),
+        .init(id: "c", text: "4 more languages", style: .more)
+      ])
+    ]
+  }
+
+  /// `followed`: a followed series' captions — how many episodes are left under every other cover
+  /// (the Library's *Following*), the year under the rest.
+  static func posters(seed: Int, rated: Bool = false, followed: Bool = false) -> [MediaCard] {
     (1...14).map { n in
       let id = seed * 100 + n
       return MediaCard(
@@ -113,7 +227,9 @@ public struct TVPageTemplatesGallery: View {
         kinopoiskRating: rated ? 5.5 + Double(n % 9) * 0.45 : nil,
         kinopoiskVotes: rated ? 1000 : nil,
         progress: n % 5 == 0 ? 0.4 : nil,
-        isWatched: n % 7 == 0
+        isWatched: n % 7 == 0,
+        year: followed ? 2000 + n : nil,
+        unwatchedEpisodes: followed && n % 2 == 0 ? n : nil
       )
     }
   }

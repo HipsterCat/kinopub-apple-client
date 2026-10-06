@@ -9,6 +9,13 @@ vote, cast, awards) and **above** the tail: photos, facts, reviews, then Informa
 next comes before the reading matter — stills, trivia and other people's opinions are for whoever is
 still on the page.
 
+**prd — tvOS, since 2026-10-06, splits the block in two** ([detail-sections.md](detail-sections.md)).
+*Similar* is the third row, right after Ratings | Reviews and Director | Cast and before Stills |
+Facts; every other shelf below (author, cast, collections, genre floor) comes after the Type · Year ·
+Countries · Genres chips and before Video | Audio | Subtitles. The shelves, their queries and their
+order *among themselves* are unchanged — only where they sit on the page. iOS, iPadOS and macOS keep
+the order above.
+
 Order, top to bottom — each shelf absent when its query came back empty:
 
 | # | Shelf | Query |

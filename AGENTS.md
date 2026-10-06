@@ -215,7 +215,10 @@ file, and delete the losers with the switch.
   focus.
 - **On tvOS there are three cells and one collection** — person, wide 16:9, poster — all from
   TVUIKit, in one `UICollectionView` per page region. A hand-assembled tile is a defect even when it
-  looks right. Full standard: skill `tvos-surface`.
+  looks right. Full standard: skill `tvos-surface`. The one extension is the HIG's *Card* for
+  ratings, reviews, facts, stills and specification columns: `TVPageCellKind.infoCard`, content
+  drawn inside a `TVCardView` — a new kind of card is a new content, not a new cell, and it wears
+  the platter of search's wide card (`TVPagePlatter`).
 
 ## The detail page
 
@@ -248,7 +251,36 @@ file, and delete the losers with the switch.
 - **Detail page UI tests run on fixtures.** `-KINOPUBDetailFixture <name>` (DEBUG, tvOS) makes
   the root a stack of local titles served by stand-ins for the API, TMDB and the player
   (`DetailFixture.swift`); `TVDetailPageUITests` walks them with the remote and CI prints the
-  screenshots into the tvOS test job's log.
+  screenshots into the tvOS test job's log. `film` is the one with every row populated and local
+  artwork, so a layout is looked at with no session and no network (`TVDetailLayoutUITests`).
+  Companions: `-KINOPUBFixtureRealArt YES` (the shelves' posters come over the network and are
+  cached, as a signed-in session's do), `-KINOPUBFixtureInTabs YES` (the stack sits under
+  production's tab bar) and `-KINOPUBSlowShelves <s>` (the shelves arrive late, while the hero
+  holds focus). `-KINOPUBLibraryFixture YES` is the same idea for the Library: the real page on a
+  stand-in API listing twelve followed series (`LibraryFixture`, `TVDetailLayoutUITests`) — how the
+  *Following* captions («Ещё 2 серии») look, with no session. **Run it on both simulator runtimes, tvOS 27.2 and 26.5** — they differ: on 26.5
+  the poster art's focus bug above (and, before captions became ours, a system footer's height changed how tall art grew — see Troubleshooting).
+- **On tvOS everything under the hero is one embedded TVUIKit page** (Sasha, 2026-10-06).
+  `MediaItemTVSections.make` is the order and the content, as data — the one place. `TVEmbeddedPage`
+  draws it: a non-scrolling `TVPageCollectionViewController` sized to its content (`isEmbedded`)
+  *inside the hero's `ScrollView`*, so hero and sections stay one scroll and one focus graph — an
+  independent scroll world is the thing banned above. It needs its own full-width `.focusSection()`,
+  or Up from the right of a row can miss the hero. Two titled groups in one row are a `.strip`
+  (`TVPageSection.groups`): one orthogonal section whose cell frames all come from
+  `TVPageStripPlan`, group titles being non-focusable cells that dodge together and **stay on the
+  page's side margin while any of their group is on screen** (`stickyShifts`: the *label* moves
+  inside a group-wide cell — a cell that moved with it would be recycled once its frame left the
+  screen, and the cell's own transform is the focus dodge). A strip can carry a heading of its own
+  (`strip(id:title:groups:)`, *Cast & Crew*) with its groups' titles as subheadings
+  (`TVPageGroup.isSubheading`). What each row says:
+  [docs/product/detail-sections.md](docs/product/detail-sections.md). The SwiftUI sections it
+  replaced are still there behind `FeatureFlags.tvDetailSections` (default on) until the page has
+  been seen on a device — and are what iOS, iPadOS and macOS draw. **Being inside the hero's scroll view
+  has a price:** to UIKit a SwiftUI button with focus *is* the scroll view's container
+  (`HostingScrollView.PlatformGroupContainer`), an ancestor of every lockup on the page, and TVUIKit
+  reads "the focused view is an ancestor" as "I am focused" — info cards need
+  `TVCardView.releaseFocusedLook`, poster art `TVPosterArtFocus` (Troubleshooting). Home's page is
+  the tab's root, with no such ancestor, which is why it never shows either.
 - **Hero chrome is always dark.** Force `.environment(\.colorScheme, .dark)` on the hero
   content and keep a black scrim under the written column. tvOS does not pin
   `preferredColorScheme`; without the force, light appearance paints `Color.primary` black
@@ -263,8 +295,9 @@ file, and delete the losers with the switch.
   passes the `@FocusState` binding down and reads nothing from it.
 - **Lead with what can be played.** The cheapest path on a remote is `hero button → playable rail →
   everything else`. Episodes, parts, versions and trailers are one rail directly under the hero;
-  related titles, ratings, cast and info follow. Ordering is by what the user can do now, not by
-  entity type — a movie is not "the layout with the rail missing".
+  the sections follow, in the order of [docs/product/detail-sections.md](docs/product/detail-sections.md).
+  Ordering is by what the user can do now, not by entity type — a movie is not "the layout with the
+  rail missing".
 - **One playable rail, not one section per content type.** Episode, trailer, part, version and extra
   share a shape (id, title, duration, image, source, progress, kind) and differ in one field, so
   they share a component. A trailer tile *is* an episode tile *is* a Continue Watching tile.
@@ -459,6 +492,12 @@ Deferred verification is allowed. Silent "everything landed" claims are not.
 | Up from a section jumps to the tab bar or fails | The hero band has no full-width `.focusSection()` |
 | Back from the player, nothing on the detail page has focus | The focused hero control was rebuilt: `mediaActionStyle` switches on chrome, so Play turning into Replay is a new view and tvOS drops focus. The hero reclaims its entry control (`MediaItemHeroView.claimEntryAfterReturn`) |
 | Only the icon inside a button scales, and gains a shadow | `.hoverEffect(.highlight)` on an `icon + text` label — use `.card` |
+| Russian text in a `UILabel` breaks mid-word ("сотря-сение") whatever `hyphenationFactor`, `usesDefaultHyphenation` and `lineBreakStrategy` say | Only the `NSLanguage` attribute (set to `en`) stops it — `UILabel.setUnhyphenated(_:)` |
+| A multi-line label draws one line short, or its last line is cut | The frame was computed with `font.lineHeight`; a label's lines are `UIFont.linePitch` apart (ascender + descender + leading, each rounded up) |
+| A page-style `TabView` (the gallery) never turns on a D-pad press | It pages on swipes only. Page by hand: `.focusable()` + `.onMoveCommand` |
+| Covers in one poster row or grid are different heights — one 40 pt taller than its neighbours, no year (or no second line at all) under it, often the one cut off at the screen's edge — or a flat tile in the row shows a lighter rectangle inside its focused plate | A `TVPosterView` **with a system footer** splits its cell's height between the art and the footer, and decides on *its first layout* whether the footer is two lines (74 pt) or one (37 pt, the subtitle label laid out at height 0) — then gives the art the difference: 384 → 421–424 pt, on tvOS 26.5 and 27.2. What decides it is not ours: a card with no year; the system hiding the footer (`.onFocus`'s `showsOnlyWhenAncestorFocused`); the lockup being squeezed into a cell it disagrees with in size (its own constraints, 308 × 550, against the cell's pins, 282 × 510); the embedded page's first, wrong-width layout pass. **A visible footer collapses too** — measured 2026-10-07 on the gallery's 99-cover grid scrolled 40 rows (tvOS 27.2): 28 of 99 covers came out one-line with 421 pt of art and no year, the same in Sasha's Search grid (an earlier note here, "a visible footer never collapsed", was measured on a rail only and was wrong). Tried and *not* a cure: blank, zero-width, NBSP/U+2007/U+2060/U+3164 or clear-colour footer text, label alpha, `contentSize` = the art with the focus room forced, a lockup height that follows the footer (positive feedback), repairing the art or `contentSize` after layout, `preferredLayoutAttributesFitting`, no self-sizing, handing the texts over on the next run-loop turn. **So no lockup has a footer any more**: a rail's cover is `.never` and a grid's `.always` is the same footer-less lockup (rigid, 384 art whatever its title) plus `TVPageCaptionView` under it — two lines that exist because they are drawn (title; year, episodes left, or nothing), Callout 31 pt centred, dropping by the focus room (`posterContentSize − artSize`)/2 with the cover on focus, an ellipsis at rest and a marquee when focused for a title wider than the art. `TVPageCellRecipe.captionHeight`/`lockupHeight` carry it: item = bare cover + 12 pt + two lines (510 at a 256 art). Checked: a 99-cover grid scrolled 40 rows reads art 384 / cell 510 / caption 74 in all 101 samples on 27.2 and 26.5 (`TVDetailLayoutUITests.testAGridScrolledFarKeepsEveryCoverTheSame`); `TVPosterCoverTests` lays covers out and re-dequeues cells with both captions. A flat tile is the other symptom: `.never` reserves the 12 pt gap (`contentViewInsets`), so keep tiles out of `.never` rows |
+| A card's platter stays lifted and white after focus moved to the SwiftUI hero above (or a footer control, if one is ever added below), its text back to light-on-dark | The cell holds focus and the `TVCardView` inside only follows, by asking whether the focused view is *an ancestor* — and SwiftUI's own focusable things take focus as the scroll view's container, an ancestor of every card (`ancestorFocused` stays 1). `TVCardView.releaseFocusedLook` (`TVCardViewFocusRelease.swift`) puts it down; poster and wide-card cells at the page's edge do not call it yet |
+| Every poster of the detail page's shelves looks focused at once on tvOS 26.5 — a lighter plate, a bright rim, no glass or lift left for the one that really is — while Home's are fine (27.2 too) | The art of a `TVPosterView` is a layered-image stack that tvOS 26.x re-asks "is the focused view above me?" (`_updateLayeredImageIsFocusedWithFocusedView:…`, absent on 27.2) on *every layout and image assignment*, and while the hero's SwiftUI button holds focus the focused view it is handed is `HostingScrollView.PlatformGroupContainer` — an ancestor of every poster on the page — so each stack (`isStackFocused`) is born and re-laid-out focused, and nothing un-focuses it until the remote has visited that poster and left. `TVPosterArtFocus.bind` (private selector, shape-checked) answers for poster art: only its own cell can focus it. Any *new* lockup with `adjustsImageWhenAncestorFocused` on this page needs the same look: read its stack flag with the hero focused (`-KINOPUBDetailFixture film`, log `isStackFocused` over `_UIStackedImageContainerView`) |
 | Posters stranded enlarged, parallax-wiggling while unfocused | The system's coordinated unfocus animation never ran; several sibling collections in one page region is the suspect shape |
 | A tile repaints blank after recycling | The cell skipped the synchronous `TVUIKitRemoteImage.cached(url:size:)` probe, or asked at a size no cell decodes at — a byte cache does not help, decoded ones are keyed by size |
 | tvOS crash `EXC_BAD_ACCESS` in `vImageConvert_ARGB8888toPlanar8` under `_UIStackedImageContainerLayer` | An image drawn with `UIGraphicsImageRenderer` from colourless content (stored 16-bit grey) handed to `TVPosterView` or an `adjustsImageWhenAncestorFocused` view — draw it with `TVUIKitTileArtwork.render` (32-bit) |
@@ -480,6 +519,7 @@ went wrong by porting thresholds tuned for a swipe-driven page onto a focus-driv
 | Type scale | `Packages/KinoPubUI/Sources/KinoPubUI/Layout/TypeScale.swift` |
 | Glass helper | `Packages/KinoPubUI/Sources/KinoPubUI/DesignSystem/KinoGlass.swift` |
 | tvOS cells / rails / collection | `Packages/KinoPubUI/Sources/KinoPubUI/Components/TVUIKit/` |
+| tvOS detail sections — order and content | `KinoPubAppleClient/Views/MediaItem/Subviews/MediaItemTVSections.swift` |
 | Artwork cache (the only place Nuke is imported) | `Packages/KinoPubUI/Sources/KinoPubUI/Components/Content/ArtworkPipeline.swift` |
 | Home/Library rows | `KinoPubAppleClient/Services/Cache/ContentStore.swift` |
 | Per-item optimistic library | `KinoPubAppleClient/Services/MediaLibrary/MediaLibraryStore.swift` |

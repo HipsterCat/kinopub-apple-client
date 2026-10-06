@@ -66,6 +66,53 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBLibraryFixture YES`: the app root is the real Library (sidebar and page) on a
+  /// stand-in API that lists a handful of followed series with episodes waiting (see
+  /// `LibraryFixture` in the app) — Subscriptions as a signed-in account has them, with
+  /// no session, for shots and tests of the grid's captions.
+  public static var libraryFixture: Bool {
+#if DEBUG
+    UserDefaults.standard.bool(forKey: "KINOPUBLibraryFixture")
+#else
+    false
+#endif
+  }
+
+  /// `-KINOPUBSlowShelves <seconds>`: the stand-in API (`VideoContentServiceMock`) takes that
+  /// long to answer a person's shelf on the detail page, so the page spends the time with
+  /// skeleton rows where shelves will land — what a real connection does and a fixture,
+  /// which answers at once, never shows. For tests of focus while the page is still filling.
+  public static var slowShelves: TimeInterval? {
+#if DEBUG
+    UserDefaults.standard.object(forKey: "KINOPUBSlowShelves") == nil
+      ? nil : UserDefaults.standard.double(forKey: "KINOPUBSlowShelves")
+#else
+    nil
+#endif
+  }
+
+  /// `-KINOPUBFixtureRealArt YES`: the detail fixtures' shelves use real posters from the
+  /// CDN instead of locally drawn ones — images that arrive over the network, are cached,
+  /// and are decoded the way a signed-in session's are.
+  public static var fixtureRealArt: Bool {
+#if DEBUG
+    UserDefaults.standard.bool(forKey: "KINOPUBFixtureRealArt")
+#else
+    false
+#endif
+  }
+
+  /// `-KINOPUBFixtureInTabs YES`: the detail fixture's navigation stack lives in production's
+  /// `.tabBarOnly` `TabView` — the tab bar above the page, the page pushed from a tab's root —
+  /// instead of being the whole screen. The focus environment a signed-in session has.
+  public static var fixtureInTabs: Bool {
+#if DEBUG
+    UserDefaults.standard.bool(forKey: "KINOPUBFixtureInTabs")
+#else
+    false
+#endif
+  }
+
   public static var focusFirstPoster: Bool {
 #if DEBUG
     ProcessInfo.processInfo.arguments.contains("-KINOPUBFocusFirstPoster")

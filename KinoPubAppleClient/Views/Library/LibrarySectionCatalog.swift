@@ -294,7 +294,8 @@ final class LibrarySectionCatalog: ObservableObject {
               badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
               backdropURL: item.posters.wideURL ?? item.posters.big,
               isSeries: isSeries,
-              isInWatchlist: isSeries)
+              isInWatchlist: isSeries,
+              unwatchedEpisodes: isSeries ? item.new : nil)
   }
 
   private func subscribeForAuth() {

@@ -154,6 +154,19 @@ final class MediaTextTests: XCTestCase {
     XCTAssertNil(SeasonCountText(nil))
   }
 
+  /// A followed series says how many episodes are still unwatched under its cover.
+  func testEpisodesLeftArePluralCorrectInBothLanguages() {
+    let ru = [1: "Ещё 1 серия", 2: "Ещё 2 серии", 4: "Ещё 4 серии", 5: "Ещё 5 серий", 11: "Ещё 11 серий",
+              12: "Ещё 12 серий", 21: "Ещё 21 серия", 22: "Ещё 22 серии", 111: "Ещё 111 серий", 171: "Ещё 171 серия"]
+    for (count, text) in ru {
+      XCTAssertEqual(EpisodesLeftText(count)?.formatted(language: .ru), text)
+    }
+    XCTAssertEqual(EpisodesLeftText(1)?.formatted(language: .en), "1 episode left")
+    XCTAssertEqual(EpisodesLeftText(3)?.formatted(language: .en), "3 episodes left")
+    XCTAssertNil(EpisodesLeftText(0), "nothing left says nothing")
+    XCTAssertNil(EpisodesLeftText(nil))
+  }
+
   func testAFilmsLineIsYearRuntimeGenresCountry() {
     let film = MediaEntity(kind: .movie, release: .year(2025), runtime: 115 * 60,
                            countries: ["Япония"])

@@ -66,6 +66,14 @@ enum FeatureFlags {
   /// `testSearchTabDownFromTabBar`.
   static var tvUIKitSearch: Bool { FeatureFlag.tvUIKitSearch.isEnabled }
 
+  /// tvOS detail page: everything under the hero is **one** `UICollectionView`
+  /// (`TVEmbeddedPage`), laid out in columns — Ratings | Reviews, Director | Cast,
+  /// Similar, Stills | Facts, Type · Year · Country · Genre, Collections, then
+  /// Video | Audio | Subtitles — from the same cells Watch Now and Search use. Off falls
+  /// back to the SwiftUI section stack, which stays until the new page has been driven on
+  /// a device; then it is deleted, not kept.
+  static var tvDetailSections: Bool { FeatureFlag.tvDetailSections.isEnabled }
+
   /// A series detail page fetches its item with `nolinks=1` and resolves an episode's
   /// links from `/v1/items/media-links` when it is played (`MediaLinksResolver`).
   ///
@@ -155,6 +163,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case tvUIKitPosters
   case tvPageSections
   case tvUIKitSearch
+  case tvDetailSections
   case seriesDetailsWithoutLinks
   case heroAmbientTrailer
   case detailAmbientBackdrop
@@ -176,6 +185,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvUIKitPosters: true
     case .tvPageSections: true
     case .tvUIKitSearch: true
+    case .tvDetailSections: true
     case .seriesDetailsWithoutLinks: false
     case .heroAmbientTrailer: false
     case .detailAmbientBackdrop: true
@@ -197,6 +207,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvUIKitPosters: "UIKit poster shelves"
     case .tvPageSections: "One collection view per page"
     case .tvUIKitSearch: "UIKit Search"
+    case .tvDetailSections: "Detail sections in columns"
     case .seriesDetailsWithoutLinks: "Series pages without links (nolinks=1)"
     case .heroAmbientTrailer: "Muted trailer behind the hero"
     case .detailAmbientBackdrop: "Artwork behind the detail page"
@@ -218,6 +229,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvUIKitPosters: "TVUIKit cells in a recycling collection view; off is SwiftUI cards."
     case .tvPageSections: "Watch Now, Movies and Series as one UICollectionView each."
     case .tvUIKitSearch: "UISearchContainerViewController with native suggestions; off is .searchable."
+    case .tvDetailSections: "The detail page under the hero as one UICollectionView in columns; off is the SwiftUI stack."
     case .seriesDetailsWithoutLinks: "Lighter series payload; each episode's links fetched on play."
     case .heroAmbientTrailer: "A second, muted AVPlayer behind the detail hero."
     case .detailAmbientBackdrop: "Blurred poster wash (iOS, macOS) or the hero still (tvOS)."
@@ -234,7 +246,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   /// does nothing.
   var isRelevantHere: Bool {
     switch self {
-    case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvOSSidecarSubtitles:
+    case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvDetailSections, .tvOSSidecarSubtitles:
 #if os(tvOS)
       true
 #else

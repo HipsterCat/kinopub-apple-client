@@ -3005,8 +3005,9 @@ struct MediaItemInfoColumns: View {
   // MARK: Footer
 
   /// Uploaded / Last Update plus quiet source buttons on non-TV — same secondary
-  /// weight throughout, not another Information row.
-  private struct InfoFooter: View {
+  /// weight throughout, not another Information row. Internal rather than private: the
+  /// tvOS page under the hero ends in the same line (`MediaItemTVPage`).
+  struct InfoFooter: View {
     let mediaItem: MediaItem
     let attribution: Set<MetadataSourceID>
     let tmdbId: Int?
@@ -3031,16 +3032,19 @@ struct MediaItemInfoColumns: View {
         if attribution.contains(.tmdb) {
           sourceButton(title: "TMDB", url: tmdbURL)
         }
-#endif
-        // Dev tool, all platforms — unlike the links above, there's nothing to
-        // browse to on tvOS, so it isn't gated the same way.
+        // Dev tool. Not on tvOS (Sasha, 2026-10-06): a button on a remote is a focus stop
+        // under the last row for something nobody at a sofa reads — Settings › Diagnostics
+        // has the network log.
         debugButton
+#endif
       }
       .font(MediaItemInfoColumns.captionFont)
       .foregroundStyle(Color.KinoPub.subtitle)
+#if !os(tvOS)
       .sheet(isPresented: $showsDebugSheet) {
         DebugLogView(entries: debugLog)
       }
+#endif
     }
 
     private var debugButton: some View {

@@ -201,6 +201,10 @@ struct AppContext: AppContextProtocol {
     if DetailFixture.isActive {
       return DetailFixture.context(replacingServicesOf: context)
     }
+    // `-KINOPUBLibraryFixture`: the Library against a stand-in API.
+    if LibraryFixture.isActive {
+      return LibraryFixture.context(replacingServicesOf: context)
+    }
 #endif
     return context
   }()

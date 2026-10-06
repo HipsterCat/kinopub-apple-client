@@ -153,11 +153,10 @@ struct MainView: View {
         let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : Self.stillColumns
         return .stills(id: row.id, title: row.title, count: row.count, columns: columns, cards: row.cards)
       }
-      // Watch Now poster rails: no title/subtitle under the art (cleaner). Catalog /
-      // search / category grids keep `.always` two-line footers elsewhere.
-      // Movies / Series tabs still reveal caption on focus.
-      let caption: TVPageCaption = tab == .home ? .never : .onFocus
-      return .posters(id: row.id, title: row.title, count: row.count, caption: caption, cards: row.cards)
+      // Poster rails — Watch Now, Movies, Series alike — have no title or year under the art,
+      // not even on focus (Sasha, 2026-10-06): that is `TVPageSection.posters`' own caption for
+      // a rail. Catalog / collection / profile grids name every cover.
+      return .posters(id: row.id, title: row.title, count: row.count, cards: row.cards)
     }
   }
 

@@ -32,6 +32,38 @@ public struct SeasonCountText: Hashable, Sendable {
   }
 }
 
+/// **How many episodes are still unwatched** — «Ещё 3 серии», «3 episodes left». The line a
+/// followed series wears under its cover in the Library; plural-correct in both languages.
+public struct EpisodesLeftText: Hashable, Sendable {
+  public let count: Int
+
+  public init?(_ count: Int?) {
+    guard let count, count > 0 else { return nil }
+    self.count = count
+  }
+
+  public func formatted(language: MediaLanguage = .current) -> String {
+    switch language {
+    case .en:
+      return count == 1 ? "1 episode left" : "\(count) episodes left"
+    case .ru:
+      let lastTwo = count % 100
+      let last = count % 10
+      let word: String
+      if (11...14).contains(lastTwo) {
+        word = "серий"
+      } else if last == 1 {
+        word = "серия"
+      } else if (2...4).contains(last) {
+        word = "серии"
+      } else {
+        word = "серий"
+      }
+      return "Ещё \(count) \(word)"
+    }
+  }
+}
+
 /// **A title in one line** — «2025   1ч 55м   Боевик, Драма   Япония»: when, how long (a
 /// series: how many seasons), what, where. The focus preview's line.
 public struct TitleMetaLine: Hashable, Sendable {

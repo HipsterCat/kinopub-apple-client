@@ -5,20 +5,22 @@
 //
 //  The cells a `TVPageCollectionViewController` dequeues, and the section header.
 //
-//  Poster: `TVPosterView` **as the whole cell**, with the caption in its own footer
-//  and our overlays inside its `contentView` — the container the header says clients
-//  add their subviews to ("Views added directly to the lockup view have undefined
-//  behaviors"). Everything in there scales, lifts and tilts with the system's focus
-//  motion, so the cell owns no transform, no coordinated animation and no stale-
-//  appearance reset. The earlier cell (`TVUIKitPosterCell`) put its overlay *beside*
-//  the lockup and mirrored the focus scale by hand; that is the pile of constraints
-//  this replaces.
+//  Poster: `TVPosterView` as the cell's lockup, **without a footer**, and our overlays
+//  inside its `contentView` — the container the header says clients add their subviews to
+//  ("Views added directly to the lockup view have undefined behaviors"). Everything in
+//  there scales, lifts and tilts with the system's focus motion. A captioned cover's two
+//  lines are `TVPageCaptionView`, a sibling under the lockup that follows the cover down
+//  on focus: the system footer came out one line or two depending on a first layout we do
+//  not control (see that file). The earlier cell (`TVUIKitPosterCell`) put its overlay
+//  *beside* the lockup and mirrored the focus scale by hand; that is the pile of
+//  constraints this replaces.
 //
 //  Still and person cells are the existing system-configuration cells
 //  (`TVUIKitMediaItemCell`, `TVUIKitPersonCell`) — nothing new to draw. The wide card
 //  is a `TVCardView` with a thumbnail and text in its `contentView`.
 //
 
+import KinoPubMedia
 import TVUIKit
 import UIKit
 
@@ -26,23 +28,27 @@ import UIKit
 
 @MainActor
 final class TVPageLockupPosterCell: UICollectionViewCell {
-  /// Air between the art and the footer caption. `TVLockupView.contentViewInsets`
-  /// takes negative values for positive spacing; the probe in `TVPageCellMetrics`
-  /// applies the same, so the envelope it measures includes this.
+  /// Air between the art and the caption. `TVLockupView.contentViewInsets` takes negative
+  /// values for positive spacing; the probe in `TVPageCellMetrics` applies the same, so the
+  /// envelope it measures includes this.
   static let footerGap: CGFloat = 12
 
   /// Non-focusable lockup (`isUserInteractionEnabled = false` on the whole subtree).
   /// The **cell** is the focused leaf — same shape as Continue Watching /
   /// `TVPageWideCardCell` — so the collection's context-menu delegate sees Play-Pause.
   /// `canBecomeFocused = false` alone left focus on `_TVPosterContentView`
-  /// (7a8bd62): lift looked right, PCM never opened.
-  private let posterView = TVUIKitNonFocusablePosterView(image: nil)
+  /// (7a8bd62): lift looked right, PCM never opened. Internal for `TVPosterArtFocusTests`.
+  let posterView = TVUIKitNonFocusablePosterView(image: nil)
+  /// Two lines under a captioned cover; hidden for a cover without one.
+  let captionView = TVPageCaptionView()
+  private var lockupHeight: NSLayoutConstraint!
   private let watchedGlyph = UIImageView()
   /// The title's score, top-trailing, for rows that set `showsRating`.
   private let ratingChip = TVPageRatingChip()
 
   private var currentURL: URL?
   private var recipe: TVPageCellRecipe?
+  private var caption: TVPageCaption = .never
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -62,11 +68,17 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     posterView.translatesAutoresizingMaskIntoConstraints = false
     posterView.contentViewInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: -Self.footerGap, trailing: 0)
     contentView.addSubview(posterView)
+    contentView.addSubview(captionView)
+    captionView.isHidden = true
+    // The art follows this cell's focus and nothing else's — see `TVPosterArtFocus`.
+    TVPosterArtFocus.bind(posterView.imageView, to: self)
+    // The lockup is the item minus the caption: the whole item for a cover without one.
+    lockupHeight = posterView.heightAnchor.constraint(equalToConstant: 0)
     NSLayoutConstraint.activate([
       posterView.topAnchor.constraint(equalTo: contentView.topAnchor),
       posterView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       posterView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-      posterView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+      lockupHeight
     ])
 
     // Overlays live in the lockup's contentView, pinned to its imageView, so they ride
@@ -97,11 +109,11 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     ])
   }
 
+
   func configure(card: MediaCard, recipe: TVPageCellRecipe, caption: TVPageCaption,
                  showsRating: Bool = false) {
-    self.recipe = recipe
-    posterView.contentSize = recipe.posterContentSize
-    applyCaption(caption, title: card.title, subtitle: Self.posterSubtitle(for: card, caption: caption))
+    place(recipe: recipe)
+    applyCaption(caption, title: card.title, detail: Self.posterSubtitle(for: card, caption: caption))
 
     let posterID = "kinopub.poster.\(card.id)"
     accessibilityIdentifier = posterID
@@ -118,13 +130,10 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   /// A drawn tile in the lockup: the tint and glyph are the artwork, the name is the
-  /// footer caption like any poster's. Catalog-style `.always` still reserves a second
-  /// line so a mixed collection does not jump between one- and two-line cells.
+  /// caption like any poster's, with no detail line.
   func configure(tile: TVPageTile, recipe: TVPageCellRecipe, caption: TVPageCaption) {
-    self.recipe = recipe
-    posterView.contentSize = recipe.posterContentSize
-    let subtitle: String? = caption == .always ? "\u{00A0}" : nil
-    applyCaption(caption, title: tile.title, subtitle: subtitle)
+    place(recipe: recipe)
+    applyCaption(caption, title: tile.title, detail: nil)
     accessibilityIdentifier = "kinopub.tile.\(tile.id)"
     accessibilityLabel = tile.title
     posterView.accessibilityIdentifier = accessibilityIdentifier
@@ -142,9 +151,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   func configurePlaceholder(recipe: TVPageCellRecipe) {
-    self.recipe = recipe
-    posterView.contentSize = recipe.posterContentSize
-    applyCaption(.never, title: nil, subtitle: nil)
+    place(recipe: recipe)
+    applyCaption(.never, title: nil, detail: nil)
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
     currentURL = nil
@@ -152,20 +160,17 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     setImage(placeholder)
   }
 
-  /// Year under the title when the lockup footer is on — what TVPosterView's subtitle
-  /// is for. Original title is reserved for search's wide cards (match highlighting).
-  ///
-  /// Catalog / search / category grids (`.always`) **always** reserve a second line so
-  /// a collection never mixes one-line and two-line cells (Sasha, 2026-10-02). Missing
-  /// year → NBSP placeholder (empty string collapses the footer line).
-  private static func posterSubtitle(for card: MediaCard, caption: TVPageCaption) -> String? {
+  /// What a captioned cover says under its title: a followed series says how many of its
+  /// episodes are still unwatched (the Library's *Following*), anything else its year, and a
+  /// title with neither says nothing — the line is still there, empty, so a grid never mixes
+  /// one-line and two-line cells (Sasha, 2026-10-02). Original title is reserved for search's
+  /// wide cards (match highlighting).
+  static func posterSubtitle(for card: MediaCard, caption: TVPageCaption) -> String? {
     switch caption {
     case .never:
       return nil
-    case .always:
-      return card.year.map(String.init) ?? "\u{00A0}"
-    case .onFocus:
-      return card.year.map(String.init)
+    case .always, .onFocus:
+      return EpisodesLeftText(card.unwatchedEpisodes)?.formatted() ?? card.year.map(String.init)
     }
   }
 
@@ -189,20 +194,42 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   private static let placeholderCornerRadius: CGFloat = 14
 
-  private func applyCaption(_ caption: TVPageCaption, title: String?, subtitle: String?) {
+  /// Sizes the lockup to the recipe: the item minus the caption's two lines.
+  private func place(recipe: TVPageCellRecipe) {
+    self.recipe = recipe
+    posterView.contentSize = recipe.posterContentSize
+    lockupHeight.constant = recipe.lockupHeight
+    // Where the caption sits is the recipe's, not the cell's bounds: set here, at once, so it
+    // never waits for a layout pass the cell might not get before it is on screen.
+    // `bounds` + `center`, not `frame`: the caption carries a transform while focused.
+    guard recipe.captionHeight > 0 else { return }
+    let size = CGSize(width: recipe.artSize.width, height: recipe.captionHeight)
+    captionView.bounds = CGRect(origin: .zero, size: size)
+    captionView.center = CGPoint(
+      x: recipe.artInsets.leading + size.width / 2,
+      y: recipe.artInsets.top + recipe.artSize.height + Self.footerGap + size.height / 2)
+  }
+
+  /// The caption is ours — two lines in `TVPageCaptionView` — and the lockup never has a
+  /// footer. `.onFocus` shows it only while the cover is focused.
+  private func applyCaption(_ caption: TVPageCaption, title: String?, detail: String?) {
+    self.caption = caption
     switch caption {
     case .never:
-      posterView.title = nil
-      posterView.subtitle = nil
+      captionView.isHidden = true
+      captionView.configure(title: nil, detail: nil, category: TVPageCellMetrics.contentSizeCategory)
     case .always, .onFocus:
-      posterView.title = title
-      posterView.subtitle = subtitle
-      // The footer is the system's: it hides and reveals itself, and a long title
-      // marquees inside the lockup's width while focused (a screenshot mid-scroll
-      // looks clipped on the left — it is not).
-      posterView.footerView?.showsOnlyWhenAncestorFocused = caption == .onFocus
-      posterView.footerView?.titleLabel?.textColor = isFocused ? .label : .secondaryLabel
+      captionView.configure(title: title, detail: detail, category: TVPageCellMetrics.contentSizeCategory)
+      captionView.isHidden = false
+      captionView.alpha = caption == .onFocus && !isFocused ? 0 : 1
+      if isFocused { captionView.setFocusedLook(drop: focusDrop) }
     }
+  }
+
+  /// How far the cover's bottom edge moves out when it grows for focus: the caption follows.
+  private var focusDrop: CGFloat {
+    guard let recipe else { return 0 }
+    return ((recipe.posterContentSize.height - recipe.artSize.height) / 2).rounded()
   }
 
   private func loadImage(_ url: URL?) {
@@ -213,9 +240,9 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     _ = TVUIKitRemoteImage.load(into: posterView, url: url, size: decodeSize, placeholder: placeholder)
   }
 
-  /// Caption colour is the one focus response that is ours: secondary at rest, label
-  /// when focused (the footer's own default is label always). Colour only — motion,
-  /// lift and the footer's reveal stay the lockup's (ancestor-focused).
+  /// The caption's response to focus is ours: it follows the cover down by the focus room,
+  /// its title turns primary, and under `.onFocus` it appears. The cover's own motion, lift
+  /// and tilt stay the lockup's.
   override func didUpdateFocus(in context: UIFocusUpdateContext,
                                with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
@@ -227,9 +254,10 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
         "poster cell focus title=\(accessibilityLabel ?? "?") id=\(accessibilityIdentifier ?? "?") leafIsCell=\(leafIsSelf) posterUserInteraction=\(posterView.isUserInteractionEnabled) chain=\(PosterContextMenuLog.focusedChainDescription(startingFrom: context.nextFocusedView))"
       )
     }
-    coordinator.addCoordinatedAnimations({ [weak self] in
-      self?.posterView.footerView?.titleLabel?.textColor = focused ? .label : .secondaryLabel
-    }, completion: { [weak self] in
+    if !captionView.isHidden {
+      captionView.setFocused(focused, drop: focusDrop, reveals: caption == .onFocus, in: coordinator)
+    }
+    coordinator.addCoordinatedAnimations(nil, completion: { [weak self] in
       guard let self, !focused else { return }
       self.resetStaleFocusAppearance()
     })
@@ -257,8 +285,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
       view.subviews.forEach(clear)
     }
     clear(posterView)
-    posterView.footerView?.updateAppearance(forLockupViewState: .normal)
-    posterView.footerView?.titleLabel?.textColor = .secondaryLabel
+    captionView.resetToRest(reveals: caption == .onFocus)
   }
 
   override func prepareForReuse() {
@@ -266,8 +293,9 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     TVUIKitRemoteImage.cancel(into: posterView)
     currentURL = nil
     posterView.image = nil
-    posterView.title = nil
-    posterView.subtitle = nil
+    caption = .never
+    captionView.configure(title: nil, detail: nil, category: TVPageCellMetrics.contentSizeCategory)
+    captionView.isHidden = true
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
     resetStaleFocusAppearance()
@@ -595,6 +623,14 @@ final class TVPageChipCell: UICollectionViewCell {
 
 // MARK: - Wide card
 
+/// What search's wide cards and the detail page's info cards both wear on the system's
+/// platter: a quiet tint at rest on the card view's floating content view (so it moves
+/// with it), and nothing under focus, so the system's white shows through.
+enum TVPagePlatter {
+  static let restingFill = UIColor.label.withAlphaComponent(0.1) // REPLACE WITH SYSTEM BACKGROUND COLORS
+  static let cornerRadius: CGFloat = 12
+}
+
 /// A `TVCardView` — the system's floating platter, the UIKit side of SwiftUI's `.card`
 /// button style — holding a thumbnail and up to three lines of text. The platter, its
 /// focus lift, tilt and white fill are the card view's; the cell fills the
@@ -621,8 +657,6 @@ final class TVPageWideCardCell: UICollectionViewCell {
   private var imageTask: Task<Void, Never>?
   private var currentURL: URL?
 
-  private static let restingFill = UIColor.label.withAlphaComponent(0.1) // REPLACE WITH SYSTEM BACKGROUND COLORS
-  private static let cornerRadius: CGFloat = 12
   private static let textGap: CGFloat = 24
 
   private static var thumbnailSize: CGSize {
@@ -646,8 +680,8 @@ final class TVPageWideCardCell: UICollectionViewCell {
     // moves with it, and it steps aside on focus to let the system's white through.
     // The content view clips to the platter's corners, which is what rounds the poster's
     // leading edge.
-    host.backgroundColor = Self.restingFill
-    host.layer.cornerRadius = Self.cornerRadius
+    host.backgroundColor = TVPagePlatter.restingFill
+    host.layer.cornerRadius = TVPagePlatter.cornerRadius
     host.layer.cornerCurve = .continuous
     host.clipsToBounds = true
 
@@ -734,7 +768,7 @@ final class TVPageWideCardCell: UICollectionViewCell {
       let traits = focused ? UITraitCollection(userInterfaceStyle: .light) : traitCollection
       avatar.image = TVUIKitTileArtwork.monogram(name: monogramName, diameter: Self.avatarDiameter, traits: traits)
     }
-    cardView.contentView.backgroundColor = focused ? .clear : Self.restingFill
+    cardView.contentView.backgroundColor = focused ? .clear : TVPagePlatter.restingFill
     titleLabel.textColor = focused ? .black : .label
     let secondary = focused ? UIColor.black.withAlphaComponent(0.6) : .secondaryLabel
     originalLabel.textColor = secondary
@@ -945,6 +979,10 @@ final class TVPageHeaderView: UICollectionReusableView {
       .addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight]])
     return UIFont(descriptor: descriptor, size: 0)
   }
+
+  /// The row title's face, for whatever else has to draw one in the same type — the
+  /// titles over a strip's groups.
+  static var titleFont: UIFont { font(.headline, weight: .semibold) }
 
   func configure(title: String, count: String?) {
     titleLabel.text = title

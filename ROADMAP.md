@@ -84,8 +84,56 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
 - [ ] Artwork layer behind the scroll, hero content inside it, sections as data, playable rail first
       — the rules are in [AGENTS.md](AGENTS.md#the-detail-page); the history is in
       `docs/archive/plans/detail-page-choreography.md` (read with the "superseded" table at its top)
-- [ ] Information / Languages / Technical columns become three `.focusSection()` groups, not
-      link-by-link focus stops
+- [x] tvOS: the sections under the hero in the order Sasha asked for (2026-10-06) — Ratings |
+      Reviews, Director | Cast, Similar, Stills | Facts, Type · Year · Countries · Genres, the other
+      shelves, Video | Audio | Subtitles — as one embedded TVUIKit page, strips for the `|` rows and
+      HIG cards for ratings, reviews, facts, stills and specs. Rules:
+      [docs/product/detail-sections.md](docs/product/detail-sections.md). Seen on the simulator's
+      `film` fixture only
+- [x] tvOS 26.5: every poster of the detail page's shelves looked focused at once (Sasha, 2026-10-06) —
+      the SwiftUI container above the page is the "focused view" while the hero holds focus;
+      `TVPosterArtFocus` answers for poster art. Verified on the 26.5 and 27.2 simulators, not on a
+      device. See CHANGELOG and AGENTS.md › Troubleshooting
+- [ ] Look at that page on a real Apple TV — the strips under the remote, the cards at couch
+      distance, the poster shelves on whatever tvOS the box runs (26.x has the layered-image
+      question above) — then delete the SwiftUI sections and `FeatureFlags.tvDetailSections` on tvOS
+- [ ] Sasha to confirm or change what was built as an interpretation (the list is in
+      [detail-sections.md](docs/product/detail-sections.md#built-as-an-interpretation--not-decided):
+      what "Collections" holds, the vote on the kino.pub card, awards after facts, chip order)
+- [x] Detail sections, round two (Sasha, 2026-10-06): *Cast & Crew* heading with Director / Starring
+      subheadings, several directors as a row of their own, the cast ranked by episodes / TMDB billing
+      order and cut at 12, no profession on a card, group titles that stay on the margin, a type as
+      an SF Symbol, no captions under covers, half the air between cards and groups, no Debug button
+      on tvOS
+- [ ] Detail sections, parked: a Trakt rating tile (no source); the darker band behind the
+      specifications row; a series' own order next to its seasons rail; iOS / iPadOS / macOS onto the
+      same order; a real *popularity* figure for the cast (TMDB's person popularity is not in the
+      model — billing order stands in)
+- [x] Captions follow the shape (Sasha, 2026-10-06): rails never, grids always, no poster row is
+      `.onFocus` any more. A grid's two lines are `TVPageCaptionView`, not the lockup's footer — the
+      system footer collapsed to one line in ~28% of the cells of a scrolled grid, visible or not
+      (2026-10-07). The Library's *Following* shows the episodes left under a cover
+      (`-KINOPUBLibraryFixture YES` to see it). Seen on the simulators and in unit tests, not on a
+      device with a real account
+- [ ] The Library sidebar's *Following* label is English in the Russian UI: `"Following"` has no entry
+      in `Localizable.xcstrings` (predates this work — `LibrarySection.title`). Add the ru string
+- [ ] Search's own shelves (a titled rail per kind) are still `.always` — a rail with captions; decide
+      whether search is the exception it is built as or follows the rule
+- [ ] A shelf's own page (all of a director's or a collection's titles) is not reachable from the detail
+      page on tvOS since the *See all* tile was cut (Sasha, 2026-10-06) — decide where that entry lives
+      (a context-menu action on a cover? the person's card already opens the person's page)
+- [ ] A poster or a wide card at the very top or bottom of the embedded page (a title with no ratings,
+      or no specifications) keeps its platter lifted when focus leaves for the SwiftUI hero (or a
+      footer control, were one added) —
+      the cause and the cure for info cards are `TVCardViewFocusRelease.swift`; the poster cell has
+      a different floating view and needs measuring first (its *art* is handled by `TVPosterArtFocus`;
+      its lockup's `ancestorFocused` read 0 after focus left for a SwiftUI item in the middle of the
+      page, but the first-row case is not measured). Search's wide cards may share it
+- [ ] One platter base class for `TVPageWideCardCell` and `TVPageInfoCardCell` — the tint and radius
+      are shared now (`TVPagePlatter`), the cell skeleton and the focus-colour hook are still twice.
+      Do it with before/after shots of `-KINOPUBTemplatesGallery`, search's cards included
+- [x] Information / Languages / Technical columns become three `.focusSection()` groups, not
+      link-by-link focus stops — on tvOS they are Video | Audio | Subtitles, three cards in one strip
 - [ ] A centred "scroll to top" control at the true bottom of the page — guaranteed focus anchor and
       the Apple TV convention
 - [ ] Section header appears **on focus**, not always (`SeasonsRailView.showsChrome` exists and is
@@ -100,8 +148,8 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       (`secondaryText` never shows — probe, tvOS 27.2), so it is not that cell as configured.
 - [ ] Replace the season tab strip with a real system pill/toggle component (`.borderless` is the
       interim, chosen so no hand-rolled focus code remains)
-- [ ] KinoPub rating card: fold likes / dislikes / views into a fourth tile in the Ratings row, and
-      decide what tapping it opens (asking for the user's own rating does not exist yet)
+- [x] KinoPub rating card: likes / dislikes as a tile in the Ratings row on tvOS; Select offers a
+      vote, once (2026-10-06). Views are not on it, and the SwiftUI page still has the old control
 - [ ] tvOS section headers must not navigate — "see more" is a trailing card or button inside the
       row, never a separately-focusable header link
 - [ ] Backdrop: one wide still that blurs as a material, not a second tiny poster raster

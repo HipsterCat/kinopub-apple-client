@@ -5,6 +5,125 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Grid captions are ours: every cover keeps two lines and its height (2026-10-07)
+
+Sasha's Search grid, scrolled: cells with no second line under them and taller art («Война», «Фантазии
+Речных», anime with no year). The note above that a visible `.always` footer never collapsed had been
+measured on a rail; on a grid it does: the gallery's new 99-cover catalog grid (`Catalog · poster grid`),
+scrolled 40 rows with the remote on tvOS 27.2, ended with **28 of 99 covers one-line** — footer 37 pt,
+art 421 — and 71 right (footer 74, art 384). The system footer decides on its first layout and nothing
+set on it, its labels, the lockup or the texts made that stable (the list is in AGENTS.md ›
+Troubleshooting).
+
+**So a captioned cover no longer has a system footer.** The lockup is the rail's footer-less cover — rigid,
+art 384 whatever the title — and `TVPageCaptionView`, a sibling under it, draws the two lines:
+the title (secondary at rest, primary focused; an ellipsis, and a scrolling marquee with soft edges while
+focused when it is wider than the art), and under it the year, *or* the episodes left in the Library's
+Following, *or* nothing (the line is still there, empty). Callout 31 pt, centred, and the whole caption
+drops by the focus room as the cover grows, inside the focus update's animation; `.onFocus` fades it in.
+`TVPageCellRecipe.captionHeight`/`lockupHeight` keep the grid's pitch: item = bare cover + 12 pt + two
+lines (510 at a 256 art, as before; at larger Dynamic Type the lines grow and the item with them).
+The caption's geometry is set when the cell is configured, not in `layoutSubviews`.
+Result on both runtimes (27.2, 26.5), 40 rows down the same grid: all 101 samples read art 384, cell 510,
+caption 74. New: `TVDetailLayoutUITests.testAGridScrolledFarKeepsEveryCoverTheSame`,
+`TVPosterCoverTests` (recipe, two lines under every art, cells re-dequeued 72 times, the drop, the marquee).
+
+DEBUG: `-KINOPUBLibraryFixture YES` shows the real Library on a stand-in API — twelve followed series, ten of
+them with episodes waiting — so the *Following* captions («Ещё 2 серии», «Ещё 1 серия») can be seen and
+tested with no session (`TVDetailLayoutUITests.testLibraryFollowingSaysHowManyEpisodesAreLeft`).
+The gallery's catalog grid has covers with a year, without, and with episodes left.
+
+### Covers of one height, captions by shape, no "See all" tile (2026-10-06)
+
+Sasha's screenshots of the live page: covers in one shelf of different heights — the first three 40 pt
+taller than the next two, the one cut off at the right edge the tallest — and the end-of-shelf *See all*
+tile naming itself under itself on focus. The cause is the footer, not the art: a captioned
+`TVPosterView` splits its cell's height between the art and a footer, the cell is sized for a two-line
+footer (title and year), and where the footer came out one line the art grew into the difference —
+384 pt became 421–424, on tvOS 26.5 and 27.2 alike. Measured causes: a card with no year; the footer's
+second line collapsing a third of a second after a cell is created *in the window* when the system hides
+the footer (`.onFocus`) — a different cell each run, about half of the embedded page's, 6 of 34 on the
+plain gallery; and the lockup being squeezed into a cell whose size it disagrees with. Fixes that did
+not work are listed in AGENTS.md › Troubleshooting (invisible footers, forced focus room, adaptive
+heights, repair after layout).
+
+**The decision (Sasha, 2026-10-06): captions follow the shape.** A rail — Watch Now, Movies, Series
+(they are the same sections), the shelves under a title — has no title or year under a cover, not even on
+focus: `.never`, no footer in the lockup, nothing to take from the art. `TVPageSection.posters` says so
+itself (`caption: nil` → rail `.never`, grid `.always`), and `MainView` no longer picks `.onFocus` for
+Movies and Series. A grid — catalog, collection, a profile's credits, the Library — names every cover
+(`.always`). Search keeps its captions. In the Library's *Following*
+the line under a cover is **how many episodes are still unwatched** («Ещё 3 серии», «3 episodes left»):
+`MediaCard.unwatchedEpisodes` (from `/v1/watching/serials` → `new`) worded by `EpisodesLeftText`
+(KinoPubMedia), shown by the poster cell in place of the year. The *See all* tile is gone with the
+`tilesOnFocus` caption (`TVPageCaption` is `onFocus | always | never` again); a shelf's own page — all of
+a director's or a collection's titles — is no longer reachable from the shelf on tvOS. All 262 samples of
+a walk of the detail fixture's shelves read 256 × 384 art, on both runtimes, the cut-off cover included.
+`TVPosterCoverTests` lays a row of covers out in cells of the recipe's envelope and checks each is the
+art the recipe promised, with `.never` and `.always` (with `.onFocus` it fails on a year-less card).
+**Superseded the next day — see "Grid captions are ours" below: a visible system footer collapses too.**
+
+### tvOS 26.5: every poster of the detail page looked focused at once (2026-10-06)
+
+Sasha's screenshots of the 26.5 simulator: on the new page's shelves ("More by This Director", "More
+with …") every poster wore the focused look — a lighter plate, a bright rim, glass — and the one that
+really had focus was not lifted any further; Home's shelves were fine. Measured: on tvOS 26.x UIKit
+re-asks every poster's art "is the focused view above me?" on each layout and image assignment
+(`-[UIImageView _updateLayeredImageIsFocusedWithFocusedView:focusAnimationCoordinator:]`, no
+coordinator), and while the hero's SwiftUI button holds focus the focused view it is handed is
+`HostingScrollView.PlatformGroupContainer`, an ancestor of every poster on the page — so all 15 art
+stacks (`isStackFocused`) were born and re-laid-out focused and nothing took it back until the remote
+had visited each. Home's page is the tab's root and has no such ancestor; tvOS 27.2 has no such method.
+`TVPosterArtFocus.bind` (new, private selector, shape-checked, a no-op where the method is not there)
+answers the question for poster art: only its own cell can focus it. Verified on both simulators —
+every stack 0 while the hero and the cards hold focus, 1 on the focused poster only, a poster's edge
+profile on 26.5 identical to 27.2's, before / after shots of the row, and the templates gallery (Home's
+shape) pixel-identical on 26.5 with the guard on and off — and by `TVPosterArtFocusTests` (skipped on
+27.2). The lesson for the next lockup on this page is in AGENTS.md › Troubleshooting.
+New DEBUG launch args that found it: `-KINOPUBFixtureRealArt`, `-KINOPUBFixtureInTabs`,
+`-KINOPUBSlowShelves`.
+
+### tvOS detail sections, round two (2026-10-06)
+
+Sasha's notes on the page above, all in: **Cast & Crew** is one heading (a `TVPageSection.strip` can
+carry a `title` now) with *Director* and *Starring* as smaller subheadings (`TVPageGroup.isSubheading`)
+and no profession on any card — a character, when TMDB has one, is a card's only line. One director
+stands beside the cast; several (up to three) are a row of their own with the cast under it. The cast is
+ranked (`MediaItemTVSections.rankedCast`: a series by episodes, a film by TMDB billing order, kino.pub's
+order as the tie-break), guests in under a fifth of the episodes are dropped, and a row holds twelve at
+most. A group's title stays on the page's side margin while any of its group is on screen
+(`TVPageStripPlan.stickyShifts`, applied to the *label* inside a group-wide title cell). The air in a
+strip is half the HIG's: 22 pt between cards, 40 between card groups (pills keep 80). The type pill
+wears an SF Symbol (`TypeSymbol`) instead of an emoji; covers carry no title or year under them, not
+even on focus (first built as a `tilesOnFocus` caption with an invisible footer — replaced the same
+day, see "Covers of one height" above); the Debug button is gone from the tvOS footer. The `filmCrew`
+fixture (two directors, a sixteen-name billing) and `TVDetailLayoutUITests` walk it. The SwiftUI-hero
+platter fix (`TVCardViewFocusRelease`) stays, though the footer's Debug button was the only place its
+bug showed.
+
+### tvOS detail sections: a new order, in columns (2026-10-06)
+
+Under the hero (which is untouched) the page now reads Ratings | Reviews, Director | Cast, Similar,
+Stills | Facts, Type · Year · Countries · Genres, the other shelves, Video | Audio | Subtitles —
+Sasha's order, `docs/product/detail-sections.md`. It is one embedded TVUIKit page
+(`TVEmbeddedPage`, a non-scrolling collection sized to its content inside the hero's `ScrollView`,
+so hero and sections stay one scroll and one focus graph) built from data by
+`MediaItemTVSections.make`. New in `TVPage`: `.strip` (one orthogonal section holding titled groups,
+frames from `TVPageStripPlan`) and `.infoCard` (a `TVCardView` holding a rating, a review, a fact, a
+mosaic of stills or a specification column). Search's wide person card and Home's poster section are
+reused as they are; the platter tint and radius they share are now `TVPagePlatter`. The directors of
+a fiction title are faces now, in a column beside the cast. Specifications fold languages the viewer
+does not read into "N more languages" (one rule, `LanguageListVisibility`); Select on a review, a
+fact or a column opens the full text in the info popup, on the stills the gallery, on the kino.pub
+rating a one-shot vote. The SwiftUI sections remain behind `FeatureFlags.tvDetailSections` (default
+on) and are what the other platforms draw. Verified on the tvOS 27.2 simulator on a fixture
+(`-KINOPUBDetailFixture film`, `TVDetailLayoutUITests`), not on a device. Three findings worth
+keeping, in AGENTS.md › Troubleshooting: Russian hyphenation in `UILabel` is stopped only by an
+`NSLanguage` attribute; a multi-line label's lines are `linePitch` apart, not `lineHeight`; and a
+`TVCardView` in a focused cell stays lifted when focus leaves for the SwiftUI hero or footer,
+because TVUIKit reads SwiftUI's container view as "an ancestor is focused" — info cards put their
+platter down themselves (`TVCardViewFocusRelease.swift`, private names, guarded).
+
 ### Worker auto-deploy + language/TTL/tvoe plan (2026-10-04)
 
 GitHub Actions `TMDB proxy worker` runs `npm test` then `cloudflare/wrangler-action`

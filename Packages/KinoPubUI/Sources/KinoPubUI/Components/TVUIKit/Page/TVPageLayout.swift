@@ -52,6 +52,15 @@ public enum TVPageLayout {
   }
   public static let cardPadding: CGFloat = 16
 
+  /// An info card (a score, a review, a fact, the stills, a column of specs): tall enough
+  /// for a review's headline, four lines of its text and its footer. Scaled with Dynamic
+  /// Type like the text inside it.
+  @MainActor
+  public static var infoCardHeight: CGFloat {
+    let traits = UITraitCollection(preferredContentSizeCategory: TVPageCellMetrics.contentSizeCategory)
+    return UIFontMetrics(forTextStyle: .body).scaledValue(for: 276, compatibleWith: traits).rounded()
+  }
+
   /// The layout for one page: a section provider that resolves the section at that
   /// index from `sections()` at layout time, so a snapshot swap and its geometry can
   /// never disagree.
@@ -61,9 +70,14 @@ public enum TVPageLayout {
   /// the first card at 160 (2026-09-25). The HIG 80 is from the screen edge, so the
   /// section adds only what is missing. The live value is the collection's
   /// `safeAreaInsets` (overscan), not a hardcoded 1920 canvas.
+  ///
+  /// `stripScrolled` hears, for the strip at a section index, where its group titles should
+  /// stand as the row scrolls (`TVPageStripPlan.stickyShifts`), so the page can put it on
+  /// the title cells.
   @MainActor
   public static func makeLayout(sideInset: @escaping () -> CGFloat = { TVHIGGrid.sideInset },
                                 adjustedLeading: @escaping () -> CGFloat = { 0 },
+                                stripScrolled: (@MainActor (Int, [Int: CGFloat]) -> Void)? = nil,
                                 sections: @escaping () -> [TVPageSection]) -> UICollectionViewCompositionalLayout {
     let configuration = UICollectionViewCompositionalLayoutConfiguration()
     configuration.scrollDirection = .vertical
@@ -78,7 +92,11 @@ public enum TVPageLayout {
         guard all.indices.contains(index) else { return fallback }
         let inset = max(sideInset() - adjustedLeading(), 0)
         let next = all.indices.contains(index + 1) ? all[index + 1] : nil
-        let built = section(for: all[index], environment: environment, sideInset: inset, next: next)
+        let scrolled: (@MainActor ([Int: CGFloat]) -> Void)? = stripScrolled.map { report in
+          { @MainActor shifts in report(index, shifts) }
+        }
+        let built = section(for: all[index], environment: environment, sideInset: inset, next: next,
+                            stripScrolled: scrolled)
         if DebugLaunch.layoutDebug {
           built.decorationItems = [NSCollectionLayoutDecorationItem.background(elementKind: debugBackgroundKind)]
         }
@@ -96,7 +114,8 @@ public enum TVPageLayout {
   public static func section(for section: TVPageSection,
                              environment: NSCollectionLayoutEnvironment,
                              sideInset: CGFloat,
-                             next: TVPageSection? = nil) -> NSCollectionLayoutSection {
+                             next: TVPageSection? = nil,
+                             stripScrolled: (@MainActor ([Int: CGFloat]) -> Void)? = nil) -> NSCollectionLayoutSection {
     let containerWidth = environment.container.effectiveContentSize.width
     let contentWidth = max(containerWidth - sideInset * 2, 1)
 
@@ -118,6 +137,8 @@ public enum TVPageLayout {
       }
     case (.banner, _):
       layoutSection = bannerBand(containerWidth: containerWidth)
+    case (.strip, _):
+      layoutSection = strip(section, contentWidth: contentWidth, sideInset: sideInset, scrolled: stripScrolled)
     case (_, .rail):
       layoutSection = rail(section, contentWidth: contentWidth, sideInset: sideInset)
     case (_, .grid):
@@ -497,13 +518,22 @@ public struct TVPageCellRecipe: Equatable {
   public var artSize: CGSize
   /// `TVPosterView.contentSize` that yields `artSize` unfocused.
   public var posterContentSize: CGSize
+  /// The two caption lines under a captioned cover, inside `itemSize` (`TVPageCaptionView`).
+  /// Zero for a cover without a caption and for every other family. The lockup itself is the
+  /// item minus these and the air above them: it never has a footer of its own.
+  public var captionHeight: CGFloat = 0
+
+  /// The lockup's height inside the item: the whole item for everything but a captioned cover.
+  public var lockupHeight: CGFloat {
+    captionHeight > 0 ? itemSize.height - TVPageLockupPosterCell.footerGap - captionHeight : itemSize.height
+  }
 
   public static func == (lhs: TVPageCellRecipe, rhs: TVPageCellRecipe) -> Bool {
     lhs.itemSize == rhs.itemSize
       && lhs.artInsets.top == rhs.artInsets.top && lhs.artInsets.leading == rhs.artInsets.leading
       && lhs.artInsets.bottom == rhs.artInsets.bottom && lhs.artInsets.trailing == rhs.artInsets.trailing
       && lhs.belowItem == rhs.belowItem && lhs.artSize == rhs.artSize
-      && lhs.posterContentSize == rhs.posterContentSize
+      && lhs.posterContentSize == rhs.posterContentSize && lhs.captionHeight == rhs.captionHeight
   }
 }
 
@@ -547,6 +577,12 @@ public enum TVPageCellMetrics {
       recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
                                 artSize: size, posterContentSize: size)
     case .card: recipe = measureCard(artWidth: key.width, height: TVPageLayout.cardHeight)
+    case .infoCard: recipe = measureCard(artWidth: key.width, height: TVPageLayout.infoCardHeight)
+    case .strip:
+      // A strip is sized item by item (`TVPageStripPlan`); there is no one recipe for it.
+      let size = CGSize(width: key.width, height: TVPageLayout.infoCardHeight)
+      recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                                artSize: size, posterContentSize: size)
     case .banner:
       let size = CGSize(width: key.width, height: TVPageBannerCarouselCell.height(containerWidth: key.width))
       recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
@@ -556,11 +592,62 @@ public enum TVPageCellMetrics {
     return recipe
   }
 
+  /// A `TVCardView` platter of any size, measured like the wide card: its resting platter
+  /// is `artWidth` × `height` and the recipe says what envelope the cell is given around it.
+  public static func cardRecipe(artWidth: CGFloat, height: CGFloat) -> TVPageCellRecipe {
+    let key = CardKey(width: artWidth.rounded(), height: height.rounded(), category: contentSizeCategory)
+    if let cached = cardCache[key] { return cached }
+    let recipe = measureCard(artWidth: key.width, height: key.height)
+    cardCache[key] = recipe
+    return recipe
+  }
+
+  /// The recipe behind a dequeued card: the cell only knows the envelope the layout gave
+  /// it. Every recipe the layout hands out is cached first, so this is a hit for any cell
+  /// on screen.
+  public static func cardRecipe(itemSize: CGSize) -> TVPageCellRecipe {
+    let category = contentSizeCategory
+    if let hit = cardCache.first(where: { entry in
+      entry.key.category == category
+        && abs(entry.value.itemSize.width - itemSize.width) < 1
+        && abs(entry.value.itemSize.height - itemSize.height) < 1
+    }) {
+      return hit.value
+    }
+    return cardRecipe(artWidth: itemSize.width, height: itemSize.height)
+  }
+
+  private struct CardKey: Hashable {
+    let width: CGFloat
+    let height: CGFloat
+    let category: UIContentSizeCategory
+  }
+
+  private static var cardCache: [CardKey: TVPageCellRecipe] = [:]
+
+  /// A cover — `.never` — measured as the lockup draws it, plus, when it is captioned, the two
+  /// lines of `TVPageCaptionView` under it. The lockup never gets a footer: the system's
+  /// came out one line or two depending on a first layout we do not control (see
+  /// `TVPageCaptionView`), so a captioned cover is the same rigid lockup a rail has and the
+  /// caption is ours.
+  private static func measurePoster(artWidth: CGFloat, caption: TVPageCaption,
+                                    aspect: CardAspect) -> TVPageCellRecipe {
+    var recipe = measureCover(artWidth: artWidth, aspect: aspect)
+    guard caption != .never else { return recipe }
+    // A lockup with a footer put 12 pt between art and footer (`contentViewInsets`); without
+    // one it has no such air, so the caption block brings its own.
+    let captionHeight = TVPageCaptionView.height(category: contentSizeCategory)
+    let block = TVPageLockupPosterCell.footerGap + captionHeight
+    recipe.itemSize.height += block
+    recipe.artInsets.bottom += block
+    recipe.captionHeight = captionHeight
+    return recipe
+  }
+
   /// `TVPosterView` draws the unfocused art at `contentSize` minus its own
   /// `focusSizeIncrease` (≈5% per side, computed from the image). Ask for a content
   /// size a tenth larger, then read back where the art actually landed.
-  private static func measurePoster(artWidth: CGFloat, caption: TVPageCaption,
-                                    aspect: CardAspect) -> TVPageCellRecipe {
+  private static func measureCover(artWidth: CGFloat, aspect: CardAspect) -> TVPageCellRecipe {
     let art = CGSize(width: artWidth, height: (artWidth / aspect.ratio).rounded())
     var contentSize = CGSize(width: (art.width / (1 - TVHIGGrid.focusGrowth)).rounded(),
                              height: (art.height / (1 - TVHIGGrid.focusGrowth)).rounded())
@@ -573,10 +660,6 @@ public enum TVPageCellMetrics {
       let probe = TVPosterView(image: TVUIKitTileArtwork.placeholder(size: contentSize))
       probe.traitOverrides.preferredContentSizeCategory = contentSizeCategory
       probe.contentSize = contentSize
-      probe.title = caption == .never ? nil : "Ag"
-      // Subtitle (year) is part of the system footer on catalog grids — measure it so
-      // the envelope includes the second line and titles are not clipped into the art.
-      probe.subtitle = caption == .never ? nil : "0000"
       probe.contentViewInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: -TVPageLockupPosterCell.footerGap, trailing: 0)
       envelope = probe.intrinsicContentSize
       probe.frame = CGRect(origin: .zero, size: envelope)

@@ -7,6 +7,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubUI
 
 protocol VideoContentService: Sendable {
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem>
@@ -76,6 +77,14 @@ struct VideoContentServiceMock: VideoContentService {
   /// has nothing for that id. The DEBUG detail fixture (`DetailFixture`) serves its
   /// titles through this.
   var details: (@Sendable (Int) -> MediaItem?)? = nil
+  /// What `fetchSimilar` answers with, by item id; the short placeholder rail when nil or
+  /// when it has nothing for that id.
+  var similar: (@Sendable (Int) -> [MediaItem]?)? = nil
+  /// What a person's shelf (`fetchItems` with a person filter) answers with.
+  var personItems: (@Sendable (LibraryFilter) -> [MediaItem])? = nil
+  /// What `fetchWatchingSerials` answers with — the Library's Subscriptions. The DEBUG
+  /// library fixture (`LibraryFixture`) serves its followed series through this.
+  var watchingSerials: (@Sendable () -> [WatchingItem])? = nil
 
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     return PaginatedData.mock(data: [])
@@ -103,6 +112,9 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchSimilar(for id: String) async throws -> ArrayData<MediaItem> {
+    if let itemID = Int(id), let items = similar?(itemID) {
+      return ArrayData.mock(data: items)
+    }
     // A short rail so MediaItem previews exercise the section instead of hiding it.
     return ArrayData.mock(data: [
       MediaItem.mock(id: 101),
@@ -124,7 +136,7 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchWatchingSerials(subscribedOnly: Bool) async throws -> ArrayData<WatchingItem> {
-    return ArrayData.mock(data: [])
+    return ArrayData.mock(data: watchingSerials?() ?? [])
   }
 
   func fetchHistory(page: Int?, perPage: Int = 20) async throws -> HistoryData {
@@ -135,6 +147,13 @@ struct VideoContentServiceMock: VideoContentService {
     // Person shelves on the detail page need something non-empty so previews
     // exercise the rail instead of hiding it.
     if filter.person != nil {
+      // A real connection takes a while; `-KINOPUBSlowShelves` says how long.
+      if let delay = DebugLaunch.slowShelves {
+        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+      }
+      if let items = personItems?(filter) {
+        return PaginatedData.mock(data: items)
+      }
       return PaginatedData.mock(data: [
         MediaItem.mock(id: 201),
         MediaItem.mock(id: 202),

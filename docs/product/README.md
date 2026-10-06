@@ -43,3 +43,5 @@ at on screen stays **prd** — do not promote it because it compiles.
   what is playing, per kind
 - [playback-tracks.md](playback-tracks.md) — which dub and which subtitles a title opens with
 - [related-sections.md](related-sections.md) — what a detail page recommends, per type
+- [detail-sections.md](detail-sections.md) — the order and the content of the sections under the
+  detail hero

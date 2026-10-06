@@ -82,6 +82,24 @@ public struct MediaScoreLogo: View {
   }
 }
 
+#if canImport(UIKit)
+import UIKit
+
+public extension MediaScoreLogo.Source {
+  /// The mark as a `UIImage`, for the surfaces drawn in UIKit (the TVUIKit cards). The
+  /// same artwork `MediaScoreLogo` draws — vector, so it takes any height.
+  func uiImage(style: MediaScoreLogo.Style = .color) -> UIImage? {
+    let name: String
+    switch style {
+    case .template: name = rawValue
+    case .color: name = colorAssetName
+    case .compact: name = compactAssetName
+    }
+    return UIImage(named: name, in: .module, compatibleWith: nil)
+  }
+}
+#endif
+
 /// IMDb and Kinopoisk scores side by side. Unlike the poster badge this keeps them
 /// separate — on a detail page there is room to show where each number came from.
 public struct MediaScoresView: View {

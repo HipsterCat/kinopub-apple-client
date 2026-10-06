@@ -27,13 +27,18 @@ KinoPubMedia), which holds kino.pub's whole id list; a name only decides for an 
 
 **prd — People.** Directors are a name people know and a face they do not.
 
-- The cast rail is **actors only, and `fiction` only**. Directors are never a portrait, on any kind:
+- The cast rail is **actors only, and `fiction` only**. Directors are never a portrait *in it*:
   they led that rail before, which spent the opening slot of the one section that exists because of
   faces.
-- `documentary` / `concert` / `standup` / `animation` / `show`: no rail at all, and no "Starring"
+- **prd — tvOS detail page, since 2026-10-06 (Sasha): a fiction title's directors are faces too — a
+  group of their own, beside the cast, or a row above it when there are several** (*Cast & Crew:
+  Director | Starring*, up to three directors, as search draws a person, with no profession on the
+  cards; [detail-sections.md](detail-sections.md)). The old reason is gone: they no longer share the
+  cast's rail, so they cannot take its first slot.
+- `documentary` / `concert` / `standup` / `animation` / `show`: no faces at all, and no "Starring"
   line in the hero. Their people are text.
-- Everyone not on the rail is a **Credits** card in the information table, beside the qualities and
-  the languages: an author row always, plus the cast for the kinds that get no rail.
+- Everyone not shown as a face is a **Credits** card in the information table, beside the qualities
+  and the languages: an author row always, plus the cast for the kinds that get no faces.
 
 **prd — Author.** kino.pub files a series' creators in the same `director` field.
 
@@ -58,6 +63,18 @@ views: a rating is only as good as the crowd behind it and kino.pub does not gua
 **prd — One label per idea.** Whatever the author is called on a title, everything says the same
 word: the hero's credit line, the Credits row and the shelf header. The hero read "Director" over a
 page whose shelf said "More by This Creator".
+
+**prd — Captions follow the shape (Sasha, 2026-10-06).** On tvOS a **rail** of covers — Watch Now,
+Movies, Series (the same sections, whichever tab), the shelves under a title — has **no title and no
+year under a cover, not even on focus**: the covers are what a rail is for. A **grid** — a catalog, a
+collection, a profile's credits, the Library — names every cover, a title and a second line. The
+second line is the year, except in the Library's *Following*, where it is **how many episodes of the
+series are still unwatched** («Ещё 3 серии», «3 episodes left»). Search keeps its captions on its
+shelves: a result has to be told apart by its name.
+
+The two lines are the app's own (`TVPageCaptionView`), not the system lockup's footer: every captioned
+cover has both, the second one empty when there is neither a year nor an episode count, and the cover's
+art is the same height in every cell however far the grid has been scrolled.
 
 ## Not decided
 

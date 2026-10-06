@@ -412,6 +412,9 @@
                     { "path": "MediaItemDetailSections.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemAboutLayouts.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemReviewsPage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "MediaItemTVSections.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "MediaItemTVEmoji.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "MediaItemTVPage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemHeroView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                   ],
                 },
@@ -499,6 +502,10 @@
         { "path": "LibraryCatalogSearchTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "MediaItemHeroActionAvailabilityTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "TVUIKitTileArtworkTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "MediaItemTVSectionsTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "TVPageStripPlanTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "TVPosterArtFocusTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "TVPosterCoverTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "MissingEpisodeAirStateTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {
@@ -511,6 +518,7 @@
         { "path": "PlayerUpNextTabUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVHomeBannerUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVDetailPageUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+        { "path": "TVDetailLayoutUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVMenuBackUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
       ],
     }, {

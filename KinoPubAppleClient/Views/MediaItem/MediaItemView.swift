@@ -436,6 +436,23 @@ struct MediaItemView: View {
                         })
       }
 
+#if os(tvOS)
+      if FeatureFlags.tvDetailSections {
+        tvDetailSections
+      } else {
+        infoSections
+      }
+#else
+      infoSections
+#endif
+    }
+  }
+
+  /// Everything under the playable rails as the SwiftUI stack it has always been. On
+  /// tvOS it is the fallback behind `FeatureFlags.tvDetailSections`; elsewhere it is the page.
+  @ViewBuilder
+  private var infoSections: some View {
+    VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) {
       // The shipped ratings row, on every platform. It is the validated one; the
       // block experiment below runs beside it, not instead of it.
       MediaItemRatingsSection(mediaItem: itemModel.mediaItem,
@@ -497,6 +514,14 @@ struct MediaItemView: View {
         .detailFocusSection()
     }
   }
+
+#if os(tvOS)
+  /// Everything under the hero as one collection, in columns — see `MediaItemTVSections`
+  /// for what is on it and in what order, and `MediaItemTVPage` for what Select does.
+  private var tvDetailSections: some View {
+    MediaItemTVPage(model: itemModel, cardMenu: relatedRowsMenu)
+  }
+#endif
 
   /// Always present. The block's header and every card in it lead to the same page,
   /// and that has to be true before the reviews arrive as well as after — a chevron

@@ -47,6 +47,13 @@ public final class TVPageCollectionViewController: UIViewController {
   /// top row returns there; at the top it passes through. Off on Search and on
   /// pushed pages so Menu still pops. See `StagedMenuBack`.
   public var returnsToTopOnMenu = false
+  /// This page is one region of a bigger scroll — the detail page's sections under the
+  /// hero. The collection is as tall as its content and does not scroll: the host's
+  /// scroll view owns the vertical axis, so the hero, its artwork and these sections stay
+  /// one view and focus graph and the focus engine scrolls the one page. It stays out of
+  /// the tab bar's scroll-edge observation and never claims first focus. Set before the
+  /// view loads. See `TVEmbeddedPage`.
+  public var isEmbedded = false
   /// SwiftUI `.onExitCommand` is attached only while this is true, so at the top
   /// row the modifier is `nil` and the tab bar keeps the system default.
   public var onBelowTopRowChange: ((Bool) -> Void)?
@@ -72,6 +79,7 @@ public final class TVPageCollectionViewController: UIViewController {
     let layout = TVPageLayout.makeLayout(
       sideInset: { [weak self] in self?.resolvedSideInset ?? TVHIGGrid.sideInset },
       adjustedLeading: { [weak self] in self?.currentLeading() ?? 0 },
+      stripScrolled: { [weak self] section, shifts in self?.stripTitlesMoved(section: section, shifts: shifts) },
       sections: { [weak self] in self?.sections ?? [] }
     )
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
@@ -84,7 +92,8 @@ public final class TVPageCollectionViewController: UIViewController {
     // it observes, and opting out of the adjustment left the bar pinned. Horizontal
     // safe area is zero on a tab page but 80 inside the search container; the layout
     // subtracts it (`adjustedLeading`), so the side inset is 80 from the edge either way.
-    view.contentInsetAdjustmentBehavior = .automatic
+    view.contentInsetAdjustmentBehavior = isEmbedded ? .never : .automatic
+    view.isScrollEnabled = !isEmbedded
     view.delegate = self
     view.prefetchDataSource = self
     return view
@@ -147,7 +156,8 @@ public final class TVPageCollectionViewController: UIViewController {
     // Report the scroll view from the start. A controller *presented* by a search
     // controller need not get `viewDidAppear`, and the search screen uses this scroll
     // view to collapse its keyboard over the results and bring it back at the top.
-    setContentScrollView(collectionView, for: .top)
+    // An embedded page has no scroll of its own to report — the host's is the page's.
+    if !isEmbedded { setContentScrollView(collectionView, for: .top) }
   }
 
   public override func viewSafeAreaInsetsDidChange() {
@@ -158,7 +168,7 @@ public final class TVPageCollectionViewController: UIViewController {
 
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    extendToWindow()
+    if !isEmbedded { extendToWindow() }
     updateAdjustedLeading()
     refreshLoadingTails()
     if DebugLaunch.layoutDebug {
@@ -237,7 +247,7 @@ public final class TVPageCollectionViewController: UIViewController {
 
   public override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-    observeTabBar()
+    if !isEmbedded { observeTabBar() }
     resetStrandedFocusAppearance()
   }
 
@@ -281,7 +291,8 @@ public final class TVPageCollectionViewController: UIViewController {
   private func headerDodge(for section: Int) -> CGAffineTransform {
     guard sections.indices.contains(section) else { return .identity }
     let target = sections[section]
-    guard target.kind != .chip, target.kind != .masthead, target.kind != .banner else { return .identity }
+    guard target.kind != .chip, target.kind != .masthead, target.kind != .banner,
+          target.kind != .strip, target.kind != .infoCard else { return .identity }
     let contentWidth = max(collectionView.bounds.width - resolvedSideInset * 2, 1)
     let art = TVHIGGrid.resolve(columns: target.columns, contentWidth: contentWidth).cardWidth
     let recipe = TVPageCellMetrics.recipe(kind: target.kind, artWidth: art, caption: target.caption)
@@ -289,6 +300,40 @@ public final class TVPageCollectionViewController: UIViewController {
       ? recipe.artInsets.top
       : TVHIGGrid.focusRoom(cardHeight: recipe.itemSize.height)
     return CGAffineTransform(translationX: 0, y: -lift)
+  }
+
+  /// Where each strip's group titles stand, by section index and item: a row that has
+  /// scrolled keeps the title of the group still on screen at the page's side inset
+  /// (`TVPageStripPlan.stickyShifts`). Kept so a title cell dequeued mid-scroll starts
+  /// where it belongs.
+  private var stickyShifts: [Int: [Int: CGFloat]] = [:]
+
+  /// A strip scrolled: put its titles where they stand now.
+  private func stripTitlesMoved(section: Int, shifts: [Int: CGFloat]) {
+    guard stickyShifts[section] != shifts else { return }
+    stickyShifts[section] = shifts
+    for (item, shift) in shifts {
+      let cell = collectionView.cellForItem(at: IndexPath(item: item, section: section))
+      (cell as? TVPageGroupTitleCell)?.setStickyShift(shift)
+    }
+  }
+
+  /// Every title cell of the strip `path` is in — all of them, not only the focused card's
+  /// own: the titles of one row share a baseline, and one lifting alone reads as misplaced.
+  private func stripTitleCells(over path: IndexPath) -> [UICollectionViewCell] {
+    guard sections.indices.contains(path.section), sections[path.section].kind == .strip else { return [] }
+    let section = sections[path.section]
+    return section.items.indices.compactMap { index in
+      guard case .groupTitle = section.items[index] else { return nil }
+      return collectionView.cellForItem(at: IndexPath(item: index, section: path.section))
+    }
+  }
+
+  /// The focused card grows upward by its lift; the title over its group moves up by the
+  /// same amount so the two never touch — what a row's header does in any other section.
+  private func stripTitleDodge(over path: IndexPath) -> CGAffineTransform {
+    guard let cell = collectionView.cellForItem(at: path) else { return .identity }
+    return CGAffineTransform(translationX: 0, y: -TVHIGGrid.focusRoom(cardHeight: cell.bounds.height))
   }
 
   /// The system chrome above a page — the tab bar, a search field — hides and reveals
@@ -315,6 +360,11 @@ public final class TVPageCollectionViewController: UIViewController {
   /// arrives as the adjusted top inset, so the first row starts right under it and
   /// scrolls beneath it. Ours is only the HIG 60 pt bottom page inset.
   private func updateContentInsets() {
+    // An embedded page is exactly its content: no bar above it, no page inset below.
+    guard !isEmbedded else {
+      if collectionView.contentInset != .zero { collectionView.contentInset = .zero }
+      return
+    }
     // The window extension comes back as content inset, so the first row starts where
     // the page's own view starts — the extension only keeps cells alive past it.
     let extended = windowExtension.map { -$0.constant }
@@ -413,6 +463,52 @@ public final class TVPageCollectionViewController: UIViewController {
       cell.configure(header)
     }
 
+    let groupTitle = UICollectionView.CellRegistration<TVPageGroupTitleCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self, case .groupTitle(_, let text)? = self.itemsByID[id] else { return }
+      // Under a heading of the strip's own, a group's title is a subheading.
+      var subheading = false
+      if self.sections.indices.contains(indexPath.section),
+         let (group, _) = self.sections[indexPath.section].stripGroup(ofItem: indexPath.item) {
+        subheading = self.sections[indexPath.section].groups[group].isSubheading
+      }
+      cell.configure(text: text, subheading: subheading)
+      cell.setStickyShift(self.stickyShifts[indexPath.section]?[indexPath.item] ?? 0)
+    }
+
+    // The info cards: one registration per content, one platter recipe per envelope size.
+    let rating = UICollectionView.CellRegistration<TVPageRatingCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self, case .info(.rating(let rating))? = self.itemsByID[id] else { return }
+      cell.apply(recipe: self.infoRecipe(at: indexPath, cell: cell))
+      cell.configure(rating)
+    }
+    let review = UICollectionView.CellRegistration<TVPageReviewCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self, case .info(.review(let review))? = self.itemsByID[id] else { return }
+      cell.apply(recipe: self.infoRecipe(at: indexPath, cell: cell))
+      cell.configure(review)
+    }
+    let fact = UICollectionView.CellRegistration<TVPageFactCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self, case .info(.fact(let fact))? = self.itemsByID[id] else { return }
+      cell.apply(recipe: self.infoRecipe(at: indexPath, cell: cell))
+      cell.configure(fact)
+    }
+    let gallery = UICollectionView.CellRegistration<TVPageGalleryCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self, case .info(.gallery(let gallery))? = self.itemsByID[id] else { return }
+      let recipe = self.infoRecipe(at: indexPath, cell: cell)
+      cell.apply(recipe: recipe)
+      cell.configure(gallery, artSize: recipe.artSize)
+    }
+    let spec = UICollectionView.CellRegistration<TVPageSpecCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self, case .info(.spec(let spec))? = self.itemsByID[id] else { return }
+      cell.apply(recipe: self.infoRecipe(at: indexPath, cell: cell))
+      cell.configure(spec)
+    }
+
     let header = UICollectionView.SupplementaryRegistration<TVPageHeaderView>(
       elementKind: TVPageLayout.headerKind
     ) { [weak self] view, _, indexPath in
@@ -431,6 +527,16 @@ public final class TVPageCollectionViewController: UIViewController {
       guard let self, let section = self.sectionsByID[id.section] else {
         return collectionView.dequeueConfiguredReusableCell(using: chip, for: indexPath, item: id)
       }
+      // An info card's cell follows from what it says, wherever it sits.
+      func dequeueInfo(_ info: TVPageInfoCard) -> UICollectionViewCell {
+        switch info {
+        case .rating: return collectionView.dequeueConfiguredReusableCell(using: rating, for: indexPath, item: id)
+        case .review: return collectionView.dequeueConfiguredReusableCell(using: review, for: indexPath, item: id)
+        case .fact: return collectionView.dequeueConfiguredReusableCell(using: fact, for: indexPath, item: id)
+        case .gallery: return collectionView.dequeueConfiguredReusableCell(using: gallery, for: indexPath, item: id)
+        case .spec: return collectionView.dequeueConfiguredReusableCell(using: spec, for: indexPath, item: id)
+        }
+      }
       switch section.kind {
       case .poster, .square:
         return collectionView.dequeueConfiguredReusableCell(using: poster, for: indexPath, item: id)
@@ -446,6 +552,14 @@ public final class TVPageCollectionViewController: UIViewController {
         return collectionView.dequeueConfiguredReusableCell(using: banner, for: indexPath, item: id)
       case .masthead:
         return collectionView.dequeueConfiguredReusableCell(using: masthead, for: indexPath, item: id)
+      case .infoCard, .strip:
+        // A strip is a rail of families: each item says which cell it is.
+        switch self.itemsByID[id] {
+        case .info(let info)?: return dequeueInfo(info)
+        case .groupTitle?: return collectionView.dequeueConfiguredReusableCell(using: groupTitle, for: indexPath, item: id)
+        case .chip?: return collectionView.dequeueConfiguredReusableCell(using: chip, for: indexPath, item: id)
+        default: return collectionView.dequeueConfiguredReusableCell(using: card, for: indexPath, item: id)
+        }
       }
     }
     let loadingFooter = UICollectionView.SupplementaryRegistration<TVPageLoadingFooterView>(
@@ -459,11 +573,32 @@ public final class TVPageCollectionViewController: UIViewController {
     }
   }
 
+  /// The platter recipe for the card at `indexPath`: the cell only knows the envelope the
+  /// layout gave it, so look the recipe up by that. Every one the layout hands out is
+  /// cached first, so this is a hit for any cell on screen.
+  private func infoRecipe(at indexPath: IndexPath, cell: UICollectionViewCell) -> TVPageCellRecipe {
+    let size = collectionView.layoutAttributesForItem(at: indexPath)?.size ?? cell.bounds.size
+    return TVPageCellMetrics.cardRecipe(itemSize: size)
+  }
+
   // MARK: - Input
 
   public func apply(sections newSections: [TVPageSection], status: TVPageStatus, animated: Bool) {
     givenSections = newSections
     applyGivenSections(status: status, animated: animated)
+  }
+
+  /// How tall the sections are at `width` — what an embedded page tells its host. The
+  /// layout answers it: lay the collection out at that width and read the content size,
+  /// so the host's number can never disagree with what the cells are given.
+  public func contentHeight(forWidth width: CGFloat) -> CGFloat {
+    loadViewIfNeeded()
+    if abs(view.bounds.width - width) > 0.5 {
+      view.frame = CGRect(x: 0, y: 0, width: width, height: max(view.bounds.height, 1))
+    }
+    view.layoutIfNeeded()
+    collectionView.layoutIfNeeded()
+    return ceil(collectionView.collectionViewLayout.collectionViewContentSize.height)
   }
 
   /// The sections as the owner gave them; `sections` is these plus each grid's loading
@@ -493,6 +628,8 @@ public final class TVPageCollectionViewController: UIViewController {
       sections = newSections
       sectionsByID = Dictionary(uniqueKeysWithValues: newSections.map { ($0.id, $0) })
       itemsByID = nextItems
+      // Section indexes may mean other strips now; the next scroll says where titles stand.
+      stickyShifts = [:]
       pendingReconfigure = changed
       if layoutAffecting, isViewLoaded {
         // Column count / kind / flow moved: the section provider must run again.
@@ -613,6 +750,20 @@ public final class TVPageCollectionViewController: UIViewController {
     }
     if case .masthead(let header) = section.items.first {
       signature += "|\(header.style)|\(header.stats.isEmpty ? 0 : 1)"
+    }
+    // A strip places every cell by hand from what the cards are: a column of specs is as
+    // tall as its rows, a pill as wide as its title, a group as wide as its heading.
+    if section.kind == .strip {
+      signature += "|" + section.groups.map { group in
+        let items = group.items.map { item -> String in
+          switch item {
+          case .info(let card): return card.layoutToken
+          case .chip(let chip): return chip.title
+          default: return "item"
+          }
+        }.joined(separator: ",")
+        return "\(group.id):\(group.columns):\(group.title ?? ""):\(items)"
+      }.joined(separator: ";")
     }
     return signature
   }
@@ -819,6 +970,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     let section = sections[indexPath.section]
     // A chip row or the banner has no pages, and skeleton tiles are not data.
     guard section.kind != .chip, section.kind != .masthead, section.kind != .banner,
+          section.kind != .strip, section.kind != .infoCard,
           !section.isPlaceholder else { return }
     let loaded = section.loadedCount
     guard indexPath.item >= loaded - 1 else { return }
@@ -848,7 +1000,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     // banner's titles take focus inside its own row, never the row itself.
     guard let id = dataSource.itemIdentifier(for: indexPath), let item = itemsByID[id] else { return false }
     switch item {
-    case .placeholder, .banner: return false
+    case .placeholder, .banner, .groupTitle: return false
     default: return true
     }
   }
@@ -890,6 +1042,14 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       }
       if let nextSection {
         self.header(at: nextSection)?.transform = self.headerDodge(for: nextSection)
+      }
+      // A strip's titles are cells, one per group: the group holding focus lifts its own.
+      if let previous = context.previouslyFocusedIndexPath, previous.section != resolved?.section {
+        self.stripTitleCells(over: previous).forEach { $0.transform = .identity }
+      }
+      if let resolved {
+        let dodge = self.stripTitleDodge(over: resolved)
+        self.stripTitleCells(over: resolved).forEach { $0.transform = dodge }
       }
     }, completion: { [weak self] in
       self?.resetStrandedFocusAppearance()
@@ -981,8 +1141,10 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
       return URL(string: feature.card.backdropImageURL)
     case .masthead(let header):
       return header.photoURL
+    case .info(.gallery(let gallery)):
+      return gallery.images.first
     // The banner warms its own titles' art.
-    case .banner, .chip, .tile, .placeholder:
+    case .banner, .chip, .tile, .placeholder, .info, .groupTitle:
       return nil
     }
   }

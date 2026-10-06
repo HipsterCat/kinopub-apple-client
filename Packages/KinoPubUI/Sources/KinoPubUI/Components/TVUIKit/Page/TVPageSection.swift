@@ -45,6 +45,16 @@ public enum TVPageCellKind: Hashable, Sendable {
   /// A full-width header that scrolls with the page. Focusable as one band so Up
   /// from the grid reaches person / collection detail. One item, a `TVPageMasthead`.
   case masthead
+  /// A `TVCardView` platter drawn from a `TVPageInfoCard` — a score, a review, a fact, a
+  /// mosaic of stills, a column of specifications. The HIG's "Cards": ratings and reviews
+  /// for a media item, as a card with a header, content and a footer.
+  case infoCard
+  /// One row of titled groups that scroll together — Ratings | Reviews, Director | Cast,
+  /// Stills | Facts, Type · Year · Country · Genre. The section's `groups` say what each
+  /// holds; the cell of each item follows from the item, its size from its group's
+  /// `columns`. Where the other kinds are one family of cells in a rail, this is a rail of
+  /// families, and the only way a page puts two things side by side.
+  case strip
 }
 
 public enum TVPageFlow: Hashable, Sendable {
@@ -315,6 +325,10 @@ public enum TVPageItem: Hashable {
   case feature(TVPageFeature)
   /// The scrolling header. One per section.
   case masthead(TVPageMasthead)
+  /// A card of the `infoCard` family.
+  case info(TVPageInfoCard)
+  /// The title over one group of a strip. Not a control: focus skips it.
+  case groupTitle(id: String, text: String)
   case placeholder(Int)
 
   /// Stable within one section. Two sections can hold the same card, so the page
@@ -328,6 +342,8 @@ public enum TVPageItem: Hashable {
     case .banner: return "banner"
     case .feature(let feature): return "feature.\(feature.card.id)"
     case .masthead: return "masthead"
+    case .info(let card): return "info.\(card.id)"
+    case .groupTitle(let id, _): return "title.\(id)"
     case .placeholder(let n): return "placeholder.\(n)"
     }
   }
@@ -346,6 +362,29 @@ public enum TVPageItem: Hashable {
 public struct TVPageItemID: Hashable, Sendable {
   public let section: String
   public let item: String
+}
+
+/// One titled part of a `.strip` row: its own heading over its own cards, sized by its own
+/// column count — the Ratings of "Ratings | Reviews".
+public struct TVPageGroup: Identifiable, Hashable {
+  public let id: String
+  /// The heading over the group. Nil: the group is just its cards, and a strip made only
+  /// of such groups sits where an untitled row does.
+  public let title: String?
+  /// The HIG column count that sizes this group's cards, like a section's `columns`.
+  public let columns: Int
+  public let items: [TVPageItem]
+  /// The title is a subheading — smaller, because the strip has a heading of its own
+  /// ("Director" and "Starring" under "Cast & Crew") — not the row's title.
+  public let isSubheading: Bool
+
+  public init(id: String, title: String?, columns: Int, subheading: Bool = false, items: [TVPageItem]) {
+    self.id = id
+    self.title = title
+    self.columns = columns
+    self.isSubheading = subheading
+    self.items = items
+  }
 }
 
 public struct TVPageSection: Identifiable, Hashable {
@@ -373,6 +412,10 @@ public struct TVPageSection: Identifiable, Hashable {
   /// Posters and squares carry the title's score in a corner chip. Off by default: a
   /// row decides whether a number is what the user is choosing by.
   public let showsRating: Bool
+  /// A strip's groups; empty for every other kind. `items` is these, flattened — each
+  /// group's title, then its cards — so the page's one diffable list holds a strip like
+  /// any other section.
+  public let groups: [TVPageGroup]
 
   public init(id: String,
               title: String?,
@@ -385,6 +428,7 @@ public struct TVPageSection: Identifiable, Hashable {
               match: String? = nil,
               loadsMore: Bool = false,
               showsRating: Bool = false,
+              groups: [TVPageGroup] = [],
               items: [TVPageItem]) {
     self.id = id
     self.title = title
@@ -397,24 +441,31 @@ public struct TVPageSection: Identifiable, Hashable {
     self.match = match
     self.loadsMore = loadsMore
     self.showsRating = showsRating
+    self.groups = groups
     self.items = items
   }
 
   // MARK: - Templates
 
   /// 2:3 posters, 6 across by default (HIG 260 at 1920).
+  ///
+  /// **Captions follow the shape** (Sasha, 2026-10-06): a *rail* — Watch Now, Movies, Series,
+  /// the shelves under a detail page — has no title or year under its covers, not even on
+  /// focus (`.never`, no footer in the lockup); a *grid* — a catalog, a collection, a
+  /// profile's credits, the Library — names every cover (`.always`). Pass `caption` to say
+  /// otherwise (search's shelves do).
   public static func posters(id: String,
                              title: String?,
                              count: String? = nil,
                              columns: Int = 6,
                              flow: TVPageFlow = .rail,
-                             caption: TVPageCaption = .onFocus,
+                             caption: TVPageCaption? = nil,
                              loadsMore: Bool = false,
                              showsRating: Bool = false,
                              cards: [MediaCard]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .poster, flow: flow,
-                  columns: columns, caption: caption, loadsMore: loadsMore,
-                  showsRating: showsRating, items: cards.map(TVPageItem.card))
+                  columns: columns, caption: caption ?? (flow == .grid ? .always : .never),
+                  loadsMore: loadsMore, showsRating: showsRating, items: cards.map(TVPageItem.card))
   }
 
   /// 1:1 art in the poster lockup, 6 across by default — collection covers, awards.
@@ -494,6 +545,21 @@ public struct TVPageSection: Identifiable, Hashable {
                   caption: .never, items: [.masthead(masthead)])
   }
 
+  /// Titled groups side by side in one rail: the row scrolls as one, so Right from the
+  /// last score is the first review. `Ratings | Reviews`, `Stills | Facts`.
+  ///
+  /// `title` is a heading over the whole row, outside the part that scrolls — "Cast &
+  /// Crew" over Director | Starring. The groups' own titles are the row's titles unless a
+  /// group says it is a subheading (`TVPageGroup.isSubheading`), which is how a heading
+  /// above sets them smaller.
+  public static func strip(id: String, title: String? = nil, groups: [TVPageGroup]) -> TVPageSection {
+    let items = groups.flatMap { group -> [TVPageItem] in
+      (group.title.map { [TVPageItem.groupTitle(id: group.id, text: $0)] } ?? []) + group.items
+    }
+    return TVPageSection(id: id, title: title, kind: .strip, flow: .rail, columns: 0,
+                         caption: .always, groups: groups, items: items)
+  }
+
   public static func chips(id: String,
                            title: String?,
                            chips: [TVPageChip]) -> TVPageSection {
@@ -518,8 +584,22 @@ public struct TVPageSection: Identifiable, Hashable {
   func appendingPlaceholders(_ count: Int) -> TVPageSection {
     TVPageSection(id: id, title: title, count: self.count, kind: kind, flow: flow, columns: columns,
                   caption: caption, rows: rows, match: match, loadsMore: loadsMore,
-                  showsRating: showsRating,
+                  showsRating: showsRating, groups: groups,
                   items: items + (0..<count).map(TVPageItem.placeholder))
+  }
+
+  /// For an item of a strip: which group it is in, and where that group's title sits
+  /// among `items` (nil for an untitled group). Nil for any other kind of section.
+  func stripGroup(ofItem index: Int) -> (group: Int, title: Int?)? {
+    guard kind == .strip, items.indices.contains(index) else { return nil }
+    var start = 0
+    for (position, group) in groups.enumerated() {
+      let hasTitle = group.title != nil
+      let count = (hasTitle ? 1 : 0) + group.items.count
+      if index < start + count { return (position, hasTitle ? start : nil) }
+      start += count
+    }
+    return nil
   }
 
   /// Items that are data, not skeleton tiles.

@@ -102,6 +102,10 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let hasClosedCaptions: Bool
   /// Release year when known from the catalogue.
   public let year: Int?
+  /// Episodes of a followed series that are still unwatched (`/v1/watching/serials` → `new`),
+  /// when the payload says; nil for everything else. A poster's caption under the cover shows
+  /// it in place of the year.
+  public let unwatchedEpisodes: Int?
   /// Runtime in seconds (film total, or episode when the card is an episode still).
   public let durationSeconds: Int?
   /// One or two genre titles for the caption meta row.
@@ -192,6 +196,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               is3D: Bool = false,
               hasClosedCaptions: Bool = false,
               year: Int? = nil,
+              unwatchedEpisodes: Int? = nil,
               durationSeconds: Int? = nil,
               genreLine: String? = nil,
               countryLine: String? = nil,
@@ -236,6 +241,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.is3D = is3D
     self.hasClosedCaptions = hasClosedCaptions
     self.year = year
+    self.unwatchedEpisodes = unwatchedEpisodes
     self.durationSeconds = durationSeconds
     self.genreLine = genreLine
     self.countryLine = countryLine
@@ -284,6 +290,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               is3D: is3D,
               hasClosedCaptions: hasClosedCaptions,
               year: year,
+              unwatchedEpisodes: unwatchedEpisodes,
               durationSeconds: durationSeconds ?? self.durationSeconds,
               genreLine: genreLine,
               countryLine: countryLine,
@@ -332,6 +339,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     is3D = try c.decodeIfPresent(Bool.self, forKey: .is3D) ?? false
     hasClosedCaptions = try c.decodeIfPresent(Bool.self, forKey: .hasClosedCaptions) ?? false
     year = try c.decodeIfPresent(Int.self, forKey: .year)
+    unwatchedEpisodes = try c.decodeIfPresent(Int.self, forKey: .unwatchedEpisodes)
     durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
     genreLine = try c.decodeIfPresent(String.self, forKey: .genreLine)
     countryLine = try c.decodeIfPresent(String.self, forKey: .countryLine)
@@ -380,6 +388,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encode(is3D, forKey: .is3D)
     try c.encode(hasClosedCaptions, forKey: .hasClosedCaptions)
     try c.encodeIfPresent(year, forKey: .year)
+    try c.encodeIfPresent(unwatchedEpisodes, forKey: .unwatchedEpisodes)
     try c.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
     try c.encodeIfPresent(genreLine, forKey: .genreLine)
     try c.encodeIfPresent(countryLine, forKey: .countryLine)
@@ -398,7 +407,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     case progress, badge, backdropURL, metaLine, overview
     case landscapeImageURL, overlayLabel, itemID, video, season, seasonCount, mediaID
     case isWatched, isSeries, isInHistory, isInWatchlist, is4K, isHDR
-    case isHD, is3D, hasClosedCaptions, year, durationSeconds
+    case isHD, is3D, hasClosedCaptions, year, unwatchedEpisodes, durationSeconds
     case genreLine, countryLine, seasonsLabel, isBookmarked, bookmarkFolderIDs, primaryAction
     case opensCollection, captionStats, imdbID, kinopoiskID
   }
