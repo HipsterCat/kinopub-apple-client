@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-tvoe.live scraper v3 — full catalog + details (+ optional inline images)
+tvoe.live catalog refresh.
 
-API notes (learned the hard way):
-  - /catalog (v1) silently ignores `from` — every page returns the first 100 items.
-  - /v2/catalog paginates with `limit` + `skip` (accumulated item count), same as the site's own client.
-  - /_next/image?url=<relative path> → 400. The optimizer needs the absolute CDN URL
-    (https://static.cdn.tvoe.live/images/...). Direct originals also work on the CDN host.
+Lists (films, serials, shorts, filters) plus one raw detail file per title.
+Image bytes are not downloaded. Absolute CDN URLs are added beside relative paths.
 
-Output: tools/tvoe_data/
-Images are downloaded separately: python3 download_tvoe_images.py (parallel, resumable).
+API notes:
+  - /catalog (v1) silently ignores `from` — every page is the first 100 items.
+  - /v2/catalog paginates with `limit` + `skip`.
+  - There is no movie-by-id REST call. Details are Next data for /p/{slug}.
+  - A season is an array of episodes, not an object. Season number is the index.
+  - Qrator bans an IP after parallel bursts. Two workers, pause between details.
 """
 
 import json
@@ -19,7 +20,6 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import quote
 
 try:
     import requests
@@ -27,227 +27,342 @@ except ImportError:
     print("pip3 install --break-system-packages requests")
     sys.exit(1)
 
-BUILD_ID = "vNn_WdW65SRZRBOCj4GSP"
-API = "https://api.tvoe.live/v2/catalog"
+HERE = Path(__file__).resolve().parent
+OUT = HERE / "tvoe_data"
+DETAILS = OUT / "details"
+PROXIES_FILE = HERE / "proxies.local"
+
+API = "https://api.tvoe.live"
 SITE = "https://tvoe.live"
 CDN = "https://static.cdn.tvoe.live"
-HLS_CDN = "https://hls.cdn.tvoe.live"
 PAGE_SIZE = 100
-WORKERS = 2           # Qrator bans by IP after parallel bursts — keep it low
-DETAIL_DELAY = 0.25   # seconds between detail requests per worker
+WORKERS = 2
+DETAIL_DELAY = 0.25
 MAX_CONSEC_FAILS = 100
-OUT = Path("/Users/sasha/Documents/GitHub/kinopub-apple-client/tools/tvoe_data")
-IMG = OUT / "images"
-
-IMG_SIZES = {"poster": "w=384&q=75", "cover": "w=1280&q=75", "logo": "w=256&q=90"}
-
-PROXY = None  # --proxy http://user:pass@host:port (RU IP required, site is geo-locked)
+ATTEMPTS = 4
 
 _local = threading.local()
+_proxy_lock = threading.Lock()
+_proxies = []
+_proxy_i = 0
+_fail_lock = threading.Lock()
+_consec_fails = 0
+
+
+def load_proxies():
+    if not PROXIES_FILE.exists():
+        return []
+    found = []
+    for line in PROXIES_FILE.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        host, port, user, password = line.split(":", 3)
+        found.append(f"http://{user}:{password}@{host}:{port}")
+    return found
+
+
+def next_proxy():
+    global _proxy_i
+    if not _proxies:
+        return None
+    with _proxy_lock:
+        proxy = _proxies[_proxy_i % len(_proxies)]
+        _proxy_i += 1
+        return proxy
 
 
 def session():
     if not hasattr(_local, "ses"):
         _local.ses = requests.Session()
-        _local.ses.headers["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-        if PROXY:
-            _local.ses.proxies = {"http": PROXY, "https": PROXY}
+        _local.ses.headers["User-Agent"] = (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+        )
     return _local.ses
 
 
-def fetch_catalog(cat):
+def cdn_url(path):
+    if not isinstance(path, str) or not path:
+        return None
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    if path.startswith("/"):
+        return f"{CDN}{path}"
+    return None
+
+
+def annotate_image(node):
+    if isinstance(node, dict) and isinstance(node.get("src"), str):
+        absolute = cdn_url(node["src"])
+        if absolute:
+            node["cdnUrl"] = absolute
+
+
+def annotate_videos(node):
+    if isinstance(node, dict):
+        absolute = cdn_url(node.get("thumbnail"))
+        if absolute:
+            node["thumbnailUrl"] = absolute
+        for value in node.values():
+            annotate_videos(value)
+    elif isinstance(node, list):
+        for value in node:
+            annotate_videos(value)
+
+
+def annotate_detail(data):
+    for key in ("poster", "cover", "logo"):
+        annotate_image(data.get(key))
+    annotate_videos(data.get("videos"))
+    similar = data.get("similarItems")
+    if isinstance(similar, list):
+        data["similarItems"] = [
+            item.get("_id") for item in similar
+            if isinstance(item, dict) and item.get("_id")
+        ]
+    return data
+
+
+def annotate_list_item(item):
+    for key in ("poster", "cover", "logo"):
+        annotate_image(item.get(key))
+    return item
+
+
+def annotate_short(row):
+    for src_key, url_key in (
+        ("coverFileSrc", "coverCdnUrl"),
+        ("thumbnailSrc", "thumbnailCdnUrl"),
+        ("movieLogo", "movieLogoCdnUrl"),
+    ):
+        absolute = cdn_url(row.get(src_key))
+        if absolute:
+            row[url_key] = absolute
+    return row
+
+
+def get_json(path, params=None):
+    last_error = None
+    for _ in range(ATTEMPTS):
+        proxy = next_proxy()
+        try:
+            response = session().get(
+                f"{API}{path}" if path.startswith("/") else path,
+                params=params,
+                timeout=25,
+                proxies={"http": proxy, "https": proxy} if proxy else None,
+            )
+            if response.status_code in (403, 429, 503):
+                last_error = f"{response.status_code} {path}"
+                time.sleep(1.5)
+                continue
+            response.raise_for_status()
+            return response.json()
+        except Exception as error:
+            last_error = error
+            time.sleep(1.0)
+    raise RuntimeError(last_error)
+
+
+def fetch_catalog(category):
     items, skip, seen = [], 0, set()
     while True:
-        r = session().get(f"{API}?categoryAlias={cat}&limit={PAGE_SIZE}&skip={skip}", timeout=20)
-        r.raise_for_status()
-        data = r.json()
-        batch = data.get("items", [])
-        total = data.get("totalSize", 0)
-        fresh = [b for b in batch if b.get("_id") not in seen]
+        data = get_json("/v2/catalog", {
+            "categoryAlias": category,
+            "limit": PAGE_SIZE,
+            "skip": skip,
+        })
+        batch = data.get("items") or []
+        total = data.get("totalSize") or 0
+        fresh = [row for row in batch if row.get("_id") not in seen]
         if not fresh:
             break
-        for b in fresh:
-            seen.add(b.get("_id"))
-        items.extend(fresh)
-        print(f"  skip={skip}: +{len(fresh)} (total={total})")
+        for row in fresh:
+            seen.add(row.get("_id"))
+            items.append(annotate_list_item(row))
+        print(f"  skip={skip}: +{len(fresh)} (total={total})", flush=True)
         skip += len(batch)
-        if len(fresh) < len(batch):
-            print(f"  ⚠ page contained {len(batch) - len(fresh)} duplicates — API misbehaving, stopping")
-            break
-        if skip >= total or not batch:
+        if len(fresh) < len(batch) or skip >= total or not batch:
             break
         time.sleep(0.08)
     return items
 
 
+def fetch_shorts():
+    rows, skip, seen = [], 0, set()
+    while True:
+        data = get_json("/shorts", {"limit": PAGE_SIZE, "skip": skip})
+        batch = data.get("rows") or []
+        total = data.get("total") or 0
+        fresh = [row for row in batch if row.get("id") not in seen]
+        if not fresh:
+            break
+        for row in fresh:
+            seen.add(row.get("id"))
+            rows.append(annotate_short(row))
+        print(f"  skip={skip}: +{len(fresh)} (total={total})", flush=True)
+        skip += len(batch)
+        if len(fresh) < len(batch) or skip >= total or not batch:
+            break
+        time.sleep(0.08)
+    return rows
+
+
 def current_build_id():
-    try:
-        r = session().get(f"{SITE}/filmy", timeout=20)
-        r.raise_for_status()
-        m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', r.text, re.S)
-        if m:
-            return json.loads(m.group(1)).get("buildId") or BUILD_ID
-    except Exception:
-        pass
-    return BUILD_ID
+    proxy = next_proxy()
+    response = session().get(
+        f"{SITE}/filmy",
+        timeout=25,
+        proxies={"http": proxy, "https": proxy} if proxy else None,
+    )
+    response.raise_for_status()
+    match = re.search(
+        r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+        response.text,
+        re.S,
+    )
+    if not match:
+        raise RuntimeError("buildId not found on /filmy")
+    build_id = json.loads(match.group(1)).get("buildId")
+    if not build_id:
+        raise RuntimeError("empty buildId")
+    return build_id
+
+
+def write_json(path, payload):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(path)
+
+
+def note_failure(slug, error):
+    global _consec_fails
+    with _fail_lock:
+        _consec_fails += 1
+        count = _consec_fails
+    with (OUT / "detail_failures.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"slug": slug, "error": str(error)}, ensure_ascii=False) + "\n")
+    print(f"  x {slug}: {error}", flush=True)
+    if count >= MAX_CONSEC_FAILS:
+        raise SystemExit(f"{MAX_CONSEC_FAILS} consecutive detail failures — stopping")
+
+
+def note_success():
+    global _consec_fails
+    with _fail_lock:
+        _consec_fails = 0
 
 
 def fetch_detail(item, build_id):
-    slug = item.get("url", "").strip("/").split("/")[-1] if item.get("url") else ""
-    if not slug:
-        return item, {}, None
-    try:
-        r = session().get(f"{SITE}/_next/data/{build_id}/p/{slug}.json", timeout=20)
-        r.raise_for_status()
-        time.sleep(DETAIL_DELAY)
-        return item, r.json().get("pageProps", {}).get("data", {}), None
-    except Exception as e:
-        return item, {}, f"{slug}: {e}"
+    slug = (item.get("url") or "").strip("/").split("/")[-1]
+    title_id = item.get("_id")
+    dest = DETAILS / f"{title_id}.json"
+    if dest.exists() and dest.stat().st_size > 0:
+        return "skip"
+    if not slug or not title_id:
+        note_failure(slug or title_id or "?", "missing slug or id")
+        return "fail"
+    url = f"{SITE}/_next/data/{build_id}/p/{slug}.json"
+    last_error = None
+    for _ in range(ATTEMPTS):
+        proxy = next_proxy()
+        try:
+            response = session().get(
+                url,
+                timeout=30,
+                proxies={"http": proxy, "https": proxy} if proxy else None,
+            )
+            if response.status_code in (403, 429, 503):
+                last_error = f"{response.status_code}"
+                time.sleep(1.5)
+                continue
+            response.raise_for_status()
+            data = response.json().get("pageProps", {}).get("data") or {}
+            if data.get("_id") != title_id:
+                last_error = f"id mismatch {data.get('_id')}"
+                time.sleep(0.5)
+                continue
+            write_json(dest, annotate_detail(data))
+            note_success()
+            time.sleep(DETAIL_DELAY)
+            return "ok"
+        except SystemExit:
+            raise
+        except Exception as error:
+            last_error = error
+            time.sleep(1.0)
+    note_failure(slug, last_error)
+    return "fail"
 
 
-def _attach_hls_urls(node):
-    """Walk videos structure; add playable hlsUrl to anything with src+version."""
-    if isinstance(node, dict):
-        src, version = node.get("src"), node.get("version")
-        if isinstance(src, str) and src.startswith("/"):
-            if version == 3:
-                node["hlsUrl"] = f"{HLS_CDN}{src}/hls/0/master.m3u8"
-            elif version == 2:
-                node["hlsUrl"] = f"{HLS_CDN}{src}/master-0.m3u8"
-            thumb = node.get("thumbnail")
-            if isinstance(thumb, str) and thumb.startswith("/"):
-                node["thumbnailUrl"] = f"{CDN}{thumb}"
-        for v in node.values():
-            _attach_hls_urls(v)
-    elif isinstance(node, list):
-        for v in node:
-            _attach_hls_urls(v)
-    return node
-
-
-def build_entry(item, detail):
-    entry = {
-        "_id": item["_id"],
-        "name": item["name"],
-        "origName": detail.get("origName"),
-        "ageLevel": item.get("ageLevel"),
-        "dateReleased": item.get("dateReleased"),
-        "categoryAlias": item.get("categoryAlias"),
-        "rating": item.get("rating"),
-        "duration": item.get("duration"),
-        "seasonsCount": item.get("seasonsCount"),
-        "countries": detail.get("countries") or ([item["countries"]] if isinstance(item.get("countries"), str) else []),
-        "genres": detail.get("genreNames", []),
-        "description": detail.get("shortDesc") or item.get("shortDesc") or detail.get("fullDesc"),
-        "persons": detail.get("persons", []),
-        "videos": _attach_hls_urls(detail.get("videos") or {}),
-        "url": item.get("url"),
-        "badge": item.get("badge"),
-        "images": {},
-    }
-
-    for img_type, size_params in IMG_SIZES.items():
-        src = None
-        detail_img = detail.get(img_type) or {}
-        item_img = item.get(img_type) or {}
-        if detail_img.get("src"):
-            src = detail_img["src"]
-        elif item_img.get("src"):
-            src = item_img["src"]
-        if not src and img_type == "poster":
-            for alt_key in ("posterBig", "posterSmall", "posterWide"):
-                alt = item.get(alt_key) or {}
-                if alt.get("src"):
-                    src = alt["src"]
-                    break
-        if src:
-            # Optimizer 400s on relative paths — it must get the absolute CDN URL
-            abs_src = src if src.startswith("http") else f"{CDN}{src}"
-            entry["images"][img_type] = {
-                "src": src,
-                "url": f"{SITE}/_next/image?url={quote(abs_src, safe='')}&{size_params}",
-                "cdnUrl": abs_src,
-                "filename": src.split("/")[-1],
-            }
-    return entry
-
-
-def scrape_category(cat, build_id, download_images):
-    print(f"\n=== {cat} ===")
-
-    items = fetch_catalog(cat)
-    print(f"  ✓ Catalog: {len(items)} unique")
-    (OUT / f"catalog_{cat}.json").write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    print("  Fetching details...")
-    details, failed_detail = {}, []
-    consec_fails = 0
-    t0 = time.time()
+def scrape_details(items, build_id, limit):
+    pending = items if not limit else items[:limit]
+    print(f"  details: {len(pending)}", flush=True)
+    counts = {"ok": 0, "skip": 0, "fail": 0}
+    started = time.time()
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        for n, (item, detail, err) in enumerate(pool.map(lambda i: fetch_detail(i, build_id), items), 1):
-            if err:
-                failed_detail.append(err)
-                consec_fails += 1
-                if consec_fails >= MAX_CONSEC_FAILS:
-                    print(f"\n  ⛔ {MAX_CONSEC_FAILS} consecutive failures — looks like an IP ban (Qrator). Aborting; wait a few minutes and re-run.")
-                    sys.exit(2)
-            else:
-                consec_fails = 0
-            details[item["_id"]] = detail
-            if n % 300 == 0:
-                print(f"    {n}/{len(items)} ({n / max(time.time() - t0, 1):.0f}/s)", flush=True)
-
-    detailed = [build_entry(item, details[item["_id"]]) for item in items]
-    (OUT / f"catalog_{cat}_detailed.json").write_text(json.dumps(detailed, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"  ✓ Detailed: {len(detailed)}" + (f" (failed: {len(failed_detail)})" if failed_detail else ""))
-    for err in failed_detail[:5]:
-        print(f"    ✗ {err}")
-
-    if download_images:
-        new_img, failed_img = 0, []
-        for entry in detailed:
-            for itype, iinfo in entry["images"].items():
-                dest = IMG / itype
-                dest.mkdir(parents=True, exist_ok=True)
-                fp = dest / iinfo["filename"]
-                if fp.exists() and fp.stat().st_size > 0:
-                    continue
-                try:
-                    r = session().get(iinfo["url"], timeout=60)
-                    r.raise_for_status()
-                    fp.write_bytes(r.content)
-                    new_img += 1
-                except Exception as e:
-                    failed_img.append({"imgType": itype, **iinfo, "error": str(e)})
-        total_img = sum(len(e["images"]) for e in detailed)
-        print(f"  ✓ Images: {new_img} new / {total_img} total, failed: {len(failed_img)}")
-        if failed_img:
-            (OUT / f"failed_images_{cat}.json").write_text(json.dumps(failed_img, ensure_ascii=False, indent=2), encoding="utf-8")
+        for done, status in enumerate(pool.map(lambda item: fetch_detail(item, build_id), pending), 1):
+            counts[status] = counts.get(status, 0) + 1
+            if done % 100 == 0:
+                rate = done / max(time.time() - started, 1)
+                print(
+                    f"    {done}/{len(pending)} ({rate:.1f}/s) "
+                    f"ok={counts['ok']} skip={counts['skip']} fail={counts['fail']}",
+                    flush=True,
+                )
+    print(
+        f"  details done ok={counts['ok']} skip={counts['skip']} fail={counts['fail']}",
+        flush=True,
+    )
+    return counts
 
 
 def main():
-    global PROXY
-    if "--proxy" in sys.argv:
-        PROXY = sys.argv[sys.argv.index("--proxy") + 1]
-    download_images = "--images" in sys.argv
-    films_only = "--films-only" in sys.argv
-    serials_only = "--serials-only" in sys.argv
-    cats = ["serials"] if serials_only else (["films"] if films_only else ["films", "serials"])
+    global _proxies
+    limit = None
+    if "--limit" in sys.argv:
+        limit = int(sys.argv[sys.argv.index("--limit") + 1])
+    lists_only = "--lists-only" in sys.argv
 
+    _proxies = [] if "--direct" in sys.argv else load_proxies()
     OUT.mkdir(parents=True, exist_ok=True)
-    session()
-    print(f"proxy: {PROXY or 'нет'}")
+    DETAILS.mkdir(parents=True, exist_ok=True)
+    print(f"proxies: {len(_proxies)}", flush=True)
+
+    print("filters", flush=True)
+    write_json(OUT / "filters.json", get_json("/v2/catalog/filters"))
+
+    catalog = {}
+    for category in ("films", "serials"):
+        print(f"\n=== {category} ===", flush=True)
+        rows = fetch_catalog(category)
+        write_json(OUT / f"catalog_{category}.json", rows)
+        catalog[category] = rows
+        print(f"  list: {len(rows)}", flush=True)
+
+    print("\n=== shorts ===", flush=True)
+    shorts = fetch_shorts()
+    write_json(OUT / "shorts.json", shorts)
+    print(f"  shorts: {len(shorts)}", flush=True)
+
+    if lists_only:
+        return
 
     build_id = current_build_id()
-    print(f"buildId: {build_id}")
-
-    for cat in cats:
-        scrape_category(cat, build_id, download_images)
-
-    (OUT / "state.json").write_text(json.dumps({"last_run": time.strftime("%Y-%m-%dT%H:%M:%SZ"), "build_id": build_id}))
-    if not download_images:
-        print("\nКартинки: python3 download_tvoe_images.py (параллельно, докачает недостающее)")
-    print(f"\n🎉 Done: {OUT}/")
+    print(f"\nbuildId: {build_id}", flush=True)
+    items = catalog["films"] + catalog["serials"]
+    counts = scrape_details(items, build_id, limit)
+    write_json(OUT / "state.json", {
+        "last_run": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "build_id": build_id,
+        "films": len(catalog["films"]),
+        "serials": len(catalog["serials"]),
+        "shorts": len(shorts),
+        "details": counts,
+    })
+    print(f"\nDone: {OUT}/", flush=True)
 
 
 if __name__ == "__main__":

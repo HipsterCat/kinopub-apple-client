@@ -47,6 +47,10 @@ workers/**/.dev.vars
 workers/**/node_modules/
 
 tools/tvoe/tvoe_data/images/
+tools/tvoe/tvoe_data/details/
+tools/tvoe/tvoe_data/shorts.json
+tools/tvoe/tvoe_data/tvoe.sqlite
+tools/tvoe/proxies.local
 docs/archive/research-2026-07/*.ru.md
 
 ## Fastlane / TestFlight artifacts (the Gemfile.lock is tracked)

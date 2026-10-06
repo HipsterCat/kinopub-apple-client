@@ -1,0 +1,636 @@
+{
+  "films": {
+    "years": [
+      1940,
+      1942,
+      1946,
+      1950,
+      1955,
+      1957,
+      1959,
+      1960,
+      1961,
+      1962,
+      1963,
+      1964,
+      1965,
+      1966,
+      1967,
+      1968,
+      1969,
+      1970,
+      1971,
+      1972,
+      1973,
+      1974,
+      1975,
+      1976,
+      1977,
+      1978,
+      1979,
+      1980,
+      1981,
+      1982,
+      1983,
+      1984,
+      1985,
+      1986,
+      1987,
+      1988,
+      1989,
+      1990,
+      1991,
+      1992,
+      1993,
+      1994,
+      1995,
+      1996,
+      1997,
+      1998,
+      1999,
+      2000,
+      2001,
+      2002,
+      2003,
+      2004,
+      2005,
+      2006,
+      2007,
+      2008,
+      2009,
+      2010,
+      2011,
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "countries": [
+      {
+        "name": "Германия",
+        "countryCode": "DE"
+      },
+      {
+        "name": "США",
+        "countryCode": "US"
+      },
+      {
+        "name": "Австралия",
+        "countryCode": "AU"
+      },
+      {
+        "name": "Испания",
+        "countryCode": "ES"
+      },
+      {
+        "name": "Великобритания",
+        "countryCode": "GB"
+      },
+      {
+        "name": "Италия",
+        "countryCode": "IT"
+      },
+      {
+        "name": "Южная Корея",
+        "countryCode": "KR"
+      },
+      {
+        "name": "Польша",
+        "countryCode": "PL"
+      },
+      {
+        "name": "Исландия",
+        "countryCode": "IS"
+      },
+      {
+        "name": "Франция",
+        "countryCode": "FR"
+      },
+      {
+        "name": "Новая Зеландия",
+        "countryCode": "NZ"
+      },
+      {
+        "name": "Швеция",
+        "countryCode": "SE"
+      },
+      {
+        "name": "Бельгия",
+        "countryCode": "BE"
+      },
+      {
+        "name": "Канада",
+        "countryCode": "CA"
+      },
+      {
+        "name": "Аргентина",
+        "countryCode": "AR"
+      },
+      {
+        "name": "Бразилия",
+        "countryCode": "BR"
+      },
+      {
+        "name": "Индия",
+        "countryCode": "IN"
+      },
+      {
+        "name": "Турция",
+        "countryCode": "TR"
+      },
+      {
+        "name": "Таиланд",
+        "countryCode": "TH"
+      },
+      {
+        "name": "Япония",
+        "countryCode": "JP"
+      },
+      {
+        "name": "Ирландия",
+        "countryCode": "IE"
+      },
+      {
+        "name": "Гонконг",
+        "countryCode": "HK"
+      },
+      {
+        "name": "Китай",
+        "countryCode": "CN"
+      },
+      {
+        "name": "Финляндия",
+        "countryCode": "FI"
+      },
+      {
+        "name": "Греция",
+        "countryCode": "GR"
+      },
+      {
+        "name": "Мексика",
+        "countryCode": "MX"
+      },
+      {
+        "name": "Чили",
+        "countryCode": "CL"
+      },
+      {
+        "name": "Болгария",
+        "countryCode": "BG"
+      },
+      {
+        "name": "Тайвань",
+        "countryCode": "TW"
+      },
+      {
+        "name": "Чехия",
+        "countryCode": "CZ"
+      },
+      {
+        "name": "Марокко",
+        "countryCode": "MA"
+      },
+      {
+        "name": "Нидерланды",
+        "countryCode": "NL"
+      },
+      {
+        "name": "Дания",
+        "countryCode": "DK"
+      },
+      {
+        "name": "ЮАР",
+        "countryCode": "ZA"
+      },
+      {
+        "name": "Колумбия",
+        "countryCode": "CO"
+      },
+      {
+        "name": "Израиль",
+        "countryCode": "IL"
+      },
+      {
+        "name": "Латвия",
+        "countryCode": "LV"
+      },
+      {
+        "name": "Россия",
+        "countryCode": "RU"
+      },
+      {
+        "name": "Беларусь",
+        "countryCode": "BY"
+      },
+      {
+        "name": "Хорватия",
+        "countryCode": "HR"
+      },
+      {
+        "name": "Литва",
+        "countryCode": "LT"
+      },
+      {
+        "name": "Норвегия",
+        "countryCode": "NO"
+      },
+      {
+        "name": "ОАЭ",
+        "countryCode": "AE"
+      },
+      {
+        "name": "Индонезия",
+        "countryCode": "ID"
+      },
+      {
+        "name": "Сингапур",
+        "countryCode": "SG"
+      },
+      {
+        "name": "Филиппины",
+        "countryCode": "PH"
+      },
+      {
+        "name": "Венгрия",
+        "countryCode": "HU"
+      },
+      {
+        "name": "Швейцария",
+        "countryCode": "CH"
+      }
+    ],
+    "genres": [
+      {
+        "name": "Аниме",
+        "alias": "anime"
+      },
+      {
+        "name": "Биографии",
+        "alias": "biografii"
+      },
+      {
+        "name": "Боевики",
+        "alias": "boeviki"
+      },
+      {
+        "name": "Вестерны",
+        "alias": "vesterny"
+      },
+      {
+        "name": "Военные",
+        "alias": "voennye"
+      },
+      {
+        "name": "Детективы",
+        "alias": "detektivy"
+      },
+      {
+        "name": "Документальные",
+        "alias": "dokumentalnye"
+      },
+      {
+        "name": "Драмы",
+        "alias": "dramy"
+      },
+      {
+        "name": "Исторические",
+        "alias": "istoricheskie"
+      },
+      {
+        "name": "Комедии",
+        "alias": "komedii"
+      },
+      {
+        "name": "Короткометражки",
+        "alias": "korotkometrazhki"
+      },
+      {
+        "name": "Криминал",
+        "alias": "kriminal"
+      },
+      {
+        "name": "Мелодрамы",
+        "alias": "melodramy"
+      },
+      {
+        "name": "Музыкальные",
+        "alias": "muzykalnye"
+      },
+      {
+        "name": "Мультфильмы",
+        "alias": "multfilmy"
+      },
+      {
+        "name": "Мюзиклы",
+        "alias": "myuzikly"
+      },
+      {
+        "name": "Приключения",
+        "alias": "priklyucheniya"
+      },
+      {
+        "name": "Семейные",
+        "alias": "semeynye"
+      },
+      {
+        "name": "Спортивные",
+        "alias": "sportivnye"
+      },
+      {
+        "name": "Триллеры",
+        "alias": "trillery"
+      },
+      {
+        "name": "Ужасы",
+        "alias": "uzhasy"
+      },
+      {
+        "name": "Фантастика",
+        "alias": "fantastika"
+      },
+      {
+        "name": "Фэнтези",
+        "alias": "fentezi"
+      }
+    ]
+  },
+  "serials": {
+    "years": [
+      1940,
+      1967,
+      1971,
+      1972,
+      1976,
+      1981,
+      1987,
+      1989,
+      1991,
+      1992,
+      1993,
+      1994,
+      1995,
+      1996,
+      1997,
+      1998,
+      1999,
+      2000,
+      2001,
+      2002,
+      2003,
+      2004,
+      2005,
+      2006,
+      2007,
+      2008,
+      2009,
+      2010,
+      2011,
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "countries": [
+      {
+        "name": "Польша",
+        "countryCode": "PL"
+      },
+      {
+        "name": "Великобритания",
+        "countryCode": "GB"
+      },
+      {
+        "name": "США",
+        "countryCode": "US"
+      },
+      {
+        "name": "Германия",
+        "countryCode": "DE"
+      },
+      {
+        "name": "Австралия",
+        "countryCode": "AU"
+      },
+      {
+        "name": "Франция",
+        "countryCode": "FR"
+      },
+      {
+        "name": "Турция",
+        "countryCode": "TR"
+      },
+      {
+        "name": "Япония",
+        "countryCode": "JP"
+      },
+      {
+        "name": "Испания",
+        "countryCode": "ES"
+      },
+      {
+        "name": "Южная Корея",
+        "countryCode": "KR"
+      },
+      {
+        "name": "Италия",
+        "countryCode": "IT"
+      },
+      {
+        "name": "Швеция",
+        "countryCode": "SE"
+      },
+      {
+        "name": "Дания",
+        "countryCode": "DK"
+      },
+      {
+        "name": "Исландия",
+        "countryCode": "IS"
+      },
+      {
+        "name": "Канада",
+        "countryCode": "CA"
+      },
+      {
+        "name": "Мексика",
+        "countryCode": "MX"
+      },
+      {
+        "name": "Бельгия",
+        "countryCode": "BE"
+      },
+      {
+        "name": "Израиль",
+        "countryCode": "IL"
+      },
+      {
+        "name": "Бразилия",
+        "countryCode": "BR"
+      },
+      {
+        "name": "ЮАР",
+        "countryCode": "ZA"
+      },
+      {
+        "name": "Россия",
+        "countryCode": "RU"
+      },
+      {
+        "name": "Таиланд",
+        "countryCode": "TH"
+      },
+      {
+        "name": "Ирландия",
+        "countryCode": "IE"
+      },
+      {
+        "name": "Филиппины",
+        "countryCode": "PH"
+      },
+      {
+        "name": "Аргентина",
+        "countryCode": "AR"
+      },
+      {
+        "name": "Индия",
+        "countryCode": "IN"
+      },
+      {
+        "name": "Колумбия",
+        "countryCode": "CO"
+      },
+      {
+        "name": "Румыния",
+        "countryCode": "RO"
+      },
+      {
+        "name": "Китай",
+        "countryCode": "CN"
+      },
+      {
+        "name": "Нидерланды",
+        "countryCode": "NL"
+      },
+      {
+        "name": "Норвегия",
+        "countryCode": "NO"
+      },
+      {
+        "name": "Гонконг",
+        "countryCode": "HK"
+      }
+    ],
+    "genres": [
+      {
+        "name": "Аниме",
+        "alias": "anime"
+      },
+      {
+        "name": "Биографии",
+        "alias": "biografii"
+      },
+      {
+        "name": "Боевики",
+        "alias": "boeviki"
+      },
+      {
+        "name": "Вестерны",
+        "alias": "vesterny"
+      },
+      {
+        "name": "Военные",
+        "alias": "voennye"
+      },
+      {
+        "name": "Детективы",
+        "alias": "detektivy"
+      },
+      {
+        "name": "Документальные",
+        "alias": "dokumentalnye"
+      },
+      {
+        "name": "Драмы",
+        "alias": "dramy"
+      },
+      {
+        "name": "Исторические",
+        "alias": "istoricheskie"
+      },
+      {
+        "name": "Комедии",
+        "alias": "komedii"
+      },
+      {
+        "name": "Короткометражки",
+        "alias": "korotkometrazhki"
+      },
+      {
+        "name": "Криминал",
+        "alias": "kriminal"
+      },
+      {
+        "name": "Мелодрамы",
+        "alias": "melodramy"
+      },
+      {
+        "name": "Мультфильмы",
+        "alias": "multfilmy"
+      },
+      {
+        "name": "Мюзиклы",
+        "alias": "myuzikly"
+      },
+      {
+        "name": "Приключения",
+        "alias": "priklyucheniya"
+      },
+      {
+        "name": "Триллеры",
+        "alias": "trillery"
+      },
+      {
+        "name": "Ужасы",
+        "alias": "uzhasy"
+      },
+      {
+        "name": "Фантастика",
+        "alias": "fantastika"
+      },
+      {
+        "name": "Фэнтези",
+        "alias": "fentezi"
+      },
+      {
+        "name": "Реалити-шоу",
+        "alias": "realiti-shou"
+      },
+      {
+        "name": "Ток-шоу",
+        "alias": "tok-shou"
+      }
+    ]
+  }
+}
