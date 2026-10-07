@@ -393,7 +393,11 @@ struct LibraryShellView: View {
 /// One style type for every row, so a row changes look without being swapped out from
 /// under the focus engine. Selected rows stay `borderedProminent` when focus is in the
 /// grid — TVShowroom switched on focus but dropped the selected look on the way out.
-private struct LibrarySidebarRowStyle: PrimitiveButtonStyle {
+///
+/// `ButtonStyle`, not `PrimitiveButtonStyle`: the system bordered styles take a
+/// `ButtonStyle.Configuration` (`isPressed` / `label`). Primitive's configuration is
+/// `onTrigger` and does not compile against them (tvOS CI, 2026-10-07).
+private struct LibrarySidebarRowStyle: ButtonStyle {
   let isSelected: Bool
 
   func makeBody(configuration: Configuration) -> some View {
