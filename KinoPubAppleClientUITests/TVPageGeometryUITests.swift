@@ -18,6 +18,9 @@ final class TVPageGeometryUITests: XCTestCase {
 
   override func setUpWithError() throws {
     continueAfterFailure = false
+    // The Library fixture walk is stand-in data — no session. Everything else in
+    // this class paints live pages and skips on CI without ~/.kinopub-dev-session.json.
+    if name.contains("testLibrarySidebarSelection") { return }
     guard FileManager.default.fileExists(atPath: UITestDevSession.filePath) else {
       throw XCTSkip("no ~/.kinopub-dev-session.json — local page geometry only")
     }
@@ -482,37 +485,54 @@ final class TVPageGeometryUITests: XCTestCase {
     }
   }
 
-  /// Library sidebar: focus over a row switches the grid, the selected pill stays when
-  /// focus moves into the content, Left returns to that row, Menu to the tab bar.
-  /// Stand-in API, no session (`-KINOPUBLibraryFixture`). The SwiftUI/UIKit sandbox
-  /// tabs that used to sit after Library are gone.
+  /// Library sidebar on the stand-in API (`-KINOPUBLibraryFixture`): no session, no
+  /// tab bar (the fixture is the Library itself). Focus over a row switches the grid;
+  /// Right into the grid and Left returns to that same selected row.
   func testLibrarySidebarSelection() throws {
     let app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
-                            "-KINOPUBLibraryFixture", "YES",
-                            "-KINOPUBInitialTab", "library"]
-    if let session = UITestDevSession.json {
-      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
-    }
+                            "-KINOPUBLibraryFixture", "YES"]
     app.launch()
     XCTAssertTrue(app.collectionViews["kinopub.page.library"].waitForExistence(timeout: 30))
     Thread.sleep(forTimeInterval: 2)
     try shoot(app, name: "lib-sidebar-0-launch")
-    for _ in 0..<2 where app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count == 0 {
-      press(.menu, wait: 1.2)
+
+    let following = app.descendants(matching: .any)["kinopub.library.section.watchlist"]
+    XCTAssertTrue(following.waitForExistence(timeout: 10), "Following row never appeared")
+    for _ in 0..<4 where !sidebarRowHasFocus(in: app) {
+      press(.left, wait: 0.6)
     }
-    try shoot(app, name: "lib-sidebar-1-bar")
-    press(.select, wait: 1.2)
-    try shoot(app, name: "lib-sidebar-2-enter")
+    try shoot(app, name: "lib-sidebar-1-list")
+    XCTAssertTrue(sidebarRowHasFocus(in: app), "focus never reached a sidebar row: \(focusDescription(app))")
+
     press(.down, 2, wait: 1)
-    try shoot(app, name: "lib-sidebar-3-moved")
+    try shoot(app, name: "lib-sidebar-2-moved")
+    let selectedID = focusedSidebarRow(in: app)?.identifier
+    XCTAssertNotNil(selectedID, "Down left the sidebar: \(focusDescription(app))")
+
     press(.right, wait: 1.2)
-    try shoot(app, name: "lib-sidebar-4-grid")
+    try shoot(app, name: "lib-sidebar-3-grid")
+    XCTAssertFalse(sidebarRowHasFocus(in: app), "Right did not leave the sidebar")
+    XCTAssertTrue(app.collectionViews["kinopub.page.library"].descendants(matching: .any)
+      .matching(NSPredicate(format: "hasFocus == true")).firstMatch.exists,
+                  "Right left nothing focused in the grid")
+
     press(.left, 2, wait: 0.8)
-    try shoot(app, name: "lib-sidebar-5-left")
-    press(.menu, wait: 1.2)
-    try shoot(app, name: "lib-sidebar-6-menu-bar")
+    try shoot(app, name: "lib-sidebar-4-left")
+    XCTAssertEqual(focusedSidebarRow(in: app)?.identifier, selectedID,
+                   "Left did not return to the selected row: \(focusDescription(app))")
     app.terminate()
+  }
+
+  private func sidebarRowHasFocus(in app: XCUIApplication) -> Bool {
+    focusedSidebarRow(in: app) != nil
+  }
+
+  private func focusedSidebarRow(in app: XCUIApplication) -> XCUIElement? {
+    let hit = app.descendants(matching: .any).matching(
+      NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.library.section.")
+    ).firstMatch
+    return hit.exists ? hit : nil
   }
 
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view
