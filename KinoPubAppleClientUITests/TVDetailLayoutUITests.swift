@@ -128,16 +128,21 @@ final class TVDetailLayoutUITests: XCTestCase {
     try waitForHeroFocus()
     XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 1.2)
     step(.right, times: 4)
-    note("review focused")
-    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.2)
-    note("popup open")
+    XCTAssertTrue(reviewHasFocus.waitForExistence(timeout: 10), "no review focused: \(focusedDescription)")
+    XCUIRemote.shared.press(.select)
+    // While the popup is up (or coming up) the page is out of the accessibility tree, and
+    // asking what has focus then fails the test on a slow runner, not the page. Wait it out.
+    Thread.sleep(forTimeInterval: 2.0)
     XCUIRemote.shared.press(.menu)
-    for seconds in [0.4, 1.0, 2.0] {
-      Thread.sleep(forTimeInterval: seconds)
-      note("popup closed +\(seconds)")
-    }
+    let back = reviewHasFocus.waitForExistence(timeout: 10)
     try shoot("popup-closed")
-    XCTAssertTrue(focusedDescription.contains("kinopub.review"), "focus did not come back: \(focusedDescription)")
+    XCTAssertTrue(back, "focus did not come back: \(focusedDescription)")
+  }
+
+  private var reviewHasFocus: XCUIElement {
+    app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.review"))
+      .firstMatch
   }
 
   /// A series under the same page: the seasons rail stays where it was, the new sections follow it.

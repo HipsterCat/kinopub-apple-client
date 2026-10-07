@@ -31,7 +31,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   /// Air between the art and the caption. `TVLockupView.contentViewInsets` takes negative
   /// values for positive spacing; the probe in `TVPageCellMetrics` applies the same, so the
   /// envelope it measures includes this.
-  static let footerGap: CGFloat = 12
+  nonisolated static let footerGap: CGFloat = 12
 
   /// Non-focusable lockup (`isUserInteractionEnabled = false` on the whole subtree).
   /// The **cell** is the focused leaf — same shape as Continue Watching /

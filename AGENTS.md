@@ -258,7 +258,7 @@ file, and delete the losers with the switch.
   production's tab bar) and `-KINOPUBSlowShelves <s>` (the shelves arrive late, while the hero
   holds focus). `-KINOPUBLibraryFixture YES` is the same idea for the Library: the real page on a
   stand-in API listing twelve followed series (`LibraryFixture`, `TVDetailLayoutUITests`) — how the
-  *Following* captions («Ещё 2 серии») look, with no session. **Run it on both simulator runtimes, tvOS 27.2 and 26.5** — they differ: on 26.5
+  *Following* captions («Ещё 2 серии») look, with no session. **Run it on both simulator runtimes, tvOS 27.2 and 26.5 — and once on an Apple TV 4K device that is not "(at 1080p)"** (scale 2; it is the first device CI picks, and a lockup computes its focus growth in whole points there: art 254 where 1080p reads 256) — they differ: on 26.5
   the poster art's focus bug above (and, before captions became ours, a system footer's height changed how tall art grew — see Troubleshooting).
 - **On tvOS everything under the hero is one embedded TVUIKit page** (Sasha, 2026-10-06).
   `MediaItemTVSections.make` is the order and the content, as data — the one place. `TVEmbeddedPage`

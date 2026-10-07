@@ -36,6 +36,12 @@ final class TVPosterCoverTests: XCTestCase {
     try await super.tearDown()
   }
 
+  /// How far the art's width may differ from the recipe's. The lockup grows its art by a focus
+  /// increase it computes itself, in whole points: 13 per side for a 282 pt content size on a
+  /// 1080p simulator, 14 on the Apple TV 4K one (the one CI picks) — art 256 or 254. Height has
+  /// no such slack: that is the one that grew by 37 pt.
+  private let artWidthSlack: CGFloat = 2.5
+
   private let entries: [(title: String, year: Int?)] = [
     ("Дальше от дома", 2023), ("The Old Man", nil), ("Х", nil),
     ("A title long enough to run out of room under any lockup, and then some", 1999), ("Wayne", 2019)
@@ -68,7 +74,7 @@ final class TVPosterCoverTests: XCTestCase {
       for (cell, entry) in zip(cells, entries) {
         let art = cell.posterView.contentView.frame
         let who = "\(caption) \(entry.title) (\(entry.year.map(String.init) ?? "no year"))"
-        XCTAssertEqual(art.width, recipe.artSize.width, accuracy: 1, who)
+        XCTAssertEqual(art.width, recipe.artSize.width, accuracy: artWidthSlack, who)
         XCTAssertEqual(art.height, recipe.artSize.height, accuracy: 1, "\(who): the art grew or shrank")
         cell.removeFromSuperview()
       }
@@ -134,7 +140,8 @@ final class TVPosterCoverTests: XCTestCase {
       let art = cell.posterView.contentView.convert(cell.posterView.contentView.bounds, to: cell)
       XCTAssertEqual(cell.captionView.frame.minY, art.maxY + TVPageLockupPosterCell.footerGap, accuracy: 1, who)
       XCTAssertEqual(cell.captionView.frame.height, recipe.captionHeight, accuracy: 0.5, who)
-      XCTAssertEqual(cell.captionView.frame.width, art.width, accuracy: 1, who)
+      XCTAssertEqual(cell.captionView.frame.width, recipe.artSize.width, accuracy: 0.5, who)
+      XCTAssertEqual(cell.captionView.frame.width, art.width, accuracy: artWidthSlack, who)
       XCTAssertLessThanOrEqual(cell.captionView.frame.maxY, cell.bounds.height + 0.5, "\(who): hangs out of its cell")
       cell.removeFromSuperview()
     }
