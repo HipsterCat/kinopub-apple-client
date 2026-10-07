@@ -43,10 +43,10 @@ public final class TVPageCollectionViewController: UIViewController {
   public var onNearEnd: ((TVPageSection) -> Void)?
   public var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   public var onRetry: (() -> Void)?
-  /// Catalog tab roots (Watch Now / Movies / Series / Library): Menu below the
-  /// top row returns there; at the top it passes through. Off on Search and on
-  /// pushed pages so Menu still pops. See `StagedMenuBack`.
-  public var returnsToTopOnMenu = false
+  /// Menu below the top row returns there; at the top it passes through. On for
+  /// every `TVPage` list and Search's results collection. Off on an embedded
+  /// page so the detail's Menu still pops. See `StagedMenuBack`.
+  public var returnsToTopOnMenu = true
   /// This page is one region of a bigger scroll — the detail page's sections under the
   /// hero. The collection is as tall as its content and does not scroll: the host's
   /// scroll view owns the vertical axis, so the hero, its artwork and these sections stay
@@ -832,7 +832,7 @@ public final class TVPageCollectionViewController: UIViewController {
   /// True when this collection currently owns focus and that focus is below
   /// the first row. Used to arm `.onExitCommand` only then.
   public var isBelowTopRow: Bool {
-    guard returnsToTopOnMenu, ownsFocus else { return false }
+    guard returnsToTopOnMenu, !isEmbedded, ownsFocus else { return false }
     guard let top = topSectionIndex else { return false }
     return StagedMenuBack.shouldReturnToTop(
       focusedSection: focusedPath?.section,

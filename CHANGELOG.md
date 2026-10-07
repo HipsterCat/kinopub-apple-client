@@ -133,6 +133,14 @@ Unknown `/img` kinds 404 (same contract as logo). Plan for `?lang=ru|en`, freshn
 TTLs, and tvoe as preferred ru source: `docs/research/worker.md`. Storage host is
 TBD. Not implemented in the worker yet.
 
+### tvOS Menu-back on every TVPage list (2026-10-06)
+
+`returnsToTopOnMenu` defaults on: Search, a pushed collection / person page, and
+every other `TVPage` grid share `StagedMenuBack` + `.onExitCommand` /
+`pressesBegan`. At the top row Menu still pops a pushed page and still reaches
+Search's field. The detail page's `TVEmbeddedPage` stays off — Menu still pops
+(`985564d`). `CollectionsView` is still a SwiftUI row list, not `TVPage`.
+
 ### tvOS Menu returns to the top row first (2026-10-04)
 
 On Watch Now / Movies / Series / Library, Menu from a deep shelf scrolls to and
@@ -140,7 +148,7 @@ focuses the top row; a second press passes through to the tab bar. Delivery is
 `.onExitCommand` (nil at the top row) plus `pressesBegan` on `TVPage`, not a
 window interceptor — we ship `.tabBarOnly`, which is the difference from
 Rivulet `6c5355f` (their `.sidebarAdaptable` never delivered Menu to the page).
-Search and pushed pages are unchanged. Sasha approved on device (2026-10-06).
+Merged `#45` (`8562dd9`). Extended to Search and pushed `TVPage` lists 2026-10-06.
 
 ### Worker `/img/logo` 404s when nothing is stored (2026-10-04)
 

@@ -38,6 +38,9 @@ public struct TVEmbeddedPage: UIViewControllerRepresentable {
   public func makeUIViewController(context: Context) -> TVPageCollectionViewController {
     let controller = TVPageCollectionViewController(sideInset: sideInset)
     controller.isEmbedded = true
+    // Menu on the detail page still pops. Staging it to the first section under
+    // the hero would steal the stack's back (Sasha, 985564d).
+    controller.returnsToTopOnMenu = false
     // The hero names the page's entry control; a page below it must never take first
     // focus from it.
     controller.claimsInitialFocus = false
@@ -68,6 +71,7 @@ public struct TVEmbeddedPage: UIViewControllerRepresentable {
     controller.accessibilityID = accessibilityID
     controller.onSelect = onSelect
     controller.contextMenuProvider = contextMenuProvider
+    controller.returnsToTopOnMenu = false
   }
 }
 #endif
