@@ -499,28 +499,30 @@ final class TVPageGeometryUITests: XCTestCase {
 
     let following = app.descendants(matching: .any)["kinopub.library.section.watchlist"]
     XCTAssertTrue(following.waitForExistence(timeout: 10), "Following row never appeared")
-    for _ in 0..<4 where !sidebarRowHasFocus(in: app) {
-      press(.left, wait: 0.6)
+    // The grid often takes first focus (TVPage claims it). Left lands in the list.
+    // Stay on Following: Continue / History are empty on this fixture, and Right
+    // from an empty pane has nowhere to go.
+    for _ in 0..<6 where !following.hasFocus {
+      press(.left, wait: 0.5)
+      if sidebarRowHasFocus(in: app), !following.hasFocus {
+        press(.up, wait: 0.5)
+      }
     }
     try shoot(app, name: "lib-sidebar-1-list")
-    XCTAssertTrue(sidebarRowHasFocus(in: app), "focus never reached a sidebar row: \(focusDescription(app))")
-
-    press(.down, 2, wait: 1)
-    try shoot(app, name: "lib-sidebar-2-moved")
-    let selectedID = focusedSidebarRow(in: app)?.identifier
-    XCTAssertNotNil(selectedID, "Down left the sidebar: \(focusDescription(app))")
+    XCTAssertTrue(following.hasFocus, "focus never reached Following: \(focusDescription(app))")
 
     press(.right, wait: 1.2)
-    try shoot(app, name: "lib-sidebar-3-grid")
-    XCTAssertFalse(sidebarRowHasFocus(in: app), "Right did not leave the sidebar")
+    try shoot(app, name: "lib-sidebar-2-grid")
+    XCTAssertFalse(sidebarRowHasFocus(in: app),
+                   "Right did not leave the sidebar: \(focusDescription(app))")
     XCTAssertTrue(app.collectionViews["kinopub.page.library"].descendants(matching: .any)
       .matching(NSPredicate(format: "hasFocus == true")).firstMatch.exists,
                   "Right left nothing focused in the grid")
 
     press(.left, 2, wait: 0.8)
-    try shoot(app, name: "lib-sidebar-4-left")
-    XCTAssertEqual(focusedSidebarRow(in: app)?.identifier, selectedID,
-                   "Left did not return to the selected row: \(focusDescription(app))")
+    try shoot(app, name: "lib-sidebar-3-left")
+    XCTAssertTrue(following.hasFocus,
+                  "Left did not return to Following: \(focusDescription(app))")
     app.terminate()
   }
 
