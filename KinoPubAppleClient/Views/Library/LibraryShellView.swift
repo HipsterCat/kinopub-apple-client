@@ -218,9 +218,10 @@ struct LibraryShellView: View {
     }
   }
 
+  @ViewBuilder
   private func sidebarRow(_ section: LibrarySection) -> some View {
     let selected = model.selection == section
-    return Button {
+    Button {
       model.select(section)
     } label: {
       Text(model.title(for: section))
@@ -229,7 +230,7 @@ struct LibraryShellView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     .buttonSizing(.flexible)
-    .buttonStyle(LibrarySidebarRowStyle(isSelected: selected))
+    .librarySidebarChrome(isSelected: selected)
     .focused($sidebarFocus, equals: section)
     .listRowInsets(EdgeInsets(top: 6, leading: TVHIGGrid.sideInset, bottom: 6, trailing: 24))
     .listRowBackground(Color.clear)
@@ -390,21 +391,17 @@ struct LibraryShellView: View {
 }
 
 #if os(tvOS)
-/// One style type for every row, so a row changes look without being swapped out from
-/// under the focus engine. Selected rows stay `borderedProminent` when focus is in the
-/// grid — TVShowroom switched on focus but dropped the selected look on the way out.
-///
-/// `ButtonStyle`, not `PrimitiveButtonStyle`: the system bordered styles take a
-/// `ButtonStyle.Configuration` (`isPressed` / `label`). Primitive's configuration is
-/// `onTrigger` and does not compile against them (tvOS CI, 2026-10-07).
-private struct LibrarySidebarRowStyle: ButtonStyle {
-  let isSelected: Bool
-
-  func makeBody(configuration: Configuration) -> some View {
+private extension View {
+  /// Selected rows stay `borderedProminent` when focus is in the grid. Applied at the
+  /// call site: on this SDK both `.bordered` and `.borderedProminent` are
+  /// `PrimitiveButtonStyle`, and wrapping them in a custom `ButtonStyle` /
+  /// `PrimitiveButtonStyle` does not compile (tvOS CI, 2026-10-07).
+  @ViewBuilder
+  func librarySidebarChrome(isSelected: Bool) -> some View {
     if isSelected {
-      BorderedProminentButtonStyle().makeBody(configuration: configuration)
+      buttonStyle(.borderedProminent)
     } else {
-      BorderedButtonStyle().makeBody(configuration: configuration)
+      buttonStyle(.bordered)
     }
   }
 }
