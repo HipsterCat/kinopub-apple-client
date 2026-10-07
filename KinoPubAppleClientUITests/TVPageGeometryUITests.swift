@@ -482,46 +482,37 @@ final class TVPageGeometryUITests: XCTestCase {
     }
   }
 
-  /// Library sidebar sandbox (DEBUG "SwiftUI" / "UIKit" tabs, `TVSidebarSandbox.swift`):
-  /// the three-level walk — bar, Select into the sidebar (the selected row), two rows
-  /// down (selection follows), Select into the content, Left back to the selected row,
-  /// Select in again, Menu back to the row, Menu to the bar. Mock data, no session needed.
-  func testSidebarSandbox() throws {
-    let presets: [(name: String, config: String)] = [
-      ("uikit", "engine=uikit"),
-      ("swiftui", "engine=swiftUI"),
-    ]
-    for preset in presets {
-      let app = XCUIApplication()
-      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
-                              "-KINOPUBSidebarSandbox", preset.config]
-      if let session = UITestDevSession.json {
-        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
-      }
-      app.launch()
-      Thread.sleep(forTimeInterval: 6)
-      try shoot(app, name: "sandbox-\(preset.name)-0-launch")
-      // Out to the bar — never Menu once it is there: Menu on the bar quits the app.
-      for _ in 0..<2 where app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count == 0 {
-        press(.menu, wait: 1.2)
-      }
-      try shoot(app, name: "sandbox-\(preset.name)-1-bar")
-      press(.select, wait: 1.2)
-      try shoot(app, name: "sandbox-\(preset.name)-2-enter")
-      press(.down, 2, wait: 1)
-      try shoot(app, name: "sandbox-\(preset.name)-3-moved")
-      press(.select, wait: 1.2)
-      try shoot(app, name: "sandbox-\(preset.name)-4-content")
-      press(.down, wait: 0.8)
-      press(.left, 3, wait: 0.8)
-      try shoot(app, name: "sandbox-\(preset.name)-5-left")
-      press(.select, wait: 1.2)
-      press(.menu, wait: 1.2)
-      try shoot(app, name: "sandbox-\(preset.name)-6-menu")
-      press(.menu, wait: 1.2)
-      try shoot(app, name: "sandbox-\(preset.name)-7-menu-bar")
-      app.terminate()
+  /// Library sidebar: focus over a row switches the grid, the selected pill stays when
+  /// focus moves into the content, Left returns to that row, Menu to the tab bar.
+  /// Stand-in API, no session (`-KINOPUBLibraryFixture`). The SwiftUI/UIKit sandbox
+  /// tabs that used to sit after Library are gone.
+  func testLibrarySidebarSelection() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBLibraryFixture", "YES",
+                            "-KINOPUBInitialTab", "library"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
     }
+    app.launch()
+    XCTAssertTrue(app.collectionViews["kinopub.page.library"].waitForExistence(timeout: 30))
+    Thread.sleep(forTimeInterval: 2)
+    try shoot(app, name: "lib-sidebar-0-launch")
+    for _ in 0..<2 where app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count == 0 {
+      press(.menu, wait: 1.2)
+    }
+    try shoot(app, name: "lib-sidebar-1-bar")
+    press(.select, wait: 1.2)
+    try shoot(app, name: "lib-sidebar-2-enter")
+    press(.down, 2, wait: 1)
+    try shoot(app, name: "lib-sidebar-3-moved")
+    press(.right, wait: 1.2)
+    try shoot(app, name: "lib-sidebar-4-grid")
+    press(.left, 2, wait: 0.8)
+    try shoot(app, name: "lib-sidebar-5-left")
+    press(.menu, wait: 1.2)
+    try shoot(app, name: "lib-sidebar-6-menu-bar")
+    app.terminate()
   }
 
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view

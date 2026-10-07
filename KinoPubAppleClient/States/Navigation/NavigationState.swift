@@ -63,14 +63,13 @@ final class NavigationState {
 #endif
 
 #if os(tvOS) && DEBUG
-  /// `-KINOPUBSidebarSandbox <config>` opens straight on the sidebar sandbox tab;
-  /// `-KINOPUBInitialTab settings` on Settings (the simulator's remote is too unreliable
-  /// to walk there for every check).
+  /// `-KINOPUBInitialTab library|settings` opens on that tab (the simulator's remote
+  /// is too unreliable to walk there for every check).
   init() {
-    if SidebarSandboxConfig.launchValue != nil {
-      selectedTab = .sidebarLab(SidebarSandboxConfig.fromLaunchArguments().engine)
-    } else if UserDefaults.standard.string(forKey: "KINOPUBInitialTab") == "settings" {
-      selectedTab = .settings
+    switch UserDefaults.standard.string(forKey: "KINOPUBInitialTab") {
+    case "library": selectedTab = .library
+    case "settings": selectedTab = .settings
+    default: break
     }
   }
 #endif
@@ -182,9 +181,6 @@ final class NavigationState {
     case .bookmarks, .bookmark: \.bookmarksRoutes
     case .downloads: \.downloadsRoutes
     case .settings: nil
-#if os(tvOS) && DEBUG
-    case .sidebarLab: nil
-#endif
     }
   }
 

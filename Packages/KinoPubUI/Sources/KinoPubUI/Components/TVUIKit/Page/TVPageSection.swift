@@ -36,11 +36,10 @@ public enum TVPageCellKind: Hashable, Sendable {
   /// SwiftUI's `.card` button style. For rows where the words matter as much as the
   /// art: search's top results, where a title and a person sit side by side.
   case card
-  /// The Home banner: one full-width item, `.banner`, that holds every title and draws
-  /// them with the system's full-screen layout — one card in the middle, a sliver of
-  /// each neighbour beside it (`TVPageBannerCarouselCell`). Each card is the title's
-  /// backdrop with its logo (or name) under a top scrim, the plot's first sentence and
-  /// the shared meta line under a bottom one, and the poster inset at the trailing edge.
+  /// The Home banner: large `TVCardView` platters, one centred with half a neighbour on
+  /// either side (`TVPageLayout.bannerWidth`). Each card is the title's backdrop with its
+  /// logo (or name) under a top scrim, the plot's first sentence and the shared meta
+  /// line under a bottom one, and the poster inset at the trailing edge.
   case banner
   /// A full-width header that scrolls with the page. Focusable as one band so Up
   /// from the grid reaches person / collection detail. One item, a `TVPageMasthead`.
@@ -319,9 +318,7 @@ public enum TVPageItem: Hashable {
   case chip(TVPageChip)
   /// Drawn artwork, no photograph: a genre, a category, a "See All" entry.
   case tile(TVPageTile)
-  /// Every title of the banner, as its one item — see `TVPageCellKind.banner`.
-  case banner([TVPageFeature])
-  /// The banner title that was picked, as `onSelect` reports it.
+  /// A banner title — see `TVPageCellKind.banner`.
   case feature(TVPageFeature)
   /// The scrolling header. One per section.
   case masthead(TVPageMasthead)
@@ -339,7 +336,6 @@ public enum TVPageItem: Hashable {
     case .person(let person): return "person.\(person.id)"
     case .chip(let chip): return "chip.\(chip.id)"
     case .tile(let tile): return "tile.\(tile.id)"
-    case .banner: return "banner"
     case .feature(let feature): return "feature.\(feature.card.id)"
     case .masthead: return "masthead"
     case .info(let card): return "info.\(card.id)"
@@ -530,12 +526,11 @@ public struct TVPageSection: Identifiable, Hashable {
                   columns: columns, caption: .always, rows: rows, match: match, items: items)
   }
 
-  /// The Home banner, untitled: every title once, in one item the page draws with the
-  /// system's full-screen layout (`TVPageBannerCarouselCell`). Focus starts on the
-  /// middle title, a neighbour showing on either side.
+  /// The Home banner: large platters, one centred with half a neighbour on either side
+  /// (`TVPageLayout.bannerWidth`), untitled. Each title once (Sasha, 2026-10-01).
   public static func banner(id: String, features: [TVPageFeature]) -> TVPageSection {
-    TVPageSection(id: id, title: nil, kind: .banner, flow: .rail, columns: 1,
-                  caption: .always, items: features.isEmpty ? [] : [.banner(features)])
+    TVPageSection(id: id, title: nil, kind: .banner, flow: .rail, columns: 2,
+                  caption: .always, items: features.map(TVPageItem.feature))
   }
 
   /// The scrolling header above a catalog. Focusable so Up from the grid reaches it;

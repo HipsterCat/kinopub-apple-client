@@ -21,9 +21,4 @@ enum NavigationTabs: Hashable {
   /// A bookmark folder pinned as its own sidebar tab (macOS).
   case bookmark(Int)
   case settings
-#if os(tvOS) && DEBUG
-  /// Library sidebar sandbox, one tab per engine (`TVSidebarSandbox.swift`). No stack —
-  /// it pushes nothing.
-  case sidebarLab(SBEngine)
-#endif
 }

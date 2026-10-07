@@ -444,17 +444,14 @@ public final class TVPageCollectionViewController: UIViewController {
       }
     }
 
-    let banner = UICollectionView.CellRegistration<TVPageBannerCarouselCell, TVPageItemID> {
-      [weak self] cell, _, id in
-      guard let self, case .banner(let features)? = self.itemsByID[id] else { return }
-      cell.configure(features: features)
-      cell.onSelect = { [weak self] feature in
-        guard let self, let section = self.sectionsByID[id.section] else { return }
-        self.onSelect?(section, .feature(feature))
-      }
-      cell.contextMenuEntries = { [weak self] card in
-        self?.contextMenuProvider?(card) ?? []
-      }
+    let banner = UICollectionView.CellRegistration<TVPageBannerCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self else { return }
+      let width = self.collectionView.layoutAttributesForItem(at: indexPath)?.size.width
+        ?? cell.bounds.width
+      cell.apply(recipe: TVPageCellMetrics.recipe(kind: .banner, itemWidth: width, caption: .always))
+      guard case .feature(let feature)? = self.itemsByID[id] else { return }
+      cell.configure(feature: feature)
     }
 
     let masthead = UICollectionView.CellRegistration<TVPageMastheadCell, TVPageItemID> {
@@ -816,13 +813,16 @@ public final class TVPageCollectionViewController: UIViewController {
 
   // MARK: - Staged Menu back
 
-  /// The cell the engine last reported, including a nested banner title walked
-  /// up to its page cell. `nil` when focus has left the collection (tab bar,
-  /// a pushed page).
+  /// The cell the engine last reported. `nil` when focus has left the collection
+  /// (tab bar, a pushed page).
   private var focusedPath: IndexPath?
   /// One-shot: `indexPathForPreferredFocusedView` answers the top row, then
   /// `didUpdateFocus` clears it. Same shape as `didRequestPosterFocus`.
   private var wantsTopFocus = false
+  /// The banner's middle title is the first-entry start so a neighbour shows on
+  /// either side. After that, `remembersLastFocusedIndexPath` owns return from the
+  /// tab bar — answering middle whenever `focusedPath` is nil jumped back there.
+  private var hasPickedInitialBannerFocus = false
   /// Pair a Menu `.began` we consumed with its `.ended` / `.cancelled` so the
   /// tab bar does not see a half press. Scoped to this controller's responder
   /// methods — not `UIWindow.sendEvent`.
@@ -920,13 +920,8 @@ public final class TVPageCollectionViewController: UIViewController {
     )
   }
 
-  /// A banner is one page item; its titles are a nested collection. Reporting
-  /// item `0` would look like the first row, which is correct. A wrapping grid
-  /// uses the real item index.
   private func nestedItemIndex(at path: IndexPath) -> Int? {
-    guard sections.indices.contains(path.section) else { return path.item }
-    if sections[path.section].kind == .banner { return nil }
-    return path.item
+    path.item
   }
 
   private func resolveFocusedPath(from context: UICollectionViewFocusUpdateContext) -> IndexPath? {
@@ -996,11 +991,10 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
 
   public func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
     // Skeleton tiles are not destinations. The masthead is: Up from the grid reaches
-    // person / collection detail. Empty grid keeps its escape on the sort chip. The
-    // banner's titles take focus inside its own row, never the row itself.
+    // person / collection detail. Empty grid keeps its escape on the sort chip.
     guard let id = dataSource.itemIdentifier(for: indexPath), let item = itemsByID[id] else { return false }
     switch item {
-    case .placeholder, .banner, .groupTitle: return false
+    case .placeholder, .groupTitle: return false
     default: return true
     }
   }
@@ -1008,10 +1002,14 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
     if wantsTopFocus { return topIndexPath }
     if prefersFirstPosterFocus { return firstPosterIndexPath }
-    // A banner on top takes the first focus; its row hands it to its middle title
-    // (`TVPageBannerCarouselCell.preferredFocusEnvironments`).
-    guard let first = sections.first, first.kind == .banner, !first.items.isEmpty else { return nil }
-    return IndexPath(item: 0, section: 0)
+    // Answer once, on first entry: a banner on top starts on its middle title so a
+    // neighbour shows on either side. Answering on every move pins focus and the row
+    // stops paging (the full-screen layout's first-device failure). Coming back from
+    // the tab bar must not reset to the middle either.
+    guard !hasPickedInitialBannerFocus, focusedPath == nil,
+          let first = sections.first, first.kind == .banner, !first.items.isEmpty else { return nil }
+    hasPickedInitialBannerFocus = true
+    return IndexPath(item: (first.items.count - 1) / 2, section: 0)
   }
 
   public func collectionView(_ collectionView: UICollectionView,
@@ -1143,8 +1141,7 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
       return header.photoURL
     case .info(.gallery(let gallery)):
       return gallery.images.first
-    // The banner warms its own titles' art.
-    case .banner, .chip, .tile, .placeholder, .info, .groupTitle:
+    case .chip, .tile, .placeholder, .info, .groupTitle:
       return nil
     }
   }

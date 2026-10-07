@@ -114,7 +114,7 @@ struct MediaItemTVPage: View {
     case .info(let card):
       select(card)
 
-    case .banner, .feature, .masthead, .groupTitle, .placeholder, .tile:
+    case .feature, .masthead, .groupTitle, .placeholder, .tile:
       break
     }
   }
