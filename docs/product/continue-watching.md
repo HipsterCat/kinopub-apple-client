@@ -16,6 +16,9 @@ is the Library tab, which is where the row's header chevron goes.
 unfinished serial on the account — hundreds, for a long-lived one — and past the first screen that
 is a list of things abandoned years ago. A sideways scroll with no end defeats the point of the row.
 
+**prd** — On tvOS the row is five 16:9 stills across (HIG 5-column). The title stays under the
+tile at rest, not only on focus.
+
 ## Order
 
 **prd** — Buckets first, in this order: played in the last week · on the watchlist with new episodes

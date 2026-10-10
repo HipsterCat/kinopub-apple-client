@@ -5,10 +5,10 @@
 //  DEBUG-only, tvOS-only. A sandbox for the Library sidebar: one plain list, flush with
 //  the screen's leading edge, on mock data, and beside it every knob the system offers
 //  for it — SwiftUI `List` and UIKit collection-view list, each with its own styles.
-//  Flip a knob, look, walk it with the remote. Two DEBUG tabs after Library, one per
-//  engine, so a knob turned in one does not hide how the other looks;
-//  `-KINOPUBSidebarSandbox "engine=uikit,textSize=ax1"` opens on that engine's tab with
-//  that configuration (keys are the property names below, values the raw values).
+//  Flip a knob, look, walk it with the remote. The DEBUG SwiftUI / UIKit tabs that
+//  used to sit after Library are gone from the bar (2026-10-07); this file stays as
+//  the UILab prototype. `-KINOPUBSidebarSandbox` still seeds knobs if the sandbox
+//  is presented from UILab.
 //
 //  Only knobs that exist on tvOS 26 are here — probed with `swiftc -typecheck` against
 //  AppleTVOS27.2.sdk, 2026-09-26. Not on tvOS, so not offered: `listRowSeparator`,

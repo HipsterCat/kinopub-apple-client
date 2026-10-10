@@ -15,6 +15,10 @@ import KinoPubBackend
 /// the tab bar keeps the full width above it. On tvOS that also keeps focus honest:
 /// each column is its own `focusSection`, so Left out of the grid lands in the list and
 /// Right comes back, without a `NavigationSplitView` deciding when to collapse.
+///
+/// tvOS rows follow the TVShowroom sidebar shape (reimplemented: that sample is
+/// all-rights-reserved): pill-shaped list rows, focus over a row switches the grid,
+/// and the selected pill stays drawn when focus has moved into the grid.
 struct LibraryShellView: View {
   @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
@@ -26,6 +30,9 @@ struct LibraryShellView: View {
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
   @AppStorage(HistoryGrouping.storageKey) private var historyGrouping: String = HistoryGrouping.none.rawValue
   @AppStorage(HistorySectioning.storageKey) private var historySectioning: String = HistorySectioning.month.rawValue
+#if os(tvOS)
+  @FocusState private var sidebarFocus: LibrarySection?
+#endif
 
   private var sectioning: HistorySectioning {
     HistorySectioning(rawValue: historySectioning) ?? .month
@@ -52,11 +59,16 @@ struct LibraryShellView: View {
     // separate state (`model.selection`), not a stack push, so it is unaffected by
     // where the stack sits.
     RouteStack(tab: .library) {
-      HStack(spacing: 0) {
+      HStack(alignment: .top, spacing: 0) {
         sidebar
         detail
-          .frame(maxWidth: .infinity)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+#if os(tvOS)
+          .focusSection()
+          .onExitCommand { sidebarFocus = model.selection }
+#endif
       }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .task {
       cardMenu.bind(errorHandler: errorHandler)
@@ -175,41 +187,54 @@ struct LibraryShellView: View {
 #endif
 
 #if os(tvOS)
-  /// A plain `List` of list items — the shape tvOS ships in its own sidebar template,
-  /// not a hand-rolled stack of buttons. Rows stay `Button`s because selection has to
-  /// follow the click: on tvOS focus sweeps every row you pass on the way down, and
-  /// selection-follows-focus would refetch each section in turn.
+  /// Pill-shaped rows, no icons, no counters. Focus over a row switches the grid
+  /// (TVShowroom's `didUpdateFocus`); the selected pill stays `borderedProminent` when
+  /// focus has left for the grid (the thing TVShowroom did not do).
   private var sidebar: some View {
     List {
       Section {
         ForEach(LibrarySection.fixed, id: \.self) { section in
-          sidebarButton(for: section)
+          sidebarRow(section)
         }
       }
-
-      Section {
-        ForEach(model.folders, id: \.id) { folder in
-          sidebarButton(for: .folder(folder.id))
+      if !model.folders.isEmpty {
+        Section {
+          ForEach(model.folders, id: \.id) { folder in
+            sidebarRow(.folder(folder.id))
+          }
         }
-
-//        Button {
-//          model.promptNewFolder()
-//        } label: {
-//          Label("Create Bookmark", systemImage: "plus")
-//        }
       }
     }
-//    .listStyle(.auto)
-    .frame(width: 300)
-//    .focusSection()
+    .listStyle(.plain)
+    .scrollClipDisabled()
+    .scrollEdgeEffectStyle(.soft, for: .top)
+    .buttonBorderShape(.capsule)
+    .frame(width: 420)
+    .frame(maxHeight: .infinity)
+    .focusSection()
+    .defaultFocus($sidebarFocus, model.selection, priority: .userInitiated)
+    .onChange(of: sidebarFocus) { _, newValue in
+      if let newValue { model.select(newValue) }
+    }
   }
 
-  private func sidebarButton(for section: LibrarySection) -> some View {
+  @ViewBuilder
+  private func sidebarRow(_ section: LibrarySection) -> some View {
+    let selected = model.selection == section
     Button {
       model.select(section)
     } label: {
-      row(for: section)
-    }.buttonStyle(.bordered)
+      Text(model.title(for: section))
+        .font(.callout)
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .buttonSizing(.flexible)
+    .librarySidebarChrome(isSelected: selected)
+    .focused($sidebarFocus, equals: section)
+    .listRowInsets(EdgeInsets(top: 6, leading: TVHIGGrid.sideInset, bottom: 6, trailing: 24))
+    .listRowBackground(Color.clear)
+    .accessibilityIdentifier("kinopub.library.section.\(section.persistenceID)")
   }
 #endif
 
@@ -228,12 +253,6 @@ struct LibraryShellView: View {
 
       }
     }
-#if os(tvOS)
-    // The focused row already reads as "here"; the selected one needs to stay legible
-    // when focus is off in the grid.
-    .fontWeight(model.selection == section ? .medium : .regular)
-//    .foregroundStyle(model.selection == section ? .primary : .secondary)
-#endif
   }
 
   // MARK: - Detail
@@ -253,9 +272,6 @@ struct LibraryShellView: View {
 #if os(macOS)
         .macToolbarSearch()
 #endif
-#if os(tvOS)
-//        .focusSection()
-#endif
     }
   }
 
@@ -267,6 +283,7 @@ struct LibraryShellView: View {
     TVPage(
       sections: librarySections,
       status: libraryStatus,
+      sideInset: TVHIGGrid.gutter,
       accessibilityID: "kinopub.page.library",
       onSelect: { _, item in
         guard case .card(let card) = item else { return }
@@ -288,12 +305,14 @@ struct LibraryShellView: View {
                                       openURL: { openURL($0) })
       },
       onRetry: { Task { await catalog.refresh() } },
-      returnsToTopOnMenu: true
+      // Menu from the grid returns to the selected sidebar row (`onExitCommand` above),
+      // then Menu there reaches the tab bar — not a jump over the list.
+      returnsToTopOnMenu: false
     )
-    // Runs under the tab bar like every tab page, and out to the right screen edge so
-    // its own 80 pt inset is the same right margin as on the tabs. The sidebar keeps
-    // the leading safe area.
-    .ignoresSafeArea(.container, edges: [.vertical, .trailing, .horizontal, .leading])
+    // Under the tab bar (native scroll-edge fade via `setContentScrollView`) and out
+    // to the trailing screen edge. Leading inset is the gutter past the sidebar, not
+    // another 80 pt of page margin on top of 420 pt of list.
+    .ignoresSafeArea(.container, edges: [.vertical, .trailing])
   }
 
   private var librarySections: [TVPageSection] {
@@ -370,4 +389,21 @@ struct LibraryShellView: View {
   }
 #endif
 }
+
+#if os(tvOS)
+private extension View {
+  /// Selected rows stay `borderedProminent` when focus is in the grid. Applied at the
+  /// call site: on this SDK both `.bordered` and `.borderedProminent` are
+  /// `PrimitiveButtonStyle`, and wrapping them in a custom `ButtonStyle` /
+  /// `PrimitiveButtonStyle` does not compile (tvOS CI, 2026-10-07).
+  @ViewBuilder
+  func librarySidebarChrome(isSelected: Bool) -> some View {
+    if isSelected {
+      buttonStyle(.borderedProminent)
+    } else {
+      buttonStyle(.bordered)
+    }
+  }
+}
+#endif
 #endif

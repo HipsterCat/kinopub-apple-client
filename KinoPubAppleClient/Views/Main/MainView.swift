@@ -128,11 +128,12 @@ struct MainView: View {
     .ignoresSafeArea()
   }
 
-  /// Continue Watching is the large still row: three across (HIG 3-column, 560 at
-  /// 1920), the rest scrolls — not three items (Sasha, 2026-09-23).
-  static let continueWatchingColumns = 3
-  /// Every other still row: HIG 5-column (320 at 1920). The detail page's episode and
-  /// version rails take it too (Sasha, 2026-10-04).
+  /// Continue Watching: five 16:9 stills across (HIG 5-column, 320 at 1920). Titles
+  /// stay under the tile at rest (`.always`), and focus is the system's — no overlay
+  /// scale on top of it.
+  static let continueWatchingColumns = 5
+  /// Every other still row: the same HIG 5-column (320 at 1920). The detail page's
+  /// episode and version rails take it too (Sasha, 2026-10-04).
   static let stillColumns = 5
 
   /// The Home banner as the page's first row: the same sampled `bannerCards` the
@@ -151,7 +152,9 @@ struct MainView: View {
     return bannerSection + homeRows.map { row in
       if row.cards.first?.isLandscape == true {
         let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : Self.stillColumns
-        return .stills(id: row.id, title: row.title, count: row.count, columns: columns, cards: row.cards)
+        let caption: TVPageCaption = row.id == HomeCatalog.continueWatchingRowID ? .always : .onFocus
+        return .stills(id: row.id, title: row.title, count: row.count, columns: columns,
+                       caption: caption, cards: row.cards)
       }
       // Poster rails — Watch Now, Movies, Series alike — have no title or year under the art,
       // not even on focus (Sasha, 2026-10-06): that is `TVPageSection.posters`' own caption for

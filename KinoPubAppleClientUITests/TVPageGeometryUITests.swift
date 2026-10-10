@@ -18,6 +18,9 @@ final class TVPageGeometryUITests: XCTestCase {
 
   override func setUpWithError() throws {
     continueAfterFailure = false
+    // The Library fixture walk is stand-in data — no session. Everything else in
+    // this class paints live pages and skips on CI without ~/.kinopub-dev-session.json.
+    if name.contains("testLibrarySidebarSelection") { return }
     guard FileManager.default.fileExists(atPath: UITestDevSession.filePath) else {
       throw XCTSkip("no ~/.kinopub-dev-session.json — local page geometry only")
     }
@@ -482,46 +485,56 @@ final class TVPageGeometryUITests: XCTestCase {
     }
   }
 
-  /// Library sidebar sandbox (DEBUG "SwiftUI" / "UIKit" tabs, `TVSidebarSandbox.swift`):
-  /// the three-level walk — bar, Select into the sidebar (the selected row), two rows
-  /// down (selection follows), Select into the content, Left back to the selected row,
-  /// Select in again, Menu back to the row, Menu to the bar. Mock data, no session needed.
-  func testSidebarSandbox() throws {
-    let presets: [(name: String, config: String)] = [
-      ("uikit", "engine=uikit"),
-      ("swiftui", "engine=swiftUI"),
-    ]
-    for preset in presets {
-      let app = XCUIApplication()
-      app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
-                              "-KINOPUBSidebarSandbox", preset.config]
-      if let session = UITestDevSession.json {
-        app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+  /// Library sidebar on the stand-in API (`-KINOPUBLibraryFixture`): no session, no
+  /// tab bar (the fixture is the Library itself). Focus over a row switches the grid;
+  /// Right into the grid and Left returns to that same selected row.
+  func testLibrarySidebarSelection() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBLibraryFixture", "YES"]
+    app.launch()
+    XCTAssertTrue(app.collectionViews["kinopub.page.library"].waitForExistence(timeout: 30))
+    Thread.sleep(forTimeInterval: 2)
+    try shoot(app, name: "lib-sidebar-0-launch")
+
+    let following = app.descendants(matching: .any)["kinopub.library.section.watchlist"]
+    XCTAssertTrue(following.waitForExistence(timeout: 10), "Following row never appeared")
+    // The grid often takes first focus (TVPage claims it). Left lands in the list.
+    // Stay on Following: Continue / History are empty on this fixture, and Right
+    // from an empty pane has nowhere to go.
+    for _ in 0..<6 where !following.hasFocus {
+      press(.left, wait: 0.5)
+      if sidebarRowHasFocus(in: app), !following.hasFocus {
+        press(.up, wait: 0.5)
       }
-      app.launch()
-      Thread.sleep(forTimeInterval: 6)
-      try shoot(app, name: "sandbox-\(preset.name)-0-launch")
-      // Out to the bar — never Menu once it is there: Menu on the bar quits the app.
-      for _ in 0..<2 where app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count == 0 {
-        press(.menu, wait: 1.2)
-      }
-      try shoot(app, name: "sandbox-\(preset.name)-1-bar")
-      press(.select, wait: 1.2)
-      try shoot(app, name: "sandbox-\(preset.name)-2-enter")
-      press(.down, 2, wait: 1)
-      try shoot(app, name: "sandbox-\(preset.name)-3-moved")
-      press(.select, wait: 1.2)
-      try shoot(app, name: "sandbox-\(preset.name)-4-content")
-      press(.down, wait: 0.8)
-      press(.left, 3, wait: 0.8)
-      try shoot(app, name: "sandbox-\(preset.name)-5-left")
-      press(.select, wait: 1.2)
-      press(.menu, wait: 1.2)
-      try shoot(app, name: "sandbox-\(preset.name)-6-menu")
-      press(.menu, wait: 1.2)
-      try shoot(app, name: "sandbox-\(preset.name)-7-menu-bar")
-      app.terminate()
     }
+    try shoot(app, name: "lib-sidebar-1-list")
+    XCTAssertTrue(following.hasFocus, "focus never reached Following: \(focusDescription(app))")
+
+    press(.right, wait: 1.2)
+    try shoot(app, name: "lib-sidebar-2-grid")
+    XCTAssertFalse(sidebarRowHasFocus(in: app),
+                   "Right did not leave the sidebar: \(focusDescription(app))")
+    XCTAssertTrue(app.collectionViews["kinopub.page.library"].descendants(matching: .any)
+      .matching(NSPredicate(format: "hasFocus == true")).firstMatch.exists,
+                  "Right left nothing focused in the grid")
+
+    press(.left, 2, wait: 0.8)
+    try shoot(app, name: "lib-sidebar-3-left")
+    XCTAssertTrue(following.hasFocus,
+                  "Left did not return to Following: \(focusDescription(app))")
+    app.terminate()
+  }
+
+  private func sidebarRowHasFocus(in app: XCUIApplication) -> Bool {
+    focusedSidebarRow(in: app) != nil
+  }
+
+  private func focusedSidebarRow(in app: XCUIApplication) -> XCUIElement? {
+    let hit = app.descendants(matching: .any).matching(
+      NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.library.section.")
+    ).firstMatch
+    return hit.exists ? hit : nil
   }
 
   /// `-KINOPUBLayoutDebug` paints every container (search container pink, page view

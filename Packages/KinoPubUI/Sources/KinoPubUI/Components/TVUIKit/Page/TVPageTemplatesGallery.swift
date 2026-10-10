@@ -31,7 +31,7 @@ public struct TVPageTemplatesGallery: View {
         case .feature(let feature): lastSelection = "\(section.id): \(feature.card.title)"
         case .masthead(let header): lastSelection = "\(section.id): \(header.title)"
         case .info(let info): lastSelection = "\(section.id): \(info.id)"
-        case .banner, .groupTitle, .placeholder: break
+        case .groupTitle, .placeholder: break
         }
       },
       contextMenuProvider: { card in

@@ -5,6 +5,22 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS build cleanup: tabs, Library sidebar, Home banner, Continue Watching (2026-10-07)
+
+- **Tabs.** The DEBUG Library sandbox tabs (`SwiftUI` / `UIKit`, `TVSidebarSandbox`) are off the
+  tvOS bar. Search / Watch Now / Movies / Series / Library / Settings remain. The sandbox file stays
+  in UILab; `-KINOPUBInitialTab library|settings` still jumps a tab without walking the bar.
+- **Library.** tvOS sidebar rebuilt in the TVShowroom shape (reimplemented: that sample is
+  all-rights-reserved). Pill rows, no icons, no counters. Focus over a row switches the grid;
+  the selected pill stays `borderedProminent` when focus is in the grid (TVShowroom dropped the
+  selected look on the way out). Each column is a `focusSection`; Menu from the grid returns to
+  the selected row. The page fills below the tab bar; the list uses the system scroll-edge fade.
+- **Home banner.** Restored the pre-full-screen banner (`fb12276`, round 3): centred `TVCardView`
+  platters, 16:9, neighbours peeking, no `TVCollectionViewFullScreenLayout` parallax. Each title
+  once (Sasha, 2026-10-01). The full-screen carousel is gone.
+- **Continue Watching.** Five stills across (HIG 5-column, 320 at 1920), title under the tile at
+  rest, system focus — no overlay scale on the tile.
+
 ### Grid captions are ours: every cover keeps two lines and its height (2026-10-07)
 
 Sasha's Search grid, scrolled: cells with no second line under them and taller art («Война», «Фантазии
