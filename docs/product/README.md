@@ -45,3 +45,5 @@ at on screen stays **prd** — do not promote it because it compiles.
 - [related-sections.md](related-sections.md) — what a detail page recommends, per type
 - [detail-sections.md](detail-sections.md) — the order and the content of the sections under the
   detail hero
+- [whats-new.md](whats-new.md) — What's New sheet after an update, and the history under
+  Settings › About

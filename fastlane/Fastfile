@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "base64"
+require "json"
 require "tmpdir"
 
 opt_out_usage
@@ -24,8 +25,7 @@ opt_out_usage
 # profiles created from the App Store Connect API key — entitlements can
 # change without re-exporting a profile secret.
 #
-# Secrets and the one-time App Store Connect app: top of
-# .github/workflows/testflight.yml.
+# Secrets, first-time Apple setup, and when CI uploads: docs/testflight.md.
 
 default_platform(:ios)
 
@@ -150,8 +150,53 @@ def changelog_text
   from_env = ENV["TESTFLIGHT_CHANGELOG"].to_s.strip
   return from_env unless from_env.empty?
 
+  from_whats_new = whats_new_notes
+  return from_whats_new unless from_whats_new.empty?
+
+  from_md = changelog_md_notes
+  return from_md unless from_md.empty?
+
   log = `git log -15 --pretty=format:"- %s"`.strip
   log.empty? ? "Internal technical build." : log
+end
+
+def marketing_version
+  xcproj = File.expand_path("../KinoPubAppleClient.xcodeproj/project.xcproj", __dir__)
+  File.read(xcproj)[/"MARKETING_VERSION": "([^"]+)"/, 1] || "1.0"
+end
+
+# In-app What's New for this marketing version (Russian — Sasha's TestFlight).
+def whats_new_notes
+  path = File.expand_path("../KinoPubAppleClient/Resources/whats-new.json", __dir__)
+  return "" unless File.exist?(path)
+
+  payload = JSON.parse(File.read(path))
+  entries = Array(payload["entries"])
+  version = marketing_version
+  entry = entries.find { |item| item["version"].to_s == version } || entries.first
+  return "" if entry.nil?
+
+  bullets = Array(entry["ru"])
+  bullets = Array(entry["en"]) if bullets.empty?
+  bullets.map { |line| line.to_s.strip }.reject(&:empty?).map { |line| "• #{line}" }.join("\n")
+rescue JSON::ParserError => e
+  UI.important("whats-new.json did not parse (#{e.message})")
+  ""
+end
+
+def changelog_md_notes
+  path = File.expand_path("../CHANGELOG.md", __dir__)
+  return "" unless File.exist?(path)
+
+  text = File.read(path)
+  version = marketing_version
+  chunk = text[/\n## #{Regexp.escape(version)}\n(.*?)(?=\n## |\z)/m, 1]
+  chunk ||= text[/\n## Unreleased\n(.*?)(?=\n## [^U]|\z)/m, 1]
+  return "" if chunk.nil?
+
+  bullets = chunk.scan(/^- \*\*(.+?)\*\*[^\n]*/).flatten
+  bullets = chunk.scan(/^- (.+)/).flatten if bullets.empty?
+  bullets.map { |line| line.to_s.gsub(/\s+/, " ").strip }.reject(&:empty?).first(8).map { |line| "• #{line}" }.join("\n")
 end
 
 def internal_groups

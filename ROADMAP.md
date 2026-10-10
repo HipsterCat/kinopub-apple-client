@@ -237,8 +237,9 @@ a slightly stale token gets a 400 while the session is alive under the new one; 
 - [x] **tvOS Settings grouped into categories** (2026-10-01): Kinopub account · Server & connection ·
       Device · Video & audio · Appearance · Data sources · Advanced · Experiments · For developers ·
       About, each its own page. With nothing in the list focused, the left panel is the app —
-      plate, version · build, this build's notes (`Bundle.releaseNotes`, written by the TestFlight
-      lane). Developer tools are listed in **every** build (Sasha: "показывай все для всех").
+      plate, version · build, and the current version's What's New bullets (`whats-new.json`).
+      Settings › About › What's New is the full history. Developer tools are listed in **every**
+      build (Sasha: "показывай все для всех").
       Server & connection and Device save to kino.pub on each change — there is no Save on a remote
 - [x] tvOS Settings colours are hierarchical styles only (`.primary` plate, `.background` label on
       focus, `.fill.tertiary` at rest), so the focused row reads in Light too. Dark-only is still

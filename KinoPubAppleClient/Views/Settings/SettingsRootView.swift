@@ -269,6 +269,8 @@ struct SettingsRootView: View {
       NetworkSettingsPane()
     case .advanced:
       AdvancedSettingsPane()
+    case .about:
+      AboutView()
     }
   }
 

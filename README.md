@@ -63,8 +63,8 @@ Verification gaps and unfinished edges live in [ROADMAP.md](ROADMAP.md) — not 
 - Swift 5 language mode in packages (`swift-tools-version: 6.2`)
 - Single multiplatform target `KinoPubAppleClient` (product name `KinoPub`)
 - **Dark appearance only** until stage 5
-- **Internal TestFlight:** Actions → TestFlight (iOS, tvOS, macOS). Needs the
-  App Store Connect secrets listed at the top of `.github/workflows/testflight.yml`
+- **Internal TestFlight:** daily / version bump / Actions → TestFlight (iOS, tvOS,
+  macOS). Secrets and first upload: [docs/testflight.md](docs/testflight.md)
 
 ```
 open KinoPubAppleClient.xcodeproj
@@ -79,6 +79,7 @@ open KinoPubAppleClient.xcodeproj
 | [ROADMAP.md](ROADMAP.md) | Stages, accepted behavior, checklists |
 | `.claude/skills/` | Loaded on demand: tvOS surfaces, chrome, player, metadata, docs |
 | [CHANGELOG.md](CHANGELOG.md) | Notable shipped changes |
+| [docs/testflight.md](docs/testflight.md) | Internal TestFlight secrets, triggers, first upload |
 | [docs/providers/](docs/providers/) | External source capability sheets |
 | [docs/community-fork.md](docs/community-fork.md) | Community remote strategy |
 | [docs/archive/](docs/archive/) | Frozen plans / research (evidence only) |

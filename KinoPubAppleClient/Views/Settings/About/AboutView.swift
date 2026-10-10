@@ -4,33 +4,40 @@
 //
 
 import SwiftUI
+import KinoPubUI
 
 struct AboutView: View {
+  @AppStorage("selectedLanguage") private var selectedLanguage: String = (
+    Locale.current.language.languageCode?.identifier ?? "ru"
+  )
+
   var body: some View {
-    VStack(spacing: 16) {
-      Image(systemName: "play.rectangle.fill")
-        .font(.system(size: 56))
-        .foregroundStyle(.secondary)
+    List {
+      Section {
+        VStack(spacing: 12) {
+          Image(systemName: "play.rectangle.fill")
+            .font(.title)
+            .foregroundStyle(.secondary)
 
-      Text(Bundle.main.displayName)
-        .font(.title.weight(.semibold))
+          Text(Bundle.main.displayName)
+            .font(.title3.weight(.semibold))
 
-      Text(Bundle.main.appVersionLong)
-        .foregroundStyle(.secondary)
+          Text(String(format: "Version %@ • Build %@".localized,
+                      Bundle.main.appVersionLong, Bundle.main.appBuild))
+            .font(TypeScale.heroSecondary)
+            .foregroundStyle(.secondary)
 #if !os(tvOS)
-        .textSelection(.enabled)
+            .textSelection(.enabled)
 #endif
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
 
-      Divider()
-        .frame(maxWidth: 280)
+        DataSourcesAttributionView()
+      }
 
-      DataSourcesAttributionView()
-        .frame(maxWidth: 320, alignment: .leading)
+      ChangelogHistoryView(languageCode: selectedLanguage)
     }
-    .padding(28)
-#if os(macOS)
-    .frame(width: 380)
-#endif
     .platformNavigationTitle("About")
   }
 }

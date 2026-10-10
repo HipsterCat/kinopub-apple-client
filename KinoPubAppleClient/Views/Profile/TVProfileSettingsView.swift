@@ -795,7 +795,7 @@ private struct SettingsAppInfoPanel: View {
           .foregroundStyle(.secondary)
       }
 
-      if showsReleaseNotes, let notes = Bundle.main.releaseNotes {
+      if showsReleaseNotes, let notes = currentVersionNotes {
         Text(verbatim: notes)
           .font(.callout)
           .multilineTextAlignment(.center)
@@ -809,6 +809,14 @@ private struct SettingsAppInfoPanel: View {
 
   static var versionLine: LocalizedStringKey {
     "Version \(Bundle.main.appVersionLong) • Build \(Bundle.main.appBuild)"
+  }
+
+  private var currentVersionNotes: String? {
+    let language = Locale.current.language.languageCode?.identifier ?? "ru"
+    let bullets = AppChangelog.load().entry(for: Bundle.main.appVersionLong)?
+      .bullets(languageCode: language) ?? []
+    guard !bullets.isEmpty else { return nil }
+    return bullets.map { "• \($0)" }.joined(separator: "\n")
   }
 }
 
@@ -865,38 +873,52 @@ private struct SettingsCategoryPage<Content: View>: View {
 
 // MARK: - What's new
 
-/// This build's notes, one focusable row per line — a block of text focus cannot reach
-/// cannot be scrolled on a remote.
+/// Full What's New history, one focusable row per bullet — a block of text
+/// focus cannot reach cannot be scrolled on a remote.
 private struct TVReleaseNotesPage: View {
   @FocusState private var focused: Int?
+  @AppStorage("selectedLanguage") private var selectedLanguage: String = (
+    Locale.current.language.languageCode?.identifier ?? "ru"
+  )
 
-  private let lines: [String] = (Bundle.main.releaseNotes ?? "")
-    .split(whereSeparator: \.isNewline)
-    .map { line in
-      var line = line.trimmingCharacters(in: .whitespaces)
-      if line.hasPrefix("- ") || line.hasPrefix("• ") { line.removeFirst(2) }
-      return line
-    }
-    .filter { !$0.isEmpty }
+  private let catalog = AppChangelog.load()
 
   var body: some View {
+    let entries = catalog.newestFirst
     SettingsSplitLayout(title: "What's new") {
       SettingsAppInfoPanel(showsReleaseNotes: false)
     } content: {
-      SettingsSection {
-        if lines.isEmpty {
-          SettingsInfoRow(title: "A local build carries no release notes. TestFlight builds show their What to Test text here.")
+      if entries.isEmpty {
+        SettingsSection {
+          SettingsInfoRow(title: "WhatsNew_EmptyHistory")
             .focused($focused, equals: 0)
-        } else {
-          ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-            SettingsInfoRow(title: "", verbatimTitle: line)
-              .focused($focused, equals: index)
+        }
+      } else {
+        ForEach(Array(entries.enumerated()), id: \.element.version) { _, entry in
+          SettingsSection(verbatim: sectionTitle(entry)) {
+            ForEach(Array(entry.bullets(languageCode: selectedLanguage).enumerated()), id: \.offset) { offset, bullet in
+              SettingsInfoRow(title: "", verbatimTitle: bullet)
+                .focused($focused, equals: focusIndex(version: entry.version, offset: offset))
+            }
           }
         }
       }
     }
     .background(Color.KinoPub.background.ignoresSafeArea())
     .defaultFocus($focused, 0)
+  }
+
+  private func sectionTitle(_ entry: AppChangelog.Entry) -> String {
+    entry.date.map { "\(entry.version) · \($0)" } ?? entry.version
+  }
+
+  private func focusIndex(version: String, offset: Int) -> Int {
+    var index = 0
+    for entry in catalog.newestFirst {
+      if entry.version == version { return index + offset }
+      index += entry.bullets(languageCode: selectedLanguage).count
+    }
+    return offset
   }
 }
 
