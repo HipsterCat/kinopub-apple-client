@@ -58,6 +58,15 @@ public extension WatchingItem {
   var hasNewEpisodes: Bool {
     (new ?? 0) > 0
   }
+
+  /// Episodes still unwatched. Prefer `total − watched` when the payload has both —
+  /// `new` is the same number when the server fills it, and is sometimes missing.
+  public var unwatchedCount: Int? {
+    if let total, let watched {
+      return max(0, total - watched)
+    }
+    return new
+  }
 }
 
 public extension WatchingItem {

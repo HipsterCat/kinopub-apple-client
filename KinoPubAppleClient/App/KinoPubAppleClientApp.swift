@@ -209,7 +209,7 @@ private struct AboutCommands: Commands {
 /// arrange, which is what tells a user the items exist at all.
 private struct ListArrangementCommands: Commands {
   @AppStorage(HistoryGrouping.storageKey) private var grouping: String = HistoryGrouping.none.rawValue
-  @AppStorage(HistorySectioning.storageKey) private var sectioning: String = HistorySectioning.month.rawValue
+  @AppStorage(HistorySectioning.storageKey) private var sectioning: String = HistorySectioning.day.rawValue
   @FocusedValue(\.showsListArrangement) private var showsArrangement: Bool?
 
   private var isEnabled: Bool { showsArrangement == true }

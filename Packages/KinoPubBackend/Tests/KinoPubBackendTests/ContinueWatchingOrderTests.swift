@@ -200,4 +200,17 @@ final class ContinueWatchingOrderTests: XCTestCase {
 
     XCTAssertEqual(ordered.map(\.id), [1, 2])
   }
+
+  func testUnwatchedCountPrefersTotalMinusWatched() {
+    let item = WatchingItem(id: 1, type: "serial", title: "S",
+                            posters: Posters(small: "", medium: "", big: "", wide: nil),
+                            total: 10, watched: 4, new: nil)
+    XCTAssertEqual(item.unwatchedCount, 6)
+  }
+
+  func testUnwatchedCountFallsBackToNew() {
+    XCTAssertEqual(WatchingItem.mock(new: 3).unwatchedCount, 3)
+    XCTAssertNil(WatchingItem(id: 1, type: "movie", title: "F",
+                              posters: Posters(small: "", medium: "", big: "", wide: nil)).unwatchedCount)
+  }
 }

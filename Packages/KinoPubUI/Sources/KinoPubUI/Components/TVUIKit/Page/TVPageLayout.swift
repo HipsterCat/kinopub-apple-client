@@ -298,9 +298,13 @@ public enum TVPageLayout {
     let spacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
     let itemW = recipe.itemSize.width
     let itemH = recipe.itemSize.height
-    let rowGap = hasStandingCaption(section)
+    var rowGap = hasStandingCaption(section)
       ? captionedRowGap
       : gridRowSpacing + recipe.belowItem - recipe.artInsets.top - recipe.artInsets.bottom
+    // Still grids draw title + subtitle under the art (`TVMediaItemContentConfiguration`).
+    if section.kind == .still && section.flow == .grid {
+      rowGap += TVPageCellMetrics.stillTextBlock
+    }
     let count = max(section.items.count, 1)
     let cols = max(columns, 1)
     let rows = Int(ceil(Double(count) / Double(cols)))
@@ -320,8 +324,12 @@ public enum TVPageLayout {
       }
     }
     let layoutSection = NSCollectionLayoutSection(group: group)
-    layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil,
-                                         captioned: hasStandingCaption(section))
+    var edges = insets(for: recipe, sideInset: sideInset, titled: section.title != nil,
+                       captioned: hasStandingCaption(section))
+    if section.kind == .still && section.flow == .grid {
+      edges.bottom += TVPageCellMetrics.stillTextBlock
+    }
+    layoutSection.contentInsets = edges
     return layoutSection
   }
 

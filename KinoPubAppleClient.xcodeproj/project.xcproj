@@ -524,6 +524,7 @@
         { "path": "MissingEpisodeAirStateTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "SeasonTabStripTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "AppChangelogTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "LibrarySectionCardsTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {
       "kind": "group",

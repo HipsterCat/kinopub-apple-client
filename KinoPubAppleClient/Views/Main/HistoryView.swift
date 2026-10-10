@@ -69,7 +69,7 @@ enum HistorySectioning: String, CaseIterable, Identifiable {
   static let storageKey = "historySectioning"
 
   static var current: HistorySectioning {
-    UserDefaults.standard.string(forKey: storageKey).flatMap(HistorySectioning.init(rawValue:)) ?? .month
+    UserDefaults.standard.string(forKey: storageKey).flatMap(HistorySectioning.init(rawValue:)) ?? .day
   }
 
   var titleKey: String {
@@ -89,7 +89,7 @@ enum HistorySectioning: String, CaseIterable, Identifiable {
       return nil
     case .day:
       let start = calendar.startOfDay(for: date)
-      return (start, Self.dayTitle(for: start, calendar: calendar))
+      return (start, HistoryDayText(start).formatted(calendar: calendar))
     case .month:
       let components = calendar.dateComponents([.year, .month], from: date)
       guard let start = calendar.date(from: components) else { return nil }
@@ -129,13 +129,6 @@ enum HistorySectioning: String, CaseIterable, Identifiable {
     }
     return result
   }
-
-  /// "Today" / "Yesterday" beat a date anyone has to parse; older days get the date.
-  private static func dayTitle(for day: Date, calendar: Calendar) -> String {
-    if calendar.isDateInToday(day) { return "Today".localized }
-    if calendar.isDateInYesterday(day) { return "Yesterday".localized }
-    return day.formatted(.dateTime.weekday(.wide).day().month(.wide))
-  }
 }
 
 /// Marks the frontmost scene as showing a list that the View menu's arrangement items
@@ -167,7 +160,7 @@ struct HistoryView: View {
 
   @AppStorage(HistoryCardLayout.storageKey) private var layoutRaw: String = HistoryCardLayout.landscape.rawValue
   @AppStorage(HistoryGrouping.storageKey) private var groupingRaw: String = HistoryGrouping.none.rawValue
-  @AppStorage(HistorySectioning.storageKey) private var sectioningRaw: String = HistorySectioning.month.rawValue
+  @AppStorage(HistorySectioning.storageKey) private var sectioningRaw: String = HistorySectioning.day.rawValue
 
   @State private var cards: [MediaCard] = []
   @State private var pagination: Pagination?
@@ -197,7 +190,7 @@ struct HistoryView: View {
   }
 
   private var sectioning: HistorySectioning {
-    HistorySectioning(rawValue: sectioningRaw) ?? .none
+    HistorySectioning(rawValue: sectioningRaw) ?? .day
   }
 
   private var displayCards: [MediaCard] {
@@ -434,51 +427,41 @@ struct HistoryView: View {
     return abs(hasher.finalize())
   }
 
-  private nonisolated static func card(for entry: HistoryEntry, id: Int) -> MediaCard {
+  nonisolated static func card(for entry: HistoryEntry, id: Int) -> MediaCard {
     let posters = entry.item.posters
     let wide = posters?.wideURL ?? posters?.big ?? posters?.medium ?? ""
     let isSeries = entry.isEpisode || (entry.item.type?.contains("serial") ?? false)
-    let landscape = MediaCard.landscapeArtwork(episodeStill: entry.media?.thumbnail,
-                                               posters: entry.item.posters,
-                                               isSeries: isSeries)
-    var label: [String] = []
+    // Episode thumb is parked (Sasha, 2026-10-10): History shows the title's wide art.
+    // let still = entry.media?.thumbnail
+    let landscape = MediaCard.titleWideArtwork(posters: posters)
+    let name = entry.item.title?.components(separatedBy: " / ").first?
+      .trimmingCharacters(in: .whitespaces)
+      ?? entry.item.title
+      ?? ""
+    let title: String
     if entry.isEpisode, let season = entry.media?.snumber, let episode = entry.media?.number {
-      label.append(EpisodeText(season: season, number: episode).text(for: .historyRow))
+      let episodeText = EpisodeText(season: season, number: episode).text(for: .historyRow)
+      title = "\(name) · \(episodeText)"
+    } else {
+      title = name
     }
     let durationSeconds = entry.media?.duration.flatMap { $0 >= 60 ? $0 : nil }
     return MediaCard(
       id: id,
       posterURL: posters?.medium ?? wide,
-      title: entry.item.title?.components(separatedBy: " / ").first
-        ?? entry.item.title
-        ?? "",
-      subtitle: entry.item.title?.components(separatedBy: " / ").last,
+      title: title,
+      subtitle: HistoryEventText(entry.lastSeenDate)?.formatted(),
       watchedAt: entry.lastSeenDate,
       progress: entry.progress,
       landscapeImageURL: landscape,
-      overlayLabel: label.isEmpty ? nil : label.joined(separator: " · "),
       itemID: entry.item.id,
       video: entry.media?.number,
       season: entry.isEpisode ? entry.media?.snumber : nil,
       mediaID: entry.media?.id,
       isSeries: isSeries,
       isInHistory: true,
-      durationSeconds: durationSeconds
+      durationSeconds: durationSeconds,
+      primaryAction: .play
     )
-  }
-
-  /// When it was watched, under the title.
-  ///
-  /// tvOS keeps the original title: a caption there is read from across a room and
-  /// only appears on focus, so a timestamp would crowd out the thing being named.
-  private nonisolated static func subtitle(for entry: HistoryEntry) -> String? {
-#if os(tvOS)
-    return entry.item.title?.components(separatedBy: " / ").last
-#else
-    guard let date = entry.lastSeenDate else {
-      return entry.item.title?.components(separatedBy: " / ").last
-    }
-    return date.formatted(date: .abbreviated, time: .shortened)
-#endif
   }
 }

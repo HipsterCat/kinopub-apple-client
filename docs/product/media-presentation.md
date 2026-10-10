@@ -69,7 +69,7 @@ Movies, Series (the same sections, whichever tab), the shelves under a title —
 year under a cover, not even on focus**: the covers are what a rail is for. A **grid** — a catalog, a
 collection, a profile's credits, the Library — names every cover, a title and a second line. The
 second line is the year, except in the Library's *Following*, where it is **how many episodes of the
-series are still unwatched** («Ещё 3 серии», «3 episodes left»). Search keeps its captions on its
+series are still unwatched** («3 серии», «3 episodes»). Search keeps its captions on its
 shelves: a result has to be told apart by its name.
 
 The two lines are the app's own (`TVPageCaptionView`), not the system lockup's footer: every captioned

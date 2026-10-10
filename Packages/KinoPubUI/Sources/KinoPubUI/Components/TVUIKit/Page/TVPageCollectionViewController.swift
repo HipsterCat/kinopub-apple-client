@@ -397,10 +397,12 @@ public final class TVPageCollectionViewController: UIViewController {
     let still = UICollectionView.CellRegistration<TVUIKitMediaItemCell, TVPageItemID> {
       [weak self] cell, _, id in
       guard let self else { return }
-      let captionOnFocus = self.sectionsByID[id.section]?.caption == .onFocus
+      let section = self.sectionsByID[id.section]
+      let captionOnFocus = section?.caption == .onFocus
+      let stacked = section?.flow == .grid
       switch self.itemsByID[id] {
       case .card(let card)?:
-        cell.configure(TVUIKitMediaItem(card: card), captionOnFocus: captionOnFocus)
+        cell.configure(TVUIKitMediaItem(card: card, stackedCaption: stacked), captionOnFocus: captionOnFocus)
       case .tile(let tile)?:
         cell.configure(TVUIKitMediaItem(tile: tile), captionOnFocus: captionOnFocus)
       default:

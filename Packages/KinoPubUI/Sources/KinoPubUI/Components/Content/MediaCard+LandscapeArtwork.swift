@@ -37,4 +37,10 @@ public extension MediaCard {
     let wide = posters?.wideURL.flatMap { $0.isEmpty ? nil : $0 }
     return isSeries ? (still ?? wide) : (wide ?? still)
   }
+
+  /// The title's own 16:9 artwork — Library Continue and History, where the episode
+  /// still is parked (Sasha, 2026-10-10).
+  static func titleWideArtwork(posters: Posters?) -> String? {
+    posters?.wideURL.flatMap { $0.isEmpty ? nil : $0 }
+  }
 }
