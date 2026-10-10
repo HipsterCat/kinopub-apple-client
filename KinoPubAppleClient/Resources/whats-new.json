@@ -1,0 +1,24 @@
+{
+  "entries": [
+    {
+      "version": "1.0",
+      "date": "2026-10-10",
+      "ru": [
+        "«Меню» в списках сначала возвращает на верхний ряд, и только потом закрывает экран.",
+        "В Медиатеке слева — таблетки: Слежу, Продолжить, История и папки закладок.",
+        "Баннер на главной снова по центру, соседние карточки выглядывают.",
+        "«Продолжить просмотр» — пять кадров в ряд, название видно сразу.",
+        "В сетках у каждого постера две строки подписи, все обложки одной высоты.",
+        "На странице тайтла секции под героем — одним скроллом с картинкой."
+      ],
+      "en": [
+        "Menu in lists returns to the top row first, then leaves the screen.",
+        "Library has a pill sidebar: Following, Continue, History, and bookmark folders.",
+        "The Home banner is the centred card row again, with neighbours peeking.",
+        "Continue Watching shows five stills across, with titles visible at rest.",
+        "Grid posters keep two caption lines and the same height.",
+        "Title pages put the sections under the hero in one scroll."
+      ]
+    }
+  ]
+}

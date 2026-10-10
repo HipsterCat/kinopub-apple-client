@@ -19,6 +19,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
   case backups
   case network
   case advanced
+  case about
 
   var id: String { rawValue }
 
@@ -36,6 +37,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case .backups: return "Backups"
     case .network: return "Network"
     case .advanced: return "Advanced"
+    case .about: return "About"
     }
   }
 
@@ -53,6 +55,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case .backups: return "externaldrive.fill.badge.icloud"
     case .network: return "network"
     case .advanced: return "wrench.and.screwdriver.fill"
+    case .about: return "info.circle.fill"
     }
   }
 
@@ -83,6 +86,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
       return Color(red: 0.20, green: 0.48, blue: 0.96)
     case .advanced:
       return Color(red: 0.45, green: 0.45, blue: 0.48)
+    case .about:
+      return Color(red: 0.56, green: 0.56, blue: 0.58)
     }
   }
 
@@ -96,6 +101,13 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
       return FeatureFlags.downloadsEnabled
 #endif
     case .sidebar:
+#if os(macOS)
+      return true
+#else
+      return false
+#endif
+    case .about:
+      // iOS already has About as a footer row; macOS needs it in the sidebar.
 #if os(macOS)
       return true
 #else

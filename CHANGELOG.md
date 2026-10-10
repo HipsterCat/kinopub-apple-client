@@ -5,6 +5,19 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### TestFlight on a schedule, in-app What's New (2026-10-10)
+
+- **TestFlight.** `testflight.yml` still has `workflow_dispatch`. It now also runs daily (if
+  `main` has commits that have not been uploaded) and when `MARKETING_VERSION` /
+  `CURRENT_PROJECT_VERSION` change on `main`. Missing App Store Connect / signing secrets skip
+  the workflow with a notice instead of failing. What to Test is the current version's
+  `whats-new.json` bullets. Secrets and the first-upload steps:
+  [docs/testflight.md](docs/testflight.md).
+- **What's New.** `whats-new.json` is the localized (ru, en) user-facing changelog. A sheet
+  shows once after an update to a marketing version that has bullets; Settings › About has
+  the version, the build, and the full history. Agents add a bullet there when the change is
+  visible to a viewer (AGENTS.md › Working agreement).
+
 ### tvOS build cleanup: tabs, Library sidebar, Home banner, Continue Watching (2026-10-07)
 
 - **Tabs.** The DEBUG Library sandbox tabs (`SwiftUI` / `UIKit`, `TVSidebarSandbox`) are off the

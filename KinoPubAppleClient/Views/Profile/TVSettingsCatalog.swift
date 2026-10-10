@@ -319,28 +319,46 @@ final class TVSettingsCatalog {
   }
 
   private func releaseNotesPage() -> TSKPage {
-    let lines = (Bundle.main.releaseNotes ?? "")
-      .split(whereSeparator: \.isNewline)
-      .map { line -> String in
-        var line = line.trimmingCharacters(in: .whitespaces)
-        if line.hasPrefix("- ") || line.hasPrefix("• ") { line.removeFirst(2) }
-        return line
-      }
-      .filter { !$0.isEmpty }
+    let language = changelogLanguage
+    let entries = AppChangelog.load().newestFirst
     return TSKPage(
       title: "What's new".localized,
       customPreview: { [unowned self] _ in self.appPreview(withNotes: false) },
       sections: {
-        guard !lines.isEmpty else {
+        let sections = entries.compactMap { entry -> TSKSection? in
+          let bullets = entry.bullets(languageCode: language)
+          guard !bullets.isEmpty else { return nil }
+          let title = entry.date.map { "\(entry.version) · \($0)" } ?? entry.version
+          return TSKSection(title: title, rows: bullets.map {
+            TSKRow(title: $0, description: $0, kind: .info(value: ""))
+          })
+        }
+        guard !sections.isEmpty else {
           return [TSKSection(rows: [
-            TSKRow(title: "A local build carries no release notes. TestFlight builds show their What to Test text here.".localized,
-                   kind: .info(value: "")),
+            TSKRow(title: "WhatsNew_EmptyHistory".localized, kind: .info(value: "")),
           ])]
         }
-        // A note line is often longer than a row; the full line is the row's description.
-        return [TSKSection(rows: lines.map { TSKRow(title: $0, description: $0, kind: .info(value: "")) })]
+        return sections
       }
     )
+  }
+
+  private var changelogLanguage: String {
+    UserDefaults.standard.string(forKey: "selectedLanguage")
+      ?? Locale.current.language.languageCode?.identifier
+      ?? "ru"
+  }
+
+  private var currentVersionNotes: String {
+    let catalog = AppChangelog.load()
+    let version = Bundle.main.appVersionLong
+    let bullets = catalog.entry(for: version)?.bullets(languageCode: changelogLanguage)
+      ?? catalog.newestFirst.first?.bullets(languageCode: changelogLanguage)
+      ?? []
+    if !bullets.isEmpty {
+      return bullets.map { "• \($0)" }.joined(separator: "\n")
+    }
+    return Bundle.main.releaseNotes ?? ""
   }
 
   private func rememberedTracksPage() -> TSKPage {
@@ -381,11 +399,14 @@ final class TVSettingsCatalog {
       attributes: [.font: UIFont.preferredFont(forTextStyle: .caption1),
                    .foregroundColor: UIColor.secondaryLabel]
     ))
-    if withNotes, let notes = Bundle.main.releaseNotes {
-      text.append(NSAttributedString(
-        string: "\n\n" + notes,
-        attributes: [.font: UIFont.preferredFont(forTextStyle: .callout)]
-      ))
+    if withNotes {
+      let notes = currentVersionNotes
+      if !notes.isEmpty {
+        text.append(NSAttributedString(
+          string: "\n\n" + notes,
+          attributes: [.font: UIFont.preferredFont(forTextStyle: .callout)]
+        ))
+      }
     }
     return TSKPreview.make(contentView: Self.appPlate(), description: text) ?? UIViewController()
   }

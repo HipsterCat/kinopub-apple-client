@@ -10719,10 +10719,34 @@
     },
     "What's new" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What's New"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Что нового"
+          }
+        }
+      }
+    },
+    "WhatsNew_EmptyHistory" : {
+      "comment" : "Empty state on Settings › About › What's New when whats-new.json has no entries.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No version notes yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока нет записей о версиях."
           }
         }
       }

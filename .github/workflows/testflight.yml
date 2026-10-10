@@ -1,51 +1,16 @@
 # Internal TestFlight — iOS, tvOS, macOS of the one multiplatform target.
 #
-# Not a public beta and not an App Store submission. Testers who are App Store
-# Connect Users on this app get the build after Apple processes it. Optional
-# named internal groups: set the TESTFLIGHT_INTERNAL_GROUPS repository variable
-# to a comma-separated list of group names (the job then waits for processing
-# so it can assign them).
-#
-# Trigger: Actions → TestFlight → Run workflow. Pick a platform or "all".
-#
-# ── One-time Apple setup ────────────────────────────────────────────────────
-# 1. Developer Portal: the App ID `com.soda.kinopub` (team Z2PQ733PSP) must
-#    exist. A local Xcode run with Automatic signing creates it. Enable iOS,
-#    tvOS and macOS on that App ID.
-# 2. App Store Connect → Apps → (+): iOS app named "Kinopub Soda", bundle id
-#    `com.soda.kinopub`. Then add Apple TV and Mac on the same record so one
-#    TestFlight link covers every device (universal purchase).
-# 3. Users and Access → Integrations → App Store Connect API: create a key
-#    with App Manager (or Admin). Download the .p8; you cannot re-download it.
-# 4. Xcode → Settings → Accounts → Manage Certificates: create "Apple
-#    Distribution" if you do not already have one. Export it from Keychain
-#    Access as a .p12. For Mac TestFlight also export "Mac Installer
-#    Distribution" as a second .p12.
-# 5. Add testers under Users and Access (they land in Internal Testing as
-#    App Store Connect Users) or create an Internal group on the app.
-#
-# ── GitHub secrets (Settings → Secrets and variables → Actions) ─────────────
-#   APP_STORE_CONNECT_API_KEY_ID            key id, e.g. ABCD123456
-#   APP_STORE_CONNECT_ISSUER_ID             issuer UUID from the API keys page
-#   APP_STORE_CONNECT_API_KEY_CONTENT       base64 of the .p8, or the PEM itself
-#   BUILD_CERTIFICATE_BASE64                base64 of the Apple Distribution .p12
-#   P12_PASSWORD                            password of that .p12
-#   MAC_INSTALLER_CERTIFICATE_BASE64        base64 of the Mac Installer .p12
-#                                           (required only for macos / all)
-#   MAC_INSTALLER_CERTIFICATE_PASSWORD      password of that .p12
-#
-# Encode a file:  base64 -i AuthKey_XXX.p8 | pbcopy
-#
-# Optional repository variable (not a secret):
-#   TESTFLIGHT_INTERNAL_GROUPS              comma-separated internal group names
-#
-# Signing is a persistent p12 (same idea as Swiftfin / Rivulet's
-# CERTIFICATE_PRIVATE_KEY). Do not mint a new distribution cert per run —
-# Apple caps those and a CI runner will hit the cap.
+# Secrets, first-time Apple setup, and how to trigger a run: docs/testflight.md.
+# Missing secrets skip this workflow with a notice; they do not fail the run.
 
 name: TestFlight
 
 on:
+  schedule:
+    # Daily. The gate job no-ops when main has not moved since the last upload.
+    - cron: "0 6 * * *"
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       platform:
@@ -59,12 +24,13 @@ on:
           - tvos
           - macos
       changelog:
-        description: What to Test (git log of the last 15 commits if empty)
+        description: What to Test (whats-new.json for this version if empty)
         required: false
         type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: testflight
@@ -75,33 +41,41 @@ env:
   FASTLANE_OPT_OUT_USAGE: "1"
 
 jobs:
+  gate:
+    name: Should we upload?
+    runs-on: ubuntu-latest
+    outputs:
+      should_upload: ${{ steps.decide.outputs.should_upload }}
+      matrix: ${{ steps.decide.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Decide
+        id: decide
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TESTFLIGHT_PLATFORM: ${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'all' }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          MAC_INSTALLER_CERTIFICATE_BASE64: ${{ secrets.MAC_INSTALLER_CERTIFICATE_BASE64 }}
+          MAC_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MAC_INSTALLER_CERTIFICATE_PASSWORD }}
+        run: .github/scripts/testflight-gate.sh
+
   prepare:
     name: Reserve build number
+    needs: gate
+    if: needs.gate.outputs.should_upload == 'true'
     runs-on: ubuntu-latest
     outputs:
       build_number: ${{ steps.reserve.outputs.build_number }}
-      matrix: ${{ steps.matrix.outputs.matrix }}
+      matrix: ${{ needs.gate.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Resolve platform matrix
-        id: matrix
-        env:
-          PLATFORM: ${{ inputs.platform }}
-        run: |
-          set -euo pipefail
-          case "$PLATFORM" in
-            ios)   matrix='{"include":[{"platform":"ios"}]}' ;;
-            tvos)  matrix='{"include":[{"platform":"tvos"}]}' ;;
-            macos) matrix='{"include":[{"platform":"macos"}]}' ;;
-            all)   matrix='{"include":[{"platform":"ios"},{"platform":"tvos"},{"platform":"macos"}]}' ;;
-            *)
-              echo "::error::Unknown platform '$PLATFORM'"
-              exit 1
-              ;;
-          esac
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "Platform matrix: $matrix"
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -119,12 +93,13 @@ jobs:
 
   upload:
     name: Upload ${{ matrix.platform }}
-    needs: prepare
+    needs: [gate, prepare]
+    if: needs.gate.outputs.should_upload == 'true'
     runs-on: macos-26
     timeout-minutes: 75
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.gate.outputs.matrix) }}
     env:
       APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}

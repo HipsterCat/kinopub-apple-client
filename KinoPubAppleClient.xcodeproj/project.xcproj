@@ -81,6 +81,7 @@
             { "path": "Assets.xcassets", "target-membership": [ "KinoPubAppleClient/resources" ] },
             { "path": "Launch Screen.storyboard", "target-membership": [ { "build-phase": "KinoPubAppleClient/resources", "platforms": [ "ios" ] } ] },
             { "path": "Localizable.xcstrings", "target-membership": [ "KinoPubAppleClient/resources" ] },
+            { "path": "whats-new.json", "target-membership": [ "KinoPubAppleClient/resources" ] },
           ],
         }, {
           "kind": "group",
@@ -109,6 +110,12 @@
                 { "path": "Configuration.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "BundleConfiguration.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "FeatureFlags.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "WhatsNew",
+              "children": [
+                { "path": "AppChangelog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",
@@ -470,6 +477,13 @@
               ],
             }, {
               "kind": "group",
+              "path": "WhatsNew",
+              "children": [
+                { "path": "WhatsNewSheet.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "ChangelogHistoryView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
               "path": "Root",
               "children": [
                 { "path": "TabsNavigationView.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
@@ -507,6 +521,7 @@
         { "path": "TVPosterArtFocusTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "TVPosterCoverTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "MissingEpisodeAirStateTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "AppChangelogTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {
       "kind": "group",

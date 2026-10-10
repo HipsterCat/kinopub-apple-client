@@ -453,12 +453,14 @@ Known bad, still present, do not polish: `HudToast` (rewrite, don't patch).
 xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name=Apple TV' build
 ```
 
-- **Internal TestFlight** is Actions → TestFlight (`testflight.yml`). iOS, tvOS and
-  macOS of the one multiplatform target, signed with an App Store Connect API key
-  plus a persistent Distribution p12. Not a public release. Do not add a second
-  pipeline (Codemagic, Xcode Cloud, Match) unless the user asks — the neighbours
-  split this way for their own reasons, not ours. Secrets and the one-time App
-  Store Connect app are listed at the top of the workflow.
+- **Internal TestFlight** is `.github/workflows/testflight.yml`: daily if `main`
+  has new commits, on a marketing/build version change, and `workflow_dispatch`.
+  iOS, tvOS and macOS of the one multiplatform target, signed with an App Store
+  Connect API key plus a persistent Distribution p12. Not a public release. Do
+  not add a second pipeline (Codemagic, Xcode Cloud, Match) unless the user asks.
+  Secrets, first-time Apple setup, and how to trigger a run:
+  [docs/testflight.md](docs/testflight.md). Missing secrets skip the workflow;
+  they do not fail it. Sasha tests on Apple TV only via TestFlight.
 
 - **There is no Simulator.app on current Xcode.** The simulator window is hosted by **Device Hub**
   (`com.apple.dt.Devices`). Focus its title bar; arrow keys + Return are the D-pad. **Escape is not
@@ -478,9 +480,9 @@ xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name
 
 | Risk | Examples | Required before "done" |
 | --- | --- | --- |
-| Low | Copy, localization keys, label → existing symbol | Diff review |
+| Low | Copy, localization keys, label → existing symbol, in-app changelog, TestFlight wiring | Diff review; ship to `main` (see Working agreement). Sasha sees it on the next TestFlight |
 | Medium | New reusable view, layout tweak, model mapping | `#Preview` / focused package build |
-| High | Navigation, focus, materials, player, cache/session lifetime, private API | Build affected platforms + visual or remote check, or say `validation pending` |
+| High | Navigation, focus, materials, player, cache/session lifetime, private API | Build affected platforms + a PR. Device pass is TestFlight, not a draft parked for it |
 
 Deferred verification is allowed. Silent "everything landed" claims are not.
 
@@ -532,6 +534,8 @@ went wrong by porting thresholds tuned for a swipe-driven page onto a focus-driv
 | API client | `Packages/KinoPubBackend/Sources/KinoPubBackend/` |
 | Metadata enrichment | `Packages/KinoPubMetadata/` |
 | Session mirroring | `KinoPubAppleClient/Services/AccessToken/AccessTokenServiceImpl.swift` |
+| In-app What's New | `KinoPubAppleClient/Resources/whats-new.json` |
+| TestFlight | [docs/testflight.md](docs/testflight.md), `.github/workflows/testflight.yml` |
 
 ## Working agreement
 
@@ -553,7 +557,15 @@ went wrong by porting thresholds tuned for a swipe-driven page onto a focus-driv
 7. **Verify by risk** (table above), and be honest when verification is deferred.
 8. **Record what you learned where it belongs** — skill `docs-upkeep`. Tick the ROADMAP line;
    append genuinely notable facts to `CHANGELOG.md`. README changes only for public positioning or
-   a macro stage.
+   a macro stage. **If a viewer can see the change**, add a short ru + en bullet to
+   `KinoPubAppleClient/Resources/whats-new.json` for the current marketing version
+   (create the version object if it does not exist). That file is the in-app What's New
+   and TestFlight "What to Test". CHANGELOG.md stays the implementation log.
+9. **Ship small work to `main`.** Low-risk changes go straight to `main` — no draft PR
+   waiting for a device pass. Sasha tests on Apple TV only via TestFlight. Open a PR
+   only for serious risky work (focus, player, private API, session lifetime, materials).
+   A short-lived PR you merge yourself once CI is green is fine when the environment
+   cannot push to `main`.
 
 ### Dependencies
 

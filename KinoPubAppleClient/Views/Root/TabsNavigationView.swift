@@ -55,6 +55,7 @@ struct TabsNavigationView: View {
 
   var body: some View {
     modernTabs
+      .presentsWhatsNew(isSignedIn: authState.phase == .signedIn)
       .environment(navigationState)
       .environment(errorHandler)
       .environment(\.usesTVUIKitPosters, FeatureFlags.tvUIKitPosters)
