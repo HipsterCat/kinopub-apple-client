@@ -209,5 +209,7 @@ final class MediaTextTests: XCTestCase {
                    "10 сентября 2026")
     XCTAssertEqual(HistoryDayText(today).formatted(language: .en, calendar: calendar, now: now), "Today")
     XCTAssertEqual(HistoryDayText(yesterday).formatted(language: .en, calendar: calendar, now: now), "Yesterday")
+    XCTAssertEqual(HistoryDayText(older).formatted(language: .en, calendar: calendar, now: now),
+                   "10 September 2026")
   }
 }

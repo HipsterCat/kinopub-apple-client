@@ -12,6 +12,13 @@ public struct Posters: Codable, Hashable {
   public let medium: String
   public let big: String
   public let wide: String?
+
+  public init(small: String, medium: String, big: String, wide: String? = nil) {
+    self.small = small
+    self.medium = medium
+    self.big = big
+    self.wide = wide
+  }
 }
 
 public extension Posters {

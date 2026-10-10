@@ -57,9 +57,13 @@ public struct HistoryDayText: Hashable, Sendable {
        calendar.isDate(day, inSameDayAs: yesterday) {
       return language == .ru ? "Вчера" : "Yesterday"
     }
-    return HistoryEventText.string(from: day,
-                                   template: "d MMMM yyyy",
-                                   language: language,
-                                   timeZone: calendar.timeZone)
+    // Fixed pattern, not `setLocalizedDateFormatFromTemplate("d MMMM yyyy")` —
+    // ru_RU's template appends " г." ("10 сентября 2026 г."). Product copy is
+    // the date without that suffix («15 сентября 2026»).
+    let formatter = DateFormatter()
+    formatter.locale = language.locale
+    formatter.timeZone = calendar.timeZone
+    formatter.dateFormat = "d MMMM yyyy"
+    return formatter.string(from: day)
   }
 }
