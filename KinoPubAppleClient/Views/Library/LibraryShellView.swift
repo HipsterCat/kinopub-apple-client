@@ -6,6 +6,9 @@
 import SwiftUI
 import KinoPubUI
 import KinoPubBackend
+#if os(tvOS)
+import UIKit
+#endif
 
 #if os(macOS) || os(tvOS)
 /// Library: sidebar of sections, grid of the selected one. Sections are a product
@@ -16,9 +19,10 @@ import KinoPubBackend
 /// each column is its own `focusSection`, so Left out of the grid lands in the list and
 /// Right comes back, without a `NavigationSplitView` deciding when to collapse.
 ///
-/// tvOS rows follow the TVShowroom sidebar shape (reimplemented: that sample is
-/// all-rights-reserved): pill-shaped list rows, focus over a row switches the grid,
-/// and the selected pill stays drawn when focus has moved into the grid.
+/// On tvOS the sidebar is a `UITableView` — one section, the system's own focus
+/// and selection. Focus moving onto a row switches the grid. The first row is the
+/// default selection; `remembersLastFocusedIndexPath` restores that row when focus
+/// comes back from the grid.
 struct LibraryShellView: View {
   @Environment(NavigationState.self) var navigationState
   @Environment(ErrorHandler.self) var errorHandler
@@ -31,7 +35,7 @@ struct LibraryShellView: View {
   @AppStorage(HistoryGrouping.storageKey) private var historyGrouping: String = HistoryGrouping.none.rawValue
   @AppStorage(HistorySectioning.storageKey) private var historySectioning: String = HistorySectioning.month.rawValue
 #if os(tvOS)
-  @FocusState private var sidebarFocus: LibrarySection?
+  @FocusState private var sidebarFocused: Bool
 #endif
 
   private var sectioning: HistorySectioning {
@@ -65,13 +69,20 @@ struct LibraryShellView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
 #if os(tvOS)
           .focusSection()
-          .onExitCommand { sidebarFocus = model.selection }
+          .onExitCommand { sidebarFocused = true }
 #endif
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .task {
       cardMenu.bind(errorHandler: errorHandler)
+#if os(tvOS)
+      // The sidebar's default selection is its first row. A remembered section is
+      // what macOS restores; tvOS starts at the top of the list.
+      if let first = model.sections.first {
+        model.select(first)
+      }
+#endif
       await model.load()
     }
     .task { await cardMenu.refreshFolders() }
@@ -187,56 +198,24 @@ struct LibraryShellView: View {
 #endif
 
 #if os(tvOS)
-  /// Pill-shaped rows, no icons, no counters. Focus over a row switches the grid
-  /// (TVShowroom's `didUpdateFocus`); the selected pill stays `borderedProminent` when
-  /// focus has left for the grid (the thing TVShowroom did not do).
+  /// One flat table. Fixed sections and bookmark folders are rows of that single
+  /// section — a second section would put a header between them.
   private var sidebar: some View {
-    List {
-      Section {
-        ForEach(LibrarySection.fixed, id: \.self) { section in
-          sidebarRow(section)
-        }
+    LibrarySidebar(
+      rows: model.sections.map { section in
+        LibrarySidebarRow(section: section, title: model.title(for: section))
+      },
+      selection: model.selection,
+      onSelect: { section in
+        guard model.selection != section else { return }
+        model.select(section)
       }
-      if !model.folders.isEmpty {
-        Section {
-          ForEach(model.folders, id: \.id) { folder in
-            sidebarRow(.folder(folder.id))
-          }
-        }
-      }
-    }
-    .listStyle(.plain)
-    .scrollClipDisabled()
-    .scrollEdgeEffectStyle(.soft, for: .top)
-    .buttonBorderShape(.capsule)
+    )
     .frame(width: 380)
     .frame(maxHeight: .infinity)
     .focusSection()
-    .defaultFocus($sidebarFocus, model.selection, priority: .userInitiated)
-    .onChange(of: sidebarFocus) { _, newValue in
-      if let newValue { model.select(newValue) }
-    }
-  }
-
-  @ViewBuilder
-  private func sidebarRow(_ section: LibrarySection) -> some View {
-    let selected = model.selection == section
-    Button {
-      model.select(section)
-    } label: {
-      Text(model.title(for: section))
-     .foregroundStyle(.secondary)
-        .font(.callout)
-        .lineLimit(1)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        
-    }
-    .buttonSizing(.flexible)
-    .librarySidebarChrome(isSelected: selected)
-    .focused($sidebarFocus, equals: section)
-    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 24))
-    .listRowBackground(Color.clear)
-    .accessibilityIdentifier("kinopub.library.section.\(section.persistenceID)")
+    .focused($sidebarFocused)
+    .defaultFocus($sidebarFocused, true, priority: .userInitiated)
   }
 #endif
 
@@ -307,8 +286,8 @@ struct LibraryShellView: View {
                                       openURL: { openURL($0) })
       },
       onRetry: { Task { await catalog.refresh() } },
-      // Menu from the grid returns to the selected sidebar row (`onExitCommand` above),
-      // then Menu there reaches the tab bar — not a jump over the list.
+      // Menu from the grid returns to the sidebar (`onExitCommand` above). The table
+      // remembers the row that had focus. Menu there reaches the tab bar.
       returnsToTopOnMenu: false
     )
     // Under the tab bar (native scroll-edge fade via `setContentScrollView`) and out
@@ -393,17 +372,113 @@ struct LibraryShellView: View {
 }
 
 #if os(tvOS)
-private extension View {
-     /// Selected rows stay `borderedProminent` when focus is in the grid. Applied at the
-     /// call site: on this SDK both `.bordered` and `.borderedProminent` are
-     /// `PrimitiveButtonStyle`, and wrapping them in a custom `ButtonStyle` /
-     /// `PrimitiveButtonStyle` does not compile (tvOS CI, 2026-10-07).
-     @ViewBuilder
-     func librarySidebarChrome(isSelected: Bool) -> some View {
-          if isSelected {
-               buttonStyle(.bordered)
-          } else {buttonStyle(.borderless)}
-          
-     }}
+private struct LibrarySidebarRow: Equatable {
+  let section: LibrarySection
+  let title: String
+}
+
+private struct LibrarySidebar: UIViewControllerRepresentable {
+  let rows: [LibrarySidebarRow]
+  let selection: LibrarySection
+  let onSelect: (LibrarySection) -> Void
+
+  func makeUIViewController(context: Context) -> LibrarySidebarController {
+    LibrarySidebarController()
+  }
+
+  func updateUIViewController(_ controller: LibrarySidebarController, context: Context) {
+    controller.onSelect = onSelect
+    controller.setRows(rows, selection: selection)
+  }
+}
+
+/// Plain `UITableView`. `selectionFollowsFocus` is unavailable on tvOS, so focus
+/// updates call `selectRow` — the same selection Enter uses. The cell's own
+/// selection style is left alone. The first row is selected until focus moves.
+private final class LibrarySidebarController: UITableViewController {
+  var onSelect: (LibrarySection) -> Void = { _ in }
+  private var rows: [LibrarySidebarRow] = []
+  private var selection: LibrarySection?
+  /// Until the table has actually held focus, the preferred row is the selected one
+  /// (the first, by default). After that, `remembersLastFocusedIndexPath` answers —
+  /// returning a path on every move would pin focus to that row.
+  private var hasFocusedOnce = false
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    // `UITableViewController` clears the selection in `viewWillAppear` by default,
+    // which is why the sidebar opened with nothing selected.
+    clearsSelectionOnViewWillAppear = false
+    tableView.remembersLastFocusedIndexPath = true
+    tableView.register(UITableViewCell.self, forCellReuseIdentifier: UITableViewCell.reuseIdentifier)
+    tableView.reloadData()
+    applySelection()
+  }
+
+  func setRows(_ rows: [LibrarySidebarRow], selection: LibrarySection) {
+    let rowsChanged = rows != self.rows
+    self.rows = rows
+    self.selection = selection
+    guard isViewLoaded else { return }
+    if rowsChanged {
+      tableView.reloadData()
+    }
+    applySelection()
+  }
+
+  /// Selects `selection`, or the first row when that is still the default.
+  /// Leaving the table (focus in the grid) does not call this, so the row stays
+  /// selected behind the content it is showing.
+  private func applySelection() {
+    guard isViewLoaded, !rows.isEmpty else { return }
+    let row: Int
+    if let selection, let index = rows.firstIndex(where: { $0.section == selection }) {
+      row = index
+    } else {
+      row = 0
+    }
+    let indexPath = IndexPath(row: row, section: 0)
+    guard tableView.indexPathForSelectedRow != indexPath else { return }
+    tableView.selectRow(at: indexPath, animated: false, scrollPosition: .none)
+  }
+
+  override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    rows.count
+  }
+
+  override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: UITableViewCell.reuseIdentifier, for: indexPath)
+    let row = rows[indexPath.row]
+    cell.textLabel?.text = row.title
+    cell.accessibilityIdentifier = "kinopub.library.section.\(row.section.persistenceID)"
+    return cell
+  }
+
+  override func indexPathForPreferredFocusedView(in tableView: UITableView) -> IndexPath? {
+    guard !hasFocusedOnce, !rows.isEmpty else { return nil }
+    let row = selection.flatMap { section in rows.firstIndex { $0.section == section } } ?? 0
+    return IndexPath(row: row, section: 0)
+  }
+
+  override func tableView(_ tableView: UITableView,
+                           didUpdateFocusIn context: UITableViewFocusUpdateContext,
+                           with coordinator: UIFocusAnimationCoordinator) {
+    guard context.nextFocusedIndexPath != context.previouslyFocusedIndexPath else { return }
+    guard let indexPath = context.nextFocusedIndexPath, rows.indices.contains(indexPath.row) else { return }
+    hasFocusedOnce = true
+    let section = rows[indexPath.row].section
+    selection = section
+    if tableView.indexPathForSelectedRow != indexPath {
+      tableView.selectRow(at: indexPath, animated: false, scrollPosition: .none)
+    }
+    onSelect(section)
+  }
+}
+
+private extension UITableViewCell {
+  static var reuseIdentifier: String {
+    String(reflecting: self)
+  }
+}
 #endif
 #endif
