@@ -209,7 +209,7 @@ struct LibraryShellView: View {
     .scrollClipDisabled()
     .scrollEdgeEffectStyle(.soft, for: .top)
     .buttonBorderShape(.capsule)
-    .frame(width: 420)
+    .frame(width: 380)
     .frame(maxHeight: .infinity)
     .focusSection()
     .defaultFocus($sidebarFocus, model.selection, priority: .userInitiated)
@@ -225,14 +225,16 @@ struct LibraryShellView: View {
       model.select(section)
     } label: {
       Text(model.title(for: section))
+     .foregroundStyle(.secondary)
         .font(.callout)
         .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
+        
     }
     .buttonSizing(.flexible)
     .librarySidebarChrome(isSelected: selected)
     .focused($sidebarFocus, equals: section)
-    .listRowInsets(EdgeInsets(top: 6, leading: TVHIGGrid.sideInset, bottom: 6, trailing: 24))
+    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 24))
     .listRowBackground(Color.clear)
     .accessibilityIdentifier("kinopub.library.section.\(section.persistenceID)")
   }
@@ -312,7 +314,7 @@ struct LibraryShellView: View {
     // Under the tab bar (native scroll-edge fade via `setContentScrollView`) and out
     // to the trailing screen edge. Leading inset is the gutter past the sidebar, not
     // another 80 pt of page margin on top of 420 pt of list.
-    .ignoresSafeArea(.container, edges: [.vertical, .trailing])
+    .ignoresSafeArea(.container, edges: [.vertical])
   }
 
   private var librarySections: [TVPageSection] {
@@ -392,18 +394,16 @@ struct LibraryShellView: View {
 
 #if os(tvOS)
 private extension View {
-  /// Selected rows stay `borderedProminent` when focus is in the grid. Applied at the
-  /// call site: on this SDK both `.bordered` and `.borderedProminent` are
-  /// `PrimitiveButtonStyle`, and wrapping them in a custom `ButtonStyle` /
-  /// `PrimitiveButtonStyle` does not compile (tvOS CI, 2026-10-07).
-  @ViewBuilder
-  func librarySidebarChrome(isSelected: Bool) -> some View {
-    if isSelected {
-      buttonStyle(.borderedProminent)
-    } else {
-      buttonStyle(.bordered)
-    }
-  }
-}
+     /// Selected rows stay `borderedProminent` when focus is in the grid. Applied at the
+     /// call site: on this SDK both `.bordered` and `.borderedProminent` are
+     /// `PrimitiveButtonStyle`, and wrapping them in a custom `ButtonStyle` /
+     /// `PrimitiveButtonStyle` does not compile (tvOS CI, 2026-10-07).
+     @ViewBuilder
+     func librarySidebarChrome(isSelected: Bool) -> some View {
+          if isSelected {
+               buttonStyle(.bordered)
+          } else {buttonStyle(.borderless)}
+          
+     }}
 #endif
 #endif
