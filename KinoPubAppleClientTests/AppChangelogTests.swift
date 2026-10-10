@@ -60,7 +60,7 @@ final class AppChangelogTests: XCTestCase {
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defaults.removePersistentDomain(forName: suite)
     addTeardownBlock {
-      defaults.removePersistentDomain(forName: suite)
+      UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
     }
     return defaults
   }
