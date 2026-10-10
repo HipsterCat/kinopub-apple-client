@@ -202,11 +202,11 @@ final class MediaTextTests: XCTestCase {
     let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 16, hour: 12))!
     let today = calendar.startOfDay(for: now)
     let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
-    let older = calendar.date(from: DateComponents(year: 2026, month: 9, day: 15))!
+    let older = calendar.date(from: DateComponents(year: 2026, month: 9, day: 10))!
     XCTAssertEqual(HistoryDayText(today).formatted(language: .ru, calendar: calendar, now: now), "Сегодня")
     XCTAssertEqual(HistoryDayText(yesterday).formatted(language: .ru, calendar: calendar, now: now), "Вчера")
     XCTAssertEqual(HistoryDayText(older).formatted(language: .ru, calendar: calendar, now: now),
-                   "15 сентября 2026")
+                   "10 сентября 2026")
     XCTAssertEqual(HistoryDayText(today).formatted(language: .en, calendar: calendar, now: now), "Today")
     XCTAssertEqual(HistoryDayText(yesterday).formatted(language: .en, calendar: calendar, now: now), "Yesterday")
   }

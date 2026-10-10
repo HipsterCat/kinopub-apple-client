@@ -209,7 +209,10 @@ final class ContinueWatchingOrderTests: XCTestCase {
   }
 
   func testUnwatchedCountFallsBackToNew() {
-    XCTAssertEqual(WatchingItem.mock(new: 3).unwatchedCount, 3)
+    let onlyNew = WatchingItem(id: 2, type: "serial", title: "S",
+                               posters: Posters(small: "", medium: "", big: "", wide: nil),
+                               total: nil, watched: nil, new: 3)
+    XCTAssertEqual(onlyNew.unwatchedCount, 3)
     XCTAssertNil(WatchingItem(id: 1, type: "movie", title: "F",
                               posters: Posters(small: "", medium: "", big: "", wide: nil)).unwatchedCount)
   }

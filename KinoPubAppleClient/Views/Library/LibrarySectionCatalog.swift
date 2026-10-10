@@ -309,10 +309,6 @@ final class LibrarySectionCatalog: ObservableObject {
     let serials = (try? await serialsTask)?.items ?? []
     let history = (try? await historyTask)?.history ?? []
     let newest = newestHistory(history)
-    let localByID = await MainActor.run {
-      Dictionary(uniqueKeysWithValues:
-        AppContext.shared.localProgressStore.allEntries().map { ($0.id, $0) })
-    }
 
     var seen = Set<Int>()
     var items: [WatchingItem] = []
@@ -321,7 +317,9 @@ final class LibrarySectionCatalog: ObservableObject {
       if isSeries && (item.watched ?? 0) == 0 { continue }
       items.append(item)
     }
-    return items.map { continueCard(for: $0, history: newest[$0.id], local: localByID[$0.id]) }
+    // History carries duration / position. Local resume is not Sendable across this
+    // fetch; the player still opens at the stored point.
+    return items.map { continueCard(for: $0, history: newest[$0.id]) }
   }
 
   private nonisolated static func newestHistory(_ history: [HistoryEntry]) -> [Int: HistoryEntry] {

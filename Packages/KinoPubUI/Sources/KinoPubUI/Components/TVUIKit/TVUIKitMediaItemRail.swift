@@ -174,11 +174,17 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
 }
 
 public extension TVUIKitMediaItem {
+  /// Home / rails — one packed caption line. A parameterless `init(card:)` so
+  /// `cards.map(TVUIKitMediaItem.init(card:))` still type-checks.
+  init(card: MediaCard) {
+    self.init(card: card, stackedCaption: false)
+  }
+
   /// The app's card model in media-item terms.
   ///
   /// `stackedCaption` is the Library's still grid: the card's own title and subtitle
   /// as the system's two text lines, no overlay packing. Home's rail stays one line.
-  init(card: MediaCard, stackedCaption: Bool = false) {
+  init(card: MediaCard, stackedCaption: Bool) {
     let art = card.landscapeImageURL ?? card.backdropURL ?? card.posterURL
     let status = Self.status(for: card)
     let subtitle = card.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines)
