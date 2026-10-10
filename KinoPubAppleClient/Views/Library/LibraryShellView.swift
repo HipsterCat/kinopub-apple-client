@@ -11,9 +11,6 @@ import UIKit
 #endif
 
 #if os(macOS) || os(tvOS)
-/// Library: sidebar of sections, grid of the selected one. Sections are a product
-/// decision — `ROADMAP.md`.
-///
 /// Both platforms lay the sidebar out as **content**, not as window/system chrome, so
 /// the tab bar keeps the full width above it. On tvOS that also keeps focus honest:
 /// each column is its own `focusSection`, so Left out of the grid lands in the list and

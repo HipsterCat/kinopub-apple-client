@@ -819,9 +819,10 @@ public final class TVPageCollectionViewController: UIViewController {
   /// One-shot: `indexPathForPreferredFocusedView` answers the top row, then
   /// `didUpdateFocus` clears it. Same shape as `didRequestPosterFocus`.
   private var wantsTopFocus = false
-  /// The banner's middle title is the first-entry start so a neighbour shows on
-  /// either side. After that, `remembersLastFocusedIndexPath` owns return from the
-  /// tab bar — answering middle whenever `focusedPath` is nil jumped back there.
+  /// Centred paging (`TVPageBannerChrome.row == .centered`) starts on the middle
+  /// title so a neighbour shows on either side. A leading rail does not — it starts
+  /// on the first title, like the other sections. After that one answer,
+  /// `remembersLastFocusedIndexPath` owns return from the tab bar.
   private var hasPickedInitialBannerFocus = false
   /// Pair a Menu `.began` we consumed with its `.ended` / `.cancelled` so the
   /// tab bar does not see a half press. Scoped to this controller's responder
@@ -1002,11 +1003,11 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
     if wantsTopFocus { return topIndexPath }
     if prefersFirstPosterFocus { return firstPosterIndexPath }
-    // Answer once, on first entry: a banner on top starts on its middle title so a
-    // neighbour shows on either side. Answering on every move pins focus and the row
-    // stops paging (the full-screen layout's first-device failure). Coming back from
-    // the tab bar must not reset to the middle either.
-    guard !hasPickedInitialBannerFocus, focusedPath == nil,
+    // Centred paging only, and only once: answering the middle on every move pins
+    // focus and the row stops paging. A leading rail returns nil and starts on its
+    // first title. Coming back from the tab bar must not reset to the middle either.
+    guard TVPageBannerChrome.current.row == .centered,
+          !hasPickedInitialBannerFocus, focusedPath == nil,
           let first = sections.first, first.kind == .banner, !first.items.isEmpty else { return nil }
     hasPickedInitialBannerFocus = true
     return IndexPath(item: (first.items.count - 1) / 2, section: 0)

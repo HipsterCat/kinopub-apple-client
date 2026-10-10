@@ -70,7 +70,7 @@ public struct TVPageTemplatesGallery: View {
   /// point is to compare shapes on a TV side by side, so each row says what it is.
   public static var sections: [TVPageSection] {
     [
-      // First, so focus starts on its middle title the way the Home page does.
+      // First, so the page opens on a banner the way Watch Now does.
       .banner(id: "banner", features: posters(seed: 3, rated: true).prefix(6).map { TVPageFeature(card: $0) }),
       .chips(id: "filters", title: nil, chips: filters),
       .chips(id: "collection-chips", title: "Collections · chips with a mark", chips: collectionChips),

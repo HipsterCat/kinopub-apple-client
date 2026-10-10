@@ -52,12 +52,11 @@ public enum TVPageLayout {
   }
   public static let cardPadding: CGFloat = 16
 
-  /// Width over height of a banner platter: the backdrop's own 16:9, so the art is not
-  /// cropped; the scrims carry the words.
-  public static let bannerAspect: CGFloat = 16 / 9
+  /// Width over height of a banner platter: the backdrop's own 16:9; the scrims carry the words.
+  public static let bannerAspect: CGFloat = 16 / 10
 
-  /// One banner in the middle and half of its neighbour on either side: two banners and
-  /// two gutters fill the container.
+  /// Half the screen: the platter width `TVPageBannerChrome.width == .halfScreen` uses,
+  /// so a neighbour still peeks once the row is aligned with the other rails.
   public static func bannerWidth(containerWidth: CGFloat) -> CGFloat {
     max(((containerWidth - TVHIGGrid.gutter * 2) / 2).rounded(.down), 1)
   }
@@ -146,7 +145,7 @@ public enum TVPageLayout {
         layoutSection = chipRail(section, sideInset: sideInset, bottom: bottom)
       }
     case (.banner, _):
-      layoutSection = bannerRail(containerWidth: containerWidth)
+      layoutSection = bannerRail(containerWidth: containerWidth, sideInset: sideInset)
     case (.strip, _):
       layoutSection = strip(section, contentWidth: contentWidth, sideInset: sideInset, scrolled: stripScrolled)
     case (_, .rail):
@@ -253,25 +252,34 @@ public enum TVPageLayout {
     .stills(id: "still-rail", title: nil, columns: columns, caption: caption, cards: [])
   }
 
-  /// The banner row: centred paging rather than the 80 pt rail. The insets put the
-  /// first banner in the middle of the screen, so every banner the row pages to sits
-  /// there, with half a banner showing past each gutter. System `TVCardView` lift — not
-  /// `TVCollectionViewFullScreenLayout` parallax.
+  /// The banner row. Alignment and platter width come from `TVPageBannerChrome`:
+  /// leading uses the same inset and continuous scroll as the other rails; centred
+  /// is the old paging, one platter in the middle.
   @MainActor
-  private static func bannerRail(containerWidth: CGFloat) -> NSCollectionLayoutSection {
-    let recipe = TVPageCellMetrics.recipe(kind: .banner, artWidth: bannerWidth(containerWidth: containerWidth),
-                                          caption: .always)
+  private static func bannerRail(containerWidth: CGFloat, sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let chrome = TVPageBannerChrome.current
+    let recipe = TVPageCellMetrics.recipe(
+      kind: .banner,
+      artWidth: chrome.cardWidth(containerWidth: containerWidth, sideInset: sideInset),
+      caption: .always
+    )
     let size = NSCollectionLayoutSize(widthDimension: .absolute(recipe.itemSize.width),
                                       heightDimension: .absolute(recipe.itemSize.height))
     let group = NSCollectionLayoutGroup.horizontal(layoutSize: size,
                                                    subitems: [NSCollectionLayoutItem(layoutSize: size)])
     let layoutSection = NSCollectionLayoutSection(group: group)
-    layoutSection.orthogonalScrollingBehavior = .groupPagingCentered
     layoutSection.interGroupSpacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
-    let side = max(((containerWidth - recipe.itemSize.width) / 2).rounded(.down), 0)
-    let standard = insets(for: recipe, sideInset: TVHIGGrid.sideInset, titled: false)
-    layoutSection.contentInsets = NSDirectionalEdgeInsets(top: standard.top, leading: side,
-                                                          bottom: standard.bottom, trailing: side)
+    switch chrome.row {
+    case .leading:
+      layoutSection.orthogonalScrollingBehavior = .continuous
+      layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: false)
+    case .centered:
+      layoutSection.orthogonalScrollingBehavior = .groupPagingCentered
+      let side = max(((containerWidth - recipe.itemSize.width) / 2).rounded(.down), 0)
+      let standard = insets(for: recipe, sideInset: TVHIGGrid.sideInset, titled: false)
+      layoutSection.contentInsets = NSDirectionalEdgeInsets(top: standard.top, leading: side,
+                                                            bottom: standard.bottom, trailing: side)
+    }
     return layoutSection
   }
 

@@ -36,10 +36,8 @@ public enum TVPageCellKind: Hashable, Sendable {
   /// SwiftUI's `.card` button style. For rows where the words matter as much as the
   /// art: search's top results, where a title and a person sit side by side.
   case card
-  /// The Home banner: large `TVCardView` platters, one centred with half a neighbour on
-  /// either side (`TVPageLayout.bannerWidth`). Each card is the title's backdrop with its
-  /// logo (or name) under a top scrim, the plot's first sentence and the shared meta
-  /// line under a bottom one, and the poster inset at the trailing edge.
+  /// The Home banner: large `TVCardView` platters in a rail. Where the row sits, and
+  /// what each platter draws, is `TVPageBannerChrome`.
   case banner
   /// A full-width header that scrolls with the page. Focusable as one band so Up
   /// from the grid reaches person / collection detail. One item, a `TVPageMasthead`.
@@ -526,8 +524,8 @@ public struct TVPageSection: Identifiable, Hashable {
                   columns: columns, caption: .always, rows: rows, match: match, items: items)
   }
 
-  /// The Home banner: large platters, one centred with half a neighbour on either side
-  /// (`TVPageLayout.bannerWidth`), untitled. Each title once (Sasha, 2026-10-01).
+  /// The Home banner: large platters, untitled. Each title once (Sasha, 2026-10-01).
+  /// The row matches the other rails unless `TVPageBannerChrome.row` says centred.
   public static func banner(id: String, features: [TVPageFeature]) -> TVPageSection {
     TVPageSection(id: id, title: nil, kind: .banner, flow: .rail, columns: 2,
                   caption: .always, items: features.map(TVPageItem.feature))
