@@ -95,14 +95,22 @@ final class TVPosterCoverTests: XCTestCase {
                    "search's shelves say so themselves")
   }
 
-  /// Under a cover: how many episodes of a followed series are left, else the year, else
-  /// nothing — the caption keeps its second line anyway.
+  /// Under a cover: how many episodes of a followed series are left, else `Жанр Год`
+  /// / `Жанр 2019–2024`, else nothing — the caption keeps its second line anyway.
   func testTheLineUnderACover() {
     let year = MediaCard(id: 1, posterURL: "", title: "A", year: 2019)
+    let movie = MediaCard(id: 5, posterURL: "", title: "M", year: 2019, genreLine: "Боевик")
+    let ended = MediaCard(id: 6, posterURL: "", title: "S", isSeries: true, year: 2019,
+                          yearEnd: 2024, genreLine: "Драма")
+    let ongoing = MediaCard(id: 7, posterURL: "", title: "O", isSeries: true, year: 2026,
+                            genreLine: "Драма")
     let followed = MediaCard(id: 2, posterURL: "", title: "B", year: 2019, unwatchedEpisodes: 3)
     let caughtUp = MediaCard(id: 3, posterURL: "", title: "C", unwatchedEpisodes: 0)
     let bare = MediaCard(id: 4, posterURL: "", title: "D")
     XCTAssertEqual(TVPageLockupPosterCell.posterSubtitle(for: year, caption: .always), "2019")
+    XCTAssertEqual(TVPageLockupPosterCell.posterSubtitle(for: movie, caption: .always), "Боевик 2019")
+    XCTAssertEqual(TVPageLockupPosterCell.posterSubtitle(for: ended, caption: .always), "Драма 2019–2024")
+    XCTAssertEqual(TVPageLockupPosterCell.posterSubtitle(for: ongoing, caption: .always), "Драма 2026")
     XCTAssertEqual(TVPageLockupPosterCell.posterSubtitle(for: followed, caption: .always),
                    EpisodesLeftText(3)?.formatted(), "what is left beats the year")
     XCTAssertNil(TVPageLockupPosterCell.posterSubtitle(for: caughtUp, caption: .always))

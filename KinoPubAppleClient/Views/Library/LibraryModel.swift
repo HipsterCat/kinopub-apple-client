@@ -6,6 +6,8 @@
 import Foundation
 import Combine
 import KinoPubBackend
+import KinoPubMedia
+import KinoPubUI
 import KinoPubLogging
 import OSLog
 
@@ -25,6 +27,11 @@ final class LibraryModel: ObservableObject {
   /// New-folder alert state, driven from the sidebar's "Create bookmark" row.
   @Published var isCreatingFolder = false
   @Published var newFolderName = ""
+  /// Rename alert: the folder being renamed, and the field.
+  @Published var folderToRename: Bookmark?
+  @Published var renameFolderName = ""
+  /// Delete confirmation: the folder waiting on "Delete".
+  @Published var folderToDelete: Bookmark?
 
   private let contentService: VideoContentService
   private let actionsService: UserActionsService
@@ -58,9 +65,10 @@ final class LibraryModel: ObservableObject {
 
   // MARK: - Sidebar contents
 
-  /// Every row the sidebar draws, in order: fixed sections, then folders.
+  /// Every row the sidebar draws: Подписки, Продолжить, Все закладки, folders,
+  /// История at the bottom.
   var sections: [LibrarySection] {
-    LibrarySection.fixed + folders.map { .folder($0.id) }
+    LibrarySection.leadingFixed + folders.map { .folder($0.id) } + LibrarySection.trailingFixed
   }
 
   func title(for section: LibrarySection) -> String {
@@ -75,6 +83,24 @@ final class LibraryModel: ObservableObject {
   func count(for section: LibrarySection) -> String? {
     guard case .folder(let id) = section else { return nil }
     return folders.first { $0.id == id }?.count
+  }
+
+  /// The header's count: unwatched episodes on Following, the folder's own number,
+  /// otherwise how many cards are on screen.
+  func headerCount(for section: LibrarySection, cards: [MediaCard]) -> String? {
+    switch section {
+    case .watchlist:
+      let left = cards.compactMap(\.unwatchedEpisodes).reduce(0, +)
+      return UnwatchedEpisodesCountText(left).formatted()
+    case .folder:
+      let value = count(for: section)
+      return (value?.isEmpty == false) ? value : (cards.isEmpty ? nil : "\(cards.count)")
+    case .allBookmarks:
+      let total = folders.compactMap { Int($0.count) }.reduce(0, +)
+      return total > 0 ? "\(total)" : (cards.isEmpty ? nil : "\(cards.count)")
+    case .unwatched, .history, .downloads:
+      return cards.isEmpty ? nil : "\(cards.count)"
+    }
   }
 
   func folder(with id: Int) -> Bookmark? {
@@ -122,7 +148,7 @@ final class LibraryModel: ObservableObject {
   }
 
   func select(_ section: LibrarySection) {
-    selection = section //Publishing changes from within view updates is not allowed, this will cause undefined behavior.
+    selection = section
     defaults.set(section.persistenceID, forKey: Self.selectionKey)
   }
 
@@ -150,6 +176,39 @@ final class LibraryModel: ObservableObject {
         errorHandler.setError(error)
       }
     }
+  }
+
+  func promptRenameFolder(id: Int) {
+    guard let folder = folder(with: id) else { return }
+    folderToRename = folder
+    renameFolderName = folder.title
+  }
+
+  func confirmRenameFolder() {
+    let title = renameFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let folder = folderToRename
+    folderToRename = nil
+    renameFolderName = ""
+    guard let folder, !title.isEmpty, title != folder.title else { return }
+    Task {
+      do {
+        try await actionsService.renameBookmarkFolder(id: folder.id, title: title)
+        store.invalidate(family: .bookmarks)
+        await refreshFolders()
+      } catch {
+        errorHandler.setError(error)
+      }
+    }
+  }
+
+  func promptDeleteFolder(id: Int) {
+    folderToDelete = folder(with: id)
+  }
+
+  func confirmDeleteFolder() {
+    guard let folder = folderToDelete else { return }
+    folderToDelete = nil
+    deleteFolder(id: folder.id)
   }
 
   func deleteFolder(id: Int) {

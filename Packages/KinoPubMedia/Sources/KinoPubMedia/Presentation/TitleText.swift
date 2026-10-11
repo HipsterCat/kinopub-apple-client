@@ -32,6 +32,35 @@ public struct SeasonCountText: Hashable, Sendable {
   }
 }
 
+/// **How many episodes are still unwatched, as a Library header** — «156 непросмотренных
+/// серий», «156 unwatched episodes». Plural-correct, including the Russian adjective.
+public struct UnwatchedEpisodesCountText: Hashable, Sendable {
+  public let count: Int
+
+  public init(_ count: Int) {
+    self.count = count
+  }
+
+  public func formatted(language: MediaLanguage = .current) -> String {
+    switch language {
+    case .en:
+      return count == 1 ? "1 unwatched episode" : "\(count) unwatched episodes"
+    case .ru:
+      let lastTwo = count % 100
+      let last = count % 10
+      if (11...14).contains(lastTwo) {
+        return "\(count) непросмотренных серий"
+      } else if last == 1 {
+        return "\(count) непросмотренная серия"
+      } else if (2...4).contains(last) {
+        return "\(count) непросмотренные серии"
+      } else {
+        return "\(count) непросмотренных серий"
+      }
+    }
+  }
+}
+
 /// **How many episodes are still unwatched** — «3 серии», «3 episodes». The line a
 /// followed series wears under its cover in the Library; plural-correct in both languages.
 public struct EpisodesLeftText: Hashable, Sendable {

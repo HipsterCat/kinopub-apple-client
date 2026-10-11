@@ -46,6 +46,11 @@ final class UserActionsServiceImpl: UserActionsService, @unchecked Sendable {
     return response.folder.id
   }
 
+  func renameBookmarkFolder(id: Int, title: String) async throws {
+    let request = UpdateBookmarkFolderRequest(id: id, title: title)
+    _ = try await apiClient.performRequest(with: request, decodingType: EmptyResponseData.self)
+  }
+
   func removeBookmarkFolder(id: Int) async throws {
     let request = RemoveBookmarkFolderRequest(id: id)
     _ = try await apiClient.performRequest(with: request, decodingType: EmptyResponseData.self)

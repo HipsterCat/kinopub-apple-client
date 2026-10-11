@@ -621,10 +621,12 @@ enum TVSearchFilters {
   /// Sort, and — when the page's listing can actually be narrowed — the type
   /// pull-down. Search keeps the full row (`row`); a collection can only be
   /// reordered, and a person's credits take type because `/v1/items` does.
+  /// The Library header draws the same chips inside `TVPageHeaderView`.
   @MainActor
-  static func controls<Catalog: FilterBarDriver>(catalog: Catalog,
-                                                 includeType: Bool,
-                                                 sortAlignment: TVPageChip.Alignment = .leading) -> TVPageSection {
+  static func controlChips<Catalog: FilterBarDriver>(catalog: Catalog,
+                                                     includeType: Bool,
+                                                     sortAlignment: TVPageChip.Alignment = .leading,
+                                                     showsTitle: Bool = true) -> [TVPageChip] {
     let filter = catalog.filter
     let sortChip = TVPageChip(
       id: sort,
@@ -632,11 +634,31 @@ enum TVSearchFilters {
       systemImage: "arrow.up.arrow.down",
       menu: .init(options: MediaSortOrder.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
                   selectedID: filter.sort.rawValue),
+      isActive: false,
       alignment: sortAlignment,
-      showsTitle: true
+      showsTitle: showsTitle
     )
-    let chips = includeType ? [sortChip, typeChip(for: filter)] : [sortChip]
-    return .chips(id: "filters", title: nil, chips: chips)
+    return includeType ? [sortChip, typeChip(for: filter)] : [sortChip]
+  }
+
+  @MainActor
+  static func controls<Catalog: FilterBarDriver>(catalog: Catalog,
+                                                 includeType: Bool,
+                                                 sortAlignment: TVPageChip.Alignment = .leading) -> TVPageSection {
+    .chips(id: "filters", title: nil, chips: controlChips(catalog: catalog,
+                                                          includeType: includeType,
+                                                          sortAlignment: sortAlignment))
+  }
+
+  static let folderRename = "folder.rename"
+  static let folderDelete = "folder.delete"
+
+  /// Rename / Delete for a bookmark folder — same chips the sidebar context menu uses.
+  static func folderActionChips() -> [TVPageChip] {
+    [
+      TVPageChip(id: folderRename, title: "Rename".localized, systemImage: "pencil", showsTitle: false),
+      TVPageChip(id: folderDelete, title: "Delete Folder".localized, systemImage: "trash", showsTitle: false)
+    ]
   }
 
   /// Type — "Все" on top, checked by default. Types combine freely; the presets

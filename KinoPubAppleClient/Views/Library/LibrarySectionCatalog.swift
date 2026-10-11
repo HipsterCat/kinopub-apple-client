@@ -19,7 +19,7 @@ import OSLog
 /// a partially-cached list even means on the next launch. Scroll position is not
 /// restored across section switches either, so the extra pages have nothing to serve.
 @MainActor
-final class LibrarySectionCatalog: ObservableObject {
+final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
 
   /// Page 1 (from the store) followed by any pages this session has paged in.
   @Published private(set) var cards: [MediaCard] = []
@@ -55,6 +55,14 @@ final class LibrarySectionCatalog: ObservableObject {
   }
 
   private(set) var section: LibrarySection = .watchlist
+
+  /// Sort / type / year the header chips drive. Bookmark folders have no filter
+  /// parameters on the wire, so picks apply to what is already loaded.
+  @Published var filter = LibraryFilter()
+  @Published private(set) var genres: [MediaGenre] = []
+  @Published private(set) var countries: [Country] = []
+  /// Nil until the user picks a sort — the server's order stays until then.
+  private var userSorted = false
 
   private var pagedCards: [MediaCard] = []
   private var pagination: Pagination?
@@ -103,7 +111,10 @@ final class LibrarySectionCatalog: ObservableObject {
       loadFailed = false
       loadError = nil
       isLoaded = false
+      filter = LibraryFilter()
+      userSorted = false
     }
+    await loadPickerDataIfNeeded()
     await load(force: false)
   }
 
@@ -163,7 +174,66 @@ final class LibrarySectionCatalog: ObservableObject {
     // Page 2 can return while the store is still refreshing page 1, and the two
     // lists then share an id. The grid's identity is that id, so the first copy wins.
     var seen = Set<Int>()
-    cards = (cached + pagedCards).filter { seen.insert($0.id).inserted }
+    let merged = (cached + pagedCards).filter { seen.insert($0.id).inserted }
+    cards = Self.apply(filter, to: merged, genres: genres, sorted: userSorted)
+  }
+
+  func update(_ transform: (inout LibraryFilter) -> Void) {
+    var updated = filter
+    transform(&updated)
+    guard updated != filter else { return }
+    if updated.sort != filter.sort { userSorted = true }
+    filter = updated
+    publishCards()
+  }
+
+  func clearFilters() {
+    filter = LibraryFilter(sort: filter.sort)
+    publishCards()
+  }
+
+  private func loadPickerDataIfNeeded() async {
+    guard genres.isEmpty || countries.isEmpty else { return }
+    async let genresTask = try? contentService.fetchGenres(for: nil).items
+    async let countriesTask = try? contentService.fetchCountries().items
+    genres = (await genresTask) ?? genres
+    countries = (await countriesTask) ?? countries
+  }
+
+  /// Type, year and genre from the header chips; sort only after the user picks one.
+  nonisolated static func apply(_ filter: LibraryFilter,
+                                to cards: [MediaCard],
+                                genres: [MediaGenre],
+                                sorted: Bool) -> [MediaCard] {
+    var result = cards
+    if !filter.kinds.isEmpty {
+      let episodic = filter.kinds.contains(where: \.isEpisodic)
+      let films = filter.kinds.contains { !$0.isEpisodic }
+      if episodic != films {
+        result = result.filter { $0.isSeries == episodic }
+      }
+    }
+    if let from = filter.yearFrom {
+      result = result.filter { ($0.year ?? 0) >= from }
+    }
+    if let to = filter.yearTo {
+      result = result.filter { let year = $0.year ?? $0.yearEnd ?? 0; return year <= to }
+    }
+    if !filter.genreIDs.isEmpty {
+      let names = Set(genres.filter { filter.genreIDs.contains($0.id) }.map(\.title))
+      result = result.filter { card in
+        guard let line = card.genreLine else { return false }
+        return names.contains { line.localizedCaseInsensitiveContains($0) }
+      }
+    }
+    guard sorted else { return result }
+    switch filter.sort {
+    case .title: return result.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    case .year: return result.sorted { ($0.year ?? 0) > ($1.year ?? 0) }
+    case .kinopoiskRating: return result.sorted { ($0.scores.kinopoiskScore ?? 0) > ($1.scores.kinopoiskScore ?? 0) }
+    case .imdbRating: return result.sorted { ($0.scores.imdbScore ?? 0) > ($1.scores.imdbScore ?? 0) }
+    case .recentlyAdded, .recentlyUpdated, .views: return result
+    }
   }
 
   // MARK: - Pagination
@@ -277,6 +347,8 @@ final class LibrarySectionCatalog: ObservableObject {
     case .folder(let id):
       let data = try await service.fetchBookmarkItems(id: "\(id)", page: page)
       return PageResult(cards: data.items.map(MediaCard.init), pagination: data.pagination)
+    case .allBookmarks:
+      return try await allBookmarkCards(page: page, using: service)
     case .downloads:
       // Local files — `DownloadsView` owns that section, this catalog never fetches it.
       return PageResult(cards: [], pagination: nil)
@@ -297,6 +369,39 @@ final class LibrarySectionCatalog: ObservableObject {
                      isSeries: true,
                      isInWatchlist: true,
                      unwatchedEpisodes: left)
+  }
+
+  /// Every folder's titles, first page of each in parallel, then the same page
+  /// number on load-more. Duplicates (a title in two folders) keep the first copy.
+  private nonisolated static func allBookmarkCards(page: Int?,
+                                                   using service: VideoContentService) async throws -> PageResult {
+    let folders = try await service.fetchBookmarks().items
+    guard !folders.isEmpty else {
+      return PageResult(cards: [], pagination: Pagination(total: 1, current: 1, perpage: 20))
+    }
+    return try await withThrowingTaskGroup(of: ([MediaCard], Int, Int).self) { group in
+      for folder in folders {
+        group.addTask {
+          let data = try await service.fetchBookmarkItems(id: "\(folder.id)", page: page)
+          let current = data.pagination?.current ?? page ?? 1
+          let total = data.pagination?.total ?? current
+          return (data.items.map(MediaCard.init), current, total)
+        }
+      }
+      var seen = Set<Int>()
+      var merged: [MediaCard] = []
+      var current = page ?? 1
+      var total = current
+      for try await (cards, pageCurrent, pageTotal) in group {
+        current = max(current, pageCurrent)
+        total = max(total, pageTotal)
+        for card in cards where seen.insert(card.id).inserted {
+          merged.append(card)
+        }
+      }
+      return PageResult(cards: merged,
+                        pagination: Pagination(total: total, current: current, perpage: 20))
+    }
   }
 
   /// Continue: unfinished films plus serials already started. 16:9 title artwork

@@ -17,6 +17,7 @@ protocol UserActionsService: Sendable {
   /// Subscribe / unsubscribe a series on the watchlist (`GET /v1/watching/togglewatchlist`).
   func toggleWatchlist(id: Int) async throws
   func createBookmarkFolder(title: String) async throws -> Int
+  func renameBookmarkFolder(id: Int, title: String) async throws
   func removeBookmarkFolder(id: Int) async throws
   func fetchWatchMark(id: Int, video: Int?, season: Int?) async throws -> WatchData
   /// Removes a title from history / Continue Watching.
@@ -47,6 +48,9 @@ struct UserActionsServiceMock: UserActionsService {
 
   func createBookmarkFolder(title: String) async throws -> Int {
     0
+  }
+
+  func renameBookmarkFolder(id: Int, title: String) async throws {
   }
 
   func removeBookmarkFolder(id: Int) async throws {
