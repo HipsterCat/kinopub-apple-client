@@ -222,13 +222,24 @@ file, and delete the losers with the switch.
 
 ## The detail page
 
-- **One scroll, and the artwork is part of the hero** (Sasha, 2026-09-27, after comparing with
-  Plozz). The artwork is the hero's own `.background`, so it adds nothing to the layout and scrolls
-  away with the hero. It is **as tall as the screen, not the hero** (`containerRelativeFrame`), so
-  the first section peeks over the picture, and the picture's own alpha dissolves into the page at
-  the bottom — no second colour to match. The hero, its artwork and the sections are one focus and
-  view graph; nothing is pinned behind the page. Splitting them into independent scroll/focus
-  worlds broke directional continuity and the responder chain.
+- **tvOS backdrop: interim, to be redone — not a design** (Sasha, 2026-10-11: "это все
+  переделывать надо… костыль на костыле без разбора в апишках", tolerable for now). Do not
+  read the current shape as the desired one, do not defend it, and do not build on it before
+  Sasha's pass with reference apps that did read the documentation. What is decided:
+  - The picture is **not in the scroll** — one full-screen backdrop behind the content, the
+    content changes over it (Sasha, overruling the 2026-09-27 "artwork is part of the hero").
+    The hero and the sections stay one scroll and one focus graph.
+  - Sasha will supply mean colours / gradients per title and wants them crossfaded, Apple-style.
+  What is merely there now (`PageBackdrop` in KinoPubUI, `Route.backdrop`): a stage around the
+  tab view showing the picture of the selected tab's top route; the title's page publishes it;
+  the hero reports focus in the sections (`pageBackdropDetails`) and the picture fades out to
+  the system background there. Rejected on the way, with Sasha's reasons: a lifecycle-claimed
+  backdrop (wrong title a few levels deep, late fade on Back), an opaque dark panel in the
+  scroll ("moving fixed background", black in the light appearance), `.regularMaterial` over
+  the picture (dirty grey in light). Facts measured on the way, not rules: on a tvOS pop the
+  page beneath appears ~0.1 s after Menu, the leaving page disappears ~0.5 s later, a stack's
+  root never re-appears, `isPresented` drops when a page is covered and never fires back.
+  iOS and macOS are untouched: the artwork is the hero's `.background` and scrolls away.
 - **The hero scrim follows light/dark.** Black in dark mode, white in light mode, same geometry
   (Plozz's `scrimTone`): the hero text and buttons are system colours, dark in light mode, and a
   black scrim under them was unreadable (Sasha, on device, 2026-09-28). Keep it where the text is
@@ -424,7 +435,8 @@ If you find a comment or a doc referencing these, it is stale.
 - `AuthPhase.resolving` / a root splash that waits on `refreshToken` before mounting Tabs — removed
   2026-10-01 for optimistic Keychain launch. Refresh still runs; it does not gate the shell.
 - `washProgress` / `onScrollGeometryChange` scroll scrub, `MediaItemHeroScrollDriver`,
-  `HeroMaterialBackdropView`, the `ZStack` hero-outside-scroll structure, the overlay title logo,
+  `HeroMaterialBackdropView`, the `ZStack` hero-outside-scroll structure (the hero's *content*
+  outside the scroll — the tvOS backdrop behind the tab view is not that), the overlay title logo,
   `MediaItemHeroBackdrop` (pinned still + fold material), `MediaItemFoldSnappingBehavior`, the
   per-section `onSectionFocused` / `reportMediaItemSectionFocus` reporters.
 - `focusBridge`-style routing, `SiriRemoteTilt` / Game Controller fake parallax,

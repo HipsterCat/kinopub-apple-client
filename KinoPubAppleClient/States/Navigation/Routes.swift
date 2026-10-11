@@ -180,3 +180,51 @@ typealias CatalogRoutes = Route
 typealias SearchRoutes = Route
 typealias BookmarksRoutes = Route
 typealias DownloadsRoutes = Route
+
+// MARK: - Backdrop (tvOS)
+
+/// What a route puts in the app's one backdrop (`PageBackdropStage`). The stage follows
+/// the selected tab's path, so this is the whole rule for which picture is behind which page.
+enum RouteBackdrop: Equatable {
+  /// This title's picture, under this key — the same key the title's page publishes under.
+  case picture(String)
+  /// No picture: the backdrop fades out while this page is in front.
+  case none
+  /// Over the page beneath it, which keeps its picture (the player).
+  case passThrough
+}
+
+extension Route {
+  static func backdropKey(itemID: Int) -> String { "media-item-\(itemID)" }
+
+  var backdrop: RouteBackdrop {
+    switch self {
+    case .details(let item): .picture(Self.backdropKey(itemID: item.id))
+    case .detailsById(let id): .picture(Self.backdropKey(itemID: id))
+    // A title's own sub-page stays on the title's picture.
+    case .ratingsAndReviews(let block): .picture(Self.backdropKey(itemID: block.item.id))
+    case .player, .trailerPlayer: .passThrough
+    default: .none
+    }
+  }
+
+  /// The key in front for a path: its topmost route that is not see-through.
+  static func backdropFront(of path: [Route]) -> String? {
+    for route in path.reversed() {
+      switch route.backdrop {
+      case .picture(let key): return key
+      case .none: return nil
+      case .passThrough: continue
+      }
+    }
+    return nil
+  }
+
+  static func backdropKeys(in path: [Route]) -> Set<String> {
+    Set(path.compactMap { route in
+      if case .picture(let key) = route.backdrop { return key }
+      return nil
+    })
+  }
+}
+

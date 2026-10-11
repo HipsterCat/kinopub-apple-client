@@ -97,8 +97,8 @@ enum MediaItemHeroActionAvailability {
 /// Whether the hero is on screen, measured by the hero's own frame on iOS and macOS and
 /// used for one thing: pausing the ambient trailer once it has scrolled away. An
 /// `@Observable` held by reference so the write lands in `MediaItemHeroView` alone and
-/// never re-runs this page's body. tvOS does not use it: there the artwork is part of the
-/// hero and scrolls away with it, so there is no page-wide state to keep.
+/// never re-runs this page's body. tvOS does not use it: there the artwork is the stack's
+/// backdrop and never scrolls away, so there is no page-wide state to keep.
 @Observable
 final class MediaItemHeroPhase {
   var isHeroOnScreen = true
@@ -140,6 +140,11 @@ struct MediaItemView: View {
     @Bindable var errorHandler = errorHandler
     details
       .background(pageBackground)
+#if os(tvOS)
+      // Behind the page, not in it: the stack's one backdrop shows this title's
+      // picture while the hero and the sections scroll over it.
+      .pageBackdrop(tvBackdrop)
+#endif
       .overlay {
         // Full-page error only on a true cold miss — never over a card snapshot /
         // already-loaded item. Soft refresh failures use `hudToast` instead.
@@ -273,16 +278,18 @@ struct MediaItemView: View {
     ))
   }
 
-  /// One native vertical scroll: the hero, its artwork and the sections below are one
-  /// view and focus graph, and the focus engine scrolls it. The only scroll this page
+  /// One native vertical scroll: the hero and the sections below are one view and focus
+  /// graph, and the focus engine scrolls it. The only scroll this page
   /// asks for itself is back to the top whenever a hero control takes focus: the hero's
   /// controls sit at its bottom edge, and left alone the engine nudges the page just far
   /// enough to frame whichever one was focused (the same drift Plozz corrects the same
   /// way). Below the hero there is nothing to correct and nothing is written.
   ///
-  /// The artwork is the hero's own `.background`, so it scrolls away with the hero. The
-  /// page keeps no fold state, no scroll target behaviour and no pinned layer, which is
-  /// what used to re-render every shelf on each hero↔section move.
+  /// On tvOS the artwork is not in this scroll at all: it is the navigation stack's one
+  /// backdrop (`pageBackdrop`), screen-sized and still at any depth. On iOS and macOS it
+  /// is the hero's own `.background` and scrolls away with it. Either way the page keeps
+  /// no fold state, no scroll target behaviour and no scroll-driven layer, which is what
+  /// used to re-render every shelf on each hero↔section move.
   private var scrollDetails: some View {
     ScrollViewReader { proxy in
       ScrollView(.vertical) {
@@ -548,9 +555,9 @@ struct MediaItemView: View {
     )
   }
 
-  /// tvOS: the plain page. The artwork belongs to the hero and scrolls away with it,
-  /// so everything below the hero sits on the app background. iOS / macOS keep the
-  /// optional blurred-poster wash behind the whole page.
+  /// tvOS: the plain page — it draws nothing behind itself; the stack's backdrop is
+  /// what shows through (`tvBackdrop`). iOS / macOS keep the optional blurred-poster
+  /// wash behind the whole page.
   @ViewBuilder
   private var pageBackground: some View {
 #if os(tvOS)
@@ -601,6 +608,16 @@ struct MediaItemView: View {
     .ignoresSafeArea()
 #endif
   }
+
+#if os(tvOS)
+  /// This title's picture for the stack's backdrop. The id is the title, so a payload
+  /// that only adds a palette later animates in place rather than crossfading.
+  private var tvBackdrop: PageBackdrop? {
+    let urls = MediaItemHeroView.backdropCandidates(for: itemModel.mediaItem)
+    guard !urls.isEmpty else { return nil }
+    return PageBackdrop(id: Route.backdropKey(itemID: itemModel.mediaItem.id), imageURLs: urls)
+  }
+#endif
 
   private static let ambientBuffer = CGSize(width: 160, height: 90)
   private static let ambientBlur: CGFloat = 10

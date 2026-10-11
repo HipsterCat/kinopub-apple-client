@@ -332,6 +332,9 @@ struct MediaItemHeroView: View {
   /// focused control" and "the player took focus" from a move down the page.
   @State private var focusLeftRowAt: Date?
   @State private var focusLeftPlayerControlAt: Date?
+  /// Focus is in the sections below, not in the hero: the app's backdrop puts the
+  /// material over the picture (`pageBackdropDetails`).
+  @State private var inDetails = false
 #endif
   /// Opt-in, off by default. Read as `@AppStorage` so flipping it in Settings redraws
   /// the metadata row without leaving the page.
@@ -362,7 +365,11 @@ struct MediaItemHeroView: View {
       // than on the page, so a focus move re-renders the hero and nothing else.
       .onChange(of: focus) { old, target in
         noteFocusLeavingRow(from: old, to: target)
-        guard let target else { return }
+        guard let target else {
+          noteFocusLeftHero()
+          return
+        }
+        inDetails = false
         onFocusEntered?()
         if target == actionEntryTarget {
           returnsFromPlayer = false
@@ -409,6 +416,7 @@ struct MediaItemHeroView: View {
       .onChange(of: actionRowSignature) { _, _ in
         actionRowChanged()
       }
+      .pageBackdropDetails(inDetails, key: Route.backdropKey(itemID: mediaItem.id))
 #endif
   }
 
@@ -433,6 +441,17 @@ struct MediaItemHeroView: View {
   private func claim(_ target: MediaItemFocusTarget, reason: String) {
     FocusLog.moved(section: "hero", element: "claim \(target) — \(reason)", focused: true)
     focus = target
+  }
+
+  /// Focus left the hero. It is the details only once something below has it and the
+  /// page is still in front — not when the player or another page took it, and not in
+  /// the instant nothing is focused while a control is rebuilt.
+  private func noteFocusLeftHero() {
+    Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(120))
+      guard focus == nil, !isCovered, !TVFocusProbe.nothingFocused else { return }
+      inDetails = true
+    }
   }
 
   private func noteFocusLeavingRow(from old: MediaItemFocusTarget?, to new: MediaItemFocusTarget?) {
@@ -515,15 +534,11 @@ struct MediaItemHeroView: View {
   private var platformBody: some View {
 #if os(tvOS)
     // The page gives the hero its height (`MediaItemLayout.heroFraction` of the screen)
-    // and the chrome sits at its bottom edge. The artwork is the hero's `.background`, so
-    // it adds nothing to the layout and scrolls away with the hero, but it is as tall as
-    // the screen, not the hero: the first section peeks over the picture instead of over
-    // a band of bare page, and the picture dissolves into the page at the bottom.
+    // and the chrome sits at its bottom edge. The hero draws no picture: the artwork and
+    // its scrim are the navigation stack's backdrop, behind the scroll (`MediaItemView`
+    // claims it), so the hero's text scrolls away over a picture that stays.
     content
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-      .background(alignment: .top) {
-        backdropLayer
-      }
       // The same muted preview, promoted to sound and full screen without restarting.
       // Menu on the remote dismisses it — no chrome of our own over the picture.
       .fullScreenCover(isPresented: $isTrailerFullScreen, onDismiss: { trailer.setFullScreen(false) }) {
@@ -591,8 +606,8 @@ struct MediaItemHeroView: View {
 
   /// wide → big → medium. Same chain as Home banners — list/detail payloads differ and
   /// a `/wide/` derivation frequently 404s, so one URL is not enough. See
-  /// `FallbackRemoteImage`.
-  private var backdropCandidates: [URL] {
+  /// `FallbackRemoteImage`. The tvOS page hands the same chain to the stack's backdrop.
+  static func backdropCandidates(for mediaItem: MediaItem) -> [URL] {
     var seen = Set<String>()
     var urls: [URL] = []
     for raw in [mediaItem.posters.wideURL, mediaItem.posters.big, mediaItem.posters.medium]
@@ -601,6 +616,9 @@ struct MediaItemHeroView: View {
     }
     return urls
   }
+
+#if !os(tvOS)
+  private var backdropCandidates: [URL] { Self.backdropCandidates(for: mediaItem) }
 
   @ViewBuilder
   private var scrollingBackdrop: some View {
@@ -624,56 +642,7 @@ struct MediaItemHeroView: View {
     .animation(.easeInOut(duration: 0.6), value: trailer.isReady)
   }
 
-#if os(tvOS)
-  /// Artwork, then the legibility scrim, both dissolved into the page at the bottom and
-  /// sized to the screen (`containerRelativeFrame` resolves against the page's scroll
-  /// view, not the hero).
-  private var backdropLayer: some View {
-    ZStack {
-      scrollingBackdrop
-      scrollingScrim
-    }
-//    .containerRelativeFrame(.vertical, alignment: .top)
-    .mask {
-      // The picture's own alpha goes to zero, so whatever the page is drawn on shows
-      // through: no second colour to match, in light or dark.
-      LinearGradient(stops: [
-        .init(color: .clear, location: 0),
-        .init(color: .black, location: 0.4),
-        .init(color: .black, location: 1)
-      ], startPoint: .top, endPoint: .bottom)
-    }
-  }
 
-  /// Always black under the hero chrome. Content forces `.colorScheme(.dark)`, so
-  /// text is light; the scrim stays dark regardless of the ambient scheme.
-  private var scrimTone: Color { .black }
-
-  /// Where our text is, and nowhere else: the chrome runs the whole bottom edge (title
-  /// and actions on the left, synopsis and credits on the right), so the floor is full
-  /// width; the left edge gets extra weight for the title. The top of the picture is left
-  /// alone. Stops are in screen height — the hero's content spans roughly 0.3 to 0.75.
-  /// The old scrim stacked a 0.92 diagonal on a 0.45 floor, which is what read as black.
-  private var scrollingScrim: some View {
-    ZStack {
-      // Floor under the written column — light artwork otherwise washes out
-      // white `.primary` copy even with colorScheme forced dark.
-      scrimTone.opacity(0.22)
-
-      LinearGradient(stops: [
-        .init(color: .clear, location: 0.35),
-        .init(color: scrimTone.opacity(0.28), location: 0.55),
-        .init(color: scrimTone.opacity(0.55), location: 0.82),
-        .init(color: scrimTone.opacity(0.72), location: 1)
-      ], startPoint: .top, endPoint: .bottom)
-
-      LinearGradient(stops: [
-        .init(color: scrimTone.opacity(0.35), location: 0),
-        .init(color: .clear, location: 0.35)
-      ], startPoint: .leading, endPoint: .trailing)
-    }
-  }
-#else
   /// Barely there, the way the Apple TV app leaves its hero video alone: clear for
   /// most of the frame, a light shade under the text, and the background colour only
   /// at the last few percent — without that the hero would meet the page on a visible

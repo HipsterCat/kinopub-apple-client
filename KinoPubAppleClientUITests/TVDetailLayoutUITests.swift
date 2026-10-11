@@ -330,6 +330,92 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Фантастика, боевик, приключения"].exists, "the genre group's subheading")
   }
 
+  /// The picture behind the page is the stack's, not the page's: it stays still at any depth,
+  /// and opening another title crossfades it to that title's while the page changes over it.
+  /// Back, it crossfades home again. Shots mid-way and settled, both ways.
+  /// Under the real tab bar: the backdrop sits behind the tab view, not inside a tab.
+  func testTheBackdropCrossfadesBetweenTitles() throws {
+    launch("film", extra: ["-KINOPUBFixtureInTabs", "YES"])
+    try waitForHeroFocus()
+    XCTAssertTrue(seek(.down, until: "kinopub.poster.9902", limit: 6), focusedDescription)
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot("backdrop-00-deep")
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 0.35)
+    try shoot("backdrop-01-pushing")
+    Thread.sleep(forTimeInterval: 2.5)
+    try shoot("backdrop-02-pushed")
+    XCUIRemote.shared.press(.menu)
+    Thread.sleep(forTimeInterval: 0.15)
+    try shoot("backdrop-03-popping")
+    Thread.sleep(forTimeInterval: 2.0)
+    try shoot("backdrop-04-back")
+    // Back to a page that asks for no backdrop: the fade starts with the pop, not after it.
+    XCUIRemote.shared.press(.menu)
+    Thread.sleep(forTimeInterval: 0.15)
+    try shoot("backdrop-05-leaving")
+    Thread.sleep(forTimeInterval: 0.35)
+    try shoot("backdrop-06-left")
+  }
+
+  /// Down from the hero into the sections fades the picture out to the system background —
+  /// light in the light appearance, dark in the dark one — and Up into the hero brings it back.
+  func testTheDetailsLeaveThePictureInBothAppearances() throws {
+    for scheme in ["light", "dark"] {
+      launch("film", extra: ["-KINOPUBFixtureInTabs", "YES"], scheme: scheme)
+      try waitForHeroFocus()
+      try shoot("material-\(scheme)-0-hero")
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.3)
+      try shoot("material-\(scheme)-1-fading")
+      Thread.sleep(forTimeInterval: 1.0)
+      try shoot("material-\(scheme)-2-details")
+      step(.down, times: 3)
+      try shoot("material-\(scheme)-3-deeper")
+      for _ in 0..<8 where !heroHasFocus { XCUIRemote.shared.press(.up); Thread.sleep(forTimeInterval: 0.9) }
+      XCTAssertTrue(heroHasFocus, focusedDescription)
+      Thread.sleep(forTimeInterval: 1.0)
+      try shoot("material-\(scheme)-4-hero-again")
+      app.terminate()
+    }
+  }
+
+  /// Light appearance, the plain way through: a title's hero, its details, and the list it
+  /// was opened from — what is behind each of them.
+  func testLightAppearanceBehindEveryPage() throws {
+    launch("film", extra: ["-KINOPUBFixtureInTabs", "YES"], scheme: "light")
+    try waitForHeroFocus()
+    Thread.sleep(forTimeInterval: 1.0)
+    try shoot("light-1-hero")
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.5)
+    try shoot("light-2-details")
+    XCUIRemote.shared.press(.menu)
+    Thread.sleep(forTimeInterval: 2.0)
+    try shoot("light-3-list")
+  }
+
+  /// Title → title five deep through Similar, then all the way back: at every depth the
+  /// backdrop is that title's (each Similar cover is drawn in its own colour, its name on it).
+  func testTheBackdropFollowsTitleAfterTitle() throws {
+    launch("film", extra: ["-KINOPUBFixtureInTabs", "YES"])
+    try waitForHeroFocus()
+    for depth in 1...5 {
+      let id = 9_901_000 + depth   // a different cover each time, never the page's own
+      XCTAssertTrue(seek(.down, until: "kinopub.poster.", limit: 8), focusedDescription)
+      XCTAssertTrue(seek(.right, until: "kinopub.poster.\(id)", limit: 24), focusedDescription)
+      XCUIRemote.shared.press(.select)
+      Thread.sleep(forTimeInterval: 3.0)
+      try shoot("deep-\(depth)-\(id)")
+      note("deep \(depth)")
+    }
+    for step in 1...5 {
+      XCUIRemote.shared.press(.menu)
+      Thread.sleep(forTimeInterval: 2.0)
+      try shoot("deep-back-\(step)")
+    }
+  }
+
   /// Two directors open the one row of people, the cast follows them, and the cast comes in the
   /// order of who matters, not the order kino.pub listed them.
   func testSeveralDirectorsShareTheRowAndTheCastIsRanked() throws {
@@ -461,12 +547,12 @@ final class TVDetailLayoutUITests: XCTestCase {
     }
   }
 
-  private func launch(_ fixture: String, extra: [String] = []) {
+  private func launch(_ fixture: String, extra: [String] = [], scheme: String = "dark") {
     app = XCUIApplication()
     app.launchArguments += extra
     app.launchArguments += ["-ui-testing",
                             "-KINOPUBDetailFixture", fixture,
-                            "-KINOPUBForceColorScheme", "dark",
+                            "-KINOPUBForceColorScheme", scheme,
                             "-AppleLanguages", "(ru)",
                             "-AppleLocale", "ru_RU",
                             "-UIFocusLoggingEnabled", "YES"]

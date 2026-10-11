@@ -55,6 +55,13 @@ struct TabsNavigationView: View {
 
   var body: some View {
     modernTabs
+#if os(tvOS)
+      // The one backdrop, behind the tab bar and every stack, and everything over it
+      // transparent. The selected tab's path says whose picture is in front; the title's
+      // page publishes what that picture is (`pageBackdrop`).
+      .pageBackdropStage(front: navigationState.backdropFront,
+                         live: navigationState.backdropLiveKeys)
+#endif
       .presentsWhatsNew(isSignedIn: authState.phase == .signedIn)
       .environment(navigationState)
       .environment(errorHandler)

@@ -435,9 +435,16 @@ enum DetailFixture: String, CaseIterable, Identifiable {
   static func context(replacingServicesOf base: AppContext) -> AppContext {
     var context = base
     context.contentService = VideoContentServiceMock(
-      details: { id in DetailFixture.allCases.first { $0.itemID == id }?.makeItem() },
+      // A Similar cover opens a page of its own — its own picture, the same shelf of Similar —
+      // so the remote can go title → title as deep as it likes.
+      details: { id in
+        DetailFixture.allCases.first { $0.itemID == id }?.makeItem()
+          ?? DetailFixture.similarItems().first { $0.id == id }
+      },
       similar: { id in
-        [.film, .filmCrew].contains(DetailFixture.allCases.first { $0.itemID == id }) ? DetailFixture.similarItems() : nil
+        [.film, .filmCrew].contains(DetailFixture.allCases.first { $0.itemID == id })
+          || DetailFixture.similarItems().contains { $0.id == id }
+          ? DetailFixture.similarItems() : nil
       },
       // The lead's other films and the director's are different shelves — a page whose three
       // groups of Similar are all there to be looked at.
@@ -510,8 +517,10 @@ struct DetailFixtureRoot: View {
         Tab(value: 1) { Color.clear } label: { Text("Movies") }
       }
       .tabViewStyle(.tabBarOnly)
+      .pageBackdropStage(front: Route.backdropFront(of: path), live: Route.backdropKeys(in: path))
     } else {
       stack
+        .pageBackdropStage(front: Route.backdropFront(of: path), live: Route.backdropKeys(in: path))
     }
   }
 

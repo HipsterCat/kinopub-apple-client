@@ -652,7 +652,11 @@ public struct TVPageSection: Identifiable, Hashable {
     case .info(let info): return info.registration
     case .groupTitle: return .groupTitle
     case .chip: return .chip
-    case .person: return .person
+    // A person in a strip is search's wide card — avatar, name, role — as it was before
+    // dequeue went by registration. The round person lockup is sized to the column, and a
+    // third of the screen made the portraits ~500 pt across, over the row below
+    // (Sasha, 2026-10-11).
+    case .person: return groupCell == .person ? .person : .card
     case .masthead: return .masthead
     case .feature: return .banner
     case .tile: return .still

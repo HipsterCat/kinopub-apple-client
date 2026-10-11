@@ -803,7 +803,9 @@ final class TVPageWideCardCell: UICollectionViewCell {
     let cardID = "kinopub.card.\(card.id)"
     accessibilityIdentifier = cardID
     cardView.accessibilityIdentifier = cardID
-    cardView.accessibilityLabel = [card.title, original, detailLabel.text].compactMap { $0 }.joined(separator: ", ")
+    let label = [card.title, original, detailLabel.text].compactMap { $0 }.joined(separator: ", ")
+    accessibilityLabel = label
+    cardView.accessibilityLabel = label
     loadThumbnail(URL(string: card.posterURL))
   }
 
@@ -820,7 +822,9 @@ final class TVPageWideCardCell: UICollectionViewCell {
     let personID = "kinopub.card.person.\(person.id)"
     accessibilityIdentifier = personID
     cardView.accessibilityIdentifier = personID
-    cardView.accessibilityLabel = [person.name, person.caption].compactMap { $0 }.joined(separator: ", ")
+    let label = [person.name, person.caption].compactMap { $0 }.joined(separator: ", ")
+    accessibilityLabel = label
+    cardView.accessibilityLabel = label
   }
 
   func configurePlaceholder() {

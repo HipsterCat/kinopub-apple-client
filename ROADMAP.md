@@ -106,6 +106,21 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       order and cut at 12, no profession on a card, group titles that stay on the margin, a type as
       an SF Symbol, no captions under covers, half the air between cards and groups, no Debug button
       on tvOS
+- [ ] **Redo the tvOS backdrop properly** (Sasha, 2026-10-11: what is there is crutches without
+      reading the APIs; tolerable for now). Sasha will point at apps that did it from the
+      documentation; study how they hold one background behind navigation, how they treat the
+      details below the hero, and in both appearances — then replace `PageBackdrop` rather than
+      patch it. Interim state and what was rejected: AGENTS.md › The detail page
+- [ ] Backdrop palette: Sasha supplies mean colours / gradients per title, crossfaded between
+      titles (the interim `PageBackdrop.palette` slot exists; nothing fills it)
+- [ ] Light appearance, details: the hero's text is forced dark (white), and what is left of it
+      at the top of the screen once the picture has faded is white on the light system
+      background. Decide: the hero follows the appearance in the details, or it dims with them
+- [x] Cast & Crew drew ~500 pt round portraits over *Similar* (Sasha, 2026-10-11): since #50 a cell
+      is dequeued by `TVPageItemID.registration`, and a person in a strip got the round person
+      lockup sized to a third of the screen. A person in a strip is search's wide card again
+      (`testAPersonInAStripIsAWideCard`); the wide card carries its label on the cell too, which
+      is what XCUI reads
 - [ ] A fact's text arrives with HTML entities undecoded — `Turangal&#238;la-Symphonie` on a
       Futurama card (seen 2026-10-11, Sasha's screenshot). Predates the facts rework; decode where
       `TitleMetadata` takes a fact in, not in the cell
@@ -175,8 +190,9 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       vote, once (2026-10-06). Views are not on it, and the SwiftUI page still has the old control
 - [ ] tvOS section headers must not navigate — "see more" is a trailing card or button inside the
       row, never a separately-focusable header link
-- [ ] Backdrop: one wide still that blurs as a material, not a second tiny poster raster
-      cross-fading under it at rising opacity (their colours visibly disagree mid-fade)
+- [ ] Backdrop (iOS / macOS): one wide still that blurs as a material, not a second tiny poster raster
+      cross-fading under it at rising opacity (their colours visibly disagree mid-fade). tvOS has
+      one still now, behind the stack (`PageBackdrop`)
 - [ ] Investigate stranded/parallaxing posters in the person shelves — several sibling collections
       in one page region is the suspect shape. **Do not blind-fix**; it needs the transition watched
 

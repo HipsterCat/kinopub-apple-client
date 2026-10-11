@@ -5,6 +5,21 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS detail backdrop out of the scroll — interim (2026-10-11)
+
+The picture is no longer the hero's `.background`: one full-screen backdrop sits behind the tab
+view (`PageBackdrop`, KinoPubUI) and shows the selected tab's top title (`Route.backdrop`); the
+title's page publishes it, and it fades to the system background while focus is in the sections.
+**Interim** — Sasha will have it redone after looking at reference apps; see AGENTS.md › The
+detail page for what is decided and what was rejected.
+
+- **Cast & Crew portraits:** since #50 dequeued cells by `TVPageItemID.registration`, a person in
+  a strip took the round person lockup at a third of the screen (~500 pt, over *Similar*). A person
+  in a strip is search's wide card again; its label is on the cell too (what XCUI reads).
+- Fixture: a Similar cover opens a page of its own (its own picture, the same Similar), so
+  `testTheBackdropFollowsTitleAfterTitle` walks five titles deep and back.
+- `TVPageIdentityTests` compiles again (`@MainActor` on the Following-caption test).
+
 ### tvOS season rail: one UIKit controller, the remote lands where the hero points (2026-10-11)
 
 Season tabs and episodes are **`TVSeasonRail`** (KinoPubUI): a row of system list cells

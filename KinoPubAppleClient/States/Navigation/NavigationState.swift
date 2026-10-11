@@ -184,6 +184,21 @@ final class NavigationState {
     }
   }
 
+#if os(tvOS)
+  /// The picture in front: the selected tab's top title, read from the path itself, so it
+  /// changes on Select and on Menu — before any transition (`PageBackdropStage`).
+  var backdropFront: String? {
+    Route.backdropFront(of: path(for: selectedTab).wrappedValue)
+  }
+
+  /// Every title any tab's path still holds; the stage forgets the rest.
+  var backdropLiveKeys: Set<String> {
+    let paths = [searchRoutes, mainRoutes, moviesRoutes, seriesRoutes, libraryRoutes,
+                 watchlistRoutes, recentlyWatchedRoutes, bookmarksRoutes, downloadsRoutes]
+    return paths.reduce(into: Set<String>()) { $0.formUnion(Route.backdropKeys(in: $1)) }
+  }
+#endif
+
   /// The path a tab's `NavigationStack` binds to. A tab with no shared stack gets an
   /// inert binding rather than a crash — see `routes(for:)`.
   func path(for tab: NavigationTabs) -> Binding<[Route]> {

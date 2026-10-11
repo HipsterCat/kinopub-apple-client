@@ -30,6 +30,18 @@ final class TVPageIdentityTests: XCTestCase {
     XCTAssertEqual(first.itemID(at: 0).registration, .poster)
   }
 
+  /// Cast & Crew is a strip of people in three columns: they are wide cards, not round
+  /// person lockups grown to a third of the screen.
+  func testAPersonInAStripIsAWideCard() {
+    let person = TVUIKitPerson(id: "actor:Уиллем Дефо", name: "Уиллем Дефо",
+                               nameComponents: TVUIKitPerson.nameComponents(from: "Уиллем Дефо"),
+                               caption: nil, photoURL: nil)
+    let section = TVPageSection.strip(id: "credits", groups: [
+      TVPageGroup(id: "people", title: nil, columns: 3, items: [.person(person)])
+    ])
+    XCTAssertEqual(section.itemID(at: 0).registration, .card)
+  }
+
   func testUniquedItemsKeepsTheFirstOfADuplicatePerson() {
     let person = TVUIKitPerson(id: "actor:Валид Зуэйтер",
                                name: "Валид Зуэйтер",
@@ -81,6 +93,7 @@ final class TVPageIdentityTests: XCTestCase {
     XCTAssertEqual(cell.accessibilityIdentifier, "kinopub.card.person.director:Энтони Руссо")
   }
 
+  @MainActor
   func testAFollowedCoverSaysHowManyEpisodesAreLeft() {
     let followed = MediaCard(id: 1, posterURL: "", title: "Дом Дракона",
                              unwatchedEpisodes: 5)
