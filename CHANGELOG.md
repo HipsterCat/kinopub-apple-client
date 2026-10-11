@@ -20,6 +20,16 @@ detail page for what is decided and what was rejected.
   `testTheBackdropFollowsTitleAfterTitle` walks five titles deep and back.
 - `TVPageIdentityTests` compiles again (`@MainActor` on the Following-caption test).
 
+### Score cards wear the new marks (2026-10-11)
+
+`Media.xcassets/ratings` (Sasha): the full-colour marks for the score cards — `MediaScoreLogo.Style
+.card` → `imdb_big_color`, `kinopoisk_big_color`, `tmdb_big_color`, `kinopub_big_color`, drawn by
+`TVPageRatingContent`. The review tones are the `review_positive / negative / neutral` faces
+(template, tinted per tone) instead of `TVPageMoodGlyph` drawing them in code. Both sets preserve
+their vectors (the SVGs are 24–74 px and the card mark is 44 pt). The Rotten Tomatoes marks are in
+the catalogue too; no RT score is in the model yet. Badges moved into `Media.xcassets/badges` (no
+namespace, names unchanged).
+
 ### tvOS season rail: one UIKit controller, the remote lands where the hero points (2026-10-11)
 
 Season tabs and episodes are **`TVSeasonRail`** (KinoPubUI): a row of system list cells

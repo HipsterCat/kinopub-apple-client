@@ -334,7 +334,7 @@ final class TVPageRatingContent: TVPageCardContent {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func configure(_ rating: TVPageInfoCard.Rating) {
-    let mark = rating.source?.uiImage()
+    let mark = rating.source?.uiImage(style: .card)
     logoView.image = mark
     logoView.isHidden = mark == nil
     // A source we hold no mark for is told by its name, in the mark's place.
@@ -436,51 +436,21 @@ final class TVPageReviewsCell: TVPageInfoCardCell {
   }
 }
 
-/// How the three tones of a review are drawn: a face in a ring, a smile, a frown, a straight mouth.
-///
-/// **Apple API limitation, probed on the tvOS 26.5 simulator (2026-10-11):** SF Symbols has
-/// `face.smiling` and nothing for the other two — `UIImage(systemName: "face.frowning")` and
-/// `"face.neutral"` are nil — so all three are drawn here, as one family. A template image, tinted
-/// by the view. Re-probe on the next SDK, and replace this with the symbols if they land.
+/// How the three tones of a review are drawn: the faces in `Media.xcassets` (`review_positive`,
+/// `review_negative`, `review_neutral`, Sasha, 2026-10-11) — template vectors, tinted by the view
+/// in the tone's colour. SF Symbols has `face.smiling` and nothing for the other two (probed on
+/// tvOS 26.5), which is why they are ours.
 enum TVPageMoodGlyph {
   enum Mood { case positive, negative, neutral }
 
-  static func image(_ mood: Mood, side: CGFloat) -> UIImage {
-    let size = CGSize(width: side, height: side)
-    let format = UIGraphicsImageRendererFormat()
-    format.scale = 0 // the screen's own
-    let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
-      UIColor.black.setStroke()
-      UIColor.black.setFill()
-      let line = side * 0.09
-      let ring = UIBezierPath(ovalIn: CGRect(origin: .zero, size: size).insetBy(dx: line / 2, dy: line / 2))
-      ring.lineWidth = line
-      ring.stroke()
-
-      let eye = side * 0.06
-      for x in [0.34, 0.66] {
-        UIBezierPath(ovalIn: CGRect(x: side * CGFloat(x) - eye, y: side * 0.38 - eye,
-                                    width: eye * 2, height: eye * 2)).fill()
-      }
-
-      let mouth: UIBezierPath
-      switch mood {
-      case .positive:
-        mouth = UIBezierPath(arcCenter: CGPoint(x: side * 0.5, y: side * 0.50), radius: side * 0.21,
-                             startAngle: .pi * 0.15, endAngle: .pi * 0.85, clockwise: true)
-      case .negative:
-        mouth = UIBezierPath(arcCenter: CGPoint(x: side * 0.5, y: side * 0.79), radius: side * 0.21,
-                             startAngle: .pi * 1.15, endAngle: .pi * 1.85, clockwise: true)
-      case .neutral:
-        mouth = UIBezierPath()
-        mouth.move(to: CGPoint(x: side * 0.34, y: side * 0.66))
-        mouth.addLine(to: CGPoint(x: side * 0.66, y: side * 0.66))
-      }
-      mouth.lineWidth = line
-      mouth.lineCapStyle = .round
-      mouth.stroke()
+  static func image(_ mood: Mood) -> UIImage? {
+    let name: String
+    switch mood {
+    case .positive: name = "review_positive"
+    case .negative: name = "review_negative"
+    case .neutral: name = "review_neutral"
     }
-    return image.withRenderingMode(.alwaysTemplate)
+    return UIImage(named: name, in: .module, compatibleWith: nil)?.withRenderingMode(.alwaysTemplate)
   }
 }
 
@@ -530,7 +500,7 @@ final class TVPageReviewsContent: TVPageCardContent {
     addSubview(titleLabel)
     for tone in tones {
       tone.glyph.contentMode = .scaleAspectFit
-      tone.glyph.image = TVPageMoodGlyph.image(tone.mood, side: Self.glyphSide)
+      tone.glyph.image = TVPageMoodGlyph.image(tone.mood)
       tone.count.font = Self.toneFont
       tone.count.adjustsFontForContentSizeCategory = true
       addSubview(tone.glyph)

@@ -40,6 +40,17 @@ public struct MediaScoreLogo: View {
       case .kinopub: return "kinopub_small"
       }
     }
+
+    /// The full-colour marks drawn for the score cards (`Media.xcassets/ratings`, Sasha,
+    /// 2026-10-11) — vector, so they take the card's mark height.
+    fileprivate var cardAssetName: String {
+      switch self {
+      case .imdb: return "imdb_big_color"
+      case .kinopoisk: return "kinopoisk_big_color"
+      case .tmdb: return "tmdb_big_color"
+      case .kinopub: return "kinopub_big_color"
+      }
+    }
   }
 
   public enum Style {
@@ -49,6 +60,8 @@ public struct MediaScoreLogo: View {
     case color
     /// The mark drawn for score chips and mini rating rows.
     case compact
+    /// The large full-colour mark of a score card.
+    case card
   }
 
   private let source: Source
@@ -78,6 +91,7 @@ public struct MediaScoreLogo: View {
     case .template: return source.rawValue
     case .color: return source.colorAssetName
     case .compact: return source.compactAssetName
+    case .card: return source.cardAssetName
     }
   }
 }
@@ -94,6 +108,7 @@ public extension MediaScoreLogo.Source {
     case .template: name = rawValue
     case .color: name = colorAssetName
     case .compact: name = compactAssetName
+    case .card: name = cardAssetName
     }
     return UIImage(named: name, in: .module, compatibleWith: nil)
   }
