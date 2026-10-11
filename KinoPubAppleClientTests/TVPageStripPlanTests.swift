@@ -14,6 +14,7 @@ import KinoPubBackend
 import TVUIKit
 import UIKit
 import XCTest
+@testable import KinoPub
 @testable import KinoPubUI
 
 @MainActor
@@ -199,6 +200,197 @@ final class TVPageStripPlanTests: XCTestCase {
     XCTAssertEqual(section.stripGroup(ofItem: 5)?.title, 2)
     XCTAssertNil(section.stripGroup(ofItem: 6))
     XCTAssertNil(TVPageSection.posters(id: "p", title: nil, cards: []).stripGroup(ofItem: 0))
+  }
+
+  // MARK: - Posters
+
+  private func posters(_ range: Range<Int>) -> [TVPageItem] {
+    DetailFixture.similarItems().map(MediaCard.init)[range].map(TVPageItem.card)
+  }
+
+  private func similar() -> TVPageSection {
+    .strip(id: "similar", title: "Similar", groups: [
+      TVPageGroup(id: "genres", title: "Фантастика", columns: 6, subheading: true, cell: .poster,
+                  items: posters(0..<3)),
+      TVPageGroup(id: "cast", title: "Эти же актёры", columns: 6, subheading: true, cell: .poster,
+                  items: posters(3..<5))
+    ])
+  }
+
+  /// A group of posters is the rails' poster at the rails' gutter — across groups too, which the
+  /// subheadings tell apart — and the first cover's art lands on the side inset like any card.
+  func testPostersAreTheRailsPosterAtTheRailsGutterAcrossGroupsToo() {
+    let section = similar()
+    let plan = plan(section)
+    XCTAssertEqual(plan.frames.count, section.items.count, "two titles, five covers")
+    let recipe = TVPageCellMetrics.recipe(kind: .poster, artWidth: TVHIGGrid.cardWidth(columns: 6, contentWidth: contentWidth),
+                                          caption: .never)
+    let covers = [plan.frames[1], plan.frames[2], plan.frames[3], plan.frames[5], plan.frames[6]]
+    XCTAssertTrue(covers.allSatisfy { abs($0.width - recipe.itemSize.width) < 1 && abs($0.height - recipe.itemSize.height) < 1 },
+                  "every cover is the rails' envelope")
+    for (a, b) in zip(covers, covers.dropFirst()) {
+      XCTAssertEqual(b.minX - a.minX, recipe.artSize.width + TVHIGGrid.gutter, accuracy: 1,
+                     "art to art is the HIG gutter, inside a group and from one group to the next")
+    }
+    XCTAssertEqual(plan.insets.leading + covers[0].minX + recipe.artInsets.leading, sideInset, accuracy: 1)
+  }
+
+  /// A subheading starts where the art under it starts, and the focused cover has room to lift
+  /// between the two.
+  func testASubheadingSitsOnItsFirstCoversArtWithRoomToLiftBelowIt() {
+    let section = similar()
+    let plan = plan(section)
+    let recipe = TVPageCellMetrics.recipe(kind: .poster, artWidth: TVHIGGrid.cardWidth(columns: 6, contentWidth: contentWidth),
+                                          caption: .never)
+    XCTAssertEqual(plan.frames[0].minX, plan.frames[1].minX + recipe.artInsets.leading, accuracy: 1)
+    XCTAssertEqual(plan.frames[4].minX, plan.frames[5].minX + recipe.artInsets.leading, accuracy: 1)
+    let artTop = plan.frames[1].minY + recipe.artInsets.top
+    XCTAssertGreaterThanOrEqual(artTop - plan.frames[0].maxY, recipe.artInsets.top,
+                                "the cover grows into the air under its title, not into the title")
+  }
+
+  // MARK: - One nesting, one look
+
+  /// Cast & Crew and Similar are built alike and have to look alike (Sasha, 2026-10-11): the title
+  /// strip, the air under it and where the stack begins are one geometry, whatever the stack is
+  /// made of — people's cards or posters.
+  func testTheSameNestingHasTheSameGeometryWhateverTheStackIsMadeOf() {
+    let people = plan(credits())
+    let covers = plan(similar())
+    let card = TVPageStripPlan.metrics(of: credits().groups[0].items[0], columns: 3, contentWidth: contentWidth)
+    let poster = TVPageStripPlan.metrics(of: similar().groups[0].items[0], columns: 6, contentWidth: contentWidth,
+                                         cell: .poster)
+
+    XCTAssertEqual(people.frames[0].minY, 0)
+    XCTAssertEqual(covers.frames[0].minY, 0, "the titles are on the strip's top line in both")
+    XCTAssertEqual(people.frames[0].height, covers.frames[0].height, "and are as tall")
+    let peopleArtTop = people.frames[1].minY + card.insets.top
+    let coversArtTop = covers.frames[1].minY + poster.insets.top
+    XCTAssertEqual(peopleArtTop, coversArtTop, accuracy: 0.5, "the stack begins as far under its title")
+  }
+
+  /// A group's titles lift by one amount, whichever card has focus — the wide card's, which is
+  /// what Cast & Crew has always lifted by — and it is less than the air they were given.
+  func testEveryTitleLiftsByOneAmount() {
+    let wide = TVPageCellMetrics.recipe(kind: .card, artWidth: 560, caption: .always)
+    XCTAssertEqual(TVPageLayout.stripTitleLift, TVHIGGrid.focusRoom(cardHeight: wide.itemSize.height))
+    XCTAssertGreaterThan(TVPageLayout.stripTitleLift, 0)
+    XCTAssertLessThan(TVPageLayout.stripTitleLift, TVHIGGrid.headerToItems)
+  }
+
+  // MARK: - One row of people, a grid of stills
+
+  /// A heading of the strip's own over groups with no titles — Cast & Crew's one row — leaves the
+  /// cards as far under it as a rail's, which have the same header; with no heading there is no air.
+  func testAHeadingOnlyStripStandsItsCardsUnderTheHeaderLikeARail() {
+    func row(title: String?) -> TVPageSection {
+      .strip(id: "credits", title: title, groups: [
+        TVPageGroup(id: "people", title: nil, columns: 3, items: [person("A"), person("B")])
+      ])
+    }
+    let card = TVPageStripPlan.metrics(of: person("A"), columns: 3, contentWidth: contentWidth)
+    XCTAssertEqual(plan(row(title: "Cast & Crew")).insets.top, max(TVHIGGrid.headerToItems - card.insets.top, 0),
+                   accuracy: 0.5)
+    XCTAssertEqual(plan(row(title: nil)).insets.top, 0)
+    // And a strip whose groups have titles of their own keeps the title strip, not this air.
+    XCTAssertEqual(plan(credits()).insets.top, 0)
+  }
+
+  /// The stills are a grid that adapts to how many there are, up to six (Sasha, 2026-10-11), and
+  /// fills the platter whatever the number: no cell is left over, nothing overlaps.
+  func testStillsFillThePlatterWhateverTheirNumber() {
+    XCTAssertEqual(TVPageInfoCard.Gallery.stillCount, 6)
+    let platter = CGSize(width: 572, height: 276)
+    for count in 1...6 {
+      let frames = TVPageGalleryContent.frames(count: count, in: platter)
+      XCTAssertEqual(frames.count, count)
+      let union = frames.reduce(frames[0]) { $0.union($1) }
+      XCTAssertEqual(union.width, platter.width, accuracy: 0.5, "\(count): edge to edge")
+      XCTAssertEqual(union.height, platter.height, accuracy: 0.5, "\(count): top to bottom")
+      for (index, frame) in frames.enumerated() {
+        for other in frames[(index + 1)...] {
+          XCTAssertFalse(frame.intersects(other), "\(count): \(frame) over \(other)")
+        }
+      }
+    }
+    let one = TVPageGalleryContent.frames(count: 1, in: platter)
+    XCTAssertEqual(one, [CGRect(origin: .zero, size: platter)], "one still is the whole platter")
+    let two = TVPageGalleryContent.frames(count: 2, in: platter)
+    XCTAssertEqual(two[0].minY, two[1].minY, "two stand side by side")
+    let three = TVPageGalleryContent.frames(count: 3, in: platter)
+    XCTAssertEqual(three[0].minY, three[1].minY, "three: two over one …")
+    XCTAssertEqual(three[2].width, platter.width, accuracy: 0.5, "… that is wide")
+    let six = TVPageGalleryContent.frames(count: 6, in: platter)
+    XCTAssertEqual(Set(six.map(\.minY)).count, 2, "six: three over three")
+    XCTAssertTrue(TVPageGalleryContent.frames(count: 9, in: platter).count == 6, "never more than six")
+    XCTAssertTrue(TVPageGalleryContent.frames(count: 0, in: platter).isEmpty)
+  }
+
+  // MARK: - The count of reviews
+
+  private var reviewsCard: TVPageInfoCard {
+    .reviews(.init(id: "reviews", title: "Отзывы", count: "1 063",
+                   tones: .init(positive: "45", negative: "11", neutral: "4"), accessibilityLabel: "Отзывы"))
+  }
+
+  /// The count of reviews is a score's size — the same height, never narrower than its column — and
+  /// is as wide as what it says needs, so a score beside it and it share a row.
+  func testTheCountOfReviewsIsAScoresHeightAndAsWideAsItsWordsNeed() {
+    let column = TVPageStripPlan.cardWidth(columns: 6, contentWidth: contentWidth, share: nil)
+    let rating = TVPageInfoCard.rating(.init(id: "IMDb", source: .imdb, title: "IMDb", value: "6.5"))
+    XCTAssertEqual(reviewsCard.height(forWidth: column), rating.height(forWidth: column), "the same height")
+    XCTAssertGreaterThanOrEqual(reviewsCard.width(inColumn: column), column, "never narrower than a score")
+    XCTAssertEqual(rating.width(inColumn: column), column)
+
+    let section = TVPageSection.strip(id: "ratings", groups: [
+      TVPageGroup(id: "scores", title: "Оценки", columns: 6, items: [.info(rating), .info(reviewsCard)])
+    ])
+    let plan = plan(section)
+    let ratingFrame = plan.frames[1], reviewsFrame = plan.frames[2]
+    XCTAssertEqual(ratingFrame.height, reviewsFrame.height, accuracy: 0.5, "one row, one height")
+    XCTAssertGreaterThanOrEqual(reviewsFrame.width, ratingFrame.width)
+    XCTAssertEqual(reviewsFrame.minX - ratingFrame.minX,
+                   TVPageStripPlan.metrics(of: .info(rating), columns: 6, contentWidth: contentWidth).art.width + TVPageStripPlan.cardGap,
+                   accuracy: 1, "the same air between a score and the count as between two scores")
+  }
+
+  /// With no tones — a source that has not said — the card is the total and its title, a score's width.
+  func testWithoutTonesTheCountIsAScoresWidth() {
+    let bare = TVPageInfoCard.reviews(.init(id: "reviews", title: "Отзывы", count: "63", accessibilityLabel: "Отзывы"))
+    let column = TVPageStripPlan.cardWidth(columns: 6, contentWidth: contentWidth, share: nil)
+    XCTAssertEqual(bare.width(inColumn: column), column)
+  }
+
+  // MARK: - Stacked columns
+
+  private func spec(_ id: String, rows: Int) -> TVPageItem {
+    .info(.spec(.init(id: id, title: id, showsHeader: false,
+                      rows: (0..<rows).map { .init(id: "\($0)", text: "row \($0)", style: .value) })))
+  }
+
+  /// A stacked group is one column: its cards one under the other, each as tall as what it says, and
+  /// two columns of three slots leave the third empty — the credits as text.
+  func testStackedColumnsStandOneUnderTheOtherAndLeaveAnEmptySlotEmpty() {
+    let section = TVPageSection.strip(id: "credits", title: "Cast & Crew", groups: [
+      TVPageGroup(id: "authors", title: nil, columns: 3, stacked: true, items: [spec("a", rows: 2)]),
+      TVPageGroup(id: "cast", title: nil, columns: 3, stacked: true, items: [spec("b", rows: 2), spec("c", rows: 6)])
+    ])
+    let plan = plan(section)
+    XCTAssertEqual(plan.frames.count, 3)
+    let (a, b, c) = (plan.frames[0], plan.frames[1], plan.frames[2])
+    XCTAssertEqual(b.minX, c.minX, "one column")
+    XCTAssertGreaterThan(c.minY, b.maxY - 1, "the second card under the first")
+    XCTAssertGreaterThan(c.height, b.height, "each as tall as its rows, not one height")
+    let width = TVPageStripPlan.cardWidth(columns: 3, contentWidth: contentWidth, share: 3)
+    XCTAssertEqual(b.minX - a.minX, width + TVHIGGrid.gutter, accuracy: 1, "columns a gutter apart")
+    XCTAssertLessThan(plan.size.width, contentWidth, "the third column is left empty")
+  }
+
+  /// Borderless items of the table need no room around them for a lift that does not happen.
+  func testAnItemOfTheTableHasNoFocusRoom() {
+    let metrics = TVPageStripPlan.metrics(of: spec("a", rows: 1), columns: 3, contentWidth: contentWidth, share: 3)
+    XCTAssertEqual(metrics.insets, .zero)
+    XCTAssertEqual(metrics.art, metrics.envelope)
   }
 }
 #endif

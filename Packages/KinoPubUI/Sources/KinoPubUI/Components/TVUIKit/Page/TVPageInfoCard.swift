@@ -19,6 +19,7 @@ import UIKit
 
 public enum TVPageInfoCard: Hashable {
   case rating(Rating)
+  case reviews(Reviews)
   case review(Review)
   case fact(Fact)
   case gallery(Gallery)
@@ -27,6 +28,7 @@ public enum TVPageInfoCard: Hashable {
   public var id: String {
     switch self {
     case .rating(let rating): return "rating.\(rating.id)"
+    case .reviews(let reviews): return "reviews.\(reviews.id)"
     case .review(let review): return "review.\(review.id)"
     case .fact(let fact): return "fact.\(fact.id)"
     case .gallery(let gallery): return "gallery.\(gallery.id)"
@@ -37,7 +39,8 @@ public enum TVPageInfoCard: Hashable {
   /// What the layout needs to know to size the card, so a change in it is a relayout.
   var layoutToken: String {
     switch self {
-    case .spec(let spec): return "spec.\(spec.rows.map(\.style.rawValue).joined(separator: ","))"
+    // A column is as tall as its rows, and a row that wraps is as tall as its words.
+    case .spec(let spec): return "spec.\(spec.rows.map { "\($0.style.rawValue):\($0.text)" }.joined(separator: ","))"
     default: return "card"
     }
   }
@@ -47,14 +50,13 @@ public enum TVPageInfoCard: Hashable {
   /// One source's score: its mark, the number, and how many people stand behind it.
   public struct Rating: Hashable {
     public let id: String
-    /// The source's brand mark. Nil draws `title` in its place.
+    /// The source's brand mark, drawn before the number. Nil draws `title` in its place.
     public let source: MediaScoreLogo.Source?
     public let title: String
-    /// The mark is a glyph with no lettering of its own (Kinopoisk's, kino.pub's): the
-    /// source's name goes beside it. IMDb and TMDB are wordmarks and say it themselves.
-    public let showsName: Bool
-    /// Printed as the source prints it: `6.5`, `87%`, `—`.
-    public let value: String
+    /// Printed as the source prints it: `6.5`, `87%`. Nil while the source has voters but
+    /// has not published a score yet — the card draws a dash, in secondary ink, where the
+    /// number would be, and `caption` still says how many voted.
+    public let value: String?
     public let caption: String?
     /// kino.pub's own score is thumbs, and shows how many of each.
     public let thumbs: Thumbs?
@@ -69,15 +71,51 @@ public enum TVPageInfoCard: Hashable {
       }
     }
 
-    public init(id: String, source: MediaScoreLogo.Source?, title: String, showsName: Bool = false,
-                value: String, caption: String? = nil, thumbs: Thumbs? = nil) {
+    public init(id: String, source: MediaScoreLogo.Source?, title: String,
+                value: String?, caption: String? = nil, thumbs: Thumbs? = nil) {
       self.id = id
       self.source = source
       self.title = title
-      self.showsName = showsName
       self.value = value
       self.caption = caption
       self.thumbs = thumbs
+    }
+  }
+
+  // MARK: Reviews, counted
+
+  /// How many reviews there are, and how they were meant — a card of the same shape and size as a
+  /// score, in the scores' row, in place of the reviews' own text, which is read on a page of its
+  /// own (Sasha, 2026-10-11).
+  public struct Reviews: Hashable {
+    public let id: String
+    /// "Отзывы".
+    public let title: String
+    /// The total, as the reader writes it: "63".
+    public let count: String
+    /// How many were meant well, badly and neither. Nil when the source has not said.
+    public let tones: Tones?
+    /// What VoiceOver reads: the title, the total and the tones, in words.
+    public let accessibilityLabel: String
+
+    public struct Tones: Hashable {
+      public let positive: String
+      public let negative: String
+      public let neutral: String
+
+      public init(positive: String, negative: String, neutral: String) {
+        self.positive = positive
+        self.negative = negative
+        self.neutral = neutral
+      }
+    }
+
+    public init(id: String, title: String, count: String, tones: Tones? = nil, accessibilityLabel: String) {
+      self.id = id
+      self.title = title
+      self.count = count
+      self.tones = tones
+      self.accessibilityLabel = accessibilityLabel
     }
   }
 
@@ -117,17 +155,13 @@ public enum TVPageInfoCard: Hashable {
     public let isRevealed: Bool
     /// "This fact contains spoilers, be careful." — shown while it is hidden.
     public let warning: String
-    /// "Show" — the control's label while hidden.
-    public let revealTitle: String
 
-    public init(id: String, text: String, isSpoiler: Bool, isRevealed: Bool,
-                warning: String, revealTitle: String) {
+    public init(id: String, text: String, isSpoiler: Bool, isRevealed: Bool, warning: String) {
       self.id = id
       self.text = text
       self.isSpoiler = isSpoiler
       self.isRevealed = isRevealed
       self.warning = warning
-      self.revealTitle = revealTitle
     }
 
     public var isHidden: Bool { isSpoiler && !isRevealed }
@@ -135,11 +169,11 @@ public enum TVPageInfoCard: Hashable {
 
   // MARK: Stills
 
-  /// A mosaic of a title's stills that opens the whole gallery: the first few, then a
-  /// chevron cell saying there is more.
+  /// A mosaic of a title's stills that opens the whole gallery: the first few, laid out in a grid
+  /// that adapts to how many there are (`TVPageGalleryContent.frames`), up to six.
   public struct Gallery: Hashable {
-    /// How many stills the mosaic shows — its 3 × 2 grid, minus the chevron cell.
-    public static let stillCount = 5
+    /// The most stills the mosaic shows (Sasha, 2026-10-11).
+    public static let stillCount = 6
 
     public let id: String
     public let images: [URL]
@@ -154,18 +188,28 @@ public enum TVPageInfoCard: Hashable {
 
   // MARK: Specification
 
-  /// One column of the technical table: a titled list of rows.
+  /// One item of the table under the page — a card of its own: Audio, Subtitles, the resolution, the
+  /// genres. Focus moves from card to card (Sasha, 2026-10-11), so none is as tall as the screen.
   public struct Spec: Hashable {
     public let id: String
-    /// SF Symbol drawn before the title.
+    /// SF Symbol drawn before the title, when the card has a header.
     public let symbol: String
+    /// The header's words — and what the popup that reads the card in full is called.
     public let title: String
+    /// Audio and Subtitles are headed; the resolution, a runtime or a genre list are just rows.
+    public let showsHeader: Bool
+    /// Select reads the whole card in the info popup — every language, every name. Off: it is
+    /// focusable and says what it says, and Select does nothing.
+    public let opensInPopup: Bool
     public let rows: [Row]
 
-    public init(id: String, symbol: String, title: String, rows: [Row]) {
+    public init(id: String, symbol: String = "info.circle", title: String, showsHeader: Bool = true,
+                opensInPopup: Bool = false, rows: [Row]) {
       self.id = id
       self.symbol = symbol
       self.title = title
+      self.showsHeader = showsHeader
+      self.opensInPopup = opensInPopup
       self.rows = rows
     }
 
@@ -175,17 +219,15 @@ public enum TVPageInfoCard: Hashable {
         case caption
         /// A value: "2 h 20 min", "3840×1600".
         case value
-        /// A language: bigger, a flag before it.
+        /// A language.
         case language
-        /// A line under a language — the dub, the studio.
+        /// A line under a language — the dub, its studios. Wraps; never cut.
         case detail
-        /// The row that folds the rest: "4 more languages".
+        /// What there is more of, in secondary words and no glyph: "+ ещё 7", "Показать все".
         case more
       }
 
       public enum Leading: Hashable {
-        /// A flag (or any emoji) drawn as text.
-        case emoji(String)
         case symbol(String)
       }
 

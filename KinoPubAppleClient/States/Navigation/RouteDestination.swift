@@ -73,7 +73,12 @@ struct RouteDestination: View {
                              authState: authState,
                              errorHandler: errorHandler)
     case .ratingsAndReviews(let payload):
+#if os(tvOS)
+      // The scores' row ends in a card that counts the reviews; this is where they are read.
+      MediaItemReviewsTVPage(payload: payload)
+#else
       MediaItemRatingsAndReviewsPage(payload: payload)
+#endif
     case .player(let item, let token):
 #if os(macOS)
       MacPlayerRouteGuard(item: item, mode: .media)

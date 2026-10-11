@@ -4974,6 +4974,24 @@
         }
       }
     },
+    "MediaItem_CreatorRole" : {
+      "comment" : "Under a creator's card in Cast & Crew on tvOS: what they are to the show. One person; the plural is MediaItem_Creators.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creator"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создатель"
+          }
+        }
+      }
+    },
     "MediaItem_Creators" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5178,6 +5196,24 @@
         }
       }
     },
+    "MediaItem_Expand" : {
+      "comment" : "The link under the cast in the tvOS credits as text: Select opens everyone kino.pub lists.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Развернуть"
+          }
+        }
+      }
+    },
     "MediaItem_ExpectedRelease" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5191,23 +5227,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ожидается"
-          }
-        }
-      }
-    },
-    "MediaItem_FactShow" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Показать"
           }
         }
       }
@@ -5911,6 +5930,24 @@
         }
       }
     },
+    "MediaItem_SeasonsAndEpisodes" : {
+      "comment" : "Caption over how many seasons and episodes a series has, in the tvOS table under the page.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seasons & Episodes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сезоны и серии"
+          }
+        }
+      }
+    },
     "MediaItem_SeasonSingle" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5979,6 +6016,96 @@
         }
       }
     },
+    "MediaItem_SimilarCast" : {
+      "comment" : "Subheading of a group under Similar on the tvOS detail page — the shelf's people, said as a role, with no name in it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same Actors"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эти же актёры"
+          }
+        }
+      }
+    },
+    "MediaItem_SimilarCreator" : {
+      "comment" : "Subheading of a group under Similar on the tvOS detail page — the shelf's people, said as a role, with no name in it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By This Creator"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "От этого создателя"
+          }
+        }
+      }
+    },
+    "MediaItem_SimilarCreators" : {
+      "comment" : "Subheading of a group under Similar on the tvOS detail page — the shelf's people, said as a role, with no name in it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By These Creators"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "От этих создателей"
+          }
+        }
+      }
+    },
+    "MediaItem_SimilarDirector" : {
+      "comment" : "Subheading of a group under Similar on the tvOS detail page — the shelf's people, said as a role, with no name in it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By This Director"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "От этого режиссёра"
+          }
+        }
+      }
+    },
+    "MediaItem_SimilarDirectors" : {
+      "comment" : "Subheading of a group under Similar on the tvOS detail page — the shelf's people, said as a role, with no name in it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By These Directors"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "От этих режиссёров"
+          }
+        }
+      }
+    },
     "MediaItem_SinceDate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5996,19 +6123,56 @@
         }
       }
     },
-    "MediaItem_SpecMoreLanguages" : {
+    "MediaItem_SpecMore" : {
+      "comment" : "What a card of languages has more of — a number of languages not shown; read in full by Select.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ more %2$@"
+            "value" : "+ %@ more"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ещё %1$@ %2$@"
+            "value" : "+ ещё %@"
+          }
+        }
+      }
+    },
+    "MediaItem_SpecNoAudio" : {
+      "comment" : "What the Audio part of the tvOS table says when the title reports no audio tracks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No data"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет данных"
+          }
+        }
+      }
+    },
+    "MediaItem_SpecNoSubtitles" : {
+      "comment" : "What the Subtitles part of the tvOS table says when the title reports no subtitle tracks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No subtitles"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет субтитров"
           }
         }
       }
@@ -6213,6 +6377,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Страны"
+          }
+        }
+      }
+    },
+    "MediaItem_TagCountry" : {
+      "comment" : "Caption over one country, in the tvOS table under the page; MediaItem_TagCountries is the plural.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Country"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Страна"
+          }
+        }
+      }
+    },
+    "MediaItem_TagGenre" : {
+      "comment" : "Caption over one genre, in the tvOS table under the page; MediaItem_TagGenres is the plural.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genre"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жанр"
           }
         }
       }
@@ -6859,6 +7059,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Год"
+          }
+        }
+      }
+    },
+    "MediaItem_YearsAired" : {
+      "comment" : "Caption over the years a series aired, in the tvOS table under the page.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Years"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Годы выхода"
+          }
+        }
+      }
+    },
+    "MediaItem_YearsRange" : {
+      "comment" : "The years a finished series aired: from the first to the last.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@–%@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "с %@ по %@"
           }
         }
       }

@@ -19,7 +19,9 @@ import KinoPubMetadata
 /// destination exists even on a title nobody has reviewed: the block always leads
 /// somewhere, and here that somewhere is the scores plus an honest empty note.
 ///
-/// Not built for tvOS — a navigating section header is an iOS/macOS affordance.
+/// Not this page on tvOS — a navigating section header is an iOS/macOS affordance, and a page of
+/// text with nothing focusable cannot be scrolled with a remote. The count card in the scores' row
+/// opens `MediaItemReviewsTVPage` instead (`RouteDestination`).
 struct MediaItemRatingsAndReviewsPage: View {
   let payload: RatingsAndReviews
 

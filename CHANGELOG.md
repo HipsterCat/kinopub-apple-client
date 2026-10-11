@@ -5,6 +5,159 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### The table: borderless items, only what is pressed takes focus, the people in a section (2026-10-11)
+
+The three columns of the table under the page are **three stacks of cards** (`TVPageGroup.stacked`),
+a card to every item, **borderless**: `TVPageSpecCell` is no longer a `TVCardView` (whose focus look
+is the white platter) but a plain cell — text at rest, a quiet translucent plate under focus, no
+lift, the words do not move, the secondary ones go primary — and **it can take focus only if the
+item opens something** (`Spec.opensInPopup`: Audio, Subtitles, the cast's *Развернуть*; `canBecomeFocused`). The
+rest are text and the remote skips them. Audio and Subtitles stay focusable even with nothing folded
+away — a page whose bottom holds nothing focusable cannot be scrolled to.
+`TVPageStripPlan` places a stacked group's cards one under another, each as tall as its rows
+(`TVPageSpecContent.height(for:cardWidth:)`, no minimum), at one of `columns` equal widths a gutter
+apart (557 at 1760, twice the air two cards of a row have), with no focus room (`insets: .zero`).
+Between two **blocks** the air is the card's padding (28) plus `stackGap` (12); between two items that
+are only read `itemVerticalPadding` (11) makes it half.
+
+- **Every label is body, regular** — rows, headers, the facts' text (`TVPageFonts.font(.body,
+  weight: .regular)`: the bare text style renders medium on tvOS); captions and headers secondary.
+- **Words are never cut:** a `.value` *or* `.detail` row without badges or a note wraps
+  (`TVPageSpecRowView.wraps`) — a dub's studios included.
+- **No emoji, no flags** anywhere in it: genres, countries, languages. `MediaItemTVEmoji.swift`
+  (`Emoji`, `TypeSymbol`) had no caller left and is deleted, with its tests.
+- **Dubs are words**, no icon: `kind: studio, studio` for every kind (`dubRows`). **Subtitles are
+  one `.value` line**, languages two spaces apart, `(CC)` / `(Forced)` in brackets
+  (`subtitleRows`). **«+ ещё N»** (`MediaItem_SpecMore`) replaces «N more languages» + chevron; the
+  row style `.more` has no glyph, `Spec.Row.Leading.emoji` and the chevron view are gone.
+- **The people of a kind with no faces are text under the table, with no heading**
+  (`creditsAsText`, the last section of `make`): creators, the cast, an empty third column — not near
+  the top under "Cast & Crew". The cast card shows `creditsPreview` (6) names whole, and **always**
+  has the *Развернуть* link under it (`MediaItem_Expand`, a `.more` row of `cast.expand`): the one
+  focus stop of the section, which opens everyone kino.pub lists in the popup, a row to a name.
+- **Seasons and episodes are in the video column**, under the runtimes, not in the information one.
+- `MediaItem_TagGenre` / `MediaItem_TagCountry` are the singular captions, picked by how many.
+- Not run: the tests were written and compile; Sasha asked to hold test runs until the sections are
+  done. Not looked at on any simulator or device — in particular how the quiet focus plate looks
+  and whether Down moves between stacked cards of an orthogonal strip as the plan lays them out.
+
+### Reviews: a count in the scores' row, the words on a page of their own (2026-10-11)
+
+The detail page no longer carries the reviews' text. `MediaItemTVSections.ratings` ends the scores'
+row in a card that counts them — `TVPageInfoCard.Reviews`, drawn by `TVPageReviewsContent`: bubbles
+before the total, the title under them, a face and a count per tone on the right — the height of a
+score card (`TVPageRatingContent.height`) and, via `TVPageInfoCard.width(inColumn:)`, as wide as its
+words need, never narrower than a score. Select pushes `MediaItemReviewsTVPage` (new, tvOS; the
+route's `RouteDestination` case picks it): a `TVPage` grid of the review cards, three across, with the
+shared info popup for reading one whole. The "Reviews" strip group and `reviewLimit` are gone.
+
+- **Apple API limitation, probed on the tvOS 26.5 simulator (2026-10-11):** SF Symbols has
+  `face.smiling` and not `face.frowning` or `face.neutral` (`UIImage(systemName:)` is nil), so the
+  three tone faces are drawn (`TVPageMoodGlyph`, a template image): a ring, two eyes, a smile, a frown
+  or a straight mouth. The bubbles are `bubble.left.and.text.bubble.right.fill`. Re-probe on the next
+  SDK.
+- The count is `ReviewsSummary.total` (the source's), the page shows what we carry — the first page
+  the proxy gave. Tones come from the summary, or are tallied from the reviews held.
+- The old UI tests that walked the reviews in the row (`kinopub.review.*`) were reworked, and the
+  one that watched the Ratings title stay on the margin while the row scrolled is gone: the row no
+  longer scrolls sideways, and `TVPageStripPlanTests` still covers the rule.
+- Not run: the tests compile; Sasha asked to hold test runs. Not looked at on any simulator.
+
+### Cast & Crew in one row; stills and facts (2026-10-11)
+
+- **Cast & Crew is one heading over one row of people, no sections inside** (`credits`): the role
+  is the card's own subtitle (`MediaPresentationProfile.authorRoleKey` — «Режиссёр», «Создатель»). A
+  film's director opens the row; a show's creators (`authorRole == .creator`) close it behind the
+  actors and never get a row of their own. A strip with a heading and untitled groups stands its cards
+  `headerToItems` under the header (`TVPageStripPlan.insets.top`), like a rail.
+- **The first of kino.pub's cast list is never dropped** (`rankedCast`): a name TMDB could not match
+  has no episode count and was sent away as a guest — Dexter's own Dexter. If ranking leaves them out
+  they open the row. Other unmatched names still are dropped as before.
+- **A fixture page shows no network portraits** (`ActorImageProvider.photoURL` returns nil under
+  `-KINOPUBDetailFixture` unless `-KINOPUBFixtureRealArt YES`), and the drawn silhouettes are gone
+  from `DetailFixtureArt`: a person with no photo is their initials, as in search.
+- **Stills are an adaptive grid, up to six** (`TVPageGalleryContent.frames`): the column count whose
+  tile is closest to 16:9, a short last row widened to fill it; the chevron cell is gone.
+- **Facts:** the words start at the top of the card (a label taller than its text centres it — the
+  label is now as tall as its words); spoilers go last, each keeping the id of its place in kino.pub's
+  list; the spoiler glyph is secondary at caption1 and the *Show* label (`Fact.revealTitle`,
+  `MediaItem_FactShow`) is gone.
+- Not run: the tests for this compile; Sasha asked to hold test runs until the sections are done.
+  Not looked at on any simulator or device.
+
+### The table under the page: three columns that fill the width (2026-10-11)
+
+The strip of type / year / country / genre pills is gone, and the table says what it said.
+`MediaItemTVSections.specifications` is **Audio & Subtitles | Video | Information** — three columns
+at most, always, sharing the content width equally (`TVPageGroup.fillsWidth`, one `TVPageStripPlan`
+card width: `(content − air) / n`, 572 at 1760). Audio and subtitles are one column under two
+headings (`Spec.Row.Style.heading`); a title that reports none says «Нет данных» / «Нет субтитров».
+Video leads with the resolution, then the runtime — a series' is one episode's with the whole run's
+under it. Information is type, year, genres, countries; for a series a status, the years it aired
+(«с 2026», «с 2019 по 2026» — `SeriesFacts.years`) and how many seasons and episodes. The people of a
+kind with no faces (concert, stand-up, documentary, show, animation) are the **last rows of that third
+column** — they were a fourth column in front of the others — every name in full.
+
+- **Values wrap and are never cut.** A `.value` row of words only (no badge, no note) takes as many
+  lines as it needs, so a column's height is a function of its rows *and its width*:
+  `TVPageSpecContent.height(for:cardWidth:)`, `TVPageSpecRowView.height(for:width:)` (measured on a
+  `UILabel` set up as the row's own, `setUnhyphenated`). Names are joined with a no-break space inside
+  each, so a line breaks between two people, never in one. The old six-name cap is gone.
+- Chips on the detail page are gone: `tags()`, `searchTarget(forChip:)` and the `tag.*` ids were
+  deleted, with the Select-to-search they allowed.
+- `SeriesFacts` (new, shared) is where "has it ended?", the status line, the years and the unit
+  words live — the SwiftUI info columns now ask it instead of keeping their own copy.
+- Not run: the UI and unit tests for this were written and compile; Sasha asked to hold test runs
+  until the sections are done. Not looked at on any simulator or device.
+
+### Similar: the same actors | this director | by genre, ten each (2026-10-11)
+
+The tvOS detail page's *Similar* is one heading over up to three groups of Home's posters, in one
+strip, each under a subheading — the way *Cast & Crew* is built: «Эти же актёры», «От этого
+режиссёра», then the genres («Фантастика, боевики, приключения» — kino.pub's similar, or the genre
+floor). **In that order, ten covers at most in each**; a title is shown once, under the first group
+that has it, and each group takes its ten from what the groups before it left. The director's and the
+lead's shelves are no longer rows below the chips; only collections are. Rules:
+[docs/product/detail-sections.md](docs/product/detail-sections.md).
+
+- **A strip can hold posters.** `TVPageGroup.cell = .poster` draws a group's `.card` and
+  `.placeholder` items as the rails' `TVPageLockupPosterCell` (recipe `.poster`, caption `.never`),
+  `TVPageStripPlan` places them at the HIG gutter inside a group *and* between groups. Not a second
+  poster component: the same cell, registration and recipe.
+- **One nesting, one look.** The titles over a strip's groups lift by **one** amount
+  (`TVPageLayout.stripTitleLift`, the wide card's lift) whichever card has focus. Before, they lifted
+  by the focused card's own growth — 19 pt over a poster, 11 over a person's card — so heading →
+  subheading → stack read differently in Similar and in Cast & Crew. At rest the two were already the
+  same geometry (`TVPageStripPlanTests`).
+- **Item ids in a strip carry the group** (`TVPageSection.itemID(at:)`): two groups can hold the
+  same title or the same run of skeleton tiles, and a diffable snapshot must not see one id twice.
+- The model hands the builder the two people groups — their words and whether the query is in
+  flight (`MediaItemModel.authorGroup` / `castGroup`); the words are roles with no name in them
+  (`MediaPresentationProfile.similarAuthorTitleKey`), and a pending group is six skeleton covers.
+- Seen on the 26.5 simulator before the reorder and the ten-cover limit: the `film` fixture and the
+  templates gallery's *Similar · posters* strip. The fixture now serves the lead's and the
+  director's shelves differently. tvOS 27.2 and a device: not looked at.
+
+### Score cards: mark before the number, a dash for "not enough ratings" (2026-10-11)
+
+tvOS rating cards (`TVPageRatingContent`) are one line of **mark, 16 pt, number** over one line of
+voters, centred: the number is `title2` rounded medium, the count `caption2` regular, and no
+source's name is written beside its mark any more (`TVPageInfoCard.Rating.showsName` is gone). The
+card is as tall as those lines — `TVPageRatingContent.height`, 168 pt at the default size — instead
+of the 276 pt every info card used; `TVPageInfoCard.height(forWidth:)` says so per kind, and a
+strip's group is as tall as its tallest card, so the reviews beside the scores stay 276 and the
+scores sit at the top of the row. A source with voters and no published score
+(`Rating.value == nil`) draws `—` in secondary ink and writes its voters, where it used to write
+«Пока недостаточно оценок» in the caption.
+
+- **Probed, tvOS 26.5 simulator: SF Compact is not there.** No family, `UIFont(name:)` returns nil
+  for `SFCompactRounded-Medium`, and `UIFontWidth` has condensed / standard / expanded / compressed
+  but no compact. `title2` + rounded + medium (`.SFUIRounded-Medium`, 57 pt) is the nearest, and
+  what the mock's digits are.
+- Looked at on the 26.5 simulator through the templates gallery and the `film` fixture; the
+  gallery has the no-score card (`kp-pending`). tvOS 27.2 and a device: not looked at. iOS, iPadOS
+  and macOS draw their own SwiftUI score tiles and were not touched.
+
 ### Season line: «Сезон» and a pill per season (2026-10-11)
 
 The tab strip above the episode rail is `SeasonTabStrip` (new file) and says what Sasha specified:

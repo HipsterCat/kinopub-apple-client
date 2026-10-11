@@ -95,11 +95,15 @@ final class TVDetailLayoutUITests: XCTestCase {
     try shoot("select-vote")
     XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1.5)
 
-    // A review: Select reads it in full.
-    XCTAssertTrue(seek(.right, until: "kinopub.review.1", limit: 8), focusedDescription)
+    // The count of reviews: Select opens the page where they are read, and one of them reads whole.
+    XCTAssertTrue(seek(.right, until: "kinopub.reviews", limit: 8), focusedDescription)
+    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 2.0)
+    XCTAssertTrue(app.collectionViews["kinopub.page.reviews"].waitForExistence(timeout: 10), "no page of reviews")
+    try shoot("select-reviews-page")
     XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.0)
     try shoot("select-review")
-    XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1.5)
+    XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1.5)   // closes the review
+    XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1.5)   // back to the title
 
     // The stills: Select opens the gallery, Right pages, Menu closes it. Down lands on
     // whatever is under the review, so go to the row and then left along it.
@@ -126,22 +130,22 @@ final class TVDetailLayoutUITests: XCTestCase {
   func testFocusReturnsAfterPopup() throws {
     launch("film")
     try waitForHeroFocus()
-    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 1.2)
-    step(.right, times: 4)
-    XCTAssertTrue(reviewHasFocus.waitForExistence(timeout: 10), "no review focused: \(focusedDescription)")
+    XCTAssertTrue(seek(.down, until: "kinopub.gallery", limit: 6) || focusedDescription.contains("kinopub.fact"),
+                  "never reached the stills and facts: \(focusedDescription)")
+    XCTAssertTrue(seek(.right, until: "kinopub.fact.fact.0", limit: 8), focusedDescription)
     XCUIRemote.shared.press(.select)
     // While the popup is up (or coming up) the page is out of the accessibility tree, and
     // asking what has focus then fails the test on a slow runner, not the page. Wait it out.
     Thread.sleep(forTimeInterval: 2.0)
     XCUIRemote.shared.press(.menu)
-    let back = reviewHasFocus.waitForExistence(timeout: 10)
+    let back = factHasFocus.waitForExistence(timeout: 10)
     try shoot("popup-closed")
     XCTAssertTrue(back, "focus did not come back: \(focusedDescription)")
   }
 
-  private var reviewHasFocus: XCUIElement {
+  private var factHasFocus: XCUIElement {
     app.descendants(matching: .any)
-      .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.review"))
+      .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.fact"))
       .firstMatch
   }
 
@@ -257,49 +261,87 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertTrue(wanted.isEmpty, "never reached \(wanted.sorted()) going down the templates page")
   }
 
-  /// A group's title stays on the page's side inset while any of the group is on screen —
-  /// "Ratings" does not slide off to the left with its first card.
-  func testAGroupTitleStaysOnScreenWhileItsGroupScrolls() throws {
-    launch("film")
-    try waitForHeroFocus()
-    XCUIRemote.shared.press(.down)
-    Thread.sleep(forTimeInterval: 1.4)
-    let title = app.staticTexts["Оценки"]
-    XCTAssertTrue(title.waitForExistence(timeout: 5), "the Ratings title is not on screen")
-    XCTAssertEqual(title.frame.minX, 80, accuracy: 6, "at rest it is on the first card's edge")
-    let imdb = app.descendants(matching: .any).matching(identifier: "kinopub.rating.IMDb").firstMatch
-    XCTAssertTrue(imdb.exists)
-
-    // Right, past the scores and into the reviews: the row scrolls, the first card goes.
-    XCTAssertTrue(seek(.right, until: "kinopub.review.2", limit: 10), focusedDescription)
+  /// Posters in a strip, the way "Similar" is drawn: genre | lead | director under one heading.
+  /// Right from a group's last cover is the next group's first, the row scrolls as one, and a
+  /// group still in flight is skeleton covers that focus passes over.
+  func testAStripOfPostersMovesFromOneGroupToTheNext() throws {
+    app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBTemplatesGallery", "-KINOPUBForceColorScheme", "dark",
+                            "-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"]
+    app.launch()
+    XCTAssertTrue(app.collectionViews["kinopub.page.templates"].waitForExistence(timeout: 30))
+    Thread.sleep(forTimeInterval: 3.0)
+    XCTAssertTrue(seek(.down, until: "kinopub.poster.2101", limit: 40), focusedDescription)
     Thread.sleep(forTimeInterval: 1.2)
-    try shoot("sticky-title")
-    XCTAssertTrue(!imdb.exists || imdb.frame.maxX < 80, "the first score is still on screen: \(imdb.frame)")
-    XCTAssertTrue(title.exists, "the title went off with its first card")
-    XCTAssertEqual(title.frame.minX, 80, accuracy: 6, "it is held on the page's side inset")
+    try shoot("posters-strip-first-group")
+
+    // Three covers in the first group, then the second group's first.
+    XCTAssertTrue(seek(.right, until: "kinopub.poster.2201", limit: 5), focusedDescription)
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot("posters-strip-second-group")
+    XCTAssertTrue(seek(.left, until: "kinopub.poster.2103", limit: 3), "Left comes back: \(focusedDescription)")
   }
 
-  /// Two directors are a row of their own, the cast the row under it, and the cast comes
-  /// in the order of who matters, not the order kino.pub listed them.
-  func testSeveralDirectorsAreARowAndTheCastIsRanked() throws {
+  /// The detail page's own Similar: one row, three groups — the same actors, this director,
+  /// then alike by genre — and Right past a group's last cover is the next group's first.
+  func testFilmSimilarIsOneRowOfGroupsOfCovers() throws {
+    launch("film")
+    try waitForHeroFocus()
+    XCTAssertTrue(seek(.down, until: "kinopub.poster.9902", limit: 6), focusedDescription)
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot("film-similar-first")
+    XCTAssertTrue(app.staticTexts["Похожие"].exists, "the heading of the row")
+    XCTAssertTrue(app.staticTexts["Эти же актёры"].exists, "the first group's subheading")
+    XCTAssertTrue(seek(.right, until: "kinopub.poster.9903", limit: 12),
+                  "Right never left the actors' group for the director's: \(focusedDescription)")
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot("film-similar-director")
+    XCTAssertTrue(app.staticTexts["От этого режиссёра"].exists, "the director group's subheading")
+    XCTAssertTrue(seek(.right, until: "kinopub.poster.9901", limit: 12),
+                  "Right never left the director's group for the genre one: \(focusedDescription)")
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot("film-similar-genres")
+    XCTAssertTrue(app.staticTexts["Фантастика, боевик, приключения"].exists, "the genre group's subheading")
+  }
+
+  /// Two directors open the one row of people, the cast follows them, and the cast comes in the
+  /// order of who matters, not the order kino.pub listed them.
+  func testSeveralDirectorsShareTheRowAndTheCastIsRanked() throws {
     launch("filmCrew")
     try waitForHeroFocus()
     XCUIRemote.shared.press(.down)   // first row: the scores
     Thread.sleep(forTimeInterval: 1.2)
-    XCUIRemote.shared.press(.down)   // the directors
+    XCUIRemote.shared.press(.down)   // the people: the first director
     Thread.sleep(forTimeInterval: 1.4)
     XCTAssertTrue(focusedDescription.contains("kinopub.card.person.director:"), focusedDescription)
     try shoot("crew-directors")
-    XCUIRemote.shared.press(.down)   // the cast, under them
-    Thread.sleep(forTimeInterval: 1.4)
-    XCTAssertTrue(focusedDescription.contains("kinopub.card.person.actor:"), focusedDescription)
+    XCTAssertTrue(seek(.right, until: "kinopub.card.person.actor:", limit: 4), focusedDescription)
+    Thread.sleep(forTimeInterval: 1.2)
     XCTAssertTrue(focusedDescription.contains("Крис Эванс") || focusedDescription.contains("Роберт Дауни"),
                   "a star first, not the bit part kino.pub lists first: \(focusedDescription)")
     try shoot("crew-cast")
   }
 
-
-
+  /// The table at the bottom takes focus only where Select does something — Audio and Subtitles —
+  /// and never as a whole column: Down from Audio is Subtitles; a resolution or a type is text, and
+  /// Select on Audio reads every language.
+  func testTheTableTakesFocusOnlyWhereSelectDoesSomething() throws {
+    launch("film")
+    try waitForHeroFocus()
+    XCTAssertTrue(seek(.down, until: "kinopub.spec.audio", limit: 12), focusedDescription)
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot("table-audio")
+    XCUIRemote.shared.press(.down); Thread.sleep(forTimeInterval: 1.0)
+    XCTAssertTrue(focusedDescription.contains("kinopub.spec.subtitles"), focusedDescription)
+    XCUIRemote.shared.press(.right); Thread.sleep(forTimeInterval: 1.0)
+    XCTAssertFalse(focusedDescription.contains("kinopub.spec.resolution")
+                   || focusedDescription.contains("kinopub.spec.type"), "text took focus: \(focusedDescription)")
+    XCTAssertTrue(seek(.up, until: "kinopub.spec.audio", limit: 3), focusedDescription)
+    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.5)
+    try shoot("table-audio-popup")
+    XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1.5)
+    XCTAssertTrue(focusedDescription.contains("kinopub.spec.audio"), "focus comes back to the card: \(focusedDescription)")
+  }
 
   // MARK: - Grids
 

@@ -32,13 +32,11 @@ struct MediaItemTVPage: View {
   /// What the info popup holds. Content comes from the model at the moment of the tap, so
   /// a popup is only the id of the thing that was selected.
   enum Popup: Identifiable, Equatable {
-    case review(index: Int)
     case fact(text: String)
     case spec(id: String)
 
     var id: String {
       switch self {
-      case .review(let index): return "review.\(index)"
       case .fact(let text): return "fact.\(text.hashValue)"
       case .spec(let id): return "spec.\(id)"
       }
@@ -51,7 +49,8 @@ struct MediaItemTVPage: View {
           likeCount: model.likeCount,
           dislikeCount: model.dislikeCount,
           relatedRows: model.relatedRows,
-          pendingShelfTitles: model.pendingRelatedShelfTitles,
+          authorGroup: model.authorGroup,
+          castGroup: model.castGroup,
           revealedFacts: revealedFacts)
   }
 
@@ -107,14 +106,12 @@ struct MediaItemTVPage: View {
       guard let person = MediaItemTVSections.person(from: card) else { return }
       mediaNavigation?(model.linkProvider.person(for: person))
 
-    case .chip(let chip):
-      guard let target = MediaItemTVSections.searchTarget(forChip: chip.id, in: model.mediaItem) else { return }
-      navigationState.openSearch(filter: target.filter, title: target.title)
-
     case .info(let card):
       select(card)
 
-    case .feature, .masthead, .groupTitle, .placeholder, .tile:
+    // The pills of type, year, country and genre that opened a narrowed search are gone: the
+    // table under the page says what they said.
+    case .chip, .feature, .masthead, .groupTitle, .placeholder, .tile:
       break
     }
   }
@@ -127,8 +124,14 @@ struct MediaItemTVPage: View {
         showsVoteChoice = true
       }
 
-    case .review(let review):
-      if let index = Int(review.id) { popup = .review(index: index) }
+    case .reviews:
+      // The reviews' own words are read on a page of their own, and this card is the way in.
+      mediaNavigation?(model.linkProvider.ratingsAndReviews(
+        RatingsAndReviews(item: model.mediaItem, metadata: model.externalMetadata,
+                          likeCount: model.likeCount, dislikeCount: model.dislikeCount)))
+
+    case .review:
+      break
 
     case .fact(let fact):
       if fact.isHidden {
@@ -141,7 +144,8 @@ struct MediaItemTVPage: View {
       showsGallery = true
 
     case .spec(let spec):
-      popup = .spec(id: spec.id)
+      // Select reads a card in full only where there is more to read; the others are for focus.
+      if spec.opensInPopup { popup = .spec(id: spec.id) }
     }
   }
 
@@ -153,11 +157,6 @@ struct MediaItemTVPage: View {
 
   private var popupTitle: Text {
     switch popup {
-    case .review(let index):
-      let reviews = model.externalMetadata.reviews
-      guard reviews.indices.contains(index) else { return Text("Reviews") }
-      let review = reviews[index]
-      return Text(review.title.isEmpty ? review.author : review.title)
     case .fact:
       return Text("MediaItem_FactsTitle")
     case .spec(let id):
@@ -170,11 +169,6 @@ struct MediaItemTVPage: View {
   @ViewBuilder
   private var popupContent: some View {
     switch popup {
-    case .review(let index):
-      let reviews = model.externalMetadata.reviews
-      if reviews.indices.contains(index) {
-        ReviewPopupBody(review: reviews[index])
-      }
     case .fact(let text):
       Text(text)
         .font(InfoPopupMetrics.bodyFont)
@@ -189,11 +183,11 @@ struct MediaItemTVPage: View {
     }
   }
 
-  /// A column with everything in it — every language, not the ones that fit.
+  /// A card with everything in it — every language, every name, not the ones that fit.
   private func fullSpec(_ id: String) -> TVPageInfoCard.Spec? {
     var full = input
     full.showsEveryLanguage = true
-    for section in MediaItemTVSections.specifications(full) {
+    for section in MediaItemTVSections.specifications(full) + MediaItemTVSections.creditsAsText(full) {
       for group in section.groups {
         for case .info(.spec(let spec)) in group.items where spec.id == id { return spec }
       }
@@ -208,30 +202,6 @@ struct MediaItemTVPage: View {
 
 // MARK: - Popup bodies
 
-/// A review read in full: the text, then who wrote it, when, and how it was meant.
-private struct ReviewPopupBody: View {
-  let review: Review
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
-      Text(review.body)
-        .font(InfoPopupMetrics.bodyFont)
-        .foregroundStyle(Color.KinoPub.text)
-        .multilineTextAlignment(.leading)
-      HStack(spacing: 16) {
-        if let sentiment = review.sentimentTitle {
-          Text(sentiment).foregroundStyle(review.sentimentColor)
-        }
-        Text(review.author).foregroundStyle(.secondary)
-        if let date = review.displayDate {
-          Text(date).foregroundStyle(.secondary)
-        }
-      }
-      .font(.callout)
-    }
-  }
-}
-
 /// A specification column as a list, nothing folded.
 private struct SpecPopupBody: View {
   let spec: TVPageInfoCard.Spec
@@ -241,13 +211,14 @@ private struct SpecPopupBody: View {
       ForEach(spec.rows, id: \.id) { row in
         HStack(spacing: 12) {
           switch row.leading {
-          case .emoji(let emoji)?: Text(emoji)
           case .symbol(let name)?: Image(systemName: name).foregroundStyle(.secondary)
           case nil: EmptyView()
           }
           Text(row.text)
             .font(font(for: row.style))
             .foregroundStyle(row.style == .caption || row.style == .detail ? Color.secondary : Color.KinoPub.text)
+            // Words wrap in full; nothing is cut.
+            .fixedSize(horizontal: false, vertical: true)
           if let secondary = row.secondary {
             Text(secondary).font(.caption).foregroundStyle(.secondary)
           }

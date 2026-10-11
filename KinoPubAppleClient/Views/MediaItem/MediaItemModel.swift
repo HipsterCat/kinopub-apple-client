@@ -218,6 +218,34 @@ class MediaItemModel: ObservableObject {
     return titles
   }
 
+  /// A person's shelf as a group of the tvOS page's *Similar* section: the words over it, and
+  /// whether its query is still in flight — the group holds its place as skeleton posters,
+  /// so the row does not jump when it lands.
+  public struct RelatedPeopleGroup: Equatable {
+    public var title: String
+    public var isPending: Bool
+  }
+
+  /// "От этого режиссёра" — the role the author shelf asked for, with no name in it. Nil where
+  /// the title has no author shelf.
+  public var authorGroup: RelatedPeopleGroup? {
+    let authors = shelfAuthors
+    guard !authors.isEmpty else { return nil }
+    return RelatedPeopleGroup(title: mediaItem.presentation.similarAuthorTitleKey(count: authors.count).localized,
+                              isPending: moreFromDirector.isEmpty && !moreFromDirectorLoaded)
+  }
+
+  /// "Эти же актёры". A concert or a stand-up set keeps its role-worded shelf title
+  /// ("Ещё от комика"): its people are not actors in a cast.
+  public var castGroup: RelatedPeopleGroup? {
+    let cast = shelfCast
+    guard !cast.isEmpty else { return nil }
+    let title = mediaItem.presentation.castShelfTitleKey(count: cast.count) != nil
+      ? castShelfTitle
+      : "MediaItem_SimilarCast".localized
+    return RelatedPeopleGroup(title: title, isPending: moreWithActor.isEmpty && !moreWithActorLoaded)
+  }
+
   /// A related row's card back to its source item — `MediaCard` alone doesn't carry
   /// the full `MediaItem` payload `NavigationLinkProvider.link(for:)` needs.
   public func relatedItem(forCardID id: Int) -> MediaItem? {

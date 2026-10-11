@@ -10,13 +10,13 @@
 //
 //  What the page says, top to bottom (Sasha, 2026-10-06; `docs/product/detail-sections.md`):
 //
-//      Ratings         | Reviews
-//      Cast & Crew:  Director | Starring
-//      Similar
+//      Ratings (and how many reviews there are)
+//      Cast & Crew   (one row of portraits — fiction only)
+//      Similar:      the same actors | this director | by genre   (Sasha, 2026-10-11)
 //      Stills          | Facts (| Awards)
-//      Type · Year · Countries · Genres
-//      Collections and other selections
-//      Video           | Audio | Subtitles
+//      Collections
+//      Audio & Subtitles | Video | Information      (three columns at most, filling the width)
+//      Creators | Cast                              (as text, no heading — a kind with no faces)
 //
 //  A `|` is two titled groups in one row that scrolls as one (`TVPageSection.strip`). The
 //  playable rails (episodes, versions) are not here: they stay directly under the hero.
@@ -41,8 +41,10 @@ enum MediaItemTVSections {
     /// `MediaItemModel.relatedRows`: Similar first, then the people's, collections' and
     /// genre shelves.
     var relatedRows: [MediaRow] = []
-    /// Titles of shelves whose query is still in flight — drawn as skeleton rows.
-    var pendingShelfTitles: [String] = []
+    /// The author and cast shelves as groups of Similar: the words over them, and whether
+    /// their query is still in flight (`MediaItemModel.authorGroup` / `castGroup`).
+    var authorGroup: MediaItemModel.RelatedPeopleGroup?
+    var castGroup: MediaItemModel.RelatedPeopleGroup?
     /// Facts the viewer asked to see in full — a spoiler stays hidden until it is.
     var revealedFacts: Set<String> = []
     var preferredLanguages: [String] = mediaItemPreferredLanguages()
@@ -54,52 +56,77 @@ enum MediaItemTVSections {
   /// Ids the page uses to say what a selection was. Strings, because a `TVPageItem` is.
   enum ID {
     static let similar = "similar"
-    static let tagType = "tag.type"
-    static let tagYear = "tag.year"
-    static let tagCountryPrefix = "tag.country."
-    static let tagGenrePrefix = "tag.genre."
+    /// How `MediaItemModel.relatedRows` names the shelves that Similar takes in.
+    static let genreShelfPrefix = "genre-"
+    static let authorShelfPrefix = "director-"
+    static let castShelfPrefix = "actor-"
     static let gallery = "stills"
     static let kinoPubScore = "KinoPub"
   }
 
   static func make(_ input: Input) -> [TVPageSection] {
-    scoresAndReviews(input)
+    ratings(input)
       + credits(input)
       + similar(input)
       + stillsAndFacts(input)
-      + tags(input)
       + selections(input)
       + specifications(input)
+      + creditsAsText(input)
   }
 
-  // MARK: - Ratings | Reviews
+  // MARK: - Ratings
 
-  static func scoresAndReviews(_ input: Input) -> [TVPageSection] {
-    var groups: [TVPageGroup] = []
-
+  /// The scores, one card per source — and, as the last card of the same row, how many reviews
+  /// there are and how they were meant (Sasha, 2026-10-11). The reviews' own words are not on this
+  /// page any more: that card opens a page of their own.
+  static func ratings(_ input: Input) -> [TVPageSection] {
     let scores = RatingSources.scores(for: input.mediaItem,
                                       metadata: input.metadata,
                                       likeCount: input.likeCount,
                                       dislikeCount: input.dislikeCount)
-    if !scores.isEmpty {
-      groups.append(TVPageGroup(id: "scores",
-                                title: "MediaItem_ScoresTitle".localized,
-                                columns: 6,
-                                items: scores.map { .info(.rating(rating($0, input))) }))
-    }
-
-    let reviews = Array(input.metadata.reviews.prefix(reviewLimit))
-    if !reviews.isEmpty {
-      groups.append(TVPageGroup(id: "reviews",
-                                title: "Reviews".localized,
-                                columns: 4,
-                                items: reviews.enumerated().map { .info(.review(review($1, index: $0))) }))
-    }
-    return groups.isEmpty ? [] : [.strip(id: "ratings", groups: groups)]
+    var items: [TVPageItem] = scores.map { .info(.rating(rating($0, input))) }
+    if let reviews = reviewsCard(input) { items.append(.info(.reviews(reviews))) }
+    guard !items.isEmpty else { return [] }
+    return [.strip(id: "ratings", groups: [TVPageGroup(id: "scores",
+                                                        title: "MediaItem_ScoresTitle".localized,
+                                                        columns: 6,
+                                                        items: items)])]
   }
 
-  /// A review is a preview here — the whole text is behind Select.
-  static let reviewLimit = 10
+  /// The count card: the source's total (the proxy pages its reviews, so it is more than the page
+  /// carries), and the three tones from its summary — or, with no summary, from the reviews we hold.
+  /// Nil when there is nothing to count.
+  static func reviewsCard(_ input: Input) -> TVPageInfoCard.Reviews? {
+    let metadata = input.metadata
+    func formatted(_ number: Int) -> String { number.formatted(.number.grouping(.automatic)) }
+
+    let total: Int
+    let tones: (positive: Int, negative: Int, neutral: Int)?
+    if let summary = metadata.reviewsSummary, !summary.isEmpty {
+      total = summary.total > 0 ? summary.total : metadata.reviews.count
+      tones = (summary.positive, summary.negative, summary.neutral)
+    } else if !metadata.reviews.isEmpty {
+      let held = metadata.reviews.map { $0.sentiment?.uppercased() }
+      total = held.count
+      tones = (held.filter { $0 == "POSITIVE" }.count, held.filter { $0 == "NEGATIVE" }.count,
+               held.filter { $0 != "POSITIVE" && $0 != "NEGATIVE" }.count)
+    } else {
+      return nil
+    }
+    guard total > 0 else { return nil }
+
+    let title = "Reviews".localized
+    var label = "\(title), \(formatted(total))"
+    var cardTones: TVPageInfoCard.Reviews.Tones?
+    if let tones {
+      cardTones = .init(positive: formatted(tones.positive), negative: formatted(tones.negative),
+                        neutral: formatted(tones.neutral))
+      label += ". \("Positive".localized) \(tones.positive), \("Negative".localized) \(tones.negative), "
+        + "\("Neutral".localized) \(tones.neutral)"
+    }
+    return TVPageInfoCard.Reviews(id: "reviews", title: title, count: formatted(total), tones: cardTones,
+                                  accessibilityLabel: label)
+  }
 
   static func rating(_ score: RatingSources.Score, _ input: Input) -> TVPageInfoCard.Rating {
     let isKinoPub = score.logo == .kinopub
@@ -108,14 +135,13 @@ enum MediaItemTVSections {
     if isKinoPub, input.likeCount + input.dislikeCount > 0 {
       thumbs = .init(up: input.likeCount.formatted(.number.grouping(.automatic)),
                      down: input.dislikeCount.formatted(.number.grouping(.automatic)))
-    } else if score.value == nil {
-      caption = "MediaItem_NotEnoughRatings".localized
     } else if let votes = score.votes, votes > 0 {
       caption = "\(votes.formatted(.number.grouping(.automatic))) \(ratingsUnit(votes))"
     }
+    // Voters but no score yet ("not enough ratings"): no number, and the card says how many voted.
     return TVPageInfoCard.Rating(id: score.id, source: score.logo, title: score.id,
-                                 showsName: score.logo == .kinopoisk || score.logo == .kinopub,
-                                 value: score.display, caption: caption, thumbs: thumbs)
+                                 value: score.value == nil ? nil : score.display,
+                                 caption: caption, thumbs: thumbs)
   }
 
   private static func ratingsUnit(_ count: Int) -> String {
@@ -153,44 +179,36 @@ enum MediaItemTVSections {
   // MARK: - Cast & Crew
 
   /// Faces are for fiction (`MediaPresentationProfile.showsCastPortraits`): a concert, a
-  /// stand-up set, a documentary, a show or anything animated lists its people as a
-  /// Credits column of the specifications instead.
+  /// stand-up set, a documentary, a show or anything animated lists its people as text, under the
+  /// table at the bottom (`creditsAsText`).
   ///
-  /// One heading, "Cast & Crew", with the professions as its subheadings — Director,
-  /// Starring — and no profession on the cards under them (Sasha, 2026-10-06). One director
-  /// stands beside the cast, in one row. Several would push the cast off the screen, so
-  /// they are a row of their own with the cast under it.
+  /// One heading, "Cast & Crew", over **one row of people with no sections inside it** (Sasha,
+  /// 2026-10-11): what each is to the title is the card's own subtitle — the character for an
+  /// actor, "Режиссёр" or "Создатель" for whoever made it. A film's director opens the row; a
+  /// show's creators close it, behind the actors, and never get a row of their own however many
+  /// there are.
   static func credits(_ input: Input) -> [TVPageSection] {
     let profile = input.mediaItem.presentation
     guard profile.showsCastPortraits else { return [] }
 
-    let directors = directorCards(input)
-    let directorGroup = directors.isEmpty ? nil : TVPageGroup(
-      id: "directors", title: profile.authorCaptionKey.localized, columns: 3, subheading: true,
-      items: directors.map(TVPageItem.person))
+    let authors = authorCards(input)
     let cast = castCards(input)
-    let castGroup = cast.isEmpty ? nil : TVPageGroup(
-      id: "cast", title: "MediaItem_Starring".localized, columns: 3, subheading: true,
-      items: cast.map(TVPageItem.person))
-    let heading = "MediaItem_CastAndCrew".localized
-
-    if let directorGroup, let castGroup, directors.count > 1 {
-      return [.strip(id: "credits-directors", title: heading, groups: [directorGroup]),
-              .strip(id: "credits-cast", groups: [castGroup])]
-    }
-    let groups = [directorGroup, castGroup].compactMap { $0 }
-    return groups.isEmpty ? [] : [.strip(id: "credits", title: heading, groups: groups)]
+    let people = profile.authorRole == .creator ? cast + authors : authors + cast
+    guard !people.isEmpty else { return [] }
+    return [.strip(id: "credits", title: "MediaItem_CastAndCrew".localized,
+                   groups: [TVPageGroup(id: "people", title: nil, columns: 3, items: people.map(TVPageItem.person))])]
   }
 
-  /// Whoever directed or created it, at most three — a face where there is one, the
-  /// initials where there is not. No caption: the group's subheading says what they are.
-  private static func directorCards(_ input: Input) -> [TVUIKitPerson] {
+  /// Whoever directed or created it, at most three — a face where there is one, the initials
+  /// where there is not — each with what they are to the title under the name.
+  private static func authorCards(_ input: Input) -> [TVUIKitPerson] {
+    let profile = input.mediaItem.presentation
     let names = MediaPerson.each(of: input.mediaItem.directorNames, role: .director, limit: 3).map(\.name)
     return TitleMetadata.enrich(names: names, roleDepartment: "Directing", from: input.metadata).map { member in
       let person = MediaPerson(name: member.name, role: .director,
                                photoURL: member.photo ?? ActorImageProvider.photoURL(for: member.name),
                                tmdbPersonId: member.tmdbPersonId)
-      return card(for: person, caption: nil)
+      return card(for: person, caption: profile.authorRoleKey.localized)
     }
   }
 
@@ -207,7 +225,17 @@ enum MediaItemTVSections {
   /// someone in fewer than a fifth of the episodes the most-seen person is in — and never
   /// fewer than two, once anyone has more than one — is a guest and is dropped; so is
   /// everything past `castLimit`.
+  ///
+  /// **Except the first of kino.pub's own list, who is never dropped** (Sasha, 2026-10-11): that
+  /// is the lead, and a name TMDB could not match (no episode count) was dropped as a guest —
+  /// Dexter's own Dexter. If ranking would have left them out they open the row.
   static func rankedCast(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
+    let ranked = ranking(members, isEpisodic: isEpisodic)
+    guard let lead = members.first, !ranked.contains(where: { $0.name == lead.name }) else { return ranked }
+    return [lead] + ranked.prefix(castLimit - 1)
+  }
+
+  private static func ranking(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
     var ranked = Array(members.enumerated())
     let most = members.compactMap(\.episodeCount).max() ?? 0
     if isEpisodic, most > 0 {
@@ -268,11 +296,82 @@ enum MediaItemTVSections {
 
   // MARK: - Similar
 
-  /// Home's own poster row: the 6-column lockup, with Home's own caption — none, not even
-  /// on focus (Sasha, 2026-10-06): the covers are what the row is for.
+  /// One heading over up to three groups of posters, the way Cast & Crew is one heading over
+  /// its professions: **the same actors**, **this director's** other work, then what is alike
+  /// **by genre** (Sasha, 2026-10-11) — in that order, ten covers at most in each. The three
+  /// shelves used to be rows of their own, two of them far below the page. Home's poster, with
+  /// Home's own caption — none, not even on focus (Sasha, 2026-10-06) — in one strip that scrolls
+  /// as one piece.
+  ///
+  /// A title shows once, under the first group that has it — the order above. Each group takes
+  /// its ten from what the groups before it left, so a thin one never starves the next.
   static func similar(_ input: Input) -> [TVPageSection] {
-    guard let row = input.relatedRows.first(where: { $0.id == ID.similar }), !row.cards.isEmpty else { return [] }
-    return [.posters(id: row.id, title: row.title, count: row.count, caption: .never, cards: row.cards)]
+    func row(prefix: String) -> MediaRow? { input.relatedRows.first { $0.id.hasPrefix(prefix) } }
+    var placed = Set<Int>()
+
+    let cast = peopleGroup(id: "cast", input.castGroup, row: row(prefix: ID.castShelfPrefix), placed: &placed)
+    let director = peopleGroup(id: "director", input.authorGroup, row: row(prefix: ID.authorShelfPrefix),
+                               placed: &placed)
+
+    // The genre floor only exists when nothing else did, so it takes Similar's place.
+    var genres: TVPageGroup?
+    if let shelf = input.relatedRows.first(where: { $0.id == ID.similar })
+        ?? row(prefix: ID.genreShelfPrefix) {
+      genres = posterGroup(id: "genres", title: genreTitle(of: input.mediaItem, shelf: shelf),
+                           cards: freshCards(shelf, placed: &placed))
+    }
+
+    let groups = [cast, director, genres].compactMap { $0 }
+    return groups.isEmpty ? [] : [.strip(id: ID.similar, title: "Similar".localized, groups: groups)]
+  }
+
+  /// A person's group: the shelf's covers, or skeleton posters while its query is still in
+  /// flight. Nothing when the query came back empty.
+  private static func peopleGroup(id: String, _ group: MediaItemModel.RelatedPeopleGroup?, row: MediaRow?,
+                                  placed: inout Set<Int>) -> TVPageGroup? {
+    guard let group else { return nil }
+    let cards = row.map { freshCards($0, placed: &placed) } ?? []
+    if cards.isEmpty, group.isPending {
+      return TVPageGroup(id: id, title: group.title, columns: similarColumns, subheading: true, cell: .poster,
+                         items: (0..<similarColumns).map(TVPageItem.placeholder))
+    }
+    return posterGroup(id: id, title: group.title, cards: cards)
+  }
+
+  private static func posterGroup(id: String, title: String, cards: [MediaCard]) -> TVPageGroup? {
+    guard !cards.isEmpty else { return nil }
+    return TVPageGroup(id: id, title: title, columns: similarColumns, subheading: true, cell: .poster,
+                       items: cards.map(TVPageItem.card))
+  }
+
+  /// The first `similarLimit` covers of the shelf that no group above has taken, which it now takes.
+  private static func freshCards(_ row: MediaRow, placed: inout Set<Int>) -> [MediaCard] {
+    var fresh: [MediaCard] = []
+    for card in row.cards where fresh.count < similarLimit && placed.insert(card.id).inserted {
+      fresh.append(card)
+    }
+    return fresh
+  }
+
+  /// Six across, like every other shelf (HIG 260 at 1920).
+  static let similarColumns = 6
+
+  /// How many covers a group holds (Sasha, 2026-10-11): the row is for finding the next watch, not
+  /// for walking a filmography — the three groups have to be within a few presses of each other.
+  static let similarLimit = 10
+
+  /// "Фантастика, боевики, приключения" — the genres the shelf is alike by, in a sentence.
+  /// Similar's own are the title's; the genre floor says which of them it asked for.
+  private static func genreTitle(of item: MediaItem, shelf: MediaRow) -> String {
+    var genres = item.genres
+    if shelf.id.hasPrefix(ID.genreShelfPrefix) {
+      let asked = Set(shelf.id.dropFirst(ID.genreShelfPrefix.count).split(separator: "-").compactMap { Int($0) })
+      let narrowed = genres.filter { asked.contains($0.id) }
+      if !narrowed.isEmpty { genres = narrowed }
+    }
+    let names = genres.compactMap(\.title).filter { !$0.isEmpty }.map { $0.lowercased() }.joined(separator: ", ")
+    guard let first = names.first else { return shelf.title }
+    return first.uppercased() + names.dropFirst()
   }
 
   // MARK: - Stills | Facts | Awards
@@ -290,16 +389,20 @@ enum MediaItemTVSections {
       groups.append(TVPageGroup(id: "stills", title: title, columns: 3, items: [.info(.gallery(gallery))]))
     }
 
+    // Facts without a spoiler first, the spoilers after them (Sasha, 2026-10-11) — each keeps its
+    // id from its place in the list, so a revealed one stays revealed wherever it stands.
     let facts = input.metadata.facts
     if !facts.isEmpty {
+      let ordered = facts.enumerated().sorted { lhs, rhs in
+        lhs.element.isSpoiler == rhs.element.isSpoiler ? lhs.offset < rhs.offset : !lhs.element.isSpoiler
+      }
       groups.append(TVPageGroup(
         id: "facts", title: "MediaItem_FactsTitle".localized, columns: 4,
-        items: facts.enumerated().map { index, fact in
+        items: ordered.map { index, fact in
           let id = factID(index)
           return .info(.fact(.init(id: id, text: fact.text, isSpoiler: fact.isSpoiler,
                                    isRevealed: input.revealedFacts.contains(id),
-                                   warning: "MediaItem_FactSpoilerWarning".localized,
-                                   revealTitle: "MediaItem_FactShow".localized)))
+                                   warning: "MediaItem_FactSpoilerWarning".localized)))
         }
       ))
     }
@@ -312,7 +415,7 @@ enum MediaItemTVSections {
         id: "awards", title: "Awards".localized, columns: 4,
         items: awards.enumerated().map { index, award in
           .info(.fact(.init(id: "award.\(index)", text: awardLine(award), isSpoiler: false, isRevealed: true,
-                            warning: "", revealTitle: "")))
+                            warning: "")))
         }
       ))
     }
@@ -328,188 +431,135 @@ enum MediaItemTVSections {
     return "\(mark) \(parts.joined(separator: ", "))"
   }
 
-  // MARK: - Type · Year · Countries · Genres
+  // MARK: - Collections
 
-  /// What this title *is* and where it comes from — each pill is a way into the catalogue
-  /// narrowed to it (`searchTarget(forChip:in:)`). One group per axis, each under its own
-  /// small title, in one row.
-  static func tags(_ input: Input) -> [TVPageSection] {
-    let item = input.mediaItem
-    var groups: [TVPageGroup] = []
-
-    var typeChips = [TVPageChip(id: ID.tagType, title: item.contentTypeTitleKey.localized,
-                                systemImage: TypeSymbol.name(for: item.type))]
-    // `multi` says the film ships in several versions, which the versions rail above
-    // already lists. An unknown subtype still surfaces: better an unexplained word than a
-    // dropped one.
-    if !item.isMultiVersion {
-      if let key = item.contentSubtypeTitleKey {
-        typeChips.append(TVPageChip(id: "tag.subtype", title: key.localized))
-      } else if let raw = item.contentSubtypeRaw {
-        typeChips.append(TVPageChip(id: "tag.subtype", title: raw))
-      }
-    }
-    groups.append(chipGroup(id: "type", title: "Type".localized, chips: typeChips))
-
-    if item.year > 0 {
-      groups.append(chipGroup(id: "year", title: "Year".localized,
-                              chips: [TVPageChip(id: ID.tagYear, title: String(item.year))]))
-    }
-
-    let countries = item.countries.filter { !$0.title.isEmpty }
-    if !countries.isEmpty {
-      groups.append(chipGroup(
-        id: "countries", title: "MediaItem_TagCountries".localized,
-        chips: countries.map {
-          TVPageChip(id: "\(ID.tagCountryPrefix)\($0.id)", title: Emoji.decorated(Emoji.flag(countryID: $0.id), $0.title))
-        }
-      ))
-    }
-
-    let genres = item.genres.compactMap { genre -> TVPageChip? in
-      guard let title = genre.title, !title.isEmpty else { return nil }
-      return TVPageChip(id: "\(ID.tagGenrePrefix)\(genre.id)", title: Emoji.decorated(Emoji.genre(id: genre.id), title))
-    }
-    if !genres.isEmpty {
-      groups.append(chipGroup(id: "genres", title: "MediaItem_TagGenres".localized, chips: genres))
-    }
-    return [.strip(id: "tags", groups: groups)]
-  }
-
-  private static func chipGroup(id: String, title: String, chips: [TVPageChip]) -> TVPageGroup {
-    TVPageGroup(id: id, title: title, columns: 0, items: chips.map(TVPageItem.chip))
-  }
-
-  /// The catalogue narrowed to what a pill names, and the words to title that search with.
-  /// Nil for a pill that is only a statement (an unknown subtype).
-  static func searchTarget(forChip id: String, in item: MediaItem) -> (filter: LibraryFilter, title: String)? {
-    switch id {
-    case ID.tagType:
-      guard let type = item.contentTypeFilter else { return nil }
-      return (LibraryFilter(contentType: type), item.contentTypeTitleKey.localized)
-    case ID.tagYear:
-      guard item.year > 0 else { return nil }
-      return (LibraryFilter(years: YearRange(from: item.year, to: item.year)), String(item.year))
-    default:
-      if id.hasPrefix(ID.tagCountryPrefix), let value = Int(id.dropFirst(ID.tagCountryPrefix.count)),
-         let country = item.countries.first(where: { $0.id == value }) {
-        return (LibraryFilter(countryID: value), country.title)
-      }
-      if id.hasPrefix(ID.tagGenrePrefix), let value = Int(id.dropFirst(ID.tagGenrePrefix.count)),
-         let title = item.genres.first(where: { $0.id == value })?.title {
-        return (LibraryFilter(genreID: value), title)
-      }
-      return nil
-    }
-  }
-
-  // MARK: - Collections and other selections
-
-  /// Every shelf that is not Similar — the director's and the lead's other work,
-  /// the collections this title is in, the genre floor — each a Home-style poster row, covers
-  /// only: no "See all" tile at the end of one (Sasha, 2026-10-06 — it named itself on focus
-  /// and its footer made the covers beside it grow).
+  /// Every shelf Similar did not take in — the collections this title is in — each a
+  /// Home-style poster row, covers only: no "See all" tile at the end of one (Sasha,
+  /// 2026-10-06 — it named itself on focus and its footer made the covers beside it grow).
   static func selections(_ input: Input) -> [TVPageSection] {
-    var sections: [TVPageSection] = input.relatedRows.filter { $0.id != ID.similar && !$0.cards.isEmpty }.map { row in
+    input.relatedRows.filter { !isSimilarShelf($0.id) && !$0.cards.isEmpty }.map { row in
       TVPageSection.posters(id: row.id, title: row.title, count: row.count, caption: .never, cards: row.cards)
     }
-    // Shelves still in flight hold their place as skeleton rows, so the page does not jump.
-    sections += input.pendingShelfTitles.map {
-      .placeholder(id: "pending.\($0)", title: $0, kind: .poster, columns: 6)
-    }
-    return sections
   }
 
-  // MARK: - Video | Audio | Subtitles
-
-  /// The technical table as columns, 3 across: what it is, what can be heard, what can be
-  /// read. A kind with no faces on the page gets its people here, as a first column.
-  static func specifications(_ input: Input) -> [TVPageSection] {
-    var columns: [TVPageInfoCard.Spec] = []
-    if let credits = creditsSpec(input) { columns.append(credits) }
-    if let video = videoSpec(input) { columns.append(video) }
-    if let audio = audioSpec(input) { columns.append(audio) }
-    if let subtitles = subtitlesSpec(input) { columns.append(subtitles) }
-    guard !columns.isEmpty else { return [] }
-    return [.strip(id: "specs",
-                   groups: [TVPageGroup(id: "specs", title: nil, columns: 3,
-                                        items: columns.map { .info(.spec($0)) })])]
+  /// The shelves `similar` takes in, by the ids `MediaItemModel.relatedRows` gives them.
+  private static func isSimilarShelf(_ id: String) -> Bool {
+    id == ID.similar || id.hasPrefix(ID.genreShelfPrefix)
+      || id.hasPrefix(ID.authorShelfPrefix) || id.hasPrefix(ID.castShelfPrefix)
   }
 
-  /// People as text, for the kinds whose cast is not on the page as faces
-  /// (`MediaPresentationProfile.showsCastPortraits` is false).
-  private static func creditsSpec(_ input: Input) -> TVPageInfoCard.Spec? {
+  // MARK: - Credits as text
+
+  /// How many names the cast card shows before the link that opens the rest.
+  static let creditsPreview = 6
+
+  /// The people of a kind with no faces on the page — anime, cartoons, a concert, a show — as text,
+  /// **under the table with the audio and the subtitles and with no heading** (Sasha, 2026-10-11):
+  /// three columns, each a stack of cards — whoever made it first, the cast second, the third not
+  /// yet used. The cast card shows the first few names, every one whole and none cut, and **always**
+  /// has the link under it — *Развернуть* — that opens everyone kino.pub lists, a row to a name. That
+  /// link is the one focus stop in the section: the words themselves are only read. Faces take the
+  /// place of Cast & Crew near the top of the page for fiction (`credits`).
+  static func creditsAsText(_ input: Input) -> [TVPageSection] {
     let item = input.mediaItem
     let profile = item.presentation
-    guard !profile.showsCastPortraits else { return nil }
-    var rows: [TVPageInfoCard.Spec.Row] = []
+    guard !profile.showsCastPortraits else { return [] }
+    var columns: [TVPageGroup] = []
+
     let authors = item.directorNames
     if !authors.isEmpty {
-      rows.append(.init(id: "author.caption", text: profile.authorCaptionKey.localized, style: .caption))
-      rows.append(.init(id: "author", text: authors.joined(separator: ", "), style: .value))
+      let spec = TVPageInfoCard.Spec(
+        id: "authors", title: profile.authorCaptionKey.localized, showsHeader: false,
+        rows: pair("author", profile.authorCaptionKey.localized, unbreakable(authors)))
+      columns.append(TVPageGroup(id: "authors", title: nil, columns: maxSpecColumns, stacked: true,
+                                 items: [.info(.spec(spec))]))
     }
-    let people = item.castMembers
-    if !people.isEmpty {
-      rows.append(.init(id: "cast.caption", text: "MediaItem_CreditsParticipants".localized, style: .caption))
-      rows.append(.init(id: "cast", text: people.prefix(6).joined(separator: ", "), style: .value))
+
+    let cast = item.castMembers
+    if !cast.isEmpty {
+      let preview = TVPageInfoCard.Spec(
+        id: "cast", title: "MediaItem_CreditsParticipants".localized, showsHeader: false,
+        rows: pair("cast", "MediaItem_CreditsParticipants".localized,
+                   unbreakable(Array(cast.prefix(creditsPreview)))))
+      columns.append(TVPageGroup(id: "cast", title: nil, columns: maxSpecColumns, stacked: true,
+                                 items: [preview, expandCastSpec(cast, showsEverything: input.showsEveryLanguage)]
+                                  .map { .info(.spec($0)) }))
     }
-    guard !rows.isEmpty else { return nil }
-    return TVPageInfoCard.Spec(id: "credits", symbol: "person.2.fill",
-                               title: "MediaItem_Credits".localized, rows: rows)
+    guard !columns.isEmpty else { return [] }
+    return [.strip(id: "credits", groups: columns)]
   }
 
-  private static func videoSpec(_ input: Input) -> TVPageInfoCard.Spec? {
-    let item = input.mediaItem
-    var rows: [TVPageInfoCard.Spec.Row] = []
-
-    // A film's runtime is the film's; a series' is one episode's. A multi-version film
-    // sums every version in `total`, which is the payload's runtime and not the film's.
-    let seconds: Int
-    if item.isEpisodicType {
-      seconds = Int(item.duration.average)
-    } else {
-      seconds = Int(item.playbackVariants.isEmpty ? item.duration.total : item.duration.average)
-    }
-    if let runtime = RuntimeText(seconds: seconds).formatted(.long) {
-      rows.append(.init(id: "runtime.caption",
-                        text: (item.isEpisodicType ? "MediaItem_EpisodeRuntime" : "MediaItem_Runtime").localized,
-                        style: .caption))
-      rows.append(.init(id: "runtime", text: runtime, style: .value))
-    }
-
-    // The best file the title has: its size and what class that is. A payload without
-    // files (a listing, `nolinks`) still says what quality it advertises.
-    if let best = item.detailFiles.max(by: { ($0.h, $0.w) < ($1.h, $1.w) }), best.w > 0, best.h > 0 {
-      rows.append(.init(id: "resolution.caption", text: "MediaItem_SpecResolution".localized, style: .caption))
-      rows.append(.init(id: "resolution", text: "\(best.w)×\(best.h)",
-                        badges: qualityBadge(for: item).map { [$0] } ?? [], style: .value))
-    } else if let quality = item.qualityDisplay {
-      rows.append(.init(id: "resolution.caption", text: "MediaItem_SpecQuality".localized, style: .caption))
-      rows.append(.init(id: "resolution", text: quality, badges: qualityBadge(for: item).map { [$0] } ?? [], style: .value))
-    }
-
-    // The two flags kino.pub raises about a release, said where the video is.
-    for (index, advisory) in mediaItemAdvisories(item).enumerated() {
-      rows.append(.init(id: "advisory.\(index)", text: advisory,
-                        leading: .symbol("exclamationmark.triangle"), style: .detail))
-    }
-    guard !rows.isEmpty else { return nil }
-    return TVPageInfoCard.Spec(id: "video", symbol: "play.fill", title: "MediaItem_SpecVideo".localized, rows: rows)
+  /// The link under the cast that opens it all — read in the popup, a row to a name.
+  private static func expandCastSpec(_ cast: [String], showsEverything: Bool) -> TVPageInfoCard.Spec {
+    let title = "MediaItem_CreditsParticipants".localized
+    let rows: [TVPageInfoCard.Spec.Row] = showsEverything
+      ? cast.enumerated().map { .init(id: "cast.\($0.offset)", text: $0.element, style: .value) }
+      : [.init(id: "cast.expand", text: "MediaItem_Expand".localized, style: .more)]
+    return TVPageInfoCard.Spec(id: "cast.expand", symbol: "person.2", title: title, showsHeader: false,
+                               opensInPopup: true, rows: rows)
   }
 
-  private static func qualityBadge(for item: MediaItem) -> String? {
-    let caps = MediaCapabilityBadges.from(item: item)
-    if caps.is4K { return "4K" }
-    if caps.isHD { return "HD" }
-    return item.qualityDisplay == nil ? nil : "SD"
+  /// A caption over the value that follows it: the rows of one item of the table.
+  private static func pair(_ id: String, _ caption: String, _ value: String) -> [TVPageInfoCard.Spec.Row] {
+    [.init(id: "\(id).caption", text: caption, style: .caption), .init(id: id, text: value, style: .value)]
+  }
+
+  // MARK: - Audio & Subtitles | Video | Information
+
+  /// The table under the page: **three columns at most, always, a gutter apart** (twice what two
+  /// cards of a row stand apart) **and sharing the width equally** — and each is a stack of cards,
+  /// one to an item, so focus goes from item to item and not over a whole column, which would be
+  /// taller than the screen (Sasha, 2026-10-11). First the languages, audio and subtitles each its
+  /// own card; then the video, the resolution, the runtime; then what the title is — type, year,
+  /// genres, countries, and for a series its status, the years it aired and how much of it there is.
+  /// **Select reads a card in full only where there is more to read** — every language. The people of
+  /// a kind with no faces have a section of their own (`creditsAsText`).
+  ///
+  /// The strip of type / country / genre pills that was above it is gone: it said what the third
+  /// column says now.
+  static func specifications(_ input: Input) -> [TVPageSection] {
+    func column(_ id: String, _ specs: [TVPageInfoCard.Spec]) -> TVPageGroup? {
+      specs.isEmpty ? nil : TVPageGroup(id: id, title: nil, columns: maxSpecColumns, stacked: true,
+                                        items: specs.map { .info(.spec($0)) })
+    }
+    let columns = [column("languages", [audioSpec(input), subtitlesSpec(input)]),
+                   column("video", videoSpecs(input)),
+                   column("info", informationSpecs(input))].compactMap { $0 }
+    return columns.isEmpty ? [] : [.strip(id: "specs", groups: columns)]
+  }
+
+  /// No more than this many columns, ever.
+  static let maxSpecColumns = 3
+
+  /// Words in a list break between its items and never inside one — "Том Холланд" stays on a
+  /// line — so a name is never split, and (with the row's own wrapping) never cut.
+  private static func unbreakable(_ items: [String], separator: String = ", ") -> String {
+    items.map { $0.replacingOccurrences(of: " ", with: "\u{00A0}") }.joined(separator: separator)
+  }
+
+  // MARK: Audio & Subtitles
+
+  /// Audio and subtitles, each a card of its own with a quiet header, in the languages of the
+  /// viewer's order. A title that reports none says so, instead of a header over nothing; Select
+  /// reads every language, the folded ones too.
+  private static func audioSpec(_ input: Input) -> TVPageInfoCard.Spec {
+    TVPageInfoCard.Spec(id: "audio", symbol: "waveform", title: "Audio".localized,
+                        opensInPopup: true, rows: audioRows(input))
+  }
+
+  private static func subtitlesSpec(_ input: Input) -> TVPageInfoCard.Spec {
+    TVPageInfoCard.Spec(id: "subtitles", symbol: "captions.bubble", title: "Subtitles".localized,
+                        opensInPopup: true, rows: subtitleRows(input))
   }
 
   /// Languages in the viewer's order. The ones they read stay open with what dubs them;
   /// the rest fold into "N more languages" (`LanguageListVisibility`, the one rule).
-  private static func audioSpec(_ input: Input) -> TVPageInfoCard.Spec? {
+  private static func audioRows(_ input: Input) -> [TVPageInfoCard.Spec.Row] {
     let item = input.mediaItem
     let groups = item.audioLanguageGroups(preferredLanguages: input.preferredLanguages)
-    guard !groups.isEmpty else { return nil }
+    guard !groups.isEmpty else {
+      return [.init(id: "audio.none", text: "MediaItem_SpecNoAudio".localized, style: .value)]
+    }
     let tracks = AudioTracks.sort(item.detailAudioTracks, preferredLanguages: input.preferredLanguages)
     let tracksByLanguage = Dictionary(grouping: tracks) { SubtitleTracks.languageKey($0.lang) }
 
@@ -521,17 +571,18 @@ enum MediaItemTVSections {
       let isOriginalOnly = dubs.isEmpty
       rows.append(.init(id: "audio.\(group.key)", text: group.name,
                         secondary: isOriginalOnly ? AudioTracks.localizedKindLabel(rank: 5) : nil,
-                        leading: Emoji.languageFlag(group.key).map { .emoji($0) }, style: .language))
+                        style: .language))
       rows.append(contentsOf: dubs)
     }
     if partition.hiddenCount > 0 {
       rows.append(moreLanguagesRow(partition.hiddenCount, id: "audio.more"))
     }
-    return TVPageInfoCard.Spec(id: "audio", symbol: "waveform", title: "Audio".localized, rows: rows)
+    return rows
   }
 
-  /// One line per kind of dub within a language, under it: the kind says itself by its
-  /// glyph — ✓ a studio dub, three heads a multi-voice, two a two-voice, one a single voice.
+  /// One line per kind of dub within a language, under it, in words and no glyph (Sasha,
+  /// 2026-10-11): the kind and every studio that voiced it — all of them, the line wraps and is
+  /// never cut.
   private static func dubRows(for tracks: [AudioTrackInfo], language: String) -> [TVPageInfoCard.Spec.Row] {
     var order: [Int] = []
     var byRank: [Int: [AudioTrackInfo]] = [:]
@@ -550,48 +601,39 @@ enum MediaItemTVSections {
         return studio.isEmpty || !seen.insert(studio.lowercased()).inserted ? nil : studio
       }
       let kind = AudioTracks.localizedKindLabel(rank: rank) ?? ""
-      // A studio dub names itself ("Dubbed: Mosfilm"); the voice kinds are the glyph.
-      let text: String
-      switch (rank, studios.isEmpty) {
-      case (0, false): text = "\(kind): \(studios.joined(separator: ", "))"
-      case (_, false): text = studios.joined(separator: ", ")
-      default: text = kind
-      }
-      return .init(id: "audio.\(language).\(rank)", text: text, leading: .symbol(dubSymbol(rank)), style: .detail)
+      let text = studios.isEmpty ? kind : "\(kind): \(unbreakable(studios))"
+      return .init(id: "audio.\(language).\(rank)", text: text, style: .detail)
     }
   }
 
-  private static func dubSymbol(_ rank: Int) -> String {
-    switch rank {
-    case 0: return "checkmark"
-    case 1: return "person.3.fill"
-    case 2: return "person.2.fill"
-    default: return "person.fill"
-    }
-  }
-
-  private static func subtitlesSpec(_ input: Input) -> TVPageInfoCard.Spec? {
+  /// The languages on one line, two spaces apart (Sasha, 2026-10-11) — the line wraps when it
+  /// has to and is never cut. A track marked hard-of-hearing or forced says so in brackets.
+  private static func subtitleRows(_ input: Input) -> [TVPageInfoCard.Spec.Row] {
     let item = input.mediaItem
     let groups = item.subtitleLanguageGroups(preferredLanguages: input.preferredLanguages)
-    guard !groups.isEmpty else { return nil }
+    guard !groups.isEmpty else {
+      return [.init(id: "subtitles.none", text: "MediaItem_SpecNoSubtitles".localized, style: .value)]
+    }
     let tracks = SubtitleTracks.sort(item.detailSubtitleTracks, preferredLanguages: input.preferredLanguages)
     let tracksByLanguage = Dictionary(grouping: tracks) { SubtitleTracks.languageKey($0.lang) }
 
     let partition = visibleLanguages(groups, input)
-    var rows: [TVPageInfoCard.Spec.Row] = []
-    for group in partition.visible {
+    let languages = partition.visible.map { group -> String in
       let own = tracksByLanguage[group.key] ?? []
       // kino.pub does not tell a hard-of-hearing track from a translated one, so a track
       // is "CC" when its own name says so and nothing more is claimed (see `LanguagesCard`).
-      rows.append(.init(id: "subtitles.\(group.key)", text: group.name,
-                        secondary: own.contains(where: \.isForced) ? "Forced".localized : nil,
-                        badges: own.contains(where: \.isCC) ? ["CC"] : [],
-                        leading: Emoji.languageFlag(group.key).map { .emoji($0) }, style: .language))
+      var notes: [String] = []
+      if own.contains(where: \.isCC) { notes.append("CC") }
+      if own.contains(where: \.isForced) { notes.append("Forced".localized) }
+      return notes.isEmpty ? group.name : "\(group.name) (\(notes.joined(separator: ", ")))"
     }
+    var rows: [TVPageInfoCard.Spec.Row] = [
+      .init(id: "subtitles.languages", text: unbreakable(languages, separator: "  "), style: .value)
+    ]
     if partition.hiddenCount > 0 {
       rows.append(moreLanguagesRow(partition.hiddenCount, id: "subtitles.more"))
     }
-    return TVPageInfoCard.Spec(id: "subtitles", symbol: "captions.bubble", title: "Subtitles".localized, rows: rows)
+    return rows
   }
 
   private static func visibleLanguages(_ groups: [MediaLanguageGroup], _ input: Input)
@@ -601,15 +643,125 @@ enum MediaItemTVSections {
       : LanguageListVisibility.partition(groups, preferredLanguages: input.preferredLanguages)
   }
 
+  /// What the card has more of, in two words and no glyph: "+ ещё 7", "+ 7 more".
   private static func moreLanguagesRow(_ count: Int, id: String) -> TVPageInfoCard.Spec.Row {
-    let unit: String
-    switch localizedPluralForm(count) {
-    case 0: unit = "MediaItem_UnitLanguageOne".localized
-    case 1: unit = "MediaItem_UnitLanguageFew".localized
-    default: unit = "MediaItem_UnitLanguageMany".localized
+    .init(id: id, text: String(format: "MediaItem_SpecMore".localized, "\(count)"), style: .more)
+  }
+
+  // MARK: Video
+
+  /// What the picture is, then how long it runs, then — for a series — how many seasons and episodes:
+  /// each its own card, without a header. A film's runtime is the film's; a series' is one episode's,
+  /// with the whole run's under it.
+  private static func videoSpecs(_ input: Input) -> [TVPageInfoCard.Spec] {
+    let item = input.mediaItem
+    var specs: [TVPageInfoCard.Spec] = []
+    func card(_ id: String, _ rows: [TVPageInfoCard.Spec.Row]) {
+      specs.append(TVPageInfoCard.Spec(id: id, title: "MediaItem_SpecVideo".localized, showsHeader: false, rows: rows))
     }
-    return .init(id: id, text: String(format: "MediaItem_SpecMoreLanguages".localized, "\(count)", unit),
-                 style: .more)
+
+    // The best file the title has: its size and what class that is. A payload without
+    // files (a listing, `nolinks`) still says what quality it advertises.
+    if let best = item.detailFiles.max(by: { ($0.h, $0.w) < ($1.h, $1.w) }), best.w > 0, best.h > 0 {
+      card("resolution", [
+        .init(id: "resolution.caption", text: "MediaItem_SpecResolution".localized, style: .caption),
+        .init(id: "resolution", text: "\(best.w)×\(best.h)",
+              badges: qualityBadge(for: item).map { [$0] } ?? [], style: .value)])
+    } else if let quality = item.qualityDisplay {
+      card("resolution", [
+        .init(id: "resolution.caption", text: "MediaItem_SpecQuality".localized, style: .caption),
+        .init(id: "resolution", text: quality, badges: qualityBadge(for: item).map { [$0] } ?? [], style: .value)])
+    }
+
+    // A multi-version film sums every version in `total`, which is the payload's runtime and
+    // not the film's.
+    let seconds: Int
+    if item.isEpisodicType {
+      seconds = Int(item.duration.average)
+    } else {
+      seconds = Int(item.playbackVariants.isEmpty ? item.duration.total : item.duration.average)
+    }
+    if let runtime = RuntimeText(seconds: seconds).formatted(.long) {
+      card("runtime", pair("runtime", (item.isEpisodicType ? "MediaItem_EpisodeRuntime" : "MediaItem_Runtime").localized,
+                           runtime))
+    }
+    if item.isEpisodicType, item.duration.total > item.duration.average,
+       let total = RuntimeText(seconds: Int(item.duration.total)).formatted(.long) {
+      card("runtime.total", pair("runtime.total", "MediaItem_TotalDuration".localized, total))
+    }
+    // How much of a series there is stands under how long it runs, in the same column (Sasha,
+    // 2026-10-11).
+    if item.isEpisodicType, let volume = SeriesFacts.volume(item, input.metadata) {
+      card("volume", pair("volume", "MediaItem_SeasonsAndEpisodes".localized, volume))
+    }
+
+    // The two flags kino.pub raises about a release, said where the video is.
+    let advisories = mediaItemAdvisories(item)
+    if !advisories.isEmpty {
+      card("advisories", advisories.enumerated().map { index, advisory in
+        .init(id: "advisory.\(index)", text: advisory, leading: .symbol("exclamationmark.triangle"), style: .detail)
+      })
+    }
+    return specs
+  }
+
+  private static func qualityBadge(for item: MediaItem) -> String? {
+    let caps = MediaCapabilityBadges.from(item: item)
+    if caps.is4K { return "4K" }
+    if caps.isHD { return "HD" }
+    return item.qualityDisplay == nil ? nil : "SD"
+  }
+
+  // MARK: Information
+
+  /// What the title is, a card to each item: type, year, genres, countries, and for a series the
+  /// status and the years it aired. No header. Every value is words that
+  /// wrap onto as many lines as they need and are never cut; a label is singular for one genre or
+  /// country and plural for several. Genres and countries are words — no emoji, no flags.
+  private static func informationSpecs(_ input: Input) -> [TVPageInfoCard.Spec] {
+    let item = input.mediaItem
+    var specs: [TVPageInfoCard.Spec] = []
+    func card(_ id: String, _ caption: String, _ value: String) {
+      specs.append(TVPageInfoCard.Spec(id: id, title: caption, showsHeader: false, rows: pair(id, caption, value)))
+    }
+
+    // Type — and its subtype, when there is one. `multi` says the film ships in several
+    // versions, which the versions rail above already lists. An unknown subtype still surfaces:
+    // better an unexplained word than a dropped one.
+    var type = [item.contentTypeTitleKey.localized]
+    if !item.isMultiVersion {
+      if let key = item.contentSubtypeTitleKey {
+        type.append(key.localized)
+      } else if let raw = item.contentSubtypeRaw {
+        type.append(raw)
+      }
+    }
+    card("type", "Type".localized, type.joined(separator: " · "))
+
+    // A series has a status and aired over some years; a film has a year.
+    if item.isEpisodicType {
+      if let status = SeriesFacts.statusKey(item, input.metadata) {
+        card("status", "MediaItem_Status".localized, status.localized)
+      }
+      if let years = SeriesFacts.years(item, input.metadata) {
+        card("year", "MediaItem_YearsAired".localized, years)
+      }
+    } else if item.year > 0 {
+      card("year", "Year".localized, String(item.year))
+    }
+
+    let genres = item.genres.compactMap { $0.title }.filter { !$0.isEmpty }
+    if !genres.isEmpty {
+      card("genres", (genres.count == 1 ? "MediaItem_TagGenre" : "MediaItem_TagGenres").localized, unbreakable(genres))
+    }
+
+    let countries = item.countries.map(\.title).filter { !$0.isEmpty }
+    if !countries.isEmpty {
+      card("countries", (countries.count == 1 ? "MediaItem_TagCountry" : "MediaItem_TagCountries").localized,
+           unbreakable(countries))
+    }
+
+    return specs
   }
 }
 #endif

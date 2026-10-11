@@ -12,13 +12,13 @@ that scrolls as one**:
 
 | # | Row | What is in it |
 | --- | --- | --- |
-| 1 | Ratings \| Reviews | one card per rating source · review previews |
-| 2 | Cast & Crew: Director \| Starring | person cards, the ones search draws, under one heading |
-| 3 | Similar | Home's poster row, as it is built there |
+| 1 | Ratings | one card per rating source, and a card that counts the reviews |
+| 2 | Cast & Crew | one row of person cards, the ones search draws, the role under each name |
+| 3 | Similar: same actors \| this director \| by genre | one heading over up to three groups of ten Home posters, under subheadings |
 | 4 | Stills \| Facts | a mosaic that opens the gallery · trivia cards |
-| 5 | Type · Year · Countries · Genres | one chip group per axis, each under its own small title |
-| 6 | Collections / selections | the other shelves, each a Home poster row |
-| 7 | Video \| Audio \| Subtitles | three specification columns |
+| 5 | Collections | one Home poster row per collection this title is in |
+| 6 | Audio & Subtitles \| Video \| Information | three columns at most, filling the width |
+| 7 | Creators \| Cast | a kind with no faces only (anime, cartoons, a concert…): text, no heading |
 
 **prd — A section with nothing to say is absent.** Its row collapses and the next one moves up; a
 row of two with one side empty is a row of one. Nothing is drawn as an empty box.
@@ -40,65 +40,147 @@ next group's title taking its place. It does not slide off to the left with the 
 
 ## Rows
 
-**prd — Ratings.** One card per source that has something to say — IMDb, Kinopoisk, TMDB, kino.pub —
-holding the source's own mark, the number as the source prints it, and how many people stand behind
-it. kino.pub's score is thumbs, so it shows how many of each. A source with too few votes says so
-rather than printing a number.
+**prd — Ratings (Sasha, 2026-10-11).** One card per source that has something to say — IMDb,
+Kinopoisk, TMDB, kino.pub — kept small: **the source's mark before the number**, 16 pt apart, on one
+line, and how many people stand behind it under them. The number is title2, rounded, medium; the
+count is caption2, regular. No source's name is written beside its mark. The card is as tall as
+those two lines (168 pt at the default text size), not as tall as a review's card (276), and sits
+at the top of the row beside it. kino.pub's score is thumbs, so under its percentage it shows how
+many of each. A source with voters but no score yet (Kinopoisk's «недостаточно оценок») prints a
+**dash in secondary ink in place of the number** and still writes how many voted — it does not say
+"not enough ratings".
 
-**prd — Reviews.** The first ten, as previews: a headline (the author when there is none — about
-half have no headline), as much of the text as fits, how it was meant, the date. **Select reads the
-whole review** in the shared info popup, so a clipped card is its own way in.
+**prd — Reviews, counted (Sasha, 2026-10-11).** The reviews' own words are **not on the detail
+page**. The last card of the scores' row — **the same height and style as a score**, a little wider
+because it carries two things — says how many there are and how they were meant: the speech bubbles
+before the total (a score's mark before its number), the title «Отзывы» under them, and on the right
+a face and a count for each tone — **green smiling** (positive), **red frowning** (negative), **grey
+straight-mouthed** (neutral). The total is the source's (the proxy pages its reviews, so it is more
+than the page carries), the tones are from its summary or, with none, tallied from the reviews we
+hold; nothing to count, no card. **Select opens a page of their own**: the review cards, three
+across, under the same count in the header, and Select on one reads it whole in the shared info
+popup. A card there is what the row used to hold: a headline (the author when there is none — about
+half have no headline), as much of the text as fits, how it was meant, the date.
 
-**prd — Cast & Crew (Sasha, 2026-10-06).** One heading, *Cast & Crew*, and under it the
-professions as **subheadings** — *Director*, *Starring* — set smaller than a row's title. Search's
-person card for everyone. **Fiction only** — see [media-presentation.md](media-presentation.md):
-every other kind has no faces on the page and its people become the *Credits* column of the
-specifications.
+**prd — Cast & Crew (Sasha, 2026-10-06; one row since 2026-10-11).** One heading, *Cast & Crew*, over
+**one row of people with no sections inside it**. Search's person card for everyone; **what each is to
+the title is the card's own subtitle** — the character (and, in a series, how many episodes) for an
+actor, when TMDB has one; «Режиссёр» for a director; «Создатель» for a show's creator. **Fiction
+only** — see [media-presentation.md](media-presentation.md): every other kind has no faces on the
+page and its people are a section of their own, as text (below).
 
-- **No profession on a card.** The subheading says it; "Director" under a director and "Actor"
-  under an actor said nothing. A card keeps what *is* news: the character (and, in a series, how
-  many episodes), when TMDB has one.
-- **One director stands beside the cast.** Director | Starring is one row. **Several directors are
-  a row of their own, and the cast is the row under it** (at most three directors) — side by side
-  they would push the cast off the screen. One heading over both.
+- **A film's director opens the row, then the cast.** Several directors (at most three) are still in
+  the one row — never a row of their own.
+- **A show's creators close the row, behind the actors**, however many there are (Sasha,
+  2026-10-11: «чересчур» as a row of their own).
 - **The cast is ranked, and the insignificant are dropped.** A **series** ranks by how many of its
   episodes a person is in; a **film** by TMDB's billing order — the one measure of prominence its
   credits carry (the model has no popularity figure). kino.pub's own order breaks a tie and stands in
   for a title TMDB knows nothing about. In a series, anyone in fewer than a **fifth** of the episodes
   the most-seen person is in — and never fewer than two, once anyone has more than one — is a guest
   and is dropped. **No more than 12** in any case.
+- **Except the first of kino.pub's own list, who is never dropped** (Sasha, 2026-10-11): that is the
+  lead. A name TMDB could not match has no episode count and was sent away as a guest — the title's
+  own lead among them. If ranking would leave them out they open the row.
+- **A person without a photo is their initials**, as in search. A fixture page draws no
+  network portraits (`-KINOPUBFixtureRealArt YES` brings them back), so the no-photo state is what a
+  fixture shows.
 
-**prd — Similar.** The Home poster row: the same lockup, six across — **with no title or year
-under a cover, not even on focus** (Sasha, 2026-10-06): Home's own caption, none, so there is no
-footer in the lockup to give or take height from the art. The same goes for every other shelf on the
-page, and **a shelf ends in its last cover — there is no *See all* tile** (Sasha, 2026-10-06: it named
-itself on focus, and the footer that allowed gave the covers beside it a height of their own).
+**prd — Similar (Sasha, 2026-10-11).** One heading, *Similar*, over **up to three groups** of
+posters in one row that scrolls as one, each under a subheading in a smaller type than the row's
+title, **in this order**:
 
-**prd — Stills.** A 3 × 2 mosaic — the first five stills and a chevron cell that says there is more —
-that opens a full-screen gallery. Left and Right turn its pages; Menu closes it.
+1. **«Эти же актёры»** — what else the lead is in. A concert or a stand-up set keeps its role-worded
+   shelf title («Ещё от комика»): its people do not star.
+2. **«От этого режиссёра»** — what else the director made («От этих режиссёров», and for a series
+   «От этого создателя»). No name in either: the group says the role, the title page the person.
+3. **By genre** — titled by the title's own genres in a sentence («Фантастика, боевики,
+   приключения»). kino.pub's *similar* shelf; when there is none, the genre floor stands in
+   ([related-sections.md](related-sections.md)).
 
-**prd — Facts.** Trivia cards. A spoiler is a card with a warning and a *Show* control, and turns
-into the fact when selected; it never shows itself on its own.
+**Ten covers at most in a group.** A title is shown once, under the first group that has it, and
+each group takes its ten from what the groups before it left — a long shelf never starves the next.
+A group whose shelf came back empty is absent, and so is the row when none is left; one whose query
+is still in flight holds its place as six skeleton covers under its own words, so the row does not
+jump.
 
-**prd — Type · Year · Countries · Genres.** One chip group per axis under its own small title. A
-chip opens search narrowed to it. A **type** wears an **SF Symbol** — a film strip for a film, a
-television for a series — never an emoji (Sasha, 2026-10-06); a country keeps its flag and a genre
-its emoji. An
-unknown subtype still shows its raw word, and a multi-version film does not say *multi* (the
-versions rail above already lists them).
+The covers are Home's poster: the same lockup, six across, the HIG gutter (44 pt) between any two —
+inside a group and from one group to the next, the subheadings do the telling-apart — **with no
+title or year under a cover, not even on focus** (Sasha, 2026-10-06): Home's own caption, none, so
+there is no footer in the lockup to give or take height from the art. **A group ends in its last
+cover — there is no *See all* tile** (Sasha, 2026-10-06: it named itself on focus, and the footer
+that allowed gave the covers beside it a height of their own). A group's subheading stays on the
+page's side margin while any of its covers is on screen and leaves with the last (the strip rule
+above).
 
-**prd — Specifications.** Three columns, no platter at rest — they read as text on the page and take
-the platter only under focus — and Select opens the whole column in the info popup.
+**prd — One nesting, one look (Sasha, 2026-10-11).** A heading, its subheading and the stack under
+it are spaced the same in every strip that has them — Similar's posters, Ratings and Reviews, the
+table — **at rest and under focus**. At rest the subheading's line and where the stack begins are one
+geometry whatever the stack is made of; under focus every subheading lifts by one amount
+(`TVPageLayout.stripTitleLift`, the wide card's), never by the focused card's own growth — a poster
+grows more than a person's card, and titles that followed it moved 19 pt over a row of posters and
+11 over a row of people, so two rows built alike read differently.
 
-- *Video:* runtime (a series' is one episode's), the best file's resolution with a 4K / HD / SD mark,
-  and the two advisories kino.pub raises about a release.
-- *Audio:* the languages in the viewer's order, a flag before each. The ones the viewer reads stay
-  open with what dubs them; **the rest fold into "N more languages"**, which the popup lists in full.
-  Dubs sit under their language: ✓ a studio dub (named), three heads a multi-voice, two a two-voice,
-  one a single voice. A language with only the original track says *Original*.
-- *Subtitles:* the same languages and flags; a boxed **CC** when the track's own name says so
-  (kino.pub does not tell hard-of-hearing from translated, so nothing more is claimed) and *Forced*.
-- *Credits:* only for a kind with no faces on the page; first, as text.
+**prd — Stills (Sasha, 2026-10-11).** A grid of **up to six** stills that **adapts to how many there
+are** rather than a fixed 3 × 2: one still is the whole card, two stand side by side, three are two
+over one wide, four two by two, five three over two wide, six three over three — the split that gives
+a still the shape closest to its own 16:9, a short last row widened to fill it, edge to edge under the
+card's rounded corners. There is no chevron cell: Select opens a full-screen gallery. Left and Right
+turn its pages; Menu closes it.
+
+**prd — Facts (Sasha, 2026-10-11).** Trivia cards, **the words body, regular, from the top of the card** — not
+centred in it — and **facts without a spoiler first, the spoilers after them**. A spoiler is a card
+with a warning — a quiet warning glyph (secondary, caption size) over its words — and **no *Show*
+label**: the card is the control, and turns into the fact when selected; it never shows itself on its
+own. A fact keeps the id of its place in kino.pub's list, so a revealed one stays revealed wherever
+it now stands.
+
+**prd — The table (Sasha, 2026-10-11).** The strip of type, year, country and genre pills is gone;
+its words are in the table's third column. **Three columns at most, always, a gutter (44 pt) apart —
+twice the air two cards of a row have — and sharing the width equally**, so they fill the page edge
+to edge. **Every column is a stack of cards, one to an item**, so the table is never one focus stop
+taller than the screen. **Borderless**: no platter, no white — at rest it is text on the page, and
+**only an item that does something on Select can take focus**: Audio, Subtitles and the cast's *Expand*. A
+type, a year, a resolution, a runtime are text and are skipped by the remote. Under focus a quiet
+translucent plate comes up behind the words, which do not move, and the secondary ones go primary.
+(Audio and Subtitles stay focusable even when nothing is folded away — a page whose bottom holds
+nothing focusable cannot be scrolled to.)
+
+**Every label is body, regular**; captions and the Audio / Subtitles headers are secondary, values
+primary. **Words wrap onto as many lines as they need and are never cut** — genres, countries, a
+dub's studios, the cast; they break between one another and never inside one. **No emoji and no
+flags**: not on a genre, a country or a language.
+
+**The air:** between **blocks** (Audio, Subtitles) the air is the card's own padding plus 12 pt — 68
+pt text to text; between **items** that are only read (type, year, runtime, resolution…) it is **half
+that**, 34 pt.
+
+1. **Audio and Subtitles** — two blocks with a quiet header each. **Audio:** the languages in the
+   viewer's order, no flag; the ones the viewer reads stay open with their dubs under them, **the
+   rest fold into «+ ещё 7» / "+ 7 more"** — two words and no chevron. A dub is a line of words, no
+   icon: its kind, then **every studio** that voiced it («Дубляж: Мосфильм», «Многоголосый: Кубик в
+   Кубе, Пифагор»); a language with only the original track says *Original*. **Subtitles are one
+   line**, the languages **two spaces apart**, a track marked hard-of-hearing or forced saying so in
+   brackets («English (CC)»), then «+ ещё N» when more are folded. Select reads every one in the info
+   popup. **A title that reports no audio says «Нет данных», no subtitles «Нет субтитров».**
+2. **Video** — no header. The best file's resolution with a 4K / HD / SD mark, then the runtime (a
+   series' is one episode's, with the whole run's in a card of its own), **then, for a series, how
+   many seasons and episodes it has — under the duration, in the same column** — then the two
+   advisories kino.pub raises about a release.
+3. **Information** — no header. Type (and subtype), year, genres, countries — **the label is
+   singular for one and plural for several** («Жанр» / «Жанры», «Страна» / «Страны»). A **series**
+   has a status, and **the years it aired in place of a year**: «с 2026» while it airs, «с 2019 по
+   2026» once it has ended, the one year when it began and ended in it. A multi-version film does not
+   say *multi* (the versions rail above already lists them).
+
+**prd — Cast & Crew as text (Sasha, 2026-10-11).** A kind with no faces (anime, cartoons, a concert,
+stand-up, documentary, a show) has its people as text **under the table with the audio and the
+subtitles — the last thing on the page — and with no heading**: not near the top where the portraits
+are. **Three columns — whoever made it first, the cast second, the third not used yet** (its width
+stays empty), each a card. The cast card shows the first six names, every one whole. **Under it there
+is always a link — «Развернуть» / "Expand" — a drill-in that opens everyone kino.pub lists**, in the
+info popup, a row to a name; it is the one focus stop in the section, and it is there however short
+the cast. The cards of words are only read: they take no focus.
 
 ## Select, everywhere on the page
 
@@ -106,8 +188,8 @@ the platter only under focus — and Select opens the whole column in the info p
 | --- | --- |
 | a poster | opens the title |
 | a person | opens their page |
-| a chip | opens search narrowed to it |
-| a review, a fact, a specification column | reads it whole in the info popup |
+| the count of reviews | opens the page of reviews |
+| a review (on that page), a fact, Audio, Subtitles, the cast's *Expand* | reads it whole in the info popup |
 | a spoiler | shows it, in place |
 | the stills | opens the gallery |
 | the kino.pub rating | offers a vote (see below) |
@@ -124,11 +206,14 @@ where the title came from and when, and nothing a remote can select.
 **idea — each of these is a reading of the list above, built so there was something to look at.
 Sasha has not confirmed any of them.**
 
-- **"Collections / Подборки" is every shelf that is not Similar:** the director's other work, the
-  lead's, the collections this title is in, the genre floor — in the model's own order
-  ([related-sections.md](related-sections.md)). A shelf is covers only. Its page of its own — all of a
-  director's or a collection's titles — is no longer reachable from the shelf on tvOS (the *See all*
-  tile was cut); a person's page still opens from the person's card in Cast & Crew.
+- **"Collections / Подборки" is every shelf that Similar did not take in** — the collections this
+  title is in, in the model's own order ([related-sections.md](related-sections.md)). A shelf is
+  covers only. Its page of its own — all of a collection's titles — is no longer reachable from the
+  shelf on tvOS (the *See all* tile was cut); a person's page still opens from the person's card in
+  Cast & Crew.
+- **Similar's groups are not capped.** The first can hold a screenful and more, and Right through
+  all of it is the way to the lead's and the director's. Whether each group wants a limit (six, a
+  screen) is not decided.
 - **The vote lives on the kino.pub rating card.** Select offers Like / Dislike, once — votes are
   one-shot. The legacy page had a separate control for it.
 - **Awards follow the facts**, as more cards of the same kind in the Facts group — they only exist for

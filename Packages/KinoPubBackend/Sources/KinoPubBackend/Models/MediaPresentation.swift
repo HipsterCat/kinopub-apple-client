@@ -95,6 +95,12 @@ public struct MediaPresentationProfile: Equatable, Sendable {
     authorRole == .creator ? "MediaItem_Creators" : "Director"
   }
 
+  /// What one credited person is, under their card: "Режиссёр", "Создатель" — `authorCaptionKey`
+  /// is the plural label of a row of them.
+  public var authorRoleKey: String {
+    authorRole == .creator ? "MediaItem_CreatorRole" : "Director"
+  }
+
   /// "More from …" for the people in the `director` field. A concert's or a stand-up
   /// set's director is a TV credit nobody is following, so those get no such shelf.
   public var showsAuthorShelf: Bool { kind != .concert && kind != .standup }
@@ -107,6 +113,18 @@ public struct MediaPresentationProfile: Equatable, Sendable {
     case (.director, true): return "MediaItem_MoreByDirectors"
     case (.creator, false): return "MediaItem_MoreByCreator"
     case (.creator, true): return "MediaItem_MoreByCreators"
+    }
+  }
+
+  /// The author group's subheading under *Similar* on tvOS — the role, with no name in it
+  /// ("От этого режиссёра"): the group is a handful of covers under a heading, not a shelf with
+  /// a header of its own to name the person in.
+  public func similarAuthorTitleKey(count: Int) -> String {
+    switch (authorRole, count > 1) {
+    case (.director, false): return "MediaItem_SimilarDirector"
+    case (.director, true): return "MediaItem_SimilarDirectors"
+    case (.creator, false): return "MediaItem_SimilarCreator"
+    case (.creator, true): return "MediaItem_SimilarCreators"
     }
   }
 

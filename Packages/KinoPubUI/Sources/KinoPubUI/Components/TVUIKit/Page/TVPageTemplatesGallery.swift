@@ -94,19 +94,33 @@ public struct TVPageTemplatesGallery: View {
              items: posters(seed: 3).prefix(2).map(TVPageItem.card)
                + people.prefix(2).map(TVPageItem.person)
                + posters(seed: 3).dropFirst(2).prefix(4).map(TVPageItem.card)),
-      // Rows of two, the way the detail page lays itself out under its hero.
+      // The detail page's scores, and — last in the same row, a score's height — how many reviews there are.
       .strip(id: "strip-ratings", groups: [
-        TVPageGroup(id: "scores", title: "Ratings · cards, 6 across", columns: 6, items: sampleRatings.map { .info(.rating($0)) }),
-        TVPageGroup(id: "reviews", title: "Reviews · cards, 4 across", columns: 4, items: sampleReviews.map { .info(.review($0)) })
+        TVPageGroup(id: "scores", title: "Ratings · cards, 6 across", columns: 6,
+                    items: sampleRatings.map { .info(.rating($0)) } + [.info(.reviews(sampleReviewsCount))])
       ]),
-      .strip(id: "strip-credits", title: "Cast & Crew · a heading over subheadings", groups: [
-        TVPageGroup(id: "directors", title: "Director", columns: 3, subheading: true,
-                    items: people.prefix(1).map(TVPageItem.person)),
-        TVPageGroup(id: "cast", title: "Starring", columns: 3, subheading: true,
-                    items: people.dropFirst().prefix(4).map(TVPageItem.person))
+      // The page the count opens: the reviews themselves, three across.
+      TVPageSection(id: "reviews-grid", title: "Reviews · their own page, 3 across", count: "63",
+                    kind: .infoCard, flow: .grid, columns: 3, items: sampleReviews.map { .info(.review($0)) }),
+      // One heading over one row of people: what each is to the title is the card's own subtitle.
+      .strip(id: "strip-credits", title: "Cast & Crew · one row, the role under the name", groups: [
+        TVPageGroup(id: "people", title: nil, columns: 3, items: people.prefix(5).enumerated().map { index, person in
+          .person(TVUIKitPerson(id: person.id, name: person.name, nameComponents: person.nameComponents,
+                                caption: index == 0 ? "Director" : person.caption, photoURL: person.photoURL))
+        })
+      ]),
+      // Posters in a strip: the rails' lockup at the rails' gutter, groups told apart by their
+      // subheadings alone. A group whose shelf is still in flight holds its place as skeletons.
+      .strip(id: "strip-similar", title: "Similar · posters under subheadings", groups: [
+        TVPageGroup(id: "cast", title: "Same Actors", columns: 6, subheading: true, cell: .poster,
+                    items: posters(seed: 21).prefix(3).map(TVPageItem.card)),
+        TVPageGroup(id: "director", title: "By This Director", columns: 6, subheading: true, cell: .poster,
+                    items: posters(seed: 22).prefix(2).map(TVPageItem.card)),
+        TVPageGroup(id: "genres", title: "Sci-fi, action, adventure", columns: 6, subheading: true,
+                    cell: .poster, items: (0..<6).map(TVPageItem.placeholder))
       ]),
       .strip(id: "strip-facts", groups: [
-        TVPageGroup(id: "stills", title: "Stills · a mosaic", columns: 3, items: [.info(.gallery(sampleGallery))]),
+        TVPageGroup(id: "stills", title: "Stills · a grid of up to six", columns: 3, items: [.info(.gallery(sampleGallery))]),
         TVPageGroup(id: "facts", title: "Did You Know…", columns: 4, items: sampleFacts.map { .info(.fact($0)) })
       ]),
       .strip(id: "strip-tags", groups: [
@@ -120,7 +134,10 @@ public struct TVPageTemplatesGallery: View {
         ])
       ]),
       .strip(id: "strip-specs", groups: [
-        TVPageGroup(id: "specs", title: nil, columns: 3, items: sampleSpecs.map { .info(.spec($0)) })
+        // Three stacked columns of cards, one to an item: focus goes from item to item.
+        TVPageGroup(id: "languages", title: nil, columns: 3, stacked: true, items: sampleSpecs.prefix(2).map { .info(.spec($0)) }),
+        TVPageGroup(id: "video", title: nil, columns: 3, stacked: true, items: sampleSpecs.dropFirst(2).prefix(2).map { .info(.spec($0)) }),
+        TVPageGroup(id: "info", title: nil, columns: 3, stacked: true, items: sampleSpecs.dropFirst(4).map { .info(.spec($0)) })
       ]),
       .posters(id: "fresh", title: "Fresh Series · 5 across", columns: 5, cards: posters(seed: 8)),
       .stills(id: "featured", title: "Featured · 4 across", columns: 4, cards: stills(progress: false)),
@@ -158,11 +175,18 @@ public struct TVPageTemplatesGallery: View {
   static var sampleRatings: [TVPageInfoCard.Rating] {
     [
       .init(id: "imdb", source: .imdb, title: "IMDb", value: "6.5", caption: "1 567 ratings"),
-      .init(id: "kp", source: .kinopoisk, title: "Kinopoisk", showsName: true, value: "6.5", caption: "1 034 ratings"),
-      .init(id: "kinopub", source: .kinopub, title: "KinoPub", showsName: true, value: "88%",
+      .init(id: "kp", source: .kinopoisk, title: "Kinopoisk", value: "6.5", caption: "1 034 ratings"),
+      .init(id: "kinopub", source: .kinopub, title: "KinoPub", value: "88%",
             thumbs: .init(up: "145", down: "19")),
-      .init(id: "tmdb", source: .tmdb, title: "TMDB", value: "6.5", caption: "25 ratings")
+      .init(id: "tmdb", source: .tmdb, title: "TMDB", value: "6.5", caption: "25 ratings"),
+      // Voters but no score yet: a dash in secondary ink, and how many voted.
+      .init(id: "kp-pending", source: .kinopoisk, title: "Kinopoisk", value: nil, caption: "44 ratings")
     ]
+  }
+
+  static var sampleReviewsCount: TVPageInfoCard.Reviews {
+    .init(id: "reviews", title: "Reviews", count: "63", tones: .init(positive: "45", negative: "11", neutral: "4"),
+          accessibilityLabel: "Reviews, 63")
   }
 
   static var sampleReviews: [TVPageInfoCard.Review] {
@@ -181,37 +205,47 @@ public struct TVPageTemplatesGallery: View {
 
   static var sampleGallery: TVPageInfoCard.Gallery {
     .init(id: "stills",
-          images: (1...5).compactMap { URL(string: "https://m.staticpop.net/poster/item/wide/\(10600 + $0).jpg") },
+          images: (1...6).compactMap { URL(string: "https://m.staticpop.net/poster/item/wide/\(10600 + $0).jpg") },
           accessibilityLabel: "Stills")
   }
 
   static var sampleFacts: [TVPageInfoCard.Fact] {
     [
       .init(id: "0", text: "During filming the lead suffered a concussion and spent several days in hospital while production was paused.",
-            isSpoiler: false, isRevealed: true, warning: "", revealTitle: ""),
+            isSpoiler: false, isRevealed: true, warning: ""),
       .init(id: "1", text: "The ending was shot twice, and one of the versions will never be seen.",
-            isSpoiler: true, isRevealed: false, warning: "This fact contains spoilers. Be careful.", revealTitle: "Show")
+            isSpoiler: true, isRevealed: false, warning: "This fact contains spoilers. Be careful.")
     ]
   }
 
+  /// The table under the page: Audio & Subtitles | Video | Information — three stacked columns, a
+  /// card to each item, body regular throughout, no flags on languages.
   static var sampleSpecs: [TVPageInfoCard.Spec] {
-    [
-      .init(id: "video", symbol: "play.fill", title: "Video", rows: [
-        .init(id: "a", text: "Runtime", style: .caption), .init(id: "b", text: "2 hours 20 minutes"),
-        .init(id: "c", text: "Resolution", style: .caption), .init(id: "d", text: "3840×1600", badges: ["4K"])
-      ]),
-      .init(id: "audio", symbol: "waveform", title: "Audio", rows: [
-        .init(id: "a", text: "English", secondary: "Original", leading: .emoji("🇺🇸"), style: .language),
-        .init(id: "b", text: "Russian", leading: .emoji("🇷🇺"), style: .language),
+    func card(_ id: String, _ caption: String, _ value: String, badges: [String] = []) -> TVPageInfoCard.Spec {
+      .init(id: id, title: caption, showsHeader: false, rows: [
+        .init(id: "\(id).caption", text: caption, style: .caption),
+        .init(id: id, text: value, badges: badges, style: .value)])
+    }
+    let nb = "\u{00A0}"
+    return [
+      .init(id: "audio", symbol: "waveform", title: "Audio", opensInPopup: true, rows: [
+        .init(id: "a", text: "English", secondary: "Original", style: .language),
+        .init(id: "b", text: "Russian", style: .language),
         .init(id: "c", text: "Dubbed: Mosfilm", leading: .symbol("checkmark"), style: .detail),
         .init(id: "d", text: "Cubic, Pifagor", leading: .symbol("person.3.fill"), style: .detail),
         .init(id: "e", text: "4 more languages", style: .more)
       ]),
-      .init(id: "subtitles", symbol: "captions.bubble", title: "Subtitles", rows: [
-        .init(id: "a", text: "English", badges: ["CC"], leading: .emoji("🇺🇸"), style: .language),
-        .init(id: "b", text: "Russian", secondary: "Forced", leading: .emoji("🇷🇺"), style: .language),
-        .init(id: "c", text: "4 more languages", style: .more)
-      ])
+      .init(id: "subtitles", symbol: "captions.bubble", title: "Subtitles", opensInPopup: true, rows: [
+        .init(id: "f", text: "English", badges: ["CC"], style: .language),
+        .init(id: "g", text: "Russian", secondary: "Forced", style: .language),
+        .init(id: "h", text: "4 more languages", style: .more)
+      ]),
+      card("resolution", "Resolution", "3840×1600", badges: ["4K"]),
+      card("runtime", "Runtime", "2 hours 20 minutes"),
+      card("type", "Type", "Movie"),
+      card("year", "Year", "2026"),
+      card("genres", "Genres", "Sci-Fi, Action, Adventure, Thriller"),
+      card("countries", "Countries", "🇺🇸\(nb)USA, 🇬🇧\(nb)United\(nb)Kingdom, 🇨🇦\(nb)Canada")
     ]
   }
 

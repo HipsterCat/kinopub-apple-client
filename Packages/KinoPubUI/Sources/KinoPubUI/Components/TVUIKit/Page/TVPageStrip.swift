@@ -64,12 +64,28 @@ struct TVPageStripPlan {
 
   /// - Parameter infoHeight: how tall the group's info cards are — the tallest of them, so
   ///   three columns of one table are one height and their platters line up on focus.
+  /// - Parameter cell: what the group says its titles are (`TVPageGroup.cell`).
+  /// - Parameter share: how many equal columns the content width is shared between, a gutter
+  ///   apart (`TVPageGroup.stacked`). Nil: the HIG column's width.
   static func metrics(of item: TVPageItem, columns: Int, contentWidth: CGFloat,
-                      infoHeight: CGFloat? = nil) -> Metrics {
-    let width = TVHIGGrid.resolve(columns: max(columns, 1), contentWidth: contentWidth).cardWidth
+                      infoHeight: CGFloat? = nil, cell: TVPageCellKind? = nil,
+                      share: Int? = nil) -> Metrics {
+    let width = cardWidth(columns: columns, contentWidth: contentWidth, share: share)
+    // A poster group is the rails' poster, with no caption — the covers are what it is for.
+    if cell == .poster {
+      switch item {
+      case .card, .placeholder:
+        return Metrics(TVPageCellMetrics.recipe(kind: .poster, artWidth: width, caption: .never))
+      default: break
+      }
+    }
     switch item {
+    case .info(.spec(let spec)):
+      // Borderless: nothing lifts, so an item of the table needs no room around it.
+      let size = CGSize(width: width, height: infoHeight ?? TVPageSpecContent.height(for: spec, cardWidth: width))
+      return Metrics(art: size, insets: .zero, envelope: size)
     case .info(let card):
-      return Metrics(TVPageCellMetrics.cardRecipe(artWidth: width,
+      return Metrics(TVPageCellMetrics.cardRecipe(artWidth: card.width(inColumn: width),
                                                   height: infoHeight ?? card.height(forWidth: width)))
     case .chip(let chip):
       let size = CGSize(width: TVPageChipCell.fittingWidth(for: chip), height: TVPageLayout.chipHeight)
@@ -80,18 +96,40 @@ struct TVPageStripPlan {
     }
   }
 
+  /// A card's width: the HIG column's, or — for a stacked column — the content width less the
+  /// gutters between its columns, over their number.
+  static func cardWidth(columns: Int, contentWidth: CGFloat, share: Int?) -> CGFloat {
+    guard let share, share > 0 else {
+      return TVHIGGrid.resolve(columns: max(columns, 1), contentWidth: contentWidth).cardWidth
+    }
+    return ((contentWidth - TVHIGGrid.gutter * CGFloat(share - 1)) / CGFloat(share)).rounded(.down)
+  }
+
+  /// How many equal columns a stacked group is one of: `columns`, whether or not they are all there.
+  private static func share(of group: TVPageGroup) -> Int? {
+    group.stacked ? max(group.columns, 1) : nil
+  }
+
+  /// Air between two cards of one column, art to art — the platters have none at rest, and lift
+  /// apart when focused.
+  static let stackGap: CGFloat = 12
+
   /// Art to art between two cards of a group: half the HIG gutter. A pill row keeps its own
   /// spacing.
   static let cardGap: CGFloat = TVHIGGrid.gutter / 2
 
-  private static func gap(after item: TVPageItem) -> CGFloat {
+  private static func gap(after item: TVPageItem, in group: TVPageGroup) -> CGFloat {
+    if group.cell == .poster { return TVHIGGrid.gutter }
     if case .chip = item { return TVPageLayout.chipSpacing }
     return cardGap
   }
 
   /// Art to art between two groups. Pills have a row of their own to be told apart in, so
-  /// they keep the wider gap; cards sit close.
+  /// they keep the wider gap; cards sit close. Posters are a shelf, whose covers stand the
+  /// HIG gutter apart wherever they are — the groups' subheadings do the telling-apart — and
+  /// stacked columns stand a gutter apart, twice what two cards of a row do (Sasha, 2026-10-11).
   private static func groupGap(after group: TVPageGroup) -> CGFloat {
+    if group.cell == .poster || group.stacked { return TVHIGGrid.gutter }
     if case .chip? = group.items.first { return TVPageLayout.stripPillGroupGap }
     return TVPageLayout.stripGroupGap
   }
@@ -101,13 +139,17 @@ struct TVPageStripPlan {
     let titleHeight = TVPageLayout.headerHeight
 
     let metrics = section.groups.map { group -> [Metrics] in
-      let width = TVHIGGrid.resolve(columns: max(group.columns, 1), contentWidth: contentWidth).cardWidth
-      let infoHeight = group.items.compactMap { item -> CGFloat? in
+      let share = Self.share(of: group)
+      let width = Self.cardWidth(columns: group.columns, contentWidth: contentWidth, share: share)
+      // The cards of a row are one height, so their platters line up on focus; the cards of a
+      // column are each as tall as what they say.
+      let infoHeight = group.stacked ? nil : group.items.compactMap { item -> CGFloat? in
         if case .info(let card) = item { return card.height(forWidth: width) }
         return nil
       }.max()
       return group.items.map {
-        Self.metrics(of: $0, columns: group.columns, contentWidth: contentWidth, infoHeight: infoHeight)
+        Self.metrics(of: $0, columns: group.columns, contentWidth: contentWidth, infoHeight: infoHeight,
+                     cell: group.cell, share: share)
       }
     }
     let roomAbove = metrics.joined().map(\.insets.top).max() ?? 0
@@ -122,12 +164,22 @@ struct TVPageStripPlan {
       let start = cursor
       var end = start
       var cards: [CGRect] = []
+      var stackY = artTop
       for (itemIndex, item) in group.items.enumerated() {
         let card = metrics[index][itemIndex]
-        let art = CGRect(x: end, y: artTop, width: card.art.width, height: card.art.height)
-        cards.append(CGRect(x: art.minX - card.insets.leading, y: art.minY - card.insets.top,
-                            width: card.envelope.width, height: card.envelope.height))
-        end = art.maxX + (itemIndex == group.items.count - 1 ? 0 : Self.gap(after: item))
+        if group.stacked {
+          // One column: each card under the one before.
+          let art = CGRect(x: start, y: stackY, width: card.art.width, height: card.art.height)
+          cards.append(CGRect(x: art.minX - card.insets.leading, y: art.minY - card.insets.top,
+                              width: card.envelope.width, height: card.envelope.height))
+          end = max(end, art.maxX)
+          stackY = art.maxY + Self.stackGap
+        } else {
+          let art = CGRect(x: end, y: artTop, width: card.art.width, height: card.art.height)
+          cards.append(CGRect(x: art.minX - card.insets.leading, y: art.minY - card.insets.top,
+                              width: card.envelope.width, height: card.envelope.height))
+          end = art.maxX + (itemIndex == group.items.count - 1 ? 0 : Self.gap(after: item, in: group))
+        }
       }
       if let title = group.title {
         let titleFont = TVPageGroupTitleCell.font(subheading: group.isSubheading)
@@ -151,8 +203,11 @@ struct TVPageStripPlan {
 
     let roomBelow = metrics.joined().map(\.insets.bottom).max() ?? 0
     let trailing = metrics.last?.last?.insets.trailing ?? 0
+    // A heading of the strip's own over groups with no titles of theirs (Cast & Crew's one row of
+    // people): the cards stand as far under it as a rail's do.
+    let headingOnly = !hasTitles && section.title != nil
     self.insets = NSDirectionalEdgeInsets(
-      top: 0,
+      top: headingOnly ? max(TVHIGGrid.headerToItems - roomAbove, 0) : 0,
       leading: max(sideInset + union.minX, 0),
       bottom: max(TVHIGGrid.titledRowGap - roomBelow, 0),
       trailing: max(sideInset - trailing, 0)
@@ -187,6 +242,18 @@ extension TVPageLayout {
   /// pill row (`chipSpacing`) is already close to the half.
   public static let stripPillGroupGap: CGFloat = 80
 
+  /// How far the titles of a strip lift when a card of their row has focus — **one number for
+  /// every group of every strip**, the lift of the wide card Cast & Crew is made of. The same
+  /// nesting has to look the same wherever it is (Sasha, 2026-10-11): a poster grows more than a
+  /// person's card, and titles that followed the focused card's own size moved 19 pt over
+  /// *Similar* and 11 over Cast & Crew, so the air between a heading, its subheading and the
+  /// cards under it read differently in two rows that are built alike.
+  @MainActor
+  static var stripTitleLift: CGFloat {
+    let recipe = TVPageCellMetrics.recipe(kind: .card, artWidth: 560, caption: .always)
+    return TVHIGGrid.focusRoom(cardHeight: recipe.itemSize.height)
+  }
+
   /// `scrolled` hears the titles' sticky shifts (`TVPageStripPlan.stickyShifts`) every
   /// time the row moves, on the main thread, and puts them on the cells.
   @MainActor
@@ -211,12 +278,23 @@ extension TVPageLayout {
 }
 
 extension TVPageInfoCard {
+  /// How wide this card is in a column `columnWidth` wide: the column's, unless what the card says
+  /// needs more — the count of reviews and its three tones stand beside each other.
+  @MainActor
+  func width(inColumn columnWidth: CGFloat) -> CGFloat {
+    switch self {
+    case .reviews(let reviews): return max(columnWidth, TVPageReviewsContent.fittingWidth(for: reviews))
+    default: return columnWidth
+    }
+  }
+
   /// How tall this card is at the width its column gives it.
   @MainActor
   func height(forWidth width: CGFloat) -> CGFloat {
     switch self {
-    case .spec(let spec): return max(TVPageSpecContent.height(for: spec), TVPageLayout.infoCardHeight)
-    case .rating, .review, .fact, .gallery: return TVPageLayout.infoCardHeight
+    case .spec(let spec): return TVPageSpecContent.height(for: spec, cardWidth: width)
+    case .rating, .reviews: return TVPageRatingContent.height
+    case .review, .fact, .gallery: return TVPageLayout.infoCardHeight
     }
   }
 }

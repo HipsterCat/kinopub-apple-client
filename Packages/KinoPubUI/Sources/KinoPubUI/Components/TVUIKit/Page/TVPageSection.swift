@@ -371,12 +371,25 @@ public struct TVPageGroup: Identifiable, Hashable {
   /// The title is a subheading — smaller, because the strip has a heading of its own
   /// ("Director" and "Starring" under "Cast & Crew") — not the row's title.
   public let isSubheading: Bool
+  /// What this group's titles are drawn as. Nil lets each item say (an info card, a person,
+  /// a pill; a title is search's wide card). `.poster` draws them as the 2:3 lockup every
+  /// poster rail uses — same recipe, same gutter — and its skeleton tiles too.
+  public let cell: TVPageCellKind?
+  /// The group is **one column** (Sasha, 2026-10-11): its cards stand one under another, each as
+  /// wide as one of `columns` equal columns that share the content width, a gutter apart, with the
+  /// groups beside it. The table under the page and the credits as text — three columns, and a
+  /// card to each item in them, so focus moves from item to item and not over a column taller than
+  /// the screen. A column that is not there leaves its width empty.
+  public let stacked: Bool
 
-  public init(id: String, title: String?, columns: Int, subheading: Bool = false, items: [TVPageItem]) {
+  public init(id: String, title: String?, columns: Int, subheading: Bool = false,
+              cell: TVPageCellKind? = nil, stacked: Bool = false, items: [TVPageItem]) {
     self.id = id
     self.title = title
     self.columns = columns
     self.isSubheading = subheading
+    self.cell = cell
+    self.stacked = stacked
     self.items = items
   }
 }
@@ -595,6 +608,12 @@ public struct TVPageSection: Identifiable, Hashable {
     return nil
   }
 
+  /// What the group of an item of a strip draws its titles as (`TVPageGroup.cell`).
+  func stripCell(ofItem index: Int) -> TVPageCellKind? {
+    guard let (group, _) = stripGroup(ofItem: index) else { return nil }
+    return groups[group].cell
+  }
+
   /// Items that are data, not skeleton tiles.
   var loadedCount: Int {
     items.reduce(0) { count, item in
@@ -607,7 +626,12 @@ public struct TVPageSection: Identifiable, Hashable {
   }
 
   public func itemID(at index: Int) -> TVPageItemID {
-    TVPageItemID(section: id, item: items[index].localID)
+    // A strip is several groups in one list, and two of them can hold the same title or
+    // the same run of skeleton tiles: the group says which is which.
+    if let (group, _) = stripGroup(ofItem: index) {
+      return TVPageItemID(section: id, item: "\(groups[group].id)/\(items[index].localID)")
+    }
+    return TVPageItemID(section: id, item: items[index].localID)
   }
 }
 #endif

@@ -2541,24 +2541,9 @@ struct MediaItemInfoColumns: View {
     return nil
   }
 
-  private var isFinished: Bool {
-    switch externalMetadata.status?.lowercased() {
-    case "ended", "canceled": return true
-    case "returning series", "in production", "pilot", "planned": return false
-    default: return mediaItem.finished
-    }
-  }
+  private var isFinished: Bool { SeriesFacts.isFinished(mediaItem, externalMetadata) }
 
-  private var seriesStatusKey: String? {
-    guard mediaItem.isSeries else { return nil }
-    switch externalMetadata.status?.lowercased() {
-    case "ended": return "MediaItem_StatusEnded"
-    case "canceled": return "MediaItem_StatusCanceled"
-    case "returning series", "in production", "pilot", "planned":
-      return "MediaItem_StatusInProduction"
-    default: return mediaItem.seriesStatusKey
-    }
-  }
+  private var seriesStatusKey: String? { SeriesFacts.statusKey(mediaItem, externalMetadata) }
 
   /// "21 сентября 2020 – 30 июля 2026" when the run is complete, "с 21 сентября 2020"
   /// while it is still airing, bare years when only they are known.
@@ -2657,25 +2642,11 @@ struct MediaItemInfoColumns: View {
     return formatter.localizedString(for: date, relativeTo: Date())
   }
 
-  private enum UnitKind { case season, episode, special }
+  private typealias UnitKind = SeriesFacts.Unit
 
   /// Grammatically correct unit for the running locale.
   private static func unit(_ count: Int, _ kind: UnitKind) -> String {
-    let form = localizedPluralForm(count)
-    let key: String
-    switch (kind, form) {
-    case (.season, 0): key = "MediaItem_UnitSeasonOne"
-    case (.season, 1): key = "MediaItem_UnitSeasonFew"
-    case (.season, 2): key = "MediaItem_UnitSeasonMany"
-    case (.episode, 0): key = "MediaItem_UnitEpisodeOne"
-    case (.episode, 1): key = "MediaItem_UnitEpisodeFew"
-    case (.episode, 2): key = "MediaItem_UnitEpisodeMany"
-    case (.special, 0): key = "MediaItem_UnitSpecialOne"
-    case (.special, 1): key = "MediaItem_UnitSpecialFew"
-    case (.special, 2): key = "MediaItem_UnitSpecialMany"
-    default: key = "MediaItem_UnitSeasonMany"
-    }
-    return key.localized
+    SeriesFacts.unit(count, kind)
   }
 
   private var technicalSections: [InfoSection] {

@@ -100,11 +100,15 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
 - [ ] Sasha to confirm or change what was built as an interpretation (the list is in
       [detail-sections.md](docs/product/detail-sections.md#built-as-an-interpretation--not-decided):
       what "Collections" holds, the vote on the kino.pub card, awards after facts, chip order)
-- [x] Detail sections, round two (Sasha, 2026-10-06): *Cast & Crew* heading with Director / Starring
+- [x] Detail sections, round two (Sasha, 2026-10-06; Cast & Crew became one row without subheadings
+      on 2026-10-11, creators of a show at its end): *Cast & Crew* heading with Director / Starring
       subheadings, several directors as a row of their own, the cast ranked by episodes / TMDB billing
       order and cut at 12, no profession on a card, group titles that stay on the margin, a type as
       an SF Symbol, no captions under covers, half the air between cards and groups, no Debug button
       on tvOS
+- [ ] A fact's text arrives with HTML entities undecoded — `Turangal&#238;la-Symphonie` on a
+      Futurama card (seen 2026-10-11, Sasha's screenshot). Predates the facts rework; decode where
+      `TitleMetadata` takes a fact in, not in the cell
 - [ ] Detail sections, parked: a Trakt rating tile (no source); the darker band behind the
       specifications row; a series' own order next to its seasons rail; iOS / iPadOS / macOS onto the
       same order; a real *popularity* figure for the cast (TMDB's person popularity is not in the
@@ -136,7 +140,8 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       are shared now (`TVPagePlatter`), the cell skeleton and the focus-colour hook are still twice.
       Do it with before/after shots of `-KINOPUBTemplatesGallery`, search's cards included
 - [x] Information / Languages / Technical columns become three `.focusSection()` groups, not
-      link-by-link focus stops — on tvOS they are Video | Audio | Subtitles, three cards in one strip
+      link-by-link focus stops — on tvOS they are Audio & Subtitles | Video | Information, three
+      cards in one strip, filling the width (2026-10-11)
 - [ ] A centred "scroll to top" control at the true bottom of the page — guaranteed focus anchor and
       the Apple TV convention
 - [ ] Section header appears **on focus**, not always (`SeasonsRailView.showsChrome` exists and is

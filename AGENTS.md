@@ -271,8 +271,8 @@ file, and delete the losers with the switch.
   page's side margin while any of their group is on screen** (`stickyShifts`: the *label* moves
   inside a group-wide cell — a cell that moved with it would be recycled once its frame left the
   screen, and the cell's own transform is the focus dodge). A strip can carry a heading of its own
-  (`strip(id:title:groups:)`, *Cast & Crew*) with its groups' titles as subheadings
-  (`TVPageGroup.isSubheading`). What each row says:
+  (`strip(id:title:groups:)`, *Similar*) with its groups' titles as subheadings
+  (`TVPageGroup.isSubheading`); *Cast & Crew* is a heading over one untitled group of people. What each row says:
   [docs/product/detail-sections.md](docs/product/detail-sections.md). The SwiftUI sections it
   replaced are still there behind `FeatureFlags.tvDetailSections` (default on) until the page has
   been seen on a device — and are what iOS, iPadOS and macOS draw. **Being inside the hero's scroll view

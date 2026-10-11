@@ -363,13 +363,11 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       if self == .filmCrew {
         meta.cast = Self.crewCast.enumerated().map { index, member in
           CastMember(name: member.name, character: member.character,
-                     photo: DetailFixtureArt.avatar(seed: index + 1, label: member.name),
                      department: "Acting", tmdbPersonId: 200 + index, order: member.order)
         }
       } else {
         meta.cast = Self.filmCast.enumerated().map { index, member in
           CastMember(name: member.name, character: member.character,
-                     photo: DetailFixtureArt.avatar(seed: index + 1, label: member.name),
                      department: "Acting", tmdbPersonId: 100 + index, episodeCount: member.episodes, order: index)
         }
       }
@@ -438,8 +436,16 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       similar: { id in
         [.film, .filmCrew].contains(DetailFixture.allCases.first { $0.itemID == id }) ? DetailFixture.similarItems() : nil
       },
-      personItems: { _ in
-        DetailFixture.similarItems().prefix(5).enumerated().map { index, item in
+      // The lead's other films and the director's are different shelves — a page whose three
+      // groups of Similar are all there to be looked at.
+      personItems: { filter in
+        let titles = DetailFixture.similarItems()
+        if filter.person?.role == .director {
+          return titles.suffix(4).enumerated().map { index, item in
+            DetailFixture.posterItem(id: 9_903_000 + index, title: item.title, year: item.year, seed: index + 3)
+          }
+        }
+        return titles.prefix(5).enumerated().map { index, item in
           DetailFixture.posterItem(id: 9_902_000 + index, title: item.title, year: item.year, seed: index + 9)
         }
       }
@@ -660,14 +666,13 @@ struct DetailFixturePlayer: View {
 /// seed, so a screenshot shows which cell is which.
 enum DetailFixtureArt {
   private enum Shape {
-    case poster, wide, still, avatar
+    case poster, wide, still
 
     var size: CGSize {
       switch self {
       case .poster: CGSize(width: 520, height: 780)
       case .wide: CGSize(width: 1280, height: 720)
       case .still: CGSize(width: 640, height: 360)
-      case .avatar: CGSize(width: 400, height: 400)
       }
     }
   }
@@ -680,7 +685,6 @@ enum DetailFixtureArt {
   }
 
   static func still(seed: Int, label: String) -> URL { url(.still, seed: seed + 20, label: label) }
-  static func avatar(seed: Int, label: String) -> URL { url(.avatar, seed: seed + 40, label: label) }
 
   private static func url(_ shape: Shape, seed: Int, label: String) -> URL {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("kinopub-fixture-art", isDirectory: true)
@@ -705,13 +709,6 @@ enum DetailFixtureArt {
       let colors = [top.cgColor, bottom.cgColor] as CFArray
       if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
         cg.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width * 0.4, y: size.height), options: [])
-      }
-      if shape == .avatar {
-        // A head and shoulders, so a face-shaped crop has something to crop.
-        UIColor.white.withAlphaComponent(0.55).setFill()
-        cg.fillEllipse(in: CGRect(x: size.width * 0.3, y: size.height * 0.16, width: size.width * 0.4, height: size.height * 0.4))
-        cg.fillEllipse(in: CGRect(x: size.width * 0.12, y: size.height * 0.62, width: size.width * 0.76, height: size.height * 0.8))
-        return
       }
       let font = UIFont.systemFont(ofSize: size.height * (shape == .poster ? 0.075 : 0.11), weight: .heavy)
       let paragraph = NSMutableParagraphStyle()

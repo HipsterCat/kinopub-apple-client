@@ -329,11 +329,10 @@ public final class TVPageCollectionViewController: UIViewController {
     }
   }
 
-  /// The focused card grows upward by its lift; the title over its group moves up by the
-  /// same amount so the two never touch — what a row's header does in any other section.
-  private func stripTitleDodge(over path: IndexPath) -> CGAffineTransform {
-    guard let cell = collectionView.cellForItem(at: path) else { return .identity }
-    return CGAffineTransform(translationX: 0, y: -TVHIGGrid.focusRoom(cardHeight: cell.bounds.height))
+  /// The titles over a strip's groups lift by one amount for every card (`stripTitleLift`), so
+  /// the same nesting looks the same in every strip — never by the focused card's own growth.
+  private func stripTitleDodge() -> CGAffineTransform {
+    CGAffineTransform(translationX: 0, y: -TVPageLayout.stripTitleLift)
   }
 
   /// The system chrome above a page — the tab bar, a search field — hides and reveals
@@ -383,12 +382,16 @@ public final class TVPageCollectionViewController: UIViewController {
       guard let self, let section = self.sectionsByID[id.section] else { return }
       let width = self.collectionView.layoutAttributesForItem(at: indexPath)?.size.width
         ?? cell.bounds.width
-      let recipe = TVPageCellMetrics.recipe(kind: section.kind, itemWidth: width, caption: section.caption)
+      // A group of a strip can be drawn as posters — the rails' lockup, with no caption.
+      let isStripPoster = section.kind == .strip
+      let kind = isStripPoster ? TVPageCellKind.poster : section.kind
+      let caption = isStripPoster ? TVPageCaption.never : section.caption
+      let recipe = TVPageCellMetrics.recipe(kind: kind, itemWidth: width, caption: caption)
       switch self.itemsByID[id] {
       case .card(let card)?:
-        cell.configure(card: card, recipe: recipe, caption: section.caption, showsRating: section.showsRating)
+        cell.configure(card: card, recipe: recipe, caption: caption, showsRating: section.showsRating)
       case .tile(let tile)?:
-        cell.configure(tile: tile, recipe: recipe, caption: section.caption)
+        cell.configure(tile: tile, recipe: recipe, caption: caption)
       default:
         cell.configurePlaceholder(recipe: recipe)
       }
@@ -482,6 +485,12 @@ public final class TVPageCollectionViewController: UIViewController {
       cell.apply(recipe: self.infoRecipe(at: indexPath, cell: cell))
       cell.configure(rating)
     }
+    let reviews = UICollectionView.CellRegistration<TVPageReviewsCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self, case .info(.reviews(let reviews))? = self.itemsByID[id] else { return }
+      cell.apply(recipe: self.infoRecipe(at: indexPath, cell: cell))
+      cell.configure(reviews)
+    }
     let review = UICollectionView.CellRegistration<TVPageReviewCell, TVPageItemID> {
       [weak self] cell, indexPath, id in
       guard let self, case .info(.review(let review))? = self.itemsByID[id] else { return }
@@ -504,7 +513,6 @@ public final class TVPageCollectionViewController: UIViewController {
     let spec = UICollectionView.CellRegistration<TVPageSpecCell, TVPageItemID> {
       [weak self] cell, indexPath, id in
       guard let self, case .info(.spec(let spec))? = self.itemsByID[id] else { return }
-      cell.apply(recipe: self.infoRecipe(at: indexPath, cell: cell))
       cell.configure(spec)
     }
 
@@ -530,6 +538,7 @@ public final class TVPageCollectionViewController: UIViewController {
       func dequeueInfo(_ info: TVPageInfoCard) -> UICollectionViewCell {
         switch info {
         case .rating: return collectionView.dequeueConfiguredReusableCell(using: rating, for: indexPath, item: id)
+        case .reviews: return collectionView.dequeueConfiguredReusableCell(using: reviews, for: indexPath, item: id)
         case .review: return collectionView.dequeueConfiguredReusableCell(using: review, for: indexPath, item: id)
         case .fact: return collectionView.dequeueConfiguredReusableCell(using: fact, for: indexPath, item: id)
         case .gallery: return collectionView.dequeueConfiguredReusableCell(using: gallery, for: indexPath, item: id)
@@ -557,7 +566,11 @@ public final class TVPageCollectionViewController: UIViewController {
         case .info(let info)?: return dequeueInfo(info)
         case .groupTitle?: return collectionView.dequeueConfiguredReusableCell(using: groupTitle, for: indexPath, item: id)
         case .chip?: return collectionView.dequeueConfiguredReusableCell(using: chip, for: indexPath, item: id)
-        default: return collectionView.dequeueConfiguredReusableCell(using: card, for: indexPath, item: id)
+        default:
+          // A title is search's wide card, unless its group says it is a poster.
+          let cell = section.stripCell(ofItem: indexPath.item) == .poster ? poster : nil
+          if let cell { return collectionView.dequeueConfiguredReusableCell(using: cell, for: indexPath, item: id) }
+          return collectionView.dequeueConfiguredReusableCell(using: card, for: indexPath, item: id)
         }
       }
     }
@@ -761,7 +774,7 @@ public final class TVPageCollectionViewController: UIViewController {
           default: return "item"
           }
         }.joined(separator: ",")
-        return "\(group.id):\(group.columns):\(group.title ?? ""):\(items)"
+        return "\(group.id):\(group.columns):\(group.stacked):\(group.cell.map { "\($0)" } ?? ""):\(group.title ?? ""):\(items)"
       }.joined(separator: ";")
     }
     return signature
@@ -1049,7 +1062,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
         self.stripTitleCells(over: previous).forEach { $0.transform = .identity }
       }
       if let resolved {
-        let dodge = self.stripTitleDodge(over: resolved)
+        let dodge = self.stripTitleDodge()
         self.stripTitleCells(over: resolved).forEach { $0.transform = dodge }
       }
     }, completion: { [weak self] in

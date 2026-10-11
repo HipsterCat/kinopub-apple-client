@@ -9,12 +9,16 @@ vote, cast, awards) and **above** the tail: photos, facts, reviews, then Informa
 next comes before the reading matter — stills, trivia and other people's opinions are for whoever is
 still on the page.
 
-**prd — tvOS, since 2026-10-06, splits the block in two** ([detail-sections.md](detail-sections.md)).
-*Similar* is the third row, right after Ratings | Reviews and Director | Cast and before Stills |
-Facts; every other shelf below (author, cast, collections, genre floor) comes after the Type · Year ·
-Countries · Genres chips and before Video | Audio | Subtitles. The shelves, their queries and their
-order *among themselves* are unchanged — only where they sit on the page. iOS, iPadOS and macOS keep
-the order above.
+**prd — tvOS, since 2026-10-11, merges the block into one row** ([detail-sections.md](detail-sections.md)).
+The cast's shelf, the author's shelf, and *Similar* — or, when it fires, the genre floor — are
+**groups of one *Similar* row**, the third, right after Ratings | Reviews and Director | Cast and
+before Stills | Facts, in the order *the same actors*, *this director*, *by genre* (the genre floor
+stands in for *Similar*, which it only exists without). **Ten covers at most in a group**, a title
+that two shelves both hold shown once under the first of them, each group taking its ten from what
+the ones before it left. Only the collections stay rows of their own, after Stills | Facts and
+before the table. The shelves and their queries are unchanged. (From 2026-10-06 to 2026-10-11
+*Similar* was a row of its own and the rest sat below the chips.) iOS, iPadOS and macOS keep the
+order above.
 
 Order, top to bottom — each shelf absent when its query came back empty:
 

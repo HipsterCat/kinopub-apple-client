@@ -14,10 +14,14 @@
 
 import Foundation
 import CryptoKit
+import KinoPubUI
 
 enum ActorImageProvider {
   /// Portrait URL for a cast/crew member by their exact name string (as returned by kino.pub).
   static func photoURL(for name: String) -> URL? {
+    // A fixture page is drawn with no network (`-KINOPUBFixtureRealArt YES` says otherwise): a
+    // person it has no photo for shows the monogram, as in search.
+    if DebugLaunch.detailFixture != nil, !DebugLaunch.fixtureRealArt { return nil }
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
     let digest = Insecure.MD5.hash(data: Data(trimmed.utf8))

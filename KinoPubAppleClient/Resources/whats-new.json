@@ -12,7 +12,13 @@
         "«Продолжить просмотр» — пять кадров в ряд, название видно сразу.",
         "В сетках у каждого постера две строки подписи, все обложки одной высоты.",
         "На странице тайтла секции под героем — одним скроллом с картинкой.",
-        "Над рядом серий — строка «Сезон» с номерами: часы у ещё не вышедших, замок у тех, которых нет на KinoPub."
+        "Над рядом серий — строка «Сезон» с номерами: часы у ещё не вышедших, замок у тех, которых нет на KinoPub.",
+        "Оценки на странице тайтла стали компактнее: логотип перед цифрой, а где оценки ещё нет — прочерк и число голосов.",
+        "«Похожие» на странице тайтла — одним рядом: те же актёры, этот режиссёр, жанры — по десять тайтлов, у каждой группы свой подзаголовок.",
+        "Внизу страницы — три колонки на всю ширину: аудио и субтитры, видео, информация; полоска с жанрами и странами убрана, имена не обрезаются.",
+        "Актёры и съёмочная группа — одним рядом, роль под именем; создатели сериала в конце, а главный герой больше не пропадает. Кадры — сеткой до шести, спойлеры — в конце фактов.",
+        "Отзывы убраны из ленты страницы тайтла: вместо текста — карточка с их числом и тональностью, Select открывает страницу отзывов.",
+        "Таблица внизу страницы: фокус только на том, что нажимается (аудио, субтитры, «Развернуть» у каста), без эмодзи и флагов; субтитры одной строкой, озвучки без иконок и целиком."
       ],
       "en": [
         "Menu in lists returns to the top row first, then leaves the screen.",
@@ -23,7 +29,13 @@
         "Continue Watching shows five stills across, with titles visible at rest.",
         "Grid posters keep two caption lines and the same height.",
         "Title pages put the sections under the hero in one scroll.",
-        "A Season line sits above the episodes: number pills, a clock for seasons still to come, a lock for ones KinoPub lacks."
+        "A Season line sits above the episodes: number pills, a clock for seasons still to come, a lock for ones KinoPub lacks.",
+        "Ratings on the title page are more compact: the logo before the number, and a dash with the vote count where there is no score yet.",
+        "Similar on the title page is one row: the same actors, this director, then by genre — ten titles each, every group under its own subheading.",
+        "The bottom of the page is three full-width columns: audio & subtitles, video, information; the genre and country pills are gone and names are never cut.",
+        "Cast & Crew is one row with the role under each name; a show's creators come last and the lead no longer disappears. Stills are a grid of up to six, spoilers close the facts.",
+        "Reviews are off the title page's rail: a card with their count and tone instead, and Select opens a page of reviews.",
+        "The table at the bottom of the page: focus only on what can be pressed (audio, subtitles, Expand under the cast), no emoji or flags; subtitles on one line, dubs without icons and in full."
       ]
     }
   ]
