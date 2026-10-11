@@ -499,10 +499,12 @@ final class MediaItemTVSectionsTests: XCTestCase {
   }
 
   /// A series: by how many episodes a person is in; guests — under a fifth of the
-  /// most-seen person's, and never fewer than two — are dropped.
+  /// most-seen person's, and never fewer than two — are dropped. kino.pub's first
+  /// name is the lead (`testTheFirstOfKinoPubsListIsNeverDropped`); this list
+  /// starts with that person so guest-dropping is not fighting never-drop-first.
   func testASeriesCastIsRankedByEpisodesAndGuestsAreDropped() {
     let ranked = MediaItemTVSections.rankedCast(
-      [member("guest", episodes: 3), member("recurring", episodes: 30), member("lead", episodes: 100),
+      [member("lead", episodes: 100), member("recurring", episodes: 30), member("guest", episodes: 3),
        member("nobody"), member("edge", episodes: 20), member("under", episodes: 19)],
       isEpisodic: true)
     XCTAssertEqual(ranked.map(\.name), ["lead", "recurring", "edge"],
