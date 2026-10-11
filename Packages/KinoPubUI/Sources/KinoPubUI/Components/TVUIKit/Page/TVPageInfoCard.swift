@@ -36,6 +36,17 @@ public enum TVPageInfoCard: Hashable {
     }
   }
 
+  var registration: TVPageRegistration {
+    switch self {
+    case .rating: return .rating
+    case .reviews: return .reviews
+    case .review: return .review
+    case .fact: return .fact
+    case .gallery: return .gallery
+    case .spec: return .spec
+    }
+  }
+
   /// What the layout needs to know to size the card, so a change in it is a relayout.
   var layoutToken: String {
     switch self {

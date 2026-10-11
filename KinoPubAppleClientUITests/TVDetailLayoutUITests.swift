@@ -210,7 +210,10 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertTrue(focusedIsSelected, "Up landed on «\(focusedLabel)», which is not the selected pill")
 
     // The case geometry gets wrong: standing on S3E3 (x ≈ 880) the nearest pills are «4–7» and
-    // «8», but season 3 is the selected one, far to the left.
+    // «8», but season 3 is the selected one, far to the left. The Up above can land on 8
+    // (whichever selected pill is nearest); get back to 3 before that geometry.
+    XCTAssertTrue(seek(.left, until: "Сезон 3", limit: 8),
+                  "never got back to season 3: \(focusedDescription)")
     XCUIRemote.shared.press(.down)
     Thread.sleep(forTimeInterval: 1.2)
     XCUIRemote.shared.press(.right)
@@ -313,9 +316,9 @@ final class TVDetailLayoutUITests: XCTestCase {
     Thread.sleep(forTimeInterval: 1.2)
     XCUIRemote.shared.press(.down)   // the people: the first director
     Thread.sleep(forTimeInterval: 1.4)
-    XCTAssertTrue(focusedDescription.contains("kinopub.card.person.director:"), focusedDescription)
+    XCTAssertTrue(focusedDescription.contains("kinopub.card.person.director"), focusedDescription)
     try shoot("crew-directors")
-    XCTAssertTrue(seek(.right, until: "kinopub.card.person.actor:", limit: 4), focusedDescription)
+    XCTAssertTrue(seek(.right, until: "kinopub.card.person.actor", limit: 4), focusedDescription)
     Thread.sleep(forTimeInterval: 1.2)
     XCTAssertTrue(focusedDescription.contains("Крис Эванс") || focusedDescription.contains("Роберт Дауни"),
                   "a star first, not the bit part kino.pub lists first: \(focusedDescription)")

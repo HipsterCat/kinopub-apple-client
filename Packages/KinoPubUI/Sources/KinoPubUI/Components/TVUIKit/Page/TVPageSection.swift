@@ -351,11 +351,28 @@ public enum TVPageItem: Hashable {
   }
 }
 
+/// Which cell registration a page item dequeues. Part of `TVPageItemID` so a title
+/// that moves from a poster grid to a still grid (Library Following → Continue) is a
+/// new identity and is reloaded, not reconfigured into a different cell class.
+public enum TVPageRegistration: Hashable, Sendable {
+  case poster, still, person, chip, card, banner, masthead, groupTitle
+  case rating, reviews, review, fact, gallery, spec
+}
+
 /// Diffable identity of one item on one page: the same title in Up Next and in Hot
-/// Series is two cells, and the data source must never see one id twice.
+/// Series is two cells, and the data source must never see one id twice. `registration`
+/// is the cell class — it must be a stable function of this id, or `reconfigureItems`
+/// dequeues the wrong registration (`NSInternalInconsistencyException`).
 public struct TVPageItemID: Hashable, Sendable {
   public let section: String
   public let item: String
+  public let registration: TVPageRegistration
+
+  public init(section: String, item: String, registration: TVPageRegistration) {
+    self.section = section
+    self.item = item
+    self.registration = registration
+  }
 }
 
 /// One titled part of a `.strip` row: its own heading over its own cards, sized by its own
@@ -594,6 +611,88 @@ public struct TVPageSection: Identifiable, Hashable {
                   items: items + (0..<count).map(TVPageItem.placeholder))
   }
 
+  /// Drops later items that would share a `TVPageItemID` with an earlier one. The
+  /// collection's snapshot cannot hold a duplicate identifier.
+  func uniquedItems() -> TVPageSection {
+    var seen = Set<TVPageItemID>()
+    if kind == .strip {
+      let groups = self.groups.map { group in
+        TVPageGroup(id: group.id, title: group.title, columns: group.columns,
+                    subheading: group.isSubheading, cell: group.cell, stacked: group.stacked,
+                    items: group.items.filter { item in
+                      let id = TVPageItemID(section: self.id,
+                                            item: "\(group.id)/\(item.localID)",
+                                            registration: Self.registration(of: item, groupCell: group.cell))
+                      return seen.insert(id).inserted
+                    })
+      }
+      return .strip(id: id, title: title, groups: groups)
+    }
+    let kept = items.indices.compactMap { index -> TVPageItem? in
+      let id = itemID(at: index)
+      return seen.insert(id).inserted ? items[index] : nil
+    }
+    return TVPageSection(id: id, title: title, count: count, kind: kind, flow: flow, columns: columns,
+                         caption: caption, rows: rows, match: match, loadsMore: loadsMore,
+                         showsRating: showsRating, groups: groups, items: kept)
+  }
+
+  /// The cell registration this item dequeues. Stable for a given item in a given
+  /// section — the data source keys cells by `TVPageItemID.registration`.
+  public func registration(at index: Int) -> TVPageRegistration {
+    guard items.indices.contains(index) else { return .chip }
+    if kind == .strip, let (group, _) = stripGroup(ofItem: index) {
+      return Self.registration(of: items[index], groupCell: groups[group].cell)
+    }
+    return Self.registration(of: items[index], sectionKind: kind)
+  }
+
+  private static func registration(of item: TVPageItem, groupCell: TVPageCellKind?) -> TVPageRegistration {
+    switch item {
+    case .info(let info): return info.registration
+    case .groupTitle: return .groupTitle
+    case .chip: return .chip
+    case .person: return .person
+    case .masthead: return .masthead
+    case .feature: return .banner
+    case .tile: return .still
+    case .card, .placeholder:
+      return groupCell == .poster ? .poster : .card
+    }
+  }
+
+  private static func registration(of item: TVPageItem, sectionKind: TVPageCellKind) -> TVPageRegistration {
+    switch item {
+    case .info(let info): return info.registration
+    case .groupTitle: return .groupTitle
+    case .chip: return .chip
+    case .person: return .person
+    case .masthead: return .masthead
+    case .feature: return .banner
+    case .tile:
+      switch sectionKind {
+      case .poster, .square: return .poster
+      default: return .still
+      }
+    case .card, .placeholder:
+      return registration(for: sectionKind)
+    }
+  }
+
+  static func registration(for kind: TVPageCellKind) -> TVPageRegistration {
+    switch kind {
+    case .poster, .square: return .poster
+    case .still: return .still
+    case .person: return .person
+    case .chip: return .chip
+    case .card: return .card
+    case .banner: return .banner
+    case .masthead: return .masthead
+    case .infoCard: return .spec
+    case .strip: return .card
+    }
+  }
+
   /// For an item of a strip: which group it is in, and where that group's title sits
   /// among `items` (nil for an untitled group). Nil for any other kind of section.
   func stripGroup(ofItem index: Int) -> (group: Int, title: Int?)? {
@@ -627,11 +726,14 @@ public struct TVPageSection: Identifiable, Hashable {
 
   public func itemID(at index: Int) -> TVPageItemID {
     // A strip is several groups in one list, and two of them can hold the same title or
-    // the same run of skeleton tiles: the group says which is which.
+    // the same run of skeleton tiles: the group says which is which. `registration` is
+    // the cell class — it must travel with the id so reconfigure cannot dequeue another.
+    let registration = registration(at: index)
     if let (group, _) = stripGroup(ofItem: index) {
-      return TVPageItemID(section: id, item: "\(groups[group].id)/\(items[index].localID)")
+      return TVPageItemID(section: id, item: "\(groups[group].id)/\(items[index].localID)",
+                          registration: registration)
     }
-    return TVPageItemID(section: id, item: items[index].localID)
+    return TVPageItemID(section: id, item: items[index].localID, registration: registration)
   }
 }
 #endif

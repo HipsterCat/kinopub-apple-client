@@ -319,6 +319,7 @@ final class TVUIKitPersonCell: UICollectionViewCell {
     nameLabel.text = person.name
     captionLabel.text = person.caption
     captionLabel.isHidden = person.caption?.isEmpty != false
+    accessibilityIdentifier = "kinopub.card.person.\(person.id)"
     accessibilityLabel = [person.name, person.caption].compactMap { $0 }.joined(separator: ", ")
 
     let cached = TVUIKitRemoteImage.cached(url: person.photoURL)
@@ -375,6 +376,8 @@ final class TVUIKitPersonCell: UICollectionViewCell {
     monogramName = nil
     monogramDiameter = 0
     avatar.image = nil
+    accessibilityIdentifier = nil
+    accessibilityLabel = nil
   }
 
   private func showPhoto(_ image: UIImage) {

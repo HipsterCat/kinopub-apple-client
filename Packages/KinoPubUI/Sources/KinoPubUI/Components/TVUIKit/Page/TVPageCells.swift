@@ -799,7 +799,10 @@ final class TVPageWideCardCell: UICollectionViewCell {
     originalLabel.isHidden = original == nil
     detailLabel.text = Self.detail(for: card)
     detailLabel.isHidden = detailLabel.text == nil
-    accessibilityIdentifier = "kinopub.card.\(card.id)"
+    // The card is what takes focus (and what XCUI reports); the cell id alone is empty there.
+    let cardID = "kinopub.card.\(card.id)"
+    accessibilityIdentifier = cardID
+    cardView.accessibilityIdentifier = cardID
     cardView.accessibilityLabel = [card.title, original, detailLabel.text].compactMap { $0 }.joined(separator: ", ")
     loadThumbnail(URL(string: card.posterURL))
   }
@@ -814,7 +817,9 @@ final class TVPageWideCardCell: UICollectionViewCell {
     originalLabel.isHidden = true
     detailLabel.text = person.caption
     detailLabel.isHidden = person.caption == nil
-    accessibilityIdentifier = "kinopub.card.person.\(person.id)"
+    let personID = "kinopub.card.person.\(person.id)"
+    accessibilityIdentifier = personID
+    cardView.accessibilityIdentifier = personID
     cardView.accessibilityLabel = [person.name, person.caption].compactMap { $0 }.joined(separator: ", ")
   }
 
@@ -916,6 +921,7 @@ final class TVPageWideCardCell: UICollectionViewCell {
     originalLabel.text = nil
     detailLabel.text = nil
     accessibilityIdentifier = nil
+    cardView.accessibilityIdentifier = nil
     applyFocusColors(false)
   }
 }
