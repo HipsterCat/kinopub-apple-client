@@ -1046,3 +1046,250 @@ struct VersionsRailView: View {
   }
 #endif
 }
+
+// MARK: - Previews
+
+#if DEBUG
+/// Fixtures for the previews below. Dates are relative to "now" so every air state
+/// (ahead, just aired, long gone, undated) stays true whenever the preview is opened.
+private enum RailPreviewFixtures {
+
+  static func day(_ offset: Int) -> Date {
+    Calendar.current.date(byAdding: .day, value: offset, to: Date()) ?? Date()
+  }
+
+  /// `progress` is seconds watched; `watched` is the server's explicit flag.
+  static func episode(_ number: Int, season: Int, title: String? = nil,
+                      watched: Bool = false, progress: Int = 0) -> Episode {
+    Episode(id: season * 100 + number,
+            title: title ?? "Episode title \(number)",
+            thumbnail: "",
+            duration: 2_700,
+            tracks: 1,
+            number: number,
+            ac3: 0,
+            audios: [],
+            watched: watched ? 1 : 0,
+            watching: EpisodeWatching(status: watched ? 1 : (progress > 0 ? 0 : -1), time: progress),
+            subtitles: [],
+            files: [])
+  }
+
+  static func season(_ number: Int, episodes: [Episode]) -> Season {
+    // `SeasonWatching` has no public initialiser; it only ever comes off the wire.
+    // swiftlint:disable:next force_try
+    let watching = try! JSONDecoder().decode(SeasonWatching.self, from: Data(#"{"status": 0}"#.utf8))
+    let season = Season(id: number, title: "", number: number,
+                        watching: watching, episodes: episodes)
+    season.mediaId = 1
+    return season
+  }
+
+  /// Season 1 fully watched, season 2 half-way through, season 3 untouched.
+  static var threeSeasons: [Season] {
+    [
+      season(1, episodes: (1...6).map { episode($0, season: 1, watched: true) }),
+      season(2, episodes: [
+        episode(1, season: 2, watched: true),
+        episode(2, season: 2, watched: true),
+        episode(3, season: 2, progress: 1_200),
+        episode(4, season: 2),
+        episode(5, season: 2),
+      ]),
+      season(3, episodes: (1...4).map { episode($0, season: 3) }),
+    ]
+  }
+
+  static var oneSeason: [Season] {
+    [season(1, episodes: (1...5).map { episode($0, season: 1, watched: $0 < 3) })]
+  }
+
+  /// TMDB knows two episodes kino.pub lacks (one ahead, one aired long ago) plus a
+  /// third just aired and one with no date at all.
+  static var schedules: [Int: [EpisodeSchedule]] {
+    [3: [
+      EpisodeSchedule(episodeNumber: 3, seasonNumber: 3, name: "Aired, not uploaded", airDate: day(-60)),
+      EpisodeSchedule(episodeNumber: 4, seasonNumber: 3, name: "Aired two days ago", airDate: day(-2)),
+      EpisodeSchedule(episodeNumber: 5, seasonNumber: 3, name: "Tomorrow", airDate: day(1)),
+      EpisodeSchedule(episodeNumber: 6, seasonNumber: 3, name: "Next month", airDate: day(30)),
+      EpisodeSchedule(episodeNumber: 7, seasonNumber: 3, name: "No date yet"),
+    ]]
+  }
+
+  /// Season 3 is kino.pub's last; `upcoming` is the announced one, with `gap` seasons
+  /// skipped in between.
+  static func metadata(upcoming: Int, gap: [Int] = []) -> TitleMetadata {
+    var metadata = TitleMetadata()
+    metadata.nextEpisode = EpisodeRef(seasonNumber: upcoming, episodeNumber: 1, airDate: day(45))
+    metadata.seasonSummaries = gap.map {
+      SeasonSummary(seasonNumber: $0, episodeCount: 10, airDate: day(-365 * (upcoming - $0)))
+    } + [SeasonSummary(seasonNumber: upcoming, episodeCount: 8, airDate: day(45))]
+    return metadata
+  }
+
+  static func variant(_ number: Int, title: String, watched: Bool = false,
+                      progress: Int = 0, duration: Int = 7_200) -> PlaybackVariant {
+    let json = """
+    {"id": \(900 + number), "title": "\(title)", "thumbnail": "", "duration": \(duration),
+     "tracks": 1, "number": \(number), "ac3": 0, "audios": [],
+     "watched": \(watched ? 1 : 0),
+     "watching": {"status": \(progress > 0 ? 0 : -1), "time": \(progress)},
+     "subtitles": [], "files": []}
+    """
+    // A decode of a literal this file owns; a typo should fail loudly in the canvas.
+    // swiftlint:disable:next force_try
+    let video = try! JSONDecoder().decode(Video.self, from: Data(json.utf8))
+    return PlaybackVariant(video: video, mediaId: 1, movieTitle: "Preview Movie")
+  }
+}
+
+/// Environment the rails read, so a preview does not crash on a missing object.
+private struct RailPreviewHost<Content: View>: View {
+  @ViewBuilder var content: () -> Content
+
+  var body: some View {
+    content()
+      .padding(.vertical)
+      .environment(ErrorHandler())
+      .environment(NavigationState())
+  }
+}
+
+#Preview("Seasons rail · single season (no tabs)") {
+  RailPreviewHost {
+    SeasonsRailView(seasons: RailPreviewFixtures.oneSeason,
+                    linkProvider: AppRoutesLinkProvider(),
+                    seriesTitle: "Preview Series")
+  }
+}
+
+#Preview("Seasons rail · watched / in progress / new") {
+  RailPreviewHost {
+    SeasonsRailView(seasons: RailPreviewFixtures.threeSeasons,
+                    linkProvider: AppRoutesLinkProvider(),
+                    seriesTitle: "Preview Series")
+  }
+}
+
+#Preview("Seasons rail · hero up (chrome hidden)") {
+  RailPreviewHost {
+    SeasonsRailView(seasons: RailPreviewFixtures.threeSeasons,
+                    linkProvider: AppRoutesLinkProvider(),
+                    seriesTitle: "Preview Series",
+                    showsChrome: false)
+  }
+}
+
+#Preview("Seasons rail · TMDB schedule (every air state)") {
+  RailPreviewHost {
+    SeasonsRailView(seasons: RailPreviewFixtures.threeSeasons,
+                    linkProvider: AppRoutesLinkProvider(),
+                    seriesTitle: "Preview Series",
+                    seasonSchedules: RailPreviewFixtures.schedules)
+  }
+}
+
+#Preview("Seasons rail · upcoming season card") {
+  RailPreviewHost {
+    SeasonsRailView(seasons: RailPreviewFixtures.threeSeasons,
+                    linkProvider: AppRoutesLinkProvider(),
+                    seriesTitle: "Preview Series",
+                    externalMetadata: RailPreviewFixtures.metadata(upcoming: 4))
+  }
+}
+
+#Preview("Seasons rail · skipped seasons + upcoming") {
+  RailPreviewHost {
+    SeasonsRailView(seasons: RailPreviewFixtures.threeSeasons,
+                    linkProvider: AppRoutesLinkProvider(),
+                    seriesTitle: "Preview Series",
+                    seasonSchedules: RailPreviewFixtures.schedules,
+                    externalMetadata: RailPreviewFixtures.metadata(upcoming: 8, gap: [4, 5, 6, 7]))
+  }
+}
+
+#Preview("Missing seasons card · every shape") {
+  VStack(spacing: 16) {
+    // Years and episode count, spanning years.
+    MissingSeasonsCard(from: 6, to: 13, episodes: 120,
+                       firstAir: RailPreviewFixtures.day(-365 * 8),
+                       lastAir: RailPreviewFixtures.day(-365),
+                       stillHeight: 120)
+    // Both ends in the same year → one year, not a range.
+    MissingSeasonsCard(from: 4, to: 4, episodes: 8,
+                       firstAir: RailPreviewFixtures.day(-10),
+                       lastAir: RailPreviewFixtures.day(-10),
+                       stillHeight: 120)
+    // Years only.
+    MissingSeasonsCard(from: 4, to: 5, episodes: nil,
+                       firstAir: RailPreviewFixtures.day(-800),
+                       lastAir: RailPreviewFixtures.day(-300),
+                       stillHeight: 120)
+    // Episode count only.
+    MissingSeasonsCard(from: 4, to: 5, episodes: 20, firstAir: nil, lastAir: nil, stillHeight: 120)
+    // Nothing but the range.
+    MissingSeasonsCard(from: 4, to: 5, episodes: nil, firstAir: nil, lastAir: nil, stillHeight: 120)
+  }
+  .padding()
+}
+
+#Preview("Upcoming season card · every shape") {
+  HStack(alignment: .top, spacing: 16) {
+    // This year, no poster (placeholder).
+    UpcomingSeasonCard(number: 4, date: RailPreviewFixtures.day(14), poster: nil, stillHeight: 120)
+    // Far enough out to carry the year.
+    UpcomingSeasonCard(number: 5, date: RailPreviewFixtures.day(500), poster: nil, stillHeight: 120)
+    // Tomorrow.
+    UpcomingSeasonCard(number: 6, date: RailPreviewFixtures.day(1), poster: nil, stillHeight: 120)
+  }
+  .padding()
+}
+
+#Preview("Missing episode air state · badge and toast") {
+  let cases: [(String, MissingEpisodeAirState)] = [
+    ("Upcoming", .upcoming(RailPreviewFixtures.day(5))),
+    ("Upcoming, far", .upcoming(RailPreviewFixtures.day(90))),
+    ("Just aired", .justAired(RailPreviewFixtures.day(-1), daysAgo: 1)),
+    ("Aired long ago", .aired(RailPreviewFixtures.day(-400))),
+    ("Undated", .undated),
+  ]
+  return VStack(alignment: .leading, spacing: 12) {
+    ForEach(cases, id: \.0) { name, state in
+      VStack(alignment: .leading, spacing: 2) {
+        Text(name).font(.headline)
+        Text("badge: \(state.badgeText ?? "— (lock)")")
+        Label(state.message.text, systemImage: state.message.systemImage)
+      }
+    }
+  }
+  .padding()
+}
+
+#Preview("Versions rail · mixed progress") {
+  RailPreviewHost {
+    VersionsRailView(variants: [
+      RailPreviewFixtures.variant(1, title: "24 fps"),
+      RailPreviewFixtures.variant(2, title: "48 fps", progress: 2_400),
+      RailPreviewFixtures.variant(3, title: "Black & white", watched: true),
+    ], linkProvider: AppRoutesLinkProvider())
+  }
+}
+
+#Preview("Versions rail · two versions") {
+  RailPreviewHost {
+    VersionsRailView(variants: [
+      RailPreviewFixtures.variant(1, title: "24 fps"),
+      RailPreviewFixtures.variant(2, title: "48 fps"),
+    ], linkProvider: AppRoutesLinkProvider())
+  }
+}
+
+#Preview("Versions rail · unnamed and short (chrome hidden)") {
+  RailPreviewHost {
+    VersionsRailView(variants: [
+      RailPreviewFixtures.variant(1, title: ""),
+      RailPreviewFixtures.variant(2, title: "Teaser cut", duration: 45),
+    ], linkProvider: AppRoutesLinkProvider(), showsChrome: false)
+  }
+}
+#endif
