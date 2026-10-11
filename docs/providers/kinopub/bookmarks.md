@@ -285,3 +285,9 @@ Content-Type: application/json
 ]
 
 ```
+
+##
+
+Переименовать папку — в публичных docs метода нет. Клиент шлёт
+`POST /v1/bookmarks/create` с `folder` (id) и `title`. Не проверено live
+(2026-10-11). Create без `folder` по-прежнему создаёт папку.

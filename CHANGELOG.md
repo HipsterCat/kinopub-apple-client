@@ -5,6 +5,28 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Library: hugging sidebar, staged Menu, section header, genre+year captions (2026-10-11)
+
+Sidebar order is Подписки / Продолжить / Все закладки / folders / История at the
+bottom. Fixed rows get an SF Symbol in a square slot; folders do not. Width hugs
+the longest label. The page goes to the screen edges; the gap between sidebar and
+grid is the horizontal safe-area inset. Default focus is the sidebar; the last
+section is kept for the session. First Menu from a grid row below the top returns
+there (same `StagedMenuBack` as Home); the next press is the sidebar, then the
+tab bar.
+
+Every section has a 52 pt header — the History day header's height — with the
+section title, a count («156 непросмотренных серий» on Following), and the Search
+page's sort/type chips. Bookmark folders add Rename / Delete there and as a
+long-press menu.
+
+Poster subtitles in catalog grids (search, collection, person, library bookmarks)
+are `Жанр Год`, or `Жанр 2019–2024` for an ended series. Following still says how
+many episodes are left.
+
+Folder rename is `POST /v1/bookmarks/create` with `folder` + `title` — not in the
+public docs, unverified live.
+
 ### Cast ranking: kino.pub's list, not TMDB billing, and the lead is never dropped (2026-10-11)
 
 #50 (`f1992bd`) narrowed `rankedCast` so kino.pub's first name was restored **only** when TMDB

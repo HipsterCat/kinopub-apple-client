@@ -139,8 +139,9 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       History is the same play + wide art, titled with the show and S/E, grouped by day
       (Сегодня / Вчера / 15 сентября 2026). Seen on the simulators and in unit tests, not on a
       device with a real account
-- [ ] The Library sidebar's *Following* label is English in the Russian UI: `"Following"` has no entry
+- [x] The Library sidebar's *Following* label is English in the Russian UI: `"Following"` has no entry
       in `Localizable.xcstrings` (predates this work — `LibrarySection.title`). Add the ru string
+      — now `Library_Subscriptions` «Подписки» (2026-10-11)
 - [ ] Search's own shelves (a titled rail per kind) are still `.always` — a rail with captions; decide
       whether search is the exception it is built as or follows the rule
 - [ ] A shelf's own page (all of a director's or a collection's titles) is not reachable from the detail
@@ -323,16 +324,17 @@ pushes to the grid.
 - [x] Sidebar + detail grid shell on macOS; Library opens on Watchlist; folder counts match the
       reference client; no sidebar-toggle button in the window toolbar
 - [x] tvOS Library sidebar: pill rows, focus-follow selection that stays drawn when the grid
-      holds focus, no icons/counters for now (2026-10-07). iPadOS still open
+      holds focus (2026-10-07). SF Symbol in a fixed square slot on the fixed rows
+      (2026-10-11); folders have none so labels align. iPadOS still open
 - [ ] Same shell on iPadOS
-- [ ] tvOS sidebar: icons and counters (parked — this pass is pills and titles only), and
-      "Create Bookmark" is not localized
+- [x] tvOS sidebar: icons on the fixed rows (2026-10-11). Folder counts were already
+      there. "Create Bookmark" is still macOS-only
 - [ ] iPhone Podcasts-shaped list
-- [ ] Create / delete bookmark folder from the sidebar (today creating one is only possible while
-      bookmarking an item)
-- [ ] Rename a folder **if** an endpoint exists — the public docs have none, but undocumented site
-      endpoints do (lead: `kino.watch/favorites/update?id=`, unverified). Probe before declaring it
-      impossible; do not ship a fake local-only rename
+- [x] Delete a bookmark folder from the sidebar (long-press / context menu, with
+      confirmation) and from the section header (2026-10-11). Create is still macOS-only
+      plus the card menu
+- [x] Rename a folder via `POST /v1/bookmarks/create` with `folder` + `title` — public
+      docs have no rename; unverified live (2026-10-11). Not a fake local-only rename
 - [ ] Card actions: remove from history, remove from folder, unsubscribe
 - [ ] Retire the superseded surfaces: `WatchlistView`, `RecentlyWatchedView`, `BookmarksView`,
       `PersonalLibraryCatalog`, and the matching `NavigationTabs` cases

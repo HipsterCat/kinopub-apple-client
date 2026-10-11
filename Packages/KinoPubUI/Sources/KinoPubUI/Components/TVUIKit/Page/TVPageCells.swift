@@ -161,16 +161,16 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   /// What a captioned cover says under its title: a followed series says how many of its
-  /// episodes are still unwatched (the Library's *Following* — «2 серии»), anything else its year, and a
-  /// title with neither says nothing — the line is still there, empty, so a grid never mixes
-  /// one-line and two-line cells (Sasha, 2026-10-02). Original title is reserved for search's
-  /// wide cards (match highlighting).
+  /// episodes are still unwatched (the Library's *Following* — «2 серии»); everything else
+  /// `Жанр Год` / `Жанр 2019–2024` (Sasha, 2026-10-11). A title with neither says nothing —
+  /// the line is still there, empty, so a grid never mixes one-line and two-line cells.
+  /// Original title is reserved for search's wide cards (match highlighting).
   static func posterSubtitle(for card: MediaCard, caption: TVPageCaption) -> String? {
     switch caption {
     case .never:
       return nil
     case .always, .onFocus:
-      return EpisodesLeftText(card.unwatchedEpisodes)?.formatted() ?? card.year.map(String.init)
+      return EpisodesLeftText(card.unwatchedEpisodes)?.formatted() ?? card.catalogCaption
     }
   }
 
@@ -492,7 +492,7 @@ final class TVPageChipCell: UICollectionViewCell {
   /// (white, lifted, shadowed). Focused, the look is the system's own: the values it
   /// sets there are `nil`. Only active chips pass through here — the gray style's
   /// resting fill is not a plain colour, and writing any colour over it flattens it.
-  private static func updateActiveLook(of button: UIButton) {
+  static func updateActiveLook(of button: UIButton) {
     guard var configuration = button.configuration else { return }
     let resting = !button.isFocused
     configuration.background.backgroundColor = resting ? .secondaryLabel : nil
@@ -518,6 +518,18 @@ final class TVPageChipCell: UICollectionViewCell {
     return UIGraphicsImageRenderer(size: side).image { _ in
       symbol.draw(at: CGPoint(x: (side.width - symbol.size.width) / 2, y: (side.height - symbol.size.height) / 2))
     }.withRenderingMode(.alwaysTemplate)
+  }
+
+  /// The same pill as `configuration(for:)`, inset to sit in a 52 pt row header.
+  static func headerConfiguration(for chip: TVPageChip) -> UIButton.Configuration {
+    var configuration = self.configuration(for: chip)
+    if chip.showsTitle {
+      configuration.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 18, bottom: 6, trailing: 18)
+    } else {
+      let inset: CGFloat = 6
+      configuration.contentInsets = NSDirectionalEdgeInsets(top: inset, leading: inset, bottom: inset, trailing: inset)
+    }
+    return configuration
   }
 
   static func configuration(for chip: TVPageChip) -> UIButton.Configuration {
@@ -847,12 +859,11 @@ final class TVPageWideCardCell: UICollectionViewCell {
     return original
   }
 
-  /// "2021  Боевик, Фантастика" — year and genres. No running time: in a result list the
-  /// year and genre are what tell two same-named titles apart.
-  /// Year and genre for a title; a collection has neither, so its counters (items,
-  /// views) take the line instead.
+  /// "Боевик  2021" / "Драма  2019–2024" — genre then year. No running time: in a
+  /// result list the genre and year are what tell two same-named titles apart.
+  /// A collection has neither, so its counters (items, views) take the line instead.
   private static func detail(for card: MediaCard) -> String? {
-    var parts = [card.year.map(String.init), card.genreLine].compactMap { $0 }.filter { !$0.isEmpty }
+    var parts = [card.primaryGenre, card.yearLabel].compactMap { $0 }.filter { !$0.isEmpty }
     if parts.isEmpty { parts = card.captionStats.map(\.value).filter { !$0.isEmpty } }
     return parts.isEmpty ? nil : parts.joined(separator: "\u{2003}")
   }
@@ -950,11 +961,17 @@ final class TVPageDebugSectionBackground: UICollectionReusableView {
 // MARK: - Header
 
 /// Row title, leading on the same column as the first card: `.headline` in secondary.
-/// Not focusable — "see all" belongs to a trailing card or a control inside the row.
+/// Trailing actions are the same system pills Search uses (`TVPageChip`), sized to
+/// this header's 52 pt so a Library section and a History day share one bar.
 @MainActor
 final class TVPageHeaderView: UICollectionReusableView {
   private let titleLabel = UILabel()
   private let countLabel = UILabel()
+  private let actionsStack = UIStackView()
+  private var actionCells: [TVPageChipCell] = []
+  private var chips: [TVPageChip] = []
+  var onChipOption: ((String, String) -> Void)?
+  var onChipSelection: ((String, Set<String>) -> Void)?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -963,19 +980,33 @@ final class TVPageHeaderView: UICollectionReusableView {
     titleLabel.font = Self.font(.headline, weight: .semibold)
     titleLabel.adjustsFontForContentSizeCategory = true
     titleLabel.textColor = .secondaryLabel
+    titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     countLabel.font = Self.font(.subheadline, weight: .medium)
     countLabel.adjustsFontForContentSizeCategory = true
     countLabel.textColor = .tertiaryLabel
+    countLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-    let stack = UIStackView(arrangedSubviews: [titleLabel, countLabel])
+    let titles = UIStackView(arrangedSubviews: [titleLabel, countLabel])
+    titles.axis = .horizontal
+    titles.alignment = .firstBaseline
+    titles.spacing = 12
+    titles.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+    actionsStack.axis = .horizontal
+    actionsStack.alignment = .center
+    actionsStack.spacing = 12
+    actionsStack.setContentHuggingPriority(.required, for: .horizontal)
+
+    let stack = UIStackView(arrangedSubviews: [titles, actionsStack])
     stack.axis = .horizontal
-    stack.alignment = .firstBaseline
-    stack.spacing = 12
+    stack.alignment = .center
+    stack.spacing = 24
     stack.translatesAutoresizingMaskIntoConstraints = false
     addSubview(stack)
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-      stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+      stack.topAnchor.constraint(equalTo: topAnchor),
       stack.bottomAnchor.constraint(equalTo: bottomAnchor)
     ])
   }
@@ -994,11 +1025,39 @@ final class TVPageHeaderView: UICollectionReusableView {
   /// titles over a strip's groups.
   static var titleFont: UIFont { font(.headline, weight: .semibold) }
 
-  func configure(title: String, count: String?) {
+  func configure(title: String, count: String?, actions: [TVPageChip] = []) {
     titleLabel.text = title
     countLabel.text = count
     countLabel.isHidden = count == nil
     accessibilityLabel = count.map { "\(title), \($0)" } ?? title
+    rebuildActions(actions)
+  }
+
+  private static let actionHeight: CGFloat = 44
+
+  private func rebuildActions(_ actions: [TVPageChip]) {
+    guard chips != actions else {
+      zip(actionCells, actions).forEach { $0.configure(chip: $1) }
+      return
+    }
+    chips = actions
+    actionCells.forEach { $0.removeFromSuperview() }
+    actionCells.removeAll()
+    actionsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    for chip in actions {
+      let cell = TVPageChipCell(frame: .zero)
+      cell.translatesAutoresizingMaskIntoConstraints = false
+      cell.configure(chip: chip)
+      cell.onOption = { [weak self] option in self?.onChipOption?(chip.id, option) }
+      cell.onSelection = { [weak self] selection in self?.onChipSelection?(chip.id, selection) }
+      cell.onSelect = { [weak self] in self?.onChipOption?(chip.id, chip.id) }
+      NSLayoutConstraint.activate([
+        cell.heightAnchor.constraint(equalToConstant: Self.actionHeight),
+        cell.widthAnchor.constraint(equalToConstant: max(TVPageChipCell.fittingWidth(for: chip) * 0.85, Self.actionHeight))
+      ])
+      actionsStack.addArrangedSubview(cell)
+      actionCells.append(cell)
+    }
   }
 }
 #endif

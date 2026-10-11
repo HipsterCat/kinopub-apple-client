@@ -33,6 +33,7 @@ struct LibraryShellView: View {
   @AppStorage(HistorySectioning.storageKey) private var historySectioning: String = HistorySectioning.day.rawValue
 #if os(tvOS)
   @FocusState private var sidebarFocused: Bool
+  @State private var sidebarWidth: CGFloat = 280
 #endif
 
   /// Library History is by day (Sasha, 2026-10-10) — Сегодня / Вчера / the date.
@@ -61,26 +62,11 @@ struct LibraryShellView: View {
     // separate state (`model.selection`), not a stack push, so it is unaffected by
     // where the stack sits.
     RouteStack(tab: .library) {
-      HStack(alignment: .top, spacing: 0) {
-        sidebar
-        detail
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-#if os(tvOS)
-          .focusSection()
-          .onExitCommand { sidebarFocused = true }
-#endif
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      libraryColumns
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .task {
       cardMenu.bind(errorHandler: errorHandler)
-#if os(tvOS)
-      // The sidebar's default selection is its first row. A remembered section is
-      // what macOS restores; tvOS starts at the top of the list.
-      if let first = model.sections.first {
-        model.select(first)
-      }
-#endif
       await model.load()
     }
     .task { await cardMenu.refreshFolders() }
@@ -141,38 +127,88 @@ struct LibraryShellView: View {
       Button("Create") { model.confirmNewFolder() }
       Button("Cancel", role: .cancel) { model.isCreatingFolder = false }
     }
+    .alert("Rename", isPresented: renamePresented) {
+      TextField("Folder name", text: $model.renameFolderName)
+      Button("Rename") { model.confirmRenameFolder() }
+      Button("Cancel", role: .cancel) { model.folderToRename = nil }
+    }
+    .alert("Delete Folder", isPresented: deletePresented) {
+      Button("Delete Folder", role: .destructive) { model.confirmDeleteFolder() }
+      Button("Cancel", role: .cancel) { model.folderToDelete = nil }
+    } message: {
+      if let folder = model.folderToDelete {
+        Text(String(format: "Delete Folder Confirmation".localized, folder.title))
+      }
+    }
     .handleError(state: $errorHandler.state)
   }
+
+  private var renamePresented: Binding<Bool> {
+    Binding(get: { model.folderToRename != nil },
+            set: { if !$0 { model.folderToRename = nil } })
+  }
+
+  private var deletePresented: Binding<Bool> {
+    Binding(get: { model.folderToDelete != nil },
+            set: { if !$0 { model.folderToDelete = nil } })
+  }
+
+#if os(tvOS)
+  private var libraryColumns: some View {
+    GeometryReader { geo in
+      let gap = geo.safeAreaInsets.leading > 0 ? geo.safeAreaInsets.leading : TVHIGGrid.sideInset
+      HStack(alignment: .top, spacing: gap) {
+        sidebar
+        detail
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .focusSection()
+          .onExitCommand { sidebarFocused = true }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .ignoresSafeArea(.container, edges: [.horizontal])
+    }
+  }
+#else
+  private var libraryColumns: some View {
+    HStack(alignment: .top, spacing: 0) {
+      sidebar
+      detail
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+#endif
 
   // MARK: - Sidebar
 
 #if os(macOS)
   private var sidebar: some View {
     List(selection: selectionBinding) {
-      Section {
-        ForEach(LibrarySection.fixed, id: \.self) { section in
-          row(for: section)
-            .tag(section)
-        }
+      ForEach(LibrarySection.leadingFixed, id: \.self) { section in
+        row(for: section)
+          .tag(section)
       }
 
-      Section("Bookmarks") {
-        ForEach(model.folders, id: \.id) { folder in
-          row(for: .folder(folder.id))
-            .tag(LibrarySection.folder(folder.id))
-            .contextMenu {
-              Button("Delete Bookmark", role: .destructive) {
-                model.deleteFolder(id: folder.id)
-              }
+      ForEach(model.folders, id: \.id) { folder in
+        row(for: .folder(folder.id))
+          .tag(LibrarySection.folder(folder.id))
+          .contextMenu {
+            Button("Rename") { model.promptRenameFolder(id: folder.id) }
+            Button("Delete Folder", role: .destructive) {
+              model.promptDeleteFolder(id: folder.id)
             }
-        }
+          }
+      }
 
-        Button {
-          model.promptNewFolder()
-        } label: {
-          Label("Create Bookmark", systemImage: "plus")
-        }
-        .buttonStyle(.plain)
+      Button {
+        model.promptNewFolder()
+      } label: {
+        Label("Create Bookmark", systemImage: "plus")
+      }
+      .buttonStyle(.plain)
+
+      ForEach(LibrarySection.trailingFixed, id: \.self) { section in
+        row(for: section)
+          .tag(section)
       }
     }
     // No material behind the sidebar: it shares the window's background with the grid
@@ -197,19 +233,25 @@ struct LibraryShellView: View {
 
 #if os(tvOS)
   /// One flat table. Fixed sections and bookmark folders are rows of that single
-  /// section — a second section would put a header between them.
+  /// section — a second section would put a header between them. Width hugs the
+  /// longest label plus the icon slot.
   private var sidebar: some View {
     LibrarySidebar(
       rows: model.sections.map { section in
-        LibrarySidebarRow(section: section, title: model.title(for: section))
+        LibrarySidebarRow(section: section,
+                          title: model.title(for: section),
+                          systemImage: section.systemImage)
       },
       selection: model.selection,
+      width: $sidebarWidth,
       onSelect: { section in
         guard model.selection != section else { return }
         model.select(section)
-      }
+      },
+      onRename: { model.promptRenameFolder(id: $0) },
+      onDelete: { model.promptDeleteFolder(id: $0) }
     )
-    .frame(width: 380)
+    .frame(width: sidebarWidth)
     .frame(maxHeight: .infinity)
     .focusSection()
     .focused($sidebarFocused)
@@ -219,17 +261,23 @@ struct LibraryShellView: View {
 
   private func row(for section: LibrarySection) -> some View {
     HStack {
-      Label(model.title(for: section), systemImage: section.systemImage)
-        .lineLimit(1)
-        .font(.system(.footnote, weight: .regular))
-        .foregroundStyle(model.selection == section ? .primary : .secondary)
+      if let image = section.systemImage {
+        Label(model.title(for: section), systemImage: image)
+          .lineLimit(1)
+          .font(.system(.footnote, weight: .regular))
+          .foregroundStyle(model.selection == section ? .primary : .secondary)
+      } else {
+        Text(model.title(for: section))
+          .lineLimit(1)
+          .font(.system(.footnote, weight: .regular))
+          .foregroundStyle(model.selection == section ? .primary : .secondary)
+      }
       if let count = model.count(for: section) {
         Spacer()
         Text(count)
           .foregroundStyle(.tertiary)
           .monospacedDigit()
           .font(.system(.caption, weight: .regular))
-
       }
     }
   }
@@ -262,7 +310,7 @@ struct LibraryShellView: View {
     TVPage(
       sections: librarySections,
       status: libraryStatus,
-      sideInset: TVHIGGrid.gutter,
+      sideInset: 0,
       accessibilityID: "kinopub.page.library",
       onSelect: { _, item in
         guard case .card(let card) = item else { return }
@@ -271,6 +319,19 @@ struct LibraryShellView: View {
         } else {
           navigationState.push(.detailsById(card.itemID))
         }
+      },
+      onChipOption: { chip, option in
+        switch chip {
+        case TVSearchFilters.folderRename:
+          if case .folder(let id) = model.selection { model.promptRenameFolder(id: id) }
+        case TVSearchFilters.folderDelete:
+          if case .folder(let id) = model.selection { model.promptDeleteFolder(id: id) }
+        default:
+          TVSearchFilters.apply(chip: chip, option: option, to: catalog)
+        }
+      },
+      onChipSelection: { chip, selection in
+        TVSearchFilters.applySelection(chip: chip, selection: selection, to: catalog)
       },
       onNearEnd: { _ in
         guard let last = catalog.cards.last else { return }
@@ -284,39 +345,51 @@ struct LibraryShellView: View {
                                       openURL: { openURL($0) })
       },
       onRetry: { Task { await catalog.refresh() } },
-      // Menu from the grid returns to the sidebar (`onExitCommand` above). The table
-      // remembers the row that had focus. Menu there reaches the tab bar.
-      returnsToTopOnMenu: false
+      // First Menu from a grid row below the top returns there; at the top it
+      // passes through to the sidebar (`onExitCommand` on the detail column).
+      returnsToTopOnMenu: true
     )
-    // Under the tab bar (native scroll-edge fade via `setContentScrollView`) and out
-    // to the trailing screen edge. Leading inset is the gutter past the sidebar, not
-    // another 80 pt of page margin on top of 420 pt of list.
-    .ignoresSafeArea(.container, edges: [.vertical])
+    .ignoresSafeArea(.container, edges: [.vertical, .trailing])
+  }
+
+  private var libraryHeaderActions: [TVPageChip] {
+    var chips = TVSearchFilters.controlChips(catalog: catalog, includeType: true, showsTitle: false)
+    if case .folder = model.selection {
+      chips += TVSearchFilters.folderActionChips()
+    }
+    return chips
   }
 
   private var librarySections: [TVPageSection] {
     let cards = catalog.cards
     let sectionID = "library.\(model.selection.persistenceID)"
+    let title = model.title(for: model.selection)
+    let count = model.headerCount(for: model.selection, cards: cards)
+    let actions = libraryHeaderActions
     guard !cards.isEmpty else {
-      return catalog.isLoading
-        ? [.placeholder(id: sectionID, title: nil, kind: .poster, columns: 6, flow: .grid)]
-        : []
+      let empty = catalog.isLoading
+        ? TVPageSection.placeholder(id: sectionID, title: title, kind: .poster, columns: 6, flow: .grid)
+        : TVPageSection.posters(id: sectionID, title: title, count: count, flow: .grid,
+                                caption: .always, headerActions: actions, cards: [])
+      return [empty.withHeaderActions(actions)]
     }
     let grouped = model.selection == .history ? sectioning.sections(for: cards) : []
     let groups: [(id: String, title: String?, cards: [MediaCard])] = grouped.isEmpty
-      ? [(sectionID, nil, cards)]
+      ? [(sectionID, title, cards)]
       : grouped.map { ($0.id, $0.title, $0.cards) }
-    // The next page lands in the last group, so only that one ends on the loading row.
     let lastID = groups.last?.id
-    return groups.map { group in
+    return groups.enumerated().map { index, group in
       let loadsMore = group.id == lastID && catalog.hasMorePages
+      let headerTitle = group.title ?? title
+      let headerCount = index == 0 ? count : nil
+      let headerActions = index == 0 ? actions : []
       return group.cards.first?.isLandscape == true
-        ? .stills(id: group.id, title: group.title, columns: 4, flow: .grid, caption: .always,
-                  loadsMore: loadsMore, cards: group.cards)
-        // Titles always under the posters, as in search — and with them the row gap
-        // that leaves the captions clear air (`TVPageLayout.captionedRowGap`).
-        : .posters(id: group.id, title: group.title, flow: .grid, caption: .always,
-                   loadsMore: loadsMore, cards: group.cards)
+        ? .stills(id: group.id, title: headerTitle, count: headerCount, columns: 4, flow: .grid,
+                  caption: .always, loadsMore: loadsMore, headerActions: headerActions,
+                  cards: group.cards)
+        : .posters(id: group.id, title: headerTitle, count: headerCount, flow: .grid,
+                   caption: .always, loadsMore: loadsMore, headerActions: headerActions,
+                   cards: group.cards)
     }
   }
 
@@ -374,12 +447,16 @@ struct LibraryShellView: View {
 private struct LibrarySidebarRow: Equatable {
   let section: LibrarySection
   let title: String
+  let systemImage: String?
 }
 
 private struct LibrarySidebar: UIViewControllerRepresentable {
   let rows: [LibrarySidebarRow]
   let selection: LibrarySection
+  @Binding var width: CGFloat
   let onSelect: (LibrarySection) -> Void
+  let onRename: (Int) -> Void
+  let onDelete: (Int) -> Void
 
   func makeUIViewController(context: Context) -> LibrarySidebarController {
     LibrarySidebarController()
@@ -387,6 +464,11 @@ private struct LibrarySidebar: UIViewControllerRepresentable {
 
   func updateUIViewController(_ controller: LibrarySidebarController, context: Context) {
     controller.onSelect = onSelect
+    controller.onRename = onRename
+    controller.onDelete = onDelete
+    controller.onWidthChange = { newWidth in
+      if abs(width - newWidth) > 0.5 { width = newWidth }
+    }
     controller.setRows(rows, selection: selection)
   }
 }
@@ -396,12 +478,20 @@ private struct LibrarySidebar: UIViewControllerRepresentable {
 /// selection style is left alone. The first row is selected until focus moves.
 private final class LibrarySidebarController: UITableViewController {
   var onSelect: (LibrarySection) -> Void = { _ in }
+  var onRename: (Int) -> Void = { _ in }
+  var onDelete: (Int) -> Void = { _ in }
+  var onWidthChange: (CGFloat) -> Void = { _ in }
   private var rows: [LibrarySidebarRow] = []
   private var selection: LibrarySection?
   /// Until the table has actually held focus, the preferred row is the selected one
   /// (the first, by default). After that, `remembersLastFocusedIndexPath` answers —
   /// returning a path on every move would pin focus to that row.
   private var hasFocusedOnce = false
+
+  private static let iconSlot: CGFloat = 44
+  private static let horizontalInset: CGFloat = 48
+  private static let minWidth: CGFloat = 220
+  private static let maxWidth: CGFloat = 520
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -412,6 +502,7 @@ private final class LibrarySidebarController: UITableViewController {
     tableView.register(UITableViewCell.self, forCellReuseIdentifier: UITableViewCell.reuseIdentifier)
     tableView.reloadData()
     applySelection()
+    publishWidth()
   }
 
   func setRows(_ rows: [LibrarySidebarRow], selection: LibrarySection) {
@@ -421,6 +512,7 @@ private final class LibrarySidebarController: UITableViewController {
     guard isViewLoaded else { return }
     if rowsChanged {
       tableView.reloadData()
+      publishWidth()
     }
     applySelection()
   }
@@ -441,6 +533,15 @@ private final class LibrarySidebarController: UITableViewController {
     tableView.selectRow(at: indexPath, animated: false, scrollPosition: .none)
   }
 
+  private func publishWidth() {
+    let font = UIFont.preferredFont(forTextStyle: .headline)
+    let longest = rows.map { row -> CGFloat in
+      (row.title as NSString).size(withAttributes: [.font: font]).width
+    }.max() ?? 0
+    let width = min(max(ceil(Self.iconSlot + 12 + longest + Self.horizontalInset), Self.minWidth), Self.maxWidth)
+    onWidthChange(width)
+  }
+
   override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     rows.count
   }
@@ -448,9 +549,32 @@ private final class LibrarySidebarController: UITableViewController {
   override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = tableView.dequeueReusableCell(withIdentifier: UITableViewCell.reuseIdentifier, for: indexPath)
     let row = rows[indexPath.row]
-    cell.textLabel?.text = row.title
+    var content = cell.defaultContentConfiguration()
+    content.text = row.title
+    content.image = row.systemImage.flatMap { UIImage(systemName: $0) }
+    content.imageProperties.reservedLayoutSize = CGSize(width: Self.iconSlot, height: Self.iconSlot)
+    content.imageProperties.maximumSize = CGSize(width: 28, height: 28)
+    cell.contentConfiguration = content
     cell.accessibilityIdentifier = "kinopub.library.section.\(row.section.persistenceID)"
     return cell
+  }
+
+  override func tableView(_ tableView: UITableView,
+                          contextMenuConfigurationForRowAt indexPath: IndexPath,
+                          point: CGPoint) -> UIContextMenuConfiguration? {
+    guard rows.indices.contains(indexPath.row),
+          case .folder(let id) = rows[indexPath.row].section else { return nil }
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+      UIMenu(children: [
+        UIAction(title: "Rename".localized, image: UIImage(systemName: "pencil")) { _ in
+          self?.onRename(id)
+        },
+        UIAction(title: "Delete Folder".localized, image: UIImage(systemName: "trash"),
+                 attributes: .destructive) { _ in
+          self?.onDelete(id)
+        }
+      ])
+    }
   }
 
   override func indexPathForPreferredFocusedView(in tableView: UITableView) -> IndexPath? {

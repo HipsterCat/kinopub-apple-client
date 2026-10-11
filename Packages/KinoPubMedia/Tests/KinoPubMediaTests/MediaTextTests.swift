@@ -167,6 +167,19 @@ final class MediaTextTests: XCTestCase {
     XCTAssertNil(EpisodesLeftText(nil))
   }
 
+  /// The Library header: «156 непросмотренных серий», including the adjective.
+  func testUnwatchedEpisodeHeaderCountsAgreeInRussian() {
+    let ru = [1: "1 непросмотренная серия", 2: "2 непросмотренные серии",
+              4: "4 непросмотренные серии", 5: "5 непросмотренных серий",
+              11: "11 непросмотренных серий", 21: "21 непросмотренная серия",
+              22: "22 непросмотренные серии", 156: "156 непросмотренных серий"]
+    for (count, text) in ru {
+      XCTAssertEqual(UnwatchedEpisodesCountText(count).formatted(language: .ru), text)
+    }
+    XCTAssertEqual(UnwatchedEpisodesCountText(1).formatted(language: .en), "1 unwatched episode")
+    XCTAssertEqual(UnwatchedEpisodesCountText(156).formatted(language: .en), "156 unwatched episodes")
+  }
+
   func testAFilmsLineIsYearRuntimeGenresCountry() {
     let film = MediaEntity(kind: .movie, release: .year(2025), runtime: 115 * 60,
                            countries: ["Япония"])

@@ -440,6 +440,10 @@ public struct TVPageSection: Identifiable, Hashable {
   /// group's title, then its cards — so the page's one diffable list holds a strip like
   /// any other section.
   public let groups: [TVPageGroup]
+  /// Trailing pull-downs on the section header — sort / filter, or Rename / Delete
+  /// on a bookmark folder. Same `TVPageChip` the Search filter row uses, drawn inside
+  /// the 52 pt header so a Library section does not jump when it has no day groups.
+  public let headerActions: [TVPageChip]
 
   public init(id: String,
               title: String?,
@@ -453,6 +457,7 @@ public struct TVPageSection: Identifiable, Hashable {
               loadsMore: Bool = false,
               showsRating: Bool = false,
               groups: [TVPageGroup] = [],
+              headerActions: [TVPageChip] = [],
               items: [TVPageItem]) {
     self.id = id
     self.title = title
@@ -466,6 +471,7 @@ public struct TVPageSection: Identifiable, Hashable {
     self.loadsMore = loadsMore
     self.showsRating = showsRating
     self.groups = groups
+    self.headerActions = headerActions
     self.items = items
   }
 
@@ -486,10 +492,12 @@ public struct TVPageSection: Identifiable, Hashable {
                              caption: TVPageCaption? = nil,
                              loadsMore: Bool = false,
                              showsRating: Bool = false,
+                             headerActions: [TVPageChip] = [],
                              cards: [MediaCard]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .poster, flow: flow,
                   columns: columns, caption: caption ?? (flow == .grid ? .always : .never),
-                  loadsMore: loadsMore, showsRating: showsRating, items: cards.map(TVPageItem.card))
+                  loadsMore: loadsMore, showsRating: showsRating,
+                  headerActions: headerActions, items: cards.map(TVPageItem.card))
   }
 
   /// 1:1 art in the poster lockup, 6 across by default — collection covers, awards.
@@ -526,10 +534,11 @@ public struct TVPageSection: Identifiable, Hashable {
                             flow: TVPageFlow = .rail,
                             caption: TVPageCaption = .onFocus,
                             loadsMore: Bool = false,
+                            headerActions: [TVPageChip] = [],
                             cards: [MediaCard]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .still, flow: flow,
                   columns: columns, caption: caption, loadsMore: loadsMore,
-                  items: cards.map(TVPageItem.card))
+                  headerActions: headerActions, items: cards.map(TVPageItem.card))
   }
 
   public static func people(id: String,
@@ -600,14 +609,21 @@ public struct TVPageSection: Identifiable, Hashable {
                                  count: Int? = nil) -> TVPageSection {
     let tiles = count ?? (flow == .rail ? columns + 1 : columns * 2)
     return TVPageSection(id: id, title: title, kind: kind, flow: flow, columns: columns,
-                         caption: .never, items: (0..<tiles).map(TVPageItem.placeholder))
+                         caption: .never, headerActions: [], items: (0..<tiles).map(TVPageItem.placeholder))
+  }
+
+  /// Trailing header chips without rebuilding the section's items.
+  func withHeaderActions(_ actions: [TVPageChip]) -> TVPageSection {
+    TVPageSection(id: id, title: title, count: count, kind: kind, flow: flow, columns: columns,
+                  caption: caption, rows: rows, match: match, loadsMore: loadsMore,
+                  showsRating: showsRating, groups: groups, headerActions: actions, items: items)
   }
 
   /// The same section with `count` skeleton tiles after its items.
   func appendingPlaceholders(_ count: Int) -> TVPageSection {
     TVPageSection(id: id, title: title, count: self.count, kind: kind, flow: flow, columns: columns,
                   caption: caption, rows: rows, match: match, loadsMore: loadsMore,
-                  showsRating: showsRating, groups: groups,
+                  showsRating: showsRating, groups: groups, headerActions: headerActions,
                   items: items + (0..<count).map(TVPageItem.placeholder))
   }
 
@@ -634,7 +650,8 @@ public struct TVPageSection: Identifiable, Hashable {
     }
     return TVPageSection(id: id, title: title, count: count, kind: kind, flow: flow, columns: columns,
                          caption: caption, rows: rows, match: match, loadsMore: loadsMore,
-                         showsRating: showsRating, groups: groups, items: kept)
+                         showsRating: showsRating, groups: groups, headerActions: headerActions,
+                         items: kept)
   }
 
   /// The cell registration this item dequeues. Stable for a given item in a given

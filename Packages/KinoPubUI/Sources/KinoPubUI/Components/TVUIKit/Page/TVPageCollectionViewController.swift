@@ -521,7 +521,9 @@ public final class TVPageCollectionViewController: UIViewController {
     ) { [weak self] view, _, indexPath in
       guard let self, self.sections.indices.contains(indexPath.section) else { return }
       let section = self.sections[indexPath.section]
-      view.configure(title: section.title ?? "", count: section.count)
+      view.configure(title: section.title ?? "", count: section.count, actions: section.headerActions)
+      view.onChipOption = { [weak self] chip, option in self?.onChipOption?(chip, option) }
+      view.onChipSelection = { [weak self] chip, selection in self?.onChipSelection?(chip, selection) }
       if DebugLaunch.layoutDebug { view.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.3) }
       view.transform = indexPath.section == self.focusedSectionIndex
         ? self.headerDodge(for: indexPath.section)
@@ -747,7 +749,7 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   private static func layoutSignature(_ section: TVPageSection) -> String {
-    var signature = "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.loadsMore)|\(section.kind == .chip ? chipSignature(section) : "")"
+    var signature = "\(section.id)|\(section.kind)|\(section.flow)|\(section.columns)|\(section.caption)|\(section.title != nil)|\(section.rows)|\(section.loadsMore)|\(section.kind == .chip ? chipSignature(section) : "")|\(section.headerActions.map(\.title).joined(separator: ","))"
     // Grid height is one custom group sized from item count — a page of results
     // must remeasure. Masthead rest geometry is fixed per style; detail / bio /
     // stats text must not invalidate (that jump stole focus off the first poster).

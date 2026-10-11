@@ -11,6 +11,33 @@ import KinoPubUI
 
 final class LibrarySectionCardsTests: XCTestCase {
 
+  func testSidebarOrderIsSubscriptionsContinueAllBookmarksThenHistory() {
+    XCTAssertEqual(LibrarySection.leadingFixed, [.watchlist, .unwatched, .allBookmarks])
+    XCTAssertEqual(LibrarySection.trailingFixed.last, .history)
+    XCTAssertEqual(LibrarySection.watchlist.systemImage, "bell.fill")
+    XCTAssertEqual(LibrarySection.unwatched.systemImage, "play.circle.fill")
+    XCTAssertEqual(LibrarySection.allBookmarks.systemImage, "bookmark.fill")
+    XCTAssertEqual(LibrarySection.history.systemImage, "clock.fill")
+    XCTAssertNil(LibrarySection.folder(1).systemImage)
+    XCTAssertNil(LibrarySection.folder(1).fixedTitle)
+  }
+
+  @MainActor
+  func testFollowingHeaderCountsUnwatchedEpisodes() {
+    let cards = [
+      MediaCard(id: 1, posterURL: "", title: "A", unwatchedEpisodes: 2),
+      MediaCard(id: 2, posterURL: "", title: "B", unwatchedEpisodes: 154)
+    ]
+    let model = LibraryModel(contentService: VideoContentServiceMock(),
+                             actionsService: UserActionsServiceMock(),
+                             authState: AuthState(authService: AuthorizationServiceMock(),
+                                                  accessTokenService: AccessTokenServiceMock()),
+                             errorHandler: ErrorHandler())
+    XCTAssertEqual(model.headerCount(for: .watchlist, cards: cards),
+                   UnwatchedEpisodesCountText(156).formatted())
+  }
+
+
   private let posters = Posters(small: "s.jpg",
                                 medium: "https://x/item/medium/1.jpg",
                                 big: "https://x/item/big/1.jpg",
@@ -32,6 +59,15 @@ final class LibrarySectionCardsTests: XCTestCase {
     let card = LibrarySectionCatalog.followingCard(for: item)
     XCTAssertEqual(card.unwatchedEpisodes, 0)
     XCTAssertNil(card.subtitle)
+  }
+
+  func testATypeFilterKeepsOnlySeries() {
+    let movie = MediaCard(id: 1, posterURL: "", title: "Film", isSeries: false, year: 2020)
+    let show = MediaCard(id: 2, posterURL: "", title: "Show", isSeries: true, year: 2021)
+    var filter = LibraryFilter()
+    filter.kinds = [.series]
+    let kept = LibrarySectionCatalog.apply(filter, to: [movie, show], genres: [], sorted: false)
+    XCTAssertEqual(kept.map(\.id), [2])
   }
 
   func testContinueCardIsLandscapeWideArtAndPlays() {

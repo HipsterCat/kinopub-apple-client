@@ -11,4 +11,10 @@ public struct Pagination: Codable {
   public let total: Int
   public let current: Int
   public let perpage: Int
+
+  public init(total: Int, current: Int, perpage: Int) {
+    self.total = total
+    self.current = current
+    self.perpage = perpage
+  }
 }

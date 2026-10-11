@@ -17,6 +17,9 @@ enum RowKey: Hashable, Codable {
   /// Library sidebar shows them as their own section (kino.pub's "Недосмотренные").
   case watchingMovies
   case history
+  /// Every bookmark folder's titles, combined. One cache row so switching back to
+  /// *All bookmarks* paints from the store like a single folder does.
+  case allBookmarks
   case folder(Int)
   /// Home's "Collections" preview row — a handful of curated collection covers.
   /// The full browser is a paginated cover grid and does not go through the store.
@@ -34,7 +37,7 @@ enum RowKey: Hashable, Codable {
     switch self {
     case .continueWatching, .history, .watchlist, .watchingMovies: return .watch
     case .shortcut, .collections: return .catalog
-    case .folder: return .bookmarks
+    case .folder, .allBookmarks: return .bookmarks
     }
   }
 
@@ -46,7 +49,7 @@ enum RowKey: Hashable, Codable {
     case .continueWatching, .history: return 60
     case .watchlist, .watchingMovies: return 120
     case .shortcut, .collections: return 15 * 60
-    case .folder: return 10 * 60
+    case .folder, .allBookmarks: return 10 * 60
     }
   }
 }
