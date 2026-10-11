@@ -5,6 +5,40 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS season rail: one UIKit controller, the remote lands where the hero points (2026-10-11)
+
+Season tabs and episodes are **`TVSeasonRail`** (KinoPubUI): a row of system list cells
+(`UICollectionViewListCell`, `UIListContentConfiguration` / `UIBackgroundConfiguration.listCell()`
+— focused and selected looks are the cell's, as on the Library sidebar) over the episode rail, in
+one view controller. Where focus lands is the engine's: two full-width `UIFocusGuide`s (over the
+tabs, over the rail) redirect into the collection view that should take the move, whose
+`indexPathForPreferredFocusedView` names the item, and `canFocusItemAt` keeps the remote off what
+it must not land on — every tab while focus is outside, every episode but the entry while it is on
+the tabs. The walk: [docs/product/detail-sections.md](docs/product/detail-sections.md#seasons-rail-tvos).
+`testSeasonRailFocusWalk` checks it on the `seasonStrip` fixture (now 6 / 8 / 5 episodes, watched to
+S2E3); passes on tvOS 27.2 and 26.5.
+
+- **Why the rail did not scroll:** it was an orthogonal section, and `scrollToItem` on one drives a
+  private inner scroll view that ignores the section's insets — the target landed flush with the
+  screen edge, or nothing moved. A still row (`TVUIKitMediaItemRail(columns:)`) is now its collection
+  view's own horizontal scroll (`TVPageLayout.stillRun`), and `align(to:)` sets the offset: the
+  item's art on the page margin, clamped so the last item rests on the trailing margin.
+- **Why the first still sat 80 pt right of the title:** the rail's compositional layout used the
+  default `contentInsetsReference` (`.safeArea`), so tvOS added its 80 pt to ours.
+  `stillRunConfiguration()` sets `.none`.
+- **Seasons are not set apart by a gap:** the seasons that are not the selected one stand back
+  (`TVSeasonRailController.otherSeasonAlpha`, 0.8, through `TVUIKitMediaItemCell.tileAlpha` — on the
+  content view and re-applied after each configuration, which can put a new content view in place).
+- **The rail stays where the remote left it** after focus has been in it — up to the hero, back from
+  the player; only a new page opens on the hero's episode.
+- **Runtime chip:** on every still tile without a progress bar, at rest too, watched included, on the
+  Watched badge's dark pill (`TVUIKitMediaItemStatus.showsRuntime`, the overlay's `runtimeBadge`).
+- **The hero's action row** carries `defaultFocus(…, priority: .userInitiated)`, so Up from the tabs
+  (or a one-season rail) lands on the main button, not the circle above.
+- **The gap under the rail** was the rail's own row gap plus the SwiftUI stack's 44; on tvOS the
+  stack under the hero no longer adds spacing (`MediaItemView.contentSpacing`).
+- `SeasonTabStrip` / `SeasonPill` are iOS and macOS only now; the tvOS focus code in them is gone.
+
 ### The table: borderless items, only what is pressed takes focus, the people in a section (2026-10-11)
 
 The three columns of the table under the page are **three stacks of cards** (`TVPageGroup.stacked`),

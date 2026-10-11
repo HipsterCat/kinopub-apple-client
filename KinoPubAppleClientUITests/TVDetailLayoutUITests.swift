@@ -162,79 +162,105 @@ final class TVDetailLayoutUITests: XCTestCase {
     }
   }
 
-  /// The season line of a series kino.pub has three seasons of: «Сезон», pills 1 2 3, then «4–7»
-  /// with a lock (TMDB has them, kino.pub does not) and «8» with a clock (announced). Focus
-  /// always comes to the *selected* pill — Down from the hero, Up from an episode — never the
-  /// one nearest in x. Right across every pill selects each and moves the rail.
-  func testSeasonLineWalksEveryKindOfPill() throws {
+  /// The season rail, walked the way Sasha described it (2026-10-11), on a series watched
+  /// up to S2E3 — kino.pub has seasons 1–3, TMDB adds «4–7» (a lock) and «8» (a clock):
+  /// - Down from the hero passes the tabs and lands on S2E4, the episode Play plays, with
+  ///   its art on the page margin;
+  /// - Up from an episode lands on the *selected* tab, and the rail does not move;
+  /// - Left/Right on the tabs selects as it goes and takes the rail to that season;
+  /// - Down from the tabs comes back to an episode; Up from an episode of season 3 lands on
+  ///   «3» however near «4–7» and «8» are;
+  /// - Up from the tabs is the hero's main button, and Down again is the episode you left —
+  ///   the rail is where you left it (only reopening the page puts it back on S2E4).
+  func testSeasonRailFocusWalk() throws {
     launch("seasonStrip")
     try waitForHeroFocus()
-    // Opens on season 3 (the first unwatched episode); Down from the hero must land there, not on 1.
-    XCUIRemote.shared.press(.down)
-    Thread.sleep(forTimeInterval: 1.4)
-    try shoot("seasons-00-down-from-hero")
-    note("seasons down from hero")
-    XCTAssertTrue(focusedLabel.hasPrefix("Сезон 3"), "Down from the hero landed on «\(focusedLabel)», not the selected season 3")
+    try shoot("seasons-00-open")
 
-    XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Сезоны 4–7")).firstMatch.exists,
-                  "no joined pill for seasons 4–7")
-    XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Сезон 8")).firstMatch.exists,
-                  "no pill for the announced season 8")
-    XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Сезон 5")).firstMatch.exists,
-                   "season 5 has a pill of its own inside the run")
+    XCTAssertTrue(seasonTab("4–7").exists, "no joined tab for seasons 4–7")
+    XCTAssertTrue(seasonTab("8").exists, "no tab for the announced season 8")
+    XCTAssertFalse(seasonTab("5").exists, "season 5 has a tab of its own inside the run")
 
-    for step in 1...2 {
-      XCUIRemote.shared.press(.right)
-      Thread.sleep(forTimeInterval: 1.3)
-      try shoot(String(format: "seasons-%02d-right", step))
-      note("seasons right \(step)")
-    }
-    XCTAssertTrue(focusedLabel.hasPrefix("Сезон 8"), "two Rights from 3 did not reach 8: «\(focusedLabel)»")
+    let s2e4 = railItem(season: 2, number: 4)
+    try move(.down, "seasons-01-down-from-hero")
+    XCTAssertTrue(s2e4.hasFocus, "Down from the hero did not land on S2E4: \(focusedDescription)")
+    XCTAssertTrue(seasonTab("2").isSelected, "S2E4 has focus but «2» is not the selected tab")
+    XCTAssertEqual(s2e4.frame.midX - s2e4.frame.width / 2, TVHIG.sideInset, accuracy: 30,
+                   "S2E4 is not on the page margin: \(s2e4.frame)")
+    let s2e4MidX = s2e4.frame.midX
 
-    // Into the rail and sideways, then back up: the selected pill, whichever is nearest.
-    XCUIRemote.shared.press(.down)
-    Thread.sleep(forTimeInterval: 1.3)
-    try shoot("seasons-03-into-the-rail")
-    note("seasons into the rail")
-    for _ in 1...2 {
-      XCUIRemote.shared.press(.right)
-      Thread.sleep(forTimeInterval: 1.0)
-    }
-    try shoot("seasons-04-rail-right")
-    note("seasons in the rail, right")
-    XCUIRemote.shared.press(.up)
-    Thread.sleep(forTimeInterval: 1.3)
-    try shoot("seasons-05-back-up")
-    note("seasons back up")
-    XCTAssertTrue(focusedLabel.hasPrefix("Сезон"), "Up from the rail left the strip: «\(focusedLabel)»")
-    XCTAssertTrue(focusedIsSelected, "Up landed on «\(focusedLabel)», which is not the selected pill")
+    try move(.up, "seasons-02-up-to-the-tab")
+    XCTAssertTrue(seasonTab("2").hasFocus, "Up from S2E4 landed on: \(focusedDescription)")
+    XCTAssertEqual(s2e4.frame.midX, s2e4MidX, accuracy: 2, "the rail moved when focus went up to the tabs")
 
-    // The case geometry gets wrong: standing on S3E3 (x ≈ 880) the nearest pills are «4–7» and
-    // «8», but season 3 is the selected one, far to the left.
-    XCUIRemote.shared.press(.down)
-    Thread.sleep(forTimeInterval: 1.2)
-    XCUIRemote.shared.press(.right)
-    Thread.sleep(forTimeInterval: 1.0)
-    note("seasons on an episode of season 3")
-    XCUIRemote.shared.press(.up)
-    Thread.sleep(forTimeInterval: 1.3)
-    try shoot("seasons-06-up-to-the-selected-far-left")
-    note("seasons up to the selected pill")
-    XCTAssertTrue(focusedLabel.hasPrefix("Сезон 3"), "Up from an episode of season 3 landed on «\(focusedLabel)»")
+    try move(.right, "seasons-03-right-to-3")
+    XCTAssertTrue(seasonTab("3").hasFocus && seasonTab("3").isSelected, "Right did not select «3»: \(focusedDescription)")
+    let s3e1 = railItem(season: 3, number: 1)
+    XCTAssertEqual(s3e1.frame.minX, TVHIG.sideInset, accuracy: 30, "the rail did not go to S3E1: \(s3e1.frame)")
+
+    try move(.right, "seasons-04-right-to-4-7")
+    try move(.right, "seasons-05-right-to-8")
+    XCTAssertTrue(seasonTab("8").hasFocus, "two Rights from «3» did not reach «8»: \(focusedDescription)")
+    try move(.left, "seasons-06-left-to-4-7")
+    try move(.left, "seasons-07-left-to-3")
+    XCTAssertTrue(seasonTab("3").hasFocus, "back Left did not reach «3»: \(focusedDescription)")
+
+    try move(.down, "seasons-08-down-to-s3e1")
+    XCTAssertTrue(s3e1.hasFocus, "Down from «3» did not land on S3E1: \(focusedDescription)")
+    try move(.right, "seasons-09-s3e2")
+    try move(.right, "seasons-10-s3e3")
+    try move(.up, "seasons-11-up-to-3")
+    XCTAssertTrue(seasonTab("3").hasFocus, "Up from S3E3 landed on: \(focusedDescription)")
+
+    try move(.down, "seasons-12-down-again")
+    let s3e3 = railItem(season: 3, number: 3)
+    XCTAssertTrue(s3e3.hasFocus, "Down from the tab did not return to S3E3: \(focusedDescription)")
+    let s3e3MidX = s3e3.frame.midX
+    try move(.up, "seasons-13-up")
+    try move(.up, "seasons-14-up-to-the-hero")
+    let main = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier IN %@ AND hasFocus == true", ["kinopub.hero.play", "kinopub.hero.follow"]))
+      .firstMatch
+    XCTAssertTrue(main.exists, "Up from the tabs did not land on the hero's main button: \(focusedDescription)")
+
+    try move(.down, "seasons-15-down-from-hero-again")
+    XCTAssertTrue(s3e3.hasFocus, "Down from the hero again did not return to S3E3: \(focusedDescription)")
+    XCTAssertEqual(s3e3.frame.midX, s3e3MidX, accuracy: 2, "the rail moved while focus was in the hero")
   }
 
   /// One season is not a choice: the line still stands above the rail and reads «Сезон 1», with
-  /// no pill to press — so Down from the hero lands on an episode, never on an empty stop.
+  /// no tab to press — so Down from the hero lands on an episode, never on an empty stop.
   func testSeasonLineOfAOneSeasonShowIsJustTheWord() throws {
     launch("rewatch")
     try waitForHeroFocus()
-    XCUIRemote.shared.press(.down)
-    Thread.sleep(forTimeInterval: 1.4)
-    try shoot("seasons-one-season")
-    note("one season, down from hero")
-    XCTAssertTrue(app.staticTexts["Сезон 1"].exists, "the one-season line does not read «Сезон 1»")
-    XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Сезон")).firstMatch.exists,
-                   "a one-season show has a season pill to press")
+    try move(.down, "seasons-one-season")
+    XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Сезон 1")).firstMatch.exists,
+                  "the one-season line does not read «Сезон 1»")
+    XCTAssertFalse(app.descendants(matching: .any)
+                     .matching(NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.season.tab.")).firstMatch.exists,
+                   "a one-season show has a season tab to press")
+    XCTAssertTrue(app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.rail.item.")).firstMatch.exists,
+                  "Down from the hero did not land on an episode: \(focusedDescription)")
+  }
+
+  private enum TVHIG { static let sideInset: CGFloat = 80 }
+
+  private func seasonTab(_ label: String) -> XCUIElement {
+    app.descendants(matching: .any).matching(identifier: "kinopub.season.tab.\(label)").firstMatch
+  }
+
+  /// A rail cell by the fixture's episode id (`DetailFixture.episode`).
+  private func railItem(season: Int, number: Int) -> XCUIElement {
+    let id = 9_900_008 * 1000 + season * 100 + number
+    return app.descendants(matching: .any).matching(identifier: "kinopub.rail.item.\(id)").firstMatch
+  }
+
+  private func move(_ button: XCUIRemote.Button, _ shot: String) throws {
+    XCUIRemote.shared.press(button)
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot(shot)
+    note(shot)
   }
 
   /// The section templates page carries the strips the detail page is made of — scores and

@@ -48,8 +48,8 @@ public enum TVUIKitMediaItemStatus: Equatable {
   /// Part-watched, 0…1. Progress bar instead of the runtime — the two never show
   /// together, the bar already says "how far in".
   case inProgress(Double)
-  /// Finished. Dark scrim, checkmark, "Watched" badge, runtime still shown (it is a
-  /// fact about the episode, not about where playback is).
+  /// Finished. Checkmark, "Watched" badge, runtime still shown (it is a fact about the
+  /// episode, not about where playback is).
   case watched
   /// On a schedule but not on kino.pub. **No** play glyph — the absence is the signal.
   /// Dimming and disabling is not how we say this; the missing glyph and the caption are.
@@ -75,15 +75,14 @@ public enum TVUIKitMediaItemStatus: Equatable {
     return 0
   }
 
-  /// Whether the bottom-trailing corner shows the episode's own runtime. Progress and
-  /// an upcoming release both already say "how long until you can watch this" some
-  /// other way — a bar, or the badge's date — so the runtime only appears where
-  /// nothing else is already carrying that story.
+  /// Whether the bottom-trailing corner shows the runtime: on every tile without a
+  /// progress bar, watched or not (Sasha, 2026-10-11). The bar already says "how far
+  /// along", so a tile in progress shows that instead.
   var showsRuntime: Bool {
     switch self {
-    case .ready, .inProgress, .unavailable, .upcoming: true
-    // Nothing to play, and TMDB's runtime is not on the item anyway.
-    case .watched, .locked: false
+    case .ready, .watched, .unavailable, .upcoming: true
+    // The bar says it; a locked one has nothing to play and no runtime on the item.
+    case .inProgress, .locked: false
     }
   }
 
@@ -213,8 +212,7 @@ public extension TVUIKitMediaItem {
   }
 
   /// The runtime, for the statuses that show one (`TVUIKitMediaItemStatus.showsRuntime`
-  /// — not `.inProgress`, where the bar already says "how far along", nor `.upcoming`,
-  /// where nothing is known yet). Nil when the payload never told us how long the thing
+  /// — not `.inProgress`, where the bar already says "how far along"). Nil when the payload never told us how long the thing
   /// is — better an empty corner than a made-up number.
   static func timeLabel(for card: MediaCard, status: TVUIKitMediaItemStatus) -> String? {
     guard status.showsRuntime, let duration = card.durationSeconds, duration >= 60 else { return nil }
@@ -453,16 +451,29 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   private var contextMenuProvider: ((Int) -> [MediaCardContextEntry])?
   private var allowsFocus = true
 
+  /// Asked by the engine before it lands on an item, by id. Nil: every item. The season
+  /// rail uses it to keep the remote off the episodes it should not land on.
+  public var canFocusItem: ((Int) -> Bool)?
+
+  /// How opaque an item's tile is, by id. Nil: all of them fully. The season rail steps
+  /// back the seasons that are not the selected one.
+  var itemAlpha: ((Int) -> CGFloat)?
+
   private lazy var collectionView: UICollectionView = {
     let inset = contentInset
-    let columns = columns
     let caption = caption
-    let layout = UICollectionViewCompositionalLayout { _, environment in
-      let width = environment.container.contentSize.width
-      if let columns {
-        return TVPageLayout.stillRail(columns: columns, caption: caption, containerWidth: width, sideInset: inset)
+    let layout: UICollectionViewCompositionalLayout
+    if let columns {
+      // A still row is its own horizontal scroll (`TVPageLayout.stillRun`), so the offset
+      // we set is the one that shows.
+      layout = UICollectionViewCompositionalLayout(sectionProvider: { _, environment in
+        TVPageLayout.stillRun(columns: columns, caption: caption,
+                              containerWidth: environment.container.contentSize.width, sideInset: inset)
+      }, configuration: TVPageLayout.stillRunConfiguration())
+    } else {
+      layout = UICollectionViewCompositionalLayout { _, environment in
+        TVUIKitMediaItemMetrics.section(width: environment.container.contentSize.width, inset: inset)
       }
-      return TVUIKitMediaItemMetrics.section(width: width, inset: inset)
     }
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
     view.backgroundColor = .clear
@@ -538,6 +549,68 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     if changed || entryMoved { scrollToEntry(animated: animatesEntryScroll && !changed) }
   }
 
+  /// The season rail's way in: items and callbacks, without `apply`'s "a new entry
+  /// scrolls the rail". Where the rail sits is `align(to:animated:)`, where focus lands is
+  /// `preferredItemID`, each asked for on its own.
+  func configure(items: [TVUIKitMediaItem],
+                 onSelect: @escaping (Int) -> Void,
+                 onFocusedItem: ((Int) -> Void)?,
+                 contextMenuProvider: ((Int) -> [MediaCardContextEntry])?) {
+    let changed = self.items != items
+    self.items = items
+    self.onSelect = onSelect
+    self.onFocusedItem = onFocusedItem
+    self.contextMenuProvider = contextMenuProvider
+    guard changed else { return }
+    collectionView.reloadData()
+  }
+
+  /// Re-reads `itemAlpha` for the tiles on screen; the rest read it as they are dequeued.
+  func refreshItemAlpha(animated: Bool) {
+    let apply = { [self] in
+      for path in collectionView.indexPathsForVisibleItems where items.indices.contains(path.item) {
+        (collectionView.cellForItem(at: path) as? TVUIKitMediaItemCell)?.tileAlpha = alpha(at: path.item)
+      }
+    }
+    if animated {
+      UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction],
+                     animations: apply)
+    } else {
+      apply()
+    }
+  }
+
+  private func alpha(at index: Int) -> CGFloat {
+    itemAlpha?(items[index].id) ?? 1
+  }
+
+  /// Where focus lands when the engine enters the rail (`indexPathForPreferredFocusedView`).
+  /// Setting it moves nothing.
+  var preferredItemID: Int? {
+    get { entryItemID }
+    set { entryItemID = newValue }
+  }
+
+  /// What a focus guide points at to land on `preferredItemID`: the collection view,
+  /// which asks `indexPathForPreferredFocusedView`.
+  var focusTarget: UIFocusEnvironment { collectionView }
+
+  /// Scrolls the rail so this item's art stands where the first item's stands at rest —
+  /// on the page margin — or, near the end, as far as the rail goes, so the last item
+  /// rests on the trailing margin rather than leaving empty rail after it.
+  func align(to id: Int, animated: Bool) {
+    guard let index = index(of: id) else { return }
+    collectionView.layoutIfNeeded()
+    guard collectionView.numberOfItems(inSection: 0) > index,
+          let first = collectionView.layoutAttributesForItem(at: IndexPath(item: 0, section: 0)),
+          let target = collectionView.layoutAttributesForItem(at: IndexPath(item: index, section: 0))
+    else { return }
+    let maxX = max(collectionView.contentSize.width - collectionView.bounds.width, 0)
+    let x = min(max(target.frame.minX - first.frame.minX, 0), maxX)
+    FocusLog.railScroll(section: "wide-rail", toIndex: index, of: items.count, animated: animated)
+    collectionView.setContentOffset(CGPoint(x: x, y: collectionView.contentOffset.y), animated: animated)
+  }
+
   public override var preferredFocusEnvironments: [UIFocusEnvironment] {
     allowsFocus ? super.preferredFocusEnvironments : []
   }
@@ -551,6 +624,10 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   /// `indexPathForPreferredFocusedView`, which is the hook the engine consults when it
   /// enters this rail; moving focus from here instead would fight it.
   private func scrollToEntry(animated: Bool) {
+    if columns != nil, let entryItemID {
+      align(to: entryItemID, animated: animated)
+      return
+    }
     guard let index = index(of: entryItemID) else { return }
     let path = IndexPath(item: index, section: 0)
     // After a reload the layout has no attributes yet, so the scroll has to wait a
@@ -593,6 +670,7 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
     ) as! TVUIKitMediaItemCell
     cell.configure(items[indexPath.item], allowsFocus: allowsFocus,
                    captionOnFocus: columns != nil && caption == .onFocus)
+    cell.tileAlpha = alpha(at: indexPath.item)
     return cell
   }
 
@@ -612,7 +690,9 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
 
   public func collectionView(_ collectionView: UICollectionView,
                              canFocusItemAt indexPath: IndexPath) -> Bool {
-    allowsFocus
+    guard allowsFocus else { return false }
+    guard let canFocusItem, items.indices.contains(indexPath.item) else { return true }
+    return canFocusItem(items[indexPath.item].id)
   }
 
   public func collectionView(_ collectionView: UICollectionView,
@@ -673,11 +753,19 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   /// same rule as the poster footer. `false` keeps it on the tile at rest (grids).
   private var captionOnFocus = false
 
+  /// How opaque the tile is. On the content view, not the cell — the layout writes the
+  /// cell's own alpha back to 1 whenever it applies attributes — and again after every
+  /// configuration, which can put a new content view in place.
+  var tileAlpha: CGFloat = 1 {
+    didSet { contentView.alpha = tileAlpha }
+  }
+
   func configure(_ item: TVUIKitMediaItem, allowsFocus: Bool = true, captionOnFocus: Bool = false) {
     cellAllowsFocus = allowsFocus
     self.captionOnFocus = captionOnFocus
     let keepsArtwork = self.item?.imageURL == item.imageURL && loadedURL == item.imageURL
     self.item = item
+    accessibilityIdentifier = "kinopub.rail.item.\(item.id)"
     if !keepsArtwork {
       artwork = nil
       loadArtwork(for: item)
@@ -723,10 +811,11 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
       config.badgeProperties = item.badgeIsLive ? .liveContent() : .default()
     }
 
-    overlay.apply(status: item.status, timeLabel: item.timeLabel, isFocused: state.isFocused)
+    overlay.apply(status: item.status, timeLabel: item.timeLabel)
     config.overlayView = overlay
 
     contentConfiguration = config
+    contentView.alpha = tileAlpha
   }
 
   private func fallbackImage(for item: TVUIKitMediaItem) -> UIImage {
@@ -771,6 +860,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     contentConfiguration = nil
     cellAllowsFocus = true
     captionOnFocus = false
+    tileAlpha = 1
   }
 
   override var canBecomeFocused: Bool { cellAllowsFocus }
@@ -780,21 +870,20 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
 
 /// Sits on `TVMediaItemContentConfiguration.overlayView`, which the system pins over the
 /// artwork and resizes with it. Carries what the configuration has no property for: a
-/// light bottom gradient, a play/checkmark glyph in the bottom-leading corner, the
-/// runtime in the bottom-trailing corner, a top-leading state badge (Watched / an
-/// upcoming release date), and the watched scrim. The progress bar underneath is the
-/// system's.
+/// play/checkmark glyph in the bottom-leading corner, the runtime in the bottom-trailing
+/// corner, a top-leading state badge (Watched / an upcoming release date), and the
+/// progress bar.
 ///
-/// No pill behind the glyph or the runtime — a drop shadow carries their legibility
-/// instead, so the corner reads as part of the tile rather than a plate glued onto it.
-/// Everything here is shown immediately, never gated by focus: the bar and the runtime
-/// are mutually exclusive (exactly one of them says "how far along"), so neither needs
-/// to wait for a look to appear.
+/// The runtime wears the same dark pill as the Watched badge: bare text with no plate
+/// did not read over the art (Sasha, 2026-10-11). Everything here is shown immediately,
+/// never gated by focus: the bar and the runtime are mutually exclusive (exactly one of
+/// them says "how far along"), so neither needs to wait for a look to appear.
 @MainActor
 final class TVUIKitMediaItemOverlayView: UIView {
   private let gradientLayer = CAGradientLayer()
   private let scrim = UIView()
   private let glyphView = UIImageView()
+  private let runtimeBadge = UIView()
   private let runtimeLabel = UILabel()
   private let badge = UIView()
   private let badgeIcon = UIImageView()
@@ -809,18 +898,15 @@ final class TVUIKitMediaItemOverlayView: UIView {
   private let progressTrack = UIView()
   private let progressFill = UIView()
   private var progressFillWidth: NSLayoutConstraint!
-  /// The runtime sits just above the bottom edge, or above the bar when there is one.
-  private var runtimeBottom: NSLayoutConstraint!
 
   /// Keeps the corner chrome clear of the bar along the very bottom edge.
   private static let cornerInset: CGFloat = 32
   private static let glyphSize: CGFloat = 22
-  private static let runtimePointSize: CGFloat = 19
-  /// Runtime baseline above the tile's bottom edge: bare, and lifted over the bar.
-  private static let runtimeInset: CGFloat = 12
-  private static let runtimeInsetOverBar: CGFloat = 26
   private static let badgeIconSize: CGFloat = 16
   private static let badgeHeight: CGFloat = 32
+  /// Both pills stand this far in from their corner.
+  private static let badgeInset: CGFloat = 8
+  private static let badgeFill = UIColor.black.withAlphaComponent(0.36)
   /// Fraction of the tile height the legibility gradient covers, from the bottom up.
   private static let gradientHeightFraction: CGFloat = 0.5
   private var progressFraction: CGFloat = 0
@@ -848,25 +934,23 @@ final class TVUIKitMediaItemOverlayView: UIView {
 //    TVUIKitChromeSupport.applyLegibilityShadow(to: glyphView.layer)
     addSubview(glyphView)
 
+    // The Watched badge's pill and type, in the opposite corner.
+    runtimeBadge.translatesAutoresizingMaskIntoConstraints = false
+    runtimeBadge.backgroundColor = Self.badgeFill
+    runtimeBadge.layer.cornerCurve = .continuous
+    runtimeBadge.isHidden = true
+    addSubview(runtimeBadge)
+
     runtimeLabel.translatesAutoresizingMaskIntoConstraints = false
-    // A step under caption2 (the smallest text style), still scaled with Dynamic Type
-    // through the caption2 metrics — a corner chip on artwork, not running text.
-    runtimeLabel.font = UIFontMetrics(forTextStyle: .caption1)
-      .scaledFont(for: .systemFont(ofSize: Self.runtimePointSize, weight: .semibold))
-//    runtimeLabel.textColor = .white
-       runtimeLabel.preferredVibrancy = .automatic
-       runtimeLabel.textColor = .white.withProminence(.secondary)
-    runtimeLabel.textAlignment = .right
-//    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
-//    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
-//    TVUIKitChromeSupport.applyLegibilityShadow(to: runtimeLabel.layer)
-    addSubview(runtimeLabel)
+    runtimeLabel.font = .preferredFont(forTextStyle: .caption2)
+    runtimeLabel.textColor = .white
+    runtimeBadge.addSubview(runtimeLabel)
 
     // A real pill, unlike the bottom corner — this is a badge (Watched / a release
     // date), a different kind of chrome from "what Select does", and Apple's own
     // capability badges (4K / HDR) it stands in for are pills too.
     badge.translatesAutoresizingMaskIntoConstraints = false
-    badge.backgroundColor = UIColor.black.withAlphaComponent(0.36)
+    badge.backgroundColor = Self.badgeFill
 //       badge.backgrou/*nd(*/.regularMaterial, in: Capsule())
     badge.layer.cornerCurve = .continuous
     badge.isHidden = true
@@ -899,7 +983,6 @@ final class TVUIKitMediaItemOverlayView: UIView {
     badgeLabelLeading = badgeLabel.leadingAnchor.constraint(equalTo: badgeIcon.trailingAnchor, constant: 5)
     badgeLabelTrailing = badgeLabel.trailingAnchor.constraint(equalTo: badge.trailingAnchor, constant: -10)
     progressFillWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
-    runtimeBottom = runtimeLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.runtimeInset)
 
     NSLayoutConstraint.activate([
       progressTrack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
@@ -922,12 +1005,15 @@ final class TVUIKitMediaItemOverlayView: UIView {
       glyphView.widthAnchor.constraint(equalToConstant: Self.glyphSize),
       glyphView.heightAnchor.constraint(equalToConstant: Self.glyphSize),
 
-      runtimeLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
-//      runtimeLabel.leadingAnchor.constraint(equalToConstant: 16),
-      runtimeBottom,
+      runtimeBadge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.badgeInset),
+      runtimeBadge.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.badgeInset),
+      runtimeBadge.heightAnchor.constraint(equalToConstant: Self.badgeHeight),
+      runtimeLabel.leadingAnchor.constraint(equalTo: runtimeBadge.leadingAnchor, constant: 10),
+      runtimeLabel.trailingAnchor.constraint(equalTo: runtimeBadge.trailingAnchor, constant: -10),
+      runtimeLabel.centerYAnchor.constraint(equalTo: runtimeBadge.centerYAnchor),
 
-      badge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-      badge.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+      badge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.badgeInset),
+      badge.topAnchor.constraint(equalTo: topAnchor, constant: Self.badgeInset),
       badge.heightAnchor.constraint(equalToConstant: Self.badgeHeight),
 
       badgeIconLeading,
@@ -947,6 +1033,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     badge.layer.cornerRadius = badge.bounds.height / 2
+    runtimeBadge.layer.cornerRadius = runtimeBadge.bounds.height / 2
     progressFillWidth.constant = max(progressTrack.bounds.width, 0) * progressFraction
     gradientLayer.frame = CGRect(x: 0,
                                  y: bounds.height * (1 - Self.gradientHeightFraction),
@@ -955,7 +1042,7 @@ final class TVUIKitMediaItemOverlayView: UIView {
     CATransaction.commit()
   }
 
-  func apply(status: TVUIKitMediaItemStatus, timeLabel: String?, isFocused: Bool = true) {
+  func apply(status: TVUIKitMediaItemStatus, timeLabel: String?) {
     scrim.isHidden = !status.dimsArtwork
 
     let glyph = status.glyph
@@ -966,11 +1053,10 @@ final class TVUIKitMediaItemOverlayView: UIView {
     progressTrack.isHidden = status.progress <= 0
     setNeedsLayout()
 
-    // Runtime only while focused (Sasha, 2026-09-21): the idle tile keeps its art clean.
-    let showsRuntime = isFocused && status.showsRuntime && timeLabel?.isEmpty == false
+    // At rest too (Sasha, 2026-10-11, replacing "only while focused" of 2026-09-21).
+    let showsRuntime = status.showsRuntime && timeLabel?.isEmpty == false
     runtimeLabel.text = timeLabel
-    runtimeLabel.isHidden = !showsRuntime
-    runtimeBottom.constant = -(status.progress > 0 ? Self.runtimeInsetOverBar : Self.runtimeInset)
+    runtimeBadge.isHidden = !showsRuntime
 
     let text = status.overlayBadgeText
     let symbol = status.badgeSymbol

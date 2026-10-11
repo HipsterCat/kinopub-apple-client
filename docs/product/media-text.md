@@ -39,9 +39,9 @@ says `E2` / `2 серия` there too.
 and then numbers, never kino.pub's own season titles («Сезон 2», or none). The numbers are the real
 ones (the number in kino.pub's title when it re-numbers from 1), so they sit beside TMDB's. A show
 with one season has no numbers to choose from and reads `Season 1` / `Сезон 1`. The line is the
-same height either way. The word is always the secondary colour; the numbers beside it are
-primary while focus is on the line and secondary once it is down in the episodes (the selected
-one is filled). Seasons kino.pub does not have say so after the number — a filled clock for one
+same height either way. The word is always the secondary colour. On tvOS the numbers are system
+list cells and take the cell's own focused and selected looks, like the Library's sidebar (Sasha,
+2026-10-11); elsewhere the selected one is filled. Seasons kino.pub does not have say so after the number — a filled clock for one
 still to come, a lock for one TMDB lists and kino.pub lacks — in the secondary colour, and a run of
 them is one stop: `4–7`, `19–20`.
 
@@ -68,6 +68,10 @@ count days (`1д 12ч 4м`). Time left: `Ещё 53 мин` / `53 min left`.
 | Episode tile on the detail page | `7. Name` · `Серия 7` | short |
 | History row, context menu, settings row | short | — |
 | Corner time chip, detail meta line | — | short |
+
+**The corner time chip on a still tile (tvOS)** — prd, Sasha, 2026-10-11: always shown, not only
+under focus, on every tile without a progress bar, watched or not; a tile in progress shows the bar
+instead. It sits on the same dark pill as the «Просмотрено» badge — bare, it did not read over the art.
 
 ## Follow, bookmarks, progress
 

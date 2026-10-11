@@ -248,6 +248,35 @@ public enum TVPageLayout {
     return (edges.top + recipe.itemSize.height + edges.bottom).rounded(.up)
   }
 
+  /// The same still row for a collection view that **is** the row: its own scroll
+  /// direction is horizontal, so the section is not orthogonal and the rail's offset
+  /// belongs to us. `scrollToItem` on an orthogonal section drives a private inner scroll
+  /// view that ignores the section's insets — the target landed flush against the
+  /// screen edge, or the rail did not move at all (Sasha, 2026-10-11).
+  ///
+  /// Use with `stillRunConfiguration()`; same height as `stillRail` (`stillRailHeight`).
+  @MainActor
+  public static func stillRun(columns: Int,
+                              caption: TVPageCaption,
+                              containerWidth: CGFloat,
+                              sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let section = stillRail(columns: columns, caption: caption, containerWidth: containerWidth,
+                            sideInset: sideInset)
+    section.orthogonalScrollingBehavior = .none
+    return section
+  }
+
+  /// The configuration a `stillRun` collection view is built with: it scrolls sideways,
+  /// and the section's insets are measured from the view's edge — with the default
+  /// `.safeArea` reference tvOS adds its own 80 pt on top of ours, and the first still
+  /// sat a whole margin right of the section title (2026-10-11).
+  public static func stillRunConfiguration() -> UICollectionViewCompositionalLayoutConfiguration {
+    let configuration = UICollectionViewCompositionalLayoutConfiguration()
+    configuration.scrollDirection = .horizontal
+    configuration.contentInsetsReference = .none
+    return configuration
+  }
+
   private static func stillRailSection(columns: Int, caption: TVPageCaption) -> TVPageSection {
     .stills(id: "still-rail", title: nil, columns: columns, caption: caption, cards: [])
   }

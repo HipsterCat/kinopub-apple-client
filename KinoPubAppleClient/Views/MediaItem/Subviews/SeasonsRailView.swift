@@ -14,18 +14,16 @@ import KinoPubMedia
 /// rail to that season's first episode rather than swapping the content out. Opens
 /// scrolled to the first unfinished episode.
 ///
-/// The tabs are `SeasonTabStrip`: «Сезон» and a pill per season, numbers only. Past
-/// kino.pub's last season the strip carries what the rail's trailing cards carry — a
-/// clock for the announced season, a lock for the run of seasons kino.pub lacks («4–7») —
-/// and selecting one scrolls the rail to its card, as selecting a season scrolls to its
-/// first episode.
+/// The tabs are «Сезон» and a stop per season, numbers only. Past kino.pub's last season
+/// the tabs carry what the rail's trailing cards carry — a clock for the announced season,
+/// a lock for the run of seasons kino.pub lacks («4–7») — and selecting one scrolls the
+/// rail to its card, as selecting a season scrolls to its first episode.
 ///
-/// Focus (tvOS): see `SeasonTabStrip`. Selection follows focus — Left/Right onto another
-/// pill selects it and scrolls the rail — and focus on an episode selects its tab.
+/// tvOS: tabs and rail are one TVUIKit controller, `TVSeasonRail` — the tabs are system
+/// list cells, and where the remote lands between hero, tabs and episodes is decided
+/// there (see its header). It opens on the episode the hero's main button plays.
+/// iOS / macOS: `SeasonTabStrip` over a SwiftUI rail.
 ///
-/// Section chrome (season tabs) stays hidden while the hero owns the page, so the
-/// trailer/wide art isn't captioned by "Season 1" peeking under it; it fades in once
-/// focus drops onto the rail and the backdrop blurs.
 /// DESIGN: season-level "clear progress" → `UserActionsService.clearHistoryForSeason`
 /// (`POST /v1/history/clear-for-season`). Episode hide/toggle-watched stay as they are.
 struct SeasonsRailView: View {
@@ -37,11 +35,13 @@ struct SeasonsRailView: View {
   let seriesTitle: String
   /// False while the hero/trailer is up — season tabs stay out of the way.
   var showsChrome: Bool = true
-#if os(tvOS)
-  /// Bumped by the detail page when it flips from the hero onto this rail — we then
-  /// park focus on the selected season tab so Play cannot reclaim the remote.
-  var pageEntryToken: Int = 0
-#endif
+  /// The episode the hero's main button plays (`MediaItem.primaryEpisode`): where the rail
+  /// opens and where Down from the hero lands. Read on tvOS.
+  var openingEpisodeID: Int? = nil
+  /// The next episode has a date. With everything watched the rail then stands on the
+  /// last episode watched, not on the first one Replay would play (Sasha, 2026-10-11).
+  /// Read on tvOS.
+  var awaitsNextEpisode: Bool = false
   /// Pressing an episode there is nothing to play for — the page turns the message and
   /// its glyph (a clock for "not out yet", a lock for "not on kino.pub") into a toast.
   var onUnavailableSelected: ((_ message: String, _ systemImage: String) -> Void)? = nil
@@ -83,13 +83,6 @@ struct SeasonsRailView: View {
   /// True while a tab-driven scroll is in flight, so a stray episode focus update
   /// doesn't yank the selected tab back mid-jump.
   @State private var isScrollingFromTab = false
-#if os(tvOS)
-  /// Whether the next rail move should animate. The opening jump must not: a rail that
-  /// draws at episode 1 and then slides to the resume episode is the "it scrolls after
-  /// it renders" artefact. Picking a season tab is a move the user asked for, so that
-  /// one animates.
-  @State private var animatesRailScroll = false
-#endif
 
   private enum RailEntry: Identifiable {
     case playable(season: Season, episode: Episode, schedule: EpisodeSchedule?)
@@ -273,6 +266,16 @@ struct SeasonsRailView: View {
   }
 
   var body: some View {
+#if os(tvOS)
+    // Tabs and episodes are one UIKit controller on tvOS: where the remote lands between
+    // the hero, the tabs and the rail is the focus engine's call (`TVSeasonRail`).
+    seasonRail
+      .task {
+        cardMenu.bind(errorHandler: errorHandler)
+        await cardMenu.refreshFolders()
+      }
+      .mediaCardNewFolderAlert(cardMenu)
+#else
     ScrollViewReader { proxy in
       VStack(alignment: .leading, spacing: showsChrome ? Self.stripToRailSpacing : 0) {
         // The line is there for one season too — «Сезон 1», nothing to press and exactly
@@ -283,8 +286,7 @@ struct SeasonsRailView: View {
           SeasonTabStrip(tabs: tabs,
                          selectedID: selectedTab?.id,
                          inset: metrics.inset,
-                         onSelect: { tab in pick(tab, proxy: proxy) },
-                         entryToken: entryToken)
+                         onSelect: { tab in pick(tab, proxy: proxy) })
             .transition(.opacity)
         }
 
@@ -314,19 +316,10 @@ struct SeasonsRailView: View {
       }
       .mediaCardNewFolderAlert(cardMenu)
     }
+#endif
   }
 
   // MARK: - Season tabs
-
-  /// Bumped by the detail page when it flips from the hero onto this rail (tvOS), which
-  /// the strip answers by parking focus on the selected pill.
-  private var entryToken: Int {
-#if os(tvOS)
-    pageEntryToken
-#else
-    0
-#endif
-  }
 
   /// A pill was pressed, or the remote landed on it. Only a *different* one moves the
   /// rail: re-focusing the selected pill leaves it where it is.
@@ -338,32 +331,84 @@ struct SeasonsRailView: View {
   // MARK: - Episode rail
 
 #if os(tvOS)
-  /// The episodes rail is the **same component** as Continue Watching — the system's
-  /// wide media-item cell in `orthogonalLayoutSectionForMediaItems`. It is literally
-  /// the same tile in the product ("keep watching this episode" and "here are the
-  /// episodes"), so it must not be a second hand-built strip; see
-  /// `.claude/skills/tvos-surface/SKILL.md`.
+  /// The season tabs and the episodes, as one TVUIKit controller (`TVSeasonRail`). The
+  /// episodes are the **same component** as Continue Watching — the system's wide
+  /// media-item cell on Home's still row — because it is literally the same tile in the
+  /// product ("keep watching this episode" and "here are the episodes").
   ///
   /// Everything the SwiftUI strip drew by hand is a property on the configuration or a
   /// case of `TVUIKitMediaItemStatus` — progress, watched, unaired, announced-with-a-date
   /// — which is why the five states were modelled there in the first place.
-  private var episodeRail: some View {
-    TVUIKitMediaItemRail(
+  private var seasonRail: some View {
+    let entries = entries
+    let tabs = tabs
+    return TVSeasonRail(
+      title: seasonTitle(tabs: tabs),
+      tabs: tabs.map { tab in
+        TVSeasonTab(id: tab.id, label: tab.label, symbol: tab.status.symbol,
+                    isAvailable: tab.status == .available, accessibilityLabel: tab.spokenLabel)
+      },
       items: entries.map(railItem(for:)),
-      contentInset: metrics.inset,
+      tabOfItem: Dictionary(entries.map { ($0.id, $0.tabID) }, uniquingKeysWith: { first, _ in first }),
+      entryByTab: Self.entryByTab(entries),
+      openingItemID: openingEntry(in: entries)?.id,
+      contentInset: TVHIGGrid.sideInset,
       // Home's still row, size and all (Sasha, 2026-10-04).
       columns: MainView.stillColumns,
-      entryItemID: entryItemForSelectedTab,
-      animatesEntryScroll: animatesRailScroll,
       onSelect: { id in select(entryID: id) },
-      onFocusedItem: { id in episodeFocused(id) },
+      onTabSelected: { id in
+        // Only a season kino.pub has can be asked about: there is no schedule to fetch
+        // for a number it does not carry.
+        if let season = seasons.first(where: { $0.id == id }) {
+          onSeasonVisible?(season.number)
+        }
+      },
       contextMenuProvider: { id in
         guard case .playable(let season, let episode, _)? = entries.first(where: { $0.id == id })
         else { return [] }
         return contextEntries(for: episode, season: season)
       }
     )
-//    .focusSection()
+  }
+
+  /// «Сезон» before the tabs; one season is not a choice, so its line says which.
+  private func seasonTitle(tabs: [SeasonTab]) -> String {
+    guard tabs.count == 1, let only = tabs.first else { return "Season".localized }
+    return String(format: "MediaItem_SeasonSingle".localized, only.first)
+  }
+
+  /// Where the rail stands and Down from the hero lands: the episode the hero's main
+  /// button plays. With everything kino.pub has watched and the next episode dated, the
+  /// last one watched — Replay's episode 1 is not what someone following a show is
+  /// after (Sasha, 2026-10-11).
+  private func openingEntry(in entries: [RailEntry]) -> RailEntry? {
+    let playable = entries.filter(\.isPlayable)
+    let allWatched = !playable.isEmpty && playable.allSatisfy {
+      if case .playable(_, let episode, _) = $0 { return episode.isWatched }
+      return false
+    }
+    if allWatched, awaitsNextEpisode, let last = playable.last {
+      return last
+    }
+    if let openingEpisodeID, let entry = entries.first(where: { $0.id == openingEpisodeID }) {
+      return entry
+    }
+    return firstUnseen
+  }
+
+  /// Where picking a tab takes the rail: the season's first unfinished aired episode, else
+  /// its first entry — a trailing card stands for itself.
+  private static func entryByTab(_ entries: [RailEntry]) -> [Int: Int] {
+    var result: [Int: Int] = [:]
+    for entry in entries where result[entry.tabID] == nil {
+      let inTab = entries.filter { $0.tabID == entry.tabID }
+      let unseen = inTab.first {
+        guard case .playable(_, let episode, let schedule) = $0 else { return false }
+        return !episode.isWatched && schedule?.isUpcoming != true
+      }
+      result[entry.tabID] = (unseen ?? entry).id
+    }
+    return result
   }
 
   /// One rail entry in media-item terms. The status carries what used to be an opacity
@@ -452,13 +497,6 @@ struct SeasonsRailView: View {
     }
   }
 
-  /// The rail tells us which item the engine is standing on; the season tabs follow —
-  /// onto a trailing card's tab too, now that the strip has one for each.
-  private func episodeFocused(_ id: Int) {
-    guard !isScrollingFromTab,
-          let entry = entries.first(where: { $0.id == id }) else { return }
-    selectedTabID = entry.tabID
-  }
 #else
   private var episodeRail: some View {
     ScrollView(.horizontal, showsIndicators: false) {
@@ -558,19 +596,13 @@ struct SeasonsRailView: View {
 
   /// Selects a tab and scrolls the rail to its first item: a season's first episode, or
   /// the trailing card of an announced / missing season. Used by tab focus, tab
-  /// activation, and the initial jump to the first unfinished episode.
-  ///
-  /// On tvOS the `proxy.scrollTo` below is inert — the rail is a `UICollectionView` with
-  /// no SwiftUI anchors in it. What actually moves it is `seasonEntryEpisodeID`, which
-  /// feeds the rail's `entryItemID`; the rail scrolls itself and tells the focus engine
-  /// where to land. Deliberately *not* recomputed from `selectedTabID` alone, or
-  /// travelling right into the next season would set the season, change the entry, and
-  /// scroll the rail back under the user.
+  /// activation, and the initial jump to the first unfinished episode. Not tvOS: there
+  /// `TVSeasonRail` owns tabs, rail and where focus lands.
   /// - Parameter entryEpisodeID: the specific episode to land the rail on. Defaults to
   ///   that tab's first item — correct for a manual tab click/switch. Only the
   ///   initial resume jump (`scrollToFirstUnseen`) passes a specific target here.
   private func selectTab(_ tabID: Int, entryEpisodeID: Int? = nil, proxy: ScrollViewProxy, animated: Bool) {
-    guard let tab = tabs.first(where: { $0.id == tabID }),
+    guard tabs.contains(where: { $0.id == tabID }),
           let first = entries.first(where: { $0.tabID == tabID }) else { return }
     let target = entryEpisodeID.flatMap { id in entries.first(where: { $0.id == id }) } ?? first
     selectedTabID = tabID
@@ -580,10 +612,6 @@ struct SeasonsRailView: View {
     if let season = seasons.first(where: { $0.id == tabID }) {
       onSeasonVisible?(season.number)
     }
-#if os(tvOS)
-    animatesRailScroll = animated
-    FocusLog.seasonTab(tab.label, entryItem: target.id, animated: animated)
-#endif
     let anchor = Self.episodeAnchor(target.id)
     isScrollingFromTab = true
     if animated {
@@ -605,12 +633,6 @@ struct SeasonsRailView: View {
     guard !Task.isCancelled else { return }
     // Only now: bailing above must leave this false so a later payload gets its turn.
     didScrollToUnseen = true
-#if os(tvOS)
-    FocusLog.resumeTarget(episode: target.id,
-                          number: target.episodeNumber,
-                          season: tabs.first { $0.id == target.tabID }?.label ?? "?",
-                          of: entries.count)
-#endif
     // The specific resume episode, not just its season — see `seasonEntryEpisodeID`.
     selectTab(target.tabID, entryEpisodeID: target.id, proxy: proxy, animated: false)
   }

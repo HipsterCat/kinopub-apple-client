@@ -146,28 +146,27 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       the Apple TV convention
 - [ ] Section header appears **on focus**, not always (`SeasonsRailView.showsChrome` exists and is
       passed `true` unconditionally)
-- [ ] One season → the tab strip must not be focusable at all; Down from the hero lands on an
-      episode, and the tabs are reached only by Up *from* one
-- [ ] Episode rail's leading card is the resume / next-unwatched episode, not chronological-first
+- [x] One season → nothing on the season line is focusable; Down from the hero lands on an
+      episode (2026-10-11, `TVSeasonRail`)
+- [x] The rail opens on the hero's episode, its art on the page margin; Down from the hero lands
+      there (2026-10-11, the whole walk: docs/product/detail-sections.md, *Seasons rail*)
 - [ ] Episode tile as in the Apple TV app (Sasha, 2026-10-04): episode number, release date,
       title and description, built in two parts — the still, and a footer that takes a
       background when its episode is focused and can hold focus of its own. Research and test
       first. `TVMediaItemContentConfiguration.wideCell()` draws one caption line only
       (`secondaryText` never shows — probe, tvOS 27.2), so it is not that cell as configured.
-- [ ] Replace the season pill strip's `.borderless` with the system pill. `SeasonTabStrip` draws the
-      pill itself to Sasha's metrics (headline + 10 pt each side, 66 pt on tvOS; as wide as tall at
-      least) and a text label gets no lift from `.borderless`, so what shows focus is the fill that
-      follows it. `.buttonStyle(.glass)` + `.buttonBorderShape(.capsule)` is the system pill, with
-      the white focus lift — but it pads its label itself: measured 2026-10-11, tvOS 26.5, 104 pt
-      tall and 134 wide for one digit. Re-probe on the next SDK; take it if its padding follows the
-      metrics, or if Sasha takes the system size
+- [x] Season tabs on tvOS are system list cells, as the Library's sidebar — the cell's own focused
+      and selected looks, at Sasha's metrics (2026-10-11, `TVSeasonTabCell`). The `.borderless`
+      SwiftUI strip is iOS / macOS only
 - [x] Season strip focus: Down from the hero and Up from an episode land on the *selected* pill, not
       the one nearest in x (Sasha, 2026-10-11). `.focusSection()` + `defaultFocus(…, priority:
       .userInitiated)` on the strip; `testSeasonLineWalksEveryKindOfPill` checks Up from S3E3,
-      where «4–7» and «8» are nearer. Still open: Down from a pill lands on the episode nearest in
-      x, not the selected tab's first item (from the `8` pill: the neighbouring episode, not the
-      Season 8 card) — the rail's `entryItemID` is not honoured on a directional move. The rail's own
-      `.focusSection()` is still commented out (`1c2e30ea`); cause **unverified**
+      where «4–7» and «8» are nearer. Superseded the same day by `TVSeasonRail` (focus guides +
+      `indexPathForPreferredFocusedView` + `canFocusItemAt`): Down from a tab now lands on the
+      rail's entry; `testSeasonRailFocusWalk`
+- [ ] `testSeveralDirectorsShareTheRowAndTheCastIsRanked` fails on `main` as of `9a6145ca` (tvOS 27.2):
+      the first cast card is «Эпизод Первый», not a star. Predates the season rail work — same
+      failure on a clean checkout of that commit (2026-10-11)
 - [ ] Season strip: a lock or a clock pill exists only where the rail shows a trailing card, which
       needs TMDB's *next episode* to be dated and past kino.pub's last season (`trailingCards`). A
       show kino.pub lacks seasons of, with nothing announced, shows no `4–35 🔒`; and the metadata

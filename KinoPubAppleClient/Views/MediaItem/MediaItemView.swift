@@ -402,9 +402,20 @@ struct MediaItemView: View {
                   episodes: episodes)
   }
 
+  /// Between the playable rail and the sections under it. On tvOS both are TVUIKit rows that
+  /// carry their own gap below them, as Home's rows do; the stack's spacing on top of that
+  /// made the gap under the episodes half as tall again as every other (Sasha, 2026-10-11).
+  private var contentSpacing: CGFloat {
+#if os(tvOS)
+    FeatureFlags.tvDetailSections ? 0 : MediaItemLayout.sectionSpacing
+#else
+    MediaItemLayout.sectionSpacing
+#endif
+  }
+
   @ViewBuilder
   private var contentSections: some View {
-    VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) {
+    VStack(alignment: .leading, spacing: contentSpacing) {
       // Versions of one film sit where a series' episodes would: directly under the hero,
       // because "what can I play right now" is the cheapest thing to reach on a remote.
       // Empty for everything with one video, which is almost every film.
@@ -420,6 +431,8 @@ struct MediaItemView: View {
                         linkProvider: itemModel.linkProvider,
                         seriesTitle: itemModel.mediaItem.localizedTitle,
                         showsChrome: true,
+                        openingEpisodeID: itemModel.mediaItem.primaryEpisode?.episode.id,
+                        awaitsNextEpisode: itemModel.awaitedEpisodeAirDate != nil,
                         onUnavailableSelected: { message, systemImage in
                           itemModel.hudToast = HudToast(systemImage: systemImage, title: message)
                         },

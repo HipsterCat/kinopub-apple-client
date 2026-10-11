@@ -5,6 +5,30 @@ Built on tvOS first (`MediaItemTVSections`); iOS, iPadOS and macOS keep their Sw
 they get a pass of their own. The playable rails (versions, seasons, episodes, trailers) stay
 directly under the hero and are not part of this order.
 
+## Seasons rail (tvOS)
+
+**prd — Sasha, 2026-10-11; seen in the simulator (tvOS 27.2 and 26.5), not yet on a device.** The
+tabs and one rail of every episode, scrolling across seasons without a seam and without a gap: the
+seasons that are not the selected one stand back (their tiles at 0.8), the selected one is bright.
+Where the remote lands:
+
+- **Down from anything in the hero, on opening the page,** passes the tabs and lands on **the
+  episode the hero's main button plays** — the first episode (nothing watched, or the first one half-watched), else the first
+  unwatched after the last watched. With everything watched and the next episode dated, the **last
+  one watched**. That episode's art stands on the page margin, unless nothing follows it: then the
+  rail ends on the right margin.
+- **After that the rail is the user's:** going up to the hero or scrolling the page leaves it where
+  it was, and Down from the hero is the episode you left. Only opening the page again (or a new
+  one) puts it back on the hero's episode.
+- **Up from any episode** lands on **the selected tab**, never a neighbour that happens to be nearer,
+  and the rail does not move. One season has no tabs: Up goes to the hero.
+- **Left / Right on the tabs** selects as it goes; the rail goes to that season's first unwatched
+  episode, else its first.
+- **Down from the tabs** is the episode you came up from, or the new season's.
+- **Up from the tabs** is the hero's **main button**, not the one physically above.
+- The tabs look like the Library's sidebar rows: focused and selected are the system list cell's own
+  looks.
+
 ## Order
 
 **prd — Sasha, 2026-10-06.** Top to bottom. A `|` is two titled groups side by side in **one row

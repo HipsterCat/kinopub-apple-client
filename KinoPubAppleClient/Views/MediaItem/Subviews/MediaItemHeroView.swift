@@ -975,6 +975,10 @@ struct MediaItemHeroView: View {
     // Own focus section so Down from the plot section enters here at `defaultFocus`
     // Play — never `.disabled` on siblings to steer the remote (that killed Menus).
     .focusSection()
+    // Up from the season tabs or the episodes lands on the main button too, not on the
+    // circle that happens to be above (Sasha, 2026-10-11). `.userInitiated`: a remote
+    // move is user-initiated, and the default priority only seeds the first focus.
+    .defaultFocus($focus, actionEntryTarget, priority: .userInitiated)
 #endif
     // Animate only membership changes (Mark Watched appearing/disappearing) — not
     // glyph swaps inside a stable id, which used to look like the gaps grew.

@@ -42,8 +42,8 @@ final class SeasonTabStripTests: XCTestCase {
     XCTAssertTrue(tab(-2, 4, 7, .unavailable).spokenLabel.contains("7"))
   }
 
-#if canImport(UIKit)
-  // MARK: - How tall the line is
+#if os(iOS)
+  // MARK: - How tall the line is (the SwiftUI strip; tvOS draws `TVSeasonRail`)
 
   private func height(of tabs: [SeasonTab], selected: Int? = nil,
                       typeSize: DynamicTypeSize = .large) -> CGFloat {
@@ -76,16 +76,12 @@ final class SeasonTabStripTests: XCTestCase {
   /// The pill is the headline style plus fixed padding, so it grows with the text and keeps no
   /// size of its own.
   func testTheLineFollowsDynamicType() throws {
-#if os(tvOS)
-    // Before 27 the platform has no Dynamic Type: its text styles are fixed sizes.
-    guard #available(tvOS 27.0, *) else { throw XCTSkip("tvOS 26 has no Dynamic Type") }
-#endif
     XCTAssertGreaterThan(height(of: everyKind, typeSize: .accessibility3),
                          height(of: everyKind, typeSize: .large))
   }
 
   private func pillSize(_ tab: SeasonTab) -> CGSize {
-    let host = UIHostingController(rootView: SeasonPill(tab: tab, isSelected: false, stripHasFocus: true))
+    let host = UIHostingController(rootView: SeasonPill(tab: tab, isSelected: false))
     return host.sizeThatFits(in: CGSize(width: 1_920, height: 600))
   }
 

@@ -31,8 +31,9 @@ enum DetailFixture: String, CaseIterable, Identifiable {
   /// season in every state one can be in — aired long ago, 3 / 2 / 1 / 0 days ago,
   /// ahead, far ahead, undated. Follow leads: the next one has a date (in the past).
   case missing
-  /// kino.pub has seasons 1–3. TMDB lists 4–7 as aired (not on kino.pub: a lock) and 8 as
-  /// announced (a clock), so the season line carries every status and a joined run.
+  /// kino.pub has seasons 1–3 (6, 8 and 5 episodes; watched up to S2E3). TMDB lists 4–7 as
+  /// aired (not on kino.pub: a lock) and 8 as announced (a clock), so the season line
+  /// carries every status and a joined run.
   case seasonStrip
   /// A film in two named versions, the first one half-watched.
   case versions
@@ -125,10 +126,12 @@ enum DetailFixture: String, CaseIterable, Identifiable {
         season(2, episodes: (1...4).map { episode(season: 2, number: $0, watched: $0 < 4) })
       ]
     case .seasonStrip:
+      // Long enough that the rail has to scroll either way of where it opens: S2E4, the
+      // first unwatched after the last watched.
       json["seasons"] = [
-        season(1, episodes: (1...3).map { episode(season: 1, number: $0, watched: true) }),
-        season(2, episodes: (1...3).map { episode(season: 2, number: $0, watched: true) }),
-        season(3, episodes: (1...3).map { episode(season: 3, number: $0, watched: false) })
+        season(1, episodes: (1...6).map { episode(season: 1, number: $0, watched: true) }),
+        season(2, episodes: (1...8).map { episode(season: 2, number: $0, watched: $0 < 4) }),
+        season(3, episodes: (1...5).map { episode(season: 3, number: $0, watched: false) })
       ]
     case .missing:
       json["seasons"] = [

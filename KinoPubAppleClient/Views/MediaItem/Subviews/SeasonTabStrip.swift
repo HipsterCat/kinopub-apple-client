@@ -57,8 +57,9 @@ struct SeasonTab: Identifiable, Equatable {
   }
 }
 
-/// The line above the episode rail: the word «Сезон» (always secondary), 20 pt of air, and a
-/// pill per stop with none between them.
+#if !os(tvOS)
+/// The line above the episode rail on iOS and macOS (tvOS draws `TVSeasonRail`): the word
+/// «Сезон» (always secondary), 20 pt of air, and a pill per stop with none between them.
 ///
 /// The line is there whatever the show has. One season is not a choice, so it reads
 /// «Сезон 1» with no pills — and is exactly as tall as the same line with them, so the rail
@@ -67,29 +68,15 @@ struct SeasonTab: Identifiable, Equatable {
 /// (a lone digit is about a circle, «10» and «4–7» are wider). Seasons that are not on
 /// kino.pub take the secondary colour and a glyph after the number: a filled clock for those
 /// still to come, a lock for those it lacks. The selected pill is the filled one.
-///
-/// Focus (tvOS) lives in here. The strip is a `.focusSection()` whose default focus, at
-/// user-initiated priority (which is what a remote move is), is the selected pill: Down from
-/// the hero and Up from an episode land on the season you are in, however far across a
-/// neighbour is nearer. Measured 2026-10-11, tvOS 26.5 and 27.2: `.focusSection()` alone, or
-/// with `prefersDefaultFocus` in a `focusScope`, took the pill nearest in x. Selection
-/// follows focus, so where focus lands is what the rail scrolls to.
 struct SeasonTabStrip: View {
 
   let tabs: [SeasonTab]
   let selectedID: Int?
   /// Leading and trailing margin: the rail's, so the word starts where the first card does.
   let inset: CGFloat
-  /// A pill was pressed, or (tvOS) took focus. Told even when it is already selected; the
-  /// owner decides whether that moves anything.
+  /// A pill was pressed. Told even when it is already selected; the owner decides whether
+  /// that moves anything.
   let onSelect: (SeasonTab) -> Void
-  /// Bumped by the page when it hands focus down to the strip (tvOS; no other platform has
-  /// a remote to take it).
-  var entryToken: Int = 0
-
-#if os(tvOS)
-  @FocusState private var focusedID: Int?
-#endif
 
   /// Headline text plus this above and below is a pill's height — and the line's.
   static let verticalPadding: CGFloat = 10
@@ -99,17 +86,6 @@ struct SeasonTabStrip: View {
   /// Between the word and the first pill (Sasha, 2026-10-11).
   static let labelGap: CGFloat = 20
   static let font: Font = .headline.weight(.semibold)
-
-  /// Whether focus is on one of the pills, which is what lights the unselected ones: with
-  /// focus down in the episodes they step back to secondary. No other platform has a focus
-  /// to be elsewhere.
-  private var stripHasFocus: Bool {
-#if os(tvOS)
-    focusedID != nil
-#else
-    true
-#endif
-  }
 
   /// One season is not a choice: the word says which, and nothing is pressable.
   private var title: String {
@@ -136,22 +112,6 @@ struct SeasonTabStrip: View {
     }
     // A focused pill grows past its own bounds; the scroll view would shave it.
     .scrollClipDisabled()
-#if os(tvOS)
-    .frame(maxWidth: .infinity)
-    // The section makes the strip one stop for the engine, and the scope decides *which* pill
-    // it lands on (`prefersDefaultFocus` below). Geometry alone picks the one physically
-    // nearest, wrong as soon as the rail has scrolled away from the start of its season.
-    .focusSection()
-    .defaultFocus($focusedID, selectedID, priority: .userInitiated)
-    .onChange(of: focusedID) { _, id in
-      // Left/Right onto another pill selects it; re-focusing the selected one is not a move.
-      guard let id, let tab = tabs.first(where: { $0.id == id }) else { return }
-      onSelect(tab)
-    }
-    .onChange(of: entryToken) { _, _ in
-      focusedID = selectedID ?? tabs.first?.id
-    }
-#endif
   }
 
   @ViewBuilder
@@ -160,19 +120,9 @@ struct SeasonTabStrip: View {
     Button {
       onSelect(tab)
     } label: {
-      SeasonPill(tab: tab, isSelected: isSelected, stripHasFocus: stripHasFocus)
+      SeasonPill(tab: tab, isSelected: isSelected)
     }
-#if os(tvOS)
-    .focused($focusedID, equals: tab.id)
-    // Borderless, so no focus code of ours. It draws no lift on a text label — what shows
-    // where you are is the fill, which follows focus (selection does). **Not** `.glass`
-    // with a capsule: that is the system pill, but it pads its label itself — measured
-    // 2026-10-11, tvOS 26.5, 104 pt tall and 134 wide for one digit, where this strip is
-    // headline + 20 (66) and as wide as tall. Re-probe next SDK; ROADMAP has the line.
-    .buttonStyle(.borderless)
-#else
     .buttonStyle(.plain)
-#endif
     .accessibilityLabel(tab.spokenLabel)
     .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
@@ -181,22 +131,19 @@ struct SeasonTabStrip: View {
 /// A season pill: the number (or run), then the glyph if the season is not on kino.pub.
 /// Filled when selected; it has no chrome of its own at rest otherwise.
 ///
-/// Its colour says where you are: a season kino.pub has is primary when it is the selected one,
-/// or while focus is on the strip, and secondary once focus has gone down to the episodes.
-/// One it does not have is secondary always — the glyph says the rest.
+/// A season kino.pub has is primary; one it does not have is secondary — the glyph says
+/// the rest.
 struct SeasonPill: View {
 
   let tab: SeasonTab
   let isSelected: Bool
-  let stripHasFocus: Bool
 
   private var isBright: Bool {
-    tab.status == .available && (isSelected || stripHasFocus)
+    tab.status == .available
   }
 
-  /// The glyph is a character of the text, not an `Image` view: the system's focus effect
-  /// lifts the first `Image` it finds in a label, which here would be the lock alone
-  /// (measured 2026-10-11, tvOS 26.5 — a bright blob over the glyph, the digits still).
+  /// The glyph is a character of the text, not an `Image` view, so it sits on the text's
+  /// baseline at the text's size.
   private var label: Text {
     guard let symbol = tab.status.symbol else { return Text(verbatim: tab.label) }
     return Text("\(tab.label) \(Text(Image(systemName: symbol)).font(.footnote))")
@@ -293,4 +240,5 @@ private struct SeasonTabStripPreview: View {
   }
   .dynamicTypeSize(.accessibility2)
 }
+#endif
 #endif
