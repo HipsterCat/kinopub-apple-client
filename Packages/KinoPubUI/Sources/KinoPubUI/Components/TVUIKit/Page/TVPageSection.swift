@@ -613,7 +613,7 @@ public struct TVPageSection: Identifiable, Hashable {
   }
 
   /// Trailing header chips without rebuilding the section's items.
-  func withHeaderActions(_ actions: [TVPageChip]) -> TVPageSection {
+  public func withHeaderActions(_ actions: [TVPageChip]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: kind, flow: flow, columns: columns,
                   caption: caption, rows: rows, match: match, loadsMore: loadsMore,
                   showsRating: showsRating, groups: groups, headerActions: actions, items: items)
