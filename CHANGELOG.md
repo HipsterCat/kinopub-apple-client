@@ -5,30 +5,22 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
-### tvOS detail backdrop out of the scroll — interim (2026-10-11)
+### TestFlight: archive Xcode 27 xcproj, not gym's pbxproj (2026-10-11)
 
-The picture is no longer the hero's `.background`: one full-screen backdrop sits behind the tab
-view (`PageBackdrop`, KinoPubUI) and shows the selected tab's top title (`Route.backdrop`); the
-title's page publishes it, and it fades to the system background while focus is in the sections.
-**Interim** — Sasha will have it redone after looking at reference apps; see AGENTS.md › The
-detail page for what is decided and what was rejected.
+First real TestFlight run
+([38136826984](https://github.com/HipsterCat/kinopub-apple-client/actions/runs/38136826984))
+failed on iOS, tvOS and macOS before compiling: `apply_app_signing!` called
+`Xcodeproj::Project.open`, and xcodeproj 1.28.1 looks for `project.pbxproj`.
+This repo is Xcode 27's `project.xcproj` only. The upload job was also on
+`macos-26` / Xcode 26, which cannot open that file either (CI already uses
+`xcode-27`).
 
-- **Cast & Crew portraits:** since #50 dequeued cells by `TVPageItemID.registration`, a person in
-  a strip took the round person lockup at a third of the screen (~500 pt, over *Similar*). A person
-  in a strip is search's wide card again; its label is on the cell too (what XCUI reads).
-- Fixture: a Similar cover opens a page of its own (its own picture, the same Similar), so
-  `testTheBackdropFollowsTitleAfterTitle` walks five titles deep and back.
-- `TVPageIdentityTests` compiles again (`@MainActor` on the Following-caption test).
-
-### Score cards wear the new marks (2026-10-11)
-
-`Media.xcassets/ratings` (Sasha): the full-colour marks for the score cards — `MediaScoreLogo.Style
-.card` → `imdb_big_color`, `kinopoisk_big_color`, `tmdb_big_color`, `kinopub_big_color`, drawn by
-`TVPageRatingContent`. The review tones are the `review_positive / negative / neutral` faces
-(template, tinted per tone) instead of `TVPageMoodGlyph` drawing them in code. Both sets preserve
-their vectors (the SVGs are 24–74 px and the card mark is 44 pt). The Rotten Tomatoes marks are in
-the catalogue too; no RT score is in the model yet. Badges moved into `Media.xcassets/badges` (no
-namespace, names unchanged).
+- Sign by patching the app target's keys in `project.xcproj` (not the xcodeproj
+  gem, not global xcargs that leak onto SPM). Archive with `xcodebuild archive`
+  / `exportArchive`. gym would have hit the same pbxproj open.
+- Upload jobs: `runs-on: xcode-27` + `select-xcode-27.sh`.
+- Secrets-free check: `fastlane ios lint` and `xcodebuild -list` in
+  `.github/workflows/testflight-lint.yml`.
 
 ### tvOS season rail: one UIKit controller, the remote lands where the hero points (2026-10-11)
 

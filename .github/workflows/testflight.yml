@@ -2,6 +2,10 @@
 #
 # Secrets, first-time Apple setup, and how to trigger a run: docs/testflight.md.
 # Missing secrets skip this workflow with a notice; they do not fail the run.
+#
+# Archives run on `xcode-27`. This project is Xcode 27's `project.xcproj`;
+# Xcode 26 cannot open it, and Fastlane's xcodeproj gem / gym look for
+# `project.pbxproj` which does not exist here.
 
 name: TestFlight
 
@@ -95,7 +99,7 @@ jobs:
     name: Upload ${{ matrix.platform }}
     needs: [gate, prepare]
     if: needs.gate.outputs.should_upload == 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 75
     strategy:
       fail-fast: false
@@ -117,13 +121,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Select Xcode 26
-        run: .github/scripts/select-xcode-26.sh
+      - name: Select Xcode 27
+        run: .github/scripts/select-xcode-27.sh
 
       - name: Toolchain versions
         run: |
           xcodebuild -version
           swift --version
+
+      - name: Xcode can open the project
+        run: xcodebuild -list -project KinoPubAppleClient.xcodeproj
 
       - name: Ensure Metal toolchain
         run: xcodebuild -downloadComponent MetalToolchain || echo "bundled with this Xcode"
@@ -133,6 +140,9 @@ jobs:
           ruby-version: "3.3"
           bundler: "4.0.19"
           bundler-cache: true
+
+      - name: Lint Fastlane (no extra secrets)
+        run: bundle exec fastlane ios lint
 
       - name: Build and upload to TestFlight
         run: bundle exec fastlane ios beta

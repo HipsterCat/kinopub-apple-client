@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
 require "base64"
+require "cgi"
+require "fileutils"
 require "json"
+require "shellwords"
 require "tmpdir"
 
 opt_out_usage
@@ -19,28 +22,34 @@ opt_out_usage
 #   Rivulet   — unsigned compile on Actions; archives on Codemagic
 #   Sodalite  — universal TestFlight link, no release CI in the repo
 #
-# We stay on GitHub Actions (already macos-26 for CI, public repo so minutes
-# are free) and skip Match / Codemagic / Xcode Cloud unless someone asks.
+# We stay on GitHub Actions (`xcode-27` for archives — the project is Xcode 27's
+# `project.xcproj`) and skip Match / Codemagic / Xcode Cloud unless someone asks.
 # Signing is a persistent Apple Distribution p12 (Swiftfin) plus sigh
 # profiles created from the App Store Connect API key — entitlements can
 # change without re-exporting a profile secret.
+#
+# Do not open this project with the Fastlane `xcodeproj` gem or gym.
+# `Xcodeproj::Project.open` and gym both look for `project.pbxproj`, which
+# this repo does not have. Sign by patching `project.xcproj`; archive with
+# `xcodebuild archive` / `exportArchive`.
 #
 # Secrets, first-time Apple setup, and when CI uploads: docs/testflight.md.
 
 default_platform(:ios)
 
-# gym and xcodeproj disagree about cwd: Fastlane actions are repo-root, but
-# `Xcodeproj::Project.open` follows the process cwd (`fastlane/`). Absolute.
 PROJECT = File.expand_path("../KinoPubAppleClient.xcodeproj", __dir__)
+XCPROJ = File.join(PROJECT, "project.xcproj")
 SCHEME = "KinoPubAppleClient"
+APP_TARGET = "KinoPubAppleClient"
 BUNDLE_ID = "com.soda.kinopub"
 TEAM_ID = "Z2PQ733PSP"
 APP_NAME = "Kinopub Soda"
 
-# gym destination / TestFlight platform / sigh platform / artifact name
+# xcodebuild destination / TestFlight platform / sigh platform / artifact name
 PLATFORMS = {
   "ios" => {
     destination: "generic/platform=iOS",
+    sdk: "iphoneos",
     testflight: "ios",
     sigh: "ios",
     output: "KinoPub-iOS",
@@ -48,6 +57,7 @@ PLATFORMS = {
   },
   "tvos" => {
     destination: "generic/platform=tvOS",
+    sdk: "appletvos",
     testflight: "appletvos",
     sigh: "tvos",
     output: "KinoPub-tvOS",
@@ -55,6 +65,7 @@ PLATFORMS = {
   },
   "macos" => {
     destination: "generic/platform=macOS",
+    sdk: "macosx",
     testflight: "osx",
     sigh: "macos",
     output: "KinoPub-macOS",
@@ -134,7 +145,6 @@ def latest_for(api_key:)
 end
 
 def require_appstore_connect_app!(api_key:)
-  # Authenticate Spaceship through the same key gym/pilot will use.
   connect_api_key unless api_key.nil?
   app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
   return app unless app.nil?
@@ -161,8 +171,7 @@ def changelog_text
 end
 
 def marketing_version
-  xcproj = File.expand_path("../KinoPubAppleClient.xcodeproj/project.xcproj", __dir__)
-  File.read(xcproj)[/"MARKETING_VERSION": "([^"]+)"/, 1] || "1.0"
+  File.read(XCPROJ)[/"MARKETING_VERSION": "([^"]+)"/, 1] || "1.0"
 end
 
 # In-app What's New for this marketing version (Russian — Sasha's TestFlight).
@@ -263,74 +272,175 @@ def fetch_profile!(sigh_platform:)
   lane_context[SharedValues::SIGH_NAME]
 end
 
+def require_xcproj!
+  UI.user_error!("Missing #{XCPROJ}. This repo is an Xcode 27 project.xcproj, not pbxproj.") unless File.exist?(XCPROJ)
+  pbx = File.join(PROJECT, "project.pbxproj")
+  return unless File.exist?(pbx)
+
+  UI.user_error!("Found #{pbx}; expected only project.xcproj. Do not add a pbxproj sidecar.")
+end
+
+def app_target_slice(text)
+  start = text.index(/"name": "#{APP_TARGET}"/)
+  UI.user_error!("Missing target #{APP_TARGET} in project.xcproj") if start.nil?
+
+  finish = text.index(/"name": "KinoPubAppleClientTests"/, start)
+  UI.user_error!("Could not bound #{APP_TARGET} build-settings in project.xcproj") if finish.nil?
+
+  [text[0...start], text[start...finish], text[finish..]]
+end
+
+def replace_once!(body, pattern, replacement, label:)
+  matches = body.scan(pattern)
+  UI.user_error!("Expected #{label} once in the app target, found #{matches.size}") unless matches.size == 1
+  body.sub(pattern, replacement)
+end
+
 # Sign the app target only. xcargs CODE_SIGN_IDENTITY / PROVISIONING_PROFILE_SPECIFIER
 # apply to every target in the graph — SPM packages then fail with "does not support
 # provisioning profiles", and `CODE_SIGN_IDENTITY[sdk=macosx*]` was parsed as the
 # identity `macosx*]=Apple Distribution`.
-def apply_app_signing!(profile_name:)
-  require "xcodeproj"
-  project = Xcodeproj::Project.open(PROJECT)
-  target = project.targets.find { |item| item.name == "KinoPubAppleClient" }
-  UI.user_error!("Missing target KinoPubAppleClient") if target.nil?
+#
+# The Fastlane xcodeproj gem cannot open Xcode 27's project.xcproj (it looks for
+# project.pbxproj). Patch the JSON5 keys in the app target's build-settings only.
+def apply_app_signing_to!(path, profile_name:)
+  text = File.read(path)
+  head, body, tail = app_target_slice(text)
 
-  target.build_configurations.each do |config|
-    config.build_settings["CODE_SIGN_STYLE"] = "Manual"
-    config.build_settings["CODE_SIGN_IDENTITY"] = "Apple Distribution"
-    config.build_settings["CODE_SIGN_IDENTITY[sdk=macosx*]"] = "Apple Distribution"
-    config.build_settings["DEVELOPMENT_TEAM"] = TEAM_ID
-    config.build_settings["PROVISIONING_PROFILE_SPECIFIER"] = profile_name
-  end
-  project.save
+  body = replace_once!(
+    body,
+    /"CODE_SIGN_IDENTITY": "Apple Development"/,
+    '"CODE_SIGN_IDENTITY": "Apple Distribution"',
+    label: "CODE_SIGN_IDENTITY"
+  )
+  body = replace_once!(
+    body,
+    /"CODE_SIGN_IDENTITY\[sdk=macosx\*\]": "Apple Development"/,
+    '"CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Distribution"',
+    label: "CODE_SIGN_IDENTITY[sdk=macosx*]"
+  )
+  body = replace_once!(
+    body,
+    /"CODE_SIGN_STYLE": "Automatic"/,
+    '"CODE_SIGN_STYLE": "Manual"',
+    label: "CODE_SIGN_STYLE"
+  )
+  body = replace_once!(
+    body,
+    /"PROVISIONING_PROFILE_SPECIFIER": ""/,
+    "\"PROVISIONING_PROFILE_SPECIFIER\": #{JSON.generate(profile_name)}",
+    label: "PROVISIONING_PROFILE_SPECIFIER"
+  )
+
+  File.write(path, head + body + tail)
 end
 
-def archive_xcargs(build_number)
-  "CURRENT_PROJECT_VERSION=#{build_number} DEVELOPMENT_TEAM=#{TEAM_ID} -allowProvisioningUpdates -skipMacroValidation"
+def apply_app_signing!(profile_name:)
+  require_xcproj!
+  apply_app_signing_to!(XCPROJ, profile_name: profile_name)
+end
+
+def xml_escape(value)
+  CGI.escapeHTML(value.to_s)
+end
+
+def write_export_options!(profile_name:, mac:)
+  path = File.join(Dir.tmpdir, mac ? "KinoPub-macOS-ExportOptions.plist" : "KinoPub-ExportOptions.plist")
+  File.write(
+    path,
+    <<~PLIST
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+        <key>method</key>
+        <string>app-store-connect</string>
+        <key>signingStyle</key>
+        <string>manual</string>
+        <key>teamID</key>
+        <string>#{xml_escape(TEAM_ID)}</string>
+        <key>destination</key>
+        <string>export</string>
+        <key>manageAppVersionAndBuildNumber</key>
+        <false/>
+        <key>stripSwiftSymbols</key>
+        <true/>
+        <key>provisioningProfiles</key>
+        <dict>
+          <key>#{xml_escape(BUNDLE_ID)}</key>
+          <string>#{xml_escape(profile_name)}</string>
+        </dict>
+      </dict>
+      </plist>
+    PLIST
+  )
+  path
 end
 
 # tvOS Settings shows the build's "What to Test" text (`Bundle.releaseNotes`). The
 # checkout is throwaway, so the plist is edited in place rather than through xcargs,
 # which do not survive a multi-line value.
-def write_release_notes!
+def write_release_notes_to!(path)
   set_info_plist_value(
-    path: File.expand_path("../KinoPubAppleClient/Info.plist", __dir__),
+    path: path,
     key: "KPReleaseNotes",
     value: changelog_text
   )
 end
 
+def write_release_notes!
+  write_release_notes_to!(File.expand_path("../KinoPubAppleClient/Info.plist", __dir__))
+end
+
+def archive_and_export!(spec:, build_number:, profile_name:)
+  FileUtils.mkdir_p("build")
+  archive_path = File.expand_path("build/#{spec[:output]}.xcarchive")
+  export_dir = File.expand_path("build/#{spec[:output]}-export")
+  FileUtils.rm_rf(archive_path)
+  FileUtils.rm_rf(export_dir)
+  FileUtils.mkdir_p(export_dir)
+
+  export_plist = write_export_options!(profile_name: profile_name, mac: spec[:mac])
+
+  # Do not pass CODE_SIGN_IDENTITY / PROVISIONING_PROFILE_SPECIFIER as xcargs —
+  # those leak onto SPM package targets. Do not pass -allowProvisioningUpdates:
+  # Manual + a sigh-installed profile does not need Xcode to talk to Apple, and
+  # on Actions that flag asks for an Apple ID that is not there.
+  archive_cmd = [
+    "xcodebuild", "archive",
+    "-project", PROJECT,
+    "-scheme", SCHEME,
+    "-configuration", "Release",
+    "-destination", spec[:destination],
+    "-sdk", spec[:sdk],
+    "-archivePath", archive_path,
+    "-skipMacroValidation",
+    "CURRENT_PROJECT_VERSION=#{build_number}",
+    "DEVELOPMENT_TEAM=#{TEAM_ID}"
+  ]
+  sh(Shellwords.join(archive_cmd))
+
+  export_cmd = [
+    "xcodebuild", "-exportArchive",
+    "-archivePath", archive_path,
+    "-exportPath", export_dir,
+    "-exportOptionsPlist", export_plist
+  ]
+  sh(Shellwords.join(export_cmd))
+
+  glob = spec[:mac] ? "*.pkg" : "*.ipa"
+  artifact = Dir[File.join(export_dir, glob)].first
+  UI.user_error!("exportArchive produced no #{glob} in #{export_dir}") if artifact.nil?
+
+  named = File.expand_path("build/#{spec[:output]}#{File.extname(artifact)}")
+  FileUtils.cp(artifact, named)
+  named
+end
+
 def build_platform!(spec:, build_number:, profile_name:)
   apply_app_signing!(profile_name: profile_name)
   write_release_notes!
-
-  common = {
-    project: PROJECT,
-    scheme: SCHEME,
-    configuration: "Release",
-    destination: spec[:destination],
-    export_method: "app-store",
-    output_directory: "build",
-    output_name: spec[:output],
-    skip_profile_detection: true,
-    xcargs: archive_xcargs(build_number),
-    export_options: {
-      method: "app-store",
-      signingStyle: "manual",
-      teamID: TEAM_ID,
-      provisioningProfiles: {
-        BUNDLE_ID => profile_name
-      }
-    }
-  }
-
-  if spec[:mac]
-    # gym 2.238 decides IPA vs PKG via `sdk == "macosx"` on a multiplatform
-    # target. Destination `generic/platform=macOS` is not enough — without
-    # the sdk it packages as IPA, then `handle_empty_ipa` raises "IPA invalid"
-    # after a successful exportArchive of the .pkg.
-    build_mac_app(common.merge(sdk: "macosx"))
-  else
-    build_app(common)
-  end
+  archive_and_export!(spec: spec, build_number: build_number, profile_name: profile_name)
 end
 
 def upload_platform!(spec:, artifact:)
@@ -389,6 +499,52 @@ before_all do
 end
 
 platform :ios do
+  desc "Secrets-free checks: xcproj layout, app-target signing patch, What to Test"
+  lane :lint do
+    require_xcproj!
+
+    version = marketing_version
+    UI.user_error!("Could not read MARKETING_VERSION from project.xcproj") if version.to_s.strip.empty?
+    UI.message("MARKETING_VERSION=#{version}")
+
+    notes = changelog_text
+    UI.user_error!("What to Test text is empty") if notes.to_s.strip.empty?
+    UI.message("What to Test:\n#{notes}")
+
+    original = File.read(XCPROJ)
+    Dir.mktmpdir do |dir|
+      copy = File.join(dir, "project.xcproj")
+      FileUtils.cp(XCPROJ, copy)
+      apply_app_signing_to!(copy, profile_name: "KinoPub tvos AppStore")
+      patched = File.read(copy)
+
+      UI.user_error!("signing patch missed CODE_SIGN_STYLE Manual") unless patched.include?('"CODE_SIGN_STYLE": "Manual"')
+      UI.user_error!("signing patch missed Apple Distribution") unless patched.include?('"CODE_SIGN_IDENTITY": "Apple Distribution"')
+      UI.user_error!("signing patch missed macosx Distribution identity") unless patched.include?('"CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Distribution"')
+      UI.user_error!("signing patch missed profile specifier") unless patched.include?('"PROVISIONING_PROFILE_SPECIFIER": "KinoPub tvos AppStore"')
+
+      tests = patched[/"name": "KinoPubAppleClientTests".*?"name": "KinoPubAppleClientUITests"/m]
+      UI.user_error!("Could not find the unit-test target after the signing patch") if tests.nil?
+      UI.user_error!("signing patch leaked Manual onto the test target") if tests.include?('"CODE_SIGN_STYLE": "Manual"')
+    end
+    UI.user_error!("lint mutated the checkout's project.xcproj") unless File.read(XCPROJ) == original
+
+    export = write_export_options!(profile_name: "KinoPub tvos AppStore", mac: false)
+    export_body = File.read(export)
+    UI.user_error!("export options missing method app-store-connect") unless export_body.include?("<string>app-store-connect</string>")
+    UI.user_error!("export options missing bundle id") unless export_body.include?(BUNDLE_ID)
+    UI.user_error!("export options missing team id") unless export_body.include?(TEAM_ID)
+
+    Dir.mktmpdir do |dir|
+      plist_copy = File.join(dir, "Info.plist")
+      FileUtils.cp(File.expand_path("../KinoPubAppleClient/Info.plist", __dir__), plist_copy)
+      write_release_notes_to!(plist_copy)
+      UI.user_error!("KPReleaseNotes was not written") unless File.read(plist_copy).include?("KPReleaseNotes")
+    end
+
+    UI.success("TestFlight Fastlane lint ok (no App Store Connect secrets)")
+  end
+
   desc "Write the next shared TestFlight build number to BUILD_NUMBERS_FILE"
   lane :reserve_build_number do
     api_key = connect_api_key

@@ -467,12 +467,16 @@ xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name
 
 - **Internal TestFlight** is `.github/workflows/testflight.yml`: daily if `main`
   has new commits, on a marketing/build version change, and `workflow_dispatch`.
-  iOS, tvOS and macOS of the one multiplatform target, signed with an App Store
-  Connect API key plus a persistent Distribution p12. Not a public release. Do
-  not add a second pipeline (Codemagic, Xcode Cloud, Match) unless the user asks.
-  Secrets, first-time Apple setup, and how to trigger a run:
-  [docs/testflight.md](docs/testflight.md). Missing secrets skip the workflow;
-  they do not fail it. Sasha tests on Apple TV only via TestFlight.
+  Upload jobs are `runs-on: xcode-27` — the project file is `project.xcproj`;
+  Xcode 26 and Fastlane's `xcodeproj` gem / gym look for `project.pbxproj` and
+  fail. Sign by patching the app target in `project.xcproj`; archive with
+  `xcodebuild`, not gym. iOS, tvOS and macOS of the one multiplatform target,
+  signed with an App Store Connect API key plus a persistent Distribution p12.
+  Not a public release. Do not add a second pipeline (Codemagic, Xcode Cloud,
+  Match) unless the user asks. Secrets, first-time Apple setup, and how to
+  trigger a run: [docs/testflight.md](docs/testflight.md). Missing secrets skip
+  the workflow; they do not fail it. Sasha tests on Apple TV only via TestFlight.
+  Secrets-free check: `.github/workflows/testflight-lint.yml`.
 
 - **There is no Simulator.app on current Xcode.** The simulator window is hosted by **Device Hub**
   (`com.apple.dt.Devices`). Focus its title bar; arrow keys + Return are the D-pad. **Escape is not

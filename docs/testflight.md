@@ -5,6 +5,15 @@ App Store Connect. Not a public beta and not an App Store submission. Sasha inst
 on Apple TV from TestFlight.
 
 The workflow is `.github/workflows/testflight.yml`. Fastlane lives in `fastlane/`.
+Upload jobs run on GitHub's `xcode-27` image (Xcode 26 cannot open
+`KinoPubAppleClient.xcodeproj/project.xcproj`). Signing patches that JSON5 file
+for the app target only; archives are `xcodebuild archive` / `exportArchive`.
+The Fastlane `xcodeproj` gem and gym both look for `project.pbxproj`, which this
+repo does not have — do not bring them back.
+
+A secrets-free check is `.github/workflows/testflight-lint.yml` (`fastlane ios lint`
+plus `xcodebuild -list`). It runs on Fastlane / xcproj changes without Apple
+keys.
 
 ## When it runs
 
@@ -99,6 +108,8 @@ Testers who are App Store Connect Users on this app get the build without a name
 
 A local archive is `bundle exec fastlane ios beta` with `TESTFLIGHT_PLATFORM=tvos` and
 the same variables in the environment. CI is the path that matters.
+
+Secrets-free sanity: `bundle exec fastlane ios lint`.
 
 ## Related
 
