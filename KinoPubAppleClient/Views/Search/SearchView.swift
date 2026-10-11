@@ -634,8 +634,8 @@ enum TVSearchFilters {
       systemImage: "arrow.up.arrow.down",
       menu: .init(options: MediaSortOrder.allCases.map { .init(id: $0.rawValue, title: $0.titleKey.localized) },
                   selectedID: filter.sort.rawValue),
-      alignment: sortAlignment,
       isActive: false,
+      alignment: sortAlignment,
       showsTitle: showsTitle
     )
     return includeType ? [sortChip, typeChip(for: filter)] : [sortChip]

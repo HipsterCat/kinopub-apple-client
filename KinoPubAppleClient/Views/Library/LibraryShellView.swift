@@ -417,7 +417,8 @@ struct LibraryShellView: View {
                       retryTitle: "Try Again",
                       onRetry: { Task { await catalog.refresh() } })
     } else if catalog.cards.isEmpty {
-      UnavailableView(title: "No Results", systemImage: model.selection.systemImage)
+      UnavailableView(title: "No Results",
+                      systemImage: model.selection.systemImage ?? "bookmark")
     } else {
       MediaCardsListView(
         cards: catalog.cards,
