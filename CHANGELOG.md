@@ -5,6 +5,23 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### TestFlight: archive Xcode 27 xcproj, not gym's pbxproj (2026-10-11)
+
+First real TestFlight run
+([38136826984](https://github.com/HipsterCat/kinopub-apple-client/actions/runs/38136826984))
+failed on iOS, tvOS and macOS before compiling: `apply_app_signing!` called
+`Xcodeproj::Project.open`, and xcodeproj 1.28.1 looks for `project.pbxproj`.
+This repo is Xcode 27's `project.xcproj` only. The upload job was also on
+`macos-26` / Xcode 26, which cannot open that file either (CI already uses
+`xcode-27`).
+
+- Sign by patching the app target's keys in `project.xcproj` (not the xcodeproj
+  gem, not global xcargs that leak onto SPM). Archive with `xcodebuild archive`
+  / `exportArchive`. gym would have hit the same pbxproj open.
+- Upload jobs: `runs-on: xcode-27` + `select-xcode-27.sh`.
+- Secrets-free check: `fastlane ios lint` and `xcodebuild -list` in
+  `.github/workflows/testflight-lint.yml`.
+
 ### tvOS season rail: one UIKit controller, the remote lands where the hero points (2026-10-11)
 
 Season tabs and episodes are **`TVSeasonRail`** (KinoPubUI): a row of system list cells

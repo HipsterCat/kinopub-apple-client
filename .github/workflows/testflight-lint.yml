@@ -1,0 +1,74 @@
+# Secrets-free TestFlight checks. Catches xcproj / Fastlane layout mistakes
+# without App Store Connect keys, a p12, or a full archive.
+#
+# The compile jobs in ci.yml skip Fastlane-only changes on purpose. This
+# workflow is what actually verifies the upload lane on a PR / agent branch.
+
+name: TestFlight lint
+
+on:
+  push:
+    branches: [main, 'claude/**', 'cursor/**']
+    paths:
+      - 'fastlane/**'
+      - 'Gemfile'
+      - 'Gemfile.lock'
+      - '.github/workflows/testflight.yml'
+      - '.github/workflows/testflight-lint.yml'
+      - '.github/scripts/testflight-gate.sh'
+      - '.github/scripts/select-xcode-27.sh'
+      - 'KinoPubAppleClient.xcodeproj/**'
+      - 'KinoPubAppleClient/Resources/whats-new.json'
+      - 'KinoPubAppleClient/Info.plist'
+  pull_request:
+    paths:
+      - 'fastlane/**'
+      - 'Gemfile'
+      - 'Gemfile.lock'
+      - '.github/workflows/testflight.yml'
+      - '.github/workflows/testflight-lint.yml'
+      - '.github/scripts/testflight-gate.sh'
+      - '.github/scripts/select-xcode-27.sh'
+      - 'KinoPubAppleClient.xcodeproj/**'
+      - 'KinoPubAppleClient/Resources/whats-new.json'
+      - 'KinoPubAppleClient/Info.plist'
+  workflow_dispatch:
+
+concurrency:
+  group: testflight-lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FASTLANE_HIDE_CHANGELOG: "1"
+  FASTLANE_OPT_OUT_USAGE: "1"
+
+jobs:
+  fastlane:
+    name: Fastlane lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gate script syntax
+        run: bash -n .github/scripts/testflight-gate.sh
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler: "4.0.19"
+          bundler-cache: true
+
+      - name: bundle exec fastlane ios lint
+        run: bundle exec fastlane ios lint
+
+  xcode-opens-project:
+    name: Xcode 27 opens xcproj
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 27
+        run: .github/scripts/select-xcode-27.sh
+
+      - name: xcodebuild -list
+        run: xcodebuild -list -project KinoPubAppleClient.xcodeproj
