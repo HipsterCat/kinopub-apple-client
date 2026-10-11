@@ -134,7 +134,7 @@ struct MainView: View {
   static let continueWatchingColumns = 5
   /// Every other still row: the same HIG 5-column (320 at 1920). The detail page's
   /// episode and version rails take it too (Sasha, 2026-10-04).
-  static let stillColumns = 5
+  static let stillColumns = 4
 
   /// The Home banner as the page's first row: the same sampled `bannerCards` the
   /// SwiftUI path draws (six at most), with their title logos, each once
