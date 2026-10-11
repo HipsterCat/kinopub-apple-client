@@ -161,7 +161,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   /// What a captioned cover says under its title: a followed series says how many of its
-  /// episodes are still unwatched (the Library's *Following*), anything else its year, and a
+  /// episodes are still unwatched (the Library's *Following* — «2 серии»), anything else its year, and a
   /// title with neither says nothing — the line is still there, empty, so a grid never mixes
   /// one-line and two-line cells (Sasha, 2026-10-02). Original title is reserved for search's
   /// wide cards (match highlighting).

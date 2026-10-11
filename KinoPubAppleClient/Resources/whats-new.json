@@ -6,6 +6,8 @@
       "ru": [
         "«Меню» в списках сначала возвращает на верхний ряд, и только потом закрывает экран.",
         "В Медиатеке слева — таблетки: Слежу, Продолжить, История и папки закладок.",
+        "Слежу показывает, сколько серий осталось. Продолжить и История — широкие кадры, сразу играют.",
+        "История сгруппирована по дням: сегодня, вчера, потом дата.",
         "Баннер на главной снова по центру, соседние карточки выглядывают.",
         "«Продолжить просмотр» — пять кадров в ряд, название видно сразу.",
         "В сетках у каждого постера две строки подписи, все обложки одной высоты.",
@@ -15,6 +17,8 @@
       "en": [
         "Menu in lists returns to the top row first, then leaves the screen.",
         "Library has a pill sidebar: Following, Continue, History, and bookmark folders.",
+        "Following shows how many episodes are left. Continue and History are wide cards that play on select.",
+        "History is grouped by day: today, yesterday, then the date.",
         "The Home banner is the centred card row again, with neighbours peeking.",
         "Continue Watching shows five stills across, with titles visible at rest.",
         "Grid posters keep two caption lines and the same height.",

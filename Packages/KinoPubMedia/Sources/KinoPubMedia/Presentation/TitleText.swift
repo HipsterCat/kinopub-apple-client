@@ -32,7 +32,7 @@ public struct SeasonCountText: Hashable, Sendable {
   }
 }
 
-/// **How many episodes are still unwatched** — «Ещё 3 серии», «3 episodes left». The line a
+/// **How many episodes are still unwatched** — «3 серии», «3 episodes». The line a
 /// followed series wears under its cover in the Library; plural-correct in both languages.
 public struct EpisodesLeftText: Hashable, Sendable {
   public let count: Int
@@ -45,7 +45,7 @@ public struct EpisodesLeftText: Hashable, Sendable {
   public func formatted(language: MediaLanguage = .current) -> String {
     switch language {
     case .en:
-      return count == 1 ? "1 episode left" : "\(count) episodes left"
+      return count == 1 ? "1 episode" : "\(count) episodes"
     case .ru:
       let lastTwo = count % 100
       let last = count % 10
@@ -59,7 +59,7 @@ public struct EpisodesLeftText: Hashable, Sendable {
       } else {
         word = "серий"
       }
-      return "Ещё \(count) \(word)"
+      return "\(count) \(word)"
     }
   }
 }

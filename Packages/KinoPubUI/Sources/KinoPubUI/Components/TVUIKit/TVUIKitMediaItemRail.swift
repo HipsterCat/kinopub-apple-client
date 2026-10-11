@@ -129,6 +129,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   public let tileStyle: TVUIKitTileArtwork.Style
   /// The line under the tile — always visible: a movie's title, or "S2, E11 · Show".
   public let caption: String?
+  /// Second system line under a Library still grid — remaining time, or when it was watched.
+  public let detail: String?
   public let status: TVUIKitMediaItemStatus
   /// Chip text beside the glyph, inside the artwork — runtime, or time left.
   public let timeLabel: String?
@@ -142,6 +144,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               symbol: String? = nil,
               tileStyle: TVUIKitTileArtwork.Style = .flat,
               caption: String? = nil,
+              detail: String? = nil,
               status: TVUIKitMediaItemStatus = .ready,
               timeLabel: String? = nil,
               badgeText: String? = nil,
@@ -152,6 +155,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.symbol = symbol
     self.tileStyle = tileStyle
     self.caption = caption
+    self.detail = detail
     self.status = status
     self.timeLabel = timeLabel
     self.badgeText = badgeText
@@ -170,15 +174,26 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
 }
 
 public extension TVUIKitMediaItem {
-  /// The app's card model in media-item terms.
+  /// Home / rails — one packed caption line. A parameterless `init(card:)` so
+  /// `cards.map(TVUIKitMediaItem.init(card:))` still type-checks.
   init(card: MediaCard) {
+    self.init(card: card, stackedCaption: false)
+  }
+
+  /// The app's card model in media-item terms.
+  ///
+  /// `stackedCaption` is the Library's still grid: the card's own title and subtitle
+  /// as the system's two text lines, no overlay packing. Home's rail stays one line.
+  init(card: MediaCard, stackedCaption: Bool) {
     let art = card.landscapeImageURL ?? card.backdropURL ?? card.posterURL
     let status = Self.status(for: card)
+    let subtitle = card.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines)
     self.init(id: card.id,
               imageURL: URL(string: art),
-              caption: TVUIKitCardText.caption(for: card),
+              caption: stackedCaption ? card.title : TVUIKitCardText.caption(for: card),
+              detail: stackedCaption ? (subtitle?.isEmpty == false ? subtitle : nil) : nil,
               status: status,
-              timeLabel: Self.timeLabel(for: card, status: status),
+              timeLabel: stackedCaption ? nil : Self.timeLabel(for: card, status: status),
               badgeText: Self.badgeText(for: card))
   }
 
@@ -678,18 +693,24 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     }
 
     var config = TVMediaItemContentConfiguration.wideCell()
+    if let updated = config.updated(for: state) as? TVMediaItemContentConfiguration {
+      config = updated
+    }
     config.image = artwork ?? fallbackImage(for: item)
     // `text` is the line *under* the tile, always visible. Secondary at rest, label
     // when focused (CURRENT.md caption law); the configuration's default is white
     // regardless of appearance, which is what read as "always white, with a shadow".
-    config.text = captionOnFocus && !state.isFocused ? nil : item.caption
+    let hideCaption = captionOnFocus && !state.isFocused
+    config.text = hideCaption ? nil : item.caption
     config.textProperties.color = state.isFocused ? .label : .secondaryLabel
-    // One line, on purpose. Setting `secondaryText` here produced nothing visible on
-    // screen (2026-08-11), so the tile is treated as having a single caption and
-    // everything worth saying is packed into `text`. The one lead never tried: Apple's
-    // sample builds the configuration as `wideCell().updatedConfiguration(for: state)`
-    // and we do not — if the second line is ever wanted back, start there.
-    config.secondaryText = nil
+    // Library still grids ask for the system's second line (title + remaining / when).
+    // Home's rail leaves `detail` nil and stays one line. `updated(for:)` is the
+    // sample's construction — the 2026-08-11 attempt set `secondaryText` on a raw
+    // `wideCell()` and it painted nothing.
+    config.secondaryText = hideCaption ? nil : item.detail
+    if item.detail != nil {
+      config.secondaryTextProperties.color = state.isFocused ? .secondaryLabel : .tertiaryLabel
+    }
     // Zero on purpose: the system's bar only appears on the focused tile, and "you
     // started this and did not finish it" is exactly what an *idle* rail has to say.
     // Ours lives in the overlay below, where we control when it shows.

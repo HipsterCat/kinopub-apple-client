@@ -349,10 +349,10 @@ final class TVDetailLayoutUITests: XCTestCase {
     app.launch()
     XCTAssertTrue(app.collectionViews["kinopub.page.library"].waitForExistence(timeout: 30))
     // 18 episodes, 16 watched.
-    let left = app.staticTexts["Ещё 2 серии"]
+    let left = app.staticTexts["2 серии"]
     XCTAssertTrue(left.waitForExistence(timeout: 30), "no line saying two episodes are left")
     // 28 of 28 watched: nothing to say, and no other line in its place.
-    XCTAssertFalse(app.staticTexts["Ещё 0 серий"].exists)
+    XCTAssertFalse(app.staticTexts["0 серий"].exists)
     Thread.sleep(forTimeInterval: 2.0)
     try shoot("library-following")
     XCUIRemote.shared.press(.right)

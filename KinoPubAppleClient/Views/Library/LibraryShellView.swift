@@ -30,13 +30,14 @@ struct LibraryShellView: View {
   @StateObject private var catalog: LibrarySectionCatalog
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
   @AppStorage(HistoryGrouping.storageKey) private var historyGrouping: String = HistoryGrouping.none.rawValue
-  @AppStorage(HistorySectioning.storageKey) private var historySectioning: String = HistorySectioning.month.rawValue
+  @AppStorage(HistorySectioning.storageKey) private var historySectioning: String = HistorySectioning.day.rawValue
 #if os(tvOS)
   @FocusState private var sidebarFocused: Bool
 #endif
 
+  /// Library History is by day (Sasha, 2026-10-10) — Сегодня / Вчера / the date.
   private var sectioning: HistorySectioning {
-    HistorySectioning(rawValue: historySectioning) ?? .month
+    model.selection == .history ? .day : (HistorySectioning(rawValue: historySectioning) ?? .day)
   }
 
   init(model: @autoclosure @escaping () -> LibraryModel,

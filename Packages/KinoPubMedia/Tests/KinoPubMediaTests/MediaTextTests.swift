@@ -156,13 +156,13 @@ final class MediaTextTests: XCTestCase {
 
   /// A followed series says how many episodes are still unwatched under its cover.
   func testEpisodesLeftArePluralCorrectInBothLanguages() {
-    let ru = [1: "Ещё 1 серия", 2: "Ещё 2 серии", 4: "Ещё 4 серии", 5: "Ещё 5 серий", 11: "Ещё 11 серий",
-              12: "Ещё 12 серий", 21: "Ещё 21 серия", 22: "Ещё 22 серии", 111: "Ещё 111 серий", 171: "Ещё 171 серия"]
+    let ru = [1: "1 серия", 2: "2 серии", 4: "4 серии", 5: "5 серий", 11: "11 серий",
+              12: "12 серий", 21: "21 серия", 22: "22 серии", 111: "111 серий", 171: "171 серия"]
     for (count, text) in ru {
       XCTAssertEqual(EpisodesLeftText(count)?.formatted(language: .ru), text)
     }
-    XCTAssertEqual(EpisodesLeftText(1)?.formatted(language: .en), "1 episode left")
-    XCTAssertEqual(EpisodesLeftText(3)?.formatted(language: .en), "3 episodes left")
+    XCTAssertEqual(EpisodesLeftText(1)?.formatted(language: .en), "1 episode")
+    XCTAssertEqual(EpisodesLeftText(3)?.formatted(language: .en), "3 episodes")
     XCTAssertNil(EpisodesLeftText(0), "nothing left says nothing")
     XCTAssertNil(EpisodesLeftText(nil))
   }
@@ -184,5 +184,32 @@ final class MediaTextTests: XCTestCase {
     let listed = MediaEntity(kind: .show, release: .year(2020), runtime: 99_999)
     XCTAssertEqual(TitleMetaLine(listed).formatted(language: .en), "2020",
                    "a listing knows no count, and says no runtime")
+  }
+
+  func testHistoryEventTimeIsDayMonthAtClock() {
+    let timeZone = TimeZone(identifier: "Europe/Moscow")!
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    let date = calendar.date(from: DateComponents(year: 2026, month: 1, day: 27, hour: 20, minute: 54))!
+    XCTAssertEqual(HistoryEventText(date)?.formatted(language: .ru, timeZone: timeZone),
+                   "27 января в 20:54")
+    XCTAssertNil(HistoryEventText(nil))
+  }
+
+  func testHistoryDayTitleIsTodayYesterdayOrTheDate() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 16, hour: 12))!
+    let today = calendar.startOfDay(for: now)
+    let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+    let older = calendar.date(from: DateComponents(year: 2026, month: 9, day: 10))!
+    XCTAssertEqual(HistoryDayText(today).formatted(language: .ru, calendar: calendar, now: now), "Сегодня")
+    XCTAssertEqual(HistoryDayText(yesterday).formatted(language: .ru, calendar: calendar, now: now), "Вчера")
+    XCTAssertEqual(HistoryDayText(older).formatted(language: .ru, calendar: calendar, now: now),
+                   "10 сентября 2026")
+    XCTAssertEqual(HistoryDayText(today).formatted(language: .en, calendar: calendar, now: now), "Today")
+    XCTAssertEqual(HistoryDayText(yesterday).formatted(language: .en, calendar: calendar, now: now), "Yesterday")
+    XCTAssertEqual(HistoryDayText(older).formatted(language: .en, calendar: calendar, now: now),
+                   "10 September 2026")
   }
 }

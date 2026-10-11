@@ -113,7 +113,10 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       `.onFocus` any more. A grid's two lines are `TVPageCaptionView`, not the lockup's footer — the
       system footer collapsed to one line in ~28% of the cells of a scrolled grid, visible or not
       (2026-10-07). The Library's *Following* shows the episodes left under a cover
-      (`-KINOPUBLibraryFixture YES` to see it). Seen on the simulators and in unit tests, not on a
+      (`-KINOPUBLibraryFixture YES` to see it) as «2 серии» / «1 серия» / «5 серий». Continue is
+      16:9 title artwork (not the episode still), Select plays, subtitle is time remaining.
+      History is the same play + wide art, titled with the show and S/E, grouped by day
+      (Сегодня / Вчера / 15 сентября 2026). Seen on the simulators and in unit tests, not on a
       device with a real account
 - [ ] The Library sidebar's *Following* label is English in the Russian UI: `"Following"` has no entry
       in `Localizable.xcstrings` (predates this work — `LibrarySection.title`). Add the ru string

@@ -35,6 +35,22 @@ scrolls the rail to its trailing card; no schedule is fetched for a number kino.
   (announced). `TVDetailLayoutUITests.testSeasonLineWalksEveryKindOfPill` and
   `testSeasonLineOfAOneSeasonShowIsJustTheWord` walk it. Not looked at on a device.
 
+### Library Following / Continue / History (2026-10-10)
+
+tvOS Library section contents (Sasha):
+
+- **Following.** The line under a cover is the unwatched episode count — «1 серия», «2 серии»,
+  «5 серий» — from `total − watched` (else `new`). Empty when nothing is left. `EpisodesLeftText`
+  no longer prefixes «Ещё».
+- **Continue.** 16:9 cards (unfinished films plus serials already started). Artwork is the title's
+  wide cover, not the episode still. Select plays at the resume point. Title is the show/movie
+  name; subtitle is time remaining (`RemainingText`, «Ещё 43 мин»).
+- **History.** Select plays that item/episode. Artwork is the title's wide cover (episode thumb
+  parked). Title is the movie name, or the show plus S/E; subtitle is when it was watched
+  («27 января в 20:54»). Grouped by day: Сегодня, Вчера, then «15 сентября 2026».
+- Still grids use the system's two caption lines (`updated(for:)` + `secondaryText`). No overlay
+  chrome for the text.
+
 ### TestFlight on a schedule, in-app What's New (2026-10-10)
 
 - **TestFlight.** `testflight.yml` still has `workflow_dispatch`. It now also runs daily (if
