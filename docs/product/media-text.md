@@ -33,8 +33,17 @@ says `E2` / `2 серия` there too.
 
 ## Season on its own
 
-`Season 2` / `S2`; ru `2 сезон`. kino.pub's own season titles («Сезон 2») stay as kino.pub
-writes them on the season tabs.
+`Season 2` / `S2`; ru `2 сезон`.
+
+**The season line above the episode rail** (Sasha, 2026-10-11) says the word — `Season` / `Сезон` —
+and then numbers, never kino.pub's own season titles («Сезон 2», or none). The numbers are the real
+ones (the number in kino.pub's title when it re-numbers from 1), so they sit beside TMDB's. A show
+with one season has no numbers to choose from and reads `Season 1` / `Сезон 1`. The line is the
+same height either way. The word is always the secondary colour; the numbers beside it are
+primary while focus is on the line and secondary once it is down in the episodes (the selected
+one is filled). Seasons kino.pub does not have say so after the number — a filled clock for one
+still to come, a lock for one TMDB lists and kino.pub lacks — in the secondary colour, and a run of
+them is one stop: `4–7`, `19–20`.
 
 ## Runtime
 

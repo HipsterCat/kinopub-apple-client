@@ -158,6 +158,81 @@ final class TVDetailLayoutUITests: XCTestCase {
     }
   }
 
+  /// The season line of a series kino.pub has three seasons of: «Сезон», pills 1 2 3, then «4–7»
+  /// with a lock (TMDB has them, kino.pub does not) and «8» with a clock (announced). Focus
+  /// always comes to the *selected* pill — Down from the hero, Up from an episode — never the
+  /// one nearest in x. Right across every pill selects each and moves the rail.
+  func testSeasonLineWalksEveryKindOfPill() throws {
+    launch("seasonStrip")
+    try waitForHeroFocus()
+    // Opens on season 3 (the first unwatched episode); Down from the hero must land there, not on 1.
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.4)
+    try shoot("seasons-00-down-from-hero")
+    note("seasons down from hero")
+    XCTAssertTrue(focusedLabel.hasPrefix("Сезон 3"), "Down from the hero landed on «\(focusedLabel)», not the selected season 3")
+
+    XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Сезоны 4–7")).firstMatch.exists,
+                  "no joined pill for seasons 4–7")
+    XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Сезон 8")).firstMatch.exists,
+                  "no pill for the announced season 8")
+    XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Сезон 5")).firstMatch.exists,
+                   "season 5 has a pill of its own inside the run")
+
+    for step in 1...2 {
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 1.3)
+      try shoot(String(format: "seasons-%02d-right", step))
+      note("seasons right \(step)")
+    }
+    XCTAssertTrue(focusedLabel.hasPrefix("Сезон 8"), "two Rights from 3 did not reach 8: «\(focusedLabel)»")
+
+    // Into the rail and sideways, then back up: the selected pill, whichever is nearest.
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.3)
+    try shoot("seasons-03-into-the-rail")
+    note("seasons into the rail")
+    for _ in 1...2 {
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 1.0)
+    }
+    try shoot("seasons-04-rail-right")
+    note("seasons in the rail, right")
+    XCUIRemote.shared.press(.up)
+    Thread.sleep(forTimeInterval: 1.3)
+    try shoot("seasons-05-back-up")
+    note("seasons back up")
+    XCTAssertTrue(focusedLabel.hasPrefix("Сезон"), "Up from the rail left the strip: «\(focusedLabel)»")
+    XCTAssertTrue(focusedIsSelected, "Up landed on «\(focusedLabel)», which is not the selected pill")
+
+    // The case geometry gets wrong: standing on S3E3 (x ≈ 880) the nearest pills are «4–7» and
+    // «8», but season 3 is the selected one, far to the left.
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.2)
+    XCUIRemote.shared.press(.right)
+    Thread.sleep(forTimeInterval: 1.0)
+    note("seasons on an episode of season 3")
+    XCUIRemote.shared.press(.up)
+    Thread.sleep(forTimeInterval: 1.3)
+    try shoot("seasons-06-up-to-the-selected-far-left")
+    note("seasons up to the selected pill")
+    XCTAssertTrue(focusedLabel.hasPrefix("Сезон 3"), "Up from an episode of season 3 landed on «\(focusedLabel)»")
+  }
+
+  /// One season is not a choice: the line still stands above the rail and reads «Сезон 1», with
+  /// no pill to press — so Down from the hero lands on an episode, never on an empty stop.
+  func testSeasonLineOfAOneSeasonShowIsJustTheWord() throws {
+    launch("rewatch")
+    try waitForHeroFocus()
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.4)
+    try shoot("seasons-one-season")
+    note("one season, down from hero")
+    XCTAssertTrue(app.staticTexts["Сезон 1"].exists, "the one-season line does not read «Сезон 1»")
+    XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Сезон")).firstMatch.exists,
+                   "a one-season show has a season pill to press")
+  }
+
   /// The section templates page carries the strips the detail page is made of — scores and
   /// reviews, stills and facts, the specification columns — drawn without a session.
   /// Down from the banner reaches each family of card; a shot at each first arrival.
@@ -343,6 +418,14 @@ final class TVDetailLayoutUITests: XCTestCase {
     }
     Thread.sleep(forTimeInterval: 0.8)
   }
+
+  private var focusedElement: XCUIElement {
+    app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true")).firstMatch
+  }
+
+  private var focusedLabel: String { focusedElement.label }
+
+  private var focusedIsSelected: Bool { focusedElement.isSelected }
 
   private var focusedDescription: String {
     let focused = app.descendants(matching: .any)

@@ -416,6 +416,7 @@
                   "path": "Subviews",
                   "children": [
                     { "path": "SeasonsRailView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "SeasonTabStrip.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemDetailSections.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemAboutLayouts.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemReviewsPage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
@@ -521,6 +522,7 @@
         { "path": "TVPosterArtFocusTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "TVPosterCoverTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "MissingEpisodeAirStateTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "SeasonTabStripTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "AppChangelogTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {

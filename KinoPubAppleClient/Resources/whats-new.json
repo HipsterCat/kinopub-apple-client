@@ -9,7 +9,8 @@
         "Баннер на главной снова по центру, соседние карточки выглядывают.",
         "«Продолжить просмотр» — пять кадров в ряд, название видно сразу.",
         "В сетках у каждого постера две строки подписи, все обложки одной высоты.",
-        "На странице тайтла секции под героем — одним скроллом с картинкой."
+        "На странице тайтла секции под героем — одним скроллом с картинкой.",
+        "Над рядом серий — строка «Сезон» с номерами: часы у ещё не вышедших, замок у тех, которых нет на KinoPub."
       ],
       "en": [
         "Menu in lists returns to the top row first, then leaves the screen.",
@@ -17,7 +18,8 @@
         "The Home banner is the centred card row again, with neighbours peeking.",
         "Continue Watching shows five stills across, with titles visible at rest.",
         "Grid posters keep two caption lines and the same height.",
-        "Title pages put the sections under the hero in one scroll."
+        "Title pages put the sections under the hero in one scroll.",
+        "A Season line sits above the episodes: number pills, a clock for seasons still to come, a lock for ones KinoPub lacks."
       ]
     }
   ]

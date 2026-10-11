@@ -146,8 +146,25 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       background when its episode is focused and can hold focus of its own. Research and test
       first. `TVMediaItemContentConfiguration.wideCell()` draws one caption line only
       (`secondaryText` never shows — probe, tvOS 27.2), so it is not that cell as configured.
-- [ ] Replace the season tab strip with a real system pill/toggle component (`.borderless` is the
-      interim, chosen so no hand-rolled focus code remains)
+- [ ] Replace the season pill strip's `.borderless` with the system pill. `SeasonTabStrip` draws the
+      pill itself to Sasha's metrics (headline + 10 pt each side, 66 pt on tvOS; as wide as tall at
+      least) and a text label gets no lift from `.borderless`, so what shows focus is the fill that
+      follows it. `.buttonStyle(.glass)` + `.buttonBorderShape(.capsule)` is the system pill, with
+      the white focus lift — but it pads its label itself: measured 2026-10-11, tvOS 26.5, 104 pt
+      tall and 134 wide for one digit. Re-probe on the next SDK; take it if its padding follows the
+      metrics, or if Sasha takes the system size
+- [x] Season strip focus: Down from the hero and Up from an episode land on the *selected* pill, not
+      the one nearest in x (Sasha, 2026-10-11). `.focusSection()` + `defaultFocus(…, priority:
+      .userInitiated)` on the strip; `testSeasonLineWalksEveryKindOfPill` checks Up from S3E3,
+      where «4–7» and «8» are nearer. Still open: Down from a pill lands on the episode nearest in
+      x, not the selected tab's first item (from the `8` pill: the neighbouring episode, not the
+      Season 8 card) — the rail's `entryItemID` is not honoured on a directional move. The rail's own
+      `.focusSection()` is still commented out (`1c2e30ea`); cause **unverified**
+- [ ] Season strip: a lock or a clock pill exists only where the rail shows a trailing card, which
+      needs TMDB's *next episode* to be dated and past kino.pub's last season (`trailingCards`). A
+      show kino.pub lacks seasons of, with nothing announced, shows no `4–35 🔒`; and the metadata
+      names one announced season, so a run of clocks (`19–20 🕐`) cannot occur yet. The joining is
+      there — one pill per run — when the source lists more
 - [x] KinoPub rating card: likes / dislikes as a tile in the Ratings row on tvOS; Select offers a
       vote, once (2026-10-06). Views are not on it, and the SwiftUI page still has the old control
 - [ ] tvOS section headers must not navigate — "see more" is a trailing card or button inside the

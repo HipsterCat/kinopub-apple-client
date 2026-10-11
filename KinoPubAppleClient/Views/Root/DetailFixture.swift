@@ -31,6 +31,9 @@ enum DetailFixture: String, CaseIterable, Identifiable {
   /// season in every state one can be in — aired long ago, 3 / 2 / 1 / 0 days ago,
   /// ahead, far ahead, undated. Follow leads: the next one has a date (in the past).
   case missing
+  /// kino.pub has seasons 1–3. TMDB lists 4–7 as aired (not on kino.pub: a lock) and 8 as
+  /// announced (a clock), so the season line carries every status and a joined run.
+  case seasonStrip
   /// A film in two named versions, the first one half-watched.
   case versions
   /// A film in three unnamed versions.
@@ -63,6 +66,7 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     case .rewatch: 9_900_005
     case .film: 9_900_006
     case .filmCrew: 9_900_007
+    case .seasonStrip: 9_900_008
     }
   }
 
@@ -75,12 +79,13 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     case .rewatch: "Пересмотр / Rewatch"
     case .film: "Фильм со всеми секциями / Every Section"
     case .filmCrew: "Фильм: два режиссёра / Two Directors"
+    case .seasonStrip: "Строка сезонов / Season Strip"
     }
   }
 
   private var isSeries: Bool {
     switch self {
-    case .awaiting, .missing, .rewatch: true
+    case .awaiting, .missing, .rewatch, .seasonStrip: true
     case .versions, .versionsUnnamed, .film, .filmCrew: false
     }
   }
@@ -118,6 +123,12 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       json["seasons"] = [
         season(1, episodes: (1...3).map { episode(season: 1, number: $0, watched: true) }),
         season(2, episodes: (1...4).map { episode(season: 2, number: $0, watched: $0 < 4) })
+      ]
+    case .seasonStrip:
+      json["seasons"] = [
+        season(1, episodes: (1...3).map { episode(season: 1, number: $0, watched: true) }),
+        season(2, episodes: (1...3).map { episode(season: 2, number: $0, watched: true) }),
+        season(3, episodes: (1...3).map { episode(season: 3, number: $0, watched: false) })
       ]
     case .missing:
       json["seasons"] = [
@@ -333,6 +344,12 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       meta.status = "Returning Series"
       meta.seasonSummaries = [SeasonSummary(seasonNumber: 1, episodeCount: 10)]
       meta.nextEpisode = EpisodeRef(seasonNumber: 1, episodeNumber: 8, airDate: Self.day(2))
+    case .seasonStrip:
+      meta.status = "Returning Series"
+      meta.seasonSummaries = (1...7).map {
+        SeasonSummary(seasonNumber: $0, episodeCount: 10, airDate: Self.day(-365 * (8 - $0)))
+      } + [SeasonSummary(seasonNumber: 8, episodeCount: 8, airDate: Self.day(45))]
+      meta.nextEpisode = EpisodeRef(seasonNumber: 8, episodeNumber: 1, airDate: Self.day(45))
     case .rewatch:
       meta.status = "Ended"
       meta.seasonSummaries = [SeasonSummary(seasonNumber: 1, episodeCount: 3)]

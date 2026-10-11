@@ -5,6 +5,36 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Season line: «Сезон» and a pill per season (2026-10-11)
+
+The tab strip above the episode rail is `SeasonTabStrip` (new file) and says what Sasha specified:
+the word first, numbers after it with no gap, never kino.pub's season titles. One season reads
+`Сезон 1` with nothing to press — and the line is **always there and always the same height**
+(`SeasonTabStripTests` measure it with and without pills, with glyphs, at accessibility sizes).
+A pill is the headline style plus 10 pt above and below (66 pt on tvOS), 24 pt of padding each
+side of the text, and never narrower than tall (`PillWidth`, a one-child `Layout`: a `minWidth`
+frame cannot say "my own height") — `1` is 67 × 66, `10` is 91 × 66, `4–7 🔒` 152 × 66. The word
+«Сезон» is always secondary with 20 pt before the first pill; the air between the line and the
+rail is 22 pt (it was 11). Unselected available pills are primary while focus is on the strip and
+secondary once it is down in the episodes; lock and clock pills are secondary always, and the
+clock is `clock.fill`. Seasons kino.pub does not have are secondary with a glyph after the number: a
+clock for the announced one, a lock for the run it lacks, which is one pill (`4–7`). Selecting one
+scrolls the rail to its trailing card; no schedule is fetched for a number kino.pub does not carry.
+
+- The strip's tvOS focus moved into the strip (a `@FocusState`, `focusSection` + `defaultFocus` and
+  the entry token), so `SeasonsRailView` only owns the selection. **Focus lands on the selected
+  pill** from the hero and from any episode — `defaultFocus` at `.userInitiated` priority on a
+  `focusSection`; the section alone, or `prefersDefaultFocus` in a `focusScope`, took the pill
+  nearest in x (measured, tvOS 26.5 and 27.2).
+- **Measured, tvOS 26.5:** `.buttonStyle(.borderless)` puts the system focus highlight on the first
+  `Image` of a label — a lock or clock drawn as an `Image` came out as a bright blob over the glyph.
+  The glyph is a character of the `Text` instead. A text label gets no lift at all, so the fill that
+  follows selection (and selection follows focus) is what shows where you are. `.glass` +
+  `.capsule` gives the real thing but pads to 104 pt; see ROADMAP.
+- DEBUG: `-KINOPUBDetailFixture seasonStrip` — kino.pub seasons 1–3, TMDB seasons 4–7 (aired) and 8
+  (announced). `TVDetailLayoutUITests.testSeasonLineWalksEveryKindOfPill` and
+  `testSeasonLineOfAOneSeasonShowIsJustTheWord` walk it. Not looked at on a device.
+
 ### TestFlight on a schedule, in-app What's New (2026-10-10)
 
 - **TestFlight.** `testflight.yml` still has `workflow_dispatch`. It now also runs daily (if
