@@ -228,12 +228,18 @@ enum MediaItemTVSections {
   /// fewer than two, once anyone has more than one — is a guest and is dropped; so is
   /// everything past `castLimit`.
   ///
-  /// **Except the first of kino.pub's own list, who is never dropped** (Sasha, 2026-10-11): that
-  /// is the lead, and a name TMDB could not match (no episode count) was dropped as a guest —
-  /// Dexter's own Dexter. If ranking would have left them out they open the row.
+  /// **Except the first of kino.pub's own list, when TMDB could not match them** (Sasha,
+  /// 2026-10-11): no episode count, dropped as a guest — Dexter's own Dexter. If ranking
+  /// would have left them out they open the row. A name TMDB *did* match — a guest by
+  /// episode count, a bit part by billing — is dropped like anyone else, even when
+  /// kino.pub listed them first. Restoring every first name put extras at the front of
+  /// the row (`filmCrew`: «Эпизод Первый» ahead of the stars).
   static func rankedCast(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
     let ranked = ranking(members, isEpisodic: isEpisodic)
-    guard let lead = members.first, !ranked.contains(where: { $0.name == lead.name }) else { return ranked }
+    guard isEpisodic,
+          let lead = members.first,
+          lead.episodeCount == nil,
+          !ranked.contains(where: { $0.name == lead.name }) else { return ranked }
     return [lead] + ranked.prefix(castLimit - 1)
   }
 

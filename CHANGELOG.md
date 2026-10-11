@@ -95,9 +95,12 @@ shared info popup for reading one whole. The "Reviews" strip group and `reviewLi
   film's director opens the row; a show's creators (`authorRole == .creator`) close it behind the
   actors and never get a row of their own. A strip with a heading and untitled groups stands its cards
   `headerToItems` under the header (`TVPageStripPlan.insets.top`), like a rail.
-- **The first of kino.pub's cast list is never dropped** (`rankedCast`): a name TMDB could not match
-  has no episode count and was sent away as a guest — Dexter's own Dexter. If ranking leaves them out
-  they open the row. Other unmatched names still are dropped as before.
+- **The first of kino.pub's cast list is never dropped** (`rankedCast`) **only when TMDB
+  could not match them**: no episode count, sent away as a guest — Dexter's own Dexter.
+  If ranking leaves them out they open the row. Other unmatched names still are dropped
+  as before. A name TMDB *did* match — a guest by episode count, a bit part by billing —
+  is dropped like anyone else, even when kino.pub listed them first. Restoring every first
+  name put extras at the front of the `filmCrew` fixture («Эпизод Первый» ahead of the stars).
 - **A fixture page shows no network portraits** (`ActorImageProvider.photoURL` returns nil under
   `-KINOPUBDetailFixture` unless `-KINOPUBFixtureRealArt YES`), and the drawn silhouettes are gone
   from `DetailFixtureArt`: a person with no photo is their initials, as in search.

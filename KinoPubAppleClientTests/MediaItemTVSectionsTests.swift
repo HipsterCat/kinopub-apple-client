@@ -82,9 +82,9 @@ final class MediaItemTVSectionsTests: XCTestCase {
     XCTAssertEqual(groupIDs(strip("similar")), ["cast", "director", "genres"])
     XCTAssertEqual(groupIDs(strip("stills-facts")), ["stills", "facts", "awards"])
     XCTAssertEqual(strip("ratings").kind, .strip)
-    // The three columns of the technical table are one untitled group — no title strip.
-    XCTAssertEqual(groupIDs(strip("specs")), ["specs"])
-    XCTAssertNil(strip("specs").groups[0].title)
+    // Three untitled stacked columns — no title strip over the table.
+    XCTAssertEqual(groupIDs(strip("specs")), ["languages", "video", "info"])
+    XCTAssertTrue(strip("specs").groups.allSatisfy { $0.title == nil })
   }
 
   /// One heading over three groups of posters, the way Cast & Crew is one over its professions
@@ -318,9 +318,9 @@ final class MediaItemTVSectionsTests: XCTestCase {
     XCTAssertEqual(credits.groups.count, 1)
     XCTAssertNil(credits.groups[0].title, "no section inside the row")
     XCTAssertEqual(credits.kind, .strip)
-    // The other rows' groups are the rows' own titles.
+    // Ratings is one group — the reviews are a card in it, not a second heading.
     let ratings = MediaItemTVSections.make(input()).first { $0.id == "ratings" }!
-    XCTAssertEqual(ratings.groups.map(\.isSubheading), [false, false])
+    XCTAssertEqual(ratings.groups.map(\.isSubheading), [false])
   }
 
   func testAnActorWithNoCharacterHasNoCaptionAtAll() {
@@ -368,7 +368,7 @@ final class MediaItemTVSectionsTests: XCTestCase {
       "id": 126967, "type": "movie", "subtype": "", "title": "T", "year": 2020,
       "cast": "Валид Зуэйтер, Валид Зуэйтер, Том Холланд",
       "director": "Режиссёр",
-      "genres": [Any](), "countries": [Any](), "duration": ["total": 6000],
+      "genres": [Any](), "countries": [Any](), "duration": ["average": 6000, "total": 6000],
       "langs": 1, "quality": 1080, "plot": "", "posters": ["small": "", "medium": "", "big": "", "wide": ""]
     ]
     let item = try JSONDecoder().decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: json))
@@ -516,8 +516,9 @@ final class MediaItemTVSectionsTests: XCTestCase {
     XCTAssertEqual(oneEpisodes.count, 2, "everyone in one episode: nobody is a guest")
   }
 
-  /// The first of kino.pub's own list is the lead and is never dropped (Sasha, 2026-10-11): a name
-  /// TMDB could not match has no episode count, and used to be sent away as a guest.
+  /// The first of kino.pub's own list is the lead and is never dropped **when TMDB could
+  /// not match them** (Sasha, 2026-10-11): a name with no episode count used to be sent
+  /// away as a guest. A name TMDB did match as a guest or a bit part is still dropped.
   func testTheFirstOfKinoPubsListIsNeverDropped() {
     let series = MediaItemTVSections.rankedCast(
       [member("lead"), member("a", episodes: 100), member("b", episodes: 80)], isEpisodic: true)
@@ -525,13 +526,14 @@ final class MediaItemTVSectionsTests: XCTestCase {
 
     let nobody = MediaItemTVSections.rankedCast(
       [member("lead", episodes: 1), member("a", episodes: 100)], isEpisodic: true)
-    XCTAssertEqual(nobody.first?.name, "a", "one episode of a hundred is a guest, but the lead of kino.pub's list keeps their place")
-    XCTAssertTrue(nobody.contains { $0.name == "lead" })
+    XCTAssertEqual(nobody.map(\.name), ["a"],
+                   "one episode of a hundred is a guest even as kino.pub's first — TMDB matched them")
 
     let film = MediaItemTVSections.rankedCast(
       (0..<30).map { member("p\($0)", order: $0 == 0 ? 99 : $0) }, isEpisodic: false)
     XCTAssertEqual(film.count, MediaItemTVSections.castLimit)
-    XCTAssertTrue(film.contains { $0.name == "p0" }, "past the cap by billing, and still in")
+    XCTAssertEqual(film.first?.name, "p1")
+    XCTAssertFalse(film.contains { $0.name == "p0" }, "billing 99 is a bit part past the cap, same as the crew fixture")
   }
 
   func testTheCastRowStopsAtAnArbitraryDozen() {
