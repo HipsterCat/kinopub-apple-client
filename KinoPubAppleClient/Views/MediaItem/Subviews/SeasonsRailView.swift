@@ -307,9 +307,10 @@ struct SeasonsRailView: View {
             selectSeason(season.id, proxy: proxy, animated: true)
           } label: {
             tabLabel(season)
-          }
+          }.padding(.horizontal, 24)
 #if os(tvOS)
           .focused($focusedSeasonID, equals: season.id)
+          .buttonStyle(.borderless)
           // The one that makes Up land on the season you are actually in.
           .prefersDefaultFocus(season.id == selectedSeason?.id, in: seasonTabsScope)
 #endif
@@ -317,7 +318,7 @@ struct SeasonsRailView: View {
           // one (there is a glass-styled equivalent outside tvOS worth checking).
           // Until then the stock borderless style: no chrome at rest, the platform's
           // own treatment on focus — and no hand-rolled focus code of ours.
-          .buttonStyle(.borderless)
+//          .buttonStyle(.borderless)
         }
       }
       .padding(.horizontal, metrics.inset)
@@ -328,7 +329,8 @@ struct SeasonsRailView: View {
     // picks the tab physically overhead, which is the wrong one as soon as the rail has
     // scrolled away from the start of a season.
     .frame(maxWidth: .infinity)
-    .focusSection()
+//    .background(.green)
+//    .focusSection()
     .focusScope(seasonTabsScope)
 #endif
   }
@@ -371,7 +373,7 @@ struct SeasonsRailView: View {
         return contextEntries(for: episode, season: season)
       }
     )
-    .focusSection()
+//    .focusSection()
   }
 
   /// One rail entry in media-item terms. The status carries what used to be an opacity
@@ -738,7 +740,7 @@ struct SeasonsRailView: View {
 
   private static func seasonTitle(_ season: Season) -> String {
     if season.title.isEmpty {
-      return "\("Season".localized) \(season.number)"
+      return "\(season.number)"
     }
     return season.title
   }
@@ -746,8 +748,8 @@ struct SeasonsRailView: View {
   private static func episodeAnchor(_ id: Int) -> String { "episode-\(id)" }
 
 #if os(tvOS)
-  static let tabSpacing: CGFloat = 2
-  static let tabFont: Font = .system(size: 36, weight: .bold)
+  static let tabSpacing: CGFloat = 0
+     static let tabFont: Font = .headline.weight(.semibold)
   /// Width to lay out with until the rail has measured itself.
   static let referenceWidth: CGFloat = 1920
 #elseif os(macOS)
@@ -870,7 +872,7 @@ private struct MissingSeasonsCard: View {
           .multilineTextAlignment(.center)
       }
     }
-    .padding(.horizontal, 24)
+    .padding(.horizontal, 0)
     .frame(maxWidth: .infinity)
     .frame(height: stillHeight)
     .background(
@@ -1000,7 +1002,8 @@ struct VersionsRailView: View {
         mediaNavigation?(linkProvider.player(for: variant))
       }
     )
-    .focusSection()
+//    .background(.red)
+//    .focusSection()
   }
 
   private func railItem(for variant: PlaybackVariant) -> TVUIKitMediaItem {
