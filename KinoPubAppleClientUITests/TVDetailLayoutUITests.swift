@@ -339,9 +339,9 @@ final class TVDetailLayoutUITests: XCTestCase {
     Thread.sleep(forTimeInterval: 1.2)
     XCUIRemote.shared.press(.down)   // the people: the first director
     Thread.sleep(forTimeInterval: 1.4)
-    XCTAssertTrue(focusedDescription.contains("kinopub.card.person.director:"), focusedDescription)
+    XCTAssertTrue(focusedDescription.contains("kinopub.card.person.director"), focusedDescription)
     try shoot("crew-directors")
-    XCTAssertTrue(seek(.right, until: "kinopub.card.person.actor:", limit: 4), focusedDescription)
+    XCTAssertTrue(seek(.right, until: "kinopub.card.person.actor", limit: 4), focusedDescription)
     Thread.sleep(forTimeInterval: 1.2)
     XCTAssertTrue(focusedDescription.contains("Крис Эванс") || focusedDescription.contains("Роберт Дауни"),
                   "a star first, not the bit part kino.pub lists first: \(focusedDescription)")

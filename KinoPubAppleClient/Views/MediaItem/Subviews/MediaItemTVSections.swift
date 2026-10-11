@@ -194,9 +194,11 @@ enum MediaItemTVSections {
     let authors = authorCards(input)
     let cast = castCards(input)
     let people = profile.authorRole == .creator ? cast + authors : authors + cast
-    guard !people.isEmpty else { return [] }
+    var seen = Set<String>()
+    let unique = people.filter { seen.insert($0.id).inserted }
+    guard !unique.isEmpty else { return [] }
     return [.strip(id: "credits", title: "MediaItem_CastAndCrew".localized,
-                   groups: [TVPageGroup(id: "people", title: nil, columns: 3, items: people.map(TVPageItem.person))])]
+                   groups: [TVPageGroup(id: "people", title: nil, columns: 3, items: unique.map(TVPageItem.person))])]
   }
 
   /// Whoever directed or created it, at most three — a face where there is one, the initials
@@ -226,12 +228,18 @@ enum MediaItemTVSections {
   /// fewer than two, once anyone has more than one — is a guest and is dropped; so is
   /// everything past `castLimit`.
   ///
-  /// **Except the first of kino.pub's own list, who is never dropped** (Sasha, 2026-10-11): that
-  /// is the lead, and a name TMDB could not match (no episode count) was dropped as a guest —
-  /// Dexter's own Dexter. If ranking would have left them out they open the row.
+  /// **Except the first of kino.pub's own list, when TMDB could not match them** (Sasha,
+  /// 2026-10-11): no episode count, dropped as a guest — Dexter's own Dexter. If ranking
+  /// would have left them out they open the row. A name TMDB *did* match — a guest by
+  /// episode count, a bit part by billing — is dropped like anyone else, even when
+  /// kino.pub listed them first. Restoring every first name put extras at the front of
+  /// the row (`filmCrew`: «Эпизод Первый» ahead of the stars).
   static func rankedCast(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
     let ranked = ranking(members, isEpisodic: isEpisodic)
-    guard let lead = members.first, !ranked.contains(where: { $0.name == lead.name }) else { return ranked }
+    guard isEpisodic,
+          let lead = members.first,
+          lead.episodeCount == nil,
+          !ranked.contains(where: { $0.name == lead.name }) else { return ranked }
     return [lead] + ranked.prefix(castLimit - 1)
   }
 
@@ -278,20 +286,30 @@ enum MediaItemTVSections {
     }
   }
 
+  /// TMDB's person id when we have it, else `role:name`. Two billed credits can share a
+  /// name (`person.actor:Валид Зуэйтер` twice on 126967); the page's snapshot cannot.
+  static func cardID(for person: MediaPerson) -> String {
+    if let tmdb = person.tmdbPersonId {
+      return "\(person.role.rawValue).tmdb.\(tmdb)"
+    }
+    return person.id
+  }
+
   private static func card(for person: MediaPerson, caption: String?) -> TVUIKitPerson {
-    TVUIKitPerson(id: person.id,
+    TVUIKitPerson(id: cardID(for: person),
                   name: person.name,
                   nameComponents: TVUIKitPerson.nameComponents(from: person.name),
                   caption: caption,
                   photoURL: person.photoURL)
   }
 
-  /// The person a card stands for — the id is built from the same `MediaPerson.id`.
+  /// The person a card stands for. The id is unique (TMDB when known); the name is
+  /// on the card itself. Role is the prefix of `role:name` or `role.tmdb.<id>`.
   static func person(from card: TVUIKitPerson) -> MediaPerson? {
-    guard let colon = card.id.firstIndex(of: ":"),
-          let role = MediaPerson.Role(rawValue: String(card.id[..<colon])) else { return nil }
-    return MediaPerson(name: String(card.id[card.id.index(after: colon)...]), role: role,
-                       photoURL: card.photoURL)
+    let separator = card.id.firstIndex(where: { $0 == ":" || $0 == "." })
+    guard let separator,
+          let role = MediaPerson.Role(rawValue: String(card.id[..<separator])) else { return nil }
+    return MediaPerson(name: card.name, role: role, photoURL: card.photoURL)
   }
 
   // MARK: - Similar

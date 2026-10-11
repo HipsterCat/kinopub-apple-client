@@ -103,9 +103,10 @@ page and its people are a section of their own, as text (below).
   for a title TMDB knows nothing about. In a series, anyone in fewer than a **fifth** of the episodes
   the most-seen person is in — and never fewer than two, once anyone has more than one — is a guest
   and is dropped. **No more than 12** in any case.
-- **Except the first of kino.pub's own list, who is never dropped** (Sasha, 2026-10-11): that is the
-  lead. A name TMDB could not match has no episode count and was sent away as a guest — the title's
-  own lead among them. If ranking would leave them out they open the row.
+- **Except the first of kino.pub's own list, when TMDB could not match them** (Sasha, 2026-10-11):
+  that is the lead. A name with no episode count was sent away as a guest — the title's own lead
+  among them. If ranking would leave them out they open the row. A name TMDB *did* match as a guest
+  or a bit part is still dropped, even when kino.pub listed them first.
 - **A person without a photo is their initials**, as in search. A fixture page draws no
   network portraits (`-KINOPUBFixtureRealArt YES` brings them back), so the no-photo state is what a
   fixture shows.

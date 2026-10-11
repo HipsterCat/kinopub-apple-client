@@ -296,14 +296,15 @@ struct LibraryShellView: View {
 
   private var librarySections: [TVPageSection] {
     let cards = catalog.cards
+    let sectionID = "library.\(model.selection.persistenceID)"
     guard !cards.isEmpty else {
       return catalog.isLoading
-        ? [.placeholder(id: "library", title: nil, kind: .poster, columns: 6, flow: .grid)]
+        ? [.placeholder(id: sectionID, title: nil, kind: .poster, columns: 6, flow: .grid)]
         : []
     }
     let grouped = model.selection == .history ? sectioning.sections(for: cards) : []
     let groups: [(id: String, title: String?, cards: [MediaCard])] = grouped.isEmpty
-      ? [("library", nil, cards)]
+      ? [(sectionID, nil, cards)]
       : grouped.map { ($0.id, $0.title, $0.cards) }
     // The next page lands in the last group, so only that one ends on the loading row.
     let lastID = groups.last?.id

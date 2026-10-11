@@ -96,6 +96,7 @@ public extension MediaCard {
                      isInWatchlist: isSeries && (state.isFollowing ?? false),
                      is4K: is4K, isHDR: isHDR, isHD: isHD, is3D: is3D,
                      hasClosedCaptions: hasClosedCaptions, year: year,
+                     unwatchedEpisodes: unwatchedEpisodes,
                      durationSeconds: durationSeconds, genreLine: genreLine,
                      countryLine: countryLine, seasonsLabel: seasonsLabel,
                      isBookmarked: !folders.isEmpty, bookmarkFolderIDs: folders,

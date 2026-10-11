@@ -39,6 +39,35 @@ S2E3); passes on tvOS 27.2 and 26.5.
   stack under the hero no longer adds spacing (`MediaItemView.contentSpacing`).
 - `SeasonTabStrip` / `SeasonPill` are iOS and macOS only now; the tvOS focus code in them is gone.
 
+### Library captions and two TVPage snapshot crashes (2026-10-11)
+
+After [007c0eb](https://github.com/HipsterCat/kinopub-apple-client/commit/007c0eb) Sasha's
+simulators (tvOS 26.5 and 27.2) showed empty *Following* subtitles and two fatal snapshot
+applies.
+
+- **Following's second line is `unwatchedEpisodes`.** `/v1/watching/serials` has `total` /
+  `watched` / `new`; `WatchingItem.unwatchedCount` and `followingCard` fill the field;
+  `TVPageLockupPosterCell.posterSubtitle` reads it (then the year). The store then lays
+  today's `ViewerState` over every title card. `MediaCard.withViewerState` dropped the
+  count, so a signed-in Library (AppContext always has a viewer) painted every cover
+  with a title and an empty line. The field is copied through now. The Library fixture
+  store has a viewer too, so a `-KINOPUBLibraryFixture` shot walks the same overlay.
+- **`TVPageItemID` carries the cell registration.** Library Following (posters) and
+  Continue (stills) used to share section id `"library"` and title ids; switching
+  sections reconfigured a `TVPageLockupPosterCell` with the still registration
+  (`NSInternalInconsistencyException`). The registration is part of the id — a kind
+  change is a new identity, a wording change is not — and the cell provider dequeues
+  from `id.registration`. Registrations are created once in `configureDataSource`.
+  Library grids are now `library.<persistenceID>`.
+- **Credits cannot list the same person twice.** `MediaPerson.id` is `role:name`;
+  kino.pub listed Валид Зуэйтер twice on 126967 and `applySnapshot` died. `credits()`
+  keeps the first card per id, `cardID` prefers a TMDB person id, and
+  `TVPageSection.uniquedItems()` / `applySnapshot` drop later duplicates generally.
+- **Person cells now have an accessibility id.** Cast & Crew dequeues
+  `TVUIKitPersonCell`, which set a label and never an identifier, so XCUI saw
+  «Энтони Руссо, Режиссёр» with an empty id. It now uses `kinopub.card.person.*`,
+  the same scheme as search's wide card (which also copies the id onto `TVCardView`).
+
 ### The table: borderless items, only what is pressed takes focus, the people in a section (2026-10-11)
 
 The three columns of the table under the page are **three stacks of cards** (`TVPageGroup.stacked`),
@@ -104,9 +133,12 @@ shared info popup for reading one whole. The "Reviews" strip group and `reviewLi
   film's director opens the row; a show's creators (`authorRole == .creator`) close it behind the
   actors and never get a row of their own. A strip with a heading and untitled groups stands its cards
   `headerToItems` under the header (`TVPageStripPlan.insets.top`), like a rail.
-- **The first of kino.pub's cast list is never dropped** (`rankedCast`): a name TMDB could not match
-  has no episode count and was sent away as a guest — Dexter's own Dexter. If ranking leaves them out
-  they open the row. Other unmatched names still are dropped as before.
+- **The first of kino.pub's cast list is never dropped** (`rankedCast`) **only when TMDB
+  could not match them**: no episode count, sent away as a guest — Dexter's own Dexter.
+  If ranking leaves them out they open the row. Other unmatched names still are dropped
+  as before. A name TMDB *did* match — a guest by episode count, a bit part by billing —
+  is dropped like anyone else, even when kino.pub listed them first. Restoring every first
+  name put extras at the front of the `filmCrew` fixture («Эпизод Первый» ahead of the stars).
 - **A fixture page shows no network portraits** (`ActorImageProvider.photoURL` returns nil under
   `-KINOPUBDetailFixture` unless `-KINOPUBFixtureRealArt YES`), and the drawn silhouettes are gone
   from `DetailFixtureArt`: a person with no photo is their initials, as in search.

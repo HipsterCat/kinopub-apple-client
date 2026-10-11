@@ -528,25 +528,13 @@ public final class TVPageCollectionViewController: UIViewController {
         : .identity
     }
 
+    // Registrations live for the page's life — created once here, never per `apply`.
+    // Dequeue is a function of `id.registration` so reconfigure cannot pick another class.
     dataSource = UICollectionViewDiffableDataSource<String, TVPageItemID>(
       collectionView: collectionView
-    ) { [weak self] collectionView, indexPath, id in
-      guard let self, let section = self.sectionsByID[id.section] else {
-        return collectionView.dequeueConfiguredReusableCell(using: chip, for: indexPath, item: id)
-      }
-      // An info card's cell follows from what it says, wherever it sits.
-      func dequeueInfo(_ info: TVPageInfoCard) -> UICollectionViewCell {
-        switch info {
-        case .rating: return collectionView.dequeueConfiguredReusableCell(using: rating, for: indexPath, item: id)
-        case .reviews: return collectionView.dequeueConfiguredReusableCell(using: reviews, for: indexPath, item: id)
-        case .review: return collectionView.dequeueConfiguredReusableCell(using: review, for: indexPath, item: id)
-        case .fact: return collectionView.dequeueConfiguredReusableCell(using: fact, for: indexPath, item: id)
-        case .gallery: return collectionView.dequeueConfiguredReusableCell(using: gallery, for: indexPath, item: id)
-        case .spec: return collectionView.dequeueConfiguredReusableCell(using: spec, for: indexPath, item: id)
-        }
-      }
-      switch section.kind {
-      case .poster, .square:
+    ) { collectionView, indexPath, id in
+      switch id.registration {
+      case .poster:
         return collectionView.dequeueConfiguredReusableCell(using: poster, for: indexPath, item: id)
       case .still:
         return collectionView.dequeueConfiguredReusableCell(using: still, for: indexPath, item: id)
@@ -560,18 +548,20 @@ public final class TVPageCollectionViewController: UIViewController {
         return collectionView.dequeueConfiguredReusableCell(using: banner, for: indexPath, item: id)
       case .masthead:
         return collectionView.dequeueConfiguredReusableCell(using: masthead, for: indexPath, item: id)
-      case .infoCard, .strip:
-        // A strip is a rail of families: each item says which cell it is.
-        switch self.itemsByID[id] {
-        case .info(let info)?: return dequeueInfo(info)
-        case .groupTitle?: return collectionView.dequeueConfiguredReusableCell(using: groupTitle, for: indexPath, item: id)
-        case .chip?: return collectionView.dequeueConfiguredReusableCell(using: chip, for: indexPath, item: id)
-        default:
-          // A title is search's wide card, unless its group says it is a poster.
-          let cell = section.stripCell(ofItem: indexPath.item) == .poster ? poster : nil
-          if let cell { return collectionView.dequeueConfiguredReusableCell(using: cell, for: indexPath, item: id) }
-          return collectionView.dequeueConfiguredReusableCell(using: card, for: indexPath, item: id)
-        }
+      case .groupTitle:
+        return collectionView.dequeueConfiguredReusableCell(using: groupTitle, for: indexPath, item: id)
+      case .rating:
+        return collectionView.dequeueConfiguredReusableCell(using: rating, for: indexPath, item: id)
+      case .reviews:
+        return collectionView.dequeueConfiguredReusableCell(using: reviews, for: indexPath, item: id)
+      case .review:
+        return collectionView.dequeueConfiguredReusableCell(using: review, for: indexPath, item: id)
+      case .fact:
+        return collectionView.dequeueConfiguredReusableCell(using: fact, for: indexPath, item: id)
+      case .gallery:
+        return collectionView.dequeueConfiguredReusableCell(using: gallery, for: indexPath, item: id)
+      case .spec:
+        return collectionView.dequeueConfiguredReusableCell(using: spec, for: indexPath, item: id)
       }
     }
     let loadingFooter = UICollectionView.SupplementaryRegistration<TVPageLoadingFooterView>(
@@ -621,7 +611,7 @@ public final class TVPageCollectionViewController: UIViewController {
 
   private func applyGivenSections(status: TVPageStatus, animated: Bool) {
     tailColumns = [:]
-    let newSections = givenSections.map(withLoadingTail)
+    let newSections = givenSections.map { withLoadingTail($0).uniquedItems() }
     let sectionsChanged = newSections != sections
     if sectionsChanged {
       // Items whose content changed under the same id (progress moved, watched
@@ -732,12 +722,16 @@ public final class TVPageCollectionViewController: UIViewController {
     var snapshot = NSDiffableDataSourceSnapshot<String, TVPageItemID>()
     snapshot.appendSections(sections.map(\.id))
     for section in sections {
-      snapshot.appendItems(section.items.indices.map(section.itemID(at:)), toSection: section.id)
+      var seen = Set<TVPageItemID>()
+      let ids = section.items.indices.map(section.itemID(at:)).filter { seen.insert($0).inserted }
+      snapshot.appendItems(ids, toSection: section.id)
     }
-    if !pendingReconfigure.isEmpty {
-      snapshot.reconfigureItems(pendingReconfigure)
-      pendingReconfigure = []
+    let present = Set(snapshot.itemIdentifiers)
+    let reconfigure = pendingReconfigure.filter { present.contains($0) }
+    if !reconfigure.isEmpty {
+      snapshot.reconfigureItems(reconfigure)
     }
+    pendingReconfigure = []
     dataSource.apply(snapshot, animatingDifferences: animated && hasAppliedOnce)
     hasAppliedOnce = true
   }

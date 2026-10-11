@@ -604,9 +604,12 @@ struct LibraryFixtureRoot: View {
     state.userState = .authorized
     return state
   }()
+  /// A viewer, as production has: `cards(_:)` lays state over every title, and
+  /// Following's episode count must survive that overlay.
   @State private var store = ContentStore(
     disk: RowSnapshotStore(directory: FileManager.default.temporaryDirectory
-      .appendingPathComponent("KinoPubLibraryFixture", isDirectory: true)))
+      .appendingPathComponent("KinoPubLibraryFixture", isDirectory: true)),
+    viewer: ViewerStateReaderMock())
 
   var body: some View {
     LibraryShellView(
