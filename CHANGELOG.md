@@ -29,6 +29,10 @@ applies.
   kino.pub listed Валид Зуэйтер twice on 126967 and `applySnapshot` died. `credits()`
   keeps the first card per id, `cardID` prefers a TMDB person id, and
   `TVPageSection.uniquedItems()` / `applySnapshot` drop later duplicates generally.
+- **The person card's accessibility id sits on `TVCardView`.** Poster lockups already
+  copy `kinopub.poster.*` onto the inner view that takes focus; the wide card only
+  labelled the cell, so XCUI saw an empty identifier on «Энтони Руссо, Режиссёр».
+  `TVPageWideCardCell` now sets the id on the card as well (`kinopub.card.person.*`).
 
 ### The table: borderless items, only what is pressed takes focus, the people in a section (2026-10-11)
 

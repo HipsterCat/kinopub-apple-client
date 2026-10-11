@@ -52,6 +52,22 @@ final class TVPageIdentityTests: XCTestCase {
     XCTAssertEqual(unique.items.compactMap(\.card?.id), [1, 2])
   }
 
+  /// Poster lockups copy the id onto the inner view that takes focus. The wide card
+  /// must too — otherwise XCUI sees an empty identifier on a focused person.
+  @MainActor
+  func testAPersonCardPutsItsAccessibilityIdOnTheCardThatTakesFocus() {
+    let person = TVUIKitPerson(id: "director:Энтони Руссо",
+                               name: "Энтони Руссо",
+                               nameComponents: TVUIKitPerson.nameComponents(from: "Энтони Руссо"),
+                               caption: "Режиссёр", photoURL: nil)
+    let cell = TVPageWideCardCell(frame: CGRect(x: 0, y: 0, width: 500, height: 200))
+    cell.configure(person: person)
+    let id = "kinopub.card.person.director:Энтони Руссо"
+    XCTAssertEqual(cell.accessibilityIdentifier, id)
+    let inner = cell.contentView.subviews.compactMap(\.accessibilityIdentifier)
+    XCTAssertTrue(inner.contains(id), "the TVCardView that takes focus must carry the id: \(inner)")
+  }
+
   func testAFollowedCoverSaysHowManyEpisodesAreLeft() {
     let followed = MediaCard(id: 1, posterURL: "", title: "Дом Дракона",
                              unwatchedEpisodes: 5)
