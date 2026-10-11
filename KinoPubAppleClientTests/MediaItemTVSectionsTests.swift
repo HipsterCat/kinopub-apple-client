@@ -362,6 +362,36 @@ final class MediaItemTVSectionsTests: XCTestCase {
     XCTAssertEqual(row.suffix(2).map(\.caption), ["MediaItem_CreatorRole".localized, "MediaItem_CreatorRole".localized])
   }
 
+  /// kino.pub listed the same actor twice (126967). The snapshot cannot.
+  func testARepeatedNameInTheCreditsIsOneCard() throws {
+    let json: [String: Any] = [
+      "id": 126967, "type": "movie", "subtype": "", "title": "T", "year": 2020,
+      "cast": "Валид Зуэйтер, Валид Зуэйтер, Том Холланд",
+      "director": "Режиссёр",
+      "genres": [Any](), "countries": [Any](), "duration": ["total": 6000],
+      "langs": 1, "quality": 1080, "plot": "", "posters": ["small": "", "medium": "", "big": "", "wide": ""]
+    ]
+    let item = try JSONDecoder().decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: json))
+    let credits = try XCTUnwrap(MediaItemTVSections.make(.init(mediaItem: item)).first { $0.id == "credits" })
+    let names = people(credits).compactMap { MediaItemTVSections.person(from: $0) }.filter { $0.role == .actor }.map(\.name)
+    XCTAssertEqual(names.filter { $0 == "Валид Зуэйтер" }.count, 1)
+    XCTAssertEqual(Set((0..<credits.items.count).map(credits.itemID(at:))).count, credits.items.count)
+  }
+
+  func testAPersonCardIdPrefersTMDBWhenItHasOne() {
+    let named = MediaPerson(name: "Валид Зуэйтер", role: .actor)
+    let numbered = MediaPerson(name: "Валид Зуэйтер", role: .actor, tmdbPersonId: 77)
+    XCTAssertEqual(MediaItemTVSections.cardID(for: named), "actor:Валид Зуэйтер")
+    XCTAssertEqual(MediaItemTVSections.cardID(for: numbered), "actor.tmdb.77")
+    XCTAssertNotEqual(MediaItemTVSections.cardID(for: named), MediaItemTVSections.cardID(for: numbered))
+    let card = TVUIKitPerson(id: MediaItemTVSections.cardID(for: numbered),
+                             name: numbered.name,
+                             nameComponents: TVUIKitPerson.nameComponents(from: numbered.name),
+                             caption: nil, photoURL: nil)
+    XCTAssertEqual(MediaItemTVSections.person(from: card)?.role, .actor)
+    XCTAssertEqual(MediaItemTVSections.person(from: card)?.name, "Валид Зуэйтер")
+  }
+
   func testACardNamesThePersonItStandsFor() {
     let credits = MediaItemTVSections.make(input()).first { $0.id == "credits" }!
     let row = people(credits)

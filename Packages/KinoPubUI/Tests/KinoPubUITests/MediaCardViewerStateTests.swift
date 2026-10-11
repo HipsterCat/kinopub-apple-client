@@ -41,6 +41,17 @@ final class MediaCardViewerStateTests: XCTestCase {
     XCTAssertEqual(painted.title, "Film", "words are untouched")
   }
 
+  /// Library Following's second line is `unwatchedEpisodes`. The store lays viewer
+  /// state over every title card; dropping the count left every cover without a subtitle.
+  func testViewerStateKeepsTheUnwatchedEpisodeCount() {
+    let followed = MediaCard(id: 1, posterURL: "", title: "Дом Дракона",
+                             subtitle: "2 серии", isSeries: true, isInWatchlist: true,
+                             unwatchedEpisodes: 2)
+    let painted = followed.withViewerState(ViewerState(isFollowing: true))
+    XCTAssertEqual(painted.unwatchedEpisodes, 2)
+    XCTAssertEqual(painted.subtitle, "2 серии")
+  }
+
   /// Follow is a series' alone, even if a store says otherwise about a film.
   func testAFilmIsNeverFollowed() {
     let film = MediaCard(id: 7, posterURL: "", title: "Film")

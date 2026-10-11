@@ -194,9 +194,11 @@ enum MediaItemTVSections {
     let authors = authorCards(input)
     let cast = castCards(input)
     let people = profile.authorRole == .creator ? cast + authors : authors + cast
-    guard !people.isEmpty else { return [] }
+    var seen = Set<String>()
+    let unique = people.filter { seen.insert($0.id).inserted }
+    guard !unique.isEmpty else { return [] }
     return [.strip(id: "credits", title: "MediaItem_CastAndCrew".localized,
-                   groups: [TVPageGroup(id: "people", title: nil, columns: 3, items: people.map(TVPageItem.person))])]
+                   groups: [TVPageGroup(id: "people", title: nil, columns: 3, items: unique.map(TVPageItem.person))])]
   }
 
   /// Whoever directed or created it, at most three — a face where there is one, the initials
@@ -278,20 +280,30 @@ enum MediaItemTVSections {
     }
   }
 
+  /// TMDB's person id when we have it, else `role:name`. Two billed credits can share a
+  /// name (`person.actor:Валид Зуэйтер` twice on 126967); the page's snapshot cannot.
+  static func cardID(for person: MediaPerson) -> String {
+    if let tmdb = person.tmdbPersonId {
+      return "\(person.role.rawValue).tmdb.\(tmdb)"
+    }
+    return person.id
+  }
+
   private static func card(for person: MediaPerson, caption: String?) -> TVUIKitPerson {
-    TVUIKitPerson(id: person.id,
+    TVUIKitPerson(id: cardID(for: person),
                   name: person.name,
                   nameComponents: TVUIKitPerson.nameComponents(from: person.name),
                   caption: caption,
                   photoURL: person.photoURL)
   }
 
-  /// The person a card stands for — the id is built from the same `MediaPerson.id`.
+  /// The person a card stands for. The id is unique (TMDB when known); the name is
+  /// on the card itself. Role is the prefix of `role:name` or `role.tmdb.<id>`.
   static func person(from card: TVUIKitPerson) -> MediaPerson? {
-    guard let colon = card.id.firstIndex(of: ":"),
-          let role = MediaPerson.Role(rawValue: String(card.id[..<colon])) else { return nil }
-    return MediaPerson(name: String(card.id[card.id.index(after: colon)...]), role: role,
-                       photoURL: card.photoURL)
+    let separator = card.id.firstIndex(where: { $0 == ":" || $0 == "." })
+    guard let separator,
+          let role = MediaPerson.Role(rawValue: String(card.id[..<separator])) else { return nil }
+    return MediaPerson(name: card.name, role: role, photoURL: card.photoURL)
   }
 
   // MARK: - Similar

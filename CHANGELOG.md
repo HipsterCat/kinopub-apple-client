@@ -5,6 +5,31 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Library captions and two TVPage snapshot crashes (2026-10-11)
+
+After [007c0eb](https://github.com/HipsterCat/kinopub-apple-client/commit/007c0eb) Sasha's
+simulators (tvOS 26.5 and 27.2) showed empty *Following* subtitles and two fatal snapshot
+applies.
+
+- **Following's second line is `unwatchedEpisodes`.** `/v1/watching/serials` has `total` /
+  `watched` / `new`; `WatchingItem.unwatchedCount` and `followingCard` fill the field;
+  `TVPageLockupPosterCell.posterSubtitle` reads it (then the year). The store then lays
+  today's `ViewerState` over every title card. `MediaCard.withViewerState` dropped the
+  count, so a signed-in Library (AppContext always has a viewer) painted every cover
+  with a title and an empty line. The field is copied through now. The Library fixture
+  store has a viewer too, so a `-KINOPUBLibraryFixture` shot walks the same overlay.
+- **`TVPageItemID` carries the cell registration.** Library Following (posters) and
+  Continue (stills) used to share section id `"library"` and title ids; switching
+  sections reconfigured a `TVPageLockupPosterCell` with the still registration
+  (`NSInternalInconsistencyException`). The registration is part of the id — a kind
+  change is a new identity, a wording change is not — and the cell provider dequeues
+  from `id.registration`. Registrations are created once in `configureDataSource`.
+  Library grids are now `library.<persistenceID>`.
+- **Credits cannot list the same person twice.** `MediaPerson.id` is `role:name`;
+  kino.pub listed Валид Зуэйтер twice on 126967 and `applySnapshot` died. `credits()`
+  keeps the first card per id, `cardID` prefers a TMDB person id, and
+  `TVPageSection.uniquedItems()` / `applySnapshot` drop later duplicates generally.
+
 ### The table: borderless items, only what is pressed takes focus, the people in a section (2026-10-11)
 
 The three columns of the table under the page are **three stacks of cards** (`TVPageGroup.stacked`),

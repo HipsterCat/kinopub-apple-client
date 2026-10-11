@@ -117,7 +117,9 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       `.onFocus` any more. A grid's two lines are `TVPageCaptionView`, not the lockup's footer — the
       system footer collapsed to one line in ~28% of the cells of a scrolled grid, visible or not
       (2026-10-07). The Library's *Following* shows the episodes left under a cover
-      (`-KINOPUBLibraryFixture YES` to see it) as «2 серии» / «1 серия» / «5 серий». Continue is
+      (`-KINOPUBLibraryFixture YES` to see it) as «2 серии» / «1 серия» / «5 серий». The count
+      lives on the card (`unwatchedEpisodes`) and must survive `withViewerState` — dropping it
+      left every signed-in Following cover without a second line (2026-10-11). Continue is
       16:9 title artwork (not the episode still), Select plays, subtitle is time remaining.
       History is the same play + wide art, titled with the show and S/E, grouped by day
       (Сегодня / Вчера / 15 сентября 2026). Seen on the simulators and in unit tests, not on a
