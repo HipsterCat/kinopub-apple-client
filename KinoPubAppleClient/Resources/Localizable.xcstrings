@@ -10210,6 +10210,7 @@
     },
     "Today" : {
       "comment" : "History list view options",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11122,6 +11123,7 @@
     },
     "Yesterday" : {
       "comment" : "History list view options",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

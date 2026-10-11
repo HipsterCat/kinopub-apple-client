@@ -285,11 +285,13 @@ final class TVPageRatingContent: TVPageCardContent {
   private var looksFocused = false
 
   /// The number: title2, rounded, medium. (SF Compact is not on tvOS — probed 2026-10-11.)
-  static var valueFont: UIFont { TVPageFonts.font(.title2, weight: .medium, rounded: true) }
+  static var valueFont: UIFont { TVPageFonts.font(.title2, weight: .regular, rounded: true) }
+     
+  static var symbolFont: UIFont { TVPageFonts.font(.title3, weight: .regular) }
   /// How many people stand behind it: caption2, regular.
   static var captionFont: UIFont { TVPageFonts.font(.caption2, weight: .regular) }
   /// What the number says when the source has none yet.
-  static let noValue = "—"
+  static let noValue = "?"
   /// Between the mark and the number.
   static let markGap: CGFloat = 16
   /// Between the mark-and-number line and the line under it.
@@ -468,7 +470,9 @@ final class TVPageReviewsContent: TVPageCardContent {
   private var looksFocused = false
 
   private static var countFont: UIFont { TVPageRatingContent.valueFont }
+  private static var symbolFont: UIFont { TVPageRatingContent.symbolFont }
   private static var toneFont: UIFont { TVPageFonts.font(.caption1, weight: .regular, rounded: true) }
+     
   private static let toneGap: CGFloat = 6
   /// Between the bubbles and the total, as between a score's mark and its number.
   private static var markGap: CGFloat { TVPageRatingContent.markGap }
@@ -478,7 +482,7 @@ final class TVPageReviewsContent: TVPageCardContent {
 
   private static var iconImage: UIImage? {
     UIImage(systemName: "bubble.left.and.text.bubble.right.fill",
-            withConfiguration: UIImage.SymbolConfiguration(font: countFont, scale: .medium))
+            withConfiguration: UIImage.SymbolConfiguration(font: symbolFont, scale: .small))
   }
 
   private static var glyphSide: CGFloat { ceil(toneFont.lineHeight) }
@@ -639,10 +643,10 @@ final class TVPageReviewContent: TVPageCardContent {
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    headlineLabel.font = TVPageFonts.font(.body, weight: .semibold)
+    headlineLabel.font = TVPageFonts.font(.body, weight: .medium)
     headlineLabel.numberOfLines = 2
     bodyLabel.font = .preferredFont(forTextStyle: .body)
-    sentimentLabel.font = TVPageFonts.font(.caption1, weight: .semibold)
+    sentimentLabel.font = TVPageFonts.font(.caption1, weight: .medium)
     dateLabel.font = .preferredFont(forTextStyle: .caption1)
     dateLabel.textAlignment = .right
     for label in [headlineLabel, bodyLabel, sentimentLabel, dateLabel] {
