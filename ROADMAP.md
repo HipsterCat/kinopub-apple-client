@@ -102,8 +102,8 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       what "Collections" holds, the vote on the kino.pub card, awards after facts, chip order)
 - [x] Detail sections, round two (Sasha, 2026-10-06; Cast & Crew became one row without subheadings
       on 2026-10-11, creators of a show at its end): *Cast & Crew* heading with Director / Starring
-      subheadings, several directors as a row of their own, the cast ranked by episodes / TMDB billing
-      order and cut at 12, no profession on a card, group titles that stay on the margin, a type as
+      subheadings, several directors as a row of their own, the cast ranked by episodes / kino.pub
+      list (TMDB billing only drops film bit parts) and cut at 12, no profession on a card, group titles that stay on the margin, a type as
       an SF Symbol, no captions under covers, half the air between cards and groups, no Debug button
       on tvOS
 - [ ] **Redo the tvOS backdrop properly** (Sasha, 2026-10-11: what is there is crutches without
@@ -126,8 +126,8 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       `TitleMetadata` takes a fact in, not in the cell
 - [ ] Detail sections, parked: a Trakt rating tile (no source); the darker band behind the
       specifications row; a series' own order next to its seasons rail; iOS / iPadOS / macOS onto the
-      same order; a real *popularity* figure for the cast (TMDB's person popularity is not in the
-      model — billing order stands in)
+      same order;       a real *popularity* figure for the cast (TMDB's person popularity is not in the
+      model — a film keeps kino.pub's list and only drops billed extras)
 - [x] Captions follow the shape (Sasha, 2026-10-06): rails never, grids always, no poster row is
       `.onFocus` any more. A grid's two lines are `TVPageCaptionView`, not the lockup's footer — the
       system footer collapsed to one line in ~28% of the cells of a scrolled grid, visible or not

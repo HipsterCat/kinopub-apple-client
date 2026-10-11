@@ -5,6 +5,22 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Cast ranking: kino.pub's list, not TMDB billing, and the lead is never dropped (2026-10-11)
+
+#50 (`f1992bd`) narrowed `rankedCast` so kino.pub's first name was restored **only** when TMDB
+could not match them (no episode count) — a workaround so the `filmCrew` extras stayed off the
+front of a fixture. On live titles that dropped Dexter's unmatched lead when the match later
+had a count, moved Jason Statham from #1 to #10 in *Mutiny*, and put an unknown ahead of
+Bondarchuk in *Трудно быть богом*.
+
+- Restored Sasha's rule from `d933f84`: the first of kino.pub's own list is never dropped; if
+  ranking left them out they open the row. The Dexter-only guard is gone.
+- A film no longer *sorts* by TMDB billing. kino.pub's order stands; billing only drops bit
+  parts (`order >= 12`). A series still ranks by episodes and drops guests.
+- Tests follow the live titles (Statham first, Bondarchuk top-3, Dexter present), not the
+  fixture's extras-first list. Duplicate-credit dedupe, cell reconfigure, and Following
+  captions from #50 stay.
+
 ### TestFlight: archive Xcode 27 xcproj, not gym's pbxproj (2026-10-11)
 
 First real TestFlight run
@@ -150,12 +166,10 @@ shared info popup for reading one whole. The "Reviews" strip group and `reviewLi
   film's director opens the row; a show's creators (`authorRole == .creator`) close it behind the
   actors and never get a row of their own. A strip with a heading and untitled groups stands its cards
   `headerToItems` under the header (`TVPageStripPlan.insets.top`), like a rail.
-- **The first of kino.pub's cast list is never dropped** (`rankedCast`) **only when TMDB
-  could not match them**: no episode count, sent away as a guest — Dexter's own Dexter.
-  If ranking leaves them out they open the row. Other unmatched names still are dropped
-  as before. A name TMDB *did* match — a guest by episode count, a bit part by billing —
-  is dropped like anyone else, even when kino.pub listed them first. Restoring every first
-  name put extras at the front of the `filmCrew` fixture («Эпизод Первый» ahead of the stars).
+- **The first of kino.pub's cast list is never dropped** (`rankedCast`): no episode count,
+  sent away as a guest — Dexter's own Dexter. If ranking leaves them out they open the row.
+  #50 later narrowed this to unmatched series only so fixture extras stayed gone; that
+  workaround is reverted (see Unreleased, 2026-10-11).
 - **A fixture page shows no network portraits** (`ActorImageProvider.photoURL` returns nil under
   `-KINOPUBDetailFixture` unless `-KINOPUBFixtureRealArt YES`), and the drawn silhouettes are gone
   from `DetailFixtureArt`: a person with no photo is their initials, as in search.

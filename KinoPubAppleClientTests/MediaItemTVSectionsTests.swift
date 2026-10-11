@@ -485,13 +485,14 @@ final class MediaItemTVSectionsTests: XCTestCase {
     CastMember(name: name, department: "Acting", episodeCount: episodes, order: order)
   }
 
-  /// A film: TMDB's billing order, kino.pub's own order for a tie and for a title TMDB
-  /// knows nothing about.
-  func testAFilmsCastIsRankedByBillingAndTheRestFallsToKinoPubsOrder() {
+  /// A film keeps kino.pub's list order. TMDB billing only drops bit parts
+  /// (`order >= castLimit`); it does not reshuffle the names a viewer already knows.
+  func testAFilmsCastKeepsKinoPubsOrderAndDropsBitParts() {
     let ranked = MediaItemTVSections.rankedCast(
-      [member("bit", order: 40), member("lead", order: 0), member("second", order: 1), member("unknown")],
+      [member("lead", order: 0), member("second", order: 1), member("bit", order: 40), member("unknown")],
       isEpisodic: false)
-    XCTAssertEqual(ranked.map(\.name), ["lead", "second", "bit", "unknown"])
+    XCTAssertEqual(ranked.map(\.name), ["lead", "second", "unknown"],
+                   "billing 40 is a bit part; the rest stay in kino.pub's order")
 
     let unbilled = MediaItemTVSections.rankedCast([member("a"), member("b"), member("c")], isEpisodic: false)
     XCTAssertEqual(unbilled.map(\.name), ["a", "b", "c"], "no TMDB: kino.pub's order")
@@ -516,9 +517,8 @@ final class MediaItemTVSectionsTests: XCTestCase {
     XCTAssertEqual(oneEpisodes.count, 2, "everyone in one episode: nobody is a guest")
   }
 
-  /// The first of kino.pub's own list is the lead and is never dropped **when TMDB could
-  /// not match them** (Sasha, 2026-10-11): a name with no episode count used to be sent
-  /// away as a guest. A name TMDB did match as a guest or a bit part is still dropped.
+  /// The first of kino.pub's own list is the lead and is never dropped (Sasha, 2026-10-11):
+  /// a name TMDB could not match has no episode count, and used to be sent away as a guest.
   func testTheFirstOfKinoPubsListIsNeverDropped() {
     let series = MediaItemTVSections.rankedCast(
       [member("lead"), member("a", episodes: 100), member("b", episodes: 80)], isEpisodic: true)
@@ -526,14 +526,50 @@ final class MediaItemTVSectionsTests: XCTestCase {
 
     let nobody = MediaItemTVSections.rankedCast(
       [member("lead", episodes: 1), member("a", episodes: 100)], isEpisodic: true)
-    XCTAssertEqual(nobody.map(\.name), ["a"],
-                   "one episode of a hundred is a guest even as kino.pub's first — TMDB matched them")
+    XCTAssertEqual(nobody.map(\.name), ["lead", "a"],
+                   "one episode of a hundred is a guest — still the lead of kino.pub's list, so they open the row")
 
     let film = MediaItemTVSections.rankedCast(
       (0..<30).map { member("p\($0)", order: $0 == 0 ? 99 : $0) }, isEpisodic: false)
     XCTAssertEqual(film.count, MediaItemTVSections.castLimit)
-    XCTAssertEqual(film.first?.name, "p1")
-    XCTAssertFalse(film.contains { $0.name == "p0" }, "billing 99 is a bit part past the cap, same as the crew fixture")
+    XCTAssertEqual(film.first?.name, "p0", "past the cap by billing, and still first")
+    XCTAssertTrue(film.contains { $0.name == "p0" })
+  }
+
+  /// Mutiny listed Jason Statham first. TMDB billed him tenth. Billing must not move him.
+  func testStathamLeadsMutinyEvenWhenTmdbBillsHimTenth() {
+    var mutiny = [member("Jason Statham", order: 9)]
+    mutiny += (0..<9).map { member("billed-\($0)", order: $0) }
+    mutiny += (10..<16).map { member("extra-\($0)", order: 20 + $0) }
+    let ranked = MediaItemTVSections.rankedCast(mutiny, isEpisodic: false)
+    XCTAssertEqual(ranked.first?.name, "Jason Statham")
+    XCTAssertFalse(ranked.contains { $0.name.hasPrefix("extra-") }, "bit parts stay dropped: \(ranked.map(\.name))")
+  }
+
+  /// Трудно быть богом listed Bondarchuk third. An unknown with better TMDB billing
+  /// must not climb over him.
+  func testBondarchukStaysTopThreeInHardToBeAGod() {
+    let ranked = MediaItemTVSections.rankedCast([
+      member("Леонид Ярмольник", order: 1),
+      member("Евгений Герчаков", order: 2),
+      member("Фёдор Бондарчук", order: 5),
+      member("unknown", order: 0),
+      member("extra", order: 40)
+    ], isEpisodic: false)
+    XCTAssertEqual(ranked.prefix(3).map(\.name),
+                   ["Леонид Ярмольник", "Евгений Герчаков", "Фёдор Бондарчук"])
+    XCTAssertFalse(ranked.contains { $0.name == "extra" })
+  }
+
+  /// Dexter's own Dexter: kino.pub's first name, no TMDB episode count, used to vanish as a guest.
+  func testDexterLeadIsPresentWhenTmdbCannotMatchHim() {
+    let ranked = MediaItemTVSections.rankedCast(
+      [member("Майкл К. Холл"), member("Дженнифер Карпентер", episodes: 96),
+       member("Десмонд Харрингтон", episodes: 84), member("guest", episodes: 3)],
+      isEpisodic: true)
+    XCTAssertEqual(ranked.first?.name, "Майкл К. Холл")
+    XCTAssertTrue(ranked.contains { $0.name == "Дженнифер Карпентер" })
+    XCTAssertFalse(ranked.contains { $0.name == "guest" })
   }
 
   func testTheCastRowStopsAtAnArbitraryDozen() {
@@ -542,17 +578,21 @@ final class MediaItemTVSectionsTests: XCTestCase {
     XCTAssertEqual(MediaItemTVSections.castLimit, 12)
   }
 
-  /// The fixture's billing lists two bit parts first (kino.pub's order) and a third last.
-  func testTheCrewFixtureShowsTheStarsFirstAndDropsTheBitParts() {
+  /// The fixture lists two bit parts first. Ranking drops them by billing, then
+  /// kino.pub's first name — the lead — is restored to the front (Sasha, 2026-10-11).
+  /// #50 hid that restoration so the stars opened; the test follows the restored rule.
+  func testTheCrewFixtureKeepsKinoPubsLeadAndTheStars() {
     let crew = DetailFixture.filmCrew
     let sections = MediaItemTVSections.make(.init(mediaItem: crew.makeItem(), metadata: crew.metadata,
                                                   preferredLanguages: ["ru"]))
     let cast = people(sections.first { $0.id == "credits" }!)
       .filter { MediaItemTVSections.person(from: $0)?.role == .actor }.map(\.name)
     XCTAssertEqual(cast.count, 12)
-    XCTAssertEqual(cast.first, "Крис Эванс")
-    XCTAssertEqual(cast.prefix(3), ["Крис Эванс", "Роберт Дауни-мл.", "Скарлетт Йоханссон"])
-    XCTAssertFalse(cast.contains { $0.hasPrefix("Эпизод") }, "bit parts are dropped, not just moved: \(cast)")
+    XCTAssertEqual(cast.first, "Эпизод Первый", "kino.pub's first name opens the row: \(cast)")
+    XCTAssertEqual(Array(cast.dropFirst().prefix(3)),
+                   ["Крис Эванс", "Роберт Дауни-мл.", "Скарлетт Йоханссон"])
+    XCTAssertFalse(cast.contains("Эпизод Второй") || cast.contains("Эпизод Третий"),
+                   "the other extras stay dropped: \(cast)")
   }
 
   // MARK: - Facts
