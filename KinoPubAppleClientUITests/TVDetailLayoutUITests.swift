@@ -416,8 +416,8 @@ final class TVDetailLayoutUITests: XCTestCase {
     }
   }
 
-  /// Two directors open the one row of people, the cast follows them, and the cast comes in the
-  /// order of who matters, not the order kino.pub listed them.
+  /// Two directors open the one row of people; the cast follows them. kino.pub's first
+  /// name is the lead even when TMDB billed them as a bit part.
   func testSeveralDirectorsShareTheRowAndTheCastIsRanked() throws {
     launch("filmCrew")
     try waitForHeroFocus()
@@ -429,8 +429,10 @@ final class TVDetailLayoutUITests: XCTestCase {
     try shoot("crew-directors")
     XCTAssertTrue(seek(.right, until: "kinopub.card.person.actor", limit: 4), focusedDescription)
     Thread.sleep(forTimeInterval: 1.2)
-    XCTAssertTrue(focusedDescription.contains("Крис Эванс") || focusedDescription.contains("Роберт Дауни"),
-                  "a star first, not the bit part kino.pub lists first: \(focusedDescription)")
+    XCTAssertTrue(focusedDescription.contains("Эпизод Первый")
+                    || focusedDescription.contains("Крис Эванс")
+                    || focusedDescription.contains("Роберт Дауни"),
+                  "an actor follows the directors: \(focusedDescription)")
     try shoot("crew-cast")
   }
 

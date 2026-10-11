@@ -221,25 +221,22 @@ enum MediaItemTVSections {
   /// Who is worth a card, the most important first — "sort the stars by episodes or
   /// popularity and drop the insignificant" (Sasha, 2026-10-06).
   ///
-  /// A series ranks by how many of its episodes a person is in (TMDB's aggregate credits); a
-  /// film by TMDB's billing order, the one measure of prominence its credits carry. kino.pub's
-  /// own order breaks a tie, and stands in for a title TMDB has nothing on. In a series,
-  /// someone in fewer than a fifth of the episodes the most-seen person is in — and never
-  /// fewer than two, once anyone has more than one — is a guest and is dropped; so is
-  /// everything past `castLimit`.
+  /// A series ranks by how many of its episodes a person is in (TMDB's aggregate credits). A
+  /// film keeps kino.pub's own list order and only uses TMDB billing to drop bit parts
+  /// (`order >= castLimit`). Reordering a film by billing is what put Jason Statham tenth
+  /// in *Mutiny* and an unknown ahead of Bondarchuk in *Трудно быть богом*. kino.pub's order
+  /// also stands in for a title TMDB has nothing on. In a series, someone in fewer than a
+  /// fifth of the episodes the most-seen person is in — and never fewer than two, once
+  /// anyone has more than one — is a guest and is dropped; so is everything past `castLimit`.
   ///
-  /// **Except the first of kino.pub's own list, when TMDB could not match them** (Sasha,
-  /// 2026-10-11): no episode count, dropped as a guest — Dexter's own Dexter. If ranking
-  /// would have left them out they open the row. A name TMDB *did* match — a guest by
-  /// episode count, a bit part by billing — is dropped like anyone else, even when
-  /// kino.pub listed them first. Restoring every first name put extras at the front of
-  /// the row (`filmCrew`: «Эпизод Первый» ahead of the stars).
+  /// **Except the first of kino.pub's own list, who is never dropped** (Sasha, 2026-10-11):
+  /// that is the lead, and a name TMDB could not match (no episode count) was dropped as a
+  /// guest — Dexter's own Dexter. If ranking would have left them out they open the row.
+  /// #50 narrowed this to unmatched series only so the `filmCrew` extras stayed gone; that
+  /// is the workaround this restores past.
   static func rankedCast(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
     let ranked = ranking(members, isEpisodic: isEpisodic)
-    guard isEpisodic,
-          let lead = members.first,
-          lead.episodeCount == nil,
-          !ranked.contains(where: { $0.name == lead.name }) else { return ranked }
+    guard let lead = members.first, !ranked.contains(where: { $0.name == lead.name }) else { return ranked }
     return [lead] + ranked.prefix(castLimit - 1)
   }
 
@@ -256,10 +253,7 @@ enum MediaItemTVSections {
         return lhs.offset < rhs.offset
       }
     } else if members.contains(where: { $0.order != nil }) {
-      ranked.sort { lhs, rhs in
-        if (lhs.element.order ?? .max) != (rhs.element.order ?? .max) { return (lhs.element.order ?? .max) < (rhs.element.order ?? .max) }
-        return lhs.offset < rhs.offset
-      }
+      ranked = ranked.filter { ($0.element.order ?? 0) < castLimit }
     }
     return ranked.prefix(castLimit).map(\.element)
   }

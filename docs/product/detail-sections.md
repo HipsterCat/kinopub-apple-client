@@ -98,15 +98,16 @@ page and its people are a section of their own, as text (below).
 - **A show's creators close the row, behind the actors**, however many there are (Sasha,
   2026-10-11: «чересчур» as a row of their own).
 - **The cast is ranked, and the insignificant are dropped.** A **series** ranks by how many of its
-  episodes a person is in; a **film** by TMDB's billing order — the one measure of prominence its
-  credits carry (the model has no popularity figure). kino.pub's own order breaks a tie and stands in
-  for a title TMDB knows nothing about. In a series, anyone in fewer than a **fifth** of the episodes
-  the most-seen person is in — and never fewer than two, once anyone has more than one — is a guest
+  episodes a person is in. A **film keeps kino.pub's own list order**; TMDB billing only drops bit
+  parts (`order >= 12`). Reordering a film by billing put Jason Statham tenth in *Mutiny* and an
+  unknown ahead of Bondarchuk in *Трудно быть богом*. kino.pub's order also stands in for a title
+  TMDB knows nothing about. In a series, anyone in fewer than a **fifth** of the episodes the
+  most-seen person is in — and never fewer than two, once anyone has more than one — is a guest
   and is dropped. **No more than 12** in any case.
-- **Except the first of kino.pub's own list, when TMDB could not match them** (Sasha, 2026-10-11):
-  that is the lead. A name with no episode count was sent away as a guest — the title's own lead
-  among them. If ranking would leave them out they open the row. A name TMDB *did* match as a guest
-  or a bit part is still dropped, even when kino.pub listed them first.
+- **Except the first of kino.pub's own list, who is never dropped** (Sasha, 2026-10-11): that is
+  the lead, and a name TMDB could not match (no episode count) was dropped as a guest — Dexter's
+  own Dexter. If ranking would leave them out they open the row. #50 narrowed this to unmatched
+  series only so a fixture's billed extras stayed gone; that workaround is gone.
 - **A person without a photo is their initials**, as in search. A fixture page draws no
   network portraits (`-KINOPUBFixtureRealArt YES` brings them back), so the no-photo state is what a
   fixture shows.
@@ -249,8 +250,9 @@ Sasha has not confirmed any of them.**
   the specifications row that scrolls in.
 - **"Two rows when several directors" is read as two *rows*** — directors, then cast under them —
   not as the directors stacked in two lines inside their column.
-- **"Popularity" is TMDB's billing order**, with 12 and a fifth of the episodes as the cut-offs; the
-  numbers are mine.
+- **"Popularity"** for a series is episode count, with 12 and a fifth of the episodes as the
+  cut-offs; for a film it is kino.pub's list, with TMDB billing only dropping bit parts past 12.
+  The numbers are mine. Billing-order *sort* of a film is what #50 got wrong on live titles.
 - **The character stays** as a card's only line, since only the *profession* was to go.
 - **The footer** (where the title came from and when) stays at the very bottom, as it was.
 
