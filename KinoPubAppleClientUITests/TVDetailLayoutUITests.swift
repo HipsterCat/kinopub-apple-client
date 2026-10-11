@@ -210,7 +210,10 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertTrue(focusedIsSelected, "Up landed on «\(focusedLabel)», which is not the selected pill")
 
     // The case geometry gets wrong: standing on S3E3 (x ≈ 880) the nearest pills are «4–7» and
-    // «8», but season 3 is the selected one, far to the left.
+    // «8», but season 3 is the selected one, far to the left. The Up above can land on 8
+    // (whichever selected pill is nearest); get back to 3 before that geometry.
+    XCTAssertTrue(seek(.left, until: "Сезон 3", limit: 8),
+                  "never got back to season 3: \(focusedDescription)")
     XCUIRemote.shared.press(.down)
     Thread.sleep(forTimeInterval: 1.2)
     XCUIRemote.shared.press(.right)
