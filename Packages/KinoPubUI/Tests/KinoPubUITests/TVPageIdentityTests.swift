@@ -68,6 +68,19 @@ final class TVPageIdentityTests: XCTestCase {
     XCTAssertTrue(inner.contains(id), "the TVCardView that takes focus must carry the id: \(inner)")
   }
 
+  /// Cast & Crew dequeues `TVUIKitPersonCell`, not the wide card. Without an id XCUI
+  /// reports the label and an empty identifier («Энтони Руссо, Режиссёр»).
+  @MainActor
+  func testTheCreditsPersonCellHasAnAccessibilityId() {
+    let person = TVUIKitPerson(id: "director:Энтони Руссо",
+                               name: "Энтони Руссо",
+                               nameComponents: TVUIKitPerson.nameComponents(from: "Энтони Руссо"),
+                               caption: "Режиссёр", photoURL: nil)
+    let cell = TVUIKitPersonCell(frame: CGRect(x: 0, y: 0, width: 200, height: 280))
+    cell.configure(person: person)
+    XCTAssertEqual(cell.accessibilityIdentifier, "kinopub.card.person.director:Энтони Руссо")
+  }
+
   func testAFollowedCoverSaysHowManyEpisodesAreLeft() {
     let followed = MediaCard(id: 1, posterURL: "", title: "Дом Дракона",
                              unwatchedEpisodes: 5)
