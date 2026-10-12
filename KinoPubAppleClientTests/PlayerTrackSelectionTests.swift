@@ -156,7 +156,7 @@ final class PlayerTrackSelectionTests: XCTestCase {
   /// The panel cannot be asserted without a device, but what the player hands it can —
   /// on the platforms whose panel we are talking about: an episode carries its series'
   /// name, description and **one** genre, through the identifiers Apple documents.
-  func testAnEpisodeCarriesItsSeriesIntoTheInfoPanel() throws {
+  func testAnEpisodeCarriesItsSeriesIntoTheInfoPanel() async throws {
     let series = MediaItem.mock()
     let episode = Episode(id: 900, title: "Pilot", thumbnail: "", duration: 1500, tracks: 1,
                           number: 2, ac3: 0, audios: [], watched: 0,
@@ -166,16 +166,21 @@ final class PlayerTrackSelectionTests: XCTestCase {
     let draft = PlaybackMediaContext.draft(playing: episode, title: series, isTrailer: false)
     let context = try XCTUnwrap(MediaAggregator.merge(draft))
     let items = PlayerInfo(context: context, language: .en).metadataItems()
-    func value(_ identifier: AVMetadataIdentifier) -> String? {
-      items.first { $0.identifier == identifier }?.stringValue
+    func value(_ identifier: AVMetadataIdentifier) async -> String? {
+      try? await items.first { $0.identifier == identifier }?.load(.stringValue)
     }
-    XCTAssertEqual(value(.commonIdentifierTitle), series.localizedTitle)
+    let title = await value(.commonIdentifierTitle)
+    let subtitle = await value(.iTunesMetadataTrackSubTitle)
+    let description = await value(.commonIdentifierDescription)
+    let genre = await value(.quickTimeMetadataGenre)
+    let type = await value(.commonIdentifierType)
+    XCTAssertEqual(title, series.localizedTitle)
     // The player's length (`MediaSurface.playerSubtitle`): a name makes room by shortening
     // the reference (docs/product/media-text.md).
-    XCTAssertEqual(value(.iTunesMetadataTrackSubTitle), "S1, E2: Pilot")
-    XCTAssertEqual(value(.commonIdentifierDescription), series.plot)
-    XCTAssertEqual(value(.quickTimeMetadataGenre), "Comedy")
-    XCTAssertNil(value(.commonIdentifierType), "genres went here once, and never showed")
+    XCTAssertEqual(subtitle, "S1, E2: Pilot")
+    XCTAssertEqual(description, series.plot)
+    XCTAssertEqual(genre, "Comedy")
+    XCTAssertNil(type, "genres went here once, and never showed")
   }
 
   /// A download's "S4E4" marker is the only numbering it keeps.

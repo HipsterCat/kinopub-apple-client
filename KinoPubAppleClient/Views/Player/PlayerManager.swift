@@ -716,6 +716,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   private func pinMediaSelection(on item: AVPlayerItem) {
     Task { @MainActor in
       guard let legible = try? await item.asset.loadMediaSelectionGroup(for: .legible) else { return }
+      await RenditionNames.load(legible)
       // The await outlives a stream that was left in the meantime.
       guard self.player.currentItem === item else { return }
       self.applyLegibleGroup(from: item, group: legible)
@@ -1131,6 +1132,8 @@ extension PlayerManager {
     Task { @MainActor in
       guard self.audibleGroup == nil,
             let group = try? await item.asset.loadMediaSelectionGroup(for: .audible) else { return }
+      // Before anything ranks or logs a dub by name.
+      await RenditionNames.load(group)
       self.audibleGroup = group
 
       if !self.didChooseDefaultAudio {
@@ -1665,15 +1668,39 @@ extension AVMediaSelectionOption: AudioRendition {
   /// "ZZPROBE-ONE" still reported `displayName == "Russian"` while the common metadata
   /// title carried the new name. Ranking or remembering a track by `displayName` picks
   /// between identical strings and lands on an arbitrary dub.
+  ///
+  /// Read from `RenditionNames`, which the player fills when it loads the group; an
+  /// option that was never loaded reads its `displayName`.
   var kinopubTrackName: String {
-    let title = commonMetadata
-      .first { $0.commonKey == .commonKeyTitle }?
-      .stringValue?
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    if let title, !title.isEmpty { return title }
-    return displayName
+    RenditionNames.name(of: self) ?? displayName
   }
 
+}
+
+/// **Adapter:** each rendition's `NAME=`, loaded ahead. `AVMetadataItem.stringValue` is
+/// deprecated (tvOS / iOS / macOS 16) for the async `load(.stringValue)`, while the track
+/// rules (`AudioRenditions`) read a rendition's name synchronously and are tested with no
+/// asset. The player awaits `load(_:)` right after `loadMediaSelectionGroup` — before any
+/// rule or log reads a name — and the rules keep their synchronous shape.
+enum RenditionNames {
+  private static let lock = NSLock()
+  /// Weak keys: an option goes with its asset, and so does its name.
+  nonisolated(unsafe) private static let names = NSMapTable<AVMediaSelectionOption, NSString>
+    .weakToStrongObjects()
+
+  static func load(_ group: AVMediaSelectionGroup) async {
+    for option in group.options {
+      let item = option.commonMetadata.first { $0.commonKey == .commonKeyTitle }
+      let title = try? await item?.load(.stringValue)?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      guard let title, !title.isEmpty else { continue }
+      lock.withLock { names.setObject(title as NSString, forKey: option) }
+    }
+  }
+
+  static func name(of option: AVMediaSelectionOption) -> String? {
+    lock.withLock { names.object(forKey: option) as String? }
+  }
 }
 
 /// The subtitle half of the same bridge — what the system player is told to render off

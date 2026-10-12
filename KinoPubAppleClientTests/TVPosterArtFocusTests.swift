@@ -27,7 +27,7 @@ final class TVPosterArtFocusTests: XCTestCase {
 
   override func setUp() async throws {
     try await super.setUp()
-    window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+    window = try XCTUnwrap(TestWindow.make())
     container = UIView(frame: window.bounds)
     window.addSubview(container)
     window.isHidden = false

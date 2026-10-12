@@ -153,6 +153,12 @@ Allowed to exist, one place each, limitation in the doc comment:
   existing `@AppStorage` keys and models. Full-screen tools are presented over it, each in its
   own `NavigationStack`, with the environment forwarded. Re-probe every tvOS.
 
+- **`RenditionNames`** (`PlayerManager.swift`) — `AVMetadataItem.stringValue` is deprecated
+  (16) for the async `load(.stringValue)`, while `AudioRenditions` reads a rendition's `NAME=`
+  synchronously and is tested with no asset. The player awaits the names right after each
+  `loadMediaSelectionGroup`; the rules keep their shape. `displayName` is never a substitute —
+  it reads «Russian» for every Russian dub.
+
 An adapter that stops being needed gets deleted, not kept "in case".
 
 ## Focus (tvOS)

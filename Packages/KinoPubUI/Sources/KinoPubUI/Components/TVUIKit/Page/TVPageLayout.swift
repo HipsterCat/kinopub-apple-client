@@ -164,7 +164,7 @@ public enum TVPageLayout {
       // The header aligns to the *art* column, not the envelope's: it does not follow
       // the section insets (which are envelope-relative) and takes the page inset.
       header.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: sideInset, bottom: 0, trailing: sideInset)
-      layoutSection.supplementariesFollowContentInsets = false//'supplementariesFollowContentInsets' was deprecated in tvOS 16.0
+      layoutSection.supplementaryContentInsetsReference = .none
       layoutSection.boundarySupplementaryItems = [header]
     }
     if section.loadsMore, section.flow == .grid {

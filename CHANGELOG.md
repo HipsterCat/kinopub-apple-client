@@ -5,6 +5,16 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### No deprecation warnings left; Library header count redraws (2026-10-12)
+
+Apple's last three: `AVMetadataItem.stringValue` → `load(.stringValue)`, awaited once per
+selection group into `RenditionNames` (probe on a real master: the same `NAME=` for all 16 dubs
+and 49 subtitles); `supplementariesFollowContentInsets = false` →
+`supplementaryContentInsetsReference = .none` (Library header band pixel-identical);
+`UIWindow(frame:)` in tests → `init(windowScene:)` (`TestWindow`). A clean tvOS build-for-testing
+has no deprecation warning. Library *Subscriptions* no longer says «0 unwatched episodes» over
+covers that say otherwise: a visible section header is re-configured when its count changes.
+
 ### No deprecated model API left; the card carries facts (2026-10-12)
 
 Four slices. Deleted every deprecated helper nobody called (Duration formatters,
