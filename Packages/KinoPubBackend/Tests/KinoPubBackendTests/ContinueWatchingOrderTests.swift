@@ -126,6 +126,113 @@ final class ContinueWatchingOrderTests: XCTestCase {
     XCTAssertEqual(merged.first { $0.id == 2 }?.new, 3, "watchlist copy keeps the +N badge")
   }
 
+  // MARK: - Abandoned / barely-started filter
+
+  func testATitleNotTouchedInNinetyDaysLeavesTheRow() {
+    let abandoned = item(1)
+    let recent = item(2)
+    let kept = ContinueWatchingOrder.kept(
+      items: [abandoned, recent],
+      watchlistIDs: [],
+      lastSeen: [1: daysAgo(91), 2: daysAgo(3)],
+      now: now
+    ).map(\.id)
+    XCTAssertEqual(kept, [2])
+  }
+
+  func testWatchlistWithNewEpisodesStaysEvenWhenLastSeenIsOld() {
+    let followed = item(1, new: 2)
+    let kept = ContinueWatchingOrder.kept(
+      items: [followed],
+      watchlistIDs: [1],
+      lastSeen: [1: daysAgo(200)],
+      now: now
+    ).map(\.id)
+    XCTAssertEqual(kept, [1], "Following + new episodes is not abandoned")
+  }
+
+  func testUndatedTitlesThatAreNotOnTheWatchlistAreDropped() {
+    let junk = item(1, new: 80)
+    let followed = item(2, new: 1)
+    let kept = ContinueWatchingOrder.kept(
+      items: [junk, followed],
+      watchlistIDs: [2],
+      lastSeen: [:],
+      now: now
+    ).map(\.id)
+    XCTAssertEqual(kept, [2], "no date and not followed → the watching/serials dump")
+  }
+
+  func testABarelyStartedTitleDropsAfterTwoWeeks() {
+    let sampled = item(1)
+    let kept = ContinueWatchingOrder.kept(
+      items: [sampled],
+      watchlistIDs: [1],
+      lastSeen: [1: daysAgo(15)],
+      position: [1: 40],
+      now: now
+    )
+    XCTAssertTrue(kept.isEmpty, "40 s twenty days ago is a sample, not continuing")
+  }
+
+  func testABarelyStartedTitleStaysWithinTwoWeeks() {
+    let sampled = item(1)
+    let kept = ContinueWatchingOrder.kept(
+      items: [sampled],
+      watchlistIDs: [],
+      lastSeen: [1: daysAgo(3)],
+      position: [1: 40],
+      now: now
+    ).map(\.id)
+    XCTAssertEqual(kept, [1])
+  }
+
+  func testNinetyDaysExactlyIsStillKept() {
+    let title = item(1)
+    let kept = ContinueWatchingOrder.kept(
+      items: [title],
+      watchlistIDs: [],
+      lastSeen: [1: now.addingTimeInterval(-ContinueWatchingOrder.abandonedAfter)],
+      now: now
+    ).map(\.id)
+    XCTAssertEqual(kept, [1])
+  }
+
+  // MARK: - Next-up recency from history
+
+  /// Unstarted next episode has no date of its own. Rank it by the newest play of
+  /// that series in the history page we already fetched (Sashimi #648).
+  func testNextEpisodeInheritsTheSeriesLatestHistoryDate() {
+    let nextUp = item(1, new: 1)
+    let other = item(2)
+    let yesterday = Int(now.timeIntervalSince1970) - 86_400
+    let threeDays = yesterday - 2 * 86_400
+    let twoDays = yesterday - 86_400
+    let history = [
+      HistoryEntry(item: .init(id: 1), lastSeen: yesterday),
+      HistoryEntry(item: .init(id: 1), lastSeen: threeDays),
+      HistoryEntry(item: .init(id: 2), lastSeen: twoDays)
+    ]
+    let lastSeen = ContinueWatchingOrder.lastSeenByItemID(history)
+    XCTAssertEqual(lastSeen[1], Date(timeIntervalSince1970: TimeInterval(yesterday)),
+                   "max of the series' watched episodes")
+
+    let ordered = ContinueWatchingOrder.ordered(items: [nextUp, other],
+                                                watchlistIDs: [],
+                                                lastSeen: lastSeen,
+                                                now: now).map(\.id)
+    XCTAssertEqual(ordered, [1, 2], "the show being watched outranks a two-day-old title")
+  }
+
+  func testPositionKeepsTheNewestHistoryRowPerTitle() {
+    let history = [
+      HistoryEntry(item: .init(id: 7), time: 10, lastSeen: 100),
+      HistoryEntry(item: .init(id: 7), time: 400, lastSeen: 300),
+      HistoryEntry(item: .init(id: 7), time: 50, lastSeen: 200)
+    ]
+    XCTAssertEqual(ContinueWatchingOrder.positionByItemID(history)[7], 400)
+  }
+
   // MARK: - History collapsing
 
   func testLastSeenKeepsTheNewestEpisodePerTitle() {
