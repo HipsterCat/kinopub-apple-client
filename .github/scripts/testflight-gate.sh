@@ -3,13 +3,11 @@
 #
 # Skip (exit 0, should_upload=false) when:
 #   • required secrets are missing
-#   • schedule or push, and HEAD is still the last SHA that actually uploaded
+#   • schedule, and HEAD is still the last SHA that actually uploaded
+#   • push (this workflow has no push trigger; defense if one is re-added)
 #
 # workflow_dispatch always uploads when secrets are present.
-#
-# Push and schedule share the same "new commits since last successful upload"
-# rule. Version-only push was the reason a missed daily cron left Sasha without
-# a build: every main push skipped, and GitHub had dropped the :00 schedule.
+# At most one automatic archive per day (cron 06:23 UTC).
 set -euo pipefail
 
 should_upload=false
@@ -139,7 +137,7 @@ case "$event" in
     upload_if_new_commits "scheduled run"
     ;;
   push)
-    upload_if_new_commits "push to main"
+    skip_upload "Push to main does not upload. Daily cron (06:23 UTC) archives if HEAD moved; workflow_dispatch uploads anytime."
     ;;
   *)
     skip_upload "Unsupported event '$event'."

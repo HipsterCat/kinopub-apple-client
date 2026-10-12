@@ -19,9 +19,9 @@ keys.
 
 | Trigger | What happens |
 | --- | --- |
-| **Push to `main`** | Uploads if HEAD is not the last SHA that actually archived (an `Upload *` job succeeded). This is the reliable path — this repo is a fork, and GitHub can drop `schedule` runs |
-| **Cron** (`06:23` and `18:41` UTC) | Same rule as push. Backup for a day with no pushes after a failed archive. Not on minute 0: GitHub drops `:00` crons under load |
-| **Actions → TestFlight → Run workflow** | Always, if secrets are present. Pick iOS / tvOS / macOS / all |
+| **Cron** (`06:23 UTC`) | Uploads if HEAD is not the last SHA that actually archived (an `Upload *` job succeeded). At most one automatic upload per day. Off minute 0: GitHub drops `:00` crons under load |
+| **Actions → TestFlight → Run workflow** | Anytime, if secrets are present. Pick iOS / tvOS / macOS / all |
+| **Push to `main`** | Does **not** upload. Fastlane/xcproj lint is `.github/workflows/testflight-lint.yml` |
 
 The build number is **not** committed. The job asks App Store Connect for the latest
 TestFlight number on iOS, tvOS and macOS and uses that max + 1, so two uploads cannot

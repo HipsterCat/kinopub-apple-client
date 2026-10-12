@@ -5,6 +5,13 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### TestFlight: at most one automatic upload per day (2026-10-12)
+
+Push to `main` no longer archives. One cron, `23 6 * * *` (06:23 UTC), uploads
+only if HEAD is not the last SHA that actually archived. `workflow_dispatch`
+stays for a manual build anytime. Lint on Fastlane/xcproj changes remains
+`testflight-lint.yml`.
+
 ### TestFlight: push to main uploads; cron moved off :00 (2026-10-12)
 
 Oct 12 06:00 UTC never created a `schedule` run. Cron was `0 6 * * *` — GitHub
