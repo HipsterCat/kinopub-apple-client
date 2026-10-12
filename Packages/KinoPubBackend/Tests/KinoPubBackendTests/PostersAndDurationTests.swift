@@ -36,18 +36,4 @@ final class PostersAndDurationTests: XCTestCase {
     XCTAssertNil(Posters(small: "", medium: "", big: "", wide: nil).wideURL)
     XCTAssertNil(Posters(small: "not-a-poster-url", medium: "", big: "", wide: "").wideURL)
   }
-
-  // MARK: - Duration.compact (the detail page's runtime line, until it reads RuntimeText)
-
-  func testCompactDurationPastADay() {
-    XCTAssertEqual(Duration.compact(seconds: 36 * 60 * 60 + 4 * 60), "1d 12h 4m")
-  }
-
-  func testCompactWithMinutesUnderAnHour() {
-    XCTAssertEqual(Duration.compactWithMinutes(seconds: 39 * 60), "39m")
-  }
-
-  func testCompactWithMinutesOverAnHour() {
-    XCTAssertEqual(Duration.compactWithMinutes(seconds: 105 * 60), "1h 45m (105 min)")
-  }
 }

@@ -65,7 +65,8 @@ final class ConcertItemTests: XCTestCase {
     let item = try item()
     XCTAssertEqual(item.duration.total, 5257)
     XCTAssertEqual(item.duration.average, 5257)
-    XCTAssertTrue(item.releaseLine.contains(Duration.compact(seconds: 5257)))
+    XCTAssertTrue(TitleMetaLine(item.mediaEntity).releaseParts(language: .en)
+      .contains(RuntimeText(seconds: 5257).text(for: .detailRuntime, language: .en)!))
   }
 
   /// `audios[].author` is null on an original-language track — the field is only filled

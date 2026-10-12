@@ -50,31 +50,6 @@ public extension MediaItem {
     Self.splitNames(director)
   }
 
-  /// Runtime to display: per-episode average for a series; film total with minutes
-  /// in parentheses when ≥ 1 hour (`1h 45m (105 min)`).
-  @available(*, deprecated, message: "Use RuntimeText at the surface length (MediaSurface.detailRuntime).")
-  var displayDuration: String {
-    let seconds = isSeries ? Int(duration.average) : Int(duration.total)
-    return isSeries
-      ? Duration.compact(seconds: seconds)
-      : Duration.compactWithMinutes(seconds: seconds)
-  }
-
-  /// End-to-end runtime for a series (`1d 12h 4m (5203 min)` when long enough).
-  @available(*, deprecated, message: "Use RuntimeText at the surface length (MediaSurface.detailRuntime).")
-  var totalDurationDisplay: String? {
-    guard isSeries, duration.total > 0 else { return nil }
-    return Duration.compactWithMinutes(seconds: Int(duration.total))
-  }
-
-  /// Compact + minutes for the Kinopoisk-style continuous-watch line under a long total.
-  var continuousWatchNoteParts: (compact: String, totalMinutes: Int)? {
-    guard isSeries, duration.total >= 24 * 60 * 60 else { return nil }
-    let seconds = Int(duration.total)
-    let minutes = Int((Double(seconds) / 60).rounded())
-    return (Duration.compact(seconds: seconds), minutes)
-  }
-
   /// Localization key for the content type (`MediaType_Movie`, …), or the raw API value.
   var contentTypeTitleKey: String {
     if let known = MediaType(rawValue: type) {

@@ -11,6 +11,7 @@
 
 import XCTest
 @testable import KinoPubBackend
+import KinoPubMedia
 
 final class MultiVersionItemTests: XCTestCase {
 
@@ -66,9 +67,10 @@ final class MultiVersionItemTests: XCTestCase {
     let item = try item()
     XCTAssertEqual(item.duration.total, 17268)
     XCTAssertEqual(item.duration.average, 8634)
-    XCTAssertTrue(item.releaseLine.contains(Duration.compact(seconds: 8634)),
-                  "releaseLine was \(item.releaseLine)")
-    XCTAssertFalse(item.releaseLine.contains(Duration.compact(seconds: 17268)))
+    let release = TitleMetaLine(item.mediaEntity).releaseParts(language: .en)
+    XCTAssertTrue(release.contains(RuntimeText(seconds: 8634).text(for: .detailRuntime, language: .en)!),
+                  "release line was \(release)")
+    XCTAssertFalse(release.contains(RuntimeText(seconds: 17268).text(for: .detailRuntime, language: .en)!))
   }
 
   /// Both versions are watched on this account, so Play offers to start over — and the

@@ -7,6 +7,7 @@ import SwiftUI
 import KinoPubUI
 import KinoPubBackend
 import KinoPubMetadata
+import KinoPubMedia
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
@@ -2375,8 +2376,12 @@ struct MediaItemInfoColumns: View {
                                   values: [InfoValue(id: "aka", title: aka)]))
     }
 
-    let duration = mediaItem.displayDuration
-    if !duration.isEmpty {
+    // A series: one episode's runtime, the average. A film: the model's runtime — the
+    // film's, not every version of it summed.
+    let duration = mediaItem.isSeries
+      ? RuntimeText(seconds: mediaItem.duration.average).formatted(.short)
+      : mediaItem.mediaEntity.runtime.flatMap { RuntimeText(seconds: $0).withMinutesTotal() }
+    if let duration {
       let caption = mediaItem.isSeries
         ? "MediaItem_EpisodeRuntime"
         : "MediaItem_Runtime"
@@ -2385,12 +2390,14 @@ struct MediaItemInfoColumns: View {
                                   values: [InfoValue(id: "duration", title: duration)]))
     }
 
-    if let total = mediaItem.totalDurationDisplay {
-      var totalValues = [InfoValue(id: "total", title: total)]
-      if let note = mediaItem.continuousWatchNoteParts {
+    // A series end to end, and from a day on the hint about watching it straight.
+    let total = RuntimeText(seconds: mediaItem.duration.total)
+    if mediaItem.isSeries, let totalText = total.withMinutesTotal() {
+      var totalValues = [InfoValue(id: "total", title: totalText)]
+      if total.minutes >= 24 * 60, let short = total.formatted(.short) {
         let text = String(format: "MediaItem_ContinuousWatchHint".localized,
-                          note.compact,
-                          note.totalMinutes)
+                          short,
+                          total.minutes)
         totalValues.append(InfoValue(id: "total-note", title: text, style: .note))
       }
       sections.append(InfoSection(id: "total",

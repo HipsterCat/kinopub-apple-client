@@ -54,6 +54,14 @@ public struct RuntimeText: Hashable, Sendable {
     return "\(minutes)\(Self.units(language).mediumMinute)"
   }
 
+  /// Short, and from an hour on the minutes total after it: «1ч 45м (105 мин)», «39м».
+  /// The detail page's info list, where the exact length is the point.
+  public func withMinutesTotal(language: MediaLanguage = .current) -> String? {
+    guard let short = formatted(.short, language: language) else { return nil }
+    guard minutes >= 60, let total = minutesOnly(language: language) else { return short }
+    return "\(short) (\(total))"
+  }
+
   /// What VoiceOver reads, whatever the screen shows.
   public func accessibilityLabel(language: MediaLanguage = .current) -> String? {
     formatted(.long, language: language)

@@ -47,8 +47,7 @@ final class MediaRecordStore {
   @discardableResult
   func ingest(_ item: MediaItem, at date: Date = Date()) -> MediaRef {
     let ref = item.titleRef
-    let entity = MediaAggregator.merge([item.mediaFragment]) ?? item.mediaFragment.entity
-    records[ref] = MediaRecord(entity: entity, reported: ViewerState(reportedBy: item), updatedAt: date)
+    records[ref] = MediaRecord(entity: item.mediaEntity, reported: ViewerState(reportedBy: item), updatedAt: date)
     return ref
   }
 

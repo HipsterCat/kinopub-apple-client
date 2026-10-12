@@ -130,6 +130,11 @@ final class MediaTextTests: XCTestCase {
     XCTAssertEqual(RuntimeText(seconds: (36 * 60 + 4) * 60).formatted(.short, language: .ru),
                    "1д 12ч 4м")
     XCTAssertEqual(RuntimeText(seconds: 105 * 60).minutesOnly(language: .ru), "105 мин")
+    // The detail page's info list: short, and the minutes total from an hour on.
+    XCTAssertEqual(RuntimeText(seconds: 105 * 60).withMinutesTotal(language: .ru), "1ч 45м (105 мин)")
+    XCTAssertEqual(RuntimeText(seconds: 360 * 60).withMinutesTotal(language: .en), "6h (360 min)")
+    XCTAssertEqual(RuntimeText(seconds: 39 * 60).withMinutesTotal(language: .en), "39m")
+    XCTAssertNil(RuntimeText(seconds: 0).withMinutesTotal())
   }
 
   func testRemaining() {

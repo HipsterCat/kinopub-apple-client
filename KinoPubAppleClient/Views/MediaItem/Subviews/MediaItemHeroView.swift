@@ -804,7 +804,7 @@ struct MediaItemHeroView: View {
            Text(genreCountryLine)
              .foregroundStyle(Color.KinoPub.subtitle)
          }
-         let releaseLine = mediaItem.releaseLine
+         let releaseLine = TitleMetaLine(mediaItem.mediaEntity).releaseParts().joined(separator: "   ")
          if !releaseLine.isEmpty {
            Text(releaseLine)
              .lineLimit(1)

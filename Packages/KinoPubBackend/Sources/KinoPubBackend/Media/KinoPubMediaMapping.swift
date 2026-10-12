@@ -156,6 +156,13 @@ public enum KinoPubMediaMapping {
 
 public extension MediaItem {
 
+  /// **The title as the media model has it** from this payload alone — kino.pub's
+  /// fragment through the merge, so its genres lead the way every surface's do. What a
+  /// card, a record and the detail page's own lines are worded from.
+  var mediaEntity: MediaEntity {
+    MediaAggregator.merge([mediaFragment]) ?? mediaFragment.entity
+  }
+
   /// The title itself — a movie or a show.
   var mediaFragment: MediaFragment {
     let mapping = KinoPubMediaMapping.typeMapping(type, hasSeasons: isSeries)
