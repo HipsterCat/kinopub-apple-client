@@ -66,7 +66,7 @@ final class LibrarySectionCardsTests: XCTestCase {
     let show = MediaCard(id: 2, posterURL: "", title: "Show", isSeries: true, year: 2021)
     var filter = LibraryFilter()
     filter.kinds = [.series]
-    let kept = LibrarySectionCatalog.apply(filter, to: [movie, show], genres: [], sorted: false)
+    let kept = LibrarySectionCatalog.apply(filter, to: [movie, show], sorted: false)
     XCTAssertEqual(kept.map(\.id), [2])
   }
 

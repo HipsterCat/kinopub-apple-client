@@ -833,7 +833,6 @@ class HomeCatalog: ObservableObject {
                      progress: episodeProgress,
                      badge: newCount.map { "+\($0)" },
                      backdropURL: landscapeImageURL(for: item, history: history, local: local),
-                     metaLine: overlay,
                      landscapeImageURL: landscapeImageURL(for: item, history: history, local: local),
                      overlayLabel: overlay,
                      itemID: item.id,

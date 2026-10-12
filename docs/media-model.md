@@ -110,10 +110,11 @@ tested in `ViewerStateTests`:
 `ViewerStateReader` (app, `AppContext.viewerState`) gathers the overlay from the stores.
 Title-level facts (watchlist, folders, vote) are the title's for any ref.
 
-A card, a list and a button all ask `ViewerState(for: ref)`; none reads four stores. Today
-`MediaCard` copies this state in at build time (`isWatched`, `progress`, `isInWatchlist`,
-`isBookmarked`, `bookmarkFolderIDs`) and `ContentStore` persists those copies to disk, so a
-row painted from cache shows yesterday's state until the next fetch overlays it.
+A card, a list and a button all ask `ViewerState(for: ref)`; none reads four stores.
+`MediaCard` keeps one `viewerState` (follow and folders) — the payload's word, or today's
+state once `ContentStore.cards(_:)` laid it over — and menus read the reader for
+`card.ref` when they open (2026-10-12). `isWatched` and `progress` are still separate fields
+on the card, filled the same way.
 
 ### 4 · Selection — lists are queries (later)
 
@@ -157,9 +158,12 @@ Duplicates this replaces (audit 2026-10-03):
 
 ### 6 · Views
 
-`MediaCard` today is 40 pre-worded fields built by ~20 call sites, persisted to disk by
-`ContentStore`. It becomes the presenter's output, built at paint time from records and
-state; the cache stores records, not words.
+`MediaCard` carries facts, not words (2026-10-12): `genres` (the model's `Genre`s, primary
+first), `country`, `seasonCount`, year and runtime, worded when painted —
+`primaryGenre(language:)`, `seasonCountText(language:)`, `catalogCaption(language:)` — so a
+card cached in one language reads in the viewer's current one. Every deprecated helper and
+field of the old vocabulary is gone. Still pre-worded: `subtitle`, `badge` and
+`overlayLabel` (the episode line, built by `EpisodeText` where the card is made).
 
 ## Plan
 

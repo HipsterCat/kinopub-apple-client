@@ -61,9 +61,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// falls back to whatever the card itself draws.
   public let backdropURL: String?
 
-  /// "2025 · 1 h 55 min · Боевик" — shown in the focus preview, not on the card.
-  @available(*, deprecated, message: "Pre-worded on the card. The presenter words it at paint time from MediaContext + MediaSurface (docs/media-model.md step 4).")
-  public let metaLine: String?
   /// The plot, for the focus preview.
   public let overview: String?
 
@@ -114,16 +111,12 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let unwatchedEpisodes: Int?
   /// Runtime in seconds (film total, or episode when the card is an episode still).
   public let durationSeconds: Int?
-  /// One or two genre titles for the caption meta row.
-  @available(*, deprecated, message: "Pre-worded on the card. The presenter words it at paint time from MediaContext + MediaSurface (docs/media-model.md step 4). One genre, the primary.")
-  public let genreLine: String?
-  /// First production country for the caption meta row.
-  @available(*, deprecated, message: "Pre-worded on the card. The presenter words it at paint time from MediaContext + MediaSurface (docs/media-model.md step 4).")
-  public let countryLine: String?
-  /// "3 сезона" — a series' season count as the details payload has it; nil for films
-  /// and for listed series, whose payload carries no seasons.
-  @available(*, deprecated, message: "Pre-worded on the card. The presenter words it at paint time from MediaContext + MediaSurface (docs/media-model.md step 4).")
-  public let seasonsLabel: String?
+  /// The title's genres as the media model has them, the primary first — facts, not
+  /// words. A caption names the primary at paint time (`primaryGenre(language:)`), and a
+  /// filter matches any of them.
+  public let genres: [Genre]
+  /// The first production country, as the source names it.
+  public let country: String?
   /// Single-click / Select target. Continue Watching uses `.play`; History stays detail for now.
   public let primaryAction: MediaCardPrimaryAction
   /// When true, Select opens a curated collection rather than a media title — Home /
@@ -163,13 +156,16 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     return RuntimeText(seconds: durationSeconds).formatted(.short)
   }
 
-  /// One genre title, the primary — what a poster caption has room for.
-  public var primaryGenre: String? {
-    guard let genreLine else { return nil }
-    let first = genreLine.split(separator: ",", maxSplits: 1, omittingEmptySubsequences: true)
-      .first?
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    return (first?.isEmpty == false) ? first : nil
+  /// One genre, the primary, in the viewer's language — what a caption has room for (D7).
+  public func primaryGenre(language: MediaLanguage = .current) -> String? {
+    genres.first.map { $0.name.value(languageCode: language.rawValue) }
+  }
+
+  /// «3 сезона» for a series whose season count is known; nil for a film and for a listed
+  /// series, whose payload carries no seasons.
+  public func seasonCountText(language: MediaLanguage = .current) -> String? {
+    guard isSeries else { return nil }
+    return SeasonCountText(seasonCount)?.formatted(language: language)
   }
 
   /// A film's year, an ongoing series' year, or `2019–2024` once a show has ended
@@ -182,8 +178,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   }
 
   /// `Жанр Год` / `Жанр 2019–2024` — the line under a cover in a catalog grid.
-  public var catalogCaption: String? {
-    switch (primaryGenre, yearLabel) {
+  public func catalogCaption(language: MediaLanguage = .current) -> String? {
+    switch (primaryGenre(language: language), yearLabel) {
     case let (genre?, year?): return "\(genre) \(year)"
     case let (genre?, nil): return genre
     case let (nil, year?): return year
@@ -204,7 +200,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               progress: Double? = nil,
               badge: String? = nil,
               backdropURL: String? = nil,
-              metaLine: String? = nil,
               overview: String? = nil,
               landscapeImageURL: String? = nil,
               overlayLabel: String? = nil,
@@ -226,9 +221,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               yearEnd: Int? = nil,
               unwatchedEpisodes: Int? = nil,
               durationSeconds: Int? = nil,
-              genreLine: String? = nil,
-              countryLine: String? = nil,
-              seasonsLabel: String? = nil,
+              genres: [Genre] = [],
+              country: String? = nil,
               primaryAction: MediaCardPrimaryAction = .openDetail,
               opensCollection: Bool = false,
               captionStats: [MediaCardCaptionStat] = [],
@@ -248,7 +242,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.progress = progress
     self.badge = badge
     self.backdropURL = backdropURL
-    self.metaLine = metaLine
     self.overview = overview
     self.landscapeImageURL = landscapeImageURL
     self.overlayLabel = overlayLabel
@@ -270,9 +263,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.yearEnd = yearEnd
     self.unwatchedEpisodes = unwatchedEpisodes
     self.durationSeconds = durationSeconds
-    self.genreLine = genreLine
-    self.countryLine = countryLine
-    self.seasonsLabel = seasonsLabel
+    self.genres = genres
+    self.country = country
     self.primaryAction = primaryAction
     self.opensCollection = opensCollection
     self.captionStats = captionStats
@@ -296,7 +288,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               progress: progress,
               badge: badge,
               backdropURL: backdropURL,
-              metaLine: overlayLabel ?? metaLine,
               overview: overview,
               landscapeImageURL: landscapeImageURL,
               overlayLabel: overlayLabel,
@@ -318,9 +309,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               yearEnd: yearEnd,
               unwatchedEpisodes: unwatchedEpisodes,
               durationSeconds: durationSeconds ?? self.durationSeconds,
-              genreLine: genreLine,
-              countryLine: countryLine,
-              seasonsLabel: seasonsLabel,
+              genres: genres,
+              country: country,
               primaryAction: primaryAction,
               opensCollection: opensCollection,
               captionStats: captionStats,
@@ -344,7 +334,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     progress = try c.decodeIfPresent(Double.self, forKey: .progress)
     badge = try c.decodeIfPresent(String.self, forKey: .badge)
     backdropURL = try c.decodeIfPresent(String.self, forKey: .backdropURL)
-    metaLine = try c.decodeIfPresent(String.self, forKey: .metaLine)
     overview = try c.decodeIfPresent(String.self, forKey: .overview)
     landscapeImageURL = try c.decodeIfPresent(String.self, forKey: .landscapeImageURL)
     overlayLabel = try c.decodeIfPresent(String.self, forKey: .overlayLabel)
@@ -365,9 +354,17 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     yearEnd = try c.decodeIfPresent(Int.self, forKey: .yearEnd)
     unwatchedEpisodes = try c.decodeIfPresent(Int.self, forKey: .unwatchedEpisodes)
     durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
-    genreLine = try c.decodeIfPresent(String.self, forKey: .genreLine)
-    countryLine = try c.decodeIfPresent(String.self, forKey: .countryLine)
-    seasonsLabel = try c.decodeIfPresent(String.self, forKey: .seasonsLabel)
+    if let genres = try c.decodeIfPresent([Genre].self, forKey: .genres) {
+      self.genres = genres
+    } else if let line = try c.decodeIfPresent(String.self, forKey: .genreLine),
+              let name = line.components(separatedBy: ", ").first, !name.isEmpty {
+      // A card written before genres were facts kept the primary's name only.
+      self.genres = [Genre.unmapped(source: .kinopub, key: name, name: name, domain: .video)]
+    } else {
+      self.genres = []
+    }
+    country = try c.decodeIfPresent(String.self, forKey: .country)
+      ?? c.decodeIfPresent(String.self, forKey: .countryLine)
     if let state = try c.decodeIfPresent(ViewerState.self, forKey: .viewerState) {
       viewerState = state
     } else {
@@ -400,7 +397,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(progress, forKey: .progress)
     try c.encodeIfPresent(badge, forKey: .badge)
     try c.encodeIfPresent(backdropURL, forKey: .backdropURL)
-    try c.encodeIfPresent(metaLine, forKey: .metaLine)
     try c.encodeIfPresent(overview, forKey: .overview)
     try c.encodeIfPresent(landscapeImageURL, forKey: .landscapeImageURL)
     try c.encodeIfPresent(overlayLabel, forKey: .overlayLabel)
@@ -421,9 +417,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(yearEnd, forKey: .yearEnd)
     try c.encodeIfPresent(unwatchedEpisodes, forKey: .unwatchedEpisodes)
     try c.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
-    try c.encodeIfPresent(genreLine, forKey: .genreLine)
-    try c.encodeIfPresent(countryLine, forKey: .countryLine)
-    try c.encodeIfPresent(seasonsLabel, forKey: .seasonsLabel)
+    try c.encode(genres, forKey: .genres)
+    try c.encodeIfPresent(country, forKey: .country)
     try c.encode(viewerState, forKey: .viewerState)
     try c.encode(primaryAction, forKey: .primaryAction)
     try c.encode(opensCollection, forKey: .opensCollection)
@@ -434,14 +429,14 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
 
   private enum CodingKeys: String, CodingKey {
     case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
-    case progress, badge, backdropURL, metaLine, overview
+    case progress, badge, backdropURL, overview
     case landscapeImageURL, overlayLabel, itemID, video, season, seasonCount, mediaID
     case isWatched, isSeries, isInHistory, viewerState, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, yearEnd, unwatchedEpisodes, durationSeconds
-    case genreLine, countryLine, seasonsLabel, primaryAction
+    case genres, country, primaryAction
     case opensCollection, captionStats, imdbID, kinopoiskID
-    /// Read from cards written before `viewerState`, never written.
-    case isInWatchlist, bookmarkFolderIDs
+    /// Read from cards written before `viewerState` and `genres`, never written.
+    case isInWatchlist, bookmarkFolderIDs, genreLine, countryLine
   }
 }
 
@@ -611,17 +606,17 @@ public struct MediaCardView: View {
   private var captionMetaParts: [String] {
     var parts: [String] = []
     // Duration lives on landscape artwork (Apple-style time chip), not in the caption.
-    if showYear, showGenre, let caption = card.catalogCaption {
+    if showYear, showGenre, let caption = card.catalogCaption() {
       parts.append(caption)
     } else {
       if showYear, let year = card.yearLabel {
         parts.append(year)
       }
-      if showGenre, let genre = card.primaryGenre {
+      if showGenre, let genre = card.primaryGenre() {
         parts.append(genre)
       }
     }
-    if showCountry, let country = card.countryLine, !country.isEmpty {
+    if showCountry, let country = card.country, !country.isEmpty {
       parts.append(country)
     }
     return parts

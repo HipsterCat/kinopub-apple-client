@@ -62,10 +62,12 @@ final class MediaCardViewerStateTests: XCTestCase {
 
   /// A card written before follow and folders became one value still reads them.
   func testACardWrittenBeforeTheViewerStateStillDecodes() throws {
-    let json = #"{"id":7,"posterURL":"","title":"Show","isSeries":true,"isInWatchlist":true,"bookmarkFolderIDs":[4]}"#
+    let json = #"{"id":7,"posterURL":"","title":"Show","isSeries":true,"isInWatchlist":true,"bookmarkFolderIDs":[4],"genreLine":"Драма, Комедия","countryLine":"США","metaLine":"2020"}"#
     let card = try JSONDecoder().decode(MediaCard.self, from: Data(json.utf8))
     XCTAssertEqual(card.viewerState.isFollowing, true)
     XCTAssertEqual(card.viewerState.bookmarkFolderIDs, [4])
+    XCTAssertEqual(card.primaryGenre(language: .ru), "Драма", "the primary's name survives")
+    XCTAssertEqual(card.country, "США")
     let roundTripped = try JSONDecoder().decode(MediaCard.self, from: JSONEncoder().encode(card))
     XCTAssertEqual(roundTripped, card)
   }

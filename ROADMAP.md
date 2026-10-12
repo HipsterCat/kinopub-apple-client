@@ -344,6 +344,10 @@ pushes to the grid.
       `PersonalLibraryCatalog`, and the matching `NavigationTabs` cases
 - [ ] Paginate folder contents and history
 - [ ] Cold launch paints cached section content before the network answers
+- [ ] tvOS Library *Subscriptions* header reads «0 unwatched episodes» while the covers under it
+      say 4 / 1 / 6 / 1 (live account, 2026-10-12; same on clean main at 165e6314 — predates the
+      deprecation work). `LibraryModel.headerCount(for:cards:)` sums `unwatchedEpisodes` of the
+      cards it is handed; find which `cards` that is
 
 **Superseded:** "one vertical scroll of rows for the whole Library" — it does not survive a user with
 ten folders. Rows remain correct for **Home**, not for Library.

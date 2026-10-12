@@ -308,10 +308,8 @@ final class TVPageBannerCell: UICollectionViewCell {
   /// The words after the scores: season count for a series, then one genre.
   private static func metaParts(for card: MediaCard) -> [String] {
     var parts: [String] = []
-    if let seasons = card.seasonsLabel, !seasons.isEmpty { parts.append(seasons) }
-    if let genre = card.genreLine?.components(separatedBy: ", ").first, !genre.isEmpty {
-      parts.append(genre)
-    }
+    if let seasons = card.seasonCountText() { parts.append(seasons) }
+    if let genre = card.primaryGenre(), !genre.isEmpty { parts.append(genre) }
     return parts
   }
 

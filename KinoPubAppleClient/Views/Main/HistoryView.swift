@@ -225,8 +225,8 @@ struct HistoryView: View {
           hasClosedCaptions: card.hasClosedCaptions,
           year: card.year,
           durationSeconds: card.durationSeconds,
-          genreLine: card.genreLine,
-          countryLine: card.countryLine,
+          genres: card.genres,
+          country: card.country,
           primaryAction: card.primaryAction
         )
       }

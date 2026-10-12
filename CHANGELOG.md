@@ -5,6 +5,20 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### No deprecated model API left; the card carries facts (2026-10-12)
+
+Four slices. Deleted every deprecated helper nobody called (Duration formatters,
+NextPlayableEpisode, the old episode-label helpers, `TitleMetadata.mediaFragment(kind:)`,
+`MediaLibraryStore.watchProgress`). The detail page words its release line and info-list runtimes
+through `TitleMetaLine` / `RuntimeText` from one `MediaItem.mediaEntity`; a multi-version film's
+info-list runtime is now the film's. `MediaCard`'s three copies of viewer state are one
+`viewerState`, and menus read `ViewerStateReader` when they open. The card's pre-worded
+`metaLine` / `genreLine` / `countryLine` / `seasonsLabel` became facts (`genres`, `country`,
+`seasonCount`) worded at paint time; the Library genre filter matches any of a card's genres by
+id instead of the primary's name. Cards cached before decode into the new fields. What is left in
+the build's deprecation warnings is Apple's: `AVMetadataItem.stringValue`,
+`supplementariesFollowContentInsets`, and two test-only UIKit inits.
+
 ### Continue Watching actually refreshes (2026-10-12)
 
 The row requested constantly and never changed. `ContentStore.invalidate` only set

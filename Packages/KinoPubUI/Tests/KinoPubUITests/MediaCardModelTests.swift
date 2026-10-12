@@ -32,7 +32,7 @@ final class MediaCardModelTests: XCTestCase {
   }
 
   func testAFilmCard() {
-    let card = MediaCard(ref: .title(124447), entity: film, state: .unknown, language: .ru)
+    let card = MediaCard(ref: .title(124447), entity: film, state: .unknown)
     XCTAssertEqual(card.id, 124447)
     XCTAssertEqual(card.title, "Побег из Шоушенка")
     XCTAssertEqual(card.subtitle, "The Shawshank Redemption")
@@ -62,30 +62,30 @@ final class MediaCardModelTests: XCTestCase {
   func testASeriesCard() {
     let show = MediaEntity(kind: .show, title: "Тед Лассо", seasonCount: 3, release: .year(2020),
                            runtime: 99_999)
-    let card = MediaCard(ref: .title(87940), entity: show, state: ViewerState(isFollowing: true),
-                         language: .ru)
+    let card = MediaCard(ref: .title(87940), entity: show, state: ViewerState(isFollowing: true))
     XCTAssertTrue(card.isSeries)
     XCTAssertNil(card.durationSeconds, "a series has no single runtime")
     XCTAssertEqual(card.seasonCount, 3)
-    XCTAssertEqual(card.metaLine, "2020   3 сезона")
+    XCTAssertEqual(card.seasonCountText(language: .ru), "3 сезона")
   }
 
   /// Catalog grids: `Жанр Год` for a film, `Жанр 2019–2024` for an ended show.
   func testCatalogCaptionIsGenreThenYear() {
-    let filmCard = MediaCard(ref: .title(1), entity: film, state: .unknown, language: .ru)
-    XCTAssertEqual(filmCard.catalogCaption, "Драма 1994")
+    let filmCard = MediaCard(ref: .title(1), entity: film, state: .unknown)
+    XCTAssertEqual(filmCard.catalogCaption(language: .ru), "Драма 1994")
+    XCTAssertEqual(filmCard.catalogCaption(language: .en), "Drama 1994", "worded when painted")
     XCTAssertNil(filmCard.yearEnd)
 
     var show = MediaEntity(kind: .show, title: "Игра престолов",
                            genres: [GenreVocabulary.genre(id: "fantasy")!],
                            release: .year(2011), ended: .year(2019))
-    let ended = MediaCard(ref: .title(2), entity: show, state: .unknown, language: .ru)
+    let ended = MediaCard(ref: .title(2), entity: show, state: .unknown)
     XCTAssertEqual(ended.yearLabel, "2011–2019")
-    XCTAssertEqual(ended.catalogCaption, "Фэнтези 2011–2019")
+    XCTAssertEqual(ended.catalogCaption(language: .ru), "Фэнтези 2011–2019")
 
     show.ended = nil
-    let ongoing = MediaCard(ref: .title(3), entity: show, state: .unknown, language: .ru)
+    let ongoing = MediaCard(ref: .title(3), entity: show, state: .unknown)
     XCTAssertEqual(ongoing.yearLabel, "2011")
-    XCTAssertEqual(ongoing.catalogCaption, "Фэнтези 2011")
+    XCTAssertEqual(ongoing.catalogCaption(language: .ru), "Фэнтези 2011")
   }
 }

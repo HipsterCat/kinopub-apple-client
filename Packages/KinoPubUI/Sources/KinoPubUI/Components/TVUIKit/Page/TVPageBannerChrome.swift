@@ -22,6 +22,7 @@
 //    textVibrance = 0                    // flat secondaryLabel; 1 is opaque white
 //
 
+import KinoPubMedia
 import UIKit
 
 /// How the banner row sits in the page.
@@ -274,8 +275,9 @@ private struct BannerChromeHost: UIViewRepresentable {
       imdbRating: 8.8,
       kinopoiskRating: 7.8,
       overview: "Одноклассники называют Кохару Сато «неприступным цветком» — холодной и отстранённой девушкой, чья вечно серьёзная мина держит всех на расстоянии.",
-      genreLine: "Аниме, Драма",
-      seasonsLabel: "1 сезон"
+      seasonCount: 1,
+      isSeries: true,
+      genres: [GenreVocabulary.genre(id: "anime"), GenreVocabulary.genre(id: "drama")].compactMap { $0 }
     )))
     host.cell.previewFill(backdrop: BannerPreviewArt.backdrop, poster: BannerPreviewArt.poster, logo: BannerPreviewArt.logo)
     host.cell.installChrome(chrome)

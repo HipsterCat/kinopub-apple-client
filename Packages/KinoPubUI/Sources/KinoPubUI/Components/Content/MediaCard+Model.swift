@@ -15,21 +15,15 @@ public extension MediaCard {
   /// A title's poster card from the model. Every catalogue card goes through here
   /// (`MediaCard(_ item:)` maps its payload first), so a fact reads the same on every row.
   ///
-  /// The card still stores pre-worded strings and a copy of the viewer's state; both are
-  /// deprecated and move to paint time with the card's migration (docs/media-model.md
-  /// step 4). This is the one place that fills them.
-  init(ref: MediaRef, entity: MediaEntity, state: ViewerState,
-       language: MediaLanguage = .current) {
-    let line = TitleMetaLine(entity)
-    // One genre, the primary (D7).
-    let genres = entity.genres.prefix(1).map { $0.name.value(languageCode: language.rawValue) }
+  /// The card keeps facts — genres, country, season count, year, runtime — and words them
+  /// when it is painted, in the viewer's language.
+  init(ref: MediaRef, entity: MediaEntity, state: ViewerState) {
     self.init(id: ref.itemID,
               posterURL: (entity.artwork.posterPreview ?? entity.artwork.poster)?.absoluteString ?? "",
               title: entity.title ?? "",
               subtitle: entity.originalTitle,
               scores: MediaScores(entity.scores),
               backdropURL: entity.artwork.backdrop?.absoluteString,
-              metaLine: line.formatted(language: language),
               overview: entity.synopsis.best,
               seasonCount: entity.seasonCount,
               isSeries: entity.kind == .show,
@@ -42,9 +36,8 @@ public extension MediaCard {
               year: entity.release?.year,
               yearEnd: entity.kind == .show ? entity.ended?.year : nil,
               durationSeconds: entity.kind == .movie ? entity.runtime.map { Int($0) } : nil,
-              genreLine: genres.isEmpty ? nil : genres.joined(separator: ", "),
-              countryLine: entity.countries.first,
-              seasonsLabel: SeasonCountText(entity.seasonCount)?.formatted(language: language),
+              genres: entity.genres,
+              country: entity.countries.first,
               imdbID: entity.id(.imdb).flatMap { Int($0.drop { !$0.isNumber }) },
               kinopoiskID: entity.id(.kinopoisk).flatMap(Int.init))
   }
@@ -93,7 +86,7 @@ public extension MediaCard {
     MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
                      watchedAt: watchedAt, scores: scores,
                      progress: state.resumeFraction ?? (state.isWatched ? nil : progress),
-                     badge: badge, backdropURL: backdropURL, metaLine: metaLine,
+                     badge: badge, backdropURL: backdropURL,
                      overview: overview, landscapeImageURL: landscapeImageURL,
                      overlayLabel: overlayLabel, itemID: itemID, video: video, season: season,
                      seasonCount: seasonCount, mediaID: mediaID, isWatched: state.isWatched,
@@ -102,8 +95,7 @@ public extension MediaCard {
                      is4K: is4K, isHDR: isHDR, isHD: isHD, is3D: is3D,
                      hasClosedCaptions: hasClosedCaptions, year: year, yearEnd: yearEnd,
                      unwatchedEpisodes: unwatchedEpisodes,
-                     durationSeconds: durationSeconds, genreLine: genreLine,
-                     countryLine: countryLine, seasonsLabel: seasonsLabel,
+                     durationSeconds: durationSeconds, genres: genres, country: country,
                      primaryAction: primaryAction, opensCollection: opensCollection,
                      captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
   }

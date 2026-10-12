@@ -170,7 +170,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     case .never:
       return nil
     case .always, .onFocus:
-      return EpisodesLeftText(card.unwatchedEpisodes)?.formatted() ?? card.catalogCaption
+      return EpisodesLeftText(card.unwatchedEpisodes)?.formatted() ?? card.catalogCaption()
     }
   }
 
@@ -863,7 +863,7 @@ final class TVPageWideCardCell: UICollectionViewCell {
   /// result list the genre and year are what tell two same-named titles apart.
   /// A collection has neither, so its counters (items, views) take the line instead.
   private static func detail(for card: MediaCard) -> String? {
-    var parts = [card.primaryGenre, card.yearLabel].compactMap { $0 }.filter { !$0.isEmpty }
+    var parts = [card.primaryGenre(), card.yearLabel].compactMap { $0 }.filter { !$0.isEmpty }
     if parts.isEmpty { parts = card.captionStats.map(\.value).filter { !$0.isEmpty } }
     return parts.isEmpty ? nil : parts.joined(separator: "\u{2003}")
   }

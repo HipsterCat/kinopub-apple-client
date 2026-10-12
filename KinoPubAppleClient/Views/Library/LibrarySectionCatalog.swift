@@ -175,7 +175,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     // lists then share an id. The grid's identity is that id, so the first copy wins.
     var seen = Set<Int>()
     let merged = (cached + pagedCards).filter { seen.insert($0.id).inserted }
-    cards = Self.apply(filter, to: merged, genres: genres, sorted: userSorted)
+    cards = Self.apply(filter, to: merged, sorted: userSorted)
   }
 
   func update(_ transform: (inout LibraryFilter) -> Void) {
@@ -203,7 +203,6 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   /// Type, year and genre from the header chips; sort only after the user picks one.
   nonisolated static func apply(_ filter: LibraryFilter,
                                 to cards: [MediaCard],
-                                genres: [MediaGenre],
                                 sorted: Bool) -> [MediaCard] {
     var result = cards
     if !filter.kinds.isEmpty {
@@ -220,10 +219,10 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
       result = result.filter { let year = $0.year ?? $0.yearEnd ?? 0; return year <= to }
     }
     if !filter.genreIDs.isEmpty {
-      let names = Set(genres.filter { filter.genreIDs.contains($0.id) }.map(\.title))
+      // By the model's genre ids: kino.pub's ids for each of the card's genres.
+      let wanted = Set(filter.genreIDs)
       result = result.filter { card in
-        guard let line = card.genreLine else { return false }
-        return names.contains { line.localizedCaseInsensitiveContains($0) }
+        card.genres.contains { !wanted.isDisjoint(with: GenreVocabulary.kinopubIDs(ofGenre: $0.id)) }
       }
     }
     guard sorted else { return result }
