@@ -298,8 +298,8 @@ struct MediaItemHeroView: View {
   /// chip in the metadata row — the item payload has no rating of its own.
   var ageRating: String? = nil
   /// False until external metadata settles. While false, the title slot stays empty
-  /// (optimistic: a logo is expected). Defaults to `true` so previews without the
-  /// enrichment pipeline still show the lettered title.
+  /// (a logo is expected). Defaults to `true` so previews without the enrichment
+  /// pipeline still show the lettered title. Text appears only after a confirmed miss.
   var externalMetadataLoaded: Bool = true
   /// tvOS: called whenever one of the hero's own controls takes focus, including moves
   /// between them. The page scrolls back to the top with it.
@@ -753,38 +753,19 @@ struct MediaItemHeroView: View {
 
   @ViewBuilder
   private var titleBlock: some View {
-    // Label title is always on until the logo actually paints. Holding an empty
-    // view while TMDB settles (or while the image is still downloading) left the
-    // hero without a name; long-press PCM on the cover is gone for the same reason
-    // — the cover is not a card.
-    Group {
-      if let titleLogoURL, externalMetadataLoaded {
-        ArtworkImage(
-          url: titleLogoURL,
-          transaction: Transaction(animation: .easeOut(duration: 0.15))
-        ) { phase in
-          switch phase {
-          case .success(let image):
-            image
-              .resizable()
-              .scaledToFit()
-              .frame(maxWidth: Self.logoMaxWidth, maxHeight: Self.logoMaxHeight, alignment: .leading)
-              .padding(.top, Self.bottomInset/1.5)
-              .transition(.opacity)
-          case .failure, .empty:
-            titleTextBlock
-              .padding(.top, Self.bottomInset)
-              .transition(.opacity)
-          }
-        }
-      } else {
-        titleTextBlock
-          .padding(.top, Self.bottomInset)
-          .transition(.opacity)
-      }
+    // Empty while a logo is expected, cached logo on the first frame, lettered
+    // title only after a confirmed miss. Swapping text → logo was the flicker.
+    TitleLogoSlot(
+      url: titleLogoURL,
+      lookupComplete: externalMetadataLoaded,
+      maxWidth: Self.logoMaxWidth,
+      maxHeight: Self.logoMaxHeight
+    ) {
+      titleTextBlock
     }
-    .animation(.easeOut(duration: 0.15), value: externalMetadataLoaded)
-    .animation(.easeOut(duration: 0.15), value: titleLogoURL)
+    .padding(.top, Self.bottomInset / 1.5)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(mediaItem.localizedTitle)
   }
 
   private var titleTextBlock: some View {

@@ -37,6 +37,9 @@ public struct ArtworkImage<Content: View>: View {
   private let animation: Animation?
   private let content: (ArtworkPhase) -> Content
   @State private var phase: ArtworkPhase = .empty
+  /// Bumped per `.task` so a decode that outlives cancellation cannot paint
+  /// a card that has already moved on.
+  @State private var loadID = 0
 
   public init(
     url: URL?,
@@ -51,12 +54,13 @@ public struct ArtworkImage<Content: View>: View {
   public var body: some View {
     content(phase)
       .task(id: url?.absoluteString) {
-        await load()
+        loadID += 1
+        await load(id: loadID)
       }
   }
 
   @MainActor
-  private func load() async {
+  private func load(id: Int) async {
     guard let url else {
       apply(.empty)
       return
@@ -68,10 +72,14 @@ public struct ArtworkImage<Content: View>: View {
     apply(.empty)
     do {
       let loaded = try await Artwork.image(for: url)
+      // `.task(id:)` cancels on URL change, but `Artwork.image` does not always
+      // throw `CancellationError` — a stale decode must not paint over the new card.
+      guard id == loadID else { return }
       apply(.success(Image(platformImage: loaded)))
     } catch is CancellationError {
       return
     } catch {
+      guard id == loadID else { return }
       apply(.failure(error))
     }
   }
