@@ -629,6 +629,15 @@ public final class TVPageCollectionViewController: UIViewController {
         }
       }
       let layoutAffecting = newSections.map(Self.layoutSignature) != sections.map(Self.layoutSignature)
+      // A snapshot reconfigures items, never a section's header: a section that kept its
+      // id but changed its title or count («0 unwatched episodes» while it was empty)
+      // would keep the header it was first drawn with.
+      let previousByID = sectionsByID
+      let headersChanged = newSections.filter { section in
+        guard let previous = previousByID[section.id] else { return false }
+        return previous.title != section.title || previous.count != section.count
+          || previous.headerActions != section.headerActions
+      }.map(\.id)
       sections = newSections
       sectionsByID = Dictionary(uniqueKeysWithValues: newSections.map { ($0.id, $0) })
       itemsByID = nextItems
@@ -640,6 +649,7 @@ public final class TVPageCollectionViewController: UIViewController {
         collectionView.collectionViewLayout.invalidateLayout()
       }
       applySnapshot(animated: animated)
+      reconfigureHeaders(headersChanged)
     }
     if status != self.status || sectionsChanged {
       self.status = status
@@ -717,6 +727,18 @@ public final class TVPageCollectionViewController: UIViewController {
       return used != gridColumns(for: section)
     }
     if stale { applyGivenSections(status: status, animated: false) }
+  }
+
+  /// The visible headers of these sections, drawn again from the current sections.
+  /// Off-screen ones are dequeued with the new values when they scroll in.
+  private func reconfigureHeaders(_ ids: [String]) {
+    guard isViewLoaded else { return }
+    for id in ids {
+      guard let index = sections.firstIndex(where: { $0.id == id }),
+            let view = header(at: index) as? TVPageHeaderView else { continue }
+      let section = sections[index]
+      view.configure(title: section.title ?? "", count: section.count, actions: section.headerActions)
+    }
   }
 
   private func applySnapshot(animated: Bool) {
