@@ -23,7 +23,8 @@
         "Отзывы убраны из ленты страницы тайтла: вместо текста — карточка с их числом и тональностью, Select открывает страницу отзывов.",
         "Таблица внизу страницы: фокус только на том, что нажимается (аудио, субтитры, «Развернуть» у каста), без эмодзи и флагов; субтитры одной строкой, озвучки без иконок и целиком.",
         "Логотип названия больше не сменяется текстом: пока логотип грузится, слот пустой, текст — только если логотипа нет.",
-        "«Продолжить просмотр» больше не держит брошенное: давно не тронутое и едва начатое уходит из ряда."
+        "«Продолжить просмотр» больше не держит брошенное: давно не тронутое и едва начатое уходит из ряда.",
+        "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
         "Menu in lists returns to the top row first, then leaves the screen.",
@@ -45,7 +46,8 @@
         "Reviews are off the title page's rail: a card with their count and tone instead, and Select opens a page of reviews.",
         "The table at the bottom of the page: focus only on what can be pressed (audio, subtitles, Expand under the cast), no emoji or flags; subtitles on one line, dubs without icons and in full.",
         "The title logo no longer flashes in as text first: the slot stays empty while it loads, and the name appears only when there is no logo.",
-        "Continue Watching no longer keeps abandoned titles: long-untouched and barely-started items leave the row."
+        "Continue Watching no longer keeps abandoned titles: long-untouched and barely-started items leave the row.",
+        "Continue Watching updates after watching and when you return Home: progress from another device and Mark Watched on the title page change the row."
       ]
     }
   ]

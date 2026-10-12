@@ -22,13 +22,18 @@ public enum ContinueWatchingLocalOverlay {
     public var video: Int?
     /// How many seasons the series has, when the card knows — for the overlay's wording.
     public var seasonCount: Int?
+    /// Resume bar on the cached snapshot, so a stale local playhead cannot paint
+    /// over further progress from another device.
+    public var progress: Double?
 
-    public init(itemID: Int, isSeries: Bool, season: Int?, video: Int?, seasonCount: Int? = nil) {
+    public init(itemID: Int, isSeries: Bool, season: Int?, video: Int?,
+                seasonCount: Int? = nil, progress: Double? = nil) {
       self.itemID = itemID
       self.isSeries = isSeries
       self.season = season
       self.video = video
       self.seasonCount = seasonCount
+      self.progress = progress
     }
   }
 
@@ -145,6 +150,11 @@ public enum ContinueWatchingLocalOverlay {
                                           seasonCount: card?.seasonCount)
         )
         if present {
+          if let nextEp = video, let cardEp = card?.video,
+             (season ?? 0) < (card?.season ?? 0)
+              || ((season ?? 0) == (card?.season ?? 0) && nextEp < cardEp) {
+            continue
+          }
           mutations[local.itemID] = mutation
         }
         // Do not insert a finished series the row already dropped — without a
@@ -153,6 +163,7 @@ public enum ContinueWatchingLocalOverlay {
       }
 
       guard local.isResumable else { continue }
+      if present, Self.localIsBehind(local, card: card) { continue }
       let season = local.season ?? card?.season
       let video = local.episode ?? card?.video
       let mutation = Mutation(
@@ -188,5 +199,20 @@ public enum ContinueWatchingLocalOverlay {
     }
 
     return Plan(hiddenIDs: hidden, mutations: mutations, order: order, insertIDs: insertIDs)
+  }
+
+  /// Stale local resume from this device, behind a snapshot that already moved on
+  /// (progress written on another device, then Home refetched).
+  static func localIsBehind(_ local: Local, card: Card?) -> Bool {
+    guard let card else { return false }
+    if local.isSeries {
+      let localSeason = local.season ?? 0
+      let cardSeason = card.season ?? 0
+      if localSeason != cardSeason { return localSeason < cardSeason }
+      if let le = local.episode, let cv = card.video { return le < cv }
+      return false
+    }
+    if let lp = local.progress, let cp = card.progress { return lp + 0.001 < cp }
+    return false
   }
 }

@@ -38,6 +38,34 @@ final class ContinueWatchingEpisodeTests: XCTestCase {
     XCTAssertTrue(next.isResuming)
   }
 
+  /// Other device finished E2–E4; this device still has a stale playhead on E2.
+  /// Resume would paint the abandoned episode over the series' real place.
+  func testStaleLocalInProgressDoesNotBeatAFurtherServerCount() {
+    let next = ContinueWatchingEpisode.forSeries(
+      local: (season: 1, episode: 2, isFinished: false),
+      history: (season: 1, episode: 4, isFinished: true),
+      finishedInSeason: [1, 2, 3, 4],
+      watchedCount: 4,
+      total: 10
+    )
+    XCTAssertEqual(next.episode, 5)
+    XCTAssertEqual(next.season, 1)
+    XCTAssertFalse(next.isResuming)
+  }
+
+  /// Local is still mid-E4; history and the server count already call E4 finished.
+  func testStaleLocalOnTheEpisodeTheServerAlreadyFinishedStepsPastIt() {
+    let next = ContinueWatchingEpisode.forSeries(
+      local: (season: 1, episode: 4, isFinished: false),
+      history: (season: 1, episode: 4, isFinished: true),
+      finishedInSeason: [4],
+      watchedCount: 4,
+      total: 10
+    )
+    XCTAssertEqual(next.episode, 5)
+    XCTAssertFalse(next.isResuming)
+  }
+
   /// This device's own play head wins — the server has not heard about it yet.
   func testLocalProgressBeatsTheServerCount() {
     let next = ContinueWatchingEpisode.forSeries(

@@ -5,6 +5,24 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Continue Watching actually refreshes (2026-10-12)
+
+The row requested constantly and never changed. `ContentStore.invalidate` only set
+`fetchedAt = .distantPast`; Home's `.task` had already run, and `onAppear` only
+re-applied the local overlay on the cached snapshot. An in-flight `refresh()` that
+landed after an invalidate then stamped `fetchedAt = now`, so the next
+`refreshIfStale` treated the old cards as fresh for another 60 s. Overlay always
+won, even when the snapshot was further along (other device).
+
+- Generation on invalidate / `setItems` / `removeCard`; a superseded fetch does
+  not write, and `refresh()` retries.
+- `contentStoreDidInvalidateWatch` — Home refetches Continue Watching. Foreground
+  (`scenePhase == .active`) does the same.
+- Overlay skips a local playhead behind the snapshot. `forSeries` skips a stale
+  local in-progress behind a further server count. Live S/E beats the cached card.
+- Mark watched on the detail page writes a finished tombstone so Home hides /
+  steps the card before the refetch returns.
+
 ### Continue Watching drops abandoned titles and ranks next-up by series recency (2026-10-12)
 
 `/v1/watching/serials` lists every unfinished serial. The row now drops titles not

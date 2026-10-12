@@ -25,9 +25,8 @@ import KinoPubLogging
 /// yesterday's state. Episode cards (Continue Watching, history) are left to their own
 /// rows, which already offer and paint the episode (`ContinueWatchingLocalOverlay`).
 ///
-/// Local mutations (`setItems`, `removeCard`) stamp `fetchedAt = now` — a toggle the
-/// user just made is not "stale", it's the freshest thing the store knows, and must
-/// not be overwritten by a slower in-flight fetch that started before it.
+/// Local mutations (`setItems`, `removeCard`) bump a generation so a slower in-flight
+/// fetch that started before them cannot write back over the newer row.
 @MainActor
 final class ContentStore {
   private(set) var rows: [RowKey: RowState] = [:]
@@ -36,6 +35,11 @@ final class ContentStore {
   /// nothing" — the store itself never surfaces errors, it keeps the stale row.
   private(set) var lastErrors: [RowKey: Error] = [:]
   private var inFlight: [RowKey: Task<Void, Never>] = [:]
+  /// Bumped on invalidate / local mutation. An in-flight fetch captures the value
+  /// at start and must not write if it changed — that is how "the app requested
+  /// constantly but the row never changed": the stale decode landed after a newer
+  /// invalidate and stamped `fetchedAt = now`.
+  private var generation: [RowKey: Int] = [:]
   private let disk: RowSnapshotStore
   let records: MediaRecordStore
   /// Nil in tests and previews: the cards come out with what their payload reported.
@@ -98,24 +102,37 @@ final class ContentStore {
   }
 
   /// Unconditional refresh (pull-to-refresh). Two callers asking for the same key at
-  /// once share one network request instead of firing two.
+  /// once share one network request instead of firing two — unless that request was
+  /// superseded by an invalidate, in which case we start another.
   func refresh(_ key: RowKey, fetch: @escaping @Sendable () async throws -> [RowItem]) async {
-    if let existing = inFlight[key] {
-      await existing.value
+    while true {
+      if let existing = inFlight[key] {
+        let gen = generation[key] ?? 0
+        await existing.value
+        if (generation[key] ?? 0) != gen { continue }
+        return
+      }
+      let gen = generation[key] ?? 0
+      let task = Task { [weak self] in
+        guard let self else { return }
+        await self.performFetch(key, fetch: fetch)
+      }
+      inFlight[key] = task
+      await task.value
+      inFlight[key] = nil
+      // Discarded write (invalidate while we were in flight): the row is still stale.
+      // A coalesced waiter already retries; a single caller must too, or Home paints
+      // the snapshot it just asked the network to replace.
+      if (generation[key] ?? 0) != gen { continue }
       return
     }
-    let task = Task { [weak self] in
-      guard let self else { return }
-      await self.performFetch(key, fetch: fetch)
-    }
-    inFlight[key] = task
-    await task.value
-    inFlight[key] = nil
   }
 
   private func performFetch(_ key: RowKey, fetch: @Sendable () async throws -> [RowItem]) async {
+    let gen = generation[key] ?? 0
     do {
       let items = try await fetch()
+      guard (generation[key] ?? 0) == gen else { return }
       rows[key] = RowState(entries: entries(items), fetchedAt: Date())
       lastErrors[key] = nil
       save()
@@ -135,6 +152,7 @@ final class ContentStore {
   /// Overwrite a row with a value we already know is current — e.g. after composing
   /// it from several endpoints. Counts as freshly fetched.
   func setItems(_ items: [RowItem], for key: RowKey) {
+    bump(key)
     rows[key] = RowState(entries: entries(items), fetchedAt: Date())
     save()
   }
@@ -166,6 +184,7 @@ final class ContentStore {
   /// that caused it (hide/mark watched/...) even returns.
   func removeCard(id: Int, from key: RowKey) {
     guard var state = rows[key] else { return }
+    bump(key)
     state.entries.removeAll { $0.id == id }
     state.fetchedAt = Date()
     rows[key] = state
@@ -210,16 +229,38 @@ final class ContentStore {
   /// watched, ...) that this store can't see directly: force every row in the family
   /// to refetch next time it's asked for, instead of waiting out its TTL.
   func invalidate(family: RowKey.Family) {
+    var didWatch = false
     for key in rows.keys where key.family == family {
+      bump(key)
       rows[key]?.fetchedAt = .distantPast
+      if family == .watch { didWatch = true }
+    }
+    if didWatch {
+      NotificationCenter.default.post(name: .contentStoreDidInvalidateWatch, object: nil)
     }
   }
 
   /// The same, for named rows only — when one family member must refetch and the rest
   /// (Home's Continue Watching, which overlays local progress itself) must not.
   func invalidate(_ keys: [RowKey]) {
+    var didWatch = false
     for key in keys {
+      bump(key)
       rows[key]?.fetchedAt = .distantPast
+      if key.family == .watch { didWatch = true }
+    }
+    if didWatch {
+      NotificationCenter.default.post(name: .contentStoreDidInvalidateWatch, object: nil)
     }
   }
+
+  private func bump(_ key: RowKey) {
+    generation[key, default: 0] += 1
+  }
+}
+
+extension Notification.Name {
+  /// Posted when a `.watch` row is invalidated (mark watched, hide, pull-to-refresh).
+  /// Home refetches Continue Watching; painting from the cached snapshot is not enough.
+  static let contentStoreDidInvalidateWatch = Notification.Name("KinoPub.contentStoreDidInvalidateWatch")
 }
