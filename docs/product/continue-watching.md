@@ -60,6 +60,15 @@ The Library tab still has the whole watching list.
 
 **prd** — The row never pages. "Page 2" of a four-source merge has no meaning on the server.
 
+## Refresh
+
+The cached snapshot is a 60 s TTL. That is not "the row never updates":
+
+- **Foreground** (Watch Now `scenePhase == .active`) refetches Continue Watching even inside the TTL, so progress written on another device lands when the user comes back.
+- **Mark watched / hide / follow** on the detail page invalidates the `.watch` family. That posts `contentStoreDidInvalidateWatch`; Home refetches instead of painting the cached cards. Marking a film watched also writes a local finished tombstone, so overlay hides the card before the refetch returns — without it, overlay re-inserted the in-progress playhead onto a title `watching/movies` had already dropped.
+- An in-flight fetch that started **before** an invalidate is discarded (generation). Writing `fetchedAt = now` on that decode was why the network log filled with requests and the row never moved: Home trusted the old snapshot for another 60 s.
+- Local overlay does not paint a playhead that is **behind** the snapshot (other-device progress already on the card). It still leads the row for progress this device wrote that the server has not heard yet.
+
 ## Open
 
 Dates for more of the row would need more of `/v1/history` (`perpage` maxes at 50, and one page of

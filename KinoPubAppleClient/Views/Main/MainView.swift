@@ -14,6 +14,7 @@ struct MainView: View {
   @EnvironmentObject var authState: AuthState
   @Environment(\.appContext) var appContext
   @Environment(\.openURL) private var openURL
+  @Environment(\.scenePhase) private var scenePhase
 
   private let tab: NavigationTabs
   @StateObject private var catalog: HomeCatalog
@@ -66,6 +67,11 @@ struct MainView: View {
         }
         .onAppear {
           catalog.repaintFromLocalProgress()
+        }
+        .onChange(of: scenePhase) { _, phase in
+          if phase == .active {
+            Task { await catalog.refreshContinueWatching() }
+          }
         }
         .task {
           await cardMenu.refreshFolders()

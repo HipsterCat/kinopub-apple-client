@@ -69,11 +69,21 @@ public struct ContinueWatchingEpisode: Equatable, Sendable {
     watchedCount: Int?,
     total: Int?
   ) -> ContinueWatchingEpisode {
-    if let local, let episode = local.episode, !local.isFinished {
-      return ContinueWatchingEpisode(season: local.season, episode: episode, isResuming: true)
-    }
+    // Newest history row in progress wins outright — that is this session.
     if let history, let episode = history.episode, !history.isFinished {
       return ContinueWatchingEpisode(season: history.season, episode: episode, isResuming: true)
+    }
+    // Local in-progress only if it is not behind what the server already finished
+    // (watching on another device left this device's playhead stale).
+    if let local, let episode = local.episode, !local.isFinished {
+      var reached = finishedInSeason.max() ?? 0
+      if let watchedCount { reached = max(reached, watchedCount) }
+      if let history, history.isFinished, let finished = history.episode {
+        reached = max(reached, finished)
+      }
+      if episode > reached {
+        return ContinueWatchingEpisode(season: local.season, episode: episode, isResuming: true)
+      }
     }
 
     let season = history?.season ?? local?.season

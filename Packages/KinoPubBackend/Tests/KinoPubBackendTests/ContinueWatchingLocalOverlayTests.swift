@@ -77,6 +77,51 @@ final class ContinueWatchingLocalOverlayTests: XCTestCase {
     XCTAssertTrue(plan.order.isEmpty)
   }
 
+  /// Other device moved the series on; this device's playhead is still on E2.
+  /// Painting it would put the abandoned episode back on Home after a refetch.
+  func testStaleLocalEpisodeBehindTheSnapshotIsNotPainted() {
+    let cards = [
+      ContinueWatchingLocalOverlay.Card(itemID: 7, isSeries: true, season: 1, video: 5)
+    ]
+    let locals = [
+      local(id: 7, progress: 0.3, season: 1, episode: 2, isSeries: true, updatedAt: 9)
+    ]
+    let plan = ContinueWatchingLocalOverlay.plan(cards: cards, locals: locals)
+
+    XCTAssertNil(plan.mutations[7])
+    XCTAssertEqual(plan.order, [7])
+    XCTAssertTrue(plan.hiddenIDs.isEmpty)
+  }
+
+  /// Film: this device at 20 %, the snapshot already at 80 % from another device.
+  func testStaleLocalFilmProgressBehindTheSnapshotIsNotPainted() {
+    let cards = [
+      ContinueWatchingLocalOverlay.Card(itemID: 10, isSeries: false, season: nil, video: 1,
+                                        progress: 0.8)
+    ]
+    let locals = [
+      local(id: 10, progress: 0.2, isSeries: false, updatedAt: 5)
+    ]
+    let plan = ContinueWatchingLocalOverlay.plan(cards: cards, locals: locals)
+
+    XCTAssertNil(plan.mutations[10])
+    XCTAssertEqual(plan.order, [10])
+  }
+
+  /// Local finished E2, so next would be E3, but the snapshot already offers E8.
+  func testFinishedLocalThatIsBehindTheSnapshotDoesNotStepBack() {
+    let cards = [
+      ContinueWatchingLocalOverlay.Card(itemID: 7, isSeries: true, season: 1, video: 8)
+    ]
+    let locals = [
+      local(id: 7, season: 1, episode: 2, isFinished: true, isSeries: true, updatedAt: 9)
+    ]
+    let plan = ContinueWatchingLocalOverlay.plan(cards: cards, locals: locals)
+
+    XCTAssertNil(plan.mutations[7])
+    XCTAssertEqual(plan.order, [7])
+  }
+
   func testNoLocalLeavesCachedOrderAlone() {
     let cards = [
       ContinueWatchingLocalOverlay.Card(itemID: 3, isSeries: true, season: 2, video: 1),

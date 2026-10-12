@@ -808,6 +808,14 @@ class MediaItemModel: ObservableObject {
       mediaItem = mediaItem
     }
     presentWatchedHud(nowWatched: isWatched)
+    if isWatched {
+      recordLocalFinished(season: nil,
+                          episode: mediaItem.videos?.first?.number,
+                          durationSeconds: mediaItem.videos?.first?.duration
+                            ?? Int(mediaItem.duration.average))
+    } else {
+      AppContext.shared.localProgressStore.clear(id: mediaItemId)
+    }
     Task {
       do {
         try await actionsService.toggleWatching(id: mediaItemId, video: 1, season: nil)
@@ -835,6 +843,11 @@ class MediaItemModel: ObservableObject {
     isWatched = mediaItem.playbackAction == .playAgain
     libraryState.setWatched(ref, episode.watched > 0)
     presentWatchedHud(nowWatched: episode.watched > 0)
+    if episode.watched > 0 {
+      recordLocalFinished(season: season.number,
+                          episode: episode.number,
+                          durationSeconds: episode.duration)
+    }
     Task {
       do {
         let watched = try await actionsService.toggleWatching(id: mediaItemId,
@@ -870,6 +883,11 @@ class MediaItemModel: ObservableObject {
     mediaItem = mediaItem
     isWatched = mediaItem.playbackAction == .playAgain
     presentWatchedHud(nowWatched: target > 0)
+    if target > 0, let last = season.episodes.max(by: { $0.number < $1.number }) {
+      recordLocalFinished(season: season.number,
+                          episode: last.number,
+                          durationSeconds: last.duration)
+    }
     Task {
       do {
         _ = try await actionsService.toggleWatching(id: mediaItemId, video: nil, season: season.number)
@@ -896,6 +914,10 @@ class MediaItemModel: ObservableObject {
   /// Drops the title from history so it stops cluttering Continue Watching.
   func clearFromContinueWatching() {
     presentHud(systemImage: "trash", title: "Removed")
+    // Paint Home immediately: drop the cached card, then clear local so overlay
+    // cannot re-insert it. The store notify on `clear` is what Home assembles on.
+    contentStore.removeCard(id: mediaItemId, from: .continueWatching)
+    AppContext.shared.localProgressStore.clear(id: mediaItemId)
     Task {
       do {
         try await actionsService.clearHistoryForItem(id: mediaItemId)
@@ -904,6 +926,20 @@ class MediaItemModel: ObservableObject {
         errorHandler.setError(error)
       }
     }
+  }
+
+  /// Continue Watching paints from local tombstones immediately (Home already
+  /// listens for `localWatchProgressDidChange`). The watch-family invalidate
+  /// after the toggle returns is what matches the server. Without the tombstone,
+  /// a film marked watched on this page stayed on Home: overlay re-inserted the
+  /// in-progress playhead onto a card `watching/movies` no longer listed.
+  private func recordLocalFinished(season: Int?, episode: Int?, durationSeconds: Int) {
+    AppContext.shared.localProgressStore.recordFinished(
+      mediaId: mediaItemId,
+      duration: Double(max(durationSeconds, 1)),
+      season: season,
+      episode: episode
+    )
   }
 
   /// Drops one episode from history so it stops cluttering Continue Watching.

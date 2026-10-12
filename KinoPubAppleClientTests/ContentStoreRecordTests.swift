@@ -118,6 +118,68 @@ final class ContentStoreRecordTests: XCTestCase {
     return try? JSONDecoder().decode(MediaItem.self, from: edited)
   }
 
+  /// Invalidate while a fetch is in flight used to stamp `fetchedAt = now` on the
+  /// discarded decode — Home then trusted the old row for the whole TTL, which is
+  /// why the network log filled with requests and Continue Watching never moved.
+  func testAnInvalidateDuringFetchDiscardsTheStaleWriteAndRetries() async {
+    let store = makeStore()
+    store.setItems([.card(MediaCard(id: 1, posterURL: "https://x/o.jpg", title: "Old"))],
+                   for: .continueWatching)
+    let hold = FetchHold()
+    let calls = FetchCounter()
+
+    let refresh = Task {
+      await store.refresh(.continueWatching) {
+        let n = await calls.next()
+        if n == 1 {
+          await hold.signalEnteredAndWait()
+          return [.card(MediaCard(id: 1, posterURL: "https://x/s.jpg", title: "Stale"))]
+        }
+        return [.card(MediaCard(id: 1, posterURL: "https://x/n.jpg", title: "New"))]
+      }
+    }
+
+    await hold.waitUntilEntered()
+    store.invalidate(family: .watch)
+    XCTAssertEqual(store.cards(.continueWatching).first?.title, "Old",
+                   "the in-flight decode must not land")
+    XCTAssertTrue(store.isStale(.continueWatching))
+    await hold.release()
+    await refresh.value
+
+    XCTAssertEqual(store.cards(.continueWatching).first?.title, "New")
+    XCTAssertFalse(store.isStale(.continueWatching))
+    let total = await calls.value
+    XCTAssertEqual(total, 2, "the discarded fetch must be followed by a retry")
+  }
+
+  func testWatchInvalidatePostsANotification() async {
+    let store = makeStore()
+    store.setItems([.card(MediaCard(id: 1, posterURL: "", title: "A"))],
+                   for: .continueWatching)
+    let posted = expectation(description: "watch invalidate")
+    let observer = NotificationCenter.default.addObserver(
+      forName: .contentStoreDidInvalidateWatch, object: nil, queue: .main
+    ) { _ in posted.fulfill() }
+    store.invalidate(family: .watch)
+    await fulfillment(of: [posted], timeout: 1)
+    NotificationCenter.default.removeObserver(observer)
+  }
+
+  func testCatalogInvalidateDoesNotPostAWatchNotification() async {
+    let store = makeStore()
+    store.setItems([.card(MediaCard(id: 1, posterURL: "", title: "A"))],
+                   for: .collections)
+    let posted = expectation(description: "must not fire")
+    posted.isInverted = true
+    let observer = NotificationCenter.default.addObserver(
+      forName: .contentStoreDidInvalidateWatch, object: nil, queue: .main
+    ) { _ in posted.fulfill() }
+    store.invalidate(family: .catalog)
+    await fulfillment(of: [posted], timeout: 0.2)
+    NotificationCenter.default.removeObserver(observer)
+  }
+
   func testRowsWrittenBeforeRefsStillPaint() throws {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let card = MediaCard(id: 7, posterURL: "", title: "Yesterday")
@@ -129,5 +191,50 @@ final class ContentStoreRecordTests: XCTestCase {
       .write(to: directory.appendingPathComponent("rows-v2.json"))
 
     XCTAssertEqual(makeStore().cards(.folder(1)), [card])
+  }
+}
+
+/// Gates a fetch so the test can invalidate while it is in flight.
+private actor FetchHold {
+  private var entered: CheckedContinuation<Void, Never>?
+  private var go: CheckedContinuation<Void, Never>?
+  private var released = false
+
+  func waitUntilEntered() async {
+    await withCheckedContinuation { continuation in
+      if released {
+        continuation.resume()
+      } else {
+        entered = continuation
+      }
+    }
+  }
+
+  func signalEnteredAndWait() async {
+    entered?.resume()
+    entered = nil
+    await withCheckedContinuation { continuation in
+      if released {
+        continuation.resume()
+      } else {
+        go = continuation
+      }
+    }
+  }
+
+  func release() {
+    released = true
+    entered?.resume()
+    entered = nil
+    go?.resume()
+    go = nil
+  }
+}
+
+private actor FetchCounter {
+  private(set) var value = 0
+  func next() -> Int {
+    value += 1
+    return value
   }
 }

@@ -39,6 +39,10 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       invalidating Home TTL. Player `markFinished` writes a finished tombstone (hide a
       film / step a series); the row's cached S/E skips the 12-details refresh. Past
       that cap, new series still fall back to counters.
+- [x] Continue Watching refetches on foreground and on watch-family invalidate;
+      a superseded in-flight fetch cannot stamp `fetchedAt` over a newer mutation;
+      local overlay does not paint over further progress from another device. Mark
+      watched on the detail page writes a finished tombstone so Home updates now.
 - [x] Banner shelf, gated by `FeatureFlags.homeBannerEnabled` (off skips sampling + artwork loads)
 - [x] Private `variableBlur` replaces the Metal progressive blur
 - [x] Unified routes + zoom transitions (iOS/tvOS)

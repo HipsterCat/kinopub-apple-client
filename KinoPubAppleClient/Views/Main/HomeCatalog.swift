@@ -154,6 +154,12 @@ class HomeCatalog: ObservableObject {
         self?.assembleRows()
       }
       .store(in: &bag)
+    NotificationCenter.default.publisher(for: .contentStoreDidInvalidateWatch)
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in
+        Task { await self?.refreshContinueWatching() }
+      }
+      .store(in: &bag)
   }
 
   /// Paints whatever's cached immediately (instant on a warm cache, still empty on a
@@ -329,6 +335,22 @@ class HomeCatalog: ObservableObject {
     assembleRows()
   }
 
+  /// Force a Continue Watching refetch and paint. Used when coming to the
+  /// foreground and when a watch-family invalidate fires — `refreshIfStale`
+  /// plus a 60 s TTL is why the row kept showing the last snapshot while the
+  /// network log still filled with requests (shelves, banner details, metadata).
+  func refreshContinueWatching() async {
+    guard includesWatchNowExtras, authState.userState == .authorized else {
+      assembleRows()
+      return
+    }
+    await store.refresh(.continueWatching) { [weak self] in
+      guard let self else { throw CancellationError() }
+      return try await self.fetchContinueWatchingCards().map(RowItem.card)
+    }
+    assembleRows()
+  }
+
   private func assembleRows() {
     var assembled: [MediaRow] = []
     if includesWatchNowExtras {
@@ -401,7 +423,8 @@ class HomeCatalog: ObservableObject {
                                           isSeries: $0.isSeries,
                                           season: $0.season,
                                           video: $0.video,
-                                          seasonCount: $0.seasonCount)
+                                          seasonCount: $0.seasonCount,
+                                          progress: $0.progress)
       },
       locals: locals
     )
@@ -750,37 +773,12 @@ class HomeCatalog: ObservableObject {
         video = episode.number
         season = nextSeason.number
         isResuming = episode.watchProgress.isResumable
-      } else if let cached, cached.season != nil, cached.video != nil {
-        // Trusted offered S/E from the last snapshot — do not re-guess from counters
-        // just because this refresh skipped the details call.
-        if let local, let episode = local.episode, !local.watch.isFinished {
-          video = episode
-          season = local.season
-          isResuming = true
-        } else if let local, local.watch.isFinished {
-          let currentSeason = history?.media?.snumber ?? local.season ?? cached.season
-          let next = ContinueWatchingEpisode.forSeries(
-            local: (local.season, local.episode, true),
-            history: history.map { ($0.media?.snumber, $0.media?.number, $0.watchProgress?.isFinished ?? false) },
-            finishedInSeason: currentSeason.flatMap { finishedEpisodes[$0] } ?? [],
-            watchedCount: item.watched,
-            total: item.total
-          )
-          guard next.hasEpisode || (item.new ?? 0) > 0 else { return nil }
-          video = next.episode
-          season = next.season
-          isResuming = next.isResuming
-        } else {
-          video = cached.video
-          season = cached.season
-          isResuming = cached.progress != nil
-        }
       } else {
         // No payload for this one (request failed, or past the fetch cap): fall back to
         // what history and the counters can say. Which season the viewer is in, and
         // everything history says they finished in it — history is ordered by when a
         // row was played, so the newest row is not the furthest episode.
-        let currentSeason = history?.media?.snumber ?? local?.season
+        let currentSeason = history?.media?.snumber ?? local?.season ?? cached?.season
         let next = ContinueWatchingEpisode.forSeries(
           local: local.map { ($0.season, $0.episode, $0.watch.isFinished) },
           history: history.map { ($0.media?.snumber, $0.media?.number, $0.watchProgress?.isFinished ?? false) },
@@ -788,11 +786,19 @@ class HomeCatalog: ObservableObject {
           watchedCount: item.watched,
           total: item.total
         )
-        // Every episode watched and nothing new announced — the row is done with.
-        guard next.hasEpisode || (item.new ?? 0) > 0 else { return nil }
-        video = next.episode
-        season = next.season
-        isResuming = next.isResuming
+        // Live sources beat the last snapshot's S/E — trusting cache here is why
+        // a refetch left the same episode on screen after another device moved on.
+        if next.hasEpisode {
+          video = next.episode
+          season = next.season ?? cached?.season
+          isResuming = next.isResuming
+        } else if (item.new ?? 0) > 0 {
+          video = cached?.video
+          season = cached?.season ?? next.season
+          isResuming = cached?.progress != nil
+        } else {
+          return nil
+        }
       }
     } else {
       video = history?.media?.number ?? local?.episode ?? 1
