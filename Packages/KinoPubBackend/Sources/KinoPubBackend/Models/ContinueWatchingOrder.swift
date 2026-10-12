@@ -11,6 +11,16 @@ public enum ContinueWatchingOrder {
   /// How recently something must have been played to count as "recently started".
   public static let recentWindow: TimeInterval = 7 * 24 * 60 * 60
 
+  /// Titles last touched longer ago than this leave the row, unless they are still
+  /// on the watchlist. `/v1/watching/serials` lists every unfinished serial on the
+  /// account; ninety days is long enough to resume a show after a break and short
+  /// enough to drop years-old junk. The Library tab still has the whole list.
+  public static let abandonedAfter: TimeInterval = 90 * 24 * 60 * 60
+
+  /// A sample that never cleared ``WatchProgress/enterContinueWatchingSeconds``
+  /// drops off after this, even from the watchlist — sampling is not continuing.
+  public static let barelyStartedAfter: TimeInterval = 14 * 24 * 60 * 60
+
   /// How long the row is allowed to be.
   ///
   /// `/v1/watching/serials` lists **every** unfinished serial on the account, which for
@@ -89,11 +99,66 @@ public enum ContinueWatchingOrder {
   }
 
   /// History has a row per episode; collapse it to the newest play per title.
+  ///
+  /// An unstarted next episode has no `last_seen` of its own. Rank it by the
+  /// newest date among that series' rows in the history page we already fetched
+  /// (finished episodes included) — no extra request. Sashimi #648 / #629.
   public static func lastSeenByItemID(_ history: [HistoryEntry]) -> [Int: Date] {
     history.reduce(into: [Int: Date]()) { result, entry in
       guard let date = entry.lastSeenDate else { return }
       if let existing = result[entry.item.id], existing >= date { return }
       result[entry.item.id] = date
+    }
+  }
+
+  /// Playback position of the newest history row per title, for the barely-started filter.
+  public static func positionByItemID(_ history: [HistoryEntry]) -> [Int: Double] {
+    history.reduce(into: [Int: (date: Date, position: Double)]()) { result, entry in
+      guard let date = entry.lastSeenDate, let time = entry.time else { return }
+      if let existing = result[entry.item.id], existing.date >= date { return }
+      result[entry.item.id] = (date, time)
+    }.mapValues(\.position)
+  }
+
+  /// Whether this title still belongs on Continue Watching — not the whole
+  /// watching list. Watchlist + new episodes always stay. Everything else needs
+  /// a date from history (or local resume) within ``abandonedAfter``, and a
+  /// sample shorter than ``WatchProgress/enterContinueWatchingSeconds`` drops
+  /// after ``barelyStartedAfter``.
+  public static func isKept(_ item: WatchingItem,
+                            watchlistIDs: Set<Int>,
+                            lastSeen: Date?,
+                            position: Double?,
+                            now: Date = Date()) -> Bool {
+    let onWatchlist = watchlistIDs.contains(item.id)
+    if onWatchlist, item.hasNewEpisodes { return true }
+
+    if let lastSeen, now >= lastSeen {
+      let age = now.timeIntervalSince(lastSeen)
+      if let position, position < WatchProgress.enterContinueWatchingSeconds,
+         age > barelyStartedAfter {
+        return false
+      }
+      if !onWatchlist, age > abandonedAfter {
+        return false
+      }
+      return true
+    }
+
+    return onWatchlist
+  }
+
+  public static func kept(items: [WatchingItem],
+                          watchlistIDs: Set<Int>,
+                          lastSeen: [Int: Date],
+                          position: [Int: Double] = [:],
+                          now: Date = Date()) -> [WatchingItem] {
+    items.filter {
+      isKept($0,
+             watchlistIDs: watchlistIDs,
+             lastSeen: lastSeen[$0.id],
+             position: position[$0.id],
+             now: now)
     }
   }
 

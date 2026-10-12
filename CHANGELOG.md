@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Continue Watching drops abandoned titles and ranks next-up by series recency (2026-10-12)
+
+`/v1/watching/serials` lists every unfinished serial. The row now drops titles not
+touched in **90 days** (unless still on the watchlist), titles with no date in the
+fetched history page that are not on the watchlist, and samples under 90 s that
+were last touched more than **14 days** ago. An unstarted next episode inherits
+the newest `last_seen` among that series' rows in the history page already
+fetched — no extra request (Sashimi #648 / #629).
+
 ### Hero / banner title logo: no text flicker while the logo loads (2026-10-12)
 
 The title slot and the logo share one place. Showing the lettered name while the

@@ -623,6 +623,16 @@ class HomeCatalog: ObservableObject {
       return !item.type.contains("serial")
     }
 
+    var position = ContinueWatchingOrder.positionByItemID(history)
+    for entry in localEntries {
+      position[entry.id] = entry.position
+    }
+    pool = ContinueWatchingOrder.kept(items: pool,
+                                      watchlistIDs: watchlistIDs,
+                                      lastSeen: lastSeen,
+                                      position: position,
+                                      now: now)
+
     let ordered = Array(ContinueWatchingOrder.ordered(items: pool,
                                                      watchlistIDs: watchlistIDs,
                                                      lastSeen: lastSeen)
