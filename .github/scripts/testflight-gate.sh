@@ -3,10 +3,13 @@
 #
 # Skip (exit 0, should_upload=false) when:
 #   • required secrets are missing
-#   • schedule, and main has no commits since the last successful upload
-#   • push to main, and MARKETING_VERSION / CURRENT_PROJECT_VERSION did not change
+#   • schedule or push, and HEAD is still the last SHA that actually uploaded
 #
 # workflow_dispatch always uploads when secrets are present.
+#
+# Push and schedule share the same "new commits since last successful upload"
+# rule. Version-only push was the reason a missed daily cron left Sasha without
+# a build: every main push skipped, and GitHub had dropped the :00 schedule.
 set -euo pipefail
 
 should_upload=false
@@ -22,6 +25,15 @@ set_output() {
   local name="$1"
   local value="$2"
   echo "${name}=${value}" >> "$GITHUB_OUTPUT"
+}
+
+skip_upload() {
+  skip_reason="$1"
+  notice "TestFlight skipped. ${skip_reason}"
+  set_output should_upload false
+  set_output skip_reason "$skip_reason"
+  set_output matrix "$dummy_matrix"
+  exit 0
 }
 
 # Upload's matrix job errors on an empty include even when the job is skipped.
@@ -41,12 +53,7 @@ do
 done
 
 if [ "${#missing[@]}" -gt 0 ]; then
-  skip_reason="Missing GitHub secrets: ${missing[*]}. Add them under Settings → Secrets and variables → Actions. See docs/testflight.md."
-  notice "TestFlight skipped. ${skip_reason}"
-  set_output should_upload false
-  set_output skip_reason "$skip_reason"
-  set_output matrix "$dummy_matrix"
-  exit 0
+  skip_upload "Missing GitHub secrets: ${missing[*]}. Add them under Settings → Secrets and variables → Actions. See docs/testflight.md."
 fi
 
 macos_missing=()
@@ -59,26 +66,15 @@ done
 if [ "${#macos_missing[@]}" -gt 0 ]; then
   include_macos=false
   if [ "$platform" = "macos" ]; then
-    skip_reason="macOS TestFlight needs ${macos_missing[*]}. See docs/testflight.md."
-    notice "TestFlight skipped. ${skip_reason}"
-    set_output should_upload false
-    set_output skip_reason "$skip_reason"
-    set_output matrix "$dummy_matrix"
-    exit 0
+    skip_upload "macOS TestFlight needs ${macos_missing[*]}. See docs/testflight.md."
   fi
   notice "macOS upload skipped (missing ${macos_missing[*]}); iOS and tvOS will still upload."
 fi
 
-event="${GITHUB_EVENT_NAME:-}"
-reason=""
-
-case "$event" in
-  workflow_dispatch)
-    should_upload=true
-    reason="manual run"
-    ;;
-  schedule)
-    last_sha="$(python3 - "$GITHUB_API_URL" "$GITHUB_REPOSITORY" "$GITHUB_TOKEN" <<'PY'
+# SHA of the last TestFlight run that actually archived (an Upload * job
+# succeeded). Skip-successes and failed archives do not count.
+last_successful_upload_sha() {
+  python3 - "$GITHUB_API_URL" "$GITHUB_REPOSITORY" "$GITHUB_TOKEN" <<'PY'
 import json, sys, urllib.error, urllib.request
 
 api, repo, token = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -95,11 +91,10 @@ def get(url):
         return json.load(response)
 
 try:
-    runs_url = (
+    payload = get(
         f"{api}/repos/{repo}/actions/workflows/testflight.yml/runs"
-        f"?branch=main&status=completed&per_page=30"
+        f"?branch=main&status=completed&per_page=100"
     )
-    payload = get(runs_url)
     for run in payload.get("workflow_runs", []):
         if run.get("conclusion") != "success":
             continue
@@ -115,61 +110,39 @@ try:
 except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as error:
     print(f"Could not read previous TestFlight runs ({error})", file=sys.stderr)
 PY
-)"
-    if [ -n "${last_sha}" ] && [ "${last_sha}" = "${GITHUB_SHA}" ]; then
-      skip_reason="No new commits on main since the last TestFlight upload (${last_sha:0:7})."
-      notice "TestFlight skipped. ${skip_reason}"
-      set_output should_upload false
-      set_output skip_reason "$skip_reason"
-      set_output matrix "$dummy_matrix"
-      exit 0
-    fi
+}
+
+upload_if_new_commits() {
+  local why="$1"
+  local last_sha
+  last_sha="$(last_successful_upload_sha)"
+  if [ -n "${last_sha}" ] && [ "${last_sha}" = "${GITHUB_SHA}" ]; then
+    skip_upload "No new commits on main since the last TestFlight upload (${last_sha:0:7})."
+  fi
+  should_upload=true
+  if [ -n "${last_sha}" ]; then
+    reason="${why}; new commits since ${last_sha:0:7}"
+  else
+    reason="${why}; no previous successful upload"
+  fi
+}
+
+event="${GITHUB_EVENT_NAME:-}"
+reason=""
+
+case "$event" in
+  workflow_dispatch)
     should_upload=true
-    if [ -n "${last_sha}" ]; then
-      reason="daily run; new commits since ${last_sha:0:7}"
-    else
-      reason="daily run; no previous successful upload"
-    fi
+    reason="manual run"
+    ;;
+  schedule)
+    upload_if_new_commits "scheduled run"
     ;;
   push)
-    xcproj="KinoPubAppleClient.xcodeproj/project.xcproj"
-    if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
-      before="$(git show HEAD^:"$xcproj" 2>/dev/null || true)"
-    else
-      before=""
-    fi
-    after="$(cat "$xcproj")"
-    changed="$(python3 -c '
-import re, sys
-def versions(text):
-    marketing = re.search(r"\"MARKETING_VERSION\": \"([^\"]+)\"", text)
-    build = re.search(r"\"CURRENT_PROJECT_VERSION\": \"([^\"]+)\"", text)
-    return (
-        marketing.group(1) if marketing else "",
-        build.group(1) if build else "",
-    )
-before, after = versions(sys.argv[1]), versions(sys.argv[2])
-print("yes" if before != after else "no")
-' "$before" "$after")"
-    if [ "$changed" = "yes" ]; then
-      should_upload=true
-      reason="marketing or build version changed on main"
-    else
-      skip_reason="Push to main did not change MARKETING_VERSION or CURRENT_PROJECT_VERSION. Daily upload covers new commits."
-      notice "TestFlight skipped. ${skip_reason}"
-      set_output should_upload false
-      set_output skip_reason "$skip_reason"
-      set_output matrix "$dummy_matrix"
-      exit 0
-    fi
+    upload_if_new_commits "push to main"
     ;;
   *)
-    skip_reason="Unsupported event '$event'."
-    notice "TestFlight skipped. ${skip_reason}"
-    set_output should_upload false
-    set_output skip_reason "$skip_reason"
-    set_output matrix "$dummy_matrix"
-    exit 0
+    skip_upload "Unsupported event '$event'."
     ;;
 esac
 
@@ -190,12 +163,7 @@ print(json.dumps({"include": rows}, separators=(",", ":")))
 ' "$platform" "$include_macos")"
 
 if [ "$matrix" = '{"include":[]}' ]; then
-  skip_reason="Nothing to upload for platform '$platform'."
-  notice "TestFlight skipped. ${skip_reason}"
-  set_output should_upload false
-  set_output skip_reason "$skip_reason"
-  set_output matrix "$dummy_matrix"
-  exit 0
+  skip_upload "Nothing to upload for platform '$platform'."
 fi
 
 notice "TestFlight will upload (${reason})."

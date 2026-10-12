@@ -465,8 +465,10 @@ Known bad, still present, do not polish: `HudToast` (rewrite, don't patch).
 xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name=Apple TV' build
 ```
 
-- **Internal TestFlight** is `.github/workflows/testflight.yml`: daily if `main`
-  has new commits, on a marketing/build version change, and `workflow_dispatch`.
+- **Internal TestFlight** is `.github/workflows/testflight.yml`: push to `main`
+  if HEAD has moved since the last successful archive, cron `23 6` / `41 18`
+  UTC as backup (not `:00` — GitHub drops those under load; this repo is a
+  fork), and `workflow_dispatch`.
   Upload jobs are `runs-on: xcode-27` — the project file is `project.xcproj`;
   Xcode 26 and Fastlane's `xcodeproj` gem / gym look for `project.pbxproj` and
   fail. Sign by patching the app target in `project.xcproj`; archive with

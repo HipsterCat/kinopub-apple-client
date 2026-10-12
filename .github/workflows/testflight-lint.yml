@@ -49,8 +49,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Gate script syntax
-        run: bash -n .github/scripts/testflight-gate.sh
+      - name: Gate script
+        run: |
+          bash -n .github/scripts/testflight-gate.sh
+          GITHUB_OUTPUT="$RUNNER_TEMP/gate.out" GITHUB_EVENT_NAME=push \
+            .github/scripts/testflight-gate.sh
+          grep -q 'should_upload=false' "$RUNNER_TEMP/gate.out"
 
       - uses: ruby/setup-ruby@v1
         with:

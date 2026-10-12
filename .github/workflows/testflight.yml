@@ -11,8 +11,12 @@ name: TestFlight
 
 on:
   schedule:
-    # Daily. The gate job no-ops when main has not moved since the last upload.
-    - cron: "0 6 * * *"
+    # Off the hour. GitHub delays and can drop `schedule` jobs at minute 0
+    # under Actions load; `0 6 * * *` produced no Oct 12 run at all.
+    # This repo is a fork, so cron is a backup — push to main is the path
+    # that actually uploads when HEAD has moved since the last archive.
+    - cron: "23 6 * * *"
+    - cron: "41 18 * * *"
   push:
     branches: [main]
   workflow_dispatch:
@@ -36,6 +40,12 @@ permissions:
   contents: read
   actions: read
 
+# One archive at a time. cancel-in-progress is false so a 10-second skip
+# (or a new push) cannot kill a 75-minute upload. GitHub still cancels
+# *pending* runs in this group when a newer one is queued — that is why
+# a delayed 06:00 schedule can vanish behind push-skip runs. Push now
+# uploads instead of skipping, so the canceled pending run is the one
+# we no longer need.
 concurrency:
   group: testflight
   cancel-in-progress: false

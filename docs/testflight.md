@@ -19,8 +19,8 @@ keys.
 
 | Trigger | What happens |
 | --- | --- |
-| **Daily** (`06:00 UTC`) | Uploads if `main` has commits that have not been uploaded yet |
-| **Push to `main`** | Uploads only when `MARKETING_VERSION` or `CURRENT_PROJECT_VERSION` in `KinoPubAppleClient.xcodeproj/project.xcproj` changed |
+| **Push to `main`** | Uploads if HEAD is not the last SHA that actually archived (an `Upload *` job succeeded). This is the reliable path — this repo is a fork, and GitHub can drop `schedule` runs |
+| **Cron** (`06:23` and `18:41` UTC) | Same rule as push. Backup for a day with no pushes after a failed archive. Not on minute 0: GitHub drops `:00` crons under load |
 | **Actions → TestFlight → Run workflow** | Always, if secrets are present. Pick iOS / tvOS / macOS / all |
 
 The build number is **not** committed. The job asks App Store Connect for the latest

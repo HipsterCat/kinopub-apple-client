@@ -5,6 +5,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### TestFlight: push to main uploads; cron moved off :00 (2026-10-12)
+
+Oct 12 06:00 UTC never created a `schedule` run. Cron was `0 6 * * *` — GitHub
+delays and can **drop** queued `schedule` jobs at the start of the hour. This
+repo is a fork of `leoru/kinopub-apple-client`, which makes cron a backup, not
+a guarantee. Push to `main` only uploaded on a marketing/build version bump, so
+every Oct 11 push skipped and a missed cron left no archive.
+
+- Push and schedule now share one rule: upload when HEAD is not the last SHA
+  that actually archived (`Upload *` succeeded).
+- Cron is `23 6 * * *` and `41 18 * * *`.
+
 ### tvOS Library: hugging sidebar, staged Menu, section header, genre+year captions (2026-10-11)
 
 Sidebar order is Подписки / Продолжить / Все закладки / folders / История at the
