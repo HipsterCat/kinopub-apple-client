@@ -243,14 +243,21 @@ public extension TVUIKitMediaItem {
   }
 }
 
-/// One title in the banner: its card and the title logo when external metadata has one.
+/// One title in the banner: its card and the title-logo slot (pending / URL / miss).
 public struct TVPageFeature: Hashable {
   public let card: MediaCard
-  public let logoURL: URL?
+  public let logo: TitleLogoResolution
 
-  public init(card: MediaCard, logoURL: URL? = nil) {
+  public var logoURL: URL? { logo.url }
+
+  public init(card: MediaCard, logo: TitleLogoResolution = .missing) {
     self.card = card
-    self.logoURL = logoURL
+    self.logo = logo
+  }
+
+  public init(card: MediaCard, logoURL: URL?) {
+    self.card = card
+    self.logo = logoURL.map { .url($0) } ?? .missing
   }
 }
 

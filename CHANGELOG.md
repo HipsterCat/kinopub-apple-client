@@ -5,6 +5,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Hero / banner title logo: no text flicker while the logo loads (2026-10-12)
+
+The title slot and the logo share one place. Showing the lettered name while the
+logo loaded, then swapping, was the flicker. Presentation now follows Plozz
+`HeroLogoPresentationPolicy` (33c1219): the slot stays empty (layout reserved)
+while a lookup is in flight; a cached logo paints on the first frame; the
+lettered title appears only after a confirmed miss (no logo in metadata, 404, or
+a 1.5 s timeout). Completions carry a request id so a stale decode cannot paint
+a newer card. `HomeCatalog.bannerLogos` distinguishes pending / URL / miss —
+`nil` used to mean both "not yet" and "there isn't one", which drew the name
+immediately.
+
 ### TestFlight: at most one automatic upload per day (2026-10-12)
 
 Push to `main` no longer archives. One cron, `23 6 * * *` (06:23 UTC), uploads

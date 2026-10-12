@@ -105,9 +105,9 @@ class HomeCatalog: ObservableObject {
   /// has no seasons, so its card cannot say "12 episodes"; the details one can, and it
   /// carries the IMDb id the logo lookup needs. Until it lands the shelf card draws.
   @Published public private(set) var bannerDetails: [Int: MediaCard] = [:]
-  /// Title logos for the banner cards, by card id, as external metadata finds them.
-  /// A card without one draws its name instead.
-  @Published public private(set) var bannerLogos: [Int: URL] = [:]
+  /// Title logos for the banner cards, by card id. Missing keys are still in
+  /// flight (``.pending``) — the lettered name waits for a confirmed miss.
+  @Published public private(set) var bannerLogos: [Int: TitleLogoResolution] = [:]
   @Published public private(set) var isLoaded: Bool = false
   /// True when every shelf failed and there is nothing cached to show — the view
   /// swaps the blank screen for a retry state. Cached rows always win over this flag.
@@ -483,15 +483,19 @@ class HomeCatalog: ObservableObject {
 
     for card in bannerCards where bannerLookups.insert(card.id).inserted {
       let id = card.id
+      if bannerLogos[id] == nil { bannerLogos[id] = .pending }
       bannerTasks[id] = Task { [weak self, itemsService, metadataService] in
         let item = try? await itemsService.fetchDetails(for: "\(card.itemID)", excludeLinks: true).item
         guard let self, !Task.isCancelled, self.bannerCards.contains(where: { $0.id == id }) else { return }
         let detailed = item.map { MediaCard($0) }
         if let detailed { self.bannerDetails[id] = detailed }
-        guard let identity = MediaIdentity(card: detailed ?? card) else { return }
+        guard let identity = MediaIdentity(card: detailed ?? card) else {
+          self.bannerLogos[id] = .missing
+          return
+        }
         let url = await metadataService.metadata(for: identity).titleLogoURL
-        guard let url, !Task.isCancelled, self.bannerCards.contains(where: { $0.id == id }) else { return }
-        self.bannerLogos[id] = url
+        guard !Task.isCancelled, self.bannerCards.contains(where: { $0.id == id }) else { return }
+        self.bannerLogos[id] = url.map { .url($0) } ?? .missing
       }
     }
   }
@@ -500,6 +504,7 @@ class HomeCatalog: ObservableObject {
     bannerTasks.values.forEach { $0.cancel() }
     bannerTasks.removeAll()
     bannerLookups.removeAll()
+    bannerLogos.removeAll()
   }
 
   // MARK: - Continue watching actions

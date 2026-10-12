@@ -146,7 +146,8 @@ struct MainView: View {
     let bannerSection: [TVPageSection] = banner.isEmpty ? [] : [
       .banner(id: Self.bannerSectionID,
               features: banner.map {
-                TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0, logoURL: catalog.bannerLogos[$0.id])
+                TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
+                              logo: catalog.bannerLogos[$0.id] ?? .pending)
               })
     ]
     return bannerSection + homeRows.map { row in

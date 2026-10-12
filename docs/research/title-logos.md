@@ -15,9 +15,11 @@ Applies to the Watch Now banner (`TVPageBannerCell`), the detail hero (`MediaIte
 | Sodalite | Logo sized by **area**: `height = nominal × sqrt(pivot/aspect)`, with a floor and a ceiling; per-tier budget (tvOS 0.42 × column / 165 pt). 6:1, 3:1 and 1:1 carry the same optical weight. | [d05a2b7](https://github.com/superuser404notfound/Sodalite/commit/d05a2b74bbf3a108ddcca4f457b256a83e94e6f9), [8d7ff1f](https://github.com/superuser404notfound/Sodalite/commit/8d7ff1f2308f71cfc50f40c4e56eb3b69f8ae80a) |
 | Plozz | A dark soft shadow only when measured contrast needs it, never a white glow; the logo is adopted the moment it decodes (the contrast analysis catches up). | [18c17de](https://github.com/brandomoore/Plozz/commit/18c17de3468dd86eed58672111b126270fa103da), [331cfd1](https://github.com/brandomoore/Plozz/commit/331cfd17387f7a60bfa00eda77f2927fea122333) |
 | Plozz | A logo over textless art in Continue Watching; logo caches isolated by title and source. | [e78e1a8](https://github.com/brandomoore/Plozz/commit/e78e1a85) |
+| Plozz | Wait for browsing logos before showing title fallbacks: empty while resolving, text only on a confirmed miss, request-scoped completion. | [33c1219](https://github.com/brandomoore/Plozz/commit/33c12199fa15453e6b5c0f1ed11ca6f76ca05d47) |
 
 ## Pros / cons
-- Pro: one decoded-image pipeline (`Artwork`); 32-bit tile rendering; the lettered title holds until a logo lands.
+- Pro: one decoded-image pipeline (`Artwork`); 32-bit tile rendering.
+- **Presentation (2026-10-12):** the slot stays empty while a logo is expected; a cached logo paints immediately; the lettered title appears only after a confirmed miss (no URL / 404 / 1.5 s). `TitleLogoPresentationPolicy`. Prior art: Plozz 33c1219.
 - Con: about 6 × (1 + 2 TMDB + n KP) requests on a cold Watch Now just for logos; the logo arrives after details.
 - Con: uneven optical weight; fixed pt constants instead of fractions of the container (against CURRENT's adaptive rule).
 

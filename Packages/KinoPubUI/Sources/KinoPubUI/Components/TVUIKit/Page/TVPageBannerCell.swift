@@ -13,8 +13,10 @@
 //  aggregate. A rating with no logo is left out, so a bare number cannot stand in
 //  for it.
 //
-//  The title logo and the name share one slot: while a logo is loading the name
-//  stays hidden, and it appears only when there is no logo or the load fails.
+//  The title logo and the name share one slot: empty while a lookup is in
+//  flight, cached logo on the first frame, lettered name only after a confirmed
+//  miss (no URL, 404, or TitleLogoPresentationPolicy.missTimeout). Completions
+//  are request-scoped so a stale decode cannot overwrite a newer card.
 //
 
 import TVUIKit
@@ -44,6 +46,10 @@ final class TVPageBannerCell: UICollectionViewCell {
   private var tasks: [Task<Void, Never>] = []
   private var feature: TVPageFeature?
   private var chrome = TVPageBannerChrome.current
+  /// Increments on every logo request so a stale load cannot paint a newer card.
+  private var logoRequestID = 0
+  private var logoStartedAt = Date()
+  private var missWork: DispatchWorkItem?
   /// The plot sentence, plain. The label draws it unhyphenated, and chrome edits
   /// (font, colour, alignment) rebuild that string.
   private var overviewText: String?
@@ -241,7 +247,7 @@ final class TVPageBannerCell: UICollectionViewCell {
       cancelLoads()
       backdrop.image = nil
       poster.image = nil
-      showMark(nil, awaitingLogo: feature.logoURL != nil)
+      showMark(nil, awaitingLogo: true)
     }
     let size = cardView.contentSize
     if !sameTitle || backdrop.image == nil {
@@ -256,16 +262,9 @@ final class TVPageBannerCell: UICollectionViewCell {
         self?.poster.image = $0
       }
     }
-    if let logoURL = feature.logoURL, !sameTitle || logo.image == nil {
-      showMark(logo.image, awaitingLogo: logo.image == nil)
-      load([logoURL], size: .zero, apply: { [weak self] image in
-        guard let image else { return }
-        self?.showMark(image, awaitingLogo: false)
-      }, ifNone: { [weak self] in
-        self?.showMark(nil, awaitingLogo: false)
-      })
-    } else if feature.logoURL == nil {
-      showMark(nil, awaitingLogo: false)
+    let logoChanged = previous?.logo != feature.logo
+    if !sameTitle || logoChanged || (feature.logo.url != nil && logo.image == nil) {
+      applyLogo(feature.logo)
     }
   }
 
@@ -528,6 +527,63 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   // MARK: - Logo
 
+  /// Empty while a lookup is in flight; cached image immediately; lettered name
+  /// only after a confirmed miss. A new request id retires any in-flight load.
+  private func applyLogo(_ resolution: TitleLogoResolution) {
+    let policy = TitleLogoPresentationPolicy.whenResolved
+    logoRequestID += 1
+    let requestID = logoRequestID
+    logoStartedAt = Date()
+    missWork?.cancel()
+
+    switch resolution {
+    case .pending:
+      showMark(logo.image, awaitingLogo: logo.image == nil)
+      scheduleMiss(requestID)
+    case .url(let url):
+      if let cached = TVUIKitRemoteImage.cached(url: url, size: .zero) {
+        showMark(cached, awaitingLogo: false)
+        return
+      }
+      showMark(logo.image, awaitingLogo: logo.image == nil)
+      scheduleMiss(requestID)
+      load([url], size: .zero, apply: { [weak self] image in
+        guard let self else { return }
+        guard policy.shouldApply(requestID: requestID, current: self.logoRequestID) else { return }
+        guard let image else { return }
+        let elapsed = Date().timeIntervalSince(self.logoStartedAt)
+        let showingText = !self.titleLabel.isHidden
+        guard policy.shouldAdoptLogo(elapsed: elapsed, alreadyShowingText: showingText) else { return }
+        self.missWork?.cancel()
+        self.showMark(image, awaitingLogo: false)
+      }, ifNone: { [weak self] in
+        guard let self else { return }
+        guard policy.shouldApply(requestID: requestID, current: self.logoRequestID) else { return }
+        self.missWork?.cancel()
+        self.showMark(nil, awaitingLogo: false)
+      })
+    case .missing:
+      showMark(nil, awaitingLogo: false)
+    }
+  }
+
+  /// Treat a hung lookup as a miss so the slot does not stay empty.
+  private func scheduleMiss(_ requestID: Int) {
+    let policy = TitleLogoPresentationPolicy.whenResolved
+    let work = DispatchWorkItem { [weak self] in
+      guard let self else { return }
+      guard policy.shouldApply(requestID: requestID, current: self.logoRequestID) else { return }
+      if self.logo.image == nil {
+        self.showMark(nil, awaitingLogo: false)
+      }
+    }
+    missWork = work
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + TitleLogoPresentationPolicy.missTimeout,
+      execute: work
+    )
+  }
+
   /// The logo and the name are one slot. `awaitingLogo` keeps the name off until
   /// the image arrives or the load fails.
   private func showMark(_ image: UIImage?, awaitingLogo: Bool) {
@@ -594,6 +650,8 @@ final class TVPageBannerCell: UICollectionViewCell {
   private func cancelLoads() {
     tasks.forEach { $0.cancel() }
     tasks = []
+    missWork?.cancel()
+    missWork = nil
   }
 
   private static func weightedFont(_ style: UIFont.TextStyle, _ weight: UIFont.Weight) -> UIFont {
@@ -605,6 +663,7 @@ final class TVPageBannerCell: UICollectionViewCell {
   override func prepareForReuse() {
     super.prepareForReuse()
     cancelLoads()
+    logoRequestID += 1
     feature = nil
     backdrop.image = nil
     poster.image = nil
