@@ -3,7 +3,7 @@
 //  KinoPubAppleClient
 //
 //  Local item → bookmark-folder membership. The catalogue payload already carries
-//  `MediaItem.bookmarks` (and MediaCard.isBookmarked) — we never need
+//  `MediaItem.bookmarks` (and MediaCard.viewerState) — we never need
 //  `GET /v1/bookmarks/get-item-folders` just to draw a checkmark. Toggles update
 //  this store immediately; server hints fill gaps when the payload had folder ids.
 //

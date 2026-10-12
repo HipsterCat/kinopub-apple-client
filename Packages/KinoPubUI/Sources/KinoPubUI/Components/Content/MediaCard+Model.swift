@@ -23,7 +23,6 @@ public extension MediaCard {
     let line = TitleMetaLine(entity)
     // One genre, the primary (D7).
     let genres = entity.genres.prefix(1).map { $0.name.value(languageCode: language.rawValue) }
-    let folders = (state.bookmarkFolderIDs ?? []).sorted()
     self.init(id: ref.itemID,
               posterURL: (entity.artwork.posterPreview ?? entity.artwork.poster)?.absoluteString ?? "",
               title: entity.title ?? "",
@@ -34,7 +33,7 @@ public extension MediaCard {
               overview: entity.synopsis.best,
               seasonCount: entity.seasonCount,
               isSeries: entity.kind == .show,
-              isInWatchlist: state.isFollowing ?? false,
+              viewerState: Self.cardState(state, isSeries: entity.kind == .show),
               is4K: entity.formats.contains(.uhd),
               isHDR: entity.formats.contains(.hdr),
               isHD: entity.formats.contains(.hd),
@@ -46,8 +45,6 @@ public extension MediaCard {
               genreLine: genres.isEmpty ? nil : genres.joined(separator: ", "),
               countryLine: entity.countries.first,
               seasonsLabel: SeasonCountText(entity.seasonCount)?.formatted(language: language),
-              isBookmarked: !folders.isEmpty,
-              bookmarkFolderIDs: folders,
               imdbID: entity.id(.imdb).flatMap { Int($0.drop { !$0.isNumber }) },
               kinopoiskID: entity.id(.kinopoisk).flatMap(Int.init))
   }
@@ -78,15 +75,22 @@ public extension MediaCard {
     }
     return ViewerState(progress: watch,
                        isWatched: isWatched,
-                       isFollowing: isSeries ? isInWatchlist : nil,
-                       bookmarkFolderIDs: bookmarkFolderIDs.isEmpty ? nil : Set(bookmarkFolderIDs))
+                       isFollowing: isSeries ? viewerState.isFollowing : nil,
+                       bookmarkFolderIDs: viewerState.bookmarkFolderIDs)
+  }
+
+  /// The part of the viewer's state a card keeps: follow — a series' alone — and folders.
+  /// An empty folder set is "not bookmarked", said as nil like the payload says it.
+  static func cardState(_ state: ViewerState, isSeries: Bool) -> ViewerState {
+    let folders = state.bookmarkFolderIDs ?? []
+    return ViewerState(isFollowing: isSeries ? state.isFollowing : nil,
+                       bookmarkFolderIDs: folders.isEmpty ? nil : folders)
   }
 
   /// The same card with the viewer's state replaced — watched, progress, follow, folders.
   /// Words and artwork are untouched.
   func withViewerState(_ state: ViewerState) -> MediaCard {
-    let folders = (state.bookmarkFolderIDs ?? []).sorted()
-    return MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
+    MediaCard(id: id, posterURL: posterURL, title: title, subtitle: subtitle,
                      watchedAt: watchedAt, scores: scores,
                      progress: state.resumeFraction ?? (state.isWatched ? nil : progress),
                      badge: badge, backdropURL: backdropURL, metaLine: metaLine,
@@ -94,13 +98,12 @@ public extension MediaCard {
                      overlayLabel: overlayLabel, itemID: itemID, video: video, season: season,
                      seasonCount: seasonCount, mediaID: mediaID, isWatched: state.isWatched,
                      isSeries: isSeries, isInHistory: isInHistory,
-                     isInWatchlist: isSeries && (state.isFollowing ?? false),
+                     viewerState: Self.cardState(state, isSeries: isSeries),
                      is4K: is4K, isHDR: isHDR, isHD: isHD, is3D: is3D,
                      hasClosedCaptions: hasClosedCaptions, year: year, yearEnd: yearEnd,
                      unwatchedEpisodes: unwatchedEpisodes,
                      durationSeconds: durationSeconds, genreLine: genreLine,
                      countryLine: countryLine, seasonsLabel: seasonsLabel,
-                     isBookmarked: !folders.isEmpty, bookmarkFolderIDs: folders,
                      primaryAction: primaryAction, opensCollection: opensCollection,
                      captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
   }

@@ -20,8 +20,9 @@ final class MediaCardViewerStateTests: XCTestCase {
   /// What the card said when fetched is the reported side.
   func testTheCardReportsWhatItWasFetchedWith() {
     let card = MediaCard(id: 7, posterURL: "", title: "A", progress: 0.5, isWatched: false,
-                         isSeries: true, isInWatchlist: true, durationSeconds: 3_000,
-                         bookmarkFolderIDs: [3])
+                         isSeries: true,
+                         viewerState: ViewerState(isFollowing: true, bookmarkFolderIDs: [3]),
+                         durationSeconds: 3_000)
     let reported = card.reportedState
     XCTAssertEqual(reported.progress?.position, 1_500)
     XCTAssertEqual(reported.isFollowing, true)
@@ -36,8 +37,8 @@ final class MediaCardViewerStateTests: XCTestCase {
     let painted = cached.withViewerState(ViewerState(isWatched: true, bookmarkFolderIDs: [1, 2]))
     XCTAssertTrue(painted.isWatched)
     XCTAssertNil(painted.progress)
-    XCTAssertEqual(painted.bookmarkFolderIDs, [1, 2])
-    XCTAssertTrue(painted.isBookmarked)
+    XCTAssertEqual(painted.viewerState.bookmarkFolderIDs, [1, 2])
+    XCTAssertTrue(painted.viewerState.isBookmarked)
     XCTAssertEqual(painted.title, "Film", "words are untouched")
   }
 
@@ -45,7 +46,8 @@ final class MediaCardViewerStateTests: XCTestCase {
   /// state over every title card; dropping the count left every cover without a subtitle.
   func testViewerStateKeepsTheUnwatchedEpisodeCount() {
     let followed = MediaCard(id: 1, posterURL: "", title: "Дом Дракона",
-                             subtitle: "2 серии", isSeries: true, isInWatchlist: true,
+                             subtitle: "2 серии", isSeries: true,
+                             viewerState: ViewerState(isFollowing: true),
                              unwatchedEpisodes: 2)
     let painted = followed.withViewerState(ViewerState(isFollowing: true))
     XCTAssertEqual(painted.unwatchedEpisodes, 2)
@@ -55,6 +57,16 @@ final class MediaCardViewerStateTests: XCTestCase {
   /// Follow is a series' alone, even if a store says otherwise about a film.
   func testAFilmIsNeverFollowed() {
     let film = MediaCard(id: 7, posterURL: "", title: "Film")
-    XCTAssertFalse(film.withViewerState(ViewerState(isFollowing: true)).isInWatchlist)
+    XCTAssertNil(film.withViewerState(ViewerState(isFollowing: true)).viewerState.isFollowing)
+  }
+
+  /// A card written before follow and folders became one value still reads them.
+  func testACardWrittenBeforeTheViewerStateStillDecodes() throws {
+    let json = #"{"id":7,"posterURL":"","title":"Show","isSeries":true,"isInWatchlist":true,"bookmarkFolderIDs":[4]}"#
+    let card = try JSONDecoder().decode(MediaCard.self, from: Data(json.utf8))
+    XCTAssertEqual(card.viewerState.isFollowing, true)
+    XCTAssertEqual(card.viewerState.bookmarkFolderIDs, [4])
+    let roundTripped = try JSONDecoder().decode(MediaCard.self, from: JSONEncoder().encode(card))
+    XCTAssertEqual(roundTripped, card)
   }
 }

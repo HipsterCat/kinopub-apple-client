@@ -91,9 +91,12 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let isSeries: Bool
   /// Title appears in `/v1/history` — context menu can offer Browse History.
   public let isInHistory: Bool
-  /// Title is on the user's watchlist — context menu can offer Browse Watchlist.
-  @available(*, deprecated, message: "A copy of viewer state on the card. Read ViewerState (AppContext.viewerState) at paint time (docs/media-model.md step 4). Follow is ViewerState.isFollowing, series only.")
-  public let isInWatchlist: Bool
+  /// Follow (a series' alone) and bookmark folders as this card knows them — the
+  /// payload's word, or today's state once `ContentStore` laid it over
+  /// (`withViewerState`). It is what the card paints; a menu or folder picker asks
+  /// `ViewerStateReader` for `ref` when it opens. Watched and progress are still their
+  /// own fields above.
+  public let viewerState: ViewerState
   /// Item-level 4K / HDR when known from the catalogue payload (not device caps).
   public let is4K: Bool
   public let isHDR: Bool
@@ -121,13 +124,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// and for listed series, whose payload carries no seasons.
   @available(*, deprecated, message: "Pre-worded on the card. The presenter words it at paint time from MediaContext + MediaSurface (docs/media-model.md step 4).")
   public let seasonsLabel: String?
-  /// Title sits in at least one bookmark folder (not the watchlist flag).
-  @available(*, deprecated, message: "A copy of viewer state on the card. Read ViewerState (AppContext.viewerState) at paint time (docs/media-model.md step 4). ViewerState.isBookmarked.")
-  public let isBookmarked: Bool
-  /// Folder ids from `MediaItem.bookmarks` when the payload carried them. Empty when
-  /// unknown — local `BookmarkMembershipStore` overlays toggles on top.
-  @available(*, deprecated, message: "A copy of viewer state on the card. Read ViewerState (AppContext.viewerState) at paint time (docs/media-model.md step 4). ViewerState.bookmarkFolderIDs.")
-  public let bookmarkFolderIDs: [Int]
   /// Single-click / Select target. Continue Watching uses `.play`; History stays detail for now.
   public let primaryAction: MediaCardPrimaryAction
   /// When true, Select opens a curated collection rather than a media title — Home /
@@ -220,7 +216,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               isWatched: Bool = false,
               isSeries: Bool = false,
               isInHistory: Bool = false,
-              isInWatchlist: Bool = false,
+              viewerState: ViewerState = .unknown,
               is4K: Bool = false,
               isHDR: Bool = false,
               isHD: Bool = false,
@@ -233,8 +229,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               genreLine: String? = nil,
               countryLine: String? = nil,
               seasonsLabel: String? = nil,
-              isBookmarked: Bool = false,
-              bookmarkFolderIDs: [Int] = [],
               primaryAction: MediaCardPrimaryAction = .openDetail,
               opensCollection: Bool = false,
               captionStats: [MediaCardCaptionStat] = [],
@@ -266,7 +260,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.isWatched = isWatched
     self.isSeries = isSeries
     self.isInHistory = isInHistory
-    self.isInWatchlist = isInWatchlist
+    self.viewerState = viewerState
     self.is4K = is4K
     self.isHDR = isHDR
     self.isHD = isHD
@@ -279,8 +273,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.genreLine = genreLine
     self.countryLine = countryLine
     self.seasonsLabel = seasonsLabel
-    self.isBookmarked = isBookmarked
-    self.bookmarkFolderIDs = bookmarkFolderIDs
     self.primaryAction = primaryAction
     self.opensCollection = opensCollection
     self.captionStats = captionStats
@@ -316,7 +308,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               isWatched: isWatched,
               isSeries: isSeries,
               isInHistory: isInHistory,
-              isInWatchlist: isInWatchlist,
+              viewerState: viewerState,
               is4K: is4K,
               isHDR: isHDR,
               isHD: isHD,
@@ -329,8 +321,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               genreLine: genreLine,
               countryLine: countryLine,
               seasonsLabel: seasonsLabel,
-              isBookmarked: isBookmarked,
-              bookmarkFolderIDs: bookmarkFolderIDs,
               primaryAction: primaryAction,
               opensCollection: opensCollection,
               captionStats: captionStats,
@@ -366,7 +356,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     isWatched = try c.decodeIfPresent(Bool.self, forKey: .isWatched) ?? false
     isSeries = try c.decodeIfPresent(Bool.self, forKey: .isSeries) ?? false
     isInHistory = try c.decodeIfPresent(Bool.self, forKey: .isInHistory) ?? false
-    isInWatchlist = try c.decodeIfPresent(Bool.self, forKey: .isInWatchlist) ?? false
     is4K = try c.decodeIfPresent(Bool.self, forKey: .is4K) ?? false
     isHDR = try c.decodeIfPresent(Bool.self, forKey: .isHDR) ?? false
     isHD = try c.decodeIfPresent(Bool.self, forKey: .isHD) ?? false
@@ -379,8 +368,15 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     genreLine = try c.decodeIfPresent(String.self, forKey: .genreLine)
     countryLine = try c.decodeIfPresent(String.self, forKey: .countryLine)
     seasonsLabel = try c.decodeIfPresent(String.self, forKey: .seasonsLabel)
-    isBookmarked = try c.decodeIfPresent(Bool.self, forKey: .isBookmarked) ?? false
-    bookmarkFolderIDs = try c.decodeIfPresent([Int].self, forKey: .bookmarkFolderIDs) ?? []
+    if let state = try c.decodeIfPresent(ViewerState.self, forKey: .viewerState) {
+      viewerState = state
+    } else {
+      // A card written before the three copies became one value.
+      let following = try c.decodeIfPresent(Bool.self, forKey: .isInWatchlist)
+      let folders = try c.decodeIfPresent([Int].self, forKey: .bookmarkFolderIDs) ?? []
+      viewerState = ViewerState(isFollowing: isSeries ? following : nil,
+                                bookmarkFolderIDs: folders.isEmpty ? nil : Set(folders))
+    }
     // Old row snapshots omit this key — keep opening detail until the next CW fetch.
     primaryAction = try c.decodeIfPresent(MediaCardPrimaryAction.self, forKey: .primaryAction)
       ?? .openDetail
@@ -416,7 +412,6 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encode(isWatched, forKey: .isWatched)
     try c.encode(isSeries, forKey: .isSeries)
     try c.encode(isInHistory, forKey: .isInHistory)
-    try c.encode(isInWatchlist, forKey: .isInWatchlist)
     try c.encode(is4K, forKey: .is4K)
     try c.encode(isHDR, forKey: .isHDR)
     try c.encode(isHD, forKey: .isHD)
@@ -429,8 +424,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(genreLine, forKey: .genreLine)
     try c.encodeIfPresent(countryLine, forKey: .countryLine)
     try c.encodeIfPresent(seasonsLabel, forKey: .seasonsLabel)
-    try c.encode(isBookmarked, forKey: .isBookmarked)
-    try c.encode(bookmarkFolderIDs, forKey: .bookmarkFolderIDs)
+    try c.encode(viewerState, forKey: .viewerState)
     try c.encode(primaryAction, forKey: .primaryAction)
     try c.encode(opensCollection, forKey: .opensCollection)
     try c.encode(captionStats, forKey: .captionStats)
@@ -442,10 +436,12 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
     case progress, badge, backdropURL, metaLine, overview
     case landscapeImageURL, overlayLabel, itemID, video, season, seasonCount, mediaID
-    case isWatched, isSeries, isInHistory, isInWatchlist, is4K, isHDR
+    case isWatched, isSeries, isInHistory, viewerState, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, yearEnd, unwatchedEpisodes, durationSeconds
-    case genreLine, countryLine, seasonsLabel, isBookmarked, bookmarkFolderIDs, primaryAction
+    case genreLine, countryLine, seasonsLabel, primaryAction
     case opensCollection, captionStats, imdbID, kinopoiskID
+    /// Read from cards written before `viewerState`, never written.
+    case isInWatchlist, bookmarkFolderIDs
   }
 }
 
@@ -682,7 +678,7 @@ public struct MediaCardView: View {
   }
 
   private var showsBookmarkOnArtwork: Bool {
-    showBookmarkSymbol && (card.isBookmarked || card.isInWatchlist)
+    showBookmarkSymbol && (card.viewerState.isBookmarked || card.viewerState.isFollowing == true)
   }
 
   private var landscapeTimeBadge: LandscapeTimeBadge? {
@@ -1296,7 +1292,7 @@ private struct LandscapePlayChromeBackground: ViewModifier {
       landscapeImageURL: "https://m.staticpop.net/poster/item/wide/10524.jpg",
       overlayLabel: "S1, E3",
       isSeries: true,
-      isInWatchlist: true,
+      viewerState: ViewerState(isFollowing: true),
       durationSeconds: 48 * 60,
       primaryAction: .play
     ),
@@ -1331,7 +1327,7 @@ private struct LandscapePlayChromeBackground: ViewModifier {
         title: "In progress",
         progress: 0.35,
         landscapeImageURL: "https://m.staticpop.net/poster/item/wide/100582.jpg",
-        isInWatchlist: true,
+        viewerState: ViewerState(isFollowing: true),
         durationSeconds: 2 * 3600,
         primaryAction: .play
       ),

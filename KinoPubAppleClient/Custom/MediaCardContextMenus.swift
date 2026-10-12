@@ -102,14 +102,18 @@ enum MediaCardContextMenus {
     let showBookmarks = onToggleBookmarkFolder != nil || onCreateBookmarkFolder != nil
     // Follow is a series' alone; a film is kept with bookmarks (user's call, 2026-10-03).
     let onToggleFollow = card.isSeries ? onToggleWatchlist : nil
+    // Read when the menu opens, not from the card: a follow toggled since the row was
+    // built already counts.
+    let isFollowing = onToggleFollow != nil
+      && AppContext.shared.viewerState.state(for: card.ref, reported: card.reportedState).isFollowing == true
     let hasLibrary = onToggleFollow != nil || showBookmarks
     if hasLibrary {
       appendDivider()
       if let onToggleFollow {
         entries.append(.action(MediaCardContextAction(
           id: "toggle-watchlist",
-          title: MediaActionCopy.followMenuTitle(isFollowing: card.isInWatchlist),
-          systemImage: card.isInWatchlist ? "bell.slash" : "bell",
+          title: MediaActionCopy.followMenuTitle(isFollowing: isFollowing),
+          systemImage: isFollowing ? "bell.slash" : "bell",
           handler: onToggleFollow
         )))
       }
@@ -248,7 +252,7 @@ enum MediaCardContextMenus {
         guard let folder = menu.folders.first(where: { $0.id == folderID }) else { return }
         menu.toggleBookmark(itemID: card.itemID,
                             folder: folder,
-                            serverHint: Set(card.bookmarkFolderIDs))
+                            serverHint: card.viewerState.bookmarkFolderIDs ?? [])
       },
       onCreateBookmarkFolder: { menu.promptNewFolder(for: card.itemID) },
       onToggleWatched: canMarkWatched

@@ -217,7 +217,7 @@ struct HistoryView: View {
           isWatched: card.isWatched,
           isSeries: card.isSeries,
           isInHistory: card.isInHistory,
-          isInWatchlist: card.isInWatchlist,
+          viewerState: card.viewerState,
           is4K: card.is4K,
           isHDR: card.isHDR,
           isHD: card.isHD,
@@ -227,8 +227,6 @@ struct HistoryView: View {
           durationSeconds: card.durationSeconds,
           genreLine: card.genreLine,
           countryLine: card.countryLine,
-          isBookmarked: card.isBookmarked,
-          bookmarkFolderIDs: card.bookmarkFolderIDs,
           primaryAction: card.primaryAction
         )
       }

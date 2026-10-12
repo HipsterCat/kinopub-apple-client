@@ -68,10 +68,12 @@ final class MediaCardMenuCoordinator: ObservableObject {
       .recentlyUpdatedFirst()
   }
 
-  /// Folder ids that contain this card — local store + `MediaItem.bookmarks` hint on the card.
-  /// Never hits the network (`get-item-folders` is gone on purpose).
+  /// Folder ids that contain this card's title — `ViewerStateReader`: this device's
+  /// membership over what the card's payload said. Never hits the network
+  /// (`get-item-folders` is gone on purpose).
   func containingFolders(for card: MediaCard) -> Set<Int> {
-    membership.folderIDs(for: card.itemID, serverHint: Set(card.bookmarkFolderIDs))
+    AppContext.shared.viewerState.state(for: card.ref, reported: card.reportedState)
+      .bookmarkFolderIDs ?? []
   }
 
   func containingFolders(itemID: Int, serverHint: Set<Int> = []) -> Set<Int> {

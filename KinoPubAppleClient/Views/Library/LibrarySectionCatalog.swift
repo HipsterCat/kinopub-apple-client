@@ -367,7 +367,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
                      badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
                      backdropURL: item.posters.wideURL ?? item.posters.big,
                      isSeries: true,
-                     isInWatchlist: true,
+                     viewerState: ViewerState(isFollowing: true),
                      unwatchedEpisodes: left)
   }
 

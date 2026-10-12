@@ -289,7 +289,7 @@ struct MainView: View {
         guard let folder = cardMenu.folders.first(where: { $0.id == folderID }) else { return }
         cardMenu.toggleBookmark(itemID: card.itemID,
                                 folder: folder,
-                                serverHint: Set(card.bookmarkFolderIDs))
+                                serverHint: card.viewerState.bookmarkFolderIDs ?? [])
       },
       onCreateBookmarkFolder: { cardMenu.promptNewFolder(for: card.itemID) },
       onToggleWatched: onToggleWatched,

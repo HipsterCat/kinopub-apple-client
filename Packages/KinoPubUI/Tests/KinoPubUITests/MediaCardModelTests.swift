@@ -54,8 +54,9 @@ final class MediaCardModelTests: XCTestCase {
     let card = MediaCard(ref: .title(1), entity: film,
                          state: ViewerState(isFollowing: nil, bookmarkFolderIDs: [7]))
     XCTAssertEqual(card.isSeries, false)
-    XCTAssertEqual(card.bookmarkFolderIDs, [7])
-    XCTAssertTrue(card.isBookmarked)
+    XCTAssertEqual(card.viewerState.bookmarkFolderIDs, [7])
+    XCTAssertTrue(card.viewerState.isBookmarked)
+    XCTAssertNil(card.viewerState.isFollowing)
   }
 
   func testASeriesCard() {

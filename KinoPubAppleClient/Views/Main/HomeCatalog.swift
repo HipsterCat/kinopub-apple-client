@@ -844,7 +844,7 @@ class HomeCatalog: ObservableObject {
                      isWatched: false,
                      isSeries: isSeries,
                      isInHistory: isInHistory,
-                     isInWatchlist: isInWatchlist,
+                     viewerState: ViewerState(isFollowing: isSeries ? isInWatchlist : nil),
                      durationSeconds: durationSeconds,
                      primaryAction: .play)
   }
