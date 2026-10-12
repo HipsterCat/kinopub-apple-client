@@ -14,18 +14,6 @@ public struct Duration: Codable, Hashable {
 }
 
 public extension Duration {
-  /// Legacy long form used by older chrome — prefer `compact` for new UI.
-  @available(*, deprecated, message: "Use RuntimeText(seconds:).formatted(.medium).")
-  var hoursMinutesFormatted: String {
-    Self.hoursMinutes(seconds: Int(total))
-  }
-
-  /// «1ч 48 мин» — `RuntimeText`, medium.
-  @available(*, deprecated, message: "Use RuntimeText(seconds:).formatted(.medium).")
-  static func hoursMinutes(seconds: Int) -> String {
-    RuntimeText(seconds: seconds).formatted(.medium) ?? ""
-  }
-
   /// «2ч 35м», «39м», past a day «1д 12ч 4м» — `RuntimeText`, short.
   @available(*, deprecated, message: "Use RuntimeText(seconds:).formatted(.short), or .text(for: MediaSurface).")
   static func compact(seconds: Int) -> String {
@@ -39,12 +27,6 @@ public extension Duration {
     guard let short = runtime.formatted(.short) else { return "" }
     guard runtime.minutes >= 60, let minutes = runtime.minutesOnly() else { return short }
     return "\(short) (\(minutes))"
-  }
-
-  /// Alias kept for call sites that still say "hoursMinutes".
-  @available(*, deprecated, message: "Use RuntimeText(seconds:).formatted(.short).")
-  static func compactHoursMinutes(seconds: Int) -> String {
-    compact(seconds: seconds)
   }
 
   var totalFormatted: String {

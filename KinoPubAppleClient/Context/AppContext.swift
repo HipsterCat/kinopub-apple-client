@@ -166,8 +166,7 @@ struct AppContext: AppContextProtocol {
       downloadManager: downloadManager,
       hlsDownloadManager: hlsDownloadManager,
       hlsStore: hlsDownloadsStore,
-      downloadedFilesDatabase: downloadedFilesDatabase,
-      progressStore: localProgressStore
+      downloadedFilesDatabase: downloadedFilesDatabase
     )
     // Rows read the viewer's state at paint time, not from the cached cards.
     let viewerState = ViewerStateReader(library: libraryState, progress: localProgressStore)

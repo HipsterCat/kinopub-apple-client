@@ -8,7 +8,7 @@
 //   • watched overrides (movie / episode) — win over the server until it agrees
 //   • the viewer's own like/dislike (kino.pub votes are one-shot with no read-back)
 //   • download status — façade over the existing HLS / mp4 stores
-//   • watch progress — delegated to LocalWatchProgressStore
+//  Watch progress is LocalWatchProgressStore's, read through ViewerStateReader.
 //
 //  Not a ContentStore replacement: Home/Library *rows* stay on ContentStore.
 //  Not a bookmark replacement: folder membership stays on BookmarkMembershipStore
@@ -26,9 +26,6 @@ import KinoPubMedia
 /// initializer; mutations come from views / `@MainActor` models, and the download
 /// republish sinks deliver on main, so `@Published` stays on the main thread.
 final class MediaLibraryStore: ObservableObject {
-
-  @available(*, deprecated, message: "Use ViewerState.Download.")
-  typealias DownloadStatus = ViewerState.Download
 
   // MARK: - Owned optimistic state (persisted)
 
@@ -64,7 +61,6 @@ final class MediaLibraryStore: ObservableObject {
   private let hlsDownloadManager: HLSAssetDownloadManager
   private let hlsStore: HLSDownloadsStore
   private let downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>
-  private let progressStore: LocalWatchProgressStore
 
   private let fileURL: URL
   private var cancellables = Set<AnyCancellable>()
@@ -75,13 +71,11 @@ final class MediaLibraryStore: ObservableObject {
   init(downloadManager: DownloadManager<DownloadMeta>,
        hlsDownloadManager: HLSAssetDownloadManager,
        hlsStore: HLSDownloadsStore,
-       downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>,
-       progressStore: LocalWatchProgressStore) {
+       downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>) {
     self.downloadManager = downloadManager
     self.hlsDownloadManager = hlsDownloadManager
     self.hlsStore = hlsStore
     self.downloadedFilesDatabase = downloadedFilesDatabase
-    self.progressStore = progressStore
     let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     fileURL = directory.appendingPathComponent("media_library.json")
     load()
@@ -164,7 +158,7 @@ final class MediaLibraryStore: ObservableObject {
 
   /// DESIGN: poster/card download chrome can read `downloadStatus(itemId:video:season:)` —
   /// do not invent a second card overlay; pair with the existing badge/scrim if it lands.
-  func downloadStatus(itemId: Int, video: Int?, season: Int?) -> DownloadStatus {
+  func downloadStatus(itemId: Int, video: Int?, season: Int?) -> ViewerState.Download {
     if isDownloaded(itemId: itemId, video: video, season: season) { return .downloaded }
     if let progress = activeDownloadProgress(itemId: itemId, video: video, season: season) {
       return .downloading(progress)
@@ -231,13 +225,6 @@ final class MediaLibraryStore: ObservableObject {
     }
     rebuildDownloadedIndex()
     objectWillChange.send()
-  }
-
-  // MARK: - Watch progress (delegated)
-
-  @available(*, deprecated, message: "Read AppContext.viewerState (ViewerStateReader): resumeFraction.")
-  func watchProgress(itemId: Int, season: Int?, episode: Int?) -> Double? {
-    progressStore.entry(forId: itemId, season: season, episode: episode)?.progress
   }
 
   // MARK: - Account change

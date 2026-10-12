@@ -558,7 +558,7 @@ tvOS-only properties.
       2026-09-30, simulator-verified; device check pending
 - [ ] More `infoViewActions` (Watchlist)
 - [ ] Up Next via `AVContentProposal` / `contextualActions` near the end, driven by the existing
-      next-episode logic (`NextPlayableEpisode`)
+      next-episode logic (`EpisodeQueue.next(after:)`)
 - [ ] Chapters via `navigationMarkerGroups`, once any marker source exists
 - [ ] Subtitle overlay inside the controller (`customOverlayViewController` + `unobscuredContentGuide`,
       styling from `MediaAccessibility`) instead of a SwiftUI sibling in a `ZStack`

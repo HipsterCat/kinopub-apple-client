@@ -30,13 +30,5 @@ public enum TVUIKitCardText {
     }
     return title.isEmpty ? overlay : "\(overlay) ∙ \(title)"
   }
-
-  /// An episode inside a season rail, where the season is already named by the tab
-  /// above: «7. Name», and «Серия 7» / «Episode 7» when it has no name —
-  /// `EpisodeText` on the detail page's tile (`MediaSurface.episodeTile`).
-  @available(*, deprecated, message: "Use EpisodeText(season: nil, number:name:).text(for: .episodeTile).")
-  public static func episodeCaption(number: Int, name: String?) -> String {
-    EpisodeText(season: nil, number: number, name: name).text(for: .episodeTile)
-  }
 }
 #endif

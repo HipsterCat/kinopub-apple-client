@@ -5,6 +5,7 @@
 
 import XCTest
 import KinoPubBackend
+import KinoPubMedia
 @testable import KinoPubUI
 
 final class MediaActionCatalogTests: XCTestCase {
@@ -80,7 +81,7 @@ final class MediaActionCatalogTests: XCTestCase {
     XCTAssertEqual(row.map(\.id),
                    [.play, .markWatched, .trailer, .bookmark, .follow, .shuffle, .more])
     let play = row[0]
-    XCTAssertEqual(play.title, MediaActionCopy.episodeLabel(season: 1, episode: 2))
+    XCTAssertEqual(play.title, EpisodeText(season: 1, number: 2).text(for: .heroAction))
     XCTAssertFalse(play.title?.contains("·") == true)
     XCTAssertEqual(play.progress, 0.4)
     XCTAssertEqual(row.first(where: { $0.id == .shuffle })?.chrome, .circle)
@@ -107,7 +108,7 @@ final class MediaActionCatalogTests: XCTestCase {
     // Compact `S1, E1` is resume-only (progress bar).
     XCTAssertEqual(play.title, MediaActionCopy.playEpisodeTitle(season: 1, episode: 1))
     XCTAssertEqual(play.title, "Play S1, E1")
-    XCTAssertNotEqual(play.title, MediaActionCopy.episodeLabel(season: 1, episode: 1))
+    XCTAssertNotEqual(play.title, EpisodeText(season: 1, number: 1).text(for: .heroAction))
   }
 
   func testSeriesInProgressUsesCompactEpisodeOnly() {
@@ -115,7 +116,7 @@ final class MediaActionCatalogTests: XCTestCase {
       playback: .resume(progress: 0.4, season: 1, episode: 2, durationSeconds: 2400),
       isSeries: true
     ))
-    XCTAssertEqual(play.title, MediaActionCopy.episodeLabel(season: 1, episode: 2))
+    XCTAssertEqual(play.title, EpisodeText(season: 1, number: 2).text(for: .heroAction))
     XCTAssertEqual(play.progress, 0.4)
   }
 

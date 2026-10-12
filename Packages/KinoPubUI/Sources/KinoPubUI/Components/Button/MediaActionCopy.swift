@@ -11,21 +11,6 @@ import KinoPubMedia
 
 public enum MediaActionCopy {
 
-  /// Compact episode id for mid-title (progress bar present): RU `1 сезон, 2 серия` · EN
-  /// `S1, E2` — `EpisodeText` at the hero's length.
-  /// `seasonCount`: a show with only its first season says `E2` / `2 серия`.
-  @available(*, deprecated, message: "Use EpisodeText(season:number:seasonCount:).text(for: .heroAction).")
-  public static func episodeLabel(season: Int, episode: Int, seasonCount: Int? = nil) -> String {
-    EpisodeText(season: season, number: episode, seasonCount: seasonCount).text(for: .heroAction)
-  }
-
-  /// What VoiceOver reads for the same episode: «Season 1, Episode 2».
-  @available(*, deprecated, message: "Use EpisodeText(season:number:seasonCount:).accessibilityLabel().")
-  public static func episodeAccessibilityLabel(season: Int, episode: Int,
-                                               seasonCount: Int? = nil) -> String {
-    EpisodeText(season: season, number: episode, seasonCount: seasonCount).accessibilityLabel()
-  }
-
   /// Fresh Play on an unwatched episode — EN includes the verb (`Play S1, E1`);
   /// RU is the full episode phrase alone (`1 сезон, 1 серия`). Compact `S1, E1`
   /// without a verb is only for the resume capsule (progress bar).

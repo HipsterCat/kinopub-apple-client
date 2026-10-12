@@ -34,18 +34,6 @@ public struct ContinueWatchingEpisode: Equatable, Sendable {
 
   public var hasEpisode: Bool { episode != nil }
 
-  /// Overlay on a landscape Continue Watching card — the episode the card offers,
-  /// not whichever history row happened to be newest.
-  /// `seasonCount`: one, and it is the first, and the card says «E2» / «2 серия» (user's
-  /// call, 2026-10-03). Nil when the card does not know — the season is then said.
-  @available(*, deprecated, message: "Use EpisodeText(season:number:seasonCount:).text(for: .continueWatchingCard).")
-  public static func overlayLabel(season: Int?, episode: Int?, seasonCount: Int? = nil) -> String? {
-    guard let episode else { return nil }
-    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
-                       seasonCount: seasonCount)
-      .text(for: .continueWatchingCard)
-  }
-
   /// - Parameters:
   ///   - local: the play head this device remembers, and whether it ran to the credits.
   ///   - history: the newest `/v1/history` row for this title, same question.

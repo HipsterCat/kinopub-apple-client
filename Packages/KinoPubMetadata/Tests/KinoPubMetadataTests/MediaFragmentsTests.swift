@@ -91,7 +91,7 @@ final class MediaFragmentsTests: XCTestCase {
     meta.tmdbRating = 8.4
     meta.seasonSummaries = [SeasonSummary(seasonNumber: 1), SeasonSummary(seasonNumber: 2)]
 
-    let fragment = meta.mediaFragment(kind: .show)
+    let fragment = meta.overlayFragment(kind: .show)
     XCTAssertEqual(fragment.source, .tmdb)
     let entity = fragment.entity
     XCTAssertEqual(entity.id(.tmdb), "97546")
@@ -111,7 +111,7 @@ final class MediaFragmentsTests: XCTestCase {
     meta.attribution = [.tmdb]
     meta.releaseDate = day("1999-10-15")
     meta.firstAirDate = day("2020-01-01")
-    let entity = meta.mediaFragment(kind: .movie).entity
+    let entity = meta.overlayFragment(kind: .movie).entity
     XCTAssertEqual(entity.release, .day(year: 1999, month: 10, day: 15))
     XCTAssertNil(entity.ended)
   }
@@ -121,7 +121,7 @@ final class MediaFragmentsTests: XCTestCase {
   func testAnOverlayWithoutTMDBIsKinopoisks() {
     var meta = TitleMetadata()
     meta.attribution = [.kinopoiskProxy]
-    XCTAssertEqual(meta.mediaFragment(kind: .movie).source, .kinopoisk)
+    XCTAssertEqual(meta.overlayFragment(kind: .movie).source, .kinopoisk)
   }
 
   // MARK: - Kinopoisk's own statement

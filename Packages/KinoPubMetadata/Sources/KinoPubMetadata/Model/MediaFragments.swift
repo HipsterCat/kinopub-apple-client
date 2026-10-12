@@ -11,14 +11,6 @@ import KinoPubMedia
 
 public extension TitleMetadata {
 
-  /// The title itself, labeled by its main contributor. On the gap-filled overlay a poster
-  /// Kinopoisk supplied travels under TMDB's name when TMDB answered too — which is why
-  /// `mediaFragments(kind:)` reads TMDB's own part instead.
-  @available(*, deprecated, message: "Use mediaFragments(kind:): each source under its own name.")
-  func mediaFragment(kind: MediaKind) -> MediaFragment {
-    overlayFragment(kind: kind)
-  }
-
   /// The gap-filled overlay as one fragment, labelled by its main contributor.
   internal func overlayFragment(kind: MediaKind) -> MediaFragment {
     let source: MediaSource = attribution.contains(.tmdb) ? .tmdb : .kinopoisk
@@ -39,7 +31,7 @@ public extension TitleMetadata {
 
   /// **Every enrichment source's statement about the title**, each under its own name:
   /// TMDB's from its own part, Kinopoisk's details as Kinopoisk's. This is what the media
-  /// model merges; `mediaFragment(kind:)` alone is the gap-filled overlay under one label.
+  /// model merges; `overlayFragment(kind:)` alone is the gap-filled overlay under one label.
   func mediaFragments(kind: MediaKind) -> [MediaFragment] {
     let overlay = parts[.tmdb]?.overlayFragment(kind: kind) ?? overlayFragment(kind: kind)
     let own = fragments.map { fragment -> MediaFragment in

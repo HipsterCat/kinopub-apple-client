@@ -211,7 +211,7 @@ Each step is one reviewable slice with tests, merged before the next.
 5. Selection functions. **Started**: `EpisodeQueue` (KinoPubBackend) answers every "which
    episode" question — `next(after:)` for the end-of-episode proposal, `nextUnwatched(after:)`
    for Up Next (now by this device's state too), `continueTarget` for the hero and Continue
-   Watching; `primaryEpisode` and `NextPlayableEpisode` read it. Next: Continue Watching,
+   Watching; `primaryEpisode` reads it (`NextPlayableEpisode` is deleted). Next: Continue Watching,
    history, unwatched as queries.
 6. Surfaces move one at a time, each with its rows in the surface table: player (done) →
    Up Next → Continue Watching → History → Watchlist → Bookmarks → catalog shelves → Home
