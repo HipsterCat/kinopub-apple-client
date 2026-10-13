@@ -115,11 +115,19 @@ struct AppContext: AppContextProtocol {
       store: hlsDownloadsStore,
       maxResolutionProvider: { StreamQuality.current.maxHeight }
     )
-    hlsDownloadManager.onDownloadFinished = { [weak downloadNotificationManager] meta in
-      downloadNotificationManager?.notifyFinished(title: meta.notificationTitle, identifier: "\(meta.id)")
+    // Hop onto MainActor via `shared` rather than capturing the managers: they are
+    // `@MainActor` and these callbacks are not. The closures run after `shared` is live.
+    hlsDownloadManager.onDownloadFinished = { meta in
+      Task { @MainActor in
+        AppContext.shared.downloadNotificationManager.notifyFinished(
+          title: meta.notificationTitle, identifier: "\(meta.id)")
+      }
     }
-    hlsDownloadManager.onDownloadFailed = { [weak downloadNotificationManager] meta in
-      downloadNotificationManager?.notifyFailed(title: meta.notificationTitle, identifier: "\(meta.id)")
+    hlsDownloadManager.onDownloadFailed = { meta in
+      Task { @MainActor in
+        AppContext.shared.downloadNotificationManager.notifyFailed(
+          title: meta.notificationTitle, identifier: "\(meta.id)")
+      }
     }
     // Deferred a tick: reattaching to a background AVAssetDownloadURLSession is an XPC round
     // trip to nsurlsessiond (~20-25ms measured, main-thread-only work since AVAssetDownloadURLSession
@@ -133,14 +141,20 @@ struct AppContext: AppContextProtocol {
     Task { @MainActor in
       hlsToRestore.restorePendingDownloads()
     }
-    downloadManager.onDownloadFinished = { [weak seasonDownloadManager, weak downloadNotificationManager] url, meta in
-      let handledBySeason = seasonDownloadManager?.handleFinished(url: url) ?? false
-      if !handledBySeason {
-        downloadNotificationManager?.notifyFinished(title: meta.notificationTitle, identifier: "\(meta.id)")
+    downloadManager.onDownloadFinished = { url, meta in
+      Task { @MainActor in
+        let handledBySeason = AppContext.shared.seasonDownloadManager.handleFinished(url: url)
+        if !handledBySeason {
+          AppContext.shared.downloadNotificationManager.notifyFinished(
+            title: meta.notificationTitle, identifier: "\(meta.id)")
+        }
       }
     }
-    downloadManager.onDownloadFailed = { [weak downloadNotificationManager] _, meta, _ in
-      downloadNotificationManager?.notifyFailed(title: meta.notificationTitle, identifier: "\(meta.id)")
+    downloadManager.onDownloadFailed = { _, meta, _ in
+      Task { @MainActor in
+        AppContext.shared.downloadNotificationManager.notifyFailed(
+          title: meta.notificationTitle, identifier: "\(meta.id)")
+      }
     }
 
     let apiClient = makeApiClient(with: configuration.baseURL, accessTokenService: accessTokenService)

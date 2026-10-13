@@ -19,9 +19,11 @@ keys.
 
 | Trigger | What happens |
 | --- | --- |
-| **Cron** (`06:23 UTC`) | Uploads if HEAD is not the last SHA that actually archived (an `Upload *` job succeeded). At most one automatic upload per day. Off minute 0: GitHub drops `:00` crons under load |
+| **Push to `main`** | Uploads if HEAD moved since the last successful archive **and** nothing succeeded yet today (UTC). Reliable path: this repo is a fork, and GitHub did not queue `schedule` after a GitHub App last changed the workflow |
+| **Cron** (`06:23 UTC`) | Same rule. Best-effort only — keep it, do not rely on it |
 | **Actions → TestFlight → Run workflow** | Anytime, if secrets are present. Pick iOS / tvOS / macOS / all |
-| **Push to `main`** | Does **not** upload. Fastlane/xcproj lint is `.github/workflows/testflight-lint.yml` |
+
+At most **one successful automatic upload per UTC day**. A failed attempt does not consume the day; `workflow_dispatch` is not capped. Fastlane/xcproj lint on every change is still `.github/workflows/testflight-lint.yml`.
 
 The build number is **not** committed. The job asks App Store Connect for the latest
 TestFlight number on iOS, tvOS and macOS and uses that max + 1, so two uploads cannot

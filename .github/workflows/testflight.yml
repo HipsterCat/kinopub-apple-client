@@ -11,12 +11,13 @@ name: TestFlight
 
 on:
   schedule:
-    # Once a day, off the hour. GitHub delays and can drop `schedule` jobs
-    # at minute 0 under Actions load (`0 6 * * *` produced no Oct 12 run).
-    # Push to main does not upload — at most one archive per day, plus
-    # manual workflow_dispatch. Lint on Fastlane/xcproj changes is
-    # testflight-lint.yml, not this workflow.
+    # Best-effort. This repo is a fork of leoru/kinopub-apple-client, and the
+    # last commits to this file were from a GitHub App (`cursoragent`). After
+    # that, GitHub never queued `schedule` runs (Oct 12 06:00, Oct 13 06:23).
+    # Off minute 0 so a human-authored cron is less likely to be dropped.
     - cron: "23 6 * * *"
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       platform:
@@ -39,7 +40,9 @@ permissions:
   actions: read
 
 # One archive at a time. Do not cancel an in-progress upload if a
-# workflow_dispatch arrives while cron is still archiving.
+# later push or workflow_dispatch arrives while cron is still archiving.
+# Push is the reliable daily trigger (see schedule comment); the gate
+# allows at most one successful automatic archive per UTC day.
 concurrency:
   group: testflight
   cancel-in-progress: false

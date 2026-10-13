@@ -346,6 +346,19 @@ end
 
 def write_export_options!(profile_name:, mac:)
   path = File.join(Dir.tmpdir, mac ? "KinoPub-macOS-ExportOptions.plist" : "KinoPub-ExportOptions.plist")
+  # macOS Release 38228644573 compiled, then exportArchive used the installer
+  # cert as the app identity against the App Store profile. Pin Apple
+  # Distribution for the app and 3rd Party Mac Developer Installer for the pkg.
+  mac_certs = if mac
+    <<~KEYS
+        <key>signingCertificate</key>
+        <string>Apple Distribution</string>
+        <key>installerSigningCertificate</key>
+        <string>3rd Party Mac Developer Installer</string>
+    KEYS
+  else
+    ""
+  end
   File.write(
     path,
     <<~PLIST
@@ -365,7 +378,7 @@ def write_export_options!(profile_name:, mac:)
         <false/>
         <key>stripSwiftSymbols</key>
         <true/>
-        <key>provisioningProfiles</key>
+        #{mac_certs}<key>provisioningProfiles</key>
         <dict>
           <key>#{xml_escape(BUNDLE_ID)}</key>
           <string>#{xml_escape(profile_name)}</string>
@@ -534,6 +547,12 @@ platform :ios do
     UI.user_error!("export options missing method app-store-connect") unless export_body.include?("<string>app-store-connect</string>")
     UI.user_error!("export options missing bundle id") unless export_body.include?(BUNDLE_ID)
     UI.user_error!("export options missing team id") unless export_body.include?(TEAM_ID)
+    UI.user_error!("non-mac export options leaked installer cert") if export_body.include?("installerSigningCertificate")
+
+    export_mac = write_export_options!(profile_name: "KinoPub macos AppStore", mac: true)
+    mac_body = File.read(export_mac)
+    UI.user_error!("mac export options missing Apple Distribution") unless mac_body.include?("<string>Apple Distribution</string>")
+    UI.user_error!("mac export options missing installer cert") unless mac_body.include?("3rd Party Mac Developer Installer")
 
     Dir.mktmpdir do |dir|
       plist_copy = File.join(dir, "Info.plist")

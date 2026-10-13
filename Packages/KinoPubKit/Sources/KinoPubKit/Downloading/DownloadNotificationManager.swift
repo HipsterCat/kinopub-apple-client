@@ -20,6 +20,11 @@ import UserNotifications
 
 /// Posts a local notification when a background download finishes or fails, so the user is told
 /// even when the app isn't in the foreground. Hook it up via `DownloadManager.onDownloadFinished`.
+///
+/// Isolated to the main actor: permission and `@Published` state are UI, and `UNUserNotificationCenter`
+/// delivers its delegate callbacks on the main thread. A non-isolated class made
+/// `requestPermission()` a send of `self` across `await` (Release archive, iOS).
+@MainActor
 public final class DownloadNotificationManager: NSObject, ObservableObject {
 
   @Published public private(set) var permissionGranted: Bool = false
@@ -37,7 +42,7 @@ public final class DownloadNotificationManager: NSObject, ObservableObject {
   public func requestPermission() async -> Bool {
     do {
       let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-      await MainActor.run { self.permissionGranted = granted }
+      permissionGranted = granted
       return granted
     } catch {
       Logger.kit.error("[NOTIFICATIONS] Authorization request failed: \(error)")
@@ -84,7 +89,7 @@ public final class DownloadNotificationManager: NSObject, ObservableObject {
 
   private func refreshPermission() {
     center.getNotificationSettings { [weak self] settings in
-      DispatchQueue.main.async {
+      Task { @MainActor in
         self?.permissionGranted = settings.authorizationStatus == .authorized ||
                                   settings.authorizationStatus == .provisional
       }
@@ -93,18 +98,18 @@ public final class DownloadNotificationManager: NSObject, ObservableObject {
 }
 
 extension DownloadNotificationManager: UNUserNotificationCenterDelegate {
-  // Show the banner even when the app is in the foreground.
-  public func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                     willPresent notification: UNNotification,
-                                     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+  // Show the banner even when the app is in the foreground. The center calls this on the main thread.
+  nonisolated public func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                                 willPresent notification: UNNotification,
+                                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
     completionHandler([.banner, .sound])
   }
 
   // Tapping a download notification opens the Downloads screen.
-  public func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                     didReceive response: UNNotificationResponse,
-                                     withCompletionHandler completionHandler: @escaping () -> Void) {
-    DispatchQueue.main.async {
+  nonisolated public func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                                 didReceive response: UNNotificationResponse,
+                                                 withCompletionHandler completionHandler: @escaping () -> Void) {
+    Task { @MainActor in
       NotificationCenter.default.post(name: .openDownloads, object: nil)
     }
     completionHandler()
@@ -113,7 +118,8 @@ extension DownloadNotificationManager: UNUserNotificationCenterDelegate {
 
 #else
 
-/// macOS no-op stub so shared code can reference the manager without platform checks.
+/// macOS / tvOS no-op stub so shared code can reference the manager without platform checks.
+@MainActor
 public final class DownloadNotificationManager: NSObject, ObservableObject {
   @Published public private(set) var permissionGranted: Bool = false
   public override init() { super.init() }

@@ -471,11 +471,11 @@ Known bad, still present, do not polish: `HudToast` (rewrite, don't patch).
 xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name=Apple TV' build
 ```
 
-- **Internal TestFlight** is `.github/workflows/testflight.yml`: one daily
-  cron (`23 6 * * *`, 06:23 UTC) if HEAD has moved since the last successful
-  archive, and `workflow_dispatch` anytime. Push to `main` does not upload
-  (Sasha: at most one automatic build per day). Not `:00` — GitHub drops
-  those under load.
+- **Internal TestFlight** is `.github/workflows/testflight.yml`: push to
+  `main` (reliable) and cron `23 6 * * *` (best-effort) upload if HEAD moved
+  **and** nothing succeeded yet today UTC — at most one automatic archive
+  per day. `workflow_dispatch` anytime. Cron cannot be trusted here: fork +
+  GitHub App as the last workflow actor (Oct 12 and Oct 13 never queued).
   Upload jobs are `runs-on: xcode-27` — the project file is `project.xcproj`;
   Xcode 26 and Fastlane's `xcodeproj` gem / gym look for `project.pbxproj` and
   fail. Sign by patching the app target in `project.xcproj`; archive with

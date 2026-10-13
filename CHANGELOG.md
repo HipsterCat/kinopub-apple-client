@@ -5,6 +5,21 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### TestFlight: once a day via push; iOS notification manager is MainActor (2026-10-13)
+
+GitHub never queued the `23 6 * * *` cron on Oct 13 (nor Oct 12 06:00). This
+repo is a fork; after `cursoragent` last changed `testflight.yml`, `schedule`
+stopped firing. The one run that did fire (Oct 11 11:47) followed a human merge
+of the workflow. Push to `main` is the daily trigger again, capped at one
+successful automatic archive per UTC day. Cron stays as best-effort.
+
+iOS Release archive died sending `DownloadNotificationManager` across `await`
+in the app `.task` (`KinoPubAppleClientApp.swift:83`): `requestPermission()` was
+`@concurrent`. The type is `@MainActor`; download callbacks hop onto it. tvOS
+does not compile that `.task`. macOS in the same run compiled, then
+`exportArchive` used the installer cert as the app identity; ExportOptions now
+pins Apple Distribution + 3rd Party Mac Developer Installer.
+
 ### No deprecation warnings left; Library header count redraws (2026-10-12)
 
 Apple's last three: `AVMetadataItem.stringValue` → `load(.stringValue)`, awaited once per

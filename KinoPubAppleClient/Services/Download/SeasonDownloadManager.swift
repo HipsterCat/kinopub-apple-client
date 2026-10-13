@@ -14,6 +14,7 @@ import KinoPubKit
 import OSLog
 import KinoPubLogging
 
+@MainActor
 final class SeasonDownloadManager: ObservableObject {
 
   /// In-progress (or just-finished) bulk season download.

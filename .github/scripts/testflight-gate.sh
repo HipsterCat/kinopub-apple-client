@@ -3,11 +3,12 @@
 #
 # Skip (exit 0, should_upload=false) when:
 #   • required secrets are missing
-#   • schedule, and HEAD is still the last SHA that actually uploaded
-#   • push (this workflow has no push trigger; defense if one is re-added)
+#   • schedule or push, and HEAD is still the last SHA that actually uploaded
+#   • schedule or push, and a successful Upload already finished today (UTC)
 #
 # workflow_dispatch always uploads when secrets are present.
-# At most one automatic archive per day (cron 06:23 UTC).
+# Automatic archives: at most one successful upload per UTC day.
+# Cron is best-effort on this fork; push to main is the reliable trigger.
 set -euo pipefail
 
 should_upload=false
@@ -69,13 +70,14 @@ if [ "${#macos_missing[@]}" -gt 0 ]; then
   notice "macOS upload skipped (missing ${macos_missing[*]}); iOS and tvOS will still upload."
 fi
 
-# SHA of the last TestFlight run that actually archived (an Upload * job
-# succeeded). Skip-successes and failed archives do not count.
-last_successful_upload_sha() {
-  python3 - "$GITHUB_API_URL" "$GITHUB_REPOSITORY" "$GITHUB_TOKEN" <<'PY'
+# Prints "decision\tsha" where decision is skip-same-sha, skip-today, or upload.
+# SHA of the last run that actually archived (an Upload * job succeeded).
+automatic_upload_decision() {
+  python3 - "$GITHUB_API_URL" "$GITHUB_REPOSITORY" "$GITHUB_TOKEN" "${GITHUB_SHA}" <<'PY'
 import json, sys, urllib.error, urllib.request
+from datetime import datetime, timezone
 
-api, repo, token = sys.argv[1], sys.argv[2], sys.argv[3]
+api, repo, token, head = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 headers = {
     "Authorization": f"Bearer {token}",
     "Accept": "application/vnd.github+json",
@@ -88,6 +90,13 @@ def get(url):
     with urllib.request.urlopen(req, timeout=30) as response:
         return json.load(response)
 
+def parse_day(value):
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).date()
+
+last_sha = ""
+last_at = ""
 try:
     payload = get(
         f"{api}/repos/{repo}/actions/workflows/testflight.yml/runs"
@@ -103,20 +112,36 @@ try:
             for job in jobs.get("jobs", [])
         )
         if uploaded:
-            print(run.get("head_sha", ""))
+            last_sha = run.get("head_sha") or ""
+            last_at = run.get("updated_at") or run.get("created_at") or ""
             break
 except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as error:
     print(f"Could not read previous TestFlight runs ({error})", file=sys.stderr)
+
+today = datetime.now(timezone.utc).date()
+if last_sha and last_sha == head:
+    print(f"skip-same-sha\t{last_sha}")
+elif last_sha and parse_day(last_at) == today:
+    print(f"skip-today\t{last_sha}")
+else:
+    print(f"upload\t{last_sha}")
 PY
 }
 
-upload_if_new_commits() {
+upload_if_new_commits_today() {
   local why="$1"
-  local last_sha
-  last_sha="$(last_successful_upload_sha)"
-  if [ -n "${last_sha}" ] && [ "${last_sha}" = "${GITHUB_SHA}" ]; then
-    skip_upload "No new commits on main since the last TestFlight upload (${last_sha:0:7})."
-  fi
+  local line decision last_sha
+  line="$(automatic_upload_decision)"
+  decision="${line%%$'\t'*}"
+  last_sha="${line#*$'\t'}"
+  case "$decision" in
+    skip-same-sha)
+      skip_upload "No new commits on main since the last TestFlight upload (${last_sha:0:7})."
+      ;;
+    skip-today)
+      skip_upload "Already uploaded today (UTC) at ${last_sha:0:7}. At most one automatic archive per day."
+      ;;
+  esac
   should_upload=true
   if [ -n "${last_sha}" ]; then
     reason="${why}; new commits since ${last_sha:0:7}"
@@ -134,10 +159,10 @@ case "$event" in
     reason="manual run"
     ;;
   schedule)
-    upload_if_new_commits "scheduled run"
+    upload_if_new_commits_today "scheduled run"
     ;;
   push)
-    skip_upload "Push to main does not upload. Daily cron (06:23 UTC) archives if HEAD moved; workflow_dispatch uploads anytime."
+    upload_if_new_commits_today "push to main"
     ;;
   *)
     skip_upload "Unsupported event '$event'."
