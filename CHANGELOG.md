@@ -5,6 +5,27 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS spec-table UI test waits for focus after the popup (2026-10-13)
+
+`testTheTableTakesFocusOnlyWhereSelectDoesSomething` slept 1.5 s after Menu then
+snapshotted `focusedDescription` once. The page is out of the accessibility tree
+while InfoPopup dismisses; on a slow runner that snapshot missed the Audio card
+and the assertion message (a second query) already showed it. Same wait as
+`testFocusReturnsAfterPopup`. The table and popup were not part of the player /
+Library Continue change.
+
+### End of an episode is a Settings choice; Library Continue lists series as episodes (2026-10-13)
+
+Settings › Video & audio: **Auto-Play Next Episode** (default on) plays the next episode
+in the same season; **Continue to Next Season** (default off) also plays the next season's
+opener. Auto-play off, or a film, dismisses. A next episode with an empty files ladder
+is unavailable and does not skip ahead. Decision is `PlaybackEnd` (unit-tested for every
+toggle combination). The tvOS Up Next `AVContentProposal` offers the same next episode.
+
+Library Continue still shows unfinished films as 16:9 title cards that play on Select.
+Started series expand to that series' episode cells (`MediaCard(episode:in:)`, same as
+the title page), under a localized **Episodes** / **Серии** heading.
+
 ### TestFlight: once a day via push; iOS notification manager is MainActor (2026-10-13)
 
 GitHub never queued the `23 6 * * *` cron on Oct 13 (nor Oct 12 06:00). This

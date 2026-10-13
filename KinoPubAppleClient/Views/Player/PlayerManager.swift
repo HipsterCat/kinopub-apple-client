@@ -165,6 +165,8 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   private var upNextEnriched: [Int: MediaContext] = [:]
   private var upNextAsked: Set<Int> = []
 #endif
+  /// After the stream reaches the end: dismiss, or play the next episode in place.
+  var onPlaybackEnded: ((PlaybackEndAction) -> Void)?
 
   /// Optional on purpose: both of these used to force-unwrap, and `URL(string: "")`
   /// is nil — an item without a trailer link crashed the app on open.
@@ -508,7 +510,8 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     Task { await preparePlayback() }
   }
 
-  /// Playing to the very end marks the title watched (see `markFinished`).
+  /// Playing to the very end marks the title watched, then dismisses or auto-plays
+  /// the next episode (`PlaybackEnd`).
   private func observeEndOfPlayback(of item: AVPlayerItem) {
     guard watchMode == .media else { return }
     if let endOfPlaybackObserver {
@@ -517,8 +520,19 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     endOfPlaybackObserver = NotificationCenter.default.addObserver(
       forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
     ) { [weak self] _ in
-      self?.markFinished()
+      self?.handleEndOfPlayback()
     }
+  }
+
+  /// Mark this title finished, then tell the screen to dismiss or swap in the next
+  /// episode. Movies always dismiss; a series follows Settings.
+  private func handleEndOfPlayback() {
+    guard watchMode == .media else { return }
+    markFinished()
+    let series = AppContext.shared.localProgressStore.snapshot(for: playItem.metadata.id)
+    let action = PlaybackEnd.action(playing: playItem, series: series,
+                                    policy: PlaybackPreferences.policy)
+    onPlaybackEnded?(action)
   }
 
   // MARK: - Subtitles
@@ -1405,20 +1419,21 @@ extension PlayerManager {
   /// rejecting pops the player. No `AVContentProposalViewController` of ours — the
   /// stock panel draws everything.
   ///
-  /// Best-effort by construction: no cached series payload or no episode after this one
-  /// simply means no proposal. And no season/episode metadata identifiers exist in tvOS
-  /// AVFoundation (probed against the SDK — the iTunes key space is macOS-only), so the
-  /// title line carries what the rail cells carry.
+  /// Only installed when Settings would auto-play (`PlaybackEnd`); a movie, a season
+  /// finale (unless "continue to next season" is on), or auto-play off means no
+  /// proposal — the stream ending dismisses instead.
   func installNextEpisodeProposal(on item: AVPlayerItem) {
-    guard watchMode == .media, let current = playItem as? Episode else { return }
-    let series = AppContext.shared.localProgressStore.snapshot(for: current.metadata.id)
-    guard let next = EpisodeQueue(series: series).next(after: current)?.episode else { return }
+    guard watchMode == .media else { return }
+    let series = AppContext.shared.localProgressStore.snapshot(for: playItem.metadata.id)
+    guard case .playNext(let next) = PlaybackEnd.action(playing: playItem, series: series,
+                                                        policy: PlaybackPreferences.policy)
+    else { return }
     pendingNextEpisode = next
     rebuildUpNextTab()
 
     // The panel appears at the credits — the same window `WatchProgress` calls
     // "finished". An unknown runtime leaves the API default: the very end of the item.
-    let duration = Double(current.duration)
+    let duration = Double((playItem as? Episode)?.duration ?? 0)
     let transition = duration > 0
       ? CMTime(seconds: duration - WatchProgress.endTolerance(forDuration: duration),
                preferredTimescale: 600)

@@ -403,8 +403,9 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     }
   }
 
-  /// Continue: unfinished films plus serials already started. 16:9 title artwork
-  /// (not the episode still), Select plays, subtitle is time remaining.
+  /// Continue: unfinished films as they are (16:9 title artwork, Select plays), and
+  /// started series as that series' episode cells — the same `MediaCard(episode:in:)`
+  /// the detail page draws. Movies stay under Continue; episodes under Episodes.
   private nonisolated static func continueCards(using service: VideoContentService) async throws -> [MediaCard] {
     async let moviesTask = service.fetchWatchingMovies()
     async let serialsTask = service.fetchWatchingSerials(subscribedOnly: false)
@@ -415,15 +416,83 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     let newest = newestHistory(history)
 
     var seen = Set<Int>()
-    var items: [WatchingItem] = []
+    var filmItems: [WatchingItem] = []
+    var seriesItems: [WatchingItem] = []
     for item in movies + serials where seen.insert(item.id).inserted {
-      let isSeries = item.type.contains("serial")
-      if isSeries && (item.watched ?? 0) == 0 { continue }
-      items.append(item)
+      if item.type.contains("serial") {
+        if (item.watched ?? 0) == 0 { continue }
+        seriesItems.append(item)
+      } else {
+        filmItems.append(item)
+      }
     }
-    // History carries duration / position. Local resume is not Sendable across this
-    // fetch; the player still opens at the stored point.
-    return items.map { continueCard(for: $0, history: newest[$0.id]) }
+
+    var cards = filmItems.map { continueCard(for: $0, history: newest[$0.id]) }
+    let details = await seriesDetails(for: seriesItems, using: service)
+    for item in seriesItems {
+      if let detail = details[item.id] {
+        let episodes = episodeCards(for: detail)
+        if !episodes.isEmpty {
+          cards.append(contentsOf: episodes)
+          continue
+        }
+      }
+      cards.append(continueCard(for: item, history: newest[item.id]))
+    }
+    return cards
+  }
+
+  private nonisolated static func seriesDetails(for items: [WatchingItem],
+                                                using service: VideoContentService) async -> [Int: MediaItem] {
+    guard !items.isEmpty else { return [:] }
+    let ids = items.map(\.id)
+    let excludeLinks = FeatureFlags.seriesDetailsWithoutLinks
+    return await withTaskGroup(of: (Int, MediaItem?).self) { group in
+      for id in ids {
+        group.addTask { [service] in
+          let detail = try? await service.fetchDetails(
+            for: "\(id)",
+            excludeLinks: excludeLinks
+          ).item
+          detail?.seasons?.forEach { $0.mediaId = detail?.id }
+          return (id, detail)
+        }
+      }
+      var byID: [Int: MediaItem] = [:]
+      for await (id, item) in group {
+        if let item { byID[id] = item }
+      }
+      return byID
+    }
+  }
+
+  /// One landscape episode cell per kino.pub episode, same mapping as the series
+  /// detail rail (`MediaCard(episode:in:)`).
+  nonisolated static func episodeCards(for series: MediaItem) -> [MediaCard] {
+    guard let seasons = series.seasons, !seasons.isEmpty else { return [] }
+    seasons.forEach { $0.mediaId = series.id }
+    return seasons.sorted { $0.number < $1.number }.flatMap { season in
+      season.episodes.sorted { $0.number < $1.number }.map { episode in
+        episode.seasonNumber = season.number
+        episode.mediaId = series.id
+        episode.seriesTitle = series.localizedTitle
+        return MediaCard(episode: episode, in: season)
+      }
+    }
+  }
+
+  /// Movies stay a Continue stills grid; series episodes get their own Episodes heading.
+  nonisolated static func continuePageGroups(from cards: [MediaCard]) -> [(id: String, isEpisodes: Bool, cards: [MediaCard])] {
+    let movies = cards.filter { !$0.isSeries }
+    let episodes = cards.filter(\.isSeries)
+    var groups: [(id: String, isEpisodes: Bool, cards: [MediaCard])] = []
+    if !movies.isEmpty {
+      groups.append(("continue.movies", false, movies))
+    }
+    if !episodes.isEmpty {
+      groups.append(("continue.episodes", true, episodes))
+    }
+    return groups
   }
 
   private nonisolated static func newestHistory(_ history: [HistoryEntry]) -> [Int: HistoryEntry] {

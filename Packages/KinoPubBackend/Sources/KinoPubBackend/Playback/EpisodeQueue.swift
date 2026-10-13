@@ -16,7 +16,8 @@ import KinoPubMedia
 ///
 /// | Question | Query | Asked by |
 /// | --- | --- | --- |
-/// | what plays after this one, watched or not | `next(after:)` | the end-of-episode proposal |
+/// | what plays after this one, watched or not | `next(after:)` | next season, when that setting is on |
+/// | next in **this** season only | `nextInSeason(after:)` | end-of-episode auto-play (default) |
 /// | what to offer after this one | `nextUnwatched(after:)` | Up Next (never a watched one) |
 /// | where the viewer is in the series (the one touched last) | `continueTarget` | hero Play, Continue Watching |
 ///
@@ -82,6 +83,16 @@ public struct EpisodeQueue {
   public func nextUnwatched(after current: Episode) -> Entry? {
     guard let index = entries.firstIndex(where: { $0.episode.id == current.id }) else { return nil }
     return stamped(entries.dropFirst(index + 1).first { !$0.state.isWatched })
+  }
+
+  /// The next episode **in the same season** as `current`. Nil at the season finale
+  /// (and when `current` is not in this queue) — auto-play does not cross a season
+  /// unless `PlaybackEndPolicy.autoPlayNextSeason` is on, which uses `next(after:)`
+  /// instead.
+  public func nextInSeason(after current: Episode) -> Entry? {
+    guard let index = entries.firstIndex(where: { $0.episode.id == current.id }) else { return nil }
+    let season = entries[index].season.number
+    return stamped(entries.dropFirst(index + 1).first { $0.season.number == season })
   }
 
   // MARK: - Where the viewer is

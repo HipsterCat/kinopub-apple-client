@@ -32,6 +32,8 @@ struct TVProfileSettingsView: View {
   @Binding var dualSubtitlesEnabled: Bool
   @Binding var secondSubtitleLanguage: String
   @Binding var streamQualityRaw: String
+  @AppStorage(PlaybackPreferences.autoPlayNextEpisodeKey) private var autoPlayNextEpisode = true
+  @AppStorage(PlaybackPreferences.autoPlayNextSeasonKey) private var autoPlayNextSeason = false
   var onLogout: () -> Void
   var onLanguageChange: (String) -> Void
 
@@ -251,6 +253,22 @@ struct TVProfileSettingsView: View {
         equals: .streamQuality
       )
       navigationRow("Remembered tracks", route: .rememberedTracks, focus: focus, equals: .rememberedTracks)
+    }
+
+    SettingsSection("Playback") {
+      toggleRow(
+        title: "Auto-Play Next Episode",
+        isOn: $autoPlayNextEpisode,
+        focus: focus,
+        equals: .autoPlayNextEpisode
+      )
+      toggleRow(
+        title: "Continue to Next Season",
+        isOn: $autoPlayNextSeason,
+        focus: focus,
+        equals: .autoPlayNextSeason
+      )
+      .disabled(!autoPlayNextEpisode)
     }
 
     SettingsSection("Subtitles") {
@@ -945,6 +963,8 @@ private enum SettingsFocusItem: Hashable {
   case language
   case streamQuality
   case rememberedTracks
+  case autoPlayNextEpisode
+  case autoPlayNextSeason
   case englishSubs
   case nonCC
   case dual
@@ -969,6 +989,8 @@ private enum SettingsFocusItem: Hashable {
     case .language: "Settings_Tip_Language"
     case .streamQuality: "Settings_Tip_StreamQuality"
     case .rememberedTracks: "Settings_Tip_RememberedTracks"
+    case .autoPlayNextEpisode: "Settings_Tip_AutoPlayNextEpisode"
+    case .autoPlayNextSeason: "Settings_Tip_ContinueToNextSeason"
     case .englishSubs: "Settings_Tip_EnglishSubtitles"
     case .nonCC: "Settings_Tip_PreferNonCC"
     case .dual: "Settings_Tip_DualSubtitles"

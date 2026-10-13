@@ -45,6 +45,16 @@ final class EpisodeQueueNextTests: XCTestCase {
     XCTAssertEqual(next?.id, 20)
   }
 
+  /// Auto-play stays inside the season unless the next-season setting is on.
+  func testNextInSeasonStopsAtTheSeasonFinale() {
+    let s1 = season(1, episodeIDs: [(id: 10, number: 1), (id: 11, number: 2)])
+    let s2 = season(2, episodeIDs: [(id: 20, number: 1)])
+    let queue = EpisodeQueue(series: series(seasons: [s1, s2]))
+    XCTAssertEqual(queue.nextInSeason(after: s1.episodes[0])?.episode.id, 11)
+    XCTAssertNil(queue.nextInSeason(after: s1.episodes[1]))
+    XCTAssertEqual(queue.next(after: s1.episodes[1])?.episode.id, 20)
+  }
+
   /// The payload may arrive unordered; watching order is by number, not by position.
   func testUnorderedPayloadIsReadByNumber() {
     let s2 = season(2, episodeIDs: [(id: 21, number: 2), (id: 20, number: 1)])

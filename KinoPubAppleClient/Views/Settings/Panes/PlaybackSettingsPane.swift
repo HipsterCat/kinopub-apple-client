@@ -19,6 +19,8 @@ struct PlaybackSettingsPane: View {
   private var minimumDubKind = PlaybackLanguagePreferences.noDubFloor
   @AppStorage(PlaybackLanguagePreferences.animeOriginalAudioKey)
   private var animePrefersOriginalAudio = false
+  @AppStorage(PlaybackPreferences.autoPlayNextEpisodeKey) private var autoPlayNextEpisode = true
+  @AppStorage(PlaybackPreferences.autoPlayNextSeasonKey) private var autoPlayNextSeason = false
 
   /// Rebuilt when a preference changes so the summary below never disagrees with the
   /// switches above it.
@@ -27,6 +29,7 @@ struct PlaybackSettingsPane: View {
   var body: some View {
     Form {
       qualitySection
+      endOfPlaybackSection
       audioSection
       subtitleSection
       TrackMemorySections(store: appContext.trackPreferences)
@@ -42,6 +45,20 @@ struct PlaybackSettingsPane: View {
         }
       }
       .pickerStyle(.menu)
+    }
+  }
+
+  private var endOfPlaybackSection: some View {
+    Section {
+      Toggle("Auto-Play Next Episode", isOn: $autoPlayNextEpisode)
+      Toggle("Continue to Next Season", isOn: $autoPlayNextSeason)
+        .disabled(!autoPlayNextEpisode)
+    } header: {
+      Text("Playback")
+    } footer: {
+      Text("Settings_Tip_AutoPlayNextEpisode")
+        + Text("\n\n")
+        + Text("Settings_Tip_ContinueToNextSeason")
     }
   }
 

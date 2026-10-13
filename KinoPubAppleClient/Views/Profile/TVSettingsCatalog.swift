@@ -214,6 +214,15 @@ final class TVSettingsCatalog {
                description: "Settings_Tip_RememberedTracks".localized,
                kind: .action(pushes: true) { [unowned self] in self.host.push(self.rememberedTracksPage()) }),
       ]),
+      TSKSection(title: "Playback".localized, rows: [
+        TSKRow(title: "Auto-Play Next Episode".localized,
+               description: "Settings_Tip_AutoPlayNextEpisode".localized,
+               kind: .toggle(key: "autoPlayNextEpisode")),
+        TSKRow(title: "Continue to Next Season".localized,
+               description: "Settings_Tip_ContinueToNextSeason".localized,
+               kind: .toggle(key: "autoPlayNextSeason"),
+               isEnabled: PlaybackPreferences.autoPlayNextEpisode),
+      ]),
       TSKSection(title: "Subtitles".localized, rows: subtitles),
     ]
   }
@@ -484,6 +493,12 @@ final class TVSettingsCatalog {
     store.bind("streamQuality",
                get: { (defaults.string(forKey: StreamQuality.userDefaultsKey) ?? StreamQuality.auto.rawValue) as NSString },
                set: { defaults.set($0 as? String, forKey: StreamQuality.userDefaultsKey) })
+    store.bindBool("autoPlayNextEpisode",
+                   get: { PlaybackPreferences.autoPlayNextEpisode },
+                   set: { defaults.set($0, forKey: PlaybackPreferences.autoPlayNextEpisodeKey) })
+    store.bindBool("autoPlayNextSeason",
+                   get: { PlaybackPreferences.autoPlayNextSeason },
+                   set: { defaults.set($0, forKey: PlaybackPreferences.autoPlayNextSeasonKey) })
     store.bindBool("subtitlesEnglish", get: { SubtitlePreferences.preferEnglishSubtitles },
                    set: { defaults.set($0, forKey: SubtitlePreferences.preferEnglishKey) })
     store.bindBool("subtitlesNonCC", get: { SubtitlePreferences.preferNonCCSubtitles },
@@ -524,7 +539,8 @@ final class TVSettingsCatalog {
 
     // Rows that depend on another row's value, and the experiments page's pending-quit row.
     store.didWrite = { [unowned self] key in
-      if ["subtitlesEnglish", "subtitlesDual"].contains(key) || key.hasPrefix("flag_") {
+      if ["subtitlesEnglish", "subtitlesDual", "autoPlayNextEpisode"].contains(key)
+          || key.hasPrefix("flag_") {
         self.host.reloadPages()
       }
     }
