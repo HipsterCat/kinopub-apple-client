@@ -445,15 +445,17 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   private nonisolated static func seriesDetails(for items: [WatchingItem],
                                                 using service: VideoContentService) async -> [Int: MediaItem] {
     guard !items.isEmpty else { return [:] }
+    let ids = items.map(\.id)
+    let excludeLinks = FeatureFlags.seriesDetailsWithoutLinks
     return await withTaskGroup(of: (Int, MediaItem?).self) { group in
-      for item in items {
-        group.addTask {
+      for id in ids {
+        group.addTask { [service] in
           let detail = try? await service.fetchDetails(
-            for: "\(item.id)",
-            excludeLinks: FeatureFlags.seriesDetailsWithoutLinks
+            for: "\(id)",
+            excludeLinks: excludeLinks
           ).item
           detail?.seasons?.forEach { $0.mediaId = detail?.id }
-          return (item.id, detail)
+          return (id, detail)
         }
       }
       var byID: [Int: MediaItem] = [:]
