@@ -12,6 +12,11 @@ public struct PaginatedData<T: Codable>: Codable {
   public var items: [T]
   public var pagination: Pagination
 
+  public init(items: [T], pagination: Pagination) {
+    self.items = items
+    self.pagination = pagination
+  }
+
   /// Several answers to the same page number as one: items in the given order, the
   /// furthest `total` (so paging goes on while any answer has more). Search "everywhere"
   /// is three requests — without `field` the server matches titles only (2026-09-26).

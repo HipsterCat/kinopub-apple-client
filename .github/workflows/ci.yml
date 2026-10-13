@@ -46,6 +46,8 @@ jobs:
               - 'KinoPubAppleClient/**/*.swift'
               - 'KinoPubAppleClient/**/*.plist'
               - 'KinoPubAppleClient/**/*.metal'
+              - 'KinoPubAppleClientTests/**'
+              - 'KinoPubAppleClientUITests/**'
               - 'KinoPubAppleClient.xcodeproj/**'
               - 'Packages/**/*.swift'
               - 'Packages/**/*.metal'
