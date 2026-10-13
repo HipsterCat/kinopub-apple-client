@@ -122,7 +122,7 @@ on the card, filled the same way.
 | --- | --- | --- |
 | Continue Watching | `HomeCatalog` + `ContinueWatchingEpisode.forSeries` + `ContinueWatchingLocalOverlay` | `Selection.continueWatching(records, state)` |
 | Up Next (player) | `PlaybackMediaContext.nextUnwatched` + CW cards | same function as Continue Watching's "next episode" |
-| Next episode for a series | `primaryEpisode`, `NextPlayableEpisode`, `ContinueWatchingEpisode.forSeries`, `nextUnwatched` — four answers | **done**: `EpisodeQueue` (named queries over one ordered list, watched-ness from `ViewerState`); the card's list-less guess follows the same rule (D17) |
+| Next episode for a series | `primaryEpisode`, `NextPlayableEpisode`, `ContinueWatchingEpisode.forSeries`, `nextUnwatched` — four answers | **done**: `EpisodeQueue` (named queries over one ordered list, watched-ness from `ViewerState`); `PlaybackEnd` chooses `nextInSeason` vs `next` from Settings; the card's list-less guess follows the same rule (D17) |
 | History | `HistoryView` from `/v1/history` | query over records + `lastWatchedAt` |
 | Watchlist / subscriptions | `WatchlistView` | query |
 | Bookmarks | `PersonalLibraryCatalog` | query |
@@ -213,10 +213,11 @@ Each step is one reviewable slice with tests, merged before the next.
    the page's own move onto the model — and the player's `TitleSnapshot`, which needs the
    model to carry seasons and episodes first.
 5. Selection functions. **Started**: `EpisodeQueue` (KinoPubBackend) answers every "which
-   episode" question — `next(after:)` for the end-of-episode proposal, `nextUnwatched(after:)`
+   episode" question — `nextInSeason(after:)` for default end-of-episode auto-play,
+   `next(after:)` when Settings continues into the next season, `nextUnwatched(after:)`
    for Up Next (now by this device's state too), `continueTarget` for the hero and Continue
-   Watching; `primaryEpisode` reads it (`NextPlayableEpisode` is deleted). Next: Continue Watching,
-   history, unwatched as queries.
+   Watching; `primaryEpisode` reads it (`NextPlayableEpisode` is deleted). `PlaybackEnd`
+   applies the Settings policy. Next: Continue Watching, history, unwatched as queries.
 6. Surfaces move one at a time, each with its rows in the surface table: player (done) →
    Up Next → Continue Watching → History → Watchlist → Bookmarks → catalog shelves → Home
    banner → detail hero → Top Shelf.

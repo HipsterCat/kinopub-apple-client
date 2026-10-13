@@ -135,11 +135,30 @@ fills a tab with next-episode cards; AVKit draws only the tab strip (`customInfo
 so the content is a hosted `TVUIKitMediaItemRail`. Seen working in the tvOS simulator with the real
 app (2026-09-30): tab, tiles, badge, swap. Not seen on a physical Apple TV.
 
+## End of playback
+
+**prd** — A film always dismisses when the stream ends.
+
+**prd** — A series follows Settings › Video & audio (Sasha, 2026-10-13):
+
+- **Auto-Play Next Episode** (default on) plays the next episode in the **same season**.
+- **Continue to Next Season** (default off) also plays the next season's opener when this
+  one was the finale. Ignored while auto-play is off.
+- Auto-play off: the player dismisses at episode end, including mid-season.
+
+**prd** — A next episode missing from the payload, or listed with an empty files ladder,
+is unavailable: dismiss, do not skip past it to a later season. (`nolinks=1` still names
+the ladder, so it auto-plays.)
+
+The tvOS Up Next `AVContentProposal` (10 s countdown) offers the same next episode the
+end-of-stream path would play. Accepting swaps in place; rejecting pops the player.
+
 ## Not decided
 
 - **A "Next Episode" prompt during playback.** The Up Next `AVContentProposal` at the credits
-  already exists (10 s countdown). Whether `contextualActions` should also offer it earlier
-  (proposed: the last 60 s, or the credits once markers exist) is the user's call.
+  already exists (10 s countdown) and follows the Settings above. Whether `contextualActions`
+  should also offer it earlier (proposed: the last 60 s, or the credits once markers exist)
+  is the user's call.
 
 - **idea — an episode's date falls back to its show's first year.** Kept from the old panel; a
   season 5 episode then shows the show's premiere year when neither TMDB nor kino.pub dated it.

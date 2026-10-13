@@ -4,6 +4,8 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "В конце серии: в Настройках можно сразу играть следующую (вкл. по умолчанию) и отдельно — переходить в следующий сезон (выкл. по умолчанию). Выкл. автовоспроизведения — плеер закрывается. Фильмы всегда закрываются.",
+        "В Медиатеке «Продолжить» у сериалов показывает серии, как на странице тайтла, под заголовком «Серии». Фильмы по-прежнему широкой карточкой.",
         "«Меню» в списках сначала возвращает на верхний ряд, и только потом закрывает экран.",
         "В Медиатеке слева — таблетки: Слежу, Продолжить, История и папки закладок.",
         "Слежу показывает, сколько серий осталось. Продолжить и История — широкие кадры, сразу играют.",
@@ -27,6 +29,8 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "At the end of an episode, Settings can auto-play the next one (on by default) and, separately, continue into the next season (off by default). Auto-play off closes the player. Movies always close.",
+        "Library Continue shows a series as its episodes, like the title page, under Episodes. Movies stay wide cards that play on select.",
         "Menu in lists returns to the top row first, then leaves the screen.",
         "Library has a pill sidebar: Following, Continue, History, and bookmark folders.",
         "Following shows how many episodes are left. Continue and History are wide cards that play on select.",

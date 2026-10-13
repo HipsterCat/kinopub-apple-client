@@ -74,3 +74,14 @@ The cached snapshot is a 60 s TTL. That is not "the row never updates":
 Dates for more of the row would need more of `/v1/history` (`perpage` maxes at 50, and one page of
 20 already measured ~96 KB on a cold launch), so it is a payload trade, not a free improvement.
 See [ROADMAP.md](../../ROADMAP.md).
+
+## Library Continue
+
+Home's row and the Library's Continue section are not the same surface.
+
+**prd** — Unfinished **films** stay as they are: 16:9 title artwork, Select plays, subtitle is
+time remaining.
+
+**prd** — A **series** already started lists that series' episodes the way the title page
+does (`MediaCard(episode:in:)`), under a localized **Episodes** / **Серии** heading. Movies
+stay under Continue.

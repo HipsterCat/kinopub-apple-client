@@ -5,6 +5,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### End of an episode is a Settings choice; Library Continue lists series as episodes (2026-10-13)
+
+Settings › Video & audio: **Auto-Play Next Episode** (default on) plays the next episode
+in the same season; **Continue to Next Season** (default off) also plays the next season's
+opener. Auto-play off, or a film, dismisses. A next episode with an empty files ladder
+is unavailable and does not skip ahead. Decision is `PlaybackEnd` (unit-tested for every
+toggle combination). The tvOS Up Next `AVContentProposal` offers the same next episode.
+
+Library Continue still shows unfinished films as 16:9 title cards that play on Select.
+Started series expand to that series' episode cells (`MediaCard(episode:in:)`, same as
+the title page), under a localized **Episodes** / **Серии** heading.
+
 ### TestFlight: once a day via push; iOS notification manager is MainActor (2026-10-13)
 
 GitHub never queued the `23 6 * * *` cron on Oct 13 (nor Oct 12 06:00). This

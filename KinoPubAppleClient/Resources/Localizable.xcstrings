@@ -983,6 +983,23 @@
         }
       }
     },
+    "Auto-Play Next Episode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-Play Next Episode"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автовоспроизведение следующей серии"
+          }
+        }
+      }
+    },
     "Auth_Activate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1639,6 +1656,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Продолжить"
+          }
+        }
+      }
+    },
+    "Continue to Next Season" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue to Next Season"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжать следующий сезон"
           }
         }
       }
@@ -2355,6 +2389,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Серия"
+          }
+        }
+      }
+    },
+    "Episodes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Episodes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Серии"
           }
         }
       }
@@ -9293,6 +9344,40 @@
         }
       }
     },
+    "Settings_Tip_AutoPlayNextEpisode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When an episode ends, play the next one in the same season. Off: the player closes. Films always close."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Когда серия заканчивается, сразу играет следующая в этом сезоне. Выкл.: плеер закрывается. Фильмы всегда закрываются."
+          }
+        }
+      }
+    },
+    "Settings_Tip_ContinueToNextSeason" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also play the first episode of the next season. Off: the season finale closes the player, the same as the end of the series."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Также сразу играть первую серию следующего сезона. Выкл.: финал сезона закрывает плеер, как и финал сериала."
+          }
+        }
+      }
+    },
     "Settings_Tip_DataSources" : {
       "localizations" : {
         "en" : {
@@ -9655,13 +9740,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stream quality, subtitles and the tracks the player remembers."
+            "value" : "Stream quality, what happens when an episode ends, subtitles and the tracks the player remembers."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Качество потока, субтитры и дорожки, которые запомнил плеер."
+            "value" : "Качество потока, что происходит в конце серии, субтитры и дорожки, которые запомнил плеер."
           }
         }
       }

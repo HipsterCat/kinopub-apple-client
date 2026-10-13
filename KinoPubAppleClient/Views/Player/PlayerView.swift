@@ -187,6 +187,14 @@ struct PlayerView: View {
     // customization-surface table in player-and-media.md).
     MacVideoPlayer(player: playerManager.player)
       .task {
+        playerManager.onPlaybackEnded = { action in
+          switch action {
+          case .dismiss:
+            closeAfterFailure()
+          case .playNext(let episode):
+            PlaybackWindowState.shared.show(item: episode, mode: .media)
+          }
+        }
         await playerManager.preparePlayback()
       }
 #endif
@@ -295,6 +303,16 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
         self.advance(controller, to: item)
       }
       manager.onGoToTitle = onGoToTitle
+      manager.onPlaybackEnded = { [weak self, weak controller] action in
+        guard let self else { return }
+        switch action {
+        case .dismiss:
+          self.onMenuPress()
+        case .playNext(let episode):
+          guard let controller else { return }
+          self.advance(controller, to: episode)
+        }
+      }
     }
 
     func playerViewControllerShouldDismiss(_ playerViewController: AVPlayerViewController) -> Bool {
@@ -378,10 +396,12 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
 
   func makeUIViewController(context: Context) -> PlayerPresentationController {
     let host = PlayerPresentationController()
+    context.coordinator.host = host
     host.playerController.player = manager.player
     host.playerController.delegate = context.coordinator
     host.playerController.allowsPictureInPicturePlayback = true
     host.playerController.speeds = AVPlaybackSpeed.systemDefaultSpeeds
+    context.coordinator.installEndHandler(on: manager)
     // Live Text over a paused frame: the floating text-recognition button and the
     // VisionKit overlay it summons are not part of watching a film.
     host.playerController.allowsVideoFrameAnalysis = false
@@ -418,10 +438,35 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
     private let manager: PlayerManager
     private let onFinish: () -> Void
     private var didFinish = false
+    weak var host: PlayerPresentationController?
 
     init(manager: PlayerManager, onFinish: @escaping () -> Void) {
       self.manager = manager
       self.onFinish = onFinish
+    }
+
+    func installEndHandler(on manager: PlayerManager) {
+      manager.onPlaybackEnded = { [weak self] action in
+        switch action {
+        case .dismiss:
+          self?.finish()
+        case .playNext(let episode):
+          self?.advance(to: episode)
+        }
+      }
+    }
+
+    private func advance(to item: any PlayableItem) {
+      let context = AppContext.shared
+      let next = PlaybackSession.shared.play(
+        item: item,
+        mode: .media,
+        downloadedFilesDatabase: context.downloadedFilesDatabase,
+        actionsService: context.actionsService
+      )
+      installEndHandler(on: next)
+      host?.playerController.player = next.player
+      Task { await next.preparePlayback() }
     }
 
     /// Leaving happens once, however many times the host reports it.

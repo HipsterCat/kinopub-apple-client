@@ -138,11 +138,12 @@ grid so the remote has a focus landing zone); contained Home banner shelf; unifi
       (2026-10-07). The Library's *Following* shows the episodes left under a cover
       (`-KINOPUBLibraryFixture YES` to see it) as «2 серии» / «1 серия» / «5 серий». The count
       lives on the card (`unwatchedEpisodes`) and must survive `withViewerState` — dropping it
-      left every signed-in Following cover without a second line (2026-10-11). Continue is
-      16:9 title artwork (not the episode still), Select plays, subtitle is time remaining.
-      History is the same play + wide art, titled with the show and S/E, grouped by day
-      (Сегодня / Вчера / 15 сентября 2026). Seen on the simulators and in unit tests, not on a
-      device with a real account
+      left every signed-in Following cover without a second line (2026-10-11). Continue: films
+      stay 16:9 title artwork, Select plays, subtitle is time remaining; started series are
+      that series' episode cells (same `MediaCard(episode:in:)` as the title page) under
+      **Episodes** / **Серии**. History is the same play + wide art, titled with the show
+      and S/E, grouped by day (Сегодня / Вчера / 15 сентября 2026). Seen on the simulators
+      and in unit tests, not on a device with a real account
 - [x] The Library sidebar's *Following* label is English in the Russian UI: `"Following"` has no entry
       in `Localizable.xcstrings` (predates this work — `LibrarySection.title`). Add the ru string
       — now `Library_Subscriptions` «Подписки» (2026-10-11)
@@ -562,8 +563,12 @@ tvOS-only properties.
 - [x] tvOS **Up Next** Info tab (`customInfoViewControllers`): wide tiles with badge and progress,
       2026-09-30, simulator-verified; device check pending
 - [ ] More `infoViewActions` (Watchlist)
-- [ ] Up Next via `AVContentProposal` / `contextualActions` near the end, driven by the existing
-      next-episode logic (`EpisodeQueue.next(after:)`)
+- [x] End of playback follows Settings: auto-play next episode in the season (default on);
+      continue into the next season (default off); auto-play off or a film dismisses.
+      `PlaybackEnd` + `EpisodeQueue.nextInSeason`. tvOS `AVContentProposal` offers the same
+      next episode (10 s countdown). `contextualActions` during the last minute still open
+- [ ] Up Next `contextualActions` near the end (proposed: last 60 s, or credits once markers
+      exist), in addition to the `AVContentProposal` panel
 - [ ] Chapters via `navigationMarkerGroups`, once any marker source exists
 - [ ] Subtitle overlay inside the controller (`customOverlayViewController` + `unobscuredContentGuide`,
       styling from `MediaAccessibility`) instead of a SwiftUI sibling in a `ZStack`
