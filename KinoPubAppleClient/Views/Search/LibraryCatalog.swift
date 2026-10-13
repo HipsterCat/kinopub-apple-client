@@ -113,6 +113,18 @@ class LibraryCatalog: ObservableObject {
   /// first-page load starts, so two overlapping `refresh()` / `.task` loads
   /// cannot paint a stale grid.
   private var inFlight: Task<Void, Never>?
+  /// When the painted listing was last fetched. Coming back to Search after
+  /// `staleAfter` silently refetches; tests write this to age the page.
+  var lastLoadedAt: Date?
+
+  /// How long a painted Search listing is trusted before coming back is worth
+  /// a silent refetch. Re-entering the tab always revalidates.
+  static let staleAfter: TimeInterval = 5 * 60
+
+  var isStale: Bool {
+    guard let lastLoadedAt else { return true }
+    return Date().timeIntervalSince(lastLoadedAt) > Self.staleAfter
+  }
 
   var isSearching: Bool { !searchQuery.isEmpty }
 
@@ -164,26 +176,43 @@ class LibraryCatalog: ObservableObject {
     await beginLoad(reset: pagination == nil)
   }
 
+  /// Background revalidation: keep what is on screen, never a loading state, and
+  /// only replace the listing when the first page actually changed. `force` is
+  /// re-entering the Search tab; otherwise this is a no-op until `staleAfter`.
+  func revalidate(force: Bool = false) async {
+    if items.isEmpty {
+      await load()
+      return
+    }
+    guard force || isStale else { return }
+    guard !isFetching else { return }
+    await beginLoad(reset: false, silent: true)
+  }
+
   /// Starts a load generation. First-page work cancels whatever was in flight so a
   /// chip change cannot be overwritten by the `.task` that started first. Later
-  /// pages still coalesce on `isFetching`.
-  private func beginLoad(reset: Bool) async {
+  /// pages still coalesce on `isFetching`. Silent revalidation does not clear the
+  /// grid or raise `isLoading`.
+  private func beginLoad(reset: Bool, silent: Bool = false) async {
     guard authState.userState == .authorized else {
       isLoading = false
       subscribeForAuth()
       return
     }
 
-    let isFirstPage = reset || pagination == nil
+    let isFirstPage = silent || reset || pagination == nil
     if !isFirstPage {
       guard !isFetching else { return }
+    }
+    if silent {
+      guard !isFetching, !items.isEmpty else { return }
     }
 
     loadGeneration += 1
     let generation = loadGeneration
     inFlight?.cancel()
 
-    if reset {
+    if reset, !silent {
       isLoading = true
       loadFailed = false
       loadError = nil
@@ -195,37 +224,39 @@ class LibraryCatalog: ObservableObject {
 
     let task = Task { [weak self] in
       guard let self else { return }
-      await self.runLoad(generation: generation, isFirstPage: isFirstPage)
+      await self.runLoad(generation: generation, isFirstPage: isFirstPage, silent: silent)
     }
     inFlight = task
     await task.value
   }
 
-  private func runLoad(generation: Int, isFirstPage: Bool) async {
+  private func runLoad(generation: Int, isFirstPage: Bool, silent: Bool = false) async {
     isFetching = true
     isLoadingMore = !isFirstPage
-    if isFirstPage { isLoading = true }
+    if isFirstPage, !silent { isLoading = true }
 
     defer {
       if generation == loadGeneration {
         isFetching = false
         isLoadingMore = false
-        isLoading = false
+        if !silent { isLoading = false }
         inFlight = nil
       }
     }
 
     // A person's credits take the full filter bar like any catalog, so their pickers
-    // load too — the genre list is scoped to the credits' type below.
-    if genres.isEmpty || countries.isEmpty {
+    // load too — the genre list is scoped to the credits' type below. Silent
+    // revalidation leaves the pickers as they are: they are chrome, not the listing.
+    if !silent, (genres.isEmpty || countries.isEmpty) {
       await loadPickerData()
       guard generation == loadGeneration, !Task.isCancelled else { return }
     }
 
     do {
       // Page 1 stated, 20 a page — the server's default page is 50, more than a screen
-      // of results needs before the next page is asked for.
-      let page = pagination.map { $0.current + 1 } ?? 1
+      // of results needs before the next page is asked for. Silent revalidation is
+      // always page 1, even when later pages are already painted.
+      let page = silent ? 1 : (pagination.map { $0.current + 1 } ?? 1)
       let data: PaginatedData<MediaItem>
       if isSearching {
         // The search endpoint takes the catalog's filters (and would take a sort — the
@@ -256,7 +287,7 @@ class LibraryCatalog: ObservableObject {
         data = try await itemsService.fetchItems(filter: filter, page: page, perPage: Self.pageSize)
       }
       guard generation == loadGeneration, !Task.isCancelled else { return }
-      handle(data, isFirstPage: isFirstPage)
+      handle(data, isFirstPage: isFirstPage, silent: silent)
       loadFailed = false
       loadError = nil
       paginationFailed = false
@@ -266,6 +297,10 @@ class LibraryCatalog: ObservableObject {
       return
     } catch {
       guard generation == loadGeneration, !Task.isCancelled else { return }
+      if silent {
+        Logger.app.debug("Search silent refresh failed, keeping loaded items: \(error)")
+        return
+      }
       if isFirstPage {
         items = []
         loadFailed = true
@@ -307,15 +342,43 @@ class LibraryCatalog: ObservableObject {
   /// The library grid and search do not: there a type filter of "3D" is a request for
   /// exactly those entries. Collapsing runs over everything loaded so far, since the
   /// second copy of a film can land a page later.
-  private func handle(_ data: PaginatedData<MediaItem>, isFirstPage: Bool) {
+  private func handle(_ data: PaginatedData<MediaItem>, isFirstPage: Bool, silent: Bool = false) {
     // Pages overlap: the server's order is not stable between requests, and a title on
     // page 1 came back on page 2 (a diffable snapshot aborts on a repeated id — seen
     // with `finished=0`, 20 a page, 2026-09-26). The first copy stays.
+    if silent {
+      var seen = Set<Int>()
+      let fresh = data.items.filter { seen.insert($0.id).inserted }
+      applySilent(fresh, pagination: data.pagination)
+      return
+    }
     var seen = isFirstPage ? Set<Int>() : Set(items.map(\.id))
     let fresh = data.items.filter { seen.insert($0.id).inserted }
     let loaded = isFirstPage ? fresh : items + fresh
     items = filter.person != nil && !isSearching ? loaded.collapsingFilmVariants() : loaded
     pagination = data.pagination
+    lastLoadedAt = Date()
+  }
+
+  /// Keep extra pages when page 1 is still the same prefix; splice updated facts in
+  /// place; only replace the listing when membership or order changed.
+  private func applySilent(_ fresh: [MediaItem], pagination newPagination: Pagination) {
+    let incoming = filter.person != nil && !isSearching ? fresh.collapsingFilmVariants() : fresh
+    let prefix = Array(items.prefix(incoming.count))
+    if incoming.isEmpty {
+      if !items.isEmpty {
+        items = incoming
+        pagination = newPagination
+      }
+    } else if prefix.map(\.id) == incoming.map(\.id) {
+      if prefix != incoming {
+        items = incoming + Array(items.dropFirst(incoming.count))
+      }
+    } else {
+      items = incoming
+      pagination = newPagination
+    }
+    lastLoadedAt = Date()
   }
 
   func loadMoreContent(after item: MediaItem) {
@@ -331,6 +394,14 @@ class LibraryCatalog: ObservableObject {
   func refresh() async {
     await beginLoad(reset: true)
   }
+
+#if DEBUG
+  /// Skip `KinoPubConfig` on the first test load so the listing fetch is what we time.
+  func seedPickersForTesting() {
+    if genres.isEmpty { genres = [MediaGenre(id: 1, title: "Drama", kind: .movie)] }
+    if countries.isEmpty { countries = [Country(id: 1, title: "USA")] }
+  }
+#endif
 
   // MARK: - Filter changes
 

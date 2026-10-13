@@ -68,9 +68,10 @@ page whose shelf said "More by This Creator".
 Movies, Series (the same sections, whichever tab), the shelves under a title — has **no title and no
 year under a cover, not even on focus**: the covers are what a rail is for. A **grid** — a catalog, a
 collection, a profile's credits, the Library — names every cover, a title and a second line. The
-second line is the year, except in the Library's *Following*, where it is **how many episodes of the
-series are still unwatched** («3 серии», «3 episodes»). Search keeps its captions on its
-shelves: a result has to be told apart by its name.
+second line is **year then genre** («2024 Драма», «2019–2024 Драма» once a series has ended,
+«2026 Драма» while it is ongoing), except in the Library's *Following*, where it is **how many
+episodes of the series are still unwatched** («3 серии», «3 episodes»). Search keeps its captions
+on its shelves: a result has to be told apart by its name.
 
 The two lines are the app's own (`TVPageCaptionView`), not the system lockup's footer: every captioned
 cover has both, the second one empty when there is neither a year nor an episode count, and the cover's

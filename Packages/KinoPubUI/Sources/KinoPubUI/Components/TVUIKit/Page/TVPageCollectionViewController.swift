@@ -286,11 +286,14 @@ public final class TVPageCollectionViewController: UIViewController {
                                      at: IndexPath(item: 0, section: section))
   }
 
-  /// The focused card grows upward by its lift; the row title moves up by the same
-  /// amount so the two never touch — the small nudge the system rows have.
+  /// The focused card grows upward by its lift; a *rail* title moves up by the same
+  /// amount so the two never touch — the small nudge the system rows have. A grid
+  /// header stays put: it is the page's title (and, on Library, the filter pills),
+  /// not a row label dodging a lockup.
   private func headerDodge(for section: Int) -> CGAffineTransform {
     guard sections.indices.contains(section) else { return .identity }
     let target = sections[section]
+    guard target.flow != .grid else { return .identity }
     guard target.kind != .chip, target.kind != .masthead, target.kind != .banner,
           target.kind != .strip, target.kind != .infoCard else { return .identity }
     let contentWidth = max(collectionView.bounds.width - resolvedSideInset * 2, 1)

@@ -155,15 +155,19 @@ public enum TVPageLayout {
     }
 
     if section.title != nil {
+      let height = section.headerActions.isEmpty ? headerHeight : chipHeight
       let header = NSCollectionLayoutBoundarySupplementaryItem(
         layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1),
-                                           heightDimension: .absolute(headerHeight)),
+                                           heightDimension: .absolute(height)),
         elementKind: headerKind,
         alignment: .top
       )
       // The header aligns to the *art* column, not the envelope's: it does not follow
       // the section insets (which are envelope-relative) and takes the page inset.
       header.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: sideInset, bottom: 0, trailing: sideInset)
+      // Library's filter bar lives in this header: pin it so focusing a cover does
+      // not scroll the pills away. Day headers (no actions) still travel with the grid.
+      header.pinToVisibleBounds = !section.headerActions.isEmpty
       layoutSection.supplementaryContentInsetsReference = .none
       layoutSection.boundarySupplementaryItems = [header]
     }

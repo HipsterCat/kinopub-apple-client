@@ -177,12 +177,14 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     return year.map(String.init)
   }
 
-  /// `Жанр Год` / `Жанр 2019–2024` — the line under a cover in a catalog grid.
+  /// `Год Жанр` / `2019–2024 Жанр` — the line under a cover in a catalog grid
+  /// (search, collections, person credits, Library bookmarks). Year first so
+  /// titles of the same genre sort by eye; an ended series keeps its span.
   public func catalogCaption(language: MediaLanguage = .current) -> String? {
-    switch (primaryGenre(language: language), yearLabel) {
-    case let (genre?, year?): return "\(genre) \(year)"
-    case let (genre?, nil): return genre
-    case let (nil, year?): return year
+    switch (yearLabel, primaryGenre(language: language)) {
+    case let (year?, genre?): return "\(year) \(genre)"
+    case let (year?, nil): return year
+    case let (nil, genre?): return genre
     default: return nil
     }
   }

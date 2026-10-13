@@ -138,8 +138,22 @@ struct SearchView: View {
           if let query = DebugLaunch.searchQuery, searchFieldText.isEmpty {
             searchFieldText = query
           }
-          await catalog.load()
+          if catalog.items.isEmpty {
+            await catalog.load()
+          } else {
+            await catalog.revalidate(force: false)
+          }
         }
+      }
+      // Re-entering the tab always refreshes in the background. Coming back to the
+      // list from a title does the same once the painted page is older than TTL.
+      .onChange(of: navigationState.selectedTab) { old, tab in
+        guard tab == .search, old != .search else { return }
+        Task { await catalog.revalidate(force: true) }
+      }
+      .onChange(of: navigationState.searchRoutes.isEmpty) { _, atRoot in
+        guard atRoot, navigationState.selectedTab == .search else { return }
+        Task { await catalog.revalidate(force: false) }
       }
       .task { await cardMenu.refreshFolders() }
       .mediaCardNewFolderAlert(cardMenu)

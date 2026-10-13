@@ -162,8 +162,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   /// What a captioned cover says under its title: a followed series says how many of its
   /// episodes are still unwatched (the Library's *Following* — «2 серии»); everything else
-  /// `Жанр Год` / `Жанр 2019–2024` (Sasha, 2026-10-11). A title with neither says nothing —
-  /// the line is still there, empty, so a grid never mixes one-line and two-line cells.
+  /// `Год Жанр` / `2019–2024 Жанр`. A title with neither says nothing — the line is still
+  /// there, empty, so a grid never mixes one-line and two-line cells.
   /// Original title is reserved for search's wide cards (match highlighting).
   static func posterSubtitle(for card: MediaCard, caption: TVPageCaption) -> String? {
     switch caption {
@@ -520,18 +520,6 @@ final class TVPageChipCell: UICollectionViewCell {
     }.withRenderingMode(.alwaysTemplate)
   }
 
-  /// The same pill as `configuration(for:)`, inset to sit in a 52 pt row header.
-  static func headerConfiguration(for chip: TVPageChip) -> UIButton.Configuration {
-    var configuration = self.configuration(for: chip)
-    if chip.showsTitle {
-      configuration.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 18, bottom: 6, trailing: 18)
-    } else {
-      let inset: CGFloat = 6
-      configuration.contentInsets = NSDirectionalEdgeInsets(top: inset, leading: inset, bottom: inset, trailing: inset)
-    }
-    return configuration
-  }
-
   static func configuration(for chip: TVPageChip) -> UIButton.Configuration {
     var configuration = UIButton.Configuration.gray()
     configuration.title = chip.showsTitle ? chip.title : nil
@@ -859,13 +847,14 @@ final class TVPageWideCardCell: UICollectionViewCell {
     return original
   }
 
-  /// "Боевик  2021" / "Драма  2019–2024" — genre then year. No running time: in a
-  /// result list the genre and year are what tell two same-named titles apart.
-  /// A collection has neither, so its counters (items, views) take the line instead.
+  /// "2021  Боевик" / "2019–2024  Драма" — year then genre, same words as a
+  /// catalog cover (`catalogCaption`). No running time: in a result list those two
+  /// are what tell two same-named titles apart. A collection has neither, so its
+  /// counters (items, views) take the line instead.
   private static func detail(for card: MediaCard) -> String? {
-    var parts = [card.primaryGenre(), card.yearLabel].compactMap { $0 }.filter { !$0.isEmpty }
-    if parts.isEmpty { parts = card.captionStats.map(\.value).filter { !$0.isEmpty } }
-    return parts.isEmpty ? nil : parts.joined(separator: "\u{2003}")
+    if let caption = card.catalogCaption() { return caption }
+    let stats = card.captionStats.map(\.value).filter { !$0.isEmpty }
+    return stats.isEmpty ? nil : stats.joined(separator: "\u{2003}")
   }
 
   private var placeholder: UIImage {
@@ -961,8 +950,8 @@ final class TVPageDebugSectionBackground: UICollectionReusableView {
 // MARK: - Header
 
 /// Row title, leading on the same column as the first card: `.headline` in secondary.
-/// Trailing actions are the same system pills Search uses (`TVPageChip`), sized to
-/// this header's 52 pt so a Library section and a History day share one bar.
+/// Trailing actions are the same system pills Search uses (`TVPageChip`), at the
+/// filter row's own size (`chipHeight` × `fittingWidth`) — not a scaled-down copy.
 @MainActor
 final class TVPageHeaderView: UICollectionReusableView {
   private let titleLabel = UILabel()
@@ -981,6 +970,7 @@ final class TVPageHeaderView: UICollectionReusableView {
     titleLabel.adjustsFontForContentSizeCategory = true
     titleLabel.textColor = .secondaryLabel
     titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    titleLabel.lineBreakMode = .byTruncatingTail
     countLabel.font = Self.font(.subheadline, weight: .medium)
     countLabel.adjustsFontForContentSizeCategory = true
     countLabel.textColor = .tertiaryLabel
@@ -1033,7 +1023,11 @@ final class TVPageHeaderView: UICollectionReusableView {
     rebuildActions(actions)
   }
 
-  private static let actionHeight: CGFloat = 44
+  /// The Search filter pill's size: same cell, same measured width, same height.
+  static func actionSize(for chip: TVPageChip) -> CGSize {
+    CGSize(width: max(TVPageChipCell.fittingWidth(for: chip), TVPageLayout.chipHeight),
+           height: TVPageLayout.chipHeight)
+  }
 
   private func rebuildActions(_ actions: [TVPageChip]) {
     guard chips != actions else {
@@ -1051,9 +1045,11 @@ final class TVPageHeaderView: UICollectionReusableView {
       cell.onOption = { [weak self] option in self?.onChipOption?(chip.id, option) }
       cell.onSelection = { [weak self] selection in self?.onChipSelection?(chip.id, selection) }
       cell.onSelect = { [weak self] in self?.onChipOption?(chip.id, chip.id) }
+      cell.setContentCompressionResistancePriority(.required, for: .horizontal)
+      let size = Self.actionSize(for: chip)
       NSLayoutConstraint.activate([
-        cell.heightAnchor.constraint(equalToConstant: Self.actionHeight),
-        cell.widthAnchor.constraint(equalToConstant: max(TVPageChipCell.fittingWidth(for: chip) * 0.85, Self.actionHeight))
+        cell.heightAnchor.constraint(equalToConstant: size.height),
+        cell.widthAnchor.constraint(equalToConstant: size.width)
       ])
       actionsStack.addArrangedSubview(cell)
       actionCells.append(cell)

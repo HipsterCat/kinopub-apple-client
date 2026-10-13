@@ -448,8 +448,8 @@ public struct TVPageSection: Identifiable, Hashable {
   /// any other section.
   public let groups: [TVPageGroup]
   /// Trailing pull-downs on the section header — sort / filter, or Rename / Delete
-  /// on a bookmark folder. Same `TVPageChip` the Search filter row uses, drawn inside
-  /// the 52 pt header so a Library section does not jump when it has no day groups.
+  /// on a bookmark folder. Same `TVPageChip` the Search filter row uses, at the same
+  /// size, so a Library section's type pill is not a scaled-down copy.
   public let headerActions: [TVPageChip]
 
   public init(id: String,

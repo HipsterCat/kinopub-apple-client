@@ -82,6 +82,8 @@ struct VideoContentServiceMock: VideoContentService {
   var similar: (@Sendable (Int) -> [MediaItem]?)? = nil
   /// What a person's shelf (`fetchItems` with a person filter) answers with.
   var personItems: (@Sendable (LibraryFilter) -> [MediaItem])? = nil
+  /// What the Search catalog (`fetchItems` without a person) answers with.
+  var catalogItems: (@Sendable (LibraryFilter, Int?, Int?) -> PaginatedData<MediaItem>)? = nil
   /// What `fetchWatchingSerials` answers with — the Library's Subscriptions. The DEBUG
   /// library fixture (`LibraryFixture`) serves its followed series through this.
   var watchingSerials: (@Sendable () -> [WatchingItem])? = nil
@@ -144,6 +146,9 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchItems(filter: LibraryFilter, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
+    if let catalogItems, filter.person == nil {
+      return catalogItems(filter, page, perPage)
+    }
     // Person shelves on the detail page need something non-empty so previews
     // exercise the rail instead of hiding it.
     if filter.person != nil {

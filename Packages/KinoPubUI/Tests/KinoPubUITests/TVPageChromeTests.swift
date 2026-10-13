@@ -22,6 +22,15 @@ final class TVPageChromeTests: XCTestCase {
     XCTAssertEqual(chrome.trailingOverflow, 80)
   }
 
+  func testHeaderActionsMatchTheSearchChipSize() {
+    let chip = TVPageChip(id: "type", title: "Фильмы и сериалы")
+    let size = TVPageHeaderView.actionSize(for: chip)
+    XCTAssertEqual(size.width, TVPageChipCell.fittingWidth(for: chip))
+    XCTAssertEqual(size.height, TVPageLayout.chipHeight)
+    XCTAssertGreaterThan(size.width, TVPageLayout.chipHeight,
+                         "a titled pill is wider than the round icon it used to be squeezed to")
+  }
+
   func testLeadingConstantIsNeverNegative() {
     let chrome = ShelfMetrics.tvPageChrome(
       viewFrameInWindow: CGRect(x: 120, y: 0, width: 1680, height: 1080),

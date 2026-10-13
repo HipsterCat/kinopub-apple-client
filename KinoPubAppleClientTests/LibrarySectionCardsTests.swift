@@ -35,6 +35,28 @@ final class LibrarySectionCardsTests: XCTestCase {
                              errorHandler: ErrorHandler())
     XCTAssertEqual(model.headerCount(for: .watchlist, cards: cards),
                    UnwatchedEpisodesCountText(156).formatted())
+    XCTAssertEqual(model.headerTitle(for: .watchlist, cards: cards),
+                   UnwatchedEpisodesCountText(156).formatted(),
+                   "the count is the title — Подписки stays in the sidebar")
+    XCTAssertNotEqual(model.headerTitle(for: .watchlist, cards: cards),
+                      model.title(for: .watchlist))
+  }
+
+  @MainActor
+  func testASectionHeaderIsOneLabel() {
+    let cards = [
+      MediaCard(id: 1, posterURL: "", title: "A"),
+      MediaCard(id: 2, posterURL: "", title: "B")
+    ]
+    let model = LibraryModel(contentService: VideoContentServiceMock(),
+                             actionsService: UserActionsServiceMock(),
+                             authState: AuthState(authService: AuthorizationServiceMock(),
+                                                  accessTokenService: AccessTokenServiceMock()),
+                             errorHandler: ErrorHandler())
+    XCTAssertEqual(model.headerTitle(for: .unwatched, cards: cards), "2")
+    XCTAssertEqual(model.headerTitle(for: .history, cards: []),
+                   model.title(for: .history),
+                   "with no count the section name is the one label")
   }
 
 

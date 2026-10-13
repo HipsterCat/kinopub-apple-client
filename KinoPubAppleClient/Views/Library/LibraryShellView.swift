@@ -363,13 +363,12 @@ struct LibraryShellView: View {
   private var librarySections: [TVPageSection] {
     let cards = catalog.cards
     let sectionID = "library.\(model.selection.persistenceID)"
-    let title = model.title(for: model.selection)
-    let count = model.headerCount(for: model.selection, cards: cards)
+    let title = model.headerTitle(for: model.selection, cards: cards)
     let actions = libraryHeaderActions
     guard !cards.isEmpty else {
       let empty = catalog.isLoading
         ? TVPageSection.placeholder(id: sectionID, title: title, kind: .poster, columns: 6, flow: .grid)
-        : TVPageSection.posters(id: sectionID, title: title, count: count, flow: .grid,
+        : TVPageSection.posters(id: sectionID, title: title, flow: .grid,
                                 caption: .always, headerActions: actions, cards: [])
       return [empty.withHeaderActions(actions)]
     }
@@ -390,16 +389,15 @@ struct LibraryShellView: View {
     let usesOwnCounts = !grouped.isEmpty
     return groups.enumerated().map { index, group in
       let loadsMore = group.id == lastID && catalog.hasMorePages
-      let headerTitle = group.title ?? title
-      let headerCount = usesOwnCounts
-        ? (group.cards.isEmpty ? nil : "\(group.cards.count)")
-        : (index == 0 ? count : nil)
+      // Named groups (History days, Continue's episodes vs films) keep that name.
+      // Everywhere else the count is the title — never title + count.
+      let headerTitle = usesOwnCounts ? (group.title ?? title) : title
       let headerActions = index == 0 ? actions : []
       return group.cards.first?.isLandscape == true
-        ? .stills(id: group.id, title: headerTitle, count: headerCount, columns: 4, flow: .grid,
+        ? .stills(id: group.id, title: headerTitle, columns: 4, flow: .grid,
                   caption: .always, loadsMore: loadsMore, headerActions: headerActions,
                   cards: group.cards)
-        : .posters(id: group.id, title: headerTitle, count: headerCount, flow: .grid,
+        : .posters(id: group.id, title: headerTitle, flow: .grid,
                    caption: .always, loadsMore: loadsMore, headerActions: headerActions,
                    cards: group.cards)
     }

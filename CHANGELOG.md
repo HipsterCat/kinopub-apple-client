@@ -5,6 +5,21 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Catalog captions, Search silent refresh, Library header (2026-10-13)
+
+Grid subtitles (search catalog, collections, person credits, Library bookmarks) are
+year then genre: «2024 Драма», «2019–2024 Драма» for an ended series, «2026 Драма»
+while it is ongoing. Following still says how many episodes are left.
+
+Search on tvOS revalidates in the background when you come back to the tab, and when
+you return to the list after five minutes: it does not clear the grid or show a
+loading state, and it only replaces the listing if page 1 actually changed.
+
+The Library section header is one label (the count *is* the title — «156
+непросмотренных серий», not that beside «Подписки»). Its filter pills are the same
+`TVPageChip` Search uses, at the same size, pinned so focusing a cover does not move
+them.
+
 ### tvOS spec-table UI test waits for focus after the popup (2026-10-13)
 
 `testTheTableTakesFocusOnlyWhereSelectDoesSomething` slept 1.5 s after Menu then

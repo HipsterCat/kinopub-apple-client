@@ -103,6 +103,13 @@ final class LibraryModel: ObservableObject {
     }
   }
 
+  /// The one label the section header draws. The count *is* the title — «156
+  /// непросмотренных серий», not that phrase beside «Подписки». History day groups
+  /// keep their own day name.
+  func headerTitle(for section: LibrarySection, cards: [MediaCard]) -> String {
+    headerCount(for: section, cards: cards) ?? title(for: section)
+  }
+
   func folder(with id: Int) -> Bookmark? {
     folders.first { $0.id == id }
   }
