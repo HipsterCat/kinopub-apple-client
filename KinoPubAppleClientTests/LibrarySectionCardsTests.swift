@@ -4,10 +4,10 @@
 //
 
 import XCTest
-import KinoPubBackend
 import KinoPubMedia
 import KinoPubUI
 @testable import KinoPub
+@testable import KinoPubBackend
 
 final class LibrarySectionCardsTests: XCTestCase {
 
