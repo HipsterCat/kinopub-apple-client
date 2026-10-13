@@ -98,10 +98,10 @@ final class LibrarySectionCardsTests: XCTestCase {
   }
 
   func testContinuePageGroupsPutsMoviesUnderContinueAndEpisodesUnderEpisodes() {
-    let movie = MediaCard(id: 1, posterURL: "", title: "Film", isSeries: false,
-                          landscapeImageURL: "wide.jpg")
-    let episode = MediaCard(id: 10, posterURL: "still.jpg", title: "E1", isSeries: true,
-                            landscapeImageURL: "still.jpg")
+    let movie = MediaCard(id: 1, posterURL: "", title: "Film",
+                          landscapeImageURL: "wide.jpg", isSeries: false)
+    let episode = MediaCard(id: 10, posterURL: "still.jpg", title: "E1",
+                            landscapeImageURL: "still.jpg", isSeries: true)
     let groups = LibrarySectionCatalog.continuePageGroups(from: [movie, episode])
     XCTAssertEqual(groups.map(\.id), ["continue.movies", "continue.episodes"])
     XCTAssertEqual(groups.map(\.isEpisodes), [false, true])

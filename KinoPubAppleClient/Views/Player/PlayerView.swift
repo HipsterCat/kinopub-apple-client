@@ -434,7 +434,8 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
     Coordinator(manager: manager, onFinish: onFinish)
   }
 
-  final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+  @MainActor
+  final class Coordinator: NSObject, @preconcurrency AVPlayerViewControllerDelegate {
     private let manager: PlayerManager
     private let onFinish: () -> Void
     private var didFinish = false
@@ -447,11 +448,14 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
 
     func installEndHandler(on manager: PlayerManager) {
       manager.onPlaybackEnded = { [weak self] action in
-        switch action {
-        case .dismiss:
-          self?.finish()
-        case .playNext(let episode):
-          self?.advance(to: episode)
+        Task { @MainActor in
+          guard let self else { return }
+          switch action {
+          case .dismiss:
+            self.finish()
+          case .playNext(let episode):
+            self.advance(to: episode)
+          }
         }
       }
     }
