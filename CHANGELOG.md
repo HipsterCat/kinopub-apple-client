@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS spec-table UI test waits for focus after the popup (2026-10-13)
+
+`testTheTableTakesFocusOnlyWhereSelectDoesSomething` slept 1.5 s after Menu then
+snapshotted `focusedDescription` once. The page is out of the accessibility tree
+while InfoPopup dismisses; on a slow runner that snapshot missed the Audio card
+and the assertion message (a second query) already showed it. Same wait as
+`testFocusReturnsAfterPopup`. The table and popup were not part of the player /
+Library Continue change.
+
 ### End of an episode is a Settings choice; Library Continue lists series as episodes (2026-10-13)
 
 Settings › Video & audio: **Auto-Play Next Episode** (default on) plays the next episode

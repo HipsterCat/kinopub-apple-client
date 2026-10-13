@@ -451,10 +451,21 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertFalse(focusedDescription.contains("kinopub.spec.resolution")
                    || focusedDescription.contains("kinopub.spec.type"), "text took focus: \(focusedDescription)")
     XCTAssertTrue(seek(.up, until: "kinopub.spec.audio", limit: 3), focusedDescription)
-    XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.5)
+    XCUIRemote.shared.press(.select)
+    // While the popup is up (or coming up) the page is out of the accessibility tree, and
+    // asking what has focus then fails the test on a slow runner, not the page. Wait it out.
+    Thread.sleep(forTimeInterval: 2.0)
     try shoot("table-audio-popup")
-    XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1.5)
-    XCTAssertTrue(focusedDescription.contains("kinopub.spec.audio"), "focus comes back to the card: \(focusedDescription)")
+    XCUIRemote.shared.press(.menu)
+    let back = audioHasFocus.waitForExistence(timeout: 10)
+    try shoot("table-audio-closed")
+    XCTAssertTrue(back, "focus comes back to the card: \(focusedDescription)")
+  }
+
+  private var audioHasFocus: XCUIElement {
+    app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.spec.audio"))
+      .firstMatch
   }
 
   // MARK: - Grids
