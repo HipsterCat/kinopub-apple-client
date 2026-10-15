@@ -386,6 +386,12 @@ class HomeCatalog: ObservableObject {
     }
     rows = assembled
     refreshBannerCards(from: assembled)
+#if os(tvOS)
+    // Watch Now is what the Top Shelf mirrors; a typed catalog is not.
+    if includesWatchNowExtras, authState.userState == .authorized {
+      TopShelfPublisher.publish(rows: assembled, store: store)
+    }
+#endif
   }
 
   private func paintedContinueWatchingCards() -> [MediaCard] {

@@ -67,6 +67,10 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
     BookmarkMembershipStore.shared.clear()
     // Folder names outlive a session on disk, so they have to go with the account.
     Task { @MainActor in BookmarkFoldersStore.shared.clear() }
+#if os(tvOS)
+    // The shelf showed this account's titles; signed out, it is the static image again.
+    Task { @MainActor in TopShelfPublisher.clear() }
+#endif
     AppContext.shared.libraryState.clear()
     // The device record belonged to the account we just left — the next activation has
     // to register its identity and streaming profile from scratch.

@@ -42,6 +42,10 @@ XCPROJ = File.join(PROJECT, "project.xcproj")
 SCHEME = "KinoPubAppleClient"
 APP_TARGET = "KinoPubAppleClient"
 BUNDLE_ID = "com.soda.kinopub"
+# The tvOS Top Shelf extension: embedded in the tvOS build only, signed with its own
+# App Store profile. Both App IDs carry the App Group group.com.soda.kinopub.
+TOPSHELF_TARGET = "KinoPubTopShelf"
+TOPSHELF_BUNDLE_ID = "com.soda.kinopub.topshelf"
 TEAM_ID = "Z2PQ733PSP"
 APP_NAME = "Kinopub Soda"
 
@@ -256,15 +260,15 @@ def install_signing!(macos:)
   )
 end
 
-def fetch_profile!(sigh_platform:)
+def fetch_profile!(sigh_platform:, app_identifier: BUNDLE_ID, label: "KinoPub")
   # sigh's filename option only accepts .mobileprovision, including macOS.
   get_provisioning_profile(
-    app_identifier: BUNDLE_ID,
+    app_identifier: app_identifier,
     api_key: connect_api_key,
     adhoc: false,
     force: ENV["CI"].to_s == "true",
-    provisioning_name: "KinoPub #{sigh_platform} AppStore",
-    filename: "KinoPub-#{sigh_platform}.mobileprovision",
+    provisioning_name: "#{label} #{sigh_platform} AppStore",
+    filename: "#{label}-#{sigh_platform}.mobileprovision",
     output_path: Dir.tmpdir,
     platform: sigh_platform,
     team_id: TEAM_ID
@@ -340,11 +344,49 @@ def apply_app_signing!(profile_name:)
   apply_app_signing_to!(XCPROJ, profile_name: profile_name)
 end
 
+# The Top Shelf target is the last one in the file; its build-settings end where the
+# project-level block begins.
+def topshelf_target_slice(text)
+  start = text.index(/"name": "#{TOPSHELF_TARGET}"/)
+  UI.user_error!("Missing target #{TOPSHELF_TARGET} in project.xcproj") if start.nil?
+
+  finish = text.index(/^  "build-settings": \{/, start)
+  UI.user_error!("Could not bound #{TOPSHELF_TARGET} build-settings in project.xcproj") if finish.nil?
+
+  [text[0...start], text[start...finish], text[finish..]]
+end
+
+def apply_topshelf_signing_to!(path, profile_name:)
+  text = File.read(path)
+  head, body, tail = topshelf_target_slice(text)
+
+  body = replace_once!(
+    body,
+    /"CODE_SIGN_IDENTITY": "Apple Development"/,
+    '"CODE_SIGN_IDENTITY": "Apple Distribution"',
+    label: "#{TOPSHELF_TARGET} CODE_SIGN_IDENTITY"
+  )
+  body = replace_once!(
+    body,
+    /"CODE_SIGN_STYLE": "Automatic"/,
+    '"CODE_SIGN_STYLE": "Manual"',
+    label: "#{TOPSHELF_TARGET} CODE_SIGN_STYLE"
+  )
+  body = replace_once!(
+    body,
+    /"PROVISIONING_PROFILE_SPECIFIER": ""/,
+    "\"PROVISIONING_PROFILE_SPECIFIER\": #{JSON.generate(profile_name)}",
+    label: "#{TOPSHELF_TARGET} PROVISIONING_PROFILE_SPECIFIER"
+  )
+
+  File.write(path, head + body + tail)
+end
+
 def xml_escape(value)
   CGI.escapeHTML(value.to_s)
 end
 
-def write_export_options!(profile_name:, mac:)
+def write_export_options!(profile_name:, mac:, extension_profiles: {})
   path = File.join(Dir.tmpdir, mac ? "KinoPub-macOS-ExportOptions.plist" : "KinoPub-ExportOptions.plist")
   # macOS Release 38228644573 compiled, then exportArchive used the installer
   # cert as the app identity against the App Store profile. Pin Apple
@@ -382,6 +424,7 @@ def write_export_options!(profile_name:, mac:)
         <dict>
           <key>#{xml_escape(BUNDLE_ID)}</key>
           <string>#{xml_escape(profile_name)}</string>
+      #{extension_profiles.map { |id, name| "    <key>#{xml_escape(id)}</key>\n          <string>#{xml_escape(name)}</string>" }.join("\n      ")}
         </dict>
       </dict>
       </plist>
@@ -405,7 +448,7 @@ def write_release_notes!
   write_release_notes_to!(File.expand_path("../KinoPubAppleClient/Info.plist", __dir__))
 end
 
-def archive_and_export!(spec:, build_number:, profile_name:)
+def archive_and_export!(spec:, build_number:, profile_name:, extension_profiles: {})
   FileUtils.mkdir_p("build")
   archive_path = File.expand_path("build/#{spec[:output]}.xcarchive")
   export_dir = File.expand_path("build/#{spec[:output]}-export")
@@ -413,7 +456,8 @@ def archive_and_export!(spec:, build_number:, profile_name:)
   FileUtils.rm_rf(export_dir)
   FileUtils.mkdir_p(export_dir)
 
-  export_plist = write_export_options!(profile_name: profile_name, mac: spec[:mac])
+  export_plist = write_export_options!(profile_name: profile_name, mac: spec[:mac],
+                                       extension_profiles: extension_profiles)
 
   # Do not pass CODE_SIGN_IDENTITY / PROVISIONING_PROFILE_SPECIFIER as xcargs —
   # those leak onto SPM package targets. Do not pass -allowProvisioningUpdates:
@@ -450,10 +494,14 @@ def archive_and_export!(spec:, build_number:, profile_name:)
   named
 end
 
-def build_platform!(spec:, build_number:, profile_name:)
+def build_platform!(spec:, build_number:, profile_name:, extension_profiles: {})
   apply_app_signing!(profile_name: profile_name)
+  if (topshelf = extension_profiles[TOPSHELF_BUNDLE_ID])
+    apply_topshelf_signing_to!(XCPROJ, profile_name: topshelf)
+  end
   write_release_notes!
-  archive_and_export!(spec: spec, build_number: build_number, profile_name: profile_name)
+  archive_and_export!(spec: spec, build_number: build_number, profile_name: profile_name,
+                      extension_profiles: extension_profiles)
 end
 
 def upload_platform!(spec:, artifact:)
@@ -536,6 +584,12 @@ platform :ios do
       UI.user_error!("signing patch missed macosx Distribution identity") unless patched.include?('"CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Distribution"')
       UI.user_error!("signing patch missed profile specifier") unless patched.include?('"PROVISIONING_PROFILE_SPECIFIER": "KinoPub tvos AppStore"')
 
+      apply_topshelf_signing_to!(copy, profile_name: "KinoPub TopShelf tvos AppStore")
+      topshelf = topshelf_target_slice(File.read(copy))[1]
+      UI.user_error!("Top Shelf signing patch missed Manual") unless topshelf.include?('"CODE_SIGN_STYLE": "Manual"')
+      UI.user_error!("Top Shelf signing patch missed profile specifier") unless topshelf.include?('"PROVISIONING_PROFILE_SPECIFIER": "KinoPub TopShelf tvos AppStore"')
+      patched = File.read(copy)
+
       tests = patched[/"name": "KinoPubAppleClientTests".*?"name": "KinoPubAppleClientUITests"/m]
       UI.user_error!("Could not find the unit-test target after the signing patch") if tests.nil?
       UI.user_error!("signing patch leaked Manual onto the test target") if tests.include?('"CODE_SIGN_STYLE": "Manual"')
@@ -548,6 +602,14 @@ platform :ios do
     UI.user_error!("export options missing bundle id") unless export_body.include?(BUNDLE_ID)
     UI.user_error!("export options missing team id") unless export_body.include?(TEAM_ID)
     UI.user_error!("non-mac export options leaked installer cert") if export_body.include?("installerSigningCertificate")
+
+    export_tv = write_export_options!(profile_name: "KinoPub tvos AppStore", mac: false,
+                                      extension_profiles: { TOPSHELF_BUNDLE_ID => "KinoPub TopShelf tvos AppStore" })
+    tv_body = File.read(export_tv)
+    UI.user_error!("tvOS export options missing the Top Shelf profile") unless tv_body.include?(TOPSHELF_BUNDLE_ID)
+    tv_plist = File.join(Dir.tmpdir, "KinoPub-ExportOptions-check.plist")
+    FileUtils.cp(export_tv, tv_plist)
+    sh("plutil -lint #{Shellwords.escape(tv_plist)}")
 
     export_mac = write_export_options!(profile_name: "KinoPub macos AppStore", mac: true)
     mac_body = File.read(export_mac)
@@ -584,7 +646,15 @@ platform :ios do
     UI.message("TestFlight #{spec[:name]} build #{build_number} (internal)")
     install_signing!(macos: spec[:mac])
     profile_name = fetch_profile!(sigh_platform: spec[:sigh])
-    artifact = build_platform!(spec: spec, build_number: build_number, profile_name: profile_name)
+    # Only the tvOS build embeds the Top Shelf extension.
+    extension_profiles = {}
+    if spec[:sigh] == "tvos"
+      extension_profiles[TOPSHELF_BUNDLE_ID] = fetch_profile!(sigh_platform: spec[:sigh],
+                                                              app_identifier: TOPSHELF_BUNDLE_ID,
+                                                              label: "KinoPub TopShelf")
+    end
+    artifact = build_platform!(spec: spec, build_number: build_number, profile_name: profile_name,
+                               extension_profiles: extension_profiles)
     upload_platform!(spec: spec, artifact: artifact)
   end
 end

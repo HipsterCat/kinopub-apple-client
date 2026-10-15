@@ -99,7 +99,11 @@ Testers who are App Store Connect Users on this app get the build without a name
 2. App Store Connect → Apps → (+): iOS app named **Kinopub Soda**, bundle id
    `com.soda.kinopub`. Then add Apple TV and Mac on the same record so one TestFlight
    link covers every device (universal purchase).
-3. Add testers under Users and Access (they land in Internal Testing as App Store
+3. Top Shelf (tvOS): App Group `group.com.soda.kinopub` enabled on `com.soda.kinopub` and on
+   a second App ID `com.soda.kinopub.topshelf`. A local Xcode run of the tvOS app on a
+   device with Automatic signing creates both. Until they exist the tvOS lane fails at
+   `get_provisioning_profile` for the Top Shelf; iOS and macOS are unaffected.
+4. Add testers under Users and Access (they land in Internal Testing as App Store
    Connect Users) or create an Internal group on the app.
 
 ## First upload
