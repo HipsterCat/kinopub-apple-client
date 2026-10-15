@@ -607,9 +607,10 @@ platform :ios do
                                       extension_profiles: { TOPSHELF_BUNDLE_ID => "KinoPub TopShelf tvos AppStore" })
     tv_body = File.read(export_tv)
     UI.user_error!("tvOS export options missing the Top Shelf profile") unless tv_body.include?(TOPSHELF_BUNDLE_ID)
-    tv_plist = File.join(Dir.tmpdir, "KinoPub-ExportOptions-check.plist")
-    FileUtils.cp(export_tv, tv_plist)
-    sh("plutil -lint #{Shellwords.escape(tv_plist)}")
+    # The lint runs on Linux too (no plutil): a parse is enough to catch broken XML.
+    require "rexml/document"
+    keys = REXML::Document.new(tv_body).get_elements("//dict/dict/key").map(&:text)
+    UI.user_error!("tvOS export options profile map is #{keys.inspect}") unless keys == [BUNDLE_ID, TOPSHELF_BUNDLE_ID]
 
     export_mac = write_export_options!(profile_name: "KinoPub macos AppStore", mac: true)
     mac_body = File.read(export_mac)
