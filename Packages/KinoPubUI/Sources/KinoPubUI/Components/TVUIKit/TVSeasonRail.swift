@@ -147,7 +147,7 @@ public final class TVSeasonRailController: UIViewController {
 
   /// Between the tab row and the rail. The rail's own top inset (room for the focus lift)
   /// adds 9; together they are the 22 pt Sasha asked for (2026-10-11).
-  static let tabsToRail: CGFloat = 13
+  public static let tabsToRail: CGFloat = 13
   /// Headline text plus this above and below is a tab's height — and the row's.
   static let tabVerticalPadding: CGFloat = 10
   /// Each side of a tab's text. A tab is never narrower than tall, so one digit is a circle.
@@ -160,7 +160,7 @@ public final class TVSeasonRailController: UIViewController {
     return UIFont.systemFont(ofSize: base.pointSize, weight: .semibold)
   }
 
-  static func tabRowHeight(compatibleWith traits: UITraitCollection? = nil) -> CGFloat {
+  public static func tabRowHeight(compatibleWith traits: UITraitCollection? = nil) -> CGFloat {
     (tabFont(compatibleWith: traits).lineHeight + tabVerticalPadding * 2).rounded(.up)
   }
 

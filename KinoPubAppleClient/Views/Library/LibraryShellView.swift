@@ -372,16 +372,9 @@ struct LibraryShellView: View {
                                 caption: .always, headerActions: actions, cards: [])
       return [empty.withHeaderActions(actions)]
     }
-    let grouped: [(id: String, title: String?, cards: [MediaCard])]
-    if model.selection == .history {
-      grouped = sectioning.sections(for: cards).map { ($0.id, $0.title, $0.cards) }
-    } else if model.selection == .unwatched {
-      grouped = LibrarySectionCatalog.continuePageGroups(from: cards).map {
-        ($0.id, ($0.isEpisodes ? "Episodes" : "Continue").localized, $0.cards)
-      }
-    } else {
-      grouped = []
-    }
+    let grouped = model.selection == .history
+      ? sectioning.sections(for: cards).map { ($0.id, $0.title, $0.cards) }
+      : []
     let groups: [(id: String, title: String?, cards: [MediaCard])] = grouped.isEmpty
       ? [(sectionID, title, cards)]
       : grouped
@@ -389,7 +382,7 @@ struct LibraryShellView: View {
     let usesOwnCounts = !grouped.isEmpty
     return groups.enumerated().map { index, group in
       let loadsMore = group.id == lastID && catalog.hasMorePages
-      // Named groups (History days, Continue's episodes vs films) keep that name.
+      // Named groups (History days) keep that name.
       // Everywhere else the count is the title — never title + count.
       let headerTitle = usesOwnCounts ? (group.title ?? title) : title
       let headerActions = index == 0 ? actions : []
@@ -443,28 +436,13 @@ struct LibraryShellView: View {
             openURL: { openURL($0) }
           )
         },
-        sections: continueOrHistorySections,
+        sections: model.selection == .history
+          ? sectioning.sections(for: catalog.cards)
+          : [],
         pagination: catalog.paginationState,
         onRetryPagination: { catalog.retryPagination() }
       )
     }
-  }
-
-  /// History by day; Continue splits movies from series episodes.
-  private var continueOrHistorySections: [MediaCardSection] {
-    if model.selection == .history {
-      return sectioning.sections(for: catalog.cards)
-    }
-    if model.selection == .unwatched {
-      return LibrarySectionCatalog.continuePageGroups(from: catalog.cards).map {
-        MediaCardSection(
-          id: $0.id,
-          title: ($0.isEpisodes ? "Episodes" : "Continue").localized,
-          cards: $0.cards
-        )
-      }
-    }
-    return []
   }
 #endif
 }

@@ -4,10 +4,10 @@
 //
 
 import XCTest
+import KinoPubBackend
 import KinoPubMedia
 import KinoPubUI
 @testable import KinoPub
-@testable import KinoPubBackend
 
 final class LibrarySectionCardsTests: XCTestCase {
 
@@ -92,54 +92,6 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertEqual(kept.map(\.id), [2])
   }
 
-  func testEpisodeCardsFollowSeasonThenEpisodeOrderLikeTheDetailRail() {
-    var series = MediaItem.mock(id: 50, type: "serial")
-    let s2 = Season(id: 2, title: "", number: 2, watching: SeasonWatching(status: 0),
-                    episodes: [
-                      Episode(id: 201, title: "B", thumbnail: "b.jpg", duration: 2_400,
-                              tracks: 1, number: 1, ac3: 0, audios: [], watched: 0,
-                              watching: EpisodeWatching(status: 0, time: 0), subtitles: [], files: []),
-                    ])
-    let s1 = Season(id: 1, title: "", number: 1, watching: SeasonWatching(status: 0),
-                    episodes: [
-                      Episode(id: 102, title: "A2", thumbnail: "a2.jpg", duration: 2_400,
-                              tracks: 1, number: 2, ac3: 0, audios: [], watched: 0,
-                              watching: EpisodeWatching(status: 0, time: 0), subtitles: [], files: []),
-                      Episode(id: 101, title: "A1", thumbnail: "a1.jpg", duration: 2_400,
-                              tracks: 1, number: 1, ac3: 0, audios: [], watched: 0,
-                              watching: EpisodeWatching(status: 0, time: 0), subtitles: [], files: []),
-                    ])
-    series.seasons = [s2, s1]
-    let cards = LibrarySectionCatalog.episodeCards(for: series)
-    XCTAssertEqual(cards.map(\.id), [101, 102, 201])
-    XCTAssertTrue(cards.allSatisfy(\.isSeries))
-    XCTAssertTrue(cards.allSatisfy(\.isLandscape))
-    XCTAssertTrue(cards.allSatisfy { $0.primaryAction == .play })
-    XCTAssertEqual(cards.map(\.itemID), [50, 50, 50])
-    XCTAssertEqual(cards.map(\.season), [1, 1, 2])
-  }
-
-  func testContinuePageGroupsPutsMoviesUnderContinueAndEpisodesUnderEpisodes() {
-    let movie = MediaCard(id: 1, posterURL: "", title: "Film",
-                          landscapeImageURL: "wide.jpg", isSeries: false)
-    let episode = MediaCard(id: 10, posterURL: "still.jpg", title: "E1",
-                            landscapeImageURL: "still.jpg", isSeries: true)
-    let groups = LibrarySectionCatalog.continuePageGroups(from: [movie, episode])
-    XCTAssertEqual(groups.map(\.id), ["continue.movies", "continue.episodes"])
-    XCTAssertEqual(groups.map(\.isEpisodes), [false, true])
-    XCTAssertEqual(groups[0].cards.map(\.id), [1])
-    XCTAssertEqual(groups[1].cards.map(\.id), [10])
-  }
-
-  func testContinuePageGroupsOmitsAnEmptySide() {
-    let episode = MediaCard(id: 10, posterURL: "", title: "E1", isSeries: true)
-    XCTAssertEqual(LibrarySectionCatalog.continuePageGroups(from: [episode]).map(\.id),
-                   ["continue.episodes"])
-    let movie = MediaCard(id: 1, posterURL: "", title: "Film", isSeries: false)
-    XCTAssertEqual(LibrarySectionCatalog.continuePageGroups(from: [movie]).map(\.id),
-                   ["continue.movies"])
-  }
-
   func testContinueCardIsLandscapeWideArtAndPlays() {
     let item = WatchingItem(id: 3, type: "movie", title: "Дюна / Dune", posters: posters)
     let history = HistoryEntry(
@@ -155,6 +107,16 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertEqual(card.primaryAction, .play)
     XCTAssertEqual(card.subtitle, RemainingText(progress: history.progress ?? 0,
                                                 durationSeconds: 90 * 60).formatted(.medium))
+  }
+
+  func testContinueCardForASeriesIsTheTitleNotItsEpisodes() {
+    let item = WatchingItem(id: 4, type: "serial", title: "Пантеон / Pantheon",
+                            posters: posters, total: 16, watched: 3)
+    let card = LibrarySectionCatalog.continueCard(for: item, history: nil)
+    XCTAssertEqual(card.id, 4)
+    XCTAssertTrue(card.isSeries)
+    XCTAssertEqual(card.primaryAction, .play)
+    XCTAssertEqual(card.landscapeImageURL, "https://x/item/wide/1.jpg")
   }
 
   func testHistoryCardPlaysUsesWideArtAndWordsTheEpisode() {
