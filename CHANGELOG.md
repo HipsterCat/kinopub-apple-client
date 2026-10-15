@@ -5,6 +5,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Library: Following Unwatched/All, folder total, ellipsis (2026-10-15)
+
+Library grid headers travel with the content again (`pinToVisibleBounds` off). Focusing
+a cover still does not lift the title — `headerDodge` stays identity on `.grid`.
+
+Following replaces the Type pull-down with Unwatched / All (Search chips, Unwatched
+default). All keeps unwatched series first, then a *Watched* / *Просмотренные* section.
+
+A bookmark folder header is «Всего 694» / «Total 694», never the bare number. Rename
+and Delete live in one ellipsis before sort.
+
 ### Library Continue is title cards again; player has an Episodes tab (2026-10-15)
 
 Library Continue no longer expands a series into episode cells under **Episodes** /
@@ -28,8 +39,8 @@ loading state, and it only replaces the listing if page 1 actually changed.
 
 The Library section header is one label (the count *is* the title — «156
 непросмотренных серий», not that beside «Подписки»). Its filter pills are the same
-`TVPageChip` Search uses, at the same size, pinned so focusing a cover does not move
-them.
+`TVPageChip` Search uses, at the same size. The header scrolls with the grid; it
+does not pin over the covers. Focusing a cover still does not nudge it.
 
 ### tvOS spec-table UI test waits for focus after the popup (2026-10-13)
 

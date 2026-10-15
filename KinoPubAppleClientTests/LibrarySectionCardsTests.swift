@@ -57,6 +57,11 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertEqual(model.headerTitle(for: .history, cards: []),
                    model.title(for: .history),
                    "with no count the section name is the one label")
+    XCTAssertEqual(model.headerTitle(for: .folder(1), cards: cards),
+                   TotalCountText(2).formatted(),
+                   "a folder header is «Всего N», never the bare number")
+    XCTAssertEqual(model.headerTitle(for: .allBookmarks, cards: cards),
+                   TotalCountText(2).formatted())
   }
 
 
@@ -82,6 +87,72 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertEqual(card.unwatchedEpisodes, 0)
     XCTAssertNil(card.subtitle)
   }
+
+  func testFollowingUnwatchedHidesCaughtUpSeries() {
+    let waiting = MediaCard(id: 1, posterURL: "", title: "A", unwatchedEpisodes: 3)
+    let caughtUp = MediaCard(id: 2, posterURL: "", title: "B", unwatchedEpisodes: 0)
+    let unknown = MediaCard(id: 3, posterURL: "", title: "C")
+    let cards = [waiting, caughtUp, unknown]
+    let unwatched = LibrarySectionCatalog.followingPageGroups(from: cards, scope: .unwatched)
+    XCTAssertEqual(unwatched.map(\.id), ["following.unwatched"])
+    XCTAssertEqual(unwatched[0].cards.map(\.id), [1, 3],
+                   "caught-up series leave Unwatched; an unknown count stays")
+    let all = LibrarySectionCatalog.followingPageGroups(from: cards, scope: .all)
+    XCTAssertEqual(all.map(\.id), ["following.unwatched", "following.watched"])
+    XCTAssertEqual(all.map(\.isWatched), [false, true])
+    XCTAssertEqual(all[0].cards.map(\.id), [1, 3])
+    XCTAssertEqual(all[1].cards.map(\.id), [2])
+  }
+
+  func testFollowingAllOmitsAnEmptySide() {
+    let caughtUp = MediaCard(id: 2, posterURL: "", title: "B", unwatchedEpisodes: 0)
+    XCTAssertEqual(LibrarySectionCatalog.followingPageGroups(from: [caughtUp], scope: .all).map(\.id),
+                   ["following.watched"])
+    let waiting = MediaCard(id: 1, posterURL: "", title: "A", unwatchedEpisodes: 1)
+    XCTAssertEqual(LibrarySectionCatalog.followingPageGroups(from: [waiting], scope: .all).map(\.id),
+                   ["following.unwatched"])
+  }
+
+#if os(tvOS)
+  @MainActor
+  func testFollowingHeaderUsesUnwatchedAllInsteadOfType() {
+    let catalog = LibrarySectionCatalog(contentService: VideoContentServiceMock(),
+                                        authState: AuthState(authService: AuthorizationServiceMock(),
+                                                             accessTokenService: AccessTokenServiceMock()),
+                                        errorHandler: ErrorHandler())
+    let chips = TVSearchFilters.libraryHeaderChips(catalog: catalog, section: .watchlist)
+    XCTAssertEqual(chips.map(\.id), [
+      TVSearchFilters.sort, TVSearchFilters.followingUnwatched, TVSearchFilters.followingAll
+    ])
+    XCTAssertTrue(chips[1].isActive, "Unwatched is the default")
+    XCTAssertFalse(chips[2].isActive)
+    XCTAssertNil(chips[1].menu, "the switch is two Search chips, not a Тип pull-down")
+  }
+
+  @MainActor
+  func testAFolderHeaderPutsEllipsisBeforeSort() {
+    let catalog = LibrarySectionCatalog(contentService: VideoContentServiceMock(),
+                                        authState: AuthState(authService: AuthorizationServiceMock(),
+                                                             accessTokenService: AccessTokenServiceMock()),
+                                        errorHandler: ErrorHandler())
+    let chips = TVSearchFilters.libraryHeaderChips(catalog: catalog, section: .folder(1))
+    XCTAssertEqual(chips.first?.id, TVSearchFilters.folderActions)
+    XCTAssertEqual(chips.first?.systemImage, "ellipsis")
+    XCTAssertEqual(chips.first?.showsTitle, false)
+    XCTAssertEqual(chips.dropFirst().first?.id, TVSearchFilters.sort)
+    let menuIDs = chips.first?.menu?.nodes.compactMap { node -> String? in
+      if case let .option(option, _) = node { return option.id }
+      return nil
+    }
+    XCTAssertEqual(menuIDs, [TVSearchFilters.folderRename, TVSearchFilters.folderDelete])
+    switch chips.first?.menu?.nodes.last {
+    case .option(let option, _)?:
+      XCTAssertTrue(option.isDestructive)
+    default:
+      XCTFail("Delete Folder is the last menu option")
+    }
+  }
+#endif
 
   func testATypeFilterKeepsOnlySeries() {
     let movie = MediaCard(id: 1, posterURL: "", title: "Film", isSeries: false, year: 2020)

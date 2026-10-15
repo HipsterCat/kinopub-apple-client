@@ -6,6 +6,13 @@
 import Foundation
 import KinoPubBackend
 
+/// Following header: Unwatched (default) hides caught-up series; All keeps them
+/// in a section below.
+enum LibraryFollowingScope: Equatable, Sendable {
+  case unwatched
+  case all
+}
+
 /// One entry of the Library sidebar. Sections are the *destinations* of the Library
 /// tab — each shows its own vertical poster grid, none of them is a shelf row.
 ///
