@@ -56,6 +56,10 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
 
   private(set) var section: LibrarySection = .watchlist
 
+  /// Following's header switch: Unwatched (default) or All. All keeps unwatched
+  /// series first, then a section of fully watched series.
+  @Published var followingScope: LibraryFollowingScope = .unwatched
+
   /// Sort / type / year the header chips drive. Bookmark folders have no filter
   /// parameters on the wire, so picks apply to what is already loaded.
   @Published var filter = LibraryFilter()
@@ -113,6 +117,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
       isLoaded = false
       filter = LibraryFilter()
       userSorted = false
+      followingScope = .unwatched
     }
     await loadPickerDataIfNeeded()
     await load(force: false)
@@ -424,6 +429,35 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     // History carries duration / position. Local resume is not Sendable across this
     // fetch; the player still opens at the stored point.
     return items.map { continueCard(for: $0, history: newest[$0.id]) }
+  }
+
+  /// A followed series with nothing left to watch. `nil` unwatched counts stay with
+  /// the unwatched group — hiding an unknown row is worse than showing it.
+  nonisolated static func isCaughtUp(_ card: MediaCard) -> Bool {
+    card.unwatchedEpisodes == 0
+  }
+
+  /// Following: Unwatched is the default listing; All keeps that group first, then
+  /// fully watched series under their own heading.
+  nonisolated static func followingPageGroups(
+    from cards: [MediaCard],
+    scope: LibraryFollowingScope
+  ) -> [(id: String, isWatched: Bool, cards: [MediaCard])] {
+    let unwatched = cards.filter { !isCaughtUp($0) }
+    let watched = cards.filter(isCaughtUp)
+    switch scope {
+    case .unwatched:
+      return [("following.unwatched", false, unwatched)]
+    case .all:
+      var groups: [(id: String, isWatched: Bool, cards: [MediaCard])] = []
+      if !unwatched.isEmpty {
+        groups.append(("following.unwatched", false, unwatched))
+      }
+      if !watched.isEmpty {
+        groups.append(("following.watched", true, watched))
+      }
+      return groups
+    }
   }
 
   private nonisolated static func newestHistory(_ history: [HistoryEntry]) -> [Int: HistoryEntry] {

@@ -322,6 +322,17 @@ struct LibraryShellView: View {
       },
       onChipOption: { chip, option in
         switch chip {
+        case TVSearchFilters.followingUnwatched:
+          catalog.followingScope = .unwatched
+        case TVSearchFilters.followingAll:
+          catalog.followingScope = .all
+        case TVSearchFilters.folderActions:
+          guard case .folder(let id) = model.selection else { return }
+          switch option {
+          case TVSearchFilters.folderRename: model.promptRenameFolder(id: id)
+          case TVSearchFilters.folderDelete: model.promptDeleteFolder(id: id)
+          default: break
+          }
         case TVSearchFilters.folderRename:
           if case .folder(let id) = model.selection { model.promptRenameFolder(id: id) }
         case TVSearchFilters.folderDelete:
@@ -353,11 +364,7 @@ struct LibraryShellView: View {
   }
 
   private var libraryHeaderActions: [TVPageChip] {
-    var chips = TVSearchFilters.controlChips(catalog: catalog, includeType: true, showsTitle: false)
-    if case .folder = model.selection {
-      chips += TVSearchFilters.folderActionChips()
-    }
-    return chips
+    TVSearchFilters.libraryHeaderChips(catalog: catalog, section: model.selection)
   }
 
   private var librarySections: [TVPageSection] {
@@ -372,9 +379,16 @@ struct LibraryShellView: View {
                                 caption: .always, headerActions: actions, cards: [])
       return [empty.withHeaderActions(actions)]
     }
-    let grouped = model.selection == .history
-      ? sectioning.sections(for: cards).map { ($0.id, $0.title, $0.cards) }
-      : []
+    let grouped: [(id: String, title: String?, cards: [MediaCard])]
+    if model.selection == .history {
+      grouped = sectioning.sections(for: cards).map { ($0.id, $0.title, $0.cards) }
+    } else if model.selection == .watchlist {
+      grouped = LibrarySectionCatalog.followingPageGroups(from: cards, scope: catalog.followingScope).map {
+        ($0.id, $0.isWatched ? "Library_WatchedSeries".localized : nil, $0.cards)
+      }
+    } else {
+      grouped = []
+    }
     let groups: [(id: String, title: String?, cards: [MediaCard])] = grouped.isEmpty
       ? [(sectionID, title, cards)]
       : grouped

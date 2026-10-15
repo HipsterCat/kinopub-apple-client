@@ -566,6 +566,7 @@ final class TVPageChipCell: UICollectionViewCell {
       case let .option(option, isSelected):
         var attributes: UIMenuElement.Attributes = []
         if !option.isEnabled { attributes.insert(.disabled) }
+        if option.isDestructive { attributes.insert(.destructive) }
         if menu.keepsPresented { attributes.insert(.keepsMenuPresented) }
         return UIAction(title: option.title, image: option.systemImage.flatMap { UIImage(systemName: $0) },
                         identifier: UIAction.Identifier(option.id),
@@ -1030,7 +1031,10 @@ final class TVPageHeaderView: UICollectionReusableView {
   }
 
   private func rebuildActions(_ actions: [TVPageChip]) {
-    guard chips != actions else {
+    // Same pills, maybe a different `isActive` (Following's Unwatched/All): keep the
+    // cells so Select on a segment does not rebuild the header and drop focus.
+    if chips.map(\.id) == actions.map(\.id), actionCells.count == actions.count {
+      chips = actions
       zip(actionCells, actions).forEach { $0.configure(chip: $1) }
       return
     }

@@ -666,13 +666,57 @@ enum TVSearchFilters {
 
   static let folderRename = "folder.rename"
   static let folderDelete = "folder.delete"
+  static let folderActions = "folder.actions"
+  static let followingUnwatched = "following.unwatched"
+  static let followingAll = "following.all"
 
-  /// Rename / Delete for a bookmark folder — same chips the sidebar context menu uses.
+  /// Following's Unwatched / All switch — the same `TVPageChip` Search uses, filled
+  /// when selected. Default is Unwatched.
+  @MainActor
+  static func followingScopeChips(_ scope: LibraryFollowingScope) -> [TVPageChip] {
+    [
+      TVPageChip(id: followingUnwatched, title: "Library_Unwatched".localized,
+                 isActive: scope == .unwatched),
+      TVPageChip(id: followingAll, title: "All".localized,
+                 isActive: scope == .all)
+    ]
+  }
+
+  /// One ellipsis before sort: Rename / Delete in a system menu, same actions the
+  /// sidebar context menu uses.
+  @MainActor
   static func folderActionChips() -> [TVPageChip] {
     [
-      TVPageChip(id: folderRename, title: "Rename".localized, systemImage: "pencil", showsTitle: false),
-      TVPageChip(id: folderDelete, title: "Delete Folder".localized, systemImage: "trash", showsTitle: false)
+      TVPageChip(
+        id: folderActions,
+        title: "Library_FolderMenu".localized,
+        systemImage: "ellipsis",
+        menu: .init(nodes: [
+          .option(.init(id: folderRename, title: "Rename".localized, systemImage: "pencil"),
+                  isSelected: false),
+          .option(.init(id: folderDelete, title: "Delete Folder".localized, systemImage: "trash",
+                        isDestructive: true),
+                  isSelected: false)
+        ]),
+        showsTitle: false
+      )
     ]
+  }
+
+  /// Library section header: Following gets Unwatched/All instead of Type; a folder
+  /// puts the ellipsis before sort.
+  @MainActor
+  static func libraryHeaderChips(catalog: LibrarySectionCatalog,
+                                 section: LibrarySection) -> [TVPageChip] {
+    let sort = controlChips(catalog: catalog, includeType: false, showsTitle: false)
+    switch section {
+    case .watchlist:
+      return sort + followingScopeChips(catalog.followingScope)
+    case .folder:
+      return folderActionChips() + controlChips(catalog: catalog, includeType: true, showsTitle: false)
+    default:
+      return controlChips(catalog: catalog, includeType: true, showsTitle: false)
+    }
   }
 
   /// Type — "Все" on top, checked by default. Types combine freely; the presets

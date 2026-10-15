@@ -31,6 +31,11 @@ final class TVPageChromeTests: XCTestCase {
                          "a titled pill is wider than the round icon it used to be squeezed to")
   }
 
+  func testGridHeadersWithActionsScrollWithTheContent() {
+    XCTAssertFalse(TVPageLayout.headersPinToVisibleBounds,
+                   "pinning overlays the title on the first row of covers")
+  }
+
   func testLeadingConstantIsNeverNegative() {
     let chrome = ShelfMetrics.tvPageChrome(
       viewFrameInWindow: CGRect(x: 120, y: 0, width: 1680, height: 1080),

@@ -6,7 +6,9 @@
       "ru": [
         "В сетках год стоит перед жанром: «2024 Драма», у завершённого сериала «2019–2024 Драма».",
         "Поиск обновляется тихо, когда возвращаешься на вкладку: список не сбрасывается.",
-        "В Медиатеке шапка не дублирует название раздела: «156 непросмотренных серий» — это и есть заголовок. Кнопка фильтра как в Поиске, на месте.",
+        "В Подписках вместо «Тип» — переключатель «Непросмотренные / Все». Шапка Медиатеки снова едет вместе с сеткой, не поверх постеров.",
+        "В папке закладок заголовок «Всего 694»; переименовать и удалить — в кнопке «…» перед сортировкой.",
+        "В Медиатеке шапка не дублирует название раздела: «156 непросмотренных серий» — это и есть заголовок. Кнопка фильтра как в Поиске.",
         "В конце серии: в Настройках можно сразу играть следующую (вкл. по умолчанию) и отдельно — переходить в следующий сезон (выкл. по умолчанию). Выкл. автовоспроизведения — плеер закрывается. Фильмы всегда закрываются.",
         "В плеере у сериала вкладка «Серии» стоит перед «Далее»: те же серии, что на странице тайтла, текущий сезон выбран, Select играет.",
         "«Меню» в списках сначала возвращает на верхний ряд, и только потом закрывает экран.",
@@ -34,7 +36,9 @@
       "en": [
         "Grid posters put the year before the genre: “2024 Drama”, or “2019–2024 Drama” for a finished series.",
         "Search refreshes quietly when you return to the tab: the list is not cleared.",
-        "Library section headers no longer repeat the sidebar name: “156 unwatched episodes” is the title. The filter button matches Search and stays put.",
+        "Following replaces Type with Unwatched / All. The Library header scrolls with the grid again, instead of overlaying the posters.",
+        "A bookmark folder header is “Total 694”; Rename and Delete are in an ellipsis before sort.",
+        "Library section headers no longer repeat the sidebar name: “156 unwatched episodes” is the title. The filter button matches Search.",
         "At the end of an episode, Settings can auto-play the next one (on by default) and, separately, continue into the next season (off by default). Auto-play off closes the player. Movies always close.",
         "In the player, a series has an Episodes tab before Up Next: the same episodes as the title page, current season selected, Select plays.",
         "Menu in lists returns to the top row first, then leaves the screen.",
