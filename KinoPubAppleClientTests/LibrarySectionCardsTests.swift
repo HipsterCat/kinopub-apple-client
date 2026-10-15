@@ -113,6 +113,7 @@ final class LibrarySectionCardsTests: XCTestCase {
                    ["following.unwatched"])
   }
 
+#if os(tvOS)
   @MainActor
   func testFollowingHeaderUsesUnwatchedAllInsteadOfType() {
     let catalog = LibrarySectionCatalog(contentService: VideoContentServiceMock(),
@@ -151,6 +152,7 @@ final class LibrarySectionCardsTests: XCTestCase {
       XCTFail("Delete Folder is the last menu option")
     }
   }
+#endif
 
   func testATypeFilterKeepsOnlySeries() {
     let movie = MediaCard(id: 1, posterURL: "", title: "Film", isSeries: false, year: 2020)
