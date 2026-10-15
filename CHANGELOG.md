@@ -5,6 +5,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Library Continue is title cards again; player has an Episodes tab (2026-10-15)
+
+Library Continue no longer expands a series into episode cells under **Episodes** /
+**Серии** — that belonged in the player (Sasha: the player, not the Library). Series
+and films are 16:9 play-on-select title cards under Continue, as before #58.
+
+The tvOS player's Info strip keeps **Up Next** / **Далее** as it is, and adds
+**Episodes** / **Серии** *before* it, for a series only. Same `TVSeasonRail` and
+episode cells as the title page; the season playing is selected; Select plays the
+episode in place. A film has no Episodes tab. End-of-episode Settings are unchanged.
+
 ### Catalog captions, Search silent refresh, Library header (2026-10-13)
 
 Grid subtitles (search catalog, collections, person credits, Library bookmarks) are
@@ -29,7 +40,7 @@ and the assertion message (a second query) already showed it. Same wait as
 `testFocusReturnsAfterPopup`. The table and popup were not part of the player /
 Library Continue change.
 
-### End of an episode is a Settings choice; Library Continue lists series as episodes (2026-10-13)
+### End of an episode is a Settings choice (2026-10-13)
 
 Settings › Video & audio: **Auto-Play Next Episode** (default on) plays the next episode
 in the same season; **Continue to Next Season** (default off) also plays the next season's
@@ -37,9 +48,8 @@ opener. Auto-play off, or a film, dismisses. A next episode with an empty files 
 is unavailable and does not skip ahead. Decision is `PlaybackEnd` (unit-tested for every
 toggle combination). The tvOS Up Next `AVContentProposal` offers the same next episode.
 
-Library Continue still shows unfinished films as 16:9 title cards that play on Select.
-Started series expand to that series' episode cells (`MediaCard(episode:in:)`, same as
-the title page), under a localized **Episodes** / **Серии** heading.
+Library Continue briefly listed series as episode cells (PR #58); that was reverted
+2026-10-15 — the player Episodes tab is where that list lives.
 
 ### TestFlight: once a day via push; iOS notification manager is MainActor (2026-10-13)
 

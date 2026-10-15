@@ -562,6 +562,9 @@ tvOS-only properties.
       to the Up Next tab — `docs/product/playback-info.md`
 - [x] tvOS **Up Next** Info tab (`customInfoViewControllers`): wide tiles with badge and progress,
       2026-09-30, simulator-verified; device check pending
+- [x] tvOS **Episodes** Info tab (`customInfoViewControllers`), before Up Next, series only:
+      the same season rail and episode cells as the title page; the season playing is selected;
+      Select plays. Device check pending
 - [ ] More `infoViewActions` (Watchlist)
 - [x] End of playback follows Settings: auto-play next episode in the season (default on);
       continue into the next season (default off); auto-play off or a film dismisses.

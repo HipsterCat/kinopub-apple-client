@@ -161,6 +161,16 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// same facts does not replace a tab the viewer may be standing in, and one with better
   /// facts (TMDB's name for «Эпизод 3») does.
   private var upNextSignature: [String] = []
+  /// The Episodes tab's seasons/ids, so an Up Next enrichment does not rebuild it under
+  /// the remote.
+  private var episodesSignature: [String] = []
+  /// Held so a rebuild of one tab can keep the other instance (`customInfoViewControllers`
+  /// is replaced as a whole array).
+  private var episodesTab: UIViewController?
+  private var upNextTab: UIViewController?
+  /// One details fetch when the snapshot has no seasons (Continue Watching already
+  /// caches them; the detail page does too).
+  private var episodesFetchStarted = false
   /// The model's facts per upcoming episode once the enrichment sources answered.
   private var upNextEnriched: [Int: MediaContext] = [:]
   private var upNextAsked: Set<Int> = []
@@ -1345,7 +1355,7 @@ extension PlayerManager {
     }
     rebuildTransportBarMenus()
     rebuildInfoViewActions()
-    rebuildUpNextTab()
+    rebuildContentTabs()
   }
 
   /// The HLS legible group makes AVKit draw its own Subtitles control, so in sidecar mode
@@ -1429,7 +1439,7 @@ extension PlayerManager {
                                                         policy: PlaybackPreferences.policy)
     else { return }
     pendingNextEpisode = next
-    rebuildUpNextTab()
+    rebuildContentTabs()
 
     // The panel appears at the credits — the same window `WatchProgress` calls
     // "finished". An unknown runtime leaves the API default: the very end of the item.
@@ -1503,7 +1513,83 @@ final class FixedHeightTab: UIViewController {
 
 extension PlayerManager {
 
-  /// The Apple-TV-style **Up Next** tab beside Info (user's call, 2026-10-01):
+  /// Info-strip tabs AVKit draws beside Info (`customInfoViewControllers`):
+  /// **Episodes** first (a series only), then **Up Next**. A film keeps Up Next alone.
+  ///
+  /// **Apple API limitation:** AVKit draws the tab strip but nothing native fills a tab
+  /// with cards, so the content is ours — Episodes hosts the same `TVSeasonRail` the
+  /// title page uses; Up Next a `TVUIKitMediaItemRail`.
+  func rebuildContentTabs() {
+    guard let controller = playerViewController else { return }
+    guard watchMode == .media else {
+      episodesSignature = []
+      upNextSignature = []
+      episodesTab = nil
+      upNextTab = nil
+      controller.customInfoViewControllers = []
+      return
+    }
+    ensureSeriesForEpisodesTab()
+    let episodes = MainActor.assumeIsolated { makeEpisodesTab() }
+    let upNext = makeUpNextTab()
+    controller.customInfoViewControllers = [episodes, upNext].compactMap { $0 }
+  }
+
+  /// Fetch the title with seasons when the snapshot has none — playing from the
+  /// detail page or Continue Watching already cached them.
+  private func ensureSeriesForEpisodesTab() {
+    guard playItem is Episode else { return }
+    if titleContext?.seasons?.isEmpty == false { return }
+    guard !episodesFetchStarted else { return }
+    episodesFetchStarted = true
+    let id = playItem.metadata.id
+    let excludeLinks = FeatureFlags.seriesDetailsWithoutLinks
+    Task { [weak self, contentService] in
+      let item = try? await contentService.fetchDetails(for: String(id),
+                                                        excludeLinks: excludeLinks).item
+      guard let item else { return }
+      item.seasons?.forEach { $0.mediaId = item.id }
+      await MainActor.run {
+        AppContext.shared.localProgressStore.cacheItem(item)
+        self?.rebuildContentTabs()
+      }
+    }
+  }
+
+  /// Series only. Same episode cells as the title page; the season playing is selected.
+  @MainActor
+  private func makeEpisodesTab() -> UIViewController? {
+    guard let list = PlaybackEpisodes(playing: playItem, series: titleContext) else {
+      episodesSignature = []
+      episodesTab = nil
+      return nil
+    }
+    let signature = list.signature
+    if signature == episodesSignature, let episodesTab { return episodesTab }
+    episodesSignature = signature
+
+    // Same trim as Up Next: the rail's own padding reads as a gap under the tab strip.
+    let trim: CGFloat = 45
+    let height = TVSeasonRailController.tabRowHeight()
+      + TVSeasonRailController.tabsToRail
+      + TVPageLayout.stillRailHeight(columns: MainView.stillColumns,
+                                     caption: .always,
+                                     containerWidth: 1920,
+                                     sideInset: 0)
+      - trim
+    let episodes = list.episodeByID
+    let hosted = UIHostingController(rootView: list.seasonRail { [weak self] id in
+      guard let episode = episodes[id] else { return }
+      self?.onPlay?(episode)
+    }.padding(.top, -trim))
+    hosted.sizingOptions = []
+    let tab = FixedHeightTab(content: hosted, height: height)
+    tab.title = "Episodes".localized
+    episodesTab = tab
+    return tab
+  }
+
+  /// The Apple-TV-style **Up Next** tab (user's call, 2026-10-01):
   ///
   /// 1. **this show's next unwatched episode**, when there is one, flagged «Next episode» —
   ///    its name and frame from the media model (`MediaContext`), like the Info tab, so
@@ -1514,19 +1600,9 @@ extension PlayerManager {
   /// Nothing watched, ever. Selecting a tile plays it in place: an episode directly, a
   /// Continue Watching card through the same resolution Home's Play uses
   /// (`MediaCardMenuCoordinator.resolve`).
-  ///
-  /// **Apple API limitation:** AVKit draws the tab strip but nothing native fills a tab
-  /// with cards, so the content is ours (`customInfoViewControllers`) — a hosted
-  /// `TVUIKitMediaItemRail`, not a second card implementation.
-  func rebuildUpNextTab() {
-    guard let controller = playerViewController else { return }
-    guard watchMode == .media else {
-      upNextSignature = []
-      controller.customInfoViewControllers = []
-      return
-    }
+  private func makeUpNextTab() -> UIViewController? {
     let playingID = playItem.metadata.id
-    let series = AppContext.shared.localProgressStore.snapshot(for: playingID)
+    let series = titleContext
     let next = (playItem as? Episode).flatMap {
       PlaybackMediaContext.nextUnwatched(after: $0, in: series,
                                          viewer: AppContext.shared.viewerState)
@@ -1543,8 +1619,8 @@ extension PlayerManager {
 
     guard next != nil || !continueWatching.isEmpty else {
       upNextSignature = []
-      controller.customInfoViewControllers = []
-      return
+      upNextTab = nil
+      return nil
     }
 
     var items: [TVUIKitMediaItem] = []
@@ -1575,7 +1651,7 @@ extension PlayerManager {
     }
 
     let signature = items.map { "\($0.id)|\($0.caption ?? "")|\($0.imageURL?.absoluteString ?? "")" }
-    guard signature != upNextSignature || controller.customInfoViewControllers.isEmpty else { return }
+    if signature == upNextSignature, let upNextTab { return upNextTab }
     upNextSignature = signature
 
     // The rail carries its own vertical padding, which reads as a wide gap under the tab
@@ -1612,7 +1688,8 @@ extension PlayerManager {
     rail.sizingOptions = []
     let tab = FixedHeightTab(content: rail, height: height)
     tab.title = "Up Next".localized
-    controller.customInfoViewControllers = [tab]
+    upNextTab = tab
+    return tab
   }
 
   /// Asks the enrichment sources about the next episode once, then rebuilds the tab —
@@ -1632,7 +1709,7 @@ extension PlayerManager {
       await MainActor.run {
         guard let self else { return }
         self.upNextEnriched.merge(found) { _, new in new }
-        self.rebuildUpNextTab()
+        self.rebuildContentTabs()
       }
     }
   }
