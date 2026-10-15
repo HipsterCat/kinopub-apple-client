@@ -1530,7 +1530,7 @@ extension PlayerManager {
       return
     }
     ensureSeriesForEpisodesTab()
-    let episodes = makeEpisodesTab()
+    let episodes = MainActor.assumeIsolated { makeEpisodesTab() }
     let upNext = makeUpNextTab()
     controller.customInfoViewControllers = [episodes, upNext].compactMap { $0 }
   }
@@ -1557,6 +1557,7 @@ extension PlayerManager {
   }
 
   /// Series only. Same episode cells as the title page; the season playing is selected.
+  @MainActor
   private func makeEpisodesTab() -> UIViewController? {
     guard let list = PlaybackEpisodes(playing: playItem, series: titleContext) else {
       episodesSignature = []
@@ -1569,24 +1570,21 @@ extension PlayerManager {
 
     // Same trim as Up Next: the rail's own padding reads as a gap under the tab strip.
     let trim: CGFloat = 45
+    let height = TVSeasonRailController.tabRowHeight()
+      + TVSeasonRailController.tabsToRail
+      + TVPageLayout.stillRailHeight(columns: MainView.stillColumns,
+                                     caption: .always,
+                                     containerWidth: 1920,
+                                     sideInset: 0)
+      - trim
     let episodes = list.episodeByID
-    let tab = MainActor.assumeIsolated {
-      let height = TVSeasonRailController.tabRowHeight()
-        + TVSeasonRailController.tabsToRail
-        + TVPageLayout.stillRailHeight(columns: MainView.stillColumns,
-                                       caption: .always,
-                                       containerWidth: 1920,
-                                       sideInset: 0)
-        - trim
-      let hosted = UIHostingController(rootView: list.seasonRail { [weak self] id in
-        guard let episode = episodes[id] else { return }
-        self?.onPlay?(episode)
-      }.padding(.top, -trim))
-      hosted.sizingOptions = []
-      let tab = FixedHeightTab(content: hosted, height: height)
-      tab.title = "Episodes".localized
-      return tab
-    }
+    let hosted = UIHostingController(rootView: list.seasonRail { [weak self] id in
+      guard let episode = episodes[id] else { return }
+      self?.onPlay?(episode)
+    }.padding(.top, -trim))
+    hosted.sizingOptions = []
+    let tab = FixedHeightTab(content: hosted, height: height)
+    tab.title = "Episodes".localized
     episodesTab = tab
     return tab
   }
