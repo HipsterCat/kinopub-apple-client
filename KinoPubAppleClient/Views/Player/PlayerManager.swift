@@ -1569,22 +1569,24 @@ extension PlayerManager {
 
     // Same trim as Up Next: the rail's own padding reads as a gap under the tab strip.
     let trim: CGFloat = 45
-    let height = MainActor.assumeIsolated {
-      TVSeasonRailController.tabRowHeight()
+    let episodes = list.episodeByID
+    let tab = MainActor.assumeIsolated {
+      let height = TVSeasonRailController.tabRowHeight()
         + TVSeasonRailController.tabsToRail
         + TVPageLayout.stillRailHeight(columns: MainView.stillColumns,
                                        caption: .always,
                                        containerWidth: 1920,
                                        sideInset: 0)
-    } - trim
-    let episodes = list.episodeByID
-    let hosted = UIHostingController(rootView: list.seasonRail { [weak self] id in
-      guard let episode = episodes[id] else { return }
-      self?.onPlay?(episode)
-    }.padding(.top, -trim))
-    hosted.sizingOptions = []
-    let tab = FixedHeightTab(content: hosted, height: height)
-    tab.title = "Episodes".localized
+        - trim
+      let hosted = UIHostingController(rootView: list.seasonRail { [weak self] id in
+        guard let episode = episodes[id] else { return }
+        self?.onPlay?(episode)
+      }.padding(.top, -trim))
+      hosted.sizingOptions = []
+      let tab = FixedHeightTab(content: hosted, height: height)
+      tab.title = "Episodes".localized
+      return tab
+    }
     episodesTab = tab
     return tab
   }

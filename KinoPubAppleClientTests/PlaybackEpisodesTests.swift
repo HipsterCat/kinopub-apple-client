@@ -22,7 +22,7 @@ final class PlaybackEpisodesTests: XCTestCase {
     XCTAssertNil(PlaybackEpisodes(playing: episode, series: series))
   }
 
-  func testSeasonsAndEpisodesAreInReadingOrder() {
+  func testSeasonsAndEpisodesAreInReadingOrder() throws {
     let series = series(seasonOrder: [2, 1])
     let playing = episode(in: series, season: 1, number: 2)
     let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
@@ -31,7 +31,7 @@ final class PlaybackEpisodesTests: XCTestCase {
     XCTAssertEqual(list.seriesID, 50)
   }
 
-  func testThePlayingEpisodeSelectsItsSeason() {
+  func testThePlayingEpisodeSelectsItsSeason() throws {
     let series = series()
     let playing = episode(in: series, season: 2, number: 1)
     let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
@@ -42,7 +42,7 @@ final class PlaybackEpisodesTests: XCTestCase {
     XCTAssertEqual(list.episodeByID[201]?.seriesTitle, series.localizedTitle)
   }
 
-  func testASingleSeasonIsStillAList() {
+  func testASingleSeasonIsStillAList() throws {
     let series = series(seasonOrder: [1])
     let playing = episode(in: series, season: 1, number: 3)
     let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))

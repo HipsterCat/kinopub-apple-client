@@ -89,6 +89,7 @@ extension PlaybackEpisodes {
 
   /// Season pills + one rail of every episode, the same `TVSeasonRail` the title page
   /// uses. One season is not a choice — the line says which and nothing is focusable.
+  @MainActor
   func seasonRail(onSelect: @escaping (Int) -> Void) -> TVSeasonRail {
     let tabs = seasons.map { group in
       TVSeasonTab(id: group.id,
