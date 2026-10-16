@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Title-page hero: same logo slot as Home, no text→logo swap (2026-10-16)
+
+#55 reserved the Home banner slot, but the detail hero still timed out the
+*metadata lookup* into the lettered title (1.5 s) and then swapped it for a late
+logo. One `TitleLogoSession` now drives the banner, the tvOS/iOS/macOS title
+hero, and the phone page variants. Timeout applies only once a logo URL exists;
+pending stays empty; a late image does not replace text. The slot keeps the logo
+box height so empty → logo does not shove the actions.
+
 ### tvOS Library: Following Unwatched/All, folder total, ellipsis (2026-10-15)
 
 Library grid headers travel with the content again (`pinToVisibleBounds` off). Focusing

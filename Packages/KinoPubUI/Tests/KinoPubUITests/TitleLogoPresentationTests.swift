@@ -45,19 +45,37 @@ final class TitleLogoPresentationTests: XCTestCase {
     )
   }
 
-  func testTimeoutIsAConfirmedMiss() {
+  func testPendingLookupDoesNotTimeOutIntoText() {
     XCTAssertEqual(
       resolved.mark(hasCachedLogo: false, lookupComplete: false, hasLogoURL: false,
+                    imageReady: false, imageFailed: false,
+                    elapsed: TitleLogoPresentationPolicy.missTimeout),
+      .empty,
+      "metadata still in flight: empty, not the lettered title"
+    )
+  }
+
+  func testImageLoadTimeoutIsAConfirmedMiss() {
+    XCTAssertEqual(
+      resolved.mark(hasCachedLogo: false, lookupComplete: true, hasLogoURL: true,
                     imageReady: false, imageFailed: false,
                     elapsed: TitleLogoPresentationPolicy.missTimeout),
       .text
     )
     XCTAssertEqual(
-      resolved.mark(hasCachedLogo: false, lookupComplete: false, hasLogoURL: false,
+      resolved.mark(hasCachedLogo: false, lookupComplete: true, hasLogoURL: true,
                     imageReady: false, imageFailed: false,
                     elapsed: TitleLogoPresentationPolicy.missTimeout - 0.01),
       .empty
     )
+  }
+
+  func testResolutionMapsURLAndLoadedFlag() {
+    XCTAssertEqual(TitleLogoResolution(url: nil, lookupComplete: false), .pending)
+    XCTAssertEqual(TitleLogoResolution(url: nil, lookupComplete: true), .missing)
+    let url = URL(string: "https://example.com/logo.png")!
+    XCTAssertEqual(TitleLogoResolution(url: url, lookupComplete: false), .url(url))
+    XCTAssertEqual(TitleLogoResolution(url: url, lookupComplete: true), .url(url))
   }
 
   func testALateLogoDoesNotReplaceTextAfterTheTimeout() {
