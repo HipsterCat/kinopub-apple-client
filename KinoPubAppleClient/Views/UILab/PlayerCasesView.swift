@@ -153,7 +153,7 @@ final class PlayerCasesModel: ObservableObject {
     PlayerCase(id: "film-trailer", name: "Film trailer", expectation:
                 "film name, no subtitle · film's plot, genre, rating and poster · Info: only Go to Movie"),
     PlayerCase(id: "episode-named", name: "Episode with a name", expectation:
-                "show name · «Season N, Episode M: Name» · episode's own description (TMDB) or the show's · show's genre · episode still · Info: Go to Show · Up Next: next unwatched episode, then Continue Watching, nothing watched"),
+                "show name · «Season N, Episode M: Name» · episode's own description (TMDB) or the show's · show's genre · episode still · Info: Go to Show · Episodes: this show's seasons and episode cells, current season selected · Up Next: next unwatched episode, then Continue Watching, nothing watched"),
     PlayerCase(id: "episode-placeholder", name: "Episode named «Эпизод N» by kino.pub",
                expectation: "«Season N, Episode M» with no «: Эпизод N» — or TMDB's real name"),
     PlayerCase(id: "series-trailer", name: "Series trailer", expectation:

@@ -298,9 +298,10 @@ struct MediaItemHeroView: View {
   /// chip in the metadata row — the item payload has no rating of its own.
   var ageRating: String? = nil
   /// False until external metadata settles. While false, the title slot stays empty
-  /// (a logo is expected). Defaults to `true` so previews without the enrichment
-  /// pipeline still show the lettered title. Text appears only after a confirmed miss.
-  var externalMetadataLoaded: Bool = true
+  /// (a logo is expected). Defaults to `false` so a missed flag cannot paint the
+  /// lettered title and then swap it for a logo. Previews that want the name pass
+  /// `true`. Text appears only after a confirmed miss.
+  var externalMetadataLoaded: Bool = false
   /// tvOS: called whenever one of the hero's own controls takes focus, including moves
   /// between them. The page scrolls back to the top with it.
   var onFocusEntered: (() -> Void)? = nil
@@ -753,16 +754,19 @@ struct MediaItemHeroView: View {
 
   @ViewBuilder
   private var titleBlock: some View {
-    // Empty while a logo is expected, cached logo on the first frame, lettered
-    // title only after a confirmed miss. Swapping text → logo was the flicker.
+    // Same session as the Home banner: empty while a logo is expected, cached
+    // logo on the first frame, lettered title only after a confirmed miss.
     TitleLogoSlot(
-      url: titleLogoURL,
-      lookupComplete: externalMetadataLoaded,
+      resolution: TitleLogoResolution(
+        url: titleLogoURL,
+        lookupComplete: externalMetadataLoaded
+      ),
       maxWidth: Self.logoMaxWidth,
       maxHeight: Self.logoMaxHeight
     ) {
       titleTextBlock
     }
+    .id(mediaItem.id)
     .padding(.top, Self.bottomInset / 1.5)
     .accessibilityElement(children: .combine)
     .accessibilityLabel(mediaItem.localizedTitle)
@@ -1391,7 +1395,8 @@ private struct MediaItemHeroPreview: View {
       folderIDsContainingItem: [],
       onWatchedToggle: {},
       onFolderToggle: { _ in },
-      titleLogoURL: nil
+      titleLogoURL: nil,
+      externalMetadataLoaded: true
     )
     .environment(navigationState)
 //    .aspectRatio(16 / 9, contentMode: .fit)

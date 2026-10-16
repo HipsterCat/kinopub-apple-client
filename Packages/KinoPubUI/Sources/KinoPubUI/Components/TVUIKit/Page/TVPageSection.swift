@@ -102,12 +102,16 @@ public struct TVPageChip: Identifiable, Hashable, Sendable {
     public let isEnabled: Bool
     /// An SF Symbol beside the title — the trash can on "Reset Filters".
     public let systemImage: String?
+    /// Red in the system menu — Delete Folder.
+    public let isDestructive: Bool
 
-    public init(id: String, title: String, isEnabled: Bool = true, systemImage: String? = nil) {
+    public init(id: String, title: String, isEnabled: Bool = true, systemImage: String? = nil,
+                isDestructive: Bool = false) {
       self.id = id
       self.title = title
       self.isEnabled = isEnabled
       self.systemImage = systemImage
+      self.isDestructive = isDestructive
     }
   }
 
@@ -447,9 +451,8 @@ public struct TVPageSection: Identifiable, Hashable {
   /// group's title, then its cards — so the page's one diffable list holds a strip like
   /// any other section.
   public let groups: [TVPageGroup]
-  /// Trailing pull-downs on the section header — sort / filter, or Rename / Delete
-  /// on a bookmark folder. Same `TVPageChip` the Search filter row uses, at the same
-  /// size, so a Library section's type pill is not a scaled-down copy.
+  /// Trailing chips on the section header — sort / filter, Following's Unwatched/All
+  /// switch, or a folder's ellipsis menu. Same `TVPageChip` the Search filter row uses.
   public let headerActions: [TVPageChip]
 
   public init(id: String,

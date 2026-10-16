@@ -433,9 +433,10 @@ def write_export_options!(profile_name:, mac:, extension_profiles: {})
   path
 end
 
-# tvOS Settings shows the build's "What to Test" text (`Bundle.releaseNotes`). The
-# checkout is throwaway, so the plist is edited in place rather than through xcargs,
-# which do not survive a multi-line value.
+# Writes the build's "What to Test" text into Info.plist as `KPReleaseNotes`. Nothing in
+# the app reads it since 2026-10-16 (What's New reads whats-new.json) — ROADMAP has the
+# TODO to drop it. The checkout is throwaway, so the plist is edited in place rather than
+# through xcargs, which do not survive a multi-line value.
 def write_release_notes_to!(path)
   set_info_plist_value(
     path: path,

@@ -121,7 +121,15 @@ surface and get no substitute.
   27.2 simulator a third was dropped whatever its order. Two is what this needs. Re-probe on the
   next SDK.
 
-**Up Next tab (tvOS).** Beside Info, the Apple-TV way.
+**Episodes tab (tvOS).** Before Up Next, a series only.
+
+- **prd** — A series' Info strip has **Episodes** / **Серии** before **Up Next** / **Далее**.
+  The list is the same kino.pub seasons and episode cells as the title page (`TVSeasonRail`,
+  `MediaCard(episode:in:)`). The season playing is selected; more than one season is switchable
+  the same way as on the page. Select plays that episode in place. A film has no Episodes tab.
+  (Sasha, 2026-10-15: Library Continue was the wrong surface for this.)
+
+**Up Next tab (tvOS).** Beside Info, after Episodes when the title is a series; the Apple-TV way.
 
 - **prd** — First, **this show's next unwatched episode**, when there is one, flagged *Next episode*.
   Then **Continue Watching** — Home's own list, the same cards, minus the title playing now.

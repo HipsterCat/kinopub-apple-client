@@ -77,6 +77,8 @@ instead. It sits on the same dark pill as the «Просмотрено» badge �
 
 - **Follow is a series' alone**; a film is kept with bookmarks, and has no follow or
   watchlist. Hero: «Отслеживать» / «Отслеживаю»; menu: «Отслеживать» / «Не отслеживать».
+- **A bookmark folder's header count** is `Всего 694` / `Total 694` (`TotalCountText`),
+  never the bare number.
 - **Downloaded is progress, like watched**: a series or a season shows how much of it is
   watched and how much is on the device, as a ring or a percentage (`ViewerState`'s
   `watchedEpisodes` / `downloadedEpisodes`). **Only whole episodes count as watched**, and a

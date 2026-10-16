@@ -5,9 +5,16 @@
 //  User-facing What's New. One entry per marketing version, ru + en bullets.
 //  Source of truth: `Resources/whats-new.json`. CHANGELOG.md stays the
 //  implementation log. TestFlight "What to Test" reads the same JSON.
+//  Bullets are newest first within an entry; a new one goes at the top.
 //
 
 import Foundation
+
+/// The launch popup's content: the bullets this device has not shown yet.
+struct WhatsNew: Equatable, Sendable {
+  var version: String
+  var bullets: [String]
+}
 
 struct AppChangelog: Equatable, Sendable {
   struct Entry: Equatable, Sendable, Identifiable, Hashable {
@@ -29,6 +36,7 @@ struct AppChangelog: Equatable, Sendable {
   var entries: [Entry]
 
   static let lastSeenVersionKey = "whatsNew.lastSeenVersion"
+  static let seenBulletsKey = "whatsNew.seenBullets"
   static let resourceName = "whats-new"
 
   static let empty = AppChangelog(entries: [])
@@ -45,30 +53,47 @@ struct AppChangelog: Equatable, Sendable {
     }
   }
 
-  /// First launch records the current version and does not prompt.
-  /// An update to a version that has bullets returns that entry until it is marked seen.
-  func pendingSheetEntry(currentVersion: String, defaults: UserDefaults = .standard) -> Entry? {
-    let trimmed = currentVersion.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
+  /// What the viewer has not been shown yet, in their language, newest first.
+  ///
+  /// The marketing version stays "1.0" across TestFlight builds, and a build's number is
+  /// not known when its notes are written, so "new" is per bullet: any bullet this
+  /// device has not shown is new. A reworded bullet counts as new. A fresh install
+  /// records everything as seen and stays quiet; an install from before this rule — it
+  /// has `lastSeenVersionKey` but no seen list — was never shown anything.
+  func pendingWhatsNew(
+    currentVersion: String,
+    languageCode: String,
+    defaults: UserDefaults = .standard
+  ) -> WhatsNew? {
+    let version = currentVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !version.isEmpty else { return nil }
 
-    let last = defaults.string(forKey: Self.lastSeenVersionKey)
-    if last == nil {
-      defaults.set(trimmed, forKey: Self.lastSeenVersionKey)
+    let seen: Set<String>
+    if let stored = defaults.stringArray(forKey: Self.seenBulletsKey) {
+      seen = Set(stored)
+    } else if defaults.string(forKey: Self.lastSeenVersionKey) != nil {
+      seen = []
+    } else {
+      markSeen(currentVersion: version, defaults: defaults)
       return nil
     }
-    if last == trimmed { return nil }
 
-    guard let entry = entry(for: trimmed), !entry.ru.isEmpty || !entry.en.isEmpty else {
-      defaults.set(trimmed, forKey: Self.lastSeenVersionKey)
-      return nil
-    }
-    return entry
+    var listed = Set<String>()
+    let bullets = newestFirst
+      .flatMap { $0.bullets(languageCode: languageCode) }
+      .filter { !seen.contains($0) && listed.insert($0).inserted }
+    guard !bullets.isEmpty else { return nil }
+    return WhatsNew(version: version, bullets: bullets)
   }
 
-  static func markSeen(_ version: String, defaults: UserDefaults = .standard) {
-    let trimmed = version.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
-    defaults.set(trimmed, forKey: lastSeenVersionKey)
+  /// Every bullet in both languages, so switching the app's language does not bring
+  /// the same notes back.
+  func markSeen(currentVersion: String, defaults: UserDefaults = .standard) {
+    defaults.set(entries.flatMap { $0.ru + $0.en }, forKey: Self.seenBulletsKey)
+    let version = currentVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !version.isEmpty {
+      defaults.set(version, forKey: Self.lastSeenVersionKey)
+    }
   }
 
   static func load(from bundle: Bundle = .main) -> AppChangelog {

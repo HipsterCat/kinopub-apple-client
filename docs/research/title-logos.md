@@ -19,7 +19,7 @@ Applies to the Watch Now banner (`TVPageBannerCell`), the detail hero (`MediaIte
 
 ## Pros / cons
 - Pro: one decoded-image pipeline (`Artwork`); 32-bit tile rendering.
-- **Presentation (2026-10-12):** the slot stays empty while a logo is expected; a cached logo paints immediately; the lettered title appears only after a confirmed miss (no URL / 404 / 1.5 s). `TitleLogoPresentationPolicy`. Prior art: Plozz 33c1219.
+- **Presentation (2026-10-16):** one `TitleLogoSession` drives the Home banner, the detail hero (tvOS / iOS / macOS), and the phone page variants. Empty while a logo is expected; a cached logo paints immediately; the lettered title appears only after a confirmed miss (no URL / 404 / image-load 1.5 s). The miss timeout does **not** fire while metadata is still pending — that was the title-page flicker (#55 reserved the banner, the hero still swapped text → logo). `TitleLogoPresentationPolicy`. Prior art: Plozz 33c1219.
 - Con: about 6 × (1 + 2 TMDB + n KP) requests on a cold Watch Now just for logos; the logo arrives after details.
 - Con: uneven optical weight; fixed pt constants instead of fractions of the container (against CURRENT's adaptive rule).
 

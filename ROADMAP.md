@@ -282,10 +282,13 @@ a slightly stale token gets a 400 while the session is alive under the new one; 
 - [x] **tvOS Settings grouped into categories** (2026-10-01): Kinopub account · Server & connection ·
       Device · Video & audio · Appearance · Data sources · Advanced · Experiments · For developers ·
       About, each its own page. With nothing in the list focused, the left panel is the app —
-      plate, version · build, and the current version's What's New bullets (`whats-new.json`).
-      Settings › About › What's New is the full history. Developer tools are listed in **every**
-      build (Sasha: "показывай все для всех").
+      plate, name and version · build (the notes under it were unreadable and moved to What's
+      New, 2026-10-16). Settings › About: Version, What's New, Licenses — popups
+      ([docs/product/whats-new.md](docs/product/whats-new.md)). Developer tools are listed in
+      **every** build (Sasha: "показывай все для всех").
       Server & connection and Device save to kino.pub on each change — there is no Save on a remote
+- [ ] Drop `KPReleaseNotes` from the TestFlight lane (`write_release_notes!` and its lint check):
+      since 2026-10-16 nothing in the app reads it; What's New reads `whats-new.json`
 - [x] tvOS Settings colours are hierarchical styles only (`.primary` plate, `.background` label on
       focus, `.fill.tertiary` at rest), so the focused row reads in Light too. Dark-only is still
       not actually forced on this screen (tvOS 27.2 simulator) — a separate question
@@ -564,6 +567,9 @@ tvOS-only properties.
       to the Up Next tab — `docs/product/playback-info.md`
 - [x] tvOS **Up Next** Info tab (`customInfoViewControllers`): wide tiles with badge and progress,
       2026-09-30, simulator-verified; device check pending
+- [x] tvOS **Episodes** Info tab (`customInfoViewControllers`), before Up Next, series only:
+      the same season rail and episode cells as the title page; the season playing is selected;
+      Select plays. Device check pending
 - [ ] More `infoViewActions` (Watchlist)
 - [x] End of playback follows Settings: auto-play next episode in the season (default on);
       continue into the next season (default off); auto-play off or a film dismisses.

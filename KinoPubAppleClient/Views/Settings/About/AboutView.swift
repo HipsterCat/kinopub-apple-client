@@ -2,6 +2,10 @@
 //  AboutView.swift
 //  KinoPubAppleClient
 //
+//  About on iOS, iPadOS and macOS (tvOS draws the same rows in TVSettingKit,
+//  `TVSettingsCatalog.aboutSections`): the version as plain text, What's New and the
+//  licences in the shared info popup.
+//
 
 import SwiftUI
 import KinoPubUI
@@ -10,6 +14,8 @@ struct AboutView: View {
   @AppStorage("selectedLanguage") private var selectedLanguage: String = (
     Locale.current.language.languageCode?.identifier ?? "ru"
   )
+  @State private var showsHistory = false
+  @State private var showsLicenses = false
 
   var body: some View {
     List {
@@ -21,22 +27,31 @@ struct AboutView: View {
 
           Text(Bundle.main.displayName)
             .font(.title3.weight(.semibold))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+      }
 
-          Text(String(format: "Version %@ • Build %@".localized,
-                      Bundle.main.appVersionLong, Bundle.main.appBuild))
-            .font(TypeScale.heroSecondary)
-            .foregroundStyle(.secondary)
+      Section {
+        LabeledContent("Version") {
+          Text(verbatim: "\(Bundle.main.appVersionLong) (\(Bundle.main.appBuild))")
 #if !os(tvOS)
             .textSelection(.enabled)
 #endif
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-
-        DataSourcesAttributionView()
+        Button("What's new") { showsHistory = true }
+          .infoPopup(Text("What's new"), isPresented: $showsHistory) {
+            ChangelogHistory(languageCode: selectedLanguage)
+          }
+        Button("Licenses") { showsLicenses = true }
+          .infoPopup(Text("Licenses"), isPresented: $showsLicenses) {
+            OpenSourceLicensesView()
+          }
       }
 
-      ChangelogHistoryView(languageCode: selectedLanguage)
+      Section {
+        DataSourcesAttributionView()
+      }
     }
     .platformNavigationTitle("About")
   }

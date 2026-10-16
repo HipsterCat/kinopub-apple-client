@@ -122,6 +122,7 @@ on the card, filled the same way.
 | --- | --- | --- |
 | Continue Watching | `HomeCatalog` + `ContinueWatchingEpisode.forSeries` + `ContinueWatchingLocalOverlay` | `Selection.continueWatching(records, state)` |
 | Up Next (player) | `PlaybackMediaContext.nextUnwatched` + CW cards | same function as Continue Watching's "next episode" |
+| Episodes (player) | `PlaybackEpisodes` over the series payload | same seasons/episodes as the title page rail |
 | Next episode for a series | `primaryEpisode`, `NextPlayableEpisode`, `ContinueWatchingEpisode.forSeries`, `nextUnwatched` — four answers | **done**: `EpisodeQueue` (named queries over one ordered list, watched-ness from `ViewerState`); `PlaybackEnd` chooses `nextInSeason` vs `next` from Settings; the card's list-less guess follows the same rule (D17) |
 | History | `HistoryView` from `/v1/history` | query over records + `lastWatchedAt` |
 | Watchlist / subscriptions | `WatchlistView` | query |

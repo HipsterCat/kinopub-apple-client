@@ -57,6 +57,13 @@ public struct ContinueWatchingEpisode: Equatable, Sendable {
     watchedCount: Int?,
     total: Int?
   ) -> ContinueWatchingEpisode {
+    // `watchedCount` and `total` count the whole series. Only in the first season is
+    // "how many are watched" also an episode number: in season 3 of Invasion, 29 watched
+    // read as «S3, E30» on a ten-episode season.
+    let seasonOfAnswer = history?.season ?? local?.season
+    let countsAreNumbers = seasonOfAnswer == 1
+    let watchedCount = countsAreNumbers ? watchedCount : nil
+    let total = countsAreNumbers ? total : nil
     // Newest history row in progress wins outright — that is this session.
     if let history, let episode = history.episode, !history.isFinished {
       return ContinueWatchingEpisode(season: history.season, episode: episode, isResuming: true)

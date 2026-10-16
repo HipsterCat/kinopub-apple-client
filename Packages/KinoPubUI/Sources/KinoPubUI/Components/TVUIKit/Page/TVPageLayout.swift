@@ -27,6 +27,10 @@ public enum TVPageLayout {
 
   /// Height of the row title strip: `.headline` on tvOS plus breathing room.
   public static let headerHeight: CGFloat = 52
+  /// Grid headers travel with the content. `true` overlays the title on the first
+  /// row of covers. Focusing a cover still does not nudge a grid header —
+  /// `headerDodge` is identity on `.grid`.
+  public static let headersPinToVisibleBounds = false
   /// Under a grid that has more pages coming (`TVPageSection.loadsMore`): a spinner.
   public static let loadingFooterKind = "TVPageSectionLoadingFooter"
   public static let loadingFooterHeight: CGFloat = 120
@@ -165,9 +169,10 @@ public enum TVPageLayout {
       // The header aligns to the *art* column, not the envelope's: it does not follow
       // the section insets (which are envelope-relative) and takes the page inset.
       header.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: sideInset, bottom: 0, trailing: sideInset)
-      // Library's filter bar lives in this header: pin it so focusing a cover does
-      // not scroll the pills away. Day headers (no actions) still travel with the grid.
-      header.pinToVisibleBounds = !section.headerActions.isEmpty
+      // Scrolls with the grid. Pinning (`pinToVisibleBounds`) overlays the title on
+      // the first row of covers. Focusing a cover still does not nudge a grid header
+      // (`headerDodge` is identity on `.grid`).
+      header.pinToVisibleBounds = headersPinToVisibleBounds
       layoutSection.supplementaryContentInsetsReference = .none
       layoutSection.boundarySupplementaryItems = [header]
     }

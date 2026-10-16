@@ -667,7 +667,18 @@ class HomeCatalog: ObservableObject {
                                                      lastSeen: lastSeen)
                           .prefix(ContinueWatchingOrder.maxItems))
 
-    let details = await seriesDetails(for: ordered, cached: cached)
+    // What the server's own watching lists carry. Anything else came in from history or
+    // this device, and only its details payload says what the server counts as watched.
+    let serverListed = Set(movies.map(\.id) + serials.map(\.id) + watchlist.map(\.id))
+    // What has to move for a title's payload to be asked for again: the server's counts,
+    // its newest history row, this device's play head.
+    let versions = Dictionary(uniqueKeysWithValues: ordered.map { item in
+      (item.id, [item.watched, item.total, item.new,
+                 lastSeen[item.id].map { Int($0.timeIntervalSince1970) },
+                 localByID[item.id].map { Int($0.updatedAt) }]
+        .map { $0.map(String.init) ?? "-" }.joined(separator: "/"))
+    })
+    let details = await titleDetails(for: ordered, serverListed: serverListed, versions: versions)
 
     return ordered.compactMap {
       Self.card(for: $0,
@@ -681,31 +692,50 @@ class HomeCatalog: ObservableObject {
     }
   }
 
-  /// How many series the row will fetch payloads for. Continue Watching is short by
-  /// design, and this is the ceiling on what one refresh of it costs.
-  private static let seriesDetailLimit = 12
+  /// How many titles one refresh may fetch payloads for: the whole row. Anything past it
+  /// is a guess from counts (`ContinueWatchingEpisode.forSeries`).
+  private static let detailLimit = ContinueWatchingOrder.maxItems
+
+  /// Payloads already fetched this session, with the version they answered
+  /// (`fetchContinueWatchingCards`). A refresh reuses one until its title moves. Not on
+  /// disk: tvOS purges `Caches/`, and a cold launch asking once is the price.
+  private static var detailCache: [Int: (version: String, item: MediaItem)] = [:]
 
   /// The series behind the cards, because **only the title itself knows where its
   /// seasons end and which episodes the server counts as watched.** Without it the row
   /// offered "S1, E9" on an eight-episode season (nothing to play at all) and re-offered
   /// an episode whose last five minutes were credits.
   ///
-  /// One request per **new** series. A card that already carries the offered S/E from
-  /// the last snapshot is trusted — that is why the row caches those fields — so a
-  /// TTL refresh does not refetch up to `seriesDetailLimit` details. Films need
-  /// none of this: they have one video. Past the cap, titles with no cached S/E still
-  /// fall back to history counters.
-  private func seriesDetails(for items: [WatchingItem], cached: [MediaCard]) async -> [Int: MediaItem] {
-    let cachedByID = Dictionary(cached.map { ($0.itemID, $0) }, uniquingKeysWith: { _, last in last })
+  /// **A title the server's watching lists do not carry** — it came in from history or
+  /// this device — is always asked for, film or series. Leaving the lists is how the server
+  /// says "done", and history only has a play head, which our time window judges
+  /// differently from the server's own watched flag: VisionQuest S1E2 at 2434 of 2706 s
+  /// was watched on the detail page and "in progress" here (2026-10-16). The payload's
+  /// flags are the same answer the detail page gives.
+  ///
+  /// Every series is asked for too: only its payload knows where seasons end and which
+  /// episodes the server counts as watched. A guess from counts offered Invasion
+  /// «S3, E30» on a ten-episode season — `watched: 29` is the whole series' count — and
+  /// the old rule of trusting a cached card's S/E kept that guess for good. A payload is
+  /// reused while its title has not moved (`versions`), so a refresh after nothing
+  /// happened costs no request. A listed film needs none: the list is the server saying
+  /// it is unfinished.
+  private func titleDetails(for items: [WatchingItem],
+                            serverListed: Set<Int>,
+                            versions: [Int: String]) async -> [Int: MediaItem] {
+    var byID: [Int: MediaItem] = [:]
     var ids: [Int] = []
-    for item in items where item.type.contains("serial") {
-      if let card = cachedByID[item.id], card.season != nil, card.video != nil {
+    for item in items {
+      let isSeries = item.type.contains("serial")
+      if serverListed.contains(item.id), !isSeries { continue }
+      if let hit = Self.detailCache[item.id], hit.version == versions[item.id] {
+        byID[item.id] = hit.item
         continue
       }
       ids.append(item.id)
-      if ids.count >= Self.seriesDetailLimit { break }
+      if ids.count >= Self.detailLimit { break }
     }
-    guard !ids.isEmpty else { return [:] }
+    guard !ids.isEmpty else { return byID }
 
     return await withTaskGroup(of: (Int, MediaItem?).self) { group in
       for id in ids {
@@ -720,9 +750,10 @@ class HomeCatalog: ObservableObject {
           return (id, item)
         }
       }
-      var byID: [Int: MediaItem] = [:]
       for await (id, item) in group {
-        if let item { byID[id] = item }
+        guard let item else { continue }
+        byID[id] = item
+        if let version = versions[id] { Self.detailCache[id] = (version, item) }
       }
       return byID
     }
@@ -807,6 +838,9 @@ class HomeCatalog: ObservableObject {
         }
       }
     } else {
+      // The film's own flag, when we asked for it: watched is watched, whatever the play
+      // head says about the credits.
+      if let detail, detail.playbackAction == .playAgain { return nil }
       video = history?.media?.number ?? local?.episode ?? 1
       season = nil
     }
@@ -860,19 +894,17 @@ class HomeCatalog: ObservableObject {
     return nil
   }
 
-  /// Continue Watching used to reach straight for the title's wide poster and never
-  /// look at the episode still it already had — so a row of series showed derived
-  /// `/item/wide/` URLs, many of which 404, beside History's real stills. Same rule
-  /// for both surfaces now; the fallback to a 2:3 `big` poster is gone, because
-  /// cropping one into a 16:9 box is what made the row look ragged.
+  /// The title's wide cover, as Library Continue and History show it — not the episode's
+  /// thumbnail. kino.pub's thumbnail is a random frame of the episode, often black, and
+  /// says nothing about which show it is (Sasha, 2026-10-16). The still is left only for a
+  /// title with no wide art at all; a 2:3 poster is never cropped into the 16:9 box. Live,
+  /// every title on the row had one (24 of 24 answered 200, 2026-10-16).
   private static func landscapeImageURL(for item: WatchingItem,
                                         history: HistoryEntry?,
                                         local: LocalWatchEntry?) -> String? {
-    MediaCard.landscapeArtwork(
-      episodeStill: history?.media?.thumbnail,
-      posters: history?.item.posters ?? local?.item.posters ?? item.posters,
-      isSeries: item.type.contains("serial")
-    )
+    let posters = history?.item.posters ?? local?.item.posters ?? item.posters
+    let still = history?.media?.thumbnail.flatMap { $0.isEmpty ? nil : $0 }
+    return MediaCard.titleWideArtwork(posters: posters) ?? still
   }
 
   /// Says whichever episode the card is actually offering — it used to derive its own

@@ -294,6 +294,7 @@
                   "path": "About",
                   "children": [
                     { "path": "AboutView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "OpenSourceLicenses.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                   ],
                 },
                 { "path": "DevicesListView.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
@@ -448,6 +449,7 @@
                 { "path": "PlaybackSession.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PlaybackAudioSession.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PlaybackPreferences.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlaybackEpisodes.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SubtitlePreferences.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SubtitleSelector.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SubtitleCueParser.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
@@ -491,7 +493,6 @@
               "path": "WhatsNew",
               "children": [
                 { "path": "WhatsNewSheet.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
-                { "path": "ChangelogHistoryView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",
@@ -537,6 +538,7 @@
         { "path": "AppChangelogTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LibrarySectionCardsTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "TopShelfLinkTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "PlaybackEpisodesTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {
       "kind": "group",

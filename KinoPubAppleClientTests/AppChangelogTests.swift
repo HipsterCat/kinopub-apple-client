@@ -21,33 +21,48 @@ final class AppChangelogTests: XCTestCase {
     XCTAssertEqual(entry.bullets(languageCode: "en"), entry.en)
   }
 
-  func testFirstLaunchRecordsVersionAndDoesNotPrompt() throws {
+  func testFreshInstallMarksEverythingSeenAndDoesNotPrompt() throws {
     let defaults = try makeDefaults()
     let catalog = try AppChangelog.decode(Self.sampleJSON)
-    XCTAssertNil(catalog.pendingSheetEntry(currentVersion: "1.0", defaults: defaults))
-    XCTAssertEqual(defaults.string(forKey: AppChangelog.lastSeenVersionKey), "1.0")
-    XCTAssertNil(catalog.pendingSheetEntry(currentVersion: "1.0", defaults: defaults))
+    XCTAssertNil(catalog.pendingWhatsNew(currentVersion: "1.1", languageCode: "ru", defaults: defaults))
+    XCTAssertEqual(defaults.string(forKey: AppChangelog.lastSeenVersionKey), "1.1")
+    XCTAssertNil(catalog.pendingWhatsNew(currentVersion: "1.1", languageCode: "ru", defaults: defaults))
   }
 
-  func testUpdateToAVersionWithNotesPromptsOnce() throws {
+  /// Installs from before the seen list recorded only the version, and were never shown
+  /// anything: every bullet is new to them.
+  func testInstallWithOnlyALastSeenVersionSeesEverything() throws {
     let defaults = try makeDefaults()
     defaults.set("1.0", forKey: AppChangelog.lastSeenVersionKey)
     let catalog = try AppChangelog.decode(Self.sampleJSON)
-    let pending = catalog.pendingSheetEntry(currentVersion: "1.1", defaults: defaults)
-    XCTAssertEqual(pending?.version, "1.1")
-    XCTAssertEqual(pending?.bullets(languageCode: "ru"), ["Новое в 1.1"])
-    XCTAssertEqual(defaults.string(forKey: AppChangelog.lastSeenVersionKey), "1.0")
-
-    AppChangelog.markSeen("1.1", defaults: defaults)
-    XCTAssertNil(catalog.pendingSheetEntry(currentVersion: "1.1", defaults: defaults))
+    let pending = catalog.pendingWhatsNew(currentVersion: "1.0", languageCode: "ru", defaults: defaults)
+    XCTAssertEqual(pending?.bullets, ["Новое в 1.1", "Старое"])
   }
 
-  func testUpdateWithoutNotesIsSilent() throws {
+  /// The marketing version does not move between TestFlight builds; a bullet added to
+  /// the same version is what makes the next build show the popup — and only that bullet.
+  func testABulletAddedToTheSameVersionPromptsOnce() throws {
     let defaults = try makeDefaults()
-    defaults.set("1.0", forKey: AppChangelog.lastSeenVersionKey)
-    let catalog = try AppChangelog.decode(Self.sampleJSON)
-    XCTAssertNil(catalog.pendingSheetEntry(currentVersion: "1.2", defaults: defaults))
-    XCTAssertEqual(defaults.string(forKey: AppChangelog.lastSeenVersionKey), "1.2")
+    let before = try AppChangelog.decode(Self.sampleJSON)
+    before.markSeen(currentVersion: "1.1", defaults: defaults)
+    XCTAssertNil(before.pendingWhatsNew(currentVersion: "1.1", languageCode: "en", defaults: defaults))
+
+    let after = try AppChangelog.decode(Data("""
+    {
+      "entries": [
+        {"version": "1.0", "ru": ["Старое"], "en": ["Old"]},
+        {"version": "1.1", "ru": ["Свежее", "Новое в 1.1"], "en": ["Fresh", "New in 1.1"]}
+      ]
+    }
+    """.utf8))
+    XCTAssertEqual(after.pendingWhatsNew(currentVersion: "1.1", languageCode: "en", defaults: defaults)?.bullets,
+                   ["Fresh"])
+    XCTAssertEqual(after.pendingWhatsNew(currentVersion: "1.1", languageCode: "ru", defaults: defaults)?.bullets,
+                   ["Свежее"])
+
+    after.markSeen(currentVersion: "1.1", defaults: defaults)
+    XCTAssertNil(after.pendingWhatsNew(currentVersion: "1.1", languageCode: "en", defaults: defaults))
+    XCTAssertNil(after.pendingWhatsNew(currentVersion: "1.1", languageCode: "ru", defaults: defaults))
   }
 
   func testNewestFirstOrdersByVersion() throws {

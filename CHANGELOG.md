@@ -5,6 +5,89 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### What's New at launch, About with history and licences (2026-10-16)
+
+The launch sheet never appeared: it keyed on the marketing version, which is "1.0" for
+every TestFlight build, so the first install recorded "1.0" and nothing ever differed.
+The gate is now per bullet (`AppChangelog.pendingWhatsNew`): bullets this device has not
+shown, in its language; Done or Menu stores every bullet, both languages, as seen. Installs
+that only have the old `whatsNew.lastSeenVersion` were never shown anything and get the
+whole list once. A fresh install stays quiet.
+
+All three — launch popup, history, licences — are the shared `InfoPopupView` (Rivulet's
+look, Sasha). On tvOS it is now a `fullScreenCover` with a clear background, not a sheet:
+the sheet drew a second, larger platter around our panel. TVSettingKit pages present it
+through `InfoPopupPresenter` (overFullScreen, crossfade). The panel hugs short text and
+scrolls long text with faded edges. Focus has **one** stop — Done, or the text when there
+is no button — and `onMoveCommand` pages the text: with the text as a second stop, Down
+from it went straight back to Done and nothing scrolled (26.5 simulator, Device Hub
+remote). This applies to the detail page's popups too.
+
+About (tvOS): Version «1.0 (10)» is a `TSKSettingItem` with `canFocus = false`
+(`TSKRow.isFocusable`; probed on 27.2, works on 26.5), then What's New and Licenses. The
+root's left panel lost the build notes under the plate — TVSettingKit shrank them to fit.
+`Bundle.releaseNotes` had no other reader and is gone; the Fastfile still writes
+`KPReleaseNotes` (ROADMAP TODO). Licences: every linked package is MIT with identical text
+(checked against the checkouts), so `OpenSourceLicenses` lists copyright lines and shows the
+text once. DEBUG: `-KINOPUBWhatsNew YES`, `-KINOPUBSettingsPopup history|licenses`.
+
+### Home's Continue Watching shows the title's wide cover (2026-10-16)
+
+Not the episode's thumbnail — kino.pub's thumbnail is a random frame, often black, and does not
+say which show it is (Sasha). Same rule as Library Continue and History (`titleWideArtwork`); the
+still is only a fallback for a title with no wide art. Live: every title on the row had one.
+
+### Watched is 85%, kino.pub's own rule (2026-10-16)
+
+`WatchProgress.isFinished` was "the last 60–180 s"; kino.pub's watched flag is ≥ 85% of the
+runtime — probed with `marktime` on a 3392 s episode (2883 s unwatched, 2884 s watched, recomputed
+from the current play head) and consistent with all 186 play heads on the account. Our rule is
+now the server's (`WatchProgress.watchedFraction`), so a play head without a flag — this device's,
+a history row — reads as the title's page does. The player's Up Next panel keeps its own timing
+(`upNextLeadTime`, the last 60–180 s): when to offer the next episode is not when this one counts.
+
+### Continue Watching offers what the title's page says (2026-10-16)
+
+VisionQuest S1E2 was watched on its page and "in progress" on Home: the row judged a history play
+head (2434 of 2706 s) by our credits window, never asking the title, whose payload says
+`watched: 1`. The row now asks for every series' payload and for every title the server's
+watching lists no longer carry, reusing one until its title moves. The guess from counts no
+longer treats a series-wide watched count as an episode number past season 1 — it had Invasion
+on «S3, E30», «Обратная сторона Земли» on «S6, E59», and seven more off the same way; live they
+now read S3 E10 (68%), S6 E6 (41%) and so on. Open: kino.pub's watched flag starts at ~87%,
+our window at the last 60–180 s (docs/product/continue-watching.md).
+
+### Title-page hero: same logo slot as Home, no text→logo swap (2026-10-16)
+
+#55 reserved the Home banner slot, but the detail hero still timed out the
+*metadata lookup* into the lettered title (1.5 s) and then swapped it for a late
+logo. One `TitleLogoSession` now drives the banner, the tvOS/iOS/macOS title
+hero, and the phone page variants. Timeout applies only once a logo URL exists;
+pending stays empty; a late image does not replace text. The slot keeps the logo
+box height so empty → logo does not shove the actions.
+
+### tvOS Library: Following Unwatched/All, folder total, ellipsis (2026-10-15)
+
+Library grid headers travel with the content again (`pinToVisibleBounds` off). Focusing
+a cover still does not lift the title — `headerDodge` stays identity on `.grid`.
+
+Following replaces the Type pull-down with Unwatched / All (Search chips, Unwatched
+default). All keeps unwatched series first, then a *Watched* / *Просмотренные* section.
+
+A bookmark folder header is «Всего 694» / «Total 694», never the bare number. Rename
+and Delete live in one ellipsis before sort.
+
+### Library Continue is title cards again; player has an Episodes tab (2026-10-15)
+
+Library Continue no longer expands a series into episode cells under **Episodes** /
+**Серии** — that belonged in the player (Sasha: the player, not the Library). Series
+and films are 16:9 play-on-select title cards under Continue, as before #58.
+
+The tvOS player's Info strip keeps **Up Next** / **Далее** as it is, and adds
+**Episodes** / **Серии** *before* it, for a series only. Same `TVSeasonRail` and
+episode cells as the title page; the season playing is selected; Select plays the
+episode in place. A film has no Episodes tab. End-of-episode Settings are unchanged.
+
 ### Catalog captions, Search silent refresh, Library header (2026-10-13)
 
 Grid subtitles (search catalog, collections, person credits, Library bookmarks) are
@@ -17,8 +100,8 @@ loading state, and it only replaces the listing if page 1 actually changed.
 
 The Library section header is one label (the count *is* the title — «156
 непросмотренных серий», not that beside «Подписки»). Its filter pills are the same
-`TVPageChip` Search uses, at the same size, pinned so focusing a cover does not move
-them.
+`TVPageChip` Search uses, at the same size. The header scrolls with the grid; it
+does not pin over the covers. Focusing a cover still does not nudge it.
 
 ### tvOS spec-table UI test waits for focus after the popup (2026-10-13)
 
@@ -29,7 +112,7 @@ and the assertion message (a second query) already showed it. Same wait as
 `testFocusReturnsAfterPopup`. The table and popup were not part of the player /
 Library Continue change.
 
-### End of an episode is a Settings choice; Library Continue lists series as episodes (2026-10-13)
+### End of an episode is a Settings choice (2026-10-13)
 
 Settings › Video & audio: **Auto-Play Next Episode** (default on) plays the next episode
 in the same season; **Continue to Next Season** (default off) also plays the next season's
@@ -37,9 +120,8 @@ opener. Auto-play off, or a film, dismisses. A next episode with an empty files 
 is unavailable and does not skip ahead. Decision is `PlaybackEnd` (unit-tested for every
 toggle combination). The tvOS Up Next `AVContentProposal` offers the same next episode.
 
-Library Continue still shows unfinished films as 16:9 title cards that play on Select.
-Started series expand to that series' episode cells (`MediaCard(episode:in:)`, same as
-the title page), under a localized **Episodes** / **Серии** heading.
+Library Continue briefly listed series as episode cells (PR #58); that was reverted
+2026-10-15 — the player Episodes tab is where that list lives.
 
 ### TestFlight: once a day via push; iOS notification manager is MainActor (2026-10-13)
 

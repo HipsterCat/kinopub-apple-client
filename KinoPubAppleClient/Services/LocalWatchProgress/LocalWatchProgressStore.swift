@@ -130,7 +130,7 @@ final class LocalWatchProgressStore: @unchecked Sendable {
   /// minimum threshold, or when we have no snapshot to render a card with.
   ///
   /// `position < duration` keeps the exact end-of-file tick for `recordFinished`.
-  /// A position already inside the credits window is still written;
+  /// A position already past `WatchProgress.watchedFraction` is still written;
   /// `WatchProgress` classifies it as finished on read, so Continue Watching
   /// does not grow a resume bar from it.
   func recordProgress(mediaId: Int, position: Double, duration: Double, season: Int?, episode: Int?) {

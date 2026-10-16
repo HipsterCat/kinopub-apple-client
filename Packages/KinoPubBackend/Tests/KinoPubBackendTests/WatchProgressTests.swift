@@ -77,19 +77,25 @@ final class WatchProgressTests: XCTestCase {
     XCTAssertEqual(p.state, .inProgress(0.5))
   }
 
-  // MARK: Finished (credits)
+  // MARK: Finished — kino.pub's 85%
 
-  func testNearEndWithinToleranceIsFinished() {
-    // 2h movie: tolerance caps at 180s. 5s before the end → finished.
-    let p = WatchProgress(position: 7200 - 5, duration: 7200)
-    XCTAssertTrue(p.isFinished)
-    XCTAssertEqual(p.state, .finished)
-    XCTAssertFalse(p.isResumable)
+  /// The probe that set the rule: «Трудно быть богом» S1E10, 3392 s, 2026-10-16.
+  func testWatchedIsEightyFivePercentAsTheServerSaysIt() {
+    XCTAssertFalse(WatchProgress(position: 2883, duration: 3392).isFinished, "84.99%")
+    XCTAssertTrue(WatchProgress(position: 2884, duration: 3392).isFinished, "85.02%")
   }
 
-  func testJustBeforeToleranceIsStillInProgress() {
-    // 2h movie, tolerance 180s. At 7200-200 = 7000 (>180 left) → still in progress.
-    let p = WatchProgress(position: 7000, duration: 7200)
+  /// VisionQuest S1E2: 2434 of 2706 s, `watched: 1` on its page — and now on Home too.
+  func testThePlayHeadThatHomeCalledInProgress() {
+    let p = WatchProgress(position: 2434, duration: 2706)
+    XCTAssertTrue(p.isFinished)
+    XCTAssertFalse(p.isResumable)
+    XCTAssertNil(p.resumeFraction)
+  }
+
+  /// Invasion S3E10 at 68% stays a resume, as the server's flag does (`watched: 0`).
+  func testWellBeforeTheThresholdIsInProgress() {
+    let p = WatchProgress(position: 2122, duration: 3111)
     XCTAssertFalse(p.isFinished)
     XCTAssertTrue(p.isResumable)
   }
@@ -109,25 +115,19 @@ final class WatchProgressTests: XCTestCase {
     XCTAssertEqual(p.state, .finished)
   }
 
-  // MARK: End-tolerance shape
-
-  func testEndToleranceFlooredAndCappedForNormalRuntimes() {
-    // 8% of runtime, floored at 60s, capped at 180s.
-    XCTAssertEqual(WatchProgress.endTolerance(forDuration: 7200), 180)   // 8% = 576 → cap 180
-    XCTAssertEqual(WatchProgress.endTolerance(forDuration: 1800), 144)   // 8% = 144 (within band)
-    XCTAssertEqual(WatchProgress.endTolerance(forDuration: 600), 60)     // 8% = 48 → floor 60
-  }
-
-  func testEndToleranceNeverExceedsHalfRuntimeForShortClips() {
-    // A 60s clip: byFraction would floor to 60, but the half-runtime cap brings it to 30.
-    XCTAssertEqual(WatchProgress.endTolerance(forDuration: 60), 30)
-  }
-
   func testShortClipClassification() {
-    // 60s clip → finished tolerance is 30s (last half).
-    XCTAssertEqual(WatchProgress(position: 40, duration: 60).state, .finished)   // ≥ 30 left-point
-    XCTAssertTrue(WatchProgress(position: 20, duration: 60).isResumable)         // started, <30
+    XCTAssertEqual(WatchProgress(position: 52, duration: 60).state, .finished)   // 86.7%
+    XCTAssertTrue(WatchProgress(position: 40, duration: 60).isResumable)         // 66.7%
     XCTAssertEqual(WatchProgress(position: 5, duration: 60).state, .unwatched)   // below start floor
+  }
+
+  // MARK: Up Next lead time (when to offer the next episode — not "watched")
+
+  func testUpNextLeadTimeIsFlooredAndCapped() {
+    XCTAssertEqual(WatchProgress.upNextLeadTime(forDuration: 7200), 180)   // 8% = 576 → cap 180
+    XCTAssertEqual(WatchProgress.upNextLeadTime(forDuration: 1800), 144)   // 8% = 144
+    XCTAssertEqual(WatchProgress.upNextLeadTime(forDuration: 600), 60)     // 8% = 48 → floor 60
+    XCTAssertEqual(WatchProgress.upNextLeadTime(forDuration: 60), 30)      // half a short clip
   }
 
   // MARK: Continue-watching gate

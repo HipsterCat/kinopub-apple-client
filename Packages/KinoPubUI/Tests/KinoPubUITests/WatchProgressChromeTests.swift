@@ -11,10 +11,10 @@ final class LandscapeTimeBadgeTests: XCTestCase {
     }
   }
 
-  /// 93% of a two-hour title is still inside `WatchProgress`'s in-progress window
-  /// (finished only in the last 180s ≈ 2.5%). The old 0.95 chip called this watched.
-  func testNinetyThreePercentIsStillInProgress() {
-    let watch = WatchProgress(position: 0.93 * 7200, duration: 7200)
+  /// Watched is 85% (`WatchProgress.watchedFraction`, kino.pub's rule): 84% of a
+  /// two-hour title is still a resume with time left on the chip, 93% is watched.
+  func testEightyFourPercentIsStillInProgress() {
+    let watch = WatchProgress(position: 0.84 * 7200, duration: 7200)
     XCTAssertTrue(watch.isResumable)
     let badge = LandscapeTimeBadge(
       durationSeconds: 7200,
@@ -23,6 +23,19 @@ final class LandscapeTimeBadgeTests: XCTestCase {
     )
     guard case .inProgress = badge?.kind else {
       return XCTFail("expected inProgress, got \(String(describing: badge?.kind))")
+    }
+  }
+
+  func testNinetyThreePercentIsWatched() {
+    let watch = WatchProgress(position: 0.93 * 7200, duration: 7200)
+    XCTAssertFalse(watch.isResumable)
+    let badge = LandscapeTimeBadge(
+      durationSeconds: 7200,
+      progress: watch.resumeFraction,
+      isWatched: watch.isFinished
+    )
+    guard case .watched = badge?.kind else {
+      return XCTFail("expected watched, got \(String(describing: badge?.kind))")
     }
   }
 

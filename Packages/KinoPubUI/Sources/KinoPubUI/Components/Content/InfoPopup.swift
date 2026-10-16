@@ -13,11 +13,15 @@
 //
 //  Presentation is the system's, per platform: a sheet everywhere, drawn as a centred
 //  panel over a scrim on tvOS (where Menu dismisses it for free), with detents on
-//  iPhone/iPad, and a panel on macOS. `.claude/skills/tvos-surface/SKILL.md` —
+//  iPhone/iPad, and a panel on macOS. A UIKit screen presents the same view through
+//  `InfoPopupPresenter`. What's New, the changelog and the licences use it too. `.claude/skills/tvos-surface/SKILL.md` —
 //  `description handlesOverflow` is a popup, and there is exactly one of it.
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Metrics
 
@@ -27,6 +31,7 @@ public enum InfoPopupMetrics {
   public static let padding: CGFloat = 64
   public static let cornerRadius: CGFloat = 28
   public static let titleFont: Font = .title
+  public static let subtitleFont: Font = .headline
   public static let bodyFont: Font = .body
   public static let contentSpacing: CGFloat = 28
 #elseif os(macOS)
@@ -34,6 +39,7 @@ public enum InfoPopupMetrics {
   public static let padding: CGFloat = 28
   public static let cornerRadius: CGFloat = 16
   public static let titleFont: Font = .title2
+  public static let subtitleFont: Font = .subheadline
   public static let bodyFont: Font = .body
   public static let contentSpacing: CGFloat = 18
 #else
@@ -41,6 +47,7 @@ public enum InfoPopupMetrics {
   public static let padding: CGFloat = 24
   public static let cornerRadius: CGFloat = 16
   public static let titleFont: Font = .title2
+  public static let subtitleFont: Font = .subheadline
   public static let bodyFont: Font = .body
   public static let contentSpacing: CGFloat = 18
 #endif
@@ -50,59 +57,163 @@ public enum InfoPopupMetrics {
 
 /// The popup's own chrome. Everything inside is content the caller supplies — this
 /// owns the frame, the scroll, and the way out.
-private struct InfoPopupPanel<Content: View>: View {
+///
+/// `confirmTitle` adds a real button under the content (What's New's «Готово») and takes
+/// the entry focus; without it tvOS leaves with Menu, as every other popup does. Short
+/// content hugs the panel, long content scrolls inside it.
+public struct InfoPopupView<Content: View>: View {
   let title: Text
-  @ViewBuilder let content: () -> Content
+  let subtitle: Text?
+  let confirmTitle: Text?
+  let onDismiss: (() -> Void)?
+  let content: () -> Content
 
-  @Environment(\.dismiss) private var dismiss
+  @Environment(\.dismiss) private var environmentDismiss
+#if os(tvOS)
+  @FocusState private var confirmFocused: Bool
+  @State private var scrollPosition = ScrollPosition(edge: .top)
+  @State private var scrollGeometry = ScrollPage.Geometry()
+#endif
 
-  var body: some View {
+  /// `onDismiss` closes a popup presented outside SwiftUI (`InfoPopupPresenter`); a
+  /// sheet leaves it nil and uses its own `dismiss`.
+  public init(
+    title: Text,
+    subtitle: Text? = nil,
+    confirmTitle: Text? = nil,
+    onDismiss: (() -> Void)? = nil,
+    @ViewBuilder content: @escaping () -> Content
+  ) {
+    self.title = title
+    self.subtitle = subtitle
+    self.confirmTitle = confirmTitle
+    self.onDismiss = onDismiss
+    self.content = content
+  }
+
+  public var body: some View {
 #if os(tvOS)
     ZStack {
       // A scrim, not a faded material: `.opacity` on a material draws the full-strength
       // effect semi-transparently instead of weakening it (materials-blur-and-chrome).
       Color.black.opacity(0.55)
         .ignoresSafeArea()
-      panel
-        .frame(maxWidth: InfoPopupMetrics.maxWidth)
-        .background {
-          RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous)
-            .fill(.regularMaterial)
+      VStack(spacing: 0) {
+        scrollingText
+        if let confirmTitle {
+          Button(action: close) { confirmTitle }
+            .focused($confirmFocused)
+            .padding(.bottom, InfoPopupMetrics.padding)
         }
-        .padding(60)
+      }
+      .frame(maxWidth: InfoPopupMetrics.maxWidth)
+      .background {
+        RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous)
+          .fill(.regularMaterial)
+      }
+      .padding(60)
+      .defaultFocus($confirmFocused, confirmTitle != nil, priority: .userInitiated)
+      // One focus stop — the button, or the text when there is none — so Up and Down
+      // have nowhere to move focus and page the text instead. With the text as a second
+      // stop, Down from it jumped straight back to the button and nothing ever scrolled.
+      .onMoveCommand { direction in
+        guard let target = ScrollPage.target(of: scrollGeometry, direction: direction) else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { scrollPosition.scrollTo(y: target) }
+      }
     }
+    // A popup shown by UIKit has no sheet to pop; Menu closes it the same way.
+    .onExitCommand(perform: close)
 #else
-    panel
-      .frame(maxWidth: InfoPopupMetrics.maxWidth, alignment: .leading)
+    VStack(alignment: .leading, spacing: 0) {
+      scrollingText
+      Button(action: close) { confirmTitle ?? Text("Close") }
+        .buttonStyle(.borderedProminent)
+        .keyboardShortcut(.defaultAction)
+        .frame(maxWidth: .infinity, alignment: confirmTitle == nil ? .leading : .center)
+        .padding([.horizontal, .bottom], InfoPopupMetrics.padding)
+    }
+    .frame(maxWidth: InfoPopupMetrics.maxWidth, alignment: .leading)
 #endif
   }
 
-  private var panel: some View {
-    ScrollView(.vertical) {
-      VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+  /// The text at its natural height when it fits, a scroll view when it does not.
+  private var scrollingText: some View {
+    ViewThatFits(in: .vertical) {
+      text
+      ScrollView(.vertical) { text }
+#if os(tvOS)
+        .scrollPosition($scrollPosition)
+        .onScrollGeometryChange(for: ScrollPage.Geometry.self) {
+          ScrollPage.Geometry(offset: $0.contentOffset.y,
+                              viewport: $0.containerSize.height,
+                              content: $0.contentSize.height)
+        } action: { _, geometry in
+          scrollGeometry = geometry
+        }
+#endif
+        // Lines fade at the edges rather than being cut by them — the padding is the fade.
+        .mask {
+          LinearGradient(stops: [.init(color: .clear, location: 0),
+                                 .init(color: .black, location: 0.05),
+                                 .init(color: .black, location: 0.92),
+                                 .init(color: .clear, location: 1)],
+                         startPoint: .top, endPoint: .bottom)
+        }
+    }
+#if os(tvOS)
+    // The text is the focus stop when there is no button: a modal with no focusable
+    // view never gets the Menu press.
+    .focusable(confirmTitle == nil)
+#endif
+  }
+
+  private var text: some View {
+    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+      VStack(alignment: .leading, spacing: 8) {
         title
           .font(InfoPopupMetrics.titleFont)
           .foregroundStyle(Color.KinoPub.text)
-
-        content()
-
-#if !os(tvOS)
-        // tvOS dismisses with Menu; every other platform wants a visible way out that
-        // is not "guess the gesture".
-        Button("Close") { dismiss() }
-          .buttonStyle(.bordered)
-#endif
+        if let subtitle {
+          subtitle
+            .font(InfoPopupMetrics.subtitleFont)
+            .foregroundStyle(Color.KinoPub.subtitle)
+        }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(InfoPopupMetrics.padding)
+      content()
     }
-    // Nothing in here is necessarily a control, and on tvOS a scroll view with nothing
-    // focusable inside it will not move — this lets the remote pan the text directly.
-#if os(tvOS)
-    .focusable()
-#endif
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(InfoPopupMetrics.padding)
+  }
+
+  private func close() {
+    if let onDismiss { onDismiss() } else { environmentDismiss() }
   }
 }
+
+#if os(tvOS)
+/// Up / Down on the remote, as a page of the popup's text.
+enum ScrollPage {
+  struct Geometry: Equatable {
+    var offset: CGFloat = 0
+    var viewport: CGFloat = 0
+    var content: CGFloat = 0
+  }
+
+  /// Where a press moves the text: most of a page, so a line or two stays on screen
+  /// for the eye to follow. Nil when it would not move.
+  static func target(of geometry: Geometry, direction: MoveCommandDirection) -> CGFloat? {
+    let step: CGFloat
+    switch direction {
+    case .up: step = -geometry.viewport * 0.8
+    case .down: step = geometry.viewport * 0.8
+    default: return nil
+    }
+    let maxOffset = max(0, geometry.content - geometry.viewport)
+    let target = min(max(0, geometry.offset + step), maxOffset)
+    return abs(target - geometry.offset) > 0.5 ? target : nil
+  }
+}
+#endif
 
 // MARK: - Presentation
 
@@ -114,10 +225,15 @@ public extension View {
   /// somewhere else.
   func infoPopup<Content: View>(
     _ title: Text,
+    subtitle: Text? = nil,
+    confirmTitle: Text? = nil,
     isPresented: Binding<Bool>,
+    onDismiss: (() -> Void)? = nil,
     @ViewBuilder content: @escaping () -> Content
   ) -> some View {
-    modifier(InfoPopupModifier(title: title, isPresented: isPresented, popupContent: content))
+    modifier(InfoPopupModifier(title: title, subtitle: subtitle, confirmTitle: confirmTitle,
+                               isPresented: isPresented, onDismiss: onDismiss,
+                               popupContent: content))
   }
 
   /// Makes this view the control that opens its own expanded form.
@@ -141,24 +257,68 @@ public extension View {
 
 private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
   let title: Text
+  let subtitle: Text?
+  let confirmTitle: Text?
   @Binding var isPresented: Bool
+  let onDismiss: (() -> Void)?
   @ViewBuilder let popupContent: () -> PopupContent
 
   func body(content: Content) -> some View {
-    content
-      .sheet(isPresented: $isPresented) {
-        InfoPopupPanel(title: title, content: popupContent)
 #if os(tvOS)
-          // Our own scrim + panel draw the popup; without this the sheet lays an opaque
-          // page behind them and it reads as a pushed screen rather than a popup.
+    // A cover, not a sheet: our own scrim + panel draw the popup, and a tvOS sheet frames
+    // them in a second, larger platter of its own. Clear, or the cover lays an opaque
+    // page behind them and it reads as a pushed screen rather than a popup.
+    content
+      .fullScreenCover(isPresented: $isPresented, onDismiss: onDismiss) {
+        panel
           .presentationBackground(.clear)
-#elseif os(iOS)
+      }
+#else
+    content
+      .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
+        panel
+#if os(iOS)
           .presentationDetents([.medium, .large])
           .presentationDragIndicator(.visible)
 #endif
       }
+#endif
+  }
+
+  private var panel: some View {
+    InfoPopupView(title: title, subtitle: subtitle, confirmTitle: confirmTitle,
+                  content: popupContent)
   }
 }
+
+#if canImport(UIKit)
+/// The same popup, for a UIKit screen that has no SwiftUI view to hang `.infoPopup` on
+/// (tvOS Settings runs on TVSettingKit). Over the full screen with a crossfade, as the
+/// tvOS sheet draws it.
+@MainActor
+public enum InfoPopupPresenter {
+  public static func controller<Content: View>(
+    title: Text,
+    subtitle: Text? = nil,
+    confirmTitle: Text? = nil,
+    onDismiss: (() -> Void)? = nil,
+    @ViewBuilder content: @escaping () -> Content
+  ) -> UIViewController {
+    let controller = UIHostingController(rootView: AnyView(EmptyView()))
+    controller.rootView = AnyView(
+      InfoPopupView(title: title, subtitle: subtitle, confirmTitle: confirmTitle,
+                    onDismiss: { [weak controller] in
+                      controller?.presentingViewController?.dismiss(animated: true, completion: onDismiss)
+                    },
+                    content: content)
+    )
+    controller.view.backgroundColor = .clear
+    controller.modalPresentationStyle = .overFullScreen
+    controller.modalTransitionStyle = .crossDissolve
+    return controller
+  }
+}
+#endif
 
 private struct InfoPopupTrigger<Expanded: View>: ViewModifier {
   let title: Text

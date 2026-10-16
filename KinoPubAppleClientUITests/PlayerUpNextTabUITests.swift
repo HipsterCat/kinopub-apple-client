@@ -2,9 +2,10 @@
 //  PlayerUpNextTabUITests.swift
 //  KinoPubAppleClientUITests
 //
-//  The player's Info panel has an **Up Next** tab (`customInfoViewControllers`) whose content is
-//  ours. It once grew taller every time it was re-entered — the tab strip crept up the screen
-//  while the tiles stayed put, leaving an ever larger gap (seen 2026-09-30).
+//  The player's Info panel has custom tabs (`customInfoViewControllers`) whose content is
+//  ours: **Episodes** / **Серии** (a series, before Up Next) and **Up Next** / **Далее**.
+//  Up Next once grew taller every time it was re-entered — the tab strip crept up the
+//  screen while the tiles stayed put, leaving an ever larger gap (seen 2026-09-30).
 //
 //  The panel is bottom-anchored, so its height shows as the strip's vertical position: a taller
 //  tab pushes the «Up Next» button up. This test drives the remote the way the bug was found
@@ -53,11 +54,12 @@ final class PlayerUpNextTabUITests: XCTestCase {
     remote.press(.select)
 
     // The player: AVKit's tab strip is a collection (`AVInfoMenuCollection`) of cells — Info,
-    // then our Up Next — that only exists once the stream is up and the controls are showing,
-    // so keep asking for it.
+    // then our Episodes (a series), then Up Next — that only exists once the stream is up
+    // and the controls are showing, so keep asking for it.
     let strip = app.collectionViews["AVInfoMenuCollection"]
     let info = strip.cells.element(boundBy: 0)
-    let upNext = strip.cells.element(boundBy: 1)
+    let episodes = Self.tab(in: strip, names: ["Episodes", "Серии"])
+    let upNext = Self.tab(in: strip, names: ["Up Next", "Далее"])
     var shown = false
     let deadline = Date().addingTimeInterval(120)
     while Date() < deadline, !shown {
@@ -69,11 +71,15 @@ final class PlayerUpNextTabUITests: XCTestCase {
       return XCTFail("the player never showed the Info / Up Next tabs — is the first Continue Watching "
                      + "item an episode with episodes after it?\n\(app.debugDescription)")
     }
+    XCTAssertTrue(episodes.exists,
+                  "a series should show Episodes before Up Next\n\(app.debugDescription)")
+    XCTAssertLessThan(episodes.frame.minX, upNext.frame.minX,
+                      "Episodes must sit before Up Next in the strip")
 
     // Walk focus to the Up Next tab by state, not by a fixed key count: Down until the strip
-    // has focus on Info, then Right onto Up Next, whose content then shows.
-    for _ in 0..<10 where !upNext.isSelected {
-      remote.press(info.hasFocus ? .right : .down)
+    // has focus on Info, then Right past Episodes onto Up Next, whose content then shows.
+    for _ in 0..<12 where !upNext.isSelected {
+      remote.press(info.hasFocus || episodes.hasFocus || episodes.isSelected ? .right : .down)
       Thread.sleep(forTimeInterval: 1.5)
     }
     XCTAssertTrue(upNext.isSelected, "never reached the Up Next tab\n\(app.debugDescription)")
@@ -96,6 +102,10 @@ final class PlayerUpNextTabUITests: XCTestCase {
       XCTAssertEqual(upNext.frame.minY, upNextY, accuracy: 1,
                      "cycle \(cycle): the Up Next tab moved from \(upNextY) to \(upNext.frame.minY)")
     }
+  }
+
+  private static func tab(in strip: XCUIElement, names: [String]) -> XCUIElement {
+    strip.cells.matching(NSPredicate(format: "label IN %@", names as NSArray)).firstMatch
   }
 }
 #endif

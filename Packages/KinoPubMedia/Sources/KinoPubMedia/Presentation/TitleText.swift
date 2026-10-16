@@ -61,6 +61,24 @@ public struct UnwatchedEpisodesCountText: Hashable, Sendable {
   }
 }
 
+/// **How many titles in a bookmark folder** — «Всего 694», «Total 694».
+public struct TotalCountText: Hashable, Sendable {
+  public let count: Int
+
+  public init(_ count: Int) {
+    self.count = count
+  }
+
+  public func formatted(language: MediaLanguage = .current) -> String {
+    switch language {
+    case .en:
+      return "Total \(count)"
+    case .ru:
+      return "Всего \(count)"
+    }
+  }
+}
+
 /// **How many episodes are still unwatched** — «3 серии», «3 episodes». The line a
 /// followed series wears under its cover in the Library; plural-correct in both languages.
 public struct EpisodesLeftText: Hashable, Sendable {

@@ -322,6 +322,17 @@ struct LibraryShellView: View {
       },
       onChipOption: { chip, option in
         switch chip {
+        case TVSearchFilters.followingUnwatched:
+          catalog.followingScope = .unwatched
+        case TVSearchFilters.followingAll:
+          catalog.followingScope = .all
+        case TVSearchFilters.folderActions:
+          guard case .folder(let id) = model.selection else { return }
+          switch option {
+          case TVSearchFilters.folderRename: model.promptRenameFolder(id: id)
+          case TVSearchFilters.folderDelete: model.promptDeleteFolder(id: id)
+          default: break
+          }
         case TVSearchFilters.folderRename:
           if case .folder(let id) = model.selection { model.promptRenameFolder(id: id) }
         case TVSearchFilters.folderDelete:
@@ -353,11 +364,7 @@ struct LibraryShellView: View {
   }
 
   private var libraryHeaderActions: [TVPageChip] {
-    var chips = TVSearchFilters.controlChips(catalog: catalog, includeType: true, showsTitle: false)
-    if case .folder = model.selection {
-      chips += TVSearchFilters.folderActionChips()
-    }
-    return chips
+    TVSearchFilters.libraryHeaderChips(catalog: catalog, section: model.selection)
   }
 
   private var librarySections: [TVPageSection] {
@@ -375,9 +382,9 @@ struct LibraryShellView: View {
     let grouped: [(id: String, title: String?, cards: [MediaCard])]
     if model.selection == .history {
       grouped = sectioning.sections(for: cards).map { ($0.id, $0.title, $0.cards) }
-    } else if model.selection == .unwatched {
-      grouped = LibrarySectionCatalog.continuePageGroups(from: cards).map {
-        ($0.id, ($0.isEpisodes ? "Episodes" : "Continue").localized, $0.cards)
+    } else if model.selection == .watchlist {
+      grouped = LibrarySectionCatalog.followingPageGroups(from: cards, scope: catalog.followingScope).map {
+        ($0.id, $0.isWatched ? "Library_WatchedSeries".localized : nil, $0.cards)
       }
     } else {
       grouped = []
@@ -389,7 +396,7 @@ struct LibraryShellView: View {
     let usesOwnCounts = !grouped.isEmpty
     return groups.enumerated().map { index, group in
       let loadsMore = group.id == lastID && catalog.hasMorePages
-      // Named groups (History days, Continue's episodes vs films) keep that name.
+      // Named groups (History days) keep that name.
       // Everywhere else the count is the title — never title + count.
       let headerTitle = usesOwnCounts ? (group.title ?? title) : title
       let headerActions = index == 0 ? actions : []
@@ -443,28 +450,13 @@ struct LibraryShellView: View {
             openURL: { openURL($0) }
           )
         },
-        sections: continueOrHistorySections,
+        sections: model.selection == .history
+          ? sectioning.sections(for: catalog.cards)
+          : [],
         pagination: catalog.paginationState,
         onRetryPagination: { catalog.retryPagination() }
       )
     }
-  }
-
-  /// History by day; Continue splits movies from series episodes.
-  private var continueOrHistorySections: [MediaCardSection] {
-    if model.selection == .history {
-      return sectioning.sections(for: catalog.cards)
-    }
-    if model.selection == .unwatched {
-      return LibrarySectionCatalog.continuePageGroups(from: catalog.cards).map {
-        MediaCardSection(
-          id: $0.id,
-          title: ($0.isEpisodes ? "Episodes" : "Continue").localized,
-          cards: $0.cards
-        )
-      }
-    }
-    return []
   }
 #endif
 }

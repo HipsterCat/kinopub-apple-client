@@ -4536,6 +4536,24 @@
         }
       }
     },
+    "Library_FolderMenu" : {
+      "comment" : "Accessibility label for the Library folder ellipsis (Rename / Delete).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder Actions"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Действия с папкой"
+          }
+        }
+      }
+    },
     "Library_Subscriptions" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4549,6 +4567,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Подписки"
+          }
+        }
+      }
+    },
+    "Library_Unwatched" : {
+      "comment" : "Following header segment: series that still have episodes left.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unwatched"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Непросмотренные"
+          }
+        }
+      }
+    },
+    "Library_WatchedSeries" : {
+      "comment" : "Following header for fully watched series when All is on.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Просмотренные"
           }
         }
       }
@@ -9265,13 +9319,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Version, build and what changed in it."
+            "value" : "Version, what changed, and licenses."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Версия, сборка и что в ней изменилось."
+            "value" : "Версия, что нового и лицензии."
           }
         }
       }
@@ -11338,6 +11392,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сессия истекла. Попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "Version %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Версия %@"
+          }
+        }
+      }
+    },
+    "Licenses" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Licenses"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лицензии"
+          }
+        }
+      }
+    },
+    "Licenses_Intro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KinoPub is built with these open-source libraries."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кинопаб собран с этими библиотеками с открытым кодом."
           }
         }
       }

@@ -356,12 +356,14 @@ Details: skill `apple-chrome`.
 
 ## Data and continuity
 
-- **Watch state is `WatchProgress`.** Fraction, unwatched / inProgress / finished, and
-  the credits window (8% of runtime, 60–180 s, capped at half) live in that one type.
+- **Watch state is `WatchProgress`.** Fraction, unwatched / inProgress / finished live in
+  that one type, and **watched is 85% of the runtime** — kino.pub's own rule, probed live
+  (`watchedFraction`, Sasha's call to match it, 2026-10-16). So a bare play head (this
+  device's, a history row) reads the same as the server's flag on the same title.
   `Episode` / `Video`.isWatched is the server flag *or* `isFinished`. A card paints
-  `resumeFraction`, never a 0.95 / 0.02 of its own — five percent leftover on a two-hour
-  title is six minutes, the classifier's window is three. Skip / outro markers, when they
-  land, feed this type; they do not grow a second threshold.
+  `resumeFraction`, never a 0.95 / 0.02 of its own. When the player's Up Next panel
+  appears is a different question (`upNextLeadTime`, the last 60–180 s), not "watched".
+  Skip / outro markers, when they land, feed this type; they do not grow a second threshold.
 - **Continuity beats placeholders.** Stale local data and already-loaded artwork beat blank screens.
   Card → detail carries the known item, artwork handle and palette; detail paints from that snapshot
   and enriches — it must not blank-reload what the card already had. Exact-layout skeletons only on
@@ -583,8 +585,9 @@ went wrong by porting thresholds tuned for a swipe-driven page onto a focus-driv
 8. **Record what you learned where it belongs** — skill `docs-upkeep`. Tick the ROADMAP line;
    append genuinely notable facts to `CHANGELOG.md`. README changes only for public positioning or
    a macro stage. **If a viewer can see the change**, add a short ru + en bullet to
-   `KinoPubAppleClient/Resources/whats-new.json` for the current marketing version
-   (create the version object if it does not exist). That file is the in-app What's New
+   `KinoPubAppleClient/Resources/whats-new.json` for the current marketing version, at the
+   top of its list (create the version object if it does not exist); the next build shows
+   it once at launch. That file is the in-app What's New
    and TestFlight "What to Test". CHANGELOG.md stays the implementation log.
 9. **Ship small work to `main`.** Low-risk changes go straight to `main` — no draft PR
    waiting for a device pass. Sasha tests on Apple TV only via TestFlight. Open a PR

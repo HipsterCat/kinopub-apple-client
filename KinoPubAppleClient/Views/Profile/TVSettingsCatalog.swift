@@ -55,7 +55,7 @@ final class TVSettingsCatalog {
   var rootPage: TSKPage {
     TSKPage(
       title: nil,
-      idlePreview: { [unowned self] in self.appPreview(withNotes: true) },
+      idlePreview: { [unowned self] in self.appPreview() },
       sections: { [unowned self] in
         [TSKSection(rows: Category.allCases.map { category in
           TSKRow(title: category.title,
@@ -83,8 +83,8 @@ final class TVSettingsCatalog {
     case .about:
       return TSKPage(
         title: category.title,
-        customPreview: { [unowned self] _ in self.appPreview(withNotes: false) },
-        idlePreview: { [unowned self] in self.appPreview(withNotes: false) },
+        customPreview: { [unowned self] _ in self.appPreview() },
+        idlePreview: { [unowned self] in self.appPreview() },
         sections: { [unowned self] in self.aboutSections() }
       )
     default:
@@ -320,54 +320,40 @@ final class TVSettingsCatalog {
 
   private func aboutSections() -> [TSKSection] {
     [TSKSection(rows: [
-      info("Version", Bundle.main.appVersionLong),
-      info("Build", Bundle.main.appBuild),
+      TSKRow(title: "Version".localized,
+             kind: .info(value: "\(Bundle.main.appVersionLong) (\(Bundle.main.appBuild))"),
+             isFocusable: false),
       TSKRow(title: "What's new".localized,
-             kind: .action(pushes: true) { [unowned self] in self.host.push(self.releaseNotesPage()) }),
+             kind: .action(pushes: false) { [unowned self] in self.presentPopup(.history) }),
+      TSKRow(title: "Licenses".localized,
+             kind: .action(pushes: false) { [unowned self] in self.presentPopup(.licenses) }),
     ])]
   }
 
-  private func releaseNotesPage() -> TSKPage {
-    let language = changelogLanguage
-    let entries = AppChangelog.load().newestFirst
-    return TSKPage(
-      title: "What's new".localized,
-      customPreview: { [unowned self] _ in self.appPreview(withNotes: false) },
-      sections: {
-        let sections = entries.compactMap { entry -> TSKSection? in
-          let bullets = entry.bullets(languageCode: language)
-          guard !bullets.isEmpty else { return nil }
-          let title = entry.date.map { "\(entry.version) · \($0)" } ?? entry.version
-          return TSKSection(title: title, rows: bullets.map {
-            TSKRow(title: $0, description: $0, kind: .info(value: ""))
-          })
-        }
-        guard !sections.isEmpty else {
-          return [TSKSection(rows: [
-            TSKRow(title: "WhatsNew_EmptyHistory".localized, kind: .info(value: "")),
-          ])]
-        }
-        return sections
+  enum AboutPopup: String {
+    case history, licenses
+  }
+
+  func presentPopup(_ popup: AboutPopup) {
+    let controller: UIViewController
+    switch popup {
+    case .history:
+      let language = changelogLanguage
+      controller = InfoPopupPresenter.controller(title: Text("What's new")) {
+        ChangelogHistory(languageCode: language)
       }
-    )
+    case .licenses:
+      controller = InfoPopupPresenter.controller(title: Text("Licenses")) {
+        OpenSourceLicensesView()
+      }
+    }
+    host.presentPopup(controller)
   }
 
   private var changelogLanguage: String {
     UserDefaults.standard.string(forKey: "selectedLanguage")
       ?? Locale.current.language.languageCode?.identifier
       ?? "ru"
-  }
-
-  private var currentVersionNotes: String {
-    let catalog = AppChangelog.load()
-    let version = Bundle.main.appVersionLong
-    let bullets = catalog.entry(for: version)?.bullets(languageCode: changelogLanguage)
-      ?? catalog.newestFirst.first?.bullets(languageCode: changelogLanguage)
-      ?? []
-    if !bullets.isEmpty {
-      return bullets.map { "• \($0)" }.joined(separator: "\n")
-    }
-    return Bundle.main.releaseNotes ?? ""
   }
 
   private func rememberedTracksPage() -> TSKPage {
@@ -394,9 +380,10 @@ final class TVSettingsCatalog {
 
   // MARK: - Previews
 
-  /// The app plate, name, version and build — and this build's notes on the root, where
-  /// it stands for "nothing chosen yet".
-  private func appPreview(withNotes: Bool) -> UIViewController {
+  /// The app plate, name, version and build. Nothing longer: TVSettingKit shrinks a long
+  /// description to fit, and this build's notes under the plate came out unreadable —
+  /// they are What's New's.
+  private func appPreview() -> UIViewController {
     let text = NSMutableAttributedString(
       string: "KinoPub".localized + "\n",
       attributes: [.font: UIFont.preferredFont(forTextStyle: .title3).withWeight(.bold)]
@@ -408,15 +395,6 @@ final class TVSettingsCatalog {
       attributes: [.font: UIFont.preferredFont(forTextStyle: .caption1),
                    .foregroundColor: UIColor.secondaryLabel]
     ))
-    if withNotes {
-      let notes = currentVersionNotes
-      if !notes.isEmpty {
-        text.append(NSAttributedString(
-          string: "\n\n" + notes,
-          attributes: [.font: UIFont.preferredFont(forTextStyle: .callout)]
-        ))
-      }
-    }
     return TSKPreview.make(contentView: Self.appPlate(), description: text) ?? UIViewController()
   }
 
@@ -727,6 +705,13 @@ struct TVSettingKitSettingsView: View {
       if let raw = defaults.string(forKey: "KINOPUBSettingsPage"),
          let category = TVSettingsCatalog.Category(rawValue: raw) {
         catalog?.open(category)
+      }
+      // `-KINOPUBSettingsPopup history|licenses` opens About's popup.
+      if let raw = defaults.string(forKey: "KINOPUBSettingsPopup"),
+         let popup = TVSettingsCatalog.AboutPopup(rawValue: raw) {
+        catalog?.open(.about)
+        try? await Task.sleep(for: .seconds(1))
+        catalog?.presentPopup(popup)
       }
       if let raw = defaults.string(forKey: "KINOPUBSettingsLab"),
          let lab = TVSettingsCatalog.Lab(rawValue: raw) {
