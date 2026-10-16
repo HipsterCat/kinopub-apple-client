@@ -10,8 +10,10 @@
 //  Backend note: kino.pub derives a video's watched status server-side from the playback position
 //  you report via `/v1/watching/marktime`. So you don't "toggle watched" on a normal finish — you
 //  just keep reporting the position, and once it crosses the end tolerance the server treats it as
-//  watched and drops it from the watching list. `WatchProgress.isFinished` mirrors that server rule
-//  so the client agrees with the server without a round-trip.
+//  watched and drops it from the watching list. It does **not** use this type's window: live, the
+//  server marks watched from 86.6% of an episode up (393 s left of 49 min, 2026-10-16), where
+//  `isFinished` waits for the last 60–180 s. Where a payload's `watched` flag is at hand, it wins
+//  (`Episode.isWatched`); this type answers only for a bare play head.
 //
 
 import Foundation
@@ -42,7 +44,8 @@ public struct WatchProgress: Equatable, Hashable, Codable, Sendable {
 
   /// How close to the end counts as "watched the credits" — a fraction of the runtime, floored and
   /// capped so it's never absurdly short or long, and never more than half the runtime (so short
-  /// clips aren't marked finished from the first seconds). Mirrors kino.pub's server-side rule.
+  /// clips aren't marked finished from the first seconds). Narrower than kino.pub's own flag —
+  /// see the file header and docs/product/continue-watching.md › Open.
   public static func endTolerance(forDuration duration: Double) -> Double {
     let byFraction = min(max(duration * 0.08, 60), 180)
     return min(byFraction, duration * 0.5)

@@ -5,6 +5,17 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Continue Watching offers what the title's page says (2026-10-16)
+
+VisionQuest S1E2 was watched on its page and "in progress" on Home: the row judged a history play
+head (2434 of 2706 s) by our credits window, never asking the title, whose payload says
+`watched: 1`. The row now asks for every series' payload and for every title the server's
+watching lists no longer carry, reusing one until its title moves. The guess from counts no
+longer treats a series-wide watched count as an episode number past season 1 — it had Invasion
+on «S3, E30», «Обратная сторона Земли» on «S6, E59», and seven more off the same way; live they
+now read S3 E10 (68%), S6 E6 (41%) and so on. Open: kino.pub's watched flag starts at ~87%,
+our window at the last 60–180 s (docs/product/continue-watching.md).
+
 ### Title-page hero: same logo slot as Home, no text→logo swap (2026-10-16)
 
 #55 reserved the Home banner slot, but the detail hero still timed out the

@@ -154,4 +154,30 @@ final class ContinueWatchingEpisodeTests: XCTestCase {
     XCTAssertNil(next.episode)
     XCTAssertFalse(next.isResuming)
   }
+
+  /// Invasion (74917), live 2026-10-16: `watching/serials` says 29 of 30 watched, the
+  /// viewer is in season 3 (ten episodes) and history no longer reaches the episode. The
+  /// count is the whole series', not an episode number in season 3 — the row offered
+  /// «S3, E30». No guess beats a wrong one: the card asks for the title's payload instead.
+  func testASeriesWideCountIsNotAnEpisodeNumberPastTheFirstSeason() {
+    let next = ContinueWatchingEpisode.forSeries(
+      local: nil,
+      history: (season: 3, episode: 9, isFinished: true),
+      finishedInSeason: [9],
+      watchedCount: 29,
+      total: 30
+    )
+    XCTAssertEqual(next.season, 3)
+    XCTAssertEqual(next.episode, 10, "one past the furthest finished in the season, not 30")
+  }
+
+  func testInTheFirstSeasonTheCountStillCounts() {
+    let next = ContinueWatchingEpisode.forSeries(
+      local: nil,
+      history: (season: 1, episode: 2, isFinished: true),
+      watchedCount: 4,
+      total: 10
+    )
+    XCTAssertEqual(next.episode, 5)
+  }
 }

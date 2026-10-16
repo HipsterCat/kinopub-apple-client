@@ -60,6 +60,21 @@ The Library tab still has the whole watching list.
 
 **prd** — The row never pages. "Page 2" of a four-source merge has no meaning on the server.
 
+## Which episode a card offers
+
+**The title's own payload decides, with the server's watched flags — the same answer the detail
+page gives** (Sasha, 2026-10-16: VisionQuest S1E2 was watched on its page and "in progress" on
+Home). The row asks `/v1/items/{id}` for every series in it, and for every title the server's
+watching lists do not carry (it came from history or this device: leaving those lists is the
+server saying "done"). A payload is reused for the session until its title moves — the server's
+counts, its newest history row or this device's play head — so a refresh after nothing happened
+costs no request.
+
+History alone only has a play head, and counts span the whole series, so a guess from them
+(`ContinueWatchingEpisode.forSeries`, used when a payload could not be had) treats the watched
+count as an episode number in the first season only. Before this the guess offered «S3, E30» on
+a ten-episode season and the row kept trusting it.
+
 ## Refresh
 
 The cached snapshot is a 60 s TTL. That is not "the row never updates":
@@ -70,6 +85,13 @@ The cached snapshot is a 60 s TTL. That is not "the row never updates":
 - Local overlay does not paint a playhead that is **behind** the snapshot (other-device progress already on the card). It still leads the row for progress this device wrote that the server has not heard yet.
 
 ## Open
+
+- **When does an episode count as watched?** kino.pub's flag and our credits window disagree. Live
+  (2026-10-16, 186 play heads on this account): the server marks watched from **86.6%** up (393 s
+  left of 49 min) and not at 68.2%; `WatchProgress.endTolerance` calls only the last 60–180 s
+  watched. Where only a play head is known — this device's own, a history row — the two answers
+  differ for the last ~10% of an episode. The server's exact cutoff is somewhere in 68–87%; a
+  `marktime` probe would pin it, and it writes to the account's history.
 
 Dates for more of the row would need more of `/v1/history` (`perpage` maxes at 50, and one page of
 20 already measured ~96 KB on a cold launch), so it is a payload trade, not a free improvement.
