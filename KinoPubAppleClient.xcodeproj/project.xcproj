@@ -82,6 +82,7 @@
             { "path": "Launch Screen.storyboard", "target-membership": [ { "build-phase": "KinoPubAppleClient/resources", "platforms": [ "ios" ] } ] },
             { "path": "Localizable.xcstrings", "target-membership": [ "KinoPubAppleClient/resources" ] },
             { "path": "whats-new.json", "target-membership": [ "KinoPubAppleClient/resources" ] },
+            { "path": "KinoPubAppleClient-tvOS.entitlements" },
           ],
         }, {
           "kind": "group",
@@ -222,6 +223,13 @@
               "children": [
                 { "path": "BookmarkMembershipStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "BookmarkFoldersStore.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "TopShelf",
+              "children": [
+                { "path": "TopShelfPublisher.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TopShelfRouter.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             },
           ],
@@ -529,6 +537,7 @@
         { "path": "SeasonTabStripTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "AppChangelogTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LibrarySectionCardsTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "TopShelfLinkTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlaybackEpisodesTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {
@@ -562,9 +571,26 @@
         { "path": "<PRODUCTS>/KinoPub.app", "id": "CC88E1E12A6586E600E9387F", "type": "wrapper.application", "index": false },
         { "path": "<PRODUCTS>/KinoPubAppleClientTests.xctest", "id": "A1B2C3D422B5A0E000000002", "type": "wrapper.cfbundle", "index": false },
         { "path": "<PRODUCTS>/KinoPubAppleClientUITests.xctest", "id": "A1B2C3D422B5A0E000000012", "type": "wrapper.cfbundle", "index": false },
+        { "path": "<PRODUCTS>/KinoPubTopShelf.appex", "id": "D925999F3081192200A0E7D5", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "KinoPubAppleClient/copy/Embed Foundation Extensions", "platforms": [ "tvos" ], "header-preservation": "remove-on-copy" } ] },
       ],
     },
     { "kind": "group", "name": "Frameworks" },
+    {
+      "kind": "group",
+      "path": "KinoPubTopShelf",
+      "children": [
+        { "path": "ContentProvider.swift", "target-membership": [ "KinoPubTopShelf/compile-sources" ] },
+        {
+          "path": "TopShelfFeed.swift",
+          "target-membership": [
+            "KinoPubAppleClient/compile-sources",
+            "KinoPubTopShelf/compile-sources",
+          ],
+        },
+        { "path": "Info.plist" },
+        { "path": "KinoPubTopShelf.entitlements" },
+      ],
+    },
   ],
   "targets": [
     {
@@ -572,10 +598,18 @@
       "id": "CC88E1E02A6586E600E9387F",
       "product": "Products/KinoPub.app",
       "product-type": "application",
+      "dependencies": [
+        { "target": "KinoPubTopShelf", "platforms": [ "tvos" ] },
+      ],
       "build-phases": [
         "compile-sources",
         "frameworks",
         "resources",
+        {
+          "kind": "copy",
+          "name": "Embed Foundation Extensions",
+          "bundle-base-path": "plugins-directory",
+        },
       ],
       "package-product-members": [
         {
@@ -614,7 +648,11 @@
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS": "NO",
         "CODE_SIGN_ENTITLEMENTS[config=Debug]": "KinoPubAppleClient/Resources/KinoPubAppleClient-Debug.entitlements",
+        "CODE_SIGN_ENTITLEMENTS[config=Debug][sdk=appletvos*]": "KinoPubAppleClient/Resources/KinoPubAppleClient-tvOS.entitlements",
+        "CODE_SIGN_ENTITLEMENTS[config=Debug][sdk=appletvsimulator*]": "KinoPubAppleClient/Resources/KinoPubAppleClient-tvOS.entitlements",
         "CODE_SIGN_ENTITLEMENTS[config=Release]": "KinoPubAppleClient/Resources/KinoPubAppleClient.entitlements",
+        "CODE_SIGN_ENTITLEMENTS[config=Release][sdk=appletvos*]": "KinoPubAppleClient/Resources/KinoPubAppleClient-tvOS.entitlements",
+        "CODE_SIGN_ENTITLEMENTS[config=Release][sdk=appletvsimulator*]": "KinoPubAppleClient/Resources/KinoPubAppleClient-tvOS.entitlements",
         "CODE_SIGN_IDENTITY": "Apple Development",
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "Apple Development",
         "CODE_SIGN_STYLE": "Automatic",
@@ -720,6 +758,41 @@
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1,2,3",
         "TEST_TARGET_NAME": "KinoPubAppleClient",
+        "TVOS_DEPLOYMENT_TARGET": "26.5",
+      },
+    }, {
+      "name": "KinoPubTopShelf",
+      "id": "D925999E3081192200A0E7D5",
+      "product": "Products/KinoPubTopShelf.appex",
+      "product-type": "app-extension",
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+      ],
+      "build-settings": {
+        "APPLICATION_EXTENSION_API_ONLY": "YES",
+        "CODE_SIGN_ENTITLEMENTS": "KinoPubTopShelf/KinoPubTopShelf.entitlements",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "CODE_SIGN_STYLE": "Automatic",
+        "CURRENT_PROJECT_VERSION": "1",
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "INFOPLIST_FILE": "KinoPubTopShelf/Info.plist",
+        "INFOPLIST_KEY_CFBundleDisplayName": "KinoPubTopShelf",
+        "LD_RUNPATH_SEARCH_PATHS": [
+          "@executable_path/Frameworks",
+          "@executable_path/../../Frameworks",
+        ],
+        "MARKETING_VERSION": "1.0",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.soda.kinopub.topshelf",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "PROVISIONING_PROFILE_SPECIFIER": "",
+        "SDKROOT": "appletvos",
+        "SKIP_INSTALL": "YES",
+        "SUPPORTED_PLATFORMS": "appletvos appletvsimulator",
+        "SWIFT_EMIT_LOC_STRINGS": "NO",
+        "SWIFT_VERSION": "6.0",
+        "TARGETED_DEVICE_FAMILY": "3",
         "TVOS_DEPLOYMENT_TARGET": "26.5",
       },
     },

@@ -68,6 +68,13 @@ struct KinoPubAppleClientApp: App {
         .environment(windowSettings)
 #endif
         .kinopubLaunchColorScheme()
+#if os(tvOS)
+        // Top Shelf items open here (`TopShelfLink`).
+        .onOpenURL { url in
+          guard let link = TopShelfLink(url: url) else { return }
+          TopShelfRouter.open(link, navigation: navigationState)
+        }
+#endif
         // Register a readable device identity + advertise HEVC/4K/HDR at activation, so
         // the kino.pub Devices list isn't "unknown / unknown" and streams match what
         // AVPlayer can open. A launch that only revived a Keychain token sends nothing

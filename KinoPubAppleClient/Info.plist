@@ -6,6 +6,17 @@
 	<string>https://api.service-kp.com</string>
 	<key>ClientID</key>
 	<string>xbmc</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.soda.kinopub</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>kinopub</string>
+			</array>
+		</dict>
+	</array>
 	<key>ClientSecret</key>
 	<string>cgg3gtifu46urtfp2zp1nqtba0k2ezxh</string>
 	<key>NSBonjourServices</key>

@@ -478,8 +478,10 @@ subtitles.
 
 - [ ] Light theme design pass (semantic colours, materials, blur legibility, artwork contrast).
       Remove the forced dark scheme **only** when light actually works — not a partial toggle
-- [ ] Top Shelf extension target + content provider. **Needs validation** on entitlement /
-      extension packaging
+- [x] Top Shelf extension (`KinoPubTopShelf`): sectioned Continue Watching (system progress
+      bar, Select resumes) + Hot Movies / Hot Series posters, written by Watch Now into the
+      App Group; `kinopub://title|play/{id}`. Verified on tvOS 26.5 / 27.2 simulators.
+      **Needs:** device + TestFlight signing (App Group on both App IDs, see docs/testflight.md)
 - [ ] macOS Settings scene / menu wiring polished with stage 2
 - [ ] iOS compact layout pass
 - [x] Downloads feature-flagged (`FeatureFlags.downloadsEnabled`, compile-time)
