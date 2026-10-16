@@ -131,28 +131,20 @@ private struct PhoneMetaBlock: View {
   }
 }
 
-/// TMDB title treatment — falls back to lettered title if the logo fails.
+/// TMDB title treatment — same slot as the production hero: empty while the logo
+/// loads, lettered title only after a confirmed miss.
 private struct PhoneTitleLogo: View {
   var maxHeight: CGFloat = 72
 
   var body: some View {
-    ArtworkImage(url: PhonePageSample.titleLogo) { phase in
-      switch phase {
-      case .success(let image):
-        image
-          .resizable()
-          .scaledToFit()
-          .frame(maxWidth: 280, maxHeight: maxHeight)
-          .shadow(color: .secondary.opacity(0.4), radius: 30, y: 4)
-      case .failure:
-        Text(PhonePageSample.title)
-          .font(TypeScale.heroTitle)
-          .foregroundStyle(Color.KinoPub.text)
-      case .empty:
-        ProgressView()
-//          .tint(.white)
-          .frame(height: maxHeight * 0.6)
-      }
+    TitleLogoSlot(
+      resolution: .url(PhonePageSample.titleLogo),
+      maxWidth: 280,
+      maxHeight: maxHeight
+    ) {
+      Text(PhonePageSample.title)
+        .font(TypeScale.heroTitle)
+        .foregroundStyle(Color.KinoPub.text)
     }
   }
 }

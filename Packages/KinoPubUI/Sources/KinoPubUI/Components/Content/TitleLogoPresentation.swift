@@ -34,6 +34,16 @@ public enum TitleLogoResolution: Hashable, Sendable {
     if case .url(let url) = self { return url }
     return nil
   }
+
+  /// Hero / SwiftUI call sites still know a URL and a loaded flag; one resolution
+  /// is what the slot consumes.
+  public init(url: URL?, lookupComplete: Bool) {
+    if let url {
+      self = .url(url)
+    } else {
+      self = lookupComplete ? .missing : .pending
+    }
+  }
 }
 
 /// Controls when a logo or its text fallback becomes visible.
@@ -45,11 +55,13 @@ public enum TitleLogoPresentationPolicy: Equatable, Sendable {
   /// after a confirmed miss (no URL, 404, or ``missTimeout``).
   case whenResolved
 
-  /// How long to wait for a logo before treating the lookup as a miss.
+  /// How long to wait for a **logo image** before treating the load as a miss.
   ///
-  /// Tuned as 1.5 s: long enough for a warm cache / worker hit, short enough that
-  /// a title without a logo is not a blank slot. A later success still warms the
-  /// shared cache, but does not replace text already shown for this request.
+  /// Applies once a URL exists, not while metadata is still pending: timing out
+  /// the lookup itself painted the lettered title, then a late URL swapped it
+  /// for the logo. Tuned as 1.5 s: long enough for a warm cache / worker hit,
+  /// short enough that a broken image is not a blank slot. A later success still
+  /// warms the shared cache, but does not replace text already shown.
   public static let missTimeout: TimeInterval = 1.5
 
   /// Whether a resolved logo should replace whatever is on screen.
@@ -77,7 +89,9 @@ public enum TitleLogoPresentationPolicy: Equatable, Sendable {
     if hasCachedLogo || imageReady { return .logo }
     if imageFailed { return .text }
     if lookupComplete && !hasLogoURL { return .text }
-    if elapsed >= Self.missTimeout { return .text }
+    // Timeout is an image-load miss. A pending lookup stays empty so a late URL
+    // cannot replace already-shown text.
+    if hasLogoURL && elapsed >= Self.missTimeout { return .text }
     return showsTextWhileLoading ? .text : .empty
   }
 }
