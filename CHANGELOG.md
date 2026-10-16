@@ -5,6 +5,12 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Home's Continue Watching shows the title's wide cover (2026-10-16)
+
+Not the episode's thumbnail — kino.pub's thumbnail is a random frame, often black, and does not
+say which show it is (Sasha). Same rule as Library Continue and History (`titleWideArtwork`); the
+still is only a fallback for a title with no wide art. Live: every title on the row had one.
+
 ### Watched is 85%, kino.pub's own rule (2026-10-16)
 
 `WatchProgress.isFinished` was "the last 60–180 s"; kino.pub's watched flag is ≥ 85% of the

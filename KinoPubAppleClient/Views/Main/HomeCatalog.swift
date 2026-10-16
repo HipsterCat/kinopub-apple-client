@@ -888,19 +888,17 @@ class HomeCatalog: ObservableObject {
     return nil
   }
 
-  /// Continue Watching used to reach straight for the title's wide poster and never
-  /// look at the episode still it already had — so a row of series showed derived
-  /// `/item/wide/` URLs, many of which 404, beside History's real stills. Same rule
-  /// for both surfaces now; the fallback to a 2:3 `big` poster is gone, because
-  /// cropping one into a 16:9 box is what made the row look ragged.
+  /// The title's wide cover, as Library Continue and History show it — not the episode's
+  /// thumbnail. kino.pub's thumbnail is a random frame of the episode, often black, and
+  /// says nothing about which show it is (Sasha, 2026-10-16). The still is left only for a
+  /// title with no wide art at all; a 2:3 poster is never cropped into the 16:9 box. Live,
+  /// every title on the row had one (24 of 24 answered 200, 2026-10-16).
   private static func landscapeImageURL(for item: WatchingItem,
                                         history: HistoryEntry?,
                                         local: LocalWatchEntry?) -> String? {
-    MediaCard.landscapeArtwork(
-      episodeStill: history?.media?.thumbnail,
-      posters: history?.item.posters ?? local?.item.posters ?? item.posters,
-      isSeries: item.type.contains("serial")
-    )
+    let posters = history?.item.posters ?? local?.item.posters ?? item.posters
+    let still = history?.media?.thumbnail.flatMap { $0.isEmpty ? nil : $0 }
+    return MediaCard.titleWideArtwork(posters: posters) ?? still
   }
 
   /// Says whichever episode the card is actually offering — it used to derive its own
