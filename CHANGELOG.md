@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Watched is 85%, kino.pub's own rule (2026-10-16)
+
+`WatchProgress.isFinished` was "the last 60–180 s"; kino.pub's watched flag is ≥ 85% of the
+runtime — probed with `marktime` on a 3392 s episode (2883 s unwatched, 2884 s watched, recomputed
+from the current play head) and consistent with all 186 play heads on the account. Our rule is
+now the server's (`WatchProgress.watchedFraction`), so a play head without a flag — this device's,
+a history row — reads as the title's page does. The player's Up Next panel keeps its own timing
+(`upNextLeadTime`, the last 60–180 s): when to offer the next episode is not when this one counts.
+
 ### Continue Watching offers what the title's page says (2026-10-16)
 
 VisionQuest S1E2 was watched on its page and "in progress" on Home: the row judged a history play

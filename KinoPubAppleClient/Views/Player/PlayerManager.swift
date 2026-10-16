@@ -1441,11 +1441,12 @@ extension PlayerManager {
     pendingNextEpisode = next
     rebuildContentTabs()
 
-    // The panel appears at the credits — the same window `WatchProgress` calls
-    // "finished". An unknown runtime leaves the API default: the very end of the item.
+    // The panel appears near the credits (`upNextLeadTime`) — later than the point the
+    // episode already counts as watched. An unknown runtime leaves the API default: the
+    // very end of the item.
     let duration = Double((playItem as? Episode)?.duration ?? 0)
     let transition = duration > 0
-      ? CMTime(seconds: duration - WatchProgress.endTolerance(forDuration: duration),
+      ? CMTime(seconds: duration - WatchProgress.upNextLeadTime(forDuration: duration),
                preferredTimescale: 600)
       : .indefinite
 

@@ -62,6 +62,12 @@ The Library tab still has the whole watching list.
 
 ## Which episode a card offers
 
+**Watched is 85% of the runtime, kino.pub's own rule** (Sasha, 2026-10-16: "the credits are where
+people stop; offering their remnant is cringe"). Probed with `marktime` on a 3392 s episode: 84.99%
+unwatched, 85.02% watched, recomputed from the current play head every time. `WatchProgress`
+uses the same number, so a play head with no flag beside it (this device's, a history row) reads
+as the server will.
+
 **The title's own payload decides, with the server's watched flags — the same answer the detail
 page gives** (Sasha, 2026-10-16: VisionQuest S1E2 was watched on its page and "in progress" on
 Home). The row asks `/v1/items/{id}` for every series in it, and for every title the server's
@@ -86,12 +92,6 @@ The cached snapshot is a 60 s TTL. That is not "the row never updates":
 
 ## Open
 
-- **When does an episode count as watched?** kino.pub's flag and our credits window disagree. Live
-  (2026-10-16, 186 play heads on this account): the server marks watched from **86.6%** up (393 s
-  left of 49 min) and not at 68.2%; `WatchProgress.endTolerance` calls only the last 60–180 s
-  watched. Where only a play head is known — this device's own, a history row — the two answers
-  differ for the last ~10% of an episode. The server's exact cutoff is somewhere in 68–87%; a
-  `marktime` probe would pin it, and it writes to the account's history.
 
 Dates for more of the row would need more of `/v1/history` (`perpage` maxes at 50, and one page of
 20 already measured ~96 KB on a cold launch), so it is a payload trade, not a free improvement.

@@ -31,7 +31,7 @@ public struct LandscapeTimeBadge: View {
   /// Builds a badge from a card that already classified through `WatchProgress`.
   ///
   /// `progress` is `resumeFraction` (nil unless in-progress). Do not pass a raw
-  /// `time / duration` and expect this init to recover the credits window — 0.95
+  /// `time / duration` and expect this init to recover the watched threshold — 0.95
   /// of a two-hour title is six minutes left; `WatchProgress` finishes at three.
   public init?(durationSeconds: Int?, progress: Double?, isWatched: Bool) {
     guard let durationSeconds, durationSeconds >= 60 else { return nil }

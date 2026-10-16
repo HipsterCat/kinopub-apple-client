@@ -204,7 +204,7 @@ public extension TVUIKitMediaItem {
     if card.isWatched { return .watched }
     guard card.video != nil || !card.isSeries else { return .ready }
     // `card.progress` is already `WatchProgress.resumeFraction`. Re-thresholding
-    // 0.02 / 0.95 here invented a second credits window.
+    // 0.02 / 0.95 here invented a second watched threshold.
     if let progress = card.progress {
       return .inProgress(progress)
     }

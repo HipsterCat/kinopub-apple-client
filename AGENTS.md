@@ -356,12 +356,14 @@ Details: skill `apple-chrome`.
 
 ## Data and continuity
 
-- **Watch state is `WatchProgress`.** Fraction, unwatched / inProgress / finished, and
-  the credits window (8% of runtime, 60–180 s, capped at half) live in that one type.
+- **Watch state is `WatchProgress`.** Fraction, unwatched / inProgress / finished live in
+  that one type, and **watched is 85% of the runtime** — kino.pub's own rule, probed live
+  (`watchedFraction`, Sasha's call to match it, 2026-10-16). So a bare play head (this
+  device's, a history row) reads the same as the server's flag on the same title.
   `Episode` / `Video`.isWatched is the server flag *or* `isFinished`. A card paints
-  `resumeFraction`, never a 0.95 / 0.02 of its own — five percent leftover on a two-hour
-  title is six minutes, the classifier's window is three. Skip / outro markers, when they
-  land, feed this type; they do not grow a second threshold.
+  `resumeFraction`, never a 0.95 / 0.02 of its own. When the player's Up Next panel
+  appears is a different question (`upNextLeadTime`, the last 60–180 s), not "watched".
+  Skip / outro markers, when they land, feed this type; they do not grow a second threshold.
 - **Continuity beats placeholders.** Stale local data and already-loaded artwork beat blank screens.
   Card → detail carries the known item, artwork handle and palette; detail paints from that snapshot
   and enriches — it must not blank-reload what the card already had. Exact-layout skeletons only on

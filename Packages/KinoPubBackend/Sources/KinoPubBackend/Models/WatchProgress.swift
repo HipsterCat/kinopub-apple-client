@@ -10,10 +10,10 @@
 //  Backend note: kino.pub derives a video's watched status server-side from the playback position
 //  you report via `/v1/watching/marktime`. So you don't "toggle watched" on a normal finish — you
 //  just keep reporting the position, and once it crosses the end tolerance the server treats it as
-//  watched and drops it from the watching list. It does **not** use this type's window: live, the
-//  server marks watched from 86.6% of an episode up (393 s left of 49 min, 2026-10-16), where
-//  `isFinished` waits for the last 60–180 s. Where a payload's `watched` flag is at hand, it wins
-//  (`Episode.isWatched`); this type answers only for a bare play head.
+//  watched and drops it from the watching list. `isFinished` is **that rule**: 85% of the runtime,
+//  measured (see `watchedFraction`), so a bare play head — this device's, a history row — reads
+//  the same as the server's flag on the same title. Where the flag is at hand it still wins
+//  (`Episode.isWatched`); the two now only differ while the server has not heard a play head yet.
 //
 
 import Foundation
@@ -42,11 +42,19 @@ public struct WatchProgress: Equatable, Hashable, Codable, Sendable {
   /// the row's most common piece of junk, and 10s is exactly the bar it cleared.
   public static let enterContinueWatchingSeconds: Double = 90
 
-  /// How close to the end counts as "watched the credits" — a fraction of the runtime, floored and
-  /// capped so it's never absurdly short or long, and never more than half the runtime (so short
-  /// clips aren't marked finished from the first seconds). Narrower than kino.pub's own flag —
-  /// see the file header and docs/product/continue-watching.md › Open.
-  public static func endTolerance(forDuration duration: Double) -> Double {
+  /// **Watched is 85% of the runtime** — kino.pub's own rule (user's call to match it,
+  /// 2026-10-16). Probed live with `marktime` on a 3392 s episode: 2883 s (84.99%) left it
+  /// unwatched, 2884 s (85.02%) watched, and lowering the play head unwatched it again — the
+  /// server recomputes from the current play head, nothing sticks. 186 play heads on the
+  /// account agree (watched from 86.6% up, not at 68.2%). The credits are where people stop;
+  /// a remnant of them is not something to continue.
+  public static let watchedFraction: Double = 0.85
+
+  /// How long before the end the player's Up Next proposal appears — **when to offer the
+  /// next episode, not when this one counts as watched** (that is `watchedFraction`, which
+  /// would raise the panel minutes early). 8% of the runtime, floored at 60 s, capped at
+  /// 180 s and at half the runtime.
+  public static func upNextLeadTime(forDuration duration: Double) -> Double {
     let byFraction = min(max(duration * 0.08, 60), 180)
     return min(byFraction, duration * 0.5)
   }
@@ -81,8 +89,7 @@ public struct WatchProgress: Equatable, Hashable, Codable, Sendable {
   /// Watched to the end / credits.
   public var isFinished: Bool {
     guard hasUsableDuration, position > 0 else { return false }
-    if position >= duration { return true }
-    return position >= duration - Self.endTolerance(forDuration: duration)
+    return position >= duration * Self.watchedFraction
   }
 
   public var state: State {
@@ -105,10 +112,10 @@ public struct WatchProgress: Equatable, Hashable, Codable, Sendable {
   }
 
   /// Fraction to paint on a resume bar. Nil when there is nothing to resume —
-  /// unwatched, live, or already in the credits window.
+  /// unwatched, live, or already watched (`watchedFraction`).
   ///
   /// Cards store this, not a raw `time / duration`. Re-thresholding a stored
-  /// fraction (0.95, 0.02) cannot recover `endTolerance` and will disagree with
+  /// fraction (0.95, 0.02) cannot recover `watchedFraction` and will disagree with
   /// Continue Watching the moment skip/outro markers feed this type.
   public var resumeFraction: Double? {
     switch state {
