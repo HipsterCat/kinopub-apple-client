@@ -286,6 +286,7 @@
                   "path": "About",
                   "children": [
                     { "path": "AboutView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "OpenSourceLicenses.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                   ],
                 },
                 { "path": "DevicesListView.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
@@ -484,7 +485,6 @@
               "path": "WhatsNew",
               "children": [
                 { "path": "WhatsNewSheet.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
-                { "path": "ChangelogHistoryView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",

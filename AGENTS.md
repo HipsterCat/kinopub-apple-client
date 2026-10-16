@@ -585,8 +585,9 @@ went wrong by porting thresholds tuned for a swipe-driven page onto a focus-driv
 8. **Record what you learned where it belongs** — skill `docs-upkeep`. Tick the ROADMAP line;
    append genuinely notable facts to `CHANGELOG.md`. README changes only for public positioning or
    a macro stage. **If a viewer can see the change**, add a short ru + en bullet to
-   `KinoPubAppleClient/Resources/whats-new.json` for the current marketing version
-   (create the version object if it does not exist). That file is the in-app What's New
+   `KinoPubAppleClient/Resources/whats-new.json` for the current marketing version, at the
+   top of its list (create the version object if it does not exist); the next build shows
+   it once at launch. That file is the in-app What's New
    and TestFlight "What to Test". CHANGELOG.md stays the implementation log.
 9. **Ship small work to `main`.** Low-risk changes go straight to `main` — no draft PR
    waiting for a device pass. Sasha tests on Apple TV only via TestFlight. Open a PR

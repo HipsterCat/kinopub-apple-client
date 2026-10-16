@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "«Что нового» показывается один раз после обновления. В «О приложении» — версия, вся история изменений и лицензии, во всплывающем окне; текст под логотипом в Настройках больше не мелкий.",
         "В сетках год стоит перед жанром: «2024 Драма», у завершённого сериала «2019–2024 Драма».",
         "Поиск обновляется тихо, когда возвращаешься на вкладку: список не сбрасывается.",
         "В Подписках вместо «Тип» — переключатель «Непросмотренные / Все». Шапка Медиатеки снова едет вместе с сеткой, не поверх постеров.",
@@ -34,6 +35,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "What's New appears once after an update. About has the version, the full history and licenses in a popup; the text under the logo in Settings is no longer tiny.",
         "Grid posters put the year before the genre: “2024 Drama”, or “2019–2024 Drama” for a finished series.",
         "Search refreshes quietly when you return to the tab: the list is not cleared.",
         "Following replaces Type with Unwatched / All. The Library header scrolls with the grid again, instead of overlaying the posters.",

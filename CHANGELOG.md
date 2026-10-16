@@ -5,6 +5,32 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### What's New at launch, About with history and licences (2026-10-16)
+
+The launch sheet never appeared: it keyed on the marketing version, which is "1.0" for
+every TestFlight build, so the first install recorded "1.0" and nothing ever differed.
+The gate is now per bullet (`AppChangelog.pendingWhatsNew`): bullets this device has not
+shown, in its language; Done or Menu stores every bullet, both languages, as seen. Installs
+that only have the old `whatsNew.lastSeenVersion` were never shown anything and get the
+whole list once. A fresh install stays quiet.
+
+All three — launch popup, history, licences — are the shared `InfoPopupView` (Rivulet's
+look, Sasha). On tvOS it is now a `fullScreenCover` with a clear background, not a sheet:
+the sheet drew a second, larger platter around our panel. TVSettingKit pages present it
+through `InfoPopupPresenter` (overFullScreen, crossfade). The panel hugs short text and
+scrolls long text with faded edges. Focus has **one** stop — Done, or the text when there
+is no button — and `onMoveCommand` pages the text: with the text as a second stop, Down
+from it went straight back to Done and nothing scrolled (26.5 simulator, Device Hub
+remote). This applies to the detail page's popups too.
+
+About (tvOS): Version «1.0 (10)» is a `TSKSettingItem` with `canFocus = false`
+(`TSKRow.isFocusable`; probed on 27.2, works on 26.5), then What's New and Licenses. The
+root's left panel lost the build notes under the plate — TVSettingKit shrank them to fit.
+`Bundle.releaseNotes` had no other reader and is gone; the Fastfile still writes
+`KPReleaseNotes` (ROADMAP TODO). Licences: every linked package is MIT with identical text
+(checked against the checkouts), so `OpenSourceLicenses` lists copyright lines and shows the
+text once. DEBUG: `-KINOPUBWhatsNew YES`, `-KINOPUBSettingsPopup history|licenses`.
+
 ### Home's Continue Watching shows the title's wide cover (2026-10-16)
 
 Not the episode's thumbnail — kino.pub's thumbnail is a random frame, often black, and does not

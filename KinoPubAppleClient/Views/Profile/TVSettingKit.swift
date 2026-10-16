@@ -107,6 +107,9 @@ struct TSKRow {
   var description: String?
   var kind: Kind
   var isEnabled = true
+  /// False makes a row the remote passes over — read-only facts like the version. Full
+  /// strength, unlike `isEnabled`, which dims.
+  var isFocusable = true
   /// The left column's picture for this row; the page's when nil.
   var previewSymbol: String?
 }
@@ -272,6 +275,10 @@ private enum TSKItemFactory {
 
     if let item {
       if !row.isEnabled { item.setValue(false, forKey: "enabled") }
+      // `canFocus` (tvOS 26.5 and 27.2). Optional: without it the row just stays focusable.
+      if !row.isFocusable, item.responds(to: NSSelectorFromString("setCanFocus:")) {
+        item.setValue(false, forKey: "canFocus")
+      }
       if let symbol = row.previewSymbol {
         objc_setAssociatedObject(item, &TSKKeys.previewSymbol, symbol, .OBJC_ASSOCIATION_COPY_NONATOMIC)
       }
@@ -497,6 +504,11 @@ final class TSKSplitHost: NSObject {
   /// pushed into its list column.
   func present(_ controller: UIViewController) {
     controller.modalPresentationStyle = .fullScreen
+    split?.present(controller, animated: true)
+  }
+
+  /// A popup (`InfoPopupPresenter`) over the split, in the presentation style it set.
+  func presentPopup(_ controller: UIViewController) {
     split?.present(controller, animated: true)
   }
 
