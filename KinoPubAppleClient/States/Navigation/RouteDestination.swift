@@ -105,8 +105,9 @@ struct RouteDestination: View {
   private func player(_ item: any PlayableItem, mode: WatchMode, token: UUID) -> some View {
 #if DEBUG && os(tvOS)
     // UI tests of the detail page: the stand-in records the title as watched and
-    // waits for Menu (`DetailFixture`). The TV tab's fixture has no stream to play either.
-    if DetailFixture.isActive || TVChannelsFixture.isActive {
+    // waits for Menu (`DetailFixture`). The TV tab's fixture has no stream to play either,
+    // unless it is asked for the real player (`-KINOPUBFixtureRealPlayer`).
+    if DetailFixture.isActive || (TVChannelsFixture.isActive && !DebugLaunch.fixtureRealPlayer) {
       DetailFixturePlayer(item: item, mode: mode)
     } else {
       systemPlayer(item, mode: mode, token: token)

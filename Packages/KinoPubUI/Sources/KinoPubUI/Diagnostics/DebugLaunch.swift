@@ -90,6 +90,17 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBFixtureRealPlayer YES`: the TV tab fixture plays in the app's real player, every
+  /// channel on Apple's public sample stream — the system player in live mode, under the
+  /// remote, with no session.
+  public static var fixtureRealPlayer: Bool {
+#if DEBUG
+    UserDefaults.standard.bool(forKey: "KINOPUBFixtureRealPlayer")
+#else
+    false
+#endif
+  }
+
   /// `-KINOPUBSlowShelves <seconds>`: the stand-in API (`VideoContentServiceMock`) takes that
   /// long to answer a person's shelf on the detail page, so the page spends the time with
   /// skeleton rows where shelves will land — what a real connection does and a fixture,

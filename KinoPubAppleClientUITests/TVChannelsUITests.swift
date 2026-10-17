@@ -113,13 +113,41 @@ final class TVChannelsUITests: XCTestCase {
     }
   }
 
+  /// The real player, on Apple's sample stream (`-KINOPUBFixtureRealPlayer`): Select opens
+  /// it, it plays with the channel's name as its title (see the shot), the remote's Up / Down
+  /// over it crash nothing, and Menu comes back to the grid. AVKit's own controls are not in
+  /// the accessibility tree, so that it carries no Episodes or Up Next tab is pinned by
+  /// `PlayerLiveModeTests` on the player's side.
+  func testRealPlayerPlaysAndMenuReturns() throws {
+    launch(extra: ["-KINOPUBFixtureRealPlayer", "YES"])
+    try enterGrid()
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 8)
+    try shoot("9-real-player")
+    XCTAssertFalse(isFocusInGrid, "Select did not leave the grid")
+    XCUIRemote.shared.press(.up)
+    Thread.sleep(forTimeInterval: 1.5)
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 2)
+    try shoot("10-real-player-chrome")
+    XCTAssertEqual(app.state, .runningForeground)
+    for _ in 0..<3 where !cell(firstChannel).isHittable {
+      XCUIRemote.shared.press(.menu)
+      Thread.sleep(forTimeInterval: 2)
+    }
+    XCTAssertTrue(cell(firstChannel).isHittable, "Menu did not return to the grid")
+    Thread.sleep(forTimeInterval: 1)
+    XCTAssertEqual(focusedLabel, firstChannel, "focus after the player: \(focusedDescription)")
+  }
+
   // MARK: - Helpers
 
-  private func launch(realArt: Bool = false) {
+  private func launch(realArt: Bool = false, extra: [String] = []) {
     app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBForceColorScheme", "dark",
                             "-KINOPUBTVChannelsFixture", "YES", "-KINOPUBInitialTab", "tv"]
     if realArt { app.launchArguments += ["-KINOPUBFixtureRealArt", "YES"] }
+    app.launchArguments += extra
     app.launch()
   }
 
