@@ -84,9 +84,10 @@ struct VideoContentServiceMock: VideoContentService {
   var personItems: (@Sendable (LibraryFilter) -> [MediaItem])? = nil
   /// What the Search catalog (`fetchItems` without a person) answers with.
   var catalogItems: (@Sendable (LibraryFilter, Int?, Int?) -> PaginatedData<MediaItem>)? = nil
-  /// What `fetchWatchingSerials` answers with — the Library's Subscriptions. The DEBUG
-  /// library fixture (`LibraryFixture`) serves its followed series through this.
-  var watchingSerials: (@Sendable () -> [WatchingItem])? = nil
+  /// What `fetchWatchingSerials(subscribedOnly:)` answers with — the Library's
+  /// Subscriptions (`true`) and Continue (`false`). The DEBUG library fixture
+  /// (`LibraryFixture`) serves its series through this.
+  var watchingSerials: (@Sendable (_ subscribedOnly: Bool) -> [WatchingItem])? = nil
 
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     return PaginatedData.mock(data: [])
@@ -138,7 +139,7 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchWatchingSerials(subscribedOnly: Bool) async throws -> ArrayData<WatchingItem> {
-    return ArrayData.mock(data: watchingSerials?() ?? [])
+    return ArrayData.mock(data: watchingSerials?(subscribedOnly) ?? [])
   }
 
   func fetchHistory(page: Int?, perPage: Int = 20) async throws -> HistoryData {

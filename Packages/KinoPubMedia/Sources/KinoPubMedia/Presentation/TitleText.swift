@@ -61,6 +61,25 @@ public struct UnwatchedEpisodesCountText: Hashable, Sendable {
   }
 }
 
+/// **How many series are left unfinished, as a Library header** — «14 недосмотрено»,
+/// «14 unfinished». The Library's Continue: `/v1/watching/serials?subscribed=0`.
+public struct UnfinishedCountText: Hashable, Sendable {
+  public let count: Int
+
+  public init(_ count: Int) {
+    self.count = count
+  }
+
+  public func formatted(language: MediaLanguage = .current) -> String {
+    switch language {
+    case .en:
+      return "\(count) unfinished"
+    case .ru:
+      return "\(count) недосмотрено"
+    }
+  }
+}
+
 /// **How many titles in a bookmark folder** — «Всего 694», «Total 694».
 public struct TotalCountText: Hashable, Sendable {
   public let count: Int

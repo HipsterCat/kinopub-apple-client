@@ -565,7 +565,9 @@ enum LibraryFixture {
   /// The app's context with the API swapped for one that lists `subscriptions`.
   static func context(replacingServicesOf base: AppContext) -> AppContext {
     var context = base
-    context.contentService = VideoContentServiceMock(watchingSerials: { subscriptions })
+    context.contentService = VideoContentServiceMock(watchingSerials: { subscribedOnly in
+      subscribedOnly ? subscriptions : unfinished
+    })
     context.actionsService = UserActionsServiceMock()
     return context
   }
@@ -586,6 +588,21 @@ enum LibraryFixture {
                    posters: posters(seed: index + 60, label: row.title),
                    total: row.total, watched: row.watched, new: row.total - row.watched)
     }
+  }
+
+  /// Continue, `subscribed=0`: every series with episodes left — the followed ones that
+  /// are not caught up, then series the account never followed.
+  static var unfinished: [WatchingItem] {
+    let others: [(title: String, total: Int, watched: Int)] = [
+      ("Укрытие / Silo", 30, 12), ("Пантеон / Pantheon", 16, 12),
+      ("Академия «Амбрелла» / The Umbrella Academy", 36, 6)
+    ]
+    let unfollowed = others.enumerated().map { index, row in
+      WatchingItem(id: 9_904_000 + index, type: "serial", title: row.title,
+                   posters: posters(seed: index + 80, label: row.title),
+                   total: row.total, watched: row.watched, new: row.total - row.watched)
+    }
+    return subscriptions.filter { ($0.unwatchedCount ?? 0) > 0 } + unfollowed
   }
 
   /// What kino.pub sends as `posters`: drawn locally, or from the CDN with `-KINOPUBFixtureRealArt`.

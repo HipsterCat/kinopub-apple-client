@@ -100,7 +100,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   }
 
   /// The Library rows that playback changes on the server.
-  static let rowsWatchingChanges: [RowKey] = [.watchlist, .watchingMovies, .history]
+  static let rowsWatchingChanges: [RowKey] = [.watchlist, .unfinishedSerials, .history]
 
   // MARK: - Section switching
 
@@ -343,7 +343,11 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
       let items = try await service.fetchWatchingSerials(subscribedOnly: true).items
       return PageResult(cards: items.map { followingCard(for: $0) }, pagination: nil)
     case .unwatched:
-      return PageResult(cards: try await continueCards(using: service), pagination: nil)
+      // Continue is kino.pub's own list of unfinished series, not Home's Continue
+      // Watching (Sasha, 2026-10-17): `subscribed=0` answers every series with episodes
+      // left, followed or not. No films.
+      let items = try await service.fetchWatchingSerials(subscribedOnly: false).items
+      return PageResult(cards: items.map { seriesCard(for: $0) }, pagination: nil)
     case .history:
       let data = try await service.fetchHistory(page: page, perPage: historyPerPage)
       return PageResult(cards: HistoryView.cards(from: data.history, grouping: HistoryGrouping.current),
@@ -359,9 +363,16 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     }
   }
 
-  /// `/v1/watching/serials` — the Library's Following. The line under the cover is
-  /// how many episodes are still unwatched (`total − watched`, else `new`).
+  /// `/v1/watching/serials?subscribed=1` — the Library's Following. The line under the
+  /// cover is how many episodes are still unwatched (`total − watched`, else `new`).
   nonisolated static func followingCard(for item: WatchingItem) -> MediaCard {
+    seriesCard(for: item, isFollowing: true)
+  }
+
+  /// A `/v1/watching/serials` row as a cover: the series, how many episodes are left
+  /// under it, the new-episode badge. `isFollowing` only when the list said so —
+  /// `subscribed=0` mixes followed series with the rest and does not tell them apart.
+  nonisolated static func seriesCard(for item: WatchingItem, isFollowing: Bool = false) -> MediaCard {
     let left = item.unwatchedCount
     return MediaCard(id: item.id,
                      posterURL: item.posters.medium,
@@ -371,7 +382,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
                      badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
                      backdropURL: item.posters.wideURL ?? item.posters.big,
                      isSeries: true,
-                     viewerState: ViewerState(isFollowing: true),
+                     viewerState: isFollowing ? ViewerState(isFollowing: true) : ViewerState(),
                      unwatchedEpisodes: left)
   }
 
@@ -408,29 +419,6 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     }
   }
 
-  /// Continue: unfinished films plus serials already started. 16:9 title artwork
-  /// (not the episode still), Select plays, subtitle is time remaining.
-  private nonisolated static func continueCards(using service: VideoContentService) async throws -> [MediaCard] {
-    async let moviesTask = service.fetchWatchingMovies()
-    async let serialsTask = service.fetchWatchingSerials(subscribedOnly: false)
-    async let historyTask = service.fetchHistory(page: nil, perPage: historyPerPage)
-    let movies = try await moviesTask.items
-    let serials = (try? await serialsTask)?.items ?? []
-    let history = (try? await historyTask)?.history ?? []
-    let newest = newestHistory(history)
-
-    var seen = Set<Int>()
-    var items: [WatchingItem] = []
-    for item in movies + serials where seen.insert(item.id).inserted {
-      let isSeries = item.type.contains("serial")
-      if isSeries && (item.watched ?? 0) == 0 { continue }
-      items.append(item)
-    }
-    // History carries duration / position. Local resume is not Sendable across this
-    // fetch; the player still opens at the stored point.
-    return items.map { continueCard(for: $0, history: newest[$0.id]) }
-  }
-
   /// A followed series with nothing left to watch. `nil` unwatched counts stay with
   /// the unwatched group — hiding an unknown row is worse than showing it.
   nonisolated static func isCaughtUp(_ card: MediaCard) -> Bool {
@@ -458,48 +446,6 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
       }
       return groups
     }
-  }
-
-  private nonisolated static func newestHistory(_ history: [HistoryEntry]) -> [Int: HistoryEntry] {
-    history.reduce(into: [Int: HistoryEntry]()) { result, entry in
-      if let existing = result[entry.item.id], (existing.lastSeen ?? 0) >= (entry.lastSeen ?? 0) {
-        return
-      }
-      result[entry.item.id] = entry
-    }
-  }
-
-  /// `/v1/watching/*` plus the newest history / local resume point for remaining time.
-  nonisolated static func continueCard(for item: WatchingItem,
-                                       history: HistoryEntry?,
-                                       local: LocalWatchEntry? = nil) -> MediaCard {
-    let isSeries = item.type.contains("serial")
-    let wide = MediaCard.titleWideArtwork(posters: item.posters)
-      ?? MediaCard.titleWideArtwork(posters: history?.item.posters)
-      ?? MediaCard.titleWideArtwork(posters: local?.item.posters)
-    let progress = history?.progress ?? local?.progress
-    let duration = history?.media?.duration.flatMap { $0 >= 60 ? $0 : nil }
-      ?? local.flatMap { $0.duration >= 60 ? Int($0.duration) : nil }
-    let remaining: String?
-    if let progress, let duration {
-      remaining = RemainingText(progress: progress, durationSeconds: duration).formatted(.medium)
-    } else {
-      remaining = nil
-    }
-    return MediaCard(id: item.id,
-                     posterURL: item.posters.medium,
-                     title: item.localizedTitle,
-                     subtitle: remaining,
-                     progress: progress,
-                     backdropURL: wide,
-                     landscapeImageURL: wide,
-                     itemID: item.id,
-                     video: history?.media?.number ?? local?.episode ?? (isSeries ? nil : 1),
-                     season: history?.isEpisode == true ? history?.media?.snumber : local?.season,
-                     mediaID: history?.media?.id,
-                     isSeries: isSeries,
-                     durationSeconds: duration,
-                     primaryAction: .play)
   }
 
   private func subscribeForAuth() {

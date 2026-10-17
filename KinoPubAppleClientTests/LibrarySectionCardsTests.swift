@@ -53,7 +53,9 @@ final class LibrarySectionCardsTests: XCTestCase {
                              authState: AuthState(authService: AuthorizationServiceMock(),
                                                   accessTokenService: AccessTokenServiceMock()),
                              errorHandler: ErrorHandler())
-    XCTAssertEqual(model.headerTitle(for: .unwatched, cards: cards), "2")
+    XCTAssertEqual(model.headerTitle(for: .unwatched, cards: cards),
+                   UnfinishedCountText(2).formatted(),
+                   "Continue is «2 недосмотрено», never the bare number")
     XCTAssertEqual(model.headerTitle(for: .history, cards: []),
                    model.title(for: .history),
                    "with no count the section name is the one label")
@@ -163,31 +165,23 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertEqual(kept.map(\.id), [2])
   }
 
-  func testContinueCardIsLandscapeWideArtAndPlays() {
-    let item = WatchingItem(id: 3, type: "movie", title: "Дюна / Dune", posters: posters)
-    let history = HistoryEntry(
-      item: .init(id: 3, type: "movie", title: "Дюна / Dune", posters: posters),
-      media: .init(id: 9, number: 1, snumber: 0, thumbnail: "thumb.jpg", duration: 90 * 60),
-      time: 47 * 60,
-      lastSeen: 1_700_000_000
-    )
-    let card = LibrarySectionCatalog.continueCard(for: item, history: history)
-    XCTAssertEqual(card.landscapeImageURL, "https://x/item/wide/1.jpg")
-    XCTAssertNotEqual(card.landscapeImageURL, "thumb.jpg")
-    XCTAssertEqual(card.title, "Дюна")
-    XCTAssertEqual(card.primaryAction, .play)
-    XCTAssertEqual(card.subtitle, RemainingText(progress: history.progress ?? 0,
-                                                durationSeconds: 90 * 60).formatted(.medium))
-  }
-
-  func testContinueCardForASeriesIsTheTitleNotItsEpisodes() {
+  /// Continue is the unfinished series (`subscribed=0`), drawn as Following draws its own:
+  /// a cover, the episodes left under it, Select opens the title. Not Home's Continue
+  /// Watching — no wide art, no films, nothing that plays on Select.
+  func testContinueCardIsTheSeriesCoverWithEpisodesLeft() {
     let item = WatchingItem(id: 4, type: "serial", title: "Пантеон / Pantheon",
-                            posters: posters, total: 16, watched: 3)
-    let card = LibrarySectionCatalog.continueCard(for: item, history: nil)
+                            posters: posters, total: 16, watched: 3, new: 13)
+    let card = LibrarySectionCatalog.seriesCard(for: item)
     XCTAssertEqual(card.id, 4)
+    XCTAssertEqual(card.title, "Пантеон")
     XCTAssertTrue(card.isSeries)
-    XCTAssertEqual(card.primaryAction, .play)
-    XCTAssertEqual(card.landscapeImageURL, "https://x/item/wide/1.jpg")
+    XCTAssertFalse(card.isLandscape)
+    XCTAssertEqual(card.primaryAction, .openDetail)
+    XCTAssertEqual(card.unwatchedEpisodes, 13)
+    XCTAssertEqual(card.subtitle, EpisodesLeftText(13)?.formatted())
+    XCTAssertNil(card.viewerState.isFollowing,
+                 "subscribed=0 lists followed and unfollowed series alike")
+    XCTAssertEqual(LibrarySectionCatalog.followingCard(for: item).viewerState.isFollowing, true)
   }
 
   func testHistoryCardPlaysUsesWideArtAndWordsTheEpisode() {

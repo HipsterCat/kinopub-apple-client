@@ -712,6 +712,9 @@ enum TVSearchFilters {
     switch section {
     case .watchlist:
       return sort + followingScopeChips(catalog.followingScope)
+    case .unwatched:
+      // Series only: a type filter would have nothing to tell apart.
+      return sort
     case .folder:
       return folderActionChips() + controlChips(catalog: catalog, includeType: true, showsTitle: false)
     default:
