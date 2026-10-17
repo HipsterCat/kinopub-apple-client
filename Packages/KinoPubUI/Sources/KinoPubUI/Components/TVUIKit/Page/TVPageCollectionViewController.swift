@@ -390,6 +390,7 @@ public final class TVPageCollectionViewController: UIViewController {
       let kind = isStripPoster ? TVPageCellKind.poster : section.kind
       let caption = isStripPoster ? TVPageCaption.never : section.caption
       let recipe = TVPageCellMetrics.recipe(kind: kind, itemWidth: width, caption: caption)
+      cell.kind = kind
       switch self.itemsByID[id] {
       case .card(let card)?:
         cell.configure(card: card, recipe: recipe, caption: caption, showsRating: section.showsRating)

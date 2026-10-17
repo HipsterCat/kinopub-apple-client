@@ -49,6 +49,8 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   private var currentURL: URL?
   private var recipe: TVPageCellRecipe?
   private var caption: TVPageCaption = .never
+  /// What the recipe was measured for — a cover or a square — so a resize can measure again.
+  var kind: TVPageCellKind = .poster
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -126,6 +128,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     ratingChip.text = rating
     ratingChip.isHidden = rating == nil
 
+    drawnTile = nil
     loadImage(URL(string: card.posterURL))
   }
 
@@ -142,9 +145,17 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     ratingChip.isHidden = true
     currentURL = nil
     TVUIKitRemoteImage.cancel(into: posterView)
+    drawnTile = tile
+    drawTile(tile)
+  }
+
+  /// The tile this cell draws, to draw again at another size.
+  private var drawnTile: TVPageTile?
+
+  private func drawTile(_ tile: TVPageTile) {
     setImage(TVUIKitTileArtwork.image(tint: tile.resolvedTint,
                                       symbol: tile.symbol,
-                                      size: recipe.posterContentSize,
+                                      size: recipe?.posterContentSize ?? CGSize(width: 260, height: 390),
                                       cornerRadius: Self.placeholderCornerRadius,
                                       style: tile.style,
                                       traits: traitCollection))
@@ -156,6 +167,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     watchedGlyph.isHidden = true
     ratingChip.isHidden = true
     currentURL = nil
+    drawnTile = nil
     TVUIKitRemoteImage.cancel(into: posterView)
     setImage(placeholder)
   }
@@ -193,6 +205,26 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
   }
 
   private static let placeholderCornerRadius: CGFloat = 14
+
+  /// The layout gave this cell another size after it was configured: the page's width moved
+  /// under visible cells — the Library's sidebar measures itself after the grid's first pass,
+  /// and a grid of five columns becomes four. The lockup kept the old recipe, so its art was
+  /// the old height in the new cell: taller than a narrower cell, over the caption (Sasha, on
+  /// opening the Library, 2026-10-17), or short of a wider one. Measure for the new width.
+  override func apply(_ layoutAttributes: UICollectionViewLayoutAttributes) {
+    super.apply(layoutAttributes)
+    guard let recipe, abs(layoutAttributes.size.width - recipe.itemSize.width) >= 1 else { return }
+    place(recipe: TVPageCellMetrics.recipe(kind: kind, itemWidth: layoutAttributes.size.width, caption: caption))
+    if isFocused { captionView.setFocusedLook(drop: focusDrop) }
+    // The lockup takes its focus envelope from the image, so the image is the new size too.
+    if let currentURL {
+      loadImage(currentURL)
+    } else if let drawnTile {
+      drawTile(drawnTile)
+    } else {
+      setImage(placeholder)
+    }
+  }
 
   /// Sizes the lockup to the recipe: the item minus the caption's two lines.
   private func place(recipe: TVPageCellRecipe) {
