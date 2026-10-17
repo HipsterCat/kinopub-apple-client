@@ -88,6 +88,8 @@ struct VideoContentServiceMock: VideoContentService {
   /// Subscriptions (`true`) and Continue (`false`). The DEBUG library fixture
   /// (`LibraryFixture`) serves its series through this.
   var watchingSerials: (@Sendable (_ subscribedOnly: Bool) -> [WatchingItem])? = nil
+  /// What `fetchHistory` answers with on its first page — the Library fixture's History.
+  var history: (@Sendable () -> [HistoryEntry])? = nil
 
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     return PaginatedData.mock(data: [])
@@ -143,7 +145,7 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchHistory(page: Int?, perPage: Int = 20) async throws -> HistoryData {
-    return HistoryData.mock(data: [])
+    return HistoryData.mock(data: (page ?? 1) == 1 ? history?() ?? [] : [])
   }
 
   func fetchItems(filter: LibraryFilter, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {

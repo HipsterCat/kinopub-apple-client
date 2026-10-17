@@ -567,7 +567,7 @@ enum LibraryFixture {
     var context = base
     context.contentService = VideoContentServiceMock(watchingSerials: { subscribedOnly in
       subscribedOnly ? subscriptions : unfinished
-    })
+    }, history: { history })
     context.actionsService = UserActionsServiceMock()
     return context
   }
@@ -603,6 +603,19 @@ enum LibraryFixture {
                    total: row.total, watched: row.watched, new: row.total - row.watched)
     }
     return subscriptions.filter { ($0.unwatchedCount ?? 0) > 0 } + unfollowed
+  }
+
+  /// History: an episode of each followed series, played a day apart — a grid of wide
+  /// cards with a line under each, under day headings.
+  static var history: [HistoryEntry] {
+    let now = Int(Date().timeIntervalSince1970)
+    return subscriptions.prefix(9).enumerated().map { index, series in
+      HistoryEntry(item: .init(id: series.id, type: series.type, title: series.title, posters: series.posters),
+                   media: .init(id: 9_905_000 + index, number: index + 1, snumber: 1,
+                                duration: 50 * 60),
+                   time: Double((10 + index * 4) * 60),
+                   lastSeen: now - (index / 6) * 86_400 - index * 600)
+    }
   }
 
   /// What kino.pub sends as `posters`: drawn locally, or from the CDN with `-KINOPUBFixtureRealArt`.
