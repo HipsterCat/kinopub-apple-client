@@ -7,11 +7,11 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ### Library pass from the Asana list (2026-10-17)
 
-- **Continue** is `/v1/watching/serials?subscribed=0` drawn as Subscriptions draws covers
-  (`LibrarySectionCatalog.seriesCard`), header `UnfinishedCountText` («14 недосмотрено»).
-  The endpoint also lists followed series (8 of 50 on Sasha's account); kept as the API
-  answers until Sasha says otherwise. `RowKey.watchingMovies` became `.unfinishedSerials`
-  — the disk snapshot file fails to decode once after the upgrade and is rebuilt.
+- **Continue** is `/v1/watching/serials?subscribed=0` less the `subscribed=1` ids — those
+  live in Subscriptions (Sasha). Still wide title art that plays on Select, time left from
+  history (`continueCard`); films dropped; header `UnfinishedCountText` («14 недосмотрено»).
+  `RowKey.watchingMovies` became `.unfinishedSerials` — the disk snapshot file fails to
+  decode once after the upgrade and is rebuilt.
 - **Still grids** counted the caption line twice (in `belowItem` and on top of
   `gridRowSpacing`, and once more in the section bottom): 160 pt art to art, 112 empty.
   Now the line plus `captionedRowGap`.

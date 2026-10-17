@@ -355,7 +355,8 @@ pushes to the grid.
       actions changed. Live: «155 unwatched episodes»
 
 - [x] Library pass from Sasha's Asana list (2026-10-17): Continue is the unfinished series
-      (`/v1/watching/serials?subscribed=0`, covers, «N недосмотрено»); still grids lose the
+      not in Subscriptions (`subscribed=0` minus `subscribed=1`, wide stills that play,
+      «N недосмотрено»); still grids lose the
       doubled caption gap; the sidebar hugs its rows as its own cells lay them out (≤ ¼ of
       the screen) with the side inset on both sides of the grid; system marquee in the
       sidebar and a trailing fade + marquee on covers instead of «…»; covers re-measure when

@@ -596,8 +596,8 @@ enum LibraryFixture {
     }
   }
 
-  /// Continue, `subscribed=0`: every series with episodes left — the followed ones that
-  /// are not caught up, then series the account never followed.
+  /// `subscribed=0`: every series with episodes left — the followed ones that are not
+  /// caught up, then series the account never followed (what Continue shows).
   static var unfinished: [WatchingItem] {
     let others: [(title: String, total: Int, watched: Int)] = [
       ("Укрытие / Silo", 30, 12), ("Пантеон / Pantheon", 16, 12),

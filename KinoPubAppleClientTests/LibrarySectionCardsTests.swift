@@ -165,23 +165,42 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertEqual(kept.map(\.id), [2])
   }
 
-  /// Continue is the unfinished series (`subscribed=0`), drawn as Following draws its own:
-  /// a cover, the episodes left under it, Select opens the title. Not Home's Continue
-  /// Watching — no wide art, no films, nothing that plays on Select.
-  func testContinueCardIsTheSeriesCoverWithEpisodesLeft() {
+  func testContinueCardForASeriesIsTheWideTitleAndPlays() {
     let item = WatchingItem(id: 4, type: "serial", title: "Пантеон / Pantheon",
-                            posters: posters, total: 16, watched: 3, new: 13)
-    let card = LibrarySectionCatalog.seriesCard(for: item)
+                            posters: posters, total: 16, watched: 3)
+    let card = LibrarySectionCatalog.continueCard(for: item, history: nil)
     XCTAssertEqual(card.id, 4)
-    XCTAssertEqual(card.title, "Пантеон")
     XCTAssertTrue(card.isSeries)
-    XCTAssertFalse(card.isLandscape)
-    XCTAssertEqual(card.primaryAction, .openDetail)
-    XCTAssertEqual(card.unwatchedEpisodes, 13)
-    XCTAssertEqual(card.subtitle, EpisodesLeftText(13)?.formatted())
-    XCTAssertNil(card.viewerState.isFollowing,
-                 "subscribed=0 lists followed and unfollowed series alike")
-    XCTAssertEqual(LibrarySectionCatalog.followingCard(for: item).viewerState.isFollowing, true)
+    XCTAssertEqual(card.primaryAction, .play)
+    XCTAssertEqual(card.landscapeImageURL, "https://x/item/wide/1.jpg")
+  }
+
+  /// Continue is the unfinished series kino.pub lists, less the followed ones —
+  /// Subscriptions shows those.
+  @MainActor
+  func testContinueLeavesOutSubscriptions() async throws {
+    let service = VideoContentServiceMock(watchingSerials: { subscribedOnly in
+      let posters = Posters(small: "", medium: "", big: "", wide: "https://x/item/wide/1.jpg")
+      let followed = WatchingItem(id: 1, type: "serial", title: "A", posters: posters, total: 5, watched: 1)
+      let other = WatchingItem(id: 2, type: "serial", title: "B", posters: posters, total: 5, watched: 0)
+      return subscribedOnly ? [followed] : [followed, other]
+    })
+    let store = ContentStore(disk: RowSnapshotStore(directory: FileManager.default.temporaryDirectory
+                               .appendingPathComponent(UUID().uuidString, isDirectory: true)),
+                             viewer: ViewerStateReaderMock())
+    let catalog = LibrarySectionCatalog(contentService: service, authState: Self.authorized(),
+                                        errorHandler: ErrorHandler(), store: store)
+    await catalog.activate(.unwatched)
+    XCTAssertEqual(catalog.cards.map(\.id), [2])
+    XCTAssertEqual(catalog.cards.first?.primaryAction, .play)
+    XCTAssertEqual(catalog.cards.first?.isLandscape, true)
+  }
+
+  @MainActor
+  private static func authorized() -> AuthState {
+    let state = AuthState(authService: AuthorizationServiceMock(), accessTokenService: AccessTokenServiceMock())
+    state.userState = .authorized
+    return state
   }
 
   func testHistoryCardPlaysUsesWideArtAndWordsTheEpisode() {
