@@ -282,7 +282,8 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       "kinopoisk_rating": 6.0 + Double(seed % 5) * 0.5, "kinopoisk_votes": 1200,
       "posters": DebugLaunch.fixtureRealArt
         ? ["small", "medium", "big", "wide"].reduce(into: [String: String]()) {
-            $0[$1] = "https://m.staticpop.net/poster/item/big/\(10681 + seed).jpg"
+            // `wide` is its own picture on the CDN, as a signed-in session gets it.
+          $0[$1] = "https://m.staticpop.net/poster/item/\($1 == "wide" ? "wide" : "big")/\(10681 + seed).jpg"
           }
         : DetailFixtureArt.posters(seed: seed, label: title),
       "finished": false, "in_watchlist": false, "subscribed": false
@@ -565,10 +566,16 @@ enum LibraryFixture {
   /// The app's context with the API swapped for one that lists `subscriptions`.
   static func context(replacingServicesOf base: AppContext) -> AppContext {
     var context = base
-    context.contentService = VideoContentServiceMock(watchingSerials: { subscriptions })
+    context.contentService = VideoContentServiceMock(watchingSerials: { subscribedOnly in
+      subscribedOnly ? subscriptions : unfinished
+    }, watchingMovies: { films }, bookmarks: { folders }, bookmarkItems: { folderItems(id: $0, page: $1) },
+       history: { history(page: $0) })
     context.actionsService = UserActionsServiceMock()
     return context
   }
+
+  /// Series watched to the end while the fixture runs (`-KINOPUBFixtureWatchOutAfter`).
+  static let caughtUp = FixtureIDs()
 
   /// Followed series: how far through, how many waiting. Two are caught up, one is a single
   /// episode behind, one has a long title.
@@ -582,17 +589,85 @@ enum LibraryFixture {
       ("Звёздный путь: Странные новые миры / Strange New Worlds", 30, 20), ("Чернобыль / Chernobyl", 5, 5)
     ]
     return rows.enumerated().map { index, row in
-      WatchingItem(id: 9_903_000 + index, type: "serial", title: row.title,
-                   posters: posters(seed: index + 60, label: row.title),
+      let id = 9_903_000 + index
+      let watched = caughtUp.contains(id) ? row.total : row.watched
+      return WatchingItem(id: id, type: "serial", title: row.title,
+                          posters: posters(seed: index + 60, label: row.title),
+                          total: row.total, watched: watched, new: row.total - watched)
+    }
+  }
+
+  /// `subscribed=0`: every series with episodes left — the followed ones that are not
+  /// caught up, then series the account never followed (what Continue shows).
+  static var unfinished: [WatchingItem] {
+    let others: [(title: String, total: Int, watched: Int)] = [
+      ("Укрытие / Silo", 30, 12), ("Пантеон / Pantheon", 16, 12),
+      ("Академия «Амбрелла» / The Umbrella Academy", 36, 6)
+    ]
+    let unfollowed = others.enumerated().map { index, row in
+      WatchingItem(id: 9_904_000 + index, type: "serial", title: row.title,
+                   posters: posters(seed: index + 80, label: row.title),
                    total: row.total, watched: row.watched, new: row.total - row.watched)
     }
+    return subscriptions.filter { ($0.unwatchedCount ?? 0) > 0 } + unfollowed
+  }
+
+  /// Unfinished films (`/v1/watching/movies`), as Continue lists them first.
+  static var films: [WatchingItem] {
+    ["Тихая жизнь / Quiet Life", "Животные / Animals"].enumerated().map { index, title in
+      WatchingItem(id: 9_908_000 + index, type: "movie", title: title,
+                   posters: posters(seed: index + 90, label: title))
+    }
+  }
+
+  /// Bookmark folders: a short name, and one too long for the sidebar to hug.
+  static var folders: [Bookmark] {
+    let now = Int(Date().timeIntervalSince1970)
+    return [
+      Bookmark(id: 9_906_001, title: "Вечером", views: 0, count: "4", created: now, updated: now),
+      Bookmark(id: 9_906_002, title: "Посмотреть с друзьями на выходных когда-нибудь", views: 0,
+               count: "70", created: now, updated: now - 60)
+    ]
+  }
+
+  /// A folder's titles, twenty to a page; past the last page kino.pub answers the last page
+  /// again, so this does too.
+  static func folderItems(id: String, page: Int) -> BookmarkFolderItemsData {
+    let total = folders.first { "\($0.id)" == id }.flatMap { Int($0.count) } ?? 0
+    let perPage = 20
+    let pages = max(1, (total + perPage - 1) / perPage)
+    let current = min(page, pages)
+    let start = (current - 1) * perPage
+    let ids = start..<min(start + perPage, total)
+    return BookmarkFolderItemsData(items: ids.map { MediaItem.mock(id: 9_907_000 + (Int(id) ?? 0) % 10 * 1_000 + $0) },
+                                   pagination: Pagination(total: pages, current: current, perpage: perPage))
+  }
+
+  /// History: episodes of the followed series, a few hours apart, twenty to a page over
+  /// three pages — a grid of wide cards under day headings that keeps paging.
+  static func history(page: Int) -> HistoryData {
+    let perPage = 20, pages = 3
+    let now = Int(Date().timeIntervalSince1970)
+    let series = subscriptions
+    let entries = (0..<perPage).map { offset -> HistoryEntry in
+      let index = (page - 1) * perPage + offset
+      let show = series[index % series.count]
+      return HistoryEntry(item: .init(id: show.id, type: show.type, title: show.title, posters: show.posters),
+                          media: .init(id: 9_905_000 + index, number: index / series.count + 1, snumber: 1,
+                                       duration: 50 * 60),
+                          time: Double((10 + offset * 2) * 60),
+                          lastSeen: now - index * 4 * 3_600)
+    }
+    return HistoryData.mock(data: page <= pages ? entries : [],
+                            pagination: Pagination(total: pages, current: page, perpage: perPage))
   }
 
   /// What kino.pub sends as `posters`: drawn locally, or from the CDN with `-KINOPUBFixtureRealArt`.
   private static func posters(seed: Int, label: String) -> Posters {
     let json: [String: Any] = DebugLaunch.fixtureRealArt
       ? ["small", "medium", "big", "wide"].reduce(into: [String: Any]()) {
-          $0[$1] = "https://m.staticpop.net/poster/item/big/\(10681 + seed).jpg"
+          // `wide` is its own picture on the CDN, as a signed-in session gets it.
+          $0[$1] = "https://m.staticpop.net/poster/item/\($1 == "wide" ? "wide" : "big")/\(10681 + seed).jpg"
         }
       : DetailFixtureArt.posters(seed: seed, label: label)
     do {
@@ -603,35 +678,77 @@ enum LibraryFixture {
   }
 }
 
+/// Ids the stand-in API reads from any thread.
+final class FixtureIDs: @unchecked Sendable {
+  private let lock = NSLock()
+  private var ids = Set<Int>()
+
+  func insert(_ id: Int) { lock.withLock { _ = ids.insert(id) } }
+  func contains(_ id: Int) -> Bool { lock.withLock { ids.contains(id) } }
+}
+
 /// The real Library, signed in, on the stand-in API, with a store of its own that is never
 /// written to the app's disk cache.
 struct LibraryFixtureRoot: View {
   @Environment(ErrorHandler.self) private var errorHandler
   @Environment(\.appContext) private var appContext
-  @StateObject private var authState: AuthState = {
+
+  @MainActor private static let authState: AuthState = {
     let state = AuthState(authService: AuthorizationServiceMock(), accessTokenService: AccessTokenServiceMock())
     state.userState = .authorized
     return state
   }()
   /// A viewer, as production has: `cards(_:)` lays state over every title, and
   /// Following's episode count must survive that overlay.
-  @State private var store = ContentStore(
+  @MainActor private static let store = ContentStore(
     disk: RowSnapshotStore(directory: FileManager.default.temporaryDirectory
-      .appendingPathComponent("KinoPubLibraryFixture", isDirectory: true)),
+      // A new directory every launch: the fixture starts from what its API says, never
+      // from what a previous run cached.
+      .appendingPathComponent("KinoPubLibraryFixture-\(UUID().uuidString)", isDirectory: true)),
     viewer: ViewerStateReaderMock())
 
+  @State private var tab = 1
+  /// Owned here so the fixture can refetch it the way the Library does back from the player.
+  @StateObject private var catalog = LibrarySectionCatalog(contentService: AppContext.shared.contentService,
+                                                           authState: LibraryFixtureRoot.authState,
+                                                           errorHandler: ErrorHandler(),
+                                                           store: LibraryFixtureRoot.store)
+
   var body: some View {
+    content
+      .task {
+        guard let delay = DebugLaunch.fixtureWatchOutAfter else { return }
+        try? await Task.sleep(for: .seconds(delay))
+        // Андор: its last new episode watched, as the player reports it.
+        LibraryFixture.caughtUp.insert(9_903_002)
+        await catalog.refresh()
+      }
+  }
+
+  @ViewBuilder
+  private var content: some View {
+    if DebugLaunch.fixtureInTabs {
+      // Under the real tab bar, as in the shipped app: Up from the page reaches it, and
+      // Left / Right there switch away from the Library and back.
+      TabView(selection: $tab) {
+        Tab(value: 0) { Color.clear } label: { Text("Watch Now") }
+        Tab(value: 1) { shell } label: { Text("Library") }
+      }
+      .tabViewStyle(.tabBarOnly)
+    } else {
+      shell
+    }
+  }
+
+  private var shell: some View {
     LibraryShellView(
       model: LibraryModel(contentService: appContext.contentService,
                           actionsService: appContext.actionsService,
-                          authState: authState,
+                          authState: Self.authState,
                           errorHandler: errorHandler,
-                          store: store,
+                          store: Self.store,
                           defaults: UserDefaults(suiteName: "KinoPubLibraryFixture") ?? .standard),
-      catalog: LibrarySectionCatalog(contentService: appContext.contentService,
-                                     authState: authState,
-                                     errorHandler: errorHandler,
-                                     store: store)
+      catalog: catalog
     )
   }
 }

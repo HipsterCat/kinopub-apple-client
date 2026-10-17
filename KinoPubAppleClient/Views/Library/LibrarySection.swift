@@ -74,7 +74,7 @@ enum LibrarySection: Hashable, Codable {
   var rowKey: RowKey? {
     switch self {
     case .watchlist: return .watchlist
-    case .unwatched: return .watchingMovies
+    case .unwatched: return .unfinishedSerials
     case .allBookmarks: return .allBookmarks
     case .history: return .history
     case .downloads: return nil

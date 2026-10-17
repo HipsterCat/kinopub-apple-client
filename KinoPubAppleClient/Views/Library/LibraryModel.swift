@@ -86,7 +86,7 @@ final class LibraryModel: ObservableObject {
   }
 
   /// The header's count: unwatched episodes on Following, the folder's own number,
-  /// otherwise how many cards are on screen.
+  /// how many titles are unfinished on Continue, otherwise how many cards are on screen.
   func headerCount(for section: LibrarySection, cards: [MediaCard]) -> String? {
     switch section {
     case .watchlist:
@@ -105,9 +105,12 @@ final class LibraryModel: ObservableObject {
 
   /// The one label the section header draws. The count *is* the title — «156
   /// непросмотренных серий», not that phrase beside «Подписки». A folder is
-  /// «Всего 694», never the bare number. History day groups keep their own day name.
+  /// «Всего 694», Continue «14 недосмотрено», never the bare number. History day groups
+  /// keep their own day name.
   func headerTitle(for section: LibrarySection, cards: [MediaCard]) -> String {
     switch section {
+    case .unwatched:
+      return cards.isEmpty ? title(for: section) : UnfinishedCountText(cards.count).formatted()
     case .folder, .allBookmarks:
       guard let raw = headerCount(for: section, cards: cards), let count = Int(raw) else {
         return title(for: section)

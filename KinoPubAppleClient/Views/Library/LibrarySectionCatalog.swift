@@ -100,7 +100,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   }
 
   /// The Library rows that playback changes on the server.
-  static let rowsWatchingChanges: [RowKey] = [.watchlist, .watchingMovies, .history]
+  static let rowsWatchingChanges: [RowKey] = [.watchlist, .unfinishedSerials, .history]
 
   // MARK: - Section switching
 
@@ -359,8 +359,8 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     }
   }
 
-  /// `/v1/watching/serials` — the Library's Following. The line under the cover is
-  /// how many episodes are still unwatched (`total − watched`, else `new`).
+  /// `/v1/watching/serials?subscribed=1` — the Library's Following. The line under the
+  /// cover is how many episodes are still unwatched (`total − watched`, else `new`).
   nonisolated static func followingCard(for item: WatchingItem) -> MediaCard {
     let left = item.unwatchedCount
     return MediaCard(id: item.id,
@@ -408,56 +408,26 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     }
   }
 
-  /// Continue: unfinished films plus serials already started. 16:9 title artwork
-  /// (not the episode still), Select plays, subtitle is time remaining.
+  /// Continue: kino.pub's unfinished films (`/v1/watching/movies`, the reference client's
+  /// «Недосмотренные › Фильмы») and unfinished series (`/v1/watching/serials?subscribed=0`)
+  /// that are not in Subscriptions — those have their own section (Sasha, 2026-10-17).
+  /// 16:9 title artwork (not the episode still), Select plays, subtitle is time remaining.
   private nonisolated static func continueCards(using service: VideoContentService) async throws -> [MediaCard] {
     async let moviesTask = service.fetchWatchingMovies()
-    async let serialsTask = service.fetchWatchingSerials(subscribedOnly: false)
+    async let unfinishedTask = service.fetchWatchingSerials(subscribedOnly: false)
+    async let followedTask = service.fetchWatchingSerials(subscribedOnly: true)
     async let historyTask = service.fetchHistory(page: nil, perPage: historyPerPage)
     let movies = try await moviesTask.items
-    let serials = (try? await serialsTask)?.items ?? []
+    let unfinished = (try? await unfinishedTask)?.items ?? []
+    let followed = Set(((try? await followedTask)?.items ?? []).map(\.id))
     let history = (try? await historyTask)?.history ?? []
     let newest = newestHistory(history)
-
     var seen = Set<Int>()
-    var items: [WatchingItem] = []
-    for item in movies + serials where seen.insert(item.id).inserted {
-      let isSeries = item.type.contains("serial")
-      if isSeries && (item.watched ?? 0) == 0 { continue }
-      items.append(item)
-    }
     // History carries duration / position. Local resume is not Sendable across this
     // fetch; the player still opens at the stored point.
-    return items.map { continueCard(for: $0, history: newest[$0.id]) }
-  }
-
-  /// A followed series with nothing left to watch. `nil` unwatched counts stay with
-  /// the unwatched group — hiding an unknown row is worse than showing it.
-  nonisolated static func isCaughtUp(_ card: MediaCard) -> Bool {
-    card.unwatchedEpisodes == 0
-  }
-
-  /// Following: Unwatched is the default listing; All keeps that group first, then
-  /// fully watched series under their own heading.
-  nonisolated static func followingPageGroups(
-    from cards: [MediaCard],
-    scope: LibraryFollowingScope
-  ) -> [(id: String, isWatched: Bool, cards: [MediaCard])] {
-    let unwatched = cards.filter { !isCaughtUp($0) }
-    let watched = cards.filter(isCaughtUp)
-    switch scope {
-    case .unwatched:
-      return [("following.unwatched", false, unwatched)]
-    case .all:
-      var groups: [(id: String, isWatched: Bool, cards: [MediaCard])] = []
-      if !unwatched.isEmpty {
-        groups.append(("following.unwatched", false, unwatched))
-      }
-      if !watched.isEmpty {
-        groups.append(("following.watched", true, watched))
-      }
-      return groups
-    }
+    return (movies + unfinished.filter { !followed.contains($0.id) })
+      .filter { seen.insert($0.id).inserted }
+      .map { continueCard(for: $0, history: newest[$0.id]) }
   }
 
   private nonisolated static func newestHistory(_ history: [HistoryEntry]) -> [Int: HistoryEntry] {
@@ -500,6 +470,35 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
                      isSeries: isSeries,
                      durationSeconds: duration,
                      primaryAction: .play)
+  }
+
+  /// A followed series with nothing left to watch. `nil` unwatched counts stay with
+  /// the unwatched group — hiding an unknown row is worse than showing it.
+  nonisolated static func isCaughtUp(_ card: MediaCard) -> Bool {
+    card.unwatchedEpisodes == 0
+  }
+
+  /// Following: Unwatched is the default listing; All keeps that group first, then
+  /// fully watched series under their own heading.
+  nonisolated static func followingPageGroups(
+    from cards: [MediaCard],
+    scope: LibraryFollowingScope
+  ) -> [(id: String, isWatched: Bool, cards: [MediaCard])] {
+    let unwatched = cards.filter { !isCaughtUp($0) }
+    let watched = cards.filter(isCaughtUp)
+    switch scope {
+    case .unwatched:
+      return [("following.unwatched", false, unwatched)]
+    case .all:
+      var groups: [(id: String, isWatched: Bool, cards: [MediaCard])] = []
+      if !unwatched.isEmpty {
+        groups.append(("following.unwatched", false, unwatched))
+      }
+      if !watched.isEmpty {
+        groups.append(("following.watched", true, watched))
+      }
+      return groups
+    }
   }
 
   private func subscribeForAuth() {

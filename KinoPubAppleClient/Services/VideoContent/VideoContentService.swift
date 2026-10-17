@@ -84,9 +84,18 @@ struct VideoContentServiceMock: VideoContentService {
   var personItems: (@Sendable (LibraryFilter) -> [MediaItem])? = nil
   /// What the Search catalog (`fetchItems` without a person) answers with.
   var catalogItems: (@Sendable (LibraryFilter, Int?, Int?) -> PaginatedData<MediaItem>)? = nil
-  /// What `fetchWatchingSerials` answers with — the Library's Subscriptions. The DEBUG
-  /// library fixture (`LibraryFixture`) serves its followed series through this.
-  var watchingSerials: (@Sendable () -> [WatchingItem])? = nil
+  /// What `fetchWatchingSerials(subscribedOnly:)` answers with — the Library's
+  /// Subscriptions (`true`) and Continue (`false`). The DEBUG library fixture
+  /// (`LibraryFixture`) serves its series through this.
+  var watchingSerials: (@Sendable (_ subscribedOnly: Bool) -> [WatchingItem])? = nil
+  /// What `fetchWatchingMovies` answers with — the Library fixture's unfinished films.
+  var watchingMovies: (@Sendable () -> [WatchingItem])? = nil
+  /// What `fetchBookmarks` answers with — the Library fixture's folders.
+  var bookmarks: (@Sendable () -> [Bookmark])? = nil
+  /// What `fetchBookmarkItems` answers with, by folder id and page.
+  var bookmarkItems: (@Sendable (_ id: String, _ page: Int) -> BookmarkFolderItemsData)? = nil
+  /// What `fetchHistory` answers with, by page — the Library fixture's History.
+  var history: (@Sendable (_ page: Int) -> HistoryData)? = nil
 
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     return PaginatedData.mock(data: [])
@@ -126,23 +135,23 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchBookmarks() async throws -> ArrayData<Bookmark> {
-    return ArrayData.mock(data: [])
+    return ArrayData.mock(data: bookmarks?() ?? [])
   }
   
   func fetchBookmarkItems(id: String, page: Int?) async throws -> BookmarkFolderItemsData {
-    return BookmarkFolderItemsData(items: [])
+    return bookmarkItems?(id, page ?? 1) ?? BookmarkFolderItemsData(items: [])
   }
 
   func fetchWatchingMovies() async throws -> ArrayData<WatchingItem> {
-    return ArrayData.mock(data: [])
+    return ArrayData.mock(data: watchingMovies?() ?? [])
   }
 
   func fetchWatchingSerials(subscribedOnly: Bool) async throws -> ArrayData<WatchingItem> {
-    return ArrayData.mock(data: watchingSerials?() ?? [])
+    return ArrayData.mock(data: watchingSerials?(subscribedOnly) ?? [])
   }
 
   func fetchHistory(page: Int?, perPage: Int = 20) async throws -> HistoryData {
-    return HistoryData.mock(data: [])
+    return history?(page ?? 1) ?? HistoryData.mock(data: [])
   }
 
   func fetchItems(filter: LibraryFilter, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {

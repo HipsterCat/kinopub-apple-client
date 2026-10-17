@@ -13,9 +13,10 @@ enum RowKey: Hashable, Codable {
   case continueWatching
   case shortcut(MediaShortcut, MediaType)
   case watchlist
-  /// Unfinished films — `/v1/watching/movies`. Separate from `watchlist` because the
-  /// Library sidebar shows them as their own section (kino.pub's "Недосмотренные").
-  case watchingMovies
+  /// Every unfinished series — `/v1/watching/serials?subscribed=0`, the Library's
+  /// Continue. Separate from `watchlist` (`subscribed=1`) because the Library sidebar
+  /// shows them as their own section (kino.pub's "Недосмотренные").
+  case unfinishedSerials
   case history
   /// Every bookmark folder's titles, combined. One cache row so switching back to
   /// *All bookmarks* paints from the store like a single folder does.
@@ -35,7 +36,7 @@ enum RowKey: Hashable, Codable {
 
   var family: Family {
     switch self {
-    case .continueWatching, .history, .watchlist, .watchingMovies: return .watch
+    case .continueWatching, .history, .watchlist, .unfinishedSerials: return .watch
     case .shortcut, .collections: return .catalog
     case .folder, .allBookmarks: return .bookmarks
     }
@@ -47,7 +48,7 @@ enum RowKey: Hashable, Codable {
   var ttl: TimeInterval {
     switch self {
     case .continueWatching, .history: return 60
-    case .watchlist, .watchingMovies: return 120
+    case .watchlist, .unfinishedSerials: return 120
     case .shortcut, .collections: return 15 * 60
     case .folder, .allBookmarks: return 10 * 60
     }

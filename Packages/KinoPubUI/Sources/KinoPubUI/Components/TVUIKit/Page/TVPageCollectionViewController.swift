@@ -390,6 +390,7 @@ public final class TVPageCollectionViewController: UIViewController {
       let kind = isStripPoster ? TVPageCellKind.poster : section.kind
       let caption = isStripPoster ? TVPageCaption.never : section.caption
       let recipe = TVPageCellMetrics.recipe(kind: kind, itemWidth: width, caption: caption)
+      cell.kind = kind
       switch self.itemsByID[id] {
       case .card(let card)?:
         cell.configure(card: card, recipe: recipe, caption: caption, showsRating: section.showsRating)
@@ -593,6 +594,40 @@ public final class TVPageCollectionViewController: UIViewController {
   public func apply(sections newSections: [TVPageSection], status: TVPageStatus, animated: Bool) {
     givenSections = newSections
     applyGivenSections(status: status, animated: animated)
+    if startsAtTop {
+      startsAtTop = false
+      resetToTop()
+    }
+  }
+
+  /// What the page is showing. A new identity is another list in the same collection — the
+  /// Library's sidebar switching sections — and it starts at its own top: scrolled up, and
+  /// focus coming in lands on its first card. Without it the collection kept the offset and
+  /// the remembered index path of the list it showed before: switching from a History
+  /// scrolled far down opened the folder just as far down, where the end of its first page
+  /// was on screen, so it paged in, and in again (Sasha, 2026-10-17). `nil` keeps today's
+  /// behaviour for pages that never swap their list.
+  public var contentIdentity: String? {
+    didSet {
+      guard contentIdentity != oldValue, oldValue != nil else { return }
+      startsAtTop = true
+    }
+  }
+
+  private var startsAtTop = false
+
+  private func resetToTop() {
+    guard isViewLoaded else { return }
+    nearEndReported = [:]
+    // Another list: nothing of the last one is coming back.
+    handoffPath = nil
+    lastFocusedPath = nil
+    collectionView.setContentOffset(CGPoint(x: 0, y: -collectionView.adjustedContentInset.top), animated: false)
+    guard !ownsFocus else { return }
+    // One-shot, the Menu-to-top mechanism: the next focus into the collection asks
+    // `indexPathForPreferredFocusedView`, which answers the top row, and memory resumes.
+    wantsTopFocus = true
+    collectionView.remembersLastFocusedIndexPath = false
   }
 
   /// How tall the sections are at `width` — what an embedded page tells its host. The
@@ -631,6 +666,7 @@ public final class TVPageCollectionViewController: UIViewController {
           if let previous = itemsByID[id], previous != item { changed.append(id) }
         }
       }
+      let handoff = focusHandoff(to: newSections)
       let layoutAffecting = newSections.map(Self.layoutSignature) != sections.map(Self.layoutSignature)
       // A snapshot reconfigures items, never a section's header: a section that kept its
       // id but changed its title or count («0 unwatched episodes» while it was empty)
@@ -653,6 +689,7 @@ public final class TVPageCollectionViewController: UIViewController {
       }
       applySnapshot(animated: animated)
       reconfigureHeaders(headersChanged)
+      if let handoff { handFocus(to: handoff, now: ownsFocus) }
     }
     if status != self.status || sectionsChanged {
       self.status = status
@@ -695,6 +732,59 @@ public final class TVPageCollectionViewController: UIViewController {
       self.didPlacePosterFocus = true
       self.collectionView.remembersLastFocusedIndexPath = self.remembersFocus
     }
+  }
+
+  /// Where focus goes when the card holding it leaves the list under it — a series whose
+  /// last new episode was just watched leaves Subscriptions as the Library comes back from
+  /// the player (Sasha, 2026-10-17). The card that took its place: the next one, or the
+  /// last when it was the last; the top of the page when its section is gone.
+  private enum FocusHandoff {
+    case item(IndexPath)
+    case top
+  }
+
+  ///
+  /// With focus elsewhere — the page under a pushed title or the player, or the remote in the
+  /// sidebar — the card is the one focus comes back to, so the answer waits for that return.
+  private func focusHandoff(to newSections: [TVPageSection]) -> FocusHandoff? {
+    guard isViewLoaded, let path = ownsFocus ? focusedPath : lastFocusedPath,
+          sections.indices.contains(path.section),
+          sections[path.section].items.indices.contains(path.item) else { return nil }
+    let old = sections[path.section]
+    let focusedID = old.itemID(at: path.item)
+    let stillThere = newSections.contains { section in
+      section.items.indices.contains { section.itemID(at: $0) == focusedID }
+    }
+    guard !stillThere else { return nil }
+    guard let index = newSections.firstIndex(where: { $0.id == old.id }) else { return .top }
+    let real = newSections[index].items.indices.filter { item in
+      if case .placeholder = newSections[index].items[item] { return false }
+      return true
+    }
+    guard let last = real.last else { return .top }
+    return .item(IndexPath(item: real.first { $0 >= path.item } ?? last, section: index))
+  }
+
+  /// The cell the engine last reported inside the collection; unlike `focusedPath` it
+  /// survives focus leaving, so a change made meanwhile knows what focus will come back to.
+  private var lastFocusedPath: IndexPath?
+
+  /// One-shot, as `wantsTopFocus`: the next focus update asks
+  /// `indexPathForPreferredFocusedView`, which answers this, and memory resumes.
+  private var handoffPath: IndexPath?
+
+  private func handFocus(to handoff: FocusHandoff, now: Bool) {
+    switch handoff {
+    case .item(let path): handoffPath = path
+    case .top: handoffPath = topIndexPath
+    }
+    guard handoffPath != nil else { return }
+    collectionView.remembersLastFocusedIndexPath = false
+    lastFocusedPath = handoffPath
+    guard now else { return }
+    setNeedsFocusUpdate()
+    collectionView.setNeedsFocusUpdate()
+    collectionView.updateFocusIfNeeded()
   }
 
   private var pendingReconfigure: [TVPageItemID] = []
@@ -1037,6 +1127,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   }
 
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+    if let handoffPath { return handoffPath }
     if wantsTopFocus { return topIndexPath }
     if prefersFirstPosterFocus { return firstPosterIndexPath }
     // Centred paging only, and only once: answering the middle on every move pins
@@ -1055,10 +1146,15 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     let previousSection = context.previouslyFocusedIndexPath?.section
     let resolved = resolveFocusedPath(from: context)
     focusedPath = resolved
+    if let resolved { lastFocusedPath = resolved }
     let nextSection = resolved?.section ?? context.nextFocusedIndexPath?.section
     focusedSectionIndex = nextSection
     if wantsTopFocus, context.nextFocusedView != nil {
       wantsTopFocus = false
+      collectionView.remembersLastFocusedIndexPath = remembersFocus
+    }
+    if handoffPath != nil, context.nextFocusedView != nil {
+      handoffPath = nil
       collectionView.remembersLastFocusedIndexPath = remembersFocus
     }
     publishBelowTopIfNeeded()
