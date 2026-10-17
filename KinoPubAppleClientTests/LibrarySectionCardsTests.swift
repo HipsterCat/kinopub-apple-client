@@ -175,8 +175,8 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertEqual(card.landscapeImageURL, "https://x/item/wide/1.jpg")
   }
 
-  /// Continue is the unfinished series kino.pub lists, less the followed ones —
-  /// Subscriptions shows those.
+  /// Continue is the unfinished films, then the unfinished series kino.pub lists less the
+  /// followed ones — Subscriptions shows those.
   @MainActor
   func testContinueLeavesOutSubscriptions() async throws {
     let service = VideoContentServiceMock(watchingSerials: { subscribedOnly in
@@ -184,6 +184,9 @@ final class LibrarySectionCardsTests: XCTestCase {
       let followed = WatchingItem(id: 1, type: "serial", title: "A", posters: posters, total: 5, watched: 1)
       let other = WatchingItem(id: 2, type: "serial", title: "B", posters: posters, total: 5, watched: 0)
       return subscribedOnly ? [followed] : [followed, other]
+    }, watchingMovies: {
+      [WatchingItem(id: 3, type: "movie", title: "Тихая жизнь / Quiet Life",
+                    posters: Posters(small: "", medium: "", big: "", wide: "https://x/item/wide/3.jpg"))]
     })
     let store = ContentStore(disk: RowSnapshotStore(directory: FileManager.default.temporaryDirectory
                                .appendingPathComponent(UUID().uuidString, isDirectory: true)),
@@ -191,7 +194,7 @@ final class LibrarySectionCardsTests: XCTestCase {
     let catalog = LibrarySectionCatalog(contentService: service, authState: Self.authorized(),
                                         errorHandler: ErrorHandler(), store: store)
     await catalog.activate(.unwatched)
-    XCTAssertEqual(catalog.cards.map(\.id), [2])
+    XCTAssertEqual(catalog.cards.map(\.id), [3, 2])
     XCTAssertEqual(catalog.cards.first?.primaryAction, .play)
     XCTAssertEqual(catalog.cards.first?.isLandscape, true)
   }

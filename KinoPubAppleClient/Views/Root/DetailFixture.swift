@@ -568,7 +568,7 @@ enum LibraryFixture {
     var context = base
     context.contentService = VideoContentServiceMock(watchingSerials: { subscribedOnly in
       subscribedOnly ? subscriptions : unfinished
-    }, bookmarks: { folders }, bookmarkItems: { folderItems(id: $0, page: $1) },
+    }, watchingMovies: { films }, bookmarks: { folders }, bookmarkItems: { folderItems(id: $0, page: $1) },
        history: { history(page: $0) })
     context.actionsService = UserActionsServiceMock()
     return context
@@ -610,6 +610,14 @@ enum LibraryFixture {
                    total: row.total, watched: row.watched, new: row.total - row.watched)
     }
     return subscriptions.filter { ($0.unwatchedCount ?? 0) > 0 } + unfollowed
+  }
+
+  /// Unfinished films (`/v1/watching/movies`), as Continue lists them first.
+  static var films: [WatchingItem] {
+    ["Тихая жизнь / Quiet Life", "Животные / Animals"].enumerated().map { index, title in
+      WatchingItem(id: 9_908_000 + index, type: "movie", title: title,
+                   posters: posters(seed: index + 90, label: title))
+    }
   }
 
   /// Bookmark folders: a short name, and one too long for the sidebar to hug.

@@ -4,7 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
-        "Медиатека: «Продолжить» — недосмотренные сериалы, кроме тех, что в Подписках: широкие кадры, сразу играют; заголовок «14 недосмотрено». Фильмов там больше нет.",
+        "Медиатека: «Продолжить» — недосмотренные фильмы и сериалы, кроме тех, что в Подписках: широкие кадры, сразу играют; заголовок «14 недосмотрено».",
         "Медиатека: сайдбар по ширине названий, ничего не обрезается; длинное название папки бежит строкой, когда на нём фокус, как и подпись под обложкой. От сайдбара до сетки и от сетки до края — одинаковый отступ.",
         "Медиатека: другой раздел открывается с начала, без прокрутки вниз и бесконечной подгрузки; у Истории между рядами кадров меньше пустоты; обложки при первом открытии не вылезают на подпись.",
         "Медиатека: если сериал пропал из Подписок после просмотра, фокус переходит на следующий.",
@@ -39,7 +39,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
-        "Library: Continue is the unfinished series not in Subscriptions, as wide stills that play at once; the header reads “14 unfinished”. No films there any more.",
+        "Library: Continue is the unfinished films and the unfinished series not in Subscriptions, as wide stills that play at once; the header reads “14 unfinished”.",
         "Library: the sidebar is as wide as its names, nothing cut off; a long folder name scrolls while focused, as a cover's title does. The same gap from the sidebar to the grid as from the grid to the screen edge.",
         "Library: another section opens at its top, with no scrolling down or endless loading; History's rows of stills have less empty space; covers no longer spill over their caption on first open.",
         "Library: when a series leaves Subscriptions after you watch it, focus moves to the next one.",

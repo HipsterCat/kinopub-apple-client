@@ -408,22 +408,25 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     }
   }
 
-  /// Continue: kino.pub's unfinished series (`/v1/watching/serials?subscribed=0`) that are
-  /// not in Subscriptions — those have their own section (Sasha, 2026-10-17). No films.
+  /// Continue: kino.pub's unfinished films (`/v1/watching/movies`, the reference client's
+  /// «Недосмотренные › Фильмы») and unfinished series (`/v1/watching/serials?subscribed=0`)
+  /// that are not in Subscriptions — those have their own section (Sasha, 2026-10-17).
   /// 16:9 title artwork (not the episode still), Select plays, subtitle is time remaining.
   private nonisolated static func continueCards(using service: VideoContentService) async throws -> [MediaCard] {
+    async let moviesTask = service.fetchWatchingMovies()
     async let unfinishedTask = service.fetchWatchingSerials(subscribedOnly: false)
     async let followedTask = service.fetchWatchingSerials(subscribedOnly: true)
     async let historyTask = service.fetchHistory(page: nil, perPage: historyPerPage)
-    let unfinished = try await unfinishedTask.items
+    let movies = try await moviesTask.items
+    let unfinished = (try? await unfinishedTask)?.items ?? []
     let followed = Set(((try? await followedTask)?.items ?? []).map(\.id))
     let history = (try? await historyTask)?.history ?? []
     let newest = newestHistory(history)
     var seen = Set<Int>()
     // History carries duration / position. Local resume is not Sendable across this
     // fetch; the player still opens at the stored point.
-    return unfinished
-      .filter { !followed.contains($0.id) && seen.insert($0.id).inserted }
+    return (movies + unfinished.filter { !followed.contains($0.id) })
+      .filter { seen.insert($0.id).inserted }
       .map { continueCard(for: $0, history: newest[$0.id]) }
   }
 

@@ -354,9 +354,9 @@ pushes to the grid.
       `TVPageCollectionViewController` now re-configures a visible header whose title, count or
       actions changed. Live: «155 unwatched episodes»
 
-- [x] Library pass from Sasha's Asana list (2026-10-17): Continue is the unfinished series
-      not in Subscriptions (`subscribed=0` minus `subscribed=1`, wide stills that play,
-      «N недосмотрено»); still grids lose the
+- [x] Library pass from Sasha's Asana list (2026-10-17): Continue is the unfinished films
+      and series not in Subscriptions (`watching/movies` + `subscribed=0` minus
+      `subscribed=1`, wide stills that play, «N недосмотрено»); still grids lose the
       doubled caption gap; the sidebar hugs its rows as its own cells lay them out (≤ ¼ of
       the screen) with the side inset on both sides of the grid; system marquee in the
       sidebar and a trailing fade + marquee on covers instead of «…»; covers re-measure when

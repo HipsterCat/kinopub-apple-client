@@ -88,6 +88,8 @@ struct VideoContentServiceMock: VideoContentService {
   /// Subscriptions (`true`) and Continue (`false`). The DEBUG library fixture
   /// (`LibraryFixture`) serves its series through this.
   var watchingSerials: (@Sendable (_ subscribedOnly: Bool) -> [WatchingItem])? = nil
+  /// What `fetchWatchingMovies` answers with — the Library fixture's unfinished films.
+  var watchingMovies: (@Sendable () -> [WatchingItem])? = nil
   /// What `fetchBookmarks` answers with — the Library fixture's folders.
   var bookmarks: (@Sendable () -> [Bookmark])? = nil
   /// What `fetchBookmarkItems` answers with, by folder id and page.
@@ -141,7 +143,7 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchWatchingMovies() async throws -> ArrayData<WatchingItem> {
-    return ArrayData.mock(data: [])
+    return ArrayData.mock(data: watchingMovies?() ?? [])
   }
 
   func fetchWatchingSerials(subscribedOnly: Bool) async throws -> ArrayData<WatchingItem> {

@@ -61,8 +61,8 @@ public struct UnwatchedEpisodesCountText: Hashable, Sendable {
   }
 }
 
-/// **How many series are left unfinished, as a Library header** — «14 недосмотрено»,
-/// «14 unfinished». The Library's Continue: `/v1/watching/serials?subscribed=0`.
+/// **How many titles are left unfinished, as a Library header** — «14 недосмотрено»,
+/// «14 unfinished». The Library's Continue.
 public struct UnfinishedCountText: Hashable, Sendable {
   public let count: Int
 

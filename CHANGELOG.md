@@ -7,9 +7,10 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ### Library pass from the Asana list (2026-10-17)
 
-- **Continue** is `/v1/watching/serials?subscribed=0` less the `subscribed=1` ids — those
+- **Continue** is `/v1/watching/movies` (the reference client's «Недосмотренные ›
+  Фильмы») then `/v1/watching/serials?subscribed=0` less the `subscribed=1` ids — those
   live in Subscriptions (Sasha). Still wide title art that plays on Select, time left from
-  history (`continueCard`); films dropped; header `UnfinishedCountText` («14 недосмотрено»).
+  history (`continueCard`); started-only filter on series dropped; header `UnfinishedCountText` («14 недосмотрено»).
   `RowKey.watchingMovies` became `.unfinishedSerials` — the disk snapshot file fails to
   decode once after the upgrade and is rebuilt.
 - **Still grids** counted the caption line twice (in `belowItem` and on top of

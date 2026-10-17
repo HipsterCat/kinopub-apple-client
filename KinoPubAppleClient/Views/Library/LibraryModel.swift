@@ -86,7 +86,7 @@ final class LibraryModel: ObservableObject {
   }
 
   /// The header's count: unwatched episodes on Following, the folder's own number,
-  /// how many series are unfinished on Continue, otherwise how many cards are on screen.
+  /// how many titles are unfinished on Continue, otherwise how many cards are on screen.
   func headerCount(for section: LibrarySection, cards: [MediaCard]) -> String? {
     switch section {
     case .watchlist:
