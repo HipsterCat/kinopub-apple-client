@@ -88,6 +88,8 @@ struct VideoContentServiceMock: VideoContentService {
   /// Subscriptions (`true`) and Continue (`false`). The DEBUG library fixture
   /// (`LibraryFixture`) serves its series through this.
   var watchingSerials: (@Sendable (_ subscribedOnly: Bool) -> [WatchingItem])? = nil
+  /// What `fetchBookmarks` answers with — the Library fixture's folders.
+  var bookmarks: (@Sendable () -> [Bookmark])? = nil
   /// What `fetchHistory` answers with on its first page — the Library fixture's History.
   var history: (@Sendable () -> [HistoryEntry])? = nil
 
@@ -129,7 +131,7 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchBookmarks() async throws -> ArrayData<Bookmark> {
-    return ArrayData.mock(data: [])
+    return ArrayData.mock(data: bookmarks?() ?? [])
   }
   
   func fetchBookmarkItems(id: String, page: Int?) async throws -> BookmarkFolderItemsData {

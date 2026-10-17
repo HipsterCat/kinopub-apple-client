@@ -567,7 +567,7 @@ enum LibraryFixture {
     var context = base
     context.contentService = VideoContentServiceMock(watchingSerials: { subscribedOnly in
       subscribedOnly ? subscriptions : unfinished
-    }, history: { history })
+    }, bookmarks: { folders }, history: { history })
     context.actionsService = UserActionsServiceMock()
     return context
   }
@@ -603,6 +603,16 @@ enum LibraryFixture {
                    total: row.total, watched: row.watched, new: row.total - row.watched)
     }
     return subscriptions.filter { ($0.unwatchedCount ?? 0) > 0 } + unfollowed
+  }
+
+  /// Bookmark folders: a short name, and one too long for the sidebar to hug.
+  static var folders: [Bookmark] {
+    let now = Int(Date().timeIntervalSince1970)
+    return [
+      Bookmark(id: 9_906_001, title: "Вечером", views: 0, count: "4", created: now, updated: now),
+      Bookmark(id: 9_906_002, title: "Посмотреть с друзьями на выходных когда-нибудь", views: 0,
+               count: "12", created: now, updated: now - 60)
+    ]
   }
 
   /// History: an episode of each followed series, played a day apart — a grid of wide

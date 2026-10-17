@@ -33,7 +33,7 @@ struct LibraryShellView: View {
   @AppStorage(HistorySectioning.storageKey) private var historySectioning: String = HistorySectioning.day.rawValue
 #if os(tvOS)
   @FocusState private var sidebarFocused: Bool
-  @State private var sidebarWidth: CGFloat = 280
+  @State private var sidebarLayout = LibrarySidebarLayout()
 #endif
 
   /// Library History is by day (Sasha, 2026-10-10) — Сегодня / Вчера / the date.
@@ -155,18 +155,19 @@ struct LibraryShellView: View {
 
 #if os(tvOS)
   private var libraryColumns: some View {
-    GeometryReader { geo in
-      let gap = geo.safeAreaInsets.leading > 0 ? geo.safeAreaInsets.leading : TVHIGGrid.sideInset
-      HStack(alignment: .top, spacing: gap) {
+    // The grid keeps its own side inset on both edges, so from the sidebar's rows to the
+    // first column is that one inset, as from the last column to the screen's edge. The
+    // sidebar's trailing margin is only the room its focused row grows into, so the
+    // columns overlap by it.
+    HStack(alignment: .top, spacing: -sidebarLayout.focusRoom) {
         sidebar
         detail
           .frame(maxWidth: .infinity, maxHeight: .infinity)
           .focusSection()
           .onExitCommand { sidebarFocused = true }
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .ignoresSafeArea(.container, edges: [.horizontal])
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .ignoresSafeArea(.container, edges: [.horizontal])
   }
 #else
   private var libraryColumns: some View {
@@ -234,7 +235,7 @@ struct LibraryShellView: View {
 #if os(tvOS)
   /// One flat table. Fixed sections and bookmark folders are rows of that single
   /// section — a second section would put a header between them. Width hugs the
-  /// longest label plus the icon slot.
+  /// widest row as the table draws it, up to a share of the screen.
   private var sidebar: some View {
     LibrarySidebar(
       rows: model.sections.map { section in
@@ -243,7 +244,7 @@ struct LibraryShellView: View {
                           systemImage: section.systemImage)
       },
       selection: model.selection,
-      width: $sidebarWidth,
+      layout: $sidebarLayout,
       onSelect: { section in
         guard model.selection != section else { return }
         model.select(section)
@@ -251,7 +252,7 @@ struct LibraryShellView: View {
       onRename: { model.promptRenameFolder(id: $0) },
       onDelete: { model.promptDeleteFolder(id: $0) }
     )
-    .frame(width: sidebarWidth)
+    .frame(width: sidebarLayout.width)
     .frame(maxHeight: .infinity)
     .focusSection()
     .focused($sidebarFocused)
@@ -462,6 +463,13 @@ struct LibraryShellView: View {
 }
 
 #if os(tvOS)
+/// What the sidebar tells the columns beside it: how wide it is, and how much of that is
+/// the trailing margin a focused row grows into rather than rows.
+struct LibrarySidebarLayout: Equatable {
+  var width: CGFloat = 280
+  var focusRoom: CGFloat = 0
+}
+
 private struct LibrarySidebarRow: Equatable {
   let section: LibrarySection
   let title: String
@@ -471,7 +479,7 @@ private struct LibrarySidebarRow: Equatable {
 private struct LibrarySidebar: UIViewControllerRepresentable {
   let rows: [LibrarySidebarRow]
   let selection: LibrarySection
-  @Binding var width: CGFloat
+  @Binding var layout: LibrarySidebarLayout
   let onSelect: (LibrarySection) -> Void
   let onRename: (Int) -> Void
   let onDelete: (Int) -> Void
@@ -484,8 +492,10 @@ private struct LibrarySidebar: UIViewControllerRepresentable {
     controller.onSelect = onSelect
     controller.onRename = onRename
     controller.onDelete = onDelete
-    controller.onWidthChange = { newWidth in
-      if abs(width - newWidth) > 0.5 { width = newWidth }
+    controller.onLayoutChange = { newLayout in
+      if abs(layout.width - newLayout.width) > 0.5 || abs(layout.focusRoom - newLayout.focusRoom) > 0.5 {
+        layout = newLayout
+      }
     }
     controller.setRows(rows, selection: selection)
   }
@@ -498,7 +508,7 @@ private final class LibrarySidebarController: UITableViewController {
   var onSelect: (LibrarySection) -> Void = { _ in }
   var onRename: (Int) -> Void = { _ in }
   var onDelete: (Int) -> Void = { _ in }
-  var onWidthChange: (CGFloat) -> Void = { _ in }
+  var onLayoutChange: (LibrarySidebarLayout) -> Void = { _ in }
   private var rows: [LibrarySidebarRow] = []
   private var selection: LibrarySection?
   /// Until the table has actually held focus, the preferred row is the selected one
@@ -507,9 +517,10 @@ private final class LibrarySidebarController: UITableViewController {
   private var hasFocusedOnce = false
 
   private static let iconSlot: CGFloat = 44
-  private static let horizontalInset: CGFloat = 48
   private static let minWidth: CGFloat = 220
-  private static let maxWidth: CGFloat = 520
+  /// Past this share of the screen a row stops widening the sidebar and its title
+  /// scrolls while focused instead.
+  private static let maxScreenShare: CGFloat = 0.25
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -517,7 +528,10 @@ private final class LibrarySidebarController: UITableViewController {
     // which is why the sidebar opened with nothing selected.
     clearsSelectionOnViewWillAppear = false
     tableView.remembersLastFocusedIndexPath = true
-    tableView.register(UITableViewCell.self, forCellReuseIdentifier: UITableViewCell.reuseIdentifier)
+    // The rows start on the side inset, as the grid's columns end on it. Left to
+    // itself the table adds its own minimum margin on top of the safe area.
+    tableView.insetsLayoutMarginsFromSafeArea = false
+    tableView.register(LibrarySidebarCell.self, forCellReuseIdentifier: LibrarySidebarCell.reuseIdentifier)
     tableView.reloadData()
     applySelection()
     publishWidth()
@@ -551,13 +565,42 @@ private final class LibrarySidebarController: UITableViewController {
     tableView.selectRow(at: indexPath, animated: false, scrollPosition: .none)
   }
 
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    publishWidth()
+  }
+
+  /// The table's margins and the widest row as a cell of this table lays it out — the
+  /// font, the icon slot and the padding are the system's, so they are measured, not
+  /// added up from numbers of ours.
   private func publishWidth() {
-    let font = UIFont.preferredFont(forTextStyle: .headline)
-    let longest = rows.map { row -> CGFloat in
-      (row.title as NSString).size(withAttributes: [.font: font]).width
+    let room = systemMinimumLayoutMargins.trailing
+    let leading = max(view.safeAreaInsets.left, TVHIGGrid.sideInset)
+    tableView.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: leading,
+                                                                 bottom: 0, trailing: room)
+    let sizing = LibrarySidebarCell(style: .default, reuseIdentifier: nil)
+    let widest = rows.map { row -> CGFloat in
+      sizing.contentConfiguration = Self.content(for: row, in: sizing)
+      return sizing.contentView.systemLayoutSizeFitting(
+        CGSize(width: UIView.layoutFittingCompressedSize.width, height: UIView.layoutFittingCompressedSize.height),
+        withHorizontalFittingPriority: .fittingSizeLevel,
+        verticalFittingPriority: .fittingSizeLevel
+      ).width
     }.max() ?? 0
-    let width = min(max(ceil(Self.iconSlot + 12 + longest + Self.horizontalInset), Self.minWidth), Self.maxWidth)
-    onWidthChange(width)
+    let screen = view.window?.screen.bounds.width ?? 1920
+    let width = min(max(ceil(leading + widest + room), Self.minWidth), (screen * Self.maxScreenShare).rounded())
+    onLayoutChange(LibrarySidebarLayout(width: width, focusRoom: room))
+  }
+
+  private static func content(for row: LibrarySidebarRow, in cell: UITableViewCell) -> UIListContentConfiguration {
+    var content = cell.defaultContentConfiguration()
+    content.text = row.title
+    // One line: the marquee runs on single-line labels only.
+    content.textProperties.numberOfLines = 1
+    content.image = row.systemImage.flatMap { UIImage(systemName: $0) }
+    content.imageProperties.reservedLayoutSize = CGSize(width: iconSlot, height: iconSlot)
+    content.imageProperties.maximumSize = CGSize(width: 28, height: 28)
+    return content
   }
 
   override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -565,14 +608,9 @@ private final class LibrarySidebarController: UITableViewController {
   }
 
   override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-    let cell = tableView.dequeueReusableCell(withIdentifier: UITableViewCell.reuseIdentifier, for: indexPath)
+    let cell = tableView.dequeueReusableCell(withIdentifier: LibrarySidebarCell.reuseIdentifier, for: indexPath)
     let row = rows[indexPath.row]
-    var content = cell.defaultContentConfiguration()
-    content.text = row.title
-    content.image = row.systemImage.flatMap { UIImage(systemName: $0) }
-    content.imageProperties.reservedLayoutSize = CGSize(width: Self.iconSlot, height: Self.iconSlot)
-    content.imageProperties.maximumSize = CGSize(width: 28, height: 28)
-    cell.contentConfiguration = content
+    cell.contentConfiguration = Self.content(for: row, in: cell)
     cell.accessibilityIdentifier = "kinopub.library.section.\(row.section.persistenceID)"
     return cell
   }
@@ -613,6 +651,32 @@ private final class LibrarySidebarController: UITableViewController {
       tableView.selectRow(at: indexPath, animated: false, scrollPosition: .none)
     }
     onSelect(section)
+  }
+}
+
+/// The system cell, with the system's marquee on its title: a folder named wider than the
+/// sidebar ends in an ellipsis at rest and scrolls while its row is focused, as tvOS's own
+/// lists do. `UIListContentConfiguration` has no switch for it, so it is set on the label
+/// the configuration draws into.
+private final class LibrarySidebarCell: UITableViewCell {
+  override func updateConfiguration(using state: UICellConfigurationState) {
+    super.updateConfiguration(using: state)
+    enableMarquee(in: contentView)
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    enableMarquee(in: contentView)
+  }
+
+  private func enableMarquee(in view: UIView) {
+    for subview in view.subviews {
+      if let label = subview as? UILabel {
+        if !label.enablesMarqueeWhenAncestorFocused { label.enablesMarqueeWhenAncestorFocused = true }
+      } else {
+        enableMarquee(in: subview)
+      }
+    }
   }
 }
 
