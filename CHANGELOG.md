@@ -5,6 +5,42 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Library pass from the Asana list (2026-10-17)
+
+- **Continue** is `/v1/watching/serials?subscribed=0` drawn as Subscriptions draws covers
+  (`LibrarySectionCatalog.seriesCard`), header `UnfinishedCountText` («14 недосмотрено»).
+  The endpoint also lists followed series (8 of 50 on Sasha's account); kept as the API
+  answers until Sasha says otherwise. `RowKey.watchingMovies` became `.unfinishedSerials`
+  — the disk snapshot file fails to decode once after the upgrade and is rebuilt.
+- **Still grids** counted the caption line twice (in `belowItem` and on top of
+  `gridRowSpacing`, and once more in the section bottom): 160 pt art to art, 112 empty.
+  Now the line plus `captionedRowGap`.
+- **Sidebar width** measured labels in `.headline` 38 pt by hand and missed the cell's own
+  margins and padding; it now lays a sizing `LibrarySidebarCell` out (≤ 25 % of the
+  screen). Rows start on the side inset (`insetsLayoutMarginsFromSafeArea = false`); the
+  trailing `systemMinimumLayoutMargins` (16) is the focused row's growth room, so the grid
+  overlaps it and its own side inset is the gap. The system marquee
+  (`enablesMarqueeWhenAncestorFocused`) did nothing until `textProperties.numberOfLines = 1`
+  — `UIListContentConfiguration` defaults to 0. Cover captions now fade at the trailing
+  edge at rest like that label, not an ellipsis (`TVPageMarqueeLine`).
+- **Cover over its caption on first open**: the sidebar's width settles after the grid's
+  first pass, columns change, and a configured `TVPageLockupPosterCell` kept its recipe.
+  It re-measures in `apply(_:)` when the layout gives it another width.
+- **Section switch** kept the old list's offset and remembered index path, so a folder
+  opened as deep as History was scrolled and kept paging. `TVPage(contentID:)` resets to
+  the top and focuses the first card on entry. History's per-day sections each asked for
+  the next page at their end; only `loadsMore` sections ask now.
+- **Focus handoff**: a focused card that leaves the list hands focus to the one now in its
+  place (`TVPageCollectionViewController.focusHandoff`), at once or on focus's return. In
+  the plain fixture case UIKit already did that; the real path (back from the player
+  through a pop) was not reproducible without a session.
+- **"Every card focused at once"** was not reproduced: `_UIStackedImageContainerView`
+  `stackFocused` read 0 or 1 on every step of sidebar / grid / tab-bar walks on 26.5 and
+  27.2 (Library fixture, in tabs too).
+- Library fixture: folders (one long name, one paged 70 titles, last page repeated past the
+  end as kino.pub does), paged History, `-KINOPUBFixtureInTabs`, and
+  `-KINOPUBFixtureWatchOutAfter <s>`; a fresh store every launch.
+
 ### What's New at launch, About with history and licences (2026-10-16)
 
 The launch sheet never appeared: it keyed on the marketing version, which is "1.0" for

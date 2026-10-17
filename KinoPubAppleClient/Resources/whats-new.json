@@ -4,6 +4,10 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Медиатека: «Продолжить» — недосмотренные сериалы обложками, с числом оставшихся серий; заголовок «14 недосмотрено». Фильмов и кадров там больше нет.",
+        "Медиатека: сайдбар по ширине названий, ничего не обрезается; длинное название папки бежит строкой, когда на нём фокус, как и подпись под обложкой. От сайдбара до сетки и от сетки до края — одинаковый отступ.",
+        "Медиатека: другой раздел открывается с начала, без прокрутки вниз и бесконечной подгрузки; у Истории между рядами кадров меньше пустоты; обложки при первом открытии не вылезают на подпись.",
+        "Медиатека: если сериал пропал из Подписок после просмотра, фокус переходит на следующий.",
         "«Что нового» показывается один раз после обновления. В «О приложении» — версия, вся история изменений и лицензии, во всплывающем окне; текст под логотипом в Настройках больше не мелкий.",
         "В сетках год стоит перед жанром: «2024 Драма», у завершённого сериала «2019–2024 Драма».",
         "Поиск обновляется тихо, когда возвращаешься на вкладку: список не сбрасывается.",
@@ -35,6 +39,10 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Library: Continue is the unfinished series as covers, with the episodes left under each; the header reads “14 unfinished”. No films or stills there any more.",
+        "Library: the sidebar is as wide as its names, nothing cut off; a long folder name scrolls while focused, as a cover's title does. The same gap from the sidebar to the grid as from the grid to the screen edge.",
+        "Library: another section opens at its top, with no scrolling down or endless loading; History's rows of stills have less empty space; covers no longer spill over their caption on first open.",
+        "Library: when a series leaves Subscriptions after you watch it, focus moves to the next one.",
         "What's New appears once after an update. About has the version, the full history and licenses in a popup; the text under the logo in Settings is no longer tiny.",
         "Grid posters put the year before the genre: “2024 Drama”, or “2019–2024 Drama” for a finished series.",
         "Search refreshes quietly when you return to the tab: the list is not cleared.",
