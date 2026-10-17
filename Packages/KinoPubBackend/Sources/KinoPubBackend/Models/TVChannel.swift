@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct TVChannel: Decodable, Identifiable, Hashable {
+public struct TVChannel: Decodable, Identifiable, Hashable, Sendable {
   public let id: Int
   public let title: String
   public let name: String?

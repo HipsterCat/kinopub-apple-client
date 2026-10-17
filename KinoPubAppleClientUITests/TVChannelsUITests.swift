@@ -44,6 +44,11 @@ final class TVChannelsUITests: XCTestCase {
     try enterGrid()
     try shoot("1-first")
     XCTAssertEqual(focusedLabel, firstChannel, "Down from the tab bar: \(focusedDescription)")
+    // The fixture's guide has every other channel on air: a second line under those only.
+    // The system draws a media item's secondary text over the art of the focused tile.
+    XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@",
+                                                       "Программа на \(firstChannel)")).firstMatch.exists,
+                  "no programme on the first channel")
 
     for step in 1..<columns {
       try press(.right, expectingMove: true, note: "right \(step)")

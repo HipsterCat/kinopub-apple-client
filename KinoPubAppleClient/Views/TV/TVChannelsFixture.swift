@@ -23,6 +23,20 @@ enum TVChannelsFixture {
     return context
   }
 
+  /// A guide for every other channel: an hour-long programme on air now, so the grid shows
+  /// tiles with a second line and tiles without, as the real guide leaves some channels out.
+  static let guide = EPGServiceMock { channels in
+    let now = Date()
+    var schedules: [Int: [EPGProgram]] = [:]
+    for (index, channel) in channels.enumerated() where index.isMultiple(of: 2) {
+      let title = index == 4 ? "Футбол. Чемпионат Италии. Серия А. Интер – Ювентус. Прямая трансляция"
+                             : "Программа на \(channel.title)"
+      schedules[channel.id] = [EPGProgram(title: title, start: now.addingTimeInterval(-1_200),
+                                          stop: now.addingTimeInterval(2_400))]
+    }
+    return schedules
+  }
+
   /// Apple's public HLS sample, for `-KINOPUBFixtureRealPlayer`: a stream anyone can open.
   static let sampleStream =
     "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8"
@@ -72,7 +86,8 @@ struct TVChannelsFixtureRoot: View {
     TabView(selection: $navigationState.selectedTab) {
       Tab(value: NavigationTabs.home) { Color.clear } label: { Text("Watch Now") }
       Tab(value: NavigationTabs.tv) {
-        TVChannelsView(model: TVChannelsModel(contentService: appContext.contentService))
+        TVChannelsView(model: TVChannelsModel(contentService: appContext.contentService,
+                                              epgService: TVChannelsFixture.guide))
       } label: { Text("TV") }
     }
     .tabViewStyle(.tabBarOnly)

@@ -224,11 +224,16 @@ public struct TVPageTile: Identifiable, Hashable {
   /// A logo drawn over the tint once it loads — a TV channel's card. Whole, never
   /// cropped: its edges are carried out to the tile (`TVUIKitTileArtwork.letterboxed`).
   public let logoURL: URL?
+  /// A second line under the name, in the still cell's secondary text — what a channel
+  /// has on air.
+  public let subtitle: String?
 
   public init(id: String, title: String, symbol: String? = nil, tint: UIColor? = nil,
-              style: TVUIKitTileArtwork.Style = .gradient, logoURL: URL? = nil) {
+              style: TVUIKitTileArtwork.Style = .gradient, logoURL: URL? = nil,
+              subtitle: String? = nil) {
     self.id = id
     self.title = title
+    self.subtitle = subtitle
     self.symbol = symbol
     self.tint = tint
     self.style = style
@@ -248,6 +253,7 @@ public extension TVUIKitMediaItem {
               symbol: tile.symbol,
               tileStyle: tile.style,
               caption: tile.title,
+              detail: tile.subtitle,
               status: .unavailable,
               artworkFit: .letterbox)
   }

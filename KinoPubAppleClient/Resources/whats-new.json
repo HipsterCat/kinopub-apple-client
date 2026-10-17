@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "ТВ: на выбранном канале видно, что сейчас в эфире.",
         "Новая вкладка «ТВ»: каналы kino.pub сеткой логотипов, Select включает эфир в плеере — без «Далее» и серий.",
         "Медиатека: «Продолжить» — недосмотренные фильмы и сериалы, кроме тех, что в Подписках: широкие кадры, сразу играют; заголовок «14 недосмотрено».",
         "Медиатека: сайдбар по ширине названий, ничего не обрезается; длинное название папки бежит строкой, когда на нём фокус, как и подпись под обложкой. От сайдбара до сетки и от сетки до края — одинаковый отступ.",
@@ -40,6 +41,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "TV: the focused channel shows what is on air now.",
         "New TV tab: kino.pub's channels as a grid of logos; Select plays the live stream in the player, with no Up Next or episodes.",
         "Library: Continue is the unfinished films and the unfinished series not in Subscriptions, as wide stills that play at once; the header reads “14 unfinished”.",
         "Library: the sidebar is as wide as its names, nothing cut off; a long folder name scrolls while focused, as a cover's title does. The same gap from the sidebar to the grid as from the grid to the screen edge.",

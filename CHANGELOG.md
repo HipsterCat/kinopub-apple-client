@@ -5,6 +5,19 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### TV tab — what's on air (2026-10-18)
+
+- **Guide**: epg.pw, one request per channel (`api/epg.json?channel_id=`, ~10 KB, two days),
+  instead of the fork's whole XMLTV feeds (5–22 MB parsed on the device). `EPGChannelTable`
+  maps kino.pub channel id → epg.pw id: 47 of 51, each checked live on 2026-10-17; the 4K Sky
+  copies share their HD schedule (one request). Not in the guide: Eleven Sports 4K, MMA-TV,
+  NBC Sports, UFC ТВ. `EPGServiceImpl` keeps each schedule 6 h in memory and Caches, falls
+  back to the stale copy on failure; epg.pw gives no end times, so a programme ends at the
+  next start. The fork's unreferenced `EPGSources.json` is gone.
+- **Tile**: the programme is the still's `secondaryText` (`TVPageTile.subtitle`); tvOS draws it
+  over the art of the *focused* tile, uppercased — not as a line under the name. A
+  `TimelineView(.everyMinute)` rolls it over when a programme ends.
+
 ### TV tab — live channels (2026-10-17)
 
 - **TV** tab on tvOS (`NavigationTabs.tv`, `TVChannelsView`): `/v1/tv` as one

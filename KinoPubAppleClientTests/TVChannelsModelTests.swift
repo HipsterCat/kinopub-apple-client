@@ -44,6 +44,25 @@ final class TVChannelsModelTests: XCTestCase {
     XCTAssertEqual(calls.value, 2)
   }
 
+  /// The guide comes after the list and fills the second line: what is on air now, nothing
+  /// for a channel the guide does not carry.
+  func testScheduleFillsNowPlaying() async {
+    let now = Date()
+    let model = TVChannelsModel(
+      contentService: VideoContentServiceMock(tvChannels: { [Self.channel(1), Self.channel(2)] }),
+      epgService: EPGServiceMock { _ in
+        [1: [EPGProgram(title: "Earlier", start: now.addingTimeInterval(-7_200), stop: now.addingTimeInterval(-600)),
+             EPGProgram(title: "Now", start: now.addingTimeInterval(-600), stop: now.addingTimeInterval(600))]]
+      })
+    await model.fetch()
+    XCTAssertEqual(model.nowPlaying(channelID: 1, at: now)?.title, "Now")
+    XCTAssertNil(model.nowPlaying(channelID: 1, at: now.addingTimeInterval(1_200)), "nothing after the schedule ends")
+    XCTAssertNil(model.nowPlaying(channelID: 2, at: now))
+#if os(tvOS)
+    XCTAssertEqual(TVChannelsView.tile(for: Self.channel(1), onAir: model.nowPlaying(channelID: 1, at: now)).subtitle, "Now")
+#endif
+  }
+
   /// Live playback reports nothing, and has no Up Next or episodes: every gate in the
   /// player reads `watchMode == .media`, so `.live` must stay a mode of its own.
   func testLiveIsNotMediaPlayback() {

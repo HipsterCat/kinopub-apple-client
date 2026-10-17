@@ -180,6 +180,15 @@
               ],
             }, {
               "kind": "group",
+              "path": "EPG",
+              "children": [
+                { "path": "EPGProgram.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "EPGService.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "EPGServiceImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "EPGChannelTable.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
               "path": "Device",
               "children": [
                 { "path": "DeviceProfileRegistry.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
@@ -530,6 +539,7 @@
       "children": [
         { "path": "TrackPreferenceStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "TVChannelsModelTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "EPGServiceTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlayerLiveModeTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "ContentStoreRecordTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LocalWatchProgressStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
