@@ -520,7 +520,6 @@ private final class LibrarySidebarController: UITableViewController {
   /// returning a path on every move would pin focus to that row.
   private var hasFocusedOnce = false
 
-  private static let iconSlot: CGFloat = 44
   private static let minWidth: CGFloat = 220
   /// Past this share of the screen a row stops widening the sidebar and its title
   /// scrolls while focused instead.
@@ -602,8 +601,12 @@ private final class LibrarySidebarController: UITableViewController {
     // One line: the marquee runs on single-line labels only.
     content.textProperties.numberOfLines = 1
     content.image = row.systemImage.flatMap { UIImage(systemName: $0) }
-    content.imageProperties.reservedLayoutSize = CGSize(width: iconSlot, height: iconSlot)
-    content.imageProperties.maximumSize = CGSize(width: 28, height: 28)
+    // The symbol follows the row's text style, one step up, so it grows with Dynamic Type.
+    // Its slot is the system's standard one, which lines its leading edge up with a folder
+    // label's (Sasha, 2026-10-17).
+    content.imageProperties.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .headline, scale: .large)
+    content.imageProperties.reservedLayoutSize = CGSize(width: UIListContentConfiguration.ImageProperties.standardDimension,
+                                                        height: UIListContentConfiguration.ImageProperties.standardDimension)
     return content
   }
 
@@ -665,6 +668,16 @@ private final class LibrarySidebarController: UITableViewController {
 private final class LibrarySidebarCell: UITableViewCell {
   override func updateConfiguration(using state: UICellConfigurationState) {
     super.updateConfiguration(using: state)
+    // The symbol is secondary at rest and takes the title's colour when the row is focused
+    // or selected — the system's colour for that state, whatever the platter behind it.
+    if var content = contentConfiguration as? UIListContentConfiguration {
+      let active = state.isFocused || state.isSelected
+      let tint = active ? content.updated(for: state).textProperties.resolvedColor() : .secondaryLabel
+      if content.imageProperties.tintColor != tint {
+        content.imageProperties.tintColor = tint
+        contentConfiguration = content
+      }
+    }
     enableMarquee(in: contentView)
   }
 
