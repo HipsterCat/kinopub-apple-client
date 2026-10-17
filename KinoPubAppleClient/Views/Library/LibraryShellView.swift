@@ -345,8 +345,10 @@ struct LibraryShellView: View {
       onChipSelection: { chip, selection in
         TVSearchFilters.applySelection(chip: chip, selection: selection, to: catalog)
       },
-      onNearEnd: { _ in
-        guard let last = catalog.cards.last else { return }
+      onNearEnd: { section in
+        // Only the end of the list: History is a section per day, and the last card of
+        // every day on screen used to ask for the next page.
+        guard section.loadsMore, let last = catalog.cards.last else { return }
         catalog.loadMoreContent(after: last)
       },
       contextMenuProvider: { card in
@@ -359,7 +361,9 @@ struct LibraryShellView: View {
       onRetry: { Task { await catalog.refresh() } },
       // First Menu from a grid row below the top returns there; at the top it
       // passes through to the sidebar (`onExitCommand` on the detail column).
-      returnsToTopOnMenu: true
+      returnsToTopOnMenu: true,
+      // Another section is another list: it opens at its top.
+      contentID: model.selection.persistenceID
     )
     .ignoresSafeArea(.container, edges: [.vertical, .trailing])
   }

@@ -33,6 +33,9 @@ public struct TVPage: View {
   /// `TVPage` list shares this. Search uses the same collection controller
   /// through `TVSearchPage`. The detail page's `TVEmbeddedPage` stays off.
   public let returnsToTopOnMenu: Bool
+  /// What the page shows; a new value starts the page at its top
+  /// (`TVPageCollectionViewController.contentIdentity`).
+  public let contentID: String?
 
   @State private var belowTop = false
   @StateObject private var bridge = TVPageMenuBackBridge()
@@ -48,7 +51,8 @@ public struct TVPage: View {
               contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               onRetry: (() -> Void)? = nil,
               prefersFirstPosterFocus: Bool = false,
-              returnsToTopOnMenu: Bool = true) {
+              returnsToTopOnMenu: Bool = true,
+              contentID: String? = nil) {
     self.sections = sections
     self.status = status
     self.sideInset = sideInset
@@ -61,6 +65,7 @@ public struct TVPage: View {
     self.onRetry = onRetry
     self.prefersFirstPosterFocus = prefersFirstPosterFocus
     self.returnsToTopOnMenu = returnsToTopOnMenu
+    self.contentID = contentID
   }
 
   public var body: some View {
@@ -80,6 +85,7 @@ public struct TVPage: View {
       onRetry: onRetry,
       prefersFirstPosterFocus: prefersFirstPosterFocus,
       returnsToTopOnMenu: returnsToTopOnMenu,
+      contentID: contentID,
       belowTop: $belowTop,
       bridge: bridge
     )
@@ -118,6 +124,7 @@ private struct TVPageRepresentable: UIViewControllerRepresentable {
   let onRetry: (() -> Void)?
   let prefersFirstPosterFocus: Bool
   let returnsToTopOnMenu: Bool
+  let contentID: String?
   @Binding var belowTop: Bool
   let bridge: TVPageMenuBackBridge
 
@@ -145,6 +152,7 @@ private struct TVPageRepresentable: UIViewControllerRepresentable {
     controller.contextMenuProvider = contextMenuProvider
     controller.onRetry = onRetry
     controller.returnsToTopOnMenu = returnsToTopOnMenu
+    controller.contentIdentity = contentID
     controller.onBelowTopRowChange = { below in
       belowTop = below
     }

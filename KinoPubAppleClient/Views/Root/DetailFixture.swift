@@ -567,7 +567,8 @@ enum LibraryFixture {
     var context = base
     context.contentService = VideoContentServiceMock(watchingSerials: { subscribedOnly in
       subscribedOnly ? subscriptions : unfinished
-    }, bookmarks: { folders }, history: { history })
+    }, bookmarks: { folders }, bookmarkItems: { folderItems(id: $0, page: $1) },
+       history: { history(page: $0) })
     context.actionsService = UserActionsServiceMock()
     return context
   }
@@ -611,21 +612,40 @@ enum LibraryFixture {
     return [
       Bookmark(id: 9_906_001, title: "Вечером", views: 0, count: "4", created: now, updated: now),
       Bookmark(id: 9_906_002, title: "Посмотреть с друзьями на выходных когда-нибудь", views: 0,
-               count: "12", created: now, updated: now - 60)
+               count: "70", created: now, updated: now - 60)
     ]
   }
 
-  /// History: an episode of each followed series, played a day apart — a grid of wide
-  /// cards with a line under each, under day headings.
-  static var history: [HistoryEntry] {
+  /// A folder's titles, twenty to a page; past the last page kino.pub answers the last page
+  /// again, so this does too.
+  static func folderItems(id: String, page: Int) -> BookmarkFolderItemsData {
+    let total = folders.first { "\($0.id)" == id }.flatMap { Int($0.count) } ?? 0
+    let perPage = 20
+    let pages = max(1, (total + perPage - 1) / perPage)
+    let current = min(page, pages)
+    let start = (current - 1) * perPage
+    let ids = start..<min(start + perPage, total)
+    return BookmarkFolderItemsData(items: ids.map { MediaItem.mock(id: 9_907_000 + (Int(id) ?? 0) % 10 * 1_000 + $0) },
+                                   pagination: Pagination(total: pages, current: current, perpage: perPage))
+  }
+
+  /// History: episodes of the followed series, a few hours apart, twenty to a page over
+  /// three pages — a grid of wide cards under day headings that keeps paging.
+  static func history(page: Int) -> HistoryData {
+    let perPage = 20, pages = 3
     let now = Int(Date().timeIntervalSince1970)
-    return subscriptions.prefix(9).enumerated().map { index, series in
-      HistoryEntry(item: .init(id: series.id, type: series.type, title: series.title, posters: series.posters),
-                   media: .init(id: 9_905_000 + index, number: index + 1, snumber: 1,
-                                duration: 50 * 60),
-                   time: Double((10 + index * 4) * 60),
-                   lastSeen: now - (index / 6) * 86_400 - index * 600)
+    let series = subscriptions
+    let entries = (0..<perPage).map { offset -> HistoryEntry in
+      let index = (page - 1) * perPage + offset
+      let show = series[index % series.count]
+      return HistoryEntry(item: .init(id: show.id, type: show.type, title: show.title, posters: show.posters),
+                          media: .init(id: 9_905_000 + index, number: index / series.count + 1, snumber: 1,
+                                       duration: 50 * 60),
+                          time: Double((10 + offset * 2) * 60),
+                          lastSeen: now - index * 4 * 3_600)
     }
+    return HistoryData.mock(data: page <= pages ? entries : [],
+                            pagination: Pagination(total: pages, current: page, perpage: perPage))
   }
 
   /// What kino.pub sends as `posters`: drawn locally, or from the CDN with `-KINOPUBFixtureRealArt`.

@@ -594,6 +594,37 @@ public final class TVPageCollectionViewController: UIViewController {
   public func apply(sections newSections: [TVPageSection], status: TVPageStatus, animated: Bool) {
     givenSections = newSections
     applyGivenSections(status: status, animated: animated)
+    if startsAtTop {
+      startsAtTop = false
+      resetToTop()
+    }
+  }
+
+  /// What the page is showing. A new identity is another list in the same collection — the
+  /// Library's sidebar switching sections — and it starts at its own top: scrolled up, and
+  /// focus coming in lands on its first card. Without it the collection kept the offset and
+  /// the remembered index path of the list it showed before: switching from a History
+  /// scrolled far down opened the folder just as far down, where the end of its first page
+  /// was on screen, so it paged in, and in again (Sasha, 2026-10-17). `nil` keeps today's
+  /// behaviour for pages that never swap their list.
+  public var contentIdentity: String? {
+    didSet {
+      guard contentIdentity != oldValue, oldValue != nil else { return }
+      startsAtTop = true
+    }
+  }
+
+  private var startsAtTop = false
+
+  private func resetToTop() {
+    guard isViewLoaded else { return }
+    nearEndReported = [:]
+    collectionView.setContentOffset(CGPoint(x: 0, y: -collectionView.adjustedContentInset.top), animated: false)
+    guard !ownsFocus else { return }
+    // One-shot, the Menu-to-top mechanism: the next focus into the collection asks
+    // `indexPathForPreferredFocusedView`, which answers the top row, and memory resumes.
+    wantsTopFocus = true
+    collectionView.remembersLastFocusedIndexPath = false
   }
 
   /// How tall the sections are at `width` — what an embedded page tells its host. The

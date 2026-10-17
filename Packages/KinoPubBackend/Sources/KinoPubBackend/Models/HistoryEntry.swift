@@ -109,7 +109,7 @@ public struct HistoryData: Codable {
   public let history: [HistoryEntry]
   public let pagination: Pagination?
 
-  public static func mock(data: [HistoryEntry]) -> HistoryData {
-    HistoryData(history: data, pagination: nil)
+  public static func mock(data: [HistoryEntry], pagination: Pagination? = nil) -> HistoryData {
+    HistoryData(history: data, pagination: pagination)
   }
 }
