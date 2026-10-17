@@ -573,6 +573,9 @@ enum LibraryFixture {
     return context
   }
 
+  /// Series watched to the end while the fixture runs (`-KINOPUBFixtureWatchOutAfter`).
+  static let caughtUp = FixtureIDs()
+
   /// Followed series: how far through, how many waiting. Two are caught up, one is a single
   /// episode behind, one has a long title.
   static var subscriptions: [WatchingItem] {
@@ -585,9 +588,11 @@ enum LibraryFixture {
       ("Звёздный путь: Странные новые миры / Strange New Worlds", 30, 20), ("Чернобыль / Chernobyl", 5, 5)
     ]
     return rows.enumerated().map { index, row in
-      WatchingItem(id: 9_903_000 + index, type: "serial", title: row.title,
-                   posters: posters(seed: index + 60, label: row.title),
-                   total: row.total, watched: row.watched, new: row.total - row.watched)
+      let id = 9_903_000 + index
+      let watched = caughtUp.contains(id) ? row.total : row.watched
+      return WatchingItem(id: id, type: "serial", title: row.title,
+                          posters: posters(seed: index + 60, label: row.title),
+                          total: row.total, watched: watched, new: row.total - watched)
     }
   }
 
@@ -663,35 +668,77 @@ enum LibraryFixture {
   }
 }
 
+/// Ids the stand-in API reads from any thread.
+final class FixtureIDs: @unchecked Sendable {
+  private let lock = NSLock()
+  private var ids = Set<Int>()
+
+  func insert(_ id: Int) { lock.withLock { _ = ids.insert(id) } }
+  func contains(_ id: Int) -> Bool { lock.withLock { ids.contains(id) } }
+}
+
 /// The real Library, signed in, on the stand-in API, with a store of its own that is never
 /// written to the app's disk cache.
 struct LibraryFixtureRoot: View {
   @Environment(ErrorHandler.self) private var errorHandler
   @Environment(\.appContext) private var appContext
-  @StateObject private var authState: AuthState = {
+
+  @MainActor private static let authState: AuthState = {
     let state = AuthState(authService: AuthorizationServiceMock(), accessTokenService: AccessTokenServiceMock())
     state.userState = .authorized
     return state
   }()
   /// A viewer, as production has: `cards(_:)` lays state over every title, and
   /// Following's episode count must survive that overlay.
-  @State private var store = ContentStore(
+  @MainActor private static let store = ContentStore(
     disk: RowSnapshotStore(directory: FileManager.default.temporaryDirectory
-      .appendingPathComponent("KinoPubLibraryFixture", isDirectory: true)),
+      // A new directory every launch: the fixture starts from what its API says, never
+      // from what a previous run cached.
+      .appendingPathComponent("KinoPubLibraryFixture-\(UUID().uuidString)", isDirectory: true)),
     viewer: ViewerStateReaderMock())
 
+  @State private var tab = 1
+  /// Owned here so the fixture can refetch it the way the Library does back from the player.
+  @StateObject private var catalog = LibrarySectionCatalog(contentService: AppContext.shared.contentService,
+                                                           authState: LibraryFixtureRoot.authState,
+                                                           errorHandler: ErrorHandler(),
+                                                           store: LibraryFixtureRoot.store)
+
   var body: some View {
+    content
+      .task {
+        guard let delay = DebugLaunch.fixtureWatchOutAfter else { return }
+        try? await Task.sleep(for: .seconds(delay))
+        // Андор: its last new episode watched, as the player reports it.
+        LibraryFixture.caughtUp.insert(9_903_002)
+        await catalog.refresh()
+      }
+  }
+
+  @ViewBuilder
+  private var content: some View {
+    if DebugLaunch.fixtureInTabs {
+      // Under the real tab bar, as in the shipped app: Up from the page reaches it, and
+      // Left / Right there switch away from the Library and back.
+      TabView(selection: $tab) {
+        Tab(value: 0) { Color.clear } label: { Text("Watch Now") }
+        Tab(value: 1) { shell } label: { Text("Library") }
+      }
+      .tabViewStyle(.tabBarOnly)
+    } else {
+      shell
+    }
+  }
+
+  private var shell: some View {
     LibraryShellView(
       model: LibraryModel(contentService: appContext.contentService,
                           actionsService: appContext.actionsService,
-                          authState: authState,
+                          authState: Self.authState,
                           errorHandler: errorHandler,
-                          store: store,
+                          store: Self.store,
                           defaults: UserDefaults(suiteName: "KinoPubLibraryFixture") ?? .standard),
-      catalog: LibrarySectionCatalog(contentService: appContext.contentService,
-                                     authState: authState,
-                                     errorHandler: errorHandler,
-                                     store: store)
+      catalog: catalog
     )
   }
 }
