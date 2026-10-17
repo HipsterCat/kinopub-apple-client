@@ -282,7 +282,8 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       "kinopoisk_rating": 6.0 + Double(seed % 5) * 0.5, "kinopoisk_votes": 1200,
       "posters": DebugLaunch.fixtureRealArt
         ? ["small", "medium", "big", "wide"].reduce(into: [String: String]()) {
-            $0[$1] = "https://m.staticpop.net/poster/item/big/\(10681 + seed).jpg"
+            // `wide` is its own picture on the CDN, as a signed-in session gets it.
+          $0[$1] = "https://m.staticpop.net/poster/item/\($1 == "wide" ? "wide" : "big")/\(10681 + seed).jpg"
           }
         : DetailFixtureArt.posters(seed: seed, label: title),
       "finished": false, "in_watchlist": false, "subscribed": false
@@ -657,7 +658,8 @@ enum LibraryFixture {
   private static func posters(seed: Int, label: String) -> Posters {
     let json: [String: Any] = DebugLaunch.fixtureRealArt
       ? ["small", "medium", "big", "wide"].reduce(into: [String: Any]()) {
-          $0[$1] = "https://m.staticpop.net/poster/item/big/\(10681 + seed).jpg"
+          // `wide` is its own picture on the CDN, as a signed-in session gets it.
+          $0[$1] = "https://m.staticpop.net/poster/item/\($1 == "wide" ? "wide" : "big")/\(10681 + seed).jpg"
         }
       : DetailFixtureArt.posters(seed: seed, label: label)
     do {
