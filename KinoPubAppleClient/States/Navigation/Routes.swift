@@ -27,6 +27,9 @@ enum Route: Hashable {
   /// same episode mints a new one (and must). See `PlaybackSession`.
   case player(any PlayableItem, token: UUID)
   case trailerPlayer(any PlayableItem, token: UUID)
+  /// A TV channel's live stream in the same system player — no resume, no Up Next, no
+  /// episodes, nothing reported to the watching history (`WatchMode.live`).
+  case livePlayer(TVChannel, token: UUID)
   /// The curated-collections browser (`GET /v1/collections`).
   case collections
   /// One collection's full item grid (`GET /v1/collections/view`).
@@ -40,7 +43,7 @@ enum Route: Hashable {
 
   var isPlayerRoute: Bool {
     switch self {
-    case .player, .trailerPlayer: true
+    case .player, .trailerPlayer, .livePlayer: true
     default: false
     }
   }
@@ -84,6 +87,10 @@ enum Route: Hashable {
       hasher.combine(8)
       hasher.combine(item.id)
       hasher.combine(token)
+    case .livePlayer(let channel, let token):
+      hasher.combine(13)
+      hasher.combine(channel.id)
+      hasher.combine(token)
     case .collections:
       hasher.combine(9)
     case .collection(let collection):
@@ -119,6 +126,8 @@ enum Route: Hashable {
     case (.player(let a, let at), .player(let b, let bt)):
       return a.id == b.id && at == bt
     case (.trailerPlayer(let a, let at), .trailerPlayer(let b, let bt)):
+      return a.id == b.id && at == bt
+    case (.livePlayer(let a, let at), .livePlayer(let b, let bt)):
       return a.id == b.id && at == bt
     case (.collections, .collections):
       return true
@@ -203,7 +212,7 @@ extension Route {
     case .detailsById(let id): .picture(Self.backdropKey(itemID: id))
     // A title's own sub-page stays on the title's picture.
     case .ratingsAndReviews(let block): .picture(Self.backdropKey(itemID: block.item.id))
-    case .player, .trailerPlayer: .passThrough
+    case .player, .trailerPlayer, .livePlayer: .passThrough
     default: .none
     }
   }

@@ -47,6 +47,43 @@ final class TVUIKitTileArtworkTests: XCTestCase {
     }
   }
 
+  /// A TV channel's 4:3 card on the 16:9 still: the picture whole and full height, its
+  /// outermost columns carried to the edges (a gradient plate stays one plate), drawn
+  /// four bytes a pixel like every other tile.
+  func testLetterboxedLogoKeepsThePictureAndExtendsItsEdges() throws {
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    let logo = UIGraphicsImageRenderer(size: CGSize(width: 240, height: 180), format: format).image { renderer in
+      let context = renderer.cgContext
+      context.setFillColor(UIColor.red.cgColor)
+      context.fill(CGRect(x: 0, y: 0, width: 1, height: 180))
+      context.setFillColor(UIColor.blue.cgColor)
+      context.fill(CGRect(x: 239, y: 0, width: 1, height: 180))
+      context.setFillColor(UIColor.white.cgColor)
+      context.fill(CGRect(x: 1, y: 0, width: 238, height: 180))
+    }
+    let tile = TVUIKitTileArtwork.letterboxed(logo, aspectRatio: 16 / 9)
+    XCTAssertEqual(tile.size.width, 320)
+    XCTAssertEqual(tile.size.height, 180)
+    let cgImage = try XCTUnwrap(tile.cgImage)
+    XCTAssertEqual(cgImage.bitsPerPixel, 32)
+    XCTAssertEqual(try pixel(cgImage, x: 5, y: 90), [255, 0, 0], "left edge is the logo's first column")
+    XCTAssertEqual(try pixel(cgImage, x: 314, y: 90), [0, 0, 255], "right edge is the logo's last column")
+    XCTAssertEqual(try pixel(cgImage, x: 160, y: 90), [255, 255, 255], "the logo itself, uncropped, centred")
+
+    // Already wider than the tile: bars above and below instead, still no crop.
+    let wide = TVUIKitTileArtwork.letterboxed(TVUIKitTileArtwork.wide(tint: .systemBlue, symbol: nil),
+                                              aspectRatio: 1)
+    XCTAssertEqual(wide.size.width, wide.size.height)
+  }
+
+  /// RGB of one pixel of a premultiplied BGRA bitmap.
+  private func pixel(_ image: CGImage, x: Int, y: Int) throws -> [UInt8] {
+    let data = try XCTUnwrap(image.dataProvider?.data as Data?)
+    let offset = y * image.bytesPerRow + x * 4
+    return [data[offset + 2], data[offset + 1], data[offset]]
+  }
+
   /// The crash path itself: a poster view built around the placeholder, sized and laid
   /// out the way `TVPageCellMetrics.measurePoster` does it.
   func testPosterViewTakesThePlaceholder() {

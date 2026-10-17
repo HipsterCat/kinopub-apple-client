@@ -142,6 +142,44 @@ public enum TVUIKitTileArtwork {
     return drawn
   }
 
+  /// A logo on a tile of another shape: the picture whole, as tall (or as wide) as the
+  /// tile, centred, and each side carried out to the edge by the picture's own outermost
+  /// column (or row). A TV channel's 4:3 card has its mark on a plate of its own colour,
+  /// often a gradient; stretching that edge outward keeps it one plate on the 16:9 still,
+  /// where a crop cut the mark and black bars read as a picture in a frame.
+  ///
+  /// Drawn at the picture's own resolution through `render`, so the bitmap is the
+  /// BGRA format the system focus effect expects.
+  public static func letterboxed(_ image: UIImage, aspectRatio: CGFloat) -> UIImage {
+    let source = image.size
+    guard source.width > 0, source.height > 0, aspectRatio > 0 else { return image }
+    let canvas = source.width / source.height < aspectRatio
+      ? CGSize(width: (source.height * aspectRatio).rounded(), height: source.height)
+      : CGSize(width: source.width, height: (source.width / aspectRatio).rounded())
+    let frame = CGRect(x: ((canvas.width - source.width) / 2).rounded(),
+                       y: ((canvas.height - source.height) / 2).rounded(),
+                       width: source.width, height: source.height)
+    return render(size: canvas, scale: image.scale) { _ in
+      if let cgImage = image.cgImage {
+        let pixels = CGSize(width: cgImage.width, height: cgImage.height)
+        let edges: [(CGRect, CGRect)] = frame.minX > 0
+          ? [(CGRect(x: 0, y: 0, width: 1, height: pixels.height),
+              CGRect(x: 0, y: frame.minY, width: frame.minX + 1, height: frame.height)),
+             (CGRect(x: pixels.width - 1, y: 0, width: 1, height: pixels.height),
+              CGRect(x: frame.maxX - 1, y: frame.minY, width: canvas.width - frame.maxX + 1, height: frame.height))]
+          : [(CGRect(x: 0, y: 0, width: pixels.width, height: 1),
+              CGRect(x: frame.minX, y: 0, width: frame.width, height: frame.minY + 1)),
+             (CGRect(x: 0, y: pixels.height - 1, width: pixels.width, height: 1),
+              CGRect(x: frame.minX, y: frame.maxY - 1, width: frame.width, height: canvas.height - frame.maxY + 1))]
+        for (strip, target) in edges where target.width > 0 && target.height > 0 {
+          guard let edge = cgImage.cropping(to: strip) else { continue }
+          UIImage(cgImage: edge).draw(in: target)
+        }
+      }
+      image.draw(in: frame)
+    }
+  }
+
   public static func placeholder(size: CGSize = wideSize,
                                  cornerRadius: CGFloat = 0,
                                  traits: UITraitCollection? = nil) -> UIImage {

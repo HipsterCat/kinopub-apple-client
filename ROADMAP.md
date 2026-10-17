@@ -488,6 +488,20 @@ Their taxonomy and endpoints, our rows and focus. Full inventory:
       countries, active-facet count badge. tvOS uses menus, not a sheet. Genre list reloads when the
       type changes. Undecided: `subtitles`, `language`, `translation`, `age`, `letter`, `finished`
 
+### Live TV (`GET /v1/tv`)
+
+The TVML client's TV section, rebuilt on our page and our player.
+
+- [x] A **TV** tab on tvOS after Series: the channels as a 16:9 still grid, five across,
+      the channel's logo letterboxed onto the tile (`TVPageTile.logoURL`) and its name under
+      it. Select plays the stream in the one player in live mode (`WatchMode.live`): no Up
+      Next, no episodes, no resume, nothing written to the watching history, no *Go to*
+      button (2026-10-17). Not yet seen on a device
+- [ ] Schedule (EPG) for each channel, then the page as rows (Sasha, 2026-10-17: "потом
+      появится расписание и сделаем rows"). `/v1/tv` sends `current` / `playlist` empty
+      today; the community fork reads an external EPG
+- [ ] The TV tab on iOS, iPadOS and macOS with their own surface
+
 ---
 
 ## 5 — Platform completeness and appearance

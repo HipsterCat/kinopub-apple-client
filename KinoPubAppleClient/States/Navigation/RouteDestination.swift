@@ -91,6 +91,12 @@ struct RouteDestination: View {
 #else
       player(item, mode: .trailer, token: token)
 #endif
+    case .livePlayer(let channel, let token):
+#if os(macOS)
+      MacPlayerRouteGuard(item: channel, mode: .live)
+#else
+      player(channel, mode: .live, token: token)
+#endif
     }
   }
 
@@ -99,8 +105,8 @@ struct RouteDestination: View {
   private func player(_ item: any PlayableItem, mode: WatchMode, token: UUID) -> some View {
 #if DEBUG && os(tvOS)
     // UI tests of the detail page: the stand-in records the title as watched and
-    // waits for Menu (`DetailFixture`).
-    if DetailFixture.isActive {
+    // waits for Menu (`DetailFixture`). The TV tab's fixture has no stream to play either.
+    if DetailFixture.isActive || TVChannelsFixture.isActive {
       DetailFixturePlayer(item: item, mode: mode)
     } else {
       systemPlayer(item, mode: mode, token: token)

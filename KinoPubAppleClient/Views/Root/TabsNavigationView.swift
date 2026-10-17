@@ -19,7 +19,7 @@ import KinoPubKit
 /// changed, which is how the iPad bar's comment ended up describing a shape its own code
 /// did not build.
 ///
-/// - **tvOS:** `.tabBarOnly` (top); glyph · word · word · word · word · glyph. Search is
+/// - **tvOS:** `.tabBarOnly` (top); glyph · words (Watch Now … TV, Library) · glyph. Search is
 ///   the **first** tab (left of Watch Now) — not `role: .search`, which pins trailing.
 /// - **macOS:** `.tabBarOnly`; no Settings tab (Settings window / ⌘,); no Search tab —
 ///   compact trailing toolbar search via `macToolbarSearch()` on each `RouteStack`
@@ -138,8 +138,16 @@ struct TabsNavigationView: View {
     TabSpec(tab: .home, title: "Watch Now", systemImage: "house.fill"),
     TabSpec(tab: .movies, title: "Movies", systemImage: "movieclapper"),
     TabSpec(tab: .series, title: "Series", systemImage: "rectangle.stack"),
+  ] + tvTabs + [
     TabSpec(tab: .library, title: "Library", systemImage: "rectangle.stack.badge.person.crop")
   ]
+
+  /// Live TV is built for tvOS first; the other platforms get it with their own surface.
+#if os(tvOS)
+  private static let tvTabs = [TabSpec(tab: .tv, title: "TV", systemImage: "tv")]
+#else
+  private static let tvTabs: [TabSpec] = []
+#endif
 
   @ViewBuilder
   private func content(for tab: NavigationTabs) -> some View {
@@ -165,6 +173,9 @@ struct TabsNavigationView: View {
     case .home: homeContent
     case .movies: moviesContent
     case .series: seriesContent
+#if os(tvOS)
+    case .tv: tvContent
+#endif
     case .library: libraryContent
     default: EmptyView()
     }
@@ -244,6 +255,7 @@ struct TabsNavigationView: View {
           case .home: Text("Watch Now")
           case .movies: Text("Movies")
           case .series: Text("Series")
+          case .tv: Text("TV")
           case .library: Text("Library")
           default: Text(spec.title)
           }
@@ -402,6 +414,12 @@ struct TabsNavigationView: View {
                                       contentType: .serial))
 #endif
   }
+
+#if os(tvOS)
+  private var tvContent: some View {
+    TVChannelsView(model: TVChannelsModel(contentService: appContext.contentService))
+  }
+#endif
 
   /// Watch Now / Movies / Series on tvOS — and Watch Now on every platform — share
   /// `MainView` + `HomeCatalog`. Typed catalogs filter Hot / Fresh / Popular to one

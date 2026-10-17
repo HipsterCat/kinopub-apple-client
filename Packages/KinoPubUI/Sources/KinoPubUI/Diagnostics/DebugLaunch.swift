@@ -78,6 +78,18 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBTVChannelsFixture YES`: the app root is the real TV tab under a tab bar, on a
+  /// stand-in API that lists a set of channels (see `TVChannelsFixture` in the app), and a
+  /// stand-in player — the grid, its focus and Select with no session. With
+  /// `-KINOPUBFixtureRealArt YES` the logos come from kino.pub's CDN.
+  public static var tvChannelsFixture: Bool {
+#if DEBUG
+    UserDefaults.standard.bool(forKey: "KINOPUBTVChannelsFixture")
+#else
+    false
+#endif
+  }
+
   /// `-KINOPUBSlowShelves <seconds>`: the stand-in API (`VideoContentServiceMock`) takes that
   /// long to answer a person's shelf on the detail page, so the page spends the time with
   /// skeleton rows where shelves will land — what a real connection does and a fixture,

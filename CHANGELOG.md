@@ -5,6 +5,25 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### TV tab — live channels (2026-10-17)
+
+- **TV** tab on tvOS (`NavigationTabs.tv`, `TVChannelsView`): `/v1/tv` as one
+  `TVPageSection.tiles` grid of 16:9 stills, 5 columns (320 pt — the logos' own 240×180 at
+  1080p). The service and model were already ported from the community fork
+  (`TVChannelsRequest`, `TVChannel`); nothing read them. The list is refetched when the tab
+  comes back after 5 min, because stream links carry a token.
+- **Logos** are 240×180 cards with the mark on their own colour (some gradients). A crop to
+  16:9 cut them, so `TVUIKitMediaItem.artworkFit = .letterbox` decodes with `.fit` and
+  `TVUIKitTileArtwork.letterboxed` draws the picture full-height with its outermost
+  columns stretched to the edges — one plate, no bars — through `render` (BGRA, the focus
+  effect's format).
+- **`WatchMode.live`** / `Route.livePlayer`: the stream URL is the channel's `hls`; every
+  `watchMode == .media` gate keeps out resume, marktime, track memory, Up Next, Episodes and
+  end-of-playback. The info panel gets the channel name only — the channel id is not a title
+  id, so the title sources and progress store are never asked about it — and no Info actions.
+- **`-KINOPUBTVChannelsFixture YES`** (+ `-KINOPUBFixtureRealArt YES` for CDN logos): the tab
+  on a stand-in API with the stand-in player; `TVChannelsUITests` walks it.
+
 ### Library pass from the Asana list (2026-10-17)
 
 - **Continue** is `/v1/watching/movies` (the reference client's «Недосмотренные ›

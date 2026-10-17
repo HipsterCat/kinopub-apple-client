@@ -12,6 +12,8 @@ enum NavigationTabs: Hashable {
   case home
   case movies
   case series
+  /// kino.pub's live TV channels (`GET /v1/tv`). tvOS for now.
+  case tv
   /// Combined Watchlist + History + Bookmarks (tvOS / iOS / iPad).
   case library
   case watchlist

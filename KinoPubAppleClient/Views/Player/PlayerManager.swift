@@ -24,6 +24,10 @@ import UIKit
 enum WatchMode: Hashable {
   case media
   case trailer
+  /// A TV channel's live stream. Like a trailer it teaches and reports nothing — no resume
+  /// point, no watching history, no remembered tracks — and it has no episodes, no Up Next
+  /// and no end to play on from: every `watchMode == .media` gate keeps it out.
+  case live
 }
 
 /// What the player screen shows besides video: a spinner (with a way out) while the
@@ -209,6 +213,8 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       return URL(string: urlString)
     case .trailer:
       return playItem.trailerURL
+    case .live:
+      return playItem.files.first.flatMap { URL(string: $0.url.hls) }
     }
   }
 
@@ -992,11 +998,28 @@ extension PlayerManager {
     externalMetadataContext = nil
     externalMetadataArtwork = nil
     externalMetadataArtworkURL = nil
+    // A channel is its name and nothing else. Its id is not a title's id, so asking the
+    // title sources (or the progress store) about it would describe some other item.
+    if watchMode == .live {
+      item.externalMetadata = liveChannelMetadata()
+      return
+    }
     let title = titleContext
     let isTrailer = watchMode == .trailer
     stamp(PlaybackMediaContext.draft(playing: playItem, title: title, isTrailer: isTrailer),
           on: item)
     enrichExternalMetadata(title: title, isTrailer: isTrailer, on: item)
+  }
+
+  /// The info panel of a live channel: its name as the title.
+  private func liveChannelMetadata() -> [AVMetadataItem] {
+    let name = (playItem as? TVChannel)?.title ?? ""
+    guard !name.isEmpty else { return [] }
+    let title = AVMutableMetadataItem()
+    title.identifier = .commonIdentifierTitle
+    title.value = name as NSString
+    title.extendedLanguageTag = "und"
+    return [title]
   }
 
   private func stamp(_ draft: MediaContextDraft, on item: AVPlayerItem) {
@@ -1734,9 +1757,12 @@ extension PlayerManager {
     }
     // A trailer is not something to start again: *From Beginning* plays the trailer's first
     // second, which nobody wants — its one button is the title (user's call, 2026-10-01).
-    controller.infoViewActions = watchMode == .trailer
-      ? [goTo]
-      : Array((systemInfoActions + [goTo]).prefix(2))
+    switch watchMode {
+    case .media: controller.infoViewActions = Array((systemInfoActions + [goTo]).prefix(2))
+    case .trailer: controller.infoViewActions = [goTo]
+    // Live has no beginning to go back to, and a channel has no page to go to.
+    case .live: controller.infoViewActions = []
+    }
   }
 }
 

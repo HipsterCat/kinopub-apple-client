@@ -496,6 +496,14 @@
               ],
             }, {
               "kind": "group",
+              "path": "TV",
+              "children": [
+                { "path": "TVChannelsModel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TVChannelsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TVChannelsFixture.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
               "path": "Root",
               "children": [
                 { "path": "TabsNavigationView.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
@@ -521,6 +529,7 @@
       "path": "KinoPubAppleClientTests",
       "children": [
         { "path": "TrackPreferenceStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "TVChannelsModelTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "ContentStoreRecordTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LocalWatchProgressStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlaybackPreflightTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
@@ -552,6 +561,7 @@
         { "path": "TVDetailPageUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVDetailLayoutUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVMenuBackUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+        { "path": "TVChannelsUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
       ],
     }, {
       "kind": "group",

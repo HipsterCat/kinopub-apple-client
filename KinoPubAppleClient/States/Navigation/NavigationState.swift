@@ -35,6 +35,7 @@ final class NavigationState {
   var searchRoutes: [Route] = []
   var moviesRoutes: [Route] = []
   var seriesRoutes: [Route] = []
+  var tvRoutes: [Route] = []
   var libraryRoutes: [Route] = []
   var watchlistRoutes: [Route] = []
   var recentlyWatchedRoutes: [Route] = []
@@ -63,11 +64,12 @@ final class NavigationState {
 #endif
 
 #if os(tvOS) && DEBUG
-  /// `-KINOPUBInitialTab library|settings` opens on that tab (the simulator's remote
+  /// `-KINOPUBInitialTab library|tv|settings` opens on that tab (the simulator's remote
   /// is too unreliable to walk there for every check).
   init() {
     switch UserDefaults.standard.string(forKey: "KINOPUBInitialTab") {
     case "library": selectedTab = .library
+    case "tv": selectedTab = .tv
     case "settings": selectedTab = .settings
     default: break
     }
@@ -175,6 +177,7 @@ final class NavigationState {
     case .home: \.mainRoutes
     case .movies: \.moviesRoutes
     case .series: \.seriesRoutes
+    case .tv: \.tvRoutes
     case .library: \.libraryRoutes
     case .watchlist: \.watchlistRoutes
     case .recentlyWatched: \.recentlyWatchedRoutes
@@ -193,7 +196,7 @@ final class NavigationState {
 
   /// Every title any tab's path still holds; the stage forgets the rest.
   var backdropLiveKeys: Set<String> {
-    let paths = [searchRoutes, mainRoutes, moviesRoutes, seriesRoutes, libraryRoutes,
+    let paths = [searchRoutes, mainRoutes, moviesRoutes, seriesRoutes, tvRoutes, libraryRoutes,
                  watchlistRoutes, recentlyWatchedRoutes, bookmarksRoutes, downloadsRoutes]
     return paths.reduce(into: Set<String>()) { $0.formUnion(Route.backdropKeys(in: $1)) }
   }
@@ -233,6 +236,10 @@ final class NavigationState {
       return
     case .trailerPlayer(let item, _):
       PlaybackWindowState.shared.show(item: item, mode: .trailer)
+      playerWindowRequestID = UUID()
+      return
+    case .livePlayer(let channel, _):
+      PlaybackWindowState.shared.show(item: channel, mode: .live)
       playerWindowRequestID = UUID()
       return
     default:

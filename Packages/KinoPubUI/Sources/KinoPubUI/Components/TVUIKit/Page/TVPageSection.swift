@@ -221,29 +221,35 @@ public struct TVPageTile: Identifiable, Hashable {
   /// Nil takes a stable colour from the title (`TVUIKitTileArtwork.tint(for:)`).
   public let tint: UIColor?
   public let style: TVUIKitTileArtwork.Style
+  /// A logo drawn over the tint once it loads — a TV channel's card. Whole, never
+  /// cropped: its edges are carried out to the tile (`TVUIKitTileArtwork.letterboxed`).
+  public let logoURL: URL?
 
   public init(id: String, title: String, symbol: String? = nil, tint: UIColor? = nil,
-              style: TVUIKitTileArtwork.Style = .gradient) {
+              style: TVUIKitTileArtwork.Style = .gradient, logoURL: URL? = nil) {
     self.id = id
     self.title = title
     self.symbol = symbol
     self.tint = tint
     self.style = style
+    self.logoURL = logoURL
   }
 
   public var resolvedTint: UIColor { tint ?? TVUIKitTileArtwork.tint(for: title) }
 }
 
 public extension TVUIKitMediaItem {
-  /// A drawn tile in the still cell: no image URL, so the tint is the artwork, and the
-  /// name is the caption line.
+  /// A drawn tile in the still cell: the tint is the artwork (until a logo, if there is
+  /// one, loads over it), and the name is the caption line.
   init(tile: TVPageTile) {
     self.init(id: tile.id.hashValue,
+              imageURL: tile.logoURL,
               tint: tile.resolvedTint,
               symbol: tile.symbol,
               tileStyle: tile.style,
               caption: tile.title,
-              status: .unavailable)
+              status: .unavailable,
+              artworkFit: .letterbox)
   }
 }
 

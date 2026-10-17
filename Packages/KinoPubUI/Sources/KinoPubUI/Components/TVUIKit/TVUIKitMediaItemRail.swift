@@ -136,6 +136,16 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   public let badgeText: String?
   /// Live content gets the system's own red badge treatment.
   public let badgeIsLive: Bool
+  /// How the picture at `imageURL` meets the 16:9 tile.
+  public let artworkFit: ArtworkFit
+
+  public enum ArtworkFit: Equatable, Sendable {
+    /// Centre-cropped to the tile — stills, backdrops, covers.
+    case fill
+    /// Whole, with its edges carried out to the tile (`TVUIKitTileArtwork.letterboxed`) —
+    /// a logo, which a crop would cut.
+    case letterbox
+  }
 
   public init(id: Int,
               imageURL: URL? = nil,
@@ -147,7 +157,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               status: TVUIKitMediaItemStatus = .ready,
               timeLabel: String? = nil,
               badgeText: String? = nil,
-              badgeIsLive: Bool = false) {
+              badgeIsLive: Bool = false,
+              artworkFit: ArtworkFit = .fill) {
     self.id = id
     self.imageURL = imageURL
     self.tint = tint
@@ -159,6 +170,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.timeLabel = timeLabel
     self.badgeText = badgeText
     self.badgeIsLive = badgeIsLive
+    self.artworkFit = artworkFit
   }
 
   /// A coloured tile with a glyph and nothing else — genres, categories, anything with
@@ -834,19 +846,28 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     // Already decoded — take it now so a recycled tile never shows the tint fallback
     // in place of art it had a moment ago.
     let size = contentView.bounds.size
-    if let hit = TVUIKitRemoteImage.cached(url: url, size: size) {
-      artwork = hit
+    let mode: Artwork.ResizeMode = item.artworkFit == .letterbox ? .fit : .fill
+    if let hit = TVUIKitRemoteImage.cached(url: url, size: size, mode: mode) {
+      artwork = Self.present(hit, fit: item.artworkFit)
       loadedURL = url
       ArtworkLog.servedFromMemory(url, by: "wide")
       return
     }
     ArtworkLog.requested(url, by: "wide")
     imageTask = Task { [weak self] in
-      let image = await TVUIKitRemoteImage.load(url: url, size: size)
+      let image = await TVUIKitRemoteImage.load(url: url, size: size, mode: mode)
       guard let self, !Task.isCancelled, self.item?.imageURL == url else { return }
-      self.artwork = image
+      self.artwork = image.map { Self.present($0, fit: item.artworkFit) }
       self.loadedURL = image == nil ? nil : url
       self.setNeedsUpdateConfiguration()
+    }
+  }
+
+  /// The loaded picture as the tile draws it — a logo letterboxed to the wide cell's 16:9.
+  private static func present(_ image: UIImage, fit: TVUIKitMediaItem.ArtworkFit) -> UIImage {
+    switch fit {
+    case .fill: image
+    case .letterbox: TVUIKitTileArtwork.letterboxed(image, aspectRatio: 16 / 9)
     }
   }
 

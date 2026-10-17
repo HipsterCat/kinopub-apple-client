@@ -96,6 +96,8 @@ struct VideoContentServiceMock: VideoContentService {
   var bookmarkItems: (@Sendable (_ id: String, _ page: Int) -> BookmarkFolderItemsData)? = nil
   /// What `fetchHistory` answers with, by page — the Library fixture's History.
   var history: (@Sendable (_ page: Int) -> HistoryData)? = nil
+  /// What `fetchTVChannels` answers with — the TV tab fixture's channels.
+  var tvChannels: (@Sendable () -> [TVChannel])? = nil
 
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?, perPage: Int?) async throws -> PaginatedData<MediaItem> {
     return PaginatedData.mock(data: [])
@@ -192,7 +194,7 @@ struct VideoContentServiceMock: VideoContentService {
   func toggleBookmark(itemId: Int, folderId: Int) async throws { }
 
   func fetchTVChannels() async throws -> [TVChannel] {
-    []
+    tvChannels?() ?? []
   }
 
 }

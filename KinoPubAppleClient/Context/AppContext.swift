@@ -218,6 +218,10 @@ struct AppContext: AppContextProtocol {
     if LibraryFixture.isActive {
       return LibraryFixture.context(replacingServicesOf: context)
     }
+    // `-KINOPUBTVChannelsFixture`: the TV tab against a stand-in API.
+    if TVChannelsFixture.isActive {
+      return TVChannelsFixture.context(replacingServicesOf: context)
+    }
 #endif
     return context
   }()
