@@ -20,8 +20,8 @@
 //  It matches the footer it replaces: Callout (SF Medium 31 pt), centred, title secondary at
 //  rest and primary when focused, the detail always secondary. Like the footer, it rests under
 //  the art and drops by the focus room when the cover grows, in the focus update's animation.
-//  A title wider than the art ends in an ellipsis at rest and scrolls to its end and back while
-//  focused (the footer's marquee).
+//  A title wider than the art fades out at its trailing edge at rest, no ellipsis, and scrolls
+//  to its end and back while focused (the system label's marquee).
 //
 
 import UIKit
@@ -123,8 +123,13 @@ final class TVPageCaptionView: UIView {
   }
 }
 
-/// One line of text, centred; when it is too wide for the line it ends in an ellipsis, and
-/// `startScrolling()` shows it from its start and moves it to its end and back.
+/// One line of text, centred. Too wide for the line, it does what a system label with
+/// `enablesMarqueeWhenAncestorFocused` does: at rest it shows its start and fades out at the
+/// trailing edge — no ellipsis — and `startScrolling()` moves it to its end and back.
+///
+/// Not the system label itself: a lockup's caption must not scroll because some *ancestor*
+/// holds focus (on the detail page that is the SwiftUI scroll view's container, an ancestor of
+/// every cell — see `TVPosterArtFocus`), so the cell says when it is focused.
 @MainActor
 final class TVPageMarqueeLine: UIView {
   private let label = UILabel()
@@ -136,7 +141,7 @@ final class TVPageMarqueeLine: UIView {
 
   var font: UIFont {
     get { label.font }
-    set { label.font = newValue }
+    set { label.font = newValue; setNeedsLayout() }
   }
 
   var textColor: UIColor {
@@ -148,7 +153,7 @@ final class TVPageMarqueeLine: UIView {
     super.init(frame: frame)
     clipsToBounds = true
     label.textAlignment = .center
-    label.lineBreakMode = .byTruncatingTail
+    label.lineBreakMode = .byClipping
     addSubview(label)
   }
 
@@ -157,8 +162,27 @@ final class TVPageMarqueeLine: UIView {
   override func layoutSubviews() {
     super.layoutSubviews()
     // While it scrolls the label owns its frame.
-    if !isScrolling { label.frame = bounds }
+    if !isScrolling { layoutAtRest() }
     fade.frame = bounds
+  }
+
+  private var overflow: CGFloat {
+    ceil(label.intrinsicContentSize.width) - bounds.width
+  }
+
+  /// Fits: centred in the line. Too wide: its start, the trailing edge faded.
+  private func layoutAtRest() {
+    let overflow = overflow
+    if overflow > 1 {
+      label.textAlignment = .natural
+      label.frame = CGRect(x: 0, y: 0, width: bounds.width + overflow, height: bounds.height)
+      restFade.frame = bounds
+      layer.mask = restFade
+    } else {
+      label.textAlignment = .center
+      label.frame = bounds
+      layer.mask = nil
+    }
   }
 
   /// Soft edges while the text runs under them, as the system's marquee has.
@@ -168,6 +192,16 @@ final class TVPageMarqueeLine: UIView {
     layer.endPoint = CGPoint(x: 1, y: 0.5)
     layer.colors = [UIColor.clear, .black, .black, UIColor.clear].map(\.cgColor)
     layer.locations = [0, 0.06, 0.94, 1]
+    return layer
+  }()
+
+  /// At rest only the trailing edge fades: the text starts where it starts.
+  private let restFade: CAGradientLayer = {
+    let layer = CAGradientLayer()
+    layer.startPoint = CGPoint(x: 0, y: 0.5)
+    layer.endPoint = CGPoint(x: 1, y: 0.5)
+    layer.colors = [UIColor.black, .black, UIColor.clear].map(\.cgColor)
+    layer.locations = [0, 0.88, 1]
     return layer
   }()
 
@@ -181,7 +215,6 @@ final class TVPageMarqueeLine: UIView {
     isScrolling = true
     fade.frame = bounds
     layer.mask = fade
-    label.lineBreakMode = .byClipping
     label.textAlignment = .left
     label.frame = CGRect(x: 0, y: 0, width: natural, height: bounds.height)
     // About 40 pt a second, a beat at the start before it moves.
@@ -192,13 +225,10 @@ final class TVPageMarqueeLine: UIView {
   }
 
   func stopScrolling() {
-    guard isScrolling else { return }
+    guard isScrolling else { setNeedsLayout(); return }
     isScrolling = false
-    layer.mask = nil
     label.layer.removeAllAnimations()
-    label.lineBreakMode = .byTruncatingTail
-    label.textAlignment = .center
-    label.frame = bounds
+    layoutAtRest()
   }
 }
 #endif

@@ -528,6 +528,39 @@ final class TVDetailLayoutUITests: XCTestCase {
   }
 
 
+  /// A remote walk on the Library fixture for looking at a change, skipped unless
+  /// `KINOPUB_WALK` is set (pass it as `TEST_RUNNER_KINOPUB_WALK`): steps separated by spaces —
+  /// up / down / left / right / select / menu, `shot:<name>` (a screenshot and the focused
+  /// element, into /tmp/kinopub-detail-shots), `wait:<seconds>`. `KINOPUB_ARGS` adds launch
+  /// arguments (`-KINOPUBFixtureInTabs YES`, `-KINOPUBFixtureWatchOutAfter 14`).
+  func testLibraryRemoteWalk() throws {
+    let script = ProcessInfo.processInfo.environment["KINOPUB_WALK"] ?? ""
+    try XCTSkipIf(script.isEmpty)
+    app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBLibraryFixture", "YES", "-KINOPUBFixtureRealArt", "YES",
+                            "-KINOPUBForceColorScheme", "dark"]
+    if let extra = ProcessInfo.processInfo.environment["KINOPUB_ARGS"] {
+      app.launchArguments += extra.split(separator: " ").map(String.init)
+    }
+    app.launch()
+    Thread.sleep(forTimeInterval: 6)
+    for token in script.split(separator: " ").map(String.init) {
+      let parts = token.split(separator: ":", maxSplits: 1).map(String.init)
+      switch parts[0] {
+      case "up": XCUIRemote.shared.press(.up)
+      case "down": XCUIRemote.shared.press(.down)
+      case "left": XCUIRemote.shared.press(.left)
+      case "right": XCUIRemote.shared.press(.right)
+      case "select": XCUIRemote.shared.press(.select)
+      case "menu": XCUIRemote.shared.press(.menu)
+      case "shot": try shoot(parts[1]); note(parts[1]); continue
+      case "wait": Thread.sleep(forTimeInterval: Double(parts[1]) ?? 1); continue
+      default: continue
+      }
+      Thread.sleep(forTimeInterval: 0.9)
+    }
+  }
+
   // MARK: - Helpers
 
   /// Focus is on a card, a pill or a poster of the sections under the hero.

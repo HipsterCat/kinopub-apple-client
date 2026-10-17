@@ -191,6 +191,12 @@ final class MediaTextTests: XCTestCase {
     XCTAssertEqual(TotalCountText(1).formatted(language: .ru), "Всего 1")
   }
 
+  func testAContinueHeaderCountSaysUnfinished() {
+    XCTAssertEqual(UnfinishedCountText(14).formatted(language: .ru), "14 недосмотрено")
+    XCTAssertEqual(UnfinishedCountText(1).formatted(language: .ru), "1 недосмотрено")
+    XCTAssertEqual(UnfinishedCountText(14).formatted(language: .en), "14 unfinished")
+  }
+
   func testAFilmsLineIsYearRuntimeGenresCountry() {
     let film = MediaEntity(kind: .movie, release: .year(2025), runtime: 115 * 60,
                            countries: ["Япония"])

@@ -53,7 +53,9 @@ final class LibrarySectionCardsTests: XCTestCase {
                              authState: AuthState(authService: AuthorizationServiceMock(),
                                                   accessTokenService: AccessTokenServiceMock()),
                              errorHandler: ErrorHandler())
-    XCTAssertEqual(model.headerTitle(for: .unwatched, cards: cards), "2")
+    XCTAssertEqual(model.headerTitle(for: .unwatched, cards: cards),
+                   UnfinishedCountText(2).formatted(),
+                   "Continue is «2 недосмотрено», never the bare number")
     XCTAssertEqual(model.headerTitle(for: .history, cards: []),
                    model.title(for: .history),
                    "with no count the section name is the one label")
@@ -163,24 +165,7 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertEqual(kept.map(\.id), [2])
   }
 
-  func testContinueCardIsLandscapeWideArtAndPlays() {
-    let item = WatchingItem(id: 3, type: "movie", title: "Дюна / Dune", posters: posters)
-    let history = HistoryEntry(
-      item: .init(id: 3, type: "movie", title: "Дюна / Dune", posters: posters),
-      media: .init(id: 9, number: 1, snumber: 0, thumbnail: "thumb.jpg", duration: 90 * 60),
-      time: 47 * 60,
-      lastSeen: 1_700_000_000
-    )
-    let card = LibrarySectionCatalog.continueCard(for: item, history: history)
-    XCTAssertEqual(card.landscapeImageURL, "https://x/item/wide/1.jpg")
-    XCTAssertNotEqual(card.landscapeImageURL, "thumb.jpg")
-    XCTAssertEqual(card.title, "Дюна")
-    XCTAssertEqual(card.primaryAction, .play)
-    XCTAssertEqual(card.subtitle, RemainingText(progress: history.progress ?? 0,
-                                                durationSeconds: 90 * 60).formatted(.medium))
-  }
-
-  func testContinueCardForASeriesIsTheTitleNotItsEpisodes() {
+  func testContinueCardForASeriesIsTheWideTitleAndPlays() {
     let item = WatchingItem(id: 4, type: "serial", title: "Пантеон / Pantheon",
                             posters: posters, total: 16, watched: 3)
     let card = LibrarySectionCatalog.continueCard(for: item, history: nil)
@@ -188,6 +173,37 @@ final class LibrarySectionCardsTests: XCTestCase {
     XCTAssertTrue(card.isSeries)
     XCTAssertEqual(card.primaryAction, .play)
     XCTAssertEqual(card.landscapeImageURL, "https://x/item/wide/1.jpg")
+  }
+
+  /// Continue is the unfinished films, then the unfinished series kino.pub lists less the
+  /// followed ones — Subscriptions shows those.
+  @MainActor
+  func testContinueLeavesOutSubscriptions() async throws {
+    let service = VideoContentServiceMock(watchingSerials: { subscribedOnly in
+      let posters = Posters(small: "", medium: "", big: "", wide: "https://x/item/wide/1.jpg")
+      let followed = WatchingItem(id: 1, type: "serial", title: "A", posters: posters, total: 5, watched: 1)
+      let other = WatchingItem(id: 2, type: "serial", title: "B", posters: posters, total: 5, watched: 0)
+      return subscribedOnly ? [followed] : [followed, other]
+    }, watchingMovies: {
+      [WatchingItem(id: 3, type: "movie", title: "Тихая жизнь / Quiet Life",
+                    posters: Posters(small: "", medium: "", big: "", wide: "https://x/item/wide/3.jpg"))]
+    })
+    let store = ContentStore(disk: RowSnapshotStore(directory: FileManager.default.temporaryDirectory
+                               .appendingPathComponent(UUID().uuidString, isDirectory: true)),
+                             viewer: ViewerStateReaderMock())
+    let catalog = LibrarySectionCatalog(contentService: service, authState: Self.authorized(),
+                                        errorHandler: ErrorHandler(), store: store)
+    await catalog.activate(.unwatched)
+    XCTAssertEqual(catalog.cards.map(\.id), [3, 2])
+    XCTAssertEqual(catalog.cards.first?.primaryAction, .play)
+    XCTAssertEqual(catalog.cards.first?.isLandscape, true)
+  }
+
+  @MainActor
+  private static func authorized() -> AuthState {
+    let state = AuthState(authService: AuthorizationServiceMock(), accessTokenService: AccessTokenServiceMock())
+    state.userState = .authorized
+    return state
   }
 
   func testHistoryCardPlaysUsesWideArtAndWordsTheEpisode() {

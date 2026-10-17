@@ -354,6 +354,25 @@ pushes to the grid.
       `TVPageCollectionViewController` now re-configures a visible header whose title, count or
       actions changed. Live: «155 unwatched episodes»
 
+- [x] Library pass from Sasha's Asana list (2026-10-17): Continue is the unfinished films
+      and series not in Subscriptions (`watching/movies` + `subscribed=0` minus
+      `subscribed=1`, wide stills that play, «N недосмотрено»); still grids lose the
+      doubled caption gap; the sidebar hugs its rows as its own cells lay them out (≤ ¼ of
+      the screen) with the side inset on both sides of the grid; system marquee in the
+      sidebar and a trailing fade + marquee on covers instead of «…»; covers re-measure when
+      the grid's width settles; a section opens at its top and only the last section pages;
+      focus moves to the next card when its card leaves the list
+- [ ] «Every card focused at once» (Asana) — not reproduced on 26.5 / 27.2 in the Library
+      fixture (stack focus read 0/1 at every step); needs Sasha's steps or a screenshot
+- [ ] Back from the player with a series' last episode watched: the focus handoff is in,
+      but the real pop-from-player path was only reasoned about — check on device
+- [x] tvOS sidebar icons one step up (Headline, medium scale, Dynamic Type), secondary at
+      rest and the title's colour focused or selected, in the system's standard slot so
+      their leading edge meets the folder labels' (Sasha, 2026-10-17)
+- [ ] tvOS Library in tabs: Down from the tab bar lands on the grid's first cover, not the
+      sidebar row (`defaultFocus` on the sidebar does not win there). Seen in the fixture
+      under `-KINOPUBFixtureInTabs` on 2026-10-17; not checked whether main did the same
+
 **Superseded:** "one vertical scroll of rows for the whole Library" — it does not survive a user with
 ten folders. Rows remain correct for **Home**, not for Library.
 

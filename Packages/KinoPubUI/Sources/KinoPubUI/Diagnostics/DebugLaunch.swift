@@ -91,6 +91,18 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBFixtureWatchOutAfter <seconds>`: that long after launch the Library fixture's
+  /// stand-in API reports the third followed series caught up and the Library refetches, as
+  /// it does back from the player — the series leaves Subscriptions under the remote.
+  public static var fixtureWatchOutAfter: TimeInterval? {
+#if DEBUG
+    UserDefaults.standard.object(forKey: "KINOPUBFixtureWatchOutAfter") == nil
+      ? nil : UserDefaults.standard.double(forKey: "KINOPUBFixtureWatchOutAfter")
+#else
+    nil
+#endif
+  }
+
   /// `-KINOPUBFixtureRealArt YES`: the detail fixtures' shelves use real posters from the
   /// CDN instead of locally drawn ones — images that arrive over the network, are cached,
   /// and are decoded the way a signed-in session's are.
