@@ -366,7 +366,7 @@ pushes to the grid.
       fixture (stack focus read 0/1 at every step); needs Sasha's steps or a screenshot
 - [ ] Back from the player with a series' last episode watched: the focus handoff is in,
       but the real pop-from-player path was only reasoned about — check on device
-- [x] tvOS sidebar icons one step up (Headline, large scale, Dynamic Type), secondary at
+- [x] tvOS sidebar icons one step up (Headline, medium scale, Dynamic Type), secondary at
       rest and the title's colour focused or selected, in the system's standard slot so
       their leading edge meets the folder labels' (Sasha, 2026-10-17)
 - [ ] tvOS Library in tabs: Down from the tab bar lands on the grid's first cover, not the

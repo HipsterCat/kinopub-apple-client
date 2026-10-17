@@ -601,10 +601,10 @@ private final class LibrarySidebarController: UITableViewController {
     // One line: the marquee runs on single-line labels only.
     content.textProperties.numberOfLines = 1
     content.image = row.systemImage.flatMap { UIImage(systemName: $0) }
-    // The symbol follows the row's text style, one step up, so it grows with Dynamic Type.
+    // The symbol follows the row's text style at medium scale, so it grows with Dynamic Type.
     // Its slot is the system's standard one, which lines its leading edge up with a folder
     // label's (Sasha, 2026-10-17).
-    content.imageProperties.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .headline, scale: .large)
+    content.imageProperties.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .headline, scale: .medium)
     content.imageProperties.reservedLayoutSize = CGSize(width: UIListContentConfiguration.ImageProperties.standardDimension,
                                                         height: UIListContentConfiguration.ImageProperties.standardDimension)
     return content
