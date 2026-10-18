@@ -9,8 +9,8 @@ Do not invent a second policy here, and do not add a policy folder back.
 - [ROADMAP.md](ROADMAP.md) — retired 2026-10-18; maps each feature to its Asana task.
   Plans, open questions and parked defects live in Asana ([Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374)),
   never as checklists in `.md` files
-- [CURRENT.md](CURRENT.md) — what is active now (tvOS only); wins on scope
-- [PLAYBOOK.md](PLAYBOOK.md) — how a milestone is executed
+- [CURRENT.md](CURRENT.md) — what is active now; wins on scope
+- [docs/engineering/](docs/engineering/) — troubleshooting, adapters, detail-page internals, removed approaches
 - [README.md](README.md) — what the product is
 - [docs/providers/](docs/providers/) — external source capability sheets
 - [docs/archive/](docs/archive/) — dated plans and research. **Evidence, never requirements.**

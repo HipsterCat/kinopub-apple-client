@@ -1,651 +1,307 @@
 # KinoPub Apple Client — agent context
 
-A native client for kino.pub, shipped as **one multiplatform target** on tvOS, iOS, iPadOS and
-macOS. tvOS sets the media / focus / 10-foot bar; the other platforms get their own native controls,
-not TV chrome forced sideways.
+A native client for kino.pub on tvOS, iOS, iPadOS and macOS, built as **one multiplatform
+target**. It is an experimental, open-source, personal project: we explore what a media client on
+Apple platforms can be, including features kino.pub's own apps do not have.
 
-**The renderer is not the same on every platform, on purpose.** SwiftUI is the default on iOS,
-iPadOS and macOS, including system navigation transitions. **On tvOS, media surfaces are UIKit +
-TVUIKit** — collection views, the three system cells, the focus engine. When you find SwiftUI
-driving a heavy tvOS surface, treat it as a leftover to port, not a base to build on: rails, grids
-and cells are already decided, and a substantial addition to one of them is the signal to move it.
+**Each platform uses its own renderer, on purpose.** SwiftUI is the default on iOS, iPadOS and
+macOS. **On tvOS, media surfaces are UIKit + TVUIKit**: collection views, the three system cells
+and the focus engine. A heavy tvOS surface still in SwiftUI is a leftover to port, not a base to
+build on.
 
 Shared across platforms: models, services, view models, component *semantics*, focus priority,
 design tokens, assets. **Not shared: view hierarchy, geometry, point values.** Two renderers for one
-semantic component is not a DRY violation; two components for one idea on one platform is a defect.
+semantic component is fine; two components for one idea on one platform is a defect.
 
 ## Quick reference
 
-- **Platforms:** tvOS · iOS · iPadOS · macOS, one target
-  `KinoPubAppleClient` (product `KinoPub`). Mark 27-only API explicitly.
-  **Active platform: tvOS only** ([CURRENT.md](CURRENT.md)). iOS, iPadOS and macOS must keep
-  compiling, but their chrome is postponed — do not spend work on it unless Sasha asks.
-  **tvOS deployment floor is 26.5** — the minimum tvOS 26 simulator runtime.
-  Real devices can all update to 26.6, but the simulator cannot. iOS and macOS
-  stay at 26.6. Packages declare `.tvOS("26.5")` (SPM has no `.v26_5` case);
-  iOS/macOS packages stay `.v26` (the major).
+- **Target:** `KinoPubAppleClient` (product `KinoPub`), tvOS · iOS · iPadOS · macOS. Mark
+  27-only API explicitly. **tvOS floor 26.5** (the oldest tvOS 26 simulator runtime; packages
+  declare `.tvOS("26.5")`), iOS and macOS 26.6 (packages `.v26`).
+- **Scope now:** [CURRENT.md](CURRENT.md).
 - **Language:** Swift 5 mode in packages (`swift-tools-version: 6.2`).
-- **UI:** SwiftUI everywhere except tvOS media surfaces (UIKit + TVUIKit). See above.
 - **Player:** native `AVPlayerViewController` / `AVPlayerView`, one app-scoped `PlaybackSession`.
-  No custom transport chrome, ever.
+  No custom transport chrome.
 - **Appearance:** tvOS follows the system light/dark setting (no `.preferredColorScheme` on the
-  tvOS shell — even `nil` pinned Dark). iOS and macOS are still forced dark until their pass
+  tvOS shell — even `nil` pinned Dark). iOS and macOS are forced dark until their light pass
   (`LaunchAppearance` in `KinoPubAppleClientApp.swift`). The detail hero's content is forced dark
-  on every platform. Check both appearances with DEBUG `-KINOPUBForceColorScheme light|dark`.
-- **Distribution:** personal builds / TestFlight. App Store review is not a target — which is what
-  makes isolated private API acceptable.
-- **Our docs are English-only** — but a vendor's own documentation is kept **verbatim, in its
-  language** (`docs/providers/kinopub/` is Russian). Do not translate or delete it; it has been
-  deleted once already. UI strings are RU + EN through `Localizable.xcstrings`.
-- **Repo layout:** `KinoPubAppleClient/` (app), `Packages/KinoPub{UI,Backend,Kit,Metadata,Media,Logging}/`,
-  `workers/` (Cloudflare), `tools/` (offline crawlers/probes).
-- **Third-party SPM:** `KeychainAccess`, `PopupView`, `Reachability` (app target), `Nuke`
-  (artwork) and `Pulse` (network log) in `KinoPubUI`. Allowed — see [Dependencies](#dependencies).
+  everywhere. Shots in both: DEBUG `-KINOPUBForceColorScheme light|dark`.
+- **Distribution:** personal builds and internal TestFlight. App Store review is not a target,
+  which is what makes isolated private API acceptable.
+- **Docs are English.** A vendor's own documentation stays **verbatim in its language**
+  (`docs/providers/kinopub/` is Russian) — do not translate or delete it. UI strings are RU + EN
+  through `Localizable.xcstrings`. Asana tasks are in Russian.
+- **Repo:** `KinoPubAppleClient/` (app), `KinoPubTopShelf/` (extension),
+  `Packages/KinoPub{UI,Backend,Kit,Metadata,Media,Logging}/`, `workers/` (Cloudflare), `tools/`.
+- **Third-party SPM:** `KeychainAccess`, `PopupView`, `Reachability` (app target); `Nuke`, `Pulse`
+  (`KinoPubUI`). See [Dependencies](#dependencies).
 
-### Where to read more
+### Where things live
 
-| Need | Load |
+| Need | Where |
 | --- | --- |
-| What is active now (scope, tvOS layout contract) | [CURRENT.md](CURRENT.md) |
-| How a milestone is executed | [PLAYBOOK.md](PLAYBOOK.md) |
-| Media model: sources, facts, viewer state, presentation layers | [docs/media-model.md](docs/media-model.md) |
-| Where a new fact or decision belongs | [Working agreement](#working-agreement), item 8 |
-| What we are building next, open questions, parked defects | Asana — [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374), one task per feature, items as subtasks ([ROADMAP.md](ROADMAP.md) maps features to tasks) |
-| What the product *does* — decided behavior, per feature | [docs/product/](docs/product/) |
-| Provider capability sheets | [docs/providers/](docs/providers/) |
-| Community fork rules | [docs/community-fork.md](docs/community-fork.md) |
-| Dated history — evidence, never law | [docs/archive/](docs/archive/) |
-| Competitive research — evidence, never law | [docs/research/README.md](docs/research/README.md) |
+| What is active now, the tvOS layout contract | [CURRENT.md](CURRENT.md) |
+| Planned work, open questions, parked defects | Asana — [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374) ([ROADMAP.md](ROADMAP.md) maps features to tasks) |
+| What the product *does* — decided behavior per feature | [docs/product/](docs/product/) |
+| Media model: sources, facts, viewer state, presentation | [docs/media-model.md](docs/media-model.md) |
+| External sources' fields | [docs/providers/](docs/providers/) |
+| Symptom → cause, from this repo's own bugs | [docs/engineering/troubleshooting.md](docs/engineering/troubleshooting.md) |
+| Accepted adapters around Apple / package limits | [docs/engineering/adapters.md](docs/engineering/adapters.md) |
+| Detail page internals | [docs/engineering/detail-page.md](docs/engineering/detail-page.md) |
+| Data, caches, diagnostics — the long form | [docs/engineering/data.md](docs/engineering/data.md) |
+| Approaches removed on purpose | [docs/engineering/removed.md](docs/engineering/removed.md) |
+| TestFlight pipeline | [docs/testflight.md](docs/testflight.md) |
+| Community fork | [docs/community-fork.md](docs/community-fork.md) |
+| Research and history — evidence, never law | [docs/research/](docs/research/README.md), [docs/archive/](docs/archive/) |
 
 ## Authority
 
-1. The user's explicit decision in the current conversation.
-2. [CURRENT.md](CURRENT.md) — what is in scope now. It wins on scope; this file wins on *how*
-   things are built.
-3. This file.
-4. [docs/product/](docs/product/) — accepted behavior. What is next lives in Asana ([ROADMAP.md](ROADMAP.md) is only the map to it).
-5. `docs/archive/`, `docs/research/` — evidence. **Never automatic requirements.**
+1. Sasha's explicit decision in the conversation.
+2. [CURRENT.md](CURRENT.md) on scope; this file on how things are built.
+3. [docs/product/](docs/product/) — accepted behavior.
+4. `docs/research/`, `docs/archive/`, CHANGELOG — evidence. **Never automatic requirements.**
 
 If sources conflict, stop only the disputed part and ask. Do not invent blockers, do not close open
 design questions with "Apple defaults", and do not rewrite docs to rationalize an implementation.
 
-**Preserve user work.** Every pre-existing modified or untracked file is user-owned. Re-read a file
-immediately before patching it. Prefer narrow patches; do not revert, wholesale-replace or reformat
-unrelated work.
+**Preserve user work.** Pre-existing modified or untracked files are Sasha's. Re-read a file right
+before patching it; prefer narrow patches; do not revert or reformat unrelated work.
 
 ## Constraints are not requirements
 
-A workaround you found while implementing is **not** a product rule until the user says it is. This
-is the single failure that produced most of what had to be deleted from this repo's own docs:
-
-```
-SwiftUI (or our use of it) can't do X → agent works around it → workaround gets written down
-as "how the page works" → next agent reads it as law → builds the next thing to defend it
-```
-
-Label every limitation, where you record it:
+A workaround found while implementing is **not** a product rule until Sasha says so. This is what
+produced most of what had to be deleted from this repo's docs: *X can't do Y → workaround →
+workaround written down as "how the page works" → next agent defends it as law.*
 
 | Label | Needs to be believed | Expires |
 | --- | --- | --- |
-| **Apple API limitation** | The symbol named, from SDK headers, plus what you tried | Next SDK — re-probe, don't inherit |
+| **Apple API limitation** | The symbol, from SDK headers, plus what you tried | Next SDK — re-probe |
 | **Performance limitation** | A number, from a device or Instruments | Next measurement |
-| **Focus / navigation invariant** | A state the user can get stuck in | Never — it is about the user |
-| **Product decision** | The user said so | When the user says otherwise |
+| **Focus / navigation invariant** | A state the user can get stuck in | Never |
+| **Product decision** | Sasha said so | When Sasha says otherwise |
 
-**Only the last two may become durable requirements.** The first two become an **adapter**: one
-named place with the limitation in its doc comment. An adapter is never a statement about what the
-product is, and never an argument for a second component.
+Only the last two become durable requirements. The first two become an **adapter**: one named
+place, limitation in its doc comment ([list](docs/engineering/adapters.md)). Probe before claiming
+an API limitation — `swiftc -typecheck` against the SDK settles most in a minute.
 
-Probe before claiming an API limitation. `swiftc -typecheck` against the SDK settles most of them in
-a minute; guessing from a header name has cost days here.
+### 🔴 Banned — re-implementing what Apple owns
 
-### 🔴 Banned patterns — do not reintroduce
+If a task seems to need one of these, the design is wrong one level up — stop and ask.
 
-Each is us re-implementing something Apple owns, worse. If a task seems to need one, the design is
-wrong one level up — stop and ask.
+| Banned | Instead |
+| --- | --- |
+| A focus-routing layer of our own (`focusBridge`-shaped), a custom hero focus graph | `.focusSection()`, `defaultFocus`, `indexPathForPreferredFocusedView(in:)`; one connected focus graph |
+| `.disabled` on sibling controls to steer Up/Down | Separate `.focusSection()`s + `defaultFocus` |
+| One `@FocusState` case bound by several sibling views (froze focus, Menu quit the app) | One case per focusable view, or none |
+| Focus timing hacks — `asyncAfter`, same-press guards | React to where focus landed |
+| Hand-rolled focus chrome — `scaleEffect` / brightness / shadow / parallax | `.buttonStyle(.card)`, system cells; `.borderless` + `.hoverEffect` only where the label *is* an image |
+| Scroll-progress choreography, page-wide fold/wash state | Fixed states; the focus engine scrolls the page |
+| Hand-driven scrolling (`CADisplayLink` on `contentOffset`) | Fix layout, or use a collection view |
+| A SwiftUI state machine around preview / trailer playback | UIKit, if it is ever built |
+| **Screen-specific component variants** — the most violated rule here | One component, configured |
 
-| Banned | Cost when we did it | Instead |
-| --- | --- | --- |
-| A focus-routing layer of our own (`focusBridge`-shaped) | We do not own the focus engine; UIKit does, and it is spatial | `.focusSection()`, `defaultFocus`, `indexPathForPreferredFocusedView(in:)` |
-| `.disabled` on sibling hero actions to steer Down/Up | Trailer/Bookmark/More stayed dim; bookmark `Menu` would not open when `@FocusState` lagged | Separate `.focusSection()`s + `defaultFocus` |
-| One `@FocusState` case bound by several sibling views | Six hero buttons shared `heroOther`: focus froze dead on Play, Right and Down both no-ops, **and Menu quit the app** instead of popping — the confused focus state broke the NavigationStack back-context too. Cost a misdiagnosed revert of an unrelated change | One case per focusable view, or no `@FocusState` |
-| Manual focus delays — `asyncAfter`, same-press guards | Racing the engine's own animator; the race returns on a different box | React to where focus landed |
-| Hand-rolled focus chrome — `scaleEffect` / `brightness` / shadow / parallax on focus | Verdict was "не выглядит нативно", and it was right | `.buttonStyle(.card)` on tvOS; system cells; `.borderless` + `.hoverEffect` only where the label *is* an image |
-| Continuous scroll-progress choreography (`washProgress`, "at 0.37 move the artwork") | Keyed the blur to incidental content geometry, so it "only worked for series"; re-ran the whole page body — every shelf, every `updateUIViewController` — on every scroll frame | No page-wide scroll or fold state at all (see [The detail page](#the-detail-page)) |
-| Hand-driven scrolling (`isScrollEnabled = false` + `CADisplayLink` on `contentOffset`) | Replacing the focus engine's scroll animator to win a fight we started | Let focus scroll the page; if the landing is wrong, fix layout or use a collection view |
-| A custom hero focus graph (hero as a detached layer with its own rules) | Broke directional continuity *and* the responder chain | One connected focus graph |
-| A SwiftUI state machine around preview / trailer playback | The reference app's least attractive code, and ours was worse | UIKit, if it is ever built |
-| **Screen-specific component variants** | The most violated rule in this repo's history | One component, configured |
-
-### ❌ Invalid — agent-invented, never requirements
-
-- **"The tab bar must stay pinned through scroll."** No product requirement, and no tvOS API
-  (`.tabBarMinimizeBehavior(.never)` is iOS 26+, unavailable on tvOS/macOS). The bar is a temporary
-  shape; take what the system `TabView` does.
-- **"`TVMediaItemContentConfiguration` can't show an icon, so we need our own badge overlay."**
-  `badgeText` is a `String`, and an SF Symbol is a character in the SF Symbols font (custom symbol,
-  asset, or a letter after that). The overlay may earn its place for real reasons — it pairs the
-  badge with a scrim, checkmark and progress bar, which move together — but state *that*.
-- **Cross-platform geometry parity.** "iOS shows two lines under a poster, so tvOS must too" is a
-  reflex, not a requirement. The two-line tvOS caption cost tile width and rendered nothing.
-- **"The hero must live outside the scrolling container."** Described one broken attempt. Nothing
-  on the detail page lives outside the scroll, the artwork included.
-- **A compact title / floating header logo.** Dropped 2026-08-13 unless navigation chrome needs one.
-
-### ✅ Accepted adapters
-
-Allowed to exist, one place each, limitation in the doc comment:
-
-- **`TVUIKitMediaItemMetrics`** — `orthogonalLayoutSectionForMediaItems()` exposes neither its group
-  nor its item, so it cannot be resized. We measure what it produces per width and rebuild an
-  equivalent section at our scale; Apple keeps owning the proportions.
-- **The progress bar in the media-item overlay** — `configuration.playbackProgress` only paints on
-  the *focused* tile, and "started, not finished" is what an idle rail has to say.
-- **`NetworkConsoleView`'s macOS branch** — `PulseUI.ConsoleView` does not exist on macOS in Pulse
-  5.2.3 (the module ships `ConsoleView-ios/-tvos/-watchos`, and its public init is fenced
-  `#if !os(macOS)`). Capture still runs there, so the Mac gets export-to-`.pulse`, and streaming to
-  the Pulse app is the live reader. Re-probe on the next Pulse major.
-- **Auto-connect in `setRemoteLoggingEnabled`** — Pulse keeps `RemoteLoggerSettingsView` internal,
-  so there is no server picker to present. "First server found, then remembered" is the only
-  selection model its public API offers. Re-probe if that view goes public.
-
-- **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`
-  (`_TSKSplitViewController`, `TSKViewController`, `TSKSettingItem`, `TSKPreviewViewController`):
-  the still preview column, the list-only slide-and-crossfade on push, Apple's cells and value
-  pickers have no public API, and a hand-built copy was rejected. Only that file touches private
-  API; classes and selectors are checked once (`TVSettingKit.isAvailable`) and the SwiftUI
-  `TVProfileSettingsView` is the fallback. Rows bind by KVC through `TSKValueStore` onto the
-  existing `@AppStorage` keys and models. Full-screen tools are presented over it, each in its
-  own `NavigationStack`, with the environment forwarded. Re-probe every tvOS.
-
-- **`RenditionNames`** (`PlayerManager.swift`) — `AVMetadataItem.stringValue` is deprecated
-  (16) for the async `load(.stringValue)`, while `AudioRenditions` reads a rendition's `NAME=`
-  synchronously and is tested with no asset. The player awaits the names right after each
-  `loadMediaSelectionGroup`; the rules keep their shape. `displayName` is never a substitute —
-  it reads «Russian» for every Russian dub.
-
-An adapter that stops being needed gets deleted, not kept "in case".
+Not requirements, though agents wrote them down as such: a tab bar pinned through scroll; "the
+hero must live outside the scroll"; cross-platform geometry parity ("iOS shows two lines, so tvOS
+must"); a compact title / floating header logo.
 
 ## Focus (tvOS)
 
-**The focus engine is Apple's. We do not build a layer on top of it.**
+The focus engine is Apple's; we do not build a layer on top of it.
 
-- Interactive controls are reachable and visibly focusable. `.buttonStyle(.plain)` commonly kills
-  visible focus — verify before using it.
-- **For a focusable container, reach for `.buttonStyle(.card)` and write no focus code at all.**
-  Apple's `DestinationVideo` sample does `#if os(tvOS) .card #else .plain #endif` on every card,
-  applies it once to the enclosing stack, and fences `.hoverEffect()` to iOS/visionOS. Everything
-  focusable there is a `Button` or `NavigationLink`, including pure focus stops.
-- **`.hoverEffect(.highlight)` is for controls whose label *is* the image.** The system highlight
-  attaches to the first `Image` in a label, so on `icon + text` (rating tiles, vote pills) it scales
-  and shadows the icon alone while the container sits still. Learned twice in one day.
-- **Never bind two sibling views to the same `@FocusState` equals-value.** See the banned table.
-- **Every state keeps a focus escape path.** A dead end on tvOS is unrecoverable — the remote has
-  nowhere else to go:
-  1. Do not enter a "scrolled past the hero" state until at least one focusable row exists below.
-  2. Never drop the hero's focusability. Play/More stay in the focus graph wherever the page is
-     scrolled.
-  3. Empty and error states are **focusable sections with a Retry control**, never an empty list.
-- No inert reserved space above the first focusable row — it steals Up and traps focus in the tab bar.
-- **A known-bad focus pattern sitting in a checklist as a "someday" item is a bug to fix on sight.**
-  One of those cost a whole misdiagnosed detour before anyone traced it.
+- Interactive controls are reachable and visibly focusable. `.buttonStyle(.plain)` often kills
+  visible focus — check before using it.
+- For a focusable container, `.buttonStyle(.card)` and no focus code (Apple's `DestinationVideo`:
+  `#if os(tvOS) .card #else .plain #endif`).
+- `.hoverEffect(.highlight)` only where the label *is* the image — on `icon + text` it scales the
+  icon alone.
+- **Every state keeps a focus escape path.** Empty and error states are focusable sections with a
+  Retry control; never drop the hero's focusability; no inert reserved space above the first
+  focusable row (it traps focus in the tab bar).
+- **A focus dead end is fixed now**, in the change that finds it. Any other defect you notice on
+  the way is an Asana subtask, not an inline fix.
+- Debug focus the Apple way: `-UIFocusLoggingEnabled YES`, the system log, a fixed remote walk —
+  before theorising.
 
 ## Components
 
-**Pages are assembled from a fixed catalogue. A page is a list of typed sections, not a
-hand-written stack of views.** Two pages showing a shelf show the *same* shelf — same component,
-same metrics, same focus behavior. When it is wrong, it is wrong in one place.
-
-🔴 **No screen-specific variants.** A component that differs only because a different screen uses it
-is an architecture defect:
+**Pages are assembled from a fixed catalogue: a page is a list of typed sections, not a
+hand-written stack of views.** Two pages showing a shelf show the same shelf — same component,
+metrics and focus behavior.
 
 ```
 allowed                          never
-MediaCard                        HomeMediaCard
-  configuration:                 DetailMediaCard
-    kind / metadata /            SearchMediaCard
-    presentation
+MediaCard                        HomeMediaCard / DetailMediaCard / SearchMediaCard
+  configuration: kind / metadata / presentation
 ```
 
-Different **platforms** may render one semantic component differently. Different **screens** may not.
-While a look is unsettled it is fine to keep 2–4 variants *of one component* behind a switch, in one
-file, and delete the losers with the switch.
+Platforms may render one component differently; screens may not. While a look is unsettled, 2–4
+variants *of one component* behind a switch, in one file, are fine — delete the losers with it.
 
-- Reusable UI lives in `KinoPubUI`; screen-specific composition stays in the app target.
-- Semantic tokens only — `Color.KinoPub.*`, `TypeScale`. `Color.KinoPub.background` is **opaque** on
-  every platform: a transparent token no-ops every `.background(…)` and every derived scrim. Layer a
-  scrim explicitly instead.
-- **Always a Dynamic Type text style, never `.system(size:)`.** Vary weight and colour, not size by
-  hand. tvOS 27 turns on Dynamic Type system-wide, and hard-coded sizes are the named cause of
-  breakage. `.system(size:)` survives only where a glyph lines up with fixed geometry.
-- One running-text size per page family (`TypeScale.detailBody` for the item page). When unifying
-  sizes, unify **up** on the style the content deserves.
-- Ship a working `#Preview`, on tvOS too when the component is focusable. Previews do not prove
-  focus.
-- **On tvOS there are three cells and one collection** — person, wide 16:9, poster — all from
-  TVUIKit, in one `UICollectionView` per page region. A hand-assembled tile is a defect even when it
-  looks right. The one extension is the HIG's *Card* for
-  ratings, reviews, facts, stills and specification columns: `TVPageCellKind.infoCard`, content
-  drawn inside a `TVCardView` — a new kind of card is a new content, not a new cell, and it wears
-  the platter of search's wide card (`TVPagePlatter`).
+- Reusable UI lives in `KinoPubUI`; screen composition stays in the app target.
+- Semantic tokens only — `Color.KinoPub.*`, `TypeScale`. `Color.KinoPub.background` is **opaque**;
+  layer a scrim explicitly.
+- **Dynamic Type text styles, never `.system(size:)`** — except where a glyph lines up with fixed
+  geometry. Vary weight and colour, not size. One running-text size per page family.
+- **tvOS: three cells, one collection per page region** — person, wide 16:9, poster, all TVUIKit.
+  The one extension is the HIG *Card* for ratings, reviews, facts, stills and specs
+  (`TVPageCellKind.infoCard`, a `TVCardView` wearing `TVPagePlatter`). A hand-assembled tile is a
+  defect even when it looks right.
+- 🔴 A rule that depends on a title's type or genre lives in `MediaPresentationProfile`, never as
+  `if type == …` in a view ([media-presentation.md](docs/product/media-presentation.md)).
+- Ship a working `#Preview` (tvOS too when focusable). Previews do not prove focus.
 
 ## The detail page
 
-- **tvOS backdrop: interim, to be redone — not a design** (Sasha, 2026-10-11: "это все
-  переделывать надо… костыль на костыле без разбора в апишках", tolerable for now). Do not
-  read the current shape as the desired one, do not defend it, and do not build on it before
-  Sasha's pass with reference apps that did read the documentation. What is decided:
-  - The picture is **not in the scroll** — one full-screen backdrop behind the content, the
-    content changes over it (Sasha, overruling the 2026-09-27 "artwork is part of the hero").
-    The hero and the sections stay one scroll and one focus graph.
-  - Sasha will supply mean colours / gradients per title and wants them crossfaded, Apple-style.
-  What is merely there now (`PageBackdrop` in KinoPubUI, `Route.backdrop`): a stage around the
-  tab view showing the picture of the selected tab's top route; the title's page publishes it;
-  the hero reports focus in the sections (`pageBackdropDetails`) and the picture fades out to
-  the system background there. Rejected on the way, with Sasha's reasons: a lifecycle-claimed
-  backdrop (wrong title a few levels deep, late fade on Back), an opaque dark panel in the
-  scroll ("moving fixed background", black in the light appearance), `.regularMaterial` over
-  the picture (dirty grey in light). Facts measured on the way, not rules: on a tvOS pop the
-  page beneath appears ~0.1 s after Menu, the leaving page disappears ~0.5 s later, a stack's
-  root never re-appears, `isPresented` drops when a page is covered and never fires back.
-  iOS and macOS are untouched: the artwork is the hero's `.background` and scrolls away.
-- **Prose in the hero has no chrome at rest.** On tvOS the synopsis is always a `.borderless`
-  button, and Select on that button opens the info popup. Do not add `.focusable()` on it: the
-  wrapper takes the focus and Select never presses the button, so the popup never opens (Sasha,
-  2026-10-01). `.card` is for fact containers — it draws a platter at rest and read as a second
-  focus next to Play.
-- **Play is the entry focus, by name.** `defaultFocus(priority: .userInitiated)`, and the hero
-  claims Play (or Follow-primary) in `onAppear` / `.task`. The synopsis stays out of the focus
-  chain until that entry lands — otherwise it is the topmost focusable and steals open, blinking
-  Play when focus is corrected. Down from the synopsis returns to Play via separate
-  `.focusSection()`s on the plot column and the action row — **never** by `.disabled`-ing
-  Trailer / Bookmark / More to steer the remote. That left those controls dim forever whenever
-  `@FocusState` lagged the visual focus, and a disabled `Menu` cannot open bookmarks
-  (Sasha, 2026-10-01). Coming back from the player the hero claims the same entry control
-  again — Follow when it leads, else Play, Replay included — because the row usually changed
-  under the control that had focus (Sasha, 2026-10-03).
-- **Detail page UI tests run on fixtures.** `-KINOPUBDetailFixture <name>` (DEBUG, tvOS) makes
-  the root a stack of local titles served by stand-ins for the API, TMDB and the player
-  (`DetailFixture.swift`); `TVDetailPageUITests` walks them with the remote and CI prints the
-  screenshots into the tvOS test job's log. `film` is the one with every row populated and local
-  artwork, so a layout is looked at with no session and no network (`TVDetailLayoutUITests`).
-  Companions: `-KINOPUBFixtureRealArt YES` (the shelves' posters come over the network and are
-  cached, as a signed-in session's do), `-KINOPUBFixtureInTabs YES` (the stack sits under
-  production's tab bar) and `-KINOPUBSlowShelves <s>` (the shelves arrive late, while the hero
-  holds focus). `-KINOPUBLibraryFixture YES` is the same idea for the Library: the real page on a
-  stand-in API listing twelve followed series (`LibraryFixture`, `TVDetailLayoutUITests`) — how the
-  *Following* captions («2 серии») look, with no session. **Run it on both simulator runtimes, tvOS 27.2 and 26.5 — and once on an Apple TV 4K device that is not "(at 1080p)"** (scale 2; it is the first device CI picks, and a lockup computes its focus growth in whole points there: art 254 where 1080p reads 256) — they differ: on 26.5
-  the poster art's focus bug above (and, before captions became ours, a system footer's height changed how tall art grew — see Troubleshooting).
-- **On tvOS everything under the hero is one embedded TVUIKit page** (Sasha, 2026-10-06).
-  `MediaItemTVSections.make` is the order and the content, as data — the one place. `TVEmbeddedPage`
-  draws it: a non-scrolling `TVPageCollectionViewController` sized to its content (`isEmbedded`)
-  *inside the hero's `ScrollView`*, so hero and sections stay one scroll and one focus graph — an
-  independent scroll world is the thing banned above. It needs its own full-width `.focusSection()`,
-  or Up from the right of a row can miss the hero. Two titled groups in one row are a `.strip`
-  (`TVPageSection.groups`): one orthogonal section whose cell frames all come from
-  `TVPageStripPlan`, group titles being non-focusable cells that dodge together and **stay on the
-  page's side margin while any of their group is on screen** (`stickyShifts`: the *label* moves
-  inside a group-wide cell — a cell that moved with it would be recycled once its frame left the
-  screen, and the cell's own transform is the focus dodge). A strip can carry a heading of its own
-  (`strip(id:title:groups:)`, *Similar*) with its groups' titles as subheadings
-  (`TVPageGroup.isSubheading`); *Cast & Crew* is a heading over one untitled group of people. What each row says:
-  [docs/product/detail-sections.md](docs/product/detail-sections.md). The SwiftUI sections it
-  replaced are still there behind `FeatureFlags.tvDetailSections` (default on) until the page has
-  been seen on a device — and are what iOS, iPadOS and macOS draw. **Being inside the hero's scroll view
-  has a price:** to UIKit a SwiftUI button with focus *is* the scroll view's container
-  (`HostingScrollView.PlatformGroupContainer`), an ancestor of every lockup on the page, and TVUIKit
-  reads "the focused view is an ancestor" as "I am focused" — info cards need
-  `TVCardView.releaseFocusedLook`, poster art `TVPosterArtFocus` (Troubleshooting). Home's page is
-  the tab's root, with no such ancestor, which is why it never shows either.
-- **Hero content is forced dark** (`.environment(\.colorScheme, .dark)` in `MediaItemHeroView`):
-  tvOS follows the system appearance, and without the force light mode paints `Color.primary`
-  black on dark artwork. Keep the scrim where the text is (bottom band, left edge); a stacked 0.92
-  diagonal read as a black slab. What the hero does in light mode once the picture has faded is
-  open — Asana: [Светлая тема на странице: текст hero](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606561789181). (An older rule,
-  "the scrim follows light/dark", contradicted this and was removed 2026-10-18.)
-- **No page-wide hero state.** No fold flag, no wash, no chrome fade, no custom
-  `ScrollTargetBehavior`. The focus engine scrolls the page. The one scroll the page asks for is
-  back to the top when a hero control takes focus (`ScrollViewReader.scrollTo`), because the
-  controls sit at the hero's bottom edge and the engine otherwise nudges the page to frame each
-  one. The fold state it replaces changed one step after focus moved, so the snap worked from stale
-  state, and every write re-ran the whole page body and every shelf under it.
-- **The page body reads no focus.** Hero focus is observed inside `MediaItemHeroView`; the page
-  passes the `@FocusState` binding down and reads nothing from it.
-- **Lead with what can be played.** The cheapest path on a remote is `hero button → playable rail →
-  everything else`. Episodes, parts and versions are a rail directly under the hero
-  (trailers join it — not built yet, Asana: [Трейлеры как элементы playable rail](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606504266557));
-  the sections follow, in the order of [docs/product/detail-sections.md](docs/product/detail-sections.md).
-  Ordering is by what the user can do now, not by entity type — a movie is not "the layout with the
-  rail missing".
-- **One playable rail *component*, not one section per content type.** Episode, trailer, part, version and extra
-  share a shape (id, title, duration, image, source, progress, kind) and differ in one field, so
-  they share a component. A trailer tile *is* an episode tile *is* a Continue Watching tile.
-- Versions of one film (`subtype: multi`) are `PlaybackVariant`, never episodes — one rail each,
-  never mixed. Why, and what the payload actually looks like: `PlaybackVariant.swift` and
-  [docs/providers/kinopub/video.md](docs/providers/kinopub/video.md).
-- Sections are data (kind + payload), empty ones simply absent, order defined in one place.
-- "Related" renders through the same shelf component Home uses.
-- 🔴 **A rule that depends on a title's type or genre lives in `MediaPresentationProfile`, never as
-  an `if type == …` in a view** — written into one view it lands on the detail page and is missed on
-  the poster, the card and the label beside it. *What* each kind shows is product, not architecture:
-  [docs/product/media-presentation.md](docs/product/media-presentation.md).
+Internals and history: [docs/engineering/detail-page.md](docs/engineering/detail-page.md). Rows:
+[docs/product/detail-sections.md](docs/product/detail-sections.md).
+
+- **tvOS backdrop is interim, to be redone** (Sasha, 2026-10-11) — do not defend or build on
+  `PageBackdrop`. Decided: one full-screen picture behind the content, not in the scroll; hero and
+  sections stay one scroll and one focus graph.
+- **On tvOS everything under the hero is one embedded TVUIKit page**, inside the hero's scroll
+  view, with its own full-width `.focusSection()`. `MediaItemTVSections.make` is the order and
+  content, as data.
+- **Play is the entry focus, by name** (`defaultFocus(priority: .userInitiated)`), and the hero
+  reclaims it (or Follow when it leads) on return from the player.
+- Hero prose on tvOS is a `.borderless` button whose Select opens the info popup — no
+  `.focusable()` wrapper on it.
+- Hero content is forced dark; the scrim sits where the text is. Light-mode behavior of the hero is
+  open (Asana, *Страница тайтла*).
+- **No page-wide hero state.** The one scroll the page asks for is back to the top when a hero
+  control takes focus. The page body reads no focus.
+- **Lead with what can be played:** hero → playable rail → everything else. Episodes, parts,
+  versions (and trailers, not built yet) share one rail *component*; versions (`PlaybackVariant`)
+  never mix with episodes in one rail.
+- Sections are data, empty ones absent, order defined in one place. "Related" uses Home's shelf.
 
 ## Chrome
 
-- **Appearance:** see Quick reference — tvOS follows the system, iOS/macOS forced dark. tvOS ships
-  no semantic background colour (`systemBackground` is iOS-only); a background change is a fixed
-  backdrop state plus a system material, checked in light **and** dark.
-- **All `glassEffect` goes through `kinoGlass` / `kinoGlassGroup`** (`KinoPubUI/DesignSystem/`),
-  never the raw API at a call site — the helper degrades to an opaque fill under Reduce Transparency
-  / Increase Contrast. `.buttonStyle(.glass)` / `.glassProminent` are a separate, fully system-owned
-  path and deliberately do not route through it.
-- **Glass samples the content behind it.** A flat page fill gives it nothing and degrades it to a
-  matte slab — never rely on the page fill to feed glass.
-- **The navigation bar is left to the system.** Do not stack a material behind the page to "help" it.
-- **No page-level material behind Home.** `backgroundExtensionEffect` as shell chrome is **banned**
-  (sidebars displace content — there is nothing to bleed under).
-- Blur: private `CAFilter` `variableBlur` over **static** art only. **No blur over video on
-  tvOS/macOS**; blur over video is fine on iOS/iPadOS.
-- Hero CTAs use system glass (`.glassProminent` for Play, `.glass` for other capsules
-  and circles). White elevated fill is **focus**, not a permanent Play tint (Sasha,
-  2026-10-01). Do not force `.tint(.primary)` on Play. Hero action row is forced dark
-  (with the rest of the hero content) so glass samples against artwork consistently.
-- **Tab bar:** system `TabView` on tvOS and macOS, adaptive on iPad. No pinning requirement, no
-  `.toolbar(.hidden, for: .tabBar)`, no custom bar layered over content.
-- No shadows on tvOS cards / badges / action buttons.
+- All `glassEffect` goes through `kinoGlass` / `kinoGlassGroup` (degrades under Reduce
+  Transparency). `.buttonStyle(.glass)` / `.glassProminent` are system-owned and stay direct.
+- Glass samples what is behind it; a flat page fill degrades it to a slab.
+- Navigation bar and tab bar are the system's: system `TabView` (adaptive on iPad), no hiding, no
+  custom bar over content, no material stacked behind a page to "help" it.
+  `backgroundExtensionEffect` as shell chrome is banned.
+- A background change is a fixed backdrop state plus a system material, checked in light **and**
+  dark. tvOS has no `systemBackground`.
+- Blur: private `variableBlur` over static art only; no blur over video on tvOS/macOS.
+- Hero CTAs: `.glassProminent` for Play, `.glass` for the rest; the white fill is focus, not a tint.
+- No shadows on tvOS cards, badges or action buttons.
 
 ## Data and continuity
 
-- **Watch state is `WatchProgress`.** Fraction, unwatched / inProgress / finished live in
-  that one type, and **watched is 85% of the runtime** — kino.pub's own rule, probed live
-  (`watchedFraction`, Sasha's call to match it, 2026-10-16). So a bare play head (this
-  device's, a history row) reads the same as the server's flag on the same title.
-  `Episode` / `Video`.isWatched is the server flag *or* `isFinished`. A card paints
-  `resumeFraction`, never a 0.95 / 0.02 of its own. When the player's Up Next panel
-  appears is a different question (`upNextLeadTime`, the last 60–180 s), not "watched".
-  Skip / outro markers, when they land, feed this type; they do not grow a second threshold.
-- **Continuity beats placeholders.** Stale local data and already-loaded artwork beat blank screens.
-  Card → detail carries the known item, artwork handle and palette; detail paints from that snapshot
-  and enriches — it must not blank-reload what the card already had. Exact-layout skeletons only on
-  true cold loads, and only when the geometry matches what arrives.
-- Deduplicate in-flight work; stale paints first, revalidation runs underneath. Never reuse eternal
-  grey as both loading and failure.
-- **One store ownership model.** `ContentStore` owns Home/Library *rows*; `MediaLibraryStore`
-  owns per-item optimistic library state (watchlist / watched / votes, plus a download
-  façade); `Artwork` owns remote images; `MediaRecordStore` owns item facts — one
-  `MediaRecord` (merged model) per `MediaRef`, which `ContentStore` rows refer to
-  (docs/media-model.md step 4). Do not invent a fifth cache beside those. Bookmarks stay on `BookmarkMembershipStore` /
-  `BookmarkFoldersStore` — the library store does not replace them. **All remote images go
-  through `Artwork`** — one decoded memory
-  cache keyed by target size, one disk entry per URL, coalescing and prefetch, on every platform.
-  Use `CachedRemoteImage`, or `ArtworkImage` when the states need different geometry. `AsyncImage`
-  is a regression and no longer appears anywhere in this repo. Local optimistic writes (hide, watched, bookmark) are
-  authoritative until the server contradicts them.
-- **Bookmarks are answered locally.** `BookmarkMembershipStore` (item → folder ids) and
-  `BookmarkFoldersStore` (the folder list, persisted across launches) draw every bookmark control.
-  `GET /v1/bookmarks` belongs to the screens that list folders — Library, Bookmarks, the sidebar,
-  which hand their result back with `adopt(_:)` — and to the moment a folder is created or deleted.
-  **A detail page fetches neither**: membership is already on the item payload (`bookmarks`), and
-  `get-item-folders` is gone on purpose.
-- **`nolinks=1` on a series detail page is off** (`FeatureFlags.seriesDetailsWithoutLinks`).
-  It is built and switchable — `MediaItemModel` asks without links when it knows the card is
-  episodic (`isEpisodicType`), and `MediaLinksResolver` fills one `Episode` from
-  `/v1/items/media-links?mid=` when it is played — and kino.pub will make it the default, so
-  it is what we flip then. **A `nolinks` payload still lists `files`, with no link bag under
-  any key**: never assume a file carries a URL, ask `hasPlayableURL` (requiring one failed
-  every series page with `keyNotFound 'urls'`). Films always come with links.
-- tvOS purges `Caches/` when the app is not running — lean on longer in-memory TTLs, don't fight it,
-  and don't pretend offline parity exists.
+- **Watch state is `WatchProgress`**: watched = 85% of runtime (kino.pub's rule). Cards paint
+  `resumeFraction`; Up Next timing (`upNextLeadTime`) is a separate question. Skip markers, when
+  they land, feed this type.
+- **Continuity beats placeholders.** Card → detail carries the known item and artwork; stale local
+  data paints first and revalidates underneath. Exact skeletons only on true cold loads.
+- **Stores:** `ContentStore` owns Home/Library rows; `MediaRecordStore` owns item facts (one
+  `MediaRecord` per `MediaRef`); `MediaLibraryStore` owns optimistic per-item state; `Artwork` owns
+  every remote image (use `CachedRemoteImage` / `ArtworkImage`, never `AsyncImage`); bookmarks are
+  `BookmarkMembershipStore` + `BookmarkFoldersStore`. No other cache. Local optimistic writes win
+  until the server contradicts them.
+- A detail page fetches no bookmark list — membership is on the item payload.
+- A `nolinks` payload still lists `files` without URLs: ask `hasPlayableURL`, never assume one.
+- tvOS purges `Caches/` when the app is not running — lean on in-memory TTLs.
 - **New API calls go through `KinoPubBackend`** — Endpoint + model + service protocol + mock.
-- **Document an external source before integrating or extending it** — every method, field and
-  model, including ones we do not want, into a sheet in `docs/providers/` *first*. Store every
-  detail the API gives; decide what is redundant later, from evidence.
-- **Providers: our worker when it helps, the app for a viewer's own connection.** The
-  Cloudflare worker proxies, caches and aggregates with built-in or owner keys, or when a
-  service is flaky or rate-limited; a viewer's own key or account (Kinopoisk, Trakt) is called
-  by the app. Either way it lands as `MediaFragment`s. See [docs/media-model.md](docs/media-model.md).
-- **Telemetry:** no third-party SDK. TestFlight / Xcode Organizer already deliver crashes. Do not
-  add Firebase, Sentry or similar without an explicit decision. **This is a rule about *sending*
-  data somewhere.** On-device diagnostics that leave nothing behind — `Pulse`'s local store behind
-  `NetworkDiagnostics` — are not telemetry and are not covered by it.
-- **Diagnostics are shipped, not DEBUG-only.** The launches worth reading a log for happen on a
-  physical Apple TV running TestFlight, with no Xcode attached, so Settings › Diagnostics › Network
-  log is in every build. Capture goes through `NetworkDiagnostics.start()` once at launch (it
-  swizzles `URLSession`, so it catches every client and shows tasks still in flight). Tokens are
-  redacted **at capture**, because the store is exported and shared.
-- **The log records API traffic only.** Artwork and media are excluded by host *and* extension,
-  and `NetworkDiagnostics.store` is ours rather than `LoggerStore.shared` because Pulse's defaults
-  — 256 MB of store, 8 MB per body — are what produced 50 MB log files. Ours: 32 MB store, 512 KB
-  per body, in `Caches/`. Adding a media host to the app means adding it to `excludedHosts`.
-- **"What are we waiting for" is `NetworkActivity`** (`KinoPubLogging`), hooked once in
-  `URLSessionImpl` so no call site has to remember to report. Pulse logs completed tasks; this is
-  the live one. It feeds the debug overlay (and `LaunchStatusLabel` where a surface wants the same
-  copy). Entries carry a **localization key**, never a path: a raw `/v1/items/…` on a user's TV is
-  worse than saying less, so an unmapped endpoint reads "Загружаем" and keeps the path for the
-  overlay only. Add a key to `Localizable.xcstrings` (RU + EN) when you add an endpoint family, not
-  a string at the call site.
-- **Auth launch is optimistic.** A Keychain token mounts the main shell immediately; token refresh
-  is driven by the stored access-token expiry (proactive ~90s early) and by content 401s. Do **not**
-  reintroduce a full-screen gate that waits on `refreshToken` — that splash ("Signing in") was the
-  hostile cold-launch wait. `APIClient` must await recovery and retry a content 401 once — failing
-  the caller's request while refresh is in flight replaces painted pages with Try Again. Only a
-  real grant rejection sends the user to activation; network blips keep the session and back off.
-- **Downloads are non-TV only.** Feature-gate incomplete surfaces (`FeatureFlags`) rather than
-  inventing half-UI. An off flag must skip the work — network, sampling — not only hide UI.
-  **Every flag is a `FeatureFlag` case** (default, title, one-line summary, platforms, launch-time
-  or not) and so is switchable in Settings › Diagnostics › Feature flags in every build — a
-  `static let` flag can only be judged by rebuilding, and there is no Xcode next to a TV.
-
-## What is dead — do not revive
-
-If you find a comment or a doc referencing these, it is stale.
-
-- `AuthPhase.resolving` / a root splash that waits on `refreshToken` before mounting Tabs — removed
-  2026-10-01 for optimistic Keychain launch. Refresh still runs; it does not gate the shell.
-- `washProgress` / `onScrollGeometryChange` scroll scrub, `MediaItemHeroScrollDriver`,
-  `HeroMaterialBackdropView`, the `ZStack` hero-outside-scroll structure (the hero's *content*
-  outside the scroll — the tvOS backdrop behind the tab view is not that), the overlay title logo,
-  `MediaItemHeroBackdrop` (pinned still + fold material), `MediaItemFoldSnappingBehavior`, the
-  per-section `onSectionFocused` / `reportMediaItemSectionFocus` reporters.
-- `focusBridge`-style routing, `SiriRemoteTilt` / Game Controller fake parallax,
-  `ExpandableButtonStyle`, `ExpandableLabel`, `RatingTileButtonStyle`, `DetailTileFocusChrome`.
-- `MediaItemDetailSheet` / `MediaItemSheetLayout` — replaced by `InfoPopup`, where **the clipped
-  content itself is the trigger**, never an `i` button beside it.
-- `TVUIKitContinueWatchingCell` as a landscape grid tile — the grid dequeues the same media-item
-  cell the rails use.
-- Netflix-style Home focus-preview (`showsFeaturedPreview`) and the 560pt reserved spacer.
-- Metal `ProgressiveBlur`, page-level `.background(.ultraThickMaterial)`, hand-rolled Button-row
-  sidebars, custom `ultraThickMaterial` toolbars.
-- The tvOS poster experiment: pinning `TVPosterView.contentSize` + `scaleAspectFill` +
-  `clipsToBounds`. Aspect-fill crops 2:3 art, and **clipping the image view kills the parallax** —
-  the lockup moves content inside its own frame. Not obvious from the API; do not retry blind.
-- `PlexDataStore`-style optimistic Continue Watching mutation from a shelf.
-- The hand-rolled artwork cache: `TVUIKitRemoteImage`'s private `NSCache`, the `ArtworkFetcher`
-  coalescing actor, `preparingThumbnail` downsampling, and `AsyncImage` in `CachedRemoteImage`.
-  All four behaviours survive — `Artwork` provides them, on four platforms instead of one.
-
-Known bad, still present, do not polish: `HudToast` (rewrite, don't patch).
+- **Document an external source before integrating it** — a sheet in `docs/providers/` with every
+  field, wanted or not.
+- Providers: our Cloudflare worker for owner keys, caching and flaky services; the app for a
+  viewer's own account (Kinopoisk key, Trakt). Both land as `MediaFragment`s.
+- **No third-party telemetry SDK.** On-device diagnostics (Pulse behind `NetworkDiagnostics`, in
+  every build, tokens redacted at capture, API traffic only) are not telemetry.
+- **Auth launch is optimistic:** a Keychain token mounts the shell at once; a refresh rejection is
+  not a sign-out; `APIClient` retries a content 401 once after recovery.
+- **Every flag is a `FeatureFlag` case**, switchable in Settings › Diagnostics in every build; an off
+  flag skips the work, not only the UI. Downloads are non-TV only.
 
 ## Build, run, verify
 
 ```bash
-# tvOS simulator build
 xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name=Apple TV' build
 ```
 
-- **Internal TestFlight** is `.github/workflows/testflight.yml`: push to
-  `main` (reliable) and cron `23 6 * * *` (best-effort) upload if HEAD moved
-  **and** nothing succeeded yet today UTC — at most one automatic archive
-  per day. `workflow_dispatch` anytime. Cron cannot be trusted here: fork +
-  GitHub App as the last workflow actor (Oct 12 and Oct 13 never queued).
-  Upload jobs are `runs-on: xcode-27` — the project file is `project.xcproj`;
-  Xcode 26 and Fastlane's `xcodeproj` gem / gym look for `project.pbxproj` and
-  fail. Sign by patching the app target in `project.xcproj`; archive with
-  `xcodebuild`, not gym. iOS, tvOS and macOS of the one multiplatform target,
-  signed with an App Store Connect API key plus a persistent Distribution p12.
-  Not a public release. Do not add a second pipeline (Codemagic, Xcode Cloud,
-  Match) unless the user asks. Secrets, first-time Apple setup, and how to
-  trigger a run: [docs/testflight.md](docs/testflight.md). Missing secrets skip
-  the workflow; they do not fail it. Sasha tests on Apple TV only via TestFlight.
-  Secrets-free check: `.github/workflows/testflight-lint.yml`.
+- **The project file is `KinoPubAppleClient.xcodeproj/project.xcproj`** (Xcode 27 JSON; no
+  `project.pbxproj`). A new `.swift` file is not compiled until it is listed in its group's
+  `children` with `"target-membership": [ "KinoPubAppleClient/compile-sources" ]` — the symptom is
+  `Cannot find 'TypeName' in scope` everywhere it is used.
+- **TestFlight:** `.github/workflows/testflight.yml`, at most one automatic upload a day, iOS +
+  tvOS + macOS. Details and secrets: [docs/testflight.md](docs/testflight.md). Sasha tests on the
+  Apple TV through TestFlight.
+- **Shared debug session:** DEBUG builds mirror the session to `~/.kinopub-dev-session.json`
+  (`DevSessionMirror`) so reinstalls need no new code — the account has five device slots. Release
+  keeps `KinoPubAppleClient.entitlements`; only Debug gets the sandbox exception.
+- **Fixtures, not the live account, for UI tests:** `-KINOPUBDetailFixture film`,
+  `-KINOPUBLibraryFixture YES`, `-KINOPUBTVChannelsFixture YES`, `-KINOPUBFixtureInTabs YES`. A
+  live UI run can rotate the token and kill the dev session. Run tvOS checks on both simulator
+  runtimes, 27.2 and 26.5 — they differ.
+- The simulator window lives in Device Hub; arrows + Return are the D-pad, Escape is **not** Menu.
+- Focus bugs do not show in previews and a screenshot shows no animation — say "not verified on
+  device" when it was not.
 
-- **There is no Simulator.app on current Xcode.** The simulator window is hosted by **Device Hub**
-  (`com.apple.dt.Devices`). Focus its title bar; arrow keys + Return are the D-pad. **Escape is not
-  Menu** — use the on-screen remote's `‹` button. `simctl` has no directional-press API.
-- **Focus bugs do not show in previews**, and a static screenshot cannot show animation smoothness.
-  Say "not verified on device" rather than implying it was.
-- **Shared debug session:** every DEBUG build mirrors the kino.pub session to
-  `~/.kinopub-dev-session.json` and reseeds the Keychain from it, so a reinstall or a platform
-  switch does not need a fresh activation code (`DevSessionMirror`). The account has five device
-  slots — do not spend them on the dev loop. Sign-out deletes the file on purpose.
-  The sandboxed macOS Debug build needs its own entitlements file for that path
-  (`KinoPubAppleClient-Debug.entitlements`, set by `CODE_SIGN_ENTITLEMENTS[config=Debug]`);
-  **Release must keep pointing at `KinoPubAppleClient.entitlements`** — the Debug file carries a
-  temporary sandbox exception for the home-folder path. Verify with
-  `codesign -d --entitlements - --xml <app>` rather than trusting the edit.
-- **The project file is `KinoPubAppleClient.xcodeproj/project.xcproj`** — Xcode 27's JSON format;
-  there is no `project.pbxproj`. Groups list their children explicitly: a new `.swift` file is not
-  compiled until it is added to its group's `children` with
-  `"target-membership": [ "KinoPubAppleClient/compile-sources" ]` (copy a sibling's line). The
-  symptom of a missing entry is `Cannot find 'TypeName' in scope` at every use — a membership bug,
-  not a code bug.
-
-### Verification by risk
-
-| Risk | Examples | Required before "done" |
+| Risk | Examples | Before "done" |
 | --- | --- | --- |
-| Low | Copy, localization keys, label → existing symbol, in-app changelog, TestFlight wiring | Diff review; ship to `main` (see Working agreement). Sasha sees it on the next TestFlight |
-| Medium | New reusable view, layout tweak, model mapping | `#Preview` / focused package build |
-| High | Navigation, focus, materials, player, cache/session lifetime, private API | Build affected platforms + a PR. Device pass is TestFlight, not a draft parked for it |
+| Low | Copy, strings, small fixes, docs, CI wiring | Diff review, commit to `main` |
+| Medium | Reusable view, layout, model mapping | Build the affected platforms; `#Preview` |
+| High | Navigation, focus, player, materials, session/cache lifetime, private API | Build all platforms; screenshots or a recording in the chat and on the Asana task |
 
-Deferred verification is allowed. Silent "everything landed" claims are not.
-
-## Troubleshooting
-
-| Symptom | Likely cause |
-| --- | --- |
-| Focus frozen on one control; Right/Down no-ops; Menu quits the app | Two sibling views share a `@FocusState` case |
-| Up from a section jumps to the tab bar or fails | The hero band has no full-width `.focusSection()` |
-| Back from the player, nothing on the detail page has focus | The focused hero control was rebuilt: `mediaActionStyle` switches on chrome, so Play turning into Replay is a new view and tvOS drops focus. The hero reclaims its entry control (`MediaItemHeroView.claimEntryAfterReturn`) |
-| Only the icon inside a button scales, and gains a shadow | `.hoverEffect(.highlight)` on an `icon + text` label — use `.card` |
-| Russian text in a `UILabel` breaks mid-word ("сотря-сение") whatever `hyphenationFactor`, `usesDefaultHyphenation` and `lineBreakStrategy` say | Only the `NSLanguage` attribute (set to `en`) stops it — `UILabel.setUnhyphenated(_:)` |
-| A multi-line label draws one line short, or its last line is cut | The frame was computed with `font.lineHeight`; a label's lines are `UIFont.linePitch` apart (ascender + descender + leading, each rounded up) |
-| A page-style `TabView` (the gallery) never turns on a D-pad press | It pages on swipes only. Page by hand: `.focusable()` + `.onMoveCommand` |
-| Covers in one poster row or grid are different heights — one 40 pt taller than its neighbours, no year (or no second line at all) under it, often the one cut off at the screen's edge — or a flat tile in the row shows a lighter rectangle inside its focused plate | A `TVPosterView` **with a system footer** splits its cell's height between the art and the footer, and decides on *its first layout* whether the footer is two lines (74 pt) or one (37 pt, the subtitle label laid out at height 0) — then gives the art the difference: 384 → 421–424 pt, on tvOS 26.5 and 27.2. What decides it is not ours: a card with no year; the system hiding the footer (`.onFocus`'s `showsOnlyWhenAncestorFocused`); the lockup being squeezed into a cell it disagrees with in size (its own constraints, 308 × 550, against the cell's pins, 282 × 510); the embedded page's first, wrong-width layout pass. **A visible footer collapses too** — measured 2026-10-07 on the gallery's 99-cover grid scrolled 40 rows (tvOS 27.2): 28 of 99 covers came out one-line with 421 pt of art and no year, the same in Sasha's Search grid (an earlier note here, "a visible footer never collapsed", was measured on a rail only and was wrong). Tried and *not* a cure: blank, zero-width, NBSP/U+2007/U+2060/U+3164 or clear-colour footer text, label alpha, `contentSize` = the art with the focus room forced, a lockup height that follows the footer (positive feedback), repairing the art or `contentSize` after layout, `preferredLayoutAttributesFitting`, no self-sizing, handing the texts over on the next run-loop turn. **So no lockup has a footer any more**: a rail's cover is `.never` and a grid's `.always` is the same footer-less lockup (rigid, 384 art whatever its title) plus `TVPageCaptionView` under it — two lines that exist because they are drawn (title; year, episodes left, or nothing), Callout 31 pt centred, dropping by the focus room (`posterContentSize − artSize`)/2 with the cover on focus, a trailing fade at rest (no ellipsis, as the system marquee label) and a marquee when focused for a title wider than the art. `TVPageCellRecipe.captionHeight`/`lockupHeight` carry it: item = bare cover + 12 pt + two lines (510 at a 256 art). Checked: a 99-cover grid scrolled 40 rows reads art 384 / cell 510 / caption 74 in all 101 samples on 27.2 and 26.5 (`TVDetailLayoutUITests.testAGridScrolledFarKeepsEveryCoverTheSame`); `TVPosterCoverTests` lays covers out and re-dequeues cells with both captions. A flat tile is the other symptom: `.never` reserves the 12 pt gap (`contentViewInsets`), so keep tiles out of `.never` rows |
-| A card's platter stays lifted and white after focus moved to the SwiftUI hero above (or a footer control, if one is ever added below), its text back to light-on-dark | The cell holds focus and the `TVCardView` inside only follows, by asking whether the focused view is *an ancestor* — and SwiftUI's own focusable things take focus as the scroll view's container, an ancestor of every card (`ancestorFocused` stays 1). `TVCardView.releaseFocusedLook` (`TVCardViewFocusRelease.swift`) puts it down; poster and wide-card cells at the page's edge do not call it yet |
-| Every poster of the detail page's shelves looks focused at once on tvOS 26.5 — a lighter plate, a bright rim, no glass or lift left for the one that really is — while Home's are fine (27.2 too) | The art of a `TVPosterView` is a layered-image stack that tvOS 26.x re-asks "is the focused view above me?" (`_updateLayeredImageIsFocusedWithFocusedView:…`, absent on 27.2) on *every layout and image assignment*, and while the hero's SwiftUI button holds focus the focused view it is handed is `HostingScrollView.PlatformGroupContainer` — an ancestor of every poster on the page — so each stack (`isStackFocused`) is born and re-laid-out focused, and nothing un-focuses it until the remote has visited that poster and left. `TVPosterArtFocus.bind` (private selector, shape-checked) answers for poster art: only its own cell can focus it. Any *new* lockup with `adjustsImageWhenAncestorFocused` on this page needs the same look: read its stack flag with the hero focused (`-KINOPUBDetailFixture film`, log `isStackFocused` over `_UIStackedImageContainerView`) |
-| Posters stranded enlarged, parallax-wiggling while unfocused | The system's coordinated unfocus animation never ran; several sibling collections in one page region is the suspect shape |
-| A tile repaints blank after recycling | The cell skipped the synchronous `TVUIKitRemoteImage.cached(url:size:)` probe, or asked at a size no cell decodes at — a byte cache does not help, decoded ones are keyed by size |
-| tvOS crash `EXC_BAD_ACCESS` in `vImageConvert_ARGB8888toPlanar8` under `_UIStackedImageContainerLayer` | An image drawn with `UIGraphicsImageRenderer` from colourless content (stored 16-bit grey) handed to `TVPosterView` or an `adjustsImageWhenAncestorFocused` view — draw it with `TVUIKitTileArtwork.render` (32-bit) |
-| Blur/choreography "only works for series" | Something is keyed to incidental content geometry instead of state |
-| The page moves a little, then stops; background changes but layout doesn't | A threshold copied from a swipe-driven Apple sample onto a focus-driven page |
-| macOS: sidebar and player on screen together | A play entry point used `NavigationLink` instead of `PlayerLink` |
-| tvOS launch is slow with empty shelves | Auth no longer blocks on refresh when Keychain has a token — if the shell is up but rails are empty, nothing is cached / the content fetch is still in flight. Read Settings › Diagnostics › Network log, and switch on the in-flight overlay — do not guess from a spinner |
-| "What did the server actually reply?" | Settings › Diagnostics › Network log — full bodies, headers, timing. The one-line `ResponseLoggingPlugin` never had the body |
-
-**Standing lesson:** copy a sample's *mechanism*, re-derive its *constants*. Two passes in a row
-went wrong by porting thresholds tuned for a swipe-driven page onto a focus-driven one.
+Deferred verification is allowed; silent "everything landed" claims are not.
 
 ## Key files
 
 | Purpose | File |
 | --- | --- |
 | Feature flags | `KinoPubAppleClient/Services/Configuration/FeatureFlags.swift` |
-| Shelf / card sizing | `Packages/KinoPubUI/Sources/KinoPubUI/Layout/ShelfMetrics.swift` |
-| Type scale | `Packages/KinoPubUI/Sources/KinoPubUI/Layout/TypeScale.swift` |
-| Glass helper | `Packages/KinoPubUI/Sources/KinoPubUI/DesignSystem/KinoGlass.swift` |
-| tvOS cells / rails / collection | `Packages/KinoPubUI/Sources/KinoPubUI/Components/TVUIKit/` |
-| tvOS detail sections — order and content | `KinoPubAppleClient/Views/MediaItem/Subviews/MediaItemTVSections.swift` |
-| Artwork cache (the only place Nuke is imported) | `Packages/KinoPubUI/Sources/KinoPubUI/Components/Content/ArtworkPipeline.swift` |
-| Home/Library rows | `KinoPubAppleClient/Services/Cache/ContentStore.swift` |
-| Per-item optimistic library | `KinoPubAppleClient/Services/MediaLibrary/MediaLibraryStore.swift` |
-| Network log (the only place Pulse is imported) | `Packages/KinoPubUI/Sources/KinoPubUI/Diagnostics/NetworkDiagnostics.swift` |
-| In-flight activity registry | `Packages/KinoPubLogging/Sources/KinoPubLogging/NetworkActivity.swift` |
-| Expanding clipped content | `Packages/KinoPubUI/Sources/KinoPubUI/Components/InfoPopup*` |
-| Detail page | `KinoPubAppleClient/Views/MediaItem/` |
-| Routes / destinations | `KinoPubAppleClient/States/Navigation/` |
-| Player | `KinoPubAppleClient/Views/Player/PlayerManager.swift` |
-| API client | `Packages/KinoPubBackend/Sources/KinoPubBackend/` |
-| Metadata enrichment | `Packages/KinoPubMetadata/` |
-| Session mirroring | `KinoPubAppleClient/Services/AccessToken/AccessTokenServiceImpl.swift` |
+| Type scale / shelf sizing / glass | `Packages/KinoPubUI/Sources/KinoPubUI/Layout/{TypeScale,ShelfMetrics}.swift`, `DesignSystem/KinoGlass.swift` |
+| tvOS cells, rails, pages | `Packages/KinoPubUI/Sources/KinoPubUI/Components/TVUIKit/` |
+| tvOS detail sections | `KinoPubAppleClient/Views/MediaItem/Subviews/MediaItemTVSections.swift` |
+| Artwork (the only Nuke import) | `Packages/KinoPubUI/Sources/KinoPubUI/Components/Content/ArtworkPipeline.swift` |
+| Rows / per-item library | `KinoPubAppleClient/Services/Cache/ContentStore.swift`, `Services/MediaLibrary/MediaLibraryStore.swift` |
+| Network log (the only Pulse import) | `Packages/KinoPubUI/Sources/KinoPubUI/Diagnostics/NetworkDiagnostics.swift` |
+| Routes / player / API | `KinoPubAppleClient/States/Navigation/`, `Views/Player/PlayerManager.swift`, `Packages/KinoPubBackend/` |
 | In-app What's New | `KinoPubAppleClient/Resources/whats-new.json` |
-| TestFlight | [docs/testflight.md](docs/testflight.md), `.github/workflows/testflight.yml` |
 
 ## Working agreement
 
-1. **Model before layout.** What is the thing the user acts on, and what can they do with it right
-   now? A page growing per-type sections is usually a data question answered in the view layer.
-2. **Capability and data flow first** — what changes in services / models / stores, what old path is
-   removed or merged.
-3. **Ask which system primitive Apple provides** before asking how to reproduce a look. Then:
-   system control of that platform's renderer → system API through a thin bridge → a proven pattern
-   from a reference app or mature library → minimal custom. Custom needs the missing API named,
-   alternatives rejected, and the ongoing cost stated.
-4. **Borrow before build.** Apple public API → existing atoms in `KinoPubUI` → reference apps and
-   the `community` remote (backend slices only) → a mature library → new in-house code. See
-   [Dependencies](#dependencies).
-5. **Ambiguous visible UI gets 2–3 genuinely different, fully interactive variants** in
-   `KinoPubUI/Previews/` behind `#if DEBUG`, on a named axis; promote one and delete the file.
-   Predetermined system controls do not get variant theatre.
-6. **One reviewable slice.** Do not touch unrelated dirty files.
-7. **Verify by risk** (table above), and be honest when verification is deferred.
-8. **Record what you learned where it belongs.** Planned work, parked defects, open questions and
-   research findings → an Asana subtask of the feature's task (see [ROADMAP.md](ROADMAP.md)),
-   never a checklist in a `.md` file; mark it done with the commit or PR. A decided product rule →
-   `docs/product/`. An external source's fields → `docs/providers/`. A durable engineering rule or
-   trap → this file. Genuinely notable shipped facts → `CHANGELOG.md`. README changes only for public positioning or
-   a macro stage. **If a viewer can see the change**, add a short ru + en bullet to
-   `KinoPubAppleClient/Resources/whats-new.json` for the current marketing version, at the
-   top of its list (create the version object if it does not exist); the next build shows
-   it once at launch. That file is the in-app What's New
-   and TestFlight "What to Test". CHANGELOG.md stays the implementation log.
-9. **Ship small work to `main`.** Low-risk changes go straight to `main` — no draft PR
-   waiting for a device pass. Sasha tests on Apple TV only via TestFlight. Open a PR
-   only for serious risky work (focus, player, private API, session lifetime, materials).
-   A short-lived PR you merge yourself once CI is green is fine when the environment
-   cannot push to `main`.
+1. **Model before layout.** What does the user act on, and what can they do now? A page growing
+   per-type sections is a data question answered in the view layer.
+2. **Ask which system primitive Apple provides** before reproducing a look. Order: system control →
+   system API behind a thin bridge → a pattern from a reference app or library → minimal custom
+   (name the missing API and the cost).
+3. **Borrow before build.** Code from any watched or reference repo may be used — the project is
+   experimental and open; the commit names the source.
+4. **Ambiguous visible UI gets 2–3 real variants** in `KinoPubUI/Previews/` behind `#if DEBUG`;
+   promote one, delete the file.
+5. **Fixes and most changes go straight to `main`**, as small commits with detailed messages. A
+   branch or PR only when Sasha asks or the environment cannot push to `main`.
+6. **Screenshots go in the chat and on the Asana task**, not into a PR.
+7. **Record what you learned where it belongs:** planned work, parked defects, open questions and
+   research findings → an Asana subtask of the feature's task (mark it done with the commit); a
+   decided product rule → `docs/product/`; an external source → `docs/providers/`; a durable
+   engineering rule or trap → this file (short) or `docs/engineering/` (long); notable shipped
+   facts → `CHANGELOG.md`. Never a checklist in a `.md` file. **Keep this file short** — a new
+   rule replaces or shortens an old one, history goes to `docs/engineering/`.
+8. **If a viewer can see the change**, add a ru + en bullet at the top of the current version in
+   `KinoPubAppleClient/Resources/whats-new.json` (in-app What's New and TestFlight notes).
+9. One reviewable slice at a time; build every platform before calling it done.
 
 ### Dependencies
 
-**A third-party package is not a failure state, and nothing here bans one.** The
-one-component-per-idea and no-custom-chrome rules are about *our UI*; they say nothing about SPM.
-Read them as a dependency ban and you get the artwork split: tvOS had a hand-written decoded-image
-cache with size keys, a coalescing actor and a prefetcher, iOS/macOS had `AsyncImage` and none of
-it, and a fix on one side never reached the other. One package deleted both.
-
-Take one when it replaces code we would otherwise own and get wrong — not because the API is nicer,
-and never because a list of cool repos exists. Then:
-
-- **It stays behind our own type. No call site imports it.** `Artwork` / `CachedRemoteImage` /
-  `TVUIKitRemoteImage` are the only things that know Nuke exists, so replacing it is one file.
-- Pinned to a major (`from:`), and it must build on **all four platforms** before "done".
-- Declared in the package that needs it, not the app target, unless the app is its only user.
-- Exception: **telemetry** — see [Data and continuity](#data-and-continuity).
+A package is fine when it replaces code we would otherwise own and get wrong. It stays behind our
+own type (no call site imports it), is pinned to a major, builds on all four platforms, and is
+declared in the package that uses it. Exception: no telemetry SDKs.
 
 ### Style
 
 - 2-space indentation.
-- **New view models are `@Observable`** (`@MainActor` when touching UI). Existing
-  `ObservableObject`s migrate type by type (`NavigationState`, `ErrorHandler`, `WindowSettings`,
-  `ProfileModel` are done). When migrating: `State.init(wrappedValue:)` has **no** autoclosure
-  overload, so a naive `@StateObject` → `@State` swap re-creates the model on every view `init`;
-  `@Environment(X.self)` crashes if nothing injected it on that branch — check every injection point.
-  Remaining `@StateObject`s keep the `@autoclosure @escaping` initializers used in `Views/`.
+- **New view models are `@Observable`** (`@MainActor` when touching UI); existing
+  `ObservableObject`s migrate type by type. When migrating: `State.init(wrappedValue:)` has no
+  autoclosure overload (a naive `@StateObject` → `@State` swap rebuilds the model on every
+  `init`), and `@Environment(X.self)` crashes where nothing injected it.
 - Services: protocol + `…Impl` + `…Mock`.
-
-### Anti-patterns seen here
-
-- Inventing design-decision blockers the user did not set.
-- Promoting a workaround to a requirement (see above — this is the big one).
-- Encoding agent assumptions into docs, then treating them as law.
-- Claiming an API limitation without a probe.
-- Marking work complete after a tvOS-only compile while macOS is broken.
-- Overwriting the user's blur / glass / banner / badge decisions.
-- Treating one stream survey as a global ban on capability badges the user still wants.
 
 ### Community fork
 
 [dungeon-master-xx/kinopub-apple-client](https://github.com/dungeon-master-xx/kinopub-apple-client)
-is tracked as remote `community`. **Steal Request / Model / Service slices only; never rebase our UI
-onto theirs.** Reference apps (Rivulet, Silo) are technique-only — PolyForm Noncommercial, never
-code. Details: [docs/community-fork.md](docs/community-fork.md).
+is remote `community`. Take Request / Model / Service slices; never rebase our UI onto theirs.
+Details: [docs/community-fork.md](docs/community-fork.md).

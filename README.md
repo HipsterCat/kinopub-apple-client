@@ -20,7 +20,7 @@ onto theirs. See [docs/community-fork.md](docs/community-fork.md).
 
 ## Current stage
 
-tvOS daily driver first ([CURRENT.md](CURRENT.md)); iOS, iPadOS and macOS are postponed.
+tvOS daily driver in place; iOS, iPadOS and macOS next ([CURRENT.md](CURRENT.md)).
 What is planned and open is tracked in Asana — [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374), one task
 per feature ([ROADMAP.md](ROADMAP.md) maps them).
 
@@ -56,7 +56,7 @@ open KinoPubAppleClient.xcodeproj
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | The whole agent context — defaults, banned patterns, traps |
 | [ROADMAP.md](ROADMAP.md) | Retired — maps each feature to its Asana task |
-| [CURRENT.md](CURRENT.md) | What is active now (tvOS only) |
+| [CURRENT.md](CURRENT.md) | What is active now |
 | [CHANGELOG.md](CHANGELOG.md) | Notable shipped changes |
 | [docs/testflight.md](docs/testflight.md) | Internal TestFlight secrets, triggers, first upload |
 | [docs/providers/](docs/providers/) | External source capability sheets |

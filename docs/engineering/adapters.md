@@ -1,0 +1,31 @@
+# Accepted adapters
+
+Allowed to exist, one place each, the limitation in the type's doc comment. Rule: [AGENTS.md › Constraints are not requirements](../../AGENTS.md#constraints-are-not-requirements). An adapter that stops being needed gets deleted, not kept "in case"; re-probe each one on the next SDK or package major.
+
+- **`TVUIKitMediaItemMetrics`** — `orthogonalLayoutSectionForMediaItems()` exposes neither its group
+  nor its item, so it cannot be resized. We measure what it produces per width and rebuild an
+  equivalent section at our scale; Apple keeps owning the proportions.
+- **The progress bar in the media-item overlay** — `configuration.playbackProgress` only paints on
+  the *focused* tile, and "started, not finished" is what an idle rail has to say.
+- **`NetworkConsoleView`'s macOS branch** — `PulseUI.ConsoleView` does not exist on macOS in Pulse
+  5.2.3 (the module ships `ConsoleView-ios/-tvos/-watchos`, and its public init is fenced
+  `#if !os(macOS)`). Capture still runs there, so the Mac gets export-to-`.pulse`, and streaming to
+  the Pulse app is the live reader. Re-probe on the next Pulse major.
+- **Auto-connect in `setRemoteLoggingEnabled`** — Pulse keeps `RemoteLoggerSettingsView` internal,
+  so there is no server picker to present. "First server found, then remembered" is the only
+  selection model its public API offers. Re-probe if that view goes public.
+
+- **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`
+  (`_TSKSplitViewController`, `TSKViewController`, `TSKSettingItem`, `TSKPreviewViewController`):
+  the still preview column, the list-only slide-and-crossfade on push, Apple's cells and value
+  pickers have no public API, and a hand-built copy was rejected. Only that file touches private
+  API; classes and selectors are checked once (`TVSettingKit.isAvailable`) and the SwiftUI
+  `TVProfileSettingsView` is the fallback. Rows bind by KVC through `TSKValueStore` onto the
+  existing `@AppStorage` keys and models. Full-screen tools are presented over it, each in its
+  own `NavigationStack`, with the environment forwarded. Re-probe every tvOS.
+
+- **`RenditionNames`** (`PlayerManager.swift`) — `AVMetadataItem.stringValue` is deprecated
+  (16) for the async `load(.stringValue)`, while `AudioRenditions` reads a rendition's `NAME=`
+  synchronously and is tested with no asset. The player awaits the names right after each
+  `loadMediaSelectionGroup`; the rules keep their shape. `displayName` is never a substitute —
+  it reads «Russian» for every Russian dub.
