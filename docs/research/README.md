@@ -5,6 +5,7 @@ on tvOS. Each file covers one place, feature or page: how 15 watched open-source
 how we do it, our pros and cons, a proposed solution, effort (S/M/L) and priority (P0–P2).
 Features we don't build yet live under `upcoming/`.
 
+**Tracking:** each top proposal below is an Asana subtask of its feature ("Ресёрч: …" in [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374)); this folder keeps the evidence.
 **Status:** evidence, not law. `CURRENT.md` / `AGENTS.md` still win (see AGENTS "Authority"). A proposal
 that conflicts with a banned pattern is marked **noted only**.
 **Code reuse:** allowed from any watched repo, whatever its licence (Sasha, 2026-10-04: personal,

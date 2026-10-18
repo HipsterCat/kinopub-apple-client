@@ -145,7 +145,7 @@ What would still make **our** row better (none of this is in their services):
    watch row. Local resume overlays the Continue Watching *section* at paint time
    (`ContinueWatchingLocalOverlay`); the player writes a finished tombstone instead of
    clearing. Home TTL stays the server snapshot.
-2. **Episode rail leading card = resume / next-unwatched** — already the Home/Play answer; the seasons rail still leads chronological. ROADMAP §1.
+2. **Episode rail leading card = resume / next-unwatched** — already the Home/Play answer; the seasons rail still leads chronological. Asana: [Страница тайтла](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606600371250).
 3. **~~Remember series details with the row~~** — done: a card that already carries S/E is
    trusted on refresh; details are fetched only for *new* series ids (still capped at 12).
 4. **Raise or drop `seriesDetailLimit` (12)** — past that cap, titles with no cached S/E still fall back to history counters and can still offer the wrong episode.
@@ -200,15 +200,17 @@ Prefer these next. Land Backend/`*Service` + `// DESIGN:` comments where chrome 
 
 Agents: add a `// DESIGN:` comment at the call site; **do not** invent buttons.
 
-- [ ] Profile → Devices list / remove (`DeviceService.listDevices` ready)
-- [ ] Series watchlist distinct from bookmark folders / Mark as Watched  
-      (`actionsService.toggleWatchlist` ready — **not** a checkmark)
-- [ ] Collections tab / Home rows
-- [ ] Library filter chips (rating/quality client-side; `CatalogPeriod` ready to send)
-- [ ] Season-rail clear progress (`clearHistoryForSeason` ready)
-- [ ] Sport / channels + optional XMLTV EPG
-- [ ] Downloads list polish (HLS interrupted rows, storage footer)
-- [ ] Offline / reachability banner (`NetworkMonitor` wired; chrome TBD)
-- [ ] Card / detail download status from `MediaLibraryStore.downloadStatus` (façade ready)
+The service side of each stub is ready; the open items are Asana subtasks (2026-10-18):
+
+| Stub | Ready in code | Asana |
+| --- | --- | --- |
+| Profile → Devices list / remove | `DeviceService.listDevices` | done — `DevicesListView` ([Вход, настройки и оболочка](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606490759779)) |
+| Series watchlist distinct from bookmark folders | `actionsService.toggleWatchlist` — **not** a checkmark | done — D11, Library › Подписки ([Каталог kino.pub](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606620916545)) |
+| Collections tab / Home rows | collections service | [Каталог kino.pub](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606620916545) |
+| Library filter chips | client-side rating/quality facets, `CatalogPeriod` | [Каталог kino.pub › Фильтры](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606490904414) |
+| Season-rail clear progress | `clearHistoryForSeason` | [Страница тайтла](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606600382367) |
+| Sport / channels + XMLTV EPG | — | [TV](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219604943618157) |
+| Downloads list polish, card download status | `MediaLibraryStore.downloadStatus` | [iOS, iPadOS и macOS](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606600965363) |
+| Offline / reachability banner | `NetworkMonitor` wired | [Вход, настройки и оболочка](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606504545513) |
 
 Detail vote / reviews / actor CDN fallback already landed earlier — leave until a design pass says otherwise; no further UI invention from the community fork.

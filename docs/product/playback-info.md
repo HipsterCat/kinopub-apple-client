@@ -22,7 +22,7 @@ because it costs nothing and other readers of `externalMetadata` may show it.
 
 **Not on the list, deliberately:** scores (IMDb, Kinopoisk, TMDB, per episode or per title). No
 identifier carries one — `iTunesMetadataContentRating` is the *age* rating. Scores, capability
-badges and the season's facts are our own Info tab (`customInfoViewControllers`, ROADMAP stage 7).
+badges and the season's facts are our own Info tab (`customInfoViewControllers`, Asana task [Player](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219403704224201)).
 
 ## Rules
 

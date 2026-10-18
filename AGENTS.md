@@ -46,7 +46,7 @@ semantic component is not a DRY violation; two components for one idea on one pl
 | AVKit surfaces, subtitles, playback routing | skill `player-avkit` |
 | Media model: sources, facts, viewer state, presentation layers | [docs/media-model.md](docs/media-model.md) |
 | Where a new fact or decision belongs | skill `docs-upkeep` |
-| What we are building next | [ROADMAP.md](ROADMAP.md) |
+| What we are building next, open questions, parked defects | Asana — [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374), one task per feature, items as subtasks ([ROADMAP.md](ROADMAP.md) maps features to tasks) |
 | What the product *does* — decided behavior, per feature | [docs/product/](docs/product/) |
 | Provider capability sheets | [docs/providers/](docs/providers/) |
 | Community fork rules | [docs/community-fork.md](docs/community-fork.md) |
@@ -57,7 +57,7 @@ semantic component is not a DRY violation; two components for one idea on one pl
 
 1. The user's explicit decision in the current conversation.
 2. This file.
-3. [ROADMAP.md](ROADMAP.md) — accepted behavior and what is next.
+3. [docs/product/](docs/product/) — accepted behavior. What is next lives in Asana ([ROADMAP.md](ROADMAP.md) is only the map to it).
 4. Skills — how to do a specific kind of work.
 5. `docs/archive/` — evidence. **Never automatic requirements.**
 
@@ -582,7 +582,9 @@ went wrong by porting thresholds tuned for a swipe-driven page onto a focus-driv
    Predetermined system controls do not get variant theatre.
 6. **One reviewable slice.** Do not touch unrelated dirty files.
 7. **Verify by risk** (table above), and be honest when verification is deferred.
-8. **Record what you learned where it belongs** — skill `docs-upkeep`. Tick the ROADMAP line;
+8. **Record what you learned where it belongs** — skill `docs-upkeep`. Planned work, parked defects and open questions are Asana subtasks of the feature's task (see
+   [ROADMAP.md](ROADMAP.md)) — never a new checklist in a `.md` file; mark the subtask done with
+   the commit or PR;
    append genuinely notable facts to `CHANGELOG.md`. README changes only for public positioning or
    a macro stage. **If a viewer can see the change**, add a short ru + en bullet to
    `KinoPubAppleClient/Resources/whats-new.json` for the current marketing version, at the

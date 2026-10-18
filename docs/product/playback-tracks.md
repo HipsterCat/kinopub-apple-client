@@ -135,4 +135,4 @@ are the honest filler. **English only** — the quality on other languages does 
   the old one rather than out-date it.
 - **Where the answer comes from before the player opens.** The resolver is pure and takes a menu, so
   a card can ask it as soon as it has one — but nothing calls it from outside the player yet. See
-  [ROADMAP.md](../../ROADMAP.md).
+  Asana: [Назвать озвучку на кнопке Play](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606561989027).

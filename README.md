@@ -20,11 +20,9 @@ onto theirs. See [docs/community-fork.md](docs/community-fork.md).
 
 ## Current stage
 
-**Stage 1 — Foundation and UI stabilization** (local cache/continuity, shared image pipeline,
-navigation/focus/materials). Auth/Settings shell and Library/History unification follow next.
-Advanced subtitles are intentionally late.
-
-Detail checklists: [ROADMAP.md](ROADMAP.md).
+tvOS daily driver first ([CURRENT.md](CURRENT.md)); iOS, iPadOS and macOS are postponed.
+What is planned and open is tracked in Asana — [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374), one task
+per feature ([ROADMAP.md](ROADMAP.md) maps them).
 
 ## Broadly working
 
@@ -34,26 +32,7 @@ Detail checklists: [ROADMAP.md](ROADMAP.md).
 - List-row caching for Home/Library summaries; TMDB / Kinopoisk enrichment plumbing
 - Downloads on non-TV platforms only
 
-Verification gaps and unfinished edges live in [ROADMAP.md](ROADMAP.md) — not as a second roadmap here.
-
-## Macro stages
-
-1. **Foundation and UI stabilization** — continuity, image/metadata store, finish-or-gate auxiliary UI  
-   → [ROADMAP](ROADMAP.md#1--foundation-and-ui-stabilization)
-2. **Access and app shell** — QR/auth polish; Settings as a real sidebar destination  
-   → [ROADMAP](ROADMAP.md#2--access-and-app-shell)
-3. **Library and History** — one vertical Library; separate coherent History  
-   → [ROADMAP](ROADMAP.md#3--library-and-history)
-4. **KinoPub catalog completeness** — collections, similar, photos, people, native metadata  
-   → [ROADMAP](ROADMAP.md#4--kinopub-catalog-completeness)
-5. **Platform completeness and appearance** — light theme, Top Shelf, platform integrations  
-   → [ROADMAP](ROADMAP.md#5--platform-completeness-and-appearance)
-6. **Discovery and enrichment** — external metadata UI, editorial surfaces, real recommendations or honest absence  
-   → [ROADMAP](ROADMAP.md#6--discovery-and-enrichment)
-7. **Playback conveniences** — audio memory, skips, Up Next (no player rewrite)  
-   → [ROADMAP](ROADMAP.md#7--playback-conveniences)
-8. **Advanced subtitles** — tap-a-word, live captions, language-learning (late)  
-   → [ROADMAP](ROADMAP.md#8--advanced-subtitles)
+Verification gaps and unfinished edges are Asana subtasks ([Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374)) — not a list here.
 
 ## Requirements
 
@@ -76,7 +55,7 @@ open KinoPubAppleClient.xcodeproj
 | Doc | Role |
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | The whole agent context — defaults, banned patterns, traps |
-| [ROADMAP.md](ROADMAP.md) | Stages, accepted behavior, checklists |
+| [ROADMAP.md](ROADMAP.md) | Retired — maps each feature to its Asana task |
 | `.claude/skills/` | Loaded on demand: tvOS surfaces, chrome, player, metadata, docs |
 | [CHANGELOG.md](CHANGELOG.md) | Notable shipped changes |
 | [docs/testflight.md](docs/testflight.md) | Internal TestFlight secrets, triggers, first upload |

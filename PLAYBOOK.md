@@ -11,29 +11,28 @@ Read `CURRENT.md` first. This file is the **execution playbook**.
 | Visual / HIG | **hig** | Design/HIG iterate with max on shots — no archi in the loop each commit |
 | Product decisions | **Sasha** | Unblocks scope; overrides CURRENT |
 
-Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the human channel — do not “decide like the old roadmap.”
+Backlog lives in Asana ([Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374)); `ROADMAP.md` is retired. Do not invent backlog, and do not add checklists to `.md` files — new items are Asana subtasks. If blocked on product, ask Sasha via the human channel — do not “decide like the old roadmap.”
 
 ## Repo
 
 - **Product:** `HipsterCat/kinopub-apple-client`
 - **Lab:** `kinopub-lab` = component museum / experiments only — never the app users run
 
-## First commit for any new engineer/agent
+## Where work is tracked
 
-1. Land `CURRENT.md` + `PLAYBOOK.md` at repo root (or `docs/` if Sasha prefers — default **repo root** next to `AGENTS.md`).
-2. Add a short pointer at the top of `ROADMAP.md`:
-
-   > **Superseded for active work:** see `CURRENT.md`. This roadmap is inventory/history. Unchecked items are not the MVP backlog.
-
-3. Do **not** rewrite all of ROADMAP in the first PR — pointer + CURRENT is enough transparency.
+Every planned item, open question and parked defect is an Asana subtask of its feature's task in
+[Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374).
+`ROADMAP.md` only maps features to those tasks. A finding worth keeping goes into the subtask's
+description; done work is a completed subtask with its commit or PR.
 
 ## Milestone gates (full MVP, ordered)
 
 ### M0 — Policy in repo (do this before more UI if missing)
-- [ ] `CURRENT.md` + `PLAYBOOK.md` merged (includes **adaptive layout + Dynamic Type** contract)
-- [ ] ROADMAP header points here
-- [ ] Team/agents acknowledged: other platforms postponed
-- [ ] Layout contract frozen as: **container + safe area + Dynamic Type + preferred item size**; HIG table kept as **density examples only** (not fixed 6 @ 260 / 4 @ 410 acceptance)
+Done (CURRENT.md and PLAYBOOK.md in main; ROADMAP retired to Asana 2026-10-18):
+- [x] `CURRENT.md` + `PLAYBOOK.md` merged (includes **adaptive layout + Dynamic Type** contract)
+- [x] Planning points at Asana, not ROADMAP
+- [x] Team/agents acknowledged: other platforms postponed
+- [x] Layout contract frozen as: **container + safe area + Dynamic Type + preferred item size**; HIG table kept as **density examples only** (not fixed 6 @ 260 / 4 @ 410 acceptance)
 
 ### M1 — Poster shelves (blocked until M0 layout contract is in main)
 - Watch Now / Series / Movies: **same** poster shelf recipe — preferred 2:3 poster size; columns from available width (HIG ~6-col class on full width is a density check, not a hardcode)
@@ -84,7 +83,7 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 ## Anti-distraction checklist (before every PR)
 
 - [ ] Does this serve **active milestone** in this playbook?
-- [ ] Am I following an unchecked ROADMAP box that CURRENT did not pick up? → stop
+- [ ] Am I picking up an Asana subtask outside the active milestone that Sasha did not ask for? → stop
 - [ ] Am I “improving” iOS/macOS chrome? → stop (postponed)
 - [ ] Am I reintroducing archive/hero/parallax research? → stop
 - [ ] Am I hardcoding cell size / column count for one canvas (ignoring container or Dynamic Type)? → stop
@@ -95,7 +94,7 @@ Do not invent backlog from ROADMAP. If blocked on product, ask Sasha via the hum
 | Change | Process |
 | --- | --- |
 | **UI that changes what appears on screen** | PR **required**. Include **screenshots** (simulator or device) of the affected tvOS surfaces — before/after when useful. No screenshot = not ready for Sasha’s design check or archi review. Saves rebuild loops; the visual proof stays on the PR. |
-| **Policy / markdown / comments / tiny non-UI** (`CURRENT.md`, `PLAYBOOK.md`, ROADMAP pointers, typos) | **Direct commit** (no PR). Archi or max may land and approve these without waiting on a PR review. |
+| **Policy / markdown / comments / tiny non-UI** (`CURRENT.md`, `PLAYBOOK.md`, typos) | **Direct commit** (no PR). Archi or max may land and approve these without waiting on a PR review. |
 
 Sasha reviews **design** on UI PRs (screenshots). Archi reviews architecture / milestone fit. Max implements.
 

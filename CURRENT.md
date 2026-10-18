@@ -1,6 +1,6 @@
 # CURRENT — active product policy (Kinopub Apple)
 
-**Authority for agents and engineers.** If this file conflicts with `ROADMAP.md`, `CHANGELOG.md`, `docs/archive/**`, old PR descriptions, or code comments about iOS/macOS chrome — **this file wins**, until Sasha changes it.
+**Authority for agents and engineers.** If this file conflicts with `CHANGELOG.md`, `docs/archive/**`, old PR descriptions, or code comments about iOS/macOS chrome — **this file wins**, until Sasha changes it.
 
 Last updated: 2026-10-04 · Owner: archi (architecture) · Implementer: max (Cursor) · Adaptive layout + Dynamic Type (HIG table = density examples)
 
@@ -140,7 +140,7 @@ Horizontal rails keep a **leading content inset** from the safe area (headers + 
 - Heroes / banner shelf / Top Shelf / light theme / advanced subtitles as MVP scope
 - Custom search keyboard / Sketch glass approximations
 - Hardcoded canvas (1920) / fixed column counts that ignore container bounds and Dynamic Type
-- Treating unchecked `ROADMAP.md` boxes as the sprint backlog
+- Treating every open Asana subtask as the sprint backlog — the active milestone in PLAYBOOK still decides
 - Promoting `docs/archive/**` or despair-era experiments into requirements
 - Copying Plozz / Parallax / Rivulet / silo code into product (technique only)
 - Using `kinopub-lab` / KinoBook as the product shell
@@ -152,7 +152,7 @@ Horizontal rails keep a **leading content inset** from the safe area (headers + 
 2. **`PLAYBOOK.md`** — how to execute milestones + agent rules
 3. **`AGENTS.md`** — durable engineering law (focus, TVUIKit, one component, adapters). Still binding for *craft*; scope overrides live here in CURRENT
 4. **`docs/product/*`** — accepted product rules for continue-watching, presentation, tracks, related (prd) — still valid unless CURRENT says otherwise
-5. **`ROADMAP.md` / `CHANGELOG.md`** — **historical / inventory**. Useful evidence. **Not** automatic acceptance. Open checkboxes are candidates, not commitments
+5. **Asana** ([Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374)) — every planned item, open question and parked defect, as subtasks of feature tasks. `ROADMAP.md` is retired and only maps features to tasks. **`CHANGELOG.md`** — shipped facts. Open subtasks are candidates, not commitments
 6. **`docs/archive/**`** — evidence of failures. Never law
 
 ## Naming

@@ -95,4 +95,4 @@ The cached snapshot is a 60 s TTL. That is not "the row never updates":
 
 Dates for more of the row would need more of `/v1/history` (`perpage` maxes at 50, and one page of
 20 already measured ~96 KB on a cold launch), so it is a payload trade, not a free improvement.
-See [ROADMAP.md](../../ROADMAP.md).
+Tracked in Asana: [Library](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219403704224202).

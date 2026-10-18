@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-04  
 **Status:** Approved for planning  
-**Feature doc:** [02-access-and-app-shell](../../../ROADMAP.md)  
+**Feature doc:** [Вход, настройки и оболочка](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606490759779) (Asana)  
 **Reference (visual / shell inspiration):** `/Users/sasha/Documents/GitHub/System-Settings` (System Settings recreation — patterns only; not App Store / private-API copy)
 
 ## Goal

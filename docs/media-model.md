@@ -230,6 +230,8 @@ Each step is one reviewable slice with tests, merged before the next.
 
 ## Decisions needed
 
+The open ones are one Asana subtask for Sasha — [D1–D5, D9, D13](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606621461620), D10 in [its own](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606562159509); the plan's remaining steps are subtasks of [Данные и архитектура](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606600361125). Decide there, then record the answer in this table.
+
 | # | Question | Today |
 | --- | --- | --- |
 | D1 | Text fields (title, plot, short, tagline): **viewer's language first**, source order only as tie-break? | source order only |

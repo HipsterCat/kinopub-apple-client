@@ -13,7 +13,7 @@ which kinds of title get which treatment, what a label says, what is deliberatel
 logical rule, and the reason it is that way.
 
 **What does not belong here:** how it is implemented (that is a doc comment on the type), what is
-still being built ([ROADMAP.md](../../ROADMAP.md)), a shipped implementation fact
+still being built (Asana, [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374)), a shipped implementation fact
 ([CHANGELOG.md](../../CHANGELOG.md)), the story of an attempt ([docs/archive/](../archive/)), or an
 external source's fields ([docs/providers/](../providers/)).
 

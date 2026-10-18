@@ -3,7 +3,7 @@
 **Date:** 2026-08-04  
 **Status:** Awaiting user review of this spec  
 
-**Roadmap:** [`ROADMAP.md`](../../../ROADMAP.md)  
+**Roadmap:** [Top Shelf](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606504247784) (Asana)  
 **Platform notes:** [`.claude/skills/tvos-surface/SKILL.md`](../../../.claude/skills/tvos-surface/SKILL.md)  
 **Research (evidence, not law):** [`docs/archive/research-2026-07/06-tvos-focus.md`](../../archive/research-2026-07/06-tvos-focus.md)
 

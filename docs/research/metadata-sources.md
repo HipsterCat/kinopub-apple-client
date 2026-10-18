@@ -14,6 +14,6 @@ kino.pub API + TMDB (resolved **only** by `/find/{imdb}`, via the Cloudflare wor
 
 ## Proposal
 1. If a title has no IMDb id: a worker-side search fallback with Plozz's exact-title/year rule; stamp the id. S · P2.
-2. Ratings: consider MDBList for RT/Metacritic in the aggregate (ROADMAP stage 6). S · P2.
+2. Ratings: consider MDBList for RT/Metacritic in the aggregate (Asana: [Метаданные и обогащение](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606561769807)). S · P2.
 3. Recommendations (stage 6 open question): Trakt recommendations as a candidate source. M · P2.
 4. Worker hygiene: `#43` is on `main`; live 404s wait on auto-deploy secrets (see [worker.md](worker.md)). Consider App Attest if the owner key is abused.

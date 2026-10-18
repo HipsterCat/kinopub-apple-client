@@ -6,7 +6,9 @@ Compatibility entry point for Claude Code / Claude-compatible agents.
 Do not invent a second policy here, and do not add a policy folder back.
 
 - [AGENTS.md](AGENTS.md) — defaults, banned patterns, focus, components, chrome, data, build, traps
-- [ROADMAP.md](ROADMAP.md) — accepted behavior and what is next, by stage
+- [ROADMAP.md](ROADMAP.md) — retired 2026-10-18; maps each feature to its Asana task.
+  Plans, open questions and parked defects live in Asana ([Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374)),
+  never as checklists in `.md` files
 - `.claude/skills/` — loaded on demand: `tvos-surface`, `apple-chrome`, `player-avkit`,
   `metadata-service`, `docs-upkeep`
 - [README.md](README.md) — what the product is

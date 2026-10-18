@@ -1,6 +1,6 @@
 # Upcoming: Skip intro / recap / credits
 
-**Status:** upcoming (ROADMAP stage 7 is blocked on "any marker source"). P1 · M overall.
+**Status:** upcoming, P1 · M overall. Tracked in Asana: [Пропуск заставки, рекапа и титров](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606490779079) — one subtask per slice below.
 
 ## Why
 kinopub has no marker source, so there is no Skip Intro, Up Next fires on a guessed credits window (`WatchProgress`: 8% of runtime, 60–180 s), and there are no chapters. Five watched apps ship skips. Two keyless community databases cover titles by IMDb/TMDB id, which we already have in `MediaIdentity`.
