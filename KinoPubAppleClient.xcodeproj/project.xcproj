@@ -802,6 +802,7 @@
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "KinoPubTopShelf/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "KinoPubTopShelf",
+        "INFOPLIST_KEY_UIRequiredDeviceCapabilities": "arm64",
         "LD_RUNPATH_SEARCH_PATHS": [
           "@executable_path/Frameworks",
           "@executable_path/../../Frameworks",
