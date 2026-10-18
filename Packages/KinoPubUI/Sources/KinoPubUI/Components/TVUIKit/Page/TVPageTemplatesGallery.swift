@@ -153,6 +153,15 @@ public struct TVPageTemplatesGallery: View {
     ]
   }
 
+  /// What search shows for a query: the pull-down row over a long poster grid
+  /// (`-KINOPUBSearchFixture`).
+  public static var searchSections: [TVPageSection] {
+    [
+      .chips(id: "filters", title: nil, chips: filters),
+      .posters(id: "results", title: nil, flow: .grid, cards: catalogPosters(count: 60))
+    ]
+  }
+
   /// A page of a catalog: titles of every length, a year for most, none for every fifth, and
   /// "N episodes left" for every seventh.
   static func catalogPosters(count: Int) -> [MediaCard] {

@@ -59,6 +59,8 @@ struct RootView: View {
       TVChannelsFixtureRoot()
     } else if DebugLaunch.menuBackProbe {
       TVPageMenuBackProbeRoot()
+    } else if DebugLaunch.searchFixture {
+      TVSearchFixtureRoot()
     } else if DebugLaunch.templatesGallery {
       TVPageTemplatesGallery()
     } else {

@@ -1,0 +1,80 @@
+#if os(tvOS)
+//
+//  TVSearchLayoutUITests.swift
+//  KinoPubAppleClientUITests
+//
+//  Search results against both system keyboards, on the search fixture (no session).
+//  The linear keyboard is a row on top and the results are full width; the grid keyboard
+//  (Settings → General → Keyboard) stands on the left and the
+//  system gives the results only the width beside it. Results reaching the screen's left
+//  edge in grid mode lay over the keyboard (2026-10-18).
+//
+
+import XCTest
+
+final class TVSearchLayoutUITests: XCTestCase {
+
+  override func setUpWithError() throws {
+    continueAfterFailure = false
+  }
+
+  func testLinearKeyboardResultsSpanTheScreen() throws {
+    let app = launch(gridKeyboard: false)
+    let frame = try resultsFrame(in: app)
+    try shoot(app, name: "linear")
+    let width = app.frame.width
+    // The HIG side inset from the screen edge, not doubled by the container's safe area.
+    XCTAssertEqual(frame.minX, width * 80 / 1920, accuracy: width * 30 / 1920, "results \(frame)")
+    XCTAssertLessThan(frame.maxX, width, "results \(frame)")
+  }
+
+  func testGridKeyboardResultsStayBesideIt() throws {
+    let app = launch(gridKeyboard: true)
+    let frame = try resultsFrame(in: app)
+    try shoot(app, name: "grid")
+    assertBesideGridKeyboard(frame, width: app.frame.width)
+  }
+
+  // MARK: - Helpers
+
+  private func launch(gridKeyboard: Bool) -> XCUIApplication {
+    let app = XCUIApplication()
+    app.launchArguments += ["-ui-testing", "-KINOPUBSearchFixture", "-KINOPUBForceColorScheme", "dark",
+                            "-ForceGridKeyboard", gridKeyboard ? "YES" : "NO"]
+    app.launch()
+    XCTAssertTrue(app.collectionViews["kinopub.page.search"].cells.firstMatch.waitForExistence(timeout: 20),
+                  "search results never appeared")
+    Thread.sleep(forTimeInterval: 1.5)
+    return app
+  }
+
+  /// The box the on-screen result cells fill.
+  private func resultsFrame(in app: XCUIApplication) throws -> CGRect {
+    let screen = app.frame
+    let frames = app.collectionViews["kinopub.page.search"].cells.allElementsBoundByIndex
+      .map { $0.frame }
+      .filter { !$0.isEmpty && $0.intersects(screen) }
+    let union = frames.dropFirst().reduce(frames.first ?? .null) { $0.union($1) }
+    return try XCTUnwrap(union.isNull ? nil : union.intersection(screen), "no result cell on screen")
+  }
+
+  /// Under the tab bar the grid keyboard ends at x = 512 of 1920 and the system starts the
+  /// results, its suggestion row with them, at 590 (tvOS 27.2, measured); they end at the
+  /// right overscan line, not the screen's edge.
+  private func assertBesideGridKeyboard(_ frame: CGRect, width: CGFloat) {
+    XCTAssertGreaterThan(frame.minX, width * 540 / 1920, "results over the keyboard: \(frame)")
+    XCTAssertLessThanOrEqual(frame.maxX, width * 1880 / 1920, "results past the overscan line: \(frame)")
+  }
+
+  private func shoot(_ app: XCUIApplication, name: String) throws {
+    let screenshot = app.screenshot()
+    let attachment = XCTAttachment(screenshot: screenshot)
+    attachment.name = "search-\(name)"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+    let dir = URL(fileURLWithPath: "/tmp/kinopub-page-shots", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try screenshot.pngRepresentation.write(to: dir.appendingPathComponent("search-\(name).png"))
+  }
+}
+#endif

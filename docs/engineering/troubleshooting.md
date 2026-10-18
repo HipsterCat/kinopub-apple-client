@@ -5,6 +5,7 @@ Symptoms seen in this repo and what caused them. Measured evidence, linked from 
 | Symptom | Likely cause |
 | --- | --- |
 | Focus frozen on one control; Right/Down no-ops; Menu quits the app | Two sibling views share a `@FocusState` case |
+| tvOS Search with the grid keyboard (Settings → General → Keyboard): suggestions in their place, but the filter row and results laid over the keyboard from the screen's left edge | `spansScreenWidth` stretched the results to the window's sides; with the grid keyboard the search container puts its results *beside* the keyboard (x = 590 of 1920 under the tab bar, 27.2 and 26.5). The page now reaches the sides only when nothing is beside it (`hasNeighbourBeside`). Check: `TVSearchLayoutUITests` on `-KINOPUBSearchFixture` with `-ForceGridKeyboard YES` / `NO` |
 | Up from a section jumps to the tab bar or fails | The hero band has no full-width `.focusSection()` |
 | Back from the player, nothing on the detail page has focus | The focused hero control was rebuilt: `mediaActionStyle` switches on chrome, so Play turning into Replay is a new view and tvOS drops focus. The hero reclaims its entry control (`MediaItemHeroView.claimEntryAfterReturn`) |
 | Only the icon inside a button scales, and gains a shadow | `.hoverEffect(.highlight)` on an `icon + text` label — use `.card` |

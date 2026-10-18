@@ -168,4 +168,16 @@ public enum DebugLaunch {
     false
 #endif
   }
+
+  /// `-KINOPUBSearchFixture`: the app root is the tvOS search screen under a tab bar, with
+  /// the templates gallery's posters as results — the system keyboard, suggestions and our
+  /// results page with no session. Pair with `-ForceGridKeyboard YES` for the keyboard on
+  /// the left (UIKit's own default, read from the argument domain).
+  public static var searchFixture: Bool {
+#if DEBUG
+    ProcessInfo.processInfo.arguments.contains("-KINOPUBSearchFixture")
+#else
+    false
+#endif
+  }
 }

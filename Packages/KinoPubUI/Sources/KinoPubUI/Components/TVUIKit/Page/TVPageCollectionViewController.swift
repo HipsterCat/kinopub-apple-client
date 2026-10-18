@@ -206,8 +206,9 @@ public final class TVPageCollectionViewController: UIViewController {
     // How far each edge sits inside the window. Every constraint takes the negative:
     // top / leading are collection→view, trailing / bottom view→collection, so a
     // negative constant moves each edge outward.
-    let leading = spansScreenWidth ? frame.minX : 0
-    let trailing = spansScreenWidth ? window.bounds.maxX - frame.maxX : 0
+    let sideways = spansScreenWidth && !hasNeighbourBeside(frame, in: window)
+    let leading = sideways ? frame.minX : 0
+    let trailing = sideways ? window.bounds.maxX - frame.maxX : 0
     let wanted = [frame.minY, leading, trailing, window.bounds.maxY - frame.maxY].map { -max($0, 0) }
     var changed = false
     for (constraint, constant) in zip(windowExtension, wanted) where abs(constraint.constant - constant) > 0.5 {
@@ -215,6 +216,17 @@ public final class TVPageCollectionViewController: UIViewController {
       changed = true
     }
     if changed { updateContentInsets() }
+  }
+
+  /// The system put something beside the page and gave it only the rest of the width.
+  /// The search container does that with the grid keyboard (Settings → General →
+  /// Keyboard): the keyboard stands on the left and the results start at x = 590 of 1920
+  /// under the tab bar (measured, tvOS 27.2). Reaching the screen's sides then laid the
+  /// results over the keyboard (2026-10-18). With the linear keyboard the results are full
+  /// width (x = 0, overscan in their safe area), nothing is beside them, and the page
+  /// reaches the edges as before. Read on every layout, as the system places the results.
+  private func hasNeighbourBeside(_ frame: CGRect, in window: UIWindow) -> Bool {
+    frame.minX > window.safeAreaInsets.left + 0.5 || window.bounds.maxX - frame.maxX > window.safeAreaInsets.right + 0.5
   }
 
   /// How far the collection's content already starts from the screen's leading edge:
