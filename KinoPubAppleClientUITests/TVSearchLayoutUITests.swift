@@ -6,8 +6,9 @@
 //  Search results against both system keyboards, on the search fixture (no session).
 //  The linear keyboard is a row on top and the results are full width; the grid keyboard
 //  (Settings → General → Keyboard) stands on the left and the
-//  system gives the results only the width beside it. Results reaching the screen's left
-//  edge in grid mode lay over the keyboard (2026-10-18).
+//  system gives the results only the width beside it, and hides the keyboard while focus
+//  is in them. Results reaching the screen's left edge in grid mode lay over the keyboard
+//  (2026-10-18).
 //
 
 import XCTest
@@ -35,7 +36,28 @@ final class TVSearchLayoutUITests: XCTestCase {
     assertBesideGridKeyboard(frame, width: app.frame.width)
   }
 
+  /// Focus in the results: the grid keyboard slides away and the results take the
+  /// screen's width. Left from the first column brings it back and the results move over.
+  func testGridKeyboardHidesWhileResultsHaveFocus() throws {
+    let app = launch(gridKeyboard: true)
+    let width = app.frame.width
+    // Tab pill → keyboard → along its top row to the suggestions → down into the results.
+    press(.down)
+    press(.right, 7)
+    press(.down, wait: 1.5)
+    try shoot(app, name: "grid-results-focused")
+    XCTAssertLessThan(try resultsFrame(in: app).minX, width * 0.2, "keyboard still beside the results")
+    press(.left, 3, wait: 1)
+    Thread.sleep(forTimeInterval: 1)
+    try shoot(app, name: "grid-keyboard-back")
+    assertBesideGridKeyboard(try resultsFrame(in: app), width: width)
+  }
+
   // MARK: - Helpers
+
+  private func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
+    for _ in 0..<times { XCUIRemote.shared.press(button); Thread.sleep(forTimeInterval: wait) }
+  }
 
   private func launch(gridKeyboard: Bool) -> XCUIApplication {
     let app = XCUIApplication()

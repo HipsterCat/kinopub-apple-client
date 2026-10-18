@@ -17,6 +17,9 @@
 //  - minimising: the results controller reports its collection through
 //    `setContentScrollView(_:for:)` (the replacement for the deprecated
 //    `searchControllerObservedScrollView`), so the keyboard scrolls away with results.
+//  - the grid keyboard (Settings → General → Keyboard) stands on the left with the
+//    results beside it, and slides away when focus moves into them, so the results get
+//    the screen's width back (`hidesGridKeyboardWhenUnfocused`, the one private switch).
 //  Remembering recent queries is the app's job — the system keeps no search history.
 //  Menu-back is the same `StagedMenuBack` path as every other `TVPage`: below the
 //  top results row, Menu returns there; at that row it passes through to the field.
@@ -179,6 +182,7 @@ private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
     context.coordinator.search = search
     context.coordinator.lastReported = text
     update(context.coordinator, animated: false)
+    search.hidesGridKeyboardWhenUnfocused()
     let container = UISearchContainerViewController(searchController: search)
     if DebugLaunch.layoutDebug {
       // Magenta: the search container's own view — where SwiftUI placed it.

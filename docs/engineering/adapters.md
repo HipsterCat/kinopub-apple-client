@@ -15,6 +15,12 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   so there is no server picker to present. "First server found, then remembered" is the only
   selection model its public API offers. Re-probe if that view goes public.
 
+- **`UISearchController+GridKeyboard.swift`** (tvOS Search) — the grid keyboard (Settings →
+  General → Keyboard) hides while focus is in the results and the results take the full width,
+  through UIKit's private `_shouldHideGridKeyboardUnfocused` (NO by default, no public switch;
+  probed on tvOS 26.5 and 27.2). Guarded by `responds(to:)`: without it the keyboard just stays.
+  Checked by `TVSearchLayoutUITests` (`-KINOPUBSearchFixture -ForceGridKeyboard YES`).
+
 - **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`
   (`_TSKSplitViewController`, `TSKViewController`, `TSKSettingItem`, `TSKPreviewViewController`):
   the still preview column, the list-only slide-and-crossfade on push, Apple's cells and value
