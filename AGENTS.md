@@ -18,6 +18,8 @@ semantic component is not a DRY violation; two components for one idea on one pl
 
 - **Platforms:** tvOS · iOS · iPadOS · macOS, one target
   `KinoPubAppleClient` (product `KinoPub`). Mark 27-only API explicitly.
+  **Active platform: tvOS only** ([CURRENT.md](CURRENT.md)). iOS, iPadOS and macOS must keep
+  compiling, but their chrome is postponed — do not spend work on it unless Sasha asks.
   **tvOS deployment floor is 26.5** — the minimum tvOS 26 simulator runtime.
   Real devices can all update to 26.6, but the simulator cannot. iOS and macOS
   stay at 26.6. Packages declare `.tvOS("26.5")` (SPM has no `.v26_5` case);
@@ -26,7 +28,10 @@ semantic component is not a DRY violation; two components for one idea on one pl
 - **UI:** SwiftUI everywhere except tvOS media surfaces (UIKit + TVUIKit). See above.
 - **Player:** native `AVPlayerViewController` / `AVPlayerView`, one app-scoped `PlaybackSession`.
   No custom transport chrome, ever.
-- **Appearance:** dark only, forced on every platform, until the deliberate light-theme stage.
+- **Appearance:** tvOS follows the system light/dark setting (no `.preferredColorScheme` on the
+  tvOS shell — even `nil` pinned Dark). iOS and macOS are still forced dark until their pass
+  (`LaunchAppearance` in `KinoPubAppleClientApp.swift`). The detail hero's content is forced dark
+  on every platform. Check both appearances with DEBUG `-KINOPUBForceColorScheme light|dark`.
 - **Distribution:** personal builds / TestFlight. App Store review is not a target — which is what
   makes isolated private API acceptable.
 - **Our docs are English-only** — but a vendor's own documentation is kept **verbatim, in its
@@ -34,18 +39,17 @@ semantic component is not a DRY violation; two components for one idea on one pl
   deleted once already. UI strings are RU + EN through `Localizable.xcstrings`.
 - **Repo layout:** `KinoPubAppleClient/` (app), `Packages/KinoPub{UI,Backend,Kit,Metadata,Media,Logging}/`,
   `workers/` (Cloudflare), `tools/` (offline crawlers/probes).
-- **Third-party SPM:** `KeychainAccess`, `PopupView`, `Reachability`, `Nuke` (artwork),
-  `Pulse` (network log). Allowed — see [Dependencies](#dependencies).
+- **Third-party SPM:** `KeychainAccess`, `PopupView`, `Reachability` (app target), `Nuke`
+  (artwork) and `Pulse` (network log) in `KinoPubUI`. Allowed — see [Dependencies](#dependencies).
 
 ### Where to read more
 
 | Need | Load |
 | --- | --- |
-| tvOS cells, rails, focus engine, on-device verification | skill `tvos-surface` |
-| Glass, materials, blur, tabs, search, navigation, layout containers | skill `apple-chrome` |
-| AVKit surfaces, subtitles, playback routing | skill `player-avkit` |
+| What is active now (scope, tvOS layout contract) | [CURRENT.md](CURRENT.md) |
+| How a milestone is executed | [PLAYBOOK.md](PLAYBOOK.md) |
 | Media model: sources, facts, viewer state, presentation layers | [docs/media-model.md](docs/media-model.md) |
-| Where a new fact or decision belongs | skill `docs-upkeep` |
+| Where a new fact or decision belongs | [Working agreement](#working-agreement), item 8 |
 | What we are building next, open questions, parked defects | Asana — [Kinopub Engineering project plan](https://app.asana.com/1/1218266299921477/project/1219403693009374), one task per feature, items as subtasks ([ROADMAP.md](ROADMAP.md) maps features to tasks) |
 | What the product *does* — decided behavior, per feature | [docs/product/](docs/product/) |
 | Provider capability sheets | [docs/providers/](docs/providers/) |
@@ -56,10 +60,11 @@ semantic component is not a DRY violation; two components for one idea on one pl
 ## Authority
 
 1. The user's explicit decision in the current conversation.
-2. This file.
-3. [docs/product/](docs/product/) — accepted behavior. What is next lives in Asana ([ROADMAP.md](ROADMAP.md) is only the map to it).
-4. Skills — how to do a specific kind of work.
-5. `docs/archive/` — evidence. **Never automatic requirements.**
+2. [CURRENT.md](CURRENT.md) — what is in scope now. It wins on scope; this file wins on *how*
+   things are built.
+3. This file.
+4. [docs/product/](docs/product/) — accepted behavior. What is next lives in Asana ([ROADMAP.md](ROADMAP.md) is only the map to it).
+5. `docs/archive/`, `docs/research/` — evidence. **Never automatic requirements.**
 
 If sources conflict, stop only the disputed part and ask. Do not invent blockers, do not close open
 design questions with "Apple defaults", and do not rewrite docs to rationalize an implementation.
@@ -185,8 +190,6 @@ An adapter that stops being needed gets deleted, not kept "in case".
 - **A known-bad focus pattern sitting in a checklist as a "someday" item is a bug to fix on sight.**
   One of those cost a whole misdiagnosed detour before anyone traced it.
 
-Details, cells and traps: skill `tvos-surface`.
-
 ## Components
 
 **Pages are assembled from a fixed catalogue. A page is a list of typed sections, not a
@@ -221,7 +224,7 @@ file, and delete the losers with the switch.
   focus.
 - **On tvOS there are three cells and one collection** — person, wide 16:9, poster — all from
   TVUIKit, in one `UICollectionView` per page region. A hand-assembled tile is a defect even when it
-  looks right. Full standard: skill `tvos-surface`. The one extension is the HIG's *Card* for
+  looks right. The one extension is the HIG's *Card* for
   ratings, reviews, facts, stills and specification columns: `TVPageCellKind.infoCard`, content
   drawn inside a `TVCardView` — a new kind of card is a new content, not a new cell, and it wears
   the platter of search's wide card (`TVPagePlatter`).
@@ -246,10 +249,6 @@ file, and delete the losers with the switch.
   page beneath appears ~0.1 s after Menu, the leaving page disappears ~0.5 s later, a stack's
   root never re-appears, `isPresented` drops when a page is covered and never fires back.
   iOS and macOS are untouched: the artwork is the hero's `.background` and scrolls away.
-- **The hero scrim follows light/dark.** Black in dark mode, white in light mode, same geometry
-  (Plozz's `scrimTone`): the hero text and buttons are system colours, dark in light mode, and a
-  black scrim under them was unreadable (Sasha, on device, 2026-09-28). Keep it where the text is
-  (bottom band, left edge); a stacked 0.92 diagonal read as a black slab.
 - **Prose in the hero has no chrome at rest.** On tvOS the synopsis is always a `.borderless`
   button, and Select on that button opens the info popup. Do not add `.focusable()` on it: the
   wrapper takes the focus and Select never presses the button, so the popup never opens (Sasha,
@@ -298,10 +297,12 @@ file, and delete the losers with the switch.
   reads "the focused view is an ancestor" as "I am focused" — info cards need
   `TVCardView.releaseFocusedLook`, poster art `TVPosterArtFocus` (Troubleshooting). Home's page is
   the tab's root, with no such ancestor, which is why it never shows either.
-- **Hero chrome is always dark.** Force `.environment(\.colorScheme, .dark)` on the hero
-  content and keep a black scrim under the written column. tvOS does not pin
-  `preferredColorScheme`; without the force, light appearance paints `Color.primary` black
-  on dark artwork and the synopsis disappears.
+- **Hero content is forced dark** (`.environment(\.colorScheme, .dark)` in `MediaItemHeroView`):
+  tvOS follows the system appearance, and without the force light mode paints `Color.primary`
+  black on dark artwork. Keep the scrim where the text is (bottom band, left edge); a stacked 0.92
+  diagonal read as a black slab. What the hero does in light mode once the picture has faded is
+  open — Asana: [Светлая тема на странице: текст hero](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606561789181). (An older rule,
+  "the scrim follows light/dark", contradicted this and was removed 2026-10-18.)
 - **No page-wide hero state.** No fold flag, no wash, no chrome fade, no custom
   `ScrollTargetBehavior`. The focus engine scrolls the page. The one scroll the page asks for is
   back to the top when a hero control takes focus (`ScrollViewReader.scrollTo`), because the
@@ -311,17 +312,17 @@ file, and delete the losers with the switch.
 - **The page body reads no focus.** Hero focus is observed inside `MediaItemHeroView`; the page
   passes the `@FocusState` binding down and reads nothing from it.
 - **Lead with what can be played.** The cheapest path on a remote is `hero button → playable rail →
-  everything else`. Episodes, parts, versions and trailers are one rail directly under the hero;
+  everything else`. Episodes, parts and versions are a rail directly under the hero
+  (trailers join it — not built yet, Asana: [Трейлеры как элементы playable rail](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219606504266557));
   the sections follow, in the order of [docs/product/detail-sections.md](docs/product/detail-sections.md).
   Ordering is by what the user can do now, not by entity type — a movie is not "the layout with the
   rail missing".
-- **One playable rail, not one section per content type.** Episode, trailer, part, version and extra
+- **One playable rail *component*, not one section per content type.** Episode, trailer, part, version and extra
   share a shape (id, title, duration, image, source, progress, kind) and differ in one field, so
   they share a component. A trailer tile *is* an episode tile *is* a Continue Watching tile.
 - Versions of one film (`subtype: multi`) are `PlaybackVariant`, never episodes — one rail each,
   never mixed. Why, and what the payload actually looks like: `PlaybackVariant.swift` and
   [docs/providers/kinopub/video.md](docs/providers/kinopub/video.md).
-- **No compact title, no floating header logo** unless navigation chrome requires one.
 - Sections are data (kind + payload), empty ones simply absent, order defined in one place.
 - "Related" renders through the same shelf component Home uses.
 - 🔴 **A rule that depends on a title's type or genre lives in `MediaPresentationProfile`, never as
@@ -331,8 +332,9 @@ file, and delete the losers with the switch.
 
 ## Chrome
 
-- **Dark only**, forced, until the light-theme stage. tvOS ships no semantic background colour
-  (`systemBackground` is iOS-only), so the TV base is real black.
+- **Appearance:** see Quick reference — tvOS follows the system, iOS/macOS forced dark. tvOS ships
+  no semantic background colour (`systemBackground` is iOS-only); a background change is a fixed
+  backdrop state plus a system material, checked in light **and** dark.
 - **All `glassEffect` goes through `kinoGlass` / `kinoGlassGroup`** (`KinoPubUI/DesignSystem/`),
   never the raw API at a call site — the helper degrades to an opaque fill under Reduce Transparency
   / Increase Contrast. `.buttonStyle(.glass)` / `.glassProminent` are a separate, fully system-owned
@@ -347,12 +349,10 @@ file, and delete the losers with the switch.
 - Hero CTAs use system glass (`.glassProminent` for Play, `.glass` for other capsules
   and circles). White elevated fill is **focus**, not a permanent Play tint (Sasha,
   2026-10-01). Do not force `.tint(.primary)` on Play. Hero action row is forced dark
-  for now so glass samples against artwork consistently until the light-theme stage.
+  (with the rest of the hero content) so glass samples against artwork consistently.
 - **Tab bar:** system `TabView` on tvOS and macOS, adaptive on iPad. No pinning requirement, no
   `.toolbar(.hidden, for: .tabBar)`, no custom bar layered over content.
 - No shadows on tvOS cards / badges / action buttons.
-
-Details: skill `apple-chrome`.
 
 ## Data and continuity
 
@@ -498,10 +498,17 @@ xcodebuild -scheme KinoPubAppleClient -destination 'platform=tvOS Simulator,name
   `~/.kinopub-dev-session.json` and reseeds the Keychain from it, so a reinstall or a platform
   switch does not need a fresh activation code (`DevSessionMirror`). The account has five device
   slots — do not spend them on the dev loop. Sign-out deletes the file on purpose.
-  The sandboxed macOS Debug build needs its own entitlements file for that path; **Release must keep
-  pointing at `KinoPubAppleClient.entitlements`** — temporary exceptions fail review. In
-  `project.pbxproj` a configuration's `name = Debug` line comes **after** its settings; verify with
+  The sandboxed macOS Debug build needs its own entitlements file for that path
+  (`KinoPubAppleClient-Debug.entitlements`, set by `CODE_SIGN_ENTITLEMENTS[config=Debug]`);
+  **Release must keep pointing at `KinoPubAppleClient.entitlements`** — the Debug file carries a
+  temporary sandbox exception for the home-folder path. Verify with
   `codesign -d --entitlements - --xml <app>` rather than trusting the edit.
+- **The project file is `KinoPubAppleClient.xcodeproj/project.xcproj`** — Xcode 27's JSON format;
+  there is no `project.pbxproj`. Groups list their children explicitly: a new `.swift` file is not
+  compiled until it is added to its group's `children` with
+  `"target-membership": [ "KinoPubAppleClient/compile-sources" ]` (copy a sibling's line). The
+  symptom of a missing entry is `Cannot find 'TypeName' in scope` at every use — a membership bug,
+  not a code bug.
 
 ### Verification by risk
 
@@ -582,10 +589,11 @@ went wrong by porting thresholds tuned for a swipe-driven page onto a focus-driv
    Predetermined system controls do not get variant theatre.
 6. **One reviewable slice.** Do not touch unrelated dirty files.
 7. **Verify by risk** (table above), and be honest when verification is deferred.
-8. **Record what you learned where it belongs** — skill `docs-upkeep`. Planned work, parked defects and open questions are Asana subtasks of the feature's task (see
-   [ROADMAP.md](ROADMAP.md)) — never a new checklist in a `.md` file; mark the subtask done with
-   the commit or PR;
-   append genuinely notable facts to `CHANGELOG.md`. README changes only for public positioning or
+8. **Record what you learned where it belongs.** Planned work, parked defects, open questions and
+   research findings → an Asana subtask of the feature's task (see [ROADMAP.md](ROADMAP.md)),
+   never a checklist in a `.md` file; mark it done with the commit or PR. A decided product rule →
+   `docs/product/`. An external source's fields → `docs/providers/`. A durable engineering rule or
+   trap → this file. Genuinely notable shipped facts → `CHANGELOG.md`. README changes only for public positioning or
    a macro stage. **If a viewer can see the change**, add a short ru + en bullet to
    `KinoPubAppleClient/Resources/whats-new.json` for the current marketing version, at the
    top of its list (create the version object if it does not exist); the next build shows
@@ -617,11 +625,13 @@ and never because a list of cool repos exists. Then:
 ### Style
 
 - 2-space indentation.
-- SwiftUI view models: `@StateObject` via `@autoclosure @escaping` initializers, matching `Views/`.
-  `@Observable` migration is type-by-type; `State.init(wrappedValue:)` has **no** autoclosure
-  overload, so a naive `@StateObject` → `@State` swap re-creates the model on every view `init`.
-- Services: protocol + `…Impl` + `…Mock`. View models: `ObservableObject`, `@MainActor` when
-  touching UI.
+- **New view models are `@Observable`** (`@MainActor` when touching UI). Existing
+  `ObservableObject`s migrate type by type (`NavigationState`, `ErrorHandler`, `WindowSettings`,
+  `ProfileModel` are done). When migrating: `State.init(wrappedValue:)` has **no** autoclosure
+  overload, so a naive `@StateObject` → `@State` swap re-creates the model on every view `init`;
+  `@Environment(X.self)` crashes if nothing injected it on that branch — check every injection point.
+  Remaining `@StateObject`s keep the `@autoclosure @escaping` initializers used in `Views/`.
+- Services: protocol + `…Impl` + `…Mock`.
 
 ### Anti-patterns seen here
 

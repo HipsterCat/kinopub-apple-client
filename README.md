@@ -41,7 +41,7 @@ Verification gaps and unfinished edges are Asana subtasks ([Kinopub Engineering 
   but the simulator cannot). iOS and macOS stay at **26.6**.
 - Swift 5 language mode in packages (`swift-tools-version: 6.2`)
 - Single multiplatform target `KinoPubAppleClient` (product name `KinoPub`)
-- **Dark appearance only** until stage 5
+- tvOS follows the system light/dark setting; iOS and macOS are forced dark until their pass
 - **Internal TestFlight:** daily / version bump / Actions → TestFlight (iOS, tvOS,
   macOS). Secrets and first upload: [docs/testflight.md](docs/testflight.md)
 
@@ -56,7 +56,7 @@ open KinoPubAppleClient.xcodeproj
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | The whole agent context — defaults, banned patterns, traps |
 | [ROADMAP.md](ROADMAP.md) | Retired — maps each feature to its Asana task |
-| `.claude/skills/` | Loaded on demand: tvOS surfaces, chrome, player, metadata, docs |
+| [CURRENT.md](CURRENT.md) | What is active now (tvOS only) |
 | [CHANGELOG.md](CHANGELOG.md) | Notable shipped changes |
 | [docs/testflight.md](docs/testflight.md) | Internal TestFlight secrets, triggers, first upload |
 | [docs/providers/](docs/providers/) | External source capability sheets |
