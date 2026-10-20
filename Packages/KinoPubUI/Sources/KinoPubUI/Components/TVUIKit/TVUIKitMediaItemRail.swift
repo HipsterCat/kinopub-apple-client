@@ -262,6 +262,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   private let contextMenuProvider: ((Int) -> [MediaCardContextEntry])?
   private let allowsFocus: Bool
   private let fillsHeight: Bool
+  private let overlayOnFocus: Bool
 
   /// - Parameters:
   ///   - contentInset: leading/trailing inset, so the rail lines up with the section
@@ -279,6 +280,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   ///   - onSelect / onNearEnd / contextMenuProvider: all keyed by `TVUIKitMediaItem.id`.
   ///   - fillsHeight: take the height it is offered rather than the row's own, items from
   ///     the top — for a container that places the row itself (the player's tabs).
+  ///   - overlayOnFocus: the runtime and the progress bar show on the focused tile only.
   public init(items: [TVUIKitMediaItem],
               contentInset: CGFloat = 0,
               columns: Int? = nil,
@@ -290,7 +292,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
               onFocusedItem: ((Int) -> Void)? = nil,
               contextMenuProvider: ((Int) -> [MediaCardContextEntry])? = nil,
               allowsFocus: Bool = true,
-              fillsHeight: Bool = false) {
+              fillsHeight: Bool = false,
+              overlayOnFocus: Bool = false) {
     self.items = items
     self.contentInset = contentInset
     self.columns = columns
@@ -303,11 +306,12 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
     self.contextMenuProvider = contextMenuProvider
     self.allowsFocus = allowsFocus
     self.fillsHeight = fillsHeight
+    self.overlayOnFocus = overlayOnFocus
   }
 
   public func makeUIViewController(context: Context) -> TVUIKitMediaItemRailController {
     let controller = TVUIKitMediaItemRailController(contentInset: contentInset, columns: columns,
-                                                    caption: caption)
+                                                    caption: caption, overlayOnFocus: overlayOnFocus)
     controller.apply(items: items,
                      entryItemID: entryItemID,
                      animatesEntryScroll: animatesEntryScroll,
@@ -466,6 +470,7 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   private let contentInset: CGFloat
   private let columns: Int?
   private let caption: TVPageCaption
+  private let overlayOnFocus: Bool
 
   private var entryItemID: Int?
   private var onSelect: ((Int) -> Void)?
@@ -518,10 +523,12 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     return view
   }()
 
-  init(contentInset: CGFloat, columns: Int? = nil, caption: TVPageCaption = .always) {
+  init(contentInset: CGFloat, columns: Int? = nil, caption: TVPageCaption = .always,
+       overlayOnFocus: Bool = false) {
     self.contentInset = contentInset
     self.columns = columns
     self.caption = caption
+    self.overlayOnFocus = overlayOnFocus
     super.init(nibName: nil, bundle: nil)
   }
 
@@ -725,7 +732,9 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
       for: indexPath
     ) as! TVUIKitMediaItemCell
     cell.configure(items[indexPath.item], allowsFocus: allowsFocus,
-                   captionOnFocus: columns != nil && caption == .onFocus)
+                   captionOnFocus: columns != nil && caption == .onFocus,
+                   hidesCaption: columns != nil && caption == .never,
+                   overlayOnFocus: overlayOnFocus)
     cell.tileAlpha = alpha(at: indexPath.item)
     return cell
   }
@@ -814,6 +823,10 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   /// The caption under the still appears with focus only (Sasha, 2026-09-21) — the
   /// same rule as the poster footer. `false` keeps it on the tile at rest (grids).
   private var captionOnFocus = false
+  /// A `.never` still run: no line under the tile at all.
+  private var hidesCaption = false
+  /// The runtime and the bar on the focused tile only (the player's tabs).
+  private var overlayOnFocus = false
 
   /// How opaque the tile is. On the content view, not the cell — the layout writes the
   /// cell's own alpha back to 1 whenever it applies attributes — and again after every
@@ -822,9 +835,12 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     didSet { contentView.alpha = tileAlpha }
   }
 
-  func configure(_ item: TVUIKitMediaItem, allowsFocus: Bool = true, captionOnFocus: Bool = false) {
+  func configure(_ item: TVUIKitMediaItem, allowsFocus: Bool = true, captionOnFocus: Bool = false,
+                 hidesCaption: Bool = false, overlayOnFocus: Bool = false) {
     cellAllowsFocus = allowsFocus
     self.captionOnFocus = captionOnFocus
+    self.hidesCaption = hidesCaption
+    self.overlayOnFocus = overlayOnFocus
     let keepsArtwork = self.item?.imageURL == item.imageURL && loadedURL == item.imageURL
     self.item = item
     accessibilityIdentifier = "kinopub.rail.item.\(item.id)"
@@ -850,7 +866,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     // `text` is the line *under* the tile, always visible. Secondary at rest, label
     // when focused (CURRENT.md caption law); the configuration's default is white
     // regardless of appearance, which is what read as "always white, with a shadow".
-    let hideCaption = captionOnFocus && !state.isFocused
+    let hideCaption = hidesCaption || (captionOnFocus && !state.isFocused)
     config.text = hideCaption ? nil : item.caption
     config.textProperties.color = state.isFocused || item.isNowPlaying ? .label : .secondaryLabel
     // Library still grids ask for the system's second line (title + remaining / when).
@@ -873,7 +889,8 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
       config.badgeProperties = item.badgeIsLive ? .liveContent() : .default()
     }
 
-    overlay.apply(status: item.status, timeLabel: item.timeLabel, isNowPlaying: item.isNowPlaying)
+    overlay.apply(status: item.status, timeLabel: item.timeLabel, isNowPlaying: item.isNowPlaying,
+                  showsTime: !overlayOnFocus || state.isFocused)
     config.overlayView = overlay
 
     contentConfiguration = config
@@ -979,6 +996,8 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     contentConfiguration = nil
     cellAllowsFocus = true
     captionOnFocus = false
+    hidesCaption = false
+    overlayOnFocus = false
     tileAlpha = 1
     backgroundConfiguration = nil
   }
@@ -1177,7 +1196,10 @@ final class TVUIKitMediaItemOverlayView: UIView {
     CATransaction.commit()
   }
 
-  func apply(status: TVUIKitMediaItemStatus, timeLabel: String?, isNowPlaying: Bool = false) {
+  /// - Parameter showsTime: false keeps the runtime and the bar out (an unfocused tile in the
+  ///   player's tabs).
+  func apply(status: TVUIKitMediaItemStatus, timeLabel: String?, isNowPlaying: Bool = false,
+             showsTime: Bool = true) {
     scrim.isHidden = !status.dimsArtwork
     nowPlayingDim.isHidden = !isNowPlaying
 
@@ -1186,13 +1208,13 @@ final class TVUIKitMediaItemOverlayView: UIView {
     glyphView.isHidden = glyph == nil
 
     // The episode on screen has no bar: the player's own scrubber is where it is.
-    progressFraction = isNowPlaying ? 0 : CGFloat(status.progress)
+    progressFraction = isNowPlaying || !showsTime ? 0 : CGFloat(status.progress)
     progressTrack.isHidden = progressFraction <= 0
     setNeedsLayout()
 
     // At rest too (Sasha, 2026-10-11, replacing "only while focused" of 2026-09-21).
     // The episode on screen trades its bar for the runtime, like a tile with none.
-    let showsRuntime = (status.showsRuntime || isNowPlaying) && timeLabel?.isEmpty == false
+    let showsRuntime = showsTime && (status.showsRuntime || isNowPlaying) && timeLabel?.isEmpty == false
     runtimeLabel.text = timeLabel
     runtimeBadge.isHidden = !showsRuntime
 

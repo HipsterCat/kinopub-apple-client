@@ -1530,8 +1530,10 @@ enum PlayerTabPlatter {
   static let height: CGFloat = 263
   static let top: CGFloat = 14
   static let platterHeight: CGFloat = 250
-  /// Six still columns across the platter: art, caption and air fit `platterHeight`.
-  static let columns = 6
+  /// Five still columns across the platter, and no line under them — the art and the air
+  /// fit `platterHeight` (Sasha, 2026-10-21: six read too small; captions off for now).
+  static let columns = 5
+  static let caption: TVPageCaption = .never
   /// How much of the tile before and after shows past the side inset.
   static let peek: CGFloat = 28
 }
@@ -1615,9 +1617,11 @@ final class PlayerRailTab: UIViewController {
     let width = view.bounds.width
     guard width > 1 else { return }
     let height = PlayerTabPlatter.platterHeight
-    let parts = TVPageLayout.stillRunParts(columns: PlayerTabPlatter.columns, caption: .always,
+    let parts = TVPageLayout.stillRunParts(columns: PlayerTabPlatter.columns, caption: PlayerTabPlatter.caption,
                                            containerWidth: width, sideInset: Self.sideInset)
-    let block = parts.still.height + parts.belowStill
+    // The recipe keeps room for a line under the tile even when none is drawn.
+    let below = PlayerTabPlatter.caption == .never ? 0 : parts.belowStill
+    let block = parts.still.height + below
     let air = max(((height - block) / 2).rounded(), 0)
     railTop?.constant = air - parts.topInset
     railHeight?.constant = parts.topInset + block + air
@@ -1629,7 +1633,7 @@ final class PlayerRailTab: UIViewController {
 extension PlayerManager {
 
   /// Info-strip tabs AVKit draws beside Info (`customInfoViewControllers`):
-  /// **Up Next**, then **Season N** — the season playing, a series only (Sasha, 2026-10-20).
+  /// **Season N** — the season playing, a series only — then **Up Next** (Sasha, 2026-10-21).
   /// A film keeps Up Next alone.
   ///
   /// **Apple API limitation:** AVKit draws the tab strip but nothing native fills a tab
@@ -1648,7 +1652,7 @@ extension PlayerManager {
     ensureSeriesForEpisodesTab()
     let episodes = MainActor.assumeIsolated { makeEpisodesTab() }
     let upNext = makeUpNextTab()
-    controller.customInfoViewControllers = [upNext, episodes].compactMap { $0 }
+    controller.customInfoViewControllers = [episodes, upNext].compactMap { $0 }
   }
 
   /// Fetch the title with seasons when the snapshot has none — playing from the
@@ -1776,7 +1780,10 @@ extension PlayerManager {
         }
       }
     }
-    let tab = MainActor.assumeIsolated { Self.railTab(items: items, entryItemID: nil, onSelect: onSelect) }
+    // Down from the tab lands on the first tile — the next episode when there is one.
+    let tab = MainActor.assumeIsolated {
+      Self.railTab(items: items, entryItemID: items.first?.id, onSelect: onSelect)
+    }
     tab.title = "Up Next".localized
     upNextTab = tab
     return tab
@@ -1789,13 +1796,15 @@ extension PlayerManager {
   /// Transparency), rounded, clipping the rail at its edges. A tab of a different height
   /// moved the strip between Info and these two (Sasha, 2026-10-20).
   ///
-  /// **The rail** is the title page's episode rail — `TVPageLayout.stillRun`, same cell,
-  /// gutter and caption — at the player's density: six columns of the platter's width
-  /// (the page uses four of the screen's), so the art, caption and air fit the Info height.
-  /// Its side inset is a gutter plus `peek`, so a scrolled rail always shows a piece of the
-  /// tile before and after: it reads as a list, not four tiles. The art-and-caption block
-  /// sits in the middle of the platter, the same air above the art as under the caption.
+  /// **The rail** is the title page's episode rail — `TVPageLayout.stillRun`, same cell and
+  /// gutter — at the player's density (`PlayerTabPlatter.columns` of the platter's width;
+  /// the page uses four of the screen's), without the line under the tiles, and with the
+  /// runtime and bar on the focused tile only. Its side inset is a gutter plus `peek`, so a
+  /// scrolled rail always shows a piece of the tile before and after: it reads as a list.
+  /// The block sits in the middle of the platter (`PlayerRailTab`).
   ///
+  /// **Where Down lands:** `entryItemID` — the episode playing, Up Next's first tile — until
+  /// the remote has been in the rail; then the tile it left from.
   @MainActor
   private static func railTab(items: [TVUIKitMediaItem],
                               entryItemID: Int?,
@@ -1803,11 +1812,12 @@ extension PlayerManager {
     PlayerRailTab(rail: TVUIKitMediaItemRail(items: items,
                                              contentInset: PlayerRailTab.sideInset,
                                              columns: PlayerTabPlatter.columns,
-                                             caption: .always,
+                                             caption: PlayerTabPlatter.caption,
                                              entryItemID: entryItemID,
                                              animatesEntryScroll: false,
                                              onSelect: onSelect,
-                                             fillsHeight: true))
+                                             fillsHeight: true,
+                                             overlayOnFocus: true))
   }
 
   /// Asks the enrichment sources about the next episode once, then rebuilds the tab —

@@ -18,34 +18,45 @@ final class PlayerTabsUITests: XCTestCase {
     continueAfterFailure = false
   }
 
-  /// Play → the strip shows on Info → Up onto the strip → Right onto Up Next, Right onto the season playing,
-  /// each shot as it is selected and again with a tile focused. AVKit's tab cells carry no
-  /// labels in the accessibility tree (tvOS 27.2), so the walk is by key and the shots say
-  /// which tab is which. Every tab's content is the same height, so the strip — the panel is
-  /// bottom-anchored — never moves.
+  /// Play → Info opens → Right onto the season playing, Right onto Up Next, each shot as it
+  /// is selected and again after Down. Then back to the season after moving one tile on: Down
+  /// returns to that tile, not the opening one. AVKit's tab cells carry no labels in the
+  /// accessibility tree (tvOS 27.2), so the walk is by key and the shots say which tab is
+  /// which; the shots are what to look at. Every tab's content is the same height, so the
+  /// strip never moves.
   func testTabsOfASeriesEpisode() throws {
     try openPlayer()
     let strip = app.collectionViews["AVInfoMenuCollection"]
     try shoot("player-tabs-0-info")
     let stripY = strip.frame.minY
-    for (index, name) in ["upnext", "season"].enumerated() {
-      XCUIRemote.shared.press(.right)
-      Thread.sleep(forTimeInterval: 2.5)
+    for (index, name) in ["season", "upnext"].enumerated() {
+      press(.right)
       try shoot("player-tabs-\(index + 1)-\(name)")
       XCTAssertTrue(strip.exists, "\(name): the strip is gone")
       XCTAssertEqual(strip.frame.minY, stripY, accuracy: 1,
                      "\(name) moved the strip from \(stripY) to \(strip.frame.minY)")
-      XCUIRemote.shared.press(.down)
-      Thread.sleep(forTimeInterval: 1.5)
+      press(.down)
       try shoot("player-tabs-\(index + 1)-\(name)-focused")
-      XCUIRemote.shared.press(.up)
-      Thread.sleep(forTimeInterval: 1.5)
+      if name == "season" {
+        // One tile on, so coming back has somewhere else to return to.
+        press(.right)
+      }
+      press(.up)
     }
+    // Back to the season: Down lands where the remote left it.
+    press(.left)
+    press(.down)
+    try shoot("player-tabs-4-season-again")
+    press(.up)
     // Up from the strip: the transport bar, its title view and its buttons — Picture in
     // Picture among them.
-    XCUIRemote.shared.press(.up)
-    Thread.sleep(forTimeInterval: 2)
+    press(.up)
     try shoot("player-tabs-3-transport")
+  }
+
+  private func press(_ button: XCUIRemote.Button) {
+    XCUIRemote.shared.press(button)
+    Thread.sleep(forTimeInterval: 2)
   }
 
   // MARK: - Helpers

@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS player tabs, third pass (2026-10-21)
+
+- Season before Up Next. Five columns, no caption under the tiles (`TVPageCaption.never`, now
+  honoured by the cell), runtime and bar on the focused tile only
+  (`TVUIKitMediaItemRail(overlayOnFocus:)`); the system "Next episode" badge already showed on
+  focus only.
+- Up Next gets an entry (its first tile), so Down from the tab lands there instead of on the
+  sliver at the edge; both tabs return to the tile the remote left from.
+
 ### tvOS player tabs, second pass (2026-10-21)
 
 - Season and Up Next use the title page's still run (`TVPageLayout.stillRun`) at six columns,

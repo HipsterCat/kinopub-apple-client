@@ -129,13 +129,15 @@ surface and get no substitute.
 
 **Season tab (tvOS).** After Up Next, a series only.
 
-- **prd** — A series' Info strip is **Info**, **Up Next** / **Далее**, then **Season N** / **Сезон N**:
-  the season playing, alone — no season pills, no other seasons (those are on the title page).
-  Same episode cells and rail component as the page (`TVPageLayout.stillRun`), at six columns
-  of the platter instead of the page's four, so the tab is as tall as Info and Up Next and the
+- **prd** — A series' Info strip is **Info**, **Season N** / **Сезон N**, then **Up Next** / **Далее**
+  (Sasha, 2026-10-21: the season first). Season N is the season playing, alone — no season pills, no other seasons (those are on the title page).
+  Same episode cells and rail component as the page (`TVPageLayout.stillRun`), at five columns
+  of the platter instead of the page's four, with no line under the tiles and the runtime or bar
+  on the focused tile only (Sasha, 2026-10-21, for now), so the tab is as tall as Info and Up Next and the
   strip does not move between the three. A scrolled rail shows a piece of the tile before and
-  after (side inset = gutter + 28 pt peek), so it reads as a list. The art-and-caption block is
-  centred: the same air above the still as under its caption. (Sasha, 2026-10-20.) The rail opens parked
+  after (side inset = gutter + 28 pt peek), so it reads as a list. The stills are centred on the
+  platter. Down from the tab lands on the episode playing (Season) or the first tile (Up Next)
+  until the remote has been in the rail; after that, on the tile it left from. (Sasha, 2026-10-21.) The rail opens parked
   on the episode playing and Down from the tab lands on it. Select plays that episode in place. A
   film has no Season tab. (Sasha, 2026-10-20; replaces the 2026-10-15 Episodes tab before Up Next.)
 - **prd** — The episode playing is marked: its still dimmed, a ring round it, its caption in the
@@ -153,7 +155,7 @@ surface and get no substitute.
   its platter 14 pt down, 250 pt tall — the frame Info's platter then has, pixel for pixel, on the
   tvOS 27.2 and 26.5 simulators (2026-10-21).
 
-**Up Next tab (tvOS).** Right after Info; the Apple-TV way.
+**Up Next tab (tvOS).** After Season for a series, right after Info for a film; the Apple-TV way.
 
 - **prd** — First, **this show's next unwatched episode**, when there is one, flagged *Next episode*.
   Then **Continue Watching** — Home's own list, the same cards, minus the title playing now.
