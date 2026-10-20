@@ -109,6 +109,16 @@ final class PlaybackSession: ObservableObject {
                                    trackLanguages: languages)
   }
 
+  /// Picture in Picture back to full screen: the route pushed for it carries a new token, and
+  /// must find `manager` — the stream in the floating window — rather than start the film
+  /// again. False when the session has moved on to something else.
+  @discardableResult
+  func adopt(_ manager: PlayerManager, token: UUID) -> Bool {
+    guard self.manager === manager, let request else { return false }
+    self.request = Request(itemID: request.itemID, mode: request.mode, token: token)
+    return true
+  }
+
   func clear() {
     manager?.tearDownForReplacement()
     manager = nil

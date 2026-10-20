@@ -758,6 +758,22 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     isPictureInPictureActive = active
   }
 
+#if os(tvOS)
+  /// The route that shows this stream full screen again, coming back from Picture in
+  /// Picture (`PictureInPictureKeeper`).
+  func pictureInPictureRoute(token: UUID) -> Route? {
+    switch watchMode {
+    case .media: .player(playItem, token: token)
+    case .trailer: .trailerPlayer(playItem, token: token)
+    case .live: (playItem as? TVChannel).map { .livePlayer($0, token: token) }
+    }
+  }
+
+  var pictureInPictureLogID: String {
+    "\(playItem.metadata.id) s\(playItem.metadata.season ?? 0) e\(playItem.metadata.video ?? 0) \(watchMode)"
+  }
+#endif
+
   private func disableSystemLegibleSelection() {
     guard let item = player.currentItem else { return }
     Task { @MainActor in

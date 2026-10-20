@@ -10,6 +10,8 @@ import SwiftUI
 import AVKit
 import KinoPubBackend
 import KinoPubUI
+import KinoPubLogging
+import OSLog
 
 struct PlayerView: View {
 
@@ -138,6 +140,15 @@ struct PlayerView: View {
   }
 #endif
 
+#if os(tvOS)
+  /// Picture in Picture back to full screen: the player's route again, on the tab the
+  /// viewer is on now (`PictureInPictureKeeper`).
+  private func restoreFromPictureInPicture(_ route: Route) {
+    let path = navigationState.path(for: navigationState.selectedTab)
+    path.wrappedValue.append(route)
+  }
+#endif
+
   /// The failure alert's way out: end the session, then leave the way this platform's
   /// player leaves — a route pop, or the window's own close on the Mac.
   private func closeAfterFailure() {
@@ -166,7 +177,8 @@ struct PlayerView: View {
     // The system player screen is the whole point: its transport bar is the only chrome,
     // and it's fully Siri-Remote navigable. `PlayerManager` hangs the title, subtitle and
     // the Subtitles/Audio menus off the controller.
-    TVVideoPlayer(manager: liveManager, onMenuPress: { dismiss() }, onGoToTitle: goToTitle)
+    TVVideoPlayer(manager: liveManager, onMenuPress: { dismiss() }, onGoToTitle: goToTitle,
+                  onRestoreFromPictureInPicture: restoreFromPictureInPicture)
       .task {
         // Playback starts itself once the stream is ready and the resume point applied.
         await playerManager.preparePlayback()
@@ -248,8 +260,19 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
   let onMenuPress: () -> Void
   /// Info tab's *Go to Show / Go to Movie*, with the id of the page to show.
   let onGoToTitle: (Int) -> Void
+  /// Picture in Picture back to full screen: push this route (`PictureInPictureKeeper`).
+  let onRestoreFromPictureInPicture: (Route) -> Void
 
   func makeUIViewController(context: Context) -> AVPlayerViewController {
+    // Back from Picture in Picture, the controller is the one AVKit animates the picture
+    // into — not a new one.
+    if let held = PictureInPictureKeeper.shared.takeController(for: manager) {
+      held.delegate = context.coordinator
+      context.coordinator.systemInfoActions = PictureInPictureKeeper.shared.systemInfoActions
+      context.coordinator.install(on: manager, controller: held)
+      manager.attach(to: held)
+      return held
+    }
     let controller = AVPlayerViewController()
     controller.player = manager.player
     controller.delegate = context.coordinator
@@ -272,7 +295,8 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
   }
 
   func makeCoordinator() -> Coordinator {
-    Coordinator(manager: manager, onMenuPress: onMenuPress, onGoToTitle: onGoToTitle)
+    Coordinator(manager: manager, onMenuPress: onMenuPress, onGoToTitle: onGoToTitle,
+                onRestoreFromPictureInPicture: onRestoreFromPictureInPicture)
   }
 
   @MainActor
@@ -281,12 +305,15 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
     var manager: PlayerManager
     let onMenuPress: () -> Void
     let onGoToTitle: (Int) -> Void
+    let onRestoreFromPictureInPicture: (Route) -> Void
 
     init(manager: PlayerManager, onMenuPress: @escaping () -> Void,
-         onGoToTitle: @escaping (Int) -> Void) {
+         onGoToTitle: @escaping (Int) -> Void,
+         onRestoreFromPictureInPicture: @escaping (Route) -> Void) {
       self.manager = manager
       self.onMenuPress = onMenuPress
       self.onGoToTitle = onGoToTitle
+      self.onRestoreFromPictureInPicture = onRestoreFromPictureInPicture
     }
 
     /// Answers the Info tab's buttons for `manager`. Installed again for every manager an
@@ -320,12 +347,39 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
       return false
     }
 
+    // MARK: Picture in Picture (`PictureInPictureKeeper`)
+
     func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
       manager.setPictureInPictureActive(true)
+      PictureInPictureKeeper.shared.willStart(controller: playerViewController,
+                                              delegate: self,
+                                              manager: manager,
+                                              systemInfoActions: systemInfoActions,
+                                              push: onRestoreFromPictureInPicture)
+    }
+
+    /// The picture is in its window: leave the route, as Menu does, so the viewer is back
+    /// in the app. The session stays — `endPlayback` skips a manager in PiP.
+    func playerViewControllerDidStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
+      onMenuPress()
+    }
+
+    func playerViewController(_ playerViewController: AVPlayerViewController,
+                              failedToStartPictureInPictureWithError error: any Error) {
+      Logger.app.error("PiP: failed to start: \(error.localizedDescription)")
+      manager.setPictureInPictureActive(false)
+    }
+
+    func playerViewController(
+      _ playerViewController: AVPlayerViewController,
+      restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
+    ) {
+      PictureInPictureKeeper.shared.restore(completion: completionHandler)
     }
 
     func playerViewControllerDidStopPictureInPicture(_ playerViewController: AVPlayerViewController) {
       manager.setPictureInPictureActive(false)
+      PictureInPictureKeeper.shared.didStop(manager: manager)
     }
 
     // MARK: Up Next (system content proposal)
@@ -357,6 +411,8 @@ private struct TVVideoPlayer: UIViewControllerRepresentable {
       )
       install(on: next, controller: playerViewController)
       next.attach(to: playerViewController)
+      // Auto-play inside the floating window: the next episode is the one PiP now shows.
+      PictureInPictureKeeper.shared.managerDidChange(from: manager, to: next)
       // Swap immediately — waiting on the SwiftUI round-trip would hold the finished
       // episode's last frame behind the countdown panel. `updateUIViewController`
       // then finds the player already current and only adopts the new manager.

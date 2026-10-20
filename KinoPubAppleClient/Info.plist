@@ -23,6 +23,10 @@
 	<array>
 		<string>_pulse._tcp</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>TMDBProxyBaseURL</key>
 	<string>https://kinopub-tmdb-proxy.traneblow1nd.workers.dev</string>
 </dict>

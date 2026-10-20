@@ -5,6 +5,19 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Picture in Picture (2026-10-21)
+
+- The tvOS app never declared `UIBackgroundModes: audio` — the iOS SDK got it per-SDK in the
+  project, and the June PiP commit that added it to `Info.plist` lived only on the community
+  fork. Apple's tvOS PiP sample declares it; it is now in `Info.plist` (an
+  `INFOPLIST_KEY_UIBackgroundModes[sdk=appletv*]` setting did not reach the built plist).
+- The player is a pushed route, not a presentation, so `PictureInPictureKeeper` does what AVKit's
+  auto-dismiss and the sample's re-present do: leave the route on start (session kept), hold the
+  controller and delegate, push a new route on restore that adopts the live manager
+  (`PlaybackSession.adopt`) and the held controller, end the film when the window is closed.
+- **Not verified:** the tvOS simulator has no PiP (`isPictureInPictureSupported()` is false on
+  26.5). Every step logs `PiP:` for a device run.
+
 ### Player: no year on an episode (2026-10-20)
 
 - `PlayerInfo` sends no `commonIdentifierCreationDate` for an episode. AVKit draws that one slot

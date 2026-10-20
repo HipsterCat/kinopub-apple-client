@@ -459,6 +459,7 @@
                 { "path": "PlaybackAudioSession.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PlaybackPreferences.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PlaybackEpisodes.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PictureInPictureKeeper.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SubtitlePreferences.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SubtitleSelector.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SubtitleCueParser.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
