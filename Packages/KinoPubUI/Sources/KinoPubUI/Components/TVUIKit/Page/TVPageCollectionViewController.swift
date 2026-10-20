@@ -163,10 +163,16 @@ public final class TVPageCollectionViewController: UIViewController {
   public override func viewSafeAreaInsetsDidChange() {
     super.viewSafeAreaInsetsDidChange()
     updateContentInsets()
+    let insets = collectionView.safeAreaInsets
+    let moved = abs(insets.left - lastSafeArea.left) > 0.5
+      || abs(insets.right - lastSafeArea.right) > 0.5
+      || abs(insets.top - lastSafeArea.top) > 0.5
+      || abs(insets.bottom - lastSafeArea.bottom) > 0.5
+    lastSafeArea = insets
+    guard moved else { return }
     // Not from inside this callback: a search keyboard hide changes the results'
-    // safe area and width together, and a synchronous invalidateLayout here plus
-    // the one in `updateAdjustedLeading` rebuilt the grid until the main thread
-    // hung (`TVSearchLayoutUITests.testGridKeyboardHidesWhileResultsHaveFocus`).
+    // safe area and width together, and a synchronous invalidateLayout here
+    // rebuilt the grid until the main thread hung.
     scheduleLayoutWork { [weak self] in
       self?.collectionView.collectionViewLayout.invalidateLayout()
     }
@@ -203,6 +209,7 @@ public final class TVPageCollectionViewController: UIViewController {
   /// Nested `viewDidLayoutSubviews` from our own constraint / inset changes.
   private var nestedLayoutCount = 0
   private var lastCollectionBounds: CGRect = .null
+  private var lastSafeArea: UIEdgeInsets = .zero
   private var layoutWorkQueued = false
   private var pendingLayoutWork: [() -> Void] = []
 
@@ -224,11 +231,11 @@ public final class TVPageCollectionViewController: UIViewController {
   /// top, leading, trailing, bottom — the collection's edges against the page's view.
   private var windowExtension: [NSLayoutConstraint] = []
 
-  /// The page is the whole screen's width, only laid out inside a narrower box (the
-  /// search container's safe area): the collection also reaches the window's sides and
-  /// the side inset counts from the screen edge. Off for a page that shares the width
-  /// with something beside it — the Library's section list: reaching left put the
-  /// grid under the list (2026-09-26).
+  /// The page is laid out inside a narrower box (the search container's safe area):
+  /// `currentLeading()` counts the HIG side inset from the screen edge, not from the
+  /// box. Off for a page that shares the width with something beside it — the Library's
+  /// section list. Do not grow the collection horizontally to the window: that hung
+  /// the main thread when the grid keyboard hid (2026-10-20).
   public var spansScreenWidth = false {
     didSet { if isViewLoaded { view.setNeedsLayout() } }
   }
@@ -247,50 +254,17 @@ public final class TVPageCollectionViewController: UIViewController {
     // How far each edge sits inside the window. Every constraint takes the negative:
     // top / leading are collection→view, trailing / bottom view→collection, so a
     // negative constant moves each edge outward.
-    let sideways = spansScreenWidth && !hasNeighbourBeside(frame, in: window, previous: neighbourBeside)
-    let leading = sideways ? frame.minX : 0
-    let trailing = sideways ? window.bounds.maxX - frame.maxX : 0
-    let wanted = [frame.minY, leading, trailing, window.bounds.maxY - frame.maxY].map { -max($0, 0) }
+    // Vertical only. Horizontal extension when the grid keyboard hid (results
+    // jumping from ~590 pt to full width) fought the search container's own
+    // layout and hung the main thread for minutes (`testGridKeyboardHidesWhileResultsHaveFocus`).
+    // Side inset from the screen edge is `currentLeading()`, not growing the collection.
+    let wanted = [frame.minY, 0, 0, window.bounds.maxY - frame.maxY].map { -max($0, 0) }
     var changed = false
     for (constraint, constant) in zip(windowExtension, wanted) where abs(constraint.constant - constant) > 0.5 {
       constraint.constant = constant
       changed = true
     }
     if changed { updateContentInsets() }
-  }
-
-  /// The system put something beside the page and gave it only the rest of the width.
-  /// The search container does that with the grid keyboard (Settings → General →
-  /// Keyboard): the keyboard stands on the left and the results start at x = 590 of 1920
-  /// under the tab bar (measured, tvOS 27.2). Reaching the screen's sides then laid the
-  /// results over the keyboard (2026-10-18). With the linear keyboard the results are full
-  /// width (x = 0, overscan in their safe area), nothing is beside them, and the page
-  /// reaches the edges as before.
-  ///
-  /// Hysteresis across the hide/show animation: flipping `sideways` every frame as
-  /// minX travelled 590 → 80 rebuilt the grid (4 → 6 columns) on every 0.5 pt of
-  /// `updateAdjustedLeading` until the main thread hung. Hold the last decision
-  /// while the frame is between "clearly the keyboard" and "clearly full width".
-  private var neighbourBeside: Bool?
-
-  private func hasNeighbourBeside(_ frame: CGRect, in window: UIWindow, previous: Bool?) -> Bool {
-    let width = max(window.bounds.width, 1)
-    let trailingGap = window.bounds.maxX - frame.maxX
-    // ~480 pt of 1920: still beside the grid keyboard (it occupies ~590).
-    if frame.minX > width * 0.25 || trailingGap > width * 0.25 {
-      neighbourBeside = true
-      return true
-    }
-    // ~230 pt of 1920: full-width results (overscan ~80, plus a little animation).
-    if frame.minX < width * 0.12 && trailingGap < width * 0.12 {
-      neighbourBeside = false
-      return false
-    }
-    let raw = frame.minX > window.safeAreaInsets.left + 0.5
-      || trailingGap > window.safeAreaInsets.right + 0.5
-    let held = previous ?? raw
-    neighbourBeside = held
-    return held
   }
 
   /// How far the collection's content already starts from the screen's leading edge:

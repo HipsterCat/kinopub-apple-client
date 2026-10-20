@@ -127,9 +127,29 @@ final class TVSearchPageHostViewController: UIViewController {
     super.didUpdateFocus(in: context, with: coordinator)
     if focusIsInResults {
       preferredHalf = .results
-    } else if context.nextFocusedView != nil {
+      // Keep the focused poster through the keyboard-hide relayout. Off while the
+      // keyboard has focus so Down from it lands on the filter row, not the last card.
+      results?.remembersFocus = true
+    } else if let next = context.nextFocusedView, isSearchChrome(next) || isTabBar(next) {
       preferredHalf = .keyboard
+      results?.remembersFocus = false
     }
+  }
+
+  /// Keyboard, suggestions, search field — not the results collection.
+  private func isSearchChrome(_ view: UIView) -> Bool {
+    if let results, view.isDescendant(of: results.view) { return false }
+    if view.isDescendant(of: searchController.searchBar) { return true }
+    return view.isDescendant(of: searchContainer.view)
+  }
+
+  private func isTabBar(_ view: UIView) -> Bool {
+    var current: UIView? = view
+    while let node = current {
+      if node is UITabBar { return true }
+      current = node.superview
+    }
+    return false
   }
 
   private var focusIsInResults: Bool {
