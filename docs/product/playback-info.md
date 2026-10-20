@@ -20,6 +20,12 @@ the same `externalMetadata` that feeds iOS Now Playing, Control Center, the lock
 Plus `commonIdentifierCreationDate` (ISO 8601), which is **not** in that documented set — sent
 because it costs nothing and other readers of `externalMetadata` may show it.
 
+**prd — no year on an episode** (Sasha, 2026-10-20: not before the episode line in the title
+view). AVKit has one date slot and draws it in both the title view and the Info tab's line, so
+the episode's goes from both; a film and a trailer keep theirs. **Apple API limitation:** a
+string under `iTunesMetadataReleaseDate` lands in the same slot, `quickTimeMetadataYear` in
+neither (tvOS 26.5 simulator, 2026-10-20). Re-probe on the next SDK.
+
 **Not on the list, deliberately:** scores (IMDb, Kinopoisk, TMDB, per episode or per title). No
 identifier carries one — `iTunesMetadataContentRating` is the *age* rating. Scores, capability
 badges and the season's facts are our own Info tab (`customInfoViewControllers`, Asana task [Player](https://app.asana.com/1/1218266299921477/project/1219403693009374/task/1219403704224201)).
@@ -179,8 +185,6 @@ end-of-stream path would play. Accepting swaps in place; rejecting pops the play
   should also offer it earlier (proposed: the last 60 s, or the credits once markers exist)
   is the user's call.
 
-- **idea — an episode's date falls back to its show's first year.** Kept from the old panel; a
-  season 5 episode then shows the show's premiere year when neither TMDB nor kino.pub dated it.
 - **Where `commonIdentifierCreationDate` shows at all.** Not in Apple's documented set.
 
 ## Verification

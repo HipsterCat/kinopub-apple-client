@@ -5,6 +5,13 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Player: no year on an episode (2026-10-20)
+
+- `PlayerInfo` sends no `commonIdentifierCreationDate` for an episode. AVKit draws that one slot
+  both before the subtitle in the title view and in the Info tab's line; a string under
+  `iTunesMetadataReleaseDate` lands in the same slot, `quickTimeMetadataYear` nowhere (tvOS 26.5
+  simulator). So the year goes from both places for episodes; films keep it.
+
 ### tvOS player tabs: Up Next, then the season playing, on a platter (2026-10-20)
 
 - The Info strip of a series is Info, Up Next, **Season N** — the season playing alone, in the

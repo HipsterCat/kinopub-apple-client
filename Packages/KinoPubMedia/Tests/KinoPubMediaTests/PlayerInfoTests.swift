@@ -83,6 +83,12 @@ final class PlayerInfoTests: XCTestCase {
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: concert)).genre, "Electronic")
   }
 
+  /// The title view draws the date before the episode line; an episode sends none.
+  func testAnEpisodeSendsNoYear() {
+    let episode = MediaEntity(kind: .episode, seasonNumber: 2, episodeNumber: 5, release: .year(2020))
+    XCTAssertNil(PlayerInfo(context: MediaContext(item: episode, parent: show)).creationDate)
+  }
+
   func testTheDateIsISOAtThePrecisionWeHave() {
     XCTAssertEqual(PlayerInfo(context: MediaContext(item: show)).creationDate, "2020-08-14")
     let film = MediaEntity(kind: .movie, release: .year(1999))
@@ -144,7 +150,10 @@ final class PlayerInfoTests: XCTestCase {
     XCTAssertEqual(value(.commonIdentifierDescription, in: items), "A coach.")
     XCTAssertEqual(value(.quickTimeMetadataGenre, in: items), "Comedy")
     XCTAssertEqual(value(.iTunesMetadataContentRating, in: items), "16+")
-    XCTAssertEqual(items.first { $0.identifier == .commonIdentifierCreationDate }?.dateValue,
+    // An episode sends no year (`testAnEpisodeSendsNoYear`); the show itself does.
+    XCTAssertNil(items.first { $0.identifier == .commonIdentifierCreationDate })
+    let showItems = PlayerInfo(context: MediaContext(item: show), language: .en).metadataItems()
+    XCTAssertEqual(showItems.first { $0.identifier == .commonIdentifierCreationDate }?.dateValue,
                    utcNoon(2020, 8, 14))
     // Where genres went before — no Apple surface reads it as a genre.
     XCTAssertNil(value(.commonIdentifierType, in: items))

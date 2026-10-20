@@ -57,8 +57,17 @@ public struct PlayerInfo: Hashable, Sendable {
               description: context.synopsis,
               genre: context.primaryGenre?.name.value(languageCode: language.rawValue),
               contentRating: context.contentRating?.value,
-              creationDate: context.release?.iso8601,
+              creationDate: Self.creationDate(context: context),
               artworkCandidates: context.artworkCandidates)
+  }
+
+  /// No year on an episode (Sasha, 2026-10-20: not in the title view's line). AVKit has one
+  /// date slot and draws it in both places — before the subtitle over the transport bar and
+  /// in the Info tab's line: `commonIdentifierCreationDate` and a string under
+  /// `iTunesMetadataReleaseDate` both show in both, `quickTimeMetadataYear` in neither
+  /// (tvOS 26.5 simulator, 2026-10-20). So the episode's goes from both; a film keeps its.
+  private static func creationDate(context: MediaContext) -> String? {
+    context.item.kind == .episode ? nil : context.release?.iso8601
   }
 
   /// Episode: `EpisodeText` at the player's length — «S2, E5: Name», «Season 2, Episode 5»,
