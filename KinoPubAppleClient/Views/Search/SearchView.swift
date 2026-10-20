@@ -1165,6 +1165,44 @@ enum SearchStarters {
   ]
 }
 
+#if os(tvOS)
+/// Owns Search's catalog and pre-warms the system keyboard when the tab bar is
+/// created, not when the Search tab is first selected. Catalog items load in
+/// the background; the first paint is the field, keyboard and filters.
+@MainActor
+final class TVSearchTabModel: ObservableObject {
+  let catalog: LibraryCatalog
+  private var started = false
+
+  init(catalog: LibraryCatalog) {
+    self.catalog = catalog
+  }
+
+  func startIfNeeded() {
+    guard !started else { return }
+    started = true
+    TVSearchChrome.prewarm()
+    Task { await catalog.load() }
+  }
+}
+
+struct TVSearchSessionContainer<Content: View>: View {
+  @StateObject private var session: TVSearchTabModel
+  let content: (TVSearchTabModel) -> Content
+
+  init(catalog: @autoclosure @escaping () -> LibraryCatalog,
+       @ViewBuilder content: @escaping (TVSearchTabModel) -> Content) {
+    _session = StateObject(wrappedValue: TVSearchTabModel(catalog: catalog()))
+    self.content = content
+  }
+
+  var body: some View {
+    content(session)
+      .task { session.startIfNeeded() }
+  }
+}
+#endif
+
 struct SearchView_Previews: PreviewProvider {
   static let navState = NavigationState()
 

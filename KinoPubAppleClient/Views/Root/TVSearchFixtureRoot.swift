@@ -17,7 +17,13 @@ struct TVSearchFixtureRoot: View {
   @State private var text = DebugLaunch.searchQuery ?? "ма"
 
   var body: some View {
-    TabView(selection: $tab) {
+    tabRoot
+  }
+
+  /// Pre-warm runs before the `TabView` builds Search, so the keyboard is already stood up.
+  private var tabRoot: some View {
+    TVSearchChrome.prewarm()
+    return TabView(selection: $tab) {
       Tab(value: 0) {
         TVSearchPage(
           sections: TVPageTemplatesGallery.searchSections,

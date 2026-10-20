@@ -5,6 +5,23 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Search hang and first paint (2026-10-20)
+
+- **Hang**: focusing results with the grid keyboard (`_shouldHideGridKeyboardUnfocused`) widened
+  the page from ~590 pt to full width. `TVPageCollectionViewController.viewDidLayoutSubviews`
+  then `invalidateLayout` on every 0.5 pt of `currentLeading` and flipped horizontal window
+  extension every frame, rebuilding a 60-poster grid (4 → 6 columns) until XCTest saw
+  "main thread busy" / `Timed out while evaluating UI query` (238 s on `6f4edd7`; the two
+  sibling search tests that never hide the keyboard still passed in ~9 s). Neighbour detection
+  now holds across the animation band; layout work is coalesced off the layout pass. Behaviour
+  kept: keyboard slides away while results have focus, Left from the first column brings it back.
+- **First paint**: the Search tab stood up `UISearchContainerViewController` lazily on first
+  visit, so the field and keyboard arrived seconds later. `TVSearchChrome.prewarm()` builds that
+  stack when the tab bar is created (WWDC 2020 "Discover search suggestions for Apple TV";
+  Apple Developer Forums 17819; same shape as Rivulet / Plozz keeping search as a real tab VC).
+  Filter chips paint with the keyboard; catalog posters apply on the next run-loop turn. The
+  catalog itself starts loading on tab-bar creation, not on first appearance.
+
 ### TV tab — what's on air (2026-10-18)
 
 - **Guide**: epg.pw, one request per channel (`api/epg.json?channel_id=`, ~10 KB, two days),

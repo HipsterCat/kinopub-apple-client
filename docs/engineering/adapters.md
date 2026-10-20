@@ -19,6 +19,8 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   General → Keyboard) hides while focus is in the results and the results take the full width,
   through UIKit's private `_shouldHideGridKeyboardUnfocused` (NO by default, no public switch;
   probed on tvOS 26.5 and 27.2). Guarded by `responds(to:)`: without it the keyboard just stays.
+  Widening the results used to hang the main thread (layout invalidation on every 0.5 pt of
+  leading); `hasNeighbourBeside` now has hysteresis and the page coalesces invalidation.
   Checked by `TVSearchLayoutUITests` (`-KINOPUBSearchFixture -ForceGridKeyboard YES`).
 
 - **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`

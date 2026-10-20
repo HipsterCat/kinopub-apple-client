@@ -20,6 +20,8 @@
 //  - the grid keyboard (Settings → General → Keyboard) stands on the left with the
 //    results beside it, and slides away when focus moves into them, so the results get
 //    the screen's width back (`hidesGridKeyboardWhenUnfocused`, the one private switch).
+//  The stack itself is built by `TVSearchChrome` when the tab bar is created, so the
+//  first paint is the field and keyboard; posters apply on the next run-loop turn.
 //  Remembering recent queries is the app's job — the system keeps no search history.
 //  Menu-back is the same `StagedMenuBack` path as every other `TVPage`: below the
 //  top results row, Menu returns there; at that row it passes through to the field.
@@ -162,14 +164,15 @@ private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
   func makeCoordinator() -> Coordinator { Coordinator() }
 
   func makeUIViewController(context: Context) -> UIViewController {
-    let results = TVPageCollectionViewController()
+    let stack = TVSearchChrome.takePrepared()
+    let results = stack.results
     results.accessibilityID = "kinopub.page.search"
     results.claimsInitialFocus = false
     results.remembersFocus = false
     results.spansScreenWidth = true
     results.returnsToTopOnMenu = true
     bindMenuBack(results)
-    let search = UISearchController(searchResultsController: results)
+    let search = stack.search
     search.searchResultsUpdater = context.coordinator
     // Never take the search bar's delegate: the search controller drives its tvOS
     // keyboard through it. Ours left `_UISearchControllerTVKeyboardContainerView` with
@@ -181,18 +184,18 @@ private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
     context.coordinator.results = results
     context.coordinator.search = search
     context.coordinator.lastReported = text
+    // First layout is the field, keyboard and filter chips. Posters wait one
+    // run-loop turn so keyboard presentation is not behind a 60-cover grid.
+    context.coordinator.mediaReady = false
     update(context.coordinator, animated: false)
-    search.hidesGridKeyboardWhenUnfocused()
-    let container = UISearchContainerViewController(searchController: search)
+    DispatchQueue.main.async { context.coordinator.commitMedia() }
     if DebugLaunch.layoutDebug {
       // Magenta: the search container's own view — where SwiftUI placed it.
-      container.view.backgroundColor = UIColor.systemPink.withAlphaComponent(0.12)
-      container.view.layer.borderColor = UIColor.systemPink.cgColor
-      container.view.layer.borderWidth = 4
+      stack.container.view.backgroundColor = UIColor.systemPink.withAlphaComponent(0.12)
+      stack.container.view.layer.borderColor = UIColor.systemPink.cgColor
+      stack.container.view.layer.borderWidth = 4
     }
-    return TVSearchPageHostViewController(searchController: search,
-                                          searchContainer: container,
-                                          results: results)
+    return stack.host
   }
 
   func updateUIViewController(_ controller: UIViewController, context: Context) {
@@ -223,6 +226,8 @@ private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
     coordinator.onTextChange = onTextChange
     coordinator.onScopeChange = onScopeChange
     coordinator.onCommit = onCommit
+    coordinator.pendingSections = sections
+    coordinator.pendingStatus = status
     guard let results = coordinator.results, let search = coordinator.search else { return }
     results.onSelect = onSelect
     results.onChipOption = onChipOption
@@ -232,7 +237,9 @@ private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
     results.onRetry = onRetry
     // Never animated: results change on every keystroke, and a diff animation had the
     // cards hopping about while the list settled — a rebuild is cheaper on an Apple TV.
-    results.apply(sections: sections, status: status, animated: false)
+    // Until the keyboard has had a frame, only chips (filters) — not posters.
+    let toApply = coordinator.mediaReady ? sections : sections.filter { $0.kind == .chip }
+    results.apply(sections: toApply, status: coordinator.mediaReady ? status : .content, animated: false)
 
     let bar = search.searchBar
     if bar.scopeButtonTitles ?? [] != scopes {
@@ -263,8 +270,17 @@ private struct TVSearchPageRepresentable: UIViewControllerRepresentable {
     var onCommit: ((String) -> Void)?
     var lastReported = ""
     var shownSuggestions: [TVSearchSuggestion] = []
+    var pendingSections: [TVPageSection] = []
+    var pendingStatus: TVPageStatus = .content
+    var mediaReady = false
 
     var lastScope = 0
+
+    func commitMedia() {
+      guard !mediaReady else { return }
+      mediaReady = true
+      results?.apply(sections: pendingSections, status: pendingStatus, animated: false)
+    }
 
     public func updateSearchResults(for searchController: UISearchController) {
       let scope = searchController.searchBar.selectedScopeButtonIndex

@@ -237,38 +237,44 @@ struct TabsNavigationView: View {
   /// The browse tabs pass a bare `Text`: `Tab("Title", systemImage:)` gives every tab an
   /// icon+label chip, which is what a 10-foot bar must not be. Only the two utility ends
   /// are glyphs.
+  ///
+  /// Search chrome (field, keyboard, filters) is stood up when this tab bar is created
+  /// — not lazily on first visit of the Search tab. Catalog items load in the
+  /// background on the same session (`TVSearchTabModel`).
   private var tvTabBar: some View {
-    TabView(selection: tabSelection) {
-      Tab(value: NavigationTabs.search) {
-        searchContent
-      } label: {
-        glyph("magnifyingglass", label: "Search")
-      }
-
-      ForEach(Self.browseTabs) { spec in
-        Tab(value: spec.tab) {
-          content(for: spec.tab)
+    TVSearchSessionContainer(catalog: makeSearchCatalog()) { session in
+      TabView(selection: tabSelection) {
+        Tab(value: NavigationTabs.search) {
+          SearchView(catalog: session.catalog)
         } label: {
-          // Literals at the call site so String Catalog + TabView cannot drift
-          // back to Home / Shows (after shot at 8d0def4).
-          switch spec.tab {
-          case .home: Text("Watch Now")
-          case .movies: Text("Movies")
-          case .series: Text("Series")
-          case .tv: Text("TV")
-          case .library: Text("Library")
-          default: Text(spec.title)
+          glyph("magnifyingglass", label: "Search")
+        }
+
+        ForEach(Self.browseTabs) { spec in
+          Tab(value: spec.tab) {
+            content(for: spec.tab)
+          } label: {
+            // Literals at the call site so String Catalog + TabView cannot drift
+            // back to Home / Shows (after shot at 8d0def4).
+            switch spec.tab {
+            case .home: Text("Watch Now")
+            case .movies: Text("Movies")
+            case .series: Text("Series")
+            case .tv: Text("TV")
+            case .library: Text("Library")
+            default: Text(spec.title)
+            }
           }
         }
-      }
 
-      Tab(value: NavigationTabs.settings) {
-        settingsContent
-      } label: {
-        glyph("gear", label: "Settings")
+        Tab(value: NavigationTabs.settings) {
+          settingsContent
+        } label: {
+          glyph("gear", label: "Settings")
+        }
       }
+      .tabViewStyle(.tabBarOnly)
     }
-    .tabViewStyle(.tabBarOnly)
   }
 #endif
 
@@ -354,22 +360,28 @@ struct TabsNavigationView: View {
 
   // MARK: - Tab roots
 
+#if !os(tvOS)
   private var searchContent: some View {
+    SearchView(catalog: makeSearchCatalog())
+  }
+#endif
+
+  private func makeSearchCatalog() -> LibraryCatalog {
 #if os(tvOS)
     // Results from the third character (the first two only complete the query); the
     // filter row's picks come back after a relaunch, the typed text does not.
-    SearchView(catalog: LibraryCatalog(itemsService: appContext.contentService,
-                                       authState: authState,
-                                       errorHandler: errorHandler,
-                                       query: initialSearchQuery,
-                                       minimumQueryLength: 3,
-                                       savedFilterKey: "search.filter",
-                                       searchesEveryField: true))
+    LibraryCatalog(itemsService: appContext.contentService,
+                   authState: authState,
+                   errorHandler: errorHandler,
+                   query: initialSearchQuery,
+                   minimumQueryLength: 3,
+                   savedFilterKey: "search.filter",
+                   searchesEveryField: true)
 #else
-    SearchView(catalog: LibraryCatalog(itemsService: appContext.contentService,
-                                       authState: authState,
-                                       errorHandler: errorHandler,
-                                       query: initialSearchQuery))
+    LibraryCatalog(itemsService: appContext.contentService,
+                   authState: authState,
+                   errorHandler: errorHandler,
+                   query: initialSearchQuery)
 #endif
   }
 

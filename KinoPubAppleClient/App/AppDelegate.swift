@@ -7,6 +7,9 @@
 
 import Foundation
 import SwiftUI
+#if os(tvOS)
+import KinoPubUI
+#endif
 
 #if os(iOS)
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -30,6 +33,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 class AppDelegate: NSObject, UIApplicationDelegate {
   func application(_ application: UIApplication,
                    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+    // After the first scene is up: Search's field and keyboard are ready before
+    // the tab is opened. No-op if a later `TVSearchTabModel` already pre-warmed.
+    Task { @MainActor in
+      TVSearchChrome.prewarm()
+    }
     return true
   }
 }

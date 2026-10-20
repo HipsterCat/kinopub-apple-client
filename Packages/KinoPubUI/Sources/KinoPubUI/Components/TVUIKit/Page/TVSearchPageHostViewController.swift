@@ -20,6 +20,9 @@ final class TVSearchPageHostViewController: UIViewController {
   private let searchContainer: UISearchContainerViewController
   private let searchController: UISearchController
   private weak var results: TVPageCollectionViewController?
+  /// First appearance in the real tab (not the pre-warm parking window).
+  var onFirstAppearance: (() -> Void)?
+  private var didReportFirstAppearance = false
 
   /// Bridges the tab bar row into the search chrome on the vertical axis.
   private let tabEntryGuide = UIFocusGuide()
@@ -65,7 +68,19 @@ final class TVSearchPageHostViewController: UIViewController {
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    tabEntryGuideHeight?.constant = max(view.safeAreaInsets.top, 1)
+    let height = max(view.safeAreaInsets.top, 1)
+    if tabEntryGuideHeight?.constant != height {
+      tabEntryGuideHeight?.constant = height
+    }
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    // The pre-warm parking window is alpha 0 / hidden; the real tab's window is not.
+    guard view.window?.alpha ?? 0 > 0.5, view.window?.isHidden == false else { return }
+    guard !didReportFirstAppearance else { return }
+    didReportFirstAppearance = true
+    onFirstAppearance?()
   }
 
   /// Pair a Menu `.began` we consumed with its `.ended` / `.cancelled`. Same

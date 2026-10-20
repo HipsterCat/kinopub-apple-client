@@ -163,20 +163,61 @@ public final class TVPageCollectionViewController: UIViewController {
   public override func viewSafeAreaInsetsDidChange() {
     super.viewSafeAreaInsetsDidChange()
     updateContentInsets()
-    collectionView.collectionViewLayout.invalidateLayout()
+    // Not from inside this callback: a search keyboard hide changes the results'
+    // safe area and width together, and a synchronous invalidateLayout here plus
+    // the one in `updateAdjustedLeading` rebuilt the grid until the main thread
+    // hung (`TVSearchLayoutUITests.testGridKeyboardHidesWhileResultsHaveFocus`).
+    scheduleLayoutWork { [weak self] in
+      self?.collectionView.collectionViewLayout.invalidateLayout()
+    }
   }
 
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    nestedLayoutCount += 1
+    defer { nestedLayoutCount -= 1 }
+    // Constraint updates in `extendToWindow` can re-enter. Stop before a loop.
+    if nestedLayoutCount > 4 { return }
     if !isEmbedded { extendToWindow() }
-    updateAdjustedLeading()
-    refreshLoadingTails()
+    let bounds = collectionView.bounds
+    let boundsChanged = lastCollectionBounds.isNull
+      || abs(lastCollectionBounds.width - bounds.width) > 0.5
+      || abs(lastCollectionBounds.height - bounds.height) > 0.5
+    lastCollectionBounds = bounds
+    // The section provider already reads `currentLeading()` live. Invalidate only
+    // when the collection moved without resizing (keyboard sliding beside a
+    // fixed-size pane). A bounds change already lays the grid out.
+    updateAdjustedLeading(invalidate: !boundsChanged)
+    if boundsChanged {
+      scheduleLayoutWork { [weak self] in self?.refreshLoadingTails() }
+    }
     if DebugLaunch.layoutDebug {
       NSLog("PAGEPROBE %@ view=%@ collection=%@ adjusted=%@ safe=%@", accessibilityID ?? "-",
             NSCoder.string(for: view.convert(view.bounds, to: nil)),
             NSCoder.string(for: collectionView.convert(collectionView.bounds, to: nil)),
             NSCoder.string(for: collectionView.adjustedContentInset),
             NSCoder.string(for: collectionView.safeAreaInsets))
+    }
+  }
+
+  /// Nested `viewDidLayoutSubviews` from our own constraint / inset changes.
+  private var nestedLayoutCount = 0
+  private var lastCollectionBounds: CGRect = .null
+  private var layoutWorkQueued = false
+  private var pendingLayoutWork: [() -> Void] = []
+
+  /// Coalesce work that would invalidate or rebuild the grid so it cannot run
+  /// re-entrantly from `viewDidLayoutSubviews`.
+  private func scheduleLayoutWork(_ work: @escaping () -> Void) {
+    pendingLayoutWork.append(work)
+    guard !layoutWorkQueued else { return }
+    layoutWorkQueued = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.layoutWorkQueued = false
+      let jobs = self.pendingLayoutWork
+      self.pendingLayoutWork = []
+      jobs.forEach { $0() }
     }
   }
 
@@ -206,7 +247,7 @@ public final class TVPageCollectionViewController: UIViewController {
     // How far each edge sits inside the window. Every constraint takes the negative:
     // top / leading are collection→view, trailing / bottom view→collection, so a
     // negative constant moves each edge outward.
-    let sideways = spansScreenWidth && !hasNeighbourBeside(frame, in: window)
+    let sideways = spansScreenWidth && !hasNeighbourBeside(frame, in: window, previous: neighbourBeside)
     let leading = sideways ? frame.minX : 0
     let trailing = sideways ? window.bounds.maxX - frame.maxX : 0
     let wanted = [frame.minY, leading, trailing, window.bounds.maxY - frame.maxY].map { -max($0, 0) }
@@ -224,21 +265,47 @@ public final class TVPageCollectionViewController: UIViewController {
   /// under the tab bar (measured, tvOS 27.2). Reaching the screen's sides then laid the
   /// results over the keyboard (2026-10-18). With the linear keyboard the results are full
   /// width (x = 0, overscan in their safe area), nothing is beside them, and the page
-  /// reaches the edges as before. Read on every layout, as the system places the results.
-  private func hasNeighbourBeside(_ frame: CGRect, in window: UIWindow) -> Bool {
-    frame.minX > window.safeAreaInsets.left + 0.5 || window.bounds.maxX - frame.maxX > window.safeAreaInsets.right + 0.5
+  /// reaches the edges as before.
+  ///
+  /// Hysteresis across the hide/show animation: flipping `sideways` every frame as
+  /// minX travelled 590 → 80 rebuilt the grid (4 → 6 columns) on every 0.5 pt of
+  /// `updateAdjustedLeading` until the main thread hung. Hold the last decision
+  /// while the frame is between "clearly the keyboard" and "clearly full width".
+  private var neighbourBeside: Bool?
+
+  private func hasNeighbourBeside(_ frame: CGRect, in window: UIWindow, previous: Bool?) -> Bool {
+    let width = max(window.bounds.width, 1)
+    let trailingGap = window.bounds.maxX - frame.maxX
+    // ~480 pt of 1920: still beside the grid keyboard (it occupies ~590).
+    if frame.minX > width * 0.25 || trailingGap > width * 0.25 {
+      neighbourBeside = true
+      return true
+    }
+    // ~230 pt of 1920: full-width results (overscan ~80, plus a little animation).
+    if frame.minX < width * 0.12 && trailingGap < width * 0.12 {
+      neighbourBeside = false
+      return false
+    }
+    let raw = frame.minX > window.safeAreaInsets.left + 0.5
+      || trailingGap > window.safeAreaInsets.right + 0.5
+    let held = previous ?? raw
+    neighbourBeside = held
+    return held
   }
 
   /// How far the collection's content already starts from the screen's leading edge:
   /// its own frame in the window (the search container lays its results controller out
   /// inside the overscan safe area — measured x = 80, width 1760 on a 1920 display)
   /// plus the scroll view's adjusted inset. A tab page is full screen with neither.
-  private func updateAdjustedLeading() {
+  private func updateAdjustedLeading(invalidate: Bool) {
     guard view.window != nil else { return }
     let leading = currentLeading()
     guard abs(leading - adjustedLeading) > 0.5 else { return }
     adjustedLeading = leading
-    collectionView.collectionViewLayout.invalidateLayout()
+    guard invalidate else { return }
+    scheduleLayoutWork { [weak self] in
+      self?.collectionView.collectionViewLayout.invalidateLayout()
+    }
   }
 
   /// The last leading `updateAdjustedLeading` saw — only to tell when it moved.
