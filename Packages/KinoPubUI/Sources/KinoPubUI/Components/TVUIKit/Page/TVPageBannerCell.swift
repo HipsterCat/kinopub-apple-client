@@ -62,14 +62,17 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   override init(frame: CGRect) {
     super.init(frame: frame)
+    overrideUserInterfaceStyle = .dark
     clipsToBounds = false
     contentView.clipsToBounds = false
 
+    cardView.overrideUserInterfaceStyle = .dark
     cardView.translatesAutoresizingMaskIntoConstraints = false
     contentView.addSubview(cardView)
     logoSession.onChange = { [weak self] in self?.paintLogoSession() }
 
     let host = cardView.contentView
+    host.overrideUserInterfaceStyle = .dark
     host.backgroundColor = UIColor(white: 0.12, alpha: 1)
     host.layer.cornerRadius = Self.cornerRadius
     host.layer.cornerCurve = .continuous

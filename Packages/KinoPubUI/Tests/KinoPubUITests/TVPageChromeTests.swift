@@ -2,6 +2,7 @@ import XCTest
 @testable import KinoPubUI
 
 #if os(tvOS)
+@MainActor
 final class TVPageChromeTests: XCTestCase {
 
   func testFullBleedHostKeeps80ptLeadingAndUsesCollectionWidthForPeek() {
@@ -43,6 +44,19 @@ final class TVPageChromeTests: XCTestCase {
     )
     XCTAssertEqual(chrome.leadingConstant, 0)
     XCTAssertGreaterThanOrEqual(chrome.leadingConstant, 0)
+  }
+
+  func testBannerChromeTextColorIsForcedDark() {
+    let chrome = TVPageBannerChrome.current
+    let lightColor = chrome.resolvedTextColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+    let darkColor = chrome.resolvedTextColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+    XCTAssertEqual(lightColor, darkColor, "Banner text color must stay vivid and not degrade in light appearance")
+
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    XCTAssertTrue(lightColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+    XCTAssertGreaterThan(red, 0.9, "Red channel must remain bright")
+    XCTAssertGreaterThan(green, 0.9, "Green channel must remain bright")
+    XCTAssertGreaterThan(blue, 0.9, "Blue channel must remain bright")
   }
 }
 #endif

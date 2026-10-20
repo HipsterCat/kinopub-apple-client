@@ -25,6 +25,7 @@ public struct HomeBannerCardView: View {
         }
       }
       .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
+      .environment(\.colorScheme, .dark)
   }
 
   private func content(in size: CGSize) -> some View {

@@ -133,20 +133,19 @@ struct TVPageBannerChrome {
 
   var textFont: UIFont { UIFont.preferredFont(forTextStyle: textStyle) }
 
-  /// `textColor` mixed toward white by `textVibrance`.
+  /// `textColor` mixed toward white by `textVibrance`. Always resolved against dark
+  /// appearance so banner copy remains vivid on top of the backdrop in both light and dark system themes.
   var resolvedTextColor: UIColor {
     let amount = min(max(textVibrance, 0), 1)
-    let base = textColor
+    let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
+    let base = textColor.resolvedColor(with: darkTraits)
     guard amount > 0 else { return base }
-    return UIColor { traits in
-      let resolved = base.resolvedColor(with: traits)
-      var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-      guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return resolved }
-      return UIColor(red: red + (1 - red) * amount,
-                     green: green + (1 - green) * amount,
-                     blue: blue + (1 - blue) * amount,
-                     alpha: alpha + (1 - alpha) * amount)
-    }
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    guard base.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return base }
+    return UIColor(red: red + (1 - red) * amount,
+                   green: green + (1 - green) * amount,
+                   blue: blue + (1 - blue) * amount,
+                   alpha: alpha + (1 - alpha) * amount)
   }
 
   func cardWidth(containerWidth: CGFloat, sideInset: CGFloat) -> CGFloat {
