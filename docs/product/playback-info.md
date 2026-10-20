@@ -121,15 +121,26 @@ surface and get no substitute.
   27.2 simulator a third was dropped whatever its order. Two is what this needs. Re-probe on the
   next SDK.
 
-**Episodes tab (tvOS).** Before Up Next, a series only.
+**Season tab (tvOS).** After Up Next, a series only.
 
-- **prd** — A series' Info strip has **Episodes** / **Серии** before **Up Next** / **Далее**.
-  The list is the same kino.pub seasons and episode cells as the title page (`TVSeasonRail`,
-  `MediaCard(episode:in:)`). The season playing is selected; more than one season is switchable
-  the same way as on the page. Select plays that episode in place. A film has no Episodes tab.
-  (Sasha, 2026-10-15: Library Continue was the wrong surface for this.)
+- **prd** — A series' Info strip is **Info**, **Up Next** / **Далее**, then **Season N** / **Сезон N**:
+  the season playing, alone — no season pills, no other seasons (those are on the title page).
+  Same episode cells as the page (`MediaCard(episode:in:)`), in one `TVUIKitMediaItemRail`, so the
+  tab is exactly as tall as Up Next and the strip does not move between them. The rail opens parked
+  on the episode playing and Down from the tab lands on it. Select plays that episode in place. A
+  film has no Season tab. (Sasha, 2026-10-20; replaces the 2026-10-15 Episodes tab before Up Next.)
+- **prd** — The episode playing is marked: its still dimmed, a ring round it at rest (hidden while
+  focused, so the high-contrast focus style never doubles it), its caption in the primary colour,
+  its runtime instead of a progress bar. (Sasha, 2026-10-20.)
+- Watched and part-watched on these tiles are this device's progress over the payload
+  (`ViewerStateReading`): the series snapshot is the one cached when the player opened, so after
+  auto-play went through episodes 2–4 it still said only episode 1. The tab is built for every
+  episode the player swaps in, so it is read once per episode — nothing is recounted while one plays.
+- **Platter.** Up Next and Season sit on the same platter AVKit draws under its own Info tab: player
+  glass (`kinoPlayerGlass`), corners ≈ 46 pt, on the strip's margins, clipping the rail at its edges
+  so a tile scrolled off the side shows a sliver. Measured off the tvOS 27.2 simulator.
 
-**Up Next tab (tvOS).** Beside Info, after Episodes when the title is a series; the Apple-TV way.
+**Up Next tab (tvOS).** Right after Info; the Apple-TV way.
 
 - **prd** — First, **this show's next unwatched episode**, when there is one, flagged *Next episode*.
   Then **Continue Watching** — Home's own list, the same cards, minus the title playing now.

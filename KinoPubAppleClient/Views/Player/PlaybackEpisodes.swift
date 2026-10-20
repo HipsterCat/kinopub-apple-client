@@ -2,8 +2,8 @@
 //  PlaybackEpisodes.swift
 //  KinoPubAppleClient
 //
-//  The tvOS player's **Episodes** / **Серии** Info tab: the same kino.pub seasons and
-//  episode cells the series detail page draws, current season selected. Movies have none.
+//  The tvOS player's **Season N** / **Сезон N** Info tab: the season playing, in the same
+//  episode cells the series detail page draws. Movies have none.
 //
 
 import Foundation
@@ -28,6 +28,8 @@ struct PlaybackEpisodes {
   let seriesID: Int
   let seasons: [SeasonGroup]
   let openingEpisodeID: Int
+  /// The episode on screen — its tile wears the now-playing look.
+  let playingEpisodeID: Int
   let selectedSeasonID: Int
   /// Stamped playable episodes, keyed by id — Select on a tile plays this object.
   let episodeByID: [Int: Episode]
@@ -70,6 +72,7 @@ struct PlaybackEpisodes {
     self.seriesID = series.id
     self.seasons = groups
     self.openingEpisodeID = openingID
+    self.playingEpisodeID = episode.id
     self.selectedSeasonID = selected.id
     self.episodeByID = episodeByID
     self.seasonByID = seasonByID
@@ -87,67 +90,54 @@ struct PlaybackEpisodes {
 
 extension PlaybackEpisodes {
 
-  /// Season pills + one rail of every episode, the same `TVSeasonRail` the title page
-  /// uses. One season is not a choice — the line says which and nothing is focusable.
-  @MainActor
-  func seasonRail(onSelect: @escaping (Int) -> Void) -> TVSeasonRail {
-    let tabs = seasons.map { group in
-      TVSeasonTab(id: group.id,
-                  label: "\(group.displayNumber)",
-                  symbol: nil,
-                  isAvailable: true,
-                  accessibilityLabel: String(format: "MediaItem_SeasonSingle".localized,
-                                             group.displayNumber))
-    }
-    var items: [TVUIKitMediaItem] = []
-    var tabOfItem: [Int: Int] = [:]
-    var entryByTab: [Int: Int] = [:]
-    for group in seasons {
-      let season = seasonByID[group.id]
-      for id in group.episodeIDs {
-        guard let episode = episodeByID[id] else { continue }
-        items.append(Self.railItem(episode: episode, in: season))
-        tabOfItem[id] = group.id
-      }
-      if group.id == selectedSeasonID {
-        entryByTab[group.id] = openingEpisodeID
-      } else {
-        let firstUnseen = group.episodeIDs.first { episodeByID[$0]?.isWatched == false }
-        entryByTab[group.id] = firstUnseen ?? group.episodeIDs.first
-      }
-    }
-    let title: String
-    if tabs.count == 1, let only = seasons.first {
-      title = String(format: "MediaItem_SeasonSingle".localized, only.displayNumber)
-    } else {
-      title = "Season".localized
-    }
-    return TVSeasonRail(
-      title: title,
-      tabs: tabs,
-      items: items,
-      tabOfItem: tabOfItem,
-      entryByTab: entryByTab,
-      openingItemID: openingEpisodeID,
-      contentInset: 0,
-      // Home's still row, size and all — the title page's episode rail (Sasha, 2026-10-04).
-      columns: MainView.stillColumns,
-      onSelect: onSelect
-    )
+  /// The tab's name: the season playing, «Сезон 2» — the tab holds that season alone.
+  var seasonTitle: String {
+    let number = seasons.first { $0.id == selectedSeasonID }?.displayNumber ?? 1
+    return String(format: "MediaItem_SeasonSingle".localized, number)
   }
 
-  /// Same mapping as `SeasonsRailView.railItem` for a playable kino.pub episode.
-  private static func railItem(episode: Episode, in season: Season?) -> TVUIKitMediaItem {
+  /// The season playing, as the tiles of one rail — the same cells the title page's
+  /// episode rail draws. Other seasons are on the title page; the player's strip keeps
+  /// one season so the tab is one row, as tall as Up Next (Sasha, 2026-10-20).
+  ///
+  /// Watched and part-watched come from `viewer`, not the payload: the series snapshot is
+  /// the one cached when the player opened, so after auto-play has gone through episodes
+  /// 2–4 its flags still say only episode 1 was seen. This device's progress records each
+  /// of them as it plays, and the tab is built afresh for every episode the player swaps
+  /// in — so it is read once per episode, with nothing recounted while one plays.
+  @MainActor
+  func seasonItems(viewer: ViewerStateReading) -> [TVUIKitMediaItem] {
+    guard let group = seasons.first(where: { $0.id == selectedSeasonID }) else { return [] }
+    let season = seasonByID[group.id]
+    return group.episodeIDs.compactMap { id in
+      guard let episode = episodeByID[id] else { return nil }
+      let state = viewer.state(for: .episode(seriesID, season: group.number, number: episode.number),
+                               reported: ViewerState(reportedBy: episode))
+      return Self.railItem(episode: episode, in: season, state: state,
+                           isNowPlaying: id == playingEpisodeID)
+    }
+  }
+
+  /// Same mapping as `SeasonsRailView.railItem` for a playable kino.pub episode, its
+  /// watched state from `state`.
+  private static func railItem(episode: Episode, in season: Season?, state: ViewerState,
+                               isNowPlaying: Bool) -> TVUIKitMediaItem {
     let name = EpisodeTitle.meaningful(episode.title) ?? ""
     let card = MediaCard(episode: episode, in: season, title: name)
     let base = TVUIKitMediaItem(card: card)
+    let status: TVUIKitMediaItemStatus = state.isWatched
+      ? .watched
+      : state.resumeFraction.map { .inProgress($0) } ?? .ready
     return TVUIKitMediaItem(id: episode.id,
                             imageURL: base.imageURL,
                             caption: EpisodeText(season: nil, number: episode.number, name: name)
                               .text(for: .episodeTile),
-                            status: base.status,
-                            timeLabel: base.timeLabel,
-                            badgeText: base.badgeText)
+                            status: status,
+                            // The tile on screen shows no bar, so it shows the runtime.
+                            timeLabel: TVUIKitMediaItem.timeLabel(for: card,
+                                                                  status: isNowPlaying ? .ready : status),
+                            badgeText: base.badgeText,
+                            isNowPlaying: isNowPlaying)
   }
 }
 

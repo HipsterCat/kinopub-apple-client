@@ -51,6 +51,34 @@ final class PlaybackEpisodesTests: XCTestCase {
     XCTAssertEqual(list.selectedSeasonID, 1)
   }
 
+#if os(tvOS)
+  /// Auto-play went on from the episode the player opened with: the series snapshot still
+  /// says the next one is unwatched, this device's progress says it finished — the Season
+  /// tab's tile says watched. The episode on screen wears the now-playing look.
+  @MainActor
+  func testTheSeasonTabReadsWatchedFromTheViewerNotTheSnapshot() throws {
+    let series = series()
+    let playing = episode(in: series, season: 1, number: 3)
+    let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
+    let viewer = ViewerStateReaderMock()
+    viewer.overlays[.episode(50, season: 1, number: 2)] = ViewerOverlay(isWatched: true)
+    let items = list.seasonItems(viewer: viewer)
+    XCTAssertEqual(items.map(\.id), [101, 102, 103])
+    XCTAssertEqual(items.map(\.status), [.ready, .watched, .ready])
+    XCTAssertEqual(items.map(\.isNowPlaying), [false, false, true])
+    XCTAssertEqual(list.seasonTitle, String(format: "MediaItem_SeasonSingle".localized, 1))
+  }
+
+  /// Only the season playing — the tab is one row, like Up Next.
+  @MainActor
+  func testTheSeasonTabHoldsTheSeasonPlayingAlone() throws {
+    let series = series()
+    let playing = episode(in: series, season: 2, number: 1)
+    let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
+    XCTAssertEqual(list.seasonItems(viewer: ViewerStateReaderMock()).map(\.id), [201, 202, 203])
+  }
+#endif
+
   // MARK: - Fixtures
 
   private func series(seasonOrder: [Int] = [1, 2]) -> MediaItem {

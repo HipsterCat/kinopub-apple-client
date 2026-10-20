@@ -165,7 +165,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// same facts does not replace a tab the viewer may be standing in, and one with better
   /// facts (TMDB's name for «Эпизод 3») does.
   private var upNextSignature: [String] = []
-  /// The Episodes tab's seasons/ids, so an Up Next enrichment does not rebuild it under
+  /// The Season tab's seasons/ids, so an Up Next enrichment does not rebuild it under
   /// the remote.
   private var episodesSignature: [String] = []
   /// Held so a rebuild of one tab can keep the other instance (`customInfoViewControllers`
@@ -1499,6 +1499,15 @@ extension PlayerManager {
   }
 }
 
+// MARK: - Tab platter
+
+/// The platter under the player's tile tabs, matched to the one AVKit draws under Info.
+enum PlayerTabPlatter {
+  /// AVKit's Info platter, measured off a tvOS 27.2 simulator shot (2026-10-20): 1760 wide
+  /// on the strip's margins, corners ≈ 46 pt.
+  static let cornerRadius: CGFloat = 46
+}
+
 // MARK: - Fixed-height tab
 
 /// An Info-panel tab whose height is a constant. AVKit sizes a custom tab from
@@ -1538,11 +1547,12 @@ final class FixedHeightTab: UIViewController {
 extension PlayerManager {
 
   /// Info-strip tabs AVKit draws beside Info (`customInfoViewControllers`):
-  /// **Episodes** first (a series only), then **Up Next**. A film keeps Up Next alone.
+  /// **Up Next**, then **Season N** — the season playing, a series only (Sasha, 2026-10-20).
+  /// A film keeps Up Next alone.
   ///
   /// **Apple API limitation:** AVKit draws the tab strip but nothing native fills a tab
-  /// with cards, so the content is ours — Episodes hosts the same `TVSeasonRail` the
-  /// title page uses; Up Next a `TVUIKitMediaItemRail`.
+  /// with cards, so the content is ours — both tabs are one `TVUIKitMediaItemRail` in
+  /// `railTab`, so they are the same height and the strip does not move between them.
   func rebuildContentTabs() {
     guard let controller = playerViewController else { return }
     guard watchMode == .media else {
@@ -1556,7 +1566,7 @@ extension PlayerManager {
     ensureSeriesForEpisodesTab()
     let episodes = MainActor.assumeIsolated { makeEpisodesTab() }
     let upNext = makeUpNextTab()
-    controller.customInfoViewControllers = [episodes, upNext].compactMap { $0 }
+    controller.customInfoViewControllers = [upNext, episodes].compactMap { $0 }
   }
 
   /// Fetch the title with seasons when the snapshot has none — playing from the
@@ -1580,7 +1590,8 @@ extension PlayerManager {
     }
   }
 
-  /// Series only. Same episode cells as the title page; the season playing is selected.
+  /// Series only: the season playing, the same episode cells as the title page, the rail
+  /// parked on the episode on screen.
   @MainActor
   private func makeEpisodesTab() -> UIViewController? {
     guard let list = PlaybackEpisodes(playing: playItem, series: titleContext) else {
@@ -1592,23 +1603,13 @@ extension PlayerManager {
     if signature == episodesSignature, let episodesTab { return episodesTab }
     episodesSignature = signature
 
-    // Same trim as Up Next: the rail's own padding reads as a gap under the tab strip.
-    let trim: CGFloat = 45
-    let height = TVSeasonRailController.tabRowHeight()
-      + TVSeasonRailController.tabsToRail
-      + TVPageLayout.stillRailHeight(columns: MainView.stillColumns,
-                                     caption: .always,
-                                     containerWidth: 1920,
-                                     sideInset: 0)
-      - trim
     let episodes = list.episodeByID
-    let hosted = UIHostingController(rootView: list.seasonRail { [weak self] id in
+    let tab = Self.railTab(items: list.seasonItems(viewer: AppContext.shared.viewerState),
+                           entryItemID: list.openingEpisodeID) { [weak self] id in
       guard let episode = episodes[id] else { return }
       self?.onPlay?(episode)
-    }.padding(.top, -trim))
-    hosted.sizingOptions = []
-    let tab = FixedHeightTab(content: hosted, height: height)
-    tab.title = "Episodes".localized
+    }
+    tab.title = list.seasonTitle
     episodesTab = tab
     return tab
   }
@@ -1678,42 +1679,60 @@ extension PlayerManager {
     if signature == upNextSignature, let upNextTab { return upNextTab }
     upNextSignature = signature
 
-    // The rail carries its own vertical padding, which reads as a wide gap under the tab
-    // strip. The panel is bottom-anchored, so shortening the tab by `trim` moves the strip
-    // down by `trim`, and pulling the rail up by the same amount leaves the tiles where
-    // they were — the gap halves (≈90 pt → ≈45 pt, measured in the simulator 2026-09-30).
-    let trim: CGFloat = 45
-    // One fixed height, never derived from content: the rail's own height follows the width it
-    // is offered, and the tab grew every time AVKit re-measured it (strip 605 → 232 after
-    // Up, Down — caught by `PlayerUpNextTabUITests`). `FixedHeightTab` answers the same
-    // `preferredContentSize` for its whole life.
-    let height = MainActor.assumeIsolated { TVUIKitMediaItemMetrics.railHeight(width: 1920) } - trim
     let contentService = self.contentService
-    let rail = UIHostingController(rootView: TVUIKitMediaItemRail(
-      items: items,
-      // No inset of our own: the tab already sits on the tab strip's leading edge, and 60
-      // here put the first tile a full margin to the right of «Info» (seen 2026-09-30).
-      contentInset: 0,
-      onSelect: { [weak self] id in
-        if let episode = episodeByTile[id] {
-          self?.onPlay?(episode)
-        } else if let card = cardByTile[id] {
-          Task { @MainActor [weak self] in
-            do {
-              let resolved = try await MediaCardMenuCoordinator.resolve(card, using: contentService)
-              self?.onPlay?(resolved.playable)
-            } catch {
-              Logger.app.error("Up Next: could not open item \(card.itemID): \(error.localizedDescription)")
-            }
+    let onSelect: (Int) -> Void = { [weak self] id in
+      if let episode = episodeByTile[id] {
+        self?.onPlay?(episode)
+      } else if let card = cardByTile[id] {
+        Task { @MainActor [weak self] in
+          do {
+            let resolved = try await MediaCardMenuCoordinator.resolve(card, using: contentService)
+            self?.onPlay?(resolved.playable)
+          } catch {
+            Logger.app.error("Up Next: could not open item \(card.itemID): \(error.localizedDescription)")
           }
         }
-      })
-      .padding(.top, -trim))
-    rail.sizingOptions = []
-    let tab = FixedHeightTab(content: rail, height: height)
+      }
+    }
+    let tab = MainActor.assumeIsolated { Self.railTab(items: items, entryItemID: nil, onSelect: onSelect) }
     tab.title = "Up Next".localized
     upNextTab = tab
     return tab
+  }
+
+  /// One Info-strip tab of tiles: Up Next and Season N are both this, so they are the same
+  /// height and the strip stands still as the remote moves between them.
+  ///
+  /// The tiles sit on a platter like the one AVKit draws under its own Info tab: player
+  /// glass (`kinoPlayerGlass` — an opaque fill on low-power Apple TVs and with Reduce
+  /// Transparency), rounded, and clipping the rail at its edges, so a tile scrolled off
+  /// the leading side shows a sliver rather than vanishing at the tab's edge and the
+  /// captions read over any frame of the video (Sasha, 2026-10-20). The rail's own
+  /// vertical padding — the room the focused tile grows into — is the platter's padding,
+  /// top and bottom, and the same on the sides.
+  ///
+  /// One fixed height, never derived from content: the rail's own height follows the width
+  /// it is offered, and the tab grew every time AVKit re-measured it (strip 605 → 232 after
+  /// Up, Down — caught by `PlayerUpNextTabUITests`). `FixedHeightTab` answers the same
+  /// `preferredContentSize` for its whole life.
+  @MainActor
+  private static func railTab(items: [TVUIKitMediaItem],
+                              entryItemID: Int?,
+                              onSelect: @escaping (Int) -> Void) -> UIViewController {
+    let width: CGFloat = 1920
+    let height = TVUIKitMediaItemMetrics.railHeight(width: width)
+    let padding = TVUIKitMediaItemMetrics.systemMetrics(width: width).verticalPadding / 2
+    let platter = RoundedRectangle(cornerRadius: PlayerTabPlatter.cornerRadius, style: .continuous)
+    let rail = UIHostingController(rootView: TVUIKitMediaItemRail(
+      items: items,
+      contentInset: padding,
+      entryItemID: entryItemID,
+      animatesEntryScroll: false,
+      onSelect: onSelect)
+      .background { Color.clear.kinoPlayerGlass(in: platter) }
+      .clipShape(platter))
+    rail.sizingOptions = []
+    return FixedHeightTab(content: rail, height: height)
   }
 
   /// Asks the enrichment sources about the next episode once, then rebuilds the tab —

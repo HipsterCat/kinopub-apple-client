@@ -5,6 +5,26 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS player tabs: Up Next, then the season playing, on a platter (2026-10-20)
+
+- The Info strip of a series is Info, Up Next, **Season N** — the season playing alone, in the
+  same `TVUIKitMediaItemRail` as Up Next (`PlayerManager.railTab`), so both tabs are one height
+  and the strip stands still. The rail parks on the episode playing on its first layout and Down
+  lands there. `TVSeasonRail` is no longer used by the player.
+- Both tabs sit on a player-glass platter matched to AVKit's Info platter (≈ 46 pt corners, on
+  the strip's margins), clipping the rail so a tile scrolled off the side shows a sliver.
+- The episode playing: dimmed still, a ring at rest (hidden on focus — no double outline under
+  the high-contrast focus style), primary caption, runtime instead of a bar
+  (`TVUIKitMediaItem.isNowPlaying`).
+- Watched on those tiles comes from `ViewerStateReading`, not the snapshot cached when the
+  player opened — binge-watched episodes 2–4 show as watched.
+- **Fixed:** `TVUIKitMediaItemCell.canBecomeFocused` answered `cellAllowsFocus` alone, so the
+  collection view never asked `canFocusItemAt` — `TVSeasonRail.canFocusItem` had never run. It
+  now ANDs `super`. The detail-page fixture UI tests (26) pass with it on tvOS 27.2.
+- DEBUG: `-KINOPUBFixtureRealPlayer` now works with `-KINOPUBDetailFixture` too — episodes get
+  Apple's sample stream and drawn stills, so `PlayerTabsUITests` walks the real
+  `AVPlayerViewController` with no session.
+
 ### tvOS Search hang and first paint (2026-10-20)
 
 - **Hang**: focusing results with the grid keyboard (`_shouldHideGridKeyboardUnfocused`) widened

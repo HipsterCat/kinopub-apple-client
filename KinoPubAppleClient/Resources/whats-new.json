@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Плеер: у сериала вкладки «Сведения», «Далее», «Сезон N» — только текущий сезон, обе вкладки одной высоты, на подложке как у «Сведений». Текущая серия выделена, а серии, просмотренные подряд, сразу отмечены.",
         "Поиск открывается сразу на клавиатуре и фильтрах; каталог подгружается следом.",
         "Баннеры на главной в светлой теме: текст описания и оценки остаются яркими.",
         "ТВ: на выбранном канале видно, что сейчас в эфире.",
@@ -43,6 +44,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Player: a series has Info, Up Next and Season N — the season playing only, both tabs one height, on a platter like Info's. The episode playing is marked, and episodes watched back to back show as watched straight away.",
         "Search opens on the keyboard and filters at once; the catalog fills in behind them.",
         "Home banners in light appearance: description and scores stay bright.",
         "TV: the focused channel shows what is on air now.",

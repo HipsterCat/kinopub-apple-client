@@ -302,9 +302,15 @@ enum DetailFixture: String, CaseIterable, Identifiable {
 
   private func episode(season: Int, number: Int, watched seeded: Bool) -> [String: Any] {
     let watched = seeded || DetailFixtureServer.shared.isWatched(item: itemID, season: season, video: number)
+    // With the real player its Season and Up Next tabs draw these tiles.
+    let real = DebugLaunch.fixtureRealPlayer
+    let thumbnail: String = real
+      ? DetailFixtureArt.still(seed: season * 10 + number, label: "S\(season) E\(number)").absoluteString
+      : ""
+    let files: [Any] = real ? [Self.sampleFile] : []
     return ["id": itemID * 1000 + season * 100 + number,
             "title": "Серия \(number)",
-            "thumbnail": "",
+            "thumbnail": thumbnail,
             "duration": 2400,
             "tracks": 1,
             "number": number,
@@ -313,7 +319,14 @@ enum DetailFixture: String, CaseIterable, Identifiable {
             "watched": watched ? 1 : 0,
             "watching": ["status": watched ? 1 : -1, "time": watched ? 2400 : 0],
             "subtitles": [Any](),
-            "files": [Any]()]
+            "files": files]
+  }
+
+  /// Apple's sample stream as a kino.pub file, for `-KINOPUBFixtureRealPlayer`.
+  private static var sampleFile: [String: Any] {
+    let stream = TVChannelsFixture.sampleStream
+    return ["codec": "h264", "w": 1920, "h": 1080, "quality": "1080p", "quality_id": 3,
+            "url": ["http": stream, "hls": stream, "hls4": stream, "hls2": stream]]
   }
 
   private func video(number: Int, title: String, position: Int) -> [String: Any] {

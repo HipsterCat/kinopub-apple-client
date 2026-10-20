@@ -138,6 +138,9 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   public let badgeIsLive: Bool
   /// How the picture at `imageURL` meets the 16:9 tile.
   public let artworkFit: ArtworkFit
+  /// What the player has on screen — the player's Season tab marks it: the still dimmed,
+  /// a ring around the tile at rest, the caption in the primary colour, no progress bar.
+  public let isNowPlaying: Bool
 
   public enum ArtworkFit: Equatable, Sendable {
     /// Centre-cropped to the tile — stills, backdrops, covers.
@@ -158,7 +161,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               timeLabel: String? = nil,
               badgeText: String? = nil,
               badgeIsLive: Bool = false,
-              artworkFit: ArtworkFit = .fill) {
+              artworkFit: ArtworkFit = .fill,
+              isNowPlaying: Bool = false) {
     self.id = id
     self.imageURL = imageURL
     self.tint = tint
@@ -171,6 +175,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.badgeText = badgeText
     self.badgeIsLive = badgeIsLive
     self.artworkFit = artworkFit
+    self.isNowPlaying = isNowPlaying
   }
 
   /// A coloured tile with a glyph and nothing else — genres, categories, anything with
@@ -521,6 +526,39 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     FocusLog.railGeometry(collectionView, section: "wide-rail")
+    // `apply` comes before the view has a width, where the scroll to the entry is a no-op;
+    // the first pass with one is where the rail can first stand on it.
+    if !hasParkedOnEntry, entryItemID != nil, collectionView.bounds.width > 1 {
+      hasParkedOnEntry = true
+      scrollToEntry(animated: false)
+    }
+  }
+
+  /// The first layout with a width has scrolled to the entry item.
+  private var hasParkedOnEntry = false
+
+  /// Whether focus is on one of this rail's tiles. While it is not and there is an entry
+  /// item, the entry is the only tile the engine may land on, so a move in from outside
+  /// arrives there — the way `TVSeasonRail` keeps its rail. Left to geometry, the player's
+  /// Season tab took the remote from the tab pill to the sliver of the episode before the
+  /// one playing (seen 2026-10-20); the engine does not ask `indexPathForPreferredFocusedView`
+  /// for a directional move.
+  private var focusIsInside = false
+  /// The tile the remote left the rail from; coming back lands there rather than on an
+  /// entry the rail may have scrolled away from since.
+  private var returnItemID: Int?
+
+  /// The one tile a move in from outside may land on: where the remote left, or the entry.
+  private var landingItemID: Int? {
+    guard entryItemID != nil else { return nil }
+    if let returnItemID, index(of: returnItemID) != nil { return returnItemID }
+    return index(of: entryItemID) != nil ? entryItemID : nil
+  }
+
+  public override func didUpdateFocus(in context: UIFocusUpdateContext,
+                                      with coordinator: UIFocusAnimationCoordinator) {
+    super.didUpdateFocus(in: context, with: coordinator)
+    focusIsInside = context.nextFocusedView?.isDescendant(of: collectionView) ?? false
   }
 
   public override func viewDidLoad() {
@@ -696,15 +734,20 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
   /// which fights the engine and loses.
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
     guard allowsFocus else { return nil }
-    guard let index = index(of: entryItemID) else { return nil }
+    guard let index = index(of: landingItemID ?? entryItemID) else { return nil }
     return IndexPath(item: index, section: 0)
   }
 
   public func collectionView(_ collectionView: UICollectionView,
                              canFocusItemAt indexPath: IndexPath) -> Bool {
     guard allowsFocus else { return false }
-    guard let canFocusItem, items.indices.contains(indexPath.item) else { return true }
-    return canFocusItem(items[indexPath.item].id)
+    guard items.indices.contains(indexPath.item) else { return true }
+    let id = items[indexPath.item].id
+    // `canFocusItem` is the season rail's, which keeps its own entry; the rest of the
+    // rails with an entry keep it here.
+    if let canFocusItem { return canFocusItem(id) }
+    if !focusIsInside, let landingItemID { return id == landingItemID }
+    return true
   }
 
   public func collectionView(_ collectionView: UICollectionView,
@@ -719,6 +762,7 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
                     to: name(context.nextFocusedIndexPath))
 
     guard let path = context.nextFocusedIndexPath, items.indices.contains(path.item) else { return }
+    if entryItemID != nil { returnItemID = items[path.item].id }
     onFocusedItem?(items[path.item].id)
   }
 
@@ -802,7 +846,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     // regardless of appearance, which is what read as "always white, with a shadow".
     let hideCaption = captionOnFocus && !state.isFocused
     config.text = hideCaption ? nil : item.caption
-    config.textProperties.color = state.isFocused ? .label : .secondaryLabel
+    config.textProperties.color = state.isFocused || item.isNowPlaying ? .label : .secondaryLabel
     // Library still grids ask for the system's second line (title + remaining / when).
     // Home's rail leaves `detail` nil and stays one line. `updated(for:)` is the
     // sample's construction — the 2026-08-11 attempt set `secondaryText` on a raw
@@ -823,11 +867,48 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
       config.badgeProperties = item.badgeIsLive ? .liveContent() : .default()
     }
 
-    overlay.apply(status: item.status, timeLabel: item.timeLabel)
+    overlay.apply(status: item.status, timeLabel: item.timeLabel, isNowPlaying: item.isNowPlaying)
     config.overlayView = overlay
 
     contentConfiguration = config
     contentView.alpha = tileAlpha
+    // At rest only: a focused tile is already the one that stands out, and with the
+    // high-contrast focus style the system draws its own border round it — a second ring
+    // of ours would double it (Sasha, 2026-10-20).
+    nowPlayingRing.isHidden = !item.isNowPlaying || state.isFocused
+    setNeedsLayout()
+  }
+
+  /// The ring round the still of the episode on screen, `ringGap` outside its edge.
+  /// The still is the cell's width at 16:9 from the top — `wideCell()`'s own layout.
+  private lazy var nowPlayingRing: UIView = {
+    let ring = UIView()
+    ring.isUserInteractionEnabled = false
+    ring.backgroundColor = .clear
+    ring.layer.borderColor = UIColor.label.cgColor
+    ring.layer.borderWidth = Self.ringWidth
+    ring.layer.cornerCurve = .continuous
+    ring.isHidden = true
+    addSubview(ring)
+    return ring
+  }()
+
+  private static let ringWidth: CGFloat = 4
+  private static let ringGap: CGFloat = 6
+  /// `wideCell()`'s artwork corner at rest, measured off a tvOS 27.2 shot (2026-10-20).
+  private static let artworkCornerRadius: CGFloat = 12
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    guard !nowPlayingRing.isHidden else { return }
+    let art = CGRect(x: 0, y: 0, width: bounds.width, height: (bounds.width * 9 / 16).rounded())
+    nowPlayingRing.frame = art.insetBy(dx: -Self.ringGap, dy: -Self.ringGap)
+    nowPlayingRing.layer.cornerRadius = Self.artworkCornerRadius + Self.ringGap
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    nowPlayingRing.layer.borderColor = UIColor.label.resolvedColor(with: traitCollection).cgColor
   }
 
   private func fallbackImage(for item: TVUIKitMediaItem) -> UIImage {
@@ -882,9 +963,13 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     cellAllowsFocus = true
     captionOnFocus = false
     tileAlpha = 1
+    nowPlayingRing.isHidden = true
   }
 
-  override var canBecomeFocused: Bool { cellAllowsFocus }
+  /// `super` asks the collection view's delegate (`canFocusItemAt`) — the hook the season
+  /// rail and an entry item keep the remote with. Answering `cellAllowsFocus` alone
+  /// skipped it, so neither ever ran (found 2026-10-20).
+  override var canBecomeFocused: Bool { cellAllowsFocus && super.canBecomeFocused }
 }
 
 // MARK: - Overlay
@@ -919,6 +1004,8 @@ final class TVUIKitMediaItemOverlayView: UIView {
   private let progressTrack = UIView()
   private let progressFill = UIView()
   private var progressFillWidth: NSLayoutConstraint!
+  /// Over the whole still of the episode the player has on screen.
+  private let nowPlayingDim = UIView()
 
   /// Keeps the corner chrome clear of the bar along the very bottom edge.
   private static let cornerInset: CGFloat = 32
@@ -947,6 +1034,11 @@ final class TVUIKitMediaItemOverlayView: UIView {
 //    scrim.backgroundColor = UIColor.red.withAlphaComponent(0)
 //    scrim.isHidden = true
 //    addSubview(scrim)
+
+    nowPlayingDim.translatesAutoresizingMaskIntoConstraints = false
+    nowPlayingDim.backgroundColor = UIColor.black.withAlphaComponent(0.45)
+    nowPlayingDim.isHidden = true
+    addSubview(nowPlayingDim)
 
     glyphView.translatesAutoresizingMaskIntoConstraints = false
     glyphView.tintColor = .secondaryLabel
@@ -1006,6 +1098,11 @@ final class TVUIKitMediaItemOverlayView: UIView {
     progressFillWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
 
     NSLayoutConstraint.activate([
+      nowPlayingDim.topAnchor.constraint(equalTo: topAnchor),
+      nowPlayingDim.bottomAnchor.constraint(equalTo: bottomAnchor),
+      nowPlayingDim.leadingAnchor.constraint(equalTo: leadingAnchor),
+      nowPlayingDim.trailingAnchor.constraint(equalTo: trailingAnchor),
+
       progressTrack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
       progressTrack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
       progressTrack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
@@ -1063,19 +1160,22 @@ final class TVUIKitMediaItemOverlayView: UIView {
     CATransaction.commit()
   }
 
-  func apply(status: TVUIKitMediaItemStatus, timeLabel: String?) {
+  func apply(status: TVUIKitMediaItemStatus, timeLabel: String?, isNowPlaying: Bool = false) {
     scrim.isHidden = !status.dimsArtwork
+    nowPlayingDim.isHidden = !isNowPlaying
 
     let glyph = status.glyph
     glyphView.image = glyph.flatMap { UIImage(systemName: $0) }
     glyphView.isHidden = glyph == nil
 
-    progressFraction = CGFloat(status.progress)
-    progressTrack.isHidden = status.progress <= 0
+    // The episode on screen has no bar: the player's own scrubber is where it is.
+    progressFraction = isNowPlaying ? 0 : CGFloat(status.progress)
+    progressTrack.isHidden = progressFraction <= 0
     setNeedsLayout()
 
     // At rest too (Sasha, 2026-10-11, replacing "only while focused" of 2026-09-21).
-    let showsRuntime = status.showsRuntime && timeLabel?.isEmpty == false
+    // The episode on screen trades its bar for the runtime, like a tile with none.
+    let showsRuntime = (status.showsRuntime || isNowPlaying) && timeLabel?.isEmpty == false
     runtimeLabel.text = timeLabel
     runtimeBadge.isHidden = !showsRuntime
 
