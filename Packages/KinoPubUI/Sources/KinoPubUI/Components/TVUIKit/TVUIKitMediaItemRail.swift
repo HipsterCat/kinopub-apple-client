@@ -261,6 +261,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   private let onFocusedItem: ((Int) -> Void)?
   private let contextMenuProvider: ((Int) -> [MediaCardContextEntry])?
   private let allowsFocus: Bool
+  private let fillsHeight: Bool
 
   /// - Parameters:
   ///   - contentInset: leading/trailing inset, so the rail lines up with the section
@@ -276,6 +277,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   ///   - onFocusedItem: which item the engine focused, so a caller can follow it (the
   ///     season tabs track the episode you are standing on).
   ///   - onSelect / onNearEnd / contextMenuProvider: all keyed by `TVUIKitMediaItem.id`.
+  ///   - fillsHeight: take the height it is offered rather than the row's own, items from
+  ///     the top — for a container that places the row itself (the player's tabs).
   public init(items: [TVUIKitMediaItem],
               contentInset: CGFloat = 0,
               columns: Int? = nil,
@@ -286,7 +289,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
               onNearEnd: ((Int) -> Void)? = nil,
               onFocusedItem: ((Int) -> Void)? = nil,
               contextMenuProvider: ((Int) -> [MediaCardContextEntry])? = nil,
-              allowsFocus: Bool = true) {
+              allowsFocus: Bool = true,
+              fillsHeight: Bool = false) {
     self.items = items
     self.contentInset = contentInset
     self.columns = columns
@@ -298,6 +302,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
     self.onFocusedItem = onFocusedItem
     self.contextMenuProvider = contextMenuProvider
     self.allowsFocus = allowsFocus
+    self.fillsHeight = fillsHeight
   }
 
   public func makeUIViewController(context: Context) -> TVUIKitMediaItemRailController {
@@ -329,6 +334,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
                            uiViewController: TVUIKitMediaItemRailController,
                            context: Context) -> CGSize? {
     guard let width = proposal.width, width > 1 else { return nil }
+    if fillsHeight, let height = proposal.height { return CGSize(width: width, height: height) }
     guard !items.isEmpty else { return CGSize(width: width, height: 0) }
     if let columns {
       return CGSize(width: width, height: TVPageLayout.stillRailHeight(columns: columns, caption: caption,
@@ -872,43 +878,54 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
 
     contentConfiguration = config
     contentView.alpha = tileAlpha
-    // At rest only: a focused tile is already the one that stands out, and with the
-    // high-contrast focus style the system draws its own border round it — a second ring
-    // of ours would double it (Sasha, 2026-10-20).
-    nowPlayingRing.isHidden = !item.isNowPlaying || state.isFocused
-    setNeedsLayout()
+    backgroundConfiguration = item.isNowPlaying ? nowPlayingRing(for: state) : nil
   }
 
-  /// The ring round the still of the episode on screen, `ringGap` outside its edge.
-  /// The still is the cell's width at 16:9 from the top — `wideCell()`'s own layout.
-  private lazy var nowPlayingRing: UIView = {
-    let ring = UIView()
-    ring.isUserInteractionEnabled = false
-    ring.backgroundColor = .clear
-    ring.layer.borderColor = UIColor.label.cgColor
-    ring.layer.borderWidth = Self.ringWidth
-    ring.layer.cornerCurve = .continuous
-    ring.isHidden = true
-    addSubview(ring)
+  /// The ring round the still of the episode on screen. The system draws it: a clear cell
+  /// background framed on the still with a stroke `ringGap` outside, which
+  /// `UIBackgroundConfiguration.strokeOutset` keeps concentric with the still's corners.
+  ///
+  /// It stays with focus, on the still's focused frame (`TVMediaItemContentView.focusedFrameGuide`,
+  /// ×1.108 — the system's lift, read off the layer tree on tvOS 27.2), so the tile keeps
+  /// saying "playing" while it is the focused one (Sasha, 2026-10-20). Under Increase
+  /// Contrast the focused tile wears the system's own border, so the ring steps aside there
+  /// rather than draw a second one.
+  private func nowPlayingRing(for state: UICellConfigurationState) -> UIBackgroundConfiguration {
+    var ring = UIBackgroundConfiguration.clear()
+    let still = bounds
+    var frame = still
+    if state.isFocused, let content = contentView as? TVMediaItemContentView {
+      let focused = content.focusedFrameGuide.layoutFrame
+      if focused.width > 1 { frame = focused }
+    }
+    ring.backgroundInsets = NSDirectionalEdgeInsets(top: frame.minY - still.minY,
+                                                    leading: frame.minX - still.minX,
+                                                    bottom: still.maxY - frame.maxY,
+                                                    trailing: still.maxX - frame.maxX)
+    ring.cornerRadius = Self.stillCornerRadius * (still.width > 0 ? frame.width / still.width : 1)
+    ring.strokeColor = .label
+    ring.strokeOutset = Self.ringGap
+    let systemBorder = state.isFocused && traitCollection.accessibilityContrast == .high
+    ring.strokeWidth = systemBorder ? 0 : Self.ringWidth
     return ring
-  }()
+  }
 
   private static let ringWidth: CGFloat = 4
   private static let ringGap: CGFloat = 6
-  /// `wideCell()`'s artwork corner at rest, measured off a tvOS 27.2 shot (2026-10-20).
-  private static let artworkCornerRadius: CGFloat = 12
+  /// `wideCell()`'s still corner at rest, measured off a tvOS 27.2 shot (2026-10-20): the
+  /// continuous curve leaves the edge 17 pt from the corner. TVUIKit exposes no radius.
+  private static let stillCornerRadius: CGFloat = 12
 
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    guard !nowPlayingRing.isHidden else { return }
-    let art = CGRect(x: 0, y: 0, width: bounds.width, height: (bounds.width * 9 / 16).rounded())
-    nowPlayingRing.frame = art.insetBy(dx: -Self.ringGap, dy: -Self.ringGap)
-    nowPlayingRing.layer.cornerRadius = Self.artworkCornerRadius + Self.ringGap
-  }
-
-  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-    super.traitCollectionDidChange(previousTraitCollection)
-    nowPlayingRing.layer.borderColor = UIColor.label.resolvedColor(with: traitCollection).cgColor
+  override func didUpdateFocus(in context: UIFocusUpdateContext,
+                               with coordinator: UIFocusAnimationCoordinator) {
+    super.didUpdateFocus(in: context, with: coordinator)
+    guard item?.isNowPlaying == true else { return }
+    // The ring grows and shrinks with the still, in the same animation.
+    coordinator.addCoordinatedAnimations { [weak self] in
+      guard let self else { return }
+      self.updateConfiguration(using: self.configurationState)
+      self.layoutIfNeeded()
+    }
   }
 
   private func fallbackImage(for item: TVUIKitMediaItem) -> UIImage {
@@ -963,7 +980,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     cellAllowsFocus = true
     captionOnFocus = false
     tileAlpha = 1
-    nowPlayingRing.isHidden = true
+    backgroundConfiguration = nil
   }
 
   /// `super` asks the collection view's delegate (`canFocusItemAt`) — the hook the season

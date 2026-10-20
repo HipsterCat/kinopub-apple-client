@@ -75,13 +75,14 @@ final class PlayerTabsUITests: XCTestCase {
       Thread.sleep(forTimeInterval: 2)
     }
     XCTAssertTrue(strip.exists, "the player never showed its tabs\n\(app.debugDescription)")
-    // The first Down may show only the transport bar, the strip folded under it near the
-    // bottom (tvOS 26.5); the next opens Info and lifts the strip, focus on its «Info» pill.
-    for _ in 0..<4 where strip.frame.minY > app.frame.height * 0.75 {
+    // The first Down may show only the transport bar, the strip folded under it (tvOS 26.5);
+    // Info is open once its own button is there — focus is then on the «Info» pill.
+    let goToShow = app.buttons["Перейти к сериалу"]
+    for _ in 0..<4 where !goToShow.exists {
       XCUIRemote.shared.press(.down)
       Thread.sleep(forTimeInterval: 2)
     }
-    XCTAssertLessThan(strip.frame.minY, app.frame.height * 0.75, "Info never opened")
+    XCTAssertTrue(goToShow.exists, "Info never opened\n\(app.debugDescription)")
     Thread.sleep(forTimeInterval: 1)
   }
 

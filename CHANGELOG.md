@@ -5,6 +5,19 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS player tabs, second pass (2026-10-21)
+
+- Season and Up Next use the title page's still run (`TVPageLayout.stillRun`) at six columns,
+  side inset gutter + 28 pt so a scrolled rail peeks both ways; `PlayerRailTab` (UIKit) centres
+  the art-and-caption block on the platter. A hosted rail had sized itself to its row and SwiftUI
+  centred that taller row, so stills sat on the platter's edge. `TVUIKitMediaItemRail(fillsHeight:)`.
+- The platter frame is Info's to the pixel on 27.2 and 26.5: AVKit sizes the panel to the tallest
+  tab, so the tab asks 263, the platter sits 14 down and is 250 tall. Hosted content opts out of
+  the safe area (`safeAreaRegions = []`), or the glass stopped 10 pt short at the screen's bottom.
+- The playing episode's ring is a `UIBackgroundConfiguration` stroke (`strokeOutset` keeps it
+  concentric) on the still's frame, and on `focusedFrameGuide` when focused, in the focus
+  animation — it stays on the focused tile. Off under Increase Contrast while focused.
+
 ### tvOS Picture in Picture (2026-10-21)
 
 - The tvOS app never declared `UIBackgroundModes: audio` — the iOS SDK got it per-SDK in the

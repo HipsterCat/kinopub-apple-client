@@ -1518,43 +1518,109 @@ extension PlayerManager {
 // MARK: - Tab platter
 
 /// The platter under the player's tile tabs, matched to the one AVKit draws under Info.
+///
+/// **Apple API limitation:** AVKit reads none of this out — the Info platter's frame and
+/// corners were measured off simulator shots: 1760 wide on the strip's margins, corners
+/// ≈ 46 pt. Re-measure on the next SDK.
 enum PlayerTabPlatter {
-  /// AVKit's Info platter, measured off a tvOS 27.2 simulator shot (2026-10-20): 1760 wide
-  /// on the strip's margins, corners ≈ 46 pt.
   static let cornerRadius: CGFloat = 46
+  /// The panel is as tall as its tallest tab, and Info lays its own platter out in it: at
+  /// this height Info's platter and ours coincide, 14 pt under the tab's top and 250 pt
+  /// tall, and the strip stands still between the three tabs (tvOS 27.2 and 26.5, 2026-10-21).
+  static let height: CGFloat = 263
+  static let top: CGFloat = 14
+  static let platterHeight: CGFloat = 250
+  /// Six still columns across the platter: art, caption and air fit `platterHeight`.
+  static let columns = 6
+  /// How much of the tile before and after shows past the side inset.
+  static let peek: CGFloat = 28
 }
 
-// MARK: - Fixed-height tab
+/// The tab `railTab` builds: the platter, and the rail centred on it. UIKit, not a SwiftUI
+/// stack: a hosted rail sizes itself to its row (a title's bottom gap included) and SwiftUI
+/// centred that taller row in the frame, so the stills sat on the platter's top edge.
+///
+/// One fixed `preferredContentSize`, never derived from content: AVKit re-measures a tab
+/// each time it shows it, and a hosted tab grew on every re-entry (`PlayerUpNextTabUITests`).
+final class PlayerRailTab: UIViewController {
+  /// A gutter plus the peek: a scrolled rail shows a piece of the tile on either side.
+  static let sideInset = TVHIGGrid.gutter + PlayerTabPlatter.peek
 
-/// An Info-panel tab whose height is a constant. AVKit sizes a custom tab from
-/// `preferredContentSize` every time it presents it; a hosting controller answers that from
-/// its SwiftUI content, which follows the width it is offered, so the tab grew on every
-/// re-entry. This answers the same value always, and pins the content inside it.
-final class FixedHeightTab: UIViewController {
-  private let height: CGFloat
+  private let platter = UIHostingController(rootView: AnyView(Color.clear.kinoPlayerGlass(
+    in: RoundedRectangle(cornerRadius: PlayerTabPlatter.cornerRadius, style: .continuous))))
+  private let rail: UIHostingController<TVUIKitMediaItemRail>
+  private var railTop: NSLayoutConstraint?
+  private var railHeight: NSLayoutConstraint?
 
-  init(content: UIViewController, height: CGFloat) {
-    self.height = height
+  init(rail: TVUIKitMediaItemRail) {
+    self.rail = UIHostingController(rootView: rail)
     super.init(nibName: nil, bundle: nil)
-    addChild(content)
-    content.view.translatesAutoresizingMaskIntoConstraints = false
-    content.view.backgroundColor = .clear
-    view.addSubview(content.view)
-    NSLayoutConstraint.activate([
-      content.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      content.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      content.view.topAnchor.constraint(equalTo: view.topAnchor),
-      content.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-    ])
-    content.didMove(toParent: self)
-    view.backgroundColor = .clear
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   override var preferredContentSize: CGSize {
-    get { CGSize(width: 0, height: height) }
+    get { CGSize(width: 0, height: PlayerTabPlatter.height) }
     set {}
+  }
+
+  /// The platter: Info's frame inside the tab, and the shape that clips the rail — a tile
+  /// scrolled past the side shows a sliver.
+  private let box = UIView()
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = .clear
+    box.translatesAutoresizingMaskIntoConstraints = false
+    box.layer.cornerRadius = PlayerTabPlatter.cornerRadius
+    box.layer.cornerCurve = .continuous
+    box.clipsToBounds = true
+    view.addSubview(box)
+    for child in [platter, rail] as [UIViewController] {
+      addChild(child)
+      child.view.translatesAutoresizingMaskIntoConstraints = false
+      child.view.backgroundColor = .clear
+      box.addSubview(child.view)
+      child.didMove(toParent: self)
+    }
+    platter.sizingOptions = []
+    rail.sizingOptions = []
+    // The panel reaches into the screen's bottom safe area; hosted content left it out and
+    // the glass stopped 10 pt short of Info's.
+    platter.safeAreaRegions = []
+    rail.safeAreaRegions = []
+    let top = rail.view.topAnchor.constraint(equalTo: box.topAnchor)
+    let height = rail.view.heightAnchor.constraint(equalToConstant: 1)
+    NSLayoutConstraint.activate([
+      box.topAnchor.constraint(equalTo: view.topAnchor, constant: PlayerTabPlatter.top),
+      box.heightAnchor.constraint(equalToConstant: PlayerTabPlatter.platterHeight),
+      box.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      box.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      platter.view.topAnchor.constraint(equalTo: box.topAnchor),
+      platter.view.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+      platter.view.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+      platter.view.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+      rail.view.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+      rail.view.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+      top, height,
+    ])
+    railTop = top
+    railHeight = height
+  }
+
+  /// The art-and-caption block in the middle: the same air above the still as under its
+  /// caption (Sasha, 2026-10-20: the bottom air was measured from the still).
+  override func viewWillLayoutSubviews() {
+    super.viewWillLayoutSubviews()
+    let width = view.bounds.width
+    guard width > 1 else { return }
+    let height = PlayerTabPlatter.platterHeight
+    let parts = TVPageLayout.stillRunParts(columns: PlayerTabPlatter.columns, caption: .always,
+                                           containerWidth: width, sideInset: Self.sideInset)
+    let block = parts.still.height + parts.belowStill
+    let air = max(((height - block) / 2).rounded(), 0)
+    railTop?.constant = air - parts.topInset
+    railHeight?.constant = parts.topInset + block + air
   }
 }
 
@@ -1716,39 +1782,32 @@ extension PlayerManager {
     return tab
   }
 
-  /// One Info-strip tab of tiles: Up Next and Season N are both this, so they are the same
-  /// height and the strip stands still as the remote moves between them.
+  /// One Info-strip tab of tiles: Up Next and Season N are both this.
   ///
-  /// The tiles sit on a platter like the one AVKit draws under its own Info tab: player
+  /// **The platter** is the one AVKit draws under its own Info tab, and as tall: player
   /// glass (`kinoPlayerGlass` — an opaque fill on low-power Apple TVs and with Reduce
-  /// Transparency), rounded, and clipping the rail at its edges, so a tile scrolled off
-  /// the leading side shows a sliver rather than vanishing at the tab's edge and the
-  /// captions read over any frame of the video (Sasha, 2026-10-20). The rail's own
-  /// vertical padding — the room the focused tile grows into — is the platter's padding,
-  /// top and bottom, and the same on the sides.
+  /// Transparency), rounded, clipping the rail at its edges. A tab of a different height
+  /// moved the strip between Info and these two (Sasha, 2026-10-20).
   ///
-  /// One fixed height, never derived from content: the rail's own height follows the width
-  /// it is offered, and the tab grew every time AVKit re-measured it (strip 605 → 232 after
-  /// Up, Down — caught by `PlayerUpNextTabUITests`). `FixedHeightTab` answers the same
-  /// `preferredContentSize` for its whole life.
+  /// **The rail** is the title page's episode rail — `TVPageLayout.stillRun`, same cell,
+  /// gutter and caption — at the player's density: six columns of the platter's width
+  /// (the page uses four of the screen's), so the art, caption and air fit the Info height.
+  /// Its side inset is a gutter plus `peek`, so a scrolled rail always shows a piece of the
+  /// tile before and after: it reads as a list, not four tiles. The art-and-caption block
+  /// sits in the middle of the platter, the same air above the art as under the caption.
+  ///
   @MainActor
   private static func railTab(items: [TVUIKitMediaItem],
                               entryItemID: Int?,
                               onSelect: @escaping (Int) -> Void) -> UIViewController {
-    let width: CGFloat = 1920
-    let height = TVUIKitMediaItemMetrics.railHeight(width: width)
-    let padding = TVUIKitMediaItemMetrics.systemMetrics(width: width).verticalPadding / 2
-    let platter = RoundedRectangle(cornerRadius: PlayerTabPlatter.cornerRadius, style: .continuous)
-    let rail = UIHostingController(rootView: TVUIKitMediaItemRail(
-      items: items,
-      contentInset: padding,
-      entryItemID: entryItemID,
-      animatesEntryScroll: false,
-      onSelect: onSelect)
-      .background { Color.clear.kinoPlayerGlass(in: platter) }
-      .clipShape(platter))
-    rail.sizingOptions = []
-    return FixedHeightTab(content: rail, height: height)
+    PlayerRailTab(rail: TVUIKitMediaItemRail(items: items,
+                                             contentInset: PlayerRailTab.sideInset,
+                                             columns: PlayerTabPlatter.columns,
+                                             caption: .always,
+                                             entryItemID: entryItemID,
+                                             animatesEntryScroll: false,
+                                             onSelect: onSelect,
+                                             fillsHeight: true))
   }
 
   /// Asks the enrichment sources about the next episode once, then rebuilds the tab —

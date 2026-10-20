@@ -131,20 +131,27 @@ surface and get no substitute.
 
 - **prd** — A series' Info strip is **Info**, **Up Next** / **Далее**, then **Season N** / **Сезон N**:
   the season playing, alone — no season pills, no other seasons (those are on the title page).
-  Same episode cells as the page (`MediaCard(episode:in:)`), in one `TVUIKitMediaItemRail`, so the
-  tab is exactly as tall as Up Next and the strip does not move between them. The rail opens parked
+  Same episode cells and rail component as the page (`TVPageLayout.stillRun`), at six columns
+  of the platter instead of the page's four, so the tab is as tall as Info and Up Next and the
+  strip does not move between the three. A scrolled rail shows a piece of the tile before and
+  after (side inset = gutter + 28 pt peek), so it reads as a list. The art-and-caption block is
+  centred: the same air above the still as under its caption. (Sasha, 2026-10-20.) The rail opens parked
   on the episode playing and Down from the tab lands on it. Select plays that episode in place. A
   film has no Season tab. (Sasha, 2026-10-20; replaces the 2026-10-15 Episodes tab before Up Next.)
-- **prd** — The episode playing is marked: its still dimmed, a ring round it at rest (hidden while
-  focused, so the high-contrast focus style never doubles it), its caption in the primary colour,
-  its runtime instead of a progress bar. (Sasha, 2026-10-20.)
+- **prd** — The episode playing is marked: its still dimmed, a ring round it, its caption in the
+  primary colour, its runtime instead of a progress bar. Focused, it keeps all of it — the ring
+  grows with the still (`TVMediaItemContentView.focusedFrameGuide`). The ring is the system's
+  stroke (`UIBackgroundConfiguration.strokeOutset`, concentric with the still's corners); under
+  Increase Contrast the focused tile wears the system border instead. (Sasha, 2026-10-20.)
 - Watched and part-watched on these tiles are this device's progress over the payload
   (`ViewerStateReading`): the series snapshot is the one cached when the player opened, so after
   auto-play went through episodes 2–4 it still said only episode 1. The tab is built for every
   episode the player swaps in, so it is read once per episode — nothing is recounted while one plays.
 - **Platter.** Up Next and Season sit on the same platter AVKit draws under its own Info tab: player
-  glass (`kinoPlayerGlass`), corners ≈ 46 pt, on the strip's margins, clipping the rail at its edges
-  so a tile scrolled off the side shows a sliver. Measured off the tvOS 27.2 simulator.
+  glass (`kinoPlayerGlass`), corners ≈ 46 pt, clipping the rail at its edges. AVKit makes the panel
+  as tall as its tallest tab and lays Info out in it, so `PlayerTabPlatter` asks 263 pt and puts
+  its platter 14 pt down, 250 pt tall — the frame Info's platter then has, pixel for pixel, on the
+  tvOS 27.2 and 26.5 simulators (2026-10-21).
 
 **Up Next tab (tvOS).** Right after Info; the Apple-TV way.
 

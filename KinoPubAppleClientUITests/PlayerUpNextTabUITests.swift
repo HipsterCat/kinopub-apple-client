@@ -3,7 +3,8 @@
 //  KinoPubAppleClientUITests
 //
 //  The player's Info panel has custom tabs (`customInfoViewControllers`) whose content is
-//  ours: **Episodes** / **Серии** (a series, before Up Next) and **Up Next** / **Далее**.
+//  ours: **Up Next** / **Далее** and, for a series, **Season N** / **Сезон N** after it.
+//  `PlayerTabsUITests` covers both on a fixture with no session.
 //  Up Next once grew taller every time it was re-entered — the tab strip crept up the
 //  screen while the tiles stayed put, leaving an ever larger gap (seen 2026-09-30).
 //
@@ -54,11 +55,10 @@ final class PlayerUpNextTabUITests: XCTestCase {
     remote.press(.select)
 
     // The player: AVKit's tab strip is a collection (`AVInfoMenuCollection`) of cells — Info,
-    // then our Episodes (a series), then Up Next — that only exists once the stream is up
-    // and the controls are showing, so keep asking for it.
+    // Up Next, then the season (a series) — that only exists once the stream is up and the
+    // controls are showing, so keep asking for it.
     let strip = app.collectionViews["AVInfoMenuCollection"]
     let info = strip.cells.element(boundBy: 0)
-    let episodes = Self.tab(in: strip, names: ["Episodes", "Серии"])
     let upNext = Self.tab(in: strip, names: ["Up Next", "Далее"])
     var shown = false
     let deadline = Date().addingTimeInterval(120)
@@ -71,15 +71,10 @@ final class PlayerUpNextTabUITests: XCTestCase {
       return XCTFail("the player never showed the Info / Up Next tabs — is the first Continue Watching "
                      + "item an episode with episodes after it?\n\(app.debugDescription)")
     }
-    XCTAssertTrue(episodes.exists,
-                  "a series should show Episodes before Up Next\n\(app.debugDescription)")
-    XCTAssertLessThan(episodes.frame.minX, upNext.frame.minX,
-                      "Episodes must sit before Up Next in the strip")
-
     // Walk focus to the Up Next tab by state, not by a fixed key count: Down until the strip
-    // has focus on Info, then Right past Episodes onto Up Next, whose content then shows.
+    // has focus on Info, then Right onto Up Next, whose content then shows.
     for _ in 0..<12 where !upNext.isSelected {
-      remote.press(info.hasFocus || episodes.hasFocus || episodes.isSelected ? .right : .down)
+      remote.press(info.hasFocus ? .right : .down)
       Thread.sleep(forTimeInterval: 1.5)
     }
     XCTAssertTrue(upNext.isSelected, "never reached the Up Next tab\n\(app.debugDescription)")
