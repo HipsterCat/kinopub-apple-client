@@ -62,7 +62,10 @@ public enum TVPageLayout {
   /// Half the screen: the platter width `TVPageBannerChrome.width == .halfScreen` uses,
   /// so a neighbour still peeks once the row is aligned with the other rails.
   public static func bannerWidth(containerWidth: CGFloat) -> CGFloat {
-    max(((containerWidth - TVHIGGrid.gutter * 2) / 2).rounded(.down), 1)
+    let sideInset = TVHIGGrid.sideInset
+    let content = max(containerWidth - sideInset * 2, 1)
+    let usable = max(content - TVPageBannerChrome.bannerGutter, 1)
+    return (usable / 2).rounded(.down)
   }
 
   /// An info card (a score, a review, a fact, the stills, a column of specs): tall enough
@@ -306,7 +309,7 @@ public enum TVPageLayout {
     let group = NSCollectionLayoutGroup.horizontal(layoutSize: size,
                                                    subitems: [NSCollectionLayoutItem(layoutSize: size)])
     let layoutSection = NSCollectionLayoutSection(group: group)
-    layoutSection.interGroupSpacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
+    layoutSection.interGroupSpacing = TVPageBannerChrome.bannerGutter - recipe.artInsets.leading - recipe.artInsets.trailing
     switch chrome.row {
     case .leading:
       layoutSection.orthogonalScrollingBehavior = .continuous

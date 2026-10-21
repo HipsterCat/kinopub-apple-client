@@ -69,7 +69,7 @@ final class TVPageBannerCell: UICollectionViewCell {
     cardView.cardBackgroundColor = UIColor(white: 0.12, alpha: 1)
     cardView.layer.cornerRadius = Self.cornerRadius
     cardView.layer.cornerCurve = .continuous
-    cardView.clipsToBounds = true
+    cardView.clipsToBounds = false
     cardView.translatesAutoresizingMaskIntoConstraints = false
     contentView.addSubview(cardView)
     logoSession.onChange = { [weak self] in self?.paintLogoSession() }
@@ -189,13 +189,15 @@ final class TVPageBannerCell: UICollectionViewCell {
     return feature.card.id > 0
   }
 
+  private var isAnimatingLogoFocus: Bool = false
+
   /// Allows lab previews to simulate the focused appearance without a physical remote focus.
   var isSimulatedFocused: Bool = false {
     didSet {
       applyCopyColor()
       applyScrim()
+      applyLogoShadow()
       applyLogoFocus(animated: true)
-      setNeedsLayout()
     }
   }
 
@@ -204,6 +206,7 @@ final class TVPageBannerCell: UICollectionViewCell {
     coordinator.addCoordinatedAnimations {
       self.applyCopyColor()
       self.applyScrim()
+      self.applyLogoShadow()
       self.applyLogoFocus(animated: false)
     }
   }
@@ -214,11 +217,32 @@ final class TVPageBannerCell: UICollectionViewCell {
        previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
       applyScrim()
       applyCopyColor()
+      applyLogoShadow()
       setNeedsLayout()
     }
   }
 
-  /// Smoothly scales down the title logo / header in the focused state, anchored to the top-left (or top-center).
+  /// Soft all-around drop shadow for title logo and header text, ensuring legibility on light backdrops.
+  private func applyLogoShadow() {
+    let isEffectiveFocused = isFocused || isSimulatedFocused || chrome.isFocusedState
+    let isHighContrast = traitCollection.accessibilityContrast == .high || UIAccessibility.isReduceTransparencyEnabled
+    let opacity: Float
+    if isHighContrast {
+      opacity = isEffectiveFocused ? 0.95 : 0.75
+    } else {
+      opacity = isEffectiveFocused ? 0.80 : 0.45
+    }
+    for view in [logo, titleLabel] {
+      view.layer.shadowColor = UIColor.black.cgColor
+      view.layer.shadowOffset = CGSize(width: 0, height: 2)
+      view.layer.shadowRadius = 14
+      view.layer.shadowOpacity = opacity
+      view.layer.masksToBounds = false
+    }
+  }
+
+  /// Scales down the title logo / header in the focused state, moving its top-left corner
+  /// closer to the card edges (padding halved from pad to pad / 2).
   private func applyLogoFocus(animated: Bool = false) {
     let isEffectiveFocused = isFocused || isSimulatedFocused || chrome.isFocusedState
     let scale: CGFloat = isEffectiveFocused ? 0.85 : 1.0
@@ -231,16 +255,18 @@ final class TVPageBannerCell: UICollectionViewCell {
     }
 
     let bounds = targetView.bounds
+    let pad = chrome.padding
     let targetTransform: CGAffineTransform
     if isEffectiveFocused, bounds.width > 0, bounds.height > 0 {
       let w = bounds.width
       let h = bounds.height
+      let halfPad = pad / 2
       if chrome.alignment == .center {
-        let ty = -h * (1 - scale) / 2
+        let ty = -h * (1 - scale) / 2 - halfPad
         targetTransform = CGAffineTransform(translationX: 0, y: ty).scaledBy(x: scale, y: scale)
       } else {
-        let tx = -w * (1 - scale) / 2
-        let ty = -h * (1 - scale) / 2
+        let tx = -w * (1 - scale) / 2 - halfPad
+        let ty = -h * (1 - scale) / 2 - halfPad
         targetTransform = CGAffineTransform(translationX: tx, y: ty).scaledBy(x: scale, y: scale)
       }
     } else if isEffectiveFocused {
@@ -250,9 +276,18 @@ final class TVPageBannerCell: UICollectionViewCell {
     }
 
     if animated {
-      UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut, .beginFromCurrentState]) {
-        targetView.transform = targetTransform
-      }
+      isAnimatingLogoFocus = true
+      UIView.animate(
+        withDuration: 0.32,
+        delay: 0,
+        options: [.curveEaseInOut, .beginFromCurrentState],
+        animations: {
+          targetView.transform = targetTransform
+        },
+        completion: { [weak self] _ in
+          self?.isAnimatingLogoFocus = false
+        }
+      )
     } else {
       targetView.transform = targetTransform
     }
@@ -273,10 +308,21 @@ final class TVPageBannerCell: UICollectionViewCell {
     }
     let host = cardView.contentView.bounds.size
     guard host.height > 0 else { return }
+    let isEffectiveFocused = isFocused || isSimulatedFocused || chrome.isFocusedState
+    let isHighContrast = traitCollection.accessibilityContrast == .high || UIAccessibility.isReduceTransparencyEnabled
+
     switch chrome.scrim {
     case .edges(_, let topReach, _, let bottomReach, _):
+      let effectiveReach: CGFloat
+      if isHighContrast {
+        effectiveReach = max(bottomReach, 0.80)
+      } else if isEffectiveFocused {
+        effectiveReach = max(bottomReach, 0.78)
+      } else {
+        effectiveReach = bottomReach
+      }
       topScrimHeight.constant = host.height * topReach
-      bottomScrimHeight.constant = host.height * bottomReach
+      bottomScrimHeight.constant = host.height * effectiveReach
     case .wash:
       topScrimHeight.constant = 0
       bottomScrimHeight.constant = 0
@@ -291,7 +337,9 @@ final class TVPageBannerCell: UICollectionViewCell {
       setNeedsLayout()
     }
     updateLogoSize(in: host)
-    applyLogoFocus(animated: false)
+    if !isAnimatingLogoFocus {
+      applyLogoFocus(animated: false)
+    }
     if laysOutPlatterForPreview {
       cardView.contentView.layoutIfNeeded()
     }
@@ -719,6 +767,7 @@ final class TVPageBannerCell: UICollectionViewCell {
 
     chromeConstraints = pins
     NSLayoutConstraint.activate(pins)
+    applyLogoShadow()
     applyLogoFocus(animated: false)
     setNeedsLayout()
   }
@@ -770,28 +819,44 @@ final class TVPageBannerCell: UICollectionViewCell {
     let isHighContrast = traitCollection.accessibilityContrast == .high || UIAccessibility.isReduceTransparencyEnabled
 
     switch chrome.scrim {
-    case .edges(let color, _, let topAlpha, _, let bottomAlpha):
+    case .edges(let color, let topReach, let topAlpha, let bottomReach, let bottomAlpha):
       topScrim.isHidden = topAlpha <= 0
-      var effectiveBottomAlpha = isEffectiveFocused ? min(bottomAlpha + 0.10, 0.95) : bottomAlpha
+      var effectiveBottomAlpha = bottomAlpha
+      if isEffectiveFocused {
+        effectiveBottomAlpha = min(effectiveBottomAlpha + 0.20, 0.70)
+      }
       if isHighContrast {
-        effectiveBottomAlpha = min(effectiveBottomAlpha + 0.10, 0.98)
+        effectiveBottomAlpha = min(effectiveBottomAlpha + 0.15, 0.85)
       }
       bottomScrim.isHidden = effectiveBottomAlpha <= 0
       topScrim.colors = [color.withAlphaComponent(topAlpha), color.withAlphaComponent(0)]
       topScrim.locations = [0, 1]
 
-      // Smooth multi-stop curve stretching softly into zero at the top without an abrupt edge
+      // Bottom ~20% stays at full bottom alpha (factor 1.0), softly easing out to zero at the top
       let stops: [(pos: Double, factor: Double)] = [
         (0.00, 0.00),
-        (0.18, 0.04),
-        (0.36, 0.16),
-        (0.54, 0.38),
-        (0.72, 0.66),
-        (0.88, 0.88),
+        (0.20, 0.05),
+        (0.40, 0.20),
+        (0.60, 0.55),
+        (0.80, 1.00),
         (1.00, 1.00)
       ]
       bottomScrim.locations = stops.map { NSNumber(value: $0.pos) }
       bottomScrim.colors = stops.map { color.withAlphaComponent(effectiveBottomAlpha * $0.factor) }
+
+      let effectiveReach: CGFloat
+      if isHighContrast {
+        effectiveReach = max(bottomReach, 0.80)
+      } else if isEffectiveFocused {
+        effectiveReach = max(bottomReach, 0.78)
+      } else {
+        effectiveReach = bottomReach
+      }
+      let hostHeight = cardView.contentView.bounds.height
+      if hostHeight > 0 {
+        topScrimHeight.constant = hostHeight * topReach
+        bottomScrimHeight.constant = hostHeight * effectiveReach
+      }
     case .wash(let color):
       wash.isHidden = false
       let washAlpha = isEffectiveFocused ? min(0.65, 0.90) : 0.50
@@ -916,6 +981,8 @@ final class TVPageBannerCell: UICollectionViewCell {
     topHeader.transform = .identity
     logo.transform = .identity
     titleLabel.transform = .identity
+    isAnimatingLogoFocus = false
+    applyLogoShadow()
     accessibilityIdentifier = nil
   }
 

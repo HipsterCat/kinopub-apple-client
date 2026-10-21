@@ -129,6 +129,8 @@ public enum TVPageBannerBlend: String, CaseIterable, Hashable, Sendable {
 public struct TVPageBannerChrome: Sendable {
   public static let current = TVPageBannerChrome()
 
+  public static let bannerGutter: CGFloat = 60
+
   public var row: TVPageBannerRow = .leading
   public var width: TVPageBannerWidth = .pair
   public var logoPlacement: TVPageBannerLogoPlacement = .top
@@ -140,8 +142,8 @@ public struct TVPageBannerChrome: Sendable {
     color: .black,
     topReach: 0.0,
     topAlpha: 0.0,
-    bottomReach: 0.75,
-    bottomAlpha: 0.85
+    bottomReach: 0.60,
+    bottomAlpha: 0.50
   )
   public var blend: TVPageBannerBlend = .normal
   /// Description, rating digits and genres. One style, the font's own weight.
@@ -190,8 +192,8 @@ public struct TVPageBannerChrome: Sendable {
       color: .black,
       topReach: 0.0,
       topAlpha: 0.0,
-      bottomReach: 0.75,
-      bottomAlpha: 0.85
+      bottomReach: 0.60,
+      bottomAlpha: 0.50
     ),
     blend: TVPageBannerBlend = .normal,
     textStyle: UIFont.TextStyle = .caption2,
@@ -269,7 +271,8 @@ public struct TVPageBannerChrome: Sendable {
     switch width {
     case .pair:
       let content = max(containerWidth - sideInset * 2, 1)
-      return TVHIGGrid.cardWidth(columns: 2, contentWidth: content)
+      let usable = max(content - TVPageBannerChrome.bannerGutter, 1)
+      return (usable / 2).rounded(.down)
     case .halfScreen:
       return TVPageLayout.bannerWidth(containerWidth: containerWidth)
     case .content(let peek):
