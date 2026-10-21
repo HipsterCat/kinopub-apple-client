@@ -8,6 +8,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubMetadata
 #if os(tvOS)
 import SwiftUI
 import KinoPubMedia
@@ -90,10 +91,12 @@ struct PlaybackEpisodes {
 
 extension PlaybackEpisodes {
 
-  /// The tab's name: the season playing, «Сезон 2» — the tab holds that season alone.
-  var seasonTitle: String {
-    let number = seasons.first { $0.id == selectedSeasonID }?.displayNumber ?? 1
-    return String(format: "MediaItem_SeasonSingle".localized, number)
+  /// The tab's name, the same for every series: «Серии» / «Episodes» (Sasha, 2026-10-21).
+  var seasonTitle: String { "Episodes".localized }
+
+  /// The kino.pub season number of the season playing — what a TMDB schedule is asked by.
+  var selectedSeasonNumber: Int? {
+    seasons.first { $0.id == selectedSeasonID }?.number
   }
 
   /// The season playing, as the tiles of one rail — the same cells the title page's
@@ -105,17 +108,43 @@ extension PlaybackEpisodes {
   /// 2–4 its flags still say only episode 1 was seen. This device's progress records each
   /// of them as it plays, and the tab is built afresh for every episode the player swaps
   /// in — so it is read once per episode, with nothing recounted while one plays.
+  ///
+  /// `schedule` is TMDB's list for the season: the episodes it has that kino.pub has not
+  /// uploaded stand in their place, with their date or a lock, as on the title page —
+  /// shown, not playable (Sasha, 2026-10-21: the row looked empty without them).
   @MainActor
-  func seasonItems(viewer: ViewerStateReading) -> [TVUIKitMediaItem] {
+  func seasonItems(viewer: ViewerStateReading, schedule: [EpisodeSchedule] = []) -> [TVUIKitMediaItem] {
     guard let group = seasons.first(where: { $0.id == selectedSeasonID }) else { return [] }
     let season = seasonByID[group.id]
-    return group.episodeIDs.compactMap { id in
+    var numbered: [(number: Int, item: TVUIKitMediaItem)] = group.episodeIDs.compactMap { id in
       guard let episode = episodeByID[id] else { return nil }
       let state = viewer.state(for: .episode(seriesID, season: group.number, number: episode.number),
                                reported: ViewerState(reportedBy: episode))
-      return Self.railItem(episode: episode, in: season, state: state,
-                           isNowPlaying: id == playingEpisodeID)
+      return (episode.number, Self.railItem(episode: episode, in: season, state: state,
+                                            isNowPlaying: id == playingEpisodeID))
     }
+    let onKinoPub = Set(numbered.map(\.number))
+    for announced in schedule where !onKinoPub.contains(announced.episodeNumber) {
+      numbered.append((announced.episodeNumber, Self.announcedItem(announced, season: group.number)))
+    }
+    return numbered.sorted { $0.number < $1.number }.map(\.item)
+  }
+
+  /// Ids of tiles that are not kino.pub episodes — negative, so they never meet one.
+  static func announcedID(season: Int, number: Int) -> Int { -(season * 1_000_000 + number) }
+
+  /// An episode TMDB lists and kino.pub does not have, as `SeasonsRailView` draws it: its
+  /// date in the corner while it is ahead, the lock once it has aired.
+  @MainActor
+  private static func announcedItem(_ schedule: EpisodeSchedule, season: Int) -> TVUIKitMediaItem {
+    let status: TVUIKitMediaItemStatus = MissingEpisodeAirState(airDate: schedule.airDate)
+      .badgeText.map { .upcoming($0) } ?? .locked
+    return TVUIKitMediaItem(id: announcedID(season: season, number: schedule.episodeNumber),
+                            imageURL: schedule.still,
+                            caption: EpisodeText(season: nil, number: schedule.episodeNumber,
+                                                 name: schedule.name)
+                              .text(for: .episodeTile),
+                            status: status)
   }
 
   /// Same mapping as `SeasonsRailView.railItem` for a playable kino.pub episode, its

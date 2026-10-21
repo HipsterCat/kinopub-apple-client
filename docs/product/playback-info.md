@@ -129,22 +129,25 @@ surface and get no substitute.
 
 **Season tab (tvOS).** After Up Next, a series only.
 
-- **prd** — A series' Info strip is **Info**, **Season N** / **Сезон N**, then **Up Next** / **Далее**
-  (Sasha, 2026-10-21: the season first). Season N is the season playing, alone — no season pills, no other seasons (those are on the title page).
-  Same episode cells and rail component as the page (`TVPageLayout.stillRun`), at five columns
-  of the platter instead of the page's four, with no line under the tiles and the runtime or bar
-  on the focused tile only (Sasha, 2026-10-21, for now), so the tab is as tall as Info and Up Next and the
+- **prd** — A series' Info strip is **Info**, **Episodes** / **Серии**, then **Up Next** / **Далее**
+  (Sasha, 2026-10-21: the season first). Episodes is the season playing, alone (the tab is named the same for every series — Sasha, 2026-10-21) — no season pills, no other seasons (those are on the title page).
+  Same episode cells and rail component as the page, laid out as a `TileRun`: 40 pt of air on
+  every side of the tiles, half the page's gutter between them, no line under them, the runtime
+  or bar on the focused tile only (Sasha, 2026-10-21, for now). TMDB's episodes kino.pub has not
+  uploaded stand in their place with their date or lock, shown and not playable, as on the page; so the tab is as tall as Info and Up Next and the
   strip does not move between the three. A scrolled rail shows a piece of the tile before and
   after (side inset = gutter + 28 pt peek), so it reads as a list. The stills are centred on the
   platter. Down from the tab lands on the episode playing (Season) or the first tile (Up Next)
   until the remote has been in the rail; after that, on the tile it left from. (Sasha, 2026-10-21.) The rail opens parked
   on the episode playing and Down from the tab lands on it. Select plays that episode in place. A
   film has no Season tab. (Sasha, 2026-10-20; replaces the 2026-10-15 Episodes tab before Up Next.)
-- **prd** — The episode playing is marked: its still dimmed, a ring round it, its caption in the
-  primary colour, its runtime instead of a progress bar. Focused, it keeps all of it — the ring
-  grows with the still (`TVMediaItemContentView.focusedFrameGuide`). The ring is the system's
-  stroke (`UIBackgroundConfiguration.strokeOutset`, concentric with the still's corners); under
-  Increase Contrast the focused tile wears the system border instead. (Sasha, 2026-10-20.)
+- **prd** — The episode playing is marked by a ring: 6 pt off the still at rest, on its edge
+  while focused (`TVMediaItemContentView.focusedFrameGuide`), in Increase Contrast too. Its
+  runtime replaces the bar. No dimming (off 2026-10-21; the overlay keeps it for later). The
+  ring is the system's stroke (`UIBackgroundConfiguration.strokeOutset`, concentric). **Apple API
+  limitation:** it cannot ride the still's own layers — the system's image stack clips to the
+  still and overscans in focus — so the press-down scale does not move it; the still's corner
+  radius is measured, TVUIKit exposes none.
 - Watched and part-watched on these tiles are this device's progress over the payload
   (`ViewerStateReading`): the series snapshot is the one cached when the player opened, so after
   auto-play went through episodes 2–4 it still said only episode 1. The tab is built for every

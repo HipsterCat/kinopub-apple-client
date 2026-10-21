@@ -5,6 +5,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS player tabs, fourth pass (2026-10-21)
+
+- The tab is **Episodes / Серии** for every series. Tiles are a `TVUIKitMediaItemRail.TileRun`:
+  40 pt of air all round, half the gutter between tiles (`PlayerTabPlatter`). TMDB's episodes
+  kino.pub lacks are back in the row (`PlayerManager.loadEpisodesSchedule`, same season match as
+  the title page), not playable.
+- No dimming on the playing tile (kept, hidden, in the overlay). The ring shows in focus and
+  under Increase Contrast, hugging the still. Probed: anything on the still's own layers is
+  clipped to the still, and its focused layer overscans past the edge, so the ring stays a
+  cell background; the press-down scale doesn't reach it. `TVMediaItemContentBadgeProperties`
+  has colour, font and transform only — no way to show the system badge unfocused.
+
 ### tvOS player tabs, third pass (2026-10-21)
 
 - Season before Up Next. Five columns, no caption under the tiles (`TVPageCaption.never`, now

@@ -175,6 +175,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// One details fetch when the snapshot has no seasons (Continue Watching already
   /// caches them; the detail page does too).
   private var episodesFetchStarted = false
+  /// TMDB's episodes of the season playing, once asked (`loadEpisodesSchedule`).
+  private var episodesSchedule: [EpisodeSchedule]?
+  private var episodesScheduleAsked = false
   /// The model's facts per upcoming episode once the enrichment sources answered.
   private var upNextEnriched: [Int: MediaContext] = [:]
   private var upNextAsked: Set<Int> = []
@@ -1530,12 +1533,15 @@ enum PlayerTabPlatter {
   static let height: CGFloat = 263
   static let top: CGFloat = 14
   static let platterHeight: CGFloat = 250
-  /// Five still columns across the platter, and no line under them — the art and the air
-  /// fit `platterHeight` (Sasha, 2026-10-21: six read too small; captions off for now).
-  static let columns = 5
-  static let caption: TVPageCaption = .never
-  /// How much of the tile before and after shows past the side inset.
-  static let peek: CGFloat = 28
+  /// The same air on every side of the tiles, and half the page's gutter between them
+  /// (Sasha, 2026-10-21). With no line under the tiles, the tile is the platter less that
+  /// air above and below; past the side inset a scrolled rail shows `inset − spacing` of
+  /// the tile before, and the row runs on past the trailing edge.
+  static let inset: CGFloat = 40
+  static let spacing: CGFloat = TVHIGGrid.gutter / 2
+  static var tileRun: TVUIKitMediaItemRail.TileRun {
+    .init(height: platterHeight - inset * 2, spacing: spacing, inset: inset)
+  }
 }
 
 /// The tab `railTab` builds: the platter, and the rail centred on it. UIKit, not a SwiftUI
@@ -1545,8 +1551,6 @@ enum PlayerTabPlatter {
 /// One fixed `preferredContentSize`, never derived from content: AVKit re-measures a tab
 /// each time it shows it, and a hosted tab grew on every re-entry (`PlayerUpNextTabUITests`).
 final class PlayerRailTab: UIViewController {
-  /// A gutter plus the peek: a scrolled rail shows a piece of the tile on either side.
-  static let sideInset = TVHIGGrid.gutter + PlayerTabPlatter.peek
 
   private let platter = UIHostingController(rootView: AnyView(Color.clear.kinoPlayerGlass(
     in: RoundedRectangle(cornerRadius: PlayerTabPlatter.cornerRadius, style: .continuous))))
@@ -1610,21 +1614,12 @@ final class PlayerRailTab: UIViewController {
     railHeight = height
   }
 
-  /// The art-and-caption block in the middle: the same air above the still as under its
-  /// caption (Sasha, 2026-10-20: the bottom air was measured from the still).
+  /// The row in the middle: `PlayerTabPlatter.inset` above and below the tiles.
   override func viewWillLayoutSubviews() {
     super.viewWillLayoutSubviews()
-    let width = view.bounds.width
-    guard width > 1 else { return }
-    let height = PlayerTabPlatter.platterHeight
-    let parts = TVPageLayout.stillRunParts(columns: PlayerTabPlatter.columns, caption: PlayerTabPlatter.caption,
-                                           containerWidth: width, sideInset: Self.sideInset)
-    // The recipe keeps room for a line under the tile even when none is drawn.
-    let below = PlayerTabPlatter.caption == .never ? 0 : parts.belowStill
-    let block = parts.still.height + below
-    let air = max(((height - block) / 2).rounded(), 0)
-    railTop?.constant = air - parts.topInset
-    railHeight?.constant = parts.topInset + block + air
+    let run = PlayerTabPlatter.tileRun
+    railTop?.constant = (PlayerTabPlatter.platterHeight - run.height) / 2
+    railHeight?.constant = run.height
   }
 }
 
@@ -1653,6 +1648,33 @@ extension PlayerManager {
     let episodes = MainActor.assumeIsolated { makeEpisodesTab() }
     let upNext = makeUpNextTab()
     controller.customInfoViewControllers = [episodes, upNext].compactMap { $0 }
+  }
+
+  /// TMDB's schedule for the season playing, asked once: the Episodes tab shows the episodes
+  /// kino.pub has not uploaded yet, as the title page does (`MediaItemModel.ensureSeasonSchedule`
+  /// — same season match, same cached `MetadataService`).
+  @MainActor
+  private func loadEpisodesSchedule(for list: PlaybackEpisodes) {
+    guard !episodesScheduleAsked, let series = titleContext, (series.imdb ?? 0) > 0,
+          let kinoNumber = list.selectedSeasonNumber,
+          let kinoSeason = series.seasons?.first(where: { $0.number == kinoNumber }) else { return }
+    episodesScheduleAsked = true
+    let service = metadataService
+    Task { [weak self] in
+      let identity = MediaIdentity(mediaItem: series)
+      let meta = await service.metadata(for: identity)
+      guard let tmdbSeason = TMDBSeasonMatch.tmdbSeason(
+        kinoNumber: kinoNumber,
+        titleNumber: kinoSeason.titleSeasonNumber,
+        tmdbSeasons: Set(meta.seasonSummaries.map(\.seasonNumber))) else { return }
+      let schedule = await service.schedule(for: identity, season: tmdbSeason)
+      guard !schedule.isEmpty else { return }
+      await MainActor.run {
+        guard let self else { return }
+        self.episodesSchedule = schedule
+        self.rebuildContentTabs()
+      }
+    }
   }
 
   /// Fetch the title with seasons when the snapshot has none — playing from the
@@ -1685,12 +1707,14 @@ extension PlayerManager {
       episodesTab = nil
       return nil
     }
-    let signature = list.signature
+    let signature = list.signature + (episodesSchedule ?? []).map { "t\($0.episodeNumber)" }
     if signature == episodesSignature, let episodesTab { return episodesTab }
     episodesSignature = signature
 
     let episodes = list.episodeByID
-    let tab = Self.railTab(items: list.seasonItems(viewer: AppContext.shared.viewerState),
+    loadEpisodesSchedule(for: list)
+    let tab = Self.railTab(items: list.seasonItems(viewer: AppContext.shared.viewerState,
+                                                   schedule: episodesSchedule ?? []),
                            entryItemID: list.openingEpisodeID) { [weak self] id in
       guard let episode = episodes[id] else { return }
       self?.onPlay?(episode)
@@ -1789,19 +1813,18 @@ extension PlayerManager {
     return tab
   }
 
-  /// One Info-strip tab of tiles: Up Next and Season N are both this.
+  /// One Info-strip tab of tiles: Episodes and Up Next are both this.
   ///
   /// **The platter** is the one AVKit draws under its own Info tab, and as tall: player
   /// glass (`kinoPlayerGlass` — an opaque fill on low-power Apple TVs and with Reduce
   /// Transparency), rounded, clipping the rail at its edges. A tab of a different height
   /// moved the strip between Info and these two (Sasha, 2026-10-20).
   ///
-  /// **The rail** is the title page's episode rail — `TVPageLayout.stillRun`, same cell and
-  /// gutter — at the player's density (`PlayerTabPlatter.columns` of the platter's width;
-  /// the page uses four of the screen's), without the line under the tiles, and with the
-  /// runtime and bar on the focused tile only. Its side inset is a gutter plus `peek`, so a
-  /// scrolled rail always shows a piece of the tile before and after: it reads as a list.
-  /// The block sits in the middle of the platter (`PlayerRailTab`).
+  /// **The rail** is the title page's episode rail — same cell, same `TVUIKitMediaItemRail` —
+  /// laid out as a `TileRun` (`PlayerTabPlatter`): the same air on every side, half the
+  /// page's gutter between tiles, no line under them, the runtime and bar on the focused
+  /// tile only. A scrolled rail shows a piece of the tile before and after: it reads as a
+  /// list.
   ///
   /// **Where Down lands:** `entryItemID` — the episode playing, Up Next's first tile — until
   /// the remote has been in the rail; then the tile it left from.
@@ -1810,14 +1833,13 @@ extension PlayerManager {
                               entryItemID: Int?,
                               onSelect: @escaping (Int) -> Void) -> UIViewController {
     PlayerRailTab(rail: TVUIKitMediaItemRail(items: items,
-                                             contentInset: PlayerRailTab.sideInset,
-                                             columns: PlayerTabPlatter.columns,
-                                             caption: PlayerTabPlatter.caption,
+                                             contentInset: PlayerTabPlatter.inset,
                                              entryItemID: entryItemID,
                                              animatesEntryScroll: false,
                                              onSelect: onSelect,
                                              fillsHeight: true,
-                                             overlayOnFocus: true))
+                                             overlayOnFocus: true,
+                                             tileRun: PlayerTabPlatter.tileRun))
   }
 
   /// Asks the enrichment sources about the next episode once, then rebuilds the tab —

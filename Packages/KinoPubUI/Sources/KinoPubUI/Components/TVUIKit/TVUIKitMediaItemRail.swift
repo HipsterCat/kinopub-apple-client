@@ -250,6 +250,33 @@ public extension TVUIKitMediaItem {
 /// Horizontal rail of system media-item cells. Sizes itself — callers must not pin a
 /// `.frame(height:)` guess on top of it.
 public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
+  /// A row of tiles of one height with a fixed gap, for a container that sizes the row
+  /// itself rather than by columns (the player's tabs): the tile is 16:9 at `height`,
+  /// `spacing` apart, `inset` from the sides.
+  public struct TileRun: Equatable {
+    public var height: CGFloat
+    public var spacing: CGFloat
+    public var inset: CGFloat
+
+    public init(height: CGFloat, spacing: CGFloat, inset: CGFloat) {
+      self.height = height
+      self.spacing = spacing
+      self.inset = inset
+    }
+
+    @MainActor
+    func section() -> NSCollectionLayoutSection {
+      let size = NSCollectionLayoutSize(widthDimension: .absolute((height * 16 / 9).rounded()),
+                                        heightDimension: .absolute(height))
+      let group = NSCollectionLayoutGroup.horizontal(layoutSize: size,
+                                                     subitems: [NSCollectionLayoutItem(layoutSize: size)])
+      let section = NSCollectionLayoutSection(group: group)
+      section.interGroupSpacing = spacing
+      section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: inset, bottom: 0, trailing: inset)
+      return section
+    }
+  }
+
   private let items: [TVUIKitMediaItem]
   private let contentInset: CGFloat
   private let columns: Int?
@@ -263,6 +290,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   private let allowsFocus: Bool
   private let fillsHeight: Bool
   private let overlayOnFocus: Bool
+  private let tileRun: TileRun?
 
   /// - Parameters:
   ///   - contentInset: leading/trailing inset, so the rail lines up with the section
@@ -281,6 +309,7 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
   ///   - fillsHeight: take the height it is offered rather than the row's own, items from
   ///     the top — for a container that places the row itself (the player's tabs).
   ///   - overlayOnFocus: the runtime and the progress bar show on the focused tile only.
+  ///   - tileRun: lay the row out as `TileRun` instead of columns (`columns` is then ignored).
   public init(items: [TVUIKitMediaItem],
               contentInset: CGFloat = 0,
               columns: Int? = nil,
@@ -293,7 +322,8 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
               contextMenuProvider: ((Int) -> [MediaCardContextEntry])? = nil,
               allowsFocus: Bool = true,
               fillsHeight: Bool = false,
-              overlayOnFocus: Bool = false) {
+              overlayOnFocus: Bool = false,
+              tileRun: TileRun? = nil) {
     self.items = items
     self.contentInset = contentInset
     self.columns = columns
@@ -307,11 +337,13 @@ public struct TVUIKitMediaItemRail: UIViewControllerRepresentable {
     self.allowsFocus = allowsFocus
     self.fillsHeight = fillsHeight
     self.overlayOnFocus = overlayOnFocus
+    self.tileRun = tileRun
   }
 
   public func makeUIViewController(context: Context) -> TVUIKitMediaItemRailController {
     let controller = TVUIKitMediaItemRailController(contentInset: contentInset, columns: columns,
-                                                    caption: caption, overlayOnFocus: overlayOnFocus)
+                                                    caption: caption, overlayOnFocus: overlayOnFocus,
+                                                    tileRun: tileRun)
     controller.apply(items: items,
                      entryItemID: entryItemID,
                      animatesEntryScroll: animatesEntryScroll,
@@ -471,6 +503,10 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   private let columns: Int?
   private let caption: TVPageCaption
   private let overlayOnFocus: Bool
+  private let tileRun: TVUIKitMediaItemRail.TileRun?
+  /// The row is this collection's own horizontal scroll, so the offset we set is the one
+  /// that shows (`align`).
+  private var ownsScroll: Bool { columns != nil || tileRun != nil }
 
   private var entryItemID: Int?
   private var onSelect: ((Int) -> Void)?
@@ -491,7 +527,10 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     let inset = contentInset
     let caption = caption
     let layout: UICollectionViewCompositionalLayout
-    if let columns {
+    if let tileRun {
+      layout = UICollectionViewCompositionalLayout(sectionProvider: { _, _ in tileRun.section() },
+                                                   configuration: TVPageLayout.stillRunConfiguration())
+    } else if let columns {
       // A still row is its own horizontal scroll (`TVPageLayout.stillRun`), so the offset
       // we set is the one that shows.
       layout = UICollectionViewCompositionalLayout(sectionProvider: { _, environment in
@@ -524,7 +563,8 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   }()
 
   init(contentInset: CGFloat, columns: Int? = nil, caption: TVPageCaption = .always,
-       overlayOnFocus: Bool = false) {
+       overlayOnFocus: Bool = false, tileRun: TVUIKitMediaItemRail.TileRun? = nil) {
+    self.tileRun = tileRun
     self.contentInset = contentInset
     self.columns = columns
     self.caption = caption
@@ -687,7 +727,7 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   /// `indexPathForPreferredFocusedView`, which is the hook the engine consults when it
   /// enters this rail; moving focus from here instead would fight it.
   private func scrollToEntry(animated: Bool) {
-    if columns != nil, let entryItemID {
+    if ownsScroll, let entryItemID {
       align(to: entryItemID, animated: animated)
       return
     }
@@ -733,7 +773,7 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
     ) as! TVUIKitMediaItemCell
     cell.configure(items[indexPath.item], allowsFocus: allowsFocus,
                    captionOnFocus: columns != nil && caption == .onFocus,
-                   hidesCaption: columns != nil && caption == .never,
+                   hidesCaption: tileRun != nil || (columns != nil && caption == .never),
                    overlayOnFocus: overlayOnFocus)
     cell.tileAlpha = alpha(at: indexPath.item)
     return cell
@@ -899,39 +939,51 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   }
 
   /// The ring round the still of the episode on screen. The system draws it: a clear cell
-  /// background framed on the still with a stroke `ringGap` outside, which
-  /// `UIBackgroundConfiguration.strokeOutset` keeps concentric with the still's corners.
+  /// background framed on the still, with a stroke outside it that
+  /// `UIBackgroundConfiguration.strokeOutset` keeps concentric with the corners.
   ///
-  /// It stays with focus, on the still's focused frame (`TVMediaItemContentView.focusedFrameGuide`,
-  /// ×1.108 — the system's lift, read off the layer tree on tvOS 27.2), so the tile keeps
-  /// saying "playing" while it is the focused one (Sasha, 2026-10-20). Under Increase
-  /// Contrast the focused tile wears the system's own border, so the ring steps aside there
-  /// rather than draw a second one.
+  /// At rest it stands `ringGap` off the still. Focused, it hugs the still's focused frame
+  /// (`TVMediaItemContentView.focusedFrameGuide`), in the same animation, so the tile keeps
+  /// saying "playing" while it is the focused one — and under Increase Contrast it lies on
+  /// the system's own border rather than beside it (Sasha, 2026-10-21).
+  ///
+  /// **Apple API limitation:** the ring cannot be part of the still. Focus, parallax and
+  /// the press all happen inside the system's image stack, which clips to the still, and its
+  /// focused layer overscans past the edge (a ring drawn inside the still is cut off in focus,
+  /// probed on tvOS 27.2). TVUIKit also exposes no corner radius: `effectiveRadius` reads 0
+  /// on every view of the stack, so the still's corners are measured (`stillCornerRadius`).
   private func nowPlayingRing(for state: UICellConfigurationState) -> UIBackgroundConfiguration {
     var ring = UIBackgroundConfiguration.clear()
     let still = bounds
     var frame = still
     if state.isFocused, let content = contentView as? TVMediaItemContentView {
-      let focused = content.focusedFrameGuide.layoutFrame
+      // The guide runs a little outside the still it frames: 1.5 pt in puts the ring on the
+      // still's edge (tvOS 27.2 shots, 2026-10-21).
+      let focused = content.focusedFrameGuide.layoutFrame.insetBy(dx: Self.guideOverhang,
+                                                                  dy: Self.guideOverhang)
       if focused.width > 1 { frame = focused }
     }
     ring.backgroundInsets = NSDirectionalEdgeInsets(top: frame.minY - still.minY,
                                                     leading: frame.minX - still.minX,
                                                     bottom: still.maxY - frame.maxY,
                                                     trailing: still.maxX - frame.maxX)
-    ring.cornerRadius = Self.stillCornerRadius * (still.width > 0 ? frame.width / still.width : 1)
+    ring.cornerRadius = state.isFocused ? Self.focusedStillCornerRadius : Self.stillCornerRadius
     ring.strokeColor = .label
-    ring.strokeOutset = Self.ringGap
-    let systemBorder = state.isFocused && traitCollection.accessibilityContrast == .high
-    ring.strokeWidth = systemBorder ? 0 : Self.ringWidth
+    // The outset is the stroke's outer edge. Focused, the stroke starts under the still's
+    // edge (`guideOverhang`), so it is widened by as much to show the same 4 pt.
+    let width = Self.ringWidth + (state.isFocused ? Self.guideOverhang : 0)
+    ring.strokeWidth = width
+    ring.strokeOutset = width + (state.isFocused ? 0 : Self.ringGap)
     return ring
   }
 
   private static let ringWidth: CGFloat = 4
+  private static let guideOverhang: CGFloat = 1.5
   private static let ringGap: CGFloat = 6
-  /// `wideCell()`'s still corner at rest, measured off a tvOS 27.2 shot (2026-10-20): the
-  /// continuous curve leaves the edge 17 pt from the corner. TVUIKit exposes no radius.
+  /// `wideCell()`'s still corners, measured off tvOS 27.2 shots (2026-10-21), at rest and
+  /// focused. TVUIKit exposes no radius (see `nowPlayingRing`).
   private static let stillCornerRadius: CGFloat = 12
+  private static let focusedStillCornerRadius: CGFloat = 12
 
   override func didUpdateFocus(in context: UIFocusUpdateContext,
                                with coordinator: UIFocusAnimationCoordinator) {
@@ -1201,7 +1253,9 @@ final class TVUIKitMediaItemOverlayView: UIView {
   func apply(status: TVUIKitMediaItemStatus, timeLabel: String?, isNowPlaying: Bool = false,
              showsTime: Bool = true) {
     scrim.isHidden = !status.dimsArtwork
-    nowPlayingDim.isHidden = !isNowPlaying
+    // Off (Sasha, 2026-10-21: the ring says it). Kept for dimming watched or upcoming tiles
+    // as a viewer's choice later, cleared on focus.
+    nowPlayingDim.isHidden = true // !isNowPlaying
 
     let glyph = status.glyph
     glyphView.image = glyph.flatMap { UIImage(systemName: $0) }

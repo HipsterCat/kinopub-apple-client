@@ -257,23 +257,6 @@ public enum TVPageLayout {
     return (edges.top + recipe.itemSize.height + edges.bottom).rounded(.up)
   }
 
-  /// A still run's vertical parts, for a container that frames the run itself rather than
-  /// stacking it under a title — the player's tabs centre it on their platter: the
-  /// section's top inset (focus room), the still, and the caption under it.
-  @MainActor
-  public static func stillRunParts(columns: Int,
-                                   caption: TVPageCaption,
-                                   containerWidth: CGFloat,
-                                   sideInset: CGFloat) -> (topInset: CGFloat, still: CGSize, belowStill: CGFloat) {
-    let section = stillRailSection(columns: columns, caption: caption)
-    let contentWidth = max(containerWidth - sideInset * 2, 1)
-    let art = TVHIGGrid.resolve(columns: columns, contentWidth: contentWidth).cardWidth
-    let recipe = TVPageCellMetrics.recipe(kind: .still, artWidth: art, caption: caption)
-    let edges = insets(for: recipe, sideInset: sideInset, titled: false,
-                       captioned: hasStandingCaption(section))
-    return (edges.top, recipe.itemSize, recipe.belowItem)
-  }
-
   /// The same still row for a collection view that **is** the row: its own scroll
   /// direction is horizontal, so the section is not orthogonal and the rail's offset
   /// belongs to us. `scrollToItem` on an orthogonal section drives a private inner scroll

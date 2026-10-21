@@ -9,6 +9,7 @@
 import XCTest
 @testable import KinoPub
 @testable import KinoPubBackend
+import KinoPubMetadata
 
 final class PlaybackEpisodesTests: XCTestCase {
 
@@ -66,7 +67,21 @@ final class PlaybackEpisodesTests: XCTestCase {
     XCTAssertEqual(items.map(\.id), [101, 102, 103])
     XCTAssertEqual(items.map(\.status), [.ready, .watched, .ready])
     XCTAssertEqual(items.map(\.isNowPlaying), [false, false, true])
-    XCTAssertEqual(list.seasonTitle, String(format: "MediaItem_SeasonSingle".localized, 1))
+    XCTAssertEqual(list.seasonTitle, "Episodes".localized)
+  }
+
+  /// TMDB's episodes kino.pub has not uploaded stand in their place, not playable.
+  @MainActor
+  func testAnnouncedEpisodesStandInTheirPlace() throws {
+    let series = series(seasonOrder: [1])
+    let playing = episode(in: series, season: 1, number: 1)
+    let list = try XCTUnwrap(PlaybackEpisodes(playing: playing, series: series))
+    let schedule = (1...5).map { EpisodeSchedule(episodeNumber: $0, seasonNumber: 1) }
+    let items = list.seasonItems(viewer: ViewerStateReaderMock(), schedule: schedule)
+    XCTAssertEqual(items.map(\.id), [101, 102, 103,
+                                     PlaybackEpisodes.announcedID(season: 1, number: 4),
+                                     PlaybackEpisodes.announcedID(season: 1, number: 5)])
+    XCTAssertNil(list.episodeByID[items[3].id], "an announced episode must not be playable")
   }
 
   /// Only the season playing — the tab is one row, like Up Next.
