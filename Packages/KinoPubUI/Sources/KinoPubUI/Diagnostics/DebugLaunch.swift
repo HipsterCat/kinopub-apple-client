@@ -101,6 +101,18 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBFixtureOpensAt <n>`: the `seasonStrip` fixture's second season has ten
+  /// episodes and is watched up to `n − 1`, so Play opens S2E`n` with the rest ahead — the
+  /// player's Episodes tab opening in the middle of a season.
+  public static var fixtureOpensAt: Int? {
+#if DEBUG
+    let value = UserDefaults.standard.integer(forKey: "KINOPUBFixtureOpensAt")
+    return value > 0 ? value : nil
+#else
+    nil
+#endif
+  }
+
   /// `-KINOPUBSlowShelves <seconds>`: the stand-in API (`VideoContentServiceMock`) takes that
   /// long to answer a person's shelf on the detail page, so the page spends the time with
   /// skeleton rows where shelves will land — what a real connection does and a fixture,

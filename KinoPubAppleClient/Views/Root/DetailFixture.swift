@@ -130,7 +130,9 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       // first unwatched after the last watched.
       json["seasons"] = [
         season(1, episodes: (1...6).map { episode(season: 1, number: $0, watched: true) }),
-        season(2, episodes: (1...8).map { episode(season: 2, number: $0, watched: $0 < 4) }),
+        season(2, episodes: DebugLaunch.fixtureOpensAt.map { opensAt in
+          (1...10).map { episode(season: 2, number: $0, watched: $0 < opensAt) }
+        } ?? (1...8).map { episode(season: 2, number: $0, watched: $0 < 4) }),
         season(3, episodes: (1...5).map { episode(season: 3, number: $0, watched: false) })
       ]
     case .missing:

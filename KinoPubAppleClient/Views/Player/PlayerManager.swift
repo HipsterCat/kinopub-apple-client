@@ -1552,13 +1552,34 @@ enum PlayerTabPlatter {
 /// each time it shows it, and a hosted tab grew on every re-entry (`PlayerUpNextTabUITests`).
 final class PlayerRailTab: UIViewController {
 
+  /// How the tiles sit in the tab (`FeatureFlags.playerTabsPlatter`, an experiment).
+  enum Style {
+    /// On a glass platter matched to Info's, the same air all round (`PlayerTabPlatter.tileRun`).
+    case platter
+    /// The title page's still row as it is: four columns of the tab's width, the page
+    /// gutter, no line under the tiles, no platter — the way Apple's own apps sit cards
+    /// over the video. The side inset is a gutter plus `openPeek`, so the
+    /// tile before the one the row opens on shows a piece, as does the one after the last
+    /// that fits (Sasha, 2026-10-21).
+    case open
+
+    static var current: Style { FeatureFlags.playerTabsPlatter ? .platter : .open }
+  }
+
+  static let openColumns = 4
+  /// How much of the tile before and after shows past the side inset, in `.open`.
+  static let openPeek: CGFloat = 28
+  static var openSideInset: CGFloat { TVHIGGrid.gutter + openPeek }
+
+  private let style: Style
   private let platter = UIHostingController(rootView: AnyView(Color.clear.kinoPlayerGlass(
     in: RoundedRectangle(cornerRadius: PlayerTabPlatter.cornerRadius, style: .continuous))))
   private let rail: UIHostingController<TVUIKitMediaItemRail>
   private var railTop: NSLayoutConstraint?
   private var railHeight: NSLayoutConstraint?
 
-  init(rail: TVUIKitMediaItemRail) {
+  init(rail: TVUIKitMediaItemRail, style: Style) {
+    self.style = style
     self.rail = UIHostingController(rootView: rail)
     super.init(nibName: nil, bundle: nil)
   }
@@ -1578,11 +1599,12 @@ final class PlayerRailTab: UIViewController {
     super.viewDidLoad()
     view.backgroundColor = .clear
     box.translatesAutoresizingMaskIntoConstraints = false
-    box.layer.cornerRadius = PlayerTabPlatter.cornerRadius
+    box.layer.cornerRadius = style == .platter ? PlayerTabPlatter.cornerRadius : 0
     box.layer.cornerCurve = .continuous
     box.clipsToBounds = true
     view.addSubview(box)
-    for child in [platter, rail] as [UIViewController] {
+    let children: [UIViewController] = style == .platter ? [platter, rail] : [rail]
+    for child in children {
       addChild(child)
       child.view.translatesAutoresizingMaskIntoConstraints = false
       child.view.backgroundColor = .clear
@@ -1602,24 +1624,43 @@ final class PlayerRailTab: UIViewController {
       box.heightAnchor.constraint(equalToConstant: PlayerTabPlatter.platterHeight),
       box.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       box.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      platter.view.topAnchor.constraint(equalTo: box.topAnchor),
-      platter.view.bottomAnchor.constraint(equalTo: box.bottomAnchor),
-      platter.view.leadingAnchor.constraint(equalTo: box.leadingAnchor),
-      platter.view.trailingAnchor.constraint(equalTo: box.trailingAnchor),
       rail.view.leadingAnchor.constraint(equalTo: box.leadingAnchor),
       rail.view.trailingAnchor.constraint(equalTo: box.trailingAnchor),
       top, height,
     ])
+    if style == .platter {
+      NSLayoutConstraint.activate([
+        platter.view.topAnchor.constraint(equalTo: box.topAnchor),
+        platter.view.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+        platter.view.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+        platter.view.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+      ])
+    }
     railTop = top
     railHeight = height
   }
 
-  /// The row in the middle: `PlayerTabPlatter.inset` above and below the tiles.
+  /// The tiles in the middle of Info's frame, whichever the style.
   override func viewWillLayoutSubviews() {
     super.viewWillLayoutSubviews()
-    let run = PlayerTabPlatter.tileRun
-    railTop?.constant = (PlayerTabPlatter.platterHeight - run.height) / 2
-    railHeight?.constant = run.height
+    let frame = PlayerTabPlatter.platterHeight
+    switch style {
+    case .platter:
+      let run = PlayerTabPlatter.tileRun
+      railTop?.constant = (frame - run.height) / 2
+      railHeight?.constant = run.height
+    case .open:
+      let width = view.bounds.width
+      guard width > 1 else { return }
+      // The still run's own top inset is the focus room; the still sits under it.
+      let card = TVHIGGrid.resolve(columns: Self.openColumns,
+                                   contentWidth: width - Self.openSideInset * 2).cardWidth
+      let still = (card * 9 / 16).rounded()
+      let focusRoom = TVHIGGrid.focusRoom(cardHeight: still)
+      let air = ((frame - still) / 2).rounded()
+      railTop?.constant = air - focusRoom
+      railHeight?.constant = focusRoom + still + air
+    }
   }
 }
 
@@ -1832,14 +1873,30 @@ extension PlayerManager {
   private static func railTab(items: [TVUIKitMediaItem],
                               entryItemID: Int?,
                               onSelect: @escaping (Int) -> Void) -> UIViewController {
-    PlayerRailTab(rail: TVUIKitMediaItemRail(items: items,
-                                             contentInset: PlayerTabPlatter.inset,
-                                             entryItemID: entryItemID,
-                                             animatesEntryScroll: false,
-                                             onSelect: onSelect,
-                                             fillsHeight: true,
-                                             overlayOnFocus: true,
-                                             tileRun: PlayerTabPlatter.tileRun))
+    let style = PlayerRailTab.Style.current
+    let rail: TVUIKitMediaItemRail
+    switch style {
+    case .platter:
+      rail = TVUIKitMediaItemRail(items: items,
+                                  contentInset: PlayerTabPlatter.inset,
+                                  entryItemID: entryItemID,
+                                  animatesEntryScroll: false,
+                                  onSelect: onSelect,
+                                  fillsHeight: true,
+                                  overlayOnFocus: true,
+                                  tileRun: PlayerTabPlatter.tileRun)
+    case .open:
+      rail = TVUIKitMediaItemRail(items: items,
+                                  contentInset: PlayerRailTab.openSideInset,
+                                  columns: PlayerRailTab.openColumns,
+                                  caption: .never,
+                                  entryItemID: entryItemID,
+                                  animatesEntryScroll: false,
+                                  onSelect: onSelect,
+                                  fillsHeight: true,
+                                  overlayOnFocus: true)
+    }
+    return PlayerRailTab(rail: rail, style: style)
   }
 
   /// Asks the enrichment sources about the next episode once, then rebuilds the tab —

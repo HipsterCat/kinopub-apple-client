@@ -54,6 +54,20 @@ final class PlayerTabsUITests: XCTestCase {
     try shoot("player-tabs-3-transport")
   }
 
+  /// Episode 2 of ten playing: the Episodes tab opens on it with a piece of episode 1
+  /// showing before it, and Down lands on it. Shot in both styles of the tab
+  /// (`FeatureFlag.playerTabsPlatter`).
+  func testEpisodesOpenInTheMiddleOfASeason() throws {
+    for (style, platter) in [("open", "<false/>"), ("platter", "<true/>")] {
+      try openPlayer(extra: ["-KINOPUBFixtureOpensAt", "2", "-featureFlag.playerTabsPlatter", platter])
+      press(.right)
+      try shoot("player-midseason-\(style)")
+      press(.down)
+      try shoot("player-midseason-\(style)-focused")
+      app.terminate()
+    }
+  }
+
   private func press(_ button: XCUIRemote.Button) {
     XCUIRemote.shared.press(button)
     Thread.sleep(forTimeInterval: 2)
@@ -61,8 +75,9 @@ final class PlayerTabsUITests: XCTestCase {
 
   // MARK: - Helpers
 
-  private func openPlayer() throws {
+  private func openPlayer(extra: [String] = []) throws {
     app = XCUIApplication()
+    app.launchArguments += extra
     app.launchArguments += ["-ui-testing",
                             "-KINOPUBDetailFixture", "seasonStrip",
                             "-KINOPUBFixtureRealPlayer", "YES",

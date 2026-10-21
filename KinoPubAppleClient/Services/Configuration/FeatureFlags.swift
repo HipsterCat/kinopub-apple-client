@@ -137,6 +137,12 @@ enum FeatureFlags {
   /// `RatingFeature.combinedEnabled` once at launch (`FeatureFlag.applyAtLaunch()`).
   static var combinedRatingEnabled: Bool { FeatureFlag.combinedRating.isEnabled }
 
+  /// tvOS player, Episodes and Up Next tabs: on, the tiles sit on a glass platter matched to
+  /// Info's (`PlayerRailTab.Style.platter`); off, they are the title page's still row —
+  /// four columns, the page gutter, no platter, Apple's way (`.open`). An experiment
+  /// (Sasha, 2026-10-21): the two stay side by side until one is chosen.
+  static var playerTabsPlatter: Bool { FeatureFlag.playerTabsPlatter.isEnabled }
+
   /// **TEMPORARY DIAGNOSTIC — DELETE ME.** Synthesises a fake season of episodes onto
   /// *movies*, so the detail page's season rail renders for a title that has none.
   ///
@@ -170,6 +176,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case tvOSSidecarSubtitles
   case rewritesStreamTrackMenus
   case combinedRating
+  case playerTabsPlatter
 #if DEBUG
   case fakeSeasonsOnMovies
 #endif
@@ -192,6 +199,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvOSSidecarSubtitles: false
     case .rewritesStreamTrackMenus: false
     case .combinedRating: true
+    case .playerTabsPlatter: false
 #if DEBUG
     case .fakeSeasonsOnMovies: false
 #endif
@@ -214,6 +222,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvOSSidecarSubtitles: "Sidecar SRT subtitles (dual)"
     case .rewritesStreamTrackMenus: "Rewrite the player's track menus"
     case .combinedRating: "Combined IMDb + Kinopoisk rating"
+    case .playerTabsPlatter: "Player tabs on a platter"
 #if DEBUG
     case .fakeSeasonsOnMovies: "Fake seasons on movies"
 #endif
@@ -236,6 +245,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvOSSidecarSubtitles: "Our transport-bar Subtitles menu and cue overlay instead of the system's."
     case .rewritesStreamTrackMenus: "Relabel, collapse and re-default the HLS master's audio and subtitles. Off: AVKit names them."
     case .combinedRating: "One weighted score on posters, the hero and the Rating tile."
+    case .playerTabsPlatter: "Episodes and Up Next on Info's glass platter; off is the page's open still row."
 #if DEBUG
     case .fakeSeasonsOnMovies: "A fake, unplayable season rail on movies. Layout probe."
 #endif
@@ -246,7 +256,8 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   /// does nothing.
   var isRelevantHere: Bool {
     switch self {
-    case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvDetailSections, .tvOSSidecarSubtitles:
+    case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvDetailSections, .tvOSSidecarSubtitles,
+         .playerTabsPlatter:
 #if os(tvOS)
       true
 #else

@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS player tabs: open row vs platter, behind a switch (2026-10-21)
+
+- `FeatureFlag.playerTabsPlatter` (Settings › Diagnostics, default off). Off: the tabs are the
+  title page's still row as it is — four columns of the tab, the page gutter, no captions, no
+  platter, side inset gutter + 28 pt so the tile before the one the row opens on shows a piece.
+  On: the glass platter with the even 40 pt air of the previous pass (`PlayerRailTab.Style`).
+- DEBUG `-KINOPUBFixtureOpensAt <n>`: `seasonStrip` season 2 has ten episodes watched to `n − 1`,
+  so Play opens S2E`n`. `PlayerTabsUITests.testEpisodesOpenInTheMiddleOfASeason` shoots both styles.
+
 ### tvOS player tabs, fourth pass (2026-10-21)
 
 - The tab is **Episodes / Серии** for every series. Tiles are a `TVUIKitMediaItemRail.TileRun`:
