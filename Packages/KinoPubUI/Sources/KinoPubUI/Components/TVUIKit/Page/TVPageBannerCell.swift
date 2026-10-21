@@ -194,6 +194,7 @@ final class TVPageBannerCell: UICollectionViewCell {
     didSet {
       applyCopyColor()
       applyScrim()
+      applyLogoFocus(animated: true)
       setNeedsLayout()
     }
   }
@@ -203,6 +204,57 @@ final class TVPageBannerCell: UICollectionViewCell {
     coordinator.addCoordinatedAnimations {
       self.applyCopyColor()
       self.applyScrim()
+      self.applyLogoFocus(animated: false)
+    }
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    if previousTraitCollection?.accessibilityContrast != traitCollection.accessibilityContrast ||
+       previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
+      applyScrim()
+      applyCopyColor()
+      setNeedsLayout()
+    }
+  }
+
+  /// Smoothly scales down the title logo / header in the focused state, anchored to the top-left (or top-center).
+  private func applyLogoFocus(animated: Bool = false) {
+    let isEffectiveFocused = isFocused || isSimulatedFocused || chrome.isFocusedState
+    let scale: CGFloat = isEffectiveFocused ? 0.85 : 1.0
+
+    let targetView: UIView
+    if chrome.logoPlacement == .top {
+      targetView = topHeader
+    } else {
+      targetView = logo.isHidden ? titleLabel : logo
+    }
+
+    let bounds = targetView.bounds
+    let targetTransform: CGAffineTransform
+    if isEffectiveFocused, bounds.width > 0, bounds.height > 0 {
+      let w = bounds.width
+      let h = bounds.height
+      if chrome.alignment == .center {
+        let ty = -h * (1 - scale) / 2
+        targetTransform = CGAffineTransform(translationX: 0, y: ty).scaledBy(x: scale, y: scale)
+      } else {
+        let tx = -w * (1 - scale) / 2
+        let ty = -h * (1 - scale) / 2
+        targetTransform = CGAffineTransform(translationX: tx, y: ty).scaledBy(x: scale, y: scale)
+      }
+    } else if isEffectiveFocused {
+      targetTransform = CGAffineTransform(scaleX: scale, y: scale)
+    } else {
+      targetTransform = .identity
+    }
+
+    if animated {
+      UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut, .beginFromCurrentState]) {
+        targetView.transform = targetTransform
+      }
+    } else {
+      targetView.transform = targetTransform
     }
   }
 
@@ -239,6 +291,7 @@ final class TVPageBannerCell: UICollectionViewCell {
       setNeedsLayout()
     }
     updateLogoSize(in: host)
+    applyLogoFocus(animated: false)
     if laysOutPlatterForPreview {
       cardView.contentView.layoutIfNeeded()
     }
@@ -666,6 +719,7 @@ final class TVPageBannerCell: UICollectionViewCell {
 
     chromeConstraints = pins
     NSLayoutConstraint.activate(pins)
+    applyLogoFocus(animated: false)
     setNeedsLayout()
   }
 
@@ -713,23 +767,42 @@ final class TVPageBannerCell: UICollectionViewCell {
     bottomScrim.endPoint = CGPoint(x: 0.5, y: 1)
 
     let isEffectiveFocused = isFocused || isSimulatedFocused || chrome.isFocusedState
+    let isHighContrast = traitCollection.accessibilityContrast == .high || UIAccessibility.isReduceTransparencyEnabled
 
     switch chrome.scrim {
     case .edges(let color, _, let topAlpha, _, let bottomAlpha):
       topScrim.isHidden = topAlpha <= 0
-      let effectiveBottomAlpha = isEffectiveFocused ? min(bottomAlpha + 0.15, 0.90) : bottomAlpha
+      var effectiveBottomAlpha = isEffectiveFocused ? min(bottomAlpha + 0.10, 0.95) : bottomAlpha
+      if isHighContrast {
+        effectiveBottomAlpha = min(effectiveBottomAlpha + 0.10, 0.98)
+      }
       bottomScrim.isHidden = effectiveBottomAlpha <= 0
       topScrim.colors = [color.withAlphaComponent(topAlpha), color.withAlphaComponent(0)]
-      bottomScrim.colors = [color.withAlphaComponent(0), color.withAlphaComponent(effectiveBottomAlpha)]
+      topScrim.locations = [0, 1]
+
+      // Smooth multi-stop curve stretching softly into zero at the top without an abrupt edge
+      let stops: [(pos: Double, factor: Double)] = [
+        (0.00, 0.00),
+        (0.18, 0.04),
+        (0.36, 0.16),
+        (0.54, 0.38),
+        (0.72, 0.66),
+        (0.88, 0.88),
+        (1.00, 1.00)
+      ]
+      bottomScrim.locations = stops.map { NSNumber(value: $0.pos) }
+      bottomScrim.colors = stops.map { color.withAlphaComponent(effectiveBottomAlpha * $0.factor) }
     case .wash(let color):
       wash.isHidden = false
-      wash.backgroundColor = color
+      let washAlpha = isEffectiveFocused ? min(0.65, 0.90) : 0.50
+      wash.backgroundColor = color.withAlphaComponent(washAlpha)
     case .radial(let edge, let mid):
       topScrim.isHidden = false
       topScrim.gradientType = .radial
       topScrim.startPoint = CGPoint(x: 0.5, y: 0.5)
       topScrim.endPoint = CGPoint(x: 1, y: 1)
       topScrim.colors = [mid, edge]
+      topScrim.locations = [0, 1]
     }
   }
 
@@ -770,8 +843,10 @@ final class TVPageBannerCell: UICollectionViewCell {
       logoHeight.constant = 0
       return
     }
+    let pad = chrome.padding
+    let contentWidth = max(host.width - pad * 2, 0)
     let maxHeight = host.height * chrome.logoMaxHeightRatio
-    let maxWidth = host.width * chrome.logoMaxWidthRatio
+    let maxWidth = contentWidth * chrome.logoMaxWidthRatio
     let aspect = image.size.width / image.size.height
     var height = maxHeight
     var width = height * aspect
@@ -838,6 +913,9 @@ final class TVPageBannerCell: UICollectionViewCell {
     overviewText = nil
     applyOverview()
     meta.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    topHeader.transform = .identity
+    logo.transform = .identity
+    titleLabel.transform = .identity
     accessibilityIdentifier = nil
   }
 
@@ -860,6 +938,10 @@ private final class GradientView: UIView {
 
   var colors: [UIColor] = [] {
     didSet { gradient.colors = colors.map(\.cgColor) }
+  }
+  var locations: [NSNumber]? {
+    get { gradient.locations }
+    set { gradient.locations = newValue }
   }
   var gradientType: CAGradientLayerType {
     get { gradient.type }

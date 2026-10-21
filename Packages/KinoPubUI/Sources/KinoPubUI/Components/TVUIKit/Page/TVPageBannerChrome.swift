@@ -140,8 +140,8 @@ public struct TVPageBannerChrome: Sendable {
     color: .black,
     topReach: 0.0,
     topAlpha: 0.0,
-    bottomReach: 0.50,
-    bottomAlpha: 0.70
+    bottomReach: 0.75,
+    bottomAlpha: 0.85
   )
   public var blend: TVPageBannerBlend = .normal
   /// Description, rating digits and genres. One style, the font's own weight.
@@ -157,8 +157,8 @@ public struct TVPageBannerChrome: Sendable {
   public var copySpacing: CGFloat = 12
   /// Caps for the logo box. The view is then shrunk to the image's own aspect,
   /// pinned to the top of that box.
-  public var logoMaxHeightRatio: CGFloat = 0.20
-  public var logoMaxWidthRatio: CGFloat = 0.60
+  public var logoMaxHeightRatio: CGFloat = 0.24
+  public var logoMaxWidthRatio: CGFloat = 0.80
   /// Poster is 40% of banner height in the bottom corner.
   public var posterHeightRatio: CGFloat = 0.40
   /// Rating-mark height. `nil` uses the caption font's cap height, so the mark
@@ -190,8 +190,8 @@ public struct TVPageBannerChrome: Sendable {
       color: .black,
       topReach: 0.0,
       topAlpha: 0.0,
-      bottomReach: 0.50,
-      bottomAlpha: 0.70
+      bottomReach: 0.75,
+      bottomAlpha: 0.85
     ),
     blend: TVPageBannerBlend = .normal,
     textStyle: UIFont.TextStyle = .caption2,
@@ -202,8 +202,8 @@ public struct TVPageBannerChrome: Sendable {
     padding: CGFloat = 32,
     bottomPadding: CGFloat = 22,
     copySpacing: CGFloat = 12,
-    logoMaxHeightRatio: CGFloat = 0.20,
-    logoMaxWidthRatio: CGFloat = 0.60,
+    logoMaxHeightRatio: CGFloat = 0.24,
+    logoMaxWidthRatio: CGFloat = 0.80,
     posterHeightRatio: CGFloat = 0.40,
     scoreIconHeight: CGFloat? = nil,
     showsRatingVotes: Bool = false,
@@ -246,20 +246,19 @@ public struct TVPageBannerChrome: Sendable {
   public var textFont: UIFont { UIFont.preferredFont(forTextStyle: textStyle) }
 
   /// `textColor` mixed toward white by `textVibrance` when enabled, or bright white in focus.
-  /// Always resolved against dark appearance so banner copy remains vivid on top of the backdrop.
+  /// When vibrance is disabled, returns `textColor` directly so UIKit handles dynamic accessibility
+  /// contrast (Increase Contrast) out of the box.
   public var resolvedTextColor: UIColor {
     if isFocusedState {
       return .white
     }
-    let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
-    let base = textColor.resolvedColor(with: darkTraits)
     guard vibranceEnabled else {
-      return base
+      return textColor
     }
     let amount = min(max(textVibrance, 0), 1)
-    guard amount > 0 else { return base }
+    guard amount > 0 else { return textColor }
     var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-    guard base.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return base }
+    guard textColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return textColor }
     return UIColor(red: red + (1 - red) * amount,
                    green: green + (1 - green) * amount,
                    blue: blue + (1 - blue) * amount,

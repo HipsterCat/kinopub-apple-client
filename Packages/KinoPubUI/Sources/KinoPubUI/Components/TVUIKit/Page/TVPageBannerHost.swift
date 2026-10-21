@@ -341,7 +341,7 @@ public enum BannerLabPreset: String, CaseIterable, Identifiable, Sendable {
 
   public var label: String {
     switch self {
-    case .currentDefault: return "Новый дефолт (Без постера, 40%)"
+    case .currentDefault: return "Новый дефолт (Скрим 75%/0.85, лого 80%)"
     case .previousFull: return "Пример 2: Как было (С постером)"
     case .focusedState: return "В фокусе (Primary текст)"
     case .noisyScores: return "Шум: КП (4.2K) выше IMDb (6)"
@@ -373,7 +373,7 @@ public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
 
   public var label: String {
     switch self {
-    case .defaultBottom: return "Default (Низ 50% / 0.70)"
+    case .defaultBottom: return "Default (Низ 75% / 0.85)"
     case .edgesBlack: return "Edges (Черный верх 28% / низ 40%)"
     case .edgesDominant: return "Edges (#C80202)"
     case .washBlack: return "Wash (Black 45%)"
@@ -387,7 +387,7 @@ public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
   public var explanation: String {
     switch self {
     case .defaultBottom:
-      return "Дефолтный градиент только снизу (50% высоты, прозрачность 0.70)."
+      return "Дефолтный градиент снизу (75% высоты, плавный выход в ноль, плотность 0.85)."
     case .edgesBlack:
       return "Градиентные полосы черного цвета по верхнему и нижнему краям."
     case .edgesDominant:
@@ -409,7 +409,7 @@ public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
     let dominant = TVPageBannerSamples.dominantColor
     switch self {
     case .defaultBottom:
-      return .edges(color: .black, topReach: 0.0, topAlpha: 0.0, bottomReach: 0.50, bottomAlpha: 0.70)
+      return .edges(color: .black, topReach: 0.0, topAlpha: 0.0, bottomReach: 0.75, bottomAlpha: 0.85)
     case .edgesBlack:
       return .edges(color: .black, topReach: 0.18, topAlpha: 0.28, bottomReach: 0.34, bottomAlpha: 0.40)
     case .edgesDominant:
