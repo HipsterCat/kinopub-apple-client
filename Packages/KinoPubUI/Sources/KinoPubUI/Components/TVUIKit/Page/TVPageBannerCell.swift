@@ -190,44 +190,21 @@ final class TVPageBannerCell: UICollectionViewCell {
     return feature.card.id > 0
   }
 
-  private var isAnimatingLogoFocus: Bool = false
-
   /// Allows lab previews to simulate the focused appearance without a physical remote focus.
   var isSimulatedFocused: Bool = false {
     didSet {
       applyCopyColor()
       applyScrim()
       applyLogoShadow()
-      applyLogoFocus(animated: true)
     }
   }
 
   override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
-
-    let isCrossController: Bool
-    if let prev = context.previouslyFocusedView, let next = context.nextFocusedView {
-      let prevInCollection = prev.isDescendant(of: self.superview ?? self)
-      let nextInCollection = next.isDescendant(of: self.superview ?? self)
-      isCrossController = !prevInCollection || !nextInCollection
-    } else {
-      isCrossController = true
-    }
-
-    if isCrossController {
-      UIView.performWithoutAnimation {
-        self.applyCopyColor()
-        self.applyScrim()
-        self.applyLogoShadow()
-        self.applyLogoFocus(animated: false)
-      }
-    } else {
-      coordinator.addCoordinatedAnimations {
-        self.applyCopyColor()
-        self.applyScrim()
-        self.applyLogoShadow()
-        self.applyLogoFocus(animated: false)
-      }
+    coordinator.addCoordinatedAnimations {
+      self.applyCopyColor()
+      self.applyScrim()
+      self.applyLogoShadow()
     }
   }
 
@@ -258,60 +235,6 @@ final class TVPageBannerCell: UICollectionViewCell {
       view.layer.shadowRadius = 14
       view.layer.shadowOpacity = opacity
       view.layer.masksToBounds = false
-    }
-  }
-
-  /// Scales down the title logo / header in the focused state, moving its top-left corner
-  /// closer to the card edges (padding halved from pad to pad / 2).
-  private func applyLogoFocus(animated: Bool = false) {
-    let isEffectiveFocused = isFocused || isSimulatedFocused || chrome.isFocusedState
-    let scale: CGFloat = isEffectiveFocused ? 0.85 : 1.0
-
-    let targetView: UIView
-    if chrome.logoPlacement == .top {
-      targetView = topHeader
-    } else {
-      targetView = logo.isHidden ? titleLabel : logo
-    }
-
-    let bounds = targetView.bounds
-    let pad = chrome.padding
-    let targetTransform: CGAffineTransform
-    if isEffectiveFocused, bounds.width > 0, bounds.height > 0 {
-      let w = bounds.width
-      let h = bounds.height
-      let halfPad = pad / 2
-      if chrome.alignment == .center {
-        let ty = -h * (1 - scale) / 2 - halfPad
-        targetTransform = CGAffineTransform(translationX: 0, y: ty).scaledBy(x: scale, y: scale)
-      } else {
-        let tx = -w * (1 - scale) / 2 - halfPad
-        let ty = -h * (1 - scale) / 2 - halfPad
-        targetTransform = CGAffineTransform(translationX: tx, y: ty).scaledBy(x: scale, y: scale)
-      }
-    } else if isEffectiveFocused {
-      targetTransform = CGAffineTransform(scaleX: scale, y: scale)
-    } else {
-      targetTransform = .identity
-    }
-
-    if targetView.transform == targetTransform { return }
-
-    if animated {
-      isAnimatingLogoFocus = true
-      UIView.animate(
-        withDuration: 0.32,
-        delay: 0,
-        options: [.curveEaseInOut, .beginFromCurrentState],
-        animations: {
-          targetView.transform = targetTransform
-        },
-        completion: { [weak self] _ in
-          self?.isAnimatingLogoFocus = false
-        }
-      )
-    } else {
-      targetView.transform = targetTransform
     }
   }
 
@@ -359,9 +282,6 @@ final class TVPageBannerCell: UICollectionViewCell {
       setNeedsLayout()
     }
     updateLogoSize(in: host)
-    if !isAnimatingLogoFocus {
-      applyLogoFocus(animated: false)
-    }
     if laysOutPlatterForPreview {
       cardView.contentView.layoutIfNeeded()
     }
@@ -393,9 +313,6 @@ final class TVPageBannerCell: UICollectionViewCell {
       overviewText = nil
       applyOverview()
       meta.arrangedSubviews.forEach { $0.removeFromSuperview() }
-      topHeader.transform = .identity
-      logo.transform = .identity
-      titleLabel.transform = .identity
       accessibilityIdentifier = "kinopub.banner.placeholder"
       cardView.accessibilityLabel = nil
       return
@@ -418,9 +335,6 @@ final class TVPageBannerCell: UICollectionViewCell {
       backdrop.image = nil
       poster.image = nil
       showMark(nil, awaitingLogo: true)
-      topHeader.transform = .identity
-      logo.transform = .identity
-      titleLabel.transform = .identity
       applyLogoShadow()
     }
     let size = cardView.contentSize
@@ -454,8 +368,6 @@ final class TVPageBannerCell: UICollectionViewCell {
     if !sameCard || logoChanged || (feature.logo.url != nil && logo.image == nil) {
       applyLogo(feature.logo)
     }
-
-    applyLogoFocus(animated: false)
   }
 
   /// Returns a concise, readable synopsis snippet of at least `minLength` characters
@@ -801,7 +713,6 @@ final class TVPageBannerCell: UICollectionViewCell {
     chromeConstraints = pins
     NSLayoutConstraint.activate(pins)
     applyLogoShadow()
-    applyLogoFocus(animated: false)
     setNeedsLayout()
   }
 
@@ -1002,7 +913,6 @@ final class TVPageBannerCell: UICollectionViewCell {
   override func prepareForReuse() {
     super.prepareForReuse()
     cancelLoads()
-    isAnimatingLogoFocus = false
     accessibilityIdentifier = nil
   }
 
