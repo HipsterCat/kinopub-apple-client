@@ -181,6 +181,188 @@ class HomeCatalog: ObservableObject {
         title: "Collections".localized,
         source: .collections
       ),
+
+      // MARK: Movies tab sections (`contentType == .movie`)
+      HomeSectionSpec(
+        id: "movies-new",
+        title: "Новинки кино",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .recentlyAdded))
+      ),
+      HomeSectionSpec(
+        id: "movies-weekly-top",
+        title: "Топ фильмов недели",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .views, period: .week))
+      ),
+      HomeSectionSpec(
+        id: "movies-monthly-hits",
+        title: "Главные хиты месяца",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .views, period: .month))
+      ),
+      HomeSectionSpec(
+        id: "movies-4k",
+        title: "Новые релизы в 4K UHD",
+        source: .filter({
+          var f = LibraryFilter(contentType: .movie, sort: .recentlyAdded)
+          f.minimumQuality = .uhd4K
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "movies-top-imdb",
+        title: "Высокий рейтинг IMDb",
+        source: .filter({
+          var f = LibraryFilter(contentType: .movie, sort: .imdbRating)
+          f.yearFrom = 2020
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "movies-community",
+        title: "Выбор зрителей Кинопаба",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .rating, period: .year))
+      ),
+      HomeSectionSpec(
+        id: "movies-scifi",
+        title: "Фантастика и Фэнтези",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .views, genreIDs: [4, 5], period: .year))
+      ),
+      HomeSectionSpec(
+        id: "movies-thriller",
+        title: "Остросюжетные триллеры и детективы",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .views, genreIDs: [7, 13, 17], period: .year))
+      ),
+      HomeSectionSpec(
+        id: "movies-action",
+        title: "Экшен и Приключения",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .views, genreIDs: [2, 8], period: .year))
+      ),
+      HomeSectionSpec(
+        id: "movies-comedy",
+        title: "Комедии для хорошего вечера",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .views, genreIDs: [1], period: .year))
+      ),
+      HomeSectionSpec(
+        id: "movies-drama",
+        title: "Сильные драмы и биографии",
+        source: .filter({
+          var f = LibraryFilter(contentType: .movie, sort: .imdbRating, genreIDs: [9, 3])
+          f.yearFrom = 2018
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "movies-horror",
+        title: "Хорроры и Мистика",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .views, genreIDs: [12, 11], period: .year))
+      ),
+      HomeSectionSpec(
+        id: "movies-family",
+        title: "Мультфильмы и Семейное кино",
+        source: .filter(LibraryFilter(contentType: .movie, sort: .views, genreIDs: [23, 6], period: .year))
+      ),
+      HomeSectionSpec(
+        id: "movies-docu",
+        title: "Документальные фильмы",
+        source: .filter(LibraryFilter(contentType: .documovie, sort: .views, period: .year))
+      ),
+      HomeSectionSpec(
+        id: "movies-standup",
+        title: "Стендап-спешлы",
+        source: .filter({
+          var f = LibraryFilter(sort: .recentlyAdded)
+          f.kinds = [.standup]
+          return f
+        }())
+      ),
+
+      // MARK: Series & Shows tab sections (`contentType == .serial`)
+      HomeSectionSpec(
+        id: "series-updated",
+        title: "Новые серии на этой неделе",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .recentlyUpdated))
+      ),
+      HomeSectionSpec(
+        id: "series-new",
+        title: "Новые сериалы и премьеры",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .recentlyAdded))
+      ),
+      HomeSectionSpec(
+        id: "series-watchers",
+        title: "Главные сериалы по подписчикам",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .watchers))
+      ),
+      HomeSectionSpec(
+        id: "series-weekly-top",
+        title: "Топ сериалов недели",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .views, period: .week))
+      ),
+      HomeSectionSpec(
+        id: "series-finished",
+        title: "Завершённые сериалы целиком",
+        source: .filter({
+          var f = LibraryFilter(contentType: .serial, sort: .watchers)
+          f.finishedOnly = true
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "series-top-imdb",
+        title: "Золотой фонд IMDb",
+        source: .filter({
+          var f = LibraryFilter(contentType: .serial, sort: .imdbRating)
+          f.yearFrom = 2015
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "series-4k",
+        title: "Сериалы в 4K UHD",
+        source: .filter({
+          var f = LibraryFilter(contentType: .serial, sort: .recentlyUpdated)
+          f.minimumQuality = .uhd4K
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "series-crime",
+        title: "Детективы, Триллеры и Криминал",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [13, 7, 17]))
+      ),
+      HomeSectionSpec(
+        id: "series-scifi",
+        title: "Фантастика и Фэнтези",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [4, 5]))
+      ),
+      HomeSectionSpec(
+        id: "series-drama",
+        title: "Престижные драмы",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [9]))
+      ),
+      HomeSectionSpec(
+        id: "series-comedy",
+        title: "Комедийные сериалы и ситкомы",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [1]))
+      ),
+      HomeSectionSpec(
+        id: "series-anime",
+        title: "Аниме-сериалы",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [25]))
+      ),
+      HomeSectionSpec(
+        id: "series-dorama",
+        title: "Дорамы",
+        source: .filter(LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [107]))
+      ),
+      HomeSectionSpec(
+        id: "series-docu",
+        title: "Документальные сериалы",
+        source: .filter(LibraryFilter(contentType: .docuserial, sort: .views, period: .year))
+      ),
+      HomeSectionSpec(
+        id: "series-tvshows",
+        title: "Телешоу и Передачи",
+        source: .filter(LibraryFilter(contentType: .tvshow, sort: .recentlyUpdated))
+      ),
     ]
     for spec in specs {
       dict[spec.id] = spec
@@ -188,18 +370,26 @@ class HomeCatalog: ObservableObject {
     return dict
   }()
 
-  /// Ordered, visible Home section specs according to `SectionVisibilityStore`,
-  /// windowed by `visibleSectionLimit` so Home can progressively reveal more shelves.
+  /// Ordered, visible section specs for this catalog (`Watch Now`, `Movies`, or `Series`)
+  /// according to `SectionVisibilityStore`, windowed by `visibleSectionLimit`.
+  private var allVisibleSectionMetas: [HomeSectionMeta] {
+    switch contentType {
+    case .movie:
+      return SectionVisibilityStore.shared.visibleMovieSections
+    case .serial:
+      return SectionVisibilityStore.shared.visibleSeriesSections
+    default:
+      return SectionVisibilityStore.shared.visibleHomeSections
+    }
+  }
+
   var activeHomeSections: [HomeSectionSpec] {
-    guard includesWatchNowExtras else { return [] }
-    let metas = SectionVisibilityStore.shared.visibleHomeSections
-    let all = metas.compactMap { Self.homeSectionSpecsByID[$0.id] }
+    let all = allVisibleSectionMetas.compactMap { Self.homeSectionSpecsByID[$0.id] }
     return Array(all.prefix(visibleSectionLimit))
   }
 
   var hasMoreSections: Bool {
-    guard includesWatchNowExtras else { return false }
-    return visibleSectionLimit < SectionVisibilityStore.shared.visibleHomeSections.count
+    visibleSectionLimit < allVisibleSectionMetas.count
   }
 
   @Published public private(set) var visibleSectionLimit: Int = 8
@@ -210,9 +400,10 @@ class HomeCatalog: ObservableObject {
     Task { await fetch() }
   }
 
-  /// Typed Movies / Series catalogs are poster shelves only — no Continue Watching,
-  /// collections preview, or banner sampling (those stay on Watch Now).
+  /// Typed Movies / Series catalogs have their own section lists and hero banner,
+  /// while Continue Watching and Collections live on Watch Now (`contentType == nil`).
   var includesWatchNowExtras: Bool { contentType == nil }
+  var supportsHeroBanner: Bool { contentType == nil || contentType == .movie || contentType == .serial }
 
   static let continueWatchingRowID = "continue-watching"
   static let collectionsRowID = "collections"
@@ -362,39 +553,39 @@ class HomeCatalog: ObservableObject {
             return try await self.fetchContinueWatchingCards().map(RowItem.card)
           }
         }
-        for spec in homeSections {
-          switch spec.source {
-          case .filter:
-            group.addTask { [store] in
-              await store.refreshIfStale(.homeSection(spec.id)) { [weak self] in
+      }
+      for spec in homeSections {
+        switch spec.source {
+        case .filter:
+          group.addTask { [store] in
+            await store.refreshIfStale(.homeSection(spec.id)) { [weak self] in
+              guard let self else { throw CancellationError() }
+              return try await self.fetchHomeSectionItems(spec, excludeConcerts: excludeConcerts)
+            }
+          }
+        case .topBookmarks:
+          group.addTask { [store] in
+            await store.refreshIfStale(.homeSection(spec.id)) { [weak self] in
+              guard let self else { throw CancellationError() }
+              return try await self.fetchTopBookmarksCards().map(RowItem.card)
+            }
+          }
+        case .liveTV:
+          group.addTask { [weak self] in
+            guard let self else { return }
+            await self.fetchLiveChannelsIfNeeded()
+          }
+        case .collections:
+          group.addTask { [store] in
+            if collectionsNeedMigration {
+              await store.refresh(.collections) { [weak self] in
                 guard let self else { throw CancellationError() }
-                return try await self.fetchHomeSectionItems(spec, excludeConcerts: excludeConcerts)
+                return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
               }
-            }
-          case .topBookmarks:
-            group.addTask { [store] in
-              await store.refreshIfStale(.homeSection(spec.id)) { [weak self] in
+            } else {
+              await store.refreshIfStale(.collections) { [weak self] in
                 guard let self else { throw CancellationError() }
-                return try await self.fetchTopBookmarksCards().map(RowItem.card)
-              }
-            }
-          case .liveTV:
-            group.addTask { [weak self] in
-              guard let self else { return }
-              await self.fetchLiveChannelsIfNeeded()
-            }
-          case .collections:
-            group.addTask { [store] in
-              if collectionsNeedMigration {
-                await store.refresh(.collections) { [weak self] in
-                  guard let self else { throw CancellationError() }
-                  return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
-                }
-              } else {
-                await store.refreshIfStale(.collections) { [weak self] in
-                  guard let self else { throw CancellationError() }
-                  return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
-                }
+                return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
               }
             }
           }
@@ -582,62 +773,43 @@ class HomeCatalog: ObservableObject {
                                   title: "Continue Watching".localized,
                                   cards: continueWatchingCards))
       }
+    }
 
-      var appendedAnyHomeSection = false
-      for spec in activeHomeSections {
-        switch spec.source {
-        case .filter:
-          let cards = store.cards(.homeSection(spec.id))
-          guard !cards.isEmpty else { continue }
-          appendedAnyHomeSection = true
-          assembled.append(MediaRow(id: spec.id,
-                                    title: spec.title,
-                                    cards: cards))
-        case .topBookmarks:
-          let cards = store.cards(.homeSection(spec.id))
-          guard !cards.isEmpty else { continue }
-          appendedAnyHomeSection = true
-          assembled.append(MediaRow(id: spec.id,
-                                    title: spec.title,
-                                    cards: cards))
-        case .liveTV:
-          // Live TV renders as a dedicated 16:9 channel logo rail (`liveChannels`) on tvOS.
-          break
-        case .collections:
-          let collectionsCards = store.cards(.collections)
-          if !collectionsCards.isEmpty {
-            appendedAnyHomeSection = true
-            assembled.append(MediaRow(id: Self.collectionsRowID,
-                                      title: spec.title,
-                                      cards: collectionsCards,
-                                      destination: Route.collections))
-          }
-        }
-      }
-
-      // Fallback to classic shortcut rows if no filter-backed Home sections have populated
-      // (for example in offline/fixture environments that only seed `.shortcut` keys).
-      if !appendedAnyHomeSection {
-        for shortcut in activeShortcuts {
-          let cards = store.cards(.shortcut(shortcut.shortcut, shortcut.contentType))
-          guard !cards.isEmpty else { continue }
-          assembled.append(MediaRow(id: shortcut.id,
-                                    title: shortcut.title.localized,
-                                    cards: cards,
-                                    destination: Route.shortcutItems(shortcut.shortcut,
-                                                                     shortcut.contentType,
-                                                                     title: shortcut.title.localized)))
-        }
+    var appendedAnyConfiguredSection = false
+    for spec in activeHomeSections {
+      switch spec.source {
+      case .filter:
+        let cards = store.cards(.homeSection(spec.id))
+        guard !cards.isEmpty else { continue }
+        appendedAnyConfiguredSection = true
+        assembled.append(MediaRow(id: spec.id,
+                                  title: spec.title,
+                                  cards: cards))
+      case .topBookmarks:
+        let cards = store.cards(.homeSection(spec.id))
+        guard !cards.isEmpty else { continue }
+        appendedAnyConfiguredSection = true
+        assembled.append(MediaRow(id: spec.id,
+                                  title: spec.title,
+                                  cards: cards))
+      case .liveTV:
+        // Live TV renders as a dedicated 16:9 channel logo rail (`liveChannels`) on tvOS.
+        break
+      case .collections:
         let collectionsCards = store.cards(.collections)
-        if !collectionsCards.isEmpty,
-           !assembled.contains(where: { $0.id == Self.collectionsRowID }) {
+        if !collectionsCards.isEmpty {
+          appendedAnyConfiguredSection = true
           assembled.append(MediaRow(id: Self.collectionsRowID,
-                                    title: "Collections".localized,
+                                    title: spec.title,
                                     cards: collectionsCards,
                                     destination: Route.collections))
         }
       }
-    } else {
+    }
+
+    // Fallback to classic shortcut rows if no filter-backed sections have populated
+    // (for example in offline/fixture environments that only seed `.shortcut` keys).
+    if !appendedAnyConfiguredSection {
       for shortcut in activeShortcuts {
         let cards = store.cards(.shortcut(shortcut.shortcut, shortcut.contentType))
         guard !cards.isEmpty else { continue }
@@ -647,6 +819,16 @@ class HomeCatalog: ObservableObject {
                                   destination: Route.shortcutItems(shortcut.shortcut,
                                                                    shortcut.contentType,
                                                                    title: shortcut.title.localized)))
+      }
+      if includesWatchNowExtras {
+        let collectionsCards = store.cards(.collections)
+        if !collectionsCards.isEmpty,
+           !assembled.contains(where: { $0.id == Self.collectionsRowID }) {
+          assembled.append(MediaRow(id: Self.collectionsRowID,
+                                    title: "Collections".localized,
+                                    cards: collectionsCards,
+                                    destination: Route.collections))
+        }
       }
     }
     rows = assembled
@@ -731,7 +913,7 @@ class HomeCatalog: ObservableObject {
   /// Skipped entirely when `FeatureFlags.homeBannerEnabled` is off — no sampling and
   /// therefore no wide-poster fetches from `HomeBannerCardView`.
   private func refreshBannerCards(from rows: [MediaRow]) {
-    guard includesWatchNowExtras, FeatureFlags.homeBannerEnabled else {
+    guard supportsHeroBanner, FeatureFlags.homeBannerEnabled else {
       if !bannerCards.isEmpty { bannerCards = [] }
       return
     }

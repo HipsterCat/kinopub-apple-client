@@ -161,7 +161,7 @@ struct MainView: View {
 
   private var pageSections: [TVPageSection] {
     var result: [TVPageSection] = []
-    if tab == .home && FeatureFlags.homeBannerEnabled {
+    if catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled {
       let banner = catalog.bannerCards
       if !banner.isEmpty {
         result.append(
@@ -201,8 +201,8 @@ struct MainView: View {
       }
     }
 
-    if tab == .home && !insertedQuickPresets && !homeRows.isEmpty {
-      let insertIndex = min(result.count, FeatureFlags.homeBannerEnabled ? 1 : 0)
+    if !insertedQuickPresets && !homeRows.isEmpty {
+      let insertIndex = min(result.count, (catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled) ? 1 : 0)
       result.insert(quickPresetsSection, at: insertIndex)
     }
 
@@ -221,7 +221,7 @@ struct MainView: View {
       )
     }
 
-    if tab == .home && !homeRows.isEmpty {
+    if !homeRows.isEmpty {
       result.append(footerActionsSection)
     }
 
@@ -230,10 +230,38 @@ struct MainView: View {
 
   private var quickPresetsSection: TVPageSection {
     let excludeConcerts = sectionStore.excludeConcertsOnHome
-    return .chips(
-      id: "home-quick-presets",
-      title: nil,
-      chips: [
+    let chips: [TVPageChip]
+    switch tab {
+    case .movies:
+      chips = [
+        TVPageChip(id: "preset-movies-catalog", title: "Все фильмы в Каталоге", systemImage: "square.grid.2x2"),
+        TVPageChip(id: "preset-4k", title: "4K UHD", systemImage: "4k.tv"),
+        TVPageChip(id: "preset-movies-scifi", title: "Фантастика и Фэнтези", systemImage: "sparkles"),
+        TVPageChip(id: "preset-movies-thriller", title: "Триллеры и Детективы", systemImage: "eye"),
+        TVPageChip(id: "preset-movies-action", title: "Боевики", systemImage: "flame"),
+        TVPageChip(id: "preset-movies-comedy", title: "Комедии", systemImage: "face.smiling"),
+        TVPageChip(id: "preset-movies-drama", title: "Драмы", systemImage: "theatermasks"),
+        TVPageChip(id: "preset-movies-horror", title: "Ужасы", systemImage: "moon.stars"),
+        TVPageChip(id: "preset-cartoons", title: "Мультфильмы", systemImage: "paintbrush"),
+        TVPageChip(id: "preset-movies-docu", title: "Документальные", systemImage: "globe"),
+        TVPageChip(id: "preset-movies-standup", title: "Стендап", systemImage: "music.mic"),
+      ]
+    case .series:
+      chips = [
+        TVPageChip(id: "preset-series-catalog", title: "Все сериалы в Каталоге", systemImage: "square.grid.2x2"),
+        TVPageChip(id: "preset-series-watchers", title: "По подписчикам", systemImage: "person.2"),
+        TVPageChip(id: "preset-series-finished", title: "Завершённые целиком", systemImage: "checkmark.seal"),
+        TVPageChip(id: "preset-series-crime", title: "Детективы и Криминал", systemImage: "magnifyingglass"),
+        TVPageChip(id: "preset-series-scifi", title: "Фантастика и Фэнтези", systemImage: "sparkles"),
+        TVPageChip(id: "preset-series-drama", title: "Драмы", systemImage: "theatermasks"),
+        TVPageChip(id: "preset-series-comedy", title: "Комедии и Ситкомы", systemImage: "face.smiling"),
+        TVPageChip(id: "preset-anime", title: "Аниме", systemImage: "wand.and.stars"),
+        TVPageChip(id: "preset-series-dorama", title: "Дорамы", systemImage: "heart.text.square"),
+        TVPageChip(id: "preset-series-docu", title: "Док. сериалы", systemImage: "globe"),
+        TVPageChip(id: "preset-series-tvshows", title: "ТВ-шоу и Передачи", systemImage: "tv"),
+      ]
+    default:
+      chips = [
         TVPageChip(id: "preset-catalog", title: "Каталог", systemImage: "square.grid.2x2"),
         TVPageChip(id: "preset-collections", title: "Подборки", systemImage: "rectangle.stack"),
         TVPageChip(id: "preset-anime", title: "Аниме", systemImage: "sparkles"),
@@ -249,7 +277,8 @@ struct MainView: View {
           isActive: excludeConcerts
         ),
       ]
-    )
+    }
+    return .chips(id: "home-quick-presets", title: nil, chips: chips)
   }
 
   private var footerActionsSection: TVPageSection {
@@ -261,19 +290,21 @@ struct MainView: View {
                    systemImage: "plus.circle")
       )
     }
-    let excludeConcerts = sectionStore.excludeConcertsOnHome
-    chips.append(
-      TVPageChip(
-        id: "footer-exclude-concerts",
-        title: excludeConcerts ? "Без концертов: Вкл" : "Без концертов: Выкл",
-        systemImage: excludeConcerts ? "checkmark.circle.fill" : "music.mic.slash",
-        isActive: excludeConcerts
+    if tab == .home {
+      let excludeConcerts = sectionStore.excludeConcertsOnHome
+      chips.append(
+        TVPageChip(
+          id: "footer-exclude-concerts",
+          title: excludeConcerts ? "Без концертов: Вкл" : "Без концертов: Выкл",
+          systemImage: excludeConcerts ? "checkmark.circle.fill" : "music.mic.slash",
+          isActive: excludeConcerts
+        )
       )
-    )
+    }
     chips.append(
       TVPageChip(
         id: "footer-customize",
-        title: "Настроить Главную и Вкладки",
+        title: "Настроить секции и вкладки",
         systemImage: "slider.horizontal.3"
       )
     )
@@ -284,6 +315,10 @@ struct MainView: View {
     switch chip.id {
     case "preset-catalog":
       navigationState.openCatalog(filter: LibraryFilter(sort: .recentlyAdded), title: "Каталог")
+    case "preset-movies-catalog":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .movie, sort: .recentlyAdded), title: "Фильмы")
+    case "preset-series-catalog":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .serial, sort: .recentlyUpdated), title: "Сериалы")
     case "preset-collections":
       if sectionStore.isTabVisible(.collections) {
         navigationState.selectedTab = .collections
@@ -303,7 +338,7 @@ struct MainView: View {
       filter.kinds = [.documentaries]
       navigationState.openCatalog(filter: filter, title: "Документалки")
     case "preset-4k":
-      var filter = LibraryFilter(sort: .recentlyAdded)
+      var filter = LibraryFilter(contentType: tab == .movies ? .movie : (tab == .series ? .serial : nil), sort: .recentlyAdded)
       filter.minimumQuality = .uhd4K
       navigationState.openCatalog(filter: filter, title: "4K UHD")
     case "preset-watchers":
@@ -312,6 +347,44 @@ struct MainView: View {
       var filter = LibraryFilter(sort: .imdbRating)
       filter.yearFrom = 2020
       navigationState.openCatalog(filter: filter, title: "Топ IMDb")
+    case "preset-movies-scifi":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .movie, sort: .views, genreIDs: [4, 5], period: .year), title: "Фантастика и Фэнтези")
+    case "preset-movies-thriller":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .movie, sort: .views, genreIDs: [7, 13, 17], period: .year), title: "Триллеры и Детективы")
+    case "preset-movies-action":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .movie, sort: .views, genreIDs: [2, 8], period: .year), title: "Боевики и Приключения")
+    case "preset-movies-comedy":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .movie, sort: .views, genreIDs: [1], period: .year), title: "Комедии")
+    case "preset-movies-drama":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .movie, sort: .imdbRating, genreIDs: [9, 3]), title: "Драмы и Биографии")
+    case "preset-movies-horror":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .movie, sort: .views, genreIDs: [12, 11], period: .year), title: "Хорроры и Мистика")
+    case "preset-movies-docu":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .documovie, sort: .views, period: .year), title: "Документальные фильмы")
+    case "preset-movies-standup":
+      var filter = LibraryFilter(sort: .recentlyAdded)
+      filter.kinds = [.standup]
+      navigationState.openCatalog(filter: filter, title: "Стендап")
+    case "preset-series-watchers":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .serial, sort: .watchers), title: "Сериалы по подписчикам")
+    case "preset-series-finished":
+      var filter = LibraryFilter(contentType: .serial, sort: .watchers)
+      filter.finishedOnly = true
+      navigationState.openCatalog(filter: filter, title: "Завершённые сериалы")
+    case "preset-series-crime":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [13, 7, 17]), title: "Детективы и Криминал")
+    case "preset-series-scifi":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [4, 5]), title: "Фантастика и Фэнтези")
+    case "preset-series-drama":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [9]), title: "Престижные драмы")
+    case "preset-series-comedy":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [1]), title: "Комедийные сериалы")
+    case "preset-series-dorama":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .serial, sort: .watchers, genreIDs: [107]), title: "Дорамы")
+    case "preset-series-docu":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .docuserial, sort: .views, period: .year), title: "Документальные сериалы")
+    case "preset-series-tvshows":
+      navigationState.openCatalog(filter: LibraryFilter(contentType: .tvshow, sort: .recentlyUpdated), title: "Телешоу и Передачи")
     case "preset-exclude-concerts", "footer-exclude-concerts":
       sectionStore.excludeConcertsOnHome.toggle()
     case "footer-load-more":
@@ -370,7 +443,7 @@ struct MainView: View {
       rows: homeRows,
       // Gated by `FeatureFlags.homeBannerEnabled`. When off, HomeCatalog also
       // skips sampling so wide-poster artwork is never requested.
-      bannerCards: (tab == .home && FeatureFlags.homeBannerEnabled) ? catalog.bannerCards : [],
+      bannerCards: (catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled) ? catalog.bannerCards : [],
       navigationLinkProvider: { card in
         if card.opensCollection {
           Route.collection(CollectionMediaCard.routeCollection(from: card))

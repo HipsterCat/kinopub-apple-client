@@ -1264,6 +1264,68 @@ private struct TVTabsAndSectionsPage: View {
         }
       }
 
+      SettingsSection("Секции Фильмов (Movies)") {
+        let sections = store.orderedMovieSections
+        ForEach(Array(sections.enumerated()), id: \.element.id) { idx, section in
+          let isVisible = store.isMovieSectionVisible(section.id)
+          Button {
+            store.toggleMovieSectionVisibility(id: section.id)
+          } label: {
+            SettingsPillLabel(
+              title: "",
+              verbatimTitle: "\(idx + 1). \(section.title)",
+              value: isVisible ? "Вкл" : "Выкл"
+            )
+          }
+          .buttonStyle(SettingsPillButtonStyle())
+          .focused($focused, equals: .sectionToggle(section.id))
+
+          if idx > 0 {
+            Button {
+              store.moveMovieSectionUp(id: section.id)
+            } label: {
+              SettingsPillLabel(
+                title: "",
+                verbatimTitle: "  ↑ Поднять «\(section.title)» выше"
+              )
+            }
+            .buttonStyle(SettingsPillButtonStyle())
+            .focused($focused, equals: .sectionUp(section.id))
+          }
+        }
+      }
+
+      SettingsSection("Секции Сериалов и Шоу (Series)") {
+        let sections = store.orderedSeriesSections
+        ForEach(Array(sections.enumerated()), id: \.element.id) { idx, section in
+          let isVisible = store.isSeriesSectionVisible(section.id)
+          Button {
+            store.toggleSeriesSectionVisibility(id: section.id)
+          } label: {
+            SettingsPillLabel(
+              title: "",
+              verbatimTitle: "\(idx + 1). \(section.title)",
+              value: isVisible ? "Вкл" : "Выкл"
+            )
+          }
+          .buttonStyle(SettingsPillButtonStyle())
+          .focused($focused, equals: .sectionToggle(section.id))
+
+          if idx > 0 {
+            Button {
+              store.moveSeriesSectionUp(id: section.id)
+            } label: {
+              SettingsPillLabel(
+                title: "",
+                verbatimTitle: "  ↑ Поднять «\(section.title)» выше"
+              )
+            }
+            .buttonStyle(SettingsPillButtonStyle())
+            .focused($focused, equals: .sectionUp(section.id))
+          }
+        }
+      }
+
       SettingsSection("Сброс") {
         Button {
           store.resetToDefaults()

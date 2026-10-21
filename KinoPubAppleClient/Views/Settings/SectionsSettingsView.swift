@@ -56,7 +56,7 @@ struct SectionsSettingsView: View {
             Toggle(isOn: homeSectionBinding(for: section)) {
               VStack(alignment: .leading, spacing: 2) {
                 Text(section.title)
-                Text("\(section.subtitle) • \(section.sortingDescription)")
+                Text(section.subtitle)
                   .font(.caption)
                   .foregroundStyle(.secondary)
               }
@@ -87,6 +87,78 @@ struct SectionsSettingsView: View {
       }
 
       Section {
+        ForEach(Array(store.orderedMovieSections.enumerated()), id: \.element.id) { idx, section in
+          HStack {
+            Toggle(isOn: movieSectionBinding(for: section)) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(section.title)
+                Text(section.subtitle)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+            if idx > 0 {
+              Button {
+                store.moveMovieSectionUp(id: section.id)
+              } label: {
+                Image(systemName: "arrow.up")
+              }
+              .buttonStyle(.borderless)
+            }
+            if idx < store.orderedMovieSections.count - 1 {
+              Button {
+                store.moveMovieSectionDown(id: section.id)
+              } label: {
+                Image(systemName: "arrow.down")
+              }
+              .buttonStyle(.borderless)
+            }
+          }
+        }
+        .onMove { indices, newOffset in
+          store.moveMovieSections(fromOffsets: indices, toOffset: newOffset)
+        }
+      } header: {
+        Text("Секции Фильмов (Movies)")
+      }
+
+      Section {
+        ForEach(Array(store.orderedSeriesSections.enumerated()), id: \.element.id) { idx, section in
+          HStack {
+            Toggle(isOn: seriesSectionBinding(for: section)) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(section.title)
+                Text(section.subtitle)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+            if idx > 0 {
+              Button {
+                store.moveSeriesSectionUp(id: section.id)
+              } label: {
+                Image(systemName: "arrow.up")
+              }
+              .buttonStyle(.borderless)
+            }
+            if idx < store.orderedSeriesSections.count - 1 {
+              Button {
+                store.moveSeriesSectionDown(id: section.id)
+              } label: {
+                Image(systemName: "arrow.down")
+              }
+              .buttonStyle(.borderless)
+            }
+          }
+        }
+        .onMove { indices, newOffset in
+          store.moveSeriesSections(fromOffsets: indices, toOffset: newOffset)
+        }
+      } header: {
+        Text("Секции Сериалов и Шоу (Series)")
+      }
+
+      Section {
         Button("Сбросить по умолчанию", role: .destructive) {
           store.resetToDefaults()
         }
@@ -107,6 +179,20 @@ struct SectionsSettingsView: View {
     Binding(
       get: { store.isHomeSectionVisible(section.id) },
       set: { store.setHomeSectionVisible($0, id: section.id) }
+    )
+  }
+
+  private func movieSectionBinding(for section: HomeSectionMeta) -> Binding<Bool> {
+    Binding(
+      get: { store.isMovieSectionVisible(section.id) },
+      set: { store.setMovieSectionVisible($0, id: section.id) }
+    )
+  }
+
+  private func seriesSectionBinding(for section: HomeSectionMeta) -> Binding<Bool> {
+    Binding(
+      get: { store.isSeriesSectionVisible(section.id) },
+      set: { store.setSeriesSectionVisible($0, id: section.id) }
     )
   }
 }

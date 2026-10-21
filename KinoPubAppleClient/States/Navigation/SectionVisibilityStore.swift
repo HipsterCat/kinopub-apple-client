@@ -56,12 +56,20 @@ final class SectionVisibilityStore: ObservableObject {
   private let orderedTabsKey = "orderedBrowseTabIDs"
   private let hiddenHomeSectionsKey = "hiddenHomeSectionIDs"
   private let orderedHomeSectionsKey = "orderedHomeSectionIDs"
+  private let hiddenMovieSectionsKey = "hiddenMovieSectionIDs"
+  private let orderedMovieSectionsKey = "orderedMovieSectionIDs"
+  private let hiddenSeriesSectionsKey = "hiddenSeriesSectionIDs"
+  private let orderedSeriesSectionsKey = "orderedSeriesSectionIDs"
   private let excludeConcertsKey = "homeExcludeConcerts"
 
   @Published private(set) var hiddenIDs: Set<String>
   @Published private(set) var orderedTabIDs: [String]
   @Published private(set) var hiddenHomeSectionIDs: Set<String>
   @Published private(set) var orderedHomeSectionIDs: [String]
+  @Published private(set) var hiddenMovieSectionIDs: Set<String>
+  @Published private(set) var orderedMovieSectionIDs: [String]
+  @Published private(set) var hiddenSeriesSectionIDs: Set<String>
+  @Published private(set) var orderedSeriesSectionIDs: [String]
   @Published var excludeConcertsOnHome: Bool {
     didSet {
       UserDefaults.standard.set(excludeConcertsOnHome, forKey: excludeConcertsKey)
@@ -156,6 +164,134 @@ final class SectionVisibilityStore: ObservableObject {
                     defaultVisible: true),
   ]
 
+  /// Configurable sections on the Movies tab (`contentType == .movie`).
+  static let allMovieSections: [HomeSectionMeta] = [
+    HomeSectionMeta(id: "movies-new",
+                    title: "Новинки кино",
+                    subtitle: "Свежие фильмы на Кинопабе (-created)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-weekly-top",
+                    title: "Топ фильмов недели",
+                    subtitle: "Лидеры просмотров за 7 дней (-views, period=week)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-monthly-hits",
+                    title: "Главные хиты месяца",
+                    subtitle: "Самые просматриваемые фильмы за месяц (-views, period=month)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-4k",
+                    title: "Новые релизы в 4K UHD",
+                    subtitle: "Фильмы в максимальном качестве (quality=4, -created)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-top-imdb",
+                    title: "Высокий рейтинг IMDb",
+                    subtitle: "Лучшие современные фильмы по IMDb (-imdb_rating, 2020+)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-community",
+                    title: "Выбор зрителей Кинопаба",
+                    subtitle: "Топ фильмов по рейтингу Кинопаба (-rating, period=year)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-scifi",
+                    title: "Фантастика и Фэнтези",
+                    subtitle: "Миры будущего, космос и магия (genre=4,5, -views)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-thriller",
+                    title: "Остросюжетные триллеры и детективы",
+                    subtitle: "Напряжённые триллеры, криминал и тайны (genre=7,13,17, -views)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-action",
+                    title: "Экшен и Приключения",
+                    subtitle: "Масштабные боевики и блокбастеры (genre=2,8, -views)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-comedy",
+                    title: "Комедии для хорошего вечера",
+                    subtitle: "Популярные комедии за год (genre=1, -views, period=year)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-drama",
+                    title: "Сильные драмы и биографии",
+                    subtitle: "Драматическое кино с высоким рейтингом (genre=9,3, -imdb_rating)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-horror",
+                    title: "Хорроры и Мистика",
+                    subtitle: "Ужасы и сверхъестественное (genre=12,11, -views, period=year)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-family",
+                    title: "Мультфильмы и Семейное кино",
+                    subtitle: "Анимация и фильмы для всей семьи (genre=23,6, -views)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-docu",
+                    title: "Документальные фильмы",
+                    subtitle: "Полнометражная документалистика (type=documovie, -views)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "movies-standup",
+                    title: "Стендап-спешлы",
+                    subtitle: "Сольные стендап-концерты (genre=101, -created)",
+                    defaultVisible: true),
+  ]
+
+  /// Configurable sections on the Series & Shows tab (`contentType == .serial`).
+  static let allSeriesSections: [HomeSectionMeta] = [
+    HomeSectionMeta(id: "series-updated",
+                    title: "Новые серии на этой неделе",
+                    subtitle: "Свежие эпизоды и обновления сериалов (-updated)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-new",
+                    title: "Новые сериалы и премьеры",
+                    subtitle: "Недавно стартовавшие сериалы (-created)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-watchers",
+                    title: "Главные сериалы по подписчикам",
+                    subtitle: "Самые отслеживаемые сериалы Кинопаба (-watchers)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-weekly-top",
+                    title: "Топ сериалов недели",
+                    subtitle: "Лидеры просмотров за 7 дней (-views, period=week)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-finished",
+                    title: "Завершённые сериалы целиком",
+                    subtitle: "Полностью вышедшие сериалы для марафона (finished=1, -watchers)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-top-imdb",
+                    title: "Золотой фонд IMDb",
+                    subtitle: "Высший рейтинг IMDb среди сериалов (-imdb_rating)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-4k",
+                    title: "Сериалы в 4K UHD",
+                    subtitle: "Релизы сериалов в 4K UHD (quality=4, -updated)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-crime",
+                    title: "Детективы, Триллеры и Криминал",
+                    subtitle: "Расследования, нуар и триллеры (genre=13,7,17, -watchers)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-scifi",
+                    title: "Фантастика и Фэнтези",
+                    subtitle: "Научная фантастика и эпическое фэнтези (genre=4,5, -watchers)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-drama",
+                    title: "Престижные драмы",
+                    subtitle: "Лучшие драматические сериалы (genre=9, -watchers)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-comedy",
+                    title: "Комедийные сериалы и ситкомы",
+                    subtitle: "Лёгкие и смешные сериалы (genre=1, -watchers)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-anime",
+                    title: "Аниме-сериалы",
+                    subtitle: "Популярные аниме-сериалы по подписчикам (genre=25, -watchers)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-dorama",
+                    title: "Дорамы",
+                    subtitle: "Корейские и азиатские сериалы (genre=107, -watchers)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-docu",
+                    title: "Документальные сериалы",
+                    subtitle: "Тру-крайм, история и наука (type=docuserial, -views)",
+                    defaultVisible: true),
+    HomeSectionMeta(id: "series-tvshows",
+                    title: "Телешоу и Передачи",
+                    subtitle: "Развлекательные шоу и проекты (type=tvshow, -updated)",
+                    defaultVisible: true),
+  ]
+
   private init() {
     let defaultTabOrder = Self.allBrowseTabs.map(\.id)
     if let savedHidden = UserDefaults.standard.stringArray(forKey: hiddenTabsKey) {
@@ -191,6 +327,42 @@ final class SectionVisibilityStore: ObservableObject {
       orderedHomeSectionIDs = merged
     } else {
       orderedHomeSectionIDs = defaultSectionOrder
+    }
+
+    let defaultMovieOrder = Self.allMovieSections.map(\.id)
+    if let savedHiddenMovieSections = UserDefaults.standard.stringArray(forKey: hiddenMovieSectionsKey) {
+      hiddenMovieSectionIDs = Set(savedHiddenMovieSections)
+    } else {
+      hiddenMovieSectionIDs = Set(Self.allMovieSections.filter { !$0.defaultVisible }.map(\.id))
+    }
+
+    if let savedMovieOrder = UserDefaults.standard.stringArray(forKey: orderedMovieSectionsKey), !savedMovieOrder.isEmpty {
+      let known = Set(defaultMovieOrder)
+      var merged = savedMovieOrder.filter { known.contains($0) }
+      for id in defaultMovieOrder where !merged.contains(id) {
+        merged.append(id)
+      }
+      orderedMovieSectionIDs = merged
+    } else {
+      orderedMovieSectionIDs = defaultMovieOrder
+    }
+
+    let defaultSeriesOrder = Self.allSeriesSections.map(\.id)
+    if let savedHiddenSeriesSections = UserDefaults.standard.stringArray(forKey: hiddenSeriesSectionsKey) {
+      hiddenSeriesSectionIDs = Set(savedHiddenSeriesSections)
+    } else {
+      hiddenSeriesSectionIDs = Set(Self.allSeriesSections.filter { !$0.defaultVisible }.map(\.id))
+    }
+
+    if let savedSeriesOrder = UserDefaults.standard.stringArray(forKey: orderedSeriesSectionsKey), !savedSeriesOrder.isEmpty {
+      let known = Set(defaultSeriesOrder)
+      var merged = savedSeriesOrder.filter { known.contains($0) }
+      for id in defaultSeriesOrder where !merged.contains(id) {
+        merged.append(id)
+      }
+      orderedSeriesSectionIDs = merged
+    } else {
+      orderedSeriesSectionIDs = defaultSeriesOrder
     }
 
     if UserDefaults.standard.object(forKey: excludeConcertsKey) != nil {
@@ -347,17 +519,147 @@ final class SectionVisibilityStore: ObservableObject {
     NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
   }
 
+  // MARK: - Movies Sections Visibility & Ordering
+
+  var orderedMovieSections: [HomeSectionMeta] {
+    let byID = Dictionary(uniqueKeysWithValues: Self.allMovieSections.map { ($0.id, $0) })
+    let ordered = orderedMovieSectionIDs.compactMap { byID[$0] }
+    let missing = Self.allMovieSections.filter { !orderedMovieSectionIDs.contains($0.id) }
+    return ordered + missing
+  }
+
+  var visibleMovieSections: [HomeSectionMeta] {
+    orderedMovieSections.filter { isMovieSectionVisible($0.id) }
+  }
+
+  func isMovieSectionVisible(_ id: String) -> Bool {
+    !hiddenMovieSectionIDs.contains(id)
+  }
+
+  func setMovieSectionVisible(_ visible: Bool, id: String) {
+    if visible {
+      hiddenMovieSectionIDs.remove(id)
+    } else {
+      hiddenMovieSectionIDs.insert(id)
+    }
+    UserDefaults.standard.set(Array(hiddenMovieSectionIDs), forKey: hiddenMovieSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func toggleMovieSectionVisibility(id: String) {
+    setMovieSectionVisible(!isMovieSectionVisible(id), id: id)
+  }
+
+  func moveMovieSectionUp(id: String) {
+    guard let idx = orderedMovieSectionIDs.firstIndex(of: id), idx > 0 else { return }
+    orderedMovieSectionIDs.swapAt(idx, idx - 1)
+    UserDefaults.standard.set(orderedMovieSectionIDs, forKey: orderedMovieSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func moveMovieSectionDown(id: String) {
+    guard let idx = orderedMovieSectionIDs.firstIndex(of: id), idx < orderedMovieSectionIDs.count - 1 else { return }
+    orderedMovieSectionIDs.swapAt(idx, idx + 1)
+    UserDefaults.standard.set(orderedMovieSectionIDs, forKey: orderedMovieSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func moveMovieSections(fromOffsets source: IndexSet, toOffset destination: Int) {
+    orderedMovieSectionIDs.move(fromOffsets: source, toOffset: destination)
+    UserDefaults.standard.set(orderedMovieSectionIDs, forKey: orderedMovieSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func moveMovieSection(id: String, toPosition oneBasedPosition: Int) {
+    guard let currentIndex = orderedMovieSectionIDs.firstIndex(of: id) else { return }
+    let targetIndex = max(0, min(orderedMovieSectionIDs.count - 1, oneBasedPosition - 1))
+    guard currentIndex != targetIndex else { return }
+    let item = orderedMovieSectionIDs.remove(at: currentIndex)
+    orderedMovieSectionIDs.insert(item, at: targetIndex)
+    UserDefaults.standard.set(orderedMovieSectionIDs, forKey: orderedMovieSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  // MARK: - Series Sections Visibility & Ordering
+
+  var orderedSeriesSections: [HomeSectionMeta] {
+    let byID = Dictionary(uniqueKeysWithValues: Self.allSeriesSections.map { ($0.id, $0) })
+    let ordered = orderedSeriesSectionIDs.compactMap { byID[$0] }
+    let missing = Self.allSeriesSections.filter { !orderedSeriesSectionIDs.contains($0.id) }
+    return ordered + missing
+  }
+
+  var visibleSeriesSections: [HomeSectionMeta] {
+    orderedSeriesSections.filter { isSeriesSectionVisible($0.id) }
+  }
+
+  func isSeriesSectionVisible(_ id: String) -> Bool {
+    !hiddenSeriesSectionIDs.contains(id)
+  }
+
+  func setSeriesSectionVisible(_ visible: Bool, id: String) {
+    if visible {
+      hiddenSeriesSectionIDs.remove(id)
+    } else {
+      hiddenSeriesSectionIDs.insert(id)
+    }
+    UserDefaults.standard.set(Array(hiddenSeriesSectionIDs), forKey: hiddenSeriesSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func toggleSeriesSectionVisibility(id: String) {
+    setSeriesSectionVisible(!isSeriesSectionVisible(id), id: id)
+  }
+
+  func moveSeriesSectionUp(id: String) {
+    guard let idx = orderedSeriesSectionIDs.firstIndex(of: id), idx > 0 else { return }
+    orderedSeriesSectionIDs.swapAt(idx, idx - 1)
+    UserDefaults.standard.set(orderedSeriesSectionIDs, forKey: orderedSeriesSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func moveSeriesSectionDown(id: String) {
+    guard let idx = orderedSeriesSectionIDs.firstIndex(of: id), idx < orderedSeriesSectionIDs.count - 1 else { return }
+    orderedSeriesSectionIDs.swapAt(idx, idx + 1)
+    UserDefaults.standard.set(orderedSeriesSectionIDs, forKey: orderedSeriesSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func moveSeriesSections(fromOffsets source: IndexSet, toOffset destination: Int) {
+    orderedSeriesSectionIDs.move(fromOffsets: source, toOffset: destination)
+    UserDefaults.standard.set(orderedSeriesSectionIDs, forKey: orderedSeriesSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func moveSeriesSection(id: String, toPosition oneBasedPosition: Int) {
+    guard let currentIndex = orderedSeriesSectionIDs.firstIndex(of: id) else { return }
+    let targetIndex = max(0, min(orderedSeriesSectionIDs.count - 1, oneBasedPosition - 1))
+    guard currentIndex != targetIndex else { return }
+    let item = orderedSeriesSectionIDs.remove(at: currentIndex)
+    orderedSeriesSectionIDs.insert(item, at: targetIndex)
+    UserDefaults.standard.set(orderedSeriesSectionIDs, forKey: orderedSeriesSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
   func resetToDefaults() {
     hiddenIDs = Set(Self.allBrowseTabs.filter { !$0.defaultVisible }.map(\.id))
     orderedTabIDs = Self.allBrowseTabs.map(\.id)
     hiddenHomeSectionIDs = Set(Self.allHomeSections.filter { !$0.defaultVisible }.map(\.id))
     orderedHomeSectionIDs = Self.allHomeSections.map(\.id)
+    hiddenMovieSectionIDs = Set(Self.allMovieSections.filter { !$0.defaultVisible }.map(\.id))
+    orderedMovieSectionIDs = Self.allMovieSections.map(\.id)
+    hiddenSeriesSectionIDs = Set(Self.allSeriesSections.filter { !$0.defaultVisible }.map(\.id))
+    orderedSeriesSectionIDs = Self.allSeriesSections.map(\.id)
     excludeConcertsOnHome = true
 
     UserDefaults.standard.removeObject(forKey: hiddenTabsKey)
     UserDefaults.standard.removeObject(forKey: orderedTabsKey)
     UserDefaults.standard.removeObject(forKey: hiddenHomeSectionsKey)
     UserDefaults.standard.removeObject(forKey: orderedHomeSectionsKey)
+    UserDefaults.standard.removeObject(forKey: hiddenMovieSectionsKey)
+    UserDefaults.standard.removeObject(forKey: orderedMovieSectionsKey)
+    UserDefaults.standard.removeObject(forKey: hiddenSeriesSectionsKey)
+    UserDefaults.standard.removeObject(forKey: orderedSeriesSectionsKey)
     UserDefaults.standard.removeObject(forKey: excludeConcertsKey)
     NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
   }

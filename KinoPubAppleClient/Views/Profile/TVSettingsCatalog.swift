@@ -296,10 +296,38 @@ final class TVSettingsCatalog {
       )
     }
 
+    let movieSections = store.orderedMovieSections
+    let movieSectionRows: [TSKRow] = movieSections.enumerated().map { idx, section in
+      let isVisible = store.isMovieSectionVisible(section.id)
+      let status = isVisible ? "Вкл" : "Выкл"
+      return TSKRow(
+        title: "\(idx + 1). \(section.title) — \(status)",
+        description: "\(section.subtitle)\nНажмите Select, чтобы включить/выключить секцию на вкладке Фильмы или изменить её порядок.",
+        kind: .action(pushes: true) { [unowned self] in
+          self.host.push(self.movieSectionDetailPage(sectionID: section.id))
+        },
+        previewSymbol: "movieclapper"
+      )
+    }
+
+    let seriesSections = store.orderedSeriesSections
+    let seriesSectionRows: [TSKRow] = seriesSections.enumerated().map { idx, section in
+      let isVisible = store.isSeriesSectionVisible(section.id)
+      let status = isVisible ? "Вкл" : "Выкл"
+      return TSKRow(
+        title: "\(idx + 1). \(section.title) — \(status)",
+        description: "\(section.subtitle)\nНажмите Select, чтобы включить/выключить секцию на вкладке Сериалы или изменить её порядок.",
+        kind: .action(pushes: true) { [unowned self] in
+          self.host.push(self.seriesSectionDetailPage(sectionID: section.id))
+        },
+        previewSymbol: "rectangle.stack"
+      )
+    }
+
     let resetRows: [TSKRow] = [
       TSKRow(
         title: "Сбросить вкладки и секции по умолчанию",
-        description: "Восстанавливает стандартный набор и порядок вкладок верхнего меню и секций Главной страницы.",
+        description: "Восстанавливает стандартный набор и порядок вкладок верхнего меню и секций Главной, Фильмов и Сериалов.",
         kind: .action(pushes: false) { [unowned self] in
           SectionVisibilityStore.shared.resetToDefaults()
           self.host.reloadPages()
@@ -312,6 +340,8 @@ final class TVSettingsCatalog {
       TSKSection(title: "Вкладки верхнего меню (Табы)", rows: tabRows),
       TSKSection(title: "Фильтры Главной", rows: filterRows),
       TSKSection(title: "Секции Главной (Watch Now)", rows: sectionRows),
+      TSKSection(title: "Секции Фильмов (Movies)", rows: movieSectionRows),
+      TSKSection(title: "Секции Сериалов и Шоу (Series)", rows: seriesSectionRows),
       TSKSection(title: "Сброс", rows: resetRows),
     ]
   }
@@ -423,6 +453,122 @@ final class TVSettingsCatalog {
           description: "Поставить секцию «\(section.title)» на место #\(targetIdx + 1) на Главной.",
           kind: .action(pushes: false) { [unowned self] in
             SectionVisibilityStore.shared.moveHomeSection(id: sectionID, toPosition: targetIdx + 1)
+            self.host.reloadPages()
+          },
+          isEnabled: !isCurrent
+        )
+      }
+
+      return [
+        TSKSection(title: "Управление секцией", rows: actionRows),
+        TSKSection(title: "Быстрый выбор позиции", rows: positionRows),
+      ]
+    }
+  }
+
+  private func movieSectionDetailPage(sectionID: String) -> TSKPage {
+    let section = SectionVisibilityStore.allMovieSections.first { $0.id == sectionID }
+      ?? SectionVisibilityStore.allMovieSections[0]
+    return TSKPage(title: section.title, previewSymbol: "movieclapper") { [unowned self] in
+      let store = SectionVisibilityStore.shared
+      let ordered = store.orderedMovieSections
+      let idx = ordered.firstIndex(where: { $0.id == sectionID }) ?? 0
+      let isVisible = store.isMovieSectionVisible(sectionID)
+
+      let actionRows: [TSKRow] = [
+        TSKRow(
+          title: "Показывать в Фильмах: \(isVisible ? "Вкл" : "Выкл")",
+          description: section.subtitle,
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.toggleMovieSectionVisibility(id: sectionID)
+            self.host.reloadPages()
+          }
+        ),
+        TSKRow(
+          title: "Поднять выше (↑)",
+          description: "Переместить секцию выше на вкладке Фильмы (текущая позиция: #\(idx + 1) из \(ordered.count)).",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveMovieSectionUp(id: sectionID)
+            self.host.reloadPages()
+          },
+          isEnabled: idx > 0
+        ),
+        TSKRow(
+          title: "Опустить ниже (↓)",
+          description: "Переместить секцию ниже на вкладке Фильмы (текущая позиция: #\(idx + 1) из \(ordered.count)).",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveMovieSectionDown(id: sectionID)
+            self.host.reloadPages()
+          },
+          isEnabled: idx < ordered.count - 1
+        ),
+      ]
+
+      let positionRows: [TSKRow] = ordered.indices.map { targetIdx in
+        let isCurrent = (targetIdx == idx)
+        return TSKRow(
+          title: isCurrent ? "Позиция #\(targetIdx + 1) (текущая)" : "Переместить на позицию #\(targetIdx + 1)",
+          description: "Поставить секцию «\(section.title)» на место #\(targetIdx + 1) в Фильмах.",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveMovieSection(id: sectionID, toPosition: targetIdx + 1)
+            self.host.reloadPages()
+          },
+          isEnabled: !isCurrent
+        )
+      }
+
+      return [
+        TSKSection(title: "Управление секцией", rows: actionRows),
+        TSKSection(title: "Быстрый выбор позиции", rows: positionRows),
+      ]
+    }
+  }
+
+  private func seriesSectionDetailPage(sectionID: String) -> TSKPage {
+    let section = SectionVisibilityStore.allSeriesSections.first { $0.id == sectionID }
+      ?? SectionVisibilityStore.allSeriesSections[0]
+    return TSKPage(title: section.title, previewSymbol: "rectangle.stack") { [unowned self] in
+      let store = SectionVisibilityStore.shared
+      let ordered = store.orderedSeriesSections
+      let idx = ordered.firstIndex(where: { $0.id == sectionID }) ?? 0
+      let isVisible = store.isSeriesSectionVisible(sectionID)
+
+      let actionRows: [TSKRow] = [
+        TSKRow(
+          title: "Показывать в Сериалах: \(isVisible ? "Вкл" : "Выкл")",
+          description: section.subtitle,
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.toggleSeriesSectionVisibility(id: sectionID)
+            self.host.reloadPages()
+          }
+        ),
+        TSKRow(
+          title: "Поднять выше (↑)",
+          description: "Переместить секцию выше на вкладке Сериалы (текущая позиция: #\(idx + 1) из \(ordered.count)).",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveSeriesSectionUp(id: sectionID)
+            self.host.reloadPages()
+          },
+          isEnabled: idx > 0
+        ),
+        TSKRow(
+          title: "Опустить ниже (↓)",
+          description: "Переместить секцию ниже на вкладке Сериалы (текущая позиция: #\(idx + 1) из \(ordered.count)).",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveSeriesSectionDown(id: sectionID)
+            self.host.reloadPages()
+          },
+          isEnabled: idx < ordered.count - 1
+        ),
+      ]
+
+      let positionRows: [TSKRow] = ordered.indices.map { targetIdx in
+        let isCurrent = (targetIdx == idx)
+        return TSKRow(
+          title: isCurrent ? "Позиция #\(targetIdx + 1) (текущая)" : "Переместить на позицию #\(targetIdx + 1)",
+          description: "Поставить секцию «\(section.title)» на место #\(targetIdx + 1) в Сериалах.",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveSeriesSection(id: sectionID, toPosition: targetIdx + 1)
             self.host.reloadPages()
           },
           isEnabled: !isCurrent
