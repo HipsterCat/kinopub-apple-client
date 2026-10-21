@@ -45,6 +45,7 @@ final class TVPageBannerCell: UICollectionViewCell {
   private var chromeConstraints: [NSLayoutConstraint] = []
 
   private var tasks: [Task<Void, Never>] = []
+  private var currentCardID: Int?
   private var feature: TVPageFeature?
   private var chrome = TVPageBannerChrome.current
   /// Shared with the SwiftUI hero. Completions are request-scoped inside the session.
@@ -203,11 +204,30 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
-    coordinator.addCoordinatedAnimations {
-      self.applyCopyColor()
-      self.applyScrim()
-      self.applyLogoShadow()
-      self.applyLogoFocus(animated: false)
+
+    let isCrossController: Bool
+    if let prev = context.previouslyFocusedView, let next = context.nextFocusedView {
+      let prevInCollection = prev.isDescendant(of: self.superview ?? self)
+      let nextInCollection = next.isDescendant(of: self.superview ?? self)
+      isCrossController = !prevInCollection || !nextInCollection
+    } else {
+      isCrossController = true
+    }
+
+    if isCrossController {
+      UIView.performWithoutAnimation {
+        self.applyCopyColor()
+        self.applyScrim()
+        self.applyLogoShadow()
+        self.applyLogoFocus(animated: false)
+      }
+    } else {
+      coordinator.addCoordinatedAnimations {
+        self.applyCopyColor()
+        self.applyScrim()
+        self.applyLogoShadow()
+        self.applyLogoFocus(animated: false)
+      }
     }
   }
 
@@ -274,6 +294,8 @@ final class TVPageBannerCell: UICollectionViewCell {
     } else {
       targetTransform = .identity
     }
+
+    if targetView.transform == targetTransform { return }
 
     if animated {
       isAnimatingLogoFocus = true
@@ -355,10 +377,13 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   func configure(feature: TVPageFeature) {
     let card = feature.card
+    let sameCard = currentCardID == card.id && card.id > 0
+    currentCardID = card.id
     let previous = self.feature
     self.feature = feature
 
     if card.id <= 0 {
+      currentCardID = nil
       cancelLoads()
       logoSession.reset()
       backdrop.image = nil
@@ -368,6 +393,9 @@ final class TVPageBannerCell: UICollectionViewCell {
       overviewText = nil
       applyOverview()
       meta.arrangedSubviews.forEach { $0.removeFromSuperview() }
+      topHeader.transform = .identity
+      logo.transform = .identity
+      titleLabel.transform = .identity
       accessibilityIdentifier = "kinopub.banner.placeholder"
       cardView.accessibilityLabel = nil
       return
@@ -382,18 +410,21 @@ final class TVPageBannerCell: UICollectionViewCell {
     cardView.accessibilityLabel = ([card.title, overviewLabel.text].compactMap { $0 } + metaParts)
       .joined(separator: ", ")
 
-    // A reconfigure of the same title (its details or logo arrived) keeps what is
-    // already on screen and only loads what is new.
-    let sameTitle = previous?.card.id == card.id
-    if !sameTitle {
+    // A reconfigure of the same title (its details or logo arrived, or returning from details)
+    // keeps what is already on screen and only loads what is new.
+    if !sameCard {
       cancelLoads()
       logoSession.reset()
       backdrop.image = nil
       poster.image = nil
       showMark(nil, awaitingLogo: true)
+      topHeader.transform = .identity
+      logo.transform = .identity
+      titleLabel.transform = .identity
+      applyLogoShadow()
     }
     let size = cardView.contentSize
-    if !sameTitle || backdrop.image == nil {
+    if !sameCard || backdrop.image == nil {
       load([URL(string: card.backdropImageURL), URL(string: card.posterURL)], size: size) { [weak self] image in
         guard let self, let image else { return }
         if self.backdrop.image == nil {
@@ -405,7 +436,7 @@ final class TVPageBannerCell: UICollectionViewCell {
         }
       }
     }
-    if chrome.showsPoster, !sameTitle || poster.image == nil {
+    if chrome.showsPoster, !sameCard || poster.image == nil {
       let posterSize = CGSize(width: size.height * chrome.posterHeightRatio * CardAspect.poster.ratio,
                               height: size.height * chrome.posterHeightRatio)
       load([URL(string: card.posterURL)], size: posterSize) { [weak self] image in
@@ -420,9 +451,11 @@ final class TVPageBannerCell: UICollectionViewCell {
       }
     }
     let logoChanged = previous?.logo != feature.logo
-    if !sameTitle || logoChanged || (feature.logo.url != nil && logo.image == nil) {
+    if !sameCard || logoChanged || (feature.logo.url != nil && logo.image == nil) {
       applyLogo(feature.logo)
     }
+
+    applyLogoFocus(animated: false)
   }
 
   /// Returns a concise, readable synopsis snippet of at least `minLength` characters
@@ -969,26 +1002,14 @@ final class TVPageBannerCell: UICollectionViewCell {
   override func prepareForReuse() {
     super.prepareForReuse()
     cancelLoads()
-    logoSession.reset()
-    feature = nil
-    backdrop.image = nil
-    poster.image = nil
-    showMark(nil, awaitingLogo: true)
-    titleLabel.text = nil
-    overviewText = nil
-    applyOverview()
-    meta.arrangedSubviews.forEach { $0.removeFromSuperview() }
-    topHeader.transform = .identity
-    logo.transform = .identity
-    titleLabel.transform = .identity
     isAnimatingLogoFocus = false
-    applyLogoShadow()
     accessibilityIdentifier = nil
   }
 
   /// Stand-in art for previews or standalone hosting without a network.
   func previewFill(backdrop: UIImage, poster: UIImage?, logo: UIImage?) {
     laysOutPlatterForPreview = true
+    currentCardID = nil
     self.backdrop.image = backdrop
     self.poster.image = poster
     showMark(logo, awaitingLogo: false)

@@ -224,6 +224,7 @@ public enum TVPageLayout {
     }
     let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.orthogonalScrollingBehavior = .continuous
+    layoutSection.contentInsetsReference = .none
     layoutSection.interGroupSpacing = TVHIGGrid.gutter - recipe.artInsets.leading - recipe.artInsets.trailing
     layoutSection.contentInsets = insets(for: recipe, sideInset: sideInset, titled: section.title != nil,
                                          captioned: hasStandingCaption(section))
@@ -309,6 +310,7 @@ public enum TVPageLayout {
     let group = NSCollectionLayoutGroup.horizontal(layoutSize: size,
                                                    subitems: [NSCollectionLayoutItem(layoutSize: size)])
     let layoutSection = NSCollectionLayoutSection(group: group)
+    layoutSection.contentInsetsReference = .none
     layoutSection.interGroupSpacing = TVPageBannerChrome.bannerGutter - recipe.artInsets.leading - recipe.artInsets.trailing
     switch chrome.row {
     case .leading:
@@ -537,6 +539,7 @@ public enum TVPageLayout {
     ) { _ in frames.map { NSCollectionLayoutGroupCustomItem(frame: $0) } }
     let layoutSection = NSCollectionLayoutSection(group: group)
     layoutSection.orthogonalScrollingBehavior = .continuous
+    layoutSection.contentInsetsReference = .none
     layoutSection.contentInsets = NSDirectionalEdgeInsets(
       top: TVHIGGrid.headerToItems, leading: sideInset,
       bottom: bottom, trailing: sideInset
