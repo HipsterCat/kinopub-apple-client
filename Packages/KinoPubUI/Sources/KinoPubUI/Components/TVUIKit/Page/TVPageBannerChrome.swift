@@ -62,6 +62,21 @@ public enum TVPageBannerContentAlignment: String, CaseIterable, Hashable, Sendab
   case center
 }
 
+/// Vertical positioning of the content block inside the banner.
+public enum TVPageBannerVerticalAlignment: String, CaseIterable, Hashable, Sendable {
+  case bottom
+  case center
+  case top
+
+  public var title: String {
+    switch self {
+    case .bottom: return "Снизу"
+    case .center: return "По центру"
+    case .top: return "Сверху"
+    }
+  }
+}
+
 /// What darkens the backdrop behind the words.
 public enum TVPageBannerScrim: Sendable {
   /// Bands at the top and bottom. Reach is a fraction of the card's height; alpha
@@ -118,84 +133,130 @@ public struct TVPageBannerChrome: Sendable {
   public var width: TVPageBannerWidth = .pair
   public var logoPlacement: TVPageBannerLogoPlacement = .top
   public var alignment: TVPageBannerContentAlignment = .leading
-  public var showsPoster: Bool = true
-  /// Short, light bands. The old ones reached 45% / 65% of the card at alpha 0.65–0.9.
+  public var verticalAlignment: TVPageBannerVerticalAlignment = .bottom
+  public var showsPoster: Bool = false
+  /// Smooth vertical gradient of transparency under the bottom copy, leaving the top art bright.
   public var scrim: TVPageBannerScrim = .edges(
     color: .black,
-    topReach: 0.18,
-    topAlpha: 0.28,
-    bottomReach: 0.34,
-    bottomAlpha: 0.40
+    topReach: 0.0,
+    topAlpha: 0.0,
+    bottomReach: 0.50,
+    bottomAlpha: 0.70
   )
   public var blend: TVPageBannerBlend = .normal
-  /// Description, rating digits and genres. One style, the font's own weight —
-  /// focus does not change the colour.
+  /// Description, rating digits and genres. One style, the font's own weight.
   public var textStyle: UIFont.TextStyle = .caption2
-  /// Secondary label. `textVibrance` pulls it toward opaque white so it stays
-  /// vivid on the art: 0 is the system secondary, 1 is white.
+  /// Secondary label for unfocused description.
   public var textColor: UIColor = .secondaryLabel
   public var textVibrance: CGFloat = 0.65
+  public var vibranceEnabled: Bool = false
+  public var isFocusedState: Bool = false
   public var padding: CGFloat = 32
-  public var copySpacing: CGFloat = 8
+  /// Reduced bottom padding under meta line (~30% less than 32pt side inset).
+  public var bottomPadding: CGFloat = 22
+  public var copySpacing: CGFloat = 12
   /// Caps for the logo box. The view is then shrunk to the image's own aspect,
   /// pinned to the top of that box.
   public var logoMaxHeightRatio: CGFloat = 0.20
   public var logoMaxWidthRatio: CGFloat = 0.60
-  public var posterHeightRatio: CGFloat = 0.42
+  /// Poster is 40% of banner height in the bottom corner.
+  public var posterHeightRatio: CGFloat = 0.40
   /// Rating-mark height. `nil` uses the caption font's cap height, so the mark
   /// sits on the digits.
   public var scoreIconHeight: CGFloat? = nil
+  /// Whether to display voter turnout in parentheses after the rating: `(12K)`.
+  public var showsRatingVotes: Bool = false
+  /// Maximum number of rating badges in the banner meta row (default 2).
+  public var ratingMaxCount: Int = 2
+  /// Filter out noisy ratings with < 10 votes when higher turnout ratings exist.
+  public var filterLowTurnout: Bool = true
+  /// When a single rating source holds > 90% of total votes, collapse to that 1 source.
+  public var filterDominantScore: Bool = true
+  /// Whether to display our weighted aggregate score plaque at the start of the ratings row.
+  public var showsAggregateScore: Bool = false
+  /// When true, renders only the aggregate score badge without individual source breakdowns.
+  public var aggregateOnly: Bool = false
+  /// Omits duplicate rating digits when the aggregate score is derived from only 1 source.
+  public var deduplicateSingleSourceAggregate: Bool = true
 
   public init(
     row: TVPageBannerRow = .leading,
     width: TVPageBannerWidth = .pair,
     logoPlacement: TVPageBannerLogoPlacement = .top,
     alignment: TVPageBannerContentAlignment = .leading,
-    showsPoster: Bool = true,
+    verticalAlignment: TVPageBannerVerticalAlignment = .bottom,
+    showsPoster: Bool = false,
     scrim: TVPageBannerScrim = .edges(
       color: .black,
-      topReach: 0.18,
-      topAlpha: 0.28,
-      bottomReach: 0.34,
-      bottomAlpha: 0.40
+      topReach: 0.0,
+      topAlpha: 0.0,
+      bottomReach: 0.50,
+      bottomAlpha: 0.70
     ),
     blend: TVPageBannerBlend = .normal,
     textStyle: UIFont.TextStyle = .caption2,
     textColor: UIColor = .secondaryLabel,
     textVibrance: CGFloat = 0.65,
+    vibranceEnabled: Bool = false,
+    isFocusedState: Bool = false,
     padding: CGFloat = 32,
-    copySpacing: CGFloat = 8,
+    bottomPadding: CGFloat = 22,
+    copySpacing: CGFloat = 12,
     logoMaxHeightRatio: CGFloat = 0.20,
     logoMaxWidthRatio: CGFloat = 0.60,
-    posterHeightRatio: CGFloat = 0.42,
-    scoreIconHeight: CGFloat? = nil
+    posterHeightRatio: CGFloat = 0.40,
+    scoreIconHeight: CGFloat? = nil,
+    showsRatingVotes: Bool = false,
+    ratingMaxCount: Int = 2,
+    filterLowTurnout: Bool = true,
+    filterDominantScore: Bool = true,
+    showsAggregateScore: Bool = false,
+    aggregateOnly: Bool = false,
+    deduplicateSingleSourceAggregate: Bool = true
   ) {
     self.row = row
     self.width = width
     self.logoPlacement = logoPlacement
     self.alignment = alignment
+    self.verticalAlignment = verticalAlignment
     self.showsPoster = showsPoster
     self.scrim = scrim
     self.blend = blend
     self.textStyle = textStyle
     self.textColor = textColor
     self.textVibrance = textVibrance
+    self.vibranceEnabled = vibranceEnabled
+    self.isFocusedState = isFocusedState
     self.padding = padding
+    self.bottomPadding = bottomPadding
     self.copySpacing = copySpacing
     self.logoMaxHeightRatio = logoMaxHeightRatio
     self.logoMaxWidthRatio = logoMaxWidthRatio
     self.posterHeightRatio = posterHeightRatio
     self.scoreIconHeight = scoreIconHeight
+    self.showsRatingVotes = showsRatingVotes
+    self.ratingMaxCount = ratingMaxCount
+    self.filterLowTurnout = filterLowTurnout
+    self.filterDominantScore = filterDominantScore
+    self.showsAggregateScore = showsAggregateScore
+    self.aggregateOnly = aggregateOnly
+    self.deduplicateSingleSourceAggregate = deduplicateSingleSourceAggregate
   }
 
   public var textFont: UIFont { UIFont.preferredFont(forTextStyle: textStyle) }
 
-  /// `textColor` mixed toward white by `textVibrance`. Always resolved against dark
-  /// appearance so banner copy remains vivid on top of the backdrop in both light and dark system themes.
+  /// `textColor` mixed toward white by `textVibrance` when enabled, or bright white in focus.
+  /// Always resolved against dark appearance so banner copy remains vivid on top of the backdrop.
   public var resolvedTextColor: UIColor {
-    let amount = min(max(textVibrance, 0), 1)
+    if isFocusedState {
+      return .white
+    }
     let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
     let base = textColor.resolvedColor(with: darkTraits)
+    guard vibranceEnabled else {
+      return base
+    }
+    let amount = min(max(textVibrance, 0), 1)
     guard amount > 0 else { return base }
     var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
     guard base.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return base }

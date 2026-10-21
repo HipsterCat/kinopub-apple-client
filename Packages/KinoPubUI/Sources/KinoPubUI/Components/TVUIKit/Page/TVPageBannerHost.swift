@@ -17,17 +17,20 @@ import UIKit
 public struct TVPageBannerHost: UIViewRepresentable {
   public var chrome: TVPageBannerChrome
   public var feature: TVPageFeature
+  public var isSimulatedFocused: Bool = false
   public var customItemSize: CGSize? = nil
   public var usePreviewFillOnly: Bool = false
 
   public init(
     chrome: TVPageBannerChrome,
     feature: TVPageFeature,
+    isSimulatedFocused: Bool = false,
     customItemSize: CGSize? = nil,
     usePreviewFillOnly: Bool = false
   ) {
     self.chrome = chrome
     self.feature = feature
+    self.isSimulatedFocused = isSimulatedFocused
     self.customItemSize = customItemSize
     self.usePreviewFillOnly = usePreviewFillOnly
   }
@@ -41,6 +44,7 @@ public struct TVPageBannerHost: UIViewRepresentable {
   public func makeUIView(context: Context) -> TVPageBannerPreviewHost {
     let size = customItemSize ?? Self.itemSize
     let host = TVPageBannerPreviewHost(frame: CGRect(origin: .zero, size: size))
+    host.isSimulatedFocused = isSimulatedFocused
     host.configure(feature: feature, chrome: chrome, usePreviewFillOnly: usePreviewFillOnly)
     return host
   }
@@ -50,6 +54,7 @@ public struct TVPageBannerHost: UIViewRepresentable {
     if host.frame.size != size {
       host.frame = CGRect(origin: .zero, size: size)
     }
+    host.isSimulatedFocused = isSimulatedFocused
     host.configure(feature: feature, chrome: chrome, usePreviewFillOnly: usePreviewFillOnly)
   }
 }
@@ -59,6 +64,11 @@ public final class TVPageBannerPreviewHost: UIView {
   let cell = TVPageBannerCell(frame: .zero)
   public var currentFeatureID: Int?
   public var currentLogo: TitleLogoResolution?
+
+  public var isSimulatedFocused: Bool {
+    get { cell.isSimulatedFocused }
+    set { cell.isSimulatedFocused = newValue }
+  }
 
   public override init(frame: CGRect) {
     super.init(frame: frame)
@@ -135,10 +145,21 @@ public enum TVPageBannerSamples {
     hasBackdrop: Bool = true,
     hasPoster: Bool = true,
     seasonCount: Int? = 1,
+    episodeCount: Int? = 8,
     isSeries: Bool = true,
+    year: Int? = 2026,
+    yearEnd: Int? = nil,
+    country: String? = "Япония",
     genres: [Genre] = [GenreVocabulary.genre(id: "anime"), GenreVocabulary.genre(id: "drama")].compactMap { $0 },
-    imdbScore: Double = 8.8,
-    kinopoiskScore: Double = 7.8
+    scores: MediaScores? = nil,
+    imdbScore: Double? = 8.8,
+    imdbVotes: Int? = 12_500,
+    kinopoiskScore: Double? = 7.8,
+    kinopoiskVotes: Int? = 4_200,
+    tmdbScore: Double? = nil,
+    tmdbVotes: Int? = nil,
+    kinopubLikes: Int? = nil,
+    kinopubDislikes: Int? = nil
   ) -> TVPageFeature {
     let posterURL: String
     if !hasPoster {
@@ -162,18 +183,32 @@ public enum TVPageBannerSamples {
       backdropURL = "https://m.staticpop.net/poster/item/wide/\(id).jpg"
     }
 
+    let cardScores = scores ?? MediaScores(
+      imdb: imdbScore,
+      imdbVotes: imdbVotes,
+      kinopoisk: kinopoiskScore,
+      kinopoiskVotes: kinopoiskVotes,
+      tmdb: tmdbScore,
+      tmdbVotes: tmdbVotes,
+      kinopubLikes: kinopubLikes,
+      kinopubDislikes: kinopubDislikes
+    )
+
     let card = MediaCard(
       id: id,
       posterURL: posterURL,
       title: title,
-      imdbRating: imdbScore,
-      kinopoiskRating: kinopoiskScore,
+      scores: cardScores,
       backdropURL: backdropURL,
       overview: overview,
       landscapeImageURL: landscapeURL,
       seasonCount: seasonCount,
+      episodeCount: episodeCount,
       isSeries: isSeries,
-      genres: genres
+      year: year,
+      yearEnd: yearEnd,
+      genres: genres,
+      country: country
     )
 
     let logo: TitleLogoResolution
@@ -272,8 +307,30 @@ public enum BannerPreviewArt {
 
 // MARK: - Banner Lab Options
 
+public enum BannerLabFocusState: String, CaseIterable, Identifiable, Sendable {
+  case unfocused
+  case focused
+
+  public var id: String { rawValue }
+
+  public var label: String {
+    switch self {
+    case .unfocused: return "Без фокуса (Secondary)"
+    case .focused: return "В фокусе (Primary)"
+    }
+  }
+}
+
 public enum BannerLabPreset: String, CaseIterable, Identifiable, Sendable {
-  case primaryFull
+  case currentDefault
+  case previousFull
+  case focusedState
+  case noisyScores
+  case unknownScore
+  case dominantScore
+  case fallbackSources
+  case kinopub100
+  case aggregateDedup
   case typographyOnly
   case noPoster
   case noBackdrop
@@ -284,10 +341,18 @@ public enum BannerLabPreset: String, CaseIterable, Identifiable, Sendable {
 
   public var label: String {
     switch self {
-    case .primaryFull: return "Паук-Нуар 125269 (Full)"
-    case .typographyOnly: return "125269 Без лого (Текст)"
-    case .noPoster: return "125269 Без постера (Wide)"
-    case .noBackdrop: return "125269 Без бэкдропа"
+    case .currentDefault: return "Новый дефолт (Без постера, 40%)"
+    case .previousFull: return "Пример 2: Как было (С постером)"
+    case .focusedState: return "В фокусе (Primary текст)"
+    case .noisyScores: return "Шум: КП (4.2K) выше IMDb (6)"
+    case .unknownScore: return "Неизвестно: КП (?) ниже IMDb (7.9)"
+    case .dominantScore: return "Доминанта: КП (50K / 96%) один"
+    case .fallbackSources: return "Запасные: TMDb (7.5) + KinoPub"
+    case .kinopub100: return "Кинопаб 100%: 0 дизлайков (последний)"
+    case .aggregateDedup: return "Агрегат: [8.5] + IMDb (38) без дубля"
+    case .typographyOnly: return "Без лого (Текст 2 строки)"
+    case .noPoster: return "Без постера (Wide backdrop)"
+    case .noBackdrop: return "Без бэкдропа (Fallback)"
     case .catalog125268: return "Каталог ID 125268"
     case .catalog125260: return "Каталог ID 125260"
     }
@@ -295,32 +360,34 @@ public enum BannerLabPreset: String, CaseIterable, Identifiable, Sendable {
 }
 
 public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
-  case file
+  case defaultBottom
   case edgesBlack
   case edgesDominant
   case washBlack
   case washDominant
   case radialBlack
   case radialDominant
+  case none
 
   public var id: String { rawValue }
 
   public var label: String {
     switch self {
-    case .file: return "Default (nil)"
-    case .edgesBlack: return "Edges (Black)"
+    case .defaultBottom: return "Default (Низ 50% / 0.70)"
+    case .edgesBlack: return "Edges (Черный верх 28% / низ 40%)"
     case .edgesDominant: return "Edges (#C80202)"
     case .washBlack: return "Wash (Black 45%)"
     case .washDominant: return "Wash (#C80202 45%)"
     case .radialBlack: return "Radial (Black)"
     case .radialDominant: return "Radial (#C80202)"
+    case .none: return "Без затемнения"
     }
   }
 
   public var explanation: String {
     switch self {
-    case .file:
-      return "Без дополнительного программного затемнения."
+    case .defaultBottom:
+      return "Дефолтный градиент только снизу (50% высоты, прозрачность 0.70)."
     case .edgesBlack:
       return "Градиентные полосы черного цвета по верхнему и нижнему краям."
     case .edgesDominant:
@@ -333,14 +400,16 @@ public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
       return "Радиальное затемнение черным цветом от краев к центру."
     case .radialDominant:
       return "Радиальное затемнение оттенком #C80202 от краев к центру."
+    case .none:
+      return "Без программного затемнения."
     }
   }
 
   public var value: TVPageBannerScrim? {
     let dominant = TVPageBannerSamples.dominantColor
     switch self {
-    case .file:
-      return nil
+    case .defaultBottom:
+      return .edges(color: .black, topReach: 0.0, topAlpha: 0.0, bottomReach: 0.50, bottomAlpha: 0.70)
     case .edgesBlack:
       return .edges(color: .black, topReach: 0.18, topAlpha: 0.28, bottomReach: 0.34, bottomAlpha: 0.40)
     case .edgesDominant:
@@ -353,6 +422,8 @@ public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
       return .radial(edge: UIColor(white: 0, alpha: 0.60), mid: .clear)
     case .radialDominant:
       return .radial(edge: dominant.withAlphaComponent(0.60), mid: .clear)
+    case .none:
+      return .edges(color: .black, topReach: 0, topAlpha: 0, bottomReach: 0, bottomAlpha: 0)
     }
   }
 }

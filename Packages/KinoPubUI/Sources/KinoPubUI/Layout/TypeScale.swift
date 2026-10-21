@@ -31,7 +31,7 @@ public enum TypeScale {
 
   public static let heroTitle: Font = {
 #if os(tvOS)
-       .title2.weight(.bold)
+       .title2.weight(.semibold)
 #elseif os(macOS)
     .title.bold()
 #else
@@ -67,10 +67,10 @@ public enum TypeScale {
         .body
 #endif
     }()
-  public static let filterControl: Font = .subheadline.weight(.semibold)
+     public static let filterControl: Font = .subheadline.weight(.medium)
   public static let actionLabel: Font = .subheadline.weight(.medium)
-  public static let detailSection: Font = .title3.weight(.semibold)
-  public static let settingsTitle: Font = .largeTitle.bold()
+  public static let detailSection: Font = .title3.weight(.medium)
+     public static let settingsTitle: Font = .largeTitle.weight(.semibold)
   public static let settingsTip: Font = .title3
 
   /// Rating digits on a poster's corner badge, next to the laurel-wing icon

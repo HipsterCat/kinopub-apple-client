@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Баннеры на главной: обновлён порядок информации (оценки, жанр, год, страна, длительность), мягкий нижний градиент и резервирование места при загрузке страницы.",
         "Плеер: у сериала вкладки «Сведения», «Сезон N», «Далее» — только текущий сезон, все вкладки одной высоты, на подложке как у «Сведений». Текущая серия выделена и в фокусе; вниз со вкладки — на текущую или следующую серию, потом туда, где был фокус. Серии, просмотренные подряд, сразу отмечены.",
         "Плеер: у серии над полосой перемотки больше нет года перед номером серии.",
         "Плеер: у сериала вкладки «Сведения», «Далее», «Сезон N» — только текущий сезон, обе вкладки одной высоты, на подложке как у «Сведений». Текущая серия выделена, а серии, просмотренные подряд, сразу отмечены.",
@@ -46,6 +47,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Home banners: updated metadata order (ratings, genre, year, country, runtime), softer bottom gradient, and reserved layout space during page loading.",
         "Player: a series has Info, Season N and Up Next — the season playing only, every tab one height, on a platter like Info's. The episode playing stays marked when focused; Down from a tab lands on it or on the next episode, then where you left. Episodes watched back to back show as watched straight away.",
         "Player: an episode no longer shows a year before its episode line.",
         "Player: a series has Info, Up Next and Season N — the season playing only, both tabs one height, on a platter like Info's. The episode playing is marked, and episodes watched back to back show as watched straight away.",

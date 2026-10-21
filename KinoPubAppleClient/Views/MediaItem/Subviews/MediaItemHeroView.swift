@@ -797,7 +797,7 @@ struct MediaItemHeroView: View {
          if FeatureFlags.combinedRatingEnabled {
            if let rating = MediaScores(mediaItem).aggregate {
              RatingBadgeView(rating: rating)
-               MediaScoresView(MediaScores(mediaItem))
+               MediaScoresView(MediaScores(mediaItem), deduplicateAgainstAggregate: true)
 
            }
          } else {
@@ -866,7 +866,7 @@ struct MediaItemHeroView: View {
 
     var names = AttributedString(line.names)
     names.foregroundColor = Color.KinoPub.text
-    names.font = Self.secondaryFont.weight(.medium)
+    names.font = Self.secondaryFont.weight(.regular)
 
     return label + names
   }
@@ -1046,17 +1046,17 @@ struct MediaItemHeroView: View {
         Button {
           onDownloadSeason?(season)
         } label: {
-          Label("Download Season", systemImage: "arrow.down.to.line")
+          Label("Season", systemImage: "arrow.down.to.line")
         }
         Button {
           onDownloadUnwatchedInSeason?(season)
         } label: {
-          Label("Download Unwatched in Season", systemImage: "arrow.down.to.line")
+          Label("Unwatched in Season", systemImage: "arrow.down.to.line")
         }
         Button {
           onDownloadAllEpisodes?()
         } label: {
-          Label("Download All Episodes", systemImage: "arrow.down.to.line")
+          Label("All Episodes", systemImage: "arrow.down.to.line")
         }
       }
     }
@@ -1145,7 +1145,7 @@ struct MediaItemHeroView: View {
           newFolderName = ""
           showNewFolderAlert = true
         } label: {
-          Label("New Folder", systemImage: "circle.plus")
+          Label("New Folder", systemImage: "plus.circle")
         }
       }
     } label: {

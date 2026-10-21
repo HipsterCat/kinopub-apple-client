@@ -1998,7 +1998,7 @@ private struct VideoCard: View {
               icon(for: badge)
               Text(badge.label)
                 .font(TypeScale.detailBody)
-                .foregroundStyle(Color.KinoPub.text)
+                .foregroundStyle(Color.KinoPub.subtitle)
             }
           }
         }
@@ -2011,11 +2011,11 @@ private struct VideoCard: View {
             icon(for: badge, height: Self.popupIconHeight)
             VStack(alignment: .leading, spacing: 2) {
               Text(badge.label)
-                .font(InfoPopupMetrics.bodyFont.weight(.semibold))
+                .font(InfoPopupMetrics.bodyFont.weight(.medium))
                 .foregroundStyle(Color.KinoPub.text)
               Text(badge.explanation)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.KinoPub.subtitle)
                 .fixedSize(horizontal: false, vertical: true)
             }
           }
@@ -2024,7 +2024,7 @@ private struct VideoCard: View {
           VStack(alignment: .leading, spacing: 4) {
             Text("MediaItem_VideoQuality")
               .font(.caption)
-              .foregroundStyle(.secondary)
+              .foregroundStyle(Color.KinoPub.subtitle)
             VStack(alignment: .leading, spacing: 6) {
               ForEach(Array(qualityLines.enumerated()), id: \.offset) { _, line in
                 Text(line)
@@ -2047,7 +2047,7 @@ private struct VideoCard: View {
       Image(systemName: systemImage)
         .font(.system(size: height * 0.8, weight: .semibold))
         .foregroundStyle(Color.KinoPub.text)
-        .frame(width: height, alignment: .center)
+        .frame(height: height, alignment: .center)
     }
   }
 
@@ -2100,24 +2100,24 @@ private struct ParentalAdvisoryCard: View {
       VStack(alignment: .leading, spacing: 10) {
         Text("MediaItem_AgeRating")
           .font(TypeScale.detailBody.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.KinoPub.subtitle)
 
         if let ageRating {
           HStack(spacing: 8) {
             CapabilityGlyph(.ageRatingCheckmark, height: 22)
 //              .foregroundStyle(.green)
             Text(ageRating)
-              .font(.system(.title2, design: .rounded, weight: .semibold))
-              .foregroundStyle(Color.KinoPub.text)
+              .font(.system(.title2, design: .rounded, weight: .medium))
+              .foregroundStyle(Color.KinoPub.subtitle)
           }
           Text("MediaItem_LegendAgeRating")
             .font(TypeScale.detailBody)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.KinoPub.text)
         }
 
         if !advisories.isEmpty {
           FillingText(advisories.joined(separator: " · "), font: TypeScale.detailBody)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.KinoPub.text)
         }
       }
     }
@@ -2129,7 +2129,7 @@ private struct ParentalAdvisoryCard: View {
 //              .foregroundStyle(.green)
             Text(ageRating)
               .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-              .foregroundStyle(Color.KinoPub.text)
+              .foregroundStyle(Color.KinoPub.subtitle)
           }
           Text("MediaItem_LegendAgeRating")
             .font(InfoPopupMetrics.bodyFont)
@@ -2140,7 +2140,7 @@ private struct ParentalAdvisoryCard: View {
             ForEach(advisories, id: \.self) { advisory in
               Text(advisory)
                 .font(InfoPopupMetrics.bodyFont)
-                .foregroundStyle(Color.KinoPub.text)
+                .foregroundStyle(Color.KinoPub.subtitle)
             }
           }
         }
@@ -3616,12 +3616,15 @@ private struct PlotParagraphLabel: View {
         
         #Preview("Hero badge strip") {
             HStack(spacing: 16) {
+                 MediaScoresView(imdb: 8.1, kinopoisk: 8.3)
+
                 Text("2023,  South Korea")
-                
-                MediaScoresView(imdb: 8.1, kinopoisk: 8.3)
-                // (countK) after score
+                      .foregroundStyle(.secondary)
+                                // (countK) after score
                 //      Text("2h 51m")
                 Text("Comedy,  Drama")
+                      .foregroundStyle(.secondary)
+
                 
                 MediaCapabilityBadgesView(
                     badges: MediaCapabilityBadges(

@@ -10,7 +10,7 @@ import SwiftUI
 /// the detail score tiles.
 public struct MediaScoreLogo: View {
 
-  public enum Source: String {
+  public enum Source: String, Sendable {
     case imdb
     case kinopoisk
     case tmdb
@@ -20,12 +20,10 @@ public struct MediaScoreLogo: View {
 
     fileprivate var colorAssetName: String {
       switch self {
-      case .imdb: return "imdb_lol"
-      case .kinopoisk: return "kinopoisk_lol"
-      // One asset each, already the brand's colours — there is no template variant,
-      // so `.template` falls back to the same file and tints it.
-      case .tmdb: return "tmdb"
-      case .kinopub: return "kinopub_small"
+      case .imdb: return "imdb_big_color"
+      case .kinopoisk: return "kinopoisk_big_color"
+      case .tmdb: return "tmdb_big_color"
+      case .kinopub: return "kinopub_big_color"
       }
     }
 
@@ -88,7 +86,13 @@ public struct MediaScoreLogo: View {
 
   private var assetName: String {
     switch style {
-    case .template: return source.rawValue
+    case .template:
+      switch source {
+      case .imdb: return "IMDb"
+      case .kinopoisk: return "kinopoisk"
+      case .tmdb: return "tmdb"
+      case .kinopub: return "kinopub_small"
+      }
     case .color: return source.colorAssetName
     case .compact: return source.compactAssetName
     case .card: return source.cardAssetName
@@ -105,7 +109,13 @@ public extension MediaScoreLogo.Source {
   func uiImage(style: MediaScoreLogo.Style = .color) -> UIImage? {
     let name: String
     switch style {
-    case .template: name = rawValue
+    case .template:
+      switch self {
+      case .imdb: name = "IMDb"
+      case .kinopoisk: name = "kinopoisk"
+      case .tmdb: name = "tmdb"
+      case .kinopub: name = "kinopub_small"
+      }
     case .color: name = colorAssetName
     case .compact: name = compactAssetName
     case .card: name = cardAssetName
@@ -115,14 +125,26 @@ public extension MediaScoreLogo.Source {
 }
 #endif
 
-/// IMDb and Kinopoisk scores side by side. Unlike the poster badge this keeps them
-/// separate — on a detail page there is room to show where each number came from.
+/// Rating scores row for the Hero and detail metadata.
+/// Renders available sources (IMDb, Kinopoisk, TMDb, KinoPub) ordered by audience turnout,
+/// with KinoPub placed last and known scores prioritized over unknown.
 public struct MediaScoresView: View {
 
   private let scores: MediaScores
+  public var limit: Int?
+  public var showsVotes: Bool
+  public var deduplicateAgainstAggregate: Bool
 
-  public init(_ scores: MediaScores) {
+  public init(
+    _ scores: MediaScores,
+    limit: Int? = nil,
+    showsVotes: Bool = true,
+    deduplicateAgainstAggregate: Bool = false
+  ) {
     self.scores = scores
+    self.limit = limit
+    self.showsVotes = showsVotes
+    self.deduplicateAgainstAggregate = deduplicateAgainstAggregate
   }
 
   /// Convenience for previews / call sites that still pass loose numbers.
@@ -130,48 +152,42 @@ public struct MediaScoresView: View {
     imdb: Double?,
     kinopoisk: Double?,
     imdbVotes: Int? = nil,
-    kinopoiskVotes: Int? = nil
+    kinopoiskVotes: Int? = nil,
+    limit: Int? = nil,
+    showsVotes: Bool = true,
+    deduplicateAgainstAggregate: Bool = false
   ) {
     self.init(MediaScores(
       imdb: imdb,
       imdbVotes: imdbVotes,
       kinopoisk: kinopoisk,
       kinopoiskVotes: kinopoiskVotes
-    ))
+    ), limit: limit, showsVotes: showsVotes, deduplicateAgainstAggregate: deduplicateAgainstAggregate)
   }
 
   public var body: some View {
+    let items = scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    let slice = limit.map { Array(items.prefix($0)) } ?? items
     HStack(spacing: Self.groupSpacing) {
-      if let value = scores.imdbScore {
-        score(logo: .imdb, value: value, imageHeight: Self.imdbHeight, votes: scores.imdbVotes)
-      }
-      if let value = scores.kinopoiskScore {
-        score(
-          logo: .kinopoisk,
-          value: value,
-          imageHeight: Self.kinopoiskHeight,
-          votes: scores.kinopoiskVotes
-        )
+      ForEach(slice) { item in
+        score(item: item)
       }
     }
   }
 
-  /// Font and colour come from whatever this is dropped into. The scores sit inside
-  /// a metadata line and have to read as part of it, not as a brighter, smaller badge
-  /// pasted next to it.
-  private func score(
-    logo: MediaScoreLogo.Source,
-    value: Double,
-    imageHeight: CGFloat,
-    votes: Int?
-  ) -> some View {
-    HStack(spacing: 7) {
-      MediaScoreLogo(logo, height: imageHeight)
-      Text(String(format: "%.1f", value))
-        .fontDesign(.rounded)
-        .fontWeight(.semibold)
-      if let votes, votes > 0 {
-        Text("(\(votes.formatted(.number.notation(.compactName))))")
+  /// Font and colour come from whatever this is dropped into. Scores read as part of
+  /// the metadata line, with primary white numbers and secondary vote turnout count.
+  private func score(item: MediaScoreItem) -> some View {
+    HStack(spacing: 6) {
+      MediaScoreLogo(item.source, height: Self.iconHeight)
+      if !item.displayScore.isEmpty {
+        Text(item.displayScore)
+          .fontDesign(.rounded)
+          .fontWeight(.semibold)
+          .foregroundStyle(.white)
+      }
+      if showsVotes, let votes = item.votesCompact {
+        Text("(\(votes))")
           .font(.caption2)
           .fontWeight(.medium)
           .foregroundStyle(Color.KinoPub.subtitle)
@@ -180,13 +196,15 @@ public struct MediaScoresView: View {
   }
 
 #if os(tvOS)
-  static let groupSpacing: CGFloat = 24
-  static let imdbHeight: CGFloat = 18
-  static let kinopoiskHeight: CGFloat = 20
+  public static let groupSpacing: CGFloat = 20
+  public static let iconHeight: CGFloat = 16
+  public static let imdbHeight: CGFloat = 16
+  public static let kinopoiskHeight: CGFloat = 16
 #else
-  static let groupSpacing: CGFloat = 14
-  static let imdbHeight: CGFloat = 14
-  static let kinopoiskHeight: CGFloat = 15
+  public static let groupSpacing: CGFloat = 14
+  public static let iconHeight: CGFloat = 14
+  public static let imdbHeight: CGFloat = 14
+  public static let kinopoiskHeight: CGFloat = 14
 #endif
 }
 

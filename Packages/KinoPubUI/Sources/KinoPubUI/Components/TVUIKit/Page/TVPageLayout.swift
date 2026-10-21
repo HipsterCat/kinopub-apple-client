@@ -57,7 +57,7 @@ public enum TVPageLayout {
   public static let cardPadding: CGFloat = 16
 
   /// Width over height of a banner platter: the backdrop's own 16:9; the scrims carry the words.
-  public static let bannerAspect: CGFloat = 16 / 10
+  public static let bannerAspect: CGFloat = 16 / 9
 
   /// Half the screen: the platter width `TVPageBannerChrome.width == .halfScreen` uses,
   /// so a neighbour still peeks once the row is aligned with the other rails.

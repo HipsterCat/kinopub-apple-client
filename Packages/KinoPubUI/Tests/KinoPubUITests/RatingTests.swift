@@ -70,4 +70,54 @@ final class RatingTests: XCTestCase {
     XCTAssertEqual(Rating(imdb: 8.25, kinopoisk: 8.25)?.formatted, "8.3")
     XCTAssertEqual(Rating(imdb: 7.0, kinopoisk: nil)?.formatted, "7.0")
   }
+
+  func testSmartRankingKinopoiskWithHigherTurnoutPrecedesImdb() {
+    let scores = MediaScores(imdb: 8.5, imdbVotes: 6, kinopoisk: 8.1, kinopoiskVotes: 4200)
+    let ranked = scores.heroScores
+    XCTAssertEqual(ranked.first?.source, .kinopoisk)
+    XCTAssertEqual(ranked.last?.source, .imdb)
+  }
+
+  func testKnownScorePrecedesUnknownScoreRegardlessOfVotes() {
+    let scores = MediaScores(imdb: 7.9, imdbVotes: 45, kinopoisk: nil, kinopoiskVotes: 2500)
+    let ranked = scores.heroScores
+    XCTAssertEqual(ranked.first?.source, .imdb)
+    XCTAssertEqual(ranked.last?.source, .kinopoisk)
+    XCTAssertTrue(ranked.first?.hasKnownScore ?? false)
+    XCTAssertFalse(ranked.last?.hasKnownScore ?? true)
+  }
+
+  func testKinopubIsAlwaysPlacedLast() {
+    let scores = MediaScores(imdb: 8.0, imdbVotes: 500, tmdb: 7.5, tmdbVotes: 1000, kinopubLikes: 200, kinopubDislikes: 10)
+    let ranked = scores.heroScores
+    XCTAssertEqual(ranked.last?.source, .kinopub)
+  }
+
+  func testKinopubScoresCleanZeroAndHundredPercent() {
+    let hundred = MediaScores(kinopubLikes: 50, kinopubDislikes: 0)
+    XCTAssertEqual(hundred.kinopubScore, 10.0)
+    let zero = MediaScores(kinopubLikes: 0, kinopubDislikes: 50)
+    XCTAssertEqual(zero.kinopubScore, 0.0)
+  }
+
+  func testBannerFiltersNoiseUnderTenVotes() {
+    let scores = MediaScores(imdb: 8.5, imdbVotes: 6, kinopoisk: 8.1, kinopoiskVotes: 4200)
+    let banner = scores.bannerScores(limit: 2, filterNoise: true, filterDominant: false)
+    XCTAssertEqual(banner.count, 1)
+    XCTAssertEqual(banner.first?.source, .kinopoisk)
+  }
+
+  func testBannerCollapsesWhenDominantTurnoutExceedsNinetyPercent() {
+    let scores = MediaScores(imdb: 8.0, imdbVotes: 1000, kinopoisk: 8.4, kinopoiskVotes: 50_000)
+    let banner = scores.bannerScores(limit: 2, filterNoise: true, filterDominant: true)
+    XCTAssertEqual(banner.count, 1)
+    XCTAssertEqual(banner.first?.source, .kinopoisk)
+  }
+
+  func testSingleSourceDeduplicationOmitsDuplicateDigit() {
+    let scores = MediaScores(imdb: 8.5, imdbVotes: 38)
+    let banner = scores.bannerScores(limit: 2, filterNoise: true, filterDominant: true, deduplicateAgainstAggregate: true)
+    XCTAssertEqual(banner.first?.displayScore, "")
+    XCTAssertEqual(banner.first?.votesCompact, "38")
+  }
 }

@@ -105,7 +105,7 @@ struct MainView: View {
       status: pageStatus,
       accessibilityID: "kinopub.page.\(tab)",
       onSelect: { _, item in
-        guard let card = item.card else { return }
+        guard let card = item.card, card.id > 0 else { return }
         if card.primaryAction == .play {
           cardMenu.play(card) { navigationState.push($0) }
         } else if card.opensCollection {
@@ -148,14 +148,28 @@ struct MainView: View {
   private static let bannerSectionID = "home-banner"
 
   private var pageSections: [TVPageSection] {
-    let banner = tab == .home && FeatureFlags.homeBannerEnabled ? catalog.bannerCards : []
-    let bannerSection: [TVPageSection] = banner.isEmpty ? [] : [
-      .banner(id: Self.bannerSectionID,
-              features: banner.map {
-                TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
-                              logo: catalog.bannerLogos[$0.id] ?? .pending)
-              })
-    ]
+    let bannerSection: [TVPageSection]
+    if tab == .home && FeatureFlags.homeBannerEnabled {
+      let banner = catalog.bannerCards
+      if !banner.isEmpty {
+        bannerSection = [
+          .banner(id: Self.bannerSectionID,
+                  features: banner.map {
+                    TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
+                                  logo: catalog.bannerLogos[$0.id] ?? .pending)
+                  })
+        ]
+      } else {
+        bannerSection = [
+          .banner(id: Self.bannerSectionID,
+                  features: (0..<2).map { idx in
+                    TVPageFeature(card: MediaCard.placeholder(id: -101 - idx))
+                  })
+        ]
+      }
+    } else {
+      bannerSection = []
+    }
     return bannerSection + homeRows.map { row in
       if row.cards.first?.isLandscape == true {
         let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : Self.stillColumns

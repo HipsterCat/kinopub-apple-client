@@ -134,10 +134,11 @@ public struct MediaScores: Hashable, Codable, Sendable {
   ///
   /// A thumbs system runs high — most titles land well above where their star ratings
   /// sit — but the aggregate weighs by turnout, and kino.pub's few hundred voters next
-  /// to IMDb's hundreds of thousands move the number by a hair. That is the intended
-  /// behaviour, not an oversight to correct with a fudge factor.
+  /// to IMDb's hundreds of thousands move the number by a hair.
+  /// When one side is 0, it faithfully reflects 0% or 100%.
   public var kinopubScore: Double? {
-    guard let votes = kinopubVotes, votes > 0, let likes = kinopubLikes else { return nil }
+    guard let votes = kinopubVotes, votes > 0, (kinopubLikes != nil || kinopubDislikes != nil) else { return nil }
+    let likes = max(0, kinopubLikes ?? 0)
     return Double(likes) / Double(votes) * 10
   }
 
@@ -147,7 +148,7 @@ public struct MediaScores: Hashable, Codable, Sendable {
   }
 
   public var hasDisplayableScore: Bool {
-    imdbScore != nil || kinopoiskScore != nil
+    imdbScore != nil || kinopoiskScore != nil || tmdbScore != nil || kinopubScore != nil
   }
 
   /// Every source, in one place, so a new one is added once.
@@ -186,5 +187,195 @@ public struct MediaScores: Hashable, Codable, Sendable {
 
   private static func rated(_ value: Double?) -> Double? {
     (value ?? 0) > 0 ? value : nil
+  }
+
+  /// Formats raw voter turnout count as integer thousands without decimals (e.g. 12K, 450, 1M).
+  public static func formatVotesWholeThousands(_ count: Int) -> String {
+    if count >= 1_000_000 {
+      return "\(count / 1_000_000)M"
+    } else if count >= 1_000 {
+      return "\(count / 1_000)K"
+    } else {
+      return "\(count)"
+    }
+  }
+}
+
+// MARK: - MediaScoreItem & Unified Scoring Logic
+
+/// An individual rating ready for presentation in the banner, hero, or score blocks.
+public struct MediaScoreItem: Identifiable, Hashable, Sendable {
+  public let source: MediaScoreLogo.Source
+  /// 0…10 numeric score, or nil if only voter turnout is known.
+  public let score: Double?
+  /// Formatted score string, e.g. "8.8" or "100%" or "0%" or "—".
+  public let displayScore: String
+  /// Voter turnout count.
+  public let votes: Int?
+  /// Compact votes string, e.g. "12K", "450", "1.2M".
+  public let votesCompact: String?
+
+  public var id: String { source.rawValue }
+  public var hasKnownScore: Bool { score != nil }
+
+  public init(
+    source: MediaScoreLogo.Source,
+    score: Double?,
+    displayScore: String? = nil,
+    votes: Int? = nil
+  ) {
+    self.source = source
+    self.score = score
+    self.votes = (votes ?? 0) > 0 ? votes : nil
+    if let displayScore {
+      self.displayScore = displayScore
+    } else if let score {
+      if source == .kinopub {
+        self.displayScore = "\(Int((score * 10).rounded()))%"
+      } else {
+        self.displayScore = String(format: "%.1f", score)
+      }
+    } else {
+      self.displayScore = "—"
+    }
+
+    if let v = self.votes, v > 0 {
+      if v >= 1_000_000 {
+        self.votesCompact = "\(v / 1_000_000)M"
+      } else if v >= 1_000 {
+        self.votesCompact = "\(v / 1_000)K"
+      } else {
+        self.votesCompact = "\(v)"
+      }
+    } else {
+      self.votesCompact = nil
+    }
+  }
+
+  /// Returns a copy with `displayScore` empty, avoiding duplicate score digits next to the aggregate badge.
+  public func withoutScore() -> MediaScoreItem {
+    MediaScoreItem(
+      source: source,
+      score: score,
+      displayScore: "",
+      votes: votes
+    )
+  }
+}
+
+public extension MediaScores {
+  /// All candidate rating items from available sources.
+  var allItems: [MediaScoreItem] {
+    var list: [MediaScoreItem] = []
+
+    if let s = imdbScore, s > 0 {
+      list.append(MediaScoreItem(source: .imdb, score: s, votes: imdbVotes))
+    } else if let v = imdbVotes, v > 0 {
+      list.append(MediaScoreItem(source: .imdb, score: nil, displayScore: "—", votes: v))
+    }
+
+    if let s = kinopoiskScore, s > 0 {
+      list.append(MediaScoreItem(source: .kinopoisk, score: s, votes: kinopoiskVotes))
+    } else if let v = kinopoiskVotes, v > 0 {
+      list.append(MediaScoreItem(source: .kinopoisk, score: nil, displayScore: "—", votes: v))
+    }
+
+    if let s = tmdbScore, s > 0 {
+      list.append(MediaScoreItem(source: .tmdb, score: s, votes: tmdbVotes))
+    } else if let v = tmdbVotes, v > 0 {
+      list.append(MediaScoreItem(source: .tmdb, score: nil, displayScore: "—", votes: v))
+    }
+
+    if let s = kinopubScore {
+      list.append(MediaScoreItem(source: .kinopub, score: s, votes: kinopubVotes))
+    } else if let v = kinopubVotes, v > 0 {
+      list.append(MediaScoreItem(source: .kinopub, score: nil, displayScore: "—", votes: v))
+    }
+
+    return list
+  }
+
+  /// Sorts rating items according to our rules:
+  /// 1. KinoPub is always placed last.
+  /// 2. Known scores precede unknown ("—" / "?") scores.
+  /// 3. Higher voter turnout comes first.
+  static func sortRatings(_ a: MediaScoreItem, _ b: MediaScoreItem) -> Bool {
+    // 1. KinoPub always goes last
+    if a.source == .kinopub && b.source != .kinopub { return false }
+    if a.source != .kinopub && b.source == .kinopub { return true }
+
+    // 2. Known score vs unknown score
+    if a.hasKnownScore != b.hasKnownScore {
+      return a.hasKnownScore
+    }
+
+    // 3. Voter count descending
+    let aVotes = a.votes ?? 0
+    let bVotes = b.votes ?? 0
+    if aVotes != bVotes {
+      return aVotes > bVotes
+    }
+
+    // Fallback stable order: kinopoisk, imdb, tmdb, kinopub
+    return a.source.rawValue < b.source.rawValue
+  }
+
+  /// Ordered rating items for Hero row (shows all available ranked sources).
+  var heroScores: [MediaScoreItem] {
+    heroScores(deduplicateAgainstAggregate: false)
+  }
+
+  /// Ordered rating items for Hero row with optional deduplication against the aggregate badge.
+  func heroScores(deduplicateAgainstAggregate: Bool = false) -> [MediaScoreItem] {
+    var items = allItems.sorted(by: Self.sortRatings)
+    if deduplicateAgainstAggregate && items.filter(\.hasKnownScore).count == 1 {
+      items = items.map { item in
+        item.hasKnownScore ? item.withoutScore() : item
+      }
+    }
+    return items
+  }
+
+  /// Rating items filtered and capped for the compact banner:
+  /// - Sorted by smart ranking
+  /// - Drops low turnout (< 10 votes) when larger sources exist
+  /// - If one source accounts for > 90% of total votes, collapses to that 1 source
+  /// - If deduplicateAgainstAggregate is true and only 1 known source rated the item, omits the duplicate digit
+  /// - Capped at `limit` (default 2)
+  func bannerScores(
+    limit: Int = 2,
+    filterNoise: Bool = true,
+    filterDominant: Bool = true,
+    deduplicateAgainstAggregate: Bool = false
+  ) -> [MediaScoreItem] {
+    var items = allItems
+      .filter { $0.hasKnownScore && $0.displayScore != "—" && !$0.displayScore.isEmpty && ($0.score ?? 0) > 0 }
+      .sorted(by: Self.sortRatings)
+
+    // Filter noise: if any source has >= 10 votes, drop sources with < 10 votes
+    if filterNoise {
+      let hasSignificant = items.contains { ($0.votes ?? 0) >= 10 }
+      if hasSignificant {
+        items.removeAll { ($0.votes ?? 0) < 10 }
+      }
+    }
+
+    // Dominant source: if one source accounts for > 90% of total votes, keep only it
+    if filterDominant && items.count > 1 {
+      let total = items.compactMap(\.votes).reduce(0, +)
+      if total > 0, let top = items.first, let topVotes = top.votes {
+        if Double(topVotes) / Double(total) > 0.90 {
+          items = [top]
+        }
+      }
+    }
+
+    if deduplicateAgainstAggregate && items.filter(\.hasKnownScore).count == 1 {
+      items = items.map { item in
+        item.hasKnownScore ? item.withoutScore() : item
+      }
+    }
+
+    return Array(items.prefix(max(1, limit)))
   }
 }

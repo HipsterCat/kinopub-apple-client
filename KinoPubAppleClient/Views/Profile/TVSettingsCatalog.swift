@@ -34,18 +34,30 @@ final class TVSettingsCatalog {
   private let host_: (AnyView) -> UIViewController
 
   // MARK: - Banner Lab State
-  private var bannerPreset: BannerLabPreset = .primaryFull
+  private var bannerPreset: BannerLabPreset = .currentDefault
+  private var bannerFocusState: BannerLabFocusState = .unfocused
   private var bannerSampleID: Int = TVPageBannerSamples.primaryID
   private var bannerHasLogo: Bool = true
   private var bannerHasBackdrop: Bool = true
-  private var bannerHasPoster: Bool = true
+  private var bannerHasPoster: Bool = false
   private var bannerLogoPlacement: TVPageBannerLogoPlacement = TVPageBannerChrome.current.logoPlacement
   private var bannerAlignment: TVPageBannerContentAlignment = TVPageBannerChrome.current.alignment
+  private var bannerVerticalAlignment: TVPageBannerVerticalAlignment = TVPageBannerChrome.current.verticalAlignment
   private var bannerShowsPoster: Bool = TVPageBannerChrome.current.showsPoster
-  private var bannerScrimChoice: BannerLabScrim = .edgesBlack
+  private var bannerScrimChoice: BannerLabScrim = .defaultBottom
   private var bannerBlend: TVPageBannerBlend = TVPageBannerChrome.current.blend
   private var bannerVibrance: Double = Double(TVPageBannerChrome.current.textVibrance)
+  private var bannerVibranceEnabled: Bool = TVPageBannerChrome.current.vibranceEnabled
+  private var bannerShowsVotes: Bool = TVPageBannerChrome.current.showsRatingVotes
+  private var bannerRatingLimit: Int = TVPageBannerChrome.current.ratingMaxCount
+  private var bannerFilterNoise: Bool = TVPageBannerChrome.current.filterLowTurnout
+  private var bannerFilterDominant: Bool = TVPageBannerChrome.current.filterDominantScore
+  private var bannerShowsAggregate: Bool = TVPageBannerChrome.current.showsAggregateScore
+  private var bannerAggregateOnly: Bool = TVPageBannerChrome.current.aggregateOnly
+  private var bannerDedupAggregate: Bool = TVPageBannerChrome.current.deduplicateSingleSourceAggregate
+  private var bannerCustomScores: MediaScores? = nil
   private weak var activeBannerHostView: TVPageBannerPreviewHost?
+  private var cachedBannerPreviewController: UIViewController?
 
   init(model: ProfileModel,
        kinopoiskKeyProvider: KinopoiskKeyProvider,
@@ -330,6 +342,7 @@ final class TVSettingsCatalog {
              description: lab.description,
              kind: .action(pushes: true) { [unowned self] in
                if lab == .bannerLab {
+                 self.cachedBannerPreviewController = nil
                  self.host.push(self.bannerLabPage())
                } else {
                  self.present(lab.page)
@@ -344,9 +357,19 @@ final class TVSettingsCatalog {
     var draft = TVPageBannerChrome.current
     draft.logoPlacement = bannerLogoPlacement
     draft.alignment = bannerAlignment
+    draft.verticalAlignment = bannerVerticalAlignment
     draft.showsPoster = bannerShowsPoster
     draft.blend = bannerBlend
     draft.textVibrance = CGFloat(bannerVibrance)
+    draft.vibranceEnabled = bannerVibranceEnabled
+    draft.isFocusedState = (bannerFocusState == .focused)
+    draft.showsRatingVotes = bannerShowsVotes
+    draft.ratingMaxCount = bannerRatingLimit
+    draft.filterLowTurnout = bannerFilterNoise
+    draft.filterDominantScore = bannerFilterDominant
+    draft.showsAggregateScore = bannerShowsAggregate
+    draft.aggregateOnly = bannerAggregateOnly
+    draft.deduplicateSingleSourceAggregate = bannerDedupAggregate
     if let scrim = bannerScrimChoice.value {
       draft.scrim = scrim
     }
@@ -362,29 +385,85 @@ final class TVSettingsCatalog {
         : "Арт и постер загружаются напрямую из каталога staticpop по ID \(bannerSampleID).",
       hasLogo: bannerHasLogo && bannerSampleID == TVPageBannerSamples.primaryID,
       hasBackdrop: bannerHasBackdrop,
-      hasPoster: bannerHasPoster
+      hasPoster: bannerHasPoster,
+      scores: bannerCustomScores
     )
   }
 
   private func updateBannerState() {
+    activeBannerHostView?.isSimulatedFocused = (bannerFocusState == .focused)
     activeBannerHostView?.configure(feature: currentBannerFeature, chrome: currentBannerChrome)
   }
 
   private func applyBannerPreset(_ preset: BannerLabPreset) {
     bannerPreset = preset
     switch preset {
-    case .primaryFull:
+    case .currentDefault:
+      bannerSampleID = TVPageBannerSamples.primaryID
+      bannerHasLogo = true
+      bannerHasBackdrop = true
+      bannerHasPoster = false
+      bannerShowsPoster = false
+      bannerLogoPlacement = .top
+      bannerAlignment = .leading
+      bannerVerticalAlignment = .bottom
+      bannerFocusState = .unfocused
+      bannerVibranceEnabled = false
+      bannerCustomScores = nil
+      bannerShowsVotes = false
+      bannerRatingLimit = 2
+      bannerFilterNoise = true
+      bannerFilterDominant = true
+      bannerShowsAggregate = false
+      bannerAggregateOnly = false
+      bannerDedupAggregate = true
+      bannerScrimChoice = .defaultBottom
+      bannerBlend = .normal
+    case .previousFull:
       bannerSampleID = TVPageBannerSamples.primaryID
       bannerHasLogo = true
       bannerHasBackdrop = true
       bannerHasPoster = true
       bannerShowsPoster = true
+      bannerLogoPlacement = .top
+      bannerAlignment = .leading
+      bannerVerticalAlignment = .bottom
+      bannerFocusState = .unfocused
+      bannerVibranceEnabled = true
+      bannerVibrance = 0.65
+      bannerCustomScores = nil
+      bannerShowsVotes = true
+      bannerScrimChoice = .edgesBlack
+      bannerBlend = .normal
+    case .focusedState:
+      bannerFocusState = .focused
+    case .noisyScores:
+      bannerSampleID = TVPageBannerSamples.primaryID
+      bannerCustomScores = MediaScores(imdb: 8.5, imdbVotes: 6, kinopoisk: 8.1, kinopoiskVotes: 4200)
+    case .unknownScore:
+      bannerSampleID = TVPageBannerSamples.primaryID
+      bannerCustomScores = MediaScores(imdb: 7.9, imdbVotes: 45, kinopoisk: nil, kinopoiskVotes: 2500)
+    case .dominantScore:
+      bannerSampleID = TVPageBannerSamples.primaryID
+      bannerCustomScores = MediaScores(imdb: 8.0, imdbVotes: 1000, kinopoisk: 8.4, kinopoiskVotes: 50_000)
+    case .fallbackSources:
+      bannerSampleID = TVPageBannerSamples.primaryID
+      bannerCustomScores = MediaScores(imdb: nil, kinopoisk: nil, tmdb: 7.5, tmdbVotes: 800, kinopubLikes: 135, kinopubDislikes: 15)
+    case .kinopub100:
+      bannerSampleID = TVPageBannerSamples.primaryID
+      bannerCustomScores = MediaScores(imdb: 8.2, imdbVotes: 5000, kinopubLikes: 100, kinopubDislikes: 0)
+    case .aggregateDedup:
+      bannerSampleID = TVPageBannerSamples.primaryID
+      bannerShowsAggregate = true
+      bannerAggregateOnly = false
+      bannerDedupAggregate = true
+      bannerCustomScores = MediaScores(imdb: 8.5, imdbVotes: 38)
     case .typographyOnly:
       bannerSampleID = TVPageBannerSamples.primaryID
       bannerHasLogo = false
       bannerHasBackdrop = true
-      bannerHasPoster = true
-      bannerShowsPoster = true
+      bannerHasPoster = false
+      bannerShowsPoster = false
     case .noPoster:
       bannerSampleID = TVPageBannerSamples.primaryID
       bannerHasLogo = true
@@ -395,20 +474,22 @@ final class TVSettingsCatalog {
       bannerSampleID = TVPageBannerSamples.primaryID
       bannerHasLogo = true
       bannerHasBackdrop = false
-      bannerHasPoster = true
-      bannerShowsPoster = true
+      bannerHasPoster = false
+      bannerShowsPoster = false
     case .catalog125268:
       bannerSampleID = 125268
       bannerHasLogo = false
       bannerHasBackdrop = true
-      bannerHasPoster = true
-      bannerShowsPoster = true
+      bannerHasPoster = false
+      bannerShowsPoster = false
+      bannerCustomScores = nil
     case .catalog125260:
       bannerSampleID = 125260
       bannerHasLogo = false
       bannerHasBackdrop = true
-      bannerHasPoster = true
-      bannerShowsPoster = true
+      bannerHasPoster = false
+      bannerShowsPoster = false
+      bannerCustomScores = nil
     }
   }
 
@@ -416,21 +497,28 @@ final class TVSettingsCatalog {
     let defaults = TVPageBannerChrome.current
     bannerLogoPlacement = defaults.logoPlacement
     bannerAlignment = defaults.alignment
+    bannerVerticalAlignment = defaults.verticalAlignment
     bannerShowsPoster = defaults.showsPoster
     bannerBlend = defaults.blend
     bannerVibrance = Double(defaults.textVibrance)
+    bannerVibranceEnabled = defaults.vibranceEnabled
     bannerScrimChoice = .edgesBlack
-    bannerPreset = .primaryFull
+    bannerPreset = .currentDefault
+    bannerFocusState = .unfocused
     bannerSampleID = TVPageBannerSamples.primaryID
     bannerHasLogo = true
     bannerHasBackdrop = true
-    bannerHasPoster = true
+    bannerHasPoster = false
   }
 
-  private func bannerPreviewController(description: String?) -> UIViewController {
+  private func bannerPreviewController() -> UIViewController {
+    if let cached = cachedBannerPreviewController {
+      return cached
+    }
     let container = makeBannerContainerView()
-    let text = description.flatMap { TSKPreview.description($0) }
-    return TSKPreview.make(contentView: container, description: text) ?? UIViewController()
+    let controller = TSKPreview.make(contentView: container, description: nil) ?? UIViewController()
+    self.cachedBannerPreviewController = controller
+    return controller
   }
 
   private func makeBannerContainerView() -> UIView {
@@ -447,6 +535,7 @@ final class TVSettingsCatalog {
       host.topAnchor.constraint(equalTo: container.topAnchor),
       host.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
+    host.isSimulatedFocused = (bannerFocusState == .focused)
     host.configure(feature: currentBannerFeature, chrome: currentBannerChrome)
     self.activeBannerHostView = host
     return container
@@ -455,13 +544,11 @@ final class TVSettingsCatalog {
   private func bannerLabPage() -> TSKPage {
     TSKPage(
       title: "Home Banner Lab",
-      customPreview: { [unowned self] description in
-        self.bannerPreviewController(description: description)
+      customPreview: { [unowned self] _ in
+        self.bannerPreviewController()
       },
       idlePreview: { [unowned self] in
-        self.bannerPreviewController(
-          description: "Интерактивная настройка баннера главной: логотип, выравнивание, постер, scrim, blend и каталожные ID."
-        )
+        self.bannerPreviewController()
       },
       sections: { [unowned self] in
         self.bannerLabSections()
@@ -472,16 +559,32 @@ final class TVSettingsCatalog {
   private func bannerLabSections() -> [TSKSection] {
     [
       TSKSection(
+        title: "Состояние фокуса".localized,
+        rows: [
+          TSKRow(
+            title: "Фокус карточки: \(bannerFocusState.label)".localized,
+            description: "Симуляция фокуса на баннере: в фокусе описание приобретает primary белый оттенок, вне фокуса — вторичный (70%). Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerFocusState = (self.bannerFocusState == .unfocused ? .focused : .unfocused)
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+        ]
+      ),
+      TSKSection(
         title: "Пресеты тайтла".localized,
         rows: [
           TSKRow(
-            title: "Сценарий".localized,
-            description: "Выбор готового сценария: Паук-Нуар full, без логотипа (типографика), без постера (wide), без бэкдропа или другие ID каталога.",
-            kind: .choice(
-              key: "bannerPreset",
-              values: BannerLabPreset.allCases.map { $0.rawValue as NSString },
-              label: { ($0 as? String).flatMap(BannerLabPreset.init(rawValue:))?.label }
-            )
+            title: "Сценарий: \(bannerPreset.label)".localized,
+            description: "Выбор готового сценария (нажмите Select для переключения): Новый дефолт, Пример 2, без логотипа, шум, доминанта и др.",
+            kind: .action(pushes: false) { [unowned self] in
+              let all = BannerLabPreset.allCases
+              let nextIndex = (all.firstIndex(of: self.bannerPreset).map { $0 + 1 } ?? 0) % all.count
+              self.applyBannerPreset(all[nextIndex])
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
           ),
         ]
       ),
@@ -489,13 +592,15 @@ final class TVSettingsCatalog {
         title: "Каталог staticpop".localized,
         rows: [
           TSKRow(
-            title: "ID тайтла".localized,
-            description: "Загрузка арта из каталога staticpop: https://m.staticpop.net/poster/item/wide/<ID>.jpg",
-            kind: .choice(
-              key: "bannerSampleID",
-              values: [125269, 125268, 125267, 125266, 125265, 125260].map { NSNumber(value: $0) },
-              label: { ($0 as? NSNumber).map { "#\($0.intValue)" } }
-            )
+            title: "ID тайтла: #\(bannerSampleID)".localized,
+            description: "Загрузка арта из каталога staticpop по ID. Нажмите Select для циклического выбора популярных тайтлов.",
+            kind: .action(pushes: false) { [unowned self] in
+              let samples = [125269, 125268, 125267, 125266, 125265, 125260]
+              let nextIndex = (samples.firstIndex(of: self.bannerSampleID).map { $0 + 1 } ?? 0) % samples.count
+              self.bannerSampleID = samples[nextIndex]
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
           ),
           TSKRow(
             title: "Следующий ID (+1)".localized,
@@ -503,7 +608,6 @@ final class TVSettingsCatalog {
             kind: .action(pushes: false) { [unowned self] in
               self.bannerSampleID += 1
               self.updateBannerState()
-              self.host.store.refresh("bannerSampleID")
               self.host.reloadPages()
             }
           ),
@@ -513,7 +617,6 @@ final class TVSettingsCatalog {
             kind: .action(pushes: false) { [unowned self] in
               self.bannerSampleID = max(1, self.bannerSampleID - 1)
               self.updateBannerState()
-              self.host.store.refresh("bannerSampleID")
               self.host.reloadPages()
             }
           ),
@@ -521,9 +624,8 @@ final class TVSettingsCatalog {
             title: "Сброс к 125269 (Паук-Нуар)".localized,
             description: "Возврат к основному тестовому тайтлу 125269 с логотипом и высоким разрешением бэкдропа.",
             kind: .action(pushes: false) { [unowned self] in
-              self.applyBannerPreset(.primaryFull)
+              self.applyBannerPreset(.currentDefault)
               self.updateBannerState()
-              self.host.store.refreshAll()
               self.host.reloadPages()
             }
           ),
@@ -533,27 +635,42 @@ final class TVSettingsCatalog {
         title: "Раскладка".localized,
         rows: [
           TSKRow(
-            title: "Размещение логотипа".localized,
-            description: "Top — логотип закреплен в верхнем инсете карточки. Above copy — логотип находится в колонке контента над синопсисом.",
-            kind: .choice(
-              key: "bannerLogoPlacement",
-              values: ["top" as NSString, "aboveCopy" as NSString],
-              label: { ($0 as? String) == "top" ? "Top" : "Above copy" }
-            )
+            title: "Размещение логотипа: \(bannerLogoPlacement == .top ? "Top" : "Above copy")".localized,
+            description: "Top — логотип закреплен в верхнем инсете карточки. Above copy — логотип находится в колонке контента над синопсисом. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerLogoPlacement = (self.bannerLogoPlacement == .top ? .aboveCopy : .top)
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
           ),
           TSKRow(
-            title: "Выравнивание контента".localized,
-            description: "Leading — текст слева, постер справа. Center — сгруппированный блок контента по центру карточки.",
-            kind: .choice(
-              key: "bannerAlignment",
-              values: ["leading" as NSString, "center" as NSString],
-              label: { ($0 as? String) == "leading" ? "Leading" : "Center" }
-            )
+            title: "Выравнивание контента: \(bannerAlignment == .leading ? "Leading" : "Center")".localized,
+            description: "Leading — текст слева, постер справа. Center — сгруппированный блок контента по центру карточки. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerAlignment = (self.bannerAlignment == .leading ? .center : .leading)
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
           ),
           TSKRow(
-            title: "Показывать постер".localized,
-            description: "Включение или отключение вертикальной плашки постера справа от текста.",
-            kind: .toggle(key: "bannerShowsPoster")
+            title: "Вертикальное выравнивание: \(bannerVerticalAlignment.title)".localized,
+            description: "Позиционирование блока контента по вертикали: Снизу (дефолт), По центру, Сверху. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              let all = TVPageBannerVerticalAlignment.allCases
+              let nextIndex = (all.firstIndex(of: self.bannerVerticalAlignment).map { $0 + 1 } ?? 0) % all.count
+              self.bannerVerticalAlignment = all[nextIndex]
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+          TSKRow(
+            title: "Показывать постер: \(bannerShowsPoster ? "Вкл" : "Выкл")".localized,
+            description: "Включение или отключение вертикальной плашки постера справа от текста. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerShowsPoster.toggle()
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
           ),
         ]
       ),
@@ -561,31 +678,114 @@ final class TVSettingsCatalog {
         title: "Стилизация и наложение".localized,
         rows: [
           TSKRow(
-            title: "Затемнение (Scrim)".localized,
-            description: "Градиентные полосы по краям, сплошная заливка (wash) или радиальное затемнение черным цветом либо доминантным оттенком #C80202.",
-            kind: .choice(
-              key: "bannerScrim",
-              values: BannerLabScrim.allCases.map { $0.rawValue as NSString },
-              label: { ($0 as? String).flatMap(BannerLabScrim.init(rawValue:))?.label }
-            )
+            title: "Затемнение (Scrim): \(bannerScrimChoice.label)".localized,
+            description: "Градиентные полосы по краям, сплошная заливка (wash) или радиальное затемнение черным цветом либо доминантным оттенком #C80202. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              let all = BannerLabScrim.allCases
+              let nextIndex = (all.firstIndex(of: self.bannerScrimChoice).map { $0 + 1 } ?? 0) % all.count
+              self.bannerScrimChoice = all[nextIndex]
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
           ),
           TSKRow(
-            title: "Режим наложения (Blend)".localized,
-            description: "Compositing-фильтр режима наложения (Normal, Multiply, Screen, Overlay, Soft light, Darken) поверх бэкдропа.",
-            kind: .choice(
-              key: "bannerBlend",
-              values: TVPageBannerBlend.allSupportedCases.map { $0.rawValue as NSString },
-              label: { ($0 as? String).flatMap(TVPageBannerBlend.init(rawValue:))?.title }
-            )
+            title: "Режим наложения (Blend): \(bannerBlend.title)".localized,
+            description: "Compositing-фильтр режима наложения (Normal, Multiply, Screen, Overlay, Soft light, Darken) поверх бэкдропа. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              let all = TVPageBannerBlend.allSupportedCases
+              let nextIndex = (all.firstIndex(of: self.bannerBlend).map { $0 + 1 } ?? 0) % all.count
+              self.bannerBlend = all[nextIndex]
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
           ),
           TSKRow(
-            title: "Яркость текста (Vibrance)".localized,
-            description: "Смешивание цвета вторичного текста к чистому белому для читаемости на темном фоне.",
-            kind: .choice(
-              key: "bannerVibrance",
-              values: [0.0, 0.25, 0.50, 0.65, 0.85, 1.0].map { NSNumber(value: $0) },
-              label: { ($0 as? NSNumber).map { String(format: "%.2f", $0.doubleValue) } }
-            )
+            title: "Высветление (Vibrance): \(bannerVibranceEnabled ? "Вкл" : "Выкл")".localized,
+            description: "Включение программного высветления вторичного текста к белому. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerVibranceEnabled.toggle()
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+          TSKRow(
+            title: "Яркость текста (Vibrance): \(String(format: "%.2f", bannerVibrance))".localized,
+            description: "Смешивание цвета вторичного текста к чистому белому для читаемости на темном фоне. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              let options: [Double] = [0.0, 0.25, 0.50, 0.65, 0.85, 1.0]
+              let nextIndex = (options.firstIndex(where: { abs($0 - self.bannerVibrance) < 0.01 }).map { $0 + 1 } ?? 0) % options.count
+              self.bannerVibrance = options[nextIndex]
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+        ]
+      ),
+      TSKSection(
+        title: "Рейтинги и оценки".localized,
+        rows: [
+          TSKRow(
+            title: "Голоса в скобках (12K): \(bannerShowsVotes ? "Вкл" : "Выкл")".localized,
+            description: "Показывать количество проголосовавших в скобках после оценки. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerShowsVotes.toggle()
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+          TSKRow(
+            title: "Лимит оценок: \(bannerRatingLimit)".localized,
+            description: "Максимальное количество плашек оценок в строке метаданных баннера (1 или 2). Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerRatingLimit = (self.bannerRatingLimit == 1 ? 2 : 1)
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+          TSKRow(
+            title: "Фильтр шума (< 10 голосов): \(bannerFilterNoise ? "Вкл" : "Выкл")".localized,
+            description: "Отбрасывать оценки с менее чем 10 голосами, если присутствуют более крупные источники. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerFilterNoise.toggle()
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+          TSKRow(
+            title: "Фильтр доминанты (> 90%): \(bannerFilterDominant ? "Вкл" : "Выкл")".localized,
+            description: "Оставлять только одну оценку, если один из источников дает более 90% всех голосов. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerFilterDominant.toggle()
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+          TSKRow(
+            title: "Агрегированная оценка: \(bannerShowsAggregate ? "Вкл" : "Выкл")".localized,
+            description: "Показывать объединенную взвешенную оценку (плашка с оценкой 0...10). Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerShowsAggregate.toggle()
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+          TSKRow(
+            title: "Только агрегат (без источников): \(bannerAggregateOnly ? "Вкл" : "Выкл")".localized,
+            description: "Отображать только агрегированную оценку без разбивки по источникам. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerAggregateOnly.toggle()
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
+          ),
+          TSKRow(
+            title: "Не дублировать цифру при 1 источнике: \(bannerDedupAggregate ? "Вкл" : "Выкл")".localized,
+            description: "Если агрегат состоит из одного источника (например только IMDb 8.5), скрывать повторяющуюся цифру у источника. Нажмите Select для переключения.",
+            kind: .action(pushes: false) { [unowned self] in
+              self.bannerDedupAggregate.toggle()
+              self.updateBannerState()
+              self.host.reloadPages()
+            }
           ),
         ]
       ),
@@ -593,12 +793,20 @@ final class TVSettingsCatalog {
         title: "Дефолты".localized,
         rows: [
           TSKRow(
-            title: "Сбросить к значениям по умолчанию".localized,
-            description: "Сбросить все параметры баннера к дефолтным значениям кода приложения.",
+            title: "Сбросить к новому дефолту".localized,
+            description: "Сбросить все параметры баннера к новому базовому варианту (без постера, компактный нижний отступ 22pt, чистое описание).",
             kind: .action(pushes: false) { [unowned self] in
-              self.resetBannerDefaults()
+              self.applyBannerPreset(.currentDefault)
               self.updateBannerState()
-              self.host.store.refreshAll()
+              self.host.reloadPages()
+            }
+          ),
+          TSKRow(
+            title: "Восстановить пример 2 (Как было)".localized,
+            description: "Восстановить параметры предыдущей версии (с постером 42%, нижний отступ 32pt, vibrance 0.65).",
+            kind: .action(pushes: false) { [unowned self] in
+              self.applyBannerPreset(.previousFull)
+              self.updateBannerState()
               self.host.reloadPages()
             }
           ),
@@ -806,6 +1014,12 @@ final class TVSettingsCatalog {
     }
 
     // Banner Lab bindings
+    store.bind("bannerFocusState",
+               get: { [unowned self] in self.bannerFocusState.rawValue as NSString },
+               set: { [unowned self] value in
+                 guard let raw = value as? String, let state = BannerLabFocusState(rawValue: raw) else { return }
+                 self.bannerFocusState = state
+               })
     store.bind("bannerPreset",
                get: { [unowned self] in self.bannerPreset.rawValue as NSString },
                set: { [unowned self] value in
@@ -845,12 +1059,39 @@ final class TVSettingsCatalog {
                  guard let raw = value as? String, let blend = TVPageBannerBlend(rawValue: raw) else { return }
                  self.bannerBlend = blend
                })
+    store.bindBool("bannerVibranceEnabled",
+                   get: { [unowned self] in self.bannerVibranceEnabled },
+                   set: { [unowned self] in self.bannerVibranceEnabled = $0 })
     store.bind("bannerVibrance",
                get: { [unowned self] in NSNumber(value: self.bannerVibrance) },
                set: { [unowned self] value in
                  guard let v = (value as? NSNumber)?.doubleValue else { return }
                  self.bannerVibrance = v
                })
+    store.bindBool("bannerShowsVotes",
+                   get: { [unowned self] in self.bannerShowsVotes },
+                   set: { [unowned self] in self.bannerShowsVotes = $0 })
+    store.bind("bannerRatingLimit",
+               get: { [unowned self] in NSNumber(value: self.bannerRatingLimit) },
+               set: { [unowned self] value in
+                 guard let limit = (value as? NSNumber)?.intValue else { return }
+                 self.bannerRatingLimit = limit
+               })
+    store.bindBool("bannerFilterNoise",
+                   get: { [unowned self] in self.bannerFilterNoise },
+                   set: { [unowned self] in self.bannerFilterNoise = $0 })
+    store.bindBool("bannerFilterDominant",
+                   get: { [unowned self] in self.bannerFilterDominant },
+                   set: { [unowned self] in self.bannerFilterDominant = $0 })
+    store.bindBool("bannerShowsAggregate",
+                   get: { [unowned self] in self.bannerShowsAggregate },
+                   set: { [unowned self] in self.bannerShowsAggregate = $0 })
+    store.bindBool("bannerAggregateOnly",
+                   get: { [unowned self] in self.bannerAggregateOnly },
+                   set: { [unowned self] in self.bannerAggregateOnly = $0 })
+    store.bindBool("bannerDedupAggregate",
+                   get: { [unowned self] in self.bannerDedupAggregate },
+                   set: { [unowned self] in self.bannerDedupAggregate = $0 })
 
     // Rows that depend on another row's value, and the experiments page's pending-quit row.
     store.didWrite = { [unowned self] key in
@@ -859,7 +1100,6 @@ final class TVSettingsCatalog {
         self.host.reloadPages()
       } else if key.hasPrefix("banner") {
         self.updateBannerState()
-        self.host.reloadPages()
       }
     }
   }

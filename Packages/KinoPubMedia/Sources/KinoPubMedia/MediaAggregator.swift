@@ -78,7 +78,7 @@ public struct MediaPrecedence: Sendable {
   public static let standard = MediaPrecedence(order: [
     // The copy's own name, as the viewer's catalogue lists it.
     .title: [.kinopub, .apple, .tmdb, .kinopoisk],
-    .originalTitle: [.tmdb, .apple, .imdb, .kinopub, .kinopoisk],
+    .originalTitle: [.kinopub, .tmdb, .apple, .imdb, .kinopoisk],
     .edition: [.kinopub],
     // What the viewer can play is kino.pub's seasons, not every season that aired.
     .seasonCount: [.kinopub, .tmdb],

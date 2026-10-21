@@ -30,9 +30,9 @@ public enum InfoPopupMetrics {
   public static let maxWidth: CGFloat = 1100
   public static let padding: CGFloat = 64
   public static let cornerRadius: CGFloat = 28
-  public static let titleFont: Font = .title
-  public static let subtitleFont: Font = .headline
-  public static let bodyFont: Font = .body
+  public static let titleFont: Font = .title3
+  public static let subtitleFont: Font = .subheadline
+  public static let bodyFont: Font = .caption
   public static let contentSpacing: CGFloat = 28
 #elseif os(macOS)
   public static let maxWidth: CGFloat = 620
@@ -96,8 +96,8 @@ public struct InfoPopupView<Content: View>: View {
     ZStack {
       // A scrim, not a faded material: `.opacity` on a material draws the full-strength
       // effect semi-transparently instead of weakening it (materials-blur-and-chrome).
-      Color.black.opacity(0.55)
-        .ignoresSafeArea()
+//      Color.black.opacity(0.55)
+//     .ignoresSafeArea()
       VStack(spacing: 0) {
         scrollingText
         if let confirmTitle {
@@ -109,7 +109,7 @@ public struct InfoPopupView<Content: View>: View {
       .frame(maxWidth: InfoPopupMetrics.maxWidth)
       .background {
         RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous)
-          .fill(.regularMaterial)
+          .fill(.thinMaterial)
       }
       .padding(60)
       .defaultFocus($confirmFocused, confirmTitle != nil, priority: .userInitiated)
@@ -398,7 +398,7 @@ public enum InfoPopupTriggerStyle {
       .expandsIntoInfoPopup(title: Text("Synopsis")) {
         Text(String(repeating: "Синопсис, который не поместился целиком. ", count: 8))
           .font(InfoPopupMetrics.bodyFont)
-          .foregroundStyle(Color.KinoPub.text)
+          .foregroundStyle(Color.KinoPub.subtitle)
       }
   }
   .padding(40)

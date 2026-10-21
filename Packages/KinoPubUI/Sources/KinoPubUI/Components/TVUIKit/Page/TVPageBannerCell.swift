@@ -36,6 +36,7 @@ final class TVPageBannerCell: UICollectionViewCell {
   private let meta = UIStackView()
   private let column = UIStackView()
   private let band = UIStackView()
+  private let topHeader = UIStackView()
 
   private var logoWidth: NSLayoutConstraint!
   private var logoHeight: NSLayoutConstraint!
@@ -65,6 +66,10 @@ final class TVPageBannerCell: UICollectionViewCell {
     contentView.clipsToBounds = false
 
     cardView.overrideUserInterfaceStyle = .dark
+    cardView.cardBackgroundColor = UIColor(white: 0.12, alpha: 1)
+    cardView.layer.cornerRadius = Self.cornerRadius
+    cardView.layer.cornerCurve = .continuous
+    cardView.clipsToBounds = true
     cardView.translatesAutoresizingMaskIntoConstraints = false
     contentView.addSubview(cardView)
     logoSession.onChange = { [weak self] in self?.paintLogoSession() }
@@ -134,6 +139,9 @@ final class TVPageBannerCell: UICollectionViewCell {
     band.axis = .horizontal
     band.alignment = .bottom
     band.translatesAutoresizingMaskIntoConstraints = false
+
+    topHeader.axis = .vertical
+    topHeader.translatesAutoresizingMaskIntoConstraints = false
     host.addSubview(poster)
 
     logoWidth = logo.widthAnchor.constraint(equalToConstant: 0)
@@ -175,7 +183,28 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  override var canBecomeFocused: Bool { true }
+  override var canBecomeFocused: Bool {
+    if laysOutPlatterForPreview { return true }
+    guard let feature else { return false }
+    return feature.card.id > 0
+  }
+
+  /// Allows lab previews to simulate the focused appearance without a physical remote focus.
+  var isSimulatedFocused: Bool = false {
+    didSet {
+      applyCopyColor()
+      applyScrim()
+      setNeedsLayout()
+    }
+  }
+
+  override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+    super.didUpdateFocus(in: context, with: coordinator)
+    coordinator.addCoordinatedAnimations {
+      self.applyCopyColor()
+      self.applyScrim()
+    }
+  }
 
   override func layoutSubviews() {
     super.layoutSubviews()
@@ -227,8 +256,24 @@ final class TVPageBannerCell: UICollectionViewCell {
     let card = feature.card
     let previous = self.feature
     self.feature = feature
+
+    if card.id <= 0 {
+      cancelLoads()
+      logoSession.reset()
+      backdrop.image = nil
+      poster.image = nil
+      showMark(nil, awaitingLogo: false)
+      titleLabel.text = nil
+      overviewText = nil
+      applyOverview()
+      meta.arrangedSubviews.forEach { $0.removeFromSuperview() }
+      accessibilityIdentifier = "kinopub.banner.placeholder"
+      cardView.accessibilityLabel = nil
+      return
+    }
+
     titleLabel.text = card.title
-    overviewText = card.overview.flatMap { Self.firstSentence(of: $0) }
+    overviewText = card.overview.flatMap { Self.smartSynopsis(of: $0) }
     applyOverview()
     let metaParts = Self.metaParts(for: card)
     applyMeta(card, parts: metaParts)
@@ -248,15 +293,29 @@ final class TVPageBannerCell: UICollectionViewCell {
     }
     let size = cardView.contentSize
     if !sameTitle || backdrop.image == nil {
-      load([URL(string: card.backdropImageURL), URL(string: card.posterURL)], size: size) { [weak self] in
-        self?.backdrop.image = $0
+      load([URL(string: card.backdropImageURL), URL(string: card.posterURL)], size: size) { [weak self] image in
+        guard let self, let image else { return }
+        if self.backdrop.image == nil {
+          UIView.transition(with: self.backdrop, duration: 0.25, options: .transitionCrossDissolve) {
+            self.backdrop.image = image
+          }
+        } else {
+          self.backdrop.image = image
+        }
       }
     }
     if chrome.showsPoster, !sameTitle || poster.image == nil {
       let posterSize = CGSize(width: size.height * chrome.posterHeightRatio * CardAspect.poster.ratio,
                               height: size.height * chrome.posterHeightRatio)
-      load([URL(string: card.posterURL)], size: posterSize) { [weak self] in
-        self?.poster.image = $0
+      load([URL(string: card.posterURL)], size: posterSize) { [weak self] image in
+        guard let self, let image else { return }
+        if self.poster.image == nil {
+          UIView.transition(with: self.poster, duration: 0.25, options: .transitionCrossDissolve) {
+            self.poster.image = image
+          }
+        } else {
+          self.poster.image = image
+        }
       }
     }
     let logoChanged = previous?.logo != feature.logo
@@ -265,16 +324,24 @@ final class TVPageBannerCell: UICollectionViewCell {
     }
   }
 
-  /// The plot's first sentence and nothing else; a banner is not the place to read.
-  private static func firstSentence(of text: String) -> String? {
+  /// Returns a concise, readable synopsis snippet of at least `minLength` characters
+  /// (or the full text if shorter), preventing awkward short fragments like "1903 год.".
+  private static func smartSynopsis(of text: String, minLength: Int = 45) -> String? {
     let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return nil }
-    var first: String?
+    var result = ""
     text.enumerateSubstrings(in: text.startIndex..., options: .bySentences) { sentence, _, _, stop in
-      first = sentence?.trimmingCharacters(in: .whitespacesAndNewlines)
-      stop = true
+      guard let s = sentence?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return }
+      if result.isEmpty {
+        result = s
+      } else {
+        result += " " + s
+      }
+      if result.count >= minLength {
+        stop = true
+      }
     }
-    return first ?? text
+    return result.isEmpty ? text : result
   }
 
   /// Width the sentence can use: the column's pins, read off the platter rather
@@ -290,8 +357,13 @@ final class TVPageBannerCell: UICollectionViewCell {
       }
       return max(width, 0)
     case .center:
-      let fraction: CGFloat = chrome.showsPoster ? 0.48 : 0.62
-      return max(host.width * fraction, 0)
+      if chrome.showsPoster {
+        let posterHeight = host.height * chrome.posterHeightRatio
+        let width = host.width - pad * 3 - posterHeight * CardAspect.poster.ratio
+        return max(width, 0)
+      } else {
+        return max(host.width - pad * 2, 0)
+      }
     }
   }
 
@@ -302,11 +374,31 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   // MARK: - Meta
 
-  /// The words after the scores: season count for a series, then one genre.
+  /// The metadata parts after the scores:
+  /// Order: 1. Genre (useful, skipping generic anime/cartoons), 2. Year/span (2026, 2024–26), 3. Country, 4. Duration/Volume (2+ seasons / episodes / runtime).
   private static func metaParts(for card: MediaCard) -> [String] {
     var parts: [String] = []
-    if let seasons = card.seasonCountText() { parts.append(seasons) }
-    if let genre = card.primaryGenre(), !genre.isEmpty { parts.append(genre) }
+
+    // 1. Жанр (пропуская базовые/банальные: аниме, мультфильм)
+    if let genre = card.usefulGenre(), !genre.isEmpty {
+      parts.append(genre)
+    }
+
+    // 2. Год / года (2026, 2024–26)
+    if let years = card.bannerYearSpan, !years.isEmpty {
+      parts.append(years)
+    }
+
+    // 3. Страна
+    if let country = card.country, !country.isEmpty {
+      parts.append(country)
+    }
+
+    // 4. Длительность: сезоны если 1+, серии если 1, duration у фильма
+    if let duration = card.bannerDurationText(), !duration.isEmpty {
+      parts.append(duration)
+    }
+
     return parts
   }
 
@@ -315,35 +407,124 @@ final class TVPageBannerCell: UICollectionViewCell {
   private func applyMeta(_ card: MediaCard, parts: [String]) {
     meta.arrangedSubviews.forEach { $0.removeFromSuperview() }
     let font = chrome.textFont
-    let iconHeight = chrome.scoreIconHeight ?? max(font.capHeight.rounded(), 12)
-    let scores: [(MediaScoreLogo.Source, Double?)] = [
-      (.imdb, card.scores.imdbScore),
-      (.kinopoisk, card.scores.kinopoiskScore)
-    ]
-    for (source, value) in scores {
-      guard let value, let mark = Self.scoreLogo(source, height: iconHeight) else { continue }
-      let group = UIStackView()
-      group.axis = .horizontal
-      group.alignment = .center
-      group.spacing = 6
-      group.addArrangedSubview(mark)
-      let number = UILabel()
-      number.font = font
-      number.adjustsFontForContentSizeCategory = true
-      number.textColor = chrome.resolvedTextColor
-      number.text = String(format: "%.1f", value)
-      group.addArrangedSubview(number)
-      meta.addArrangedSubview(group)
+    let descriptor = font.fontDescriptor.withDesign(.rounded) ?? font.fontDescriptor
+    let roundedScoreFont = UIFont(descriptor: descriptor, size: font.pointSize)
+    let iconHeight = chrome.scoreIconHeight ?? max(font.capHeight.rounded() + 2, 16)
+
+    let secondaryTextColor = chrome.resolvedTextColor
+
+    // 1. Aggregated score badge (if enabled)
+    if chrome.showsAggregateScore, let aggregate = card.scores.aggregate {
+      let badge = Self.aggregateBadgeView(rating: aggregate, font: font)
+      meta.addArrangedSubview(badge)
+
+      if chrome.aggregateOnly && chrome.showsRatingVotes {
+        let totalVotes = card.scores.totalVotes
+        if totalVotes > 0 {
+          let votesLabel = UILabel()
+          votesLabel.tag = 101
+          let votesPointSize = max(round(font.pointSize * 0.72), 11)
+          let vDesc = font.fontDescriptor.withDesign(.rounded) ?? font.fontDescriptor
+          votesLabel.font = UIFont(descriptor: vDesc, size: votesPointSize)
+          votesLabel.adjustsFontForContentSizeCategory = true
+          votesLabel.textColor = secondaryTextColor.withAlphaComponent(0.75)
+          votesLabel.text = "(\(MediaScores.formatVotesWholeThousands(totalVotes)))"
+          meta.addArrangedSubview(votesLabel)
+        }
+      }
     }
+
+    // 2. Individual rating badges (unless aggregateOnly is selected)
+    if !chrome.aggregateOnly {
+      let scoreItems = card.scores.bannerScores(
+        limit: chrome.ratingMaxCount,
+        filterNoise: chrome.filterLowTurnout,
+        filterDominant: chrome.filterDominantScore,
+        deduplicateAgainstAggregate: chrome.showsAggregateScore && chrome.deduplicateSingleSourceAggregate
+      )
+
+      for item in scoreItems {
+        guard let mark = Self.scoreLogo(item.source, height: iconHeight) else { continue }
+        let group = UIStackView()
+        group.axis = .horizontal
+        group.alignment = .center
+        group.spacing = 6
+        group.addArrangedSubview(mark)
+
+        if !item.displayScore.isEmpty {
+          let number = UILabel()
+          number.tag = 100
+          number.font = roundedScoreFont
+          number.adjustsFontForContentSizeCategory = true
+          number.textColor = .white
+          number.text = item.displayScore
+          group.addArrangedSubview(number)
+        }
+
+        if chrome.showsRatingVotes, let votes = item.votesCompact {
+          let votesLabel = UILabel()
+          votesLabel.tag = 101
+          let votesPointSize = max(round(font.pointSize * 0.72), 11)
+          let vDesc = font.fontDescriptor.withDesign(.rounded) ?? font.fontDescriptor
+          votesLabel.font = UIFont(descriptor: vDesc, size: votesPointSize)
+          votesLabel.adjustsFontForContentSizeCategory = true
+          votesLabel.textColor = secondaryTextColor.withAlphaComponent(0.75)
+          votesLabel.text = "(\(votes))"
+          group.addArrangedSubview(votesLabel)
+        }
+
+        meta.addArrangedSubview(group)
+      }
+    }
+
+    // 3. Trailing metadata parts (useful genre, duration/episodes, country, year)
     for part in parts {
       let label = UILabel()
       label.font = font
       label.adjustsFontForContentSizeCategory = true
-      label.textColor = chrome.resolvedTextColor
+      label.textColor = secondaryTextColor
       label.text = part
       meta.addArrangedSubview(label)
     }
     meta.isHidden = meta.arrangedSubviews.isEmpty
+  }
+
+  /// Creates a compact UIKit rating badge matching the system RatingBadgeView style.
+  /// The score digits are sized identically to the neighboring score digits, never smaller.
+  private static func aggregateBadgeView(rating: Rating, font: UIFont) -> UIView {
+    let container = UIView()
+    container.layer.cornerRadius = 5
+    container.layer.masksToBounds = true
+    container.translatesAutoresizingMaskIntoConstraints = false
+
+    let label = UILabel()
+    label.translatesAutoresizingMaskIntoConstraints = false
+    let descriptor = font.fontDescriptor.withDesign(.rounded) ?? font.fontDescriptor
+    let boldDesc = descriptor.addingAttributes([
+      .traits: [UIFontDescriptor.TraitKey.weight: UIFont.Weight.bold]
+    ])
+    label.font = UIFont(descriptor: boldDesc, size: font.pointSize)
+    label.text = rating.formatted
+
+    if rating.tier == .awarded {
+      container.backgroundColor = .systemYellow
+      label.textColor = .black
+    } else {
+      container.backgroundColor = UIColor(white: 1.0, alpha: 0.22)
+      container.layer.borderWidth = 0.5
+      container.layer.borderColor = UIColor(white: 1.0, alpha: 0.40).cgColor
+      label.textColor = .white
+    }
+
+    container.addSubview(label)
+    NSLayoutConstraint.activate([
+      label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+      label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 6),
+      label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -6),
+      container.topAnchor.constraint(equalTo: label.topAnchor, constant: -2),
+      container.bottomAnchor.constraint(equalTo: label.bottomAnchor, constant: 2)
+    ])
+    return container
   }
 
   /// The source's colour mark at a fixed height, width following the artwork.
@@ -377,6 +558,11 @@ final class TVPageBannerCell: UICollectionViewCell {
       column.removeArrangedSubview(titleLabel)
       titleLabel.removeFromSuperview()
     }
+    topHeader.arrangedSubviews.forEach {
+      topHeader.removeArrangedSubview($0)
+      $0.removeFromSuperview()
+    }
+    topHeader.removeFromSuperview()
     band.arrangedSubviews.forEach {
       band.removeArrangedSubview($0)
       $0.removeFromSuperview()
@@ -389,6 +575,7 @@ final class TVPageBannerCell: UICollectionViewCell {
 
     let host = cardView.contentView
     let pad = chrome.padding
+    let bPad = chrome.bottomPadding
     let centered = chrome.alignment == .center
     column.alignment = centered ? .center : .leading
     column.spacing = chrome.copySpacing
@@ -403,65 +590,75 @@ final class TVPageBannerCell: UICollectionViewCell {
     if !chrome.showsPoster { host.addSubview(poster) }
 
     var pins: [NSLayoutConstraint] = []
-    switch chrome.alignment {
-    case .leading:
-      host.addSubview(column)
-      pins += [
-        column.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: pad),
-        column.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -pad)
-      ]
-      if chrome.showsPoster {
-        host.addSubview(poster)
-        pins += [
-          poster.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -pad),
-          poster.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -pad),
-          column.trailingAnchor.constraint(equalTo: poster.leadingAnchor, constant: -pad)
-        ]
-      } else {
-        pins += [column.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -pad)]
-      }
-    case .center:
-      host.addSubview(band)
-      band.addArrangedSubview(column)
-      if chrome.showsPoster { band.addArrangedSubview(poster) }
-      let fraction: CGFloat = chrome.showsPoster ? 0.48 : 0.62
-      pins += [
-        band.centerXAnchor.constraint(equalTo: host.centerXAnchor),
-        band.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -pad),
-        band.leadingAnchor.constraint(greaterThanOrEqualTo: host.leadingAnchor, constant: pad),
-        band.trailingAnchor.constraint(lessThanOrEqualTo: host.trailingAnchor, constant: -pad),
-        column.widthAnchor.constraint(equalTo: host.widthAnchor, multiplier: fraction)
-      ]
-    }
 
     switch chrome.logoPlacement {
     case .top:
-      host.addSubview(logo)
-      host.addSubview(titleLabel)
+      topHeader.alignment = centered ? .center : .leading
+      topHeader.addArrangedSubview(titleLabel)
+      topHeader.addArrangedSubview(logo)
+      host.addSubview(topHeader)
       pins += [
-        logo.topAnchor.constraint(equalTo: host.topAnchor, constant: pad),
-        titleLabel.topAnchor.constraint(equalTo: host.topAnchor, constant: pad)
+        topHeader.topAnchor.constraint(equalTo: host.topAnchor, constant: pad)
       ]
       if centered {
         pins += [
-          logo.centerXAnchor.constraint(equalTo: host.centerXAnchor),
-          titleLabel.centerXAnchor.constraint(equalTo: host.centerXAnchor),
+          topHeader.centerXAnchor.constraint(equalTo: host.centerXAnchor),
           titleLabel.widthAnchor.constraint(lessThanOrEqualTo: host.widthAnchor, multiplier: chrome.logoMaxWidthRatio)
         ]
       } else {
         pins += [
-          logo.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: pad),
-          titleLabel.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: pad),
-          titleLabel.trailingAnchor.constraint(equalTo: column.trailingAnchor)
+          topHeader.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: pad),
+          titleLabel.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -pad)
         ]
       }
     case .aboveCopy:
       column.insertArrangedSubview(titleLabel, at: 0)
       column.insertArrangedSubview(logo, at: 1)
     }
-    // The column is as wide as the pins (leading edge to the poster, or the
-    // centred fraction). The sentence fills that width; without this it keeps
-    // the multiline label's collapsed intrinsic width and wraps in the corner.
+
+    host.addSubview(column)
+    if chrome.showsPoster {
+      host.addSubview(poster)
+      pins += [
+        column.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: pad),
+        poster.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -pad),
+        column.trailingAnchor.constraint(equalTo: poster.leadingAnchor, constant: -pad)
+      ]
+    } else {
+      pins += [
+        column.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: pad),
+        column.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -pad)
+      ]
+    }
+
+    switch chrome.verticalAlignment {
+    case .bottom:
+      pins += [column.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -bPad)]
+      if chrome.showsPoster {
+        pins += [poster.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -bPad)]
+      }
+    case .center:
+      pins += [column.centerYAnchor.constraint(equalTo: host.centerYAnchor)]
+      if chrome.showsPoster {
+        pins += [poster.centerYAnchor.constraint(equalTo: host.centerYAnchor)]
+      }
+    case .top:
+      if chrome.logoPlacement == .top {
+        pins += [column.topAnchor.constraint(equalTo: topHeader.bottomAnchor, constant: chrome.copySpacing)]
+        if chrome.showsPoster {
+          pins += [poster.topAnchor.constraint(equalTo: topHeader.bottomAnchor, constant: chrome.copySpacing)]
+        }
+      } else {
+        pins += [column.topAnchor.constraint(equalTo: host.topAnchor, constant: pad)]
+        if chrome.showsPoster {
+          pins += [poster.topAnchor.constraint(equalTo: host.topAnchor, constant: pad)]
+        }
+      }
+    }
+
+    // The column is as wide as the pins (leading edge to the poster, or full width).
+    // The sentence fills that width; without this it keeps the multiline label's
+    // collapsed intrinsic width and wraps in the corner.
     pins += [overviewLabel.widthAnchor.constraint(equalTo: column.widthAnchor)]
     if chrome.logoPlacement == .aboveCopy {
       pins += [titleLabel.widthAnchor.constraint(equalTo: column.widthAnchor)]
@@ -475,14 +672,27 @@ final class TVPageBannerCell: UICollectionViewCell {
   /// Description, digits and genres share one colour. The preview calls this again
   /// when it swaps chrome, so labels built earlier pick up the new value.
   private func applyCopyColor() {
-    let color = chrome.resolvedTextColor
-    overviewLabel.textColor = color
+    let isEffectiveFocused = isFocused || isSimulatedFocused || chrome.isFocusedState
+    let descColor = isEffectiveFocused ? .white : chrome.resolvedTextColor
+    overviewLabel.textColor = descColor
     applyOverview()
     for view in meta.arrangedSubviews {
-      if let label = view as? UILabel { label.textColor = color }
+      if let label = view as? UILabel {
+        label.textColor = chrome.resolvedTextColor
+      }
       guard let group = view as? UIStackView else { continue }
       for subview in group.arrangedSubviews {
-        if let label = subview as? UILabel { label.textColor = color }
+        if let label = subview as? UILabel {
+          if label.tag == 100 {
+            // Ratings digits are ALWAYS primary white
+            label.textColor = .white
+          } else if label.tag == 101 {
+            // Votes count: secondary
+            label.textColor = chrome.resolvedTextColor.withAlphaComponent(0.75)
+          } else {
+            label.textColor = chrome.resolvedTextColor
+          }
+        }
       }
     }
   }
@@ -502,12 +712,15 @@ final class TVPageBannerCell: UICollectionViewCell {
     bottomScrim.startPoint = CGPoint(x: 0.5, y: 0)
     bottomScrim.endPoint = CGPoint(x: 0.5, y: 1)
 
+    let isEffectiveFocused = isFocused || isSimulatedFocused || chrome.isFocusedState
+
     switch chrome.scrim {
     case .edges(let color, _, let topAlpha, _, let bottomAlpha):
       topScrim.isHidden = topAlpha <= 0
-      bottomScrim.isHidden = bottomAlpha <= 0
+      let effectiveBottomAlpha = isEffectiveFocused ? min(bottomAlpha + 0.15, 0.90) : bottomAlpha
+      bottomScrim.isHidden = effectiveBottomAlpha <= 0
       topScrim.colors = [color.withAlphaComponent(topAlpha), color.withAlphaComponent(0)]
-      bottomScrim.colors = [color.withAlphaComponent(0), color.withAlphaComponent(bottomAlpha)]
+      bottomScrim.colors = [color.withAlphaComponent(0), color.withAlphaComponent(effectiveBottomAlpha)]
     case .wash(let color):
       wash.isHidden = false
       wash.backgroundColor = color

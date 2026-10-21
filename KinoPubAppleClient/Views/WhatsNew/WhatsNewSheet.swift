@@ -19,7 +19,7 @@ struct ChangelogBullets: View {
       ForEach(Array(bullets.enumerated()), id: \.offset) { _, bullet in
         HStack(alignment: .firstTextBaseline, spacing: 14) {
           Text(verbatim: "•")
-            .foregroundStyle(Color.KinoPub.subtitle)
+            .foregroundStyle(Color.KinoPub.text)
           Text(verbatim: bullet)
             .foregroundStyle(Color.KinoPub.text)
             .fixedSize(horizontal: false, vertical: true)

@@ -80,6 +80,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// How many seasons the series has that we know of: one, and it is the first, and the
   /// card says «E2» / «2 серия» without the season (`EpisodeText`). Nil when unknown.
   public let seasonCount: Int?
+  /// How many episodes in the series/season when known.
+  public let episodeCount: Int?
   /// History media id for `/v1/history/clear-for-media`. Nil clears the whole item.
   public let mediaID: Int?
   /// Whether this video is already marked watched — drives the context-menu label.
@@ -189,6 +191,62 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     }
   }
 
+  /// Finds the primary meaningful genre, skipping obvious generic categories (anime, animation, cartoon).
+  public func usefulGenre(language: MediaLanguage = .current) -> String? {
+    let genericKeywords = ["anime", "аниме", "animation", "анимация", "мультфильм", "мультфильмы", "cartoon"]
+    for genre in genres {
+      let id = genre.id.lowercased()
+      let ru = genre.name.ru.lowercased()
+      let en = genre.name.en.lowercased()
+      let isGeneric = genericKeywords.contains { id.contains($0) || ru.contains($0) || en.contains($0) }
+      if !isGeneric {
+        return genre.name.value(languageCode: language.rawValue)
+      }
+    }
+    return primaryGenre(language: language)
+  }
+
+  /// Duration or volume line for banner:
+  /// - Series with 2+ seasons: "2 сезона" / "2 seasons"
+  /// - Series with 1 season: episode count "8 серий" / "8 episodes"
+  /// - Film: runtime (e.g. "135 мин")
+  public func bannerDurationText(language: MediaLanguage = .current) -> String? {
+    if isSeries {
+      let seasons = seasonCount ?? 1
+      if seasons > 1 {
+        return SeasonCountText(seasons)?.formatted(language: language)
+      } else {
+        let episodes = episodeCount ?? (unwatchedEpisodes ?? 8)
+        return EpisodesLeftText(episodes)?.formatted(language: language)
+      }
+    } else {
+      return durationLabel
+    }
+  }
+
+  /// Formats year/span for banner: 2026, 2024–26.
+  public var bannerYearSpan: String? {
+    guard let start = year else { return nil }
+    if isSeries, let end = yearEnd, end > start {
+      if start / 100 == end / 100 {
+        return "\(start)–\(String(format: "%02d", end % 100))"
+      } else {
+        return "\(start)–\(end)"
+      }
+    }
+    return String(start)
+  }
+
+  /// Exact-geometry placeholder card for skeleton rows.
+  public static func placeholder(id: Int = -1) -> MediaCard {
+    MediaCard(
+      id: id,
+      posterURL: "",
+      title: "",
+      overview: nil
+    )
+  }
+
   public init(id: Int,
               posterURL: String,
               title: String,
@@ -209,6 +267,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               video: Int? = nil,
               season: Int? = nil,
               seasonCount: Int? = nil,
+              episodeCount: Int? = nil,
               mediaID: Int? = nil,
               isWatched: Bool = false,
               isSeries: Bool = false,
@@ -251,6 +310,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.video = video
     self.season = season
     self.seasonCount = seasonCount
+    self.episodeCount = episodeCount
     self.mediaID = mediaID
     self.isWatched = isWatched
     self.isSeries = isSeries
@@ -297,6 +357,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               video: video,
               season: season,
               seasonCount: seasonCount,
+              episodeCount: episodeCount,
               mediaID: mediaID,
               isWatched: isWatched,
               isSeries: isSeries,
@@ -343,6 +404,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     video = try c.decodeIfPresent(Int.self, forKey: .video)
     season = try c.decodeIfPresent(Int.self, forKey: .season)
     seasonCount = try c.decodeIfPresent(Int.self, forKey: .seasonCount)
+    episodeCount = try c.decodeIfPresent(Int.self, forKey: .episodeCount)
     mediaID = try c.decodeIfPresent(Int.self, forKey: .mediaID)
     isWatched = try c.decodeIfPresent(Bool.self, forKey: .isWatched) ?? false
     isSeries = try c.decodeIfPresent(Bool.self, forKey: .isSeries) ?? false
@@ -406,6 +468,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(video, forKey: .video)
     try c.encodeIfPresent(season, forKey: .season)
     try c.encodeIfPresent(seasonCount, forKey: .seasonCount)
+    try c.encodeIfPresent(episodeCount, forKey: .episodeCount)
     try c.encodeIfPresent(mediaID, forKey: .mediaID)
     try c.encode(isWatched, forKey: .isWatched)
     try c.encode(isSeries, forKey: .isSeries)
@@ -432,7 +495,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   private enum CodingKeys: String, CodingKey {
     case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
     case progress, badge, backdropURL, overview
-    case landscapeImageURL, overlayLabel, itemID, video, season, seasonCount, mediaID
+    case landscapeImageURL, overlayLabel, itemID, video, season, seasonCount, episodeCount, mediaID
     case isWatched, isSeries, isInHistory, viewerState, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, yearEnd, unwatchedEpisodes, durationSeconds
     case genres, country, primaryAction
