@@ -1556,20 +1556,19 @@ final class PlayerRailTab: UIViewController {
   enum Style {
     /// On a glass platter matched to Info's, the same air all round (`PlayerTabPlatter.tileRun`).
     case platter
-    /// The title page's still row as it is: four columns of the tab's width, the page
-    /// gutter, no line under the tiles, no platter — the way Apple's own apps sit cards
-    /// over the video. The side inset is a gutter plus `openPeek`, so the
-    /// tile before the one the row opens on shows a piece, as does the one after the last
-    /// that fits (Sasha, 2026-10-21).
+    /// Home's still row as it is, over the video: edge to edge across the screen, its
+    /// first tile on the page margin — which is the tab strip's — four columns, the page
+    /// gutter, no line under the tiles, no platter. The tile before the one the row opens on
+    /// shows in the margin, as do the ones after the last that fits, the way the Apple TV
+    /// app's own Chapters and Continue Watching run to the screen's edges (Sasha, 2026-10-21).
     case open
 
     static var current: Style { FeatureFlags.playerTabsPlatter ? .platter : .open }
   }
 
+  /// Home's still row (`MainView.stillColumns`) — the same tiles, on the same margin.
   static let openColumns = 4
-  /// How much of the tile before and after shows past the side inset, in `.open`.
-  static let openPeek: CGFloat = 28
-  static var openSideInset: CGFloat { TVHIGGrid.gutter + openPeek }
+  static var openSideInset: CGFloat { TVHIGGrid.sideInset }
 
   private let style: Style
   private let platter = UIHostingController(rootView: AnyView(Color.clear.kinoPlayerGlass(
@@ -1577,6 +1576,8 @@ final class PlayerRailTab: UIViewController {
   private let rail: UIHostingController<TVUIKitMediaItemRail>
   private var railTop: NSLayoutConstraint?
   private var railHeight: NSLayoutConstraint?
+  private var railLeading: NSLayoutConstraint?
+  private var railTrailing: NSLayoutConstraint?
 
   init(rail: TVUIKitMediaItemRail, style: Style) {
     self.style = style
@@ -1601,7 +1602,9 @@ final class PlayerRailTab: UIViewController {
     box.translatesAutoresizingMaskIntoConstraints = false
     box.layer.cornerRadius = style == .platter ? PlayerTabPlatter.cornerRadius : 0
     box.layer.cornerCurve = .continuous
-    box.clipsToBounds = true
+    // `.open` runs past the tab's sides, to the screen's.
+    box.clipsToBounds = style == .platter
+    view.clipsToBounds = style == .platter
     view.addSubview(box)
     let children: [UIViewController] = style == .platter ? [platter, rail] : [rail]
     for child in children {
@@ -1619,14 +1622,14 @@ final class PlayerRailTab: UIViewController {
     rail.safeAreaRegions = []
     let top = rail.view.topAnchor.constraint(equalTo: box.topAnchor)
     let height = rail.view.heightAnchor.constraint(equalToConstant: 1)
+    let leading = rail.view.leadingAnchor.constraint(equalTo: box.leadingAnchor)
+    let trailing = rail.view.trailingAnchor.constraint(equalTo: box.trailingAnchor)
     NSLayoutConstraint.activate([
       box.topAnchor.constraint(equalTo: view.topAnchor, constant: PlayerTabPlatter.top),
       box.heightAnchor.constraint(equalToConstant: PlayerTabPlatter.platterHeight),
       box.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       box.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      rail.view.leadingAnchor.constraint(equalTo: box.leadingAnchor),
-      rail.view.trailingAnchor.constraint(equalTo: box.trailingAnchor),
-      top, height,
+      leading, trailing, top, height,
     ])
     if style == .platter {
       NSLayoutConstraint.activate([
@@ -1638,6 +1641,8 @@ final class PlayerRailTab: UIViewController {
     }
     railTop = top
     railHeight = height
+    railLeading = leading
+    railTrailing = trailing
   }
 
   /// The tiles in the middle of Info's frame, whichever the style.
@@ -1650,8 +1655,12 @@ final class PlayerRailTab: UIViewController {
       railTop?.constant = (frame - run.height) / 2
       railHeight?.constant = run.height
     case .open:
-      let width = view.bounds.width
-      guard width > 1 else { return }
+      // The row is the screen's width, wherever AVKit put the tab in it.
+      guard let window = view.window, view.bounds.width > 1 else { return }
+      let tab = view.convert(view.bounds, to: window)
+      railLeading?.constant = -tab.minX
+      railTrailing?.constant = window.bounds.width - tab.maxX
+      let width = window.bounds.width
       // The still run's own top inset is the focus room; the still sits under it.
       let card = TVHIGGrid.resolve(columns: Self.openColumns,
                                    contentWidth: width - Self.openSideInset * 2).cardWidth

@@ -7,9 +7,11 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ### tvOS player tabs: open row vs platter, behind a switch (2026-10-21)
 
-- `FeatureFlag.playerTabsPlatter` (Settings › Diagnostics, default off). Off: the tabs are the
-  title page's still row as it is — four columns of the tab, the page gutter, no captions, no
-  platter, side inset gutter + 28 pt so the tile before the one the row opens on shows a piece.
+- `FeatureFlag.playerTabsPlatter` (Settings › Diagnostics, default off). Off: Home's still row
+  over the video, edge to edge across the screen — its first tile on the 80 pt margin the tab
+  strip stands on, four columns, the page gutter, no captions, no platter; the tile before shows
+  in the margin, like the Apple TV app's Chapters. AVKit does not clip a custom tab, so the rail
+  runs past the tab's sides to the window's.
   On: the glass platter with the even 40 pt air of the previous pass (`PlayerRailTab.Style`).
 - DEBUG `-KINOPUBFixtureOpensAt <n>`: `seasonStrip` season 2 has ten episodes watched to `n − 1`,
   so Play opens S2E`n`. `PlayerTabsUITests.testEpisodesOpenInTheMiddleOfASeason` shoots both styles.
