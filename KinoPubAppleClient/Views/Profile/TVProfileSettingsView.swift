@@ -606,6 +606,7 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable, Hashable {
 private enum TVSettingsLab: String, CaseIterable, Identifiable, Hashable {
   case playerCases
   case tvUIKitGallery
+  case bannerLab
   case navFocusLab
   case libraryLab
   case typeStyles
@@ -617,6 +618,7 @@ private enum TVSettingsLab: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .playerCases: "Player cases"
     case .tvUIKitGallery: "TVUIKit Gallery"
+    case .bannerLab: "Home Banner Lab"
     case .navFocusLab: "Navigation / Focus Lab"
     case .libraryLab: "Library Sidebar Lab"
     case .typeStyles: "Type Styles"
@@ -629,6 +631,7 @@ private enum TVSettingsLab: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .playerCases: PlayerCasesView()
     case .tvUIKitGallery: TVUIKitComponentGalleryView()
+    case .bannerLab: TVPageBannerLabView()
     case .navFocusLab: NavigationFocusLabView()
     case .libraryLab: LibrarySidebarLabView()
     case .typeStyles: SystemTypeStylesCatalogView()

@@ -51,11 +51,9 @@ final class TVPageBannerCell: UICollectionViewCell {
   /// The plot sentence, plain. The label draws it unhyphenated, and chrome edits
   /// (font, colour, alignment) rebuild that string.
   private var overviewText: String?
-  #if DEBUG
   /// A naked cell has no collection view to run `TVCardView`'s platter pass, so the
-  /// preview sizes the platter itself. Off in the app.
+  /// preview or standalone host sizes the platter itself. Off in the normal collection view.
   var laysOutPlatterForPreview = false
-  #endif
 
   private static let cornerRadius: CGFloat = 20
   private static let posterCornerRadius: CGFloat = 10
@@ -181,7 +179,6 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    #if DEBUG
     if laysOutPlatterForPreview {
       let platter = cardView.contentView
       if platter.bounds.width < 2, contentView.bounds.width > 2 {
@@ -193,7 +190,6 @@ final class TVPageBannerCell: UICollectionViewCell {
                                height: size.height)
       }
     }
-    #endif
     let host = cardView.contentView.bounds.size
     guard host.height > 0 else { return }
     switch chrome.scrim {
@@ -214,11 +210,9 @@ final class TVPageBannerCell: UICollectionViewCell {
       setNeedsLayout()
     }
     updateLogoSize(in: host)
-    #if DEBUG
     if laysOutPlatterForPreview {
       cardView.contentView.layoutIfNeeded()
     }
-    #endif
   }
 
   /// The card view sizes its platter from `contentSize`; the recipe holds the content
@@ -634,15 +628,13 @@ final class TVPageBannerCell: UICollectionViewCell {
     accessibilityIdentifier = nil
   }
 
-  #if DEBUG
-  /// Solid stand-ins so the preview can show the chrome without a network.
+  /// Stand-in art for previews or standalone hosting without a network.
   func previewFill(backdrop: UIImage, poster: UIImage?, logo: UIImage?) {
     laysOutPlatterForPreview = true
     self.backdrop.image = backdrop
     self.poster.image = poster
     showMark(logo, awaitingLogo: false)
   }
-  #endif
 }
 #endif
 

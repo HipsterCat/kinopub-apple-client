@@ -33,6 +33,12 @@ struct TVUIKitComponentGalleryView: View {
             .padding(.horizontal, 60)
         }
 
+        section("Home banner", note: "The shipping TVPageBannerCell with live knobs: placement, alignment, poster toggle, blends, scrims, and sample catalog titles. Opens the banner lab.") {
+          NavigationLink("Open Banner Lab") { TVPageBannerLabView() }
+            .buttonStyle(.card)
+            .padding(.horizontal, 60)
+        }
+
         section("Episode states", note: "The shipping TVUIKitMediaItemRail, one look, one tile per state — including two upcoming tiles to compare a relative date badge against an absolute one. Under the tile: the name, always visible. In the artwork: progress bar OR runtime bottom-trailing, never both, never gated by focus — the bar already says \"how far in\", so the two are mutually exclusive. A bare glyph sits bottom-leading (no pill, a drop shadow carries it). Watched and upcoming get a top-leading badge instead of the corner glyph telling the whole story; a missing episode simply has no glyph at all — no fade, no disable.") {
             TVUIKitMediaItemRail(items: GalleryContent.episodeStates, contentInset: 60, onSelect: { _ in })
         }

@@ -26,7 +26,7 @@ import KinoPubMedia
 import UIKit
 
 /// How the banner row sits in the page.
-enum TVPageBannerRow {
+public enum TVPageBannerRow: String, CaseIterable, Sendable {
   /// The first platter starts at the same inset as the poster rails and the row
   /// scrolls continuously. Focus starts on the first title.
   case leading
@@ -35,7 +35,7 @@ enum TVPageBannerRow {
 }
 
 /// How wide one platter is.
-enum TVPageBannerWidth {
+public enum TVPageBannerWidth: Sendable {
   /// Two platters and the gutter fill the content box — the same sum the shelves
   /// use. The second platter's trailing edge lands on the trailing side inset.
   case pair
@@ -46,7 +46,7 @@ enum TVPageBannerWidth {
 }
 
 /// Where the title logo (or the name, when there is no logo) sits inside the card.
-enum TVPageBannerLogoPlacement: Hashable {
+public enum TVPageBannerLogoPlacement: String, CaseIterable, Hashable, Sendable {
   /// The top inset. The artwork's top edge is that inset — the view is sized to
   /// the image, so a wide logo does not float down inside a tall box.
   case top
@@ -55,7 +55,7 @@ enum TVPageBannerLogoPlacement: Hashable {
 }
 
 /// How the logo, the words and the poster sit as a group.
-enum TVPageBannerContentAlignment: Hashable {
+public enum TVPageBannerContentAlignment: String, CaseIterable, Hashable, Sendable {
   /// Words at the leading inset, poster at the trailing inset.
   case leading
   /// The group in the middle of the card.
@@ -63,7 +63,7 @@ enum TVPageBannerContentAlignment: Hashable {
 }
 
 /// What darkens the backdrop behind the words.
-enum TVPageBannerScrim {
+public enum TVPageBannerScrim: Sendable {
   /// Bands at the top and bottom. Reach is a fraction of the card's height; alpha
   /// is the dark end (the other end is clear). `color` is the band — black, or a
   /// swatch you pass in / sample from the art.
@@ -75,7 +75,7 @@ enum TVPageBannerScrim {
 }
 
 /// Compositing of the scrim over the backdrop. `.normal` draws the gradient as it is.
-enum TVPageBannerBlend: Hashable {
+public enum TVPageBannerBlend: String, CaseIterable, Hashable, Sendable {
   case normal
   case multiply
   case screen
@@ -83,7 +83,7 @@ enum TVPageBannerBlend: Hashable {
   case softLight
   case darken
 
-  var filterName: String? {
+  public var filterName: String? {
     switch self {
     case .normal: return nil
     case .multiply: return "multiplyBlendMode"
@@ -93,49 +93,106 @@ enum TVPageBannerBlend: Hashable {
     case .darken: return "darkenBlendMode"
     }
   }
+
+  public static var allSupportedCases: [TVPageBannerBlend] {
+    [.normal, .multiply, .screen, .overlay, .softLight, .darken]
+  }
+
+  public var title: String {
+    switch self {
+    case .normal: return "Normal"
+    case .multiply: return "Multiply"
+    case .screen: return "Screen"
+    case .overlay: return "Overlay"
+    case .softLight: return "Soft light"
+    case .darken: return "Darken"
+    }
+  }
 }
 
 /// Defaults are the banner Watch Now draws. Edit them; `current` is this value.
-struct TVPageBannerChrome {
-  static let current = TVPageBannerChrome()
+public struct TVPageBannerChrome: Sendable {
+  public static let current = TVPageBannerChrome()
 
-  var row: TVPageBannerRow = .leading
-  var width: TVPageBannerWidth = .pair
-  var logoPlacement: TVPageBannerLogoPlacement = .top
-  var alignment: TVPageBannerContentAlignment = .leading
-  var showsPoster = true
+  public var row: TVPageBannerRow = .leading
+  public var width: TVPageBannerWidth = .pair
+  public var logoPlacement: TVPageBannerLogoPlacement = .top
+  public var alignment: TVPageBannerContentAlignment = .leading
+  public var showsPoster: Bool = true
   /// Short, light bands. The old ones reached 45% / 65% of the card at alpha 0.65–0.9.
-  var scrim: TVPageBannerScrim = .edges(
+  public var scrim: TVPageBannerScrim = .edges(
     color: .black,
     topReach: 0.18,
     topAlpha: 0.28,
     bottomReach: 0.34,
     bottomAlpha: 0.40
   )
-  var blend: TVPageBannerBlend = .normal
+  public var blend: TVPageBannerBlend = .normal
   /// Description, rating digits and genres. One style, the font's own weight —
   /// focus does not change the colour.
-  var textStyle: UIFont.TextStyle = .caption2
+  public var textStyle: UIFont.TextStyle = .caption2
   /// Secondary label. `textVibrance` pulls it toward opaque white so it stays
   /// vivid on the art: 0 is the system secondary, 1 is white.
-  var textColor: UIColor = .secondaryLabel
-  var textVibrance: CGFloat = 0.65
-  var padding: CGFloat = 32
-  var copySpacing: CGFloat = 8
+  public var textColor: UIColor = .secondaryLabel
+  public var textVibrance: CGFloat = 0.65
+  public var padding: CGFloat = 32
+  public var copySpacing: CGFloat = 8
   /// Caps for the logo box. The view is then shrunk to the image's own aspect,
   /// pinned to the top of that box.
-  var logoMaxHeightRatio: CGFloat = 0.20
-  var logoMaxWidthRatio: CGFloat = 0.60
-  var posterHeightRatio: CGFloat = 0.42
+  public var logoMaxHeightRatio: CGFloat = 0.20
+  public var logoMaxWidthRatio: CGFloat = 0.60
+  public var posterHeightRatio: CGFloat = 0.42
   /// Rating-mark height. `nil` uses the caption font's cap height, so the mark
   /// sits on the digits.
-  var scoreIconHeight: CGFloat? = nil
+  public var scoreIconHeight: CGFloat? = nil
 
-  var textFont: UIFont { UIFont.preferredFont(forTextStyle: textStyle) }
+  public init(
+    row: TVPageBannerRow = .leading,
+    width: TVPageBannerWidth = .pair,
+    logoPlacement: TVPageBannerLogoPlacement = .top,
+    alignment: TVPageBannerContentAlignment = .leading,
+    showsPoster: Bool = true,
+    scrim: TVPageBannerScrim = .edges(
+      color: .black,
+      topReach: 0.18,
+      topAlpha: 0.28,
+      bottomReach: 0.34,
+      bottomAlpha: 0.40
+    ),
+    blend: TVPageBannerBlend = .normal,
+    textStyle: UIFont.TextStyle = .caption2,
+    textColor: UIColor = .secondaryLabel,
+    textVibrance: CGFloat = 0.65,
+    padding: CGFloat = 32,
+    copySpacing: CGFloat = 8,
+    logoMaxHeightRatio: CGFloat = 0.20,
+    logoMaxWidthRatio: CGFloat = 0.60,
+    posterHeightRatio: CGFloat = 0.42,
+    scoreIconHeight: CGFloat? = nil
+  ) {
+    self.row = row
+    self.width = width
+    self.logoPlacement = logoPlacement
+    self.alignment = alignment
+    self.showsPoster = showsPoster
+    self.scrim = scrim
+    self.blend = blend
+    self.textStyle = textStyle
+    self.textColor = textColor
+    self.textVibrance = textVibrance
+    self.padding = padding
+    self.copySpacing = copySpacing
+    self.logoMaxHeightRatio = logoMaxHeightRatio
+    self.logoMaxWidthRatio = logoMaxWidthRatio
+    self.posterHeightRatio = posterHeightRatio
+    self.scoreIconHeight = scoreIconHeight
+  }
+
+  public var textFont: UIFont { UIFont.preferredFont(forTextStyle: textStyle) }
 
   /// `textColor` mixed toward white by `textVibrance`. Always resolved against dark
   /// appearance so banner copy remains vivid on top of the backdrop in both light and dark system themes.
-  var resolvedTextColor: UIColor {
+  public var resolvedTextColor: UIColor {
     let amount = min(max(textVibrance, 0), 1)
     let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
     let base = textColor.resolvedColor(with: darkTraits)
@@ -165,185 +222,218 @@ struct TVPageBannerChrome {
 #if DEBUG
 import SwiftUI
 
-#Preview("Banner chrome") {
-  TVPageBannerChromeCanvas()
-}
+// MARK: - Previews
 
-/// One platter at the Watch Now pair width, plus the knobs. A bare cell never
-/// runs `TVCardView`'s platter pass, so the host frames it and the cell lays the
-/// platter out itself.
-private struct TVPageBannerChromeCanvas: View {
-  @State private var placement = TVPageBannerChrome.current.logoPlacement
-  @State private var alignment = TVPageBannerChrome.current.alignment
-  @State private var showsPoster = TVPageBannerChrome.current.showsPoster
-  @State private var scrim = BannerPreviewScrim.file
-  @State private var blend = TVPageBannerChrome.current.blend
-  @State private var vibrance = Double(TVPageBannerChrome.current.textVibrance)
-
-  private var chrome: TVPageBannerChrome {
-    var draft = TVPageBannerChrome.current
-    draft.logoPlacement = placement
-    draft.alignment = alignment
-    draft.showsPoster = showsPoster
-    draft.blend = blend
-    draft.textVibrance = CGFloat(vibrance)
-    if let scrim = scrim.value { draft.scrim = scrim }
-    return draft
-  }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      BannerChromeHost(chrome: chrome)
-        .frame(width: BannerChromeHost.itemSize.width, height: BannerChromeHost.itemSize.height)
-      Picker("Logo", selection: $placement) {
-        Text("Top").tag(TVPageBannerLogoPlacement.top)
-        Text("Above copy").tag(TVPageBannerLogoPlacement.aboveCopy)
-      }
-      Picker("Alignment", selection: $alignment) {
-        Text("Leading").tag(TVPageBannerContentAlignment.leading)
-        Text("Center").tag(TVPageBannerContentAlignment.center)
-      }
-      Toggle("Poster", isOn: $showsPoster)
-      Picker("Scrim", selection: $scrim) {
-        ForEach(BannerPreviewScrim.allCases) { choice in
-          Text(choice.label).tag(choice)
-        }
-      }
-      Picker("Blend", selection: $blend) {
-        Text("Normal").tag(TVPageBannerBlend.normal)
-        Text("Multiply").tag(TVPageBannerBlend.multiply)
-        Text("Screen").tag(TVPageBannerBlend.screen)
-        Text("Overlay").tag(TVPageBannerBlend.overlay)
-        Text("Soft light").tag(TVPageBannerBlend.softLight)
-        Text("Darken").tag(TVPageBannerBlend.darken)
-      }
-      HStack(spacing: 16) {
-        Button("−") { vibrance = max(0, ((vibrance - 0.05) * 20).rounded() / 20) }
-        Text("Vibrance \(String(format: "%.2f", vibrance))")
-        Button("+") { vibrance = min(1, ((vibrance + 0.05) * 20).rounded() / 20) }
-      }
-    }
-    .padding(24)
+#Preview("1. Canonical (Top Logo, Leading)") {
+  bannerPreviewCanvas(title: "Canonical Banner", note: "Логотип в верхнем инсете, выравнивание слева, постер включен, градиентные полосы по краям (edges).") {
+    TVPageBannerChrome.current
   }
 }
 
-private enum BannerPreviewScrim: String, CaseIterable, Identifiable {
-  case file, edges, wash, radial
-  var id: String { rawValue }
-  var label: String {
-    switch self {
-    case .file: return "From file"
-    case .edges: return "Edges"
-    case .wash: return "Wash"
-    case .radial: return "Radial"
-    }
-  }
-  var value: TVPageBannerScrim? {
-    switch self {
-    case .file: return nil
-    case .edges:
-      return .edges(color: .black, topReach: 0.18, topAlpha: 0.28, bottomReach: 0.34, bottomAlpha: 0.40)
-    case .wash:
-      return .wash(UIColor(white: 0.2, alpha: 0.45))
-    case .radial:
-      return .radial(edge: UIColor(white: 0, alpha: 0.55), mid: .clear)
-    }
+#Preview("2. Logo Above Copy") {
+  bannerPreviewCanvas(title: "Logo Above Copy", note: "Логотип смещен вниз в колонку контента непосредственно над синопсисом.") {
+    var chrome = TVPageBannerChrome.current
+    chrome.logoPlacement = .aboveCopy
+    return chrome
   }
 }
 
-private struct BannerChromeHost: UIViewRepresentable {
-  var chrome: TVPageBannerChrome
-
-  @MainActor
-  static var itemSize: CGSize {
-    let art = TVHIGGrid.cardWidth(columns: 2, contentWidth: TVHIGGrid.referenceContentWidth)
-    return TVPageCellMetrics.recipe(kind: .banner, artWidth: art, caption: .always).itemSize
-  }
-
-  func makeUIView(context: Context) -> BannerPreviewHost {
-    let host = BannerPreviewHost(frame: CGRect(origin: .zero, size: Self.itemSize))
-    host.cell.apply(recipe: TVPageCellMetrics.recipe(
-      kind: .banner,
-      artWidth: TVHIGGrid.cardWidth(columns: 2, contentWidth: TVHIGGrid.referenceContentWidth),
-      caption: .always
-    ))
-    host.cell.configure(feature: TVPageFeature(card: MediaCard(
-      id: 1,
-      posterURL: "",
-      title: "Паук-Нуар",
-      imdbRating: 8.8,
-      kinopoiskRating: 7.8,
-      overview: "Одноклассники называют Кохару Сато «неприступным цветком» — холодной и отстранённой девушкой, чья вечно серьёзная мина держит всех на расстоянии.",
-      seasonCount: 1,
-      isSeries: true,
-      genres: [GenreVocabulary.genre(id: "anime"), GenreVocabulary.genre(id: "drama")].compactMap { $0 }
-    )))
-    host.cell.previewFill(backdrop: BannerPreviewArt.backdrop, poster: BannerPreviewArt.poster, logo: BannerPreviewArt.logo)
-    host.cell.installChrome(chrome)
-    return host
-  }
-
-  func updateUIView(_ host: BannerPreviewHost, context: Context) {
-    host.cell.installChrome(chrome)
-    host.setNeedsLayout()
-    host.layoutIfNeeded()
+#Preview("3. Centered + Dominant Wash") {
+  bannerPreviewCanvas(title: "Centered Alignment + Wash Scrim", note: "Центрированная группа (лого + текст + постер) с заливкой wash доминантным цветом #C80202.") {
+    var chrome = TVPageBannerChrome.current
+    chrome.alignment = .center
+    chrome.logoPlacement = .aboveCopy
+    chrome.scrim = .wash(TVPageBannerSamples.dominantColor.withAlphaComponent(0.40))
+    return chrome
   }
 }
 
-private final class BannerPreviewHost: UIView {
-  let cell = TVPageBannerCell(frame: .zero)
-
-  override init(frame: CGRect) {
-    super.init(frame: frame)
-    addSubview(cell)
-  }
-
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    cell.frame = bounds
-    cell.layoutIfNeeded()
+#Preview("4. Typography Title (No Logo)") {
+  bannerPreviewCanvas(title: "Typography Title (No Logo)", note: "Тайтл без логотипа — отображение шрифтового заголовка в колонке контента.") {
+    var chrome = TVPageBannerChrome.current
+    chrome.logoPlacement = .aboveCopy
+    return chrome
+  } feature: {
+    TVPageBannerSamples.makeFeature(hasLogo: false)
   }
 }
 
-private enum BannerPreviewArt {
-  static var backdrop: UIImage {
-    let size = CGSize(width: 960, height: 540)
-    let format = UIGraphicsImageRendererFormat()
-    format.scale = 1
-    format.opaque = true
-    return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
-      let colors = [UIColor(red: 0.45, green: 0.72, blue: 0.95, alpha: 1).cgColor,
-                    UIColor(red: 0.95, green: 0.78, blue: 0.55, alpha: 1).cgColor] as CFArray
-      let space = CGColorSpaceCreateDeviceRGB()
-      guard let gradient = CGGradient(colorsSpace: space, colors: colors, locations: [0, 1]) else { return }
-      ctx.cgContext.drawLinearGradient(gradient, start: .zero,
-                                      end: CGPoint(x: 0, y: size.height), options: [])
-    }
+#Preview("5. Cinematic Wide (No Poster)") {
+  bannerPreviewCanvas(title: "Cinematic Wide (No Poster)", note: "Широкий арт без вертикального постера — акцент на бэкдроп и логотип.") {
+    var chrome = TVPageBannerChrome.current
+    chrome.showsPoster = false
+    return chrome
   }
+}
 
-  static var poster: UIImage {
-    let size = CGSize(width: 200, height: 300)
-    let format = UIGraphicsImageRendererFormat()
-    format.scale = 1
-    format.opaque = true
-    return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
-      UIColor(red: 0.55, green: 0.28, blue: 0.32, alpha: 1).setFill()
-      ctx.fill(CGRect(origin: .zero, size: size))
-    }
+#Preview("6. Dominant Wash + Multiply Blend") {
+  bannerPreviewCanvas(title: "Dominant Wash (#C80202) + Multiply", note: "Заливка wash цветом #C80202 в режиме multiplyBlendMode.") {
+    var chrome = TVPageBannerChrome.current
+    chrome.scrim = .wash(TVPageBannerSamples.dominantColor.withAlphaComponent(0.50))
+    chrome.blend = .multiply
+    return chrome
   }
+}
 
-  /// A wide solid mark, so the top inset is the artwork's top — no clear pixels above it.
-  static var logo: UIImage {
-    let size = CGSize(width: 280, height: 72)
-    let format = UIGraphicsImageRendererFormat()
-    format.scale = 1
-    format.opaque = false
-    return UIGraphicsImageRenderer(size: size, format: format).image { _ in
-      UIColor.white.setFill()
-      UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 8).fill()
+#Preview("7. Radial Scrim + Soft Light Blend") {
+  bannerPreviewCanvas(title: "Radial Scrim + Soft Light", note: "Радиальное затемнение от краев к центру с фильтром softLightBlendMode.") {
+    var chrome = TVPageBannerChrome.current
+    chrome.scrim = .radial(edge: TVPageBannerSamples.dominantColor.withAlphaComponent(0.65), mid: .clear)
+    chrome.blend = .softLight
+    return chrome
+  }
+}
+
+#Preview("8. No Backdrop (Poster Fallback)") {
+  bannerPreviewCanvas(title: "No Backdrop (Poster Fallback)", note: "Тайтл без бэкдропа — проверка поведения плашки при отсутствии широкого арта.") {
+    TVPageBannerChrome.current
+  } feature: {
+    TVPageBannerSamples.makeFeature(hasBackdrop: false)
+  }
+}
+
+#Preview("All Banner Variants (Stacked)") {
+  ScrollView {
+    VStack(alignment: .leading, spacing: 48) {
+      variantRow(
+        number: "1",
+        title: "Canonical (Top Logo, Leading)",
+        note: "Default: логотип сверху, выравнивание слева, постер, градиенты edges."
+      ) {
+        TVPageBannerChrome.current
+      }
+
+      variantRow(
+        number: "2",
+        title: "Logo Above Copy",
+        note: "Логотип в колонке над описанием."
+      ) {
+        var c = TVPageBannerChrome.current
+        c.logoPlacement = .aboveCopy
+        return c
+      }
+
+      variantRow(
+        number: "3",
+        title: "Centered Alignment + Wash Scrim",
+        note: "Центрированная колонка + заливка wash доминантным цветом #C80202."
+      ) {
+        var c = TVPageBannerChrome.current
+        c.alignment = .center
+        c.logoPlacement = .aboveCopy
+        c.scrim = .wash(TVPageBannerSamples.dominantColor.withAlphaComponent(0.40))
+        return c
+      }
+
+      variantRow(
+        number: "4",
+        title: "Typography Title (No Logo)",
+        note: "Шрифтовой заголовок без логотипа."
+      ) {
+        var c = TVPageBannerChrome.current
+        c.logoPlacement = .aboveCopy
+        return c
+      } feature: {
+        TVPageBannerSamples.makeFeature(hasLogo: false)
+      }
+
+      variantRow(
+        number: "5",
+        title: "Cinematic Wide (No Poster)",
+        note: "Без постера — широкий бэкдроп на всю плашку."
+      ) {
+        var c = TVPageBannerChrome.current
+        c.showsPoster = false
+        return c
+      }
+
+      variantRow(
+        number: "6",
+        title: "Dominant Wash + Multiply Blend",
+        note: "Wash цветом #C80202 + multiplyBlendMode."
+      ) {
+        var c = TVPageBannerChrome.current
+        c.scrim = .wash(TVPageBannerSamples.dominantColor.withAlphaComponent(0.50))
+        c.blend = .multiply
+        return c
+      }
+
+      variantRow(
+        number: "7",
+        title: "Radial Scrim + Soft Light Blend",
+        note: "Радиальный градиент + softLightBlendMode."
+      ) {
+        var c = TVPageBannerChrome.current
+        c.scrim = .radial(edge: TVPageBannerSamples.dominantColor.withAlphaComponent(0.65), mid: .clear)
+        c.blend = .softLight
+        return c
+      }
+
+      variantRow(
+        number: "8",
+        title: "No Backdrop (Poster Fallback)",
+        note: "Без бэкдропа — фоллбек на чистый постер."
+      ) {
+        TVPageBannerChrome.current
+      } feature: {
+        TVPageBannerSamples.makeFeature(hasBackdrop: false)
+      }
     }
+    .padding(40)
+  }
+}
+
+// MARK: - Preview Helpers
+
+@MainActor
+@ViewBuilder
+private func bannerPreviewCanvas(
+  title: String,
+  note: String,
+  chrome: () -> TVPageBannerChrome,
+  feature: () -> TVPageFeature = { TVPageBannerSamples.makeFeature() }
+) -> some View {
+  VStack(alignment: .leading, spacing: 20) {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(title)
+        .font(.title3)
+        .fontWeight(.semibold)
+      Text(note)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+//        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    TVPageBannerHost(chrome: chrome(), feature: feature())
+      .frame(width: TVPageBannerHost.itemSize.width, height: TVPageBannerHost.itemSize.height)
+  }
+  .padding(32)
+}
+
+@MainActor
+@ViewBuilder
+private func variantRow(
+  number: String,
+  title: String,
+  note: String,
+  chrome: () -> TVPageBannerChrome,
+  feature: () -> TVPageFeature = { TVPageBannerSamples.makeFeature() }
+) -> some View {
+  VStack(alignment: .leading, spacing: 14) {
+    HStack(alignment: .firstTextBaseline, spacing: 10) {
+      Text(number)
+        .font(.headline)
+        .foregroundStyle(.secondary)
+      Text(title)
+        .font(.headline)
+        .fontWeight(.semibold)
+    }
+    Text(note)
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+    TVPageBannerHost(chrome: chrome(), feature: feature())
+      .frame(width: TVPageBannerHost.itemSize.width, height: TVPageBannerHost.itemSize.height)
   }
 }
 #endif
