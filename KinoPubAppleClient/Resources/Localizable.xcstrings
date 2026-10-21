@@ -1367,6 +1367,9 @@
         }
       }
     },
+    "Catalog" : {
+
+    },
     "CC" : {
       "localizations" : {
         "en" : {
@@ -3589,9 +3592,6 @@
           }
         }
       }
-    },
-    "Hiding a section here doesn't change the tab bar or sidebar yet — that lands with the upcoming catalog sections update." : {
-
     },
     "History" : {
       "extractionState" : "manual",
@@ -7604,9 +7604,6 @@
         }
       }
     },
-    "Movies and Series always stay visible." : {
-
-    },
     "Movies and shows you download will appear here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8163,9 +8160,6 @@
           }
         }
       }
-    },
-    "Other" : {
-
     },
     "Other Results" : {
       "comment" : "Search, first letters: device titles that match but are outside the filtered listing",
@@ -10053,6 +10047,23 @@
         }
       }
     },
+    "Sort_Rating" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KinoPub Rating"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По рейтингу Кинопаба"
+          }
+        }
+      }
+    },
     "Sort_RecentlyAdded" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10117,6 +10128,23 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "По количеству просмотров"
+          }
+        }
+      }
+    },
+    "Sort_Watchers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscribers"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По подписчикам"
           }
         }
       }
@@ -11486,6 +11514,30 @@
           }
         }
       }
+    },
+    "Без концертов на Главной" : {
+
+    },
+    "Вкладки верхнего меню (Табы)" : {
+
+    },
+    "Вкладки и Главная" : {
+
+    },
+    "Настройка видимости и порядка вкладок верхнего меню и секций Главной страницы." : {
+
+    },
+    "Сброс" : {
+
+    },
+    "Сбросить вкладки и секции по умолчанию" : {
+
+    },
+    "Секции Главной (Watch Now)" : {
+
+    },
+    "Фильтры Главной" : {
+
     }
   },
   "version" : "1.1"

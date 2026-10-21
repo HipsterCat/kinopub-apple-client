@@ -20,8 +20,10 @@ final class LibraryFilterTests: XCTestCase {
     XCTAssertEqual(MediaSortOrder.recentlyAdded.apiValue, "-created")
     XCTAssertEqual(MediaSortOrder.recentlyUpdated.apiValue, "-updated")
     XCTAssertEqual(MediaSortOrder.views.apiValue, "-views")
+    XCTAssertEqual(MediaSortOrder.watchers.apiValue, "-watchers")
     XCTAssertEqual(MediaSortOrder.title.apiValue, "title")
     XCTAssertEqual(MediaSortOrder.year.apiValue, "-year")
+    XCTAssertEqual(MediaSortOrder.rating.apiValue, "-rating")
   }
 
   /// Undocumented, but the service accepts both and orders correctly — checked
@@ -32,7 +34,7 @@ final class LibraryFilterTests: XCTestCase {
   }
 
   func testEverySortIsOffered() {
-    XCTAssertEqual(MediaSortOrder.allCases.count, 7)
+    XCTAssertEqual(MediaSortOrder.allCases.count, 9)
   }
 
   // MARK: - Request building

@@ -236,7 +236,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
     case .year: return result.sorted { ($0.year ?? 0) > ($1.year ?? 0) }
     case .kinopoiskRating: return result.sorted { ($0.scores.kinopoiskScore ?? 0) > ($1.scores.kinopoiskScore ?? 0) }
     case .imdbRating: return result.sorted { ($0.scores.imdbScore ?? 0) > ($1.scores.imdbScore ?? 0) }
-    case .recentlyAdded, .recentlyUpdated, .views: return result
+    case .recentlyAdded, .recentlyUpdated, .views, .watchers, .rating: return result
     }
   }
 

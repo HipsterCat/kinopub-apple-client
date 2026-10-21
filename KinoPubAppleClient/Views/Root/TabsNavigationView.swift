@@ -44,6 +44,7 @@ struct TabsNavigationView: View {
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @EnvironmentObject var networkMonitor: NetworkMonitor
+  @ObservedObject private var sectionStore = SectionVisibilityStore.shared
 
   @State private var sidebarFolders: [Bookmark] = []
   @State private var watchlistBadgeCount = 0
@@ -133,21 +134,11 @@ struct TabsNavigationView: View {
     var id: NavigationTabs { tab }
   }
 
-  private static let browseTabs: [TabSpec] = [
-    // CURRENT.md / M1: Watch Now / Series — never "Home" / "Shows".
-    TabSpec(tab: .home, title: "Watch Now", systemImage: "house.fill"),
-    TabSpec(tab: .movies, title: "Movies", systemImage: "movieclapper"),
-    TabSpec(tab: .series, title: "Series", systemImage: "rectangle.stack"),
-  ] + tvTabs + [
-    TabSpec(tab: .library, title: "Library", systemImage: "rectangle.stack.badge.person.crop")
-  ]
-
-  /// Live TV is built for tvOS first; the other platforms get it with their own surface.
-#if os(tvOS)
-  private static let tvTabs = [TabSpec(tab: .tv, title: "TV", systemImage: "tv")]
-#else
-  private static let tvTabs: [TabSpec] = []
-#endif
+  private var activeBrowseTabs: [TabSpec] {
+    sectionStore.visibleBrowseTabs.map {
+      TabSpec(tab: $0.tab, title: $0.titleKey, systemImage: $0.systemImage)
+    }
+  }
 
   @ViewBuilder
   private func content(for tab: NavigationTabs) -> some View {
@@ -171,8 +162,10 @@ struct TabsNavigationView: View {
   private func browseContent(for tab: NavigationTabs) -> some View {
     switch tab {
     case .home: homeContent
+    case .catalog: catalogContent
     case .movies: moviesContent
     case .series: seriesContent
+    case .collections: collectionsContent
 #if os(tvOS)
     case .tv: tvContent
 #endif
@@ -217,7 +210,7 @@ struct TabsNavigationView: View {
   /// `searchReturnTab` still owns the way back.
   private var macShell: some View {
     TabView(selection: tabSelection) {
-      ForEach(Self.browseTabs) { spec in
+      ForEach(activeBrowseTabs) { spec in
         browseTab(spec)
       }
     }
@@ -250,7 +243,7 @@ struct TabsNavigationView: View {
           glyph("magnifyingglass", label: "Search")
         }
 
-        ForEach(Self.browseTabs) { spec in
+        ForEach(activeBrowseTabs) { spec in
           Tab(value: spec.tab) {
             content(for: spec.tab)
           } label: {
@@ -258,8 +251,10 @@ struct TabsNavigationView: View {
             // back to Home / Shows (after shot at 8d0def4).
             switch spec.tab {
             case .home: Text("Watch Now")
+            case .catalog: Text("Catalog")
             case .movies: Text("Movies")
             case .series: Text("Series")
+            case .collections: Text("Collections")
             case .tv: Text("TV")
             case .library: Text("Library")
             default: Text(spec.title)
@@ -292,7 +287,7 @@ struct TabsNavigationView: View {
         glyph("magnifyingglass", label: "Search")
       }
 
-      ForEach(Self.browseTabs) { spec in
+      ForEach(activeBrowseTabs) { spec in
         browseTab(spec)
       }
 
@@ -311,7 +306,7 @@ struct TabsNavigationView: View {
   /// iPhone bottom bar — content tabs + pinned trailing Search (`Tab(role: .search)`).
   private var phoneCompactTabBar: some View {
     TabView(selection: tabSelection) {
-      ForEach(Self.browseTabs) { spec in
+      ForEach(activeBrowseTabs) { spec in
         browseTab(spec)
       }
 
@@ -399,6 +394,25 @@ struct TabsNavigationView: View {
 
   private var homeContent: some View {
     posterShelves(tab: .home, contentType: nil)
+  }
+
+  private var catalogContent: some View {
+    FilterCatalogTabView(
+      catalog: LibraryCatalog(
+        itemsService: appContext.contentService,
+        authState: authState,
+        errorHandler: errorHandler,
+        savedFilterKey: "catalog.tab.filter"
+      )
+    )
+  }
+
+  private var collectionsContent: some View {
+    RouteStack(tab: .collections, zoom: true) {
+      CollectionsView.make(context: appContext,
+                           authState: authState,
+                           errorHandler: errorHandler)
+    }
   }
 
   private var moviesContent: some View {
@@ -532,6 +546,168 @@ struct TabsNavigationView: View {
 
  Working prototypes: Views/UILab/UILabRoot.swift (adaptable vs split).
 */
+
+/// Dedicated Catalog tab (`NavigationTabs.catalog`) separated from Search for genre,
+/// type, country, year, rating, and sort browsing without the search keyboard.
+struct FilterCatalogTabView: View {
+  @Environment(NavigationState.self) var navigationState
+  @Environment(ErrorHandler.self) var errorHandler
+  @Environment(\.openURL) private var openURL
+
+  @StateObject private var catalog: LibraryCatalog
+  @StateObject private var cardMenu = MediaCardMenuCoordinator()
+
+  init(catalog: @autoclosure @escaping () -> LibraryCatalog) {
+    _catalog = StateObject(wrappedValue: catalog())
+  }
+
+  var body: some View {
+    @Bindable var errorHandler = errorHandler
+    RouteStack(tab: .catalog, zoom: true) {
+      content
+        .platformNavigationTitle("Catalog")
+#if os(macOS)
+        .macToolbarSearch()
+#endif
+        .handleError(state: $errorHandler.state)
+        .task {
+          cardMenu.bind(errorHandler: errorHandler)
+          if let pending = navigationState.pendingCatalogFilter {
+            navigationState.pendingCatalogFilter = nil
+            catalog.applyExternalFilter(pending)
+          } else if catalog.items.isEmpty {
+            await catalog.load()
+          } else {
+            await catalog.revalidate(force: false)
+          }
+        }
+        .task { await cardMenu.refreshFolders() }
+        .mediaCardNewFolderAlert(cardMenu)
+        .onChange(of: navigationState.pendingCatalogFilter) { _, pending in
+          guard let pending else { return }
+          navigationState.pendingCatalogFilter = nil
+          catalog.applyExternalFilter(pending)
+        }
+    }
+  }
+
+  @ViewBuilder
+  private var content: some View {
+#if os(tvOS)
+    TVPage(
+      sections: tvSections,
+      status: tvStatus,
+      accessibilityID: "kinopub.page.catalog",
+      onSelect: { _, item in
+        switch item {
+        case .card(let card):
+          navigationState.push(.detailsById(card.itemID))
+        case .chip(let chip) where chip.id == TVSearchFilters.clear:
+          catalog.clearFilters()
+        default:
+          break
+        }
+      },
+      onChipOption: { chip, option in
+        TVSearchFilters.apply(chip: chip, option: option, to: catalog)
+      },
+      onChipSelection: { chip, selection in
+        TVSearchFilters.applySelection(chip: chip, selection: selection, to: catalog)
+      },
+      onNearEnd: { section in
+        guard section.id == "browse", let last = catalog.items.last else { return }
+        catalog.loadMoreContent(after: last)
+      },
+      contextMenuProvider: { card in
+        MediaCardContextMenus.entries(for: card,
+                                      surface: .shelf,
+                                      menu: cardMenu,
+                                      pushRoute: { navigationState.push($0) },
+                                      openURL: { openURL($0) })
+      },
+      onRetry: { Task { await catalog.refresh() } },
+      returnsToTopOnMenu: true
+    )
+    .ignoresSafeArea()
+#else
+    if catalog.loadFailed && catalog.items.isEmpty {
+      UnavailableView(title: "Couldn't Load",
+                      systemImage: "wifi.exclamationmark",
+                      message: catalog.loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
+                      retryTitle: "Try Again",
+                      onRetry: {
+        Task { await catalog.refresh() }
+      })
+    } else {
+      ContentItemsListView(
+        items: $catalog.items,
+        onLoadMoreContent: { item in
+          catalog.loadMoreContent(after: item)
+        },
+        navigationLinkProvider: { item in
+          CatalogRoutesLinkProvider().link(for: item)
+        },
+        contextMenuProvider: { item in
+          MediaCardContextMenus.entries(
+            for: item,
+            menu: cardMenu,
+            pushRoute: { navigationState.push($0) },
+            openURL: { openURL($0) }
+          )
+        },
+        placeholderCount: (catalog.items.isEmpty && catalog.isLoading) ? 12 : 0,
+        emptyMessage: (catalog.items.isEmpty && !catalog.isLoading) ? "No Results" : nil,
+        pagination: catalog.paginationState,
+        onRetryPagination: {
+          catalog.retryPagination()
+        }
+      ) {
+#if !os(macOS)
+        LibraryFiltersBar(catalog: catalog)
+#endif
+      }
+#if os(macOS)
+      .toolbar {
+        ToolbarItem(placement: .accessoryBar(id: MacToolbarChrome.accessoryID)) {
+          LibraryFiltersBar(catalog: catalog)
+            .frame(maxWidth: .infinity)
+        }
+      }
+#endif
+    }
+#endif
+  }
+
+#if os(tvOS)
+  private var tvSections: [TVPageSection] {
+    let filters = TVSearchFilters.row(catalog: catalog, searching: false)
+    let cards = catalog.items.map { MediaCard($0) }
+    if cards.isEmpty {
+      return catalog.isLoading
+        ? [filters, .placeholder(id: "browse", title: nil, kind: .poster, columns: 6, flow: .grid)]
+        : [filters]
+    }
+    return [
+      filters,
+      .posters(id: "browse", title: nil, flow: .grid, caption: .always,
+               loadsMore: catalog.hasMorePages, cards: cards)
+    ]
+  }
+
+  private var tvStatus: TVPageStatus {
+    let empty = catalog.items.isEmpty
+    if catalog.loadFailed && empty {
+      return .failed(message: catalog.loadError?.userFacingMessage
+                       ?? "Check your connection and try again.".localized,
+                     retryTitle: "Try Again".localized)
+    }
+    if empty && !catalog.isLoading, catalog.filter.hasActiveFilters {
+      return .message("Nothing Matches These Filters".localized)
+    }
+    return .content
+  }
+#endif
+}
 
 struct TabsNavigationView_Previews: PreviewProvider {
   static var previews: some View {

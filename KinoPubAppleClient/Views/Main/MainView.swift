@@ -19,6 +19,7 @@ struct MainView: View {
   private let tab: NavigationTabs
   @StateObject private var catalog: HomeCatalog
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
+  @ObservedObject private var sectionStore = SectionVisibilityStore.shared
 
   /// Watch Now, Movies, or Series — same `MediaRowsView` stack of SwiftUI
   /// `Section(title) { rail }` shelves. On tvOS the rail is a TVUIKit representable;
@@ -104,7 +105,18 @@ struct MainView: View {
       sections: pageSections,
       status: pageStatus,
       accessibilityID: "kinopub.page.\(tab)",
-      onSelect: { _, item in
+      onSelect: { section, item in
+        if case .chip(let chip) = item {
+          handleChipSelection(chip)
+          return
+        }
+        if case .tile(let tile) = item, section.id == HomeCatalog.liveTVRowID {
+          if let id = Int(tile.id),
+             let channel = catalog.liveChannels.first(where: { $0.id == id }) {
+            navigationState.push(.livePlayer(channel, token: UUID()))
+          }
+          return
+        }
         guard let card = item.card, card.id > 0 else { return }
         if card.primaryAction == .play {
           cardMenu.play(card) { navigationState.push($0) }
@@ -148,39 +160,167 @@ struct MainView: View {
   private static let bannerSectionID = "home-banner"
 
   private var pageSections: [TVPageSection] {
-    let bannerSection: [TVPageSection]
+    var result: [TVPageSection] = []
     if tab == .home && FeatureFlags.homeBannerEnabled {
       let banner = catalog.bannerCards
       if !banner.isEmpty {
-        bannerSection = [
+        result.append(
           .banner(id: Self.bannerSectionID,
                   features: banner.map {
                     TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
                                   logo: catalog.bannerLogos[$0.id] ?? .pending)
                   })
-        ]
+        )
       } else {
-        bannerSection = [
+        result.append(
           .banner(id: Self.bannerSectionID,
                   features: (0..<2).map { idx in
                     TVPageFeature(card: MediaCard.placeholder(id: -101 - idx))
                   })
-        ]
+        )
       }
-    } else {
-      bannerSection = []
     }
-    return bannerSection + homeRows.map { row in
+
+    var insertedQuickPresets = false
+    for row in homeRows {
       if row.cards.first?.isLandscape == true {
         let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : Self.stillColumns
         let caption: TVPageCaption = row.id == HomeCatalog.continueWatchingRowID ? .always : .onFocus
-        return .stills(id: row.id, title: row.title, count: row.count, columns: columns,
-                       caption: caption, cards: row.cards)
+        result.append(.stills(id: row.id, title: row.title, count: row.count, columns: columns,
+                              caption: caption, cards: row.cards))
+      } else {
+        // Poster rails — Watch Now, Movies, Series alike — have no title or year under the art,
+        // not even on focus (Sasha, 2026-10-06): that is `TVPageSection.posters`' own caption for
+        // a rail. Catalog / collection / profile grids name every cover.
+        result.append(.posters(id: row.id, title: row.title, count: row.count, cards: row.cards))
       }
-      // Poster rails — Watch Now, Movies, Series alike — have no title or year under the art,
-      // not even on focus (Sasha, 2026-10-06): that is `TVPageSection.posters`' own caption for
-      // a rail. Catalog / collection / profile grids name every cover.
-      return .posters(id: row.id, title: row.title, count: row.count, cards: row.cards)
+
+      if tab == .home && row.id == HomeCatalog.continueWatchingRowID {
+        result.append(quickPresetsSection)
+        insertedQuickPresets = true
+      }
+    }
+
+    if tab == .home && !insertedQuickPresets && !homeRows.isEmpty {
+      let insertIndex = min(result.count, FeatureFlags.homeBannerEnabled ? 1 : 0)
+      result.insert(quickPresetsSection, at: insertIndex)
+    }
+
+    if tab == .home,
+       catalog.activeHomeSections.contains(where: { $0.id == HomeCatalog.liveTVRowID }),
+       !catalog.liveChannels.isEmpty {
+      result.append(
+        .tiles(
+          id: HomeCatalog.liveTVRowID,
+          title: "Спортивные и ТВ-каналы",
+          count: "\(catalog.liveChannels.count)",
+          columns: TVChannelsView.columns,
+          flow: .rail,
+          tiles: catalog.liveChannels.map { TVChannelsView.tile(for: $0) }
+        )
+      )
+    }
+
+    if tab == .home && !homeRows.isEmpty {
+      result.append(footerActionsSection)
+    }
+
+    return result
+  }
+
+  private var quickPresetsSection: TVPageSection {
+    let excludeConcerts = sectionStore.excludeConcertsOnHome
+    return .chips(
+      id: "home-quick-presets",
+      title: nil,
+      chips: [
+        TVPageChip(id: "preset-catalog", title: "Каталог", systemImage: "square.grid.2x2"),
+        TVPageChip(id: "preset-collections", title: "Подборки", systemImage: "rectangle.stack"),
+        TVPageChip(id: "preset-anime", title: "Аниме", systemImage: "sparkles"),
+        TVPageChip(id: "preset-cartoons", title: "Мультфильмы", systemImage: "face.smiling"),
+        TVPageChip(id: "preset-docs", title: "Документалки", systemImage: "globe"),
+        TVPageChip(id: "preset-4k", title: "4K UHD", systemImage: "4k.tv"),
+        TVPageChip(id: "preset-watchers", title: "По подписчикам", systemImage: "person.2"),
+        TVPageChip(id: "preset-imdb", title: "Топ IMDb", systemImage: "star.fill"),
+        TVPageChip(
+          id: "preset-exclude-concerts",
+          title: excludeConcerts ? "Без концертов: Вкл" : "Без концертов",
+          systemImage: excludeConcerts ? "checkmark.circle.fill" : "music.mic.slash",
+          isActive: excludeConcerts
+        ),
+      ]
+    )
+  }
+
+  private var footerActionsSection: TVPageSection {
+    var chips: [TVPageChip] = []
+    if catalog.hasMoreSections {
+      chips.append(
+        TVPageChip(id: "footer-load-more",
+                   title: "Показать ещё секции",
+                   systemImage: "plus.circle")
+      )
+    }
+    let excludeConcerts = sectionStore.excludeConcertsOnHome
+    chips.append(
+      TVPageChip(
+        id: "footer-exclude-concerts",
+        title: excludeConcerts ? "Без концертов: Вкл" : "Без концертов: Выкл",
+        systemImage: excludeConcerts ? "checkmark.circle.fill" : "music.mic.slash",
+        isActive: excludeConcerts
+      )
+    )
+    chips.append(
+      TVPageChip(
+        id: "footer-customize",
+        title: "Настроить Главную и Вкладки",
+        systemImage: "slider.horizontal.3"
+      )
+    )
+    return .chips(id: "home-footer-actions", title: nil, chips: chips)
+  }
+
+  private func handleChipSelection(_ chip: TVPageChip) {
+    switch chip.id {
+    case "preset-catalog":
+      navigationState.openCatalog(filter: LibraryFilter(sort: .recentlyAdded), title: "Каталог")
+    case "preset-collections":
+      if sectionStore.isTabVisible(.collections) {
+        navigationState.selectedTab = .collections
+      } else {
+        navigationState.push(.collections)
+      }
+    case "preset-anime":
+      var filter = LibraryFilter(sort: .watchers)
+      filter.kinds = [.anime]
+      navigationState.openCatalog(filter: filter, title: "Аниме")
+    case "preset-cartoons":
+      var filter = LibraryFilter(sort: .views, period: .month)
+      filter.kinds = [.cartoons]
+      navigationState.openCatalog(filter: filter, title: "Мультфильмы")
+    case "preset-docs":
+      var filter = LibraryFilter(sort: .views, period: .year)
+      filter.kinds = [.documentaries]
+      navigationState.openCatalog(filter: filter, title: "Документалки")
+    case "preset-4k":
+      var filter = LibraryFilter(sort: .recentlyAdded)
+      filter.minimumQuality = .uhd4K
+      navigationState.openCatalog(filter: filter, title: "4K UHD")
+    case "preset-watchers":
+      navigationState.openCatalog(filter: LibraryFilter(sort: .watchers), title: "По подписчикам")
+    case "preset-imdb":
+      var filter = LibraryFilter(sort: .imdbRating)
+      filter.yearFrom = 2020
+      navigationState.openCatalog(filter: filter, title: "Топ IMDb")
+    case "preset-exclude-concerts", "footer-exclude-concerts":
+      sectionStore.excludeConcertsOnHome.toggle()
+    case "footer-load-more":
+      catalog.loadMoreSections()
+    case "footer-customize":
+      UserDefaults.standard.set("tabs", forKey: "KINOPUBOpenSettingsCategoryOnce")
+      navigationState.selectedTab = .settings
+    default:
+      break
     }
   }
 

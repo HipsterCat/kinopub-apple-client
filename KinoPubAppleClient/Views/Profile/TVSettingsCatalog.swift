@@ -126,6 +126,7 @@ final class TVSettingsCatalog {
     case .server: serverSections()
     case .device: deviceSections()
     case .videoAudio: videoAudioSections()
+    case .tabs: tabsSections()
     case .appearance: appearanceSections()
     case .dataSources: dataSourcesSections()
     case .advanced: advancedSections()
@@ -253,6 +254,188 @@ final class TVSettingsCatalog {
     ]
   }
 
+  private func tabsSections() -> [TSKSection] {
+    let store = SectionVisibilityStore.shared
+    let tabs = store.orderedBrowseTabs
+    let tabRows: [TSKRow] = tabs.enumerated().map { idx, spec in
+      let isVisible = store.isTabVisible(spec.tab)
+      let status = isVisible ? "Вкл" : "Выкл"
+      return TSKRow(
+        title: "\(idx + 1). \(spec.localizedTitle) — \(status)",
+        description: "Вкладка «\(spec.localizedTitle)». Позиция: #\(idx + 1) из \(tabs.count). Нажмите Select, чтобы включить/выключить вкладку или изменить её порядок в верхнем меню.",
+        kind: .action(pushes: true) { [unowned self] in
+          self.host.push(self.tabDetailPage(specID: spec.id))
+        },
+        previewSymbol: spec.symbol
+      )
+    }
+
+    let filterRows: [TSKRow] = [
+      TSKRow(
+        title: "Без концертов на Главной: \(store.excludeConcertsOnHome ? "Вкл" : "Выкл")",
+        description: "Исключает концерты из общих подборок и рейтинговых секций на Главной (Watch Now). Нажмите Select для переключения.",
+        kind: .action(pushes: false) { [unowned self] in
+          SectionVisibilityStore.shared.excludeConcertsOnHome.toggle()
+          self.host.reloadPages()
+        },
+        previewSymbol: "music.mic.slash"
+      ),
+    ]
+
+    let sections = store.orderedHomeSections
+    let sectionRows: [TSKRow] = sections.enumerated().map { idx, section in
+      let isVisible = store.isHomeSectionVisible(section.id)
+      let status = isVisible ? "Вкл" : "Выкл"
+      return TSKRow(
+        title: "\(idx + 1). \(section.title) — \(status)",
+        description: "\(section.subtitle)\nСортировка: \(section.sortingDescription)\nНажмите Select, чтобы включить/выключить секцию или переместить её выше/ниже.",
+        kind: .action(pushes: true) { [unowned self] in
+          self.host.push(self.homeSectionDetailPage(sectionID: section.id))
+        },
+        previewSymbol: "rectangle.grid.1x2"
+      )
+    }
+
+    let resetRows: [TSKRow] = [
+      TSKRow(
+        title: "Сбросить вкладки и секции по умолчанию",
+        description: "Восстанавливает стандартный набор и порядок вкладок верхнего меню и секций Главной страницы.",
+        kind: .action(pushes: false) { [unowned self] in
+          SectionVisibilityStore.shared.resetToDefaults()
+          self.host.reloadPages()
+        },
+        previewSymbol: "arrow.counterclockwise"
+      ),
+    ]
+
+    return [
+      TSKSection(title: "Вкладки верхнего меню (Табы)", rows: tabRows),
+      TSKSection(title: "Фильтры Главной", rows: filterRows),
+      TSKSection(title: "Секции Главной (Watch Now)", rows: sectionRows),
+      TSKSection(title: "Сброс", rows: resetRows),
+    ]
+  }
+
+  private func tabDetailPage(specID: String) -> TSKPage {
+    let spec = SectionVisibilityStore.allBrowseTabs.first { $0.id == specID }
+      ?? SectionVisibilityStore.allBrowseTabs[0]
+    return TSKPage(title: spec.localizedTitle, previewSymbol: spec.symbol) { [unowned self] in
+      let store = SectionVisibilityStore.shared
+      let ordered = store.orderedBrowseTabs
+      let idx = ordered.firstIndex(where: { $0.id == specID }) ?? 0
+      let isVisible = store.isTabVisible(spec.tab)
+      let canToggle = spec.canHide && (!isVisible || store.visibleBrowseTabs.count > 1)
+
+      let actionRows: [TSKRow] = [
+        TSKRow(
+          title: "Показывать в меню: \(isVisible ? "Вкл" : "Выкл")",
+          description: spec.canHide
+            ? "Включает или скрывает вкладку «\(spec.localizedTitle)» в главном меню навигации."
+            : "Вкладка «\(spec.localizedTitle)» является основной и всегда отображается в меню.",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.toggleTabVisibility(id: specID)
+            self.host.reloadPages()
+          },
+          isEnabled: canToggle
+        ),
+        TSKRow(
+          title: "Поднять выше (↑)",
+          description: "Переместить вкладку ближе к началу меню (текущая позиция: #\(idx + 1) из \(ordered.count)).",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveTabUp(id: specID)
+            self.host.reloadPages()
+          },
+          isEnabled: idx > 0
+        ),
+        TSKRow(
+          title: "Опустить ниже (↓)",
+          description: "Переместить вкладку ближе к концу меню (текущая позиция: #\(idx + 1) из \(ordered.count)).",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveTabDown(id: specID)
+            self.host.reloadPages()
+          },
+          isEnabled: idx < ordered.count - 1
+        ),
+      ]
+
+      let positionRows: [TSKRow] = ordered.indices.map { targetIdx in
+        let isCurrent = (targetIdx == idx)
+        return TSKRow(
+          title: isCurrent ? "Позиция #\(targetIdx + 1) (текущая)" : "Переместить на позицию #\(targetIdx + 1)",
+          description: "Поставить вкладку «\(spec.localizedTitle)» на место #\(targetIdx + 1) в верхнем меню.",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveTab(id: specID, toPosition: targetIdx + 1)
+            self.host.reloadPages()
+          },
+          isEnabled: !isCurrent
+        )
+      }
+
+      return [
+        TSKSection(title: "Управление вкладкой", rows: actionRows),
+        TSKSection(title: "Быстрый выбор позиции", rows: positionRows),
+      ]
+    }
+  }
+
+  private func homeSectionDetailPage(sectionID: String) -> TSKPage {
+    let section = SectionVisibilityStore.allHomeSections.first { $0.id == sectionID }
+      ?? SectionVisibilityStore.allHomeSections[0]
+    return TSKPage(title: section.title, previewSymbol: "rectangle.grid.1x2") { [unowned self] in
+      let store = SectionVisibilityStore.shared
+      let ordered = store.orderedHomeSections
+      let idx = ordered.firstIndex(where: { $0.id == sectionID }) ?? 0
+      let isVisible = store.isHomeSectionVisible(sectionID)
+
+      let actionRows: [TSKRow] = [
+        TSKRow(
+          title: "Показывать на Главной: \(isVisible ? "Вкл" : "Выкл")",
+          description: "\(section.subtitle)\nСортировка: \(section.sortingDescription)",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.toggleHomeSectionVisibility(id: sectionID)
+            self.host.reloadPages()
+          }
+        ),
+        TSKRow(
+          title: "Поднять выше (↑)",
+          description: "Переместить секцию выше на Главной странице (текущая позиция: #\(idx + 1) из \(ordered.count)).",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveHomeSectionUp(id: sectionID)
+            self.host.reloadPages()
+          },
+          isEnabled: idx > 0
+        ),
+        TSKRow(
+          title: "Опустить ниже (↓)",
+          description: "Переместить секцию ниже на Главной странице (текущая позиция: #\(idx + 1) из \(ordered.count)).",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveHomeSectionDown(id: sectionID)
+            self.host.reloadPages()
+          },
+          isEnabled: idx < ordered.count - 1
+        ),
+      ]
+
+      let positionRows: [TSKRow] = ordered.indices.map { targetIdx in
+        let isCurrent = (targetIdx == idx)
+        return TSKRow(
+          title: isCurrent ? "Позиция #\(targetIdx + 1) (текущая)" : "Переместить на позицию #\(targetIdx + 1)",
+          description: "Поставить секцию «\(section.title)» на место #\(targetIdx + 1) на Главной.",
+          kind: .action(pushes: false) { [unowned self] in
+            SectionVisibilityStore.shared.moveHomeSection(id: sectionID, toPosition: targetIdx + 1)
+            self.host.reloadPages()
+          },
+          isEnabled: !isCurrent
+        )
+      }
+
+      return [
+        TSKSection(title: "Управление секцией", rows: actionRows),
+        TSKSection(title: "Быстрый выбор позиции", rows: positionRows),
+      ]
+    }
+  }
+
   private func appearanceSections() -> [TSKSection] {
     [TSKSection(rows: [
       TSKRow(title: "Language".localized,
@@ -261,6 +444,10 @@ final class TVSettingsCatalog {
                            values: model.availableLanguages.keys.sorted().map { $0 as NSString },
                            label: { [unowned self] in ($0 as? String).map { self.model.availableLanguages[$0] ?? $0 } })),
       info("Theme", "Dark".localized),
+      TSKRow(title: "Вкладки и Главная",
+             description: "Включение, отключение и сортировка вкладок верхнего меню и секций Главной страницы.",
+             kind: .action(pushes: true) { [unowned self] in self.open(.tabs) },
+             previewSymbol: "square.grid.2x2"),
     ])]
   }
 
@@ -296,7 +483,7 @@ final class TVSettingsCatalog {
     [TSKSection(title: "Diagnostics".localized, rows: [
       TSKRow(title: "Network log".localized,
              description: "Settings_Tip_NetworkLog".localized,
-             kind: .action(pushes: true) { [unowned self] in self.present(NetworkConsoleView()) }),
+             kind: .action(pushes: true) { [unowned self] in self.presentPulseConsole() }),
       TSKRow(title: "Stream to Pulse on Mac".localized,
              description: "Settings_Tip_StreamToPulse".localized,
              kind: .toggle(key: "streamToPulse")),
@@ -937,8 +1124,23 @@ final class TVSettingsCatalog {
 
   /// Full-screen tools get their own stack: some push routes (Player cases opens the real
   /// player routes), and a presented page is outside every other one.
-  private func present(_ view: some View) {
-    host.present(host_(AnyView(NavigationStack { view })))
+  ///
+  /// `inStack: false` is for pages that bring their own navigation container. Pulse's tvOS
+  /// `ConsoleView` nests a `NavigationView` and injects its view models inside it; under an
+  /// outer stack its links push onto ours, outside that injection, and `ConsoleFiltersView`
+  /// traps on the missing `ConsoleFiltersViewModel`.
+  private func present(_ view: some View, inStack: Bool = true) {
+    host.present(host_(inStack ? AnyView(NavigationStack { view }) : AnyView(view)))
+  }
+  
+  /// Present Pulse console directly without custom environment wrapping.
+  /// Pulse's ConsoleView sets up its own environment internally, and wrapping it
+  /// in our custom hosting closure prevents that initialization.
+  private func presentPulseConsole() {
+    let consoleView = NetworkConsoleView()
+    // Create a plain UIHostingController without custom environment injection
+    let controller = UIHostingController(rootView: consoleView)
+    host.present(controller)
   }
 
   private func scopeLabel(_ scope: TrackMemoryScope) -> String {
@@ -1134,7 +1336,7 @@ final class TVSettingsCatalog {
 
 extension TVSettingsCatalog {
   enum Category: String, CaseIterable {
-    case account, server, device, videoAudio, appearance, dataSources, advanced, experiments, developer, about
+    case account, server, device, videoAudio, tabs, appearance, dataSources, advanced, experiments, developer, about
 
     var title: String {
       switch self {
@@ -1142,6 +1344,7 @@ extension TVSettingsCatalog {
       case .server: "Server & connection".localized
       case .device: "Device".localized
       case .videoAudio: "Video & audio".localized
+      case .tabs: "Вкладки и Главная"
       case .appearance: "Appearance".localized
       case .dataSources: "Data sources".localized
       case .advanced: "Advanced".localized
@@ -1157,6 +1360,7 @@ extension TVSettingsCatalog {
       case .server: "server.rack"
       case .device: "appletv"
       case .videoAudio: "play.rectangle"
+      case .tabs: "square.grid.2x2"
       case .appearance: "paintbrush"
       case .dataSources: "square.stack.3d.up"
       case .advanced: "gearshape.2"
@@ -1172,6 +1376,7 @@ extension TVSettingsCatalog {
       case .server: "Settings_Tip_Server".localized
       case .device: "Settings_Tip_Device".localized
       case .videoAudio: "Settings_Tip_VideoAudio".localized
+      case .tabs: "Настройка видимости и порядка вкладок верхнего меню (Каталог, Подборки, Фильмы, Сериалы, ТВ) и секций Главной страницы."
       case .appearance: "Settings_Tip_Appearance".localized
       case .dataSources: "Settings_Tip_DataSourcesCategory".localized
       case .advanced: "Settings_Tip_Advanced".localized
@@ -1262,25 +1467,34 @@ struct TVSettingKitSettingsView: View {
     .ignoresSafeArea()
     .toolbar(depth > 0 ? .hidden : .automatic, for: .tabBar)
     .onAppear {
-      guard catalog == nil else { return }
-      let catalog = TVSettingsCatalog(
-        model: model,
-        kinopoiskKeyProvider: kinopoiskKeyProvider,
-        deviceService: appContext.deviceService,
-        errorHandler: errorHandler,
-        onLogout: onLogout,
-        onLanguageChange: onLanguageChange,
-        hosting: { [appContext, navigationState, errorHandler, authState, networkMonitor] view in
-          UIHostingController(rootView: view
-            .environment(\.appContext, appContext)
-            .environment(navigationState)
-            .environment(errorHandler)
-            .environmentObject(authState)
-            .environmentObject(networkMonitor))
+      if catalog == nil {
+        let catalog = TVSettingsCatalog(
+          model: model,
+          kinopoiskKeyProvider: kinopoiskKeyProvider,
+          deviceService: appContext.deviceService,
+          errorHandler: errorHandler,
+          onLogout: onLogout,
+          onLanguageChange: onLanguageChange,
+          hosting: { [appContext, navigationState, errorHandler, authState, networkMonitor] view in
+            UIHostingController(rootView: view
+              .environment(\.appContext, appContext)
+              .environment(navigationState)
+              .environment(errorHandler)
+              .environmentObject(authState)
+              .environmentObject(networkMonitor))
+          }
+        )
+        catalog.host.onDepthChange = { depth = $0 }
+        self.catalog = catalog
+      }
+      if let raw = UserDefaults.standard.string(forKey: "KINOPUBOpenSettingsCategoryOnce"),
+         let category = TVSettingsCatalog.Category(rawValue: raw) {
+        UserDefaults.standard.removeObject(forKey: "KINOPUBOpenSettingsCategoryOnce")
+        Task { @MainActor in
+          try? await Task.sleep(for: .milliseconds(150))
+          self.catalog?.open(category)
         }
-      )
-      catalog.host.onDepthChange = { depth = $0 }
-      self.catalog = catalog
+      }
     }
 #if DEBUG
     // `-KINOPUBSettingsPage <category>` opens a page and `-KINOPUBSettingsLab <lab>` a

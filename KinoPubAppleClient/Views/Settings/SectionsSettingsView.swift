@@ -7,47 +7,106 @@ import SwiftUI
 
 #if !os(tvOS)
 
-/// Toggle screen for `SectionVisibilityStore`. Persists immediately; does not yet change
-/// what `TabsNavigationView` shows — see the store's doc comment.
+/// Toggle and reorder screen for `SectionVisibilityStore`. Persists immediately and updates
+/// `TabsNavigationView` and `HomeCatalog` live.
 struct SectionsSettingsView: View {
   @ObservedObject private var store = SectionVisibilityStore.shared
 
   var body: some View {
     Form {
       Section {
-        ForEach(SectionVisibilityStore.librarySections) { section in
-          Toggle(section.titleKey, isOn: binding(for: section))
-            .disabled(!store.canHide(section))
+        ForEach(Array(store.orderedBrowseTabs.enumerated()), id: \.element.id) { idx, spec in
+          HStack {
+            Toggle(spec.titleKey, isOn: tabBinding(for: spec))
+              .disabled(!spec.canHide)
+            if idx > 0 {
+              Button {
+                store.moveTabUp(id: spec.id)
+              } label: {
+                Image(systemName: "arrow.up")
+              }
+              .buttonStyle(.borderless)
+            }
+            if idx < store.orderedBrowseTabs.count - 1 {
+              Button {
+                store.moveTabDown(id: spec.id)
+              } label: {
+                Image(systemName: "arrow.down")
+              }
+              .buttonStyle(.borderless)
+            }
+          }
+        }
+        .onMove { indices, newOffset in
+          store.moveTabs(fromOffsets: indices, toOffset: newOffset)
         }
       } header: {
-        Text("Library")
+        Text("Вкладки (Табы)")
       } footer: {
-        Text("Movies and Series always stay visible.")
+        Text("Включение, отключение и порядок вкладок верхнего меню и боковой панели.")
       }
 
-      if !SectionVisibilityStore.otherSections.isEmpty {
-        Section("Other") {
-          ForEach(SectionVisibilityStore.otherSections) { section in
-            Toggle(section.titleKey, isOn: binding(for: section))
+      Section("Фильтры Главной") {
+        Toggle("Без концертов на Главной", isOn: $store.excludeConcertsOnHome)
+      }
+
+      Section {
+        ForEach(Array(store.orderedHomeSections.enumerated()), id: \.element.id) { idx, section in
+          HStack {
+            Toggle(isOn: homeSectionBinding(for: section)) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(section.title)
+                Text("\(section.subtitle) • \(section.sortingDescription)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+            if idx > 0 {
+              Button {
+                store.moveHomeSectionUp(id: section.id)
+              } label: {
+                Image(systemName: "arrow.up")
+              }
+              .buttonStyle(.borderless)
+            }
+            if idx < store.orderedHomeSections.count - 1 {
+              Button {
+                store.moveHomeSectionDown(id: section.id)
+              } label: {
+                Image(systemName: "arrow.down")
+              }
+              .buttonStyle(.borderless)
+            }
           }
+        }
+        .onMove { indices, newOffset in
+          store.moveHomeSections(fromOffsets: indices, toOffset: newOffset)
+        }
+      } header: {
+        Text("Секции Главной (Watch Now)")
+      }
+
+      Section {
+        Button("Сбросить по умолчанию", role: .destructive) {
+          store.resetToDefaults()
         }
       }
     }
     .formStyle(.grouped)
     .platformNavigationTitle("Sections")
-    .safeAreaInset(edge: .bottom) {
-      Text("Hiding a section here doesn't change the tab bar or sidebar yet — that lands with the upcoming catalog sections update.")
-        .font(.footnote)
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.center)
-        .padding()
-    }
   }
 
-  private func binding(for section: AppSection) -> Binding<Bool> {
+  private func tabBinding(for spec: BrowseTabSpec) -> Binding<Bool> {
     Binding(
-      get: { store.isVisible(section) },
-      set: { store.setVisible($0, for: section) }
+      get: { store.isTabVisible(spec.tab) },
+      set: { store.setTabVisible($0, id: spec.id) }
+    )
+  }
+
+  private func homeSectionBinding(for section: HomeSectionMeta) -> Binding<Bool> {
+    Binding(
+      get: { store.isHomeSectionVisible(section.id) },
+      set: { store.setHomeSectionVisible($0, id: section.id) }
     )
   }
 }

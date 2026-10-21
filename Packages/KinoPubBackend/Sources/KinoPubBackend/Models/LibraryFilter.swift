@@ -13,10 +13,12 @@ public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable, Sendab
   case recentlyAdded
   case recentlyUpdated
   case views
+  case watchers
   case title
   case year
   case kinopoiskRating
   case imdbRating
+  case rating
 
   public var id: Self { self }
 
@@ -26,10 +28,12 @@ public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable, Sendab
     case .recentlyAdded: return "-created"
     case .recentlyUpdated: return "-updated"
     case .views: return "-views"
+    case .watchers: return "-watchers"
     case .title: return "title"
     case .year: return "-year"
     case .kinopoiskRating: return "-kinopoisk_rating"
     case .imdbRating: return "-imdb_rating"
+    case .rating: return "-rating"
     }
   }
 
@@ -39,10 +43,12 @@ public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable, Sendab
     case .recentlyAdded: return "Sort_RecentlyAdded"
     case .recentlyUpdated: return "Sort_RecentlyUpdated"
     case .views: return "Sort_Views"
+    case .watchers: return "Sort_Watchers"
     case .title: return "Sort_Title"
     case .year: return "Sort_Year"
     case .kinopoiskRating: return "Sort_KinopoiskRating"
     case .imdbRating: return "Sort_ImdbRating"
+    case .rating: return "Sort_Rating"
     }
   }
 }
@@ -335,6 +341,8 @@ public extension LibraryFilter {
       return items.sorted { $0.updatedAt > $1.updatedAt }
     case .views:
       return items.sorted { $0.views > $1.views }
+    case .watchers:
+      return items.sorted { $0.views > $1.views }
     case .title:
       return items.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     case .year:
@@ -343,6 +351,8 @@ public extension LibraryFilter {
       return items.sorted { ($0.kinopoiskRating ?? 0) > ($1.kinopoiskRating ?? 0) }
     case .imdbRating:
       return items.sorted { ($0.imdbRating ?? 0) > ($1.imdbRating ?? 0) }
+    case .rating:
+      return items.sorted { $0.rating > $1.rating }
     }
   }
 }

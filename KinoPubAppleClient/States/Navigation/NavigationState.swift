@@ -33,8 +33,10 @@ final class NavigationState {
   var selectedTab: NavigationTabs = .home
   var mainRoutes: [Route] = []
   var searchRoutes: [Route] = []
+  var catalogRoutes: [Route] = []
   var moviesRoutes: [Route] = []
   var seriesRoutes: [Route] = []
+  var collectionsRoutes: [Route] = []
   var tvRoutes: [Route] = []
   var libraryRoutes: [Route] = []
   var watchlistRoutes: [Route] = []
@@ -44,6 +46,8 @@ final class NavigationState {
   /// Applied once when Search becomes active — genre / country / year from the
   /// item page land here so Search opens already filtered, titled, and labeled.
   var pendingSearch: PendingSearch?
+  /// Applied once when the Catalog tab becomes active from a quick preset chip.
+  var pendingCatalogFilter: LibraryFilter?
   /// Tab to restore when the user backs out of a filter-driven Search jump.
   private(set) var searchReturnTab: NavigationTabs?
 #if os(macOS)
@@ -90,6 +94,19 @@ final class NavigationState {
     rememberMacSearchRecent(title)
 #endif
     selectedTab = .search
+  }
+
+  /// Switch to Catalog with a filter already selected if the Catalog tab is visible;
+  /// otherwise falls back to `openSearch`.
+  @MainActor
+  func openCatalog(filter: LibraryFilter, title: String) {
+    if SectionVisibilityStore.shared.isTabVisible("catalog") {
+      pendingCatalogFilter = filter
+      catalogRoutes = []
+      selectedTab = .catalog
+    } else {
+      openSearch(filter: filter, title: title)
+    }
   }
 
   /// Focus the search surface (toolbar field / Search tab) without a preselected filter.
@@ -175,8 +192,10 @@ final class NavigationState {
     switch tab {
     case .search: \.searchRoutes
     case .home: \.mainRoutes
+    case .catalog: \.catalogRoutes
     case .movies: \.moviesRoutes
     case .series: \.seriesRoutes
+    case .collections: \.collectionsRoutes
     case .tv: \.tvRoutes
     case .library: \.libraryRoutes
     case .watchlist: \.watchlistRoutes
@@ -196,7 +215,8 @@ final class NavigationState {
 
   /// Every title any tab's path still holds; the stage forgets the rest.
   var backdropLiveKeys: Set<String> {
-    let paths = [searchRoutes, mainRoutes, moviesRoutes, seriesRoutes, tvRoutes, libraryRoutes,
+    let paths = [searchRoutes, mainRoutes, catalogRoutes, moviesRoutes, seriesRoutes,
+                 collectionsRoutes, tvRoutes, libraryRoutes,
                  watchlistRoutes, recentlyWatchedRoutes, bookmarksRoutes, downloadsRoutes]
     return paths.reduce(into: Set<String>()) { $0.formUnion(Route.backdropKeys(in: $1)) }
   }

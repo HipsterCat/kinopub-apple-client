@@ -25,6 +25,8 @@ enum RowKey: Hashable, Codable {
   /// Home's "Collections" preview row — a handful of curated collection covers.
   /// The full browser is a paginated cover grid and does not go through the store.
   case collections
+  /// A filter-backed shelf on Watch Now (`new-arrivals`, `weekly-top`, `binge-worthy`, etc.).
+  case homeSection(String)
 
   /// Group for prefix invalidation: clearing history shouldn't blow away catalog
   /// shelves, and toggling a bookmark shouldn't touch continue-watching.
@@ -37,7 +39,7 @@ enum RowKey: Hashable, Codable {
   var family: Family {
     switch self {
     case .continueWatching, .history, .watchlist, .unfinishedSerials: return .watch
-    case .shortcut, .collections: return .catalog
+    case .shortcut, .collections, .homeSection: return .catalog
     case .folder, .allBookmarks: return .bookmarks
     }
   }
@@ -49,7 +51,7 @@ enum RowKey: Hashable, Codable {
     switch self {
     case .continueWatching, .history: return 60
     case .watchlist, .unfinishedSerials: return 120
-    case .shortcut, .collections: return 15 * 60
+    case .shortcut, .collections, .homeSection: return 15 * 60
     case .folder, .allBookmarks: return 10 * 60
     }
   }

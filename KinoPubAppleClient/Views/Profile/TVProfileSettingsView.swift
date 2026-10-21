@@ -131,6 +131,8 @@ struct TVProfileSettingsView: View {
   @ViewBuilder
   private func categoryPage(_ category: TVSettingsCategory) -> some View {
     switch category {
+    case .tabs:
+      TVTabsAndSectionsPage()
     case .experiments:
       TVFeatureFlagsPage()
     default:
@@ -172,8 +174,8 @@ struct TVProfileSettingsView: View {
       }
     case .about:
       aboutRows(focus: focus)
-    case .experiments:
-      // Its own page — see `categoryPage(_:)`.
+    case .tabs, .experiments:
+      // Their own pages — see `categoryPage(_:)`.
       EmptyView()
     }
   }
@@ -543,6 +545,7 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable, Hashable {
   case server
   case device
   case videoAudio
+  case tabs
   case appearance
   case dataSources
   case advanced
@@ -558,6 +561,7 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case .server: "Server & connection"
     case .device: "Device"
     case .videoAudio: "Video & audio"
+    case .tabs: "Вкладки и Главная"
     case .appearance: "Appearance"
     case .dataSources: "Data sources"
     case .advanced: "Advanced"
@@ -573,6 +577,7 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case .server: "server.rack"
     case .device: "appletv"
     case .videoAudio: "play.rectangle"
+    case .tabs: "square.grid.2x2"
     case .appearance: "paintbrush"
     case .dataSources: "square.stack.3d.up"
     case .advanced: "gearshape.2"
@@ -588,6 +593,7 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case .server: "Settings_Tip_Server"
     case .device: "Settings_Tip_Device"
     case .videoAudio: "Settings_Tip_VideoAudio"
+    case .tabs: "Настройка видимости и порядка вкладок верхнего меню и секций Главной страницы."
     case .appearance: "Settings_Tip_Appearance"
     case .dataSources: "Settings_Tip_DataSourcesCategory"
     case .advanced: "Settings_Tip_Advanced"
@@ -1156,6 +1162,119 @@ private struct SettingsChoiceView: View {
         focusedID = selection
       }
     }
+  }
+}
+
+// MARK: - Tabs & Home sections destination
+
+private struct TVTabsAndSectionsPage: View {
+  private enum Row: Hashable {
+    case tabToggle(String)
+    case tabUp(String)
+    case tabDown(String)
+    case excludeConcerts
+    case sectionToggle(String)
+    case sectionUp(String)
+    case sectionDown(String)
+    case reset
+  }
+
+  @ObservedObject private var store = SectionVisibilityStore.shared
+  @FocusState private var focused: Row?
+
+  var body: some View {
+    SettingsSplitLayout(
+      title: "Вкладки и Главная",
+      pageSymbol: "square.grid.2x2",
+      tipKey: "Настройка видимости и порядка вкладок верхнего меню и секций Главной страницы."
+    ) {
+      SettingsSection("Вкладки верхнего меню (Табы)") {
+        let tabs = store.orderedBrowseTabs
+        ForEach(Array(tabs.enumerated()), id: \.element.id) { idx, spec in
+          let isVisible = store.isTabVisible(spec.tab)
+          Button {
+            store.toggleTabVisibility(id: spec.id)
+          } label: {
+            SettingsPillLabel(
+              title: "",
+              verbatimTitle: "\(idx + 1). \(spec.localizedTitle)",
+              value: isVisible ? "Вкл" : "Выкл"
+            )
+          }
+          .buttonStyle(SettingsPillButtonStyle())
+          .disabled(!spec.canHide)
+          .focused($focused, equals: .tabToggle(spec.id))
+
+          if idx > 0 {
+            Button {
+              store.moveTabUp(id: spec.id)
+            } label: {
+              SettingsPillLabel(
+                title: "",
+                verbatimTitle: "  ↑ Поднять «\(spec.localizedTitle)» выше"
+              )
+            }
+            .buttonStyle(SettingsPillButtonStyle())
+            .focused($focused, equals: .tabUp(spec.id))
+          }
+        }
+      }
+
+      SettingsSection("Фильтры Главной") {
+        Button {
+          store.excludeConcertsOnHome.toggle()
+        } label: {
+          SettingsPillLabel(
+            title: "Без концертов на Главной",
+            value: store.excludeConcertsOnHome ? "Вкл" : "Выкл"
+          )
+        }
+        .buttonStyle(SettingsPillButtonStyle())
+        .focused($focused, equals: .excludeConcerts)
+      }
+
+      SettingsSection("Секции Главной (Watch Now)") {
+        let sections = store.orderedHomeSections
+        ForEach(Array(sections.enumerated()), id: \.element.id) { idx, section in
+          let isVisible = store.isHomeSectionVisible(section.id)
+          Button {
+            store.toggleHomeSectionVisibility(id: section.id)
+          } label: {
+            SettingsPillLabel(
+              title: "",
+              verbatimTitle: "\(idx + 1). \(section.title)",
+              value: isVisible ? "Вкл" : "Выкл"
+            )
+          }
+          .buttonStyle(SettingsPillButtonStyle())
+          .focused($focused, equals: .sectionToggle(section.id))
+
+          if idx > 0 {
+            Button {
+              store.moveHomeSectionUp(id: section.id)
+            } label: {
+              SettingsPillLabel(
+                title: "",
+                verbatimTitle: "  ↑ Поднять «\(section.title)» выше"
+              )
+            }
+            .buttonStyle(SettingsPillButtonStyle())
+            .focused($focused, equals: .sectionUp(section.id))
+          }
+        }
+      }
+
+      SettingsSection("Сброс") {
+        Button {
+          store.resetToDefaults()
+        } label: {
+          SettingsPillLabel(title: "Сбросить вкладки и секции по умолчанию", isDestructive: true)
+        }
+        .buttonStyle(SettingsPillButtonStyle())
+        .focused($focused, equals: .reset)
+      }
+    }
+    .background(Color.KinoPub.background.ignoresSafeArea())
   }
 }
 

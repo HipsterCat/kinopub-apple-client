@@ -10,8 +10,10 @@ import Foundation
 enum NavigationTabs: Hashable {
   case search
   case home
+  case catalog
   case movies
   case series
+  case collections
   /// kino.pub's live TV channels (`GET /v1/tv`). tvOS for now.
   case tv
   /// Combined Watchlist + History + Bookmarks (tvOS / iOS / iPad).

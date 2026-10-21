@@ -49,12 +49,175 @@ class HomeCatalog: ObservableObject {
   /// The shortcut rows this catalog actually fetches and paints.
   var activeShortcuts: [Shortcut] { Self.shortcuts(for: contentType) }
 
+  /// Configurable Home section specification backed by `/v1/items` filters, bookmarks,
+  /// live TV channels, or collections.
+  struct HomeSectionSpec: Sendable, Identifiable {
+    enum Source: Sendable {
+      case filter(LibraryFilter)
+      case topBookmarks
+      case liveTV
+      case collections
+    }
+
+    let id: String
+    let title: String
+    let source: Source
+
+    func resolvedFilter(excludeConcerts: Bool) -> LibraryFilter? {
+      guard case .filter(var filter) = source else { return nil }
+      if excludeConcerts, filter.kinds.isEmpty {
+        if filter.contentTypes.isEmpty, let single = filter.contentType {
+          if single != .concert {
+            filter.contentTypes = [single]
+          }
+        } else if filter.contentTypes.isEmpty {
+          filter.contentTypes = [.movie, .serial, .documovie, .docuserial, .tvshow]
+        } else {
+          filter.contentTypes.remove(.concert)
+        }
+      }
+      return filter
+    }
+  }
+
+  static let homeSectionSpecsByID: [String: HomeSectionSpec] = {
+    var dict: [String: HomeSectionSpec] = [:]
+    let specs: [HomeSectionSpec] = [
+      HomeSectionSpec(
+        id: "new-arrivals",
+        title: "Новинки Кинопаба",
+        source: .filter(LibraryFilter(sort: .recentlyAdded))
+      ),
+      HomeSectionSpec(
+        id: "recently-updated",
+        title: "Недавно обновлённые",
+        source: .filter({
+          var f = LibraryFilter(sort: .recentlyUpdated)
+          f.contentTypes = [.serial, .docuserial, .tvshow]
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "weekly-top",
+        title: "Топ недели",
+        source: .filter(LibraryFilter(sort: .views, period: .week))
+      ),
+      HomeSectionSpec(
+        id: "must-see-hits",
+        title: "Хиты месяца",
+        source: .filter(LibraryFilter(sort: .views, period: .month))
+      ),
+      HomeSectionSpec(
+        id: "binge-worthy",
+        title: "Сериалы на запой (по подписчикам)",
+        source: .filter({
+          var f = LibraryFilter(sort: .watchers)
+          f.contentTypes = [.serial, .docuserial]
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "top-rated",
+        title: "Высокий рейтинг IMDb",
+        source: .filter({
+          var f = LibraryFilter(sort: .imdbRating)
+          f.yearFrom = 2020
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "community-top",
+        title: "Выбор Кинопаба",
+        source: .filter(LibraryFilter(sort: .rating, period: .year))
+      ),
+      HomeSectionSpec(
+        id: "latest-4k",
+        title: "Последние 4K UHD релизы",
+        source: .filter({
+          var f = LibraryFilter(sort: .recentlyAdded)
+          f.minimumQuality = .uhd4K
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "top-bookmarks",
+        title: "Топовые закладки",
+        source: .topBookmarks
+      ),
+      HomeSectionSpec(
+        id: "live-tv",
+        title: "Спортивные и ТВ-каналы",
+        source: .liveTV
+      ),
+      HomeSectionSpec(
+        id: "tv-shows",
+        title: "Передачи и стендап",
+        source: .filter({
+          var f = LibraryFilter(sort: .recentlyUpdated)
+          f.kinds = [.tvShows]
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "anime-hits",
+        title: "Аниме (по подписчикам)",
+        source: .filter({
+          var f = LibraryFilter(sort: .watchers)
+          f.kinds = [.anime]
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: "docu-picks",
+        title: "Документальные хиты",
+        source: .filter({
+          var f = LibraryFilter(sort: .views, period: .year)
+          f.kinds = [.documentaries]
+          return f
+        }())
+      ),
+      HomeSectionSpec(
+        id: HomeCatalog.collectionsRowID,
+        title: "Collections".localized,
+        source: .collections
+      ),
+    ]
+    for spec in specs {
+      dict[spec.id] = spec
+    }
+    return dict
+  }()
+
+  /// Ordered, visible Home section specs according to `SectionVisibilityStore`,
+  /// windowed by `visibleSectionLimit` so Home can progressively reveal more shelves.
+  var activeHomeSections: [HomeSectionSpec] {
+    guard includesWatchNowExtras else { return [] }
+    let metas = SectionVisibilityStore.shared.visibleHomeSections
+    let all = metas.compactMap { Self.homeSectionSpecsByID[$0.id] }
+    return Array(all.prefix(visibleSectionLimit))
+  }
+
+  var hasMoreSections: Bool {
+    guard includesWatchNowExtras else { return false }
+    return visibleSectionLimit < SectionVisibilityStore.shared.visibleHomeSections.count
+  }
+
+  @Published public private(set) var visibleSectionLimit: Int = 8
+  @Published public private(set) var liveChannels: [TVChannel] = []
+
+  func loadMoreSections() {
+    visibleSectionLimit += 4
+    Task { await fetch() }
+  }
+
   /// Typed Movies / Series catalogs are poster shelves only — no Continue Watching,
   /// collections preview, or banner sampling (those stay on Watch Now).
   var includesWatchNowExtras: Bool { contentType == nil }
 
   static let continueWatchingRowID = "continue-watching"
   static let collectionsRowID = "collections"
+  static let liveTVRowID = "live-tv"
+  static let topBookmarksRowID = "top-bookmarks"
 
   /// How far a horizontal shelf has been paged, per row id.
   ///
@@ -160,6 +323,16 @@ class HomeCatalog: ObservableObject {
         Task { await self?.refreshContinueWatching() }
       }
       .store(in: &bag)
+    NotificationCenter.default.publisher(for: .homeSectionsConfigurationDidChange)
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in
+        guard let self else { return }
+        self.store.invalidate(family: .catalog)
+        self.cursors.removeAll()
+        self.assembleRows()
+        Task { await self.fetch() }
+      }
+      .store(in: &bag)
   }
 
   /// Paints whatever's cached immediately (instant on a warm cache, still empty on a
@@ -178,34 +351,58 @@ class HomeCatalog: ObservableObject {
 
     let collectionsNeedMigration = includesWatchNowExtras
       && store.cards(.collections).contains { !$0.opensCollection }
+    let homeSections = activeHomeSections
+    let excludeConcerts = SectionVisibilityStore.shared.excludeConcertsOnHome
 
     await withTaskGroup(of: Void.self) { group in
       if includesWatchNowExtras {
         group.addTask { [store] in
-          await store.refreshIfStale(.continueWatching) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+          await store.refreshIfStale(.continueWatching) { [weak self] in
             guard let self else { throw CancellationError() }
             return try await self.fetchContinueWatchingCards().map(RowItem.card)
           }
         }
-        group.addTask { [store] in
-          // Stale snapshots predate `opensCollection` — force a refresh so Select
-          // opens the collection rather than a colliding media id.
-          if collectionsNeedMigration {
-            await store.refresh(.collections) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
-              guard let self else { throw CancellationError() }
-              return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
+        for spec in homeSections {
+          switch spec.source {
+          case .filter:
+            group.addTask { [store] in
+              await store.refreshIfStale(.homeSection(spec.id)) { [weak self] in
+                guard let self else { throw CancellationError() }
+                return try await self.fetchHomeSectionItems(spec, excludeConcerts: excludeConcerts)
+              }
             }
-          } else {
-            await store.refreshIfStale(.collections) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
-              guard let self else { throw CancellationError() }
-              return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
+          case .topBookmarks:
+            group.addTask { [store] in
+              await store.refreshIfStale(.homeSection(spec.id)) { [weak self] in
+                guard let self else { throw CancellationError() }
+                return try await self.fetchTopBookmarksCards().map(RowItem.card)
+              }
+            }
+          case .liveTV:
+            group.addTask { [weak self] in
+              guard let self else { return }
+              await self.fetchLiveChannelsIfNeeded()
+            }
+          case .collections:
+            group.addTask { [store] in
+              if collectionsNeedMigration {
+                await store.refresh(.collections) { [weak self] in
+                  guard let self else { throw CancellationError() }
+                  return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
+                }
+              } else {
+                await store.refreshIfStale(.collections) { [weak self] in
+                  guard let self else { throw CancellationError() }
+                  return try await self.fetchCollectionsPreviewCards().map(RowItem.card)
+                }
+              }
             }
           }
         }
       }
       for shortcut in activeShortcuts {
         group.addTask { [store] in
-          await store.refreshIfStale(.shortcut(shortcut.shortcut, shortcut.contentType)) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
+          await store.refreshIfStale(.shortcut(shortcut.shortcut, shortcut.contentType)) { [weak self] in
             guard let self else { throw CancellationError() }
             return try await self.fetchShortcutItems(shortcut)
           }
@@ -218,9 +415,13 @@ class HomeCatalog: ObservableObject {
     isLoaded = true
     // Catalog shelves always have content when the network cooperates, so an empty
     // screen with at least one failed shelf means an outage, not an empty account.
-    let firstError = activeShortcuts.lazy
+    let firstShortcutError = activeShortcuts.lazy
       .compactMap { self.store.lastError(.shortcut($0.shortcut, $0.contentType)) }
       .first
+    let firstSectionError = homeSections.lazy
+      .compactMap { self.store.lastError(.homeSection($0.id)) }
+      .first
+    let firstError = firstShortcutError ?? firstSectionError
     loadFailed = rows.isEmpty && firstError != nil
     loadError = rows.isEmpty ? firstError : nil
   }
@@ -234,7 +435,9 @@ class HomeCatalog: ObservableObject {
   /// merge of `watching/movies`, `watching/serials` (twice) and `history`, ordered by
   /// what the user touched last. "Page 2" of that has no meaning on the server.
   func loadMore(rowID: String) {
-    guard rowID != Self.continueWatchingRowID else { return }
+    guard rowID != Self.continueWatchingRowID,
+          rowID != Self.topBookmarksRowID,
+          rowID != Self.liveTVRowID else { return }
     guard var cursor = cursors[rowID], cursor.hasMore, !cursor.isLoading, !cursor.didFail
     else { return }
 
@@ -275,6 +478,12 @@ class HomeCatalog: ObservableObject {
       }
       return data.collections.map { RowItem.card(CollectionMediaCard.make(from: $0)) }
     }
+    if let spec = Self.homeSectionSpecsByID[rowID],
+       let filter = spec.resolvedFilter(excludeConcerts: SectionVisibilityStore.shared.excludeConcertsOnHome) {
+      let data = try await itemsService.fetchItems(filter: filter, page: page)
+      cursors[rowID]?.total = max(data.pagination.total, 1)
+      return data.items.map(Self.item(for:))
+    }
     guard let shortcut = Self.shortcuts.first(where: { $0.id == rowID }) else { return [] }
     let data = try await itemsService.fetch(shortcut: shortcut.shortcut,
                                             contentType: shortcut.contentType,
@@ -297,15 +506,28 @@ class HomeCatalog: ObservableObject {
       let loaded = max(1, (count + defaultPerPage - 1) / defaultPerPage)
       cursors[shortcut.id] = PageCursor(loaded: loaded, total: loaded + 1)
     }
-    guard includesWatchNowExtras, cursors[Self.collectionsRowID] == nil else { return }
-    let count = store.cards(.collections).count
-    guard count > 0 else { return }
-    let loaded = max(1, (count + defaultPerPage - 1) / defaultPerPage)
-    cursors[Self.collectionsRowID] = PageCursor(loaded: loaded, total: loaded + 1)
+    for spec in activeHomeSections {
+      guard cursors[spec.id] == nil else { continue }
+      switch spec.source {
+      case .filter:
+        let count = store.cards(.homeSection(spec.id)).count
+        guard count > 0 else { continue }
+        let loaded = max(1, (count + defaultPerPage - 1) / defaultPerPage)
+        cursors[spec.id] = PageCursor(loaded: loaded, total: loaded + 1)
+      case .collections:
+        let count = store.cards(.collections).count
+        guard count > 0 else { continue }
+        let loaded = max(1, (count + defaultPerPage - 1) / defaultPerPage)
+        cursors[Self.collectionsRowID] = PageCursor(loaded: loaded, total: loaded + 1)
+      case .topBookmarks, .liveTV:
+        break
+      }
+    }
   }
 
   private func storeKey(forRow rowID: String) throws -> RowKey {
     if rowID == Self.collectionsRowID { return .collections }
+    if Self.homeSectionSpecsByID[rowID] != nil { return .homeSection(rowID) }
     guard let shortcut = Self.shortcuts.first(where: { $0.id == rowID }) else {
       throw CancellationError()
     }
@@ -360,28 +582,71 @@ class HomeCatalog: ObservableObject {
                                   title: "Continue Watching".localized,
                                   cards: continueWatchingCards))
       }
-    }
-    for shortcut in activeShortcuts {
-      let cards = store.cards(.shortcut(shortcut.shortcut, shortcut.contentType))
-      guard !cards.isEmpty else { continue }
-      // Same chevron + "see all" the Collections row already has: the header pushes a
-      // full paginated grid pinned to this shortcut. tvOS ignores `destination` (a row
-      // header is never a focus stop there) — see `MediaPosterShelf`.
-      assembled.append(MediaRow(id: shortcut.id,
-                                title: shortcut.title.localized,
-                                cards: cards,
-                                destination: Route.shortcutItems(shortcut.shortcut,
-                                                                 shortcut.contentType,
-                                                                 title: shortcut.title.localized)))
-    }
-    // Collections sit last — a catalog add-on, not mixed into the hot/fresh/popular band.
-    if includesWatchNowExtras {
-      let collectionsCards = store.cards(.collections)
-      if !collectionsCards.isEmpty {
-        assembled.append(MediaRow(id: Self.collectionsRowID,
-                                  title: "Collections".localized,
-                                  cards: collectionsCards,
-                                  destination: Route.collections))
+
+      var appendedAnyHomeSection = false
+      for spec in activeHomeSections {
+        switch spec.source {
+        case .filter:
+          let cards = store.cards(.homeSection(spec.id))
+          guard !cards.isEmpty else { continue }
+          appendedAnyHomeSection = true
+          assembled.append(MediaRow(id: spec.id,
+                                    title: spec.title,
+                                    cards: cards))
+        case .topBookmarks:
+          let cards = store.cards(.homeSection(spec.id))
+          guard !cards.isEmpty else { continue }
+          appendedAnyHomeSection = true
+          assembled.append(MediaRow(id: spec.id,
+                                    title: spec.title,
+                                    cards: cards))
+        case .liveTV:
+          // Live TV renders as a dedicated 16:9 channel logo rail (`liveChannels`) on tvOS.
+          break
+        case .collections:
+          let collectionsCards = store.cards(.collections)
+          if !collectionsCards.isEmpty {
+            appendedAnyHomeSection = true
+            assembled.append(MediaRow(id: Self.collectionsRowID,
+                                      title: spec.title,
+                                      cards: collectionsCards,
+                                      destination: Route.collections))
+          }
+        }
+      }
+
+      // Fallback to classic shortcut rows if no filter-backed Home sections have populated
+      // (for example in offline/fixture environments that only seed `.shortcut` keys).
+      if !appendedAnyHomeSection {
+        for shortcut in activeShortcuts {
+          let cards = store.cards(.shortcut(shortcut.shortcut, shortcut.contentType))
+          guard !cards.isEmpty else { continue }
+          assembled.append(MediaRow(id: shortcut.id,
+                                    title: shortcut.title.localized,
+                                    cards: cards,
+                                    destination: Route.shortcutItems(shortcut.shortcut,
+                                                                     shortcut.contentType,
+                                                                     title: shortcut.title.localized)))
+        }
+        let collectionsCards = store.cards(.collections)
+        if !collectionsCards.isEmpty,
+           !assembled.contains(where: { $0.id == Self.collectionsRowID }) {
+          assembled.append(MediaRow(id: Self.collectionsRowID,
+                                    title: "Collections".localized,
+                                    cards: collectionsCards,
+                                    destination: Route.collections))
+        }
+      }
+    } else {
+      for shortcut in activeShortcuts {
+        let cards = store.cards(.shortcut(shortcut.shortcut, shortcut.contentType))
+        guard !cards.isEmpty else { continue }
+        assembled.append(MediaRow(id: shortcut.id,
+                                  title: shortcut.title.localized,
+                                  cards: cards,
+                                  destination: Route.shortcutItems(shortcut.shortcut,
+                                                                   shortcut.contentType,
+                                                                   title: shortcut.title.localized)))
       }
     }
     rows = assembled
@@ -471,16 +736,26 @@ class HomeCatalog: ObservableObject {
       return
     }
 
+    let continueWatchingTopIDs = Set(
+      rows.first(where: { $0.id == Self.continueWatchingRowID })?
+        .cards.prefix(4).map(\.itemID) ?? []
+    )
+
     var seen = Set<Int>()
     var pool: [MediaCard] = []
     for row in rows where row.id != Self.continueWatchingRowID && row.id != Self.collectionsRowID {
-      for card in row.cards where seen.insert(card.id).inserted {
+      for card in row.cards where !card.isWatched && seen.insert(card.id).inserted {
         pool.append(card)
       }
     }
 
     let preferred = pool.filter { $0.backdropURL != nil }
-    let source = preferred.isEmpty ? pool : preferred
+    let baseSource = preferred.isEmpty ? pool : preferred
+
+    // Soft-weight candidates: avoid duplicating the first 4 Continue Watching cards right
+    // below the banner when there are enough candidates, and boost bookmarked/followed items.
+    let deDuped = baseSource.filter { !continueWatchingTopIDs.contains($0.itemID) }
+    let source = deDuped.count >= 4 ? deDuped : baseSource
     let sourceIDs = Set(source.map(\.id))
 
     let kept = bannerCards.filter { sourceIDs.contains($0.id) }
@@ -494,7 +769,14 @@ class HomeCatalog: ObservableObject {
       return
     }
 
-    bannerCards = Array(source.shuffled().prefix(6))
+    let bookmarked = source.filter {
+      ($0.viewerState.isBookmarked == true) || ($0.viewerState.isFollowing == true)
+    }
+    let others = source.filter {
+      ($0.viewerState.isBookmarked != true) && ($0.viewerState.isFollowing != true)
+    }
+    let combined = (bookmarked.shuffled().prefix(2) + others.shuffled()).prefix(6)
+    bannerCards = Array(combined)
   }
 
   /// One details call and one metadata lookup per banner title — the same calls (and
@@ -918,7 +1200,7 @@ class HomeCatalog: ObservableObject {
       .text(for: .continueWatchingCard)
   }
 
-  // MARK: - Catalog shortcuts
+  // MARK: - Catalog shortcuts & Home sections
 
   private func fetchShortcutItems(_ shortcut: Shortcut) async throws -> [RowItem] {
     let data = try await itemsService.fetch(shortcut: shortcut.shortcut,
@@ -927,6 +1209,38 @@ class HomeCatalog: ObservableObject {
     // Page 1 is also where we learn how many there are — the only place the API says so.
     cursors[shortcut.id] = PageCursor(loaded: 1, total: max(data.pagination.total, 1))
     return data.items.map(Self.item(for:))
+  }
+
+  private func fetchHomeSectionItems(_ spec: HomeSectionSpec, excludeConcerts: Bool) async throws -> [RowItem] {
+    guard let filter = spec.resolvedFilter(excludeConcerts: excludeConcerts) else { return [] }
+    let data = try await itemsService.fetchItems(filter: filter, page: nil)
+    cursors[spec.id] = PageCursor(loaded: 1, total: max(data.pagination.total, 1))
+    return data.items.map(Self.item(for:))
+  }
+
+  private func fetchTopBookmarksCards() async throws -> [MediaCard] {
+    let folders = try await itemsService.fetchBookmarks().items
+    guard !folders.isEmpty else { return [] }
+    var seen = Set<Int>()
+    var items: [MediaItem] = []
+    for folder in folders.prefix(2) {
+      guard let page = try? await itemsService.fetchBookmarkItems(id: "\(folder.id)", page: 1) else {
+        continue
+      }
+      for item in page.items where seen.insert(item.id).inserted {
+        if item.playbackAction != .playAgain {
+          items.append(item)
+        }
+      }
+    }
+    return items.prefix(20).map { MediaCard($0) }
+  }
+
+  private func fetchLiveChannelsIfNeeded() async {
+    guard liveChannels.isEmpty else { return }
+    if let channels = try? await itemsService.fetchTVChannels(), !channels.isEmpty {
+      liveChannels = Array(channels.prefix(15))
+    }
   }
 
   private static func item(for item: MediaItem) -> RowItem {
