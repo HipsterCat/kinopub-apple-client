@@ -20,7 +20,17 @@ python3 snapshot.py                        # full sweep, all 7 types
 python3 snapshot.py --types movie,serial   # just these
 python3 snapshot.py --resume               # continue from last saved page per type
 python3 snapshot.py --token <access_token> # skip Keychain, use a token from a live app session
+python3 snapshot.py --dev-session --catch-up
+    # newest pages of each type, until the local count matches the live catalog
+python3 snapshot.py --dev-session --probe-missing --from-id 1 --to-id 128416
+    # one GET per id the table does not have; 404 stays empty
 ```
+
+`--dev-session` reads the access token from `~/.kinopub-dev-session.json` and
+does not refresh it. A refresh rotates the token and can sign the live app out
+of a device slot. `--probe-missing` resumes from `data/probe_progress.json`
+(`through` is the last id known to be either stored or a 404). Ids that come
+back 200 are inserted into the same `items` table.
 
 Output: `data/snapshot.db` (gitignored — personal data, not committed).
 
