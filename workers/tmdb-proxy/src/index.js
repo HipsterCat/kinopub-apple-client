@@ -49,7 +49,7 @@ export default {
 
     return json({
       error: "not_found",
-      hint: "/v1/title/by/kinopub/{id} · /img/{kind}/{size}/kinopub/{id} · /3/… · /t/p/… · /p/exports/…",
+      hint: "/v1/title/by/kinopub/{id} · /img/{kind}/by/kinopub/{id}?w= · /3/… · /t/p/… · /p/exports/…",
     }, 404);
   },
 };

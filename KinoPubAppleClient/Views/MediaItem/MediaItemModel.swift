@@ -123,7 +123,7 @@ class MediaItemModel: ObservableObject {
     let images = metadataService.images
     guard images.isConfigured else { return externalMetadata.titleLogoURL }
     guard heroImagesReady else { return nil }
-    return images.logo(kinopubID: mediaItem.id, imdb: mediaItem.imdb)
+    return images.logo(kinopubID: mediaItem.id, imdb: mediaItem.imdb, width: ArtworkPixelWidth.logo)
   }
 
   /// Same route and rule as ``heroLogoURL``, for the textless backdrop.
@@ -131,7 +131,8 @@ class MediaItemModel: ObservableObject {
     let images = metadataService.images
     guard images.isConfigured else { return externalMetadata.backdropURL }
     guard heroImagesReady else { return nil }
-    return images.backdrop(kinopubID: mediaItem.id, imdb: mediaItem.imdb)
+    return images.backdrop(kinopubID: mediaItem.id, imdb: mediaItem.imdb,
+                           width: ArtworkPixelWidth.backdrop)
   }
 
   /// The logo lookup is over: the route answers by itself (its 404 is the miss), or

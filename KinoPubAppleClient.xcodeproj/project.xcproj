@@ -61,6 +61,7 @@
             { "path": "MenuTypeSelectSuppression.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
             { "path": "StreamSurvey.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
             { "path": "BestVideoQualityFinder.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+            { "path": "ArtworkPixelWidth.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
             { "path": "View+PlatformNavigationTitle.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
             { "path": "Bundle+Data.swift", "encoding": "utf8", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
             { "path": "APIClientError+Description.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },

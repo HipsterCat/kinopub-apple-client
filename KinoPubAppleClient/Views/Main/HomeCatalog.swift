@@ -999,9 +999,11 @@ class HomeCatalog: ObservableObject {
       bannerLogos[card.id] = .missing
       return
     }
-    let backdrop = images.backdrop(kinopubID: card.itemID, imdb: card.imdbID)
+    let backdrop = images.backdrop(kinopubID: card.itemID, imdb: card.imdbID,
+                                  width: ArtworkPixelWidth.backdrop)
     bannerDetails[card.id] = card.withBackdropURL(backdrop?.absoluteString)
-    bannerLogos[card.id] = images.logo(kinopubID: card.itemID, imdb: card.imdbID).map { .url($0) } ?? .missing
+    bannerLogos[card.id] = images.logo(kinopubID: card.itemID, imdb: card.imdbID,
+                                         width: ArtworkPixelWidth.logo).map { .url($0) } ?? .missing
   }
 
   private func cancelBannerLookups() {

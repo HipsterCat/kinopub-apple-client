@@ -1,5 +1,5 @@
 /**
- * /v1/title/by/kinopub/{id}  and  /img/{kind}/{size}/kinopub/{id}
+ * /v1/title/by/kinopub/{id}  and  /img/{kind}/by/kinopub/{id}?w=&lang=&s=&e=
  *
  * The contract the client actually wanted: ask by kino.pub id, get everything,
  * never resolve anything yourself, never make a second call to find out whether
@@ -24,9 +24,6 @@
 import { tmdbGenres } from "./genres.js";
 
 const KINOPUB_POSTER = "https://m.staticpop.net/poster/item";
-// kino.pub's own sizes, addressable from the id. Poster and backdrop fall
-// back here; logo and unknown kinds 404 — never a different picture.
-const KINOPUB_SIZE = { sm: "small", md: "medium", lg: "big", orig: "big", wide: "wide" };
 
 const DOC_TTL = 60 * 60 * 24 * 30;
 
@@ -131,14 +128,26 @@ export async function handleTitle(url, env, ctx) {
   return json(draft, 200, { "X-Cache": "miss" });
 }
 
-const IMAGE_KINDS = new Set(["poster", "backdrop", "logo"]);
+const IMAGE_KINDS = new Set(["poster", "backdrop", "logo", "thumbnail"]);
 
-// TMDB's own size buckets are the resize service: one size word in the client's
-// URL picks the bucket, so a banner never pulls a 6000 px PNG to draw at 500.
-const TMDB_SIZE = {
-  logo: { sm: "w185", md: "w300", lg: "w500", orig: "original" },
-  backdrop: { sm: "w300", md: "w780", lg: "w1280", orig: "original" },
-  poster: { sm: "w185", md: "w342", lg: "w780", orig: "original" },
+// TMDB's own size buckets are the resize service. The client asks for the pixel
+// width it will draw (`?w=`) and gets the smallest bucket that covers it, or
+// `original` past the largest — so a 4K banner logo is not a 500 px PNG
+// stretched, and a 300 px card is not a 4000 px file. Bucket lists are TMDB's
+// (`/3/configuration`); `thumbnail` is an episode still.
+const TMDB_WIDTHS = {
+  logo: [45, 92, 154, 185, 300, 500],
+  backdrop: [300, 780, 1280],
+  poster: [92, 154, 185, 342, 500, 780],
+  thumbnail: [92, 185, 300],
+};
+
+// The size words the first version of this route took, as widths. Kept so a
+// build that still asks `/img/logo/lg/kinopub/{id}` keeps its pictures.
+const LEGACY_SIZE_WIDTH = {
+  logo: { sm: 185, md: 300, lg: 500 },
+  backdrop: { sm: 300, md: 780, lg: 1280 },
+  poster: { sm: 185, md: 342, lg: 780 },
 };
 
 // A cold title with an IMDb hint is resolved before answering, up to this long.
@@ -147,21 +156,57 @@ const TMDB_SIZE = {
 // later is the logo. Past the budget the resolve carries on behind the response.
 const COLD_RESOLVE_BUDGET_MS = 4000;
 
-export async function handleImage(url, env, ctx) {
-  // /img/{kind}/{size}/kinopub/{id}[?imdb=tt…&lang=en]
-  const [, , kind, size, namespace, rawId] = url.pathname.split("/");
-  const id = (rawId || "").replace(/\.\w+$/, "");
-  if (namespace !== "kinopub" || !id) {
-    return json({ error: "bad_request", hint: "/img/{kind}/{size}/kinopub/{id}" }, 400);
+/**
+ * `/img/{kind}/by/kinopub/{id}?w=&lang=&s=&e=&imdb=`, or the legacy
+ * `/img/{kind}/{sm|md|lg|orig}/kinopub/{id}`. `null` when the path is neither.
+ * `width` is `null` for "original". `S`/`E` are accepted upper-case as well.
+ */
+export function parseImageRequest(url) {
+  const segments = url.pathname.split("/").slice(2);      // after "", "img"
+  const param = (name) => url.searchParams.get(name) ?? url.searchParams.get(name.toUpperCase());
+  const lang = url.searchParams.get("lang") || "ru";
+  const integer = (value, minimum) => {
+    const number = Number.parseInt(value ?? "", 10);
+    return Number.isFinite(number) && number >= minimum ? number : null;
+  };
+  const bareID = (raw) => (raw || "").replace(/\.\w+$/, "");
+
+  if (segments.length === 4 && segments[1] === "by" && segments[2] === "kinopub" && bareID(segments[3])) {
+    return {
+      kind: segments[0], id: bareID(segments[3]), lang,
+      width: integer(param("w"), 1),
+      season: integer(param("s"), 0),
+      episode: integer(param("e"), 1),
+    };
   }
+  if (segments.length === 4 && segments[2] === "kinopub" && bareID(segments[3])) {
+    const [kind, size] = segments;
+    return {
+      kind, id: bareID(segments[3]), lang,
+      width: size === "orig" ? null : LEGACY_SIZE_WIDTH[kind]?.[size] ?? null,
+      season: null, episode: null,
+    };
+  }
+  return null;
+}
+
+const IMAGE_ROUTE_HINT = "/img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&lang=&s=&e=";
+
+export async function handleImage(url, env, ctx) {
+  const request = parseImageRequest(url);
+  if (!request) return json({ error: "bad_request", hint: IMAGE_ROUTE_HINT }, 400);
+  const { kind, id, width, lang, season, episode } = request;
+
   // Kind mismatch is a hole, never a different picture. A logo that 302s to a
   // poster is what the banner would paint instead of the lettered title.
   if (!IMAGE_KINDS.has(kind)) {
-    return json({ error: "not_found", hint: "kind must be poster, backdrop, or logo" }, 404);
+    return json({ error: "not_found", hint: "kind must be poster, backdrop, logo, or thumbnail" }, 404);
+  }
+  if (kind === "thumbnail" && (season == null || episode == null)) {
+    return json({ error: "bad_request", hint: "thumbnail needs s and e" }, 400);
   }
 
   const hints = readHints(url);
-  const lang = url.searchParams.get("lang") || "ru";
   let stored = await readDocument(env, id);
 
   // Same refresh rule as /v1/title: a document built without the IMDb id never
@@ -176,41 +221,79 @@ export async function handleImage(url, env, ctx) {
     }
   }
 
+  // Episode still: one TMDB season call, edge-cached by `tmdb()`. Nothing in
+  // kino.pub is addressable by (id, s, e), so no still is a 404.
+  if (kind === "thumbnail") {
+    const still = stored && await episodeStill(env, stored, season, episode);
+    if (still) return Response.redirect(sizedImage(url, still, kind, width), 302);
+    return notFound("no episode still", Boolean(stored?.ids?.tmdb));
+  }
+
+  // Season poster when `s` is given; the title's own poster when that season has none.
+  if (kind === "poster" && season != null) {
+    const seasonPoster = stored?.seasons?.find((entry) => entry.number === season)?.poster;
+    if (seasonPoster) return Response.redirect(sizedImage(url, seasonPoster, kind, width), 302);
+  }
+
   const chosen = stored && pickArtwork(stored, kind, lang);
-  if (chosen) return Response.redirect(sizedImage(url, chosen, kind, size), 302);
+  if (chosen) return Response.redirect(sizedImage(url, chosen, kind, width), 302);
 
   // Logo has no kino.pub equivalent — a poster-as-logo is a lie the banner would
   // paint instead of the lettered title — so kind=logo with nothing stored is
   // 404, never a poster. Poster/backdrop fall back to kino.pub's own artwork
   // (always addressable from the id).
-  if (kind === "logo") {
-    // A document that went through TMDB and has no logo is a real miss; anything
-    // else may still fill in, so do not pin it for long.
-    const settled = Boolean(stored?.ids?.tmdb);
-    return new Response(JSON.stringify({ error: "not_found", hint: "no stored logo" }), {
-      status: 404,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": `public, max-age=${settled ? 60 * 60 * 24 : 30}`,
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
-  }
+  if (kind === "logo") return notFound("no stored logo", Boolean(stored?.ids?.tmdb));
 
-  // A backdrop is always kino.pub's wide still: `big` there is the vertical poster,
-  // which a full-screen banner would stretch.
-  const fallbackSize = kind === "backdrop" ? "wide" : KINOPUB_SIZE[size] || "medium";
-  return Response.redirect(`${KINOPUB_POSTER}/${fallbackSize}/${id}.jpg`, 302);
+  return Response.redirect(`${KINOPUB_POSTER}/${kinopubSize(kind, width)}/${id}.jpg`, 302);
 }
 
-/** The stored TMDB `original` URL at the bucket the client asked for, served
+/** kino.pub's own size for a width. A backdrop is always the wide still: `big`
+ * there is the vertical poster, which a full-screen banner would stretch. */
+function kinopubSize(kind, width) {
+  if (kind === "backdrop") return "wide";
+  if (width == null) return "big";
+  return width <= 200 ? "small" : width <= 400 ? "medium" : "big";
+}
+
+/** A miss that went through TMDB is real and kept a day; anything else may
+ * still fill in, so it is not pinned for long. */
+function notFound(hint, settled) {
+  return new Response(JSON.stringify({ error: "not_found", hint }), {
+    status: 404,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": `public, max-age=${settled ? 60 * 60 * 24 : 30}`,
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+async function episodeStill(env, document, season, episode) {
+  const tmdbID = document.ids?.tmdb?.value;
+  if (!tmdbID?.startsWith("tv/") || !env.TMDB_READ_TOKEN) return null;
+  try {
+    const details = await tmdb(env, `/3/${tmdbID}/season/${season}`, { language: "ru-RU" });
+    const path = details?.episodes?.find((entry) => entry.episode_number === episode)?.still_path;
+    return path ? IMAGE_BASE + path : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** The smallest TMDB bucket that covers `width`, or `original`. */
+export function tmdbBucket(kind, width) {
+  if (width == null) return "original";
+  const bucket = (TMDB_WIDTHS[kind] || []).find((candidate) => candidate >= width);
+  return bucket ? `w${bucket}` : "original";
+}
+
+/** The stored TMDB `original` URL at the bucket covering the asked width, served
  * through this worker's `/t/p/` passthrough (image.tmdb.org is blocked on some
  * networks — the reason that route exists). Other hosts pass through as stored. */
-function sizedImage(requestURL, stored, kind, size) {
+function sizedImage(requestURL, stored, kind, width) {
   const prefix = `${IMAGE_BASE}/`;
   if (!stored.startsWith(prefix)) return stored;
-  const bucket = TMDB_SIZE[kind]?.[size] || "original";
-  return `${requestURL.origin}/t/p/${bucket}/${stored.slice(prefix.length)}`;
+  return `${requestURL.origin}/t/p/${tmdbBucket(kind, width)}/${stored.slice(prefix.length)}`;
 }
 
 /** The promise's value, or null once `ms` have passed. Never throws. */

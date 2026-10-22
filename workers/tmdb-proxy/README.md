@@ -66,13 +66,21 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 
 **Two layers, kept apart:**
 
-1. **Instant, by kino.pub id, no details needed** — `/img/{kind}/{size}/kinopub/{id}`
-   (poster, backdrop, logo). Answers with a redirect to whatever is warm **of that kind**.
-   Poster and backdrop fall back to kino.pub's own artwork. **A missing or unknown kind
-   is 404**, never a different picture (a logo that 302s to a poster is what the banner
-   would paint instead of the lettered title). Resolves the title behind the response.
-   Language, freshness TTLs, and tvoe as the preferred ru source:
-   [docs/research/worker.md](../../docs/research/worker.md) (not implemented yet).
+1. **Instant, by kino.pub id, no details needed** —
+   `/img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&lang=&s=&e=&imdb=`.
+   Answers with a redirect to whatever is warm **of that kind**.
+   - `w` is the pixel width the client draws at; the redirect is TMDB's smallest bucket
+     that covers it (`TMDB_WIDTHS` in `src/title.js`), `original` past the largest or
+     without `w`. The client decides the size, not the worker.
+   - `poster` + `s` is that season's poster (the title's poster if the season has none);
+     `thumbnail` + `s` + `e` is the episode still (`/3/tv/{id}/season/{s}`, edge-cached),
+     404 without one. `S`/`E` upper-case work too.
+   - `lang=en` picks English art (Russian, then English, by default).
+   - Poster and backdrop fall back to kino.pub's own artwork (size from `w`; a backdrop is
+     always the wide still). **A missing or unknown kind is 404**, never a different picture
+     (a logo that 302s to a poster is what the banner would paint instead of the lettered
+     title). Resolves the title behind the response; a cold title with `imdb` waits up to 4 s.
+   - The first version's `/img/{kind}/{sm|md|lg|orig}/kinopub/{id}` still answers.
 2. **Details, when they are opened** — `/v1/title/by/kinopub/{id}`: what the detail page
    shows first. Heavy, rarely-seen parts (reviews, facts, full cast, awards) are not worth
    fetching until the viewer scrolls to them or opens them — they belong in a separate,
@@ -95,7 +103,7 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 - **The Home banner fetches everything for a logo.** `HomeCatalog.resolveBannerDetails`
   runs, per banner card, kino.pub details **and** `MetadataService.metadata(for:)` — TMDB
   find + details with every append, plus every Kinopoisk endpoint configured — and keeps
-  only `titleLogoURL`. `/img/logo/{size}/kinopub/{id}` is one request.
+  only `titleLogoURL`. `/img/logo/by/kinopub/{id}?w=` is one request.
 - **The detail page asks for reviews and facts on open**, though they sit at the bottom.
 - **6 hours is short for the forwarder.** Titles, artwork and credits change rarely; the
   KV document already lives 30 days. Proposed freshness buckets (1 h / 6 h / 7 d / 30 d)
