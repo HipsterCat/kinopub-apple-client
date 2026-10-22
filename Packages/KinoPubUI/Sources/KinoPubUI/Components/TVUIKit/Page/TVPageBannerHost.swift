@@ -364,6 +364,8 @@ public enum BannerLabPreset: String, CaseIterable, Identifiable, Sendable {
 
 public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
   case defaultBottom
+  case legibilityAnalytic
+  case edgesBottom
   case edgesBlack
   case edgesDominant
   case washBlack
@@ -376,7 +378,9 @@ public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
 
   public var label: String {
     switch self {
-    case .defaultBottom: return "Default (Низ 60% / 0.50)"
+    case .defaultBottom: return "Default: HeroBannerOverlay (2D Texture)"
+    case .legibilityAnalytic: return "HeroLegibilityScrim (Analytic 2D)"
+    case .edgesBottom: return "Edges Bottom (Низ 60% / 0.50)"
     case .edgesBlack: return "Edges (Черный верх 28% / низ 40%)"
     case .edgesDominant: return "Edges (#C80202)"
     case .washBlack: return "Wash (Black 45%)"
@@ -390,7 +394,11 @@ public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
   public var explanation: String {
     switch self {
     case .defaultBottom:
-      return "Дефолтный градиент снизу (60% высоты, плотность 0.50 внизу, расширяется при фокусе и контрасте)."
+      return "Дефолтный 2D-скрим (HeroBannerOverlay): 6% общий wash + боковое затемнение слева (0...42%, старт с 34% высоты) + 8-ступенчатый плавный спад снизу (58%...100%, пик 0.55)."
+    case .legibilityAnalytic:
+      return "Аналитический расчёт HeroLegibilityScrim в реальном времени (те же кривые wash 6% + leading 42% + bottom 58% без текстуры)."
+    case .edgesBottom:
+      return "Вертикальный градиент только снизу (60% высоты, плотность 0.50)."
     case .edgesBlack:
       return "Градиентные полосы черного цвета по верхнему и нижнему краям."
     case .edgesDominant:
@@ -412,6 +420,10 @@ public enum BannerLabScrim: String, CaseIterable, Identifiable, Sendable {
     let dominant = TVPageBannerSamples.dominantColor
     switch self {
     case .defaultBottom:
+      return .legibility(usesCachedTexture: true)
+    case .legibilityAnalytic:
+      return .legibility(usesCachedTexture: false)
+    case .edgesBottom:
       return .edges(color: .black, topReach: 0.0, topAlpha: 0.0, bottomReach: 0.60, bottomAlpha: 0.50)
     case .edgesBlack:
       return .edges(color: .black, topReach: 0.18, topAlpha: 0.28, bottomReach: 0.34, bottomAlpha: 0.40)

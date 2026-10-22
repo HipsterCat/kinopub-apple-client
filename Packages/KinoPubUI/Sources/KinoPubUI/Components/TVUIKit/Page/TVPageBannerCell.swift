@@ -26,7 +26,10 @@ import UIKit
 final class TVPageBannerCell: UICollectionViewCell {
   private let cardView = TVCardView()
   private let backdrop = UIImageView()
+  private let legibilityTexture = UIImageView()
   private let wash = UIView()
+  private let sideScrim = GradientView()
+  private let sideScrimMask = CAGradientLayer()
   private let topScrim = GradientView()
   private let bottomScrim = GradientView()
   private let poster = UIImageView()
@@ -87,11 +90,17 @@ final class TVPageBannerCell: UICollectionViewCell {
     backdrop.clipsToBounds = true
     host.addSubview(backdrop)
 
+    legibilityTexture.translatesAutoresizingMaskIntoConstraints = false
+    legibilityTexture.contentMode = .scaleToFill
+    legibilityTexture.isUserInteractionEnabled = false
+    legibilityTexture.isHidden = true
+    host.addSubview(legibilityTexture)
+
     wash.translatesAutoresizingMaskIntoConstraints = false
     wash.isUserInteractionEnabled = false
     host.addSubview(wash)
 
-    for scrim in [topScrim, bottomScrim] {
+    for scrim in [sideScrim, topScrim, bottomScrim] {
       scrim.translatesAutoresizingMaskIntoConstraints = false
       scrim.isUserInteractionEnabled = false
       host.addSubview(scrim)
@@ -160,10 +169,20 @@ final class TVPageBannerCell: UICollectionViewCell {
       backdrop.trailingAnchor.constraint(equalTo: host.trailingAnchor),
       backdrop.bottomAnchor.constraint(equalTo: host.bottomAnchor),
 
+      legibilityTexture.topAnchor.constraint(equalTo: host.topAnchor),
+      legibilityTexture.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+      legibilityTexture.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+      legibilityTexture.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+
       wash.topAnchor.constraint(equalTo: host.topAnchor),
       wash.leadingAnchor.constraint(equalTo: host.leadingAnchor),
       wash.trailingAnchor.constraint(equalTo: host.trailingAnchor),
       wash.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+
+      sideScrim.topAnchor.constraint(equalTo: host.topAnchor),
+      sideScrim.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+      sideScrim.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+      sideScrim.bottomAnchor.constraint(equalTo: host.bottomAnchor),
 
       topScrim.topAnchor.constraint(equalTo: host.topAnchor),
       topScrim.leadingAnchor.constraint(equalTo: host.leadingAnchor),
@@ -257,6 +276,13 @@ final class TVPageBannerCell: UICollectionViewCell {
     let isHighContrast = traitCollection.accessibilityContrast == .high || UIAccessibility.isReduceTransparencyEnabled
 
     switch chrome.scrim {
+    case .legibility:
+      topScrimHeight.constant = 0
+      bottomScrimHeight.constant = host.height
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      sideScrimMask.frame = CGRect(origin: .zero, size: host)
+      CATransaction.commit()
     case .edges(_, let topReach, _, let bottomReach, _):
       let effectiveReach: CGFloat
       if isHighContrast {
@@ -746,10 +772,13 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   private func applyScrim() {
     let filter = chrome.blend.filterName
-    for view in [wash, topScrim, bottomScrim] {
+    for view in [legibilityTexture, wash, sideScrim, topScrim, bottomScrim] {
       view.layer.compositingFilter = filter
     }
+    legibilityTexture.isHidden = true
     wash.isHidden = true
+    sideScrim.isHidden = true
+    sideScrim.layer.mask = nil
     topScrim.isHidden = true
     bottomScrim.isHidden = true
     topScrim.gradientType = .axial
@@ -763,6 +792,69 @@ final class TVPageBannerCell: UICollectionViewCell {
     let isHighContrast = traitCollection.accessibilityContrast == .high || UIAccessibility.isReduceTransparencyEnabled
 
     switch chrome.scrim {
+    case .legibility(let color, let edgePeak, let washAlpha, let sideDarkeningStart, let bottomFadeTop, let usesCachedTexture):
+      let isStandardGeometry =
+        abs(edgePeak - 0.55) < 0.001 &&
+        abs(washAlpha - 0.06) < 0.001 &&
+        abs(sideDarkeningStart - 0.34) < 0.001 &&
+        abs(bottomFadeTop - 0.58) < 0.001
+
+      if usesCachedTexture,
+         isStandardGeometry,
+         traitCollection.layoutDirection != .rightToLeft,
+         let templateImage = HeroLegibilityTexture.templateUIImage() {
+        legibilityTexture.isHidden = false
+        legibilityTexture.image = templateImage
+        legibilityTexture.tintColor = color
+      } else {
+        wash.isHidden = washAlpha <= 0
+        wash.backgroundColor = color.withAlphaComponent(washAlpha)
+
+        if edgePeak > 0 {
+          let isRTL = traitCollection.layoutDirection == .rightToLeft
+          sideScrim.isHidden = false
+          sideScrim.gradientType = .axial
+          sideScrim.startPoint = CGPoint(x: isRTL ? 1 : 0, y: 0.5)
+          sideScrim.endPoint = CGPoint(x: isRTL ? 0 : 1, y: 0.5)
+          let sideStops = HeroLegibilityScrim.calculatedEdgeStops(
+            edgePeak: Double(edgePeak),
+            startsDark: true,
+            endsDark: false,
+            bottomFadeTop: Double(bottomFadeTop)
+          )
+          sideScrim.locations = sideStops.map { NSNumber(value: $0.location) }
+          sideScrim.colors = sideStops.map { color.withAlphaComponent(CGFloat($0.opacity)) }
+
+          if sideDarkeningStart > 0 {
+            let maskStops = HeroLegibilityScrim.sideMaskStops(sideDarkeningStart: Double(sideDarkeningStart))
+            sideScrimMask.type = .axial
+            sideScrimMask.startPoint = CGPoint(x: 0.5, y: 0)
+            sideScrimMask.endPoint = CGPoint(x: 0.5, y: 1)
+            sideScrimMask.locations = maskStops.map { NSNumber(value: $0.location) }
+            sideScrimMask.colors = maskStops.map { UIColor.black.withAlphaComponent(CGFloat($0.opacity)).cgColor }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            sideScrimMask.frame = cardView.contentView.bounds
+            CATransaction.commit()
+            sideScrim.layer.mask = sideScrimMask
+          }
+
+          bottomScrim.isHidden = false
+          let bottomStops = HeroLegibilityScrim.calculatedEdgeStops(
+            edgePeak: Double(edgePeak),
+            startsDark: false,
+            endsDark: true,
+            bottomFadeTop: Double(bottomFadeTop)
+          )
+          bottomScrim.locations = bottomStops.map { NSNumber(value: $0.location) }
+          bottomScrim.colors = bottomStops.map { color.withAlphaComponent(CGFloat($0.opacity)) }
+          let hostHeight = cardView.contentView.bounds.height
+          if hostHeight > 0 {
+            topScrimHeight.constant = 0
+            bottomScrimHeight.constant = hostHeight
+          }
+        }
+      }
     case .edges(let color, let topReach, let topAlpha, let bottomReach, let bottomAlpha):
       topScrim.isHidden = topAlpha <= 0
       var effectiveBottomAlpha = bottomAlpha

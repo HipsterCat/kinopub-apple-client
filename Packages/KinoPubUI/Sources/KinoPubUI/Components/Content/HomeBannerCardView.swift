@@ -41,15 +41,7 @@ public struct HomeBannerCardView: View {
         ProgressiveBlur(startPoint: 0.55, maxRadius: 24)
 #endif
 
-      LinearGradient(
-        stops: [
-          .init(color: .clear, location: 0),
-          .init(color: .black.opacity(0.15), location: 0.8),
-          .init(color: .black.opacity(0.3), location: 1)
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-      )
+      HeroLegibilityTexture(tone: .black)
 
       HStack(alignment: .bottom, spacing: Self.infoSpacing) {
 

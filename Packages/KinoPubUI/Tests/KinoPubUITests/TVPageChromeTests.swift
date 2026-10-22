@@ -58,5 +58,20 @@ final class TVPageChromeTests: XCTestCase {
     XCTAssertGreaterThan(green, 0.9, "Green channel must remain bright")
     XCTAssertGreaterThan(blue, 0.9, "Blue channel must remain bright")
   }
+
+  func testHeroBannerOverlayTextureLoadsAndMatchesLegibilityStops() {
+    let image = HeroLegibilityTexture.templateUIImage()
+    XCTAssertNotNil(image, "HeroBannerOverlay asset must load from Bundle.module")
+
+    let bottomStops = HeroLegibilityScrim.calculatedEdgeStops(
+      edgePeak: 0.55,
+      startsDark: false,
+      endsDark: true,
+      bottomFadeTop: 0.58
+    )
+    XCTAssertEqual(bottomStops.count, 9)
+    XCTAssertEqual(bottomStops.first?.opacity ?? -1, 0, accuracy: 0.0001)
+    XCTAssertEqual(bottomStops.last?.opacity ?? -1, 0.55, accuracy: 0.0001)
+  }
 }
 #endif

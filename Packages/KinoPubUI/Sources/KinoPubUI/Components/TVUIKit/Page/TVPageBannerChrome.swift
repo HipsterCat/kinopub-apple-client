@@ -79,6 +79,19 @@ public enum TVPageBannerVerticalAlignment: String, CaseIterable, Hashable, Senda
 
 /// What darkens the backdrop behind the words.
 public enum TVPageBannerScrim: Sendable {
+  /// Seamless 2D legibility vignette (`HeroBannerOverlay` / `HeroLegibilityScrim`):
+  /// a subtle 6% wash across the whole image, leading-edge darkening ramped vertically
+  /// from `sideDarkeningStart` (`0.34`), and an eased 8-stop bottom fade (`bottomFadeTop: 0.58`,
+  /// `edgePeak: 0.55`). Uses the pre-rendered `HeroBannerOverlay` alpha asset when
+  /// `usesCachedTexture` is true, or the analytic multi-layer gradient otherwise.
+  case legibility(
+    color: UIColor = .black,
+    edgePeak: CGFloat = 0.55,
+    wash: CGFloat = 0.06,
+    sideDarkeningStart: CGFloat = 0.34,
+    bottomFadeTop: CGFloat = 0.58,
+    usesCachedTexture: Bool = true
+  )
   /// Bands at the top and bottom. Reach is a fraction of the card's height; alpha
   /// is the dark end (the other end is clear). `color` is the band — black, or a
   /// swatch you pass in / sample from the art.
@@ -137,14 +150,8 @@ public struct TVPageBannerChrome: Sendable {
   public var alignment: TVPageBannerContentAlignment = .leading
   public var verticalAlignment: TVPageBannerVerticalAlignment = .bottom
   public var showsPoster: Bool = false
-  /// Smooth vertical gradient of transparency under the bottom copy, leaving the top art bright.
-  public var scrim: TVPageBannerScrim = .edges(
-    color: .black,
-    topReach: 0.0,
-    topAlpha: 0.0,
-    bottomReach: 0.60,
-    bottomAlpha: 0.50
-  )
+  /// Seamless 2D legibility vignette (`HeroBannerOverlay` / `HeroLegibilityScrim`).
+  public var scrim: TVPageBannerScrim = .legibility()
   public var blend: TVPageBannerBlend = .normal
   /// Description, rating digits and genres. One style, the font's own weight.
   public var textStyle: UIFont.TextStyle = .caption2
@@ -188,13 +195,7 @@ public struct TVPageBannerChrome: Sendable {
     alignment: TVPageBannerContentAlignment = .leading,
     verticalAlignment: TVPageBannerVerticalAlignment = .bottom,
     showsPoster: Bool = false,
-    scrim: TVPageBannerScrim = .edges(
-      color: .black,
-      topReach: 0.0,
-      topAlpha: 0.0,
-      bottomReach: 0.60,
-      bottomAlpha: 0.50
-    ),
+    scrim: TVPageBannerScrim = .legibility(),
     blend: TVPageBannerBlend = .normal,
     textStyle: UIFont.TextStyle = .caption2,
     textColor: UIColor = .secondaryLabel,
