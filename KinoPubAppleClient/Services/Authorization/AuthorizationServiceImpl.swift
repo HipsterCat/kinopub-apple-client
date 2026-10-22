@@ -37,25 +37,31 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
     // a stale `refresh_token` that kino.pub has already retired.
     let preflight = accessTokenService.reloadFromKeychain()
     guard let token = preflight.token else {
+      recordDevSession("refresh skipped: no token in keychain")
       return
     }
     if preflight.didChangeExternally {
+      recordDevSession("refresh skipped: adopted a token synced into keychain", token)
       return
     }
 
     let request = RefreshTokenRequest(clientID: configuration.clientID,
                                       clientSecret: configuration.clientSecret,
                                       refreshToken: token.refreshToken)
+    recordDevSession("refresh start", token)
     do {
       let newToken = try await apiClient.performRequest(with: request, decodingType: AccessToken.self)
+      recordDevSession("refresh ok, new", newToken)
       accessTokenService.set(token: newToken)
     } catch {
+      recordDevSession("refresh failed: \(error)", token)
       // If another device rotated the refresh token while our request was in flight (or
       // iCloud Keychain finished syncing right after we started), adopt the newer
       // Keychain token instead of treating the 400 as a dead session.
       let postFailure = accessTokenService.reloadFromKeychain()
       if let synced = postFailure.token,
          (synced.refreshToken != token.refreshToken || synced.accessToken != token.accessToken) {
+        recordDevSession("refresh failure absorbed: keychain has a newer token", synced)
         return
       }
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
@@ -65,12 +71,21 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
       // session is perfectly alive under the *new* token. Adopt whatever the shared file
       // holds now before treating this as a dead session.
       if let shared = DevSessionMirror.load(), shared.refreshToken != token.refreshToken {
+        DevSessionMirror.record("refresh failure absorbed: adopting the shared file", shared)
         accessTokenService.set(token: shared)
         return
       }
 #endif
+      recordDevSession("refresh failed for good: session is over", token)
       throw error
     }
+  }
+
+  /// Debug builds only: a line in the shared dev-session log (`DevSessionMirror.record`).
+  private func recordDevSession(_ event: String, _ token: AccessToken? = nil) {
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+    DevSessionMirror.record(event, token)
+#endif
   }
 
   func logout() {
