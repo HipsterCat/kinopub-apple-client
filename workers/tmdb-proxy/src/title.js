@@ -130,17 +130,14 @@ export async function handleTitle(url, env, ctx) {
 
 const IMAGE_KINDS = new Set(["poster", "backdrop", "logo", "thumbnail"]);
 
-// TMDB's own size buckets are the resize service. The client asks for the pixel
-// width it will draw (`?w=`) and gets the smallest bucket that covers it, or
-// `original` past the largest — so a 4K banner logo is not a 500 px PNG
-// stretched, and a 300 px card is not a 4000 px file. Bucket lists are TMDB's
-// (`/3/configuration`); `thumbnail` is an episode still.
-const TMDB_WIDTHS = {
-  logo: [45, 92, 154, 185, 300, 500],
-  backdrop: [300, 780, 1280],
-  poster: [92, 154, 185, 342, 500, 780],
-  thumbnail: [92, 185, 300],
-};
+// TMDB's own widths are the resize service. The client asks for the pixel
+// width it will draw (`?w=`) and gets the smallest width that covers it, or
+// `original` past the largest — so a 4K banner logo is neither a 500 px PNG
+// stretched nor a 9000 px original, and a 300 px card is not a 4000 px file.
+// TMDB's `/3/configuration` lists fewer sizes per kind, but its image server
+// answers every one of these for every kind (checked live 2026-10-22: logo,
+// backdrop, poster and still all 200 from w45 to w1920; w2000 and up are 400).
+const TMDB_WIDTHS = [45, 92, 154, 185, 300, 342, 500, 780, 1280, 1920];
 
 // The size words the first version of this route took, as widths. Kept so a
 // build that still asks `/img/logo/lg/kinopub/{id}` keeps its pictures.
@@ -281,9 +278,9 @@ async function episodeStill(env, document, season, episode) {
 }
 
 /** The smallest TMDB bucket that covers `width`, or `original`. */
-export function tmdbBucket(kind, width) {
+export function tmdbBucket(width) {
   if (width == null) return "original";
-  const bucket = (TMDB_WIDTHS[kind] || []).find((candidate) => candidate >= width);
+  const bucket = TMDB_WIDTHS.find((candidate) => candidate >= width);
   return bucket ? `w${bucket}` : "original";
 }
 
@@ -293,7 +290,7 @@ export function tmdbBucket(kind, width) {
 function sizedImage(requestURL, stored, kind, width) {
   const prefix = `${IMAGE_BASE}/`;
   if (!stored.startsWith(prefix)) return stored;
-  return `${requestURL.origin}/t/p/${tmdbBucket(kind, width)}/${stored.slice(prefix.length)}`;
+  return `${requestURL.origin}/t/p/${tmdbBucket(width)}/${stored.slice(prefix.length)}`;
 }
 
 /** The promise's value, or null once `ms` have passed. Never throws. */

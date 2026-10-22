@@ -217,15 +217,15 @@ function byURL(kind, { id = "82852", search = "" } = {}) {
 
 const TMDB = "https://image.tmdb.org/t/p/original";
 
-test("w picks the smallest TMDB bucket that covers it, original past the largest or without w", () => {
-  assert.equal(tmdbBucket("logo", 500), "w500");
-  assert.equal(tmdbBucket("logo", 501), "original");
-  assert.equal(tmdbBucket("logo", 200), "w300");
-  assert.equal(tmdbBucket("backdrop", 1920), "original");
-  assert.equal(tmdbBucket("backdrop", 700), "w780");
-  assert.equal(tmdbBucket("poster", 342), "w342");
-  assert.equal(tmdbBucket("thumbnail", 250), "w300");
-  assert.equal(tmdbBucket("logo", null), "original");
+test("w picks the smallest TMDB width that covers it, original past w1920 or without w", () => {
+  assert.equal(tmdbBucket(500), "w500");
+  assert.equal(tmdbBucket(501), "w780");
+  assert.equal(tmdbBucket(960), "w1280");
+  assert.equal(tmdbBucket(1920), "w1920");
+  assert.equal(tmdbBucket(1921), "original");
+  assert.equal(tmdbBucket(3840), "original");
+  assert.equal(tmdbBucket(250), "w300");
+  assert.equal(tmdbBucket(null), "original");
 });
 
 test("parse accepts the by-route with upper-case S/E and the legacy size words", () => {
@@ -237,13 +237,13 @@ test("parse accepts the by-route with upper-case S/E and the legacy size words",
   assert.equal(parseImageRequest(new URL("https://example.test/img/logo")), null);
 });
 
-test("logo by kino.pub id at w=1920 is TMDB original, at w=300 the w300 bucket", async () => {
+test("logo by kino.pub id at w=1920 is TMDB w1920, at w=300 the w300 bucket", async () => {
   const env = kvEnv({
     "title:kinopub:82852": { ids: { tmdb: { value: "tv/1" } },
       artwork: { logo: [{ source: "tmdb", url: `${TMDB}/logo.png`, lang: "ru" }] } },
   });
   const large = await handleImage(byURL("logo", { search: "?w=1920" }), env, ctxSpy());
-  assert.equal(large.headers.get("location"), "https://example.test/t/p/original/logo.png");
+  assert.equal(large.headers.get("location"), "https://example.test/t/p/w1920/logo.png");
   const small = await handleImage(byURL("logo", { search: "?w=300" }), env, ctxSpy());
   assert.equal(small.headers.get("location"), "https://example.test/t/p/w300/logo.png");
 });
