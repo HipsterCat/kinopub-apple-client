@@ -21,6 +21,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import genres as genre_table  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 RECORD = DATA / "record-v2.db"
@@ -177,6 +181,43 @@ def country_text(raw: object) -> str | None:
             joined = ", ".join(str(name) for name in names if name)
             return joined or None
     return text
+
+
+def genre_ids(per_source: dict[str, list[str]], type_name: str | None, rank: tuple[str, ...]) -> str | None:
+    """Our genre ids, primary first. Labels stay in genres.json.
+
+    Mirrors KinoPubMediaMapping: a documovie leads with documentary, a concert
+    keeps concert after its music, anime leads animation. The snapshot never
+    stored kino.pub's genre numbers, so the list is whichever later source we
+    have, in that source's order.
+    """
+    chosen: list[str] = []
+    for source in rank:
+        if per_source.get(source):
+            chosen = list(per_source[source])
+            break
+    kind = (type_name or "").lower()
+    implied = None
+    leads = False
+    if kind in ("documovie", "docuserial"):
+        implied, leads = "documentary", True
+    elif kind == "concert":
+        implied, leads = "concert", False
+    elif kind == "tvshow":
+        implied, leads = "tv-show", False
+    if implied:
+        chosen = [genre for genre in chosen if genre != implied]
+        if leads:
+            chosen.insert(0, implied)
+        else:
+            chosen.append(implied)
+    for lead in ("anime", "animation"):
+        if lead in chosen:
+            chosen = [lead] + [genre for genre in chosen if genre != lead]
+            break
+    if not chosen:
+        return None
+    return ", ".join(chosen)
 
 
 def age_number(raw: object) -> int | None:
@@ -364,13 +405,17 @@ def main() -> None:
             tvoe_review_count[row[0]] = row[1]
         tvoe.close()
 
-    genres_kp: dict[int, list[str]] = {}
-    genres_tvoe: dict[int, list[str]] = {}
+    # One source's list, in that source's order, as our ids. Kinopoisk before
+    # tvoe: tvoe writes "Мультфильмы", Kinopoisk writes "мультфильм", and the
+    # card is not a splice of the two. kino.pub's own genre ids were not kept
+    # on the snapshot, so they cannot lead this list yet.
+    genre_rank = ("kinopub", "tmdb", "kinopoisk", "tvoe")
+    genres_by_source: dict[int, dict[str, list[str]]] = {}
     for row in record.execute(
         """
         SELECT title_id, source, name
           FROM genre
-         WHERE source IN ('kinopoisk', 'tvoe')
+         WHERE source IN ('kinopub', 'tmdb', 'kinopoisk', 'tvoe')
            AND name IS NOT NULL AND name != ''
          ORDER BY rowid
         """
@@ -378,10 +423,13 @@ def main() -> None:
         kinopub_id = kinopub_of.get(row["title_id"])
         if kinopub_id is None:
             continue
-        bucket = genres_kp if row["source"] == "kinopoisk" else genres_tvoe
-        names = bucket.setdefault(kinopub_id, [])
-        if row["name"] not in names:
-            names.append(row["name"])
+        mapped = genre_table.from_name(row["name"], row["source"])
+        if not mapped["mapped"]:
+            continue
+        per_source = genres_by_source.setdefault(kinopub_id, {})
+        names = per_source.setdefault(row["source"], [])
+        if mapped["id"] not in names:
+            names.append(mapped["id"])
 
     ratings: dict[int, dict[str, object]] = {}
 
@@ -448,7 +496,7 @@ def main() -> None:
             line = tvoe_short.get(tvoe_id)
             if line:
                 short_from_tvoe += 1
-        genre_names = genres_kp.get(kinopub_id) or genres_tvoe.get(kinopub_id)
+        genre_names = genre_ids(genres_by_source.get(kinopub_id, {}), item["type"], genre_rank)
         age_ru = kp_age.get(kinopoisk_id) if kinopoisk_id else None
         if age_ru is None and tvoe_id:
             age_ru = tvoe_age.get(tvoe_id)
@@ -461,7 +509,7 @@ def main() -> None:
             "release_date": tvoe_released.get(tvoe_id) if tvoe_id else None,
             "runtime_min": runtime.get(kinopoisk_id) if kinopoisk_id else None,
             "countries": country_text(item["countries"]),
-            "genres": ", ".join(genre_names) if genre_names else None,
+            "genres": genre_names,
             "short_ru": line,
             "slogan": slogan.get(kinopoisk_id) if kinopoisk_id else None,
             "imdb_id": imdb_text(found.get("imdb") or item["imdb_id"]),
