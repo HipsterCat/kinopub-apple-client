@@ -67,18 +67,32 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 **Two layers, kept apart:**
 
 1. **Instant, by kino.pub id, no details needed** —
-   `GET /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&lang=&s=&e=`
-   Answers **302** to one file of that kind, or **404**. `w` is a pixel width
-   (snap up to the CDN's own bucket; omit it for the largest file we will send,
-   3840). `lang` defaults to `ru`; send `en` only when the app is not Russian.
-   Backdrop ignores `lang` and is textless — a lettered kino.pub wide is a 404,
-   not a fallback. `s` on `poster` is that season's poster. `s` and `e` on
-   `thumbnail` is that episode's still. Logo 404s when nothing is stored (never
-   a poster). tvoe files go through `tvoe.live/_next/image` (their widths only,
-   their CDN only). TMDB files use TMDB's size ladder. A cold id still resolves
-   in the background; the image call does not have to repeat imdb/kinopoisk hints.
-   The older `/img/{kind}/{size}/kinopub/{id}` path still answers.
-2. **Details, when they are opened** — `/v1/title/by/kinopub/{id}`: what the detail page
+   `GET /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=`
+   with `Accept-Language` (`ru` by default, `en` when the app is not Russian).
+   Language is not a query parameter. Answers **302** to one file of that kind,
+   or **404**. `w` is a pixel width (snap up to that CDN's own bucket; omit it
+   for the largest file we will send, 3840).
+   **Backdrop ignores `Accept-Language`.** It is a textless wide frame, or 404.
+   A titled banner, a portrait, and any kino.pub CDN url are not a backdrop.
+   `s` on `poster` is that season's poster. `s` and `e` on `thumbnail` is that
+   episode's still. A Russian poster uses tvoe, or the Kinopoisk image when we
+   have that id, or a TMDB `ru` file when we don't — never a kino.pub url, and
+   never an English poster in its place. A logo falls through to the other
+   language (an English logo is sent when Russian was asked and only English
+   exists). We store links, not files. tvoe files go through
+   `tvoe.live/_next/image` (their widths only, their CDN only). TMDB files use
+   that kind's ladder from TMDB's image configuration (`backdrop_sizes`,
+   `logo_sizes`, `poster_sizes`, `still_sizes`); `original` is used only when
+   the file is known to be within 3840, except logos, posters and stills whose
+   originals are not the multi-thousand-pixel backdrops.
+2. **A few seasons, not the whole show** —
+   `GET /v1/title/by/kinopub/{id}/seasons/2-4` (also `2,3` or `2&3`). At most
+   four. `Accept-Language` picks the only language in the body. Each episode
+   has `runtime_min`, `imdb: { value, votes }` when we have it, and
+   `skip_intro` / `skip_credits` as flags. The timestamps are not in this
+   payload. A cold range is filled from TMDB for that language and kept on the
+   title document.
+3. **Details, when they are opened** — `/v1/title/by/kinopub/{id}`: what the detail page
    shows first. Heavy, rarely-seen parts (reviews, facts, full cast, awards) are not worth
    fetching until the viewer scrolls to them or opens them — they belong in a separate,
    lazy call, not in the first answer.

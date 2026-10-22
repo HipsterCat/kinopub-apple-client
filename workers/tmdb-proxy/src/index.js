@@ -5,6 +5,7 @@
  * GET /t/p/... → image.tmdb.org/t/p/...   (no auth; bypasses local image.tmdb.org blocks)
  */
 
+import { handleSeasons } from "./seasons.js";
 import { handleImage, handleTitle } from "./title.js";
 
 const TMDB_API = "https://api.themoviedb.org";
@@ -25,12 +26,18 @@ export default {
 
     // Our own API, keyed by kino.pub id. Everything below it is the raw TMDB
     // passthrough the app used before this existed.
+    // Before the title route: /v1/title/by/kinopub/{id}/seasons/2-4 would
+    // otherwise be read as a title id of "2-4".
+    if (/^\/v1\/title\/by\/kinopub\/\d+\/seasons\//.test(url.pathname)) {
+      return handleSeasons(request, env, ctx);
+    }
+
     if (url.pathname.startsWith("/v1/title/by/kinopub/")) {
       return handleTitle(url, env, ctx);
     }
 
     if (url.pathname.startsWith("/img/")) {
-      return handleImage(url, env, ctx);
+      return handleImage(request, env, ctx);
     }
 
     if (url.pathname.startsWith("/t/p/")) {
@@ -49,7 +56,7 @@ export default {
 
     return json({
       error: "not_found",
-      hint: "/v1/title/by/kinopub/{id} · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&lang=&s=&e= · /img/{kind}/{size}/kinopub/{id} · /3/… · /t/p/… · /p/exports/…",
+      hint: "/v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /3/… · /t/p/… · /p/exports/…",
     }, 404);
   },
 };
