@@ -1,106 +1,96 @@
-# Cloudflare worker — language, freshness TTL, tvoe
+# Cloudflare worker — contract
 
-Plan for `workers/tmdb-proxy`. **Evidence / proposed contract, not implemented** except
-where marked done. `CURRENT.md` / `AGENTS.md` still win. Do not treat numbers below as
-shipped until Sasha says so.
-
-**Status 2026-10-04:** `#43` squash-merged (`cd816c4`) — `kind=logo` with nothing stored
-is 404 in the repo. Auto-deploy is `.github/workflows/tmdb-proxy.yml` (this PR). Language,
-freshness TTLs, and tvoe matching are **docs only**.
+Decided by Sasha, 2026-10-22. This is the contract for `workers/tmdb-proxy`.
+The route code on `main` still has an older shape in places (language on the
+query string, a kino.pub CDN url as the poster and backdrop fallback). That
+older shape is not this contract. `CURRENT.md` / `AGENTS.md` still win on the app.
 
 Related: [title-logos.md](title-logos.md), [metadata-sources.md](metadata-sources.md),
 [workers/tmdb-proxy/README.md](../../workers/tmdb-proxy/README.md).
 
----
-
-## 1. Kind mismatch is a 404 (Sasha, 2026-10-04)
-
-The worker must **never** return a poster for `logo`, or any other kind mismatch.
-Missing = 404. A banner that 302s to `m.staticpop.net/poster/…` paints a poster where
-the lettered title should stay.
-
-| Request kind | Warm document has that kind | Else |
-| --- | --- | --- |
-| `logo` | 302 to that logo | **404** — never kino.pub poster, never backdrop |
-| `poster` | 302 to that poster | 302 to kino.pub `/poster/item/{size}/{id}.jpg` (same kind) |
-| `backdrop` | 302 to that backdrop | 302 to kino.pub `/poster/item/wide/{id}.jpg` (their wide still; URL says `poster/item` but it is the backdrop asset) |
-| anything else | — | **404** |
-
-`pickArtwork` already reads `document.artwork[kind]` only, so a stored logo cannot
-answer a poster request. The bug was the **fallback**: any unknown kind, including
-`logo`, redirected to a kino.pub poster. `#43` stopped that for `logo`; unknown kinds
-404 in the same file.
-
-Not done: the live worker until auto-deploy runs with secrets present.
+The sqlite files are not on the worker. They live on the Mac, under `tools/`,
+and are gitignored. The worker's own store is the KV namespace `DOCUMENTS`
+(`title:kinopub:{id}`, one JSON document). See the top of
+`workers/tmdb-proxy/wrangler.toml`.
 
 ---
 
-## 2. Language: two variants, `ru` and `en`
-
-### What exists today
-
-The KV document is **one per kino.pub id** (`title:kinopub:{id}`), not per language.
-
-- Titles: `title.ru` / `title.original`.
-- Artwork: `capArtwork` keeps at most one of `ru`, `en`, textless (`lang: null`)
-  (`ARTWORK_LANG_ORDER` in `title.js`). TMDB fetch uses
-  `include_image_language=ru,en,null`.
-- `pickArtwork` prefers `ru`, else `list[0]` — the client cannot ask for English.
-- Overviews: TMDB is fetched as `language=ru-RU` only, so `synopsis` is Russian when
-  TMDB has it.
-
-The app is RU + EN (`Localizable.xcstrings`). Hero chrome is forced dark; UI language
-is still the viewer's.
-
-### Proposed API
-
-**Query param, not a path segment.** Hints are already query (`imdb`, `kinopoisk`,
-`title`, `original`, `year`, `type`). A path slot would collide with
-`/img/{kind}/{size}/kinopub/{id}`.
+## 1. Images by kino.pub id
 
 ```
-GET /img/{kind}/{size}/kinopub/{id}?lang=ru
-GET /img/{kind}/{size}/kinopub/{id}?lang=en&imdb=tt…&year=2024
-GET /v1/title/by/kinopub/{id}?lang=en
+GET /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=
 ```
 
-| Rule | Choice |
+`w` is the pixel width the picture is drawn at. The worker snaps up to that
+CDN's own bucket. Omit `w` for the largest file we will send (3840). `s` on
+`poster` is that season's poster. `s` and `e` on `thumbnail` is that episode's
+still. A missing or unknown kind is 404. A kind never answers with a different
+kind: a logo that redirects to a poster is what the banner would paint instead
+of the lettered title.
+
+**Never redirect to a kino.pub CDN** (`staticpop.net` and the same pictures
+under another host). The app already holds those files, and the host depends
+on the viewer. kino.pub's own posters are English by default. Old clients keep
+showing that English art. Sending it back from the worker would put an English
+poster under a Russian request and call it a hit.
+
+| Kind | What comes back |
 | --- | --- |
-| Values | `ru` \| `en` only |
-| Omitted | `ru` (primary audience; matches today's `pickArtwork`) |
-| Other value | 400 `bad_request` |
-| Cache key | full URL (query included) — edge cache and Artwork already key by URL |
+| `logo` | Requested language, then the other. An English logo is sent when Russian was asked and only English exists. 404 only when there is no logo at all. |
+| `poster` | Requested language only. Russian is tvoe, then the Kinopoisk image when we have that id, then a TMDB `ru` file. A missing Russian poster is a fast 404, never an English poster in its place. |
+| `backdrop` | A textless wide frame, or 404. Language is ignored. A titled banner, a portrait, and any kino.pub url are not a backdrop. |
+| `thumbnail` | That episode's still. 404 when we do not have one. Needs `s` and `e`. |
 
-Do **not** key KV by language. One document holds both; `lang` is a pick at read time.
+We store links, not files. tvoe files go through `tvoe.live/_next/image` at
+their widths only, and only for their own CDN. TMDB files use that kind's
+ladder. The old path `/img/{kind}/{sm|md|lg|orig}/kinopub/{id}` does not answer.
 
-### Fallback (artwork with text: logos, posters, backdrops)
+---
 
-Requested → the other of `{ru, en}` → textless (`null`).
+## 2. Language is the viewer's choice, and the caller must say it
 
-Textless is the international wordmark / unlettered still, which is what you want under
-our own title overlay when neither language exists. Never fall through to a **different
-kind**.
+Default is Russian. English is what the viewer picked, not a second default
+and not what kino.pub's catalogue happens to ship.
 
-### Fallback (titles, overviews)
+Every call that returns words or lettered art tells the worker the language in
+the **`Accept-Language` header**. It is not a query parameter. Absent header,
+`*`, or a language we do not serve means Russian. `en-US,en;q=0.9` is English.
 
-Requested → the other language → `title.original` / original-language overview.
-No textless for words.
+The app sends the language it is actually running in, including after the
+viewer changes that setting. One document per kino.pub id holds both
+languages; the header picks at read time. Do not key KV by language.
 
-`/v1/title` can keep returning **both** `ru` and `en` in the document (the app already
-merges fragments) and still honour `?lang=` as the default pick / `X-Lang` header so a
-dumb client has one string. Prefer: document stays bilingual, `/img` is the place that
-must pick because it returns one URL.
+Why the worker cannot guess: on kino.pub the picture you get with no language
+is English, and the old clients will keep asking that way. If we treat silence
+as "whatever kino.pub has", a Russian screen gets an English poster. Silence
+means Russian. English arrives only when the viewer chose it and the app said
+so.
 
-### How the app picks
+`/v1/title/by/kinopub/{id}/seasons/…` uses the same header, and the body
+contains that one language.
 
-Send `lang` from the viewer's locale (`ru` if the language code is `ru`, else `en` —
-we only ship those two). One helper in the backend/metadata package builds the worker
-URL (AGENTS.md: URL building is not in a view; Nuke does not leak). Banner / hero
-Artwork loads that URL. Switching UI language is a new URL, so the decoded cache does
-not mix scripts.
+Backdrop does not read the header. A backdrop has no language.
 
-Until this ships, the worker keeps preferring `ru` and the app keeps using
-`MetadataService` for logos when the FeatureFlag is off ([title-logos.md](title-logos.md)).
+---
+
+## 2a. A few seasons, not the show
+
+```
+GET /v1/title/by/kinopub/{id}/seasons/2-4
+```
+
+Also `2,3` and `2&3`. At most four season numbers.
+
+The page draws a handful of seasons, the ones in view, often the run that is
+on now. One request per season is the expensive shape, against kino.pub and
+against TMDB. One season is too small for that rail. The whole show is not
+the request. So the caller names the range, and the worker returns those
+seasons.
+
+Each episode carries `runtime_min`, `imdb: { value, votes }` when we have it,
+and `skip_intro` / `skip_credits` as flags. The timestamps stay out of this
+payload. A cold range is filled from TMDB for the requested language and kept
+on the title document.
 
 ---
 
@@ -151,8 +141,10 @@ and the app stops using the forwarder for banners. Separate decision.
 ## 4. tvoe.live as the preferred ru source
 
 Sasha: tvoe IDs **do not expire**; their Russian images are very high quality for
-almost everything. Local parser + latest dump exist (`tools/tvoe_data/`,
-`tools/metadata-ingest/sources.py` `ingest_tvoe`).
+almost everything. Local parser + latest dump exist (`tools/tvoe/tvoe_data/`,
+`tools/metadata-ingest/sources.py` `ingest_tvoe`). The 2026-10-22 compile matched
+4 069 of those titles onto kino.pub; 279 still have neither an IMDb id nor a
+Kinopoisk id.
 
 ### What the dump actually is (2026-10-04 files in-repo)
 
@@ -184,12 +176,15 @@ an index the worker can read. Do not re-fuzzy-match on every banner request.
 5. Alphabets stay apart (`match_key` does not fold Cyrillic into Latin).
 
 Worker at request time: kinopub id + client hints → index lookup → if hit, tvoe
-`cdnUrl` is the **preferred `lang=ru` artwork** (logo, poster, backdrop), TMDB fills
-`en` / textless. Copy facts (streams, intro markers) stay off this path — they are
-`title_copy` in the ingest, not the work ([tools/metadata-ingest/README.md](../../tools/metadata-ingest/README.md)).
+`cdnUrl` is the preferred Russian poster and logo, and the textless backdrop
+(`cover` has no baked title). TMDB fills English logos and textless frames tvoe
+does not have. Intro and credits markers live on the copy (`copy_segment`).
+They are flags on the seasons route, not timestamps, and they reach the worker
+only when a publish step copies them onto the KV document. The worker does not
+read `record-v2.db`.
 
-Import path: Sasha's parser → same JSON shape as `tools/tvoe_data/` → ingest (or a
-thin worker importer) → write the index. Full dump is a backup, not the hot path.
+Import path: Sasha's parser → `tools/tvoe/tvoe_data/` → ingest into `record-v2.db`.
+Full dump is a backup, not the hot path. The worker never calls tvoe.live itself.
 
 ### Hosting the dump — free options (2026-10-04 public limits)
 
@@ -210,20 +205,22 @@ on `static.cdn.tvoe.live` (redirect, like TMDB) unless we need to freeze bytes.
 | Footguns | 1 write/s/key; 1k writes/day on free | SQL import 5 GB; 10 DBs on free | none for this size | **pauses after ~1 week inactivity** |
 | Import | `wrangler kv bulk put` of the index; dump split per title if stored | `wrangler d1 execute` / SQL | `wrangler r2 object put` of the dump + optional index | `psql` / Storage upload |
 
-**Recommendation to discuss, not decide:** R2 for the raw dump (only option that holds
-the 67 MB file whole); KV or D1 for the **lookup index** the worker hits per card.
-Keep using the existing `DOCUMENTS` KV for title documents. Do **not** put the dump in
-Supabase: pause + egress + extra RTT from the isolate.
-
-**Storage choice: TBD for Sasha.**
+**Closed 2026-10-22:** the dump stays in the local sqlite. The worker keeps
+`DOCUMENTS` for per-title JSON. No D1, and the sqlite is not uploaded.
 
 ---
 
-## 5. Implementation order (not this PR)
+## 5. What is still open
 
-1. Secrets + auto-deploy so `#43`'s 404 is actually live. (Workflow in this change.)
-2. `?lang=ru|en` on `/img` and `/v1/title`; bilingual TMDB fetch; tests.
-3. Freshness TTL table on `/v1/title` + `/img`; leave `/3/` at 6 h until the app
-   stops using it for banners.
-4. tvoe index + ru preference, after Sasha picks KV vs D1 vs R2 (dump vs index).
-5. App FeatureFlag `heroLogoViaWorker` ([title-logos.md](title-logos.md) A).
+The freshness table in §3 is still a proposal.
+
+The local record and the worker's KV are not the same store. `record-v2.db`
+holds the tvoe artwork, the 82 164 skip markers, and the per-episode IMDb
+ratings. A cold image or seasons call only knows what is already in KV, and
+on a miss it asks TMDB. Until a publish step copies those fields onto
+`title:kinopub:{id}`, the live routes miss them. Do not upload the sqlite.
+Do not put this on a new D1.
+
+The catalogues refresh on the Mac, not in the worker: kino.pub, Kinopoisk,
+tvoe, IMDb dumps weekly, OMDb at 1 000 requests a day. The only secret on the
+worker is `TMDB_READ_TOKEN`.

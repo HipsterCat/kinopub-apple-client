@@ -114,6 +114,37 @@ class MediaItemModel: ObservableObject {
 
   public var isBookmarked: Bool { !folderIDsContainingItem.isEmpty }
 
+  /// The hero's logo: the worker's image route by kino.pub id, the very URL the Home
+  /// banner loads, so a title opened from the banner paints it from the artwork cache
+  /// on the first frame. Waits for an item that carries its IMDb id (or the loaded
+  /// payload), so the URL is built once and never swaps under the slot. The TMDB
+  /// overlay's logo only when no worker is configured.
+  var heroLogoURL: URL? {
+    let images = metadataService.images
+    guard images.isConfigured else { return externalMetadata.titleLogoURL }
+    guard heroImagesReady else { return nil }
+    return images.logo(kinopubID: mediaItem.id, imdb: mediaItem.imdb, width: ArtworkPixelWidth.logo)
+  }
+
+  /// Same route and rule as ``heroLogoURL``, for the textless backdrop.
+  var heroBackdropURL: URL? {
+    let images = metadataService.images
+    guard images.isConfigured else { return externalMetadata.backdropURL }
+    guard heroImagesReady else { return nil }
+    return images.backdrop(kinopubID: mediaItem.id, imdb: mediaItem.imdb,
+                           width: ArtworkPixelWidth.backdrop)
+  }
+
+  /// The logo lookup is over: the route answers by itself (its 404 is the miss), or
+  /// the TMDB overlay has finished.
+  var heroLogoResolved: Bool {
+    metadataService.images.isConfigured ? heroImagesReady : externalMetadataLoaded
+  }
+
+  private var heroImagesReady: Bool {
+    hasPaintedItem && (mediaItem.imdb != nil || itemLoaded)
+  }
+
   /// The people behind the author shelf — **one request each**, because `/v1/items`
   /// matches `director` against the credits as written and a comma-joined pair matches
   /// nothing (verified live). Two names, so a co-directed film asks about both without

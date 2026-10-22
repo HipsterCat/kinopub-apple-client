@@ -173,7 +173,7 @@ struct AppContext: AppContextProtocol {
       TMDBSource(configuration: metadataConfig),
       KinopoiskSource(keyProvider: kinopoiskKeyProvider),
       KinopoiskProxySource()
-    ])
+    ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL))
 
     let localProgressStore = LocalWatchProgressStore()
     let libraryState = MediaLibraryStore(

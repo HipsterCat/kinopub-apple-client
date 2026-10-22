@@ -7,6 +7,11 @@
 
 import Foundation
 import KinoPubBackend
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+import CryptoKit
+import KinoPubLogging
+import OSLog
+#endif
 
 extension Key where Value: Token {
   static var token: Key { .init(rawValue: "com.soda.kinopub.token") }
@@ -31,12 +36,18 @@ enum DevSessionMirror {
 
   /// Both branches must resolve the **real** Mac home, not a sandbox container, or the
   /// platforms stop sharing a file and the whole point is lost.
+  ///
+  /// `nil` inside a unit-test host: those tests drive `AccessTokenServiceImpl` with fake
+  /// tokens, and through this file they used to overwrite the real session for every
+  /// debug build on the Mac (the 73-byte "dead session" of 2026-10-22). An app launched
+  /// by a UI test is a separate process without this variable and keeps the file.
   static let fileURL: URL? = {
+    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return nil }
 #if targetEnvironment(simulator)
     // `homeDirectoryForCurrentUser` is unavailable on iOS/tvOS; Simulator sets this env
     // var on every child process to the real Mac user's home, which is the standard way
     // a simulator binary reaches outside its container.
-    ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"].map {
+    return ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"].map {
       URL(fileURLWithPath: $0).appendingPathComponent(fileName)
     }
 #else
@@ -55,9 +66,21 @@ enum DevSessionMirror {
 
   /// `Token: Codable`, so this encodes straight from the generic parameter — no
   /// need to construct an `AccessToken` (its memberwise init isn't public).
-  static func save<T: Token>(_ token: T) {
+  ///
+  /// A token without both halves is never written: every debug build on this Mac reads
+  /// this file, so one bad write signs all of them out.
+  static func save<T: Token>(_ token: T, reason: String) {
+    guard isComplete(token) else {
+      record("refused write (\(reason)): empty token", token)
+      return
+    }
     guard let fileURL, let data = try? JSONEncoder().encode(token) else { return }
-    try? data.write(to: fileURL, options: .atomic)
+    do {
+      try data.write(to: fileURL, options: .atomic)
+      record("write (\(reason))", token)
+    } catch {
+      record("write failed (\(reason)): \(error.localizedDescription)", token)
+    }
   }
 
   static func load() -> AccessToken? {
@@ -72,10 +95,70 @@ enum DevSessionMirror {
     return try? JSONDecoder().decode(AccessToken.self, from: data)
   }
 
-  static func delete() {
+  static func isComplete(_ token: any Token) -> Bool {
+    !token.accessToken.isEmpty && !token.refreshToken.isEmpty
+  }
+
+  static func delete(reason: String) {
     guard let fileURL else { return }
     try? FileManager.default.removeItem(at: fileURL)
+    record("delete (\(reason))")
   }
+
+  // MARK: - Who touched the session
+
+  /// `~/.kinopub-dev-session.log`, beside the session file: one timeline for every
+  /// debug build on this Mac — the macOS app and each simulator — so when the shared
+  /// session dies, the log says which build rotated or overwrote it. Tokens appear only
+  /// as fingerprints (first 8 hex of SHA-256), never in full.
+  private static let logURL: URL? = fileURL?.deletingLastPathComponent()
+    .appendingPathComponent(".kinopub-dev-session.log")
+  private static let logLimit = 512 * 1024
+  private static let logQueue = DispatchQueue(label: "kinopub.dev-session-log")
+
+  static func record(_ event: String, _ token: (any Token)? = nil) {
+    let line = "\(Date().ISO8601Format()) \(writer) \(event)\(token.map { " " + describe($0) } ?? "")"
+    Logger.app.info("dev-session: \(line, privacy: .public)")
+    guard let logURL else { return }
+    logQueue.async {
+      let size = (try? FileManager.default.attributesOfItem(atPath: logURL.path)[.size] as? Int) ?? 0
+      if size > logLimit { try? FileManager.default.removeItem(at: logURL) }
+      guard let data = (line + "\n").data(using: .utf8) else { return }
+      if let handle = try? FileHandle(forWritingTo: logURL) {
+        defer { try? handle.close() }
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: data)
+      } else {
+        try? data.write(to: logURL, options: .atomic)
+      }
+    }
+  }
+
+  static func describe(_ token: any Token) -> String {
+    "rt=\(fingerprint(token.refreshToken)) at=\(fingerprint(token.accessToken)) expires_in=\(token.expiresIn)"
+  }
+
+  static func fingerprint(_ secret: String) -> String {
+    guard !secret.isEmpty else { return "<empty>" }
+    let digest = SHA256.hash(data: Data(secret.utf8))
+    return digest.prefix(4).map { String(format: "%02x", $0) }.joined()
+  }
+
+  /// Which build wrote the line: platform, simulator (short UDID), process, and whether
+  /// it was launched by a UI test.
+  private static let writer: String = {
+    let environment = ProcessInfo.processInfo.environment
+#if os(tvOS)
+    let platform = "tvOS"
+#elseif os(iOS)
+    let platform = "iOS"
+#else
+    let platform = "macOS"
+#endif
+    let device = environment["SIMULATOR_UDID"].map { "sim:" + $0.prefix(8) } ?? "mac"
+    let uiTest = ProcessInfo.processInfo.arguments.contains("-ui-testing") ? " ui-test" : ""
+    return "[\(platform) \(device) pid:\(ProcessInfo.processInfo.processIdentifier)\(uiTest)]"
+  }()
 }
 #endif
 
@@ -104,7 +187,7 @@ public final class AccessTokenServiceImpl: AccessTokenService {
       )
     }
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
-    DevSessionMirror.save(token)
+    DevSessionMirror.save(token, reason: "set")
 #endif
   }
 
@@ -124,7 +207,7 @@ public final class AccessTokenServiceImpl: AccessTokenService {
       // mirror only fills on the *next* activation or refresh, so the first build to
       // adopt it would still burn a device slot.
       if !DevSessionMirror.exists {
-        DevSessionMirror.save(stored)
+        DevSessionMirror.save(stored, reason: "seed from keychain")
       }
 #endif
       return stored
@@ -164,7 +247,7 @@ public final class AccessTokenServiceImpl: AccessTokenService {
         storage.setObject(expiresAt, for: .tokenExpiresAt)
       }
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
-      DevSessionMirror.save(stored)
+      DevSessionMirror.save(stored, reason: "keychain changed externally")
 #endif
     }
 
@@ -199,7 +282,9 @@ public final class AccessTokenServiceImpl: AccessTokenService {
     storage.clear()
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
     if userInitiated {
-      DevSessionMirror.delete()
+      DevSessionMirror.delete(reason: "user signed out")
+    } else {
+      DevSessionMirror.record("keychain cleared (session rejected); file kept")
     }
 #endif
   }
