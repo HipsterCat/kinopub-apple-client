@@ -184,7 +184,9 @@ only when a publish step copies them onto the KV document. The worker does not
 read `record-v2.db`.
 
 Import path: Sasha's parser → `tools/tvoe/tvoe_data/` → ingest into `record-v2.db`.
-Full dump is a backup, not the hot path. The worker never calls tvoe.live itself.
+Full dump is a backup, not the hot path. The worker does not ingest that dump.
+It does proxy `api.tvoe.live` and `tvoe.live` (`/tvoe/api/…`, `/tvoe/site/…`) so a
+caller does not have to leave this machine to reach them.
 
 ### Hosting the dump — free options (2026-10-04 public limits)
 

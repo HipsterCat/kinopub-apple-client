@@ -1,6 +1,9 @@
 # Live worker: kinopub-tmdb-proxy.<account>.workers.dev
 # Secrets stay out of this file:
 #   TMDB_READ_TOKEN        wrangler secret put (Cloudflare, not GitHub)
+#   OMDB_API_KEY           wrangler secret put — owner OMDb key, not a GitHub secret
+#   KINOPOISK_API_KEY      wrangler secret put — owner Kinopoisk Unofficial key
+#   KINOPOISK_API_KEY_2    wrangler secret put — second owner key, used when the first returns 402
 #   CLOUDFLARE_API_TOKEN   GitHub Actions secret (deploy)
 #   CLOUDFLARE_ACCOUNT_ID  GitHub Actions secret (deploy) — do not add account_id here
 name = "kinopub-tmdb-proxy"
