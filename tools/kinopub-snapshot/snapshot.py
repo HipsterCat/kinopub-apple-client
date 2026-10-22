@@ -14,15 +14,25 @@ Usage:
   python3 snapshot.py --types movie,serial  # only these types
   python3 snapshot.py --resume              # continue from last saved page per type
   python3 snapshot.py --db path/to/other.db
+  python3 snapshot.py --dev-session --catch-up
+      # newest pages of every type, until the local count matches the live catalog
+  python3 snapshot.py --dev-session --probe-missing --from-id 1 --to-id 128416
+      # one GET per missing id; 404 stays empty. Resumes from data/probe_progress.json
+
+--dev-session reads ~/.kinopub-dev-session.json and keeps the access token only.
+It does not call the Keychain and does not refresh: a refresh rotates the token
+and can sign the live app out of one of its device slots.
 """
 import argparse
 import json
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
@@ -44,7 +54,10 @@ MAX_RETRIES = 5
 DATA_DIR = Path(__file__).parent / "data"
 TOKEN_CACHE = DATA_DIR / "token_cache.json"
 STATE_FILE = DATA_DIR / "progress.json"
+PROBE_STATE = DATA_DIR / "probe_progress.json"
+PROBE_FOUND = DATA_DIR / "probe_found.jsonl"
 DEFAULT_DB = DATA_DIR / "snapshot.db"
+DEV_SESSION = Path.home() / ".kinopub-dev-session.json"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -268,6 +281,294 @@ def save_state(state):
     STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
+def access_token_from_dev_session():
+    """Access token only. Refreshing rotates the live app session."""
+    if not DEV_SESSION.exists():
+        sys.exit(f"No dev session at {DEV_SESSION}.")
+    raw = json.loads(DEV_SESSION.read_text())
+    access = raw.get("access_token")
+    if not access:
+        sys.exit(f"{DEV_SESSION} has no access_token.")
+    token = {"access_token": access}
+    save_token_cache(token)
+    return token
+
+
+def count_type(conn, media_type):
+    return conn.execute(
+        "SELECT COUNT(*) FROM items WHERE type = ? COLLATE NOCASE",
+        (media_type,),
+    ).fetchone()[0]
+
+
+def print_summary(conn):
+    total, lo, hi = conn.execute(
+        "SELECT COUNT(*), MIN(id), MAX(id) FROM items"
+    ).fetchone()
+    print(f"items {total}  ids {lo}..{hi}", flush=True)
+    for kind, count, top in conn.execute(
+        "SELECT type, COUNT(*), MAX(id) FROM items GROUP BY type ORDER BY COUNT(*) DESC"
+    ):
+        print(f"  {kind} {count}  max {top}", flush=True)
+
+
+def catch_up(conn, types, token_holder):
+    """Page each type newest-first until the local count matches the live total.
+
+    Stops early once the stored rows for that type equal pagination.total_items.
+    If the table is still short, keeps going through the older pages — that is
+    how a type skipped by an earlier run gets filled in.
+    """
+    added = 0
+    for media_type in types:
+        print(f"== catch-up {media_type} ==", flush=True)
+        page = 1
+        type_added = 0
+        while True:
+            data = fetch_page("/v1/items", {
+                "type": media_type, "sort": "-created", "perpage": PER_PAGE, "page": page,
+            }, token_holder)
+            pagination = data.get("pagination") or {}
+            total_pages = pagination.get("total") or page
+            live_total = pagination.get("total_items")
+            items = data.get("items") or []
+            if not items:
+                print(f"  [{media_type}] page {page} empty", flush=True)
+                break
+            ids = [it["id"] for it in items if it.get("id") is not None]
+            known = set()
+            if ids:
+                placeholders = ",".join("?" * len(ids))
+                known = {row[0] for row in conn.execute(
+                    f"SELECT id FROM items WHERE id IN ({placeholders})", ids
+                )}
+            fresh = [
+                it for it in items
+                if it.get("id") is not None and it.get("id") not in known
+            ]
+            if fresh:
+                upsert_items(conn, fresh, now_iso())
+                type_added += len(fresh)
+                added += len(fresh)
+            db_count = count_type(conn, media_type)
+            live = "" if live_total is None else f"/{live_total}"
+            print(
+                f"  [{media_type}] page {page}/{total_pages} "
+                f"+{len(fresh)} (type +{type_added}) local {db_count}{live}",
+                flush=True,
+            )
+            if live_total is not None and db_count >= live_total:
+                break
+            if page >= total_pages:
+                if live_total is not None and db_count < live_total:
+                    print(
+                        f"  [{media_type}] short by {live_total - db_count} "
+                        f"after the last page",
+                        flush=True,
+                    )
+                break
+            page += 1
+            time.sleep(REQUEST_DELAY)
+    return added
+
+
+class RequestPace:
+    """Spaces the start of each detail request, and holds when the budget is low."""
+
+    def __init__(self, interval):
+        self.interval = interval
+        self._cv = threading.Condition()
+        self._next_at = 0.0
+
+    def acquire(self):
+        with self._cv:
+            now = time.time()
+            slot = max(now, self._next_at)
+            self._next_at = slot + self.interval
+            delay = slot - now
+        if delay > 0:
+            time.sleep(delay)
+
+    def hold(self, seconds):
+        if seconds <= 0:
+            return
+        with self._cv:
+            self._next_at = max(self._next_at, time.time() + seconds)
+
+
+def observe_rate_limit(headers, pace):
+    if not headers:
+        return
+    remaining = headers.get("X-Rate-Limit-Remaining")
+    if remaining is None or int(remaining) >= RATE_LIMIT_SAFETY_MARGIN:
+        return
+    reset = headers.get("X-Rate-Limit-Reset")
+    pause = int(reset) + 1 if reset is not None else 5
+    if pause < 2:
+        pause = 2
+    print(f"  (rate limit {remaining} left, pausing {pause}s)", flush=True)
+    pace.hold(pause)
+
+
+def fetch_item(item_id, access_token, pace):
+    """Detail read. 404 is an empty id. Does not refresh the token."""
+    url = f"{BASE_URL}/v1/items/{item_id}?nolinks=1"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {access_token}"})
+    last = None
+    for attempt in range(MAX_RETRIES):
+        pace.acquire()
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                observe_rate_limit(resp.headers, pace)
+                body = json.loads(resp.read())
+            item = body.get("item") if isinstance(body, dict) else None
+            if not isinstance(item, dict) or item.get("id") is None:
+                return item_id, "bad", None
+            return item_id, "ok", item
+        except urllib.error.HTTPError as e:
+            e.read()
+            observe_rate_limit(e.headers, pace)
+            if e.code == 404:
+                return item_id, "absent", None
+            if e.code == 401:
+                return item_id, "auth", None
+            if e.code == 429 or e.code >= 500:
+                last = e.code
+                time.sleep(2 ** attempt)
+                continue
+            return item_id, "error", e.code
+        except (urllib.error.URLError, TimeoutError) as e:
+            last = str(e)
+            time.sleep(2 ** attempt)
+    return item_id, "error", last
+
+
+def load_probe_state():
+    if PROBE_STATE.exists():
+        return json.loads(PROBE_STATE.read_text())
+    return {}
+
+
+def save_probe_state(state):
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = PROBE_STATE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(state, indent=2))
+    tmp.replace(PROBE_STATE)
+
+
+def probe_missing(conn, access_token, start_id, end_id, concurrency, interval):
+    """GET every integer in [start_id, end_id] that is not already a row.
+
+    404 is recorded by advancing the cursor, not by inserting a row. A failed
+    read stops before that id so a re-run retries it.
+    """
+    if end_id < start_id:
+        print(f"Nothing to probe ({start_id}..{end_id}).", flush=True)
+        return 0
+    key = f"{start_id}-{end_id}"
+    state = load_probe_state()
+    slot = state.get(key) or {"through": start_id - 1, "found": 0, "absent": 0}
+    cursor = max(int(slot.get("through", start_id - 1)), start_id - 1)
+    found = int(slot.get("found", 0))
+    absent = int(slot.get("absent", 0))
+    if cursor >= end_id:
+        print(f"Probe {key} already finished at {cursor}. found={found} absent={absent}", flush=True)
+        return 0
+    present = {row[0] for row in conn.execute(
+        "SELECT id FROM items WHERE id BETWEEN ? AND ?", (start_id, end_id)
+    )}
+    print(
+        f"== probe {start_id}..{end_id} from {cursor + 1} "
+        f"({len(present)} already stored) ==",
+        flush=True,
+    )
+    pace = RequestPace(interval)
+    batch_size = max(concurrency * 10, 40)
+    added = 0
+
+    def persist(through, found_count, absent_count):
+        slot["through"] = through
+        slot["found"] = found_count
+        slot["absent"] = absent_count
+        slot["updated_at"] = now_iso()
+        state[key] = slot
+        save_probe_state(state)
+
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        while cursor < end_id:
+            batch = []
+            scan = cursor + 1
+            while scan <= end_id and len(batch) < batch_size:
+                if scan not in present:
+                    batch.append(scan)
+                scan += 1
+            if not batch:
+                cursor = end_id
+                persist(cursor, found, absent)
+                break
+            futures = [
+                pool.submit(fetch_item, item_id, access_token, pace) for item_id in batch
+            ]
+            by_id = {}
+            for fut in as_completed(futures):
+                item_id, status, payload = fut.result()
+                by_id[item_id] = (status, payload)
+            cut = None
+            for item_id in batch:
+                status, _payload = by_id[item_id]
+                if status not in ("ok", "absent"):
+                    cut = item_id
+                    break
+            fresh = []
+            batch_found = 0
+            batch_absent = 0
+            for item_id in batch:
+                if cut is not None and item_id >= cut:
+                    break
+                status, payload = by_id[item_id]
+                if status == "ok":
+                    fresh.append(payload)
+                    present.add(item_id)
+                    batch_found += 1
+                    title = payload.get("title")
+                    kind = payload.get("type")
+                    print(f"  found {item_id} {kind} {title}", flush=True)
+                    with PROBE_FOUND.open("a", encoding="utf-8") as fh:
+                        fh.write(json.dumps(
+                            {"id": item_id, "type": kind, "title": title},
+                            ensure_ascii=False,
+                        ) + "\n")
+                else:
+                    batch_absent += 1
+            if fresh:
+                upsert_items(conn, fresh, now_iso())
+            found += batch_found
+            absent += batch_absent
+            added += batch_found
+            if cut is not None:
+                cursor = cut - 1
+                persist(cursor, found, absent)
+                status, detail = by_id[cut]
+                if status == "auth":
+                    sys.exit(
+                        "Access token rejected. Not refreshing. "
+                        "Re-run with a live --dev-session."
+                    )
+                print(
+                    f"  stopping at {cursor}; id {cut} came back {status} {detail}",
+                    flush=True,
+                )
+                sys.exit(1)
+            cursor = scan - 1
+            persist(cursor, found, absent)
+            print(
+                f"  through {cursor}/{end_id}  found {found}  absent {absent}",
+                flush=True,
+            )
+    print(f"Probe {key} done. found {found}, absent {absent}.", flush=True)
+    return added
+
+
 def sync_type(conn, media_type, token_holder, state, resume):
     start_page = state.get(media_type, {}).get("last_completed_page", 0) + 1 if resume else 1
     page = start_page
@@ -302,7 +603,24 @@ def main():
     parser.add_argument("--db", default=str(DEFAULT_DB))
     parser.add_argument("--token", default=None,
                          help="access token from a live app session, if Keychain access isn't available")
+    parser.add_argument("--dev-session", action="store_true",
+                         help="use the access token in ~/.kinopub-dev-session.json; never refresh it")
+    parser.add_argument("--catch-up", action="store_true",
+                         help="page each type newest-first until the local count matches the live catalog")
+    parser.add_argument("--probe-missing", action="store_true",
+                         help="GET each missing id in the range; 404 stays empty")
+    parser.add_argument("--from-id", type=int, default=1)
+    parser.add_argument("--to-id", type=int, default=0,
+                         help="inclusive end id for --probe-missing; 0 means the current max id")
+    parser.add_argument("--concurrency", type=int, default=6)
+    parser.add_argument("--pace", type=float, default=0.12,
+                         help="seconds between detail-request starts (probe only)")
     args = parser.parse_args()
+
+    if args.concurrency < 1:
+        sys.exit("--concurrency must be >= 1")
+    if args.pace < 0.05:
+        sys.exit("--pace must be >= 0.05s")
 
     types = [t.strip() for t in args.types.split(",") if t.strip()]
 
@@ -310,12 +628,37 @@ def main():
     db_path = Path(args.db)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.executescript(SCHEMA)
 
-    token_holder = dict(get_access_token(args.token))
-    state = load_state()
+    if args.dev_session:
+        token_holder = access_token_from_dev_session()
+    else:
+        token_holder = dict(get_access_token(args.token))
 
     start = time.time()
+    if args.catch_up or args.probe_missing:
+        if args.catch_up:
+            added = catch_up(conn, types, token_holder)
+            print(f"\nCatch-up inserted {added} rows.", flush=True)
+            print_summary(conn)
+        if args.probe_missing:
+            end_id = args.to_id
+            if end_id <= 0:
+                end_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM items").fetchone()[0]
+            probe_missing(
+                conn, token_holder["access_token"], args.from_id, end_id,
+                args.concurrency, args.pace,
+            )
+            print_summary(conn)
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        elapsed = time.time() - start
+        print(f"\nDone in {elapsed:.0f}s. {db_path}", flush=True)
+        conn.close()
+        return
+
+    state = load_state()
     grand_total = 0
     for media_type in types:
         print(f"== {media_type} ==")
@@ -323,6 +666,7 @@ def main():
 
     elapsed = time.time() - start
     total_rows = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     print(f"\nDone. {grand_total} items fetched this run, {total_rows} rows total in "
           f"{db_path} ({elapsed:.0f}s).")
     conn.close()
