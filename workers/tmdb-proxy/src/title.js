@@ -197,7 +197,9 @@ export async function handleImage(url, env, ctx) {
     });
   }
 
-  const fallbackSize = KINOPUB_SIZE[size] || (kind === "backdrop" ? "wide" : "medium");
+  // A backdrop is always kino.pub's wide still: `big` there is the vertical poster,
+  // which a full-screen banner would stretch.
+  const fallbackSize = kind === "backdrop" ? "wide" : KINOPUB_SIZE[size] || "medium";
   return Response.redirect(`${KINOPUB_POSTER}/${fallbackSize}/${id}.jpg`, 302);
 }
 

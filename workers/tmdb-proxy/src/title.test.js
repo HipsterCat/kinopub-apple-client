@@ -202,3 +202,9 @@ test("backdrop with an unknown size still falls back to the wide kino.pub still"
     "https://m.staticpop.net/poster/item/wide/82852.jpg",
   );
 });
+
+test("backdrop at orig with nothing stored is kino.pub's wide still, never the vertical poster", async () => {
+  const response = await handleImage(imageURL("backdrop", { size: "orig" }), kvEnv(), ctxSpy());
+
+  assert.equal(response.headers.get("location"), "https://m.staticpop.net/poster/item/wide/82852.jpg");
+});
