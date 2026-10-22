@@ -4,7 +4,7 @@
 #   make import     local dumps only, no network
 #   make exports    TMDB daily id dumps — breadth, zero API calls
 #   make tmdb       detail fetch. LAZY: needs TITLES= or LIMIT=
-#   make omdb       RT + Metacritic. LAZY, 1000/day, needs OMDB_API_KEY
+#   make omdb       RT + Metacritic. 1000/day into record-v2, needs OMDB_API_KEY
 #   make stats      what is in the record right now
 #   make rederive   rebuild derived tables from raw — no network, no quota
 #   make fresh      delete and rebuild; refuses if fetched payloads would be lost
@@ -44,14 +44,16 @@ else
 	@exit 1
 endif
 
-# 1000 requests/day: there is no sweep mode, by construction.
+# 1000 requests/day. The daily job is the most-voted thousand not yet asked,
+# written to record-v2. record.db stays the untouched snapshot.
 omdb:
 ifdef TITLES
 	$(PY) fetch_omdb.py --db $(DB) --titles $(TITLES)
 else ifdef LIMIT
 	$(PY) fetch_omdb.py --db $(DB) --limit $(LIMIT)
 else
-	@echo "say what to fetch:  make omdb LIMIT=200   |   make omdb TITLES=41,905"
+	@echo "daily job:  make omdb DB=data/record-v2.db LIMIT=1000"
+	@echo "or exactly:  make omdb DB=data/record-v2.db TITLES=41,905"
 	@exit 1
 endif
 

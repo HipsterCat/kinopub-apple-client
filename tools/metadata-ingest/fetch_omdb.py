@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Rotten Tomatoes + Metacritic, one request per title. Lazy, never a sweep.
+"""Rotten Tomatoes + Metacritic, one request per title.
 
     export OMDB_API_KEY=...
+    python3 fetch_omdb.py --db data/record-v2.db --limit 1000
     python3 fetch_omdb.py --titles 41,905     # exactly these
-    python3 fetch_omdb.py --limit 200         # the 200 most-voted still missing
 
-**1 000 requests/day on the free tier.** 53 210 titles is 53 days for one pass,
-so there is no `--sweep` here at all — the budget decides the policy. Fetch what
-a page needs; coverage accumulates from use.
+**1 000 requests/day on the free tier.** That is the sweep: once a day, the
+1 000 most-voted titles that have not been asked yet, into record-v2. Pointing
+this at record.db is wrong — that file stays the untouched snapshot. A bare
+invocation still refuses to run, so a quota is never spent by accident.
 
 The only reason this provider exists for us is `Ratings[]`: Rotten Tomatoes and
 Metacritic in one call, which nothing else we integrate has. IMDb rating and
@@ -130,7 +131,7 @@ def main() -> int:
                      "(free tier, 1000/day, omdbapi.com/apikey.aspx)")
     titles = [part for part in (args.titles or "").split(",") if part.strip()]
     if not titles and not args.limit:
-        parser.error("say what to fetch: --titles or --limit. There is no sweep at 1000/day.")
+        parser.error("say what to fetch: --titles or --limit (daily job is --limit 1000).")
 
     conn = connect(args.db)
     queue = pending(conn, limit=args.limit, titles=titles, refresh=args.refresh)

@@ -66,6 +66,13 @@ CREATE TABLE IF NOT EXISTS bulk_progress (
   completed_at TEXT NOT NULL,
   had_error INTEGER DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS kp_raw_json (
+  kinopoisk_id INTEGER NOT NULL,
+  endpoint TEXT NOT NULL,
+  body TEXT NOT NULL,
+  fetched_at TEXT NOT NULL,
+  PRIMARY KEY (kinopoisk_id, endpoint)
+);
 """
 
 
@@ -146,6 +153,10 @@ def process_one(conn, db_lock, quota_stop, api_key, kp_id, media_type):
         if status == 200:
             try:
                 with db_lock:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO kp_raw_json VALUES (?,?,?,?)",
+                        (kp_id, name, body, now_iso()),
+                    )
                     ingester(conn, kp_id, body)
             except Exception as e:
                 print(f"  [{kp_id}] {name} parse error: {e}", flush=True)

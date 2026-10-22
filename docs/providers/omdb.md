@@ -107,9 +107,10 @@ Take: `Ratings[]` (all three, each with its own scale recorded), `Metascore`, `B
 Cross-check: `imdbRating` / `imdbVotes` against the kino.pub snapshot.
 Skip: credits, poster, plot, genres, awards prose, dates — every one has a better source already.
 
-**Fetch lazily, ordered by vote count.** 1 000/day against 53 210 titles is 53 days for a full pass,
-so a sweep is not an option even if we wanted one; this is the provider that makes the lazy rule
-non-negotiable rather than merely correct.
+**One thousand a day, most-voted first, into `record-v2`.** 53 210 titles is about 53 days
+at the free cap. A bare run still does nothing, so the quota is never spent by accident. Do not
+write this into `record.db`. IMDb numbers from the call stay under `imdb:omdb` and never overwrite
+the dump.
 
 🔎 And skip series entirely: 11 of them returned one RT score between them. Spending a request on a
 series buys an IMDb number we already hold.

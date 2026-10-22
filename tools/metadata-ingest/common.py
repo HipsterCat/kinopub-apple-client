@@ -65,7 +65,7 @@ def match_key(value: str | None) -> str | None:
 # that cost quota to obtain, and nothing that changes the schema may drop them.
 DERIVED_TABLES = (
     "title_credit", "person_external_id", "person", "image", "rating", "trailer",
-    "badge", "season", "episode", "award", "genre", "country", "synopsis",
+    "badge", "season", "episode", "award", "title_relation", "genre", "country", "synopsis",
     "fact", "review",
     "copy_segment", "copy_video", "title_copy", "title_external_id", "title",
 )
@@ -75,6 +75,7 @@ DERIVED_TABLES = (
 EXPECTED_COLUMNS = {
     "rating": {"first_seen_at": "TEXT", "changed_at": "TEXT"},
     "episode": {"runtime": "INTEGER", "still": "TEXT"},
+    "award": {"image_url": "TEXT", "persons": "TEXT"},
     # Provenance for the one stored photo, so the document builder can decide
     # per title whether to trust it ahead of the free pushbr candidate — a
     # bare URL with no source is a precedence decision already made and lost.
@@ -196,13 +197,27 @@ def resolve_title(conn, *, ids: dict, kind=None, title_ru=None,
             if not needle:
                 continue
             row = conn.execute(
-                f"SELECT id FROM title WHERE {column}=? AND year BETWEEN ? AND ? LIMIT 2",
+                f"SELECT id, kind, norm_original, norm_ru FROM title"
+                f" WHERE {column}=? AND year BETWEEN ? AND ? LIMIT 5",
                 (needle, year - 1, year + 1),
             ).fetchall()
-            # Ambiguous match is not a match. Two films with the same original
-            # title in the same year exist, and guessing is worse than a new row.
             if len(row) == 1:
                 return row[0]["id"], f"title_year:{column}"
+            if len(row) > 1 and kind:
+                same_kind = [r for r in row if r["kind"] == kind]
+                if len(same_kind) == 1:
+                    return same_kind[0]["id"], f"title_year:{column}"
+
+        # Secondary pass: when both Russian and original titles match AND kind matches,
+        # allow up to ±2 years (festival premiere vs wide release).
+        if norm_orig and norm_ru and kind:
+            row2 = conn.execute(
+                "SELECT id FROM title WHERE norm_original=? AND norm_ru=? AND kind=?"
+                " AND year BETWEEN ? AND ? LIMIT 2",
+                (norm_orig, norm_ru, kind, year - 2, year + 2),
+            ).fetchall()
+            if len(row2) == 1:
+                return row2[0]["id"], "title_year:norm_original"
 
     stamp = now()
     cursor = conn.execute(

@@ -33,7 +33,7 @@ SOURCES = {
 def report(conn) -> None:
     print("\nrecord:")
     tables = ["title", "title_external_id", "person", "person_external_id", "title_credit",
-              "image", "rating", "trailer", "badge", "episode", "award",
+              "image", "rating", "trailer", "badge", "episode", "award", "title_relation",
               "genre", "country", "synopsis",
               "title_copy", "copy_video", "copy_segment", "raw_payload"]
     for table in tables:
