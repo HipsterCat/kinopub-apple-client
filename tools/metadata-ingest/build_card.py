@@ -54,10 +54,12 @@ CREATE TABLE card (
   title_ru           TEXT,
   title_original     TEXT,
   year               INTEGER,
+  release_date       TEXT,
   runtime_min        INTEGER,
   countries          TEXT,
   genres             TEXT,
   short_ru           TEXT,
+  slogan             TEXT,
 
   imdb_id            TEXT,
   tmdb_id            TEXT,
@@ -81,6 +83,7 @@ CREATE TABLE card (
   kinopoisk_votes    INTEGER,
   tvoe               REAL,
   tvoe_votes         INTEGER,
+  tvoe_reviews       INTEGER,
   tmdb               REAL,
   tmdb_votes         INTEGER,
   rotten_tomatoes    REAL,
@@ -93,6 +96,10 @@ CREATE TABLE card (
   film_critics_votes INTEGER,
   rf_critics         REAL,
   rf_critics_votes   INTEGER,
+  rating_await       REAL,
+  rating_await_count INTEGER,
+  rating_mpaa        TEXT,
+  rating_age_ru      INTEGER,
   reviews_count      INTEGER,
   reviews_positive   INTEGER,
   reviews_negative   INTEGER,
@@ -130,22 +137,26 @@ CREATE TABLE episode (
 
 INSERT = """
 INSERT INTO card (
-  kinopub_id, type, title_ru, title_original, year, runtime_min, countries, genres, short_ru,
+  kinopub_id, type, title_ru, title_original, year, release_date, runtime_min,
+  countries, genres, short_ru, slogan,
   imdb_id, tmdb_id, tvdb_id, kinopoisk_id, kinopoisk_hd_id, tvoe_id, wikidata_id,
   poster_ru, poster_en, cover_ru, cover_en, backdrop, logo_ru, logo_en,
-  imdb, imdb_votes, kinopoisk, kinopoisk_votes, tvoe, tvoe_votes, tmdb, tmdb_votes,
+  imdb, imdb_votes, kinopoisk, kinopoisk_votes, tvoe, tvoe_votes, tvoe_reviews, tmdb, tmdb_votes,
   rotten_tomatoes, rotten_tomatoes_votes, metacritic, metacritic_votes,
   good_review, good_review_votes, film_critics, film_critics_votes,
-  rf_critics, rf_critics_votes, reviews_count, reviews_positive, reviews_negative,
+  rf_critics, rf_critics_votes, rating_await, rating_await_count, rating_mpaa, rating_age_ru,
+  reviews_count, reviews_positive, reviews_negative,
   reviews_neutral, updated_at
 ) VALUES (
-  :kinopub_id, :type, :title_ru, :title_original, :year, :runtime_min, :countries, :genres, :short_ru,
+  :kinopub_id, :type, :title_ru, :title_original, :year, :release_date, :runtime_min,
+  :countries, :genres, :short_ru, :slogan,
   :imdb_id, :tmdb_id, :tvdb_id, :kinopoisk_id, :kinopoisk_hd_id, :tvoe_id, :wikidata_id,
   :poster_ru, :poster_en, :cover_ru, :cover_en, :backdrop, :logo_ru, :logo_en,
-  :imdb, :imdb_votes, :kinopoisk, :kinopoisk_votes, :tvoe, :tvoe_votes, :tmdb, :tmdb_votes,
+  :imdb, :imdb_votes, :kinopoisk, :kinopoisk_votes, :tvoe, :tvoe_votes, :tvoe_reviews, :tmdb, :tmdb_votes,
   :rotten_tomatoes, :rotten_tomatoes_votes, :metacritic, :metacritic_votes,
   :good_review, :good_review_votes, :film_critics, :film_critics_votes,
-  :rf_critics, :rf_critics_votes, :reviews_count, :reviews_positive, :reviews_negative,
+  :rf_critics, :rf_critics_votes, :rating_await, :rating_await_count, :rating_mpaa, :rating_age_ru,
+  :reviews_count, :reviews_positive, :reviews_negative,
   :reviews_neutral, :updated_at
 )
 """
@@ -166,6 +177,18 @@ def country_text(raw: object) -> str | None:
             joined = ", ".join(str(name) for name in names if name)
             return joined or None
     return text
+
+
+def age_number(raw: object) -> int | None:
+    """Kinopoisk sends age18, tvoe sends 18. The card keeps the number."""
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, int):
+        return raw
+    digits = "".join(ch for ch in str(raw) if ch.isdigit())
+    if not digits:
+        return None
+    return int(digits)
 
 
 def imdb_text(raw: object) -> str | None:
@@ -219,12 +242,19 @@ def main() -> None:
     hd: dict[str, str] = {}
     reviews: dict[str, int] = {}
     runtime: dict[str, int] = {}
+    slogan: dict[str, str] = {}
+    mpaa: dict[str, str] = {}
+    kp_age: dict[str, int] = {}
+    await_score: dict[str, float] = {}
+    await_count: dict[str, int] = {}
     film_poster: dict[str, str] = {}
     film_cover: dict[str, str] = {}
     film_logo: dict[str, str] = {}
     for row in kinopoisk.execute(
         """
         SELECT kinopoisk_id, kinopoisk_hd_id, reviews_count, film_length,
+               slogan, rating_mpaa, rating_age_limits,
+               rating_await, rating_await_count,
                poster_url, cover_url, logo_url
           FROM kp_films
         """
@@ -236,6 +266,17 @@ def main() -> None:
             reviews[key] = row["reviews_count"]
         if row["film_length"]:
             runtime[key] = row["film_length"]
+        if row["slogan"]:
+            slogan[key] = row["slogan"]
+        if row["rating_mpaa"]:
+            mpaa[key] = row["rating_mpaa"]
+        age = age_number(row["rating_age_limits"])
+        if age is not None:
+            kp_age[key] = age
+        if row["rating_await"] is not None:
+            await_score[key] = row["rating_await"]
+        if row["rating_await_count"] is not None:
+            await_count[key] = row["rating_await_count"]
         if row["poster_url"]:
             film_poster[key] = row["poster_url"]
         if row["cover_url"]:
@@ -306,13 +347,21 @@ def main() -> None:
     # `description` as a full synopsis and never kept `shortDesc`, so the
     # short is read from tvoe's own sqlite. Kinopoisk still wins.
     tvoe_short: dict[str, str] = {}
+    tvoe_age: dict[str, int] = {}
+    tvoe_released: dict[str, str] = {}
+    tvoe_review_count: dict[str, int] = {}
     if TVOE.exists():
         tvoe = sqlite3.connect(f"file:{TVOE}?mode=ro", uri=True)
-        for row in tvoe.execute(
-            "SELECT id, short_desc FROM title"
-            " WHERE short_desc IS NOT NULL AND short_desc != ''"
-        ):
-            tvoe_short[row[0]] = row[1]
+        tvoe.row_factory = sqlite3.Row
+        for row in tvoe.execute("SELECT id, short_desc, age_level, date_released FROM title"):
+            if row["short_desc"]:
+                tvoe_short[row["id"]] = row["short_desc"]
+            if row["age_level"] is not None:
+                tvoe_age[row["id"]] = row["age_level"]
+            if row["date_released"]:
+                tvoe_released[row["id"]] = row["date_released"]
+        for row in tvoe.execute("SELECT title_id, COUNT(*) FROM review GROUP BY title_id"):
+            tvoe_review_count[row[0]] = row[1]
         tvoe.close()
 
     genres_kp: dict[int, list[str]] = {}
@@ -400,16 +449,21 @@ def main() -> None:
             if line:
                 short_from_tvoe += 1
         genre_names = genres_kp.get(kinopub_id) or genres_tvoe.get(kinopub_id)
+        age_ru = kp_age.get(kinopoisk_id) if kinopoisk_id else None
+        if age_ru is None and tvoe_id:
+            age_ru = tvoe_age.get(tvoe_id)
         rows.append({
             "kinopub_id": kinopub_id,
             "type": item["type"],
             "title_ru": item["title_ru"],
             "title_original": item["title_original"],
             "year": item["year"],
+            "release_date": tvoe_released.get(tvoe_id) if tvoe_id else None,
             "runtime_min": runtime.get(kinopoisk_id) if kinopoisk_id else None,
             "countries": country_text(item["countries"]),
             "genres": ", ".join(genre_names) if genre_names else None,
             "short_ru": line,
+            "slogan": slogan.get(kinopoisk_id) if kinopoisk_id else None,
             "imdb_id": imdb_text(found.get("imdb") or item["imdb_id"]),
             "tmdb_id": found.get("tmdb"),
             "tvdb_id": found.get("tvdb"),
@@ -424,9 +478,15 @@ def main() -> None:
             "backdrop": backdrop.get(kinopub_id),
             "logo_ru": logo,
             "logo_en": logo_en.get(kinopub_id),
+            "tvoe_reviews": tvoe_review_count.get(tvoe_id) if tvoe_id else None,
+            "rating_await": await_score.get(kinopoisk_id) if kinopoisk_id else None,
+            "rating_await_count": await_count.get(kinopoisk_id) if kinopoisk_id else None,
+            "rating_mpaa": mpaa.get(kinopoisk_id) if kinopoisk_id else None,
+            "rating_age_ru": age_ru,
             "reviews_count": reviews.get(kinopoisk_id) if kinopoisk_id else None,
-            # The bulk film feed has the total only. Tone counts are columns
-            # now; the reviews endpoint's totals are not in the warehouse yet.
+            # Film row has reviews_count and rating_good_review, not the
+            # three tone totals. Those arrive on the reviews response
+            # (totalPositiveReviews and the two beside it) and were not stored.
             "reviews_positive": None,
             "reviews_negative": None,
             "reviews_neutral": None,
@@ -511,7 +571,8 @@ def main() -> None:
     print(f"episodes {out.execute('SELECT COUNT(*) FROM episode').fetchone()[0]}")
     print(f"short from tvoe, no kinopoisk short  {short_from_tvoe}")
     filled = [
-        "genres", "countries", "runtime_min", "short_ru",
+        "genres", "countries", "runtime_min", "short_ru", "slogan",
+        "release_date", "rating_mpaa", "rating_age_ru", "rating_await", "tvoe_reviews",
         "imdb_id", "tmdb_id", "tvdb_id", "kinopoisk_id",
         "kinopoisk_hd_id", "tvoe_id", "wikidata_id",
         "poster_ru", "poster_en", "cover_ru", "cover_en", "backdrop",
@@ -522,7 +583,7 @@ def main() -> None:
     width = max(len(name) for name in filled)
     for name in filled:
         count = out.execute(
-            f"SELECT COUNT(*) FROM card WHERE {name} IS NOT NULL AND {name} != ''"
+            f"SELECT COUNT(*) FROM card WHERE {name} IS NOT NULL AND CAST({name} AS TEXT) != ''"
         ).fetchone()[0]
         print(f"  {name:<{width}}  {count:>6}   {count / total:.0%}")
 
