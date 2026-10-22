@@ -66,13 +66,18 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 
 **Two layers, kept apart:**
 
-1. **Instant, by kino.pub id, no details needed** — `/img/{kind}/{size}/kinopub/{id}`
-   (poster, backdrop, logo). Answers with a redirect to whatever is warm **of that kind**.
-   Poster and backdrop fall back to kino.pub's own artwork. **A missing or unknown kind
-   is 404**, never a different picture (a logo that 302s to a poster is what the banner
-   would paint instead of the lettered title). Resolves the title behind the response.
-   Language, freshness TTLs, and tvoe as the preferred ru source:
-   [docs/research/worker.md](../../docs/research/worker.md) (not implemented yet).
+1. **Instant, by kino.pub id, no details needed** —
+   `GET /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&lang=&s=&e=`
+   Answers **302** to one file of that kind, or **404**. `w` is a pixel width
+   (snap up to the CDN's own bucket; omit it for the largest file we will send,
+   3840). `lang` defaults to `ru`; send `en` only when the app is not Russian.
+   Backdrop ignores `lang` and is textless — a lettered kino.pub wide is a 404,
+   not a fallback. `s` on `poster` is that season's poster. `s` and `e` on
+   `thumbnail` is that episode's still. Logo 404s when nothing is stored (never
+   a poster). tvoe files go through `tvoe.live/_next/image` (their widths only,
+   their CDN only). TMDB files use TMDB's size ladder. A cold id still resolves
+   in the background; the image call does not have to repeat imdb/kinopoisk hints.
+   The older `/img/{kind}/{size}/kinopub/{id}` path still answers.
 2. **Details, when they are opened** — `/v1/title/by/kinopub/{id}`: what the detail page
    shows first. Heavy, rarely-seen parts (reviews, facts, full cast, awards) are not worth
    fetching until the viewer scrolls to them or opens them — they belong in a separate,

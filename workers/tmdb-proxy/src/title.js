@@ -1,9 +1,17 @@
 /**
- * /v1/title/by/kinopub/{id}  and  /img/{kind}/{size}/kinopub/{id}
+ * /v1/title/by/kinopub/{id}
+ * /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&lang=&s=&e=
+ * /img/{kind}/{size}/kinopub/{id}   (older size-in-path; still answered)
  *
  * The contract the client actually wanted: ask by kino.pub id, get everything,
  * never resolve anything yourself, never make a second call to find out whether
  * something exists.
+ *
+ * The image route the app should call is the query one. `w` is a pixel width
+ * (omit it for the largest file we will serve, 3840). `lang` defaults to ru
+ * and is ignored for backdrops, which are always textless. `s` / `e` pick a
+ * season poster or an episode thumbnail. The size-in-path route stays so
+ * existing callers keep working.
  *
  * Two rules shape the whole file:
  *
@@ -132,12 +140,65 @@ export async function handleTitle(url, env, ctx) {
 }
 
 const IMAGE_KINDS = new Set(["poster", "backdrop", "logo"]);
+const QUERY_KINDS = new Set(["logo", "backdrop", "poster", "thumbnail"]);
+const QUERY_HINT = "/img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&lang=&s=&e=";
+
+// Largest file we will send. TMDB "original" backdrops run well past this;
+// tvoe's resizer tops out here. 1920×2.
+const MAX_WIDTH = 3840;
+
+// tvoe.live/_next/image rejects any width not in this list (400) and rejects
+// any URL that is not its own static.cdn.tvoe.live file.
+const TVOE_WIDTHS = [
+  16, 32, 48, 64, 96, 128, 140, 175, 256, 280, 305, 320, 375, 384, 414, 425,
+  512, 530, 640, 750, 768, 828, 1024, 1080, 1200, 1280, 1380, 1440, 1536, 1600,
+  1920, 2048, 2300, 2560, 2732, 3000, 3440, 3840,
+];
+
+// TMDB configuration sizes, minus "original" — that bucket is chosen only when
+// the file we know about is within MAX_WIDTH (or the kind's originals are not
+// the multi-thousand-pixel backdrops).
+const TMDB_LADDER = {
+  logo: [45, 92, 154, 185, 300, 500],
+  poster: [92, 154, 185, 342, 500, 780],
+  backdrop: [300, 780, 1280],
+  thumbnail: [92, 185, 300],
+};
+const TMDB_ORIGINAL_IF_WIDTH_UNKNOWN = new Set(["logo", "poster", "thumbnail"]);
+
+// Measured 2026-10-22: small 165×250, medium 250×375, big 500×750.
+// wide is 3840×2160 and has the title baked in — never a backdrop answer here.
+const KINOPUB_POSTER_LADDER = [
+  { w: 165, size: "small" },
+  { w: 250, size: "medium" },
+  { w: 500, size: "big" },
+];
+
+// kinopoiskapiunofficial.tech, measured: kp 667×1000, kp_small 360×540.
+const KINOPOISK_POSTER = "https://kinopoiskapiunofficial.tech/images/posters";
+
+// Same language first, then source. tvoe wins ru logos and textless backdrops.
+// Kinopoisk posters are Russian; kino.pub posters are English and come last.
+const SOURCE_ORDER = {
+  logo: ["tvoe", "tmdb"],
+  backdrop: ["tvoe", "tmdb"],
+  poster: ["tvoe", "tmdb", "kinopoisk", "kinopub"],
+  thumbnail: ["tvoe", "tmdb"],
+};
 
 export async function handleImage(url, env, ctx) {
-  // /img/{kind}/{size}/kinopub/{id}
-  const [, , kind, size, namespace, rawId] = url.pathname.split("/");
-  const id = (rawId || "").replace(/\.\w+$/, "");
-  if (namespace !== "kinopub" || !id) {
+  const route = parseImagePath(url.pathname);
+  if (!route) {
+    return json({ error: "bad_request", hint: QUERY_HINT }, 400);
+  }
+  if (route.mode === "query") return handleImageQuery(url, env, ctx, route);
+  return handleLegacyImage(url, env, ctx, route);
+}
+
+// /img/{kind}/{size}/kinopub/{id} — unchanged contract.
+async function handleLegacyImage(url, env, ctx, route) {
+  const { kind, size, id } = route;
+  if (!id) {
     return json({ error: "bad_request", hint: "/img/{kind}/{size}/kinopub/{id}" }, 400);
   }
   // Kind mismatch is a hole, never a different picture. A logo that 302s to a
@@ -173,6 +234,39 @@ export async function handleImage(url, env, ctx) {
 
   const fallbackSize = KINOPUB_SIZE[size] || (kind === "backdrop" ? "wide" : "medium");
   return Response.redirect(`${KINOPUB_POSTER}/${fallbackSize}/${id}.jpg`, 302);
+}
+
+// /img/{kind}/by/kinopub/{id}?w=&lang=&s=&e=
+async function handleImageQuery(url, env, ctx, route) {
+  const id = numericId(route.id);
+  if (!id) return json({ error: "bad_request", hint: QUERY_HINT }, 400);
+  if (!QUERY_KINDS.has(route.kind)) {
+    return imageNotFound("kind must be logo, backdrop, poster, or thumbnail");
+  }
+
+  const request = {
+    kind: route.kind,
+    id,
+    w: readWidth(url),
+    lang: normalizeLang(url.searchParams.get("lang")),
+    s: readIndex(url, "s"),
+    e: readIndex(url, "e"),
+  };
+  if (request.kind === "thumbnail" && (request.s == null || request.e == null)) {
+    return json({ error: "bad_request", hint: "thumbnail needs ?s=&e=" }, 400);
+  }
+
+  const stored = await readDocument(env, id);
+  const hints = readHints(url);
+  // Cold: answer now, warm the document behind the response. Hints are
+  // optional — the details page is what usually brings them. An image call
+  // with only the id still works once that document exists.
+  if (!stored) ctx.waitUntil(resolveAndStore(env, id, hints, draftDocument(id, hints)));
+
+  const asset = selectQueryAsset(stored, request, hints);
+  const location = asset && resizeAsset(asset, request.kind, request.w);
+  if (!location) return imageNotFound(missHint(request));
+  return redirect(location);
 }
 
 // ------------------------------------------------------------------ helpers
@@ -450,6 +544,327 @@ function pickArtwork(document, kind) {
   }
   const russian = list.find((asset) => asset.lang === "ru");
   return (russian || list[0]).url;
+}
+
+// ---------------------------------------------------------------- query route
+
+function parseImagePath(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts[0] !== "img" || parts.length < 5) return null;
+  const id = (parts[4] || "").replace(/\.\w+$/, "");
+  if (parts[2] === "by" && parts[3] === "kinopub") {
+    return { mode: "query", kind: parts[1], id };
+  }
+  if (parts[3] === "kinopub") {
+    return { mode: "legacy", kind: parts[1], size: parts[2], id };
+  }
+  return null;
+}
+
+function numericId(raw) {
+  return /^\d+$/.test(raw || "") ? raw : null;
+}
+
+function readWidth(url) {
+  const raw = url.searchParams.get("w");
+  if (raw == null || raw.trim() === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(Math.ceil(n), MAX_WIDTH);
+}
+
+function readIndex(url, name) {
+  for (const key of [name, name.toUpperCase()]) {
+    const raw = url.searchParams.get(key);
+    if (raw == null || raw.trim() === "") continue;
+    if (!/^\d+$/.test(raw.trim())) return null;
+    return Number(raw.trim());
+  }
+  return null;
+}
+
+function normalizeLang(value) {
+  if (!value) return "ru";
+  const primary = value.toLowerCase().split(/[-_]/)[0];
+  if (!primary || primary === "ru") return "ru";
+  if (primary === "en") return "en";
+  return primary.length === 2 ? primary : "ru";
+}
+
+function selectQueryAsset(document, request, hints) {
+  const { kind, id, lang, s, e } = request;
+  if (kind === "thumbnail") {
+    if (!document || s == null || e == null) return null;
+    return episodeAsset(document, s, e);
+  }
+  if (kind === "poster" && s != null) {
+    if (!document) return null;
+    return seasonPosterAsset(document, s);
+  }
+  if (kind === "backdrop") {
+    if (!document) return null;
+    return bestAsset(textlessBackdrops(document), "backdrop", null);
+  }
+  const assets = kind === "poster"
+    ? posterCandidates(document, id, hints)
+    : logoCandidates(document);
+  return bestAsset(assets, kind, lang);
+}
+
+function posterCandidates(document, id, hints) {
+  const list = (document?.artwork?.poster || []).map(normalizeAsset).filter(Boolean);
+  const kp = numericId(String(document?.ids?.kinopoisk?.value || hints.kinopoisk || ""));
+  if (kp && !list.some((asset) => asset.source === "kinopoisk")) {
+    list.push({
+      source: "kinopoisk",
+      url: `${KINOPOISK_POSTER}/kp/${kp}.jpg`,
+      lang: "ru",
+      width: 667,
+    });
+  }
+  if (id && !list.some((asset) => asset.source === "kinopub")) {
+    list.push({
+      source: "kinopub",
+      url: `${KINOPUB_POSTER}/big/${id}.jpg`,
+      lang: "en",
+      width: 500,
+    });
+  }
+  return list;
+}
+
+function logoCandidates(document) {
+  return (document?.artwork?.logo || [])
+    .map(normalizeAsset)
+    .filter((asset) => asset && asset.source !== "kinopub" && !isKinopubPoster(asset.url));
+}
+
+function textlessBackdrops(document) {
+  return (document?.artwork?.backdrop || [])
+    .map(normalizeAsset)
+    .filter((asset) => asset
+      && (asset.lang ?? null) === null
+      && asset.source !== "kinopub"
+      && !isKinopubPoster(asset.url));
+}
+
+function seasonPosterAsset(document, seasonNumber) {
+  const season = (document.seasons || []).find((item) => Number(item.number) === seasonNumber);
+  if (!season) return null;
+  const raw = season.poster || season.artwork?.poster;
+  if (Array.isArray(raw)) {
+    return bestAsset(raw.map(normalizeAsset).filter(Boolean), "poster", "ru");
+  }
+  return normalizeAsset(raw);
+}
+
+function episodeAsset(document, seasonNumber, episodeNumber) {
+  const season = (document.seasons || []).find((item) => Number(item.number) === seasonNumber);
+  if (!season) return null;
+  const episode = (season.episodes || []).find((item) => {
+    const number = item.number ?? item.episode ?? item.episode_number;
+    return Number(number) === episodeNumber;
+  });
+  if (!episode) return null;
+  const raw = episode.thumbnail || episode.still || episode.image;
+  if (Array.isArray(raw)) {
+    return bestAsset(raw.map(normalizeAsset).filter(Boolean), "thumbnail", null);
+  }
+  return normalizeAsset(raw);
+}
+
+function normalizeAsset(asset) {
+  if (!asset) return null;
+  if (typeof asset === "string") {
+    const url = asset.startsWith("/") ? IMAGE_BASE + asset : asset;
+    const safe = safeHttpURL(url);
+    if (!safe) return null;
+    const source = inferSource(safe);
+    return { source, url: safe, lang: source === "kinopub" ? "en" : null, width: null };
+  }
+  const rawURL = asset.url || (asset.file_path ? IMAGE_BASE + asset.file_path : null);
+  const safe = rawURL && safeHttpURL(rawURL);
+  if (!safe) return null;
+  const source = asset.source || inferSource(safe);
+  let lang = asset.lang ?? null;
+  // Untagged kino.pub posters are the English ones. A real textless file is
+  // never served from staticpop on this route.
+  if (lang == null && source === "kinopub") lang = "en";
+  return { source, url: safe, lang, width: asset.width ?? null };
+}
+
+function bestAsset(assets, kind, lang) {
+  let best = null;
+  let bestKey = null;
+  for (const asset of assets) {
+    if (!asset?.url) continue;
+    if ((kind === "logo" || kind === "backdrop") && asset.source === "kinopub") continue;
+    if ((kind === "logo" || kind === "backdrop") && isKinopubPoster(asset.url)) continue;
+    // Backdrop is textless or it is a miss. A titled frame is not a fallback.
+    if (kind === "backdrop" && (asset.lang ?? null) !== null) continue;
+    const key = [
+      langRank(asset.lang ?? null, lang),
+      sourceRank(kind, asset.source),
+      -(asset.width || 0),
+    ];
+    if (!best || compareKey(key, bestKey) < 0) {
+      best = asset;
+      bestKey = key;
+    }
+  }
+  return best;
+}
+
+function langRank(assetLang, wanted) {
+  const order = [];
+  for (const item of [wanted, "ru", "en", null]) {
+    if (!order.includes(item)) order.push(item);
+  }
+  const idx = order.indexOf(assetLang);
+  return idx === -1 ? order.length : idx;
+}
+
+function sourceRank(kind, source) {
+  const order = SOURCE_ORDER[kind] || [];
+  const idx = order.indexOf(source);
+  return idx === -1 ? 50 : idx;
+}
+
+function compareKey(a, b) {
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+  }
+  return 0;
+}
+
+function resizeAsset(asset, kind, w) {
+  // Only tvoe's own files survive tvoeCdn. A TMDB or staticpop URL sent
+  // through _next/image comes back 400 "url parameter is not allowed".
+  const cdn = tvoeCdn(asset.url);
+  if (cdn) {
+    const bucket = snapCeil(TVOE_WIDTHS, w);
+    return `https://tvoe.live/_next/image?url=${encodeURIComponent(cdn)}&w=${bucket}&q=80`;
+  }
+  if (asset.source === "tmdb" || asset.url.includes("image.tmdb.org")) {
+    return tmdbSized(asset.url, kind, w, asset.width);
+  }
+  if (asset.source === "kinopoisk" || asset.url.includes("kinopoiskapiunofficial.tech")) {
+    return kinopoiskSized(asset.url, w);
+  }
+  if (asset.source === "kinopub" || isKinopubPoster(asset.url)) {
+    return kinopubSized(asset.url, w);
+  }
+  return safeHttpURL(asset.url);
+}
+
+function tvoeCdn(url) {
+  let current = url;
+  for (let i = 0; i < 3; i++) {
+    let parsed;
+    try { parsed = new URL(current); } catch { return null; }
+    if (parsed.hostname === "static.cdn.tvoe.live") return parsed.toString();
+    if (parsed.hostname === "tvoe.live" && parsed.pathname === "/_next/image") {
+      const inner = parsed.searchParams.get("url");
+      if (!inner) return null;
+      current = inner;
+      continue;
+    }
+    return null;
+  }
+  return null;
+}
+
+function tmdbSized(url, kind, w, knownWidth) {
+  const match = url.match(/\/t\/p\/[^/]+(\/.+)$/);
+  if (!match) return safeHttpURL(url);
+  const path = match[1];
+  const ladder = TMDB_LADDER[kind] || TMDB_LADDER.poster;
+  const target = w == null ? MAX_WIDTH : w;
+  const bucket = ladder.find((size) => size >= target);
+  if (bucket) return `https://image.tmdb.org/t/p/w${bucket}${path}`;
+  const originalOK = knownWidth == null
+    ? TMDB_ORIGINAL_IF_WIDTH_UNKNOWN.has(kind)
+    : knownWidth <= MAX_WIDTH;
+  if (originalOK) return `https://image.tmdb.org/t/p/original${path}`;
+  return `https://image.tmdb.org/t/p/w${ladder[ladder.length - 1]}${path}`;
+}
+
+function kinopoiskSized(url, w) {
+  const match = url.match(/\/posters\/kp(?:_small)?\/(\d+)\.jpg$/);
+  if (!match) return safeHttpURL(url);
+  const target = w == null ? MAX_WIDTH : w;
+  const size = target <= 360 ? "kp_small" : "kp";
+  return `${KINOPOISK_POSTER}/${size}/${match[1]}.jpg`;
+}
+
+function kinopubSized(url, w) {
+  const match = url.match(/\/poster\/item\/[^/]+\/(\d+)\.jpg$/);
+  if (!match) return safeHttpURL(url);
+  const target = w == null ? MAX_WIDTH : w;
+  let size = KINOPUB_POSTER_LADDER[KINOPUB_POSTER_LADDER.length - 1].size;
+  for (const bucket of KINOPUB_POSTER_LADDER) {
+    if (bucket.w >= target) { size = bucket.size; break; }
+  }
+  return `${KINOPUB_POSTER}/${size}/${match[1]}.jpg`;
+}
+
+function snapCeil(buckets, w) {
+  const cap = buckets[buckets.length - 1];
+  const target = w == null ? cap : Math.min(w, cap);
+  for (const bucket of buckets) if (bucket >= target) return bucket;
+  return cap;
+}
+
+function inferSource(url) {
+  if (url.includes("image.tmdb.org")) return "tmdb";
+  if (url.includes("static.cdn.tvoe.live") || url.includes("tvoe.live/_next/image")) return "tvoe";
+  if (url.includes("kinopoiskapiunofficial.tech")) return "kinopoisk";
+  if (url.includes("staticpop.net")) return "kinopub";
+  return "unknown";
+}
+
+function isKinopubPoster(url) {
+  return url.includes("staticpop.net/poster");
+}
+
+function safeHttpURL(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function missHint(request) {
+  if (request.kind === "logo") return "no stored logo";
+  if (request.kind === "backdrop") return "no textless backdrop";
+  if (request.kind === "thumbnail") return "no episode thumbnail";
+  if (request.kind === "poster" && request.s != null) return "no season poster";
+  return "no poster";
+}
+
+function redirect(location) {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: location,
+      "Cache-Control": "public, max-age=300",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+function imageNotFound(hint) {
+  return new Response(JSON.stringify({ error: "not_found", hint }), {
+    status: 404,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "public, max-age=30",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
 }
 
 function json(body, status, extra = {}) {
