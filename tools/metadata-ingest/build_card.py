@@ -8,11 +8,14 @@ The warehouse databases are read, not modified. Nothing here is uploaded.
 
 No source columns, no ranks, no kino.pub vote counts. Year is the one
 kino.pub year. A series does not grow a second "started" year beside it.
-Full synopses stay in the warehouse; the card keeps the short line.
+Full synopses stay in the warehouse. The short line is Kinopoisk's, and
+tvoe's when Kinopoisk has none. Every rating has a count column, filled
+or not. Seasons and episodes sit in their own tables.
 """
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -23,7 +26,22 @@ DATA = ROOT / "data"
 RECORD = DATA / "record-v2.db"
 SNAPSHOT = ROOT.parent / "kinopub-snapshot" / "data" / "snapshot.db"
 KINOPOISK = ROOT.parent / "kinopoisk-metadata" / "data" / "kinopoisk.db"
+TVOE = ROOT.parent / "tvoe" / "tvoe_data" / "tvoe.sqlite"
 OUT = DATA / "card.db"
+
+# value column, then its count. The count is created even when the feed
+# sends no votes yet (tvoe, Rotten Tomatoes, Metacritic).
+RATINGS = {
+    "imdb": ("imdb", "imdb_votes"),
+    "kinopoisk": ("kinopoisk", "kinopoisk_votes"),
+    "tvoe": ("tvoe", "tvoe_votes"),
+    "tmdb": ("tmdb", "tmdb_votes"),
+    "rotten_tomatoes": ("rotten_tomatoes", "rotten_tomatoes_votes"),
+    "metacritic": ("metacritic", "metacritic_votes"),
+    "good_review": ("good_review", "good_review_votes"),
+    "film_critics": ("film_critics", "film_critics_votes"),
+    "rf_critics": ("rf_critics", "rf_critics_votes"),
+}
 
 # The poster URL the worker already uses. Kinopoisk returns a file for an id
 # even when the bulk feed has not stored one, so poster_ru is not half empty.
@@ -36,6 +54,9 @@ CREATE TABLE card (
   title_ru           TEXT,
   title_original     TEXT,
   year               INTEGER,
+  runtime_min        INTEGER,
+  countries          TEXT,
+  genres             TEXT,
   short_ru           TEXT,
 
   imdb_id            TEXT,
@@ -58,32 +79,93 @@ CREATE TABLE card (
   imdb_votes         INTEGER,
   kinopoisk          REAL,
   kinopoisk_votes    INTEGER,
-  reviews_count      INTEGER,
+  tvoe               REAL,
+  tvoe_votes         INTEGER,
+  tmdb               REAL,
+  tmdb_votes         INTEGER,
   rotten_tomatoes    REAL,
+  rotten_tomatoes_votes INTEGER,
   metacritic         REAL,
+  metacritic_votes   INTEGER,
+  good_review        REAL,
+  good_review_votes  INTEGER,
+  film_critics       REAL,
+  film_critics_votes INTEGER,
+  rf_critics         REAL,
+  rf_critics_votes   INTEGER,
+  reviews_count      INTEGER,
+  reviews_positive   INTEGER,
+  reviews_negative   INTEGER,
+  reviews_neutral    INTEGER,
 
   updated_at         TEXT NOT NULL
 );
 CREATE INDEX card_imdb ON card(imdb_id);
 CREATE INDEX card_kp ON card(kinopoisk_id);
 CREATE INDEX card_tvoe ON card(tvoe_id);
+
+CREATE TABLE season (
+  kinopub_id    INTEGER NOT NULL,
+  number        INTEGER NOT NULL,
+  name          TEXT,
+  episodes      INTEGER,
+  air_date      TEXT,
+  end_date      TEXT,
+  poster        TEXT,
+  PRIMARY KEY (kinopub_id, number)
+);
+
+CREATE TABLE episode (
+  kinopub_id    INTEGER NOT NULL,
+  season        INTEGER NOT NULL,
+  number        INTEGER NOT NULL,
+  name_ru       TEXT,
+  name_en       TEXT,
+  air_date      TEXT,
+  runtime_min   INTEGER,
+  still         TEXT,
+  PRIMARY KEY (kinopub_id, season, number)
+);
 """
 
 INSERT = """
 INSERT INTO card (
-  kinopub_id, type, title_ru, title_original, year, short_ru,
+  kinopub_id, type, title_ru, title_original, year, runtime_min, countries, genres, short_ru,
   imdb_id, tmdb_id, tvdb_id, kinopoisk_id, kinopoisk_hd_id, tvoe_id, wikidata_id,
   poster_ru, poster_en, cover_ru, cover_en, backdrop, logo_ru, logo_en,
-  imdb, imdb_votes, kinopoisk, kinopoisk_votes, reviews_count,
-  rotten_tomatoes, metacritic, updated_at
+  imdb, imdb_votes, kinopoisk, kinopoisk_votes, tvoe, tvoe_votes, tmdb, tmdb_votes,
+  rotten_tomatoes, rotten_tomatoes_votes, metacritic, metacritic_votes,
+  good_review, good_review_votes, film_critics, film_critics_votes,
+  rf_critics, rf_critics_votes, reviews_count, reviews_positive, reviews_negative,
+  reviews_neutral, updated_at
 ) VALUES (
-  :kinopub_id, :type, :title_ru, :title_original, :year, :short_ru,
+  :kinopub_id, :type, :title_ru, :title_original, :year, :runtime_min, :countries, :genres, :short_ru,
   :imdb_id, :tmdb_id, :tvdb_id, :kinopoisk_id, :kinopoisk_hd_id, :tvoe_id, :wikidata_id,
   :poster_ru, :poster_en, :cover_ru, :cover_en, :backdrop, :logo_ru, :logo_en,
-  :imdb, :imdb_votes, :kinopoisk, :kinopoisk_votes, :reviews_count,
-  :rotten_tomatoes, :metacritic, :updated_at
+  :imdb, :imdb_votes, :kinopoisk, :kinopoisk_votes, :tvoe, :tvoe_votes, :tmdb, :tmdb_votes,
+  :rotten_tomatoes, :rotten_tomatoes_votes, :metacritic, :metacritic_votes,
+  :good_review, :good_review_votes, :film_critics, :film_critics_votes,
+  :rf_critics, :rf_critics_votes, :reviews_count, :reviews_positive, :reviews_negative,
+  :reviews_neutral, :updated_at
 )
 """
+
+
+def country_text(raw: object) -> str | None:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    if text.startswith("["):
+        try:
+            names = json.loads(text)
+        except json.JSONDecodeError:
+            return text
+        if isinstance(names, list):
+            joined = ", ".join(str(name) for name in names if name)
+            return joined or None
+    return text
 
 
 def imdb_text(raw: object) -> str | None:
@@ -136,12 +218,13 @@ def main() -> None:
 
     hd: dict[str, str] = {}
     reviews: dict[str, int] = {}
+    runtime: dict[str, int] = {}
     film_poster: dict[str, str] = {}
     film_cover: dict[str, str] = {}
     film_logo: dict[str, str] = {}
     for row in kinopoisk.execute(
         """
-        SELECT kinopoisk_id, kinopoisk_hd_id, reviews_count,
+        SELECT kinopoisk_id, kinopoisk_hd_id, reviews_count, film_length,
                poster_url, cover_url, logo_url
           FROM kp_films
         """
@@ -151,6 +234,8 @@ def main() -> None:
             hd[key] = row["kinopoisk_hd_id"]
         if row["reviews_count"]:
             reviews[key] = row["reviews_count"]
+        if row["film_length"]:
+            runtime[key] = row["film_length"]
         if row["poster_url"]:
             film_poster[key] = row["poster_url"]
         if row["cover_url"]:
@@ -217,6 +302,38 @@ def main() -> None:
         if kinopub_id is not None:
             short.setdefault(kinopub_id, row["text"])
 
+    # tvoe's catalog has a real short line. The warehouse stored their
+    # `description` as a full synopsis and never kept `shortDesc`, so the
+    # short is read from tvoe's own sqlite. Kinopoisk still wins.
+    tvoe_short: dict[str, str] = {}
+    if TVOE.exists():
+        tvoe = sqlite3.connect(f"file:{TVOE}?mode=ro", uri=True)
+        for row in tvoe.execute(
+            "SELECT id, short_desc FROM title"
+            " WHERE short_desc IS NOT NULL AND short_desc != ''"
+        ):
+            tvoe_short[row[0]] = row[1]
+        tvoe.close()
+
+    genres_kp: dict[int, list[str]] = {}
+    genres_tvoe: dict[int, list[str]] = {}
+    for row in record.execute(
+        """
+        SELECT title_id, source, name
+          FROM genre
+         WHERE source IN ('kinopoisk', 'tvoe')
+           AND name IS NOT NULL AND name != ''
+         ORDER BY rowid
+        """
+    ):
+        kinopub_id = kinopub_of.get(row["title_id"])
+        if kinopub_id is None:
+            continue
+        bucket = genres_kp if row["source"] == "kinopoisk" else genres_tvoe
+        names = bucket.setdefault(kinopub_id, [])
+        if row["name"] not in names:
+            names.append(row["name"])
+
     ratings: dict[int, dict[str, object]] = {}
 
     def rating(title_id: int) -> dict[str, object] | None:
@@ -225,33 +342,26 @@ def main() -> None:
             return None
         return ratings.setdefault(kinopub_id, {})
 
+    source_list = ", ".join(f"'{name}'" for name in (*RATINGS, "imdb:omdb"))
     for row in record.execute(
-        """
+        f"""
         SELECT title_id, source, value, votes
           FROM rating
          WHERE season IS NULL AND episode IS NULL
-           AND source IN (
-             'imdb', 'imdb:omdb', 'kinopoisk', 'rotten_tomatoes', 'metacritic'
-           )
+           AND source IN ({source_list})
         """
     ):
         slot = rating(row["title_id"])
         if slot is None:
             continue
         source = row["source"]
-        if source == "imdb":
-            slot["imdb"] = row["value"]
-            slot["imdb_votes"] = row["votes"]
-        elif source == "imdb:omdb":
+        if source == "imdb:omdb":
             slot.setdefault("imdb", row["value"])
             slot.setdefault("imdb_votes", row["votes"])
-        elif source == "kinopoisk":
-            slot["kinopoisk"] = row["value"]
-            slot["kinopoisk_votes"] = row["votes"]
-        elif source == "rotten_tomatoes":
-            slot["rotten_tomatoes"] = row["value"]
-        elif source == "metacritic":
-            slot["metacritic"] = row["value"]
+            continue
+        value_column, votes_column = RATINGS[source]
+        slot[value_column] = row["value"]
+        slot[votes_column] = row["votes"]
 
     if OUT.exists():
         OUT.unlink()
@@ -259,10 +369,11 @@ def main() -> None:
     out.executescript(SCHEMA)
 
     rows = []
+    short_from_tvoe = 0
     for item in snapshot.execute(
         """
-        SELECT id, type, title_ru, title_original, year, kinopoisk_id, imdb_id,
-               last_synced_at
+        SELECT id, type, title_ru, title_original, year, countries, kinopoisk_id,
+               imdb_id, last_synced_at
           FROM items
          ORDER BY id
         """
@@ -282,19 +393,29 @@ def main() -> None:
         if logo is None and kinopoisk_id:
             logo = film_logo.get(kinopoisk_id)
         numbers = ratings.get(kinopub_id, {})
+        tvoe_id = found.get("tvoe")
+        line = short.get(kinopub_id)
+        if not line and tvoe_id:
+            line = tvoe_short.get(tvoe_id)
+            if line:
+                short_from_tvoe += 1
+        genre_names = genres_kp.get(kinopub_id) or genres_tvoe.get(kinopub_id)
         rows.append({
             "kinopub_id": kinopub_id,
             "type": item["type"],
             "title_ru": item["title_ru"],
             "title_original": item["title_original"],
             "year": item["year"],
-            "short_ru": short.get(kinopub_id),
+            "runtime_min": runtime.get(kinopoisk_id) if kinopoisk_id else None,
+            "countries": country_text(item["countries"]),
+            "genres": ", ".join(genre_names) if genre_names else None,
+            "short_ru": line,
             "imdb_id": imdb_text(found.get("imdb") or item["imdb_id"]),
             "tmdb_id": found.get("tmdb"),
             "tvdb_id": found.get("tvdb"),
             "kinopoisk_id": kinopoisk_id,
             "kinopoisk_hd_id": hd.get(kinopoisk_id) if kinopoisk_id else None,
-            "tvoe_id": found.get("tvoe"),
+            "tvoe_id": tvoe_id,
             "wikidata_id": found.get("wikidata"),
             "poster_ru": poster,
             "poster_en": poster_en.get(kinopub_id),
@@ -303,28 +424,100 @@ def main() -> None:
             "backdrop": backdrop.get(kinopub_id),
             "logo_ru": logo,
             "logo_en": logo_en.get(kinopub_id),
-            "imdb": numbers.get("imdb"),
-            "imdb_votes": numbers.get("imdb_votes"),
-            "kinopoisk": numbers.get("kinopoisk"),
-            "kinopoisk_votes": numbers.get("kinopoisk_votes"),
             "reviews_count": reviews.get(kinopoisk_id) if kinopoisk_id else None,
-            "rotten_tomatoes": numbers.get("rotten_tomatoes"),
-            "metacritic": numbers.get("metacritic"),
+            # The bulk film feed has the total only. Tone counts are columns
+            # now; the reviews endpoint's totals are not in the warehouse yet.
+            "reviews_positive": None,
+            "reviews_negative": None,
+            "reviews_neutral": None,
             "updated_at": item["last_synced_at"] or built_at,
+            **{column: numbers.get(column) for pair in RATINGS.values() for column in pair},
         })
 
     out.executemany(INSERT, rows)
+
+    seasons: dict[tuple[int, int], dict[str, object]] = {}
+    episodes = []
+    for row in record.execute(
+        """
+        SELECT title_id, season, number, name_ru, name_en, air_date, runtime, still
+          FROM episode
+         ORDER BY (name_ru IS NULL OR name_ru = ''), rowid
+        """
+    ):
+        kinopub_id = kinopub_of.get(row["title_id"])
+        if kinopub_id is None:
+            continue
+        episodes.append((
+            kinopub_id, row["season"], row["number"], row["name_ru"], row["name_en"],
+            row["air_date"], row["runtime"], row["still"],
+        ))
+        slot = seasons.setdefault((kinopub_id, row["season"]), {
+            "episodes": 0, "air_date": None, "name": None, "end_date": None, "poster": None,
+        })
+        slot["episodes"] += 1
+        air_date = row["air_date"]
+        if air_date and (slot["air_date"] is None or air_date < slot["air_date"]):
+            slot["air_date"] = air_date
+
+    for row in record.execute(
+        """
+        SELECT title_id, number, name, air_date, end_date, episode_cnt, poster
+          FROM season
+        """
+    ):
+        kinopub_id = kinopub_of.get(row["title_id"])
+        if kinopub_id is None:
+            continue
+        slot = seasons.setdefault((kinopub_id, row["number"]), {
+            "episodes": 0, "air_date": None, "name": None, "end_date": None, "poster": None,
+        })
+        if row["name"]:
+            slot["name"] = row["name"]
+        if row["end_date"]:
+            slot["end_date"] = row["end_date"]
+        if row["poster"]:
+            slot["poster"] = row["poster"]
+        if row["air_date"]:
+            slot["air_date"] = row["air_date"]
+        if row["episode_cnt"] and not slot["episodes"]:
+            slot["episodes"] = row["episode_cnt"]
+
+    out.executemany(
+        """
+        INSERT OR IGNORE INTO episode
+          (kinopub_id, season, number, name_ru, name_en, air_date, runtime_min, still)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        episodes,
+    )
+    out.executemany(
+        """
+        INSERT INTO season (kinopub_id, number, name, episodes, air_date, end_date, poster)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (kinopub_id, number, slot["name"], slot["episodes"], slot["air_date"],
+             slot["end_date"], slot["poster"])
+            for (kinopub_id, number), slot in seasons.items()
+        ],
+    )
     out.commit()
 
     total = out.execute("SELECT COUNT(*) FROM card").fetchone()[0]
     print(f"card.db  {OUT}")
     print(f"rows     {total}")
+    print(f"seasons  {out.execute('SELECT COUNT(*) FROM season').fetchone()[0]}")
+    print(f"episodes {out.execute('SELECT COUNT(*) FROM episode').fetchone()[0]}")
+    print(f"short from tvoe, no kinopoisk short  {short_from_tvoe}")
     filled = [
-        "short_ru", "imdb_id", "tmdb_id", "tvdb_id", "kinopoisk_id",
+        "genres", "countries", "runtime_min", "short_ru",
+        "imdb_id", "tmdb_id", "tvdb_id", "kinopoisk_id",
         "kinopoisk_hd_id", "tvoe_id", "wikidata_id",
         "poster_ru", "poster_en", "cover_ru", "cover_en", "backdrop",
         "logo_ru", "logo_en",
-        "imdb", "kinopoisk", "reviews_count", "rotten_tomatoes", "metacritic",
+        "imdb", "kinopoisk", "tvoe", "tmdb", "good_review", "film_critics",
+        "rf_critics", "reviews_count", "rotten_tomatoes", "metacritic",
     ]
     width = max(len(name) for name in filled)
     for name in filled:
@@ -345,6 +538,14 @@ def main() -> None:
             if len(text) > 90:
                 text = text[:87] + "..."
             print(f"  {key:<18} {text}")
+        season_count = out.execute(
+            "SELECT COUNT(*) FROM season WHERE kinopub_id = 100564"
+        ).fetchone()[0]
+        episode_count = out.execute(
+            "SELECT COUNT(*) FROM episode WHERE kinopub_id = 100564"
+        ).fetchone()[0]
+        print(f"  {'seasons':<18} {season_count}")
+        print(f"  {'episodes':<18} {episode_count}")
 
 
 if __name__ == "__main__":
