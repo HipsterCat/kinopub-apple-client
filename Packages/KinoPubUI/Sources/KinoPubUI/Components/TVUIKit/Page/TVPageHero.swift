@@ -160,9 +160,10 @@ final class TVPageHeroBackdropView: UIView {
   /// Black over the picture while the row under it has focus.
   private static let recededDim: CGFloat = 0.35
   /// Where the picture starts to fade out, and where it is gone, as shares of its height.
-  /// Late enough that the words (lower third) stand on the shaded picture in light
-  /// appearance too, where the page behind is light.
-  private static let fadeStart: CGFloat = 0.8
+  /// Late and short: the words, the dots and the row under the hero stand on the shaded
+  /// picture. A long fade showed a light band behind the dots in light appearance,
+  /// where the page behind is light (2026-10-22).
+  private static let fadeStart: CGFloat = 0.92
   private static let fadeEnd: CGFloat = 1
 
   override init(frame: CGRect) {
