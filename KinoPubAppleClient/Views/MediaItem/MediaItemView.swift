@@ -322,6 +322,7 @@ struct MediaItemView: View {
                             onMarkUnwatchedInSeason: { itemModel.markUnwatchedInSeason($0) },
                             onMarkAllEpisodesWatched: { itemModel.markAllEpisodesWatched() },
                             titleLogoURL: itemModel.externalMetadata.titleLogoURL,
+                            preferredBackdropURL: itemModel.externalMetadata.backdropURL,
                             ageRating: itemModel.externalMetadata.ageRating,
                             externalMetadataLoaded: itemModel.externalMetadataLoaded,
                             onFocusEntered: {
@@ -613,7 +614,10 @@ struct MediaItemView: View {
   /// This title's picture for the stack's backdrop. The id is the title, so a payload
   /// that only adds a palette later animates in place rather than crossfading.
   private var tvBackdrop: PageBackdrop? {
-    let urls = MediaItemHeroView.backdropCandidates(for: itemModel.mediaItem)
+    let urls = MediaItemHeroView.backdropCandidates(
+      for: itemModel.mediaItem,
+      preferredBackdropURL: itemModel.externalMetadata.backdropURL
+    )
     guard !urls.isEmpty else { return nil }
     return PageBackdrop(id: Route.backdropKey(itemID: itemModel.mediaItem.id), imageURLs: urls)
   }

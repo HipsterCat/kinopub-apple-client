@@ -381,6 +381,47 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               kinopoiskID: kinopoiskID)
   }
 
+  public func withBackdropURL(_ backdropURL: String?) -> MediaCard {
+    MediaCard(id: id,
+              posterURL: posterURL,
+              title: title,
+              subtitle: subtitle,
+              watchedAt: watchedAt,
+              scores: scores,
+              progress: progress,
+              badge: badge,
+              backdropURL: backdropURL ?? self.backdropURL,
+              overview: overview,
+              landscapeImageURL: landscapeImageURL,
+              overlayLabel: overlayLabel,
+              itemID: itemID,
+              video: video,
+              season: season,
+              seasonCount: seasonCount,
+              episodeCount: episodeCount,
+              mediaID: mediaID,
+              isWatched: isWatched,
+              isSeries: isSeries,
+              isInHistory: isInHistory,
+              viewerState: viewerState,
+              is4K: is4K,
+              isHDR: isHDR,
+              isHD: isHD,
+              is3D: is3D,
+              hasClosedCaptions: hasClosedCaptions,
+              year: year,
+              yearEnd: yearEnd,
+              unwatchedEpisodes: unwatchedEpisodes,
+              durationSeconds: durationSeconds,
+              genres: genres,
+              country: country,
+              primaryAction: primaryAction,
+              opensCollection: opensCollection,
+              captionStats: captionStats,
+              imdbID: imdbID,
+              kinopoiskID: kinopoiskID)
+  }
+
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     id = try c.decode(Int.self, forKey: .id)

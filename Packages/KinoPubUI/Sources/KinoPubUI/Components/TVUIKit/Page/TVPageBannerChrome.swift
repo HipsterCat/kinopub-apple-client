@@ -161,13 +161,15 @@ public struct TVPageBannerChrome: Sendable {
   public var vibranceEnabled: Bool = false
   public var isFocusedState: Bool = false
   public var padding: CGFloat = 32
+  /// Reduced top padding above title/logo (~25% less than 32pt side inset).
+  public var topPadding: CGFloat = 24
   /// Reduced bottom padding under meta line (~30% less than 32pt side inset).
   public var bottomPadding: CGFloat = 22
   public var copySpacing: CGFloat = 12
   /// Caps for the logo box. The view is then shrunk to the image's own aspect,
   /// pinned to the top of that box.
-  public var logoMaxHeightRatio: CGFloat = 0.24
-  public var logoMaxWidthRatio: CGFloat = 0.80
+  public var logoMaxHeightRatio: CGFloat = 0.22
+  public var logoMaxWidthRatio: CGFloat = 0.65
   /// Poster is 40% of banner height in the bottom corner.
   public var posterHeightRatio: CGFloat = 0.40
   /// Rating-mark height. `nil` uses the caption font's cap height, so the mark
@@ -203,10 +205,11 @@ public struct TVPageBannerChrome: Sendable {
     vibranceEnabled: Bool = false,
     isFocusedState: Bool = false,
     padding: CGFloat = 32,
+    topPadding: CGFloat = 24,
     bottomPadding: CGFloat = 22,
     copySpacing: CGFloat = 12,
-    logoMaxHeightRatio: CGFloat = 0.24,
-    logoMaxWidthRatio: CGFloat = 0.80,
+    logoMaxHeightRatio: CGFloat = 0.22,
+    logoMaxWidthRatio: CGFloat = 0.65,
     posterHeightRatio: CGFloat = 0.40,
     scoreIconHeight: CGFloat? = nil,
     showsRatingVotes: Bool = false,
@@ -231,6 +234,7 @@ public struct TVPageBannerChrome: Sendable {
     self.vibranceEnabled = vibranceEnabled
     self.isFocusedState = isFocusedState
     self.padding = padding
+    self.topPadding = topPadding
     self.bottomPadding = bottomPadding
     self.copySpacing = copySpacing
     self.logoMaxHeightRatio = logoMaxHeightRatio

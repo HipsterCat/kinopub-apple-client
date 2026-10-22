@@ -436,10 +436,18 @@ function capArtwork(assets) {
   return ARTWORK_LANG_ORDER.filter((lang) => picked.has(lang)).map((lang) => picked.get(lang));
 }
 
-/** Best artwork of a kind: our precedence, applied here so the client has none. */
+/** Best artwork of a kind: our precedence, applied here so the client has none.
+ * For `backdrop`, prefer textless (`lang === null`) so our own logo/title overlay
+ * never collides with a title baked into the backdrop art. For `logo` and `poster`,
+ * prefer `ru`. */
 function pickArtwork(document, kind) {
   const list = document.artwork?.[kind];
   if (!list?.length) return null;
+  if (kind === "backdrop") {
+    const textless = list.find((asset) => asset.lang === null && asset.source === "tmdb")
+      || list.find((asset) => asset.lang === null);
+    return (textless || list[0]).url;
+  }
   const russian = list.find((asset) => asset.lang === "ru");
   return (russian || list[0]).url;
 }

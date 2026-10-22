@@ -294,6 +294,8 @@ struct MediaItemHeroView: View {
   var onMarkAllEpisodesWatched: (() -> Void)? = nil
   /// TMDB / Kinopoisk title logo when enrichment supplied one.
   var titleLogoURL: URL? = nil
+  /// Clean textless TMDB backdrop when enrichment supplied one.
+  var preferredBackdropURL: URL? = nil
   /// Certification from enrichment ("TV-14", "16+"). Rendered as one more capability
   /// chip in the metadata row — the item payload has no rating of its own.
   var ageRating: String? = nil
@@ -605,12 +607,14 @@ struct MediaItemHeroView: View {
   }
 #endif
 
-  /// wide → big → medium. Same chain as Home banners — list/detail payloads differ and
-  /// a `/wide/` derivation frequently 404s, so one URL is not enough. See
-  /// `FallbackRemoteImage`. The tvOS page hands the same chain to the stack's backdrop.
-  static func backdropCandidates(for mediaItem: MediaItem) -> [URL] {
+  /// Clean textless backdrop from external metadata (TMDB) first when available, then
+  /// wide → big → medium from kino.pub.
+  static func backdropCandidates(for mediaItem: MediaItem, preferredBackdropURL: URL? = nil) -> [URL] {
     var seen = Set<String>()
     var urls: [URL] = []
+    if let preferredBackdropURL, seen.insert(preferredBackdropURL.absoluteString).inserted {
+      urls.append(preferredBackdropURL)
+    }
     for raw in [mediaItem.posters.wideURL, mediaItem.posters.big, mediaItem.posters.medium]
       .compactMap({ $0 }) where !raw.isEmpty && seen.insert(raw).inserted {
       if let url = URL(string: raw) { urls.append(url) }
@@ -619,7 +623,9 @@ struct MediaItemHeroView: View {
   }
 
 #if !os(tvOS)
-  private var backdropCandidates: [URL] { Self.backdropCandidates(for: mediaItem) }
+  private var backdropCandidates: [URL] {
+    Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
+  }
 
   @ViewBuilder
   private var scrollingBackdrop: some View {

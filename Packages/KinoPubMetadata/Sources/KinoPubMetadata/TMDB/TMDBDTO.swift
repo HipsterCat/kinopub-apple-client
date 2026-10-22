@@ -224,11 +224,26 @@ struct TMDBImages: Codable, Sendable {
       .filePath
   }
 
+  /// Textless (`iso_639_1 == nil`) first so our own logo/title overlay never collides
+  /// with a title already baked into the backdrop art; then `ru` → `en` → any.
   func bestBackdropPath() -> String? {
-    backdrops
-      .filter { !($0.filePath ?? "").isEmpty }
-      .max(by: { ($0.voteAverage ?? 0) < ($1.voteAverage ?? 0) })?
-      .filePath
+    let candidates = backdrops.filter { !($0.filePath ?? "").isEmpty }
+    guard !candidates.isEmpty else { return nil }
+
+    func bestByVote(_ entries: [TMDBImageEntry]) -> TMDBImageEntry? {
+      entries.max(by: { ($0.voteAverage ?? 0) < ($1.voteAverage ?? 0) })
+    }
+
+    let textless = candidates.filter { ($0.iso6391 ?? "").isEmpty }
+    if let pick = bestByVote(textless) {
+      return pick.filePath
+    }
+    return bestByVote(candidates)?.filePath
+  }
+
+  /// True when TMDB has a clean textless (`iso_639_1 == nil`) backdrop.
+  var hasTextlessBackdrop: Bool {
+    backdrops.contains { !($0.filePath ?? "").isEmpty && ($0.iso6391 ?? "").isEmpty }
   }
 }
 

@@ -986,9 +986,12 @@ class HomeCatalog: ObservableObject {
           self.bannerLogos[id] = .missing
           return
         }
-        let url = await metadataService.metadata(for: identity).titleLogoURL
+        let meta = await metadataService.metadata(for: identity)
         guard !Task.isCancelled, self.bannerCards.contains(where: { $0.id == id }) else { return }
-        self.bannerLogos[id] = url.map { .url($0) } ?? .missing
+        if let cleanBackdrop = meta.backdropURL?.absoluteString {
+          self.bannerDetails[id] = (detailed ?? card).withBackdropURL(cleanBackdrop)
+        }
+        self.bannerLogos[id] = meta.titleLogoURL.map { .url($0) } ?? .missing
       }
     }
   }

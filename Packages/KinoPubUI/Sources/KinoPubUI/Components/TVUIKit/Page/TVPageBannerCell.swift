@@ -364,7 +364,8 @@ final class TVPageBannerCell: UICollectionViewCell {
       applyLogoShadow()
     }
     let size = cardView.contentSize
-    if !sameCard || backdrop.image == nil {
+    let backdropChanged = previous?.card.backdropImageURL != card.backdropImageURL
+    if !sameCard || backdropChanged || backdrop.image == nil {
       load([URL(string: card.backdropImageURL), URL(string: card.posterURL)], size: size) { [weak self] image in
         guard let self, let image else { return }
         if self.backdrop.image == nil {
@@ -647,6 +648,7 @@ final class TVPageBannerCell: UICollectionViewCell {
 
     let host = cardView.contentView
     let pad = chrome.padding
+    let tPad = chrome.topPadding
     let bPad = chrome.bottomPadding
     let centered = chrome.alignment == .center
     column.alignment = centered ? .center : .leading
@@ -670,7 +672,7 @@ final class TVPageBannerCell: UICollectionViewCell {
       topHeader.addArrangedSubview(logo)
       host.addSubview(topHeader)
       pins += [
-        topHeader.topAnchor.constraint(equalTo: host.topAnchor, constant: pad)
+        topHeader.topAnchor.constraint(equalTo: host.topAnchor, constant: tPad)
       ]
       if centered {
         pins += [
@@ -721,9 +723,9 @@ final class TVPageBannerCell: UICollectionViewCell {
           pins += [poster.topAnchor.constraint(equalTo: topHeader.bottomAnchor, constant: chrome.copySpacing)]
         }
       } else {
-        pins += [column.topAnchor.constraint(equalTo: host.topAnchor, constant: pad)]
+        pins += [column.topAnchor.constraint(equalTo: host.topAnchor, constant: tPad)]
         if chrome.showsPoster {
-          pins += [poster.topAnchor.constraint(equalTo: host.topAnchor, constant: pad)]
+          pins += [poster.topAnchor.constraint(equalTo: host.topAnchor, constant: tPad)]
         }
       }
     }

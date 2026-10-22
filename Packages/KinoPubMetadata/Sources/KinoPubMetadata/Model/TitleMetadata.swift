@@ -379,6 +379,7 @@ public struct TitleMetadata: Sendable {
   public init() {}
 
   public var titleLogoURL: URL? { artwork.titleLogo }
+  public var backdropURL: URL? { artwork.backdrop }
 
   public mutating func merge(_ other: TitleMetadata) {
     if cast.isEmpty { cast = other.cast }
