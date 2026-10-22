@@ -6,8 +6,9 @@
 #   CLOUDFLARE_API_TOKEN     Cloudflare API token, template "Edit Cloudflare Workers"
 #   CLOUDFLARE_ACCOUNT_ID    Cloudflare account id (Workers overview)
 #
-# TMDB_READ_TOKEN is a *Cloudflare Worker* secret (`wrangler secret put`),
-# already on the live worker. This workflow does not create or overwrite it.
+# Worker secrets (wrangler secret put), not GitHub secrets, and not overwritten
+# by this workflow: TMDB_READ_TOKEN, OMDB_API_KEY, KINOPOISK_API_KEY,
+# KINOPOISK_API_KEY_2.
 
 name: TMDB proxy worker
 

@@ -18,13 +18,16 @@ notice; they do not fail the job.
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token. Create Token → **Edit Cloudflare Workers**. Needs Account: **Workers Scripts Edit**, **Workers KV Storage Edit**, **Account Settings Read**, scoped to this account. |
 | `CLOUDFLARE_ACCOUNT_ID` | Account id from the Workers overview (the hex in the dashboard URL). Not the API token. |
 
-`TMDB_READ_TOKEN` is **not** a GitHub secret. It is already on the live worker from
-`wrangler secret put`; a GitHub deploy does not overwrite Worker secrets. First-time
-or a new account still needs that once:
+`TMDB_READ_TOKEN`, `OMDB_API_KEY`, `KINOPOISK_API_KEY` and `KINOPOISK_API_KEY_2` are
+**not** GitHub secrets. They live on the worker from `wrangler secret put`; a GitHub
+deploy does not overwrite them. First-time or a new account still needs that once:
 
 ```bash
 cd workers/tmdb-proxy
-npx wrangler secret put TMDB_READ_TOKEN   # paste the TMDB API Read Access Token
+npx wrangler secret put TMDB_READ_TOKEN      # TMDB API Read Access Token
+npx wrangler secret put OMDB_API_KEY         # owner OMDb key
+npx wrangler secret put KINOPOISK_API_KEY    # owner Kinopoisk Unofficial key
+npx wrangler secret put KINOPOISK_API_KEY_2  # second owner key, used after a 402
 ```
 
 Do not put `account_id` or tokens in `wrangler.toml`. The file already has `name`,
@@ -44,6 +47,12 @@ Manual `npx wrangler deploy` is for a laptop with Wrangler logged in, not for CI
 | --- | --- |
 | `GET {proxy}/3/find/tt0903747?external_source=imdb_id` | `GET https://api.themoviedb.org/3/find/…` with `Authorization: Bearer …` |
 | `GET {proxy}/t/p/w185/abc.jpg` | `GET https://image.tmdb.org/t/p/w185/abc.jpg` (no auth) |
+| `GET {proxy}/omdb?i=tt0111161&plot=short` | `GET https://www.omdbapi.com/?…&apikey=…` The caller key is ignored. A `Response: False` body is not cached (that is how OMDb reports a spent daily quota). |
+| `GET {proxy}/kp/api/v2.2/films/326` | `GET https://kinopoiskapiunofficial.tech/api/v2.2/films/326` with `X-API-KEY`. On 402 the second owner key is tried. |
+| `GET {proxy}/tvoe/api/v2/catalog?…` | `GET https://api.tvoe.live/v2/catalog?…` |
+| `GET {proxy}/tvoe/site/_next/…` | `GET https://tvoe.live/_next/…` (Next data and the image resizer). |
+
+The viewer's Kinopoisk key stays in the app. These routes use the owner keys only.
 
 Successful GET responses are edge-cached for `CACHE_TTL_SECONDS` (default 6 hours).
 4xx/5xx are not cached.
