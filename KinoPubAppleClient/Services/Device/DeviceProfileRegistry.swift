@@ -18,7 +18,7 @@ enum DeviceProfileRegistry {
 
   /// Bump when the fingerprint's shape changes, so every install re-registers once
   /// instead of trusting a value computed by older code.
-  private static let schema = 1
+  private static let schema = 2
   private static let storageKey = "com.kunst.kinopub.deviceProfileFingerprint"
 
   private static var defaults: UserDefaults { .standard }

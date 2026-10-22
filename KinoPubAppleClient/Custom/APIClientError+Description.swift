@@ -52,6 +52,29 @@ extension APIClientError: CustomStringConvertible { // Extension declares a conf
     }
   }
 
+  /// True when the OAuth device-flow endpoint explicitly reports that the verification
+  /// code has expired or been rejected (as opposed to `authorization_pending`,
+  /// `slow_down`, or a transient transport/server error).
+  var isDeviceCodeExpired: Bool {
+    switch self {
+    case .networkError(let error):
+      guard let backendError = error as? BackendError else { return false }
+      switch backendError.errorCode {
+      case .invalidGrant:
+        return true
+      case .unknown(let raw):
+        let normalized = raw.lowercased()
+        return normalized == "expired_token"
+          || normalized == "bad_verification_code"
+          || normalized == "access_denied"
+      case .authorizationPending, .slowDown, .invalidClient, .unauthorized:
+        return false
+      }
+    default:
+      return false
+    }
+  }
+
   /// True only when the backend explicitly rejected the credentials. Delegates to
   /// the backend's `isAuthRejection` so the app and the tests share one truth.
   var isFatalAuthError: Bool {

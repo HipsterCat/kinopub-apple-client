@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import KinoPubBackend
 
 protocol Token: Codable {
   var accessToken: String { get }
@@ -16,6 +17,10 @@ protocol Token: Codable {
 protocol AccessTokenService {
   func set<T>(token: T) where T: Token
   func token<T>() -> T? where T: Token
+  /// Re-reads the persistent Keychain store and reports whether the stored token changed
+  /// externally (for example via iCloud Keychain sync from another device) since this
+  /// process last wrote or baseline-observed it.
+  func reloadFromKeychain() -> (token: AccessToken?, didChangeExternally: Bool)
   func clear()
   /// `false` when the backend ended the session rather than the user — see the
   /// implementation for why the two cannot be treated the same.
@@ -40,6 +45,10 @@ struct AccessTokenServiceMock: AccessTokenService {
 
   func token<T>() -> T? where T: Token {
     nil
+  }
+
+  func reloadFromKeychain() -> (token: AccessToken?, didChangeExternally: Bool) {
+    (nil, false)
   }
 
   func clear() {

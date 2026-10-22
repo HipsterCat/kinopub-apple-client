@@ -8,9 +8,7 @@ import SwiftUI
 import KinoPubUI
 
 /// Full-screen device activation, modelled on the system AirPlay-code screen: system type styles,
-/// a material background, the code split into per-character tiles. There is no way out of it — the
-/// app is unusable until the device is activated — so it carries no dismiss affordance and no
-/// error toasts; a failure just keeps fetching a new code.
+/// a material background, the code split into per-character tiles.
 ///
 /// Layout never moves. The tiles are always on screen at their final size — empty while a code is
 /// in flight — and the characters blur in when it lands, instead of a spinner that pushes the page
@@ -18,6 +16,7 @@ import KinoPubUI
 struct AuthView: View {
 
   @StateObject var model: AuthModel
+  @Environment(\.scenePhase) private var scenePhase
   @State private var isCodeHovered = false
   @FocusState private var activateFocused: Bool
 
@@ -49,6 +48,20 @@ struct AuthView: View {
     .hudToast($model.hudToast)
     .task {
       await model.run()
+    }
+    .onChange(of: scenePhase) { _, phase in
+      switch phase {
+      case .background:
+        model.handleDidEnterBackground()
+      case .active:
+        Task {
+          await model.handleDidBecomeActive()
+        }
+      case .inactive:
+        break
+      @unknown default:
+        break
+      }
     }
   }
 
@@ -103,6 +116,8 @@ struct AuthView: View {
         tile(character(at: index))
       }
     }
+    .opacity(model.isExpired ? 0.45 : 1)
+    .animation(.easeOut(duration: 0.2), value: model.isExpired)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(Text("Auth_DeviceCode"))
     .accessibilityValue(Text(model.deviceCode.map(String.init).joined(separator: " ")))
@@ -145,15 +160,35 @@ struct AuthView: View {
     return count * Metrics.tileSize.width + (count - 1) * Metrics.tileSpacing
   }
 
-  // MARK: - Expiry
+  // MARK: - Expiry & Status
 
-  /// Draining ring plus the remaining time in figures. The ring alone reads as a
-  /// spinner — it says something is running, not how long is left — so it is the
-  /// glanceable half and the number is the precise half.
+  /// Draining ring plus the remaining time in figures, or explicit expired / error state.
   @ViewBuilder
   private var expiryRing: some View {
     ZStack {
-      if let range = model.codeValidRange {
+      if model.isExpired {
+        HStack(spacing: Metrics.ringSpacing) {
+          Image(systemName: "clock.badge.exclamationmark")
+            .font(Metrics.expiryFont)
+            .foregroundStyle(.orange)
+          Text("Auth_CodeExpired")
+            .font(Metrics.expiryFont)
+            .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+      } else if let errorMessage = model.errorMessage {
+        HStack(spacing: Metrics.ringSpacing) {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .font(Metrics.expiryFont)
+            .foregroundStyle(.orange)
+          Text(errorMessage)
+            .font(Metrics.expiryFont)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .multilineTextAlignment(.center)
+        }
+        .accessibilityElement(children: .combine)
+      } else if let range = model.codeValidRange {
         TimelineView(.periodic(from: range.lowerBound, by: 1)) { context in
           let total = range.upperBound.timeIntervalSince(range.lowerBound)
           let left = max(0, range.upperBound.timeIntervalSince(context.date))
@@ -176,40 +211,115 @@ struct AuthView: View {
               .monospacedDigit()
               .foregroundStyle(.secondary)
           }
+          .onChange(of: left <= 0) { _, expired in
+            if expired {
+              model.checkExpiration()
+            }
+          }
           .accessibilityElement(children: .combine)
           .accessibilityLabel(Text("Auth_DeviceCode"))
           .accessibilityValue(Text(Duration.seconds(left).formatted(.time(pattern: .minuteSecond))))
         }
+      } else if model.isRefreshing {
+        ProgressView()
+          .controlSize(.small)
       }
     }
-    .frame(height: Metrics.ringRowHeight)
+    .frame(minHeight: Metrics.ringRowHeight)
   }
 
   // MARK: - Footer
 
-  /// Always present at a fixed size — the code arriving must not move it. Activation
-  /// copies the code on the way out, so the site opens with it already on the clipboard.
+  /// Primary activation / recovery actions plus a Share button right under Activate so
+  /// the user can AirDrop or send the activation link and code to another device.
   @ViewBuilder
   private var footer: some View {
+    if model.isExpired {
+      Button {
+        Task {
+          await model.requestNewCode()
+        }
+      } label: {
+        Text("Auth_GetNewCode")
+          .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.glassProminent)
+      .controlSize(.large)
 #if !os(tvOS)
-    Button {
-      model.activate()
-    } label: {
-      Text("Auth_Activate")
+      .keyboardShortcut(.defaultAction)
+#endif
+      .focused($activateFocused)
+      .disabled(model.isRefreshing)
+      .frame(width: codeWidth, height: Metrics.footerHeight)
+      .onAppear { activateFocused = true }
+    } else if model.errorMessage != nil {
+      VStack(spacing: Metrics.footerButtonSpacing) {
+        Button {
+          Task {
+            await model.retry()
+          }
+        } label: {
+          Text("Try Again")
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.glassProminent)
+        .controlSize(.large)
+#if !os(tvOS)
+        .keyboardShortcut(.defaultAction)
+#endif
+        .focused($activateFocused)
+        .disabled(model.isRefreshing)
+        .frame(width: codeWidth, height: Metrics.footerHeight)
+        .onAppear { activateFocused = true }
+
+#if !os(tvOS)
+        if !model.deviceCode.isEmpty {
+          shareButton
+        }
+#endif
+      }
+    } else {
+#if !os(tvOS)
+      VStack(spacing: Metrics.footerButtonSpacing) {
+        Button {
+          model.activate()
+        } label: {
+          Text("Auth_Activate")
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.glassProminent)
+        .controlSize(.large)
+        .keyboardShortcut(.defaultAction)
+        .focused($activateFocused)
+        .disabled(model.deviceCode.isEmpty)
+        .frame(width: codeWidth, height: Metrics.footerHeight)
+        .onAppear { activateFocused = true }
+
+        shareButton
+      }
+#else
+      Color.clear
+        .frame(height: Metrics.footerHeight)
+#endif
+    }
+  }
+
+#if !os(tvOS)
+  private var shareButton: some View {
+    ShareLink(
+      item: model.shareURL,
+      subject: Text("Auth_CodeActivationTitle"),
+      message: Text(model.shareMessage)
+    ) {
+      Label("Auth_Share", systemImage: "square.and.arrow.up")
         .frame(maxWidth: .infinity)
     }
-    .buttonStyle(.glassProminent)
+    .buttonStyle(.glass)
     .controlSize(.large)
-    .keyboardShortcut(.defaultAction)
-    .focused($activateFocused)
-    .disabled(model.deviceCode.isEmpty)
+    .disabled(model.deviceCode.isEmpty || model.isExpired)
     .frame(width: codeWidth, height: Metrics.footerHeight)
-    .onAppear { activateFocused = true }
-#else
-    Color.clear
-      .frame(height: Metrics.footerHeight)
-#endif
   }
+#endif
 }
 
 private enum Metrics {
@@ -227,6 +337,7 @@ private enum Metrics {
   static let tileCornerRadius: CGFloat = 18
   static let tileFontSize: CGFloat = 60
   static let footerHeight: CGFloat = 60
+  static let footerButtonSpacing: CGFloat = 14
   static let ringSize: CGFloat = 22
   static let ringLineWidth: CGFloat = 3
   static let ringSpacing: CGFloat = 10
@@ -246,6 +357,7 @@ private enum Metrics {
   static let tileCornerRadius: CGFloat = 10
   static let tileFontSize: CGFloat = 32
   static let footerHeight: CGFloat = 44
+  static let footerButtonSpacing: CGFloat = 10
   static let ringSize: CGFloat = 13
   static let ringLineWidth: CGFloat = 2
   static let ringSpacing: CGFloat = 6

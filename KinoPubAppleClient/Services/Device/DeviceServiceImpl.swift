@@ -76,7 +76,7 @@ final class DeviceServiceImpl: DeviceService, @unchecked Sendable {
 
     do {
       try await registerIdentity(identity)
-      try await applyStreamingProfile(supportsHevc: supportsHevc)
+      try await applyStreamingProfile()
       // Only now: a half-registered device must retry on the next launch.
       DeviceProfileRegistry.markRegistered(fingerprint)
     } catch {
@@ -99,23 +99,14 @@ final class DeviceServiceImpl: DeviceService, @unchecked Sendable {
     )
   }
 
-  /// Match the kino.pub device profile to what this hardware can DECODE. When HEVC
-  /// decode is available we advertise HEVC + 4K + HDR (AVPlayer tone-maps HDR10 to
-  /// SDR displays) AND turn on mixedPlaylist so the master also carries h264
-  /// variants — AVPlayer can't open an HEVC-only HDR master (error -11868/-17223).
-  /// That is what fills the "HLS4 / … / 4K / HEVC / HDR" badges next to the device.
-  private func applyStreamingProfile(supportsHevc hevc: Bool) async throws {
+  /// Configures the shared kino.pub device slot with the universal Apple playback
+  /// profile (`4K + HDR + HEVC + SSL + mixedPlaylist`) so opening the app on an iPhone,
+  /// iPad, or Simulator never downgrades 4K/HDR on the slot shared with Apple TV and Mac.
+  private func applyStreamingProfile() async throws {
     let device = try await fetchCurrentDevice()
     var settings = try await fetchSettings(deviceId: device.id)
-    guard settings.supportHevc != hevc
-            || settings.support4k != hevc
-            || settings.supportHdr != hevc
-            || settings.mixedPlaylist != hevc else { return }
-    settings.supportHevc = hevc
-    settings.support4k = hevc
-    settings.supportHdr = hevc
-    settings.mixedPlaylist = hevc
+    guard DeviceCapabilities.applyUniversalProfile(to: &settings) else { return }
     try await updateSettings(deviceId: device.id, settings: settings)
-    Logger.app.debug("device capabilities synced to HEVC-decodable=\(hevc) (+HDR +mixedPlaylist)")
+    Logger.app.debug("device capabilities synced to universal Apple profile (4K + HDR + HEVC + SSL + mixedPlaylist)")
   }
 }

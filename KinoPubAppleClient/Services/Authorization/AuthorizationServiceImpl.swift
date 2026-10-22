@@ -32,7 +32,14 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
   }
 
   func refreshToken() async throws {
-    guard let token: AccessToken = accessTokenService.token() else {
+    // Re-read Keychain before hitting `/oauth2/token`: if another Apple device already
+    // refreshed the token in iCloud Keychain, adopt the synced token instead of sending
+    // a stale `refresh_token` that kino.pub has already retired.
+    let preflight = accessTokenService.reloadFromKeychain()
+    guard let token = preflight.token else {
+      return
+    }
+    if preflight.didChangeExternally {
       return
     }
 
@@ -43,6 +50,14 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
       let newToken = try await apiClient.performRequest(with: request, decodingType: AccessToken.self)
       accessTokenService.set(token: newToken)
     } catch {
+      // If another device rotated the refresh token while our request was in flight (or
+      // iCloud Keychain finished syncing right after we started), adopt the newer
+      // Keychain token instead of treating the 400 as a dead session.
+      let postFailure = accessTokenService.reloadFromKeychain()
+      if let synced = postFailure.token,
+         (synced.refreshToken != token.refreshToken || synced.accessToken != token.accessToken) {
+        return
+      }
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
       // kino.pub rotates refresh tokens: refreshing invalidates the token that was used.
       // Debug builds share one session file, so a second build refreshing a minute later

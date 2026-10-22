@@ -561,6 +561,7 @@
         { "path": "LibrarySectionCardsTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "TopShelfLinkTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlaybackEpisodesTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "AuthFlowAndKeychainSyncTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
       ],
     }, {
       "kind": "group",

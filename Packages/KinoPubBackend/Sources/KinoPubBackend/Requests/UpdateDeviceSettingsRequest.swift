@@ -25,6 +25,7 @@ public struct UpdateDeviceSettingsRequest: Endpoint {
     [
       "streamingType": settings.streamingType,
       "serverLocation": settings.serverLocation,
+      "supportSsl": settings.supportSsl ? 1 : 0,
       "support4k": settings.support4k ? 1 : 0,
       "supportHevc": settings.supportHevc ? 1 : 0,
       "supportHdr": settings.supportHdr ? 1 : 0,

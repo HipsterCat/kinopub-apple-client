@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Авторизация и общая сессия в iCloud Keychain: код активации на iOS больше не сбрасывается при переходе в Safari, проверка продолжается в фоне и сразу при возврате в приложение, добавлена кнопка «Поделиться кодом» и единый профиль 4K/HDR/HEVC между всеми устройствами Apple.",
         "Баннеры на главной: устранено горизонтальное смещение ряда при фокусе карточки и убраны лишние анимации масштабирования логотипа.",
         "Баннеры на главной: более мягкое нижнее затемнение (0.50 в покое, до 0.80 в фокусе), тень под логотипом и увеличенный отступ между баннерами.",
         "Баннеры на главной: обновлён порядок информации (оценки, жанр, год, страна, длительность), мягкий нижний градиент и резервирование места при загрузке страницы.",
@@ -49,6 +50,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Device activation and iCloud Keychain sync: iOS keeps the active code across Safari switches, polls in the background and immediately on return, adds a Share Code button, and shares one 4K/HDR/HEVC session across all Apple devices.",
         "Home banners: fixed horizontal row shift on card focus and removed unnecessary logo scale animations.",
         "Home banners: softer resting scrim (0.50 resting, up to 0.80 focused), shadow behind title logos, and wider spacing between banners.",
         "Home banners: updated metadata order (ratings, genre, year, country, runtime), softer bottom gradient, and reserved layout space during page loading.",

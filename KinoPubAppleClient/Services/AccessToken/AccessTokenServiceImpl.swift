@@ -82,6 +82,10 @@ enum DevSessionMirror {
 public final class AccessTokenServiceImpl: AccessTokenService {
 
   private let storage: KeychainStorage
+  private let lock = NSLock()
+  /// The last token baseline observed or written by this process, used to detect when
+  /// another Apple device refreshed the token in iCloud Keychain underneath us.
+  private var lastObservedToken: AccessToken?
 
   init(storage: KeychainStorage) {
     self.storage = storage
@@ -92,6 +96,13 @@ public final class AccessTokenServiceImpl: AccessTokenService {
     // kino.pub gives `expires_in` as seconds from *now* on every grant/refresh.
     let expiresAt = Date().addingTimeInterval(TimeInterval(max(token.expiresIn, 0)))
     storage.setObject(expiresAt, for: .tokenExpiresAt)
+    lock.withLock {
+      lastObservedToken = AccessToken(
+        accessToken: token.accessToken,
+        refreshToken: token.refreshToken,
+        expiresIn: token.expiresIn
+      )
+    }
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
     DevSessionMirror.save(token)
 #endif
@@ -99,6 +110,15 @@ public final class AccessTokenServiceImpl: AccessTokenService {
 
   func token<T>() -> T? where T: Token {
     if let stored: T = storage.object(for: .token) {
+      lock.withLock {
+        if lastObservedToken == nil {
+          lastObservedToken = AccessToken(
+            accessToken: stored.accessToken,
+            refreshToken: stored.refreshToken,
+            expiresIn: stored.expiresIn
+          )
+        }
+      }
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
       // Seed the shared file from an already-activated Keychain. Without this the
       // mirror only fills on the *next* activation or refresh, so the first build to
@@ -123,6 +143,34 @@ public final class AccessTokenServiceImpl: AccessTokenService {
     return nil
   }
 
+  func reloadFromKeychain() -> (token: AccessToken?, didChangeExternally: Bool) {
+    guard let stored: AccessToken = storage.object(for: .token) else {
+      return (nil, false)
+    }
+
+    let didChange: Bool = lock.withLock {
+      defer { lastObservedToken = stored }
+      guard let previous = lastObservedToken else { return false }
+      return previous.refreshToken != stored.refreshToken
+        || previous.accessToken != stored.accessToken
+    }
+
+    if didChange {
+      // If another device wrote a fresh token to iCloud Keychain and our local expiry
+      // clock is missing or already inside the refresh window, advance the expiry clock
+      // from the synced token's `expiresIn` so we do not immediately re-refresh it.
+      if isAccessTokenExpiring(within: 90) {
+        let expiresAt = Date().addingTimeInterval(TimeInterval(max(stored.expiresIn, 0)))
+        storage.setObject(expiresAt, for: .tokenExpiresAt)
+      }
+#if DEBUG && (targetEnvironment(simulator) || os(macOS))
+      DevSessionMirror.save(stored)
+#endif
+    }
+
+    return (stored, didChange)
+  }
+
   var accessTokenExpiresAt: Date? {
     storage.object(for: .tokenExpiresAt)
   }
@@ -133,12 +181,21 @@ public final class AccessTokenServiceImpl: AccessTokenService {
   }
 
   /// `userInitiated` is the difference between "the user signed out" and "the backend
-  /// rejected our refresh token". Only the first may delete the shared dev session:
-  /// kino.pub rotates refresh tokens, so when several debug builds share one file the
-  /// slowest of them gets a 400 for a token another build already replaced. Deleting on
-  /// that path wipes a session that is alive everywhere else and sends every platform
-  /// back to the activation screen.
+  /// rejected our refresh token". Only the first may unconditionally wipe shared
+  /// sessions: kino.pub rotates refresh tokens, so when several Apple devices share
+  /// iCloud Keychain (or debug builds share one file) the slowest of them can get a 400
+  /// for a token another device already replaced.
   func clear(userInitiated: Bool) {
+    if !userInitiated {
+      // Never wipe the Keychain if another device already synced a newer token into it.
+      let reloaded = reloadFromKeychain()
+      if reloaded.didChangeExternally {
+        return
+      }
+    }
+    lock.withLock {
+      lastObservedToken = nil
+    }
     storage.clear()
 #if DEBUG && (targetEnvironment(simulator) || os(macOS))
     if userInitiated {

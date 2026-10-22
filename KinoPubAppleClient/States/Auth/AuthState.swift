@@ -132,6 +132,16 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
     }
   }
 
+  /// Adopts a token that arrived in Keychain (for example via iCloud Keychain sync from
+  /// another Apple device) while this device was waiting on the activation screen.
+  @discardableResult
+  func adoptKeychainTokenIfPresent() -> Bool {
+    guard phase != .signedIn else { return true }
+    guard let _: AccessToken = accessTokenService.token() else { return false }
+    markSignedIn(activated: false)
+    return true
+  }
+
   /// Device-activation screen got a token — enter the app. `activated` separates that
   /// from a token refresh, which reaches the same state without being a new device.
   func markSignedIn(activated: Bool = false) {
