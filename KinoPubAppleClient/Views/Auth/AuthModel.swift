@@ -158,11 +158,13 @@ class AuthModel: ObservableObject {
 
   private var isRunLoopActive = false
   private var isPollLoopRunning = false
+  private var isBackgroundTaskExpired = false
   private var rescheduleSleepOnly = false
   private var pollSleepTask: Task<Void, Never>?
   private var expiryTask: Task<Void, Never>?
   private var inFlightPollTask: Task<PollOutcome, Never>?
   private var stateWakeupContinuation: CheckedContinuation<Void, Never>?
+  private let openURLHandler: (@MainActor (URL) -> Void)?
   nonisolated(unsafe) private var lifecycleObservers: [NSObjectProtocol] = []
 
   init(
@@ -174,6 +176,7 @@ class AuthModel: ObservableObject {
     sleep: @escaping @Sendable (TimeInterval) async -> Void = {
       try? await Task.sleep(for: .seconds($0))
     },
+    openURLHandler: (@MainActor (URL) -> Void)? = nil,
     observesSystemLifecycle: Bool = true
   ) {
     self.authService = authService
@@ -182,6 +185,7 @@ class AuthModel: ObservableObject {
     self.feedbackHandler = feedbackHandler ?? SystemAuthFeedbackHandler()
     self.now = now
     self.sleep = sleep
+    self.openURLHandler = openURLHandler
 
     if observesSystemLifecycle {
       installLifecycleObservers()
@@ -214,7 +218,7 @@ class AuthModel: ObservableObject {
     await requestDeviceCodeIfNeeded()
 
     while !Task.isCancelled && authState.phase != .signedIn {
-      if activeVerification != nil, !isExpired, errorMessage == nil {
+      if activeVerification != nil, !isExpired, errorMessage == nil, !(isInBackground && isBackgroundTaskExpired) {
         await runPollLoop()
       } else {
         await waitForStateWakeup()
@@ -285,6 +289,7 @@ class AuthModel: ObservableObject {
   func handleDidEnterBackground() {
     guard !isInBackground else { return }
     isInBackground = true
+    isBackgroundTaskExpired = false
 
     guard authState.phase != .signedIn,
           activeVerification != nil,
@@ -293,7 +298,11 @@ class AuthModel: ObservableObject {
     }
 
     backgroundTaskManager.beginBackgroundTask { [weak self] in
-      self?.backgroundTaskManager.endBackgroundTask()
+      guard let self else { return }
+      self.isBackgroundTaskExpired = true
+      self.pollSleepTask?.cancel()
+      self.pollSleepTask = nil
+      self.backgroundTaskManager.endBackgroundTask()
     }
   }
 
@@ -302,6 +311,7 @@ class AuthModel: ObservableObject {
   /// checks whether the user completed activation while in Safari.
   func handleDidBecomeActive() async {
     isInBackground = false
+    isBackgroundTaskExpired = false
     backgroundTaskManager.endBackgroundTask()
 
     guard authState.phase != .signedIn else { return }
@@ -520,6 +530,11 @@ class AuthModel: ObservableObject {
     feedbackHandler.prepareForActivation()
     Logger.app.debug("open activation url: \(url)")
 
+    if let openURLHandler {
+      openURLHandler(url)
+      return
+    }
+
 #if canImport(UIKit)
     UIApplication.shared.open(url)
 #elseif os(macOS)
@@ -567,7 +582,10 @@ class AuthModel: ObservableObject {
     defer { isPollLoopRunning = false }
 
     while !Task.isCancelled {
-      guard authState.phase != .signedIn, !isExpired, errorMessage == nil else { return }
+      guard authState.phase != .signedIn,
+            !isExpired,
+            errorMessage == nil,
+            !(isInBackground && isBackgroundTaskExpired) else { return }
       guard let response = activeVerification,
             let expiresAt = codeValidRange?.upperBound else { return }
 
@@ -589,7 +607,11 @@ class AuthModel: ObservableObject {
         pollSleepTask = nil
       }
 
-      guard !Task.isCancelled, authState.phase != .signedIn, !isExpired, errorMessage == nil else {
+      guard !Task.isCancelled,
+            authState.phase != .signedIn,
+            !isExpired,
+            errorMessage == nil,
+            !(isInBackground && isBackgroundTaskExpired) else {
         return
       }
 

@@ -184,6 +184,66 @@ final class AuthFlowAndKeychainSyncTests: XCTestCase {
     }
   }
 
+  /// Controls `AuthModel`'s polling sleep ticks deterministically so a test can drive the
+  /// real `await model.run()` loop step-by-step like a human switching between KinoPub and Safari.
+  @MainActor
+  private final class ManualPollSleeper {
+    private var pollWaiters: [UUID: (delay: TimeInterval, continuation: CheckedContinuation<Void, Never>)] = [:]
+    private var pollOrder: [UUID] = []
+    private(set) var recordedPollDelays: [TimeInterval] = []
+
+    var pendingSleepCount: Int { pollOrder.count }
+
+    func sleep(_ seconds: TimeInterval) async {
+      // The 300s expiry timer also calls `sleep`; let `Task.sleep` handle it so task
+      // cancellation unwinds cleanly without leaking a continuation.
+      if seconds >= 100 {
+        try? await Task.sleep(for: .seconds(seconds))
+        return
+      }
+      recordedPollDelays.append(seconds)
+      let id = UUID()
+      await withTaskCancellationHandler {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+          if Task.isCancelled {
+            continuation.resume()
+          } else {
+            pollWaiters[id] = (seconds, continuation)
+            pollOrder.append(id)
+          }
+        }
+      } onCancel: {
+        Task { @MainActor [weak self] in
+          self?.resumeWaiter(id: id)
+        }
+      }
+    }
+
+    private func resumeWaiter(id: UUID) {
+      guard let entry = pollWaiters.removeValue(forKey: id) else { return }
+      pollOrder.removeAll { $0 == id }
+      entry.continuation.resume()
+    }
+
+    func waitForNextPollSleep() async {
+      while pollOrder.isEmpty {
+        await Task.yield()
+      }
+    }
+
+    func triggerNextPollTick() async {
+      while pollOrder.isEmpty {
+        await Task.yield()
+      }
+      let id = pollOrder.removeFirst()
+      if let entry = pollWaiters.removeValue(forKey: id) {
+        entry.continuation.resume()
+      }
+      await Task.yield()
+      await Task.yield()
+    }
+  }
+
   // MARK: - 1. Preserving Active Code Across Background / Foreground
 
   func testUnexpiredDeviceCodeIsPreservedAcrossBackgroundAndForegroundTransitions() async {
@@ -681,5 +741,254 @@ final class AuthFlowAndKeychainSyncTests: XCTestCase {
     XCTAssertEqual(request.parameters?["supportHevc"] as? Int, 1)
     XCTAssertEqual(request.parameters?["supportSsl"] as? Int, 1)
     XCTAssertEqual(request.parameters?["mixedPlaylist"] as? Int, 1)
+  }
+
+  // MARK: - 8. End-to-End Human Journey Scenarios
+
+  /// Human Scenario A (Fast Safari activation in background < 30s):
+  /// User opens app -> `run()` fetches code `ABCD` -> user taps "Activate" (copies code & opens Safari) ->
+  /// app enters background (`handleDidEnterBackground`) -> first background poll drops with
+  /// `URLError(.networkConnectionLost)` during app switch -> background task keeps `run()` alive ->
+  /// user submits `ABCD` in Safari at t=15s -> next background poll tick receives token while still in
+  /// background -> local notification + success haptic fire -> `ABCD` was never regenerated.
+  func testHumanScenarioA_FastSafariActivationCompletesInBackgroundWhileInSafari() async {
+    let clock = ControllableClock()
+    let sleeper = ManualPollSleeper()
+    let authService = ScriptedAuthService()
+    authService.deviceCodeResponses = [
+      .success(VerificationResponse(
+        code: "dev-human-a",
+        userCode: "ABCD",
+        verificationUri: "https://kino.pub/device",
+        expiresIn: 300,
+        interval: 5
+      ))
+    ]
+    authService.tokenResponses = [
+      // Tick 1 (t=5s, right as user switches to Safari): socket aborts in background
+      .failure(APIClientError.networkError(URLError(.networkConnectionLost))),
+      // Tick 2 (t=10s, user is typing code in Safari): still authorization_pending
+      .failure(ScriptedAuthService.pendingError),
+      // Tick 3 (t=15s, user submitted code in Safari): backend returns token!
+      .success(())
+    ]
+
+    let authState = AuthState(authService: authService, accessTokenService: AccessTokenServiceMock())
+    let bgSpy = BackgroundTaskSpy()
+    let feedbackSpy = FeedbackSpy()
+    var openedURLs: [URL] = []
+
+    let model = AuthModel(
+      authService: authService,
+      authState: authState,
+      backgroundTaskManager: bgSpy,
+      feedbackHandler: feedbackSpy,
+      now: { clock.now },
+      sleep: { seconds in await sleeper.sleep(seconds) },
+      openURLHandler: { url in openedURLs.append(url) },
+      observesSystemLifecycle: false
+    )
+
+    // 1. AuthView mounts and starts `.task { await model.run() }`.
+    let runTask = Task { await model.run() }
+    await sleeper.waitForNextPollSleep()
+    XCTAssertEqual(model.deviceCode, "ABCD")
+    XCTAssertEqual(authService.fetchDeviceCodeCallCount, 1)
+
+    // 2. User taps "Activate" -> copies code to clipboard and opens https://kino.pub/device in Safari.
+    model.activate()
+    XCTAssertEqual(openedURLs, [URL(string: "https://kino.pub/device")!])
+    XCTAssertGreaterThanOrEqual(feedbackSpy.prepareCount, 1)
+
+    // 3. App moves to background as Safari comes to foreground.
+    model.handleDidEnterBackground()
+    XCTAssertTrue(model.isInBackground)
+    XCTAssertTrue(bgSpy.isRunning)
+    XCTAssertEqual(bgSpy.beginCount, 1)
+
+    // 4. At t=5s, first background poll tick fires and fails with URLError.networkConnectionLost.
+    clock.advance(by: 5)
+    await sleeper.triggerNextPollTick()
+    await sleeper.waitForNextPollSleep()
+    XCTAssertEqual(model.deviceCode, "ABCD", "Socket drop during app switch must not reset code")
+    XCTAssertNil(model.errorMessage)
+    XCTAssertEqual(authState.phase, .signedOut)
+
+    // 5. At t=10s, user is still typing in Safari -> authorization_pending.
+    clock.advance(by: 5)
+    await sleeper.triggerNextPollTick()
+    await sleeper.waitForNextPollSleep()
+    XCTAssertEqual(authState.phase, .signedOut)
+
+    // 6. At t=15s, user submits ABCD in Safari -> background poll tick succeeds while still in background!
+    clock.advance(by: 5)
+    await sleeper.triggerNextPollTick()
+    await runTask.value
+
+    XCTAssertEqual(authState.phase, .signedIn)
+    XCTAssertTrue(authState.didActivateDevice)
+    XCTAssertEqual(authService.fetchDeviceCodeCallCount, 1, "Never generated a second code")
+    XCTAssertEqual(authService.polledCodes, ["ABCD", "ABCD", "ABCD"])
+    XCTAssertEqual(feedbackSpy.authorizedEvents, [true], "Fired background notification + success haptic")
+    XCTAssertFalse(bgSpy.isRunning, "Ended background task upon completion")
+  }
+
+  /// Human Scenario B (Slow Safari activation > 30s after iOS kills background task):
+  /// User sees code `ABCD`, taps "Activate" -> app enters background -> after 30s iOS invokes the
+  /// `beginBackgroundTask` expiration handler (polling pauses in background) -> user finishes 2FA/login
+  /// in Safari at t=90s and switches back to KinoPub (`handleDidBecomeActive` + `.task` re-entry) ->
+  /// app keeps the exact same code `ABCD` (never calls `fetchDeviceCode` a second time!), immediately
+  /// fires a poll on foreground entry without waiting 15–25s, gets the token, and logs in.
+  func testHumanScenarioB_SlowSafariActivationAfterBackgroundTaskExpiresCompletesImmediatelyOnReturn() async {
+    let clock = ControllableClock()
+    let sleeper = ManualPollSleeper()
+    let authService = ScriptedAuthService()
+    authService.deviceCodeResponses = [
+      .success(VerificationResponse(
+        code: "dev-human-b",
+        userCode: "ABCD",
+        verificationUri: "https://kino.pub/device",
+        expiresIn: 300,
+        interval: 5
+      ))
+    ]
+    authService.tokenResponses = [
+      // Background poll at t=5s while user is logging in to kino.pub in Safari
+      .failure(ScriptedAuthService.pendingError),
+      // Foreground poll at t=90s when user returns from Safari after completing 2FA + code entry
+      .success(())
+    ]
+
+    let authState = AuthState(authService: authService, accessTokenService: AccessTokenServiceMock())
+    let bgSpy = BackgroundTaskSpy()
+    let feedbackSpy = FeedbackSpy()
+    var openedURLs: [URL] = []
+
+    let model = AuthModel(
+      authService: authService,
+      authState: authState,
+      backgroundTaskManager: bgSpy,
+      feedbackHandler: feedbackSpy,
+      now: { clock.now },
+      sleep: { seconds in await sleeper.sleep(seconds) },
+      openURLHandler: { url in openedURLs.append(url) },
+      observesSystemLifecycle: false
+    )
+
+    // 1. Start AuthView's `.task { await model.run() }`.
+    let runTask = Task { await model.run() }
+    await sleeper.waitForNextPollSleep()
+    XCTAssertEqual(model.deviceCode, "ABCD")
+    XCTAssertEqual(authService.fetchDeviceCodeCallCount, 1)
+
+    // 2. User taps "Activate" and switches to Safari.
+    model.activate()
+    XCTAssertEqual(openedURLs.count, 1)
+    model.handleDidEnterBackground()
+    XCTAssertTrue(bgSpy.isRunning)
+
+    // 3. One background poll happens at t=5s (still pending), then enters next poll sleep.
+    clock.advance(by: 5)
+    await sleeper.triggerNextPollTick()
+    await sleeper.waitForNextPollSleep()
+    XCTAssertEqual(authService.polledCodes, ["ABCD"])
+
+    // 4. At t=30s, iOS expires the background task (`beginBackgroundTask` expiration handler fires).
+    clock.advance(by: 25)
+    bgSpy.simulateExpiration()
+    await Task.yield()
+    await Task.yield()
+    XCTAssertFalse(bgSpy.isRunning, "Background task ended when iOS expiration handler fired")
+    XCTAssertEqual(authService.polledCodes.count, 1, "Polling paused after background task expired")
+
+    // 5. User takes until t=90s in Safari (logging in / 2FA / pasting ABCD), then returns to KinoPub.
+    // Simulate both SwiftUI re-firing `.task` and `scenePhase == .active` (`handleDidBecomeActive`).
+    clock.advance(by: 60)
+    await model.requestDeviceCodeIfNeeded()
+    XCTAssertEqual(model.deviceCode, "ABCD", "Code ABCD must still be alive at t=90s (210s remaining)")
+    XCTAssertEqual(authService.fetchDeviceCodeCallCount, 1, "Must NEVER regenerate code on foreground return!")
+
+    await model.handleDidBecomeActive()
+    await runTask.value
+
+    // 6. Immediately polled on foreground entry without waiting for a timer tick, and signed in!
+    XCTAssertEqual(authState.phase, .signedIn)
+    XCTAssertTrue(authState.didActivateDevice)
+    XCTAssertEqual(authService.fetchDeviceCodeCallCount, 1)
+    XCTAssertEqual(authService.polledCodes, ["ABCD", "ABCD"])
+    XCTAssertEqual(feedbackSpy.authorizedEvents, [false], "Foreground completion fired success haptic")
+  }
+
+  /// Human Scenario C (User goes to Safari, comes back before finishing, copies again, goes back to Safari):
+  /// Multiple background/foreground bounces within the 5-minute window never reset the code, and
+  /// user actions (copy/activate/foreground) reset the fast 5s polling cadence.
+  func testHumanScenarioC_MultipleSafariBouncesPreserveCodeAndKeepFastPollingCadence() async {
+    let clock = ControllableClock()
+    let authService = ScriptedAuthService()
+    authService.deviceCodeResponses = [
+      .success(VerificationResponse(
+        code: "dev-human-c",
+        userCode: "ABCD",
+        verificationUri: "https://kino.pub/device",
+        expiresIn: 300,
+        interval: 5
+      ))
+    ]
+    authService.tokenResponses = [
+      .failure(ScriptedAuthService.pendingError), // Bounce 1 return (t=40s)
+      .failure(ScriptedAuthService.pendingError), // Bounce 2 return (t=130s)
+      .success(())                                // Bounce 3 return (t=175s)
+    ]
+
+    let authState = AuthState(authService: authService, accessTokenService: AccessTokenServiceMock())
+    let bgSpy = BackgroundTaskSpy()
+    let feedbackSpy = FeedbackSpy()
+
+    let model = AuthModel(
+      authService: authService,
+      authState: authState,
+      backgroundTaskManager: bgSpy,
+      feedbackHandler: feedbackSpy,
+      now: { clock.now },
+      sleep: { _ in },
+      openURLHandler: { _ in },
+      observesSystemLifecycle: false
+    )
+
+    await model.requestDeviceCodeIfNeeded()
+    XCTAssertEqual(model.deviceCode, "ABCD")
+
+    // Bounce 1: User taps Activate, goes to Safari for 40s, comes back to check code because clipboard was overwritten.
+    model.activate()
+    model.handleDidEnterBackground()
+    clock.advance(by: 40)
+    await model.handleDidBecomeActive()
+    XCTAssertEqual(model.deviceCode, "ABCD")
+    XCTAssertEqual(authState.phase, .signedOut)
+    XCTAssertEqual(authService.fetchDeviceCodeCallCount, 1)
+
+    // User waits 90s on the screen (polling interval scales to 15s), then taps the code to copy it again.
+    clock.advance(by: 90)
+    XCTAssertEqual(model.currentPollInterval(), 15)
+    model.copyCode()
+    XCTAssertEqual(model.currentPollInterval(), 5, "Copying code resets polling interval back to fast 5s")
+
+    // Bounce 2: User switches back to Safari for 20s, returns before hitting submit.
+    model.handleDidEnterBackground()
+    clock.advance(by: 20)
+    await model.handleDidBecomeActive()
+    XCTAssertEqual(model.deviceCode, "ABCD")
+    XCTAssertEqual(authState.phase, .signedOut)
+    XCTAssertEqual(authService.fetchDeviceCodeCallCount, 1)
+
+    // Bounce 3: User switches to Safari again, hits submit at t=175s, and returns to KinoPub.
+    model.handleDidEnterBackground()
+    clock.advance(by: 25)
+    await model.handleDidBecomeActive()
+
+    XCTAssertEqual(authState.phase, .signedIn)
+    XCTAssertEqual(authService.fetchDeviceCodeCallCount, 1, "Same ABCD code across 3 Safari bounces!")
+    XCTAssertEqual(authService.polledCodes, ["ABCD", "ABCD", "ABCD"])
+    XCTAssertEqual(feedbackSpy.authorizedEvents, [false])
   }
 }
