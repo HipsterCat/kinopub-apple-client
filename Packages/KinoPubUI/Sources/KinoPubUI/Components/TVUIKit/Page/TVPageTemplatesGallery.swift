@@ -29,6 +29,7 @@ public struct TVPageTemplatesGallery: View {
         case .chip(let chip): lastSelection = "\(section.id): \(chip.title)"
         case .tile(let tile): lastSelection = "\(section.id): \(tile.title)"
         case .feature(let feature): lastSelection = "\(section.id): \(feature.card.title)"
+        case .hero: lastSelection = section.id
         case .masthead(let header): lastSelection = "\(section.id): \(header.title)"
         case .info(let info): lastSelection = "\(section.id): \(info.id)"
         case .groupTitle, .placeholder: break
@@ -71,7 +72,7 @@ public struct TVPageTemplatesGallery: View {
   public static var sections: [TVPageSection] {
     [
       // First, so the page opens on a banner the way Watch Now does.
-      .banner(id: "banner", features: posters(seed: 3, rated: true).prefix(6).map { TVPageFeature(card: $0) }),
+      DebugLaunch.templatesHero ? hero : .banner(id: "banner", features: bannerFeatures),
       .chips(id: "filters", title: nil, chips: filters),
       .chips(id: "collection-chips", title: "Collections · chips with a mark", chips: collectionChips),
       .stills(id: "up-next", title: "Watch Next · stills with progress, 4 across", columns: 4,
@@ -260,7 +261,23 @@ public struct TVPageTemplatesGallery: View {
 
   /// `followed`: a followed series' captions — how many episodes are left under every other cover
   /// (the Library's *Following*), the year under the rest.
-  static func posters(seed: Int, rated: Bool = false, followed: Bool = false) -> [MediaCard] {
+  static var bannerFeatures: [TVPageFeature] {
+    posters(seed: 3, rated: true).prefix(6).map { TVPageFeature(card: $0) }
+  }
+
+  /// The Home hero over the same six titles, each with a sentence to show. No pictures:
+  /// the fixture has no textless backdrops, so the shading is all there is behind them.
+  static var hero: TVPageSection {
+    let features = posters(seed: 3, rated: true, overview: true).prefix(6).map {
+      TVPageFeature(card: $0, logo: .missing)
+    }
+    return .hero(id: "hero", TVPageHero(features: Array(features),
+                                         labels: .init(play: "Play", details: "Details",
+                                                       bookmark: "Bookmark", next: "Next")))
+  }
+
+  static func posters(seed: Int, rated: Bool = false, followed: Bool = false,
+                      overview: Bool = false) -> [MediaCard] {
     (1...14).map { n in
       let id = seed * 100 + n
       return MediaCard(
@@ -270,6 +287,7 @@ public struct TVPageTemplatesGallery: View {
         kinopoiskRating: rated ? 5.5 + Double(n % 9) * 0.45 : nil,
         kinopoiskVotes: rated ? 1000 : nil,
         progress: n % 5 == 0 ? 0.4 : nil,
+        overview: overview ? "Title \(id) — a sentence of plot under the meta line. The second sentence is cut." : nil,
         isWatched: n % 7 == 0,
         year: followed ? 2000 + n : nil,
         unwatchedEpisodes: followed && n % 2 == 0 ? n : nil

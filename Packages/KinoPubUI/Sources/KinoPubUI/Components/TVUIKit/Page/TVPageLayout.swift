@@ -94,6 +94,7 @@ public enum TVPageLayout {
   public static func makeLayout(sideInset: @escaping () -> CGFloat = { TVHIGGrid.sideInset },
                                 adjustedLeading: @escaping () -> CGFloat = { 0 },
                                 stripScrolled: (@MainActor (Int, [Int: CGFloat]) -> Void)? = nil,
+                                heroHeight: @escaping () -> CGFloat = { 0 },
                                 sections: @escaping () -> [TVPageSection]) -> UICollectionViewCompositionalLayout {
     let configuration = UICollectionViewCompositionalLayoutConfiguration()
     configuration.scrollDirection = .vertical
@@ -112,7 +113,7 @@ public enum TVPageLayout {
           { @MainActor shifts in report(index, shifts) }
         }
         let built = section(for: all[index], environment: environment, sideInset: inset, next: next,
-                            stripScrolled: scrolled)
+                            stripScrolled: scrolled, heroHeight: heroHeight())
         if DebugLaunch.layoutDebug {
           built.decorationItems = [NSCollectionLayoutDecorationItem.background(elementKind: debugBackgroundKind)]
         }
@@ -131,7 +132,8 @@ public enum TVPageLayout {
                              environment: NSCollectionLayoutEnvironment,
                              sideInset: CGFloat,
                              next: TVPageSection? = nil,
-                             stripScrolled: (@MainActor ([Int: CGFloat]) -> Void)? = nil) -> NSCollectionLayoutSection {
+                             stripScrolled: (@MainActor ([Int: CGFloat]) -> Void)? = nil,
+                             heroHeight: CGFloat = 0) -> NSCollectionLayoutSection {
     let containerWidth = environment.container.effectiveContentSize.width
     let contentWidth = max(containerWidth - sideInset * 2, 1)
 
@@ -153,6 +155,8 @@ public enum TVPageLayout {
       }
     case (.banner, _):
       layoutSection = bannerRail(containerWidth: containerWidth, sideInset: sideInset)
+    case (.hero, _):
+      layoutSection = hero(containerWidth: containerWidth, height: heroHeight)
     case (.strip, _):
       layoutSection = strip(section, contentWidth: contentWidth, sideInset: sideInset, scrolled: stripScrolled)
     case (_, .rail):
@@ -322,6 +326,18 @@ public enum TVPageLayout {
                                                             bottom: standard.bottom, trailing: side)
     }
     return layoutSection
+  }
+
+  /// The hero: one item, the container's full width. Its height is the page's — the
+  /// controller knows the visible height and the tab bar's inset (`heroHeight`), the
+  /// section provider does not. No insets: the cell lays its words out on the page's
+  /// side inset itself, and the backdrop behind it is the screen's, not the cell's.
+  private static func hero(containerWidth: CGFloat, height: CGFloat) -> NSCollectionLayoutSection {
+    let size = NSCollectionLayoutSize(widthDimension: .absolute(max(containerWidth, 1)),
+                                      heightDimension: .absolute(max(height, 1)))
+    let group = NSCollectionLayoutGroup.horizontal(layoutSize: size,
+                                                   subitems: [NSCollectionLayoutItem(layoutSize: size)])
+    return NSCollectionLayoutSection(group: group)
   }
 
   /// Wrapping rows. A fractional item in `repeatingSubitem:count:` grows to fill a
@@ -662,7 +678,7 @@ public enum TVPageCellMetrics {
       let size = CGSize(width: key.width, height: TVPageLayout.infoCardHeight)
       recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
                                 artSize: size, posterContentSize: size)
-    case .banner:
+    case .banner, .hero:
       let height = (key.width / TVPageLayout.bannerAspect).rounded()
       let size = CGSize(width: key.width, height: height)
       recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,

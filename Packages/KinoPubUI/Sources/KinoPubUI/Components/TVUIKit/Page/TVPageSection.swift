@@ -39,6 +39,11 @@ public enum TVPageCellKind: Hashable, Sendable {
   /// The Home banner: large `TVCardView` platters in a rail. Where the row sits, and
   /// what each platter draws, is `TVPageBannerChrome`.
   case banner
+  /// The Home hero: one full-screen carousel at the top of the page, Apple TV style —
+  /// the backdrop behind the whole screen, the title's words and actions low on the
+  /// left, the next row peeking under it. One item, a `TVPageHero`. Drawn by
+  /// `TVPageHeroCell` over `TVPageHeroBackdropView`.
+  case hero
   /// A full-width header that scrolls with the page. Focusable as one band so Up
   /// from the grid reaches person / collection detail. One item, a `TVPageMasthead`.
   case masthead
@@ -291,6 +296,32 @@ public struct TVPageFeature: Hashable {
   }
 }
 
+/// What the hero carousel shows: its titles, in order, and the words on its buttons.
+/// The words come from the app — this package has no localization tables.
+public struct TVPageHero: Hashable {
+  public struct Labels: Hashable {
+    public let play: String
+    public let details: String
+    public let bookmark: String
+    public let next: String
+
+    public init(play: String, details: String, bookmark: String, next: String) {
+      self.play = play
+      self.details = details
+      self.bookmark = bookmark
+      self.next = next
+    }
+  }
+
+  public let features: [TVPageFeature]
+  public let labels: Labels
+
+  public init(features: [TVPageFeature], labels: Labels) {
+    self.features = features
+    self.labels = labels
+  }
+}
+
 /// The block at the top of a catalog page, in the same collection as the grid so it
 /// scrolls away with it. One focus stop: a person shows name / role at rest and opens
 /// the biography when focused; a collection is the title plus the stats strip. The
@@ -355,6 +386,8 @@ public enum TVPageItem: Hashable {
   case tile(TVPageTile)
   /// A banner title — see `TVPageCellKind.banner`.
   case feature(TVPageFeature)
+  /// The whole hero carousel — see `TVPageCellKind.hero`. One per section.
+  case hero(TVPageHero)
   /// The scrolling header. One per section.
   case masthead(TVPageMasthead)
   /// A card of the `infoCard` family.
@@ -372,6 +405,7 @@ public enum TVPageItem: Hashable {
     case .chip(let chip): return "chip.\(chip.id)"
     case .tile(let tile): return "tile.\(tile.id)"
     case .feature(let feature): return "feature.\(feature.card.id)"
+    case .hero: return "hero"
     case .masthead: return "masthead"
     case .info(let card): return "info.\(card.id)"
     case .groupTitle(let id, _): return "title.\(id)"
@@ -392,7 +426,7 @@ public enum TVPageItem: Hashable {
 /// that moves from a poster grid to a still grid (Library Following → Continue) is a
 /// new identity and is reloaded, not reconfigured into a different cell class.
 public enum TVPageRegistration: Hashable, Sendable {
-  case poster, still, person, chip, card, banner, masthead, groupTitle
+  case poster, still, person, chip, card, banner, hero, masthead, groupTitle
   case rating, reviews, review, fact, gallery, spec
 }
 
@@ -606,6 +640,12 @@ public struct TVPageSection: Identifiable, Hashable {
                   caption: .always, items: features.map(TVPageItem.feature))
   }
 
+  /// The Home hero carousel: the page's first section, untitled, one item.
+  public static func hero(id: String, _ hero: TVPageHero) -> TVPageSection {
+    TVPageSection(id: id, title: nil, kind: .hero, flow: .rail, columns: 1,
+                  caption: .never, items: [.hero(hero)])
+  }
+
   /// The scrolling header above a catalog. Focusable so Up from the grid reaches it;
   /// entry focus still prefers the first poster when the page asks for that.
   public static func masthead(id: String, _ masthead: TVPageMasthead) -> TVPageSection {
@@ -712,6 +752,7 @@ public struct TVPageSection: Identifiable, Hashable {
     case .person: return groupCell == .person ? .person : .card
     case .masthead: return .masthead
     case .feature: return .banner
+    case .hero: return .hero
     case .tile: return .still
     case .card, .placeholder:
       return groupCell == .poster ? .poster : .card
@@ -726,6 +767,7 @@ public struct TVPageSection: Identifiable, Hashable {
     case .person: return .person
     case .masthead: return .masthead
     case .feature: return .banner
+    case .hero: return .hero
     case .tile:
       switch sectionKind {
       case .poster, .square: return .poster
@@ -744,6 +786,7 @@ public struct TVPageSection: Identifiable, Hashable {
     case .chip: return .chip
     case .card: return .card
     case .banner: return .banner
+    case .hero: return .hero
     case .masthead: return .masthead
     case .infoCard: return .spec
     case .strip: return .card

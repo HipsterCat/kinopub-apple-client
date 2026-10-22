@@ -401,7 +401,7 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   /// Returns a concise, readable synopsis snippet of at least `minLength` characters
   /// (or the full text if shorter), preventing awkward short fragments like "1903 год.".
-  private static func smartSynopsis(of text: String, minLength: Int = 45) -> String? {
+  static func smartSynopsis(of text: String, minLength: Int = 45) -> String? {
     let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return nil }
     var result = ""
@@ -451,7 +451,7 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   /// The metadata parts after the scores:
   /// Order: 1. Genre (useful, skipping generic anime/cartoons), 2. Year/span (2026, 2024–26), 3. Country, 4. Duration/Volume (2+ seasons / episodes / runtime).
-  private static func metaParts(for card: MediaCard) -> [String] {
+  static func metaParts(for card: MediaCard) -> [String] {
     var parts: [String] = []
 
     // 1. Жанр (пропуская базовые/банальные: аниме, мультфильм)
@@ -480,6 +480,12 @@ final class TVPageBannerCell: UICollectionViewCell {
   /// Logo, then the number, in the same font as the description. No logo, no number —
   /// a bare digit is what the aggregate looks like, and this row does not show it.
   private func applyMeta(_ card: MediaCard, parts: [String]) {
+    Self.fillMeta(meta, card: card, parts: parts, chrome: chrome)
+  }
+
+  /// The meta line into `meta`: scores (per `chrome`), then `parts`. Shared with the
+  /// hero carousel (`TVPageHeroCell`), so a title's line reads the same in both.
+  static func fillMeta(_ meta: UIStackView, card: MediaCard, parts: [String], chrome: TVPageBannerChrome) {
     meta.arrangedSubviews.forEach { $0.removeFromSuperview() }
     let font = chrome.textFont
     let descriptor = font.fontDescriptor.withDesign(.rounded) ?? font.fontDescriptor

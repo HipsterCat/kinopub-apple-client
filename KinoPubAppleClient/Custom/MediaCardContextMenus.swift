@@ -11,6 +11,9 @@ import KinoPubUI
 /// Call sites pass handlers / folder state — missing pieces omit those rows.
 enum MediaCardContextMenus {
 
+  /// The "Add to Bookmarks" submenu — what the Home hero's Bookmark button opens.
+  static let bookmarksMenuID = "bookmarks"
+
   struct BookmarkFolderOption: Identifiable {
     let id: Int
     let title: String
@@ -147,7 +150,7 @@ enum MediaCardContextMenus {
           footer = []
         }
         entries.append(.submenu(
-          id: "bookmarks",
+          id: bookmarksMenuID,
           title: "Add to Bookmarks".localized,
           systemImage: "bookmark",
           children: children,

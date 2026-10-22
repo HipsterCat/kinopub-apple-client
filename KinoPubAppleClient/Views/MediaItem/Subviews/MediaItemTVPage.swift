@@ -111,7 +111,7 @@ struct MediaItemTVPage: View {
 
     // The pills of type, year, country and genre that opened a narrowed search are gone: the
     // table under the page says what they said.
-    case .chip, .feature, .masthead, .groupTitle, .placeholder, .tile:
+    case .chip, .feature, .hero, .masthead, .groupTitle, .placeholder, .tile:
       break
     }
   }

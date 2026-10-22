@@ -19,6 +19,15 @@ enum FeatureFlags {
   /// not sample banner cards and does not load wide poster artwork for them.
   static var homeBannerEnabled: Bool { FeatureFlag.homeBanner.isEnabled }
 
+  /// tvOS: the banner titles as one full-screen carousel at the top of Home, Apple TV
+  /// style (`TVPageSection.hero`). Off: the banner shelf, two platters across. Needs
+  /// `homeBannerEnabled` — it is the same sample of titles.
+#if os(tvOS)
+  static var homeHeroCarouselEnabled: Bool { FeatureFlag.homeHeroCarousel.isEnabled }
+#else
+  static let homeHeroCarouselEnabled = false
+#endif
+
   /// Gates the Downloads tab, the item-detail download action, and any other
   /// downloads-facing UI. `KinoPubKit`'s `DownloadManager` / `DownloadedFilesDatabase`
   /// machinery stays compiled and available either way — this only hides entry points.
@@ -164,6 +173,7 @@ enum FeatureFlags {
 /// (`FeatureFlagsView`, and the tvOS page in `TVProfileSettingsView`) is built from this.
 enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case homeBanner
+  case homeHeroCarousel
   case downloads
   case allBookmarks
   case tvUIKitPosters
@@ -187,6 +197,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var defaultValue: Bool {
     switch self {
     case .homeBanner: true
+    case .homeHeroCarousel: true
     case .downloads: false
     case .allBookmarks: true
     case .tvUIKitPosters: true
@@ -210,6 +221,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var title: String {
     switch self {
     case .homeBanner: "Home banner shelf"
+    case .homeHeroCarousel: "Full-screen Home carousel"
     case .downloads: "Downloads"
     case .allBookmarks: "All Bookmarks tab"
     case .tvUIKitPosters: "UIKit poster shelves"
@@ -233,6 +245,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var summary: String {
     switch self {
     case .homeBanner: "Wide banner cards at the top of Home."
+    case .homeHeroCarousel: "The banner titles one at a time over the whole screen, Apple TV style; off is the shelf of two."
     case .downloads: "Downloads tab, download actions and storage rows."
     case .allBookmarks: "The folder-shelves overview tab in Library."
     case .tvUIKitPosters: "TVUIKit cells in a recycling collection view; off is SwiftUI cards."
@@ -257,7 +270,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var isRelevantHere: Bool {
     switch self {
     case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvDetailSections, .tvOSSidecarSubtitles,
-         .playerTabsPlatter:
+         .playerTabsPlatter, .homeHeroCarousel:
 #if os(tvOS)
       true
 #else
@@ -279,7 +292,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   /// The rest are read whenever the thing they gate is next opened.
   var appliesAtLaunch: Bool {
     switch self {
-    case .homeBanner, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
+    case .homeBanner, .homeHeroCarousel, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
          .tvUIKitSearch, .combinedRating:
       true
     default:

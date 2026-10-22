@@ -33,6 +33,16 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBTemplatesHero`: with the templates gallery, its first row is the Home hero
+  /// carousel (`TVPageSection.hero`) instead of the banner shelf — for `TVHomeHeroUITests`.
+  public static var templatesHero: Bool {
+#if DEBUG
+    ProcessInfo.processInfo.arguments.contains("-KINOPUBTemplatesHero")
+#else
+    false
+#endif
+  }
+
   /// `-KINOPUBSearchQuery <text>`: the search field starts with this text. The tvOS
   /// inline keyboard takes no `typeText` from UI tests, so this is how a test searches.
   public static var searchQuery: String? {

@@ -42,6 +42,10 @@ public final class TVPageCollectionViewController: UIViewController {
   /// The section's last loaded item came on screen; the owner decides if there is more.
   public var onNearEnd: ((TVPageSection) -> Void)?
   public var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  /// The hero's Play. Details is `onSelect` with the fronted title as a `.feature`.
+  public var onPlay: ((MediaCard) -> Void)?
+  /// What the hero's Bookmark button lists for a title — the app's bookmark entries.
+  public var heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])?
   public var onRetry: (() -> Void)?
   /// Menu below the top row returns there; at the top it passes through. On for
   /// every `TVPage` list and Search's results collection. Off on an embedded
@@ -80,6 +84,7 @@ public final class TVPageCollectionViewController: UIViewController {
       sideInset: { [weak self] in self?.resolvedSideInset ?? TVHIGGrid.sideInset },
       adjustedLeading: { [weak self] in self?.currentLeading() ?? 0 },
       stripScrolled: { [weak self] section, shifts in self?.stripTitlesMoved(section: section, shifts: shifts) },
+      heroHeight: { [weak self] in self?.heroHeight ?? 0 },
       sections: { [weak self] in self?.sections ?? [] }
     )
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
@@ -100,6 +105,9 @@ public final class TVPageCollectionViewController: UIViewController {
   }()
 
   private let statusView = TVPageStatusView()
+  /// The hero's state and its picture, which live behind the collection — see `TVPageHero`.
+  private let heroCarousel = TVPageHeroCarousel()
+  private let heroBackdrop = TVPageHeroBackdropView()
 
   public init(sideInset: CGFloat = TVHIGGrid.sideInset, prefersFirstPosterFocus: Bool = false) {
     self.sideInset = sideInset
@@ -114,6 +122,10 @@ public final class TVPageCollectionViewController: UIViewController {
     view.backgroundColor = .clear
     view.clipsToBounds = false
 
+    heroBackdrop.translatesAutoresizingMaskIntoConstraints = false
+    heroBackdrop.isHidden = true
+    view.addSubview(heroBackdrop)
+    heroCarousel.backdrop = heroBackdrop
     collectionView.translatesAutoresizingMaskIntoConstraints = false
     collectionView.accessibilityIdentifier = accessibilityID
     view.addSubview(collectionView)
@@ -128,6 +140,10 @@ public final class TVPageCollectionViewController: UIViewController {
     ]
     windowExtension = edges
     NSLayoutConstraint.activate(edges + [
+      heroBackdrop.topAnchor.constraint(equalTo: collectionView.topAnchor),
+      heroBackdrop.leadingAnchor.constraint(equalTo: collectionView.leadingAnchor),
+      heroBackdrop.trailingAnchor.constraint(equalTo: collectionView.trailingAnchor),
+      heroBackdrop.bottomAnchor.constraint(equalTo: collectionView.bottomAnchor),
       statusView.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
       statusView.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor)
     ])
@@ -143,7 +159,7 @@ public final class TVPageCollectionViewController: UIViewController {
 
     // A catalog that wants its first stop on a poster must not remember the sort
     // chip the engine touches while the grid is still a skeleton.
-    collectionView.remembersLastFocusedIndexPath = remembersFocus && !prefersFirstPosterFocus
+    collectionView.remembersLastFocusedIndexPath = remembersFocusNow && !prefersFirstPosterFocus
     // Dynamic Type: captions and card text change height, so every recipe is re-measured.
     registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _) in
       self.collectionView.collectionViewLayout.invalidateLayout()
@@ -302,10 +318,12 @@ public final class TVPageCollectionViewController: UIViewController {
     super.viewDidAppear(animated)
     if !isEmbedded { observeTabBar() }
     resetStrandedFocusAppearance()
+    heroCarousel.isPageVisible = true
   }
 
   public override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
+    heroCarousel.isPageVisible = false
     resetStrandedFocusAppearance()
   }
 
@@ -348,7 +366,7 @@ public final class TVPageCollectionViewController: UIViewController {
     let target = sections[section]
     guard target.flow != .grid else { return .identity }
     guard target.kind != .chip, target.kind != .masthead, target.kind != .banner,
-          target.kind != .strip, target.kind != .infoCard else { return .identity }
+          target.kind != .hero, target.kind != .strip, target.kind != .infoCard else { return .identity }
     let contentWidth = max(collectionView.bounds.width - resolvedSideInset * 2, 1)
     let art = TVHIGGrid.resolve(columns: target.columns, contentWidth: contentWidth).cardWidth
     let recipe = TVPageCellMetrics.recipe(kind: target.kind, artWidth: art, caption: target.caption)
@@ -516,6 +534,27 @@ public final class TVPageCollectionViewController: UIViewController {
       cell.configure(feature: feature)
     }
 
+    let hero = UICollectionView.CellRegistration<TVPageHeroCell, TVPageItemID> {
+      [weak self] cell, _, _ in
+      guard let self else { return }
+      cell.onPlay = { [weak self] feature in self?.onPlay?(feature.card) }
+      cell.onDetails = { [weak self] feature in
+        guard let self, let section = self.sections.first, section.kind == .hero else { return }
+        self.onSelect?(section, .feature(feature))
+      }
+      cell.bookmarkMenu = self.heroBookmarkEntries.map { entries in
+        { feature in
+          // One submenu of folders comes back as the menu itself, not a menu in a menu.
+          let menu = TVUIKitContextMenuBuilder.menu(from: entries(feature.card))
+          if menu.children.count == 1, let folders = menu.children.first as? UIMenu {
+            return folders.children
+          }
+          return menu.children
+        }
+      }
+      cell.configure(carousel: self.heroCarousel, sideInset: self.resolvedSideInset)
+    }
+
     let masthead = UICollectionView.CellRegistration<TVPageMastheadCell, TVPageItemID> {
       [weak self] cell, _, id in
       guard let self, case .masthead(let header)? = self.itemsByID[id] else { return }
@@ -605,6 +644,8 @@ public final class TVPageCollectionViewController: UIViewController {
         return collectionView.dequeueConfiguredReusableCell(using: card, for: indexPath, item: id)
       case .banner:
         return collectionView.dequeueConfiguredReusableCell(using: banner, for: indexPath, item: id)
+      case .hero:
+        return collectionView.dequeueConfiguredReusableCell(using: hero, for: indexPath, item: id)
       case .masthead:
         return collectionView.dequeueConfiguredReusableCell(using: masthead, for: indexPath, item: id)
       case .groupTitle:
@@ -733,6 +774,7 @@ public final class TVPageCollectionViewController: UIViewController {
       sections = newSections
       sectionsByID = Dictionary(uniqueKeysWithValues: newSections.map { ($0.id, $0) })
       itemsByID = nextItems
+      updateHero()
       // Section indexes may mean other strips now; the next scroll says where titles stand.
       stickyShifts = [:]
       pendingReconfigure = changed
@@ -749,6 +791,32 @@ public final class TVPageCollectionViewController: UIViewController {
       applyStatus()
     }
     focusFirstPosterIfNeeded()
+  }
+
+  /// The hero leads the page or is not there at all; its picture shows with it.
+  private func updateHero() {
+    var hero: TVPageHero?
+    if let first = sections.first, first.kind == .hero, case .hero(let value)? = first.items.first {
+      hero = value
+    }
+    heroCarousel.update(hero)
+    let shows = hero != nil
+    if isViewLoaded {
+      heroBackdrop.isHidden = !shows
+      collectionView.remembersLastFocusedIndexPath = remembersFocusNow
+    }
+  }
+
+  /// The hero is the screen down to the fold; the row under it shows its title and the
+  /// top of its cards there, as the Apple TV app's does. The collection's adjusted top
+  /// inset is the tab bar's region: the hero starts under it, the picture behind it
+  /// does not.
+  private static let heroFold: CGFloat = 0.87
+
+  private var heroHeight: CGFloat {
+    guard isViewLoaded else { return 0 }
+    let screen = collectionView.bounds.height
+    return max((screen * Self.heroFold).rounded() - collectionView.adjustedContentInset.top, 1)
   }
 
   /// Entry focus is a poster, once the grid has real cells. A sort chip is the first
@@ -768,7 +836,7 @@ public final class TVPageCollectionViewController: UIViewController {
        sections[index].kind == .poster,
        !sections[index].isPlaceholder {
       didPlacePosterFocus = true
-      collectionView.remembersLastFocusedIndexPath = remembersFocus
+      collectionView.remembersLastFocusedIndexPath = remembersFocusNow
       return
     }
     // Masthead / chips may hold focus while posters are still skeletons. Once a
@@ -783,7 +851,7 @@ public final class TVPageCollectionViewController: UIViewController {
       guard let self else { return }
       self.collectionView.updateFocusIfNeeded()
       self.didPlacePosterFocus = true
-      self.collectionView.remembersLastFocusedIndexPath = self.remembersFocus
+      self.collectionView.remembersLastFocusedIndexPath = self.remembersFocusNow
     }
   }
 
@@ -969,7 +1037,14 @@ public final class TVPageCollectionViewController: UIViewController {
   /// collection, and Down from the keyboard jumped past the filters straight to the
   /// last card scrolled to (2026-09-26); there focus should go to what is below.
   public var remembersFocus = true {
-    didSet { if isViewLoaded { collectionView.remembersLastFocusedIndexPath = remembersFocus } }
+    didSet { if isViewLoaded { collectionView.remembersLastFocusedIndexPath = remembersFocusNow } }
+  }
+
+  /// `remembersFocus`, except under a hero: there Down from the tab bar lands on the
+  /// hero's button under the tab — the nearest, as in the Apple TV app — not on the row
+  /// card focus last left. Up from the rows reaches the hero the same way.
+  private var remembersFocusNow: Bool {
+    remembersFocus && sections.first?.kind != .hero
   }
 
   public override var preferredFocusEnvironments: [UIFocusEnvironment] {
@@ -1003,6 +1078,7 @@ public final class TVPageCollectionViewController: UIViewController {
   /// on the first title, like the other sections. After that one answer,
   /// `remembersLastFocusedIndexPath` owns return from the tab bar.
   private var hasPickedInitialBannerFocus = false
+  private var hasPickedInitialHeroFocus = false
   /// Pair a Menu `.began` we consumed with its `.ended` / `.cancelled` so the
   /// tab bar does not see a half press. Scoped to this controller's responder
   /// methods — not `UIWindow.sendEvent`.
@@ -1145,7 +1221,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     let section = sections[indexPath.section]
     // A chip row or the banner has no pages, and skeleton tiles are not data.
     guard section.kind != .chip, section.kind != .masthead, section.kind != .banner,
-          section.kind != .strip, section.kind != .infoCard,
+          section.kind != .hero, section.kind != .strip, section.kind != .infoCard,
           !section.isPlaceholder else { return }
     let loaded = section.loadedCount
     guard indexPath.item >= loaded - 1 else { return }
@@ -1174,7 +1250,8 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     // person / collection detail. Empty grid keeps its escape on the sort chip.
     guard let id = dataSource.itemIdentifier(for: indexPath), let item = itemsByID[id] else { return false }
     switch item {
-    case .placeholder, .groupTitle: return false
+    // The hero's buttons take focus, not its cell.
+    case .placeholder, .groupTitle, .hero: return false
     default: return true
     }
   }
@@ -1183,6 +1260,12 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     if let handoffPath { return handoffPath }
     if wantsTopFocus { return topIndexPath }
     if prefersFirstPosterFocus { return firstPosterIndexPath }
+    // A page that opens with focus in it (no tab bar above) starts on the hero — the
+    // cell names the button. Once: after that the engine's own geometry decides.
+    if sections.first?.kind == .hero, focusedPath == nil, !hasPickedInitialHeroFocus {
+      hasPickedInitialHeroFocus = true
+      return IndexPath(item: 0, section: 0)
+    }
     // Centred paging only, and only once: answering the middle on every move pins
     // focus and the row stops paging. A leading rail returns nil and starts on its
     // first title. Coming back from the tab bar must not reset to the middle either.
@@ -1204,20 +1287,29 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     focusedSectionIndex = nextSection
     if wantsTopFocus, context.nextFocusedView != nil {
       wantsTopFocus = false
-      collectionView.remembersLastFocusedIndexPath = remembersFocus
+      collectionView.remembersLastFocusedIndexPath = remembersFocusNow
     }
     if handoffPath != nil, context.nextFocusedView != nil {
       handoffPath = nil
-      collectionView.remembersLastFocusedIndexPath = remembersFocus
+      collectionView.remembersLastFocusedIndexPath = remembersFocusNow
     }
     publishBelowTopIfNeeded()
+    if sections.first?.kind == .hero {
+      // Focus outside the page (the tab bar) shows the hero whole, like focus on it.
+      let section = context.nextFocusedView.flatMap { $0.isDescendant(of: collectionView) ? resolved?.section : nil }
+      switch section {
+      case nil, 0?: heroCarousel.setStage(.hero)
+      case 1?: heroCarousel.setStage(.receded)
+      default: heroCarousel.setStage(.away)
+      }
+    }
     if prefersFirstPosterFocus, !didPlacePosterFocus,
        let nextSection,
        sections.indices.contains(nextSection),
        sections[nextSection].kind == .poster,
        !sections[nextSection].isPlaceholder {
       didPlacePosterFocus = true
-      collectionView.remembersLastFocusedIndexPath = remembersFocus
+      collectionView.remembersLastFocusedIndexPath = remembersFocusNow
     }
     coordinator.addCoordinatedAnimations({ [weak self] in
       guard let self else { return }
@@ -1327,7 +1419,7 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
       return header.photoURL
     case .info(.gallery(let gallery)):
       return gallery.images.first
-    case .chip, .tile, .placeholder, .info, .groupTitle:
+    case .chip, .tile, .placeholder, .info, .groupTitle, .hero:
       return nil
     }
   }

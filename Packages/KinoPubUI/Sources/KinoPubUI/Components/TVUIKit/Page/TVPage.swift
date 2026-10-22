@@ -24,6 +24,10 @@ public struct TVPage: View {
   public let onChipSelection: (String, Set<String>) -> Void
   public let onNearEnd: ((TVPageSection) -> Void)?
   public let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  /// The hero's Play (`TVPageSection.hero`). Its Details is `onSelect` with a `.feature`.
+  public let onPlay: ((MediaCard) -> Void)?
+  /// The hero's Bookmark menu for a title; nil hides the button.
+  public let heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])?
   public let onRetry: (() -> Void)?
   public let prefersFirstPosterFocus: Bool
   /// Surfaces as `kinopub.page.<name>` on the collection view for UI tests.
@@ -49,6 +53,8 @@ public struct TVPage: View {
               onChipSelection: @escaping (String, Set<String>) -> Void = { _, _ in },
               onNearEnd: ((TVPageSection) -> Void)? = nil,
               contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])? = nil,
+              onPlay: ((MediaCard) -> Void)? = nil,
+              heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               onRetry: (() -> Void)? = nil,
               prefersFirstPosterFocus: Bool = false,
               returnsToTopOnMenu: Bool = true,
@@ -62,6 +68,8 @@ public struct TVPage: View {
     self.onChipSelection = onChipSelection
     self.onNearEnd = onNearEnd
     self.contextMenuProvider = contextMenuProvider
+    self.onPlay = onPlay
+    self.heroBookmarkEntries = heroBookmarkEntries
     self.onRetry = onRetry
     self.prefersFirstPosterFocus = prefersFirstPosterFocus
     self.returnsToTopOnMenu = returnsToTopOnMenu
@@ -82,6 +90,8 @@ public struct TVPage: View {
       onChipSelection: onChipSelection,
       onNearEnd: onNearEnd,
       contextMenuProvider: contextMenuProvider,
+      onPlay: onPlay,
+      heroBookmarkEntries: heroBookmarkEntries,
       onRetry: onRetry,
       prefersFirstPosterFocus: prefersFirstPosterFocus,
       returnsToTopOnMenu: returnsToTopOnMenu,
@@ -121,6 +131,8 @@ private struct TVPageRepresentable: UIViewControllerRepresentable {
   let onChipSelection: (String, Set<String>) -> Void
   let onNearEnd: ((TVPageSection) -> Void)?
   let contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
+  let onPlay: ((MediaCard) -> Void)?
+  let heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])?
   let onRetry: (() -> Void)?
   let prefersFirstPosterFocus: Bool
   let returnsToTopOnMenu: Bool
@@ -150,6 +162,8 @@ private struct TVPageRepresentable: UIViewControllerRepresentable {
     controller.onChipSelection = onChipSelection
     controller.onNearEnd = onNearEnd
     controller.contextMenuProvider = contextMenuProvider
+    controller.onPlay = onPlay
+    controller.heroBookmarkEntries = heroBookmarkEntries
     controller.onRetry = onRetry
     controller.returnsToTopOnMenu = returnsToTopOnMenu
     controller.contentIdentity = contentID

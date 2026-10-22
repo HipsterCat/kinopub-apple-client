@@ -118,6 +118,11 @@ struct MainView: View {
           return
         }
         guard let card = item.card, card.id > 0 else { return }
+        // The hero's Details opens the title, whatever a card's own Select would do.
+        if section.id == Self.heroSectionID {
+          navigationState.push(Route.detailsById(card.itemID))
+          return
+        }
         if card.primaryAction == .play {
           cardMenu.play(card) { navigationState.push($0) }
         } else if card.opensCollection {
@@ -132,6 +137,13 @@ struct MainView: View {
       contextMenuProvider: { card in
         guard !card.opensCollection else { return [] }
         return menuEntries(for: card, surface: .shelf, isContinueWatching: card.isLandscape)
+      },
+      onPlay: { card in
+        cardMenu.play(card) { navigationState.push($0) }
+      },
+      heroBookmarkEntries: { card in
+        menuEntries(for: card, surface: .banner, isContinueWatching: false)
+          .filter { $0.id == MediaCardContextMenus.bookmarksMenuID }
       },
       onRetry: {
         Task { await catalog.refresh() }
@@ -158,20 +170,34 @@ struct MainView: View {
   /// SwiftUI path draws (six at most), with their title logos, each once
   /// (`TVPageSection.banner`).
   private static let bannerSectionID = "home-banner"
+  /// The same titles as one full-screen carousel (`FeatureFlags.homeHeroCarouselEnabled`).
+  /// Only once there are titles: an empty hero would be inert space above the first row.
+  private static let heroSectionID = "home-hero"
+
+  private var bannerFeatures: [TVPageFeature] {
+    catalog.bannerCards.map {
+      TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
+                    logo: catalog.bannerLogos[$0.id] ?? .pending,
+                    backdrop: catalog.bannerBackdrops[$0.id])
+    }
+  }
 
   private var pageSections: [TVPageSection] {
     var result: [TVPageSection] = []
-    if catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled {
+    if catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled && FeatureFlags.homeHeroCarouselEnabled {
+      if !catalog.bannerCards.isEmpty {
+        result.append(.hero(id: Self.heroSectionID, TVPageHero(
+          features: bannerFeatures,
+          labels: .init(play: "Play".localized,
+                        details: "Hero.Details".localized,
+                        bookmark: "Add to Bookmarks".localized,
+                        next: "Hero.Next".localized)
+        )))
+      }
+    } else if catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled {
       let banner = catalog.bannerCards
       if !banner.isEmpty {
-        result.append(
-          .banner(id: Self.bannerSectionID,
-                  features: banner.map {
-                    TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
-                                  logo: catalog.bannerLogos[$0.id] ?? .pending,
-                                  backdrop: catalog.bannerBackdrops[$0.id])
-                  })
-        )
+        result.append(.banner(id: Self.bannerSectionID, features: bannerFeatures))
       } else {
         result.append(
           .banner(id: Self.bannerSectionID,
