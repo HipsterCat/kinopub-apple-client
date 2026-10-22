@@ -321,10 +321,10 @@ struct MediaItemView: View {
                             onDownloadAllEpisodes: { itemModel.downloadAllEpisodes() },
                             onMarkUnwatchedInSeason: { itemModel.markUnwatchedInSeason($0) },
                             onMarkAllEpisodesWatched: { itemModel.markAllEpisodesWatched() },
-                            titleLogoURL: itemModel.externalMetadata.titleLogoURL,
-                            preferredBackdropURL: itemModel.externalMetadata.backdropURL,
+                            titleLogoURL: itemModel.heroLogoURL,
+                            preferredBackdropURL: itemModel.heroBackdropURL,
                             ageRating: itemModel.externalMetadata.ageRating,
-                            externalMetadataLoaded: itemModel.externalMetadataLoaded,
+                            externalMetadataLoaded: itemModel.heroLogoResolved,
                             onFocusEntered: {
                               withAnimation(.easeInOut(duration: 0.4)) {
                                 proxy.scrollTo(Self.heroAnchor, anchor: .top)
@@ -616,7 +616,7 @@ struct MediaItemView: View {
   private var tvBackdrop: PageBackdrop? {
     let urls = MediaItemHeroView.backdropCandidates(
       for: itemModel.mediaItem,
-      preferredBackdropURL: itemModel.externalMetadata.backdropURL
+      preferredBackdropURL: itemModel.heroBackdropURL
     )
     guard !urls.isEmpty else { return nil }
     return PageBackdrop(id: Route.backdropKey(itemID: itemModel.mediaItem.id), imageURLs: urls)

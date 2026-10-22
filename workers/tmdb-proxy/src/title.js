@@ -133,8 +133,22 @@ export async function handleTitle(url, env, ctx) {
 
 const IMAGE_KINDS = new Set(["poster", "backdrop", "logo"]);
 
+// TMDB's own size buckets are the resize service: one size word in the client's
+// URL picks the bucket, so a banner never pulls a 6000 px PNG to draw at 500.
+const TMDB_SIZE = {
+  logo: { sm: "w185", md: "w300", lg: "w500", orig: "original" },
+  backdrop: { sm: "w300", md: "w780", lg: "w1280", orig: "original" },
+  poster: { sm: "w185", md: "w342", lg: "w780", orig: "original" },
+};
+
+// A cold title with an IMDb hint is resolved before answering, up to this long.
+// The banner asks for the logo once and paints whatever comes back: a 404 now
+// means the lettered name for the whole session, while a warm answer a second
+// later is the logo. Past the budget the resolve carries on behind the response.
+const COLD_RESOLVE_BUDGET_MS = 4000;
+
 export async function handleImage(url, env, ctx) {
-  // /img/{kind}/{size}/kinopub/{id}
+  // /img/{kind}/{size}/kinopub/{id}[?imdb=tt…&lang=en]
   const [, , kind, size, namespace, rawId] = url.pathname.split("/");
   const id = (rawId || "").replace(/\.\w+$/, "");
   if (namespace !== "kinopub" || !id) {
@@ -146,26 +160,38 @@ export async function handleImage(url, env, ctx) {
     return json({ error: "not_found", hint: "kind must be poster, backdrop, or logo" }, 404);
   }
 
-  const stored = await readDocument(env, id);
-  const chosen = stored && pickArtwork(stored, kind);
-  if (chosen) return Response.redirect(chosen, 302);
-
-  // Nothing known yet: resolve in the background so the next request can get
-  // the good one. Poster/backdrop still fall back to kino.pub's own artwork
-  // (always addressable from the id). Logo has no kino.pub equivalent — a
-  // poster-as-logo is a lie the banner would paint instead of the lettered
-  // title — so kind=logo with nothing stored is 404, never a poster.
   const hints = readHints(url);
-  if (!stored) ctx.waitUntil(resolveAndStore(env, id, hints, draftDocument(id, hints)));
+  const lang = url.searchParams.get("lang") || "ru";
+  let stored = await readDocument(env, id);
 
+  // Same refresh rule as /v1/title: a document built without the IMDb id never
+  // reached TMDB, so the hint is worth one more resolve.
+  const needsResolve = !stored || (hints.imdb && !stored.ids?.imdb && !stored.ids?.tmdb);
+  if (needsResolve) {
+    const resolving = resolveAndStore(env, id, hints, stored || draftDocument(id, hints));
+    ctx.waitUntil(resolving);
+    if (hints.imdb && env.TMDB_READ_TOKEN) {
+      const document = await within(resolving, COLD_RESOLVE_BUDGET_MS);
+      if (document) stored = document;
+    }
+  }
+
+  const chosen = stored && pickArtwork(stored, kind, lang);
+  if (chosen) return Response.redirect(sizedImage(url, chosen, kind, size), 302);
+
+  // Logo has no kino.pub equivalent — a poster-as-logo is a lie the banner would
+  // paint instead of the lettered title — so kind=logo with nothing stored is
+  // 404, never a poster. Poster/backdrop fall back to kino.pub's own artwork
+  // (always addressable from the id).
   if (kind === "logo") {
+    // A document that went through TMDB and has no logo is a real miss; anything
+    // else may still fill in, so do not pin it for long.
+    const settled = Boolean(stored?.ids?.tmdb);
     return new Response(JSON.stringify({ error: "not_found", hint: "no stored logo" }), {
       status: 404,
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        // Short: a cold miss 404s now, then the background resolve may fill a
-        // real logo. Do not pin that miss for the document TTL.
-        "Cache-Control": "public, max-age=30",
+        "Cache-Control": `public, max-age=${settled ? 60 * 60 * 24 : 30}`,
         "Access-Control-Allow-Origin": "*",
       },
     });
@@ -173,6 +199,25 @@ export async function handleImage(url, env, ctx) {
 
   const fallbackSize = KINOPUB_SIZE[size] || (kind === "backdrop" ? "wide" : "medium");
   return Response.redirect(`${KINOPUB_POSTER}/${fallbackSize}/${id}.jpg`, 302);
+}
+
+/** The stored TMDB `original` URL at the bucket the client asked for, served
+ * through this worker's `/t/p/` passthrough (image.tmdb.org is blocked on some
+ * networks — the reason that route exists). Other hosts pass through as stored. */
+function sizedImage(requestURL, stored, kind, size) {
+  const prefix = `${IMAGE_BASE}/`;
+  if (!stored.startsWith(prefix)) return stored;
+  const bucket = TMDB_SIZE[kind]?.[size] || "original";
+  return `${requestURL.origin}/t/p/${bucket}/${stored.slice(prefix.length)}`;
+}
+
+/** The promise's value, or null once `ms` have passed. Never throws. */
+function within(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise.catch(() => null),
+    new Promise((resolve) => { timer = setTimeout(() => resolve(null), ms); }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 // ------------------------------------------------------------------ helpers
@@ -233,7 +278,8 @@ async function writeDocument(env, id, document) {
 /**
  * Resolve from hints and store. Runs after the response has gone out, so its
  * latency is nobody's problem — which is exactly why the client never has to
- * choose between "fast" and "complete".
+ * choose between "fast" and "complete". Resolves to the document it ended with,
+ * which `/img` waits on for a short while (see COLD_RESOLVE_BUDGET_MS).
  */
 async function resolveAndStore(env, id, hints, base) {
   let document = base;
@@ -264,7 +310,7 @@ async function resolveAndStore(env, id, hints, base) {
 
   if (!hints.imdb || !env.TMDB_READ_TOKEN) {
     if (document !== base) await writeDocument(env, id, document);
-    return;
+    return document;
   }
 
   try {
@@ -278,7 +324,7 @@ async function resolveAndStore(env, id, hints, base) {
     }
     if (!match) {
       if (document !== base) await writeDocument(env, id, document);
-      return;
+      return document;
     }
 
     const append = mediaType === "tv"
@@ -290,14 +336,17 @@ async function resolveAndStore(env, id, hints, base) {
     });
     if (!details) {
       if (document !== base) await writeDocument(env, id, document);
-      return;
+      return document;
     }
 
-    await writeDocument(env, id, mergeTMDB(document, mediaType, match.id, details));
+    const merged = mergeTMDB(document, mediaType, match.id, details);
+    await writeDocument(env, id, merged);
+    return merged;
   } catch (_) {
     // Background work: a failure must never be visible, and must not poison the
     // store with a half-built document.
     if (document !== base) await writeDocument(env, id, document);
+    return document;
   }
 }
 
@@ -439,8 +488,8 @@ function capArtwork(assets) {
 /** Best artwork of a kind: our precedence, applied here so the client has none.
  * For `backdrop`, prefer textless (`lang === null`) so our own logo/title overlay
  * never collides with a title baked into the backdrop art. For `logo` and `poster`,
- * prefer `ru`. */
-function pickArtwork(document, kind) {
+ * prefer the asked language (`ru` unless the client sends `lang`), then `en`. */
+function pickArtwork(document, kind, lang = "ru") {
   const list = document.artwork?.[kind];
   if (!list?.length) return null;
   if (kind === "backdrop") {
@@ -448,8 +497,9 @@ function pickArtwork(document, kind) {
       || list.find((asset) => asset.lang === null);
     return (textless || list[0]).url;
   }
-  const russian = list.find((asset) => asset.lang === "ru");
-  return (russian || list[0]).url;
+  const preferred = list.find((asset) => asset.lang === lang)
+    || list.find((asset) => asset.lang === "en");
+  return (preferred || list[0]).url;
 }
 
 function json(body, status, extra = {}) {

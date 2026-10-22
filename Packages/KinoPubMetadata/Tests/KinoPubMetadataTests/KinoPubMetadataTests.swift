@@ -137,3 +137,35 @@ final class TMDBImageURLTests: XCTestCase {
     XCTAssertNil(TMDBImageURL.url(path: "", size: .profileW185))
   }
 }
+
+final class TitleImageRouteTests: XCTestCase {
+  private let worker = URL(string: "https://kinopub-tmdb-proxy.example.workers.dev")!
+
+  func testLogoByKinopubIDWithImdbHint() {
+    let route = TitleImageRoute(baseURL: worker, language: nil)
+    XCTAssertEqual(
+      route.logo(kinopubID: 128209, imdb: 903_747)?.absoluteString,
+      "https://kinopub-tmdb-proxy.example.workers.dev/img/logo/lg/kinopub/128209?imdb=tt0903747"
+    )
+  }
+
+  func testBackdropIsOriginalAndCarriesLanguage() {
+    let route = TitleImageRoute(baseURL: worker, language: "en")
+    XCTAssertEqual(
+      route.backdrop(kinopubID: 7, imdb: nil)?.absoluteString,
+      "https://kinopub-tmdb-proxy.example.workers.dev/img/backdrop/orig/kinopub/7?lang=en"
+    )
+  }
+
+  /// The banner and the hero must ask for byte-identical URLs, or the hero downloads
+  /// the logo the banner already holds.
+  func testSameInputsSameURL() {
+    let route = TitleImageRoute(baseURL: worker, language: nil)
+    XCTAssertEqual(route.logo(kinopubID: 5, imdb: 42), route.logo(kinopubID: 5, imdb: 42))
+  }
+
+  func testUnconfiguredOrBadIDGivesNoURL() {
+    XCTAssertNil(TitleImageRoute(baseURL: nil).logo(kinopubID: 5, imdb: 42))
+    XCTAssertNil(TitleImageRoute(baseURL: worker).logo(kinopubID: 0, imdb: 42))
+  }
+}

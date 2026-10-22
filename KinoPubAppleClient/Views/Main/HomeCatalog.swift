@@ -455,12 +455,12 @@ class HomeCatalog: ObservableObject {
   @Published public private(set) var bannerCards: [MediaCard] = [] {
     didSet { resolveBannerDetails() }
   }
-  /// The banner cards re-read from the details payload, by card id. A shelf's payload
-  /// has no seasons, so its card cannot say "12 episodes"; the details one can, and it
-  /// carries the IMDb id the logo lookup needs. Until it lands the shelf card draws.
+  /// The banner cards with the worker's backdrop, re-read from the details payload once
+  /// it lands, by card id. A shelf's payload has no seasons, so its card cannot say
+  /// "12 episodes"; the details one can.
   @Published public private(set) var bannerDetails: [Int: MediaCard] = [:]
-  /// Title logos for the banner cards, by card id. Missing keys are still in
-  /// flight (``.pending``) — the lettered name waits for a confirmed miss.
+  /// Title logos for the banner cards, by card id: the worker's logo URL, whose 404 is
+  /// the confirmed miss. ``.missing`` only when no worker is configured.
   @Published public private(set) var bannerLogos: [Int: TitleLogoResolution] = [:]
   @Published public private(set) var isLoaded: Bool = false
   /// True when every shelf failed and there is nothing cached to show — the view
@@ -478,9 +478,9 @@ class HomeCatalog: ObservableObject {
   private var store: ContentStore
   private var localProgressStore: LocalWatchProgressStore
   private let metadataService: MetadataService
-  /// Banner cards whose details and logo were already asked for, found or not.
+  /// Banner cards whose images and details were already set up, found or not.
   private var bannerLookups: Set<Int> = []
-  /// In-flight detail+logo tasks, cancelled when the banner set changes or on refresh.
+  /// In-flight details tasks, cancelled when the banner set changes or on refresh.
   private var bannerTasks: [Int: Task<Void, Never>] = [:]
   private var bag = Set<AnyCancellable>()
 
@@ -908,8 +908,7 @@ class HomeCatalog: ObservableObject {
 
   /// v1 hack: up to six unique titles drawn at random from the catalog shelves
   /// (not Continue Watching). Prefer cards that already carry wide artwork.
-  /// Keeps the previous selection when most of it is still in the pool so a
-  /// background refresh does not reshuffle the banner under the remote.
+  /// Sampled once per launch; later refreshes only top it up.
   /// Skipped entirely when `FeatureFlags.homeBannerEnabled` is off — no sampling and
   /// therefore no wide-poster fetches from `HomeBannerCardView`.
   private func refreshBannerCards(from rows: [MediaRow]) {
@@ -938,16 +937,15 @@ class HomeCatalog: ObservableObject {
     // below the banner when there are enough candidates, and boost bookmarked/followed items.
     let deDuped = baseSource.filter { !continueWatchingTopIDs.contains($0.itemID) }
     let source = deDuped.count >= 4 ? deDuped : baseSource
-    let sourceIDs = Set(source.map(\.id))
 
-    let kept = bannerCards.filter { sourceIDs.contains($0.id) }
-    if kept.count >= min(3, source.count), !source.isEmpty {
-      var next = kept
-      if next.count < 6 {
-        let missing = source.filter { card in !next.contains(where: { $0.id == card.id }) }
-        next.append(contentsOf: missing.shuffled().prefix(6 - next.count))
-      }
-      bannerCards = Array(next.prefix(6))
+    // Drawn once per launch: a refresh that reorders or reshuffles the shelves never
+    // touches what is already on screen, it only tops a short banner up to six. The
+    // next launch samples afresh (Sasha, 2026-10-22).
+    if !bannerCards.isEmpty {
+      guard bannerCards.count < 6 else { return }
+      let missing = source.filter { card in !bannerCards.contains(where: { $0.id == card.id }) }
+      guard !missing.isEmpty else { return }
+      bannerCards += missing.shuffled().prefix(6 - bannerCards.count)
       return
     }
 
@@ -961,11 +959,13 @@ class HomeCatalog: ObservableObject {
     bannerCards = Array(combined)
   }
 
-  /// One details call and one metadata lookup per banner title — the same calls (and
-  /// caches) a detail page makes, so opening a banner title afterwards costs nothing
-  /// more. The logo waits for the details card: a cached shelf card may predate the
-  /// IMDb id and would skip the lookup. Stale tasks are cancelled when the banner
-  /// set changes; failed ids retry on the next `refresh()`.
+  /// The banner's pictures are URLs, not lookups: the logo and the textless backdrop
+  /// come straight from the worker's image route by kino.pub id (`TitleImageRoute`),
+  /// and a 404 is the confirmed miss that letters the name. The detail hero builds the
+  /// same URLs, so opening a banner title draws its logo from the artwork cache. The
+  /// only call left is kino.pub's details, for what a shelf payload lacks (seasons,
+  /// episodes) — the same call and cache the detail page makes. Stale tasks are
+  /// cancelled when the banner set changes; failed ids retry on the next `refresh()`.
   private func resolveBannerDetails() {
     let live = Set(bannerCards.map(\.id))
     for id in bannerTasks.keys where !live.contains(id) {
@@ -974,26 +974,34 @@ class HomeCatalog: ObservableObject {
     }
     bannerLookups = bannerLookups.intersection(live)
 
+    let images = metadataService.images
     for card in bannerCards where bannerLookups.insert(card.id).inserted {
       let id = card.id
-      if bannerLogos[id] == nil { bannerLogos[id] = .pending }
-      bannerTasks[id] = Task { [weak self, itemsService, metadataService] in
+      applyBannerImages(images, to: card)
+      bannerTasks[id] = Task { [weak self, itemsService] in
         let item = try? await itemsService.fetchDetails(for: "\(card.itemID)", excludeLinks: true).item
-        guard let self, !Task.isCancelled, self.bannerCards.contains(where: { $0.id == id }) else { return }
-        let detailed = item.map { MediaCard($0) }
-        if let detailed { self.bannerDetails[id] = detailed }
-        guard let identity = MediaIdentity(card: detailed ?? card) else {
-          self.bannerLogos[id] = .missing
-          return
+        guard let self, let item, !Task.isCancelled,
+              self.bannerCards.contains(where: { $0.id == id }) else { return }
+        let detailed = MediaCard(item)
+        // A cached shelf card can predate the IMDb id; the details one has it, and
+        // the hero will ask with it, so the banner switches to that URL too.
+        if card.imdbID == nil, detailed.imdbID != nil {
+          self.applyBannerImages(images, to: detailed)
+        } else {
+          self.bannerDetails[id] = detailed.withBackdropURL(self.bannerDetails[id]?.backdropURL)
         }
-        let meta = await metadataService.metadata(for: identity)
-        guard !Task.isCancelled, self.bannerCards.contains(where: { $0.id == id }) else { return }
-        if let cleanBackdrop = meta.backdropURL?.absoluteString {
-          self.bannerDetails[id] = (detailed ?? card).withBackdropURL(cleanBackdrop)
-        }
-        self.bannerLogos[id] = meta.titleLogoURL.map { .url($0) } ?? .missing
       }
     }
+  }
+
+  private func applyBannerImages(_ images: TitleImageRoute, to card: MediaCard) {
+    guard !card.opensCollection else {
+      bannerLogos[card.id] = .missing
+      return
+    }
+    let backdrop = images.backdrop(kinopubID: card.itemID, imdb: card.imdbID)
+    bannerDetails[card.id] = card.withBackdropURL(backdrop?.absoluteString)
+    bannerLogos[card.id] = images.logo(kinopubID: card.itemID, imdb: card.imdbID).map { .url($0) } ?? .missing
   }
 
   private func cancelBannerLookups() {
@@ -1462,21 +1470,4 @@ private enum ContinueWatchingFetchError: Error {
   /// outage, not "nothing to continue watching". Signals `ContentStore` to keep the
   /// cached row instead of overwriting it with an empty one.
   case allSourcesFailed
-}
-
-private extension MediaIdentity {
-  /// From a catalog card: nil when it carries neither an IMDb nor a Kinopoisk id
-  /// (cards cached before the ids were stored, collections, episodes).
-  init?(card: MediaCard) {
-    guard !card.opensCollection, card.imdbID != nil || card.kinopoiskID != nil else { return nil }
-    self.init(
-      kinopubId: card.itemID,
-      imdb: card.imdbID.map(TMDBIDFormatter.imdbString(from:)),
-      kinopoisk: card.kinopoiskID,
-      title: card.title,
-      originalTitle: card.subtitle ?? card.title,
-      year: card.year ?? 0,
-      isSeries: card.isSeries
-    )
-  }
 }

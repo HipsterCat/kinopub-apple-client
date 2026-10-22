@@ -7,10 +7,16 @@ import KinoPubLogging
 public actor MetadataService {
   private let sources: [any MetadataSource]
   private let cache: MetadataCache
+  /// Logo / backdrop / poster by kino.pub id, for screens that only need a picture.
+  /// Building a URL is not a lookup, so it is not behind the actor.
+  public nonisolated let images: TitleImageRoute
 
-  public init(sources: [any MetadataSource], cache: MetadataCache = MetadataCache()) {
+  public init(sources: [any MetadataSource],
+              cache: MetadataCache = MetadataCache(),
+              images: TitleImageRoute = TitleImageRoute(baseURL: nil)) {
     self.sources = sources
     self.cache = cache
+    self.images = images
   }
 
   /// One call per detail page. Sources run in parallel; each contributes what it can.
