@@ -269,10 +269,27 @@ CREATE TABLE IF NOT EXISTS award (
   name       TEXT NOT NULL,
   nomination TEXT,
   year       INTEGER,
-  won        INTEGER NOT NULL DEFAULT 0
+  won        INTEGER NOT NULL DEFAULT 0,
+  image_url  TEXT,
+  persons    TEXT                        -- JSON array of {person_id, name_ru, name_en}
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_award
   ON award(title_id, source, name, COALESCE(nomination,''), COALESCE(year,0));
+
+CREATE TABLE IF NOT EXISTS title_relation (
+  title_id          INTEGER NOT NULL REFERENCES title(id),
+  related_title_id  INTEGER REFERENCES title(id),
+  source            TEXT NOT NULL,
+  related_source_id TEXT NOT NULL,
+  relation_type     TEXT NOT NULL,       -- SEQUEL | PREQUEL | SIMILAR | SPIN_OFF | REMAKE | …
+  name_ru           TEXT,
+  name_en           TEXT,
+  name_original     TEXT,
+  poster_url        TEXT,
+  PRIMARY KEY (title_id, source, related_source_id, relation_type)
+);
+CREATE INDEX IF NOT EXISTS idx_relation_title ON title_relation(title_id);
+CREATE INDEX IF NOT EXISTS idx_relation_target ON title_relation(related_title_id);
 
 CREATE TABLE IF NOT EXISTS genre (
   title_id INTEGER NOT NULL REFERENCES title(id),

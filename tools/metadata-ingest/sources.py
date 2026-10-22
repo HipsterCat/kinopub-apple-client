@@ -18,7 +18,11 @@ TOOLS = Path(__file__).resolve().parent.parent
 
 KINOPUB_DB = TOOLS / "kinopub-snapshot" / "data" / "snapshot.db"
 KINOPOISK_DB = TOOLS / "kinopoisk-metadata" / "data" / "kinopoisk.db"
-TVOE_DIR = TOOLS / "tvoe_data"
+TVOE_DIR = (
+    TOOLS / "tvoe" / "tvoe_data"
+    if (TOOLS / "tvoe" / "tvoe_data").exists()
+    else TOOLS / "tvoe_data"
+)
 
 # kino.pub's `type` collapses to two shapes; the original value is kept on the
 # raw payload, so nothing is lost by simplifying here.
@@ -147,11 +151,17 @@ def ingest_tvoe(conn):
 
             # cdnUrl is the original and its URL does not change; the sibling
             # `url` is a Next resizer with w/q params and is not durable.
-            for our_kind, their_kind in (("poster", "poster"), ("backdrop", "cover"),
-                                         ("logo", "logo")):
+            # On tvoe, `cover` (backdrop) has no baked-in title text (the logo
+            # sits separately in `logo`), so mark `backdrop` as textless (`lang=None`)
+            # while `poster` and `logo` carry Russian lettering (`lang="ru"`).
+            for our_kind, their_kind, img_lang in (
+                ("poster", "poster", "ru"),
+                ("backdrop", "cover", None),
+                ("logo", "logo", "ru"),
+            ):
                 asset = (item.get("images") or {}).get(their_kind) or {}
                 add_image(conn, title_id, our_kind, "tvoe", asset.get("cdnUrl"),
-                          stable=True, lang="ru")
+                          stable=True, lang=img_lang)
 
             for text_field, variant in (("description", "full"), ("shortDesc", "short")):
                 if item.get(text_field):
@@ -336,22 +346,50 @@ def ingest_kinopoisk(conn):
              row["character_name"]),
         )
 
-    episodes, awards, images, facts = [], [], [], []
+    episodes, awards, images, relations = [], [], [], []
     for row in source_db.execute("SELECT * FROM kp_episodes"):
         title_id = title_of(row["kinopoisk_id"])
         if title_id:
             episodes.append((title_id, row["season_number"], row["episode_number"],
                              row["name_ru"], row["name_en"], row["synopsis"],
                              row["release_date"], "kinopoisk"))
+
+    award_persons_by_id: dict[int, list[dict]] = {}
+    try:
+        for prow in source_db.execute("SELECT * FROM kp_award_persons"):
+            award_persons_by_id.setdefault(prow["award_id"], []).append({
+                "person_id": prow["kinopoisk_person_id"],
+                "name_ru": prow["name_ru"],
+                "name_en": prow["name_en"],
+            })
+    except sqlite3.OperationalError:
+        pass
+
     for row in source_db.execute("SELECT * FROM kp_awards"):
         title_id = title_of(row["kinopoisk_id"])
         if title_id:
+            persons_list = award_persons_by_id.get(row["id"])
+            persons_json = json.dumps(persons_list, ensure_ascii=False) if persons_list else None
             awards.append((title_id, "kinopoisk", row["name"], row["nomination_name"],
-                           row["year"], 1 if row["win"] else 0))
+                           row["year"], 1 if row["win"] else 0, row["image_url"], persons_json))
     for row in source_db.execute("SELECT * FROM kp_images"):
         title_id = title_of(row["kinopoisk_id"])
         if title_id:
             images.append((title_id, "still", "kinopoisk", row["image_url"], 1, None))
+    try:
+        for row in source_db.execute("SELECT * FROM kp_relations"):
+            title_id = title_of(row["kinopoisk_id"])
+            if not title_id:
+                continue
+            rel_kp_id = row["related_kinopoisk_id"]
+            rel_title_id = title_of(rel_kp_id) or find_by_external(conn, "kinopoisk", rel_kp_id)
+            relations.append((
+                title_id, rel_title_id, "kinopoisk", str(rel_kp_id),
+                row["relation_type"], row["name_ru"], row["name_en"],
+                row["name_original"], row["poster_url"],
+            ))
+    except sqlite3.OperationalError:
+        pass
     try:
         for row in source_db.execute("SELECT * FROM kp_person_facts"):
             pass  # person-level facts belong to the person page, not the title
@@ -360,8 +398,13 @@ def ingest_kinopoisk(conn):
 
     add_rows(conn, "episode", ("title_id", "season", "number", "name_ru", "name_en",
                                "synopsis", "air_date", "source"), episodes)
-    add_rows(conn, "award", ("title_id", "source", "name", "nomination", "year", "won"), awards)
+    add_rows(conn, "award", ("title_id", "source", "name", "nomination", "year", "won",
+                             "image_url", "persons"), awards)
     add_rows(conn, "image", ("title_id", "kind", "source", "url", "stable", "lang"), images)
+    add_rows(conn, "title_relation", (
+        "title_id", "related_title_id", "source", "related_source_id",
+        "relation_type", "name_ru", "name_en", "name_original", "poster_url",
+    ), relations)
 
     source_db.close()
     run.finish()
