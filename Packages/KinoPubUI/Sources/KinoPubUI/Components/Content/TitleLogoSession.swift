@@ -34,7 +34,20 @@ struct ArtworkTitleLogoImages: TitleLogoImageLoading {
   }
 
   func image(for url: URL) async throws -> TitleLogoImage {
+#if os(tvOS)
+    // The logo URL is the worker's route; where it redirected to is the answer to
+    // "why this logo" (TMDB ru / en, tvoe…), so it goes in the source log.
+    do {
+      let loaded = try await Artwork.imageWithSource(for: url)
+      ArtworkLog.source("logo", id: nil, asked: url, answered: loaded.answered, tier: loaded.tier)
+      return loaded.image
+    } catch {
+      ArtworkLog.exhausted("logo", id: nil, tried: [url])
+      throw error
+    }
+#else
     try await Artwork.image(for: url)
+#endif
   }
 }
 

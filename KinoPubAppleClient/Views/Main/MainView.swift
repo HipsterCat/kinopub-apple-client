@@ -168,7 +168,8 @@ struct MainView: View {
           .banner(id: Self.bannerSectionID,
                   features: banner.map {
                     TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
-                                  logo: catalog.bannerLogos[$0.id] ?? .pending)
+                                  logo: catalog.bannerLogos[$0.id] ?? .pending,
+                                  backdrop: catalog.bannerBackdrops[$0.id])
                   })
         )
       } else {

@@ -364,9 +364,11 @@ final class TVPageBannerCell: UICollectionViewCell {
       applyLogoShadow()
     }
     let size = cardView.contentSize
-    let backdropChanged = previous?.card.backdropImageURL != card.backdropImageURL
+    // Never the portrait poster: cropped to 16:9 it is the wrong picture, and an empty
+    // backdrop under the scrim reads better than a wrong one.
+    let backdropChanged = previous?.backdropCandidates != feature.backdropCandidates
     if !sameCard || backdropChanged || backdrop.image == nil {
-      load([URL(string: card.backdropImageURL), URL(string: card.posterURL)], size: size) { [weak self] image in
+      load(feature.backdropCandidates, size: size, slot: "banner.backdrop") { [weak self] image in
         guard let self, let image else { return }
         if self.backdrop.image == nil {
           UIView.transition(with: self.backdrop, duration: 0.25, options: .transitionCrossDissolve) {
@@ -965,30 +967,44 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   /// First URL that loads wins: a derived wide backdrop can 404 where the poster does not.
   /// `ifNone` runs when every URL misses — the logo uses it to fall back to the name.
-  private func load(_ urls: [URL?], size: CGSize,
+  /// - Parameter slot: names the picture in the source log (`ArtworkLog.source`); nil
+  ///   for pictures nobody asked to trace.
+  private func load(_ urls: [URL?], size: CGSize, slot: String? = nil,
                     apply: @escaping @MainActor (UIImage?) -> Void,
                     ifNone: (@MainActor () -> Void)? = nil) {
     let urls = urls.compactMap { $0 }
-    if let hit = urls.lazy.compactMap({ TVUIKitRemoteImage.cached(url: $0, size: size) }).first {
+    let itemID = feature?.card.itemID
+    for (index, url) in urls.enumerated() {
+      guard let hit = TVUIKitRemoteImage.cached(url: url, size: size) else { continue }
+      if let slot {
+        ArtworkLog.source(slot, id: itemID, asked: url, answered: nil, tier: "memory",
+                          candidate: index, of: urls.count)
+      }
       apply(hit)
       return
     }
     apply(nil)
     guard !urls.isEmpty else {
+      if let slot { ArtworkLog.exhausted(slot, id: itemID, tried: []) }
       ifNone?()
       return
     }
     let id = feature?.card.id
     tasks.append(Task { [weak self] in
-      for url in urls {
-        let image = await TVUIKitRemoteImage.load(url: url, size: size)
+      for (index, url) in urls.enumerated() {
+        let loaded = await TVUIKitRemoteImage.loadWithSource(url: url, size: size)
         guard let self, !Task.isCancelled, self.feature?.card.id == id else { return }
-        if let image {
-          apply(image)
+        if let loaded {
+          if let slot {
+            ArtworkLog.source(slot, id: itemID, asked: url, answered: loaded.answered,
+                              tier: loaded.tier, candidate: index, of: urls.count)
+          }
+          apply(loaded.image)
           return
         }
       }
       guard !Task.isCancelled, self?.feature?.card.id == id else { return }
+      if let slot { ArtworkLog.exhausted(slot, id: itemID, tried: urls) }
       ifNone?()
     })
   }

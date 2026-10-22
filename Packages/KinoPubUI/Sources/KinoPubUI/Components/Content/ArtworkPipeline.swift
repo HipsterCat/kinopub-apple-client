@@ -127,6 +127,22 @@ public enum Artwork {
     try await pipeline.image(for: request(url, size: size))
   }
 
+  /// `image(for:)`, plus where it came from: the URL that answered after redirects
+  /// (nil from a cache, which does not keep it) and the tier — `memory`, `disk` or
+  /// `network`. For the source log.
+  public static func imageWithSource(for url: URL, size: CGSize = .zero) async throws
+    -> (image: PlatformImage, answered: URL?, tier: String) {
+    let response = try await pipeline.imageTask(with: request(url, size: size)).response
+    let tier: String
+    switch response.cacheType {
+    case .memory: tier = "memory"
+    case .disk: tier = "disk"
+    case .none: tier = "network"
+    @unknown default: tier = "unknown"
+    }
+    return (response.image, response.urlResponse?.url, tier)
+  }
+
   // MARK: - Accounting, for Settings › Storage
 
   public static var memoryBytes: Int { memoryCache.totalCost }

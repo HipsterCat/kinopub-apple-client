@@ -263,17 +263,31 @@ public extension TVUIKitMediaItem {
 public struct TVPageFeature: Hashable {
   public let card: MediaCard
   public let logo: TitleLogoResolution
+  /// The textless wide frame from the worker's image route. Tried first; a 404 there
+  /// falls back to the card's own kino.pub wide still (`card.backdropImageURL`), never
+  /// to the portrait poster.
+  public let backdrop: URL?
 
   public var logoURL: URL? { logo.url }
 
-  public init(card: MediaCard, logo: TitleLogoResolution = .missing) {
+  /// The backdrop chain, first that loads wins.
+  public var backdropCandidates: [URL] {
+    var seen = Set<String>()
+    return [backdrop, URL(string: card.backdropURL ?? card.landscapeImageURL ?? "")]
+      .compactMap { $0 }
+      .filter { !$0.absoluteString.isEmpty && seen.insert($0.absoluteString).inserted }
+  }
+
+  public init(card: MediaCard, logo: TitleLogoResolution = .missing, backdrop: URL? = nil) {
     self.card = card
     self.logo = logo
+    self.backdrop = backdrop
   }
 
   public init(card: MediaCard, logoURL: URL?) {
     self.card = card
     self.logo = logoURL.map { .url($0) } ?? .missing
+    self.backdrop = nil
   }
 }
 

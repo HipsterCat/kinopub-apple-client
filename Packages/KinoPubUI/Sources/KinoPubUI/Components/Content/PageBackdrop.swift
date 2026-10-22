@@ -241,7 +241,7 @@ struct PageBackdropHost: View {
       withAnimation(Self.crossfade) { self.shown?.backdrop = next }
       return
     }
-    let image = await Self.firstImage(of: next.imageURLs)
+    let image = await Self.firstImage(of: next.imageURLs, id: next.id)
     guard !Task.isCancelled else { return }
     withAnimation(shown == nil ? Self.fadeIn : Self.crossfade) {
       shown = Shown(backdrop: next, image: image)
@@ -250,13 +250,20 @@ struct PageBackdropHost: View {
 
   /// Wide → big → medium, the same chain `FallbackRemoteImage` walks, through the same
   /// `Artwork` cache — the card that opened the page has usually decoded it already.
-  private static func firstImage(of urls: [URL]) async -> Image? {
-    for url in urls {
+  private static func firstImage(of urls: [URL], id: String) async -> Image? {
+    for (index, url) in urls.enumerated() {
       if Task.isCancelled { return nil }
-      if let loaded = try? await Artwork.image(for: url) {
-        return Image(platformImage: loaded)
+      if let loaded = try? await Artwork.imageWithSource(for: url) {
+#if os(tvOS)
+        ArtworkLog.source("page.backdrop \(id)", id: nil, asked: url, answered: loaded.answered,
+                          tier: loaded.tier, candidate: index, of: urls.count)
+#endif
+        return Image(platformImage: loaded.image)
       }
     }
+#if os(tvOS)
+    if !Task.isCancelled { ArtworkLog.exhausted("page.backdrop \(id)", id: nil, tried: urls) }
+#endif
     return nil
   }
 }

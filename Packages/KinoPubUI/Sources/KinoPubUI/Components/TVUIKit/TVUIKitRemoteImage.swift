@@ -78,11 +78,20 @@ public enum TVUIKitRemoteImage {
   ///   down to it — passing `.zero` keeps full resolution and should be rare.
   public static func load(url: URL?, size: CGSize = .zero,
                           mode: Artwork.ResizeMode = .fill) async -> UIImage? {
+    await loadWithSource(url: url, size: size, mode: mode)?.image
+  }
+
+  /// `load`, plus where the bytes came from: the URL that answered after redirects
+  /// (nil from a cache, which does not keep it) and the cache tier.
+  public static func loadWithSource(url: URL?, size: CGSize = .zero,
+                                    mode: Artwork.ResizeMode = .fill)
+    async -> (image: UIImage, answered: URL?, tier: String)? {
     guard let url else { return nil }
     do {
       let response = try await Artwork.pipeline.imageTask(with: Artwork.request(url, size: size, mode: mode)).response
-      ArtworkLog.loaded(url, from: tier(of: response))
-      return response.image
+      let tier = tier(of: response)
+      ArtworkLog.loaded(url, from: tier)
+      return (response.image, response.urlResponse?.url, tier)
     } catch {
       // Missing actor portraits answer 403 by design (see `ActorImageProvider`), so
       // this is a routine line, not an incident.

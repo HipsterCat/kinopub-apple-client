@@ -455,13 +455,16 @@ class HomeCatalog: ObservableObject {
   @Published public private(set) var bannerCards: [MediaCard] = [] {
     didSet { resolveBannerDetails() }
   }
-  /// The banner cards with the worker's backdrop, re-read from the details payload once
-  /// it lands, by card id. A shelf's payload has no seasons, so its card cannot say
-  /// "12 episodes"; the details one can.
+  /// The banner cards re-read from the details payload once it lands, by card id. A
+  /// shelf's payload has no seasons, so its card cannot say "12 episodes"; the details
+  /// one can, and its wide still is a real file.
   @Published public private(set) var bannerDetails: [Int: MediaCard] = [:]
   /// Title logos for the banner cards, by card id: the worker's logo URL, whose 404 is
   /// the confirmed miss. ``.missing`` only when no worker is configured.
   @Published public private(set) var bannerLogos: [Int: TitleLogoResolution] = [:]
+  /// The worker's textless wide frame per banner card, by card id. Kept apart from the
+  /// card so its own kino.pub still stays the fallback behind the worker's 404.
+  @Published public private(set) var bannerBackdrops: [Int: URL] = [:]
   @Published public private(set) var isLoaded: Bool = false
   /// True when every shelf failed and there is nothing cached to show — the view
   /// swaps the blank screen for a retry state. Cached rows always win over this flag.
@@ -983,12 +986,14 @@ class HomeCatalog: ObservableObject {
         guard let self, let item, !Task.isCancelled,
               self.bannerCards.contains(where: { $0.id == id }) else { return }
         let detailed = MediaCard(item)
+        // The details card keeps kino.pub's own wide still: it is the banner's fallback
+        // when the worker has no textless frame (a 404), and a shelf card's derived
+        // `/wide/` often does not exist.
+        self.bannerDetails[id] = detailed
         // A cached shelf card can predate the IMDb id; the details one has it, and
         // the hero will ask with it, so the banner switches to that URL too.
         if card.imdbID == nil, detailed.imdbID != nil {
           self.applyBannerImages(images, to: detailed)
-        } else {
-          self.bannerDetails[id] = detailed.withBackdropURL(self.bannerDetails[id]?.backdropURL)
         }
       }
     }
@@ -999,9 +1004,8 @@ class HomeCatalog: ObservableObject {
       bannerLogos[card.id] = .missing
       return
     }
-    let backdrop = images.backdrop(kinopubID: card.itemID, imdb: card.imdbID,
-                                  width: ArtworkPixelWidth.backdrop)
-    bannerDetails[card.id] = card.withBackdropURL(backdrop?.absoluteString)
+    bannerBackdrops[card.id] = images.backdrop(kinopubID: card.itemID, imdb: card.imdbID,
+                                               width: ArtworkPixelWidth.backdrop)
     bannerLogos[card.id] = images.logo(kinopubID: card.itemID, imdb: card.imdbID,
                                          width: ArtworkPixelWidth.logo).map { .url($0) } ?? .missing
   }

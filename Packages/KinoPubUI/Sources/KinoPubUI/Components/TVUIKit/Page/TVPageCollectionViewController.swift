@@ -1322,7 +1322,7 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
     case .person(let person):
       return person.photoURL
     case .feature(let feature):
-      return URL(string: feature.card.backdropImageURL)
+      return feature.backdropCandidates.first
     case .masthead(let header):
       return header.photoURL
     case .info(.gallery(let gallery)):
