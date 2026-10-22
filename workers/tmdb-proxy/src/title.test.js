@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { handleImage, parseImageRequest, tmdbBucket } from "./title.js";
+import { handleImage } from "./title.js";
 
 const originalWaitUntil = [];
 
@@ -28,271 +28,397 @@ function kvEnv(documents = {}) {
   };
 }
 
-function imageURL(kind, { size = "md", id = "82852", search = "" } = {}) {
-  return new URL(`https://example.test/img/${kind}/${size}/kinopub/${id}${search}`);
+function imageRequest(kind, { id = "82852", query = "", lang } = {}) {
+  const qs = query ? (query.startsWith("?") ? query : `?${query}`) : "";
+  const headers = {};
+  if (lang) headers["Accept-Language"] = lang;
+  return new Request(`https://example.test/img/${kind}/by/kinopub/${id}${qs}`, { headers });
 }
 
 afterEach(async () => {
   await Promise.allSettled(originalWaitUntil.splice(0));
 });
 
-test("logo with no stored document answers 404, never a poster, and still resolves behind the response", async () => {
-  const ctx = ctxSpy();
-  const response = await handleImage(imageURL("logo"), kvEnv(), ctx);
+const TVOE_COVER = "https://static.cdn.tvoe.live/images/cover.jpg";
+const TVOE_LOGO = "https://static.cdn.tvoe.live/images/logo.png";
+const TVOE_POSTER = "https://static.cdn.tvoe.live/images/poster.jpg";
+const TMDB_TEXTLESS = "https://image.tmdb.org/t/p/original/textless.jpg";
+const TMDB_TITLED = "https://image.tmdb.org/t/p/original/titled.jpg";
+const TMDB_LOGO_RU = "https://image.tmdb.org/t/p/original/logo-ru.png";
+const TMDB_LOGO_EN = "https://image.tmdb.org/t/p/original/logo-en.png";
+const TMDB_POSTER_RU = "https://image.tmdb.org/t/p/original/poster-ru.jpg";
+const TMDB_POSTER_EN = "https://image.tmdb.org/t/p/original/poster-en.jpg";
+const KINOPUB_WIDE = "https://m.staticpop.net/poster/item/wide/82852.jpg";
 
+test("the size-in-path image route is gone", async () => {
+  const response = await handleImage(
+    new Request("https://example.test/img/backdrop/orig/kinopub/82852"),
+    kvEnv(),
+    ctxSpy(),
+  );
   assert.equal(response.status, 404);
   assert.equal(response.headers.get("location"), null);
-  const body = await response.json();
-  assert.equal(body.error, "not_found");
+});
+
+test("query logo defaults to Russian and prefers tvoe over TMDB", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        logo: [
+          { source: "tmdb", url: TMDB_LOGO_RU, lang: "ru" },
+          { source: "tvoe", url: TVOE_LOGO, lang: "ru" },
+          { source: "tmdb", url: TMDB_LOGO_EN, lang: "en" },
+        ],
+      },
+    },
+  });
+  const response = await handleImage(imageRequest("logo"), env, ctxSpy());
+  assert.equal(response.status, 302);
+  assert.equal(
+    response.headers.get("location"),
+    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_LOGO)}&w=3840&q=80`,
+  );
+});
+
+test("Accept-Language en picks the English logo", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        logo: [
+          { source: "tvoe", url: TVOE_LOGO, lang: "ru" },
+          { source: "tmdb", url: TMDB_LOGO_EN, lang: "en", width: 800 },
+        ],
+      },
+    },
+  });
+  const response = await handleImage(
+    imageRequest("logo", { lang: "en-US,en;q=0.9" }),
+    env,
+    ctxSpy(),
+  );
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/original/logo-en.png");
+});
+
+test("a Russian logo request with only an English file sends the English logo", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { logo: [{ source: "tmdb", url: TMDB_LOGO_EN, lang: "en", width: 800 }] },
+    },
+  });
+  const response = await handleImage(imageRequest("logo"), env, ctxSpy());
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/original/logo-en.png");
+});
+
+test("query logo snaps w up the TMDB ladder and never through tvoe", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { logo: [{ source: "tmdb", url: TMDB_LOGO_EN, lang: "en" }] },
+    },
+  });
+  const response = await handleImage(imageRequest("logo", { query: "w=400", lang: "en" }), env, ctxSpy());
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/w500/logo-en.png");
+});
+
+test("query logo with nothing stored is 404 and still resolves", async () => {
+  const ctx = ctxSpy();
+  const response = await handleImage(imageRequest("logo"), kvEnv(), ctx);
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("location"), null);
+  assert.equal((await response.json()).hint, "no stored logo");
   assert.equal(ctx.pending.length, 1);
 });
 
-test("logo with a stored document that has no logo answers 404, never a poster", async () => {
-  const ctx = ctxSpy();
-  const env = kvEnv({
-    "title:kinopub:82852": {
-      artwork: {
-        poster: [{ source: "kinopub", url: "https://m.staticpop.net/poster/item/big/82852.jpg", lang: null }],
-      },
-    },
-  });
-  const response = await handleImage(imageURL("logo"), env, ctx);
-
-  assert.equal(response.status, 404);
-  assert.equal(response.headers.get("location"), null);
-  assert.equal(ctx.pending.length, 0);
-});
-
-test("logo with a stored TMDB logo redirects to it at the asked size, through the worker", async () => {
-  const logo = "https://image.tmdb.org/t/p/original/logo.png";
-  const ctx = ctxSpy();
-  const env = kvEnv({
-    "title:kinopub:82852": {
-      artwork: {
-        logo: [{ source: "tmdb", url: logo, lang: "en" }],
-      },
-    },
-  });
-  const response = await handleImage(imageURL("logo"), env, ctx);
-
-  assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://example.test/t/p/w300/logo.png");
-});
-
-test("logo prefers the Russian stored logo when several languages exist", async () => {
-  const ctx = ctxSpy();
-  const env = kvEnv({
-    "title:kinopub:82852": {
-      artwork: {
-        logo: [
-          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/en.png", lang: "en" },
-          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/ru.png", lang: "ru" },
-        ],
-      },
-    },
-  });
-  const response = await handleImage(imageURL("logo"), env, ctx);
-
-  assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://example.test/t/p/w300/ru.png");
-});
-
-test("logo honours lang=en, and orig keeps TMDB's original bucket", async () => {
-  const env = kvEnv({
-    "title:kinopub:82852": {
-      artwork: {
-        logo: [
-          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/ru.png", lang: "ru" },
-          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/en.png", lang: "en" },
-        ],
-      },
-    },
-  });
-  const response = await handleImage(imageURL("logo", { size: "orig", search: "?lang=en" }), env, ctxSpy());
-
-  assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://example.test/t/p/original/en.png");
-});
-
-test("backdrop picks the textless TMDB one at the backdrop bucket", async () => {
+test("backdrop is textless and wide, prefers tvoe, and ignores Accept-Language and ?lang=", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
       artwork: {
         backdrop: [
-          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/ru.jpg", lang: "ru" },
-          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/clean.jpg", lang: null },
+          { source: "tmdb", url: TMDB_TITLED, lang: "ru", width: 3840, height: 2160 },
+          { source: "tmdb", url: TMDB_TEXTLESS, lang: null, width: 3840, height: 2160 },
+          { source: "tvoe", url: TVOE_COVER, lang: null },
+          { source: "kinopub", url: KINOPUB_WIDE, lang: null, width: 3840, height: 2160 },
         ],
       },
     },
   });
-  const response = await handleImage(imageURL("backdrop", { size: "lg" }), env, ctxSpy());
-
-  assert.equal(response.headers.get("location"), "https://example.test/t/p/w1280/clean.jpg");
-});
-
-test("cold logo with an IMDb hint waits for the resolve and redirects to the logo it found", async () => {
-  const realFetch = globalThis.fetch;
-  const requested = [];
-  globalThis.fetch = async (input) => {
-    const url = String(input);
-    requested.push(url);
-    if (url.includes("/3/find/tt0133093")) {
-      return Response.json({ movie_results: [{ id: 603 }], tv_results: [] });
-    }
-    if (url.includes("/3/movie/603")) {
-      return Response.json({
-        title: "Матрица",
-        images: { logos: [{ file_path: "/matrix-ru.png", iso_639_1: "ru", width: 800 }] },
-      });
-    }
-    return new Response("nope", { status: 404 });
-  };
-  try {
-    const stored = {};
-    const env = {
-      TMDB_READ_TOKEN: "token",
-      DOCUMENTS: {
-        async get(key) { return stored[key] ?? null; },
-        async put(key, value) { stored[key] = JSON.parse(value); },
-      },
-    };
-    const response = await handleImage(
-      imageURL("logo", { size: "lg", search: "?imdb=tt0133093" }), env, ctxSpy());
-
-    assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "https://example.test/t/p/w500/matrix-ru.png");
-    assert.ok(stored["title:kinopub:82852"], "the resolved document is stored for the next ask");
-    assert.equal(requested.filter((u) => u.includes("kpapp.link")).length, 0,
-                 "an image ask never pays for Kinopoisk facts");
-  } finally {
-    globalThis.fetch = realFetch;
-  }
-});
-
-test("poster with no stored document still falls back to kino.pub artwork", async () => {
-  const ctx = ctxSpy();
-  const response = await handleImage(imageURL("poster"), kvEnv(), ctx);
-
+  const response = await handleImage(
+    imageRequest("backdrop", { query: "lang=ru&w=1920", lang: "en" }),
+    env,
+    ctxSpy(),
+  );
   assert.equal(response.status, 302);
   assert.equal(
     response.headers.get("location"),
-    "https://m.staticpop.net/poster/item/medium/82852.jpg",
+    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=1920&q=80`,
   );
-  assert.equal(ctx.pending.length, 1);
+  assert.equal(response.headers.get("vary"), null);
 });
 
-test("unknown kind answers 404, never a poster, and does not resolve", async () => {
-  const ctx = ctxSpy();
-  const response = await handleImage(imageURL("still"), kvEnv(), ctx);
-
+test("a portrait filed as a backdrop is not stretched across the screen", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        backdrop: [
+          { source: "tmdb", url: TMDB_TEXTLESS, lang: null, width: 300, height: 600 },
+        ],
+      },
+    },
+  });
+  const response = await handleImage(imageRequest("backdrop"), env, ctxSpy());
   assert.equal(response.status, 404);
   assert.equal(response.headers.get("location"), null);
-  const body = await response.json();
-  assert.equal(body.error, "not_found");
+  assert.equal((await response.json()).hint, "no textless backdrop");
+});
+
+test("query backdrop snaps a non-bucket width up and caps an omitted width at 3840", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { backdrop: [{ source: "tvoe", url: TVOE_COVER, lang: null }] },
+    },
+  });
+  const snapped = await handleImage(imageRequest("backdrop", { query: "w=1000" }), env, ctxSpy());
+  assert.equal(
+    snapped.headers.get("location"),
+    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=1024&q=80`,
+  );
+  const maxed = await handleImage(imageRequest("backdrop"), env, ctxSpy());
+  assert.equal(
+    maxed.headers.get("location"),
+    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=3840&q=80`,
+  );
+});
+
+test("query backdrop unwraps a stored tvoe resizer URL back to the durable CDN file", async () => {
+  const stored = `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=16&q=75`;
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { backdrop: [{ source: "tvoe", url: stored, lang: null }] },
+    },
+  });
+  const response = await handleImage(imageRequest("backdrop", { query: "w=1920" }), env, ctxSpy());
+  assert.equal(
+    response.headers.get("location"),
+    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=1920&q=80`,
+  );
+});
+
+test("query backdrop uses TMDB original only when the file is within 3840", async () => {
+  const within = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { backdrop: [{ source: "tmdb", url: TMDB_TEXTLESS, lang: null, width: 3840, height: 2160 }] },
+    },
+  });
+  const atCap = await handleImage(imageRequest("backdrop", { query: "w=1920" }), within, ctxSpy());
+  assert.equal(atCap.headers.get("location"), "https://image.tmdb.org/t/p/original/textless.jpg");
+
+  const unknown = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { backdrop: [{ source: "tmdb", url: TMDB_TEXTLESS, lang: null }] },
+    },
+  });
+  const capped = await handleImage(imageRequest("backdrop"), unknown, ctxSpy());
+  assert.equal(capped.headers.get("location"), "https://image.tmdb.org/t/p/w1280/textless.jpg");
+
+  const huge = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { backdrop: [{ source: "tmdb", url: TMDB_TEXTLESS, lang: null, width: 9000, height: 5062 }] },
+    },
+  });
+  const held = await handleImage(imageRequest("backdrop"), huge, ctxSpy());
+  assert.equal(held.headers.get("location"), "https://image.tmdb.org/t/p/w1280/textless.jpg");
+});
+
+test("backdrop 404s when the only frame is a kino.pub wide", async () => {
+  const ctx = ctxSpy();
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      pending: false,
+      artwork: { backdrop: [{ source: "kinopub", url: KINOPUB_WIDE, lang: null, width: 3840, height: 2160 }] },
+    },
+  });
+  const response = await handleImage(imageRequest("backdrop"), env, ctx);
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("location"), null);
   assert.equal(ctx.pending.length, 0);
 });
 
-test("backdrop with an unknown size still falls back to the wide kino.pub still", async () => {
+test("backdrop on a cold id 404s and resolves behind it", async () => {
   const ctx = ctxSpy();
-  const response = await handleImage(imageURL("backdrop", { size: "unknown" }), kvEnv(), ctx);
+  const response = await handleImage(imageRequest("backdrop"), kvEnv(), ctx);
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("location"), null);
+  assert.equal(ctx.pending.length, 1);
+});
 
+test("Russian poster with a Kinopoisk id skips TMDB and never echoes kino.pub", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      ids: { kinopoisk: { value: "326" } },
+      artwork: {
+        poster: [
+          { source: "tmdb", url: TMDB_POSTER_RU, lang: "ru", width: 2000, height: 3000 },
+          { source: "kinopub", url: "https://m.staticpop.net/poster/item/big/82852.jpg", lang: null },
+        ],
+      },
+    },
+  });
+  const response = await handleImage(imageRequest("poster"), env, ctxSpy());
   assert.equal(response.status, 302);
   assert.equal(
     response.headers.get("location"),
-    "https://m.staticpop.net/poster/item/wide/82852.jpg",
+    "https://kinopoiskapiunofficial.tech/images/posters/kp/326.jpg",
   );
 });
 
-test("backdrop at orig with nothing stored is kino.pub's wide still, never the vertical poster", async () => {
-  const response = await handleImage(imageURL("backdrop", { size: "orig" }), kvEnv(), ctxSpy());
-
-  assert.equal(response.headers.get("location"), "https://m.staticpop.net/poster/item/wide/82852.jpg");
-});
-
-// ------------------------------------------------- /img/{kind}/by/kinopub/{id}
-
-function byURL(kind, { id = "82852", search = "" } = {}) {
-  return new URL(`https://example.test/img/${kind}/by/kinopub/${id}${search}`);
-}
-
-const TMDB = "https://image.tmdb.org/t/p/original";
-
-test("w picks the smallest TMDB width that covers it, original past w1920 or without w", () => {
-  assert.equal(tmdbBucket(500), "w500");
-  assert.equal(tmdbBucket(501), "w780");
-  assert.equal(tmdbBucket(960), "w1280");
-  assert.equal(tmdbBucket(1920), "w1920");
-  assert.equal(tmdbBucket(1921), "original");
-  assert.equal(tmdbBucket(3840), "original");
-  assert.equal(tmdbBucket(250), "w300");
-  assert.equal(tmdbBucket(null), "original");
-});
-
-test("parse accepts the by-route with upper-case S/E and the legacy size words", () => {
-  assert.deepEqual(parseImageRequest(byURL("thumbnail", { search: "?w=300&lang=en&S=01&E=05" })),
-    { kind: "thumbnail", id: "82852", lang: "en", width: 300, season: 1, episode: 5 });
-  assert.deepEqual(parseImageRequest(imageURL("logo", { size: "lg" })),
-    { kind: "logo", id: "82852", lang: "ru", width: 500, season: null, episode: null });
-  assert.equal(parseImageRequest(new URL("https://example.test/img/logo/by/imdb/tt1")), null);
-  assert.equal(parseImageRequest(new URL("https://example.test/img/logo")), null);
-});
-
-test("logo by kino.pub id at w=1920 is TMDB w1920, at w=300 the w300 bucket", async () => {
-  const env = kvEnv({
-    "title:kinopub:82852": { ids: { tmdb: { value: "tv/1" } },
-      artwork: { logo: [{ source: "tmdb", url: `${TMDB}/logo.png`, lang: "ru" }] } },
-  });
-  const large = await handleImage(byURL("logo", { search: "?w=1920" }), env, ctxSpy());
-  assert.equal(large.headers.get("location"), "https://example.test/t/p/w1920/logo.png");
-  const small = await handleImage(byURL("logo", { search: "?w=300" }), env, ctxSpy());
-  assert.equal(small.headers.get("location"), "https://example.test/t/p/w300/logo.png");
-});
-
-test("poster with s is that season's poster, and the title poster when the season has none", async () => {
+test("Russian poster prefers tvoe over the Kinopoisk file", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
-      ids: { tmdb: { value: "tv/1" } },
-      artwork: { poster: [{ source: "tmdb", url: `${TMDB}/title.jpg`, lang: "ru" }] },
-      seasons: [{ number: 2, poster: `${TMDB}/season2.jpg` }],
+      ids: { kinopoisk: { value: "326" } },
+      artwork: { poster: [{ source: "tvoe", url: TVOE_POSTER, lang: "ru" }] },
     },
   });
-  const season = await handleImage(byURL("poster", { search: "?s=2&w=342" }), env, ctxSpy());
-  assert.equal(season.headers.get("location"), "https://example.test/t/p/w342/season2.jpg");
-  const missing = await handleImage(byURL("poster", { search: "?s=9&w=342" }), env, ctxSpy());
-  assert.equal(missing.headers.get("location"), "https://example.test/t/p/w342/title.jpg");
+  const response = await handleImage(imageRequest("poster"), env, ctxSpy());
+  assert.equal(
+    response.headers.get("location"),
+    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_POSTER)}&w=3840&q=80`,
+  );
 });
 
-test("thumbnail with s and e is the TMDB episode still; no still is 404; no e is 400", async () => {
-  const env = {
-    ...kvEnv({ "title:kinopub:82852": { ids: { tmdb: { value: "tv/1399" } }, artwork: {} } }),
-    TMDB_READ_TOKEN: "test",
-  };
-  const realFetch = globalThis.fetch;
-  const asked = [];
-  globalThis.fetch = async (input) => {
-    asked.push(String(input));
-    return new Response(JSON.stringify({ episodes: [{ episode_number: 5, still_path: "/still5.jpg" }] }));
-  };
-  try {
-    const hit = await handleImage(byURL("thumbnail", { search: "?S=01&E=05&w=300" }), env, ctxSpy());
-    assert.equal(hit.status, 302);
-    assert.equal(hit.headers.get("location"), "https://example.test/t/p/w300/still5.jpg");
-    assert.match(asked[0], /\/3\/tv\/1399\/season\/1\b/);
-
-    const miss = await handleImage(byURL("thumbnail", { search: "?s=1&e=6" }), env, ctxSpy());
-    assert.equal(miss.status, 404);
-  } finally {
-    globalThis.fetch = realFetch;
-  }
-  const noEpisode = await handleImage(byURL("thumbnail", { search: "?s=1" }), env, ctxSpy());
-  assert.equal(noEpisode.status, 400);
+test("Russian poster without a Kinopoisk id uses the TMDB ru file", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        poster: [
+          { source: "tmdb", url: TMDB_POSTER_EN, lang: "en", width: 2000, height: 3000 },
+          { source: "tmdb", url: TMDB_POSTER_RU, lang: "ru", width: 2000, height: 3000 },
+        ],
+      },
+    },
+  });
+  const response = await handleImage(imageRequest("poster"), env, ctxSpy());
+  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/original/poster-ru.jpg");
 });
 
-test("kino.pub fallback size follows w: small, medium, big; backdrop always the wide still", async () => {
-  const at = async (kind, w) =>
-    (await handleImage(byURL(kind, { search: `?w=${w}` }), kvEnv(), ctxSpy())).headers.get("location");
-  assert.equal(await at("poster", 150), "https://m.staticpop.net/poster/item/small/82852.jpg");
-  assert.equal(await at("poster", 342), "https://m.staticpop.net/poster/item/medium/82852.jpg");
-  assert.equal(await at("poster", 780), "https://m.staticpop.net/poster/item/big/82852.jpg");
-  assert.equal(await at("backdrop", 300), "https://m.staticpop.net/poster/item/wide/82852.jpg");
+test("Russian poster does not fall back to an English one", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_EN, lang: "en" }] },
+    },
+  });
+  const response = await handleImage(imageRequest("poster", { query: "lang=ru" }), env, ctxSpy());
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("location"), null);
+  assert.equal(response.headers.get("vary"), "Accept-Language");
+});
+
+test("English poster uses the TMDB en file and not the Kinopoisk one", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      ids: { kinopoisk: { value: "326" } },
+      artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_EN, lang: "en", width: 500, height: 750 }] },
+    },
+  });
+  const response = await handleImage(imageRequest("poster", { lang: "en", query: "w=400" }), env, ctxSpy());
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/w500/poster-en.jpg");
+});
+
+test("poster with no better file 404s instead of echoing kino.pub, and still resolves", async () => {
+  const ctx = ctxSpy();
+  const response = await handleImage(imageRequest("poster", { query: "w=100" }), kvEnv(), ctx);
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("location"), null);
+  assert.equal(ctx.pending.length, 1);
+});
+
+test("a Kinopoisk hint on a cold poster answers the Russian file", async () => {
+  const response = await handleImage(
+    imageRequest("poster", { query: "kinopoisk=326" }),
+    kvEnv({ "title:kinopub:82852": { artwork: {} } }),
+    ctxSpy(),
+  );
+  assert.equal(
+    response.headers.get("location"),
+    "https://kinopoiskapiunofficial.tech/images/posters/kp/326.jpg",
+  );
+});
+
+test("poster w under 360 uses the small Kinopoisk file", async () => {
+  const response = await handleImage(
+    imageRequest("poster", { query: "kinopoisk=326&w=300" }),
+    kvEnv({ "title:kinopub:82852": { artwork: {} } }),
+    ctxSpy(),
+  );
+  assert.equal(
+    response.headers.get("location"),
+    "https://kinopoiskapiunofficial.tech/images/posters/kp_small/326.jpg",
+  );
+});
+
+test("season poster does not fall back to the title poster or to kino.pub", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { poster: [{ source: "tmdb", url: TMDB_POSTER_RU, lang: "ru" }] },
+      seasons: [
+        { number: 1, poster: "https://image.tmdb.org/t/p/original/s1.jpg" },
+        { number: 2, poster: KINOPUB_WIDE },
+      ],
+    },
+  });
+  const hit = await handleImage(imageRequest("poster", { query: "s=1&w=400" }), env, ctxSpy());
+  assert.equal(hit.headers.get("location"), "https://image.tmdb.org/t/p/w500/s1.jpg");
+  const miss = await handleImage(imageRequest("poster", { query: "s=2" }), env, ctxSpy());
+  assert.equal(miss.status, 404);
+  assert.equal((await miss.json()).hint, "no season poster");
+});
+
+test("thumbnail is the episode still, needs both s and e, and refuses a kino.pub thumb", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      seasons: [{
+        number: 1,
+        episodes: [
+          { number: 5, thumbnail: TVOE_COVER },
+          { number: 6, thumbnail: "https://m.staticpop.net/poster/item/wide/82852.jpg" },
+        ],
+      }],
+    },
+  });
+  const hit = await handleImage(imageRequest("thumbnail", { query: "s=01&e=05&w=1000" }), env, ctxSpy());
+  assert.equal(hit.status, 302);
+  assert.equal(
+    hit.headers.get("location"),
+    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=1024&q=80`,
+  );
+  const kinopubThumb = await handleImage(imageRequest("thumbnail", { query: "s=1&e=6" }), env, ctxSpy());
+  assert.equal(kinopubThumb.status, 404);
+  const ctx = ctxSpy();
+  const missing = await handleImage(imageRequest("thumbnail", { query: "s=1" }), kvEnv(), ctx);
+  assert.equal(missing.status, 400);
+  assert.equal(ctx.pending.length, 0);
+});
+
+test("backdrop ignores season params and stays on the title frame", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { backdrop: [{ source: "tmdb", url: TMDB_TEXTLESS, lang: null, width: 1920, height: 1080 }] },
+      seasons: [{ number: 1, poster: "https://image.tmdb.org/t/p/original/s1.jpg" }],
+    },
+  });
+  const response = await handleImage(imageRequest("backdrop", { query: "s=1&e=5" }), env, ctxSpy());
+  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/original/textless.jpg");
+});
+
+test("query route rejects a non-numeric id and an unknown namespace", async () => {
+  const badId = await handleImage(imageRequest("logo", { id: "tt123" }), kvEnv(), ctxSpy());
+  assert.equal(badId.status, 400);
+  const other = await handleImage(
+    new Request("https://example.test/img/logo/by/imdb/tt123"),
+    kvEnv(),
+    ctxSpy(),
+  );
+  assert.equal(other.status, 404);
 });

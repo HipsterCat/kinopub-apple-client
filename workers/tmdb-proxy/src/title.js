@@ -1,9 +1,17 @@
 /**
- * /v1/title/by/kinopub/{id}  and  /img/{kind}/by/kinopub/{id}?w=&lang=&s=&e=
+ * /v1/title/by/kinopub/{id}
+ * /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=
  *
  * The contract the client actually wanted: ask by kino.pub id, get everything,
  * never resolve anything yourself, never make a second call to find out whether
  * something exists.
+ *
+ * Image route: `w` is a pixel width (omit it for the largest file we will
+ * serve, 3840). Language is the `Accept-Language` header, default ru — it is
+ * not a query parameter. Backdrop ignores that header completely: it is always
+ * a textless wide frame, never a titled banner and never a poster. `s` / `e`
+ * pick a season poster or an episode thumbnail. We never redirect at a
+ * kino.pub CDN; the app already has those, and the host depends on the viewer.
  *
  * Two rules shape the whole file:
  *
@@ -22,8 +30,6 @@
  */
 
 import { tmdbGenres } from "./genres.js";
-
-const KINOPUB_POSTER = "https://m.staticpop.net/poster/item";
 
 const DOC_TTL = 60 * 60 * 24 * 30;
 
@@ -128,178 +134,87 @@ export async function handleTitle(url, env, ctx) {
   return json(draft, 200, { "X-Cache": "miss" });
 }
 
-const IMAGE_KINDS = new Set(["poster", "backdrop", "logo", "thumbnail"]);
+const QUERY_KINDS = new Set(["logo", "backdrop", "poster", "thumbnail"]);
+const QUERY_HINT = "/img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=";
 
-// TMDB's own widths are the resize service. The client asks for the pixel
-// width it will draw (`?w=`) and gets the smallest width that covers it, or
-// `original` past the largest — so a 4K banner logo is neither a 500 px PNG
-// stretched nor a 9000 px original, and a 300 px card is not a 4000 px file.
-// TMDB's `/3/configuration` lists fewer sizes per kind, but its image server
-// answers every one of these for every kind (checked live 2026-10-22: logo,
-// backdrop, poster and still all 200 from w45 to w1920; w2000 and up are 400).
-const TMDB_WIDTHS = [45, 92, 154, 185, 300, 342, 500, 780, 1280, 1920];
+// Largest file we will send. TMDB "original" backdrops run well past this;
+// tvoe's resizer tops out here. 1920×2.
+const MAX_WIDTH = 3840;
 
-// The size words the first version of this route took, as widths. Kept so a
-// build that still asks `/img/logo/lg/kinopub/{id}` keeps its pictures.
-const LEGACY_SIZE_WIDTH = {
-  logo: { sm: 185, md: 300, lg: 500 },
-  backdrop: { sm: 300, md: 780, lg: 1280 },
-  poster: { sm: 185, md: 342, lg: 780 },
+// tvoe.live/_next/image rejects any width not in this list (400) and rejects
+// any URL that is not its own static.cdn.tvoe.live file.
+const TVOE_WIDTHS = [
+  16, 32, 48, 64, 96, 128, 140, 175, 256, 280, 305, 320, 375, 384, 414, 425,
+  512, 530, 640, 750, 768, 828, 1024, 1080, 1200, 1280, 1380, 1440, 1536, 1600,
+  1920, 2048, 2300, 2560, 2732, 3000, 3440, 3840,
+];
+
+// TMDB configuration sizes, minus "original" — that bucket is chosen only when
+// the file we know about is within MAX_WIDTH (or the kind's originals are not
+// the multi-thousand-pixel backdrops).
+const TMDB_LADDER = {
+  logo: [45, 92, 154, 185, 300, 500],
+  poster: [92, 154, 185, 342, 500, 780],
+  backdrop: [300, 780, 1280],
+  thumbnail: [92, 185, 300],
+};
+const TMDB_ORIGINAL_IF_WIDTH_UNKNOWN = new Set(["logo", "poster", "thumbnail"]);
+
+// kinopoiskapiunofficial.tech, measured: kp 667×1000, kp_small 360×540.
+const KINOPOISK_POSTER = "https://kinopoiskapiunofficial.tech/images/posters";
+
+// Same language first, then source. tvoe wins ru logos and textless backdrops.
+// A Kinopoisk id means the Russian poster is theirs; we do not also shop TMDB
+// for that poster. kino.pub's own CDN is never a candidate.
+const SOURCE_ORDER = {
+  logo: ["tvoe", "tmdb"],
+  backdrop: ["tvoe", "tmdb"],
+  poster: ["tvoe", "kinopoisk", "tmdb"],
+  thumbnail: ["tvoe", "tmdb"],
 };
 
-// A cold title with an IMDb hint is resolved before answering, up to this long.
-// The banner asks for the logo once and paints whatever comes back: a 404 now
-// means the lettered name for the whole session, while a warm answer a second
-// later is the logo. Past the budget the resolve carries on behind the response.
-const COLD_RESOLVE_BUDGET_MS = 4000;
+export async function handleImage(request, env, ctx) {
+  const url = new URL(request.url);
+  const route = parseImagePath(url.pathname);
+  if (!route) return imageNotFound(QUERY_HINT);
+  return handleImageQuery(request, url, env, ctx, route);
+}
 
-/**
- * `/img/{kind}/by/kinopub/{id}?w=&lang=&s=&e=&imdb=`, or the legacy
- * `/img/{kind}/{sm|md|lg|orig}/kinopub/{id}`. `null` when the path is neither.
- * `width` is `null` for "original". `S`/`E` are accepted upper-case as well.
- */
-export function parseImageRequest(url) {
-  const segments = url.pathname.split("/").slice(2);      // after "", "img"
-  const param = (name) => url.searchParams.get(name) ?? url.searchParams.get(name.toUpperCase());
-  const lang = url.searchParams.get("lang") || "ru";
-  const integer = (value, minimum) => {
-    const number = Number.parseInt(value ?? "", 10);
-    return Number.isFinite(number) && number >= minimum ? number : null;
+// /img/{kind}/by/kinopub/{id}?w=&s=&e=
+// Language is Accept-Language, not a query param. Backdrop does not read it.
+async function handleImageQuery(request, url, env, ctx, route) {
+  const id = numericId(route.id);
+  if (!id) return json({ error: "bad_request", hint: QUERY_HINT }, 400);
+  if (!QUERY_KINDS.has(route.kind)) {
+    return imageNotFound("kind must be logo, backdrop, poster, or thumbnail");
+  }
+
+  const imageRequest = {
+    kind: route.kind,
+    id,
+    w: readWidth(url),
+    // Backdrop is a wide textless frame. The header cannot turn it into a
+    // titled banner, a wide poster, or a portrait.
+    lang: route.kind === "backdrop" ? null : preferredLang(request),
+    s: readIndex(url, "s"),
+    e: readIndex(url, "e"),
   };
-  const bareID = (raw) => (raw || "").replace(/\.\w+$/, "");
-
-  if (segments.length === 4 && segments[1] === "by" && segments[2] === "kinopub" && bareID(segments[3])) {
-    return {
-      kind: segments[0], id: bareID(segments[3]), lang,
-      width: integer(param("w"), 1),
-      season: integer(param("s"), 0),
-      episode: integer(param("e"), 1),
-    };
-  }
-  if (segments.length === 4 && segments[2] === "kinopub" && bareID(segments[3])) {
-    const [kind, size] = segments;
-    return {
-      kind, id: bareID(segments[3]), lang,
-      width: size === "orig" ? null : LEGACY_SIZE_WIDTH[kind]?.[size] ?? null,
-      season: null, episode: null,
-    };
-  }
-  return null;
-}
-
-const IMAGE_ROUTE_HINT = "/img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&lang=&s=&e=";
-
-export async function handleImage(url, env, ctx) {
-  const request = parseImageRequest(url);
-  if (!request) return json({ error: "bad_request", hint: IMAGE_ROUTE_HINT }, 400);
-  const { kind, id, width, lang, season, episode } = request;
-
-  // Kind mismatch is a hole, never a different picture. A logo that 302s to a
-  // poster is what the banner would paint instead of the lettered title.
-  if (!IMAGE_KINDS.has(kind)) {
-    return json({ error: "not_found", hint: "kind must be poster, backdrop, logo, or thumbnail" }, 404);
-  }
-  if (kind === "thumbnail" && (season == null || episode == null)) {
-    return json({ error: "bad_request", hint: "thumbnail needs s and e" }, 400);
+  if (imageRequest.kind === "thumbnail" && (imageRequest.s == null || imageRequest.e == null)) {
+    return json({ error: "bad_request", hint: "thumbnail needs ?s=&e=" }, 400);
   }
 
+  const stored = await readDocument(env, id);
   const hints = readHints(url);
-  let stored = await readDocument(env, id);
+  // Answer immediately. A cold id warms behind the response; the poster
+  // call in particular must 404 fast when we have nothing better than the
+  // kino.pub file the app already holds.
+  if (!stored) ctx.waitUntil(resolveAndStore(env, id, hints, draftDocument(id, hints)));
 
-  // Same refresh rule as /v1/title: a document built without the IMDb id never
-  // reached TMDB, so the hint is worth one more resolve.
-  const needsResolve = !stored || (hints.imdb && !stored.ids?.imdb && !stored.ids?.tmdb);
-  if (needsResolve) {
-    const resolving = resolveAndStore(env, id, hints, stored || draftDocument(id, hints));
-    ctx.waitUntil(resolving);
-    if (hints.imdb && env.TMDB_READ_TOKEN) {
-      const document = await within(resolving, COLD_RESOLVE_BUDGET_MS);
-      if (document) stored = document;
-    }
-  }
-
-  // Episode still: one TMDB season call, edge-cached by `tmdb()`. Nothing in
-  // kino.pub is addressable by (id, s, e), so no still is a 404.
-  if (kind === "thumbnail") {
-    const still = stored && await episodeStill(env, stored, season, episode);
-    if (still) return Response.redirect(sizedImage(url, still, kind, width), 302);
-    return notFound("no episode still", Boolean(stored?.ids?.tmdb));
-  }
-
-  // Season poster when `s` is given; the title's own poster when that season has none.
-  if (kind === "poster" && season != null) {
-    const seasonPoster = stored?.seasons?.find((entry) => entry.number === season)?.poster;
-    if (seasonPoster) return Response.redirect(sizedImage(url, seasonPoster, kind, width), 302);
-  }
-
-  const chosen = stored && pickArtwork(stored, kind, lang);
-  if (chosen) return Response.redirect(sizedImage(url, chosen, kind, width), 302);
-
-  // Logo has no kino.pub equivalent — a poster-as-logo is a lie the banner would
-  // paint instead of the lettered title — so kind=logo with nothing stored is
-  // 404, never a poster. Poster/backdrop fall back to kino.pub's own artwork
-  // (always addressable from the id).
-  if (kind === "logo") return notFound("no stored logo", Boolean(stored?.ids?.tmdb));
-
-  return Response.redirect(`${KINOPUB_POSTER}/${kinopubSize(kind, width)}/${id}.jpg`, 302);
-}
-
-/** kino.pub's own size for a width. A backdrop is always the wide still: `big`
- * there is the vertical poster, which a full-screen banner would stretch. */
-function kinopubSize(kind, width) {
-  if (kind === "backdrop") return "wide";
-  if (width == null) return "big";
-  return width <= 200 ? "small" : width <= 400 ? "medium" : "big";
-}
-
-/** A miss that went through TMDB is real and kept a day; anything else may
- * still fill in, so it is not pinned for long. */
-function notFound(hint, settled) {
-  return new Response(JSON.stringify({ error: "not_found", hint }), {
-    status: 404,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": `public, max-age=${settled ? 60 * 60 * 24 : 30}`,
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
-}
-
-async function episodeStill(env, document, season, episode) {
-  const tmdbID = document.ids?.tmdb?.value;
-  if (!tmdbID?.startsWith("tv/") || !env.TMDB_READ_TOKEN) return null;
-  try {
-    const details = await tmdb(env, `/3/${tmdbID}/season/${season}`, { language: "ru-RU" });
-    const path = details?.episodes?.find((entry) => entry.episode_number === episode)?.still_path;
-    return path ? IMAGE_BASE + path : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-/** The smallest TMDB bucket that covers `width`, or `original`. */
-export function tmdbBucket(width) {
-  if (width == null) return "original";
-  const bucket = TMDB_WIDTHS.find((candidate) => candidate >= width);
-  return bucket ? `w${bucket}` : "original";
-}
-
-/** The stored TMDB `original` URL at the bucket covering the asked width, served
- * through this worker's `/t/p/` passthrough (image.tmdb.org is blocked on some
- * networks — the reason that route exists). Other hosts pass through as stored. */
-function sizedImage(requestURL, stored, kind, width) {
-  const prefix = `${IMAGE_BASE}/`;
-  if (!stored.startsWith(prefix)) return stored;
-  return `${requestURL.origin}/t/p/${tmdbBucket(width)}/${stored.slice(prefix.length)}`;
-}
-
-/** The promise's value, or null once `ms` have passed. Never throws. */
-function within(promise, ms) {
-  let timer;
-  return Promise.race([
-    promise.catch(() => null),
-    new Promise((resolve) => { timer = setTimeout(() => resolve(null), ms); }),
-  ]).finally(() => clearTimeout(timer));
+  const asset = selectQueryAsset(stored, imageRequest, hints);
+  const location = asset && resizeAsset(asset, imageRequest.kind, imageRequest.w);
+  const vary = imageRequest.kind === "poster" || imageRequest.kind === "logo";
+  if (!location) return imageNotFound(missHint(imageRequest), vary);
+  return redirect(location, vary);
 }
 
 // ------------------------------------------------------------------ helpers
@@ -332,10 +247,10 @@ function draftDocument(id, hints) {
         ? { kinopoisk: { value: hints.kinopoisk, confidence: 1, method: "client" } }
         : {}),
     },
-    artwork: {
-      poster: [{ source: "kinopub", url: `${KINOPUB_POSTER}/big/${id}.jpg`, lang: null }],
-      backdrop: [{ source: "kinopub", url: `${KINOPUB_POSTER}/wide/${id}.jpg`, lang: null }],
-    },
+    // Empty on purpose. kino.pub artwork stays in the app: its CDN host
+    // depends on the viewer, and echoing it makes the card fade from a
+    // picture the app already painted to the same picture again.
+    artwork: { poster: [], backdrop: [], logo: [] },
     ratings: [], synopsis: [], genres: [], genre_sources: [], countries: [], credits: [],
     seasons: [], trailers: [], awards: [], badges: [], copies: [],
     facts: [], reviews: [],
@@ -346,12 +261,12 @@ function draftDocument(id, hints) {
   };
 }
 
-async function readDocument(env, id) {
+export async function readDocument(env, id) {
   if (!env.DOCUMENTS) return null;         // KV not bound yet — degrade, do not fail
   return await env.DOCUMENTS.get(`title:kinopub:${id}`, { type: "json" });
 }
 
-async function writeDocument(env, id, document) {
+export async function writeDocument(env, id, document) {
   if (!env.DOCUMENTS) return;
   await env.DOCUMENTS.put(`title:kinopub:${id}`, JSON.stringify(document),
                           { expirationTtl: DOC_TTL });
@@ -360,8 +275,7 @@ async function writeDocument(env, id, document) {
 /**
  * Resolve from hints and store. Runs after the response has gone out, so its
  * latency is nobody's problem — which is exactly why the client never has to
- * choose between "fast" and "complete". Resolves to the document it ended with,
- * which `/img` waits on for a short while (see COLD_RESOLVE_BUDGET_MS).
+ * choose between "fast" and "complete".
  */
 async function resolveAndStore(env, id, hints, base) {
   let document = base;
@@ -392,7 +306,7 @@ async function resolveAndStore(env, id, hints, base) {
 
   if (!hints.imdb || !env.TMDB_READ_TOKEN) {
     if (document !== base) await writeDocument(env, id, document);
-    return document;
+    return;
   }
 
   try {
@@ -406,7 +320,7 @@ async function resolveAndStore(env, id, hints, base) {
     }
     if (!match) {
       if (document !== base) await writeDocument(env, id, document);
-      return document;
+      return;
     }
 
     const append = mediaType === "tv"
@@ -418,17 +332,14 @@ async function resolveAndStore(env, id, hints, base) {
     });
     if (!details) {
       if (document !== base) await writeDocument(env, id, document);
-      return document;
+      return;
     }
 
-    const merged = mergeTMDB(document, mediaType, match.id, details);
-    await writeDocument(env, id, merged);
-    return merged;
+    await writeDocument(env, id, mergeTMDB(document, mediaType, match.id, details));
   } catch (_) {
     // Background work: a failure must never be visible, and must not poison the
     // store with a half-built document.
     if (document !== base) await writeDocument(env, id, document);
-    return document;
   }
 }
 
@@ -567,21 +478,354 @@ function capArtwork(assets) {
   return ARTWORK_LANG_ORDER.filter((lang) => picked.has(lang)).map((lang) => picked.get(lang));
 }
 
-/** Best artwork of a kind: our precedence, applied here so the client has none.
- * For `backdrop`, prefer textless (`lang === null`) so our own logo/title overlay
- * never collides with a title baked into the backdrop art. For `logo` and `poster`,
- * prefer the asked language (`ru` unless the client sends `lang`), then `en`. */
-function pickArtwork(document, kind, lang = "ru") {
-  const list = document.artwork?.[kind];
-  if (!list?.length) return null;
-  if (kind === "backdrop") {
-    const textless = list.find((asset) => asset.lang === null && asset.source === "tmdb")
-      || list.find((asset) => asset.lang === null);
-    return (textless || list[0]).url;
+
+// ---------------------------------------------------------------- query route
+
+function parseImagePath(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  // img / kind / by / kinopub / id
+  if (parts.length < 5 || parts[0] !== "img") return null;
+  if (parts[2] !== "by" || parts[3] !== "kinopub") return null;
+  return { kind: parts[1], id: (parts[4] || "").replace(/\.\w+$/, "") };
+}
+
+function numericId(raw) {
+  return /^\d+$/.test(raw || "") ? raw : null;
+}
+
+function readWidth(url) {
+  const raw = url.searchParams.get("w");
+  if (raw == null || raw.trim() === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(Math.ceil(n), MAX_WIDTH);
+}
+
+function readIndex(url, name) {
+  for (const key of [name, name.toUpperCase()]) {
+    const raw = url.searchParams.get(key);
+    if (raw == null || raw.trim() === "") continue;
+    if (!/^\d+$/.test(raw.trim())) return null;
+    return Number(raw.trim());
   }
-  const preferred = list.find((asset) => asset.lang === lang)
-    || list.find((asset) => asset.lang === "en");
-  return (preferred || list[0]).url;
+  return null;
+}
+
+/** First language the caller actually wants. Absent header, `*`, or anything
+ * we don't serve yet means Russian. `en-US,en;q=0.9` is English. */
+export function preferredLang(request) {
+  const header = request.headers?.get("Accept-Language") || "";
+  const ranges = [];
+  for (const part of header.split(",")) {
+    const [tagRaw, ...params] = part.trim().split(";");
+    const tag = (tagRaw || "").trim().toLowerCase();
+    if (!tag) continue;
+    let q = 1;
+    for (const param of params) {
+      const [key, value] = param.trim().split("=");
+      if (key === "q") q = Number(value);
+    }
+    if (!Number.isFinite(q) || q <= 0) continue;
+    ranges.push({ tag, q });
+  }
+  ranges.sort((a, b) => b.q - a.q);
+  for (const { tag } of ranges) {
+    const primary = tag.split("-")[0];
+    if (primary === "en") return "en";
+    if (primary === "ru" || primary === "*") return "ru";
+  }
+  return "ru";
+}
+
+function selectQueryAsset(document, request, hints) {
+  const { kind, lang, s, e } = request;
+  if (kind === "thumbnail") {
+    if (!document || s == null || e == null) return null;
+    return episodeAsset(document, s, e);
+  }
+  if (kind === "poster" && s != null) {
+    if (!document) return null;
+    return seasonPosterAsset(document, s);
+  }
+  if (kind === "backdrop") {
+    if (!document) return null;
+    return bestAsset(textlessBackdrops(document), "backdrop", null);
+  }
+  const assets = kind === "poster"
+    ? posterCandidates(document, hints, lang)
+    : logoCandidates(document);
+  // Posters stay in the requested language. A missing Russian poster is a
+  // fast 404 so the app keeps the kino.pub frame it already has — we do not
+  // slide an English one in under a Russian request. Logos do fall through:
+  // an English logo is better than letters where a logo was supposed to be.
+  return bestAsset(assets, kind, lang, { strict: kind === "poster" });
+}
+
+function posterCandidates(document, hints, lang) {
+  const stored = (document?.artwork?.poster || [])
+    .map(normalizeAsset)
+    .filter((asset) => asset && !isKinopubHost(asset.url) && asset.source !== "kinopub");
+  const kp = numericId(String(document?.ids?.kinopoisk?.value || hints.kinopoisk || ""));
+  // The Kinopoisk id is the Russian poster. Don't go shopping TMDB for
+  // another Russian one once we have it. No id: tvoe or a TMDB ru file, or 404.
+  if (lang === "ru" && kp) {
+    const kept = stored.filter((asset) => asset.source !== "tmdb");
+    if (!kept.some((asset) => asset.source === "kinopoisk")) {
+      kept.push({
+        source: "kinopoisk",
+        url: `${KINOPOISK_POSTER}/kp/${kp}.jpg`,
+        lang: "ru",
+        width: 667,
+        height: 1000,
+      });
+    }
+    return kept.filter((asset) => (asset.lang ?? null) === "ru");
+  }
+  return stored.filter((asset) => (asset.lang ?? null) === lang);
+}
+
+function logoCandidates(document) {
+  return (document?.artwork?.logo || [])
+    .map(normalizeAsset)
+    .filter((asset) => asset && asset.source !== "kinopub" && !isKinopubHost(asset.url));
+}
+
+function textlessBackdrops(document) {
+  return (document?.artwork?.backdrop || [])
+    .map(normalizeAsset)
+    .filter((asset) => asset
+      && (asset.lang ?? null) === null
+      && asset.source !== "kinopub"
+      && !isKinopubHost(asset.url)
+      && isWideFrame(asset));
+}
+
+function seasonPosterAsset(document, seasonNumber) {
+  const season = (document.seasons || []).find((item) => Number(item.number) === seasonNumber);
+  if (!season) return null;
+  const raw = season.poster || season.artwork?.poster;
+  if (Array.isArray(raw)) {
+    return dropKinopub(bestAsset(raw.map(normalizeAsset).filter(Boolean), "poster", "ru"));
+  }
+  return dropKinopub(normalizeAsset(raw));
+}
+
+function episodeAsset(document, seasonNumber, episodeNumber) {
+  const season = (document.seasons || []).find((item) => Number(item.number) === seasonNumber);
+  if (!season) return null;
+  const episode = (season.episodes || []).find((item) => {
+    const number = item.number ?? item.episode ?? item.episode_number;
+    return Number(number) === episodeNumber;
+  });
+  if (!episode) return null;
+  const raw = episode.thumbnail || episode.still || episode.image;
+  if (Array.isArray(raw)) {
+    return dropKinopub(bestAsset(raw.map(normalizeAsset).filter(Boolean), "thumbnail", null));
+  }
+  return dropKinopub(normalizeAsset(raw));
+}
+
+function normalizeAsset(asset) {
+  if (!asset) return null;
+  if (typeof asset === "string") {
+    const url = asset.startsWith("/") ? IMAGE_BASE + asset : asset;
+    const safe = safeHttpURL(url);
+    if (!safe) return null;
+    const source = inferSource(safe);
+    return { source, url: safe, lang: null, width: null, height: null };
+  }
+  const rawURL = asset.url || (asset.file_path ? IMAGE_BASE + asset.file_path : null);
+  const safe = rawURL && safeHttpURL(rawURL);
+  if (!safe) return null;
+  const source = asset.source || inferSource(safe);
+  return {
+    source,
+    url: safe,
+    lang: asset.lang ?? null,
+    width: asset.width ?? null,
+    height: asset.height ?? null,
+  };
+}
+
+function dropKinopub(asset) {
+  if (!asset?.url) return null;
+  if (asset.source === "kinopub" || isKinopubHost(asset.url)) return null;
+  return asset;
+}
+
+// A backdrop is a wide frame. A portrait (poster, 2:3) stretched across a 4K
+// screen is not one. Unknown dimensions are trusted: tvoe covers often carry
+// no pixel size, and the kind already says backdrop.
+function isWideFrame(asset) {
+  if (!asset.width || !asset.height) return true;
+  return asset.width / asset.height >= 1.2;
+}
+
+function bestAsset(assets, kind, lang, { strict = false } = {}) {
+  let best = null;
+  let bestKey = null;
+  for (const asset of assets) {
+    if (!asset?.url) continue;
+    if (asset.source === "kinopub" || isKinopubHost(asset.url)) continue;
+    // Backdrop is textless or it is a miss. Language never promotes a titled frame.
+    if (kind === "backdrop" && (asset.lang ?? null) !== null) continue;
+    if (kind === "backdrop" && !isWideFrame(asset)) continue;
+    if (strict && (asset.lang ?? null) !== lang) continue;
+    const key = [
+      langRank(asset.lang ?? null, lang),
+      sourceRank(kind, asset.source),
+      -(asset.width || 0),
+    ];
+    if (!best || compareKey(key, bestKey) < 0) {
+      best = asset;
+      bestKey = key;
+    }
+  }
+  return best;
+}
+
+function langRank(assetLang, wanted) {
+  const order = [];
+  for (const item of [wanted, "ru", "en", null]) {
+    if (!order.includes(item)) order.push(item);
+  }
+  const idx = order.indexOf(assetLang);
+  return idx === -1 ? order.length : idx;
+}
+
+function sourceRank(kind, source) {
+  const order = SOURCE_ORDER[kind] || [];
+  const idx = order.indexOf(source);
+  return idx === -1 ? 50 : idx;
+}
+
+function compareKey(a, b) {
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+  }
+  return 0;
+}
+
+function resizeAsset(asset, kind, w) {
+  // Only tvoe's own files survive tvoeCdn. A TMDB or staticpop URL sent
+  // through _next/image comes back 400 "url parameter is not allowed".
+  const cdn = tvoeCdn(asset.url);
+  if (cdn) {
+    const bucket = snapCeil(TVOE_WIDTHS, w);
+    return `https://tvoe.live/_next/image?url=${encodeURIComponent(cdn)}&w=${bucket}&q=80`;
+  }
+  if (asset.source === "tmdb" || asset.url.includes("image.tmdb.org")) {
+    return tmdbSized(asset.url, kind, w, asset.width);
+  }
+  if (asset.source === "kinopoisk" || asset.url.includes("kinopoiskapiunofficial.tech")) {
+    return kinopoiskSized(asset.url, w);
+  }
+  // kino.pub's CDN is the app's own picture. Never send it back.
+  if (asset.source === "kinopub" || isKinopubHost(asset.url)) return null;
+  return safeHttpURL(asset.url);
+}
+
+function tvoeCdn(url) {
+  let current = url;
+  for (let i = 0; i < 3; i++) {
+    let parsed;
+    try { parsed = new URL(current); } catch { return null; }
+    if (parsed.hostname === "static.cdn.tvoe.live") return parsed.toString();
+    if (parsed.hostname === "tvoe.live" && parsed.pathname === "/_next/image") {
+      const inner = parsed.searchParams.get("url");
+      if (!inner) return null;
+      current = inner;
+      continue;
+    }
+    return null;
+  }
+  return null;
+}
+
+function tmdbSized(url, kind, w, knownWidth) {
+  const match = url.match(/\/t\/p\/[^/]+(\/.+)$/);
+  if (!match) return safeHttpURL(url);
+  const path = match[1];
+  const ladder = TMDB_LADDER[kind] || TMDB_LADDER.poster;
+  const target = w == null ? MAX_WIDTH : w;
+  const bucket = ladder.find((size) => size >= target);
+  if (bucket) return `https://image.tmdb.org/t/p/w${bucket}${path}`;
+  const originalOK = knownWidth == null
+    ? TMDB_ORIGINAL_IF_WIDTH_UNKNOWN.has(kind)
+    : knownWidth <= MAX_WIDTH;
+  if (originalOK) return `https://image.tmdb.org/t/p/original${path}`;
+  return `https://image.tmdb.org/t/p/w${ladder[ladder.length - 1]}${path}`;
+}
+
+function kinopoiskSized(url, w) {
+  const match = url.match(/\/posters\/kp(?:_small)?\/(\d+)\.jpg$/);
+  if (!match) return safeHttpURL(url);
+  const target = w == null ? MAX_WIDTH : w;
+  const size = target <= 360 ? "kp_small" : "kp";
+  return `${KINOPOISK_POSTER}/${size}/${match[1]}.jpg`;
+}
+
+function snapCeil(buckets, w) {
+  const cap = buckets[buckets.length - 1];
+  const target = w == null ? cap : Math.min(w, cap);
+  for (const bucket of buckets) if (bucket >= target) return bucket;
+  return cap;
+}
+
+function inferSource(url) {
+  if (url.includes("image.tmdb.org")) return "tmdb";
+  if (url.includes("static.cdn.tvoe.live") || url.includes("tvoe.live/_next/image")) return "tvoe";
+  if (url.includes("kinopoiskapiunofficial.tech")) return "kinopoisk";
+  if (url.includes("staticpop.net")) return "kinopub";
+  return "unknown";
+}
+
+function isKinopubHost(url) {
+  return typeof url === "string" && url.includes("staticpop.net");
+}
+
+function safeHttpURL(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function missHint(request) {
+  if (request.kind === "logo") return "no stored logo";
+  if (request.kind === "backdrop") return "no textless backdrop";
+  if (request.kind === "thumbnail") return "no episode thumbnail";
+  if (request.kind === "poster" && request.s != null) return "no season poster";
+  return "no poster";
+}
+
+function redirect(location, vary) {
+  return new Response(null, {
+    status: 302,
+    headers: { Location: location, ...imageHeaders(300, vary) },
+  });
+}
+
+function imageNotFound(hint, vary) {
+  return new Response(JSON.stringify({ error: "not_found", hint }), {
+    status: 404,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...imageHeaders(30, vary),
+    },
+  });
+}
+
+function imageHeaders(maxAge, vary) {
+  const headers = {
+    "Cache-Control": `public, max-age=${maxAge}`,
+    "Access-Control-Allow-Origin": "*",
+  };
+  if (vary) headers.Vary = "Accept-Language";
+  return headers;
 }
 
 function json(body, status, extra = {}) {
