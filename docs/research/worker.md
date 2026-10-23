@@ -223,6 +223,7 @@ on a miss it asks TMDB. Until a publish step copies those fields onto
 `title:kinopub:{id}`, the live routes miss them. Do not upload the sqlite.
 Do not put this on a new D1.
 
-The catalogues refresh on the Mac, not in the worker: kino.pub, Kinopoisk,
-tvoe, IMDb dumps weekly, OMDb at 1 000 requests a day. The only secret on the
-worker is `TMDB_READ_TOKEN`.
+The catalogues still refresh on the Mac: kino.pub, Kinopoisk, tvoe, the IMDb
+dumps, OMDb at 1 000 requests a day. The worker holds the owner keys
+(`TMDB_READ_TOKEN`, `OMDB_API_KEY`, `KINOPOISK_API_KEY`) and proxies those
+calls, plus tvoe. It does not run the refresh itself.
