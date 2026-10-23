@@ -43,6 +43,17 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBHeroScrollLog`: the Home hero's page logs every focus move and scroll end
+  /// (offset, adjusted top inset, hero height, section) to the system log as `HERO-SCROLL`
+  /// — to see where the focus engine leaves the page and why.
+  public static var heroScrollLog: Bool {
+#if DEBUG
+    ProcessInfo.processInfo.arguments.contains("-KINOPUBHeroScrollLog")
+#else
+    false
+#endif
+  }
+
   /// `-KINOPUBSearchQuery <text>`: the search field starts with this text. The tvOS
   /// inline keyboard takes no `typeText` from UI tests, so this is how a test searches.
   public static var searchQuery: String? {

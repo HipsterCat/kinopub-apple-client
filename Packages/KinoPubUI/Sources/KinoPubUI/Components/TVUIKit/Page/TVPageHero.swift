@@ -671,10 +671,21 @@ final class TVPageHeroCell: UICollectionViewCell {
     var isText = false
     if case .text = logoSession.mark { isText = true }
     let image = isText ? nil : logoSession.image
-    logo.image = image
-    logo.isHidden = image == nil
-    titleLabel.isHidden = !isText
-    sizeLogo()
+    // The logo usually lands a second after the words (it loads on its own): it fades
+    // into its reserved place instead of snapping in, which read as a blink at launch.
+    let appears = logo.isHidden && titleLabel.isHidden && (image != nil || isText)
+    let paint = {
+      self.logo.image = image
+      self.logo.isHidden = image == nil
+      self.titleLabel.isHidden = !isText
+      self.sizeLogo()
+    }
+    guard appears, window != nil, !UIAccessibility.isReduceMotionEnabled else {
+      paint()
+      return
+    }
+    UIView.transition(with: mark, duration: 0.35,
+                      options: [.transitionCrossDissolve, .allowUserInteraction], animations: paint)
   }
 
   /// The view takes the image's own shape inside the budget, so its bottom edge sits on

@@ -826,7 +826,15 @@ public final class TVPageCollectionViewController: UIViewController {
   private func settleHeroStage() {
     guard let y = heroRestingOffsetY(forSection: focusedPath?.section, estimating: true),
           abs(collectionView.contentOffset.y - y) > 1 else { return }
+    logHeroScroll("settle to \(y)")
     collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: y), animated: true)
+  }
+
+  func logHeroScroll(_ event: String) {
+    guard DebugLaunch.heroScrollLog, sections.first?.kind == .hero else { return }
+    NSLog("HERO-SCROLL %@ | offset %.1f inset %.1f hero %.1f section %@ receded %@", event,
+          collectionView.contentOffset.y, collectionView.adjustedContentInset.top, heroHeight,
+          focusedPath.map { "\($0.section)" } ?? "-", heroRecededOffsetY.map { "\($0)" } ?? "-")
   }
 
   /// The hero leads the page or is not there at all; its picture shows with it.
@@ -853,8 +861,15 @@ public final class TVPageCollectionViewController: UIViewController {
   private var heroHeight: CGFloat {
     guard isViewLoaded else { return 0 }
     let screen = collectionView.bounds.height
-    return max((screen * Self.heroFold).rounded() - collectionView.adjustedContentInset.top, 1)
+    // The tab bar's region, at its tallest. The adjusted inset shrinks while the bar is
+    // hidden; read live, the hero grew by that much on the next layout pass (a Right
+    // along the row under it) and everything under its top moved down 57 pt, the bar
+    // peeking back half on screen (round 6, 2026-10-23).
+    heroTopInset = max(heroTopInset, collectionView.adjustedContentInset.top)
+    return max((screen * Self.heroFold).rounded() - heroTopInset, 1)
   }
+
+  private var heroTopInset: CGFloat = 0
 
   /// Entry focus is a poster, once the grid has real cells. A sort chip is the first
   /// focusable view while the page is still a header and skeletons. Remembering that
@@ -1247,9 +1262,20 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
   /// for the page, so it moves there in one go (`settleHeroStage` is the fallback).
   public func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
                                         targetContentOffset: UnsafeMutablePointer<CGPoint>) {
-    guard scrollView === collectionView,
-          let y = heroRestingOffsetY(forSection: focusedPath?.section) else { return }
+    guard scrollView === collectionView else { return }
+    logHeroScroll("willEndDragging target \(targetContentOffset.pointee.y)")
+    guard let y = heroRestingOffsetY(forSection: focusedPath?.section) else { return }
     targetContentOffset.pointee.y = y
+  }
+
+  public func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+    guard scrollView === collectionView else { return }
+    logHeroScroll("scroll animation ended")
+  }
+
+  public func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
+    guard scrollView === collectionView else { return }
+    logHeroScroll("adjusted inset changed")
   }
 
   public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -1361,10 +1387,12 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       }
       let section = resolved?.section
       let cameFromHero = previousSection == 0 && section == 1
+      logHeroScroll("focus \(previousSection.map(String.init) ?? "-")->\(section.map(String.init) ?? "-")")
       coordinator.addCoordinatedAnimations(nil) { [weak self] in
         guard let self, self.focusedPath?.section == section else { return }
         // Down from the hero: where the engine left the page is the receded stage's
         // place. Coming back to that row from below lands there too.
+        self.logHeroScroll("focus animation done")
         if cameFromHero {
           self.heroRecededOffsetY = self.collectionView.contentOffset.y
         } else {
