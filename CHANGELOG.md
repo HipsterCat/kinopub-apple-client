@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS player: the Info tab is always there (2026-10-23)
+
+- AVKit decides whether the strip has an Info tab when `customInfoViewControllers` is set, from
+  the item's `externalMetadata` at that moment, and does not look again. From a thin card (Home's
+  banner) the stream's links are fetched first, so the item — and its metadata — came after the
+  tabs: the strip was Episodes and Up Next until a key press rebuilt it. The custom tabs now wait
+  for the first metadata stamp (`PlayerManager.releaseContentTabs`). DEBUG `-KINOPUBSlowInfo
+  <seconds>` delays the stamp; `PlayerTabsUITests.testInfoTabArrivesWithLateMetadata`.
+
 ### tvOS player tabs: open row vs platter, behind a switch (2026-10-21)
 
 - `FeatureFlag.playerTabsPlatter` (Settings › Diagnostics, default off). Off: Home's still row

@@ -68,6 +68,45 @@ final class PlayerTabsUITests: XCTestCase {
     }
   }
 
+  /// What a thin card does on a real connection: the title's facts reach the player seconds
+  /// after the stream starts (`-KINOPUBSlowInfo`). The Info tab must be there anyway, first,
+  /// with no key press to wake it (Sasha, 2026-10-23: from Home's banner the strip showed
+  /// only Episodes and Up Next until Down was pressed).
+  func testInfoTabArrivesWithLateMetadata() throws {
+    app = XCUIApplication()
+    app.launchArguments += ["-ui-testing",
+                            "-KINOPUBDetailFixture", "seasonStrip",
+                            "-KINOPUBFixtureRealPlayer", "YES",
+                            "-KINOPUBSlowInfo", "6",
+                            "-KINOPUBForceColorScheme", "dark",
+                            "-AppleLanguages", "(ru)",
+                            "-AppleLocale", "ru_RU"]
+    app.launch()
+    let play = app.buttons.matching(identifier: "kinopub.hero.play").firstMatch
+    XCTAssertTrue(play.waitForExistence(timeout: 30), "the fixture page never painted")
+    Thread.sleep(forTimeInterval: 2)
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 3)
+    // One press shows the controls before the facts arrive; then nothing until after.
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.5)
+    try shoot("player-lateinfo-0-before")
+    Thread.sleep(forTimeInterval: 8)
+    // The controls have hidden by now; the first press after the facts landed brings the
+    // strip back, and Info must lead it — the shot is the check (AVKit's tab cells carry
+    // no labels on tvOS 27.2).
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 2)
+    try shoot("player-lateinfo-1-after")
+    let goToShow = app.buttons["Перейти к сериалу"]
+    for _ in 0..<3 where !goToShow.exists {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 2)
+    }
+    try shoot("player-lateinfo-2-info")
+    XCTAssertTrue(goToShow.exists, "Info never opened\n\(app.debugDescription)")
+  }
+
   private func press(_ button: XCUIRemote.Button) {
     XCUIRemote.shared.press(button)
     Thread.sleep(forTimeInterval: 2)

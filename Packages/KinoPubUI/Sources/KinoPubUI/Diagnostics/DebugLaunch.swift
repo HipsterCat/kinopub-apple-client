@@ -123,6 +123,19 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBSlowInfo <seconds>`: the player stamps what it knows about the title that
+  /// long after the tabs could first be built — what a thin card (Home's banner) does on a
+  /// real connection, where the stream's links are fetched before the item exists. For the
+  /// Info tab's arrival.
+  public static var slowInfo: TimeInterval? {
+#if DEBUG
+    UserDefaults.standard.object(forKey: "KINOPUBSlowInfo") == nil
+      ? nil : UserDefaults.standard.double(forKey: "KINOPUBSlowInfo")
+#else
+    nil
+#endif
+  }
+
   /// `-KINOPUBSlowShelves <seconds>`: the stand-in API (`VideoContentServiceMock`) takes that
   /// long to answer a person's shelf on the detail page, so the page spends the time with
   /// skeleton rows where shelves will land — what a real connection does and a fixture,

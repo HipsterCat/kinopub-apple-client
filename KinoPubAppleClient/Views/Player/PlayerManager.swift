@@ -175,6 +175,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// One details fetch when the snapshot has no seasons (Continue Watching already
   /// caches them; the detail page does too).
   private var episodesFetchStarted = false
+  /// The item's facts have reached `externalMetadata` (or there were none to give): until
+  /// then the custom tabs wait, so AVKit builds the strip once, with Info in it.
+  private var hasStampedInfo = false
   /// TMDB's episodes of the season playing, once asked (`loadEpisodesSchedule`).
   private var episodesSchedule: [EpisodeSchedule]?
   private var episodesScheduleAsked = false
@@ -1025,6 +1028,17 @@ extension PlayerManager {
     }
     let title = titleContext
     let isTrailer = watchMode == .trailer
+#if DEBUG
+    if let delay = DebugLaunch.slowInfo {
+      Task { @MainActor [weak self] in
+        try? await Task.sleep(for: .seconds(delay))
+        guard let self, self.player.currentItem === item else { return }
+        self.stamp(PlaybackMediaContext.draft(playing: self.playItem, title: title, isTrailer: isTrailer),
+                   on: item)
+      }
+      return
+    }
+#endif
     stamp(PlaybackMediaContext.draft(playing: playItem, title: title, isTrailer: isTrailer),
           on: item)
     enrichExternalMetadata(title: title, isTrailer: isTrailer, on: item)
@@ -1044,10 +1058,16 @@ extension PlayerManager {
   private func stamp(_ draft: MediaContextDraft, on item: AVPlayerItem) {
     guard let context = MediaAggregator.merge(draft) else {
       Logger.app.warning("Info panel skipped: nothing is known about item \(self.playItem.id)")
+#if os(tvOS)
+      releaseContentTabs()
+#endif
       return
     }
     externalMetadataContext = context
     restampExternalMetadata(on: item)
+#if os(tvOS)
+    releaseContentTabs()
+#endif
 #if os(tvOS)
     // Go to *Show* or *Movie* is the context's answer, so the buttons follow it.
     rebuildInfoViewActions()
@@ -1694,10 +1714,26 @@ extension PlayerManager {
       controller.customInfoViewControllers = []
       return
     }
+    // **Apple API limitation:** AVKit decides whether there is an Info tab when the custom
+    // tabs are handed over, from the item's `externalMetadata` at that moment, and does
+    // not look again when the metadata arrives later. A thin card (Home's banner) starts the
+    // stream before the details call answers, so the strip came up as Episodes and Up Next
+    // alone until a key press rebuilt it (Sasha, 2026-10-23; reproduced with
+    // `-KINOPUBSlowInfo`, `PlayerTabsUITests.testInfoTabArrivesWithLateMetadata`). So the
+    // tabs wait for the first stamp (`releaseContentTabs`).
+    guard hasStampedInfo else { return }
     ensureSeriesForEpisodesTab()
     let episodes = MainActor.assumeIsolated { makeEpisodesTab() }
     let upNext = makeUpNextTab()
     controller.customInfoViewControllers = [episodes, upNext].compactMap { $0 }
+  }
+
+  /// The first stamp of the item's facts — or the news that there are none — lets the
+  /// custom tabs in, after Info.
+  private func releaseContentTabs() {
+    guard !hasStampedInfo else { return }
+    hasStampedInfo = true
+    rebuildContentTabs()
   }
 
   /// TMDB's schedule for the season playing, asked once: the Episodes tab shows the episodes
