@@ -1390,12 +1390,27 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       let cameFromHero = previousSection == 0 && section == 1
       recordsHeroRecede = cameFromHero
       logHeroScroll("focus \(previousSection.map(String.init) ?? "-")->\(section.map(String.init) ?? "-")")
-      coordinator.addCoordinatedAnimations(nil) { [weak self] in
+      // Coming back to a stage, the page goes to its place in the same move as focus:
+      // started after the focus animation it was a second motion (lurch, stop, ease).
+      let variant = DebugLaunch.heroSettleVariant
+      let early = !cameFromHero && variant != "end"
+      if early, variant == "async" {
+        DispatchQueue.main.async { [weak self] in
+          guard let self, self.focusedPath?.section == section else { return }
+          self.settleHeroStage()
+        }
+      }
+      coordinator.addCoordinatedAnimations({ [weak self] in
+        guard let self, early, variant != "async", self.focusedPath?.section == section,
+              let y = self.heroRestingOffsetY(forSection: section, estimating: true),
+              abs(self.collectionView.contentOffset.y - y) > 1 else { return }
+        self.logHeroScroll("settle with focus to \(y)")
+        self.collectionView.contentOffset.y = y
+      }) { [weak self] in
         guard let self, self.focusedPath?.section == section else { return }
-        // Down from the hero: where the engine left the page is the receded stage's
-        // place. Coming back to that row from below lands there too.
         self.logHeroScroll("focus animation done")
         self.recordsHeroRecede = false
+        // Fallback: the engine stopped somewhere else after all.
         if !cameFromHero { self.settleHeroStage() }
       }
     }
