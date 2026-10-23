@@ -1041,8 +1041,9 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   /// `remembersFocus`, except under a hero: there Down from the tab bar lands on the
-  /// hero's button under the tab — the nearest, as in the Apple TV app — not on the row
-  /// card focus last left. Up from the rows reaches the hero the same way.
+  /// hero (its focus guide names the button), not on the row card focus last left.
+  /// Coming back to the page without the tab bar — out of a pushed page, the player —
+  /// still lands on that card: `indexPathForPreferredFocusedView` answers it.
   private var remembersFocusNow: Bool {
     remembersFocus && sections.first?.kind != .hero
   }
@@ -1266,6 +1267,14 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       hasPickedInitialHeroFocus = true
       return IndexPath(item: 0, section: 0)
     }
+    // The page asked for focus again — back out of a page or the player over it, when
+    // UIKit has no view of its own to restore (the trailer's player took the window's
+    // focus): the card focus last left, not the hero at the top (Sasha, 2026-10-23).
+    if sections.first?.kind == .hero {
+      guard let last = lastFocusedPath, sections.indices.contains(last.section),
+            dataSource.itemIdentifier(for: last) != nil else { return IndexPath(item: 0, section: 0) }
+      return last
+    }
     // Centred paging only, and only once: answering the middle on every move pins
     // focus and the row stops paging. A leading rail returns nil and starts on its
     // first title. Coming back from the tab bar must not reset to the middle either.
@@ -1294,11 +1303,22 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       collectionView.remembersLastFocusedIndexPath = remembersFocusNow
     }
     publishBelowTopIfNeeded()
-    if sections.first?.kind == .hero {
-      // Focus outside the page (the tab bar) shows the hero whole, like focus on it.
-      let section = context.nextFocusedView.flatMap { $0.isDescendant(of: collectionView) ? resolved?.section : nil }
-      switch section {
-      case nil, 0?: heroCarousel.setStage(.hero)
+    if sections.first?.kind == .hero,
+       let next = context.nextFocusedView, next.isDescendant(of: collectionView) {
+      // Focus leaving the page (the tab bar, a pushed page, the player) keeps the stage:
+      // the tab bar is only reached from the hero, and a page pushed from a row far down
+      // must not bring the picture back for a moment on the way out and in again.
+      switch resolved?.section {
+      case 0?:
+        heroCarousel.setStage(.hero)
+        // The one scroll the page asks for (AGENTS.md): back to the top when a hero
+        // control takes focus. Up from a row the hero's buttons are already on screen,
+        // so the engine does not scroll and the page stayed half receded (Plozz scrolls
+        // to the top on the same move, `onFocusGained`).
+        let top = -collectionView.adjustedContentInset.top
+        if collectionView.contentOffset.y > top + 0.5 {
+          collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: top), animated: true)
+        }
       case 1?: heroCarousel.setStage(.receded)
       default: heroCarousel.setStage(.away)
       }

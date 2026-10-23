@@ -406,6 +406,13 @@ final class TVPageHeroCell: UICollectionViewCell {
   private let detailsButton = UIButton(type: .system)
   private let nextButton = UIButton(type: .system)
   private let pageControl = UIPageControl()
+  /// The hero as one focus section, Plozz's single focus target for the row: focus
+  /// coming in from anywhere outside (Down from the tab bar, Up from any card of the
+  /// row under it, however far that row is scrolled) lands on the button it last left,
+  /// Next at first — not on whichever button happens to sit nearest. Off while a button
+  /// has focus, so Left / Right move between the buttons.
+  private let entryGuide = UIFocusGuide()
+  private weak var lastButton: UIButton?
   private let timer = UIPageControlTimerProgress(preferredDuration: TVPageHeroCarousel.dwell)
 
   private var leading: NSLayoutConstraint!
@@ -499,6 +506,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     timer.delegate = self
     timer.resetsToInitialPageAfterEnd = true
     contentView.addSubview(pageControl)
+    contentView.addLayoutGuide(entryGuide)
 
     leading = words.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: sideInset)
     wordsWidth = words.widthAnchor.constraint(equalToConstant: 600)
@@ -508,6 +516,10 @@ final class TVPageHeroCell: UICollectionViewCell {
     NSLayoutConstraint.activate([
       leading,
       wordsWidth,
+      entryGuide.topAnchor.constraint(equalTo: contentView.topAnchor),
+      entryGuide.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+      entryGuide.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      entryGuide.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
       buttons.leadingAnchor.constraint(equalTo: words.leadingAnchor),
       buttons.topAnchor.constraint(equalTo: words.bottomAnchor, constant: 36),
       pageControl.topAnchor.constraint(equalTo: buttons.bottomAnchor, constant: 36),
@@ -524,6 +536,7 @@ final class TVPageHeroCell: UICollectionViewCell {
       mark.widthAnchor.constraint(equalTo: words.widthAnchor),
       markHeight
     ])
+    updateEntryGuide(focusInButtons: false)
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -535,7 +548,18 @@ final class TVPageHeroCell: UICollectionViewCell {
   /// first time, Menu back to the top: Next, the Plozz / Apple TV entry Sasha picked
   /// (2026-10-22), so Right right away turns the page. Play when there is one title.
   override var preferredFocusEnvironments: [UIFocusEnvironment] {
-    nextButton.isHidden ? [playButton] : [nextButton]
+    [entryButton]
+  }
+
+  /// The button the hero is entered on: the one focus last left, else Next.
+  private var entryButton: UIButton {
+    if let lastButton, !lastButton.isHidden { return lastButton }
+    return nextButton.isHidden ? playButton : nextButton
+  }
+
+  private func updateEntryGuide(focusInButtons: Bool) {
+    entryGuide.preferredFocusEnvironments = [entryButton]
+    entryGuide.isEnabled = !focusInButtons
   }
 
   func configure(carousel: TVPageHeroCarousel, sideInset: CGFloat) {
@@ -584,8 +608,13 @@ final class TVPageHeroCell: UICollectionViewCell {
   override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
     // Someone is choosing between the buttons: the title must not turn under them.
-    if let view = context.nextFocusedView, view.isDescendant(of: buttons) {
+    let next = context.nextFocusedView
+    if let next, next.isDescendant(of: buttons) {
       timer.currentProgress = 0
+      lastButton = next as? UIButton
+      updateEntryGuide(focusInButtons: true)
+    } else {
+      updateEntryGuide(focusInButtons: false)
     }
   }
 
@@ -635,6 +664,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     overview.isHidden = synopsis?.isEmpty ?? true
     bookmarkButton.isHidden = bookmarkMenu == nil
     accessibilityLabel = card.title
+    entryGuide.preferredFocusEnvironments = [entryButton]
   }
 
   private func paintLogo() {
@@ -745,18 +775,30 @@ final class TVPageHeroCell: UICollectionViewCell {
     }
   }
 
-  /// Further down the page the picture is gone, and the words with it — they must not
-  /// float over the page. On the row under the hero they stay, over the dimmed picture.
+  /// How much further than the page the words and buttons rise when focus goes down
+  /// (Plozz's `recedeContentLift`, 170 pt of 1080): the gap to the row opens as the
+  /// page scrolls, so the hero leaves ahead of the row instead of riding on it.
+  private static let recedeLift: CGFloat = 0.12
+
+  /// On the row under the hero the words rise ahead of the page and stay, over the
+  /// dimmed picture. Further down the picture is gone, and the words with it — they
+  /// must not float over the page.
   func apply(stage: TVPageHeroCarousel.Stage, animated: Bool) {
     let alpha: CGFloat = stage == .away ? 0 : 1
-    guard contentView.alpha != alpha else { return }
+    let lift = stage == .hero ? 0 : -((window?.bounds.height ?? bounds.height) * Self.recedeLift).rounded()
+    let transform = CGAffineTransform(translationX: 0, y: lift)
+    guard contentView.alpha != alpha || contentView.transform != transform else { return }
+    let changes = {
+      self.contentView.alpha = alpha
+      self.contentView.transform = transform
+    }
     guard animated, !UIAccessibility.isReduceMotionEnabled else {
-      contentView.alpha = alpha
+      changes()
       return
     }
-    UIView.animate(withDuration: 0.5, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
-      self.contentView.alpha = alpha
-    }
+    // Quicker than the picture (0.9 s): the words lead, the picture lags behind them.
+    UIView.animate(withDuration: 0.6, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0,
+                   options: [.beginFromCurrentState, .allowUserInteraction], animations: changes)
   }
 
   // MARK: Timer

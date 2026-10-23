@@ -76,6 +76,33 @@ final class TVHomeHeroUITests: XCTestCase {
     XCTAssertTrue(focusedHeroQuery.firstMatch.exists, "Up did not come back to the hero")
   }
 
+  /// Up from the row under the hero, scrolled sideways first, comes back to the button
+  /// focus left (Next at launch), and the page is back at the top: the hero's buttons
+  /// sit where they sat before Down (Sasha, 2026-10-23: it landed on the nearest button
+  /// and the page stayed half receded).
+  func testUpFromScrolledRowReturnsToTheButtonFocusLeft() throws {
+    let first = try waitForFocusedButton("launch")
+    XCTAssertEqual(first, "kinopub.hero.next", "the hero is not entered on Next")
+    let restY = app.buttons[first].frame.minY
+
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.6)
+    try shoot("up-0-down")
+    XCTAssertFalse(focusedHeroQuery.firstMatch.exists, "Down did not leave the hero")
+    for step in 0..<3 {
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 0.8)
+      if step == 2 { try shoot("up-1-row-scrolled") }
+    }
+
+    XCUIRemote.shared.press(.up)
+    Thread.sleep(forTimeInterval: 1.8)
+    try shoot("up-2-back")
+    XCTAssertEqual(try focusedButton(), first, "Up from the scrolled row did not come back to Next")
+    XCTAssertEqual(app.buttons[first].frame.minY, restY, accuracy: 2,
+                   "the page did not scroll back to the top")
+  }
+
   // MARK: - Helpers
 
   private var focusedHeroQuery: XCUIElementQuery {
