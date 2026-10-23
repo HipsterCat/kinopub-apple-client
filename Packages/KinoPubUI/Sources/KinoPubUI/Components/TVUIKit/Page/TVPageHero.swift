@@ -787,10 +787,13 @@ final class TVPageHeroCell: UICollectionViewCell {
     let alpha: CGFloat = stage == .away ? 0 : 1
     let lift = stage == .hero ? 0 : -((window?.bounds.height ?? bounds.height) * Self.recedeLift).rounded()
     let transform = CGAffineTransform(translationX: 0, y: lift)
-    guard contentView.alpha != alpha || contentView.transform != transform else { return }
+    // On the views themselves, not the content view: the cell lays its content view
+    // out by `frame`, which cancels a translation on it (the lift never showed).
+    let lifted: [UIView] = [words, buttons, pageControl]
+    guard contentView.alpha != alpha || lifted.contains(where: { $0.transform != transform }) else { return }
     let changes = {
       self.contentView.alpha = alpha
-      self.contentView.transform = transform
+      lifted.forEach { $0.transform = transform }
     }
     guard animated, !UIAccessibility.isReduceMotionEnabled else {
       changes()
