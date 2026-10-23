@@ -103,6 +103,41 @@ final class TVHomeHeroUITests: XCTestCase {
                    "the page did not scroll back to the top")
   }
 
+  /// Down to the row under the hero, along it, down once more, then back up: the row
+  /// under the hero comes back where Down from the hero left the page, and the hero
+  /// comes back at the top (Sasha, 2026-10-23: the page stayed wherever the engine's
+  /// minimal scroll put it, with the hero half off screen and its picture behind).
+  func testUpThroughTheRowUnderTheHeroKeepsEachStageInPlace() throws {
+    let first = try waitForFocusedButton("launch")
+    let entry = app.buttons[first]
+    let restY = entry.frame.minY
+
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.6)
+    let recededY = entry.frame.minY
+    try shoot("stage-0-receded")
+    for _ in 0..<2 {
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 0.8)
+    }
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.6)
+    try shoot("stage-1-away")
+
+    XCUIRemote.shared.press(.up)
+    Thread.sleep(forTimeInterval: 1.8)
+    try shoot("stage-2-receded-again")
+    XCTAssertFalse(focusedHeroQuery.firstMatch.exists, "Up from the second row skipped the row under the hero")
+    XCTAssertEqual(entry.frame.minY, recededY, accuracy: 2,
+                   "the row under the hero came back somewhere else than Down from the hero put it")
+
+    XCUIRemote.shared.press(.up)
+    Thread.sleep(forTimeInterval: 1.8)
+    try shoot("stage-3-hero-again")
+    XCTAssertEqual(try focusedButton(), first, "Up did not come back to the button focus left")
+    XCTAssertEqual(entry.frame.minY, restY, accuracy: 2, "the page did not come back to the top")
+  }
+
   // MARK: - Helpers
 
   private var focusedHeroQuery: XCUIElementQuery {
