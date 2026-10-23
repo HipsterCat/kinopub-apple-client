@@ -54,17 +54,6 @@ public enum DebugLaunch {
 #endif
   }
 
-  /// `-KINOPUBHeroSettle coordinated|async|end`: how the Home hero page goes back to a
-  /// stage's place — inside the focus animation (default), on the next turn of the run
-  /// loop, or after the focus animation. To compare the motions; one will stay.
-  public static var heroSettleVariant: String {
-#if DEBUG
-    UserDefaults.standard.string(forKey: "KINOPUBHeroSettle") ?? "coordinated"
-#else
-    "coordinated"
-#endif
-  }
-
   /// `-KINOPUBSearchQuery <text>`: the search field starts with this text. The tvOS
   /// inline keyboard takes no `typeText` from UI tests, so this is how a test searches.
   public static var searchQuery: String? {

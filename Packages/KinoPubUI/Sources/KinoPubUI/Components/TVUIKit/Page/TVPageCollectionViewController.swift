@@ -1392,16 +1392,10 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       logHeroScroll("focus \(previousSection.map(String.init) ?? "-")->\(section.map(String.init) ?? "-")")
       // Coming back to a stage, the page goes to its place in the same move as focus:
       // started after the focus animation it was a second motion (lurch, stop, ease).
-      let variant = DebugLaunch.heroSettleVariant
-      let early = !cameFromHero && variant != "end"
-      if early, variant == "async" {
-        DispatchQueue.main.async { [weak self] in
-          guard let self, self.focusedPath?.section == section else { return }
-          self.settleHeroStage()
-        }
-      }
+      // Measured (round 9): inside the focus animation it is one slide; on the next
+      // run-loop turn or after the animation, the engine's leg, a stop, then ours.
       coordinator.addCoordinatedAnimations({ [weak self] in
-        guard let self, early, variant != "async", self.focusedPath?.section == section,
+        guard let self, !cameFromHero, self.focusedPath?.section == section,
               let y = self.heroRestingOffsetY(forSection: section, estimating: true),
               abs(self.collectionView.contentOffset.y - y) > 1 else { return }
         self.logHeroScroll("settle with focus to \(y)")
