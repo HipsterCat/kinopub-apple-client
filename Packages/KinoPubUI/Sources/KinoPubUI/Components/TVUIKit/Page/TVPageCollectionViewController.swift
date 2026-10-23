@@ -796,6 +796,10 @@ public final class TVPageCollectionViewController: UIViewController {
   /// Where the page rests while the row under the hero has focus: where the engine put
   /// it on Down from the hero. `nil` until that has happened once.
   private var heroRecededOffsetY: CGFloat?
+  /// The focus move under way is Down from the hero: the engine's target for it is the
+  /// receded stage's place. Its target, not where the page is when the focus animation
+  /// ends — the scroll runs longer, and that mid-flight offset sat 55 pt short (round 7).
+  private var recordsHeroRecede = false
 
   /// Each hero stage has one place for the page, whichever way focus came. The engine
   /// scrolls only as far as it must to show the focused view, so Up from a row further
@@ -861,15 +865,8 @@ public final class TVPageCollectionViewController: UIViewController {
   private var heroHeight: CGFloat {
     guard isViewLoaded else { return 0 }
     let screen = collectionView.bounds.height
-    // The tab bar's region, at its tallest. The adjusted inset shrinks while the bar is
-    // hidden; read live, the hero grew by that much on the next layout pass (a Right
-    // along the row under it) and everything under its top moved down 57 pt, the bar
-    // peeking back half on screen (round 6, 2026-10-23).
-    heroTopInset = max(heroTopInset, collectionView.adjustedContentInset.top)
-    return max((screen * Self.heroFold).rounded() - heroTopInset, 1)
+    return max((screen * Self.heroFold).rounded() - collectionView.adjustedContentInset.top, 1)
   }
-
-  private var heroTopInset: CGFloat = 0
 
   /// Entry focus is a poster, once the grid has real cells. A sort chip is the first
   /// focusable view while the page is still a header and skeletons. Remembering that
@@ -1264,6 +1261,10 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
                                         targetContentOffset: UnsafeMutablePointer<CGPoint>) {
     guard scrollView === collectionView else { return }
     logHeroScroll("willEndDragging target \(targetContentOffset.pointee.y)")
+    if recordsHeroRecede, focusedPath?.section == 1 {
+      heroRecededOffsetY = targetContentOffset.pointee.y
+      return
+    }
     guard let y = heroRestingOffsetY(forSection: focusedPath?.section) else { return }
     targetContentOffset.pointee.y = y
   }
@@ -1387,17 +1388,15 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
       }
       let section = resolved?.section
       let cameFromHero = previousSection == 0 && section == 1
+      recordsHeroRecede = cameFromHero
       logHeroScroll("focus \(previousSection.map(String.init) ?? "-")->\(section.map(String.init) ?? "-")")
       coordinator.addCoordinatedAnimations(nil) { [weak self] in
         guard let self, self.focusedPath?.section == section else { return }
         // Down from the hero: where the engine left the page is the receded stage's
         // place. Coming back to that row from below lands there too.
         self.logHeroScroll("focus animation done")
-        if cameFromHero {
-          self.heroRecededOffsetY = self.collectionView.contentOffset.y
-        } else {
-          self.settleHeroStage()
-        }
+        self.recordsHeroRecede = false
+        if !cameFromHero { self.settleHeroStage() }
       }
     }
     if prefersFirstPosterFocus, !didPlacePosterFocus,

@@ -653,6 +653,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     titleLabel.text = card.title
     if newTitle {
       logoSession.reset()
+      holdsMark = false
       paintLogo()
     }
     logoSession.setResolution(feature.logo)
@@ -667,13 +668,21 @@ final class TVPageHeroCell: UICollectionViewCell {
     entryGuide.preferredFocusEnvironments = [entryButton]
   }
 
+  /// The title on screen already has its mark (logo or name). New facts about the same
+  /// title (its details arriving) send the session back to empty while it looks for a
+  /// logo again; the mark shown stays until a new one is there — it went away and came
+  /// back, a blink at launch (round 7, 2026-10-23).
+  private var holdsMark = false
+
   private func paintLogo() {
+    if case .empty = logoSession.mark, holdsMark { return }
     var isText = false
     if case .text = logoSession.mark { isText = true }
     let image = isText ? nil : logoSession.image
+    if image != nil || isText { holdsMark = true }
     // The logo usually lands a second after the words (it loads on its own): it fades
-    // into its reserved place instead of snapping in, which read as a blink at launch.
-    let appears = logo.isHidden && titleLabel.isHidden && (image != nil || isText)
+    // into its reserved place, or over the name, instead of snapping in.
+    let appears = (image != nil || isText) && (logo.image !== image || titleLabel.isHidden == isText)
     let paint = {
       self.logo.image = image
       self.logo.isHidden = image == nil
