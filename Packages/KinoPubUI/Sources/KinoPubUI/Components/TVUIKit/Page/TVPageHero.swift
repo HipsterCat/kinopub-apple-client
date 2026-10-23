@@ -673,7 +673,9 @@ final class TVPageHeroCell: UICollectionViewCell {
   // MARK: Buttons
 
   private func configureButtons() {
-    var play = UIButton.Configuration.prominentGlass()
+    // Plain glass like its neighbours: only focus turns a button white. Prominent glass
+    // kept Play white at rest, which read as focus sitting on two buttons.
+    var play = UIButton.Configuration.glass()
     play.image = UIImage(systemName: "play.fill")
     play.imagePadding = 12
     play.cornerStyle = .capsule
