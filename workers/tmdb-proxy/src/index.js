@@ -5,7 +5,6 @@
  * GET /t/p/... → image.tmdb.org/t/p/...   (no auth; bypasses local image.tmdb.org blocks)
  */
 
-import { handleOwners } from "./owners.js";
 import { handleSeasons } from "./seasons.js";
 import { handleImage, handleTitle } from "./title.js";
 
@@ -49,9 +48,6 @@ export default {
       return proxyAPI(url, env, ctx);
     }
 
-    const owned = await handleOwners(url, request, env, ctx);
-    if (owned) return owned;
-
     // Daily id dumps. Same reason as the image route: files.tmdb.org resolves
     // to 127.0.0.1 on hijacked networks, and these need no auth.
     if (url.pathname.startsWith("/p/exports/")) {
@@ -60,7 +56,7 @@ export default {
 
     return json({
       error: "not_found",
-      hint: "/v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /3/… · /t/p/… · /p/exports/… · /omdb · /kp/… · /tvoe/api/… · /tvoe/site/…",
+      hint: "/v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /3/… · /t/p/… · /p/exports/…",
     }, 404);
   },
 };
