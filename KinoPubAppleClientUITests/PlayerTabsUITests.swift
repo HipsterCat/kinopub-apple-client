@@ -107,6 +107,27 @@ final class PlayerTabsUITests: XCTestCase {
     XCTAssertTrue(goToShow.exists, "Info never opened\n\(app.debugDescription)")
   }
 
+  /// *Go to Show* from the Info tab: the panel goes away first, then the title page comes —
+  /// the Apple TV app's order. The panel must never sit over the page (Sasha, 2026-10-25).
+  /// The shots after Select are the record; the test asserts the page arrived.
+  func testGoToShowClosesThePanelFirst() throws {
+    try openPlayer()
+    let goToShow = app.buttons["Перейти к сериалу"]
+    for _ in 0..<4 where !goToShow.hasFocus {
+      press(.down)
+    }
+    XCTAssertTrue(goToShow.hasFocus, "Go to Show never took focus\n\(app.debugDescription)")
+    XCUIRemote.shared.press(.select)
+    for frame in 0..<6 {
+      try shoot("player-goto-\(frame)")
+    }
+    Thread.sleep(forTimeInterval: 2)
+    try shoot("player-goto-page")
+    XCTAssertFalse(app.collectionViews["AVInfoMenuCollection"].exists, "the player's strip is still up")
+    XCTAssertTrue(app.buttons.matching(identifier: "kinopub.hero.play").firstMatch.waitForExistence(timeout: 5),
+                  "the title page never came")
+  }
+
   private func press(_ button: XCUIRemote.Button) {
     XCUIRemote.shared.press(button)
     Thread.sleep(forTimeInterval: 2)

@@ -522,8 +522,16 @@ struct DetailFixtureMetadataSource: MetadataSource {
 
 /// The fixture titles as a list, on a stack of its own, opened at the launched one.
 struct DetailFixtureRoot: View {
-  @State private var path: [Route] = []
+  /// The app's own navigation state, so what routes through it — the player's *Go to Show*
+  /// (`PlayerView.goToTitle`) — moves this stack too.
+  @Environment(NavigationState.self) private var navigationState
   @State private var tab = 0
+
+  private var pathBinding: Binding<[Route]> { navigationState.path(for: navigationState.selectedTab) }
+  private var path: [Route] {
+    get { pathBinding.wrappedValue }
+    nonmutating set { pathBinding.wrappedValue = newValue }
+  }
 
   var body: some View {
     if DebugLaunch.fixtureInTabs {
@@ -541,7 +549,7 @@ struct DetailFixtureRoot: View {
   }
 
   private var stack: some View {
-    NavigationStack(path: $path) {
+    NavigationStack(path: pathBinding) {
       VStack(alignment: .leading, spacing: 24) {
         ForEach(DetailFixture.allCases) { fixture in
           Button(fixture.title) {

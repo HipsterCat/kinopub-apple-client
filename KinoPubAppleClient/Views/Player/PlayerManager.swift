@@ -1966,6 +1966,10 @@ extension PlayerManager {
     }
   }
 
+  /// How long the picture and transport bar take to fade once *Go to Show* has closed the
+  /// Info panel.
+  static let playerFadeDuration: TimeInterval = 0.2
+
   /// The buttons under the Info tab's description: the system's own *From Beginning* on
   /// top, then *Go to Show* / *Go to Movie* — the Apple TV app has both. *Next Episode* is
   /// not here on purpose: the **Up Next** tab carries it (user's call, 2026-09-30).
@@ -1979,9 +1983,31 @@ extension PlayerManager {
     // series' trailer goes to the *show*, a film's trailer to the *movie*.
     let title = externalMetadataContext?.parent ?? externalMetadataContext?.item
     let label = title?.kind == .show ? "Go to Show" : "Go to Movie"
-    let goTo = UIAction(title: label.localized) { [weak self] _ in
+    let goTo = UIAction(title: label.localized) { [weak self, weak controller] _ in
       guard let self else { return }
-      self.onGoToTitle?(self.playItem.metadata.id)
+      let id = self.playItem.metadata.id
+      // The Apple TV app's order: the panel goes, then the page comes. Leaving at once
+      // crossfaded the page in under a panel that stayed up until the player was torn down
+      // (Sasha, 2026-10-25). The Info panel is a controller AVKit presents over the player
+      // (tvOS 27.2), so it is dismissed — it slides down as Menu would take it — then the
+      // transport bar left behind fades with the picture, and only then is the page asked for.
+      // `showsPlaybackControls = false` is no way out: it froze the panel on screen.
+      guard let controller else {
+        self.onGoToTitle?(id)
+        return
+      }
+      let leave = { [weak self, weak controller] in
+        UIView.animate(withDuration: Self.playerFadeDuration) {
+          controller?.view.alpha = 0
+        } completion: { _ in
+          self?.onGoToTitle?(id)
+        }
+      }
+      if let panel = controller.presentedViewController {
+        panel.dismiss(animated: true, completion: leave)
+      } else {
+        leave()
+      }
     }
     // A trailer is not something to start again: *From Beginning* plays the trailer's first
     // second, which nobody wants — its one button is the title (user's call, 2026-10-01).
