@@ -5,6 +5,12 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS Search: Up from the keyboard returns to the tab (2026-10-25)
+
+- The focus guide that carries Down from the Search tab into the keyboard was also
+  catching Up and redirecting it into the results, onto a filter chip. Menu was the
+  only way back to the tab. The guide is on only while the tab bar has focus.
+
 ### tvOS player: the Info tab is always there (2026-10-23)
 
 - AVKit decides whether the strip has an Info tab when `customInfoViewControllers` is set, from

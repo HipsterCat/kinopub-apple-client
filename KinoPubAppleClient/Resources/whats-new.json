@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Поиск: «вверх» с клавиатуры возвращает на вкладку.",
         "Главная: вверху — полноэкранная карусель, как в приложении Apple TV: картинка на весь экран, логотип, оценки и строка описания, кнопки «Смотреть», закладка, «Подробнее» и «Следующий». Сама листается раз в 8 секунд; вправо с последней кнопки или влево с первой — соседний тайтл. Старый баннер — в Настройки › Диагностика.",
         "Авторизация и общая сессия в iCloud Keychain: код активации на iOS больше не сбрасывается при переходе в Safari, проверка продолжается в фоне и сразу при возврате в приложение, добавлена кнопка «Поделиться кодом» и единый профиль 4K/HDR/HEVC между всеми устройствами Apple.",
         "Баннеры на главной: устранено горизонтальное смещение ряда при фокусе карточки и убраны лишние анимации масштабирования логотипа.",
@@ -51,6 +52,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Search: Up from the keyboard returns to the tab.",
         "Home: a full-screen carousel at the top, as in the Apple TV app — the picture over the whole screen, the logo, scores and a line of plot, then Play, Bookmark, Details and Next. It turns every 8 seconds; Right from the last button or Left from the first shows the neighbour. The old banner is in Settings › Diagnostics.",
         "Device activation and iCloud Keychain sync: iOS keeps the active code across Safari switches, polls in the background and immediately on return, adds a Share Code button, and shares one 4K/HDR/HEVC session across all Apple devices.",
         "Home banners: fixed horizontal row shift on card focus and removed unnecessary logo scale animations.",

@@ -19,6 +19,21 @@ final class TVSearchLayoutUITests: XCTestCase {
     continueAfterFailure = false
   }
 
+  /// Up from the keyboard returns to the Search tab. A focus guide left on in the
+  /// band above the keys used to redirect that press onto a filter chip (2026-10-25).
+  func testUpFromTheKeyboardReturnsToTheTab() throws {
+    let app = launch(gridKeyboard: false)
+    if tabBarFocused(in: app) {
+      press(.down, wait: 1.2)
+    }
+    XCTAssertFalse(tabBarFocused(in: app), "Down from the Search tab never entered the page")
+    press(.up, wait: 1)
+    try shoot(app, name: "up-from-keyboard")
+    XCTAssertTrue(tabBarFocused(in: app), "Up from the keyboard did not return to the Search tab")
+    XCTAssertFalse(app.buttons["kinopub.chip.sort"].hasFocus)
+    XCTAssertFalse(app.buttons["kinopub.chip.genre"].hasFocus)
+  }
+
   func testLinearKeyboardResultsSpanTheScreen() throws {
     let app = launch(gridKeyboard: false)
     let frame = try resultsFrame(in: app)
@@ -54,6 +69,10 @@ final class TVSearchLayoutUITests: XCTestCase {
   }
 
   // MARK: - Helpers
+
+  private func tabBarFocused(in app: XCUIApplication) -> Bool {
+    app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count > 0
+  }
 
   private func press(_ button: XCUIRemote.Button, _ times: Int = 1, wait: TimeInterval = 0.7) {
     for _ in 0..<times { XCUIRemote.shared.press(button); Thread.sleep(forTimeInterval: wait) }

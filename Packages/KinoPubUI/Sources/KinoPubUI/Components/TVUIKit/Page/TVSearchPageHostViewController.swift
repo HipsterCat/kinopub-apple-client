@@ -8,7 +8,9 @@
 //  On tvOS 26.x a `TabView` tab whose root is only the search container loses the
 //  spatial link from the tab bar into the search keyboard — Down from the Search tab
 //  is a no-op while Select still enters the field. A `UIFocusGuide` in the tab-bar
-//  band hands off downward to the search bar and container; `preferredFocusEnvironments`
+//  band hands that Down off to the search bar and container. The guide is enabled
+//  only while the tab bar has focus: left on, Up from the keyboard enters the same
+//  band and is redirected into the results, onto a filter chip. `preferredFocusEnvironments`
 //  covers keyboard ⇄ results. No press-delay rescue — that raced the focus animator
 //  (AGENTS.md: no manual focus delays).
 //
@@ -24,7 +26,8 @@ final class TVSearchPageHostViewController: UIViewController {
   var onFirstAppearance: (() -> Void)?
   private var didReportFirstAppearance = false
 
-  /// Bridges the tab bar row into the search chrome on the vertical axis.
+  /// Bridges Down from the tab bar into the search chrome. On only while the
+  /// tab bar has focus — `syncEntryGuide`.
   private let tabEntryGuide = UIFocusGuide()
   private var tabEntryGuideHeight: NSLayoutConstraint?
 
@@ -78,6 +81,9 @@ final class TVSearchPageHostViewController: UIViewController {
     super.viewDidAppear(animated)
     // The pre-warm parking window is alpha 0 / hidden; the real tab's window is not.
     guard view.window?.alpha ?? 0 > 0.5, view.window?.isHidden == false else { return }
+    // Pre-warm may have focused the keyboard in the parking window and left the
+    // guide off. The real tab opens on the bar, and Down needs the guide on.
+    syncEntryGuide()
     guard !didReportFirstAppearance else { return }
     didReportFirstAppearance = true
     onFirstAppearance?()
@@ -125,6 +131,9 @@ final class TVSearchPageHostViewController: UIViewController {
   override func didUpdateFocus(in context: UIFocusUpdateContext,
                                with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
+    if let next = context.nextFocusedView {
+      tabEntryGuide.isEnabled = !isInsidePage(next)
+    }
     if focusIsInResults {
       preferredHalf = .results
       // Keep the focused poster through the keyboard-hide relayout. Off while the
@@ -136,11 +145,38 @@ final class TVSearchPageHostViewController: UIViewController {
     }
   }
 
-  /// Keyboard, suggestions, search field — not the results collection.
+  /// Keyboard, suggestions, search field — not the results collection. The tvOS
+  /// keyboard is a private container and may sit outside the search bar.
   private func isSearchChrome(_ view: UIView) -> Bool {
     if let results, view.isDescendant(of: results.view) { return false }
     if view.isDescendant(of: searchController.searchBar) { return true }
-    return view.isDescendant(of: searchContainer.view)
+    if view.isDescendant(of: searchContainer.view) { return true }
+    if view.isDescendant(of: self.view) { return true }
+    var current: UIView? = view
+    while let node = current {
+      let name = String(describing: type(of: node))
+      if name.contains("Keyboard") || name.contains("Suggestion") { return true }
+      current = node.superview
+    }
+    return false
+  }
+
+  /// The keyboard, the field, suggestions, or the results. The tab bar is not.
+  private func isInsidePage(_ view: UIView) -> Bool {
+    if isSearchChrome(view) { return true }
+    if let results, view.isDescendant(of: results.view) { return true }
+    return false
+  }
+
+  /// The guide catches Down from the tab bar. While anything on this page has
+  /// focus it stays off, so Up from the keyboard reaches the bar instead of
+  /// being redirected onto a filter chip.
+  private func syncEntryGuide() {
+    guard let focused = UIFocusSystem.focusSystem(for: view)?.focusedItem as? UIView else {
+      tabEntryGuide.isEnabled = true
+      return
+    }
+    tabEntryGuide.isEnabled = !isInsidePage(focused)
   }
 
   private func isTabBar(_ view: UIView) -> Bool {
