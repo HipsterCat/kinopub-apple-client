@@ -122,9 +122,7 @@ public final class TVPageCollectionViewController: UIViewController {
     view.backgroundColor = .clear
     view.clipsToBounds = false
 
-    heroBackdrop.translatesAutoresizingMaskIntoConstraints = false
     heroBackdrop.isHidden = true
-    view.addSubview(heroBackdrop)
     heroCarousel.backdrop = heroBackdrop
     collectionView.translatesAutoresizingMaskIntoConstraints = false
     collectionView.accessibilityIdentifier = accessibilityID
@@ -140,10 +138,6 @@ public final class TVPageCollectionViewController: UIViewController {
     ]
     windowExtension = edges
     NSLayoutConstraint.activate(edges + [
-      heroBackdrop.topAnchor.constraint(equalTo: collectionView.topAnchor),
-      heroBackdrop.leadingAnchor.constraint(equalTo: collectionView.leadingAnchor),
-      heroBackdrop.trailingAnchor.constraint(equalTo: collectionView.trailingAnchor),
-      heroBackdrop.bottomAnchor.constraint(equalTo: collectionView.bottomAnchor),
       statusView.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
       statusView.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor)
     ])
@@ -553,6 +547,7 @@ public final class TVPageCollectionViewController: UIViewController {
         }
       }
       cell.configure(carousel: self.heroCarousel, sideInset: self.resolvedSideInset)
+      cell.host(backdrop: self.heroBackdrop)
     }
 
     let masthead = UICollectionView.CellRegistration<TVPageMastheadCell, TVPageItemID> {
@@ -796,22 +791,15 @@ public final class TVPageCollectionViewController: UIViewController {
   /// The engine scrolled the page for the focus move under way (it reported a target).
   private var engineScrolledForFocus = false
 
-  /// The hero's stage follows how much of the hero is on screen, not which row has
-  /// focus: the engine alone scrolls the page, and a row reached from below can leave
-  /// the hero anywhere. Read per state, not per frame — only a threshold crossing
-  /// changes anything (Plozz drives its recede off the scroll the same way).
-  /// Measured on Claude ATV 27.2: Down from the hero rests 130 pt down (receded); Up
-  /// from the second row leaves the hero nearly off screen (away).
+  /// The hero's stage follows the page, not which row has focus: the engine alone
+  /// scrolls it, and a row reached from below can leave the hero anywhere. The picture
+  /// scrolls with the page (it rides in the hero cell), so only "at the top or not" is
+  /// a state. Read per state, not per frame — only a threshold crossing changes
+  /// anything (Plozz drives its recede off the scroll the same way).
   private func updateHeroStageFromScroll() {
     guard sections.first?.kind == .hero else { return }
     let down = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
-    if down < 40 {
-      heroCarousel.setStage(.hero)
-    } else if down < heroHeight * 0.5 {
-      heroCarousel.setStage(.receded)
-    } else {
-      heroCarousel.setStage(.away)
-    }
+    heroCarousel.setStage(down < 40 ? .hero : .receded)
   }
 
   func logHeroScroll(_ event: String) {

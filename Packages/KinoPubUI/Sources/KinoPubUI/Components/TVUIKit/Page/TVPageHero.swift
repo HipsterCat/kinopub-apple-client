@@ -8,9 +8,10 @@
 //  - `TVPageHeroCarousel` — which title is fronted, and the stage the page is in.
 //    Owned by the page controller, so it outlives the cell (a cell scrolled away
 //    and dequeued again comes back on the same title).
-//  - `TVPageHeroBackdropView` — the picture, behind the whole collection, pinned to
-//    the screen. It does not scroll: the words scroll with the page and the picture
-//    stays, so going down to the rows is a parallax the focus engine drives.
+//  - `TVPageHeroBackdropView` — the picture, a full screen tall from the top of the
+//    page, behind the hero cell and the rows. It scrolls with the page, as the Apple
+//    TV app's does, and goes into black at its foot; below it is the page's own
+//    background (Sasha, 2026-10-24).
 //  - `TVPageHeroCell` — the words and the buttons, low on the left; the paging dots
 //    under them. The cell itself never takes focus, its buttons do.
 //
@@ -21,10 +22,12 @@
 //  buttons, `UIFocusSystem.movementDidFailNotification` for paging on Left / Right
 //  at the row's ends.
 //
-//  Fixed states only. The picture has three (`Stage`), chosen by how far the page is
-//  scrolled, which only the focus engine does: at the top; a little down, the row
-//  under the hero up (the picture glides up and dims); past most of the hero (the
-//  picture is gone). A threshold crossing switches the state, no per-frame motion.
+//  Fixed states only, two (`Stage`), chosen by whether the page is at the top — only
+//  the focus engine scrolls it: at the top the hero is whole; scrolled down, the
+//  picture glides further up and dims and the words rise ahead of the page (the
+//  parallax). A threshold crossing switches the state, no per-frame motion. The
+//  buttons never stop being focusable: a stage that faded them out left Up from the
+//  row under the hero with nowhere to go (round 10, 2026-10-24).
 //
 
 import TVUIKit
@@ -37,10 +40,8 @@ final class TVPageHeroCarousel {
   enum Stage: Equatable {
     /// The page is at the top: the hero whole.
     case hero
-    /// The page is scrolled a little: the row under the hero is up, the hero still shows.
+    /// The page is scrolled down.
     case receded
-    /// The page is scrolled past most of the hero.
-    case away
   }
 
   /// How long one title stays before the next.
@@ -154,10 +155,10 @@ final class TVPageHeroBackdropView: UIView {
   private var transitionID = 0
   private var stage: TVPageHeroCarousel.Stage = .hero
 
-  /// How far the picture glides up when the row under the hero takes focus, as a share
-  /// of the screen's height. Below what the focus engine scrolls the page by, so the
-  /// picture lags the words: the parallax.
-  private static let recedeRise: CGFloat = 0.26
+  /// How far the picture glides up, on top of the page's scroll, once the page leaves
+  /// the top, as a share of the screen's height: its black foot clears the row under
+  /// the hero (13% of the screen at rest), which then stands on the page's background.
+  private static let recedeRise: CGFloat = 0.18
   /// Black over the picture while the row under it has focus.
   private static let recededDim: CGFloat = 0.35
   /// The picture goes into black at its foot, as the Apple TV app's does, in either
@@ -365,10 +366,6 @@ final class TVPageHeroBackdropView: UIView {
         self.stageView.transform = CGAffineTransform(translationX: 0, y: -height * Self.recedeRise)
         self.stageView.alpha = 1
         self.dim.alpha = Self.recededDim
-      case .away:
-        self.stageView.transform = CGAffineTransform(translationX: 0, y: -height * Self.recedeRise)
-        self.stageView.alpha = 0
-        self.dim.alpha = Self.recededDim
       }
     }
     guard animated, !UIAccessibility.isReduceMotionEnabled else {
@@ -546,6 +543,22 @@ final class TVPageHeroCell: UICollectionViewCell {
   /// The cell is a container: its buttons take focus, the cell never does.
   override var canBecomeFocused: Bool { false }
 
+  private weak var backdrop: UIView?
+
+  /// The picture rides in this cell, behind the words, so it scrolls with the page: a
+  /// screen tall from the page's top, past the cell's foot under the row below.
+  func host(backdrop: UIView) {
+    self.backdrop = backdrop
+    if backdrop.superview !== self { insertSubview(backdrop, at: 0) }
+    setNeedsLayout()
+  }
+
+  /// Under the rows: the picture's foot reaches into the next row's place.
+  override func apply(_ layoutAttributes: UICollectionViewLayoutAttributes) {
+    super.apply(layoutAttributes)
+    layer.zPosition = -1
+  }
+
   /// Where focus enters the hero when the page asks for it — down from the tab bar the
   /// first time, Menu back to the top: Next, the Plozz / Apple TV entry Sasha picked
   /// (2026-10-22), so Right right away turns the page. Play when there is one title.
@@ -579,6 +592,13 @@ final class TVPageHeroCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    if let backdrop, let page = superview as? UIScrollView {
+      // The page's top is where the content inset starts: the picture runs under the
+      // tab bar's region, a whole screen tall.
+      let frame = CGRect(x: -self.frame.minX, y: -(self.frame.minY + page.adjustedContentInset.top),
+                         width: page.bounds.width, height: page.bounds.height)
+      if backdrop.frame != frame { backdrop.frame = frame }
+    }
     let width = bounds.width
     guard width > 0 else { return }
     // A third of the screen for the words — Apple TV's column; the buttons may run
@@ -802,21 +822,16 @@ final class TVPageHeroCell: UICollectionViewCell {
   /// page scrolls, so the hero leaves ahead of the row instead of riding on it.
   private static let recedeLift: CGFloat = 0.12
 
-  /// On the row under the hero the words rise ahead of the page and stay, over the
-  /// dimmed picture. Further down the picture is gone, and the words with it — they
-  /// must not float over the page.
+  /// Scrolled down, the words rise ahead of the page, over the dimmed picture. They
+  /// never fade: the buttons have to stay focusable for Up to reach them.
   func apply(stage: TVPageHeroCarousel.Stage, animated: Bool) {
-    let alpha: CGFloat = stage == .away ? 0 : 1
     let lift = stage == .hero ? 0 : -((window?.bounds.height ?? bounds.height) * Self.recedeLift).rounded()
     let transform = CGAffineTransform(translationX: 0, y: lift)
     // On the views themselves, not the content view: the cell lays its content view
     // out by `frame`, which cancels a translation on it (the lift never showed).
     let lifted: [UIView] = [words, buttons, pageControl]
-    guard contentView.alpha != alpha || lifted.contains(where: { $0.transform != transform }) else { return }
-    let changes = {
-      self.contentView.alpha = alpha
-      lifted.forEach { $0.transform = transform }
-    }
+    guard lifted.contains(where: { $0.transform != transform }) else { return }
+    let changes = { lifted.forEach { $0.transform = transform } }
     guard animated, !UIAccessibility.isReduceMotionEnabled else {
       changes()
       return
