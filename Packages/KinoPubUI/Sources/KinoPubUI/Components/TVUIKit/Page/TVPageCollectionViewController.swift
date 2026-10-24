@@ -793,52 +793,32 @@ public final class TVPageCollectionViewController: UIViewController {
     focusFirstPosterIfNeeded()
   }
 
-  /// Where the page rests while the row under the hero has focus: where the engine put
-  /// it on Down from the hero. `nil` until that has happened once.
-  private var heroRecededOffsetY: CGFloat?
-  /// The focus move under way is Down from the hero: the engine's target for it is the
-  /// receded stage's place. Its target, not where the page is when the focus animation
-  /// ends — the scroll runs longer, and that mid-flight offset sat 55 pt short (round 7).
-  private var recordsHeroRecede = false
+  /// The engine scrolled the page for the focus move under way (it reported a target).
+  private var engineScrolledForFocus = false
 
-  /// Each hero stage has one place for the page, whichever way focus came. The engine
-  /// scrolls only as far as it must to show the focused view, so Up from a row further
-  /// down stopped wherever that left the page: on the row under the hero with the hero
-  /// half off screen and its picture back behind (Sasha, 2026-10-23), on the hero itself
-  /// with the page still half receded.
-  private func heroRestingOffsetY(forSection section: Int?, estimating: Bool = false) -> CGFloat? {
-    guard sections.first?.kind == .hero, let section else { return nil }
-    let top = -collectionView.adjustedContentInset.top
-    switch section {
-    case 0: return top
-    case 1:
-      if let heroRecededOffsetY { return heroRecededOffsetY }
-      // Not been down from the hero yet (the page came back on a card far down): what
-      // Down from the top would do, the row's cards just on screen.
-      guard estimating, collectionView.numberOfSections > 1, collectionView.numberOfItems(inSection: 1) > 0,
-            let frame = collectionView.layoutAttributesForItem(at: IndexPath(item: 0, section: 1))?.frame
-      else { return nil }
-      let visible = collectionView.bounds.height - collectionView.adjustedContentInset.bottom
-      return max(top, (frame.maxY + TVHIGGrid.sideInset - visible).rounded())
-    default: return nil
+  /// The hero's stage follows how much of the hero is on screen, not which row has
+  /// focus: the engine alone scrolls the page, and a row reached from below can leave
+  /// the hero anywhere. Read per state, not per frame — only a threshold crossing
+  /// changes anything (Plozz drives its recede off the scroll the same way).
+  /// Measured on Claude ATV 27.2: Down from the hero rests 130 pt down (receded); Up
+  /// from the second row leaves the hero nearly off screen (away).
+  private func updateHeroStageFromScroll() {
+    guard sections.first?.kind == .hero else { return }
+    let down = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
+    if down < 40 {
+      heroCarousel.setStage(.hero)
+    } else if down < heroHeight * 0.5 {
+      heroCarousel.setStage(.receded)
+    } else {
+      heroCarousel.setStage(.away)
     }
-  }
-
-  /// The scroll the page asks for itself (AGENTS.md: back to the top when a hero control
-  /// takes focus — Plozz's `onFocusGained`), after the engine's own move, when the
-  /// engine stopped elsewhere.
-  private func settleHeroStage() {
-    guard let y = heroRestingOffsetY(forSection: focusedPath?.section, estimating: true),
-          abs(collectionView.contentOffset.y - y) > 1 else { return }
-    logHeroScroll("settle to \(y)")
-    collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: y), animated: true)
   }
 
   func logHeroScroll(_ event: String) {
     guard DebugLaunch.heroScrollLog, sections.first?.kind == .hero else { return }
-    NSLog("HERO-SCROLL %@ | offset %.1f inset %.1f hero %.1f section %@ receded %@", event,
+    NSLog("HERO-SCROLL %@ | offset %.1f inset %.1f hero %.1f section %@", event,
           collectionView.contentOffset.y, collectionView.adjustedContentInset.top, heroHeight,
-          focusedPath.map { "\($0.section)" } ?? "-", heroRecededOffsetY.map { "\($0)" } ?? "-")
+          focusedPath.map { "\($0.section)" } ?? "-")
   }
 
   /// The hero leads the page or is not there at all; its picture shows with it.
@@ -849,7 +829,6 @@ public final class TVPageCollectionViewController: UIViewController {
     }
     heroCarousel.update(hero)
     let shows = hero != nil
-    if !shows { heroRecededOffsetY = nil }
     if isViewLoaded {
       heroBackdrop.isHidden = !shows
       collectionView.remembersLastFocusedIndexPath = remembersFocusNow
@@ -1255,18 +1234,16 @@ public final class TVPageCollectionViewController: UIViewController {
 // MARK: - Delegate
 
 extension TVPageCollectionViewController: UICollectionViewDelegate {
-  /// The engine's focus scroll ends here too: under a hero it is told the stage's place
-  /// for the page, so it moves there in one go (`settleHeroStage` is the fallback).
+  public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    guard scrollView === collectionView else { return }
+    updateHeroStageFromScroll()
+  }
+
   public func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
                                         targetContentOffset: UnsafeMutablePointer<CGPoint>) {
     guard scrollView === collectionView else { return }
+    engineScrolledForFocus = true
     logHeroScroll("willEndDragging target \(targetContentOffset.pointee.y)")
-    if recordsHeroRecede, focusedPath?.section == 1 {
-      heroRecededOffsetY = targetContentOffset.pointee.y
-      return
-    }
-    guard let y = heroRestingOffsetY(forSection: focusedPath?.section) else { return }
-    targetContentOffset.pointee.y = y
   }
 
   public func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
@@ -1378,34 +1355,21 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     publishBelowTopIfNeeded()
     if sections.first?.kind == .hero,
        let next = context.nextFocusedView, next.isDescendant(of: collectionView) {
-      // Focus leaving the page (the tab bar, a pushed page, the player) keeps the stage:
-      // the tab bar is only reached from the hero, and a page pushed from a row far down
-      // must not bring the picture back for a moment on the way out and in again.
-      switch resolved?.section {
-      case 0?: heroCarousel.setStage(.hero)
-      case 1?: heroCarousel.setStage(.receded)
-      default: heroCarousel.setStage(.away)
-      }
       let section = resolved?.section
-      let cameFromHero = previousSection == 0 && section == 1
-      recordsHeroRecede = cameFromHero
+      engineScrolledForFocus = false
       logHeroScroll("focus \(previousSection.map(String.init) ?? "-")->\(section.map(String.init) ?? "-")")
-      // Coming back to a stage, the page goes to its place in the same move as focus:
-      // started after the focus animation it was a second motion (lurch, stop, ease).
-      // Measured (round 9): inside the focus animation it is one slide; on the next
-      // run-loop turn or after the animation, the engine's leg, a stop, then ours.
-      coordinator.addCoordinatedAnimations({ [weak self] in
-        guard let self, !cameFromHero, self.focusedPath?.section == section,
-              let y = self.heroRestingOffsetY(forSection: section, estimating: true),
-              abs(self.collectionView.contentOffset.y - y) > 1 else { return }
-        self.logHeroScroll("settle with focus to \(y)")
-        self.collectionView.contentOffset.y = y
-      }) { [weak self] in
-        guard let self, self.focusedPath?.section == section else { return }
+      coordinator.addCoordinatedAnimations(nil) { [weak self] in
+        guard let self, section == 0, self.focusedPath?.section == 0 else { return }
         self.logHeroScroll("focus animation done")
-        self.recordsHeroRecede = false
-        // Fallback: the engine stopped somewhere else after all.
-        if !cameFromHero { self.settleHeroStage() }
+        // The one scroll the page asks for itself (AGENTS.md; Plozz's `onFocusGained`):
+        // back to the top when a hero button takes focus. Only when the engine did not
+        // move the page — with the hero's buttons already on screen it has no reason to;
+        // when it does move, it goes to the top on its own. Never a second scroll on top
+        // of the engine's: that was the jolt (2026-10-24).
+        let top = -self.collectionView.adjustedContentInset.top
+        guard !self.engineScrolledForFocus, self.collectionView.contentOffset.y > top + 1 else { return }
+        self.logHeroScroll("to the top")
+        self.collectionView.setContentOffset(CGPoint(x: self.collectionView.contentOffset.x, y: top), animated: true)
       }
     }
     if prefersFirstPosterFocus, !didPlacePosterFocus,

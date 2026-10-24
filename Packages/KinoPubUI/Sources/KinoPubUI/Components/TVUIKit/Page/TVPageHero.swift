@@ -21,9 +21,10 @@
 //  buttons, `UIFocusSystem.movementDidFailNotification` for paging on Left / Right
 //  at the row's ends.
 //
-//  Fixed states only. The picture has three (`Stage`): the hero has focus; the row
-//  under it has focus (the picture glides up and dims); focus is further down (the
-//  picture is gone). No scroll-driven choreography.
+//  Fixed states only. The picture has three (`Stage`), chosen by how far the page is
+//  scrolled, which only the focus engine does: at the top; a little down, the row
+//  under the hero up (the picture glides up and dims); past most of the hero (the
+//  picture is gone). A threshold crossing switches the state, no per-frame motion.
 //
 
 import TVUIKit
@@ -34,11 +35,11 @@ import UIKit
 @MainActor
 final class TVPageHeroCarousel {
   enum Stage: Equatable {
-    /// Focus is on the hero, or outside the page (the tab bar).
+    /// The page is at the top: the hero whole.
     case hero
-    /// Focus is on the row right under the hero.
+    /// The page is scrolled a little: the row under the hero is up, the hero still shows.
     case receded
-    /// Focus is further down the page.
+    /// The page is scrolled past most of the hero.
     case away
   }
 
