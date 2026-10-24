@@ -791,15 +791,16 @@ public final class TVPageCollectionViewController: UIViewController {
   /// The engine scrolled the page for the focus move under way (it reported a target).
   private var engineScrolledForFocus = false
 
-  /// The hero's stage follows the page, not which row has focus: the engine alone
-  /// scrolls it, and a row reached from below can leave the hero anywhere. The picture
-  /// scrolls with the page (it rides in the hero cell), so only "at the top or not" is
-  /// a state. Read per state, not per frame — only a threshold crossing changes
-  /// anything (Plozz drives its recede off the scroll the same way).
+  /// The hero's recede follows the page, not which row has focus: the engine alone
+  /// scrolls it, and a row reached from below can leave the hero anywhere. Read per
+  /// frame, so the parallax rides the engine's own curve and stops when it stops. It
+  /// completes over the scroll that Down from the hero takes (the row under it comes
+  /// up by about 12% of the screen).
   private func updateHeroStageFromScroll() {
     guard sections.first?.kind == .hero else { return }
     let down = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
-    heroCarousel.setStage(down < 40 ? .hero : .receded)
+    let span = collectionView.bounds.height * 0.12
+    heroCarousel.setRecede(span > 0 ? down / span : 0)
   }
 
   func logHeroScroll(_ event: String) {

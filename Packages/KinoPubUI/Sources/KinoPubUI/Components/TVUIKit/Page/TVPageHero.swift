@@ -22,10 +22,11 @@
 //  buttons, `UIFocusSystem.movementDidFailNotification` for paging on Left / Right
 //  at the row's ends.
 //
-//  Fixed states only, two (`Stage`), chosen by whether the page is at the top — only
-//  the focus engine scrolls it: at the top the hero is whole; scrolled down, the
-//  picture glides further up and dims and the words rise ahead of the page (the
-//  parallax). A threshold crossing switches the state, no per-frame motion. The
+//  Only the focus engine scrolls the page. The parallax is read off its scroll, frame
+//  by frame (`setRecede`): over the first stretch of scroll the picture glides further
+//  up and dims and the words rise ahead of the page. Nothing runs on a clock of its
+//  own, so nothing moves after the page has stopped — a timed stage animation (0.9 s)
+//  outlived the engine's scroll and the picture slid on alone (round 11). The
 //  buttons never stop being focusable: a stage that faded them out left Up from the
 //  row under the hero with nowhere to go (round 10, 2026-10-24).
 //
@@ -64,7 +65,7 @@ final class TVPageHeroCarousel {
   weak var cell: TVPageHeroCell? {
     didSet {
       cell?.render(direction: 0)
-      cell?.apply(stage: stage, animated: false)
+      cell?.apply(recede: recede)
     }
   }
 
@@ -121,11 +122,18 @@ final class TVPageHeroCarousel {
     }
   }
 
-  func setStage(_ newStage: Stage) {
+  /// How far into its recede the hero is, 0 (page at the top) to 1, as the page scrolls.
+  private(set) var recede: CGFloat = 0
+
+  func setRecede(_ newRecede: CGFloat) {
+    let newRecede = min(max(newRecede, 0), 1)
+    guard newRecede != recede else { return }
+    recede = newRecede
+    backdrop?.apply(recede: newRecede)
+    cell?.apply(recede: newRecede)
+    let newStage: Stage = newRecede < 0.3 ? .hero : .receded
     guard newStage != stage else { return }
     stage = newStage
-    backdrop?.apply(stage: newStage, animated: true)
-    cell?.apply(stage: newStage, animated: true)
     cell?.updateTimer()
   }
 }
@@ -137,7 +145,7 @@ final class TVPageHeroCarousel {
 /// bottom into whatever is behind the page.
 @MainActor
 final class TVPageHeroBackdropView: UIView {
-  /// Everything that moves and fades together on a stage change.
+  /// Everything that moves and fades together as the hero recedes.
   private let stageView = UIView()
   private var front = UIImageView()
   private var back = UIImageView()
@@ -153,10 +161,10 @@ final class TVPageHeroBackdropView: UIView {
   private static let turnPatience: TimeInterval = 0.8
   private var loadTask: Task<Void, Never>?
   private var transitionID = 0
-  private var stage: TVPageHeroCarousel.Stage = .hero
+  private var recede: CGFloat = 0
 
-  /// How far the picture glides up, on top of the page's scroll, once the page leaves
-  /// the top, as a share of the screen's height: its black foot clears the row under
+  /// How far the picture glides up, on top of the page's scroll, by the end of the
+  /// recede, as a share of the screen's height: its black foot clears the row under
   /// the hero (13% of the screen at rest), which then stands on the page's background.
   private static let recedeRise: CGFloat = 0.18
   /// Black over the picture while the row under it has focus.
@@ -215,7 +223,7 @@ final class TVPageHeroBackdropView: UIView {
     CATransaction.setDisableActions(true)
     fade.frame = stageView.bounds
     CATransaction.commit()
-    if stage != .hero { apply(stage: stage, animated: false) }
+    if recede > 0 { apply(recede: recede) }
     if let pending {
       self.pending = nil
       show(pending.feature, direction: pending.direction, next: pending.next, turned: pending.turned)
@@ -353,28 +361,12 @@ final class TVPageHeroBackdropView: UIView {
     settle()
   }
 
-  func apply(stage: TVPageHeroCarousel.Stage, animated: Bool) {
-    self.stage = stage
-    let height = bounds.height
-    let changes = {
-      switch stage {
-      case .hero:
-        self.stageView.transform = .identity
-        self.stageView.alpha = 1
-        self.dim.alpha = 0
-      case .receded:
-        self.stageView.transform = CGAffineTransform(translationX: 0, y: -height * Self.recedeRise)
-        self.stageView.alpha = 1
-        self.dim.alpha = Self.recededDim
-      }
-    }
-    guard animated, !UIAccessibility.isReduceMotionEnabled else {
-      changes()
-      return
-    }
-    // Slower than the focus scroll on purpose — the picture lags the words.
-    UIView.animate(withDuration: 0.9, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0,
-                   options: [.beginFromCurrentState, .allowUserInteraction], animations: changes)
+  /// Follows the page's scroll frame by frame, never animated on its own.
+  func apply(recede: CGFloat) {
+    self.recede = recede
+    let rise = UIAccessibility.isReduceMotionEnabled ? 0 : bounds.height * Self.recedeRise * recede
+    stageView.transform = CGAffineTransform(translationX: 0, y: -rise)
+    dim.alpha = Self.recededDim * recede
   }
 }
 
@@ -822,23 +814,18 @@ final class TVPageHeroCell: UICollectionViewCell {
   /// page scrolls, so the hero leaves ahead of the row instead of riding on it.
   private static let recedeLift: CGFloat = 0.12
 
-  /// Scrolled down, the words rise ahead of the page, over the dimmed picture. They
-  /// never fade: the buttons have to stay focusable for Up to reach them.
-  func apply(stage: TVPageHeroCarousel.Stage, animated: Bool) {
-    let lift = stage == .hero ? 0 : -((window?.bounds.height ?? bounds.height) * Self.recedeLift).rounded()
+  /// Scrolled down, the words rise ahead of the page, over the dimmed picture, in step
+  /// with the scroll. They never fade: the buttons have to stay focusable for Up to
+  /// reach them.
+  func apply(recede: CGFloat) {
+    let share = UIAccessibility.isReduceMotionEnabled ? 0 : Self.recedeLift * recede
+    let lift = -((window?.bounds.height ?? bounds.height) * share).rounded()
     let transform = CGAffineTransform(translationX: 0, y: lift)
     // On the views themselves, not the content view: the cell lays its content view
     // out by `frame`, which cancels a translation on it (the lift never showed).
-    let lifted: [UIView] = [words, buttons, pageControl]
-    guard lifted.contains(where: { $0.transform != transform }) else { return }
-    let changes = { lifted.forEach { $0.transform = transform } }
-    guard animated, !UIAccessibility.isReduceMotionEnabled else {
-      changes()
-      return
+    for view in [words, buttons, pageControl] where view.transform != transform {
+      view.transform = transform
     }
-    // Quicker than the picture (0.9 s): the words lead, the picture lags behind them.
-    UIView.animate(withDuration: 0.6, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0,
-                   options: [.beginFromCurrentState, .allowUserInteraction], animations: changes)
   }
 
   // MARK: Timer
