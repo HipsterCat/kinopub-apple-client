@@ -112,6 +112,12 @@ enum WatchLibrary {
       return container
     }
     Logger.app.error("WatchLibrary: falling back to an in-memory store")
+    return makeInMemoryContainer()
+  }
+
+  /// Gone when the app quits: the fallback above, and the store of a fixture run, whose
+  /// stand-in titles must never reach the viewer's Continue Watching.
+  static func makeInMemoryContainer() -> ModelContainer {
     let memory = ModelConfiguration("Watch", schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
     // An in-memory store with a valid schema does not fail to open.
     // swiftlint:disable:next force_try

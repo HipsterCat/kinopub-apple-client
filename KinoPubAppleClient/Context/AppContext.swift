@@ -175,7 +175,25 @@ struct AppContext: AppContextProtocol {
       KinopoiskProxySource()
     ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL))
 
-    let localProgressStore = LocalWatchProgressStore()
+#if DEBUG && os(tvOS)
+    // A fixture swaps the API for stand-ins but keeps the real stores, and the real player
+    // records what it plays: the seasonStrip series a UI test played turned up in Continue
+    // Watching on the next ordinary launch (2026-10-25). A fixture run's progress stays in
+    // memory.
+    let isFixtureRun = DetailFixture.isActive || LibraryFixture.isActive || TVChannelsFixture.isActive
+#else
+    let isFixtureRun = false
+#endif
+    let localProgressStore = isFixtureRun
+      ? LocalWatchProgressStore(container: WatchLibrary.makeInMemoryContainer())
+      : LocalWatchProgressStore()
+#if DEBUG && os(tvOS)
+    // What fixture runs wrote before they kept to memory: on a simulator that ran the UI
+    // tests, the stand-in series still sits in the store.
+    if !isFixtureRun {
+      DetailFixture.allCases.forEach { localProgressStore.clear(id: $0.itemID) }
+    }
+#endif
     let libraryState = MediaLibraryStore(
       downloadManager: downloadManager,
       hlsDownloadManager: hlsDownloadManager,
