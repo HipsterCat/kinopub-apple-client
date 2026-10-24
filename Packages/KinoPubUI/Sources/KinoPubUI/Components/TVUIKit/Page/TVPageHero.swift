@@ -157,15 +157,15 @@ final class TVPageHeroBackdropView: UIView {
   /// How far the picture glides up when the row under the hero takes focus, as a share
   /// of the screen's height. Below what the focus engine scrolls the page by, so the
   /// picture lags the words: the parallax.
-  private static let recedeRise: CGFloat = 0.22
+  private static let recedeRise: CGFloat = 0.26
   /// Black over the picture while the row under it has focus.
   private static let recededDim: CGFloat = 0.35
-  /// Where the picture starts to fade out, and where it is gone, as shares of its height.
-  /// Late and short: the words, the dots and the row under the hero stand on the shaded
-  /// picture. A long fade showed a light band behind the dots in light appearance,
-  /// where the page behind is light (2026-10-22).
-  private static let fadeStart: CGFloat = 0.92
-  private static let fadeEnd: CGFloat = 1
+  /// The picture goes into black at its foot, as the Apple TV app's does, in either
+  /// appearance; nothing of the page shows through it. Faded into transparency, the
+  /// page's light background came up through it in light appearance (Sasha,
+  /// 2026-10-24). Below the picture's edge, once it rises, is the page's own background.
+  private static let fadeStart: CGFloat = 0.55
+  private static let fadeEnd: CGFloat = 0.97
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -189,9 +189,10 @@ final class TVPageHeroBackdropView: UIView {
     dim.alpha = 0
     stageView.addSubview(dim)
 
-    fade.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
-    fade.locations = [0, NSNumber(value: Double(Self.fadeStart)), NSNumber(value: Double(Self.fadeEnd))]
-    stageView.layer.mask = fade
+    stageView.backgroundColor = .black
+    fade.colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.8).cgColor, UIColor.black.cgColor]
+    fade.locations = [NSNumber(value: Double(Self.fadeStart)), 0.85, NSNumber(value: Double(Self.fadeEnd))]
+    stageView.layer.insertSublayer(fade, below: dim.layer)
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
