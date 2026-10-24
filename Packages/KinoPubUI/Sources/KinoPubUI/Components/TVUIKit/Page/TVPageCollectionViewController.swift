@@ -790,6 +790,8 @@ public final class TVPageCollectionViewController: UIViewController {
 
   /// The engine scrolled the page for the focus move under way (it reported a target).
   private var engineScrolledForFocus = false
+  /// The focus move under way lands on a hero button.
+  private var focusHeadsIntoHero = false
 
   /// The hero's recede follows the page, not which row has focus: the engine alone
   /// scrolls it, and a row reached from below can leave the hero anywhere. Read per
@@ -1233,6 +1235,16 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     guard scrollView === collectionView else { return }
     engineScrolledForFocus = true
     logHeroScroll("willEndDragging target \(targetContentOffset.pointee.y)")
+    // Focus is going up into the hero: the engine scrolls only far enough to show the
+    // button (the minimal scroll), which can leave the hero part-way up — with Next
+    // it did, with Details it happened to reach the top (Sasha, 2026-10-25). The hero
+    // is whole only at the top, so its scroll ends there. The engine reports every
+    // focus-driven scroll through this delegate method (measured, HERO-SCROLL log);
+    // moving its target keeps the engine's one animation, only the end changes.
+    if focusHeadsIntoHero {
+      targetContentOffset.pointee.y = -scrollView.adjustedContentInset.top
+      logHeroScroll("target set to the top")
+    }
   }
 
   public func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
@@ -1346,6 +1358,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
        let next = context.nextFocusedView, next.isDescendant(of: collectionView) {
       let section = resolved?.section
       engineScrolledForFocus = false
+      focusHeadsIntoHero = section == 0
       logHeroScroll("focus \(previousSection.map(String.init) ?? "-")->\(section.map(String.init) ?? "-")")
       coordinator.addCoordinatedAnimations(nil) { [weak self] in
         guard let self, section == 0, self.focusedPath?.section == 0 else { return }
