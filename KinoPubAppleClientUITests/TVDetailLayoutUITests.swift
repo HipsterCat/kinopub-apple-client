@@ -330,6 +330,31 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Фантастика, боевик, приключения"].exists, "the genre group's subheading")
   }
 
+  /// *Go to Movie* from a cover's context menu: the menu closes and the lifted cover settles
+  /// back into its row first, then the title's page comes. The cover must never fly over the
+  /// new page (Sasha, 2026-10-25). The shots after Select are the record.
+  func testGoToTitleFromAContextMenuClosesItFirst() throws {
+    launch("film")
+    try waitForHeroFocus()
+    XCTAssertTrue(seek(.down, until: "kinopub.poster.9902", limit: 6), focusedDescription)
+    Thread.sleep(forTimeInterval: 1.2)
+    XCUIRemote.shared.press(.select, forDuration: 1.5)
+    let goTo = app.descendants(matching: .any)["Перейти к фильму"]
+    XCTAssertTrue(goTo.waitForExistence(timeout: 5), "no Go to Movie in the menu")
+    // The menu opens on its first row, «Просмотрено»; Go to Movie is the next. The rows'
+    // focus is not in the accessibility tree (tvOS 27.2), so the shot is the check.
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 0.8)
+    try shoot("menu-goto-open")
+    XCUIRemote.shared.press(.select)
+    for frame in 0..<6 {
+      try shoot("menu-goto-\(frame)")
+    }
+    Thread.sleep(forTimeInterval: 2)
+    try shoot("menu-goto-page")
+    XCTAssertFalse(goTo.exists, "the menu is still up")
+  }
+
   /// The picture behind the page is the stack's, not the page's: it stays still at any depth,
   /// and opening another title crossfades it to that title's while the page changes over it.
   /// Back, it crossfades home again. Shots mid-way and settled, both ways.

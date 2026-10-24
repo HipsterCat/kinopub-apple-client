@@ -623,6 +623,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSource, UICollec
     willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
     animator: (any UIContextMenuInteractionAnimating)?
   ) {
+    TVContextMenuHandoff.menuWillEnd(animator: animator)
     // Same TVPosterView stranding as after a focus change — the lifted poster can
     // stay enlarged once the menu's preview hands the cell back.
     let reset: () -> Void = { [weak self] in

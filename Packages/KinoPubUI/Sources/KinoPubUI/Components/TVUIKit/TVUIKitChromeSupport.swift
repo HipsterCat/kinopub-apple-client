@@ -196,6 +196,46 @@ final class TVUIKitNonFocusablePosterView: TVUIKitDeferredPosterView {
   }
 }
 
+/// **A menu row's action waits for the menu to close.** UIKit calls a row's handler first
+/// and only then starts taking the menu down: the lifted card animates back into its row
+/// over about 0.6 s. A handler that pushed a page at once had that card fly over the new
+/// page until it landed (Sasha, 2026-10-25) — the Apple TV app closes the menu, then goes.
+///
+/// So the builder's rows hand their work here, and the collection whose card was lifted
+/// passes the closing animator on from `willEndContextMenuInteraction`, which UIKit calls
+/// straight after the handler, in the same turn of the run loop; the work runs when that
+/// animation completes. A menu with no such hook (a button's) runs the work on the next
+/// turn, as good as at once.
+@MainActor
+public enum TVContextMenuHandoff {
+  private static var pending: (() -> Void)?
+
+  static func afterMenuCloses(_ work: @escaping () -> Void) {
+    pending = work
+    DispatchQueue.main.async {
+      // No collection claimed it: nothing was lifted.
+      runPending()
+    }
+  }
+
+  /// From `collectionView(_:willEndContextMenuInteraction:animator:)`.
+  public static func menuWillEnd(animator: (any UIContextMenuInteractionAnimating)?) {
+    guard let work = pending else { return }
+    pending = nil
+    guard let animator else {
+      work()
+      return
+    }
+    animator.addCompletion(work)
+  }
+
+  private static func runPending() {
+    guard let work = pending else { return }
+    pending = nil
+    work()
+  }
+}
+
 public enum TVUIKitContextMenuBuilder {
   public static func menu(from entries: [MediaCardContextEntry]) -> UIMenu {
     var children: [UIMenuElement] = []
@@ -224,7 +264,7 @@ public enum TVUIKitContextMenuBuilder {
           attributes: action.role == .destructive ? .destructive : [],
           state: action.isSelection ? (action.isOn ? .on : .off) : .off
         ) { _ in
-          action.handler()
+          TVContextMenuHandoff.afterMenuCloses(action.handler)
         }
         pending.append(uiAction)
       case .submenu(_, let title, let systemImage, let submenuChildren, let footer):
@@ -234,7 +274,7 @@ public enum TVUIKitContextMenuBuilder {
             title: child.title,
             image: UIImage(systemName: child.systemImage),
             state: child.isSelection ? (child.isOn ? .on : .off) : .off
-          ) { _ in child.handler() }
+          ) { _ in TVContextMenuHandoff.afterMenuCloses(child.handler) }
         }
         if !footer.isEmpty {
           nested.append(UIMenu(
@@ -244,7 +284,7 @@ public enum TVUIKitContextMenuBuilder {
               UIAction(
                 title: foot.title,
                 image: UIImage(systemName: foot.systemImage)
-              ) { _ in foot.handler() }
+              ) { _ in TVContextMenuHandoff.afterMenuCloses(foot.handler) }
             }
           ))
         }

@@ -238,6 +238,14 @@ extension TVUIKitPersonCollectionController: UICollectionViewDataSource, UIColle
       TVUIKitContextMenuBuilder.menu(from: entries)
     }
   }
+
+  public func collectionView(
+    _ collectionView: UICollectionView,
+    willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
+    animator: (any UIContextMenuInteractionAnimating)?
+  ) {
+    TVContextMenuHandoff.menuWillEnd(animator: animator)
+  }
 }
 
 /// A person circle and the two lines under it. The circle is an image: a photo, or

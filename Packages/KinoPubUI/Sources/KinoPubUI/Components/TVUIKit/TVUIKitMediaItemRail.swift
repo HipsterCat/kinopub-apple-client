@@ -845,6 +845,14 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
       TVUIKitContextMenuBuilder.menu(from: entries)
     }
   }
+
+  public func collectionView(
+    _ collectionView: UICollectionView,
+    willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
+    animator: (any UIContextMenuInteractionAnimating)?
+  ) {
+    TVContextMenuHandoff.menuWillEnd(animator: animator)
+  }
 }
 
 // MARK: - Cell

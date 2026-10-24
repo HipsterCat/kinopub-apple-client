@@ -1447,6 +1447,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
     animator: (any UIContextMenuInteractionAnimating)?
   ) {
+    TVContextMenuHandoff.menuWillEnd(animator: animator)
     let reset: () -> Void = { [weak self] in self?.resetStrandedFocusAppearance() }
     if let animator {
       animator.addCompletion(reset)
