@@ -33,3 +33,41 @@ enum PlaybackPreferences {
     return UserDefaults.standard.bool(forKey: key)
   }
 }
+
+/// Home's Continue Watching row, as the viewer set it up (Settings › Tabs & Home), like
+/// Plex's "Weeks to consider for Continue Watching" and "Include bookmarks".
+enum ContinueWatchingPreferences {
+  static let weeksKey = "continueWatchingWeeks"
+  static let includesBookmarksKey = "continueWatchingIncludesBookmarks"
+
+  /// Not watched, released or bookmarked in this many weeks: off the row. Default 8.
+  static var weeks: Int {
+    let stored = UserDefaults.standard.integer(forKey: weeksKey)
+    return stored > 0 ? stored : ContinueWatchingOrder.Rules.defaultWeeks
+  }
+
+  /// Mix bookmarks in by the date they were added. Default on.
+  static var includesBookmarks: Bool {
+    guard UserDefaults.standard.object(forKey: includesBookmarksKey) != nil else { return true }
+    return UserDefaults.standard.bool(forKey: includesBookmarksKey)
+  }
+
+  static var rules: ContinueWatchingOrder.Rules {
+    ContinueWatchingOrder.Rules(weeks: weeks, includesBookmarks: includesBookmarks)
+  }
+
+  static func setWeeks(_ weeks: Int) {
+    UserDefaults.standard.set(weeks, forKey: weeksKey)
+    rowRulesDidChange()
+  }
+
+  static func setIncludesBookmarks(_ isOn: Bool) {
+    UserDefaults.standard.set(isOn, forKey: includesBookmarksKey)
+    rowRulesDidChange()
+  }
+
+  /// The row is refetched with the new rules — the same path a watch invalidate takes.
+  private static func rowRulesDidChange() {
+    NotificationCenter.default.post(name: .contentStoreDidInvalidateWatch, object: nil)
+  }
+}

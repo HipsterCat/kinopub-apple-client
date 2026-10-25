@@ -86,6 +86,12 @@ final class ContentStore {
     lastErrors[key]
   }
 
+  /// When the row was last fetched; nil when nothing is cached. An invalidated row reads
+  /// `.distantPast` until it is fetched again.
+  func fetchedAt(_ key: RowKey) -> Date? {
+    rows[key]?.fetchedAt
+  }
+
   func isStale(_ key: RowKey) -> Bool {
     guard let state = rows[key] else { return true }
     return Date().timeIntervalSince(state.fetchedAt) > key.ttl

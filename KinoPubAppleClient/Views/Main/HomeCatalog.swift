@@ -882,11 +882,12 @@ class HomeCatalog: ObservableObject {
                                           seasonCount: $0.seasonCount,
                                           progress: $0.progress)
       },
-      locals: locals
+      locals: locals,
+      snapshotTakenAt: store.fetchedAt(.continueWatching)
     )
     let storedByID = Dictionary(stored.map { ($0.itemID, $0) }, uniquingKeysWith: { _, last in last })
     let entryByID = Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0) })
-    return plan.order.compactMap { id -> MediaCard? in
+    return Array(plan.order.compactMap { id -> MediaCard? in
       let base: MediaCard?
       if plan.insertIDs.contains(id), let entry = entryByID[id] {
         base = Self.card(for: WatchingItem(mediaItem: entry.item),
@@ -906,7 +907,7 @@ class HomeCatalog: ObservableObject {
                                        season: mutation.season,
                                        video: mutation.video,
                                        overlayLabel: mutation.overlayLabel)
-    }
+    }.prefix(ContinueWatchingPreferences.rules.maxItems))
   }
 
   /// v1 hack: up to six unique titles drawn at random from the catalog shelves
@@ -1057,16 +1058,22 @@ class HomeCatalog: ObservableObject {
 
   // MARK: - Continue watching
 
+  /// The row (`ContinueWatchingOrder` says what goes on it and why). Sources: the three
+  /// watching lists for what is unfinished and what has new episodes, history and this
+  /// device for when something was watched, bookmarks for what was saved for later.
   private func fetchContinueWatchingCards() async throws -> [MediaCard] {
+    let rules = ContinueWatchingPreferences.rules
     async let moviesTask = try? itemsService.fetchWatchingMovies().items
     async let allSerialsTask = try? itemsService.fetchWatchingSerials(subscribedOnly: false).items
     async let watchlistTask = try? itemsService.fetchWatchingSerials(subscribedOnly: true).items
-    async let historyTask = try? itemsService.fetchHistory(page: nil, perPage: 20).history
+    async let historyTask = try? itemsService.fetchHistory(page: nil, perPage: Self.historyPerPage).history
+    async let bookmarksTask = recentBookmarks(rules: rules)
 
     let moviesResult = await moviesTask
     let serialsResult = await allSerialsTask
     let watchlistResult = await watchlistTask
     let historyResult = await historyTask
+    let bookmarked = await bookmarksTask
 
     // Each source degrades independently (one endpoint down still shows the other
     // three) — but if every single one failed, this is a network outage, not "the
@@ -1093,35 +1100,38 @@ class HomeCatalog: ObservableObject {
 
     var pool = ContinueWatchingOrder.mergePool(movies: movies, serials: serials, watchlist: watchlist)
 
-    // Titles only present in recent history still belong in "recently started".
-    // Drop finished rows (watched to credits) so they don't invite a resume.
-    let now = Date()
+    // Whether the newest play stopped mid-video. False when it ran to the credits: then
+    // the card offers the next episode, which is what the row is for.
+    var stoppedMidway: [Int: Bool] = newestEntry.mapValues { !($0.watchProgress?.isFinished ?? false) }
+
+    // History is where "watched just now" lives — the watching lists are capped at 50,
+    // sorted by when a title got new content, and drop a series whose episodes are all
+    // watched. A series whose newest play ran to the credits stays: its payload says
+    // what comes next, or that nothing does (`card(for:)` returns nil on `playAgain`).
+    // A finished film has nothing next.
     for entry in history {
-      if let watch = entry.watchProgress, watch.isFinished { continue }
-      guard let date = entry.lastSeenDate,
-            now.timeIntervalSince(date) <= ContinueWatchingOrder.recentWindow,
+      let isEpisode = entry.isEpisode || (entry.item.type?.contains("serial") ?? false)
+      if let watch = entry.watchProgress, watch.isFinished, !isEpisode { continue }
+      guard entry.lastSeenDate != nil,
             !pool.contains(where: { $0.id == entry.item.id }),
             let item = WatchingItem(historyEntry: entry) else { continue }
       pool.append(item)
     }
 
-    // Locally-started titles the backend doesn't list yet, and only past
+    // This device's plays, which the server may not have yet. A series finished here
+    // goes in for the same reason as above; a film only while unfinished, and only past
     // `enterContinueWatchingSeconds` — a trailer sampled for a minute is not something
-    // to carry on with, and a local-only card has nothing to take it back out again.
-    // Recency still counts for titles the server *does* list: touching one is touching
-    // it, however briefly.
-    // Finished films stay out. Finished series stay only if a server source still
-    // lists them — re-inserting would invent E+1 after the title left watching.
+    // to carry on with.
     for entry in localEntries {
-      if entry.watch.isFinished {
-        if entry.item.isEpisodicType || entry.season != nil {
-          lastSeen[entry.id] = Date(timeIntervalSince1970: entry.updatedAt)
-        }
-        continue
+      let isSeries = entry.item.isEpisodicType || entry.season != nil
+      let date = Date(timeIntervalSince1970: entry.updatedAt)
+      if entry.watch.isFinished, !isSeries { continue }
+      if lastSeen[entry.id].map({ date >= $0 }) ?? true {
+        lastSeen[entry.id] = date
+        stoppedMidway[entry.id] = !entry.watch.isFinished
       }
-      lastSeen[entry.id] = Date(timeIntervalSince1970: entry.updatedAt)
       if !pool.contains(where: { $0.id == entry.id }),
-         entry.watch.earnsContinueWatchingCard {
+         entry.watch.isFinished || entry.watch.earnsContinueWatchingCard {
         pool.append(WatchingItem(mediaItem: entry.item))
       }
     }
@@ -1133,35 +1143,58 @@ class HomeCatalog: ObservableObject {
       return !item.type.contains("serial")
     }
 
+    var bookmarkedAt: [Int: Date] = [:]
+    if !bookmarked.isEmpty {
+      bookmarkedAt = ContinueWatchingOrder.bookmarkDates(folders: bookmarked.map { (updated: $0.updated, itemIDs: $0.items.map(\.id)) })
+      for item in bookmarked.flatMap(\.items) where !pool.contains(where: { $0.id == item.id }) {
+        pool.append(WatchingItem(mediaItem: item))
+      }
+    }
+
     var position = ContinueWatchingOrder.positionByItemID(history)
     for entry in localEntries {
       position[entry.id] = entry.position
     }
-    pool = ContinueWatchingOrder.kept(items: pool,
-                                      watchlistIDs: watchlistIDs,
-                                      lastSeen: lastSeen,
-                                      position: position,
-                                      now: now)
 
-    let ordered = Array(ContinueWatchingOrder.ordered(items: pool,
-                                                     watchlistIDs: watchlistIDs,
-                                                     lastSeen: lastSeen)
-                          .prefix(ContinueWatchingOrder.maxItems))
-
-    // What the server's own watching lists carry. Anything else came in from history or
-    // this device, and only its details payload says what the server counts as watched.
+    // What the server's own watching lists carry. Anything else came in from history,
+    // this device or bookmarks, and only its details payload says what the server
+    // counts as watched.
     let serverListed = Set(movies.map(\.id) + serials.map(\.id) + watchlist.map(\.id))
     // What has to move for a title's payload to be asked for again: the server's counts,
     // its newest history row, this device's play head.
-    let versions = Dictionary(uniqueKeysWithValues: ordered.map { item in
-      (item.id, [item.watched, item.total, item.new,
-                 lastSeen[item.id].map { Int($0.timeIntervalSince1970) },
-                 localByID[item.id].map { Int($0.updatedAt) }]
-        .map { $0.map(String.init) ?? "-" }.joined(separator: "/"))
-    })
-    let details = await titleDetails(for: ordered, serverListed: serverListed, versions: versions)
+    func version(_ item: WatchingItem) -> String {
+      [item.watched, item.total, item.new,
+       lastSeen[item.id].map { Int($0.timeIntervalSince1970) },
+       localByID[item.id].map { Int($0.updatedAt) }]
+        .map { $0.map(String.init) ?? "-" }.joined(separator: "/")
+    }
 
-    return ordered.compactMap {
+    // "When did the new episode come out" is only on the title's payload (`updated_at`);
+    // the list carries none. It is sorted by that date, newest first (live 2026-10-25),
+    // so the row's worth from its top is all that can make the row.
+    let released = Array(watchlist.filter(\.hasNewEpisodes).prefix(rules.maxItems))
+    var details = await titleDetails(for: released,
+                                     serverListed: serverListed,
+                                     versions: Dictionary(uniqueKeysWithValues: released.map { ($0.id, version($0)) }))
+
+    let candidates = pool.map { item in
+      ContinueWatchingOrder.Candidate(
+        item: item,
+        lastSeen: lastSeen[item.id],
+        stoppedMidway: stoppedMidway[item.id] ?? false,
+        position: position[item.id],
+        isSubscribed: watchlistIDs.contains(item.id),
+        updatedAt: details[item.id].flatMap { $0.updatedAt > 0 ? Date(timeIntervalSince1970: TimeInterval($0.updatedAt)) : nil },
+        bookmarkedAt: bookmarkedAt[item.id]
+      )
+    }
+    // A few spare: a series whose every episode is watched has no card to draw.
+    let ordered = ContinueWatchingOrder.ranked(candidates, rules: rules, limit: rules.maxItems + Self.spareCards)
+
+    let versions = Dictionary(uniqueKeysWithValues: ordered.map { ($0.id, version($0)) })
+    details.merge(await titleDetails(for: ordered, serverListed: serverListed, versions: versions)) { _, new in new }
+
+    return Array(ordered.compactMap {
       Self.card(for: $0,
                 detail: details[$0.id],
                 history: newestEntry[$0.id],
@@ -1170,12 +1203,49 @@ class HomeCatalog: ObservableObject {
                 isInHistory: historyIDs.contains($0.id) || localByID[$0.id] != nil,
                 isInWatchlist: watchlistIDs.contains($0.id),
                 cached: cachedByID[$0.id])
+    }.prefix(rules.maxItems))
+  }
+
+  /// One page of history: it is newest first, and fifty rows reach back about a week of
+  /// evenings — further back, a title is dated by this device or not at all.
+  private static let historyPerPage = 50
+
+  /// Ranked past the row's length, for cards that turn out to have nothing to offer.
+  private static let spareCards = 4
+
+  /// Bookmark folders added to within the window, newest first, with their first page
+  /// of items (newest first too). A failure is no bookmarks, not a failed row.
+  private func recentBookmarks(rules: ContinueWatchingOrder.Rules) async -> [(updated: Date, items: [MediaItem])] {
+    guard rules.includesBookmarks,
+          let folders = try? await itemsService.fetchBookmarks().items else { return [] }
+    let now = Date()
+    let fresh = folders
+      .filter { $0.count != "0" && now.timeIntervalSince1970 - TimeInterval($0.updated) <= rules.window }
+      .recentlyUpdatedFirst()
+      .prefix(Self.bookmarkFolderLimit)
+    return await withTaskGroup(of: (Int, Date, [MediaItem])?.self) { group in
+      for (index, folder) in fresh.enumerated() {
+        group.addTask { [itemsService] in
+          guard let items = try? await itemsService.fetchBookmarkItems(id: "\(folder.id)", page: nil).items
+          else { return nil }
+          return (index, Date(timeIntervalSince1970: TimeInterval(folder.updated)), items)
+        }
+      }
+      var result: [(Int, Date, [MediaItem])] = []
+      for await entry in group {
+        if let entry { result.append(entry) }
+      }
+      return result.sorted { $0.0 < $1.0 }.map { ($0.1, $0.2) }
     }
   }
 
+  /// Folders looked into per refresh. The row takes at most `maxBookmarks` bookmarks,
+  /// and those come from the folders added to last.
+  private static let bookmarkFolderLimit = 3
+
   /// How many titles one refresh may fetch payloads for: the whole row. Anything past it
   /// is a guess from counts (`ContinueWatchingEpisode.forSeries`).
-  private static let detailLimit = ContinueWatchingOrder.maxItems
+  private static let detailLimit = ContinueWatchingOrder.maxItems + spareCards
 
   /// Payloads already fetched this session, with the version they answered
   /// (`fetchContinueWatchingCards`). A refresh reuses one until its title moves. Not on

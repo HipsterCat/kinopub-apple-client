@@ -87,8 +87,8 @@ public enum ContinueWatchingLocalOverlay {
   public struct Plan: Equatable, Sendable {
     public var hiddenIDs: Set<Int>
     public var mutations: [Int: Mutation]
-    /// Painted order: recently-touched local titles first, then the rest of the
-    /// cached row. Inserts (local-only) are included.
+    /// Painted order: titles played here since the snapshot first, then the cached
+    /// row in its own order. Inserts (local-only) are included.
     public var order: [Int]
     public var insertIDs: [Int]
 
@@ -111,7 +111,11 @@ public enum ContinueWatchingLocalOverlay {
       .text(for: .continueWatchingCard)
   }
 
-  public static func plan(cards: [Card], locals: [Local]) -> Plan {
+  /// - Parameter snapshotTakenAt: when the cached row was fetched. Only a play after
+  ///   it moves a title to the front: the fetch already ranked every older one, and
+  ///   lifting every title ever played on this device put weeks-old samples above new
+  ///   episodes (Sasha, 2026-10-25). Nil lifts every local title.
+  public static func plan(cards: [Card], locals: [Local], snapshotTakenAt: Date? = nil) -> Plan {
     let cardByID = Dictionary(uniqueKeysWithValues: cards.map { ($0.itemID, $0) })
     let recents = locals.sorted { $0.updatedAt > $1.updatedAt }
 
@@ -184,7 +188,8 @@ public enum ContinueWatchingLocalOverlay {
 
     var order: [Int] = []
     var seen = Set<Int>()
-    for local in recents {
+    let liftedAfter = snapshotTakenAt?.timeIntervalSince1970 ?? -.infinity
+    for local in recents where local.updatedAt > liftedAfter {
       let id = local.itemID
       if hidden.contains(id) { continue }
       let inRow = cardByID[id] != nil || insertIDs.contains(id)

@@ -6,96 +6,210 @@
 import Foundation
 
 /// Ordering rules for the home screen's "continue watching" row.
+///
+/// **What the row is for** (Sasha, 2026-10-25): what to watch next, not a list of things
+/// left unfinished. The next episode of the show just watched, a new episode of a
+/// subscription, a fresh bookmark — newest first, on one timeline. A film or episode left
+/// half-way stays only while it is fresh; after ``stalledAfter`` it goes behind
+/// everything else.
+///
+/// **Where the dates come from** (probed live 2026-10-25): `/v1/watching/*` carry no date
+/// at all, and are sorted by the title's `updated_at` (when it got new content), not by
+/// when it was watched. `/v1/watching/serials?subscribed=0` is also capped at 50 titles,
+/// and drops a series once every episode is watched. So "watched when" is `/v1/history`
+/// and this device; "new episode when" is the title payload's `updated_at`; "bookmarked
+/// when" is estimated (``bookmarkDates(folders:)``) — kino.pub keeps no per-item date.
 public enum ContinueWatchingOrder {
 
-  /// How recently something must have been played to count as "recently started".
-  public static let recentWindow: TimeInterval = 7 * 24 * 60 * 60
+  /// How long the row is allowed to be. Ten to twelve on a TV (Sasha, 2026-10-25): the
+  /// Library tab holds the whole watching list, which is where the row's chevron goes.
+  public static let maxItems: Int = 12
 
-  /// Titles last touched longer ago than this leave the row, unless they are still
-  /// on the watchlist. `/v1/watching/serials` lists every unfinished serial on the
-  /// account; ninety days is long enough to resume a show after a break and short
-  /// enough to drop years-old junk. The Library tab still has the whole list.
-  public static let abandonedAfter: TimeInterval = 90 * 24 * 60 * 60
+  /// Bookmarks are mixed in, not the row: at most a third of it.
+  public static let maxBookmarks: Int = 4
+
+  /// A title stopped half-way and not touched for this long is no longer "what I'm
+  /// watching" — it sorts behind next episodes, new episodes and bookmarks.
+  public static let stalledAfter: TimeInterval = 3 * 24 * 60 * 60
 
   /// A sample that never cleared ``WatchProgress/enterContinueWatchingSeconds``
-  /// drops off after this, even from the watchlist — sampling is not continuing.
+  /// drops off after this — sampling is not continuing.
   public static let barelyStartedAfter: TimeInterval = 14 * 24 * 60 * 60
 
-  /// How long the row is allowed to be.
-  ///
-  /// `/v1/watching/serials` lists **every** unfinished serial on the account, which for
-  /// a long-lived account is hundreds of titles — a shelf that scrolls sideways forever
-  /// and is, past the first screen, a list of things abandoned years ago. This is a
-  /// "carry on with what you were doing" row, not the whole watching list; the Library
-  /// tab is where all of it lives, which is where the row's chevron now goes.
-  public static let maxItems: Int = 20
+  /// A subscription this many new episodes behind (or fewer) is being followed even when
+  /// the history page we read has no play of it. More than that, and nothing watched in
+  /// the window, is a subscription abandoned — a hundred and seventy waiting episodes
+  /// are not "up next".
+  public static let followedBacklog: Int = 3
 
-  public enum Bucket: Int {
-    /// Played within the last week — recently started or resumed.
-    case recentlyStarted = 0
-    /// On the watchlist with new episodes waiting, and not played this week.
-    case recentlyReleased = 1
-    /// The rest of the watchlist.
-    case watchlist = 2
-    /// Everything else still unfinished.
-    case rest = 3
+  /// The viewer's choices (Settings › Home › Continue Watching), like Plex's
+  /// "Weeks to consider for Continue Watching" and "Include bookmarks".
+  public struct Rules: Equatable, Sendable {
+    public var weeks: Int
+    public var includesBookmarks: Bool
+    public var maxItems: Int
+
+    public static let weekOptions = [1, 2, 4, 8, 12, 26, 52]
+    public static let defaultWeeks = 8
+
+    public init(weeks: Int = Rules.defaultWeeks,
+                includesBookmarks: Bool = true,
+                maxItems: Int = ContinueWatchingOrder.maxItems) {
+      self.weeks = max(1, weeks)
+      self.includesBookmarks = includesBookmarks
+      self.maxItems = maxItems
+    }
+
+    /// Anything not watched, released or bookmarked within this leaves the row.
+    public var window: TimeInterval { TimeInterval(weeks) * 7 * 24 * 60 * 60 }
   }
 
-  public static func bucket(for item: WatchingItem,
-                            watchlistIDs: Set<Int>,
-                            lastSeen: [Int: Date],
-                            now: Date) -> Bucket {
-    if let seen = lastSeen[item.id],
-       now.timeIntervalSince(seen) <= recentWindow,
-       now >= seen {
-      return .recentlyStarted
+  /// One title that could go on the row, with every date we know for it.
+  public struct Candidate: Equatable, Sendable {
+    public var item: WatchingItem
+    /// Newest play of the title: history or this device.
+    public var lastSeen: Date?
+    /// The newest play stopped mid-video. False when it ran to the credits — then the
+    /// card offers the next episode.
+    public var stoppedMidway: Bool
+    /// Play head of the newest play, for the barely-started rule.
+    public var position: Double?
+    /// On the viewer's subscriptions (`watching/serials?subscribed=1`).
+    public var isSubscribed: Bool
+    /// When the title last got new content (`updated_at`), when known.
+    public var updatedAt: Date?
+    /// When it was bookmarked, estimated. Nil when not bookmarked.
+    public var bookmarkedAt: Date?
+
+    public init(item: WatchingItem,
+                lastSeen: Date? = nil,
+                stoppedMidway: Bool = false,
+                position: Double? = nil,
+                isSubscribed: Bool = false,
+                updatedAt: Date? = nil,
+                bookmarkedAt: Date? = nil) {
+      self.item = item
+      self.lastSeen = lastSeen
+      self.stoppedMidway = stoppedMidway
+      self.position = position
+      self.isSubscribed = isSubscribed
+      self.updatedAt = updatedAt
+      self.bookmarkedAt = bookmarkedAt
     }
-    let onWatchlist = watchlistIDs.contains(item.id)
-    if onWatchlist, item.hasNewEpisodes {
-      return .recentlyReleased
-    }
-    return onWatchlist ? .watchlist : .rest
   }
 
-  /// How far behind a title is, as the sort uses it. Films have no episode counters and
-  /// count as zero, which is deliberate: a half-watched film is one press from finished,
-  /// so it belongs above a serial with fifty episodes to go.
+  /// Why a title is on the row, and the date it sorts by.
+  public enum Reason: Equatable, Sendable {
+    /// Played within the window: next episode, or resume while fresh.
+    case watched(Date)
+    /// A subscription got a new episode within the window.
+    case released(Date)
+    /// Bookmarked within the window and never played.
+    case bookmarked(Date)
+
+    public var date: Date {
+      switch self {
+      case .watched(let date), .released(let date), .bookmarked(let date): return date
+      }
+    }
+  }
+
+  /// The newest reason the title belongs on the row, or nil when it does not.
+  public static func reason(for candidate: Candidate, rules: Rules, now: Date = Date()) -> Reason? {
+    func fresh(_ date: Date?) -> Date? {
+      guard let date, date <= now, now.timeIntervalSince(date) <= rules.window else { return nil }
+      return date
+    }
+
+    var watched = fresh(candidate.lastSeen)
+    if watched != nil, let position = candidate.position,
+       position < WatchProgress.enterContinueWatchingSeconds,
+       let lastSeen = candidate.lastSeen,
+       now.timeIntervalSince(lastSeen) > barelyStartedAfter {
+      watched = nil
+    }
+
+    var released: Date?
+    if candidate.isSubscribed, candidate.item.hasNewEpisodes,
+       let date = fresh(candidate.updatedAt),
+       watched != nil || backlog(candidate.item) <= followedBacklog {
+      released = date
+    }
+
+    var bookmarked: Date?
+    if rules.includesBookmarks, candidate.lastSeen == nil {
+      bookmarked = fresh(candidate.bookmarkedAt)
+    }
+
+    let reasons: [Reason] = [watched.map(Reason.watched),
+                             released.map(Reason.released),
+                             bookmarked.map(Reason.bookmarked)].compactMap { $0 }
+    return reasons.max { $0.date < $1.date }
+  }
+
+  /// Stopped half-way and left alone: still on the row, behind everything else.
+  static func isStalled(_ candidate: Candidate, reason: Reason, now: Date) -> Bool {
+    guard case .watched(let date) = reason, candidate.stoppedMidway else { return false }
+    return now.timeIntervalSince(date) > stalledAfter
+  }
+
+  /// How far behind a title is, for ties. Films have no episode counters and count as
+  /// zero: a half-watched film is one press from finished.
   static func backlog(_ item: WatchingItem) -> Int {
     item.new ?? 0
   }
 
-  /// Sorts by bucket, then most recently played first, then by the smallest backlog.
-  /// The caller's order is only the final tiebreak.
-  ///
-  /// **Why backlog and not just dates.** `/v1/watching/movies` and `/v1/watching/serials`
-  /// carry no timestamp at all — the only dates in this row come from `/v1/history`, and
-  /// only for the page of it we ask for. So most of the row is date-less, and before
-  /// this the tie went to whatever order the server happened to list things in: a
-  /// cartoon last touched years ago sat above a show with one new episode waiting, both
-  /// on the watchlist, both undated. `new` is the one signal the payload does carry that
-  /// separates them — one or two unwatched episodes is a title being followed, a hundred
-  /// and seventy is a title abandoned.
-  public static func ordered(items: [WatchingItem],
-                             watchlistIDs: Set<Int>,
-                             lastSeen: [Int: Date],
-                             now: Date = Date()) -> [WatchingItem] {
-    items.enumerated().sorted { lhs, rhs in
-      let lhsBucket = bucket(for: lhs.element, watchlistIDs: watchlistIDs, lastSeen: lastSeen, now: now)
-      let rhsBucket = bucket(for: rhs.element, watchlistIDs: watchlistIDs, lastSeen: lastSeen, now: now)
-      if lhsBucket != rhsBucket { return lhsBucket.rawValue < rhsBucket.rawValue }
-
-      switch (lastSeen[lhs.element.id], lastSeen[rhs.element.id]) {
-      case let (l?, r?) where l != r: return l > r
-      case (nil, .some): return false
-      case (.some, nil): return true
-      default: break
-      }
-
-      let lhsBacklog = backlog(lhs.element)
-      let rhsBacklog = backlog(rhs.element)
+  /// The row: titles with a reason, newest reason first, stalled ones last, at most
+  /// ``Rules/maxItems`` (and ``maxBookmarks`` of those bookmarks). `limit` overrides the
+  /// length, so a caller can take a few spare in case a card cannot be drawn.
+  public static func ranked(_ candidates: [Candidate],
+                            rules: Rules,
+                            limit: Int? = nil,
+                            now: Date = Date()) -> [WatchingItem] {
+    let scored = candidates.enumerated().compactMap { offset, candidate
+      -> (offset: Int, candidate: Candidate, reason: Reason, stalled: Bool)? in
+      guard let reason = reason(for: candidate, rules: rules, now: now) else { return nil }
+      return (offset, candidate, reason, isStalled(candidate, reason: reason, now: now))
+    }
+    let sorted = scored.sorted { lhs, rhs in
+      if lhs.stalled != rhs.stalled { return !lhs.stalled }
+      if lhs.reason.date != rhs.reason.date { return lhs.reason.date > rhs.reason.date }
+      let lhsBacklog = backlog(lhs.candidate.item)
+      let rhsBacklog = backlog(rhs.candidate.item)
       if lhsBacklog != rhsBacklog { return lhsBacklog < rhsBacklog }
       return lhs.offset < rhs.offset
-    }.map(\.element)
+    }
+    var bookmarks = 0
+    var result: [WatchingItem] = []
+    let length = limit ?? rules.maxItems
+    for entry in sorted {
+      if case .bookmarked = entry.reason {
+        guard bookmarks < maxBookmarks else { continue }
+        bookmarks += 1
+      }
+      result.append(entry.candidate.item)
+      if result.count >= length { break }
+    }
+    return result
+  }
+
+  /// A bookmark's date, which kino.pub does not keep per item. A folder's `updated` is
+  /// when something was last added to it, and its items come newest first (live
+  /// 2026-10-25: «maybe» lists its 78 items roughly newest first; the API takes no
+  /// sort). So the folder's first item gets the folder's date and every next one a
+  /// second less — the folder's order survives the merge with other dates, and nothing
+  /// in a folder untouched for months looks new. A title in several folders keeps the
+  /// newest.
+  public static func bookmarkDates(folders: [(updated: Date, itemIDs: [Int])]) -> [Int: Date] {
+    var result: [Int: Date] = [:]
+    for folder in folders {
+      for (index, id) in folder.itemIDs.enumerated() {
+        let date = folder.updated.addingTimeInterval(-TimeInterval(index))
+        if let existing = result[id], existing >= date { continue }
+        result[id] = date
+      }
+    }
+    return result
   }
 
   /// History has a row per episode; collapse it to the newest play per title.
@@ -120,51 +234,9 @@ public enum ContinueWatchingOrder {
     }.mapValues(\.position)
   }
 
-  /// Whether this title still belongs on Continue Watching — not the whole
-  /// watching list. Watchlist + new episodes always stay. Everything else needs
-  /// a date from history (or local resume) within ``abandonedAfter``, and a
-  /// sample shorter than ``WatchProgress/enterContinueWatchingSeconds`` drops
-  /// after ``barelyStartedAfter``.
-  public static func isKept(_ item: WatchingItem,
-                            watchlistIDs: Set<Int>,
-                            lastSeen: Date?,
-                            position: Double?,
-                            now: Date = Date()) -> Bool {
-    let onWatchlist = watchlistIDs.contains(item.id)
-    if onWatchlist, item.hasNewEpisodes { return true }
-
-    if let lastSeen, now >= lastSeen {
-      let age = now.timeIntervalSince(lastSeen)
-      if let position, position < WatchProgress.enterContinueWatchingSeconds,
-         age > barelyStartedAfter {
-        return false
-      }
-      if !onWatchlist, age > abandonedAfter {
-        return false
-      }
-      return true
-    }
-
-    return onWatchlist
-  }
-
-  public static func kept(items: [WatchingItem],
-                          watchlistIDs: Set<Int>,
-                          lastSeen: [Int: Date],
-                          position: [Int: Double] = [:],
-                          now: Date = Date()) -> [WatchingItem] {
-    items.filter {
-      isKept($0,
-             watchlistIDs: watchlistIDs,
-             lastSeen: lastSeen[$0.id],
-             position: position[$0.id],
-             now: now)
-    }
-  }
-
   /// Unions movies, unfinished serials and the watchlist without losing either source's
   /// extras (`new` badges live on the watchlist payload). Caller order is preserved for
-  /// the tiebreak inside each bucket.
+  /// the last tiebreak.
   public static func mergePool(movies: [WatchingItem],
                                serials: [WatchingItem],
                                watchlist: [WatchingItem]) -> [WatchingItem] {

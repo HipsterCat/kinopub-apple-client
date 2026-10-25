@@ -23,6 +23,25 @@ final class ContinueWatchingLocalOverlayTests: XCTestCase {
     XCTAssertTrue(plan.insertIDs.isEmpty)
   }
 
+  /// Only a play after the snapshot lifts a title: the fetch already ranked older ones,
+  /// and lifting every title ever played here buried new episodes (2026-10-25).
+  func testOnlyPlaysAfterTheSnapshotLeadTheRow() {
+    let cards = [
+      ContinueWatchingLocalOverlay.Card(itemID: 1, isSeries: false, season: nil, video: 1),
+      ContinueWatchingLocalOverlay.Card(itemID: 2, isSeries: false, season: nil, video: 1),
+      ContinueWatchingLocalOverlay.Card(itemID: 3, isSeries: false, season: nil, video: 1)
+    ]
+    let locals = [
+      local(id: 3, progress: 0.4, isSeries: false, updatedAt: 50),
+      local(id: 2, progress: 0.2, isSeries: false, updatedAt: 150)
+    ]
+    let plan = ContinueWatchingLocalOverlay.plan(cards: cards, locals: locals,
+                                                 snapshotTakenAt: Date(timeIntervalSince1970: 100))
+
+    XCTAssertEqual(plan.order, [2, 1, 3])
+    XCTAssertEqual(plan.mutations[3]?.progress, 0.4, "an older play still paints its bar")
+  }
+
   func testFinishedFilmIsHidden() {
     let cards = [
       ContinueWatchingLocalOverlay.Card(itemID: 10, isSeries: false, season: nil, video: 1)

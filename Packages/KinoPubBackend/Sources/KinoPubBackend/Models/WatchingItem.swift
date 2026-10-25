@@ -86,8 +86,8 @@ public extension WatchingItem {
                  new: new)
   }
 
-  /// A recently-played title that only showed up in `/v1/history`, so Continue
-  /// Watching can still put it in the "recently started" bucket.
+  /// A recently-played title that only showed up in `/v1/history` — the watching lists
+  /// are capped and drop a series once its episodes are all watched.
   init?(historyEntry entry: HistoryEntry) {
     guard let posters = entry.item.posters else { return nil }
     self.init(id: entry.item.id,
