@@ -78,11 +78,16 @@ final class TitleLogoPresentationTests: XCTestCase {
     XCTAssertEqual(TitleLogoResolution(url: url, lookupComplete: true), .url(url))
   }
 
-  func testALateLogoDoesNotReplaceTextAfterTheTimeout() {
-    XCTAssertFalse(
+  func testLateLogoAdoptionMatchesPolicy() {
+    XCTAssertTrue(
       resolved.shouldAdoptLogo(elapsed: TitleLogoPresentationPolicy.missTimeout + 0.2,
                                alreadyShowingText: true),
-      "text is already up; swapping it for a late logo is the flicker"
+      "whenResolved: logo still replaces text after the miss timer fired"
+    )
+    XCTAssertFalse(
+      ready.shouldAdoptLogo(elapsed: TitleLogoPresentationPolicy.missTimeout + 0.2,
+                            alreadyShowingText: true),
+      "whenReady: late swap after the timeout is the flicker we retire"
     )
     XCTAssertTrue(
       resolved.shouldAdoptLogo(elapsed: 0.3, alreadyShowingText: false)

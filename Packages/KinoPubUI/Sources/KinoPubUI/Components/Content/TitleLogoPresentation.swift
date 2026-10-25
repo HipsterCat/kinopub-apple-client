@@ -55,19 +55,23 @@ public enum TitleLogoPresentationPolicy: Equatable, Sendable {
   /// after a confirmed miss (no URL, 404, or ``missTimeout``).
   case whenResolved
 
-  /// How long to wait for a **logo image** before treating the load as a miss.
-  ///
-  /// Applies once a URL exists, not while metadata is still pending: timing out
-  /// the lookup itself painted the lettered title, then a late URL swapped it
-  /// for the logo. Tuned as 1.5 s: long enough for a warm cache / worker hit,
-  /// short enough that a broken image is not a blank slot. A later success still
-  /// warms the shared cache, but does not replace text already shown.
-  public static let missTimeout: TimeInterval = 1.5
+  /// Cold worker resolve waits up to `IMAGE_WAIT_MS` on the TMDB proxy (default **5 s**)
+  /// before 404; the slot stays empty until then, plus a short grace for redirect and decode.
+  public static let workerImageResolveWait: TimeInterval = 5
+  public static let postResolveGrace: TimeInterval = 1.5
+  public static var missTimeout: TimeInterval { workerImageResolveWait + postResolveGrace }
 
   /// Whether a resolved logo should replace whatever is on screen.
   public func shouldAdoptLogo(elapsed: TimeInterval, alreadyShowingText: Bool) -> Bool {
-    if alreadyShowingText, elapsed > Self.missTimeout { return false }
-    return true
+    switch self {
+    case .whenResolved:
+      // A successful decode always wins over a timed-out lettered guess — the worker
+      // can still be filling KV inside its five-second window.
+      return true
+    case .whenReady:
+      if alreadyShowingText, elapsed > Self.missTimeout { return false }
+      return true
+    }
   }
 
   /// Whether this completion belongs to the card currently on screen.
