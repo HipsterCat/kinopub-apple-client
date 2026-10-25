@@ -204,9 +204,13 @@ public extension MediaItem {
       // playlist or the subtitle list — and `MediaCapabilityBadges` keeps them off. Map them
       // here when they are trusted.
       entity.countries = countries.map(\.title)
-      entity.setlist = (tracklist ?? []).map {
-        SetlistEntry(title: $0.title, artists: $0.artists, audio: ArtworkSet.url($0.url))
-      }
+      // A concert's songs. A film or a series sends the same field with its audio tracks in
+      // it — «Дубляж», «Оригинал, Английский» — which is no setlist (Sasha, 2026-10-25).
+      entity.setlist = presentation.showsSetlist
+        ? (tracklist ?? []).map {
+          SetlistEntry(title: $0.title, artists: $0.artists, audio: ArtworkSet.url($0.url))
+        }
+        : []
     }
   }
 

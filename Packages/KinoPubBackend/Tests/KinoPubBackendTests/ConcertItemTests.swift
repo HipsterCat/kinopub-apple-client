@@ -91,6 +91,25 @@ final class ConcertItemTests: XCTestCase {
     XCTAssertNil(setlist[3].title, "«N/A» is a song nobody named, not a song called N/A")
   }
 
+  /// A film sends `tracklist` too, with its audio tracks in it («Дубляж», «Оригинал,
+  /// Английский»): that is no setlist, and the page must not draw one (Sasha, 2026-10-25).
+  func testAFilmsTracklistIsNoSetlist() throws {
+    let url = try XCTUnwrap(Bundle.module.url(forResource: "item_126187_concert",
+                                              withExtension: "json",
+                                              subdirectory: "Fixtures"))
+    var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    var payload = try XCTUnwrap(json["item"] as? [String: Any])
+    payload["type"] = "movie"
+    payload["tracklist"] = [["title": "Дубляж", "artists": "", "url": ""],
+                            ["title": "Оригинал, Английский", "artists": "", "url": ""]]
+    json["item"] = payload
+    let film = try JSONDecoder().decode(SingleItemData<MediaItem>.self,
+                                        from: JSONSerialization.data(withJSONObject: json)).item
+    XCTAssertEqual(film.tracklist?.count, 2, "decoded as sent")
+    XCTAssertTrue(film.mediaFragment.entity.setlist.isEmpty)
+    XCTAssertFalse(film.presentation.showsSetlist)
+  }
+
   /// The API documentation spells it `artist`; the live payload `artists`. Both read.
   func testATracklistEntryReadsEitherSpelling() throws {
     let documented = try JSONDecoder().decode(TracklistEntry.self, from: Data(

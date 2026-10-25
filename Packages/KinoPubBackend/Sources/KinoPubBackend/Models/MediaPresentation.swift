@@ -107,6 +107,10 @@ public struct MediaPresentationProfile: Equatable, Sendable {
   public var videosRailTitleKey: String { kind == .concert ? "MediaItem_Videos" : "MediaItem_Versions" }
   public var countsVideosRail: Bool { kind != .concert }
 
+  /// Whether kino.pub's `tracklist` is a setlist. Only a concert's is: a film or a series
+  /// sends the field too, with its audio tracks in it.
+  public var showsSetlist: Bool { kind == .concert }
+
   /// "More from …" for the people in the `director` field. A concert's or a stand-up
   /// set's director is a TV credit nobody is following, so those get no such shelf.
   public var showsAuthorShelf: Bool { kind != .concert && kind != .standup }
