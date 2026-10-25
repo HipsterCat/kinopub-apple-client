@@ -37,7 +37,7 @@ public enum MediaActionDownloadPhase: Equatable, Sendable {
   case downloaded
 }
 
-public struct MediaActionAppearance: Equatable, Identifiable, Sendable {
+public struct MediaActionAppearance: Hashable, Identifiable, Sendable {
   public var id: MediaActionID
   public var chrome: MediaActionChrome
   public var systemImage: String

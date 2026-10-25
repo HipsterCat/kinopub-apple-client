@@ -619,16 +619,7 @@ public final class TVPageCollectionViewController: UIViewController {
         guard let self, let section = self.sections.first, section.kind == .hero else { return }
         self.onSelect?(section, .feature(feature))
       }
-      cell.bookmarkMenu = self.heroBookmarkEntries.map { entries in
-        { feature in
-          // One submenu of folders comes back as the menu itself, not a menu in a menu.
-          let menu = TVUIKitContextMenuBuilder.menu(from: entries(feature.card))
-          if menu.children.count == 1, let folders = menu.children.first as? UIMenu {
-            return folders.children
-          }
-          return menu.children
-        }
-      }
+      cell.bookmarkEntries = self.heroBookmarkEntries.map { entries in { entries($0.card) } }
       cell.configure(carousel: self.heroCarousel, sideInset: self.resolvedSideInset)
       cell.host(backdrop: self.heroBackdrop)
     }

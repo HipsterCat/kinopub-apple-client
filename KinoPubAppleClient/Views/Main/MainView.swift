@@ -178,7 +178,9 @@ struct MainView: View {
     catalog.bannerCards.map {
       TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
                     logo: catalog.bannerLogos[$0.id] ?? .pending,
-                    backdrop: catalog.bannerBackdrops[$0.id])
+                    backdrop: catalog.bannerBackdrops[$0.id],
+                    play: catalog.bannerPlay[$0.id],
+                    isBookmarked: !cardMenu.containingFolders(for: $0).isEmpty)
     }
   }
 
@@ -190,8 +192,9 @@ struct MainView: View {
           features: bannerFeatures,
           labels: .init(play: "Play".localized,
                         details: "Hero.Details".localized,
-                        bookmark: "Add to Bookmarks".localized,
-                        next: "Hero.Next".localized)
+                        bookmark: "Bookmarks".localized,
+                        next: "Hero.Next".localized,
+                        noBookmarkFolders: "No bookmark folders yet".localized)
         )))
       }
     } else if catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled {

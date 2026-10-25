@@ -19,6 +19,8 @@ final class MediaCardMenuCoordinator: ObservableObject {
   /// When set, the hosting view should present the New Folder alert for this item.
   @Published var newFolderItemID: Int?
   @Published var newFolderName: String = ""
+  /// What a bookmark toggle says, the same HUD the detail page shows.
+  @Published var hudToast: HudToast?
 
   private let contentService: VideoContentService
   private let actionsService: UserActionsService
@@ -153,19 +155,16 @@ final class MediaCardMenuCoordinator: ObservableObject {
   }
 
   func toggleBookmark(itemID: Int, folder: Bookmark, serverHint: Set<Int> = []) {
-    _ = membership.toggle(itemID: itemID, folderID: folder.id, serverHint: serverHint)
-    objectWillChange.send()
-    Task {
-      do {
-        try await contentService.toggleBookmark(itemId: itemID, folderId: folder.id)
-        contentStore.invalidate(family: .bookmarks)
-      } catch {
-        // Flip back locally — still no network membership fetch.
-        _ = membership.toggle(itemID: itemID, folderID: folder.id)
-        objectWillChange.send()
-        errorHandler?.setError(error)
-      }
+    let outcome = BookmarkFolderToggle.toggle(
+      itemID: itemID, folderID: folder.id,
+      current: membership.folderIDs(for: itemID, serverHint: serverHint),
+      service: contentService, contentStore: contentStore, membership: membership
+    ) { [weak self] _, error in
+      self?.objectWillChange.send()
+      self?.errorHandler?.setError(error)
     }
+    hudToast = outcome.hud
+    objectWillChange.send()
   }
 
   /// Mark watched / new. `removeFromContinueWatching` for CW / episode rails only.

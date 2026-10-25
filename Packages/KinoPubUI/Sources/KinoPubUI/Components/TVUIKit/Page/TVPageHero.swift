@@ -379,8 +379,9 @@ final class TVPageHeroBackdropView: UIView {
 final class TVPageHeroCell: UICollectionViewCell {
   var onPlay: ((TVPageFeature) -> Void)?
   var onDetails: ((TVPageFeature) -> Void)?
-  /// The bookmark folders menu for a title, built when the button is pressed.
-  var bookmarkMenu: ((TVPageFeature) -> [UIMenuElement])?
+  /// The title's bookmark folders (the app's "Add to Bookmarks" entries), read when the
+  /// button is pressed.
+  var bookmarkEntries: ((TVPageFeature) -> [MediaCardContextEntry])?
 
   private weak var carousel: TVPageHeroCarousel?
   private var sideInset: CGFloat = TVHIGGrid.sideInset
@@ -584,6 +585,8 @@ final class TVPageHeroCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    // Play's glyph is drawn at the button's own title size, known once it has laid out.
+    if playButton.titleLabel?.font != paintedPlayFont { paintPlayImage() }
     if let backdrop, let page = superview as? UIScrollView {
       // The page's top is where the content inset starts: the picture runs under the
       // tab bar's region, a whole screen tall.
@@ -677,7 +680,12 @@ final class TVPageHeroCell: UICollectionViewCell {
     let synopsis = card.overview.flatMap { TVPageBannerCell.smartSynopsis(of: $0) }
     overview.setUnhyphenated(synopsis)
     overview.isHidden = synopsis?.isEmpty ?? true
-    bookmarkButton.isHidden = bookmarkMenu == nil
+    bookmarkButton.isHidden = bookmarkEntries == nil
+    applyPlay(feature.play)
+    let bookmarkGlyph = feature.isBookmarked ? "bookmark.fill" : "bookmark"
+    if bookmarkButton.configuration?.image != UIImage(systemName: bookmarkGlyph) {
+      bookmarkButton.configuration?.image = UIImage(systemName: bookmarkGlyph)
+    }
     accessibilityLabel = card.title
     entryGuide.preferredFocusEnvironments = [entryButton]
   }
@@ -740,8 +748,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     // Plain glass like its neighbours: only focus turns a button white. Prominent glass
     // kept Play white at rest, which read as focus sitting on two buttons.
     var play = UIButton.Configuration.glass()
-    play.image = UIImage(systemName: "play.fill")
-    play.imagePadding = 12
+    play.imagePadding = MediaActionMetrics.contentSpacing
     play.cornerStyle = .capsule
     playButton.configuration = play
     playButton.accessibilityIdentifier = "kinopub.hero.play"
@@ -759,7 +766,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     bookmarkButton.menu = UIMenu(children: [
       UIDeferredMenuElement.uncached { [weak self] completion in
         guard let self, let feature = self.carousel?.current else { return completion([]) }
-        completion(self.bookmarkMenu?(feature) ?? [])
+        completion(self.bookmarkMenuElements(for: feature))
       }
     ])
 
@@ -782,12 +789,103 @@ final class TVPageHeroCell: UICollectionViewCell {
     }, for: .primaryActionTriggered)
   }
 
+  /// The detail page's Bookmark menu, in UIKit: the folders under a "Bookmarks"
+  /// heading, checkmarked, the menu staying open while they are toggled
+  /// (`keepsMenuPresented`, SwiftUI's `menuActionDismissBehavior(.disabled)` there), the
+  /// empty line when there are none, then New Folder, whose alert waits for the menu to
+  /// close. A toggle runs at once — the app's toggle shows the same HUD as the page's.
+  private func bookmarkMenuElements(for feature: TVPageFeature) -> [UIMenuElement] {
+    guard let entries = bookmarkEntries?(feature) else { return [] }
+    var folders: [MediaCardContextAction] = []
+    var footer: [MediaCardContextAction] = []
+    for entry in entries {
+      if case .submenu(_, _, _, let children, let foot) = entry {
+        folders = children
+        footer = foot
+        break
+      }
+    }
+    var toggles: [UIMenuElement] = folders.map { folder in
+      UIAction(title: folder.title, attributes: .keepsMenuPresented,
+               state: folder.isOn ? .on : .off) { action in
+        action.state = action.state == .on ? .off : .on
+        folder.handler()
+      }
+    }
+    if toggles.isEmpty, let empty = appliedLabels?.noBookmarkFolders, !empty.isEmpty {
+      toggles = [UIAction(title: empty, attributes: .disabled) { _ in }]
+    }
+    var elements: [UIMenuElement] = [
+      UIMenu(title: appliedLabels?.bookmark ?? "", options: .displayInline, children: toggles)
+    ]
+    if !footer.isEmpty {
+      elements.append(UIMenu(title: "", options: .displayInline, children: footer.map { foot in
+        UIAction(title: foot.title, image: UIImage(systemName: foot.systemImage)) { _ in
+          TVContextMenuHandoff.afterMenuCloses(foot.handler)
+        }
+      }))
+    }
+    return elements
+  }
+
+  // MARK: Play
+
+  private var playGlyph = "play.fill"
+  private var playProgress: Double?
+  private var paintedPlayFont: UIFont?
+
+  /// Play says what the detail page's Play says (`MediaActionCatalog.play`): «Смотреть»,
+  /// «Ещё 12 мин» with its bar, «S2E3», Replay's glyph. Plain Play until the title's
+  /// details are in.
+  private func applyPlay(_ play: MediaActionAppearance?) {
+    let title = play?.title ?? appliedLabels?.play
+    if playButton.configuration?.title != title { playButton.configuration?.title = title }
+    playButton.accessibilityLabel = play?.accessibilityLabel ?? appliedLabels?.play
+    let glyph = play?.systemImage ?? "play.fill"
+    guard glyph != playGlyph || play?.progress != playProgress || paintedPlayFont == nil else { return }
+    playGlyph = glyph
+    playProgress = play?.progress
+    paintPlayImage()
+  }
+
+  private func paintPlayImage() {
+    let font = playButton.titleLabel?.font ?? UIFont.preferredFont(forTextStyle: .headline)
+    paintedPlayFont = playButton.titleLabel?.font
+    let symbol = UIImage(systemName: playGlyph, withConfiguration: UIImage.SymbolConfiguration(font: font))
+    playButton.configuration?.image = playProgress.map { Self.image(symbol, withBar: $0) } ?? symbol
+  }
+
+  /// The glyph and the detail page's resume bar (`MediaActionProgressTrack`: same size,
+  /// same gap) as one template image, so the button tints both with its own foreground
+  /// and they invert together on focus, as the SwiftUI bar does with `.primary` /
+  /// `.tertiary`. UIButton has no slot for a bar of its own.
+  private static func image(_ symbol: UIImage?, withBar progress: Double) -> UIImage? {
+    guard let symbol else { return nil }
+    let bar = CGSize(width: MediaActionMetrics.progressWidth, height: MediaActionMetrics.progressHeight)
+    let gap = MediaActionMetrics.contentSpacing
+    let size = CGSize(width: symbol.size.width + gap + bar.width,
+                      height: max(symbol.size.height, bar.height))
+    let image = UIGraphicsImageRenderer(size: size).image { _ in
+      symbol.withTintColor(.black, renderingMode: .alwaysOriginal)
+        .draw(at: CGPoint(x: 0, y: (size.height - symbol.size.height) / 2))
+      let track = CGRect(x: symbol.size.width + gap, y: (size.height - bar.height) / 2,
+                         width: bar.width, height: bar.height)
+      UIColor.black.withAlphaComponent(0.3).setFill()
+      UIBezierPath(roundedRect: track, cornerRadius: bar.height / 2).fill()
+      var played = track
+      played.size.width = max(6, bar.width * min(max(progress, 0), 1))
+      UIColor.black.setFill()
+      UIBezierPath(roundedRect: played, cornerRadius: bar.height / 2).fill()
+    }
+    return image.withRenderingMode(.alwaysTemplate)
+  }
+
   private var appliedLabels: TVPageHero.Labels?
 
   private func apply(_ labels: TVPageHero.Labels) {
     guard labels != appliedLabels else { return }
     appliedLabels = labels
-    playButton.configuration?.title = labels.play
+    applyPlay(carousel?.current?.play)
     detailsButton.configuration?.title = labels.details
     bookmarkButton.accessibilityLabel = labels.bookmark
     nextButton.accessibilityLabel = labels.next

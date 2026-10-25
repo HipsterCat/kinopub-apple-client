@@ -272,6 +272,12 @@ public struct TVPageFeature: Hashable {
   /// falls back to the card's own kino.pub wide still (`card.backdropImageURL`), never
   /// to the portrait poster.
   public let backdrop: URL?
+  /// Play as the detail page draws it for this title (`MediaActionCatalog.play`: the
+  /// label, the resume bar, Replay); nil until the title's details are in, when the
+  /// hero shows plain Play.
+  public let play: MediaActionAppearance?
+  /// The title is in at least one bookmark folder (the glyph fills, as on the detail page).
+  public let isBookmarked: Bool
 
   public var logoURL: URL? { logo.url }
 
@@ -283,16 +289,21 @@ public struct TVPageFeature: Hashable {
       .filter { !$0.absoluteString.isEmpty && seen.insert($0.absoluteString).inserted }
   }
 
-  public init(card: MediaCard, logo: TitleLogoResolution = .missing, backdrop: URL? = nil) {
+  public init(card: MediaCard, logo: TitleLogoResolution = .missing, backdrop: URL? = nil,
+              play: MediaActionAppearance? = nil, isBookmarked: Bool = false) {
     self.card = card
     self.logo = logo
     self.backdrop = backdrop
+    self.play = play
+    self.isBookmarked = isBookmarked
   }
 
   public init(card: MediaCard, logoURL: URL?) {
     self.card = card
     self.logo = logoURL.map { .url($0) } ?? .missing
     self.backdrop = nil
+    self.play = nil
+    self.isBookmarked = false
   }
 }
 
@@ -302,14 +313,19 @@ public struct TVPageHero: Hashable {
   public struct Labels: Hashable {
     public let play: String
     public let details: String
+    /// The Bookmark menu's heading, as on the detail page.
     public let bookmark: String
     public let next: String
+    /// The Bookmark menu's line when there are no folders yet.
+    public let noBookmarkFolders: String
 
-    public init(play: String, details: String, bookmark: String, next: String) {
+    public init(play: String, details: String, bookmark: String, next: String,
+                noBookmarkFolders: String = "") {
       self.play = play
       self.details = details
       self.bookmark = bookmark
       self.next = next
+      self.noBookmarkFolders = noBookmarkFolders
     }
   }
 

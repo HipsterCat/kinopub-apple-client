@@ -443,6 +443,12 @@ class HomeCatalog: ObservableObject {
   /// shelf's payload has no seasons, so its card cannot say "12 episodes"; the details
   /// one can, and its wide still is a real file.
   @Published public private(set) var bannerDetails: [Int: MediaCard] = [:]
+  /// What each banner title's Play button says — the detail page's own Play
+  /// (`MediaActionCatalog.play`) over the same details payload with this device's
+  /// positions laid on it, so «Ещё 12 мин» and its bar read the same in both places.
+  @Published public private(set) var bannerPlay: [Int: MediaActionAppearance] = [:]
+  /// The details payloads behind `bannerPlay`, and when each was asked for.
+  private var bannerItems: [Int: (item: MediaItem, requestedAt: Date)] = [:]
   /// Title logos for the banner cards, by card id: the worker's logo URL, whose 404 is
   /// the confirmed miss. ``.missing`` only when no worker is configured.
   @Published public private(set) var bannerLogos: [Int: TitleLogoResolution] = [:]
@@ -493,6 +499,7 @@ class HomeCatalog: ObservableObject {
       .receive(on: RunLoop.main)
       .sink { [weak self] _ in
         self?.assembleRows()
+        self?.repaintBannerPlay()
       }
       .store(in: &bag)
     NotificationCenter.default.publisher(for: .contentStoreDidInvalidateWatch)
@@ -918,6 +925,7 @@ class HomeCatalog: ObservableObject {
       let id = card.id
       applyBannerImages(images, to: card)
       bannerTasks[id] = Task { [weak self, itemsService] in
+        let requestedAt = Date()
         let item = try? await itemsService.fetchDetails(for: "\(card.itemID)", excludeLinks: true).item
         guard let self, let item, !Task.isCancelled,
               self.bannerCards.contains(where: { $0.id == id }) else { return }
@@ -926,6 +934,8 @@ class HomeCatalog: ObservableObject {
         // when the worker has no textless frame (a 404), and a shelf card's derived
         // `/wide/` often does not exist.
         self.bannerDetails[id] = detailed
+        self.bannerItems[id] = (item, requestedAt)
+        self.repaintBannerPlay(id: id)
         if !detailed.hasSpecifiedWideArtwork {
           self.bannerCards.removeAll { $0.id == id }
         }
@@ -935,6 +945,23 @@ class HomeCatalog: ObservableObject {
           self.applyBannerImages(images, to: detailed)
         }
       }
+    }
+  }
+
+  /// Play's state for the banner titles (or one), from their payloads with this device's
+  /// newer positions on top: the detail page's rule (`layPositions`), no request.
+  private func repaintBannerPlay(id: Int? = nil) {
+    for key in id.map({ [$0] }) ?? Array(bannerItems.keys) {
+      guard var entry = bannerItems[key] else { continue }
+      localProgressStore.layPositions(over: &entry.item, writtenAfter: entry.requestedAt)
+      let item = entry.item
+      let play = MediaActionCatalog.play(for: MediaActionContext(
+        playback: item.playbackButtonContent,
+        kind: item.presentation.kind,
+        isSeries: item.isSeries,
+        seasonCount: item.seasons?.count
+      ))
+      if bannerPlay[key] != play { bannerPlay[key] = play }
     }
   }
 
@@ -954,6 +981,7 @@ class HomeCatalog: ObservableObject {
     bannerTasks.removeAll()
     bannerLookups.removeAll()
     bannerLogos.removeAll()
+    bannerItems.removeAll()
   }
 
   // MARK: - Continue watching actions

@@ -187,6 +187,35 @@ final class LocalWatchProgressStore: @unchecked Sendable {
 
   /// Every resume point written for one title — each episode the player touched, not just
   /// the newest. The detail page lays these over its payload.
+  /// Lays the player's local positions over a details payload. Only what was written
+  /// after the payload was requested counts: anything older the server has already seen
+  /// through `marktime` and answered with, and the payload is the better source for it.
+  /// The detail page and the Home hero both read Play's state through this, so their
+  /// Play buttons say the same thing. Returns whether anything changed.
+  @discardableResult
+  func layPositions(over item: inout MediaItem, writtenAfter requestedAt: Date) -> Bool {
+    let records = records(forItem: item.id).filter { $0.updatedAt > requestedAt }
+    var changed = false
+    for record in records {
+      let time = Int(record.position)
+      if let season = record.season {
+        guard let episode = item.seasons?
+          .first(where: { $0.number == season })?.episodes
+          .first(where: { $0.number == record.episode }),
+          episode.watching.time != time else { continue }
+        episode.watching = EpisodeWatching(status: episode.watching.status, time: time)
+        changed = true
+      } else if var videos = item.videos, !videos.isEmpty {
+        let index = videos.firstIndex { $0.number == record.episode } ?? videos.startIndex
+        guard videos[index].watching.time != time else { continue }
+        videos[index].watching = EpisodeWatching(status: videos[index].watching.status, time: time)
+        item.videos = videos
+        changed = true
+      }
+    }
+    return changed
+  }
+
   func records(forItem itemID: Int) -> [WatchRecordValue] {
     lock.lock(); defer { lock.unlock() }
     return records.values.filter { $0.itemID == itemID }

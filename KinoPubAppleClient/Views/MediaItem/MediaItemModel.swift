@@ -567,29 +567,8 @@ class MediaItemModel: ObservableObject {
   /// every ~10s player tick. Costs no request.
   func repaintFromLocalProgress() {
     guard itemLoaded else { return }
-    let records = AppContext.shared.localProgressStore
-      .records(forItem: mediaItemId)
-      .filter { $0.updatedAt > payloadRequestedAt }
-    guard !records.isEmpty else { return }
-
-    var changed = false
-    for record in records {
-      let time = Int(record.position)
-      if let season = record.season {
-        guard let episode = mediaItem.seasons?
-          .first(where: { $0.number == season })?.episodes
-          .first(where: { $0.number == record.episode }),
-          episode.watching.time != time else { continue }
-        episode.watching = EpisodeWatching(status: episode.watching.status, time: time)
-        changed = true
-      } else if var videos = mediaItem.videos, !videos.isEmpty {
-        let index = videos.firstIndex { $0.number == record.episode } ?? videos.startIndex
-        guard videos[index].watching.time != time else { continue }
-        videos[index].watching = EpisodeWatching(status: videos[index].watching.status, time: time)
-        mediaItem.videos = videos
-        changed = true
-      }
-    }
+    let changed = AppContext.shared.localProgressStore
+      .layPositions(over: &mediaItem, writtenAfter: payloadRequestedAt)
     guard changed else { return }
     // Episodes are classes; reassigning the item is what republishes it (same as the
     // watched toggles below).
@@ -989,25 +968,15 @@ class MediaItemModel: ObservableObject {
   /// needs both folders it affects to refetch next time Library is shown, not sit
   /// stale for up to 10 minutes.
   func toggleFolder(_ folder: Bookmark) {
-    let previous = folderIDsContainingItem
-    if folderIDsContainingItem.contains(folder.id) {
-      folderIDsContainingItem.remove(folder.id)
-      presentHud(systemImage: "bookmark", title: "Removed")
-    } else {
-      folderIDsContainingItem.insert(folder.id)
-      presentHud(systemImage: "bookmark.fill", title: "Bookmarked")
+    let outcome = BookmarkFolderToggle.toggle(
+      itemID: mediaItemId, folderID: folder.id, current: folderIDsContainingItem,
+      service: itemsService, contentStore: contentStore
+    ) { [weak self] previous, error in
+      self?.folderIDsContainingItem = previous
+      self?.errorHandler.setError(error)
     }
-    BookmarkMembershipStore.shared.replace(itemID: mediaItemId, folderIDs: folderIDsContainingItem)
-    Task {
-      do {
-        try await itemsService.toggleBookmark(itemId: mediaItemId, folderId: folder.id)
-        contentStore.invalidate(family: .bookmarks)
-      } catch {
-        folderIDsContainingItem = previous
-        BookmarkMembershipStore.shared.replace(itemID: mediaItemId, folderIDs: previous)
-        errorHandler.setError(error)
-      }
-    }
+    folderIDsContainingItem = outcome.folderIDs
+    hudToast = outcome.hud
   }
 
   /// Series follow state — `/v1/watching/togglewatchlist`, seeded from the item's own

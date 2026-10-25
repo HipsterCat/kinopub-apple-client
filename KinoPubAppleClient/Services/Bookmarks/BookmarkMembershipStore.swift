@@ -10,6 +10,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubUI
 
 /// Persists which bookmark folders contain which titles. Thread-safe, UserDefaults-backed.
 /// `@unchecked Sendable` because every mutation of `map` goes through `lock`.
@@ -129,5 +130,43 @@ final class BookmarkMembershipStore: @unchecked Sendable {
     defaults.set(raw, forKey: defaultsKey)
     defaults.set(Dictionary(uniqueKeysWithValues: addedAt.map { ("\($0.key)", $0.value.timeIntervalSince1970) }),
                  forKey: addedKey)
+  }
+}
+
+// MARK: - Toggle
+
+/// The one way a title goes into or out of a bookmark folder, wherever the control is:
+/// the detail page's Bookmark menu, the Home hero's, a card's context menu. Membership
+/// flips here at once, the HUD says what happened, kino.pub is told, and a failure puts
+/// the old membership back. Two copies of this (detail and cards) had drifted: one
+/// showed the HUD, the other did not (Sasha, 2026-10-25).
+@MainActor
+enum BookmarkFolderToggle {
+  /// Flips `folderID` for `itemID`, starting from `current`. Returns the new membership
+  /// and the HUD to show; `onFailure` gets the membership put back and the error.
+  static func toggle(itemID: Int,
+                     folderID: Int,
+                     current: Set<Int>,
+                     service: VideoContentService,
+                     contentStore: ContentStore,
+                     membership: BookmarkMembershipStore = .shared,
+                     onFailure: @escaping @MainActor (Set<Int>, Error) -> Void) -> (folderIDs: Set<Int>, hud: HudToast) {
+    var next = current
+    let added = next.insert(folderID).inserted
+    if !added { next.remove(folderID) }
+    membership.replace(itemID: itemID, folderIDs: next)
+    Task {
+      do {
+        try await service.toggleBookmark(itemId: itemID, folderId: folderID)
+        contentStore.invalidate(family: .bookmarks)
+      } catch {
+        membership.replace(itemID: itemID, folderIDs: current)
+        onFailure(current, error)
+      }
+    }
+    let hud = added
+      ? HudToast(systemImage: "bookmark.fill", title: "Bookmarked".localized)
+      : HudToast(systemImage: "bookmark", title: "Removed".localized)
+    return (next, hud)
   }
 }

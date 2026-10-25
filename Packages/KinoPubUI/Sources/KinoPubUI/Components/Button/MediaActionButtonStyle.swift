@@ -33,7 +33,9 @@ public enum MediaActionMetrics {
   /// labelled Trailer button. Applied to the *label*: the button itself is system-drawn
   /// and hugs whatever it is given.
   public static let playPillMinWidth: CGFloat = 200
-  public static let labelFont = TypeScale.actionLabel
+  /// None: the system button's own type, the size the Home hero's UIKit buttons have.
+  /// `.subheadline` made the detail row read smaller than the hero's (Sasha, 2026-10-25).
+  public static let labelFont: Font? = nil
   public static let progressWidth: CGFloat = 96
   public static let progressHeight: CGFloat = 8
   public static let contentSpacing: CGFloat = 14
@@ -43,7 +45,7 @@ public enum MediaActionMetrics {
   public static let circleGlyphSlot: CGFloat = 28
 #else
   public static let playPillMinWidth: CGFloat = 60
-  public static let labelFont = TypeScale.actionLabel
+  public static let labelFont: Font? = TypeScale.actionLabel
   public static let progressWidth: CGFloat = 40
   public static let progressHeight: CGFloat = 3
   public static let contentSpacing: CGFloat = 6
