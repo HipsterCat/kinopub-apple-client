@@ -98,6 +98,16 @@ test("images returns the ru, en and textless files for one title", async () => {
   }
 });
 
+test("stats returns the image counters", async () => {
+  const env = memoryEnv();
+  env.documents["stats:img"] = { timeout: 2, missing: 5, waited: 1 };
+  const response = await handleAdmin(admin("/admin/stats"), env);
+  const body = await response.json();
+  assert.equal(body.timeout, 2);
+  assert.equal(body.missing, 5);
+  assert.equal(body.waited, 1);
+});
+
 test("forget clears the logo", async () => {
   const env = memoryEnv({
     "title:kinopub:7": {

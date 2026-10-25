@@ -206,20 +206,30 @@ async function handleImageQuery(request, url, env, ctx, route) {
   }
 
   const hints = readHints(url);
+  const started = Date.now();
   let stored = await readDocument(env, id);
   let asset = selectQueryAsset(stored, imageRequest, hints);
   const vary = imageRequest.kind === "poster" || imageRequest.kind === "logo";
 
   // A finished document with no file is a real miss. Anything still cold
   // waits, up to five seconds, and only then 404s.
+  let waitedMs = 0;
   if (!asset && (!stored || stored.pending === true)) {
     const waited = await resolveWithin(env, ctx, id, hints, stored);
-    if (waited.timedOut) return imageNotFound("timed out", vary, { timeout: true });
+    waitedMs = Date.now() - started;
+    if (waited.timedOut) {
+      noteImage(env, ctx, "timeout", imageRequest, waitedMs);
+      return imageNotFound("timed out", vary, { timeout: true });
+    }
     stored = waited.stored;
     asset = selectQueryAsset(stored, imageRequest, hints);
+    if (asset) noteImage(env, ctx, "waited", imageRequest, waitedMs);
   }
 
-  if (!asset) return imageNotFound(missHint(imageRequest), vary);
+  if (!asset) {
+    noteImage(env, ctx, "missing", imageRequest, Date.now() - started);
+    return imageNotFound(missHint(imageRequest), vary);
+  }
   const location = stampedURL(url, imageRequest, asset, stored?.art_rev);
   if (!location) return imageNotFound(missHint(imageRequest), vary);
   return redirect(location, vary, langTag(asset.lang));
@@ -586,6 +596,31 @@ function assetInLang(document, kind, lang, hints) {
   if (kind === "logo") return bestAsset(logoCandidates(document), "logo", lang, { strict: true });
   if (kind === "poster") return bestAsset(posterCandidates(document, hints, lang || "ru"), "poster", lang, { strict: true });
   return null;
+}
+
+const IMAGE_STATS_KEY = "stats:img";
+
+function noteImage(env, ctx, reason, imageRequest, ms) {
+  console.log(JSON.stringify({
+    img: reason,
+    kind: imageRequest.kind,
+    id: imageRequest.id,
+    ms,
+  }));
+  ctx.waitUntil(bumpImageStat(env, reason));
+}
+
+async function bumpImageStat(env, reason) {
+  if (!env?.DOCUMENTS) return;
+  const current = (await env.DOCUMENTS.get(IMAGE_STATS_KEY, { type: "json" })) || {};
+  current[reason] = (current[reason] || 0) + 1;
+  current.updated_at = new Date().toISOString();
+  await env.DOCUMENTS.put(IMAGE_STATS_KEY, JSON.stringify(current));
+}
+
+export async function imageStats(env) {
+  if (!env?.DOCUMENTS) return {};
+  return (await env.DOCUMENTS.get(IMAGE_STATS_KEY, { type: "json" })) || {};
 }
 
 function imageWaitMs(env) {

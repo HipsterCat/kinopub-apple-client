@@ -4,6 +4,7 @@
  *
  *   POST /admin/kinopub/{id}/forget?kind=logo|backdrop|poster
  *   POST /admin/kinopub/{id}/refresh?kind=logo|backdrop|poster&imdb=&kinopoisk=
+ *   POST /admin/stats
  *   POST /admin/kinopub/{id}/images?kind=logo|backdrop|poster&imdb=tt…
  *   POST /admin/kinopub/{id}/pick
  *        { "logo": "https://…", "logo_lang": "en", "backdrop": "https://…" }
@@ -14,7 +15,7 @@
  * refresh asks TMDB again and stores the result on the same KV document.
  */
 
-import { readDocument, resolveAndStore, writeDocument } from "./title.js";
+import { imageStats, readDocument, resolveAndStore, writeDocument } from "./title.js";
 
 const KINDS = new Set(["logo", "backdrop", "poster"]);
 
@@ -23,6 +24,7 @@ export async function handleAdmin(request, env) {
   if (!authorized(request, env)) return json({ error: "not_found" }, 404);
 
   const url = new URL(request.url);
+  if (url.pathname === "/admin/stats") return json({ ok: true, ...(await imageStats(env)) });
   const match = url.pathname.match(/^\/admin\/kinopub\/(\d+)\/(forget|refresh|pick|images)$/);
   if (!match) return json({ error: "not_found" }, 404);
   const id = match[1];
