@@ -42,7 +42,7 @@ public enum MediaActionMetrics {
   public static let rowSpacing: CGFloat = 16
   /// Fixed glyph box inside circle chrome so `bell` → `bell.and.waves…` (or a
   /// spinner) cannot widen the button and look like row spacing grew.
-  public static let circleGlyphSlot: CGFloat = 28
+  public static let circleGlyphSlot: CGFloat = 36
 #else
   public static let playPillMinWidth: CGFloat = 60
   public static let labelFont: Font? = TypeScale.actionLabel

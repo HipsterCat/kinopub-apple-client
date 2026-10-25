@@ -37,6 +37,12 @@ public struct MediaActionLabel: View {
       }
     }
     .font(MediaActionMetrics.labelFont)
+#if os(tvOS)
+    // UIKit draws a button's symbol at the large scale of its title font; SwiftUI's
+    // default (medium) left the detail page's glyphs ~25% smaller than the Home hero's
+    // at the same type size (measured 2026-10-25).
+    .imageScale(.large)
+#endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .animation(.easeOut(duration: 0.2), value: appearance.isLoading)
   }
