@@ -422,7 +422,7 @@ final class TVPageMenuButton: UIButton {
 /// under it and sent a long list (countries) back to the top.
 @MainActor
 final class TVPageChipCell: UICollectionViewCell {
-  private let button = TVPageMenuButton(configuration: .gray())
+  private let button = TVPageMenuButton(configuration: .bordered())
   var onSelect: (() -> Void)?
   var onOption: ((String) -> Void)?
   var onSelection: ((Set<String>) -> Void)?
@@ -436,14 +436,9 @@ final class TVPageChipCell: UICollectionViewCell {
   override init(frame: CGRect) {
     super.init(frame: frame)
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.configuration?.cornerStyle = .capsule
     button.addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .primaryActionTriggered)
     button.onMenuWillShow = { [weak self] in self?.menuWillShow() }
     button.onMenuDidEnd = { [weak self] in self?.menuDidEnd() }
-    button.configurationUpdateHandler = { [weak self] button in
-      guard self?.chip?.isActive == true else { return }
-      Self.updateActiveLook(of: button)
-    }
     contentView.addSubview(button)
     NSLayoutConstraint.activate([
       button.topAnchor.constraint(equalTo: contentView.topAnchor),
@@ -451,6 +446,10 @@ final class TVPageChipCell: UICollectionViewCell {
       button.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
       button.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
     ])
+    registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (cell: TVPageChipCell, _) in
+      guard let chip = cell.chip else { return }
+      cell.button.configuration = Self.configuration(for: chip)
+    }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -464,9 +463,6 @@ final class TVPageChipCell: UICollectionViewCell {
     }
     self.chip = chip
     button.configuration = Self.configuration(for: chip)
-    // Now, not on the next state change: a chip that stays active through a repaint
-    // (another filter changed) must not fall back to gray until it is focused.
-    if chip.isActive { Self.updateActiveLook(of: button) }
     button.isEnabled = chip.isEnabled
     button.accessibilityLabel = chip.showsTitle ? nil : chip.title
     if let menu = chip.menu {
@@ -526,42 +522,16 @@ final class TVPageChipCell: UICollectionViewCell {
 
   override var canBecomeFocused: Bool { false }
 
-  /// An active filter at rest: a secondary-label fill with the title in the
-  /// background's colour — a step up from the gray pills, a step down from focus
-  /// (white, lifted, shadowed). Focused, the look is the system's own: the values it
-  /// sets there are `nil`. Only active chips pass through here — the gray style's
-  /// resting fill is not a plain colour, and writing any colour over it flattens it.
-  static func updateActiveLook(of button: UIButton) {
-    guard var configuration = button.configuration else { return }
-    let resting = !button.isFocused
-    configuration.background.backgroundColor = resting ? .secondaryLabel : nil
-    configuration.baseForegroundColor = resting ? activeTitle : nil
-    button.configuration = configuration
-  }
-
-  private static let activeTitle = UIColor { $0.userInterfaceStyle == .dark ? .black : .white }
-
-  /// Gray system pills, the title in `.body`, the size the filter row is drawn at.
-  /// Focus is the button's own; an active chip's resting look is `updateActiveLook`.
-  /// An icon-only chip's symbol, a touch under the `.body` symbols beside it (the ×
-  /// read as too heavy at full size), drawn centred on a square canvas so the
-  /// button's content — and so the button — is exactly as wide as it is tall.
-  private static let iconSide: CGFloat = 32
-  private static let iconSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 26, weight: .medium)
-
-  private static func squareIcon(_ name: String) -> UIImage? {
-    guard let symbol = UIImage(systemName: name,
-                               withConfiguration: iconSymbolConfiguration)
-    else { return nil }
-    let side = CGSize(width: iconSide, height: iconSide)
-    return UIGraphicsImageRenderer(size: side).image { _ in
-      symbol.draw(at: CGPoint(x: (side.width - symbol.size.width) / 2, y: (side.height - symbol.size.height) / 2))
-    }.withRenderingMode(.alwaysTemplate)
-  }
-
+  /// System tvOS buttons. `.gray()` is white on white in light mode on a real Apple TV.
+  /// An active filter is the filled one (`.borderedProminent`); the rest are
+  /// `.bordered`. Focus, fill and padding stay the system's — including in light mode.
+  /// The title is `.body`, so the button's own height follows Dynamic Type. No fixed
+  /// insets and no fixed symbol point size: both would pin the row.
   static func configuration(for chip: TVPageChip) -> UIButton.Configuration {
-    var configuration = UIButton.Configuration.gray()
-    configuration.title = chip.showsTitle ? chip.title : nil
+    var configuration = chip.isActive
+      ? UIButton.Configuration.borderedProminent()
+      : UIButton.Configuration.bordered()
+    configuration.cornerStyle = .capsule
     // One line: the row measures each pill at its full title (`fittingWidth`).
     configuration.titleLineBreakMode = .byTruncatingTail
     configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
@@ -569,30 +539,21 @@ final class TVPageChipCell: UICollectionViewCell {
       outgoing.font = UIFont.preferredFont(forTextStyle: .body)
       return outgoing
     }
-    configuration.imagePadding = 12
-    configuration.cornerStyle = .capsule
-    configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 26, bottom: 12, trailing: 26)
-    if !chip.showsTitle {
-      // A circle: the button draws at its own content size, so the content is made
-      // exactly the row's height square — a small symbol, inset to fill the rest.
-      let inset = (TVPageLayout.chipHeight - iconSide) / 2
-      configuration.contentInsets = NSDirectionalEdgeInsets(top: inset, leading: inset, bottom: inset, trailing: inset)
-      configuration.image = chip.systemImage.flatMap(squareIcon)
-      return configuration
-    }
-    if let systemImage = chip.systemImage {
-      // The same symbol size as the round icon chips: a label beside it does not
-      // make the symbol grow.
-      configuration.image = UIImage(systemName: systemImage)
-      configuration.imagePlacement = .leading
-      configuration.preferredSymbolConfigurationForImage = iconSymbolConfiguration
-    } else if chip.menu != nil {
-      // A pull-down with no icon of its own says so with the system chevron.
-      configuration.image = UIImage(systemName: "chevron.down")
-      configuration.imagePlacement = .trailing
-      configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .caption1, scale: .small)
+    let symbol = UIImage.SymbolConfiguration(textStyle: .body)
+    if chip.showsTitle {
+      configuration.title = chip.title
+      if let systemImage = chip.systemImage {
+        configuration.image = UIImage(systemName: systemImage)
+        configuration.imagePlacement = .leading
+        configuration.preferredSymbolConfigurationForImage = symbol
+      } else if chip.menu != nil {
+        configuration.image = UIImage(systemName: "chevron.down")
+        configuration.imagePlacement = .trailing
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .caption1, scale: .small)
+      }
     } else {
-      configuration.image = nil
+      configuration.image = chip.systemImage.flatMap { UIImage(systemName: $0) }
+      configuration.preferredSymbolConfigurationForImage = symbol
     }
     return configuration
   }
@@ -629,27 +590,44 @@ final class TVPageChipCell: UICollectionViewCell {
     let isActive: Bool
     let hasMenu: Bool
     let showsTitle: Bool
+    let category: UIContentSizeCategory
   }
 
   private static var widthCache: [WidthKey: CGFloat] = [:]
-  private static let prototype = UIButton(configuration: .gray())
+  private static var heightByCategory: [UIContentSizeCategory: CGFloat] = [:]
+  private static let prototype = UIButton(configuration: .bordered())
+
+  /// The row's height: a system button with a `.body` title at the current content
+  /// size. Prominent and bordered can differ by a point; the row takes the taller.
+  static var rowHeight: CGFloat {
+    let category = TVPageCellMetrics.contentSizeCategory
+    if let cached = heightByCategory[category] { return cached }
+    let plain = measuredSize(for: TVPageChip(id: "row", title: "Ag")).height
+    let active = measuredSize(for: TVPageChip(id: "row", title: "Ag", isActive: true)).height
+    let height = ceil(max(plain, active))
+    heightByCategory[category] = height
+    return height
+  }
 
   /// The pill's own width, measured on a prototype system button with the same
   /// configuration — what a filter row needs to push its trailing pills to the edge
-  /// exactly (a flexible edge over estimated widths lands short).
+  /// exactly (a flexible edge over estimated widths lands short). An icon-only pill
+  /// is a circle: as wide as the row is tall.
   static func fittingWidth(for chip: TVPageChip) -> CGFloat {
+    if !chip.showsTitle { return rowHeight }
+    let category = TVPageCellMetrics.contentSizeCategory
     let key = WidthKey(title: chip.title, systemImage: chip.systemImage, isActive: chip.isActive,
-                       hasMenu: chip.menu != nil, showsTitle: chip.showsTitle)
+                       hasMenu: chip.menu != nil, showsTitle: chip.showsTitle, category: category)
     if let cached = widthCache[key] { return cached }
-    prototype.configuration = configuration(for: chip)
-    let size = prototype.systemLayoutSizeFitting(
-      CGSize(width: UIView.layoutFittingCompressedSize.width, height: TVPageLayout.chipHeight),
-      withHorizontalFittingPriority: .fittingSizeLevel,
-      verticalFittingPriority: .required
-    )
-    let width = ceil(size.width)
+    let width = ceil(measuredSize(for: chip).width)
     widthCache[key] = width
     return width
+  }
+
+  private static func measuredSize(for chip: TVPageChip) -> CGSize {
+    prototype.traitOverrides.preferredContentSizeCategory = TVPageCellMetrics.contentSizeCategory
+    prototype.configuration = configuration(for: chip)
+    return prototype.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
   }
 
   override func prepareForReuse() {
@@ -998,6 +976,8 @@ final class TVPageHeaderView: UICollectionReusableView {
   private let countLabel = UILabel()
   private let actionsStack = UIStackView()
   private var actionCells: [TVPageChipCell] = []
+  private var actionWidth: [NSLayoutConstraint] = []
+  private var actionHeight: [NSLayoutConstraint] = []
   private var chips: [TVPageChip] = []
   var onChipOption: ((String, String) -> Void)?
   var onChipSelection: ((String, Set<String>) -> Void)?
@@ -1039,6 +1019,12 @@ final class TVPageHeaderView: UICollectionReusableView {
       stack.topAnchor.constraint(equalTo: topAnchor),
       stack.bottomAnchor.constraint(equalTo: bottomAnchor)
     ])
+    registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: TVPageHeaderView, _) in
+      for (cell, chip) in zip(view.actionCells, view.chips) {
+        cell.configure(chip: chip)
+      }
+      view.applyActionSizes()
+    }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -1075,11 +1061,14 @@ final class TVPageHeaderView: UICollectionReusableView {
     if chips.map(\.id) == actions.map(\.id), actionCells.count == actions.count {
       chips = actions
       zip(actionCells, actions).forEach { $0.configure(chip: $1) }
+      applyActionSizes()
       return
     }
     chips = actions
     actionCells.forEach { $0.removeFromSuperview() }
     actionCells.removeAll()
+    actionWidth.removeAll()
+    actionHeight.removeAll()
     actionsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
     for chip in actions {
       let cell = TVPageChipCell(frame: .zero)
@@ -1090,12 +1079,23 @@ final class TVPageHeaderView: UICollectionReusableView {
       cell.onSelect = { [weak self] in self?.onChipOption?(chip.id, chip.id) }
       cell.setContentCompressionResistancePriority(.required, for: .horizontal)
       let size = Self.actionSize(for: chip)
-      NSLayoutConstraint.activate([
-        cell.heightAnchor.constraint(equalToConstant: size.height),
-        cell.widthAnchor.constraint(equalToConstant: size.width)
-      ])
+      let width = cell.widthAnchor.constraint(equalToConstant: size.width)
+      let height = cell.heightAnchor.constraint(equalToConstant: size.height)
+      NSLayoutConstraint.activate([width, height])
       actionsStack.addArrangedSubview(cell)
       actionCells.append(cell)
+      actionWidth.append(width)
+      actionHeight.append(height)
+    }
+  }
+
+  /// Header pills keep the measured system-button size. A content-size change does not
+  /// rebuild the cells (that would drop focus), so the constants move with the font.
+  private func applyActionSizes() {
+    for (index, chip) in chips.enumerated() where actionWidth.indices.contains(index) {
+      let size = Self.actionSize(for: chip)
+      actionWidth[index].constant = size.width
+      actionHeight[index].constant = size.height
     }
   }
 }

@@ -41,8 +41,10 @@ public enum TVPageLayout {
   /// gutter, as in the search mock.
   public static let cardRowSpacing: CGFloat = TVHIGGrid.gutter
 
-  /// Chips are the system button height on tvOS; width is whatever the title needs.
-  public static let chipHeight: CGFloat = 66
+  /// A chip row's height: the system bordered button at the current Dynamic Type size
+  /// (`TVPageChipCell.rowHeight`). Width is whatever the title needs.
+  @MainActor
+  public static var chipHeight: CGFloat { TVPageChipCell.rowHeight }
   public static let chipSpacing: CGFloat = 24
 
   /// A wide text card: the title's poster fills the platter's leading edge top to
