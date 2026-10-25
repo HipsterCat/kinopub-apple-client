@@ -33,19 +33,23 @@ public enum MediaActionMetrics {
   /// labelled Trailer button. Applied to the *label*: the button itself is system-drawn
   /// and hugs whatever it is given.
   public static let playPillMinWidth: CGFloat = 200
-  /// None: the system button's own type, the size the Home hero's UIKit buttons have.
-  /// `.subheadline` made the detail row read smaller than the hero's (Sasha, 2026-10-25).
-  public static let labelFont: Font? = nil
+  /// The Home hero's UIKit glass buttons, the size Sasha prefers (2026-10-25): 29 pt
+  /// medium type. The system `.small` glass with that type measures 58 pt for a pill
+  /// and 59 pt for a circle (slot 39) against the hero's 59; the regular size was 68.
+  /// `.small` alone drops the type a size, hence the body style at medium weight.
+  public static let labelFont: Font? = .body.weight(.medium)
+  public static let controlSize: ControlSize = .small
   public static let progressWidth: CGFloat = 96
   public static let progressHeight: CGFloat = 8
   public static let contentSpacing: CGFloat = 14
   public static let rowSpacing: CGFloat = 16
   /// Fixed glyph box inside circle chrome so `bell` → `bell.and.waves…` (or a
   /// spinner) cannot widen the button and look like row spacing grew.
-  public static let circleGlyphSlot: CGFloat = 29
+  public static let circleGlyphSlot: CGFloat = 39
 #else
   public static let playPillMinWidth: CGFloat = 60
   public static let labelFont: Font? = TypeScale.actionLabel
+  public static let controlSize: ControlSize = .large
   public static let progressWidth: CGFloat = 40
   public static let progressHeight: CGFloat = 3
   public static let contentSpacing: CGFloat = 6
@@ -90,9 +94,7 @@ public extension View {
   func mediaActionPlayPillStyle() -> some View {
     buttonStyle(.glassProminent)
       .buttonBorderShape(.capsule)
-#if !os(tvOS)
-      .controlSize(.large)
-#endif
+      .controlSize(MediaActionMetrics.controlSize)
   }
 
   /// Labelled secondary capsule (Trailer, Mark Watched, Replay). System `.glass` so
@@ -100,9 +102,7 @@ public extension View {
   func mediaActionPillStyle() -> some View {
     buttonStyle(.glass)
       .buttonBorderShape(.capsule)
-#if !os(tvOS)
-      .controlSize(.large)
-#endif
+      .controlSize(MediaActionMetrics.controlSize)
   }
 
   /// Icon-only circle. Same glass family as the labelled pills — focus owns the
@@ -110,9 +110,7 @@ public extension View {
   func mediaActionCircleStyle() -> some View {
     buttonStyle(.glass)
       .buttonBorderShape(.circle)
-#if !os(tvOS)
-      .controlSize(.large)
-#endif
+      .controlSize(MediaActionMetrics.controlSize)
   }
 }
 
