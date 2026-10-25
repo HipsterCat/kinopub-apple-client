@@ -87,6 +87,71 @@ final class TVSearchLayoutUITests: XCTestCase {
     XCTAssertLessThan(personFrame.height, app.frame.height * 0.2, "person card \(personFrame)")
   }
 
+  /// The grid keyboard: the tab bar stays where it is, above the field, while focus walks the
+  /// letters and the abc / 123 row — before the results have scrolled and after coming back
+  /// from them. On tvOS 26.5 the search chrome scrolled the results back short of their top on
+  /// the way in, by the 157 pt window extension: the bar stayed hidden above the screen, the
+  /// field sat under the top edge, and Up focused the bar off screen (2026-10-25).
+  func testGridKeyboardKeepsTheTabBarAboveTheField() throws {
+    try walkTheGridKeyboard(afterScrolledResults: false)
+  }
+
+  /// The same, coming back to the keyboard from results scrolled far enough that the bar and the
+  /// field went with them.
+  func testGridKeyboardKeepsTheTabBarAboveTheFieldAfterTheResults() throws {
+    try walkTheGridKeyboard(afterScrolledResults: true)
+  }
+
+  /// The grid keyboard: the tab bar stays where it is, above the field, while focus walks the
+  /// letters and the abc / 123 row. On tvOS 26.5 the search chrome scrolled the results to
+  /// their top less the 157 pt window extension whenever focus came to the field's half: the
+  /// bar stayed hidden above the screen, the field sat under the top edge, and Up focused the
+  /// bar off screen (2026-10-25).
+  private func walkTheGridKeyboard(afterScrolledResults: Bool) throws {
+    let app = launch(gridKeyboard: true)
+    let focusedTab = app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).firstMatch
+    XCTAssertTrue(focusedTab.exists, "launch did not start on the Search tab")
+    let tab = app.tabBars.buttons[focusedTab.label]
+    let field = app.searchFields.firstMatch
+    let (tabFrame, fieldFrame) = (tab.frame, field.frame)
+    XCTAssertGreaterThanOrEqual(tabFrame.minY, 0, "tab \(tabFrame)")
+    XCTAssertGreaterThanOrEqual(fieldFrame.minY, tabFrame.maxY, "field \(fieldFrame) under the tab \(tabFrame)")
+    let prefix = afterScrolledResults ? "grid-chrome-after-results" : "grid-chrome"
+
+    func assertChromeStill(_ step: String, file: StaticString = #filePath, line: UInt = #line) throws {
+      try shoot(app, name: "\(prefix)-\(step)")
+      XCTAssertFalse(tabBarFocused(in: app), "\(step): focus left the page", file: file, line: line)
+      XCTAssertEqual(tab.frame.minY, tabFrame.minY, accuracy: 2, "\(step): tab bar moved \(tab.frame)", file: file, line: line)
+      XCTAssertEqual(field.frame.minY, fieldFrame.minY, accuracy: 2, "\(step): field moved \(field.frame)", file: file, line: line)
+      XCTAssertGreaterThanOrEqual(field.frame.minY, tab.frame.maxY, "\(step): field under the bar", file: file, line: line)
+    }
+
+    if afterScrolledResults {
+      // Tab → suggestion → filter row → posters → two rows on, then Left back to the keyboard.
+      press(.down, 5, wait: 1)
+      try shoot(app, name: "\(prefix)-results")
+      XCTAssertLessThan(tab.frame.maxY, 0, "the results scrolled without taking the bar along: \(tab.frame)")
+      press(.left, 2, wait: 1)
+      Thread.sleep(forTimeInterval: 0.5)
+      try assertChromeStill("back")
+      for (name, button) in [("down-letter", XCUIRemote.Button.down), ("up-letter", .up), ("up-mode-row", .up), ("right-mode-row", .right),
+                             ("down-letter-2", .down), ("right-letter", .right)] {
+        press(button, wait: 1)
+        try assertChromeStill(name)
+      }
+    } else {
+      // Tab → suggestion → the first one → the abc / 123 row, then the letters and back up.
+      let keys: [(String, XCUIRemote.Button)] = [("down", .down), ("left", .left), ("left-mode-row", .left),
+                                                ("down-letter", .down), ("left-letter", .left),
+                                                ("down-letter-2", .down), ("up-letter", .up),
+                                                ("up-mode-row", .up), ("left-mode-row-2", .left)]
+      for (name, button) in keys {
+        press(button, wait: 1)
+        try assertChromeStill(name)
+      }
+    }
+  }
+
   // MARK: - Helpers
 
   private func tabBarFocused(in app: XCUIApplication) -> Bool {

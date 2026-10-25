@@ -31,6 +31,11 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   follows the whole time: clearing it while the keyboard was up left the keyboard
   on screen after focus moved into the results, and left the suggestions parked in
   the posters, jumping sideways on each swipe.
+  On tvOS 26.x, focus coming back to the field's half scrolls that collection to
+  `-safeAreaInsets.top`, without the 157 pt window extension's content inset; the tab
+  bar and the field follow the offset, so the bar stayed hidden above the screen.
+  `TVPageCollectionView` lands that one target on the adjusted top (27.2 already asks
+  for it). Re-probe on the next SDK.
   Checked by `TVSearchLayoutUITests` (`-KINOPUBSearchFixture -ForceGridKeyboard YES`).
 
 - **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`
