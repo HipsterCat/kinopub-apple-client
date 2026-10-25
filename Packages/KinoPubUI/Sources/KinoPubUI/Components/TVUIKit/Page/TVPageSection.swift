@@ -784,7 +784,10 @@ public struct TVPageSection: Identifiable, Hashable {
     case .info(let info): return info.registration
     case .groupTitle: return .groupTitle
     case .chip: return .chip
-    case .person: return .person
+    // Among search's top cards a person is the same wide card as Cast & Crew's: the round
+    // lockup is sized to the column, and a third of the screen drew a face ~500 pt across
+    // over the row below (Sasha, 2026-10-25). Only a row of people is a row of lockups.
+    case .person: return sectionKind == .person ? .person : .card
     case .masthead: return .masthead
     case .feature: return .banner
     case .hero: return .hero

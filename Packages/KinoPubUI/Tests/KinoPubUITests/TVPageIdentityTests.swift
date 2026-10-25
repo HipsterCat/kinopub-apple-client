@@ -42,6 +42,19 @@ final class TVPageIdentityTests: XCTestCase {
     XCTAssertEqual(section.itemID(at: 0).registration, .card)
   }
 
+  /// Search's top cards put people between titles. They are the same wide card as Cast &
+  /// Crew (`testAPersonInAStripIsAWideCard`), never the round lockup at a third of the screen.
+  func testAPersonAmongSearchCardsIsAWideCard() {
+    let person = TVUIKitPerson(id: "actor:Уиллем Дефо", name: "Уиллем Дефо",
+                               nameComponents: TVUIKitPerson.nameComponents(from: "Уиллем Дефо"),
+                               caption: "Actor", photoURL: nil)
+    let section = TVPageSection.cards(id: "top", title: nil, columns: 3, rows: 2,
+                                      items: [.card(card(1)), .person(person)])
+    XCTAssertEqual(section.itemID(at: 1).registration, .card)
+    let people = TVPageSection.people(id: "people", title: nil, people: [person])
+    XCTAssertEqual(people.itemID(at: 0).registration, .person)
+  }
+
   func testUniquedItemsKeepsTheFirstOfADuplicatePerson() {
     let person = TVUIKitPerson(id: "actor:Валид Зуэйтер",
                                name: "Валид Зуэйтер",
