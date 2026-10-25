@@ -13,6 +13,15 @@ final class PostersAndDurationTests: XCTestCase {
   func testWidePrefersTheExplicitField() {
     let posters = Posters(small: "s", medium: "m", big: "b", wide: "https://x/wide/1.jpg")
     XCTAssertEqual(posters.wideURL, "https://x/wide/1.jpg")
+    XCTAssertTrue(posters.hasSpecifiedWide)
+  }
+
+  func testHasSpecifiedWideIsFalseWhenOnlyDerived() {
+    let posters = Posters(small: "s", medium: "m",
+                          big: "https://m.staticpop.net/poster/item/big/1.jpg",
+                          wide: nil)
+    XCTAssertNotNil(posters.wideURL)
+    XCTAssertFalse(posters.hasSpecifiedWide)
   }
 
   /// The API serves the same id under `/wide/`, so a missing field is derived.

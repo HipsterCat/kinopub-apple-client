@@ -840,7 +840,8 @@ class HomeCatalog: ObservableObject {
   }
 
   /// v1 hack: up to six unique titles drawn at random from the catalog shelves
-  /// (not Continue Watching). Prefer cards that already carry wide artwork.
+  /// (not Continue Watching). Only titles whose payload sent a `wide` still — derived
+  /// `/wide/` paths often 404 and leave the hero empty.
   /// Sampled once per launch; later refreshes only top it up.
   /// Skipped entirely when `FeatureFlags.homeBannerEnabled` is off — no sampling and
   /// therefore no wide-poster fetches from `HomeBannerCardView`.
@@ -850,6 +851,8 @@ class HomeCatalog: ObservableObject {
       return
     }
 
+    bannerCards = bannerCards.filter(\.hasSpecifiedWideArtwork)
+
     let continueWatchingTopIDs = Set(
       rows.first(where: { $0.id == Self.continueWatchingRowID })?
         .cards.prefix(4).map(\.itemID) ?? []
@@ -858,18 +861,21 @@ class HomeCatalog: ObservableObject {
     var seen = Set<Int>()
     var pool: [MediaCard] = []
     for row in rows where row.id != Self.continueWatchingRowID && row.id != Self.collectionsRowID {
-      for card in row.cards where !card.isWatched && seen.insert(card.id).inserted {
+      for card in row.cards
+      where !card.isWatched && card.hasSpecifiedWideArtwork && seen.insert(card.id).inserted {
         pool.append(card)
       }
     }
 
-    let preferred = pool.filter { $0.backdropURL != nil }
-    let baseSource = preferred.isEmpty ? pool : preferred
+    guard !pool.isEmpty else {
+      if !bannerCards.isEmpty { bannerCards = [] }
+      return
+    }
 
     // Soft-weight candidates: avoid duplicating the first 4 Continue Watching cards right
     // below the banner when there are enough candidates, and boost bookmarked/followed items.
-    let deDuped = baseSource.filter { !continueWatchingTopIDs.contains($0.itemID) }
-    let source = deDuped.count >= 4 ? deDuped : baseSource
+    let deDuped = pool.filter { !continueWatchingTopIDs.contains($0.itemID) }
+    let source = deDuped.count >= 4 ? deDuped : pool
 
     // Drawn once per launch: a refresh that reorders or reshuffles the shelves never
     // touches what is already on screen, it only tops a short banner up to six. The
@@ -920,6 +926,9 @@ class HomeCatalog: ObservableObject {
         // when the worker has no textless frame (a 404), and a shelf card's derived
         // `/wide/` often does not exist.
         self.bannerDetails[id] = detailed
+        if !detailed.hasSpecifiedWideArtwork {
+          self.bannerCards.removeAll { $0.id == id }
+        }
         // A cached shelf card can predate the IMDb id; the details one has it, and
         // the hero will ask with it, so the banner switches to that URL too.
         if card.imdbID == nil, detailed.imdbID != nil {
@@ -1364,6 +1373,7 @@ class HomeCatalog: ObservableObject {
                                     seasonCount: seasonCount)
     let newCount = item.new.flatMap { $0 > 0 ? $0 : nil }
 
+    let posters = history?.item.posters ?? local?.item.posters ?? item.posters
     return MediaCard(id: item.id,
                      posterURL: item.posters.medium,
                      title: item.localizedTitle,
@@ -1371,6 +1381,7 @@ class HomeCatalog: ObservableObject {
                      progress: episodeProgress,
                      badge: newCount.map { "+\($0)" },
                      backdropURL: landscapeImageURL(for: item, history: history, local: local),
+                     hasSpecifiedWideArtwork: posters.hasSpecifiedWide,
                      landscapeImageURL: landscapeImageURL(for: item, history: history, local: local),
                      overlayLabel: overlay,
                      itemID: item.id,

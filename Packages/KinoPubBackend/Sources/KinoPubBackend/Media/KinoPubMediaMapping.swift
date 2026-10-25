@@ -192,7 +192,8 @@ public extension MediaItem {
       ].compactMap { $0 }
       entity.artwork = ArtworkSet(poster: KinoPubMediaMapping.poster(posters),
                                   backdrop: ArtworkSet.url(posters.wideURL),
-                                  posterPreview: ArtworkSet.url(posters.medium))
+                                  posterPreview: ArtworkSet.url(posters.medium),
+                                  backdropFromSpecifiedWide: posters.hasSpecifiedWide)
       let badges = MediaCapabilityBadges.from(item: self)
       entity.formats = Set([
         badges.is4K ? MediaFormat.uhd : nil,

@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Главная, «Фильмы» и «Сериалы»: в баннере только тайтлы с широкой картинкой от kino.pub — без пустого фона.",
         "На Apple TV полка на главной, во вкладках «Фильмы» и «Сериалы» показывает 8 тайтлов; дальше ряд подгружается сам.",
         "На iPhone, iPad и Mac такая полка запрашивает 12 тайтлов.",
         "Вкладки: Поиск · Главная · Моё · Сериалы · Фильмы · Каталог · ТВ · Настройки; «Подборки» по умолчанию скрыты — включить в настройках.",
@@ -62,6 +63,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Home, Movies and Series: the hero banner only features titles with a real kino.pub wide still — no empty backdrop.",
         "On Apple TV, a Home, Movies or Series shelf shows 8 titles and loads more as you scroll it.",
         "On iPhone, iPad and Mac that shelf asks for 12 titles.",
         "Tabs default to Search · Home · Library · Series · Movies · Catalog · TV · Settings; Bundles is off until you turn it on in Settings.",

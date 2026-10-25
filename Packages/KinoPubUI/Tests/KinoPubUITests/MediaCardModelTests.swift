@@ -27,7 +27,8 @@ final class MediaCardModelTests: XCTestCase {
                              formats: [.uhd])
     entity.artwork = ArtworkSet(poster: URL(string: "https://kp/big.jpg"),
                                 backdrop: URL(string: "https://kp/wide.jpg"),
-                                posterPreview: URL(string: "https://kp/medium.jpg"))
+                                posterPreview: URL(string: "https://kp/medium.jpg"),
+                                backdropFromSpecifiedWide: true)
     return entity
   }
 
@@ -38,6 +39,7 @@ final class MediaCardModelTests: XCTestCase {
     XCTAssertEqual(card.subtitle, "The Shawshank Redemption")
     XCTAssertEqual(card.posterURL, "https://kp/medium.jpg", "the grid's size first")
     XCTAssertEqual(card.backdropURL, "https://kp/wide.jpg")
+    XCTAssertTrue(card.hasSpecifiedWideArtwork)
     XCTAssertEqual(card.overview, "Банкир готовит побег.")
     XCTAssertEqual(card.year, 1994)
     XCTAssertEqual(card.durationSeconds, 142 * 60)

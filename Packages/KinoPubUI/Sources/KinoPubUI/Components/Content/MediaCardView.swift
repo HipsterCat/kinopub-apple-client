@@ -60,6 +60,8 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// Wide artwork for the page behind the card, shown while it holds focus. Nil
   /// falls back to whatever the card itself draws.
   public let backdropURL: String?
+  /// kino.pub sent a `wide` field for this title — not a `/wide/` path derived from big/medium.
+  public let hasSpecifiedWideArtwork: Bool
 
   /// The plot, for the focus preview.
   public let overview: String?
@@ -260,6 +262,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               progress: Double? = nil,
               badge: String? = nil,
               backdropURL: String? = nil,
+              hasSpecifiedWideArtwork: Bool = false,
               overview: String? = nil,
               landscapeImageURL: String? = nil,
               overlayLabel: String? = nil,
@@ -303,6 +306,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.progress = progress
     self.badge = badge
     self.backdropURL = backdropURL
+    self.hasSpecifiedWideArtwork = hasSpecifiedWideArtwork
     self.overview = overview
     self.landscapeImageURL = landscapeImageURL
     self.overlayLabel = overlayLabel
@@ -350,6 +354,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               progress: progress,
               badge: badge,
               backdropURL: backdropURL,
+              hasSpecifiedWideArtwork: hasSpecifiedWideArtwork,
               overview: overview,
               landscapeImageURL: landscapeImageURL,
               overlayLabel: overlayLabel,
@@ -391,6 +396,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               progress: progress,
               badge: badge,
               backdropURL: backdropURL ?? self.backdropURL,
+              hasSpecifiedWideArtwork: hasSpecifiedWideArtwork,
               overview: overview,
               landscapeImageURL: landscapeImageURL,
               overlayLabel: overlayLabel,
@@ -438,6 +444,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     progress = try c.decodeIfPresent(Double.self, forKey: .progress)
     badge = try c.decodeIfPresent(String.self, forKey: .badge)
     backdropURL = try c.decodeIfPresent(String.self, forKey: .backdropURL)
+    hasSpecifiedWideArtwork = try c.decodeIfPresent(Bool.self, forKey: .hasSpecifiedWideArtwork) ?? false
     overview = try c.decodeIfPresent(String.self, forKey: .overview)
     landscapeImageURL = try c.decodeIfPresent(String.self, forKey: .landscapeImageURL)
     overlayLabel = try c.decodeIfPresent(String.self, forKey: .overlayLabel)
@@ -502,6 +509,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(progress, forKey: .progress)
     try c.encodeIfPresent(badge, forKey: .badge)
     try c.encodeIfPresent(backdropURL, forKey: .backdropURL)
+    try c.encode(hasSpecifiedWideArtwork, forKey: .hasSpecifiedWideArtwork)
     try c.encodeIfPresent(overview, forKey: .overview)
     try c.encodeIfPresent(landscapeImageURL, forKey: .landscapeImageURL)
     try c.encodeIfPresent(overlayLabel, forKey: .overlayLabel)
@@ -535,7 +543,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
 
   private enum CodingKeys: String, CodingKey {
     case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
-    case progress, badge, backdropURL, overview
+    case progress, badge, backdropURL, hasSpecifiedWideArtwork, overview
     case landscapeImageURL, overlayLabel, itemID, video, season, seasonCount, episodeCount, mediaID
     case isWatched, isSeries, isInHistory, viewerState, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, yearEnd, unwatchedEpisodes, durationSeconds

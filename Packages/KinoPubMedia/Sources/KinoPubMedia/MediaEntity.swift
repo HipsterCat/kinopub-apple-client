@@ -346,15 +346,18 @@ public struct ArtworkSet: Hashable, Sendable, Codable {
   public var still: URL?
   /// Landscape, without lettering.
   public var backdrop: URL?
+  /// When true, `backdrop` came from the payload's `wide` field, not a derived `/wide/` path.
+  public var backdropFromSpecifiedWide: Bool
   public var logo: URL?
   /// The poster at a grid's size — what a card paints before, or instead of, `poster`.
   public var posterPreview: URL?
 
   public init(poster: URL? = nil, still: URL? = nil, backdrop: URL? = nil, logo: URL? = nil,
-              posterPreview: URL? = nil) {
+              posterPreview: URL? = nil, backdropFromSpecifiedWide: Bool = false) {
     self.poster = poster
     self.still = still
     self.backdrop = backdrop
+    self.backdropFromSpecifiedWide = backdropFromSpecifiedWide
     self.logo = logo
     self.posterPreview = posterPreview
   }

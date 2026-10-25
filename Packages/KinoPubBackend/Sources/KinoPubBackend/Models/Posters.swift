@@ -22,6 +22,13 @@ public struct Posters: Codable, Hashable {
 }
 
 public extension Posters {
+  /// kino.pub sent a `wide` field — not a `/wide/` path guessed from big/medium.
+  /// Hero banners need this; derived URLs often 404 and leave an empty backdrop.
+  var hasSpecifiedWide: Bool {
+    guard let wide, !wide.isEmpty else { return false }
+    return true
+  }
+
   /// The wide (landscape) artwork. The API serves the same id under a `/wide/` path
   /// segment, so when the field is absent we derive it from another size — the trick
   /// microiptv uses to stretch cover art as a backdrop.
