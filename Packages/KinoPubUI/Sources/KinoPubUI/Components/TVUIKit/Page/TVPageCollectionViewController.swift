@@ -98,7 +98,7 @@ public final class TVPageCollectionViewController: UIViewController {
       screenContentWidth: { [weak self] in self?.spanningContentWidth() },
       sections: { [weak self] in self?.sections ?? [] }
     )
-    let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+    let view = TVPageCollectionView(frame: .zero, collectionViewLayout: layout)
     view.backgroundColor = .clear
     view.clipsToBounds = false
     view.showsVerticalScrollIndicator = false
@@ -1771,6 +1771,24 @@ final class TVPageStatusView: UIView {
     if !retryButton.isHidden { return [retryButton] }
     if loadingClaimsFocus { return [self] }
     return []
+  }
+}
+
+/// The page's collection. One correction to what the system asks of it: on tvOS 26.x,
+/// focus coming back to the search field or keyboard (`_UISearchControllerATVSearchBarAnimator
+/// didFocusSearchBarForController:`) scrolls the results to `-safeAreaInsets.top`, leaving
+/// out the content inset — and Search's collection carries 157 pt of it, the window
+/// extension (`extendToWindow`). The tab bar and the field follow this offset, so the bar
+/// stayed hidden above the screen with the field pinned under the top edge, and Up then
+/// focused a bar that was not there (measured, 26.5; 27.2 asks for the adjusted top).
+/// That target means "the top", so it lands at the real top.
+final class TVPageCollectionView: UICollectionView {
+  override func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
+    var target = contentOffset
+    if contentInset.top > 0.5, abs(target.y + safeAreaInsets.top) < 0.5 {
+      target.y = -adjustedContentInset.top
+    }
+    super.setContentOffset(target, animated: animated)
   }
 }
 
