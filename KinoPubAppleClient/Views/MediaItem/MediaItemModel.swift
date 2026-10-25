@@ -149,6 +149,19 @@ class MediaItemModel: ObservableObject {
     return TitleLogoRequestKind(routeLanguage: TitleImageRoute.appLanguage)
   }
 
+  /// Second line under lettered hero type — kino.pub's `RU / EN` split, else Kinopoisk
+  /// when the catalog title has no slash. Wordmarks use ``TitleLogoRequestKind`` only.
+  var heroTitlePartnerLine: String? {
+    if let aka = mediaItem.alsoKnownAsTitle { return aka }
+    for fragment in externalMetadata.fragments where fragment.source == .kinopoisk {
+      let original = fragment.entity.originalTitle?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      guard !original.isEmpty, original != mediaItem.localizedTitle else { continue }
+      return original
+    }
+    return nil
+  }
+
   private var heroImagesReady: Bool {
     hasPaintedItem && (mediaItem.imdb != nil || itemLoaded)
   }

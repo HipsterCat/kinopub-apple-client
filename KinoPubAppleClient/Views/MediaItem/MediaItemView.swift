@@ -385,6 +385,7 @@ struct MediaItemView: View {
                             onMarkAllEpisodesWatched: { itemModel.markAllEpisodesWatched() },
                             titleLogoURL: itemModel.heroLogoURL,
                             titleLogoRequestKind: itemModel.heroLogoRequestKind,
+                            titlePartnerLine: itemModel.heroTitlePartnerLine,
                             preferredBackdropURL: itemModel.heroBackdropURL,
                             ageRating: itemModel.externalMetadata.ageRating,
                             externalMetadataLoaded: itemModel.heroLogoResolved,

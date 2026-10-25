@@ -27,14 +27,24 @@ public enum TitleLogoRequestKind: Sendable, Equatable {
 
   /// Caption under a confirmed logo: English wordmark → localized name; Russian
   /// wordmark → original / international title when it differs.
+  ///
+  /// The route asks for Russian first, but the worker may still redirect to an English
+  /// file when that is all TMDB has. A catalog title without `RU / EN` then has no
+  /// separate ``original`` — spell the localized name under that wordmark.
   public func supplementaryUnderLogo(localized: String, original: String) -> String? {
     switch self {
     case .english:
       return localized.isEmpty ? nil : localized
     case .russianPreferred:
-      guard localized != original, !original.isEmpty else { return nil }
-      return original
+      if localized != original, !original.isEmpty { return original }
+      guard Self.catalogTitleUsesCyrillic(localized) else { return nil }
+      return localized.isEmpty ? nil : localized
     }
+  }
+
+  /// kino.pub's localized side of the title — not a guess about the PNG pixels.
+  private static func catalogTitleUsesCyrillic(_ title: String) -> Bool {
+    title.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
   }
 }
 

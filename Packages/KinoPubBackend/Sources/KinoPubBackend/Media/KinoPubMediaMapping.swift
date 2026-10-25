@@ -170,7 +170,7 @@ public extension MediaItem {
       entity.ids = mediaIDs
       entity.title = localizedTitle
       // "Русское / Original" — without the slash there is no separate original title.
-      entity.originalTitle = title.contains("/") ? originalTitle : nil
+      entity.originalTitle = KinoPubBilingualTitle.hasSeparateOriginal(title) ? originalTitle : nil
       entity.synopsis = Synopsis(full: plot)
       entity.genres = KinoPubMediaMapping.genres(genres, type: type)
       entity.labels = KinoPubMediaMapping.labels(genres)

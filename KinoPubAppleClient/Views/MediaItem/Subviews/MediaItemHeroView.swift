@@ -297,6 +297,8 @@ struct MediaItemHeroView: View {
   var titleLogoURL: URL? = nil
   /// Which logo language the image route asked for (worker `lang` or default ru-first).
   var titleLogoRequestKind: TitleLogoRequestKind = .russianPreferred
+  /// International / original title for the subtitle line (`heroTitlePartnerLine`).
+  var titlePartnerLine: String? = nil
   /// Clean textless TMDB backdrop when enrichment supplied one.
   var preferredBackdropURL: URL? = nil
   /// Certification from enrichment ("TV-14", "16+"). Rendered as one more capability
@@ -321,8 +323,8 @@ struct MediaItemHeroView: View {
   /// Actions currently showing a spinner (Mark Watched, Follow, …). Cleared when the
   /// underlying flag flips, or by the control itself once the tap returns.
   @State private var loadingActions: Set<MediaActionID> = []
-  /// True while the title slot is showing artwork instead of lettered type.
-  @State private var titleShowsLogo = false
+  /// What the shared title slot is drawing — subtitle waits until this is not `.empty`.
+  @State private var titleLogoMark: TitleLogoMark = .empty
 #if os(tvOS)
   /// Once Play (or Follow-primary) has held focus, the synopsis joins the focus
   /// chain. Until then it stays a plain paragraph so it cannot steal entry focus
@@ -839,7 +841,7 @@ struct MediaItemHeroView: View {
   private var titleBlock: some View {
     // Same session as the Home banner: empty while a logo is expected, cached
     // logo on the first frame, lettered title only after a confirmed miss.
-    VStack(alignment: .leading, spacing: Self.contentSpacing) {
+    VStack(alignment: .leading, spacing: 0) {
       TitleLogoSlot(
         resolution: TitleLogoResolution(
           url: titleLogoURL,
@@ -848,11 +850,12 @@ struct MediaItemHeroView: View {
         maxWidth: Self.logoMaxWidth,
         maxHeight: Self.logoMaxHeight,
         textMaxWidth: .infinity,
-        onMarkChange: { titleShowsLogo = ($0 == .logo) }
+        onMarkChange: { titleLogoMark = $0 }
       ) {
         titlePrimaryText
       }
       titleSupplementaryBlock
+        .padding(.top, titleSupplementaryTopInset)
     }
     .containerRelativeFrame(.horizontal, count: 5, span: 4, spacing: 0, alignment: .leading)
     .id(mediaItem.id)
@@ -882,15 +885,33 @@ struct MediaItemHeroView: View {
     }
   }
 
+  /// Gap above the subtitle: looser under a wordmark than under lettered type.
+  private var titleSupplementaryTopInset: CGFloat {
+    guard supplementaryUnderTitle != nil else { return 0 }
+    switch titleLogoMark {
+    case .logo: return Self.contentSpacing * 1.5
+    case .text: return Self.contentSpacing
+    case .empty: return 0
+    }
+  }
+
   private var supplementaryUnderTitle: String? {
-    if titleShowsLogo {
+    switch titleLogoMark {
+    case .empty:
+      return nil
+    case .logo:
       return titleLogoRequestKind.supplementaryUnderLogo(
         localized: mediaItem.localizedTitle,
         original: mediaItem.originalTitle
       )
+    case .text:
+      guard let partner = titlePartnerLine else {
+        guard mediaItem.originalTitle != mediaItem.localizedTitle else { return nil }
+        return mediaItem.originalTitle
+      }
+      guard partner != mediaItem.localizedTitle else { return nil }
+      return partner
     }
-    guard mediaItem.originalTitle != mediaItem.localizedTitle else { return nil }
-    return mediaItem.originalTitle
   }
 
   /// Heads the written column: the score, when and how long, then the capability

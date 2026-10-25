@@ -192,6 +192,8 @@ final class TitleImageRouteTests: XCTestCase {
     let ru = TitleLogoRequestKind(routeLanguage: nil)
     XCTAssertEqual(ru.supplementaryUnderLogo(localized: "Йеллоустоун", original: "Yellowstone"),
                    "Yellowstone")
+    XCTAssertEqual(ru.supplementaryUnderLogo(localized: "Фоллаут", original: "Фоллаут"),
+                   "Фоллаут")
     XCTAssertNil(ru.supplementaryUnderLogo(localized: "Solo", original: "Solo"))
 
     let en = TitleLogoRequestKind(routeLanguage: "en")

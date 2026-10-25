@@ -47,11 +47,11 @@ public struct WatchingItem: Codable, Hashable, Identifiable {
 public extension WatchingItem {
   /// kino.pub titles are "Локализованное / Original"; cards show them on two lines.
   var localizedTitle: String {
-    title.split(separator: "/").first?.trimmingCharacters(in: .whitespaces) ?? title
+    KinoPubBilingualTitle.parts(from: title).localized
   }
 
   var originalTitle: String {
-    title.split(separator: "/").last?.trimmingCharacters(in: .whitespaces) ?? title
+    KinoPubBilingualTitle.parts(from: title).original
   }
 
   /// How far through a serial the user is, or nil for movies.

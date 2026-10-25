@@ -415,11 +415,11 @@ extension MediaItem: Identifiable { }
 
 public extension MediaItem {
   var originalTitle: String {
-    title.split(separator: "/").last?.trimmingCharacters(in: .whitespaces) ?? title
+    KinoPubBilingualTitle.parts(from: title).original
   }
 
   var localizedTitle: String {
-    title.split(separator: "/").first?.trimmingCharacters(in: .whitespaces) ?? title
+    KinoPubBilingualTitle.parts(from: title).localized
   }
 }
 
