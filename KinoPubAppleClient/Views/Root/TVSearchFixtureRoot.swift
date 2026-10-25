@@ -26,7 +26,9 @@ struct TVSearchFixtureRoot: View {
     return TabView(selection: $tab) {
       Tab(value: 0) {
         TVSearchPage(
-          sections: TVPageTemplatesGallery.searchSections,
+          sections: DebugLaunch.searchFixtureTopCards
+            ? TVPageTemplatesGallery.searchSectionsWithTopCards
+            : TVPageTemplatesGallery.searchSections,
           text: text,
           placeholder: "Search".localized,
           suggestions: [TVSearchSuggestion("Нолан", kind: .recent),

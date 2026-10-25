@@ -68,6 +68,25 @@ final class TVSearchLayoutUITests: XCTestCase {
     assertBesideGridKeyboard(try resultsFrame(in: app), width: width)
   }
 
+  /// A person among the top cards is the wide card Cast & Crew draws — the same cell, the
+  /// title cards' column and height — with the portrait in the avatar. It was the round
+  /// lockup grown to a third of the screen, over the row below (2026-10-25).
+  func testAPersonAmongTheTopCardsIsTheCastCard() throws {
+    let app = launch(gridKeyboard: false, topCards: true)
+    let person = app.descendants(matching: .any)["kinopub.card.person.Райан Рейнольдс"].firstMatch
+    XCTAssertTrue(person.waitForExistence(timeout: 10), "no person among the top cards")
+    // A title card of the same rows: the fixture's titles are 3001…
+    let title = app.descendants(matching: .any)["kinopub.card.3001"].firstMatch
+    XCTAssertTrue(title.waitForExistence(timeout: 5), "no title among the top cards")
+    // Portraits come over the network; give them a moment before the picture.
+    Thread.sleep(forTimeInterval: 3)
+    try shoot(app, name: "top-cards-people")
+    let (personFrame, titleFrame) = (person.frame, title.frame)
+    XCTAssertEqual(personFrame.width, titleFrame.width, accuracy: 2, "person \(personFrame) title \(titleFrame)")
+    XCTAssertEqual(personFrame.height, titleFrame.height, accuracy: 2, "person \(personFrame) title \(titleFrame)")
+    XCTAssertLessThan(personFrame.height, app.frame.height * 0.2, "person card \(personFrame)")
+  }
+
   // MARK: - Helpers
 
   private func tabBarFocused(in app: XCUIApplication) -> Bool {
@@ -78,10 +97,11 @@ final class TVSearchLayoutUITests: XCTestCase {
     for _ in 0..<times { XCUIRemote.shared.press(button); Thread.sleep(forTimeInterval: wait) }
   }
 
-  private func launch(gridKeyboard: Bool) -> XCUIApplication {
+  private func launch(gridKeyboard: Bool, topCards: Bool = false) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments += ["-ui-testing", "-KINOPUBSearchFixture", "-KINOPUBForceColorScheme", "dark",
                             "-ForceGridKeyboard", gridKeyboard ? "YES" : "NO"]
+    if topCards { app.launchArguments.append("-KINOPUBSearchFixtureTopCards") }
     app.launch()
     XCTAssertTrue(app.collectionViews["kinopub.page.search"].cells.firstMatch.waitForExistence(timeout: 20),
                   "search results never appeared")

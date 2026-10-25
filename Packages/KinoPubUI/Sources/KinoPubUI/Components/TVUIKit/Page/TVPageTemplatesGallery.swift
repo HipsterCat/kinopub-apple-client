@@ -163,6 +163,22 @@ public struct TVPageTemplatesGallery: View {
     ]
   }
 
+  /// Search with a query, as `SearchView` builds it: the best matches as wide cards two
+  /// rows deep — two titles, then the people whose name matched — over the results.
+  public static var searchSectionsWithTopCards: [TVPageSection] {
+    let titles = catalogPosters(count: 10).map(TVPageItem.card)
+    let people = photographedPeople.prefix(2).map { person in
+      TVPageItem.person(TVUIKitPerson(id: person.id, name: person.name, nameComponents: person.nameComponents,
+                                      caption: "Actor", photoURL: person.photoURL))
+    }
+    return [
+      .chips(id: "filters", title: nil, chips: filters),
+      .cards(id: "top", title: nil, columns: 3, rows: 2,
+             items: Array(titles.prefix(2)) + people + Array(titles.dropFirst(2))),
+      .posters(id: "results", title: nil, flow: .grid, cards: catalogPosters(count: 60))
+    ]
+  }
+
   /// A page of a catalog: titles of every length, a year for most, none for every fifth, and
   /// "N episodes left" for every seventh.
   static func catalogPosters(count: Int) -> [MediaCard] {

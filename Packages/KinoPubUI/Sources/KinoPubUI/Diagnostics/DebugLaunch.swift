@@ -236,4 +236,14 @@ public enum DebugLaunch {
     false
 #endif
   }
+
+  /// `-KINOPUBSearchFixtureTopCards`: the search fixture also draws the top cards — titles
+  /// and people side by side — the way a typed query does.
+  public static var searchFixtureTopCards: Bool {
+#if DEBUG
+    ProcessInfo.processInfo.arguments.contains("-KINOPUBSearchFixtureTopCards")
+#else
+    false
+#endif
+  }
 }

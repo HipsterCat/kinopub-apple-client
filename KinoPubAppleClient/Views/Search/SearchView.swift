@@ -298,7 +298,9 @@ struct SearchView: View {
         name: person.name,
         nameComponents: TVUIKitPerson.nameComponents(from: person.name),
         caption: (person.role == .director ? "Director" : "Actor").localized,
-        photoURL: person.photoURL
+        // A name from the credits carries no photo; the person page and Cast & Crew fall back
+        // to kino.pub's portrait by name, and so does the card that opens it.
+        photoURL: person.photoURL ?? ActorImageProvider.photoURL(for: person.name)
       ))
     }
     let titles = results.prefix(Self.topCardsLimit - people.count).map(TVPageItem.card)
