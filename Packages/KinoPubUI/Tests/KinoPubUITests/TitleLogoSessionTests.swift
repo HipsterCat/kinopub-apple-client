@@ -36,7 +36,10 @@ final class TitleLogoSessionTests: XCTestCase {
     session.setResolution(.url(url))
     XCTAssertEqual(session.mark, .empty,
                    "URL arrived; the image is still in flight")
-    session.handleLoaded(MockTitleLogoImages.pixel, elapsed: 0.4)
+    session.handleLoaded(
+      TitleLogoImageLoad(image: MockTitleLogoImages.pixel, deliveredLanguage: nil),
+      elapsed: 0.4
+    )
     XCTAssertEqual(session.mark, .logo)
   }
 
@@ -55,18 +58,18 @@ final class TitleLogoSessionTests: XCTestCase {
     XCTAssertEqual(session.mark, .logo)
   }
 
-  func testImageTimeoutShowsTextAndRejectsALateLogo() {
+  func testImageTimeoutShowsTextThenWhenResolvedStillAdoptsLateLogo() {
     let session = TitleLogoSession(images: MockTitleLogoImages(hang: true))
     session.setResolution(.url(url))
     XCTAssertEqual(session.mark, .empty)
     session.handleTimeout()
     XCTAssertEqual(session.mark, .text)
     session.handleLoaded(
-      MockTitleLogoImages.pixel,
+      TitleLogoImageLoad(image: MockTitleLogoImages.pixel, deliveredLanguage: nil),
       elapsed: TitleLogoPresentationPolicy.missTimeout + 0.2
     )
-    XCTAssertEqual(session.mark, .text,
-                   "swapping text for a late logo is the flicker")
+    XCTAssertEqual(session.mark, .logo,
+                   "whenResolved: worker answer after the miss timer still paints")
   }
 
   func testFailedImageIsText() {
