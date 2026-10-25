@@ -81,7 +81,12 @@ public final class TVPageCollectionViewController: UIViewController {
 
   private lazy var collectionView: UICollectionView = {
     let layout = TVPageLayout.makeLayout(
-      sideInset: { [weak self] in self?.resolvedSideInset ?? TVHIGGrid.sideInset },
+      sideInset: { [weak self] in
+        guard let self else { return TVHIGGrid.sideInset }
+        // The live safe area of a row that sticks out past the screen grows with the
+        // overflow. Search wants the HIG 80, which `currentLeading()` already places.
+        return self.spansScreenWidth ? TVHIGGrid.sideInset : self.resolvedSideInset
+      },
       adjustedLeading: { [weak self] in self?.currentLeading() ?? 0 },
       stripScrolled: { [weak self] section, shifts in self?.stripTitlesMoved(section: section, shifts: shifts) },
       heroHeight: { [weak self] in self?.heroHeight ?? 0 },
@@ -197,7 +202,10 @@ public final class TVPageCollectionViewController: UIViewController {
     guard moved else { return }
     // Not from inside this callback: a search keyboard hide changes the results'
     // safe area and width together, and a synchronous invalidateLayout here
-    // rebuilt the grid until the main thread hung.
+    // rebuilt the grid until the main thread hung. A screen-spanning page's column
+    // width does not follow that safe area — invalidating here faded the column
+    // the keyboard was sliding past.
+    guard !spansScreenWidth else { return }
     scheduleLayoutWork { [weak self] in
       self?.collectionView.collectionViewLayout.invalidateLayout()
     }
@@ -215,10 +223,10 @@ public final class TVPageCollectionViewController: UIViewController {
       || abs(lastCollectionBounds.width - bounds.width) > 0.5
       || abs(lastCollectionBounds.height - bounds.height) > 0.5
     lastCollectionBounds = bounds
-    // The section provider already reads `currentLeading()` live. Invalidate only
-    // when the collection moved without resizing (keyboard sliding beside a
-    // fixed-size pane). A bounds change already lays the grid out.
-    updateAdjustedLeading(invalidate: !boundsChanged)
+    // The section provider reads `currentLeading()` live. Invalidate only when the
+    // side inset that leading produces actually changes. The keyboard slide moves
+    // the leading every frame; invalidating for that faded the column past the edge.
+    updateAdjustedLeading(invalidate: true)
     if boundsChanged {
       scheduleLayoutWork { [weak self] in self?.refreshLoadingTails() }
     }
@@ -237,6 +245,7 @@ public final class TVPageCollectionViewController: UIViewController {
   private var coverObserver: NSObjectProtocol?
 
   deinit {
+    edgeClipLink?.invalidate()
     if let metricsMeasuredObserver {
       NotificationCenter.default.removeObserver(metricsMeasuredObserver)
     }
@@ -266,14 +275,26 @@ public final class TVPageCollectionViewController: UIViewController {
 
   /// top, leading, trailing, bottom — the collection's edges against the page's view.
   private var windowExtension: [NSLayoutConstraint] = []
+  /// Search: the collection's width, the full row. Inactive when the trailing edge
+  /// is pinned to the host instead.
+  private var spanningWidthConstraint: NSLayoutConstraint?
+  /// Clips the full row to the host's width. Taller than the host, so the vertical
+  /// window extension still draws. Its frame follows the presentation layer: the
+  /// model bounds are already the keyboard's final frame on the first tick, and a
+  /// mask set to that crops the row before the keyboard has moved.
+  private let edgeClip = CALayer()
+  private var edgeClipLink: CADisplayLink?
+  private let edgeClipClock = EdgeClipClock()
 
   /// The page is laid out inside a narrower box (the search container's safe area):
   /// `currentLeading()` counts the HIG side inset from the screen edge, not from the
-  /// box, and `spanningContentWidth()` keeps the column count at the full screen so
-  /// the grid keyboard only shifts the collection. Off for a page that shares the
-  /// width with something beside it — the Library's section list, which still reflows.
-  /// Do not grow the collection horizontally to the window: that hung the main thread
-  /// when the grid keyboard hid (2026-10-20).
+  /// box. The collection itself stays the full row wide (`pinSpanningWidth`) and the
+  /// host clips it (`updateEdgeClip`), so a column past the keyboard is the same cell
+  /// cut by the edge — a collection view drops a cell that leaves its own bounds, and
+  /// the keyboard's animation fades that cell out early and eases it back in. Off for
+  /// a page that shares the width with something beside it — the Library's section
+  /// list, which still reflows. Do not pin the collection to the window: that hung
+  /// the main thread when the grid keyboard hid (2026-10-20).
   public var spansScreenWidth = false {
     didSet { if isViewLoaded { view.setNeedsLayout() } }
   }
@@ -292,17 +313,104 @@ public final class TVPageCollectionViewController: UIViewController {
     // How far each edge sits inside the window. Every constraint takes the negative:
     // top / leading are collection→view, trailing / bottom view→collection, so a
     // negative constant moves each edge outward.
-    // Vertical only. Horizontal extension when the grid keyboard hid (results
-    // jumping from ~590 pt to full width) fought the search container's own
-    // layout and hung the main thread for minutes (`testGridKeyboardHidesWhileResultsHaveFocus`).
-    // Side inset from the screen edge is `currentLeading()`, not growing the collection.
-    let wanted = [frame.minY, 0, 0, window.bounds.maxY - frame.maxY].map { -max($0, 0) }
+    // Vertical only. Pinning the horizontal edges to the window while the grid
+    // keyboard hid fought the search container and hung (`testGridKeyboardHidesWhileResultsHaveFocus`).
+    // A screen-spanning page instead keeps a constant row width and clips to the host.
+    let pinned = pinSpanningWidth()
+    let trailing = pinned ? windowExtension[2].constant : CGFloat(0)
+    let wanted = [-max(frame.minY, 0), CGFloat(0), trailing, -max(window.bounds.maxY - frame.maxY, 0)]
     var changed = false
     for (constraint, constant) in zip(windowExtension, wanted) where abs(constraint.constant - constant) > 0.5 {
       constraint.constant = constant
       changed = true
     }
     if changed { updateContentInsets() }
+    updateEdgeClip()
+  }
+
+  /// Keeps the collection as wide as the full row, leading-aligned with the host.
+  /// The width does not follow the host, so the keyboard sliding the host does not
+  /// add or remove a column. Returns whether the trailing pin to the host is off.
+  private func pinSpanningWidth() -> Bool {
+    guard let width = spanningContentWidth(), windowExtension.count == 4 else {
+      spanningWidthConstraint?.isActive = false
+      if windowExtension.count == 4 { windowExtension[2].isActive = true }
+      return false
+    }
+    let constraint = spanningWidthConstraint
+      ?? collectionView.widthAnchor.constraint(equalToConstant: width)
+    if spanningWidthConstraint == nil { spanningWidthConstraint = constraint }
+    if abs(constraint.constant - width) > 0.5 { constraint.constant = width }
+    if !constraint.isActive {
+      windowExtension[2].isActive = false
+      constraint.isActive = true
+    }
+    return true
+  }
+
+  /// The host is the clip. The mask matches the width on screen this frame — the
+  /// presentation bounds, not the model — and is tall enough for the vertical window
+  /// extension. Actions stay off: an implicit ease would put the crop on its own clock,
+  /// behind the keyboard. While those two bounds differ, a display link copies the
+  /// presentation width each tick.
+  private func updateEdgeClip() {
+    guard spansScreenWidth, view.bounds.width > 1, windowExtension.count == 4 else {
+      stopEdgeClipLink()
+      if view.layer.mask != nil { view.layer.mask = nil }
+      return
+    }
+    applyEdgeClipFrame()
+    if edgeClipIsAnimating {
+      startEdgeClipLink()
+    } else {
+      stopEdgeClipLink()
+    }
+  }
+
+  private var edgeClipIsAnimating: Bool {
+    guard let presented = view.layer.presentation() else { return false }
+    return abs(presented.bounds.width - view.bounds.width) > 0.5
+      || abs(presented.bounds.height - view.bounds.height) > 0.5
+      || abs(presented.position.x - view.layer.position.x) > 0.5
+  }
+
+  private func applyEdgeClipFrame() {
+    let bounds = view.layer.presentation()?.bounds ?? view.bounds
+    let top = max(-windowExtension[0].constant, 0)
+    let bottom = max(-windowExtension[3].constant, 0)
+    let frame = CGRect(x: 0, y: -top, width: bounds.width,
+                       height: bounds.height + top + bottom)
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    if view.layer.mask !== edgeClip {
+      edgeClip.backgroundColor = UIColor.black.cgColor
+      view.layer.mask = edgeClip
+    }
+    edgeClip.frame = frame
+    CATransaction.commit()
+  }
+
+  private func startEdgeClipLink() {
+    guard edgeClipLink == nil else { return }
+    edgeClipClock.owner = self
+    let link = CADisplayLink(target: edgeClipClock, selector: #selector(EdgeClipClock.tick))
+    link.add(to: .main, forMode: .common)
+    edgeClipLink = link
+  }
+
+  fileprivate func trackEdgeClip() {
+    guard spansScreenWidth, view.window != nil else {
+      stopEdgeClipLink()
+      return
+    }
+    applyEdgeClipFrame()
+    if !edgeClipIsAnimating { stopEdgeClipLink() }
+  }
+
+  private func stopEdgeClipLink() {
+    edgeClipLink?.invalidate()
+    edgeClipLink = nil
+    edgeClipClock.owner = nil
   }
 
   /// How far the collection's content already starts from the screen's leading edge:
@@ -312,9 +420,14 @@ public final class TVPageCollectionViewController: UIViewController {
   private func updateAdjustedLeading(invalidate: Bool) {
     guard view.window != nil else { return }
     let leading = currentLeading()
-    guard abs(leading - adjustedLeading) > 0.5 else { return }
+    let side = spansScreenWidth ? TVHIGGrid.sideInset : resolvedSideInset
+    let inset = max(side - leading, 0)
+    let leadingMoved = abs(leading - adjustedLeading) > 0.5
+    let insetMoved = abs(inset - appliedSectionInset) > 0.5
+    guard leadingMoved || insetMoved else { return }
     adjustedLeading = leading
-    guard invalidate else { return }
+    appliedSectionInset = inset
+    guard invalidate, insetMoved else { return }
     scheduleLayoutWork { [weak self] in
       self?.collectionView.collectionViewLayout.invalidateLayout()
     }
@@ -322,6 +435,9 @@ public final class TVPageCollectionViewController: UIViewController {
 
   /// The last leading `updateAdjustedLeading` saw — only to tell when it moved.
   private var adjustedLeading: CGFloat = 0
+  /// The side inset that leading produced. The keyboard moves the leading without
+  /// changing this, and that move must not invalidate the grid.
+  private var appliedSectionInset: CGFloat = -1
 
   /// The leading edge as the collection sits *now*. The layout reads this for the side
   /// inset, never the value cached in `viewDidLayoutSubviews`: the search container
@@ -346,6 +462,7 @@ public final class TVPageCollectionViewController: UIViewController {
     super.viewDidDisappear(animated)
     heroCarousel.isPageVisible = false
     resetStrandedFocusAppearance()
+    stopEdgeClipLink()
   }
 
   /// A tab switched away mid focus animation can leave a whole row's lockups lifted and
@@ -979,7 +1096,10 @@ public final class TVPageCollectionViewController: UIViewController {
     guard let screen = viewIfLoaded?.window?.bounds.width, screen > 1 else {
       return TVHIGGrid.referenceContentWidth
     }
-    return TVHIGGrid.spanningContentWidth(screenWidth: screen, sideInset: resolvedSideInset)
+    // The constant HIG inset, not the live safe area. Beside the keyboard the
+    // collection sticks out past the screen and the safe area grows with it; following
+    // that would narrow the row the clip is there to keep still.
+    return TVHIGGrid.spanningContentWidth(screenWidth: screen, sideInset: TVHIGGrid.sideInset)
   }
 
   /// How many columns the layout gives a grid — the same width `TVPageLayout.grid` uses.
@@ -1654,6 +1774,19 @@ final class TVPageStatusView: UIView {
 
   override var preferredFocusEnvironments: [UIFocusEnvironment] {
     retryButton.isHidden ? [] : [retryButton]
+  }
+}
+
+/// Display-link target for the search clip. The link retains its target, so this
+/// does not retain the page — otherwise the page could not deinit mid-animation.
+private final class EdgeClipClock: NSObject {
+  weak var owner: TVPageCollectionViewController?
+
+  @objc func tick() {
+    // The link is added on the main run loop.
+    MainActor.assumeIsolated {
+      owner?.trackEdgeClip()
+    }
   }
 }
 #endif

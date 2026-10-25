@@ -24,6 +24,9 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   The page extends vertically only, and remembers the focused poster while results have it.
   The column count stays the full screen's: the keyboard shifts the collection and the
   last column clips, instead of the pane's width wrapping posters onto the next row.
+  The collection stays that full row wide and the results view clips the overflow, so
+  the column past the edge remains a cell. Pinning the collection to the window instead
+  hung, above.
   Checked by `TVSearchLayoutUITests` (`-KINOPUBSearchFixture -ForceGridKeyboard YES`).
 
 - **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`

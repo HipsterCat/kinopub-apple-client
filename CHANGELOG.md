@@ -37,6 +37,12 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
   wrapped onto the next row, then jumped back when focus hid the keyboard. A
   screen-spanning page sizes the grid for the full screen. The keyboard only
   moves the collection; the last column clips, as in Podcasts.
+- That clip is the results view, not the collection dropping a cell. A cell that
+  leaves the collection's bounds is removed, and the keyboard's animation fades it
+  out before the edge arrives and eases it back in. The collection stays the full
+  row wide, so the column stays one cell of the row. The mask follows the view's
+  presentation frame: the model bounds are already the keyboard's final width on
+  the first tick, and cropping to those cut the row before the keyboard moved.
 
 ### Library sidebar: a count on the trailing edge (2026-10-23)
 
