@@ -329,6 +329,7 @@ struct MediaItemHeroView: View {
   @State private var loadingActions: Set<MediaActionID> = []
   /// What the shared title slot is drawing — subtitle waits until this is not `.empty`.
   @State private var titleLogoMark: TitleLogoMark = .empty
+  @State private var deliveredLogoLanguage: WorkerArtworkLanguageTag?
   /// The version play control that last held focus — its runtime stays in the metadata
   /// row once focus moves on (`runtimeVersion`).
   @State private var lastFocusedVersionID: Int?
@@ -964,7 +965,8 @@ struct MediaItemHeroView: View {
         maxWidth: Self.logoMaxWidth,
         maxHeight: Self.logoMaxHeight,
         textMaxWidth: .infinity,
-        onMarkChange: { titleLogoMark = $0 }
+        onMarkChange: { titleLogoMark = $0 },
+        onDeliveredLanguageChange: { deliveredLogoLanguage = $0 }
       ) {
         titlePrimaryText
       }
@@ -986,8 +988,8 @@ struct MediaItemHeroView: View {
       .fixedSize(horizontal: false, vertical: true)
   }
 
-  /// Under the logo: localized vs original from the requested logo language. Under
-  /// lettered type: original when it differs from the big localized line.
+  /// Under the logo: localized vs original from the **served** worker stamp (`ru` /
+  /// `en`), not only the `?lang=` query. Under lettered type: original when it differs.
   @ViewBuilder
   private var titleSupplementaryBlock: some View {
     if let line = supplementaryUnderTitle {
@@ -1014,7 +1016,9 @@ struct MediaItemHeroView: View {
     case .empty:
       return nil
     case .logo:
-      return titleLogoRequestKind.supplementaryUnderLogo(
+      let kind = deliveredLogoLanguage.map(TitleLogoRequestKind.init(deliveredLanguage:))
+        ?? titleLogoRequestKind
+      return kind.supplementaryUnderLogo(
         localized: mediaItem.localizedTitle,
         original: mediaItem.originalTitle
       )

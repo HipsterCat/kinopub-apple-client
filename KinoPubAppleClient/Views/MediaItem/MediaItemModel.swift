@@ -141,7 +141,7 @@ class MediaItemModel: ObservableObject {
     metadataService.images.isConfigured ? heroImagesReady : externalMetadataLoaded
   }
 
-  /// Matches the `lang` on ``heroLogoURL`` — what we expect the wordmark to be.
+  /// Fallback caption rules from the `?lang=` query when the served stamp is not known yet.
   var heroLogoRequestKind: TitleLogoRequestKind {
     if metadataService.images.isConfigured {
       return metadataService.images.logoRequestKind

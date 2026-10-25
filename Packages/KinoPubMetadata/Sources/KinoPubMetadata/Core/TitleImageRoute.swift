@@ -1,10 +1,17 @@
 import Foundation
 
 /// The worker's image route by kino.pub id:
-/// `GET {worker}/img/{kind}/by/kinopub/{id}?w=&s=&e=&imdb=&lang=` answers `302` to the
-/// picture (TMDB's smallest bucket that covers `w`, kino.pub's own art as the
-/// poster/backdrop fallback) or `404` when there is none. The client puts the URL
-/// straight into an image view — no details call, no TMDB lookup, no JSON.
+/// `GET {worker}/img/{kind}/by/kinopub/{id}?w=&s=&e=&imdb=&lang=` answers **`302`**
+/// to a stamped URL, then bytes:
+///
+///     /img/logo/by/kinopub/{id}/ru/logo.png
+///     /img/logo/by/kinopub/{id}/en/logo.png
+///     /img/backdrop/by/kinopub/{id}/und/backdrop.jpg
+///
+/// The `{ru|en|und}` segment is the file's language (`und` = textless / no language).
+/// **`Content-Language`** on the response matches that tag (not `en-US`). Parse the
+/// final URL or header with ``WorkerArtworkLanguageTag`` — the `?lang=` query only
+/// states preference, not what was served.
 ///
 /// `w` is the pixel width the picture will be drawn at, so the size is the screen's
 /// decision, not a constant baked into the worker: a 4K banner gets TMDB's original,
@@ -23,6 +30,14 @@ public enum TitleLogoRequestKind: Sendable, Equatable {
 
   public init(routeLanguage: String?) {
     self = routeLanguage == "en" ? .english : .russianPreferred
+  }
+
+  /// Caption rules from the **served** worker stamp, not the `?lang=` query.
+  public init(deliveredLanguage: WorkerArtworkLanguageTag) {
+    switch deliveredLanguage {
+    case .en: self = .english
+    case .ru, .und: self = .russianPreferred
+    }
   }
 
   /// Caption under a confirmed logo: English wordmark → localized name; Russian

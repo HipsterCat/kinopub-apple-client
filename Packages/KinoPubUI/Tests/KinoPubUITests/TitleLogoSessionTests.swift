@@ -6,6 +6,7 @@
 //
 
 import XCTest
+import KinoPubMetadata
 @testable import KinoPubUI
 #if os(macOS)
 import AppKit
@@ -103,11 +104,15 @@ final class MockTitleLogoImages: TitleLogoImageLoading, @unchecked Sendable {
 
   func cachedImage(for url: URL) -> TitleLogoImage? { cached }
 
-  func image(for url: URL) async throws -> TitleLogoImage {
+  func deliveredLanguage(for url: URL) -> WorkerArtworkLanguageTag? {
+    WorkerArtworkLanguageTag.parseStampedURL(url)
+  }
+
+  func load(for url: URL) async throws -> TitleLogoImageLoad {
     if hang {
       try await Task.sleep(nanoseconds: 60_000_000_000)
     }
-    return Self.pixel
+    return TitleLogoImageLoad(image: Self.pixel, deliveredLanguage: deliveredLanguage(for: url))
   }
 
   static var pixel: TitleLogoImage {

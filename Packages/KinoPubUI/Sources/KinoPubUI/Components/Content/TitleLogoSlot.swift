@@ -7,6 +7,7 @@
 //  so the banner cell and every hero share it.
 //
 
+import KinoPubMetadata
 import SwiftUI
 
 /// The hero / banner title slot. See ``TitleLogoPresentationPolicy``.
@@ -18,6 +19,7 @@ public struct TitleLogoSlot<Title: View>: View {
   /// the column). `nil` keeps the logo `maxWidth`.
   private let textMaxWidth: CGFloat?
   private let onMarkChange: ((TitleLogoMark) -> Void)?
+  private let onDeliveredLanguageChange: ((WorkerArtworkLanguageTag?) -> Void)?
   private let title: () -> Title
 
   @StateObject private var session: TitleLogoSession
@@ -29,6 +31,7 @@ public struct TitleLogoSlot<Title: View>: View {
     textMaxWidth: CGFloat? = nil,
     policy: TitleLogoPresentationPolicy = .whenResolved,
     onMarkChange: ((TitleLogoMark) -> Void)? = nil,
+    onDeliveredLanguageChange: ((WorkerArtworkLanguageTag?) -> Void)? = nil,
     @ViewBuilder title: @escaping () -> Title
   ) {
     self.resolution = resolution
@@ -36,6 +39,7 @@ public struct TitleLogoSlot<Title: View>: View {
     self.maxHeight = maxHeight
     self.textMaxWidth = textMaxWidth
     self.onMarkChange = onMarkChange
+    self.onDeliveredLanguageChange = onDeliveredLanguageChange
     self.title = title
     _session = StateObject(wrappedValue: TitleLogoSession(policy: policy))
   }
@@ -48,6 +52,7 @@ public struct TitleLogoSlot<Title: View>: View {
     textMaxWidth: CGFloat? = nil,
     policy: TitleLogoPresentationPolicy = .whenResolved,
     onMarkChange: ((TitleLogoMark) -> Void)? = nil,
+    onDeliveredLanguageChange: ((WorkerArtworkLanguageTag?) -> Void)? = nil,
     @ViewBuilder title: @escaping () -> Title
   ) {
     self.init(
@@ -57,6 +62,7 @@ public struct TitleLogoSlot<Title: View>: View {
       textMaxWidth: textMaxWidth,
       policy: policy,
       onMarkChange: onMarkChange,
+      onDeliveredLanguageChange: onDeliveredLanguageChange,
       title: title
     )
   }
@@ -83,12 +89,16 @@ public struct TitleLogoSlot<Title: View>: View {
     .onAppear {
       session.setResolution(resolution)
       onMarkChange?(mark)
+      onDeliveredLanguageChange?(session.deliveredLanguage)
     }
     .onChange(of: resolution) { _, new in
       session.setResolution(new)
     }
     .onChange(of: mark) { _, new in
       onMarkChange?(new)
+    }
+    .onChange(of: session.deliveredLanguage) { _, new in
+      onDeliveredLanguageChange?(new)
     }
   }
 
