@@ -66,7 +66,7 @@ public enum ContinueWatchingOrder {
   }
 
   /// One title that could go on the row, with every date we know for it.
-  public struct Candidate: Equatable, Sendable {
+  public struct Candidate: Equatable {
     public var item: WatchingItem
     /// Newest play of the title: history or this device.
     public var lastSeen: Date?
