@@ -683,7 +683,8 @@ final class TVPageHeroCell: UICollectionViewCell {
     bookmarkButton.isHidden = bookmarkEntries == nil
     applyPlay(feature.play)
     let bookmarkGlyph = feature.isBookmarked ? "bookmark.fill" : "bookmark"
-    if bookmarkButton.configuration?.image != UIImage(systemName: bookmarkGlyph) {
+    if bookmarkGlyph != paintedBookmarkGlyph {
+      paintedBookmarkGlyph = bookmarkGlyph
       bookmarkButton.configuration?.image = UIImage(systemName: bookmarkGlyph)
     }
     accessibilityLabel = card.title
@@ -768,6 +769,9 @@ final class TVPageHeroCell: UICollectionViewCell {
     var bookmark = UIButton.Configuration.glass()
     bookmark.image = UIImage(systemName: "bookmark")
     bookmark.cornerStyle = .capsule
+    // A menu button may grow a pull-down indicator beside its glyph; the circle has
+    // none (a wide Bookmark capsule was seen once after the player, round 15).
+    bookmark.indicator = .none
     bookmarkButton.configuration = bookmark
     bookmarkButton.accessibilityIdentifier = "kinopub.hero.bookmark"
     bookmarkButton.showsMenuAsPrimaryAction = true
@@ -963,6 +967,7 @@ final class TVPageHeroCell: UICollectionViewCell {
   /// The Bookmark menu is open: the title under it must not turn — a toggle meant for
   /// one title landed on the next one (round 14, 2026-10-25).
   private var bookmarkMenuOpen = false
+  private var paintedBookmarkGlyph = "bookmark"
 
   func updateTimer() {
     guard let carousel else { return }
