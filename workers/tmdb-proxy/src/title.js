@@ -175,6 +175,8 @@ const SOURCE_ORDER = {
 
 export async function handleImage(request, env, ctx) {
   const url = new URL(request.url);
+  const stamped = parseStampedPath(url.pathname);
+  if (stamped) return proxyStamped(request, url, env, stamped);
   const route = parseImagePath(url.pathname);
   if (!route) return imageNotFound(QUERY_HINT);
   return handleImageQuery(request, url, env, ctx, route);
@@ -203,18 +205,34 @@ async function handleImageQuery(request, url, env, ctx, route) {
     return json({ error: "bad_request", hint: "thumbnail needs ?s=&e=" }, 400);
   }
 
-  const stored = await readDocument(env, id);
   const hints = readHints(url);
-  // Answer immediately. A cold id warms behind the response; the poster
-  // call in particular must 404 fast when we have nothing better than the
-  // kino.pub file the app already holds.
-  if (!stored) ctx.waitUntil(resolveAndStore(env, id, hints, draftDocument(id, hints)));
-
-  const asset = selectQueryAsset(stored, imageRequest, hints);
-  const location = asset && resizeAsset(asset, imageRequest.kind, imageRequest.w);
+  const started = Date.now();
+  let stored = await readDocument(env, id);
+  let asset = selectQueryAsset(stored, imageRequest, hints);
   const vary = imageRequest.kind === "poster" || imageRequest.kind === "logo";
+
+  // A finished document with no file is a real miss. Anything still cold
+  // waits, up to five seconds, and only then 404s.
+  let waitedMs = 0;
+  if (!asset && (!stored || stored.pending === true)) {
+    const waited = await resolveWithin(env, ctx, id, hints, stored);
+    waitedMs = Date.now() - started;
+    if (waited.timedOut) {
+      noteImage(env, ctx, "timeout", imageRequest, waitedMs);
+      return imageNotFound("timed out", vary, { timeout: true });
+    }
+    stored = waited.stored;
+    asset = selectQueryAsset(stored, imageRequest, hints);
+    if (asset) noteImage(env, ctx, "waited", imageRequest, waitedMs);
+  }
+
+  if (!asset) {
+    noteImage(env, ctx, "missing", imageRequest, Date.now() - started);
+    return imageNotFound(missHint(imageRequest), vary);
+  }
+  const location = stampedURL(url, imageRequest, asset, stored?.art_rev);
   if (!location) return imageNotFound(missHint(imageRequest), vary);
-  return redirect(location, vary);
+  return redirect(location, vary, langTag(asset.lang));
 }
 
 // ------------------------------------------------------------------ helpers
@@ -277,7 +295,7 @@ export async function writeDocument(env, id, document) {
  * latency is nobody's problem — which is exactly why the client never has to
  * choose between "fast" and "complete".
  */
-async function resolveAndStore(env, id, hints, base) {
+export async function resolveAndStore(env, id, hints, base) {
   let document = base;
 
   // No key, no quota risk — safe to run on every cold resolve that has a
@@ -394,7 +412,7 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
   document.artwork = {
     poster: capArtwork([...toAssets(images.posters), ...(document.artwork.poster || [])]),
     backdrop: capArtwork([...toAssets(images.backdrops), ...(document.artwork.backdrop || [])]),
-    logo: capArtwork(toAssets(images.logos)),
+    logo: capArtwork(sortLogos(toAssets(images.logos))),
   };
 
   if (details.vote_count) {
@@ -479,6 +497,153 @@ function capArtwork(assets) {
 }
 
 
+function pinnedAsset(document, kind) {
+  const list = document?.artwork?.[kind];
+  if (!Array.isArray(list)) return null;
+  for (const item of list) {
+    const asset = normalizeAsset(item);
+    if (asset?.pinned) return asset;
+  }
+  return null;
+}
+
+function langTag(lang) {
+  if (lang === "ru" || lang === "en") return lang;
+  return "und";
+}
+
+function extensionOf(raw) {
+  const match = String(raw || "").split("?")[0].match(/\.([a-z0-9]+)$/i);
+  return (match?.[1] || "").toLowerCase();
+}
+
+function fileExt(raw) {
+  const ext = extensionOf(raw);
+  if (ext === "jpeg") return "jpg";
+  if (ext === "png" || ext === "jpg" || ext === "webp") return ext;
+  return "jpg";
+}
+
+// PNG before SVG. Among rasters, the taller file wins, then the narrower one.
+// A short wide PNG is the black wordmark; the taller smaller one is the white.
+function logoRank(asset) {
+  const ext = extensionOf(asset?.url);
+  const raster = ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "webp";
+  return [raster ? 0 : 1, -(asset?.height || 0), asset?.width || 0];
+}
+
+function sortLogos(assets) {
+  return [...assets].sort((a, b) => compareKey(logoRank(a), logoRank(b)));
+}
+
+function stampedURL(url, imageRequest, asset, rev) {
+  const lang = langTag(asset.lang);
+  const ext = imageRequest.kind === "logo" ? "png" : fileExt(asset.url);
+  const params = new URLSearchParams();
+  if (imageRequest.w != null) params.set("w", String(imageRequest.w));
+  if (imageRequest.s != null) params.set("s", String(imageRequest.s));
+  if (imageRequest.e != null) params.set("e", String(imageRequest.e));
+  if (rev) params.set("v", String(rev));
+  const qs = params.toString();
+  return `${url.origin}/img/${imageRequest.kind}/by/kinopub/${imageRequest.id}/${lang}/${imageRequest.kind}.${ext}${qs ? `?${qs}` : ""}`;
+}
+
+function parseStampedPath(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  // img / kind / by / kinopub / id / lang / file
+  if (parts.length !== 7 || parts[0] !== "img") return null;
+  if (parts[2] !== "by" || parts[3] !== "kinopub") return null;
+  if (!QUERY_KINDS.has(parts[1])) return null;
+  if (parts[5] !== "ru" && parts[5] !== "en" && parts[5] !== "und") return null;
+  return { kind: parts[1], id: parts[4], lang: parts[5] };
+}
+
+async function proxyStamped(request, url, env, stamp) {
+  const id = numericId(stamp.id);
+  if (!id) return json({ error: "bad_request", hint: QUERY_HINT }, 400);
+  const stored = await readDocument(env, id);
+  const lang = stamp.lang === "und" ? null : stamp.lang;
+  const imageRequest = {
+    kind: stamp.kind,
+    id,
+    w: readWidth(url),
+    lang: stamp.kind === "backdrop" ? null : (lang || "ru"),
+    s: readIndex(url, "s"),
+    e: readIndex(url, "e"),
+  };
+  const hints = readHints(url);
+  let asset = (stamp.kind === "thumbnail" || imageRequest.s != null)
+    ? selectQueryAsset(stored, imageRequest, hints)
+    : assetInLang(stored, stamp.kind, lang, hints);
+  if (asset && langTag(asset.lang) !== stamp.lang) asset = null;
+  const upstream = asset && resizeAsset(asset, stamp.kind, imageRequest.w);
+  if (!upstream) return imageNotFound(missHint({ ...imageRequest, lang }));
+  const fetched = await fetch(upstream);
+  if (!fetched.ok) return imageNotFound(missHint(imageRequest));
+  const headers = new Headers();
+  const type = fetched.headers.get("content-type");
+  headers.set("Content-Type", type || (stamp.kind === "logo" ? "image/png" : "image/jpeg"));
+  headers.set("Cache-Control", "public, max-age=86400");
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Content-Language", stamp.lang);
+  return new Response(fetched.body, { status: 200, headers });
+}
+
+function assetInLang(document, kind, lang, hints) {
+  const pinned = pinnedAsset(document, kind);
+  if (pinned && langTag(pinned.lang) === langTag(lang)) return pinned;
+  if (kind === "backdrop") return bestAsset(textlessBackdrops(document), "backdrop", null);
+  if (kind === "logo") return bestAsset(logoCandidates(document), "logo", lang, { strict: true });
+  if (kind === "poster") return bestAsset(posterCandidates(document, hints, lang || "ru"), "poster", lang, { strict: true });
+  return null;
+}
+
+const IMAGE_STATS_KEY = "stats:img";
+
+function noteImage(env, ctx, reason, imageRequest, ms) {
+  console.log(JSON.stringify({
+    img: reason,
+    kind: imageRequest.kind,
+    id: imageRequest.id,
+    ms,
+  }));
+  ctx.waitUntil(bumpImageStat(env, reason));
+}
+
+async function bumpImageStat(env, reason) {
+  if (!env?.DOCUMENTS) return;
+  const current = (await env.DOCUMENTS.get(IMAGE_STATS_KEY, { type: "json" })) || {};
+  current[reason] = (current[reason] || 0) + 1;
+  current.updated_at = new Date().toISOString();
+  await env.DOCUMENTS.put(IMAGE_STATS_KEY, JSON.stringify(current));
+}
+
+export async function imageStats(env) {
+  if (!env?.DOCUMENTS) return {};
+  return (await env.DOCUMENTS.get(IMAGE_STATS_KEY, { type: "json" })) || {};
+}
+
+function imageWaitMs(env) {
+  const n = Number(env?.IMAGE_WAIT_MS);
+  if (Number.isFinite(n) && n >= 0) return n;
+  return 5000;
+}
+
+async function resolveWithin(env, ctx, id, hints, stored) {
+  const ms = imageWaitMs(env);
+  let timer;
+  const job = resolveAndStore(env, id, hints, stored || draftDocument(id, hints))
+    .then(async () => ({ timedOut: false, stored: await readDocument(env, id) }))
+    .catch(() => ({ timedOut: false, stored }));
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ timedOut: true, stored }), ms);
+  });
+  const result = await Promise.race([job, timeout]);
+  clearTimeout(timer);
+  if (result.timedOut) ctx.waitUntil(job);
+  return result;
+}
+
 // ---------------------------------------------------------------- query route
 
 function parseImagePath(pathname) {
@@ -539,6 +704,8 @@ export function preferredLang(request) {
 
 function selectQueryAsset(document, request, hints) {
   const { kind, lang, s, e } = request;
+  const pinned = pinnedAsset(document, kind);
+  if (pinned) return pinned;
   if (kind === "thumbnail") {
     if (!document || s == null || e == null) return null;
     return episodeAsset(document, s, e);
@@ -644,6 +811,7 @@ function normalizeAsset(asset) {
     lang: asset.lang ?? null,
     width: asset.width ?? null,
     height: asset.height ?? null,
+    pinned: asset.pinned === true,
   };
 }
 
@@ -671,10 +839,13 @@ function bestAsset(assets, kind, lang, { strict = false } = {}) {
     if (kind === "backdrop" && (asset.lang ?? null) !== null) continue;
     if (kind === "backdrop" && !isWideFrame(asset)) continue;
     if (strict && (asset.lang ?? null) !== lang) continue;
+    const sizeKey = kind === "logo"
+      ? logoRank(asset)
+      : [-(asset.width || 0)];
     const key = [
       langRank(asset.lang ?? null, lang),
       sourceRank(kind, asset.source),
-      -(asset.width || 0),
+      ...sizeKey,
     ];
     if (!best || compareKey(key, bestKey) < 0) {
       best = asset;
@@ -715,7 +886,10 @@ function resizeAsset(asset, kind, w) {
     return `https://tvoe.live/_next/image?url=${encodeURIComponent(cdn)}&w=${bucket}&q=80`;
   }
   if (asset.source === "tmdb" || asset.url.includes("image.tmdb.org")) {
-    return tmdbSized(asset.url, kind, w, asset.width);
+    const sized = tmdbSized(asset.url, kind, w, asset.width);
+    // TMDB serves the same logo as PNG when the path ends in .png.
+    // SVG in an image view is the broken case.
+    return kind === "logo" && sized ? sized.replace(/\.svg(?=$|\?)/i, ".png") : sized;
   }
   if (asset.source === "kinopoisk" || asset.url.includes("kinopoiskapiunofficial.tech")) {
     return kinopoiskSized(asset.url, w);
@@ -802,19 +976,22 @@ function missHint(request) {
   return "no poster";
 }
 
-function redirect(location, vary) {
-  return new Response(null, {
-    status: 302,
-    headers: { Location: location, ...imageHeaders(300, vary) },
-  });
+function redirect(location, vary, language) {
+  const headers = { Location: location, ...imageHeaders(60, vary) };
+  if (language) headers["Content-Language"] = language;
+  return new Response(null, { status: 302, headers });
 }
 
-function imageNotFound(hint, vary) {
+function imageNotFound(hint, vary, { timeout = false } = {}) {
+  const headers = timeout
+    ? { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" }
+    : imageHeaders(30, vary);
+  if (timeout && vary) headers.Vary = "Accept-Language";
   return new Response(JSON.stringify({ error: "not_found", hint }), {
     status: 404,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      ...imageHeaders(30, vary),
+      ...headers,
     },
   });
 }

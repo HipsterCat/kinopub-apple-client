@@ -76,7 +76,7 @@ test("query logo defaults to Russian and prefers tvoe over TMDB", async () => {
   assert.equal(response.status, 302);
   assert.equal(
     response.headers.get("location"),
-    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_LOGO)}&w=3840&q=80`,
+    "https://example.test/img/logo/by/kinopub/82852/ru/logo.png",
   );
 });
 
@@ -97,7 +97,8 @@ test("Accept-Language en picks the English logo", async () => {
     ctxSpy(),
   );
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/original/logo-en.png");
+  assert.equal(response.headers.get("location"), "https://example.test/img/logo/by/kinopub/82852/en/logo.png");
+  assert.equal(response.headers.get("content-language"), "en");
 });
 
 test("a Russian logo request with only an English file sends the English logo", async () => {
@@ -108,7 +109,8 @@ test("a Russian logo request with only an English file sends the English logo", 
   });
   const response = await handleImage(imageRequest("logo"), env, ctxSpy());
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/original/logo-en.png");
+  assert.equal(response.headers.get("location"), "https://example.test/img/logo/by/kinopub/82852/en/logo.png");
+  assert.equal(response.headers.get("content-language"), "en");
 });
 
 test("query logo snaps w up the TMDB ladder and never through tvoe", async () => {
@@ -119,7 +121,7 @@ test("query logo snaps w up the TMDB ladder and never through tvoe", async () =>
   });
   const response = await handleImage(imageRequest("logo", { query: "w=400", lang: "en" }), env, ctxSpy());
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/w500/logo-en.png");
+  assert.equal(response.headers.get("location"), "https://example.test/img/logo/by/kinopub/82852/en/logo.png?w=400");
 });
 
 test("query logo with nothing stored is 404 and still resolves", async () => {
@@ -152,7 +154,7 @@ test("backdrop is textless and wide, prefers tvoe, and ignores Accept-Language a
   assert.equal(response.status, 302);
   assert.equal(
     response.headers.get("location"),
-    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=1920&q=80`,
+    "https://example.test/img/backdrop/by/kinopub/82852/und/backdrop.jpg?w=1920",
   );
   assert.equal(response.headers.get("vary"), null);
 });
@@ -182,12 +184,12 @@ test("query backdrop snaps a non-bucket width up and caps an omitted width at 38
   const snapped = await handleImage(imageRequest("backdrop", { query: "w=1000" }), env, ctxSpy());
   assert.equal(
     snapped.headers.get("location"),
-    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=1024&q=80`,
+    "https://example.test/img/backdrop/by/kinopub/82852/und/backdrop.jpg?w=1000",
   );
   const maxed = await handleImage(imageRequest("backdrop"), env, ctxSpy());
   assert.equal(
     maxed.headers.get("location"),
-    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=3840&q=80`,
+    "https://example.test/img/backdrop/by/kinopub/82852/und/backdrop.jpg",
   );
 });
 
@@ -201,7 +203,7 @@ test("query backdrop unwraps a stored tvoe resizer URL back to the durable CDN f
   const response = await handleImage(imageRequest("backdrop", { query: "w=1920" }), env, ctxSpy());
   assert.equal(
     response.headers.get("location"),
-    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=1920&q=80`,
+    "https://example.test/img/backdrop/by/kinopub/82852/und/backdrop.jpg?w=1920",
   );
 });
 
@@ -212,7 +214,7 @@ test("query backdrop uses TMDB original only when the file is within 3840", asyn
     },
   });
   const atCap = await handleImage(imageRequest("backdrop", { query: "w=1920" }), within, ctxSpy());
-  assert.equal(atCap.headers.get("location"), "https://image.tmdb.org/t/p/original/textless.jpg");
+  assert.equal(atCap.headers.get("location"), "https://example.test/img/backdrop/by/kinopub/82852/und/backdrop.jpg?w=1920");
 
   const unknown = kvEnv({
     "title:kinopub:82852": {
@@ -220,7 +222,7 @@ test("query backdrop uses TMDB original only when the file is within 3840", asyn
     },
   });
   const capped = await handleImage(imageRequest("backdrop"), unknown, ctxSpy());
-  assert.equal(capped.headers.get("location"), "https://image.tmdb.org/t/p/w1280/textless.jpg");
+  assert.equal(capped.headers.get("location"), "https://example.test/img/backdrop/by/kinopub/82852/und/backdrop.jpg");
 
   const huge = kvEnv({
     "title:kinopub:82852": {
@@ -228,7 +230,7 @@ test("query backdrop uses TMDB original only when the file is within 3840", asyn
     },
   });
   const held = await handleImage(imageRequest("backdrop"), huge, ctxSpy());
-  assert.equal(held.headers.get("location"), "https://image.tmdb.org/t/p/w1280/textless.jpg");
+  assert.equal(held.headers.get("location"), "https://example.test/img/backdrop/by/kinopub/82852/und/backdrop.jpg");
 });
 
 test("backdrop 404s when the only frame is a kino.pub wide", async () => {
@@ -242,7 +244,7 @@ test("backdrop 404s when the only frame is a kino.pub wide", async () => {
   const response = await handleImage(imageRequest("backdrop"), env, ctx);
   assert.equal(response.status, 404);
   assert.equal(response.headers.get("location"), null);
-  assert.equal(ctx.pending.length, 0);
+  assert.equal(ctx.pending.length, 1);
 });
 
 test("backdrop on a cold id 404s and resolves behind it", async () => {
@@ -269,7 +271,7 @@ test("Russian poster with a Kinopoisk id skips TMDB and never echoes kino.pub", 
   assert.equal(response.status, 302);
   assert.equal(
     response.headers.get("location"),
-    "https://kinopoiskapiunofficial.tech/images/posters/kp/326.jpg",
+    "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg",
   );
 });
 
@@ -283,7 +285,7 @@ test("Russian poster prefers tvoe over the Kinopoisk file", async () => {
   const response = await handleImage(imageRequest("poster"), env, ctxSpy());
   assert.equal(
     response.headers.get("location"),
-    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_POSTER)}&w=3840&q=80`,
+    "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg",
   );
 });
 
@@ -299,7 +301,7 @@ test("Russian poster without a Kinopoisk id uses the TMDB ru file", async () => 
     },
   });
   const response = await handleImage(imageRequest("poster"), env, ctxSpy());
-  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/original/poster-ru.jpg");
+  assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg");
 });
 
 test("Russian poster does not fall back to an English one", async () => {
@@ -323,7 +325,7 @@ test("English poster uses the TMDB en file and not the Kinopoisk one", async () 
   });
   const response = await handleImage(imageRequest("poster", { lang: "en", query: "w=400" }), env, ctxSpy());
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/w500/poster-en.jpg");
+  assert.equal(response.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/en/poster.jpg?w=400");
 });
 
 test("poster with no better file 404s instead of echoing kino.pub, and still resolves", async () => {
@@ -342,7 +344,7 @@ test("a Kinopoisk hint on a cold poster answers the Russian file", async () => {
   );
   assert.equal(
     response.headers.get("location"),
-    "https://kinopoiskapiunofficial.tech/images/posters/kp/326.jpg",
+    "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg",
   );
 });
 
@@ -354,7 +356,7 @@ test("poster w under 360 uses the small Kinopoisk file", async () => {
   );
   assert.equal(
     response.headers.get("location"),
-    "https://kinopoiskapiunofficial.tech/images/posters/kp_small/326.jpg",
+    "https://example.test/img/poster/by/kinopub/82852/ru/poster.jpg?w=300",
   );
 });
 
@@ -369,7 +371,7 @@ test("season poster does not fall back to the title poster or to kino.pub", asyn
     },
   });
   const hit = await handleImage(imageRequest("poster", { query: "s=1&w=400" }), env, ctxSpy());
-  assert.equal(hit.headers.get("location"), "https://image.tmdb.org/t/p/w500/s1.jpg");
+  assert.equal(hit.headers.get("location"), "https://example.test/img/poster/by/kinopub/82852/und/poster.jpg?w=400&s=1");
   const miss = await handleImage(imageRequest("poster", { query: "s=2" }), env, ctxSpy());
   assert.equal(miss.status, 404);
   assert.equal((await miss.json()).hint, "no season poster");
@@ -391,7 +393,7 @@ test("thumbnail is the episode still, needs both s and e, and refuses a kino.pub
   assert.equal(hit.status, 302);
   assert.equal(
     hit.headers.get("location"),
-    `https://tvoe.live/_next/image?url=${encodeURIComponent(TVOE_COVER)}&w=1024&q=80`,
+    "https://example.test/img/thumbnail/by/kinopub/82852/und/thumbnail.jpg?w=1000&s=1&e=5",
   );
   const kinopubThumb = await handleImage(imageRequest("thumbnail", { query: "s=1&e=6" }), env, ctxSpy());
   assert.equal(kinopubThumb.status, 404);
@@ -409,7 +411,54 @@ test("backdrop ignores season params and stays on the title frame", async () => 
     },
   });
   const response = await handleImage(imageRequest("backdrop", { query: "s=1&e=5" }), env, ctxSpy());
-  assert.equal(response.headers.get("location"), "https://image.tmdb.org/t/p/original/textless.jpg");
+  assert.equal(response.headers.get("location"), "https://example.test/img/backdrop/by/kinopub/82852/und/backdrop.jpg?s=1&e=5");
+});
+
+test("a taller smaller PNG logo beats a wide SVG", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        logo: [
+          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/wide.svg", lang: "ru", width: 2000, height: 280 },
+          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/white.png", lang: "ru", width: 420, height: 640 },
+        ],
+      },
+    },
+  });
+  const response = await handleImage(imageRequest("logo"), env, ctxSpy());
+  assert.equal(response.headers.get("location"), "https://example.test/img/logo/by/kinopub/82852/ru/logo.png");
+  assert.equal(response.headers.get("content-language"), "ru");
+});
+
+test("the stamped logo URL proxies an SVG as PNG", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: {
+        logo: [{ source: "tmdb", url: "https://image.tmdb.org/t/p/original/mark.svg", lang: "en", width: 800, height: 200 }],
+      },
+    },
+  });
+  const original = globalThis.fetch;
+  let fetched = "";
+  globalThis.fetch = async (url) => {
+    fetched = String(url);
+    return new Response(Uint8Array.from([1, 2, 3]), {
+      status: 200,
+      headers: { "content-type": "image/png" },
+    });
+  };
+  try {
+    const response = await handleImage(
+      new Request("https://example.test/img/logo/by/kinopub/82852/en/logo.png"),
+      env,
+      ctxSpy(),
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-language"), "en");
+    assert.equal(fetched, "https://image.tmdb.org/t/p/original/mark.png");
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test("query route rejects a non-numeric id and an unknown namespace", async () => {
