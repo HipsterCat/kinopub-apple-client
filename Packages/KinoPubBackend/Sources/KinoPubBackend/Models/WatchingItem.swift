@@ -60,6 +60,16 @@ public extension WatchingItem {
     return min(Double(watched) / Double(total), 1.0)
   }
 
+  /// Has episodes: serials, docuserials and TV shows — the same set as
+  /// `MediaItem.isEpisodicType`. «Новый Стэнфордский эксперимент» is a `tvshow` and lost
+  /// its «S1, E2» label to a `contains("serial")` check (2026-10-25).
+  var isEpisodicType: Bool {
+    switch type.lowercased() {
+    case "serial", "docuserial", "tvshow": return true
+    default: return false
+    }
+  }
+
   var hasNewEpisodes: Bool {
     (new ?? 0) > 0
   }

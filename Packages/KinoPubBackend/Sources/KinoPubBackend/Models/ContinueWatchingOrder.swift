@@ -18,7 +18,8 @@ import Foundation
 /// when it was watched. `/v1/watching/serials?subscribed=0` is also capped at 50 titles,
 /// and drops a series once every episode is watched. So "watched when" is `/v1/history`
 /// and this device; "new episode when" is the title payload's `updated_at`; "bookmarked
-/// when" is estimated (``bookmarkDates(folders:)``) — kino.pub keeps no per-item date.
+/// when" is the folder's date for its newest item and this device's own record for the
+/// rest (``bookmarkDates(folders:knownAdds:)``) — kino.pub keeps no per-item date.
 public enum ContinueWatchingOrder {
 
   /// How long the row is allowed to be. Ten to twelve on a TV (Sasha, 2026-10-25): the
@@ -195,18 +196,22 @@ public enum ContinueWatchingOrder {
 
   /// A bookmark's date, which kino.pub does not keep per item. A folder's `updated` is
   /// when something was last added to it, and its items come newest first (live
-  /// 2026-10-25: «maybe» lists its 78 items roughly newest first; the API takes no
-  /// sort). So the folder's first item gets the folder's date and every next one a
-  /// second less — the folder's order survives the merge with other dates, and nothing
-  /// in a folder untouched for months looks new. A title in several folders keeps the
-  /// newest.
-  public static func bookmarkDates(folders: [(updated: Date, itemIDs: [Int])]) -> [Int: Date] {
+  /// 2026-10-25), so the folder's first item was added then. Nothing says when the rest
+  /// were: «Gosha» lists 2018 titles second and fourth, and dating them by the folder put
+  /// years-old bookmarks above this week's new episodes. They get a date only from
+  /// `knownAdds` — bookmarks added on this device, which records when. A title in
+  /// several folders keeps the newest date.
+  public static func bookmarkDates(folders: [(updated: Date, itemIDs: [Int])],
+                                   knownAdds: [Int: Date] = [:]) -> [Int: Date] {
     var result: [Int: Date] = [:]
+    func keep(_ id: Int, _ date: Date) {
+      if let existing = result[id], existing >= date { return }
+      result[id] = date
+    }
     for folder in folders {
-      for (index, id) in folder.itemIDs.enumerated() {
-        let date = folder.updated.addingTimeInterval(-TimeInterval(index))
-        if let existing = result[id], existing >= date { continue }
-        result[id] = date
+      if let first = folder.itemIDs.first { keep(first, folder.updated) }
+      for id in folder.itemIDs {
+        if let date = knownAdds[id] { keep(id, date) }
       }
     }
     return result

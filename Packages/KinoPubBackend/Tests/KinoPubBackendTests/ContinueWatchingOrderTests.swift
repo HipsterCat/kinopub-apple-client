@@ -156,18 +156,22 @@ final class ContinueWatchingOrderTests: XCTestCase {
     XCTAssertEqual(ranked(bookmarks + [watched]), [1, 2, 3, 4, 100])
   }
 
-  /// The folder's newest item gets the folder's date; the rest keep the folder's order.
-  func testBookmarkDatesFollowFolderOrder() {
+  /// The folder's newest item gets the folder's date; the rest only a date this device
+  /// recorded when it added them.
+  func testBookmarkDatesTrustOnlyWhatIsKnown() {
     let recent = Date(timeIntervalSince1970: 2_000)
     let old = Date(timeIntervalSince1970: 1_000)
+    let addedHere = Date(timeIntervalSince1970: 1_500)
     let dates = ContinueWatchingOrder.bookmarkDates(folders: [
-      (updated: old, itemIDs: [5, 6]),
+      (updated: old, itemIDs: [5, 6, 8]),
       (updated: recent, itemIDs: [7, 5]),
-    ])
+    ], knownAdds: [8: addedHere, 9: addedHere])
 
     XCTAssertEqual(dates[7], recent)
-    XCTAssertEqual(dates[5], recent.addingTimeInterval(-1), "the newest folder wins")
-    XCTAssertEqual(dates[6], old.addingTimeInterval(-1))
+    XCTAssertEqual(dates[5], old, "first in the older folder")
+    XCTAssertNil(dates[6], "no way to tell when it was added")
+    XCTAssertEqual(dates[8], addedHere)
+    XCTAssertNil(dates[9], "not in any folder fetched: no longer bookmarked")
   }
 
   // MARK: - Length

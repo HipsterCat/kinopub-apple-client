@@ -1110,7 +1110,7 @@ class HomeCatalog: ObservableObject {
     // what comes next, or that nothing does (`card(for:)` returns nil on `playAgain`).
     // A finished film has nothing next.
     for entry in history {
-      let isEpisode = entry.isEpisode || (entry.item.type?.contains("serial") ?? false)
+      let isEpisode = entry.isEpisode || (WatchingItem(historyEntry: entry)?.isEpisodicType ?? false)
       if let watch = entry.watchProgress, watch.isFinished, !isEpisode { continue }
       guard entry.lastSeenDate != nil,
             !pool.contains(where: { $0.id == entry.item.id }),
@@ -1140,13 +1140,17 @@ class HomeCatalog: ObservableObject {
     // Series stay: finishing an episode is not finishing the title.
     pool.removeAll { item in
       guard let local = localByID[item.id], local.watch.isFinished else { return false }
-      return !item.type.contains("serial")
+      return !item.isEpisodicType
     }
 
     var bookmarkedAt: [Int: Date] = [:]
     if !bookmarked.isEmpty {
-      bookmarkedAt = ContinueWatchingOrder.bookmarkDates(folders: bookmarked.map { (updated: $0.updated, itemIDs: $0.items.map(\.id)) })
-      for item in bookmarked.flatMap(\.items) where !pool.contains(where: { $0.id == item.id }) {
+      bookmarkedAt = ContinueWatchingOrder.bookmarkDates(
+        folders: bookmarked.map { (updated: $0.updated, itemIDs: $0.items.map(\.id)) },
+        knownAdds: BookmarkMembershipStore.shared.addedDates()
+      )
+      for item in bookmarked.flatMap(\.items)
+      where bookmarkedAt[item.id] != nil && !pool.contains(where: { $0.id == item.id }) {
         pool.append(WatchingItem(mediaItem: item))
       }
     }
@@ -1188,30 +1192,44 @@ class HomeCatalog: ObservableObject {
         bookmarkedAt: bookmarkedAt[item.id]
       )
     }
-    // A few spare: a series whose every episode is watched has no card to draw.
-    let ordered = ContinueWatchingOrder.ranked(candidates, rules: rules, limit: rules.maxItems + Self.spareCards)
-
-    let versions = Dictionary(uniqueKeysWithValues: ordered.map { ($0.id, version($0)) })
-    details.merge(await titleDetails(for: ordered, serverListed: serverListed, versions: versions)) { _, new in new }
-
-    return Array(ordered.compactMap {
-      Self.card(for: $0,
-                detail: details[$0.id],
-                history: newestEntry[$0.id],
-                finishedEpisodes: finishedEpisodes[$0.id] ?? [:],
-                local: localByID[$0.id],
-                isInHistory: historyIDs.contains($0.id) || localByID[$0.id] != nil,
-                isInWatchlist: watchlistIDs.contains($0.id),
-                cached: cachedByID[$0.id])
-    }.prefix(rules.maxItems))
+    // The whole ranking, drawn from the top until the row is full: a series whose every
+    // episode is watched ranks by its last play and has no card (`playAgain`), and four
+    // such titles at the top left the row at 11 (2026-10-25). Payloads are asked for a
+    // batch at a time, so a full row costs no more than it did.
+    let ranked = ContinueWatchingOrder.ranked(candidates, rules: rules, limit: pool.count)
+    var cards: [MediaCard] = []
+    var next = 0
+    var rounds = 0
+    while cards.count < rules.maxItems, next < ranked.count, rounds < Self.drawRounds {
+      rounds += 1
+      let batch = Array(ranked[next..<min(ranked.count, next + rules.maxItems - cards.count + Self.spareCards)])
+      next += batch.count
+      let versions = Dictionary(uniqueKeysWithValues: batch.map { ($0.id, version($0)) })
+      details.merge(await titleDetails(for: batch, serverListed: serverListed, versions: versions)) { _, new in new }
+      cards += batch.compactMap {
+        Self.card(for: $0,
+                  detail: details[$0.id],
+                  history: newestEntry[$0.id],
+                  finishedEpisodes: finishedEpisodes[$0.id] ?? [:],
+                  local: localByID[$0.id],
+                  isInHistory: historyIDs.contains($0.id) || localByID[$0.id] != nil,
+                  isInWatchlist: watchlistIDs.contains($0.id),
+                  cached: cachedByID[$0.id])
+      }
+    }
+    return Array(cards.prefix(rules.maxItems))
   }
 
   /// One page of history: it is newest first, and fifty rows reach back about a week of
   /// evenings — further back, a title is dated by this device or not at all.
   private static let historyPerPage = 50
 
-  /// Ranked past the row's length, for cards that turn out to have nothing to offer.
+  /// Drawn past what the row still needs, for cards that turn out to have nothing to offer.
   private static let spareCards = 4
+
+  /// Batches drawn at most — a long account's ranking runs to a hundred titles, and three
+  /// batches of payloads is where a row that still is not full has to settle.
+  private static let drawRounds = 3
 
   /// Bookmark folders added to within the window, newest first, with their first page
   /// of items (newest first too). A failure is no bookmarks, not a failed row.
@@ -1277,7 +1295,7 @@ class HomeCatalog: ObservableObject {
     var byID: [Int: MediaItem] = [:]
     var ids: [Int] = []
     for item in items {
-      let isSeries = item.type.contains("serial")
+      let isSeries = item.isEpisodicType
       if serverListed.contains(item.id), !isSeries { continue }
       if let hit = Self.detailCache[item.id], hit.version == versions[item.id] {
         byID[item.id] = hit.item
@@ -1341,7 +1359,7 @@ class HomeCatalog: ObservableObject {
                            isInHistory: Bool,
                            isInWatchlist: Bool,
                            cached: MediaCard?) -> MediaCard? {
-    let isSeries = item.type.contains("serial")
+    let isSeries = item.isEpisodicType
     let video: Int?
     let season: Int?
     // True while the viewer is mid-video: only then do a progress bar and a "N left"

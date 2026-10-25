@@ -18,9 +18,13 @@ final class BookmarkMembershipStore: @unchecked Sendable {
   static let shared = BookmarkMembershipStore()
 
   private let defaultsKey = "com.soda.kinopub.bookmarkMembership"
+  private let addedKey = "com.soda.kinopub.bookmarkAddedAt"
   private let lock = NSLock()
   /// itemID → folderIDs. Absent key = "never touched locally, trust the card/payload hint".
   private var map: [Int: Set<Int>] = [:]
+  /// itemID → when this device last added it to a folder. kino.pub keeps no such date,
+  /// and Continue Watching mixes bookmarks in by it.
+  private var addedAt: [Int: Date] = [:]
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
@@ -74,18 +78,28 @@ final class BookmarkMembershipStore: @unchecked Sendable {
     var set = map[itemID] ?? serverHint
     if set.contains(folderID) {
       set.remove(folderID)
+      if set.isEmpty { addedAt[itemID] = nil }
     } else {
       set.insert(folderID)
+      addedAt[itemID] = Date()
     }
     map[itemID] = set
     persistLocked()
     return set
   }
 
+  /// When this device added each title to a bookmark folder, for the ones it did.
+  func addedDates() -> [Int: Date] {
+    lock.lock(); defer { lock.unlock() }
+    return addedAt
+  }
+
   func clear() {
     lock.lock(); defer { lock.unlock() }
     map = [:]
+    addedAt = [:]
     defaults.removeObject(forKey: defaultsKey)
+    defaults.removeObject(forKey: addedKey)
   }
 
   // MARK: - Persistence
@@ -98,6 +112,12 @@ final class BookmarkMembershipStore: @unchecked Sendable {
       loaded[id] = Set(value)
     }
     map = loaded
+    if let rawAdded = defaults.dictionary(forKey: addedKey) as? [String: Double] {
+      for (key, value) in rawAdded {
+        guard let id = Int(key) else { continue }
+        addedAt[id] = Date(timeIntervalSince1970: value)
+      }
+    }
   }
 
   private func persistLocked() {
@@ -107,5 +127,7 @@ final class BookmarkMembershipStore: @unchecked Sendable {
       raw["\(id)"] = folders.sorted()
     }
     defaults.set(raw, forKey: defaultsKey)
+    defaults.set(Dictionary(uniqueKeysWithValues: addedAt.map { ("\($0.key)", $0.value.timeIntervalSince1970) }),
+                 forKey: addedKey)
   }
 }
