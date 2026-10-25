@@ -17,11 +17,14 @@
 //  *without* a footer — the same rigid geometry as a rail's cover — plus this view, which has
 //  two lines because it says so.
 //
-//  It matches the footer it replaces: Callout (SF Medium 31 pt), centred, title secondary at
-//  rest and primary when focused, the detail always secondary. Like the footer, it rests under
-//  the art and drops by the focus room when the cover grows, in the focus update's animation.
-//  A title wider than the art fades out at its trailing edge at rest, no ellipsis, and scrolls
-//  to its end and back while focused (the system label's marquee).
+//  The title is Callout medium, centred, secondary at rest and primary when focused. Wider than
+//  the art, it fades at its trailing edge at rest and scrolls while this cell is focused. The
+//  detail line (year, genre, tour) is Caption 1 regular and truncates with an ellipsis — it
+//  does not scroll. A line within half a glyph of the art draws that far into the gutter and
+//  stays centred; the marquee starts only once it is clearly longer. Both sizes are fixed,
+//  so the grid's measured caption box does not move.
+//  Like the footer, the caption rests under the art and drops by the focus room when the cover
+//  grows.
 //
 
 import UIKit
@@ -38,13 +41,29 @@ final class TVPageCaptionView: UIView {
     2 * lineHeight(category: category)
   }
 
+  /// Callout, medium. The box under the art is still two of these lines tall.
   static func font(category: UIContentSizeCategory) -> UIFont {
-    UIFont.preferredFont(forTextStyle: .callout,
-                         compatibleWith: UITraitCollection(preferredContentSizeCategory: category))
+    weighted(.callout, .medium, category: category)
+  }
+
+  /// The year / genre / tour line. Caption 1, regular, at every Dynamic Type size — never
+  /// scaled per string. The box it sits in stays one Callout line, so the grid does not move.
+  static func detailFont(category: UIContentSizeCategory) -> UIFont {
+    weighted(.caption1, .regular, category: category)
+  }
+
+  private static func weighted(_ style: UIFont.TextStyle, _ weight: UIFont.Weight,
+                               category: UIContentSizeCategory) -> UIFont {
+    let base = UIFont.preferredFont(forTextStyle: style,
+                                    compatibleWith: UITraitCollection(preferredContentSizeCategory: category))
+    let descriptor = base.fontDescriptor.addingAttributes([
+      .traits: [UIFontDescriptor.TraitKey.weight: weight]
+    ])
+    return UIFont(descriptor: descriptor, size: 0)
   }
 
   private let title = TVPageMarqueeLine()
-  private let detail = UILabel()
+  private let detail = TVPageMarqueeLine()
 
   var titleText: String? { title.text }
   var detailText: String? { detail.text }
@@ -57,9 +76,8 @@ final class TVPageCaptionView: UIView {
     title.translatesAutoresizingMaskIntoConstraints = false
     title.textColor = .secondaryLabel
     detail.translatesAutoresizingMaskIntoConstraints = false
-    detail.textAlignment = .center
-    detail.lineBreakMode = .byTruncatingTail
     detail.textColor = .secondaryLabel
+    detail.scrolls = false
     addSubview(title)
     addSubview(detail)
     NSLayoutConstraint.activate([
@@ -78,9 +96,8 @@ final class TVPageCaptionView: UIView {
 
   /// Both lines, at the size the page is measured at.
   func configure(title text: String?, detail detailText: String?, category: UIContentSizeCategory) {
-    let font = Self.font(category: category)
-    title.font = font
-    detail.font = font
+    title.font = Self.font(category: category)
+    detail.font = Self.detailFont(category: category)
     title.text = text
     detail.text = detailText
     // A new cover starts at rest, whatever the cell showed before.
@@ -91,7 +108,8 @@ final class TVPageCaptionView: UIView {
   /// Puts the caption in the state a focus update asks for, inside its animation coordinator:
   /// the title changes colour, the caption follows the cover down by `drop` (the room the
   /// cover grows into) or back up, and with `reveals` it fades in and out with the focus. A
-  /// focused title wider than the line starts to scroll once the motion has settled.
+  /// focused title wider than the line starts to scroll once the motion has settled. The
+  /// detail line stays put and shows an ellipsis.
   func setFocused(_ focused: Bool, drop: CGFloat, reveals: Bool, in coordinator: UIFocusAnimationCoordinator) {
     coordinator.addCoordinatedAnimations({ [weak self] in
       guard let self else { return }
@@ -103,8 +121,16 @@ final class TVPageCaptionView: UIView {
       if reveals { self.alpha = focused ? 1 : 0 }
     }, completion: { [weak self] in
       guard let self else { return }
-      if focused { self.title.startScrolling() } else { self.title.stopScrolling() }
+      if focused { self.startScrolling() } else { self.stopScrolling() }
     })
+  }
+
+  func startScrolling() {
+    title.startScrolling()
+  }
+
+  func stopScrolling() {
+    title.stopScrolling()
   }
 
   /// The focused look, immediately: a cell configured while it already holds focus.
@@ -118,18 +144,22 @@ final class TVPageCaptionView: UIView {
   func resetToRest(reveals: Bool = false) {
     transform = .identity
     title.textColor = .secondaryLabel
-    title.stopScrolling()
+    stopScrolling()
     if reveals { alpha = 0 }
   }
 }
 
-/// One line of text, centred. Too wide for the line, it does what a system label with
-/// `enablesMarqueeWhenAncestorFocused` does: at rest it shows its start and fades out at the
-/// trailing edge — no ellipsis — and `startScrolling()` moves it to its end and back.
+/// One line of text, centred, at the font it was given.
 ///
-/// Not the system label itself: a lockup's caption must not scroll because some *ancestor*
-/// holds focus (on the detail page that is the SwiftUI scroll view's container, an ancestor of
-/// every cell — see `TVPosterArtFocus`), so the cell says when it is focused.
+/// `scrolls`: too wide for the line, it does what a system label with
+/// `enablesMarqueeWhenAncestorFocused` does — at rest it shows its start and fades out at the
+/// trailing edge, and `startScrolling()` moves it to its end and back. Not the system label
+/// itself: a lockup's caption must not scroll because some *ancestor* holds focus (on the
+/// detail page that is the SwiftUI scroll view's container, an ancestor of every cell — see
+/// `TVPosterArtFocus`), so the cell says when it is focused.
+///
+/// `scrolls == false`: the same line, truncated with an ellipsis. The year / genre / tour
+/// under a cover.
 @MainActor
 final class TVPageMarqueeLine: UIView {
   private let label = UILabel()
@@ -149,6 +179,14 @@ final class TVPageMarqueeLine: UIView {
     set { label.textColor = newValue }
   }
 
+  /// The title scrolls. The detail line sets this false and truncates instead.
+  var scrolls = true {
+    didSet {
+      label.lineBreakMode = scrolls ? .byClipping : .byTruncatingTail
+      if !scrolls { stopScrolling() }
+    }
+  }
+
   override init(frame: CGRect) {
     super.init(frame: frame)
     clipsToBounds = true
@@ -166,19 +204,40 @@ final class TVPageMarqueeLine: UIView {
     fade.frame = bounds
   }
 
-  private var overflow: CGFloat {
-    ceil(label.intrinsicContentSize.width) - bounds.width
+  /// Half a glyph past the art, each side. A title within that of the line stays centred
+  /// there instead of a marquee that would shuttle it back and forth by the same half glyph.
+  /// The gutter between covers is 44 pt, so the extra does not meet the next caption.
+  private var sideBleed: CGFloat {
+    (label.font.pointSize * 0.35).rounded(.up)
   }
 
-  /// Fits: centred in the line. Too wide: its start, the trailing edge faded.
+  private var textWidth: CGFloat {
+    ceil(label.intrinsicContentSize.width)
+  }
+
+  /// Wider than the art by more than `sideBleed` on each side.
+  private var overflows: Bool {
+    textWidth > bounds.width + sideBleed * 2 + 1
+  }
+
+  /// Fits: centred, and a title within half a glyph of the art draws into that slack.
+  /// A truncating line that is genuinely too long ends in an ellipsis. A scrolling line
+  /// that is too long shows its start, the trailing edge faded.
   private func layoutAtRest() {
-    let overflow = overflow
-    if overflow > 1 {
+    if !overflows {
+      clipsToBounds = false
+      label.textAlignment = .center
+      label.frame = CGRect(x: -sideBleed, y: 0, width: bounds.width + sideBleed * 2, height: bounds.height)
+      layer.mask = nil
+    } else if scrolls {
+      clipsToBounds = true
       label.textAlignment = .natural
+      let overflow = textWidth - bounds.width
       label.frame = CGRect(x: 0, y: 0, width: bounds.width + overflow, height: bounds.height)
       restFade.frame = bounds
       layer.mask = restFade
     } else {
+      clipsToBounds = true
       label.textAlignment = .center
       label.frame = bounds
       layer.mask = nil
@@ -206,29 +265,46 @@ final class TVPageMarqueeLine: UIView {
   }()
 
   private(set) var isScrolling = false
+  private static let marqueeKey = "marquee"
 
   func startScrolling() {
-    guard !isScrolling, bounds.width > 1, !UIAccessibility.isReduceMotionEnabled else { return }
+    guard scrolls, !isScrolling, bounds.width > 1, !UIAccessibility.isReduceMotionEnabled else { return }
     let natural = ceil(label.intrinsicContentSize.width)
+    guard overflows else { return }
     let overflow = natural - bounds.width
-    guard overflow > 1 else { return }
     isScrolling = true
+    clipsToBounds = true
     fade.frame = bounds
     layer.mask = fade
     label.textAlignment = .left
-    label.frame = CGRect(x: 0, y: 0, width: natural, height: bounds.height)
-    // About 40 pt a second, a beat at the start before it moves.
-    UIView.animate(withDuration: Double(overflow) / 40, delay: 0.8,
-                   options: [.repeat, .autoreverse, .curveLinear, .allowUserInteraction]) { [label] in
-      label.frame.origin.x = -overflow
+    // The model stays at rest. A UIView animation would write the end origin into the
+    // model at once and only show it later, so leaving focus during the delay snapped
+    // the whole line to its end.
+    UIView.performWithoutAnimation {
+      label.frame = CGRect(x: 0, y: 0, width: natural, height: bounds.height)
     }
+    let animation = CABasicAnimation(keyPath: "position.x")
+    let from = label.layer.position.x
+    animation.fromValue = from
+    animation.toValue = from - overflow
+    animation.duration = Double(overflow) / 40
+    animation.beginTime = label.layer.convertTime(CACurrentMediaTime(), from: nil) + 0.8
+    animation.timingFunction = CAMediaTimingFunction(name: .linear)
+    animation.autoreverses = true
+    animation.repeatCount = .infinity
+    animation.isRemovedOnCompletion = false
+    animation.fillMode = .both
+    label.layer.add(animation, forKey: Self.marqueeKey)
   }
 
   func stopScrolling() {
     guard isScrolling else { setNeedsLayout(); return }
     isScrolling = false
-    label.layer.removeAllAnimations()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    label.layer.removeAnimation(forKey: Self.marqueeKey)
     layoutAtRest()
+    CATransaction.commit()
   }
 }
 #endif

@@ -113,9 +113,10 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
 
   func configure(card: MediaCard, recipe: TVPageCellRecipe, caption: TVPageCaption,
-                 showsRating: Bool = false) {
+                 showsRating: Bool = false, omittingGenreIDs: Set<String> = []) {
     place(recipe: recipe)
-    applyCaption(caption, title: card.title, detail: Self.posterSubtitle(for: card, caption: caption))
+    applyCaption(caption, title: card.title,
+                 detail: Self.posterSubtitle(for: card, caption: caption, omittingGenreIDs: omittingGenreIDs))
 
     let posterID = "kinopub.poster.\(card.id)"
     accessibilityIdentifier = posterID
@@ -174,15 +175,18 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
 
   /// What a captioned cover says under its title: a followed series says how many of its
   /// episodes are still unwatched (the Library's *Following* — «2 серии»); everything else
-  /// `Год Жанр` / `2019–2024 Жанр`. A title with neither says nothing — the line is still
-  /// there, empty, so a grid never mixes one-line and two-line cells.
+  /// `Год Жанр` / `2019–2024 Жанр`, a concert's tour in place of the genre.
+  /// `omittingGenreIDs` is the section's own genre. A title with neither says nothing —
+  /// the line is still there, empty, so a grid never mixes one-line and two-line cells.
   /// Original title is reserved for search's wide cards (match highlighting).
-  static func posterSubtitle(for card: MediaCard, caption: TVPageCaption) -> String? {
+  static func posterSubtitle(for card: MediaCard, caption: TVPageCaption,
+                             omittingGenreIDs: Set<String> = []) -> String? {
     switch caption {
     case .never:
       return nil
     case .always, .onFocus:
-      return EpisodesLeftText(card.unwatchedEpisodes)?.formatted() ?? card.catalogCaption()
+      return EpisodesLeftText(card.unwatchedEpisodes)?.formatted()
+        ?? card.catalogCaption(omittingGenreIDs: omittingGenreIDs)
     }
   }
 
@@ -254,7 +258,10 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
       captionView.configure(title: title, detail: detail, category: TVPageCellMetrics.contentSizeCategory)
       captionView.isHidden = false
       captionView.alpha = caption == .onFocus && !isFocused ? 0 : 1
-      if isFocused { captionView.setFocusedLook(drop: focusDrop) }
+      if isFocused {
+        captionView.setFocusedLook(drop: focusDrop)
+        captionView.startScrolling()
+      }
     }
   }
 
@@ -821,7 +828,7 @@ final class TVPageWideCardCell: UICollectionViewCell {
     }
   }
 
-  func configure(card: MediaCard, match: String?) {
+  func configure(card: MediaCard, match: String?, omittingGenreIDs: Set<String> = []) {
     monogramName = nil
     thumbnail.isHidden = false
     avatar.isHidden = true
@@ -830,7 +837,7 @@ final class TVPageWideCardCell: UICollectionViewCell {
     let original = Self.matchedOriginal(card, match: match)
     originalLabel.text = original
     originalLabel.isHidden = original == nil
-    detailLabel.text = Self.detail(for: card)
+    detailLabel.text = Self.detail(for: card, omittingGenreIDs: omittingGenreIDs)
     detailLabel.isHidden = detailLabel.text == nil
     // The card is what takes focus (and what XCUI reports); the cell id alone is empty there.
     let cardID = "kinopub.card.\(card.id)"
@@ -884,8 +891,8 @@ final class TVPageWideCardCell: UICollectionViewCell {
   /// catalog cover (`catalogCaption`). No running time: in a result list those two
   /// are what tell two same-named titles apart. A collection has neither, so its
   /// counters (items, views) take the line instead.
-  private static func detail(for card: MediaCard) -> String? {
-    if let caption = card.catalogCaption() { return caption }
+  private static func detail(for card: MediaCard, omittingGenreIDs: Set<String> = []) -> String? {
+    if let caption = card.catalogCaption(omittingGenreIDs: omittingGenreIDs) { return caption }
     let stats = card.captionStats.map(\.value).filter { !$0.isEmpty }
     return stats.isEmpty ? nil : stats.joined(separator: "\u{2003}")
   }

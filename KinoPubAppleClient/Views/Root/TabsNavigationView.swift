@@ -655,6 +655,7 @@ struct FilterCatalogTabView: View {
         LibraryFiltersBar(catalog: catalog)
 #endif
       }
+      .environment(\.catalogCaptionOmittedGenreIDs, catalog.filter.captionOmittedGenreIDs)
 #if os(macOS)
       .toolbar {
         ToolbarItem(placement: .accessoryBar(id: MacToolbarChrome.accessoryID)) {
@@ -679,7 +680,8 @@ struct FilterCatalogTabView: View {
     return [
       filters,
       .posters(id: "browse", title: nil, flow: .grid, caption: .always,
-               loadsMore: catalog.hasMorePages, cards: cards)
+               loadsMore: catalog.hasMorePages,
+               omittedCaptionGenreIDs: catalog.filter.captionOmittedGenreIDs, cards: cards)
     ]
   }
 

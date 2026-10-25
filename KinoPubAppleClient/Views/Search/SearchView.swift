@@ -291,7 +291,7 @@ struct SearchView: View {
   /// The best matches as wide text cards, two rows deep, with the people whose name
   /// matched after the first two titles. No row title — the cards say what they are,
   /// and the rows under them get the height.
-  private func topCards(from results: [MediaCard]) -> TVPageSection? {
+  private func topCards(from results: [MediaCard], omittingGenreIDs: Set<String> = []) -> TVPageSection? {
     let people = tvPeople.map { person in
       TVPageItem.person(TVUIKitPerson(
         id: person.id,
@@ -309,7 +309,7 @@ struct SearchView: View {
     // Two rows only once one row is full: two matches are a row of two, not a column.
     let columns = 3
     return .cards(id: "top", title: nil, columns: columns, rows: items.count > columns ? 2 : 1,
-                  match: catalog.searchQuery, items: items)
+                  match: catalog.searchQuery, omittedCaptionGenreIDs: omittingGenreIDs, items: items)
   }
 
   private var tvSections: [TVPageSection] {
@@ -321,9 +321,13 @@ struct SearchView: View {
       let others = tvOtherResults
       return [
         filters,
-        results.isEmpty ? nil : TVPageSection.posters(id: "browse", title: nil, flow: .grid, caption: .always, cards: results),
+        results.isEmpty ? nil : TVPageSection.posters(id: "browse", title: nil, flow: .grid, caption: .always,
+                                                     omittedCaptionGenreIDs: catalog.filter.captionOmittedGenreIDs,
+                                                     cards: results),
         others.isEmpty ? nil : TVPageSection.posters(id: "others", title: "Other Results".localized, flow: .grid,
-                                                     caption: .always, cards: others)
+                                                     caption: .always,
+                                                     omittedCaptionGenreIDs: catalog.filter.captionOmittedGenreIDs,
+                                                     cards: others)
       ].compactMap { $0 }
     }
     if results.isEmpty {
@@ -336,21 +340,30 @@ struct SearchView: View {
     // Browsing (empty field): the catalog in the chosen order, as one grid.
     guard catalog.isSearching else {
       return [filters, .posters(id: "browse", title: nil, flow: .grid, caption: .always,
-                                loadsMore: catalog.hasMorePages, cards: results)]
+                                loadsMore: catalog.hasMorePages,
+                                omittedCaptionGenreIDs: catalog.filter.captionOmittedGenreIDs,
+                                cards: results)]
     }
     // The best matches as cards, then a titled rail per kind — Фильмы, Сериалы,
     // Документалки… `sectioned=1` would have the server group them, but it answers
     // the same flat list (2026-09-26), so the one answer is filed by each title's
     // type. One kind only (the type filter, or all there is): one grid, no title.
-    let cards = topCards(from: results)
     let groups = Self.kindGroups(results, types: catalog.itemTypes)
+    let filterOmit = catalog.filter.captionOmittedGenreIDs
+    let omitted = groups.count == 1
+      ? (groups.first?.0.redundantCaptionGenreID.map { Set([$0]) } ?? filterOmit)
+      : filterOmit
+    let cards = topCards(from: results, omittingGenreIDs: omitted)
     guard groups.count > 1 else {
       return [filters, cards, .posters(id: "results", title: nil, flow: .grid, caption: .always,
-                                       loadsMore: catalog.hasMorePages, cards: results)]
+                                       loadsMore: catalog.hasMorePages,
+                                       omittedCaptionGenreIDs: omitted, cards: results)]
         .compactMap { $0 }
     }
     return [filters, cards].compactMap { $0 } + groups.map { kind, cards in
-      TVPageSection.posters(id: "kind.\(kind.rawValue)", title: kind.titleKey.localized, caption: .always, cards: cards)
+      let omitted = kind.redundantCaptionGenreID.map { Set([$0]) } ?? []
+      return TVPageSection.posters(id: "kind.\(kind.rawValue)", title: kind.titleKey.localized,
+                                   caption: .always, omittedCaptionGenreIDs: omitted, cards: cards)
     }
   }
 
@@ -468,6 +481,7 @@ struct SearchView: View {
             }
 #endif
           }
+          .environment(\.catalogCaptionOmittedGenreIDs, catalog.filter.captionOmittedGenreIDs)
         }
       }
 #if os(macOS)

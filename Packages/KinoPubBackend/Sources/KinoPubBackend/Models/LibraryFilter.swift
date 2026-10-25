@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import KinoPubMedia
 
 /// How the library listing is sorted.
 ///
@@ -281,6 +282,21 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
 
   private static func format(_ value: Double) -> String {
     value == value.rounded() ? String(Int(value)) : String(value)
+  }
+
+  /// Genres a catalog caption skips because this listing is already that kind.
+  /// One kind (Documentaries, Anime, Cartoons), or a genre chip that is only one of
+  /// those. A mix keeps the word: it is what tells the covers apart.
+  public var captionOmittedGenreIDs: Set<String> {
+    if kinds.count == 1, let id = kinds.first?.redundantCaptionGenreID {
+      return [id]
+    }
+    let picked = Set(genreIDs).union(genreID.map { [$0] } ?? [])
+    guard picked.count == 1, let only = picked.first,
+          let id = GenreVocabulary.kinopub(id: only, title: nil, domain: .video)?.id,
+          id == "documentary" || id == "anime" || id == "animation"
+    else { return [] }
+    return [id]
   }
 
   /// True when anything other than the default sort is in play.

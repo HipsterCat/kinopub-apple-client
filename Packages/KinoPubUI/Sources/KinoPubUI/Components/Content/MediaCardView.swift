@@ -184,13 +184,40 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// `Год Жанр` / `2019–2024 Жанр` — the line under a cover in a catalog grid
   /// (search, collections, person credits, Library bookmarks). Year first so
   /// titles of the same genre sort by eye; an ended series keeps its span.
-  public func catalogCaption(language: MediaLanguage = .current) -> String? {
-    switch (yearLabel, primaryGenre(language: language)) {
-    case let (year?, genre?): return "\(year) \(genre)"
+  ///
+  /// A concert says the tour instead of the genre: kino.pub's title is
+  /// "Artist / The Eras Tour", and the half after "/" is that continuation.
+  /// `omittingGenreIDs` is the section the cover is already in (documentary,
+  /// anime, animation), so the line names the next genre rather than repeating it.
+  public func catalogCaption(language: MediaLanguage = .current,
+                             omittingGenreIDs: Set<String> = []) -> String? {
+    switch (yearLabel, catalogDetail(language: language, omittingGenreIDs: omittingGenreIDs)) {
+    case let (year?, detail?): return "\(year) \(detail)"
     case let (year?, nil): return year
-    case let (nil, genre?): return genre
+    case let (nil, detail?): return detail
     default: return nil
     }
+  }
+
+  /// The words after the year: a concert's tour, otherwise one genre.
+  func catalogDetail(language: MediaLanguage = .current,
+                     omittingGenreIDs: Set<String> = []) -> String? {
+    if let tour = concertContinuation { return tour }
+    let genre = omittingGenreIDs.isEmpty
+      ? genres.first
+      : genres.first { !omittingGenreIDs.contains($0.id) }
+    return genre?.name.value(languageCode: language.rawValue)
+  }
+
+  /// "Artist / The Eras Tour" — the card's title is the artist, `subtitle` the tour.
+  /// A film's subtitle is a translation, so this stays nil unless the genres are music
+  /// (or the title is filed as a concert and nothing else).
+  private var concertContinuation: String? {
+    guard genres.contains(where: { $0.domain == .music || $0.id == "concert" }) else { return nil }
+    guard let subtitle = subtitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !subtitle.isEmpty,
+          subtitle.caseInsensitiveCompare(title) != .orderedSame else { return nil }
+    return subtitle
   }
 
   /// Finds the primary meaningful genre, skipping obvious generic categories (anime, animation, cartoon).
@@ -575,6 +602,19 @@ public enum MediaCardCaption {
   case always
 }
 
+private struct CatalogCaptionOmittedGenreIDsKey: EnvironmentKey {
+  static let defaultValue: Set<String> = []
+}
+
+public extension EnvironmentValues {
+  /// Genre ids the catalog listing already is — documentary, anime, animation —
+  /// so a cover's caption names the next genre instead of repeating the section.
+  var catalogCaptionOmittedGenreIDs: Set<String> {
+    get { self[CatalogCaptionOmittedGenreIDsKey.self] }
+    set { self[CatalogCaptionOmittedGenreIDsKey.self] = newValue }
+  }
+}
+
 /// Poster or landscape card. Width comes from the parent (`containerRelativeFrame` /
 /// grid column); height from `CardAspect`. Landscape cards follow the episode-rail
 /// layout: play glyph + progress on the still, title / meta in the caption below —
@@ -647,6 +687,7 @@ public struct MediaCardView: View {
   private var showDuration = MediaCardDisplayPreferences.defaultShowDuration
   @AppStorage(MediaCardDisplayPreferences.showGenreKey)
   private var showGenre = MediaCardDisplayPreferences.defaultShowGenre
+  @Environment(\.catalogCaptionOmittedGenreIDs) private var omittedGenreIDs
   @AppStorage(MediaCardDisplayPreferences.showCountryKey)
   private var showCountry = MediaCardDisplayPreferences.defaultShowCountry
   @AppStorage(MediaCardDisplayPreferences.showBookmarkSymbolKey)
@@ -725,14 +766,15 @@ public struct MediaCardView: View {
   private var captionMetaParts: [String] {
     var parts: [String] = []
     // Duration lives on landscape artwork (Apple-style time chip), not in the caption.
-    if showYear, showGenre, let caption = card.catalogCaption() {
+    if showYear, showGenre,
+       let caption = card.catalogCaption(omittingGenreIDs: omittedGenreIDs) {
       parts.append(caption)
     } else {
       if showYear, let year = card.yearLabel {
         parts.append(year)
       }
-      if showGenre, let genre = card.primaryGenre() {
-        parts.append(genre)
+      if showGenre, let detail = card.catalogDetail(omittingGenreIDs: omittedGenreIDs) {
+        parts.append(detail)
       }
     }
     if showCountry, let country = card.country, !country.isEmpty {

@@ -90,4 +90,56 @@ final class MediaCardModelTests: XCTestCase {
     XCTAssertEqual(ongoing.yearLabel, "2011")
     XCTAssertEqual(ongoing.catalogCaption(language: .ru), "2011 Фэнтези")
   }
+
+  /// A concert's caption is the tour — the half of the title after "/" — not the genre.
+  /// A film keeps the genre: its half after "/" is a translation.
+  func testAConcertCaptionIsTheTour() {
+    let concert = MediaEntity(kind: .movie, title: "Taylor Swift",
+                              originalTitle: "The Eras Tour: Taylor's Version",
+                              genres: [GenreVocabulary.genre(id: "music.country")!,
+                                       GenreVocabulary.genre(id: "concert")!],
+                              release: .year(2023))
+    let card = MediaCard(ref: .title(1), entity: concert, state: .unknown)
+    XCTAssertEqual(card.catalogCaption(language: .ru), "2023 The Eras Tour: Taylor's Version")
+    XCTAssertNotEqual(card.catalogCaption(language: .ru), "2023 Кантри")
+
+    let bare = MediaEntity(kind: .movie, title: "Queen",
+                           genres: [GenreVocabulary.genre(id: "music.rock")!],
+                           release: .year(1986))
+    XCTAssertEqual(MediaCard(ref: .title(2), entity: bare, state: .unknown).catalogCaption(language: .ru),
+                   "1986 Рок", "no slash, so the genre stays")
+  }
+
+  /// Inside Documentaries, Anime or Cartoons the caption names the next genre.
+  /// Outside that section the leading word stays — it is what the cover is.
+  func testASectionSkipsItsOwnGenre() {
+    let documentary = MediaEntity(kind: .movie, title: "Космос",
+                                  genres: [GenreVocabulary.genre(id: "documentary")!,
+                                           GenreVocabulary.genre(id: "history")!],
+                                  release: .year(2014))
+    let card = MediaCard(ref: .title(1), entity: documentary, state: .unknown)
+    XCTAssertEqual(card.catalogCaption(language: .ru), "2014 Документальный")
+    XCTAssertEqual(card.catalogCaption(language: .ru, omittingGenreIDs: ["documentary"]), "2014 Исторический")
+
+    let anime = MediaEntity(kind: .show, title: "Атака титанов",
+                            genres: [GenreVocabulary.genre(id: "anime")!,
+                                     GenreVocabulary.genre(id: "action")!],
+                            release: .year(2013))
+    let animeCard = MediaCard(ref: .title(2), entity: anime, state: .unknown)
+    XCTAssertEqual(animeCard.catalogCaption(language: .ru, omittingGenreIDs: ["anime"]), "2013 Боевик")
+
+    let cartoon = MediaEntity(kind: .movie, title: "Душа",
+                              genres: [GenreVocabulary.genre(id: "animation")!,
+                                       GenreVocabulary.genre(id: "comedy")!],
+                              release: .year(2020))
+    let cartoonCard = MediaCard(ref: .title(3), entity: cartoon, state: .unknown)
+    XCTAssertEqual(cartoonCard.catalogCaption(language: .ru, omittingGenreIDs: ["animation"]), "2020 Комедия")
+
+    let only = MediaEntity(kind: .movie, title: "Хроника",
+                           genres: [GenreVocabulary.genre(id: "documentary")!],
+                           release: .year(2011))
+    XCTAssertEqual(MediaCard(ref: .title(4), entity: only, state: .unknown)
+      .catalogCaption(language: .ru, omittingGenreIDs: ["documentary"]),
+                   "2011", "nothing else to say")
+  }
 }

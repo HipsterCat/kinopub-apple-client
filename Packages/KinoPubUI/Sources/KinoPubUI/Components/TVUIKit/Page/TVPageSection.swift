@@ -534,6 +534,9 @@ public struct TVPageSection: Identifiable, Hashable {
   /// Trailing chips on the section header — sort / filter, Following's Unwatched/All
   /// switch, or a folder's ellipsis menu. Same `TVPageChip` the Search filter row uses.
   public let headerActions: [TVPageChip]
+  /// Genre ids this section already is, so a cover's caption names the next one
+  /// instead of «Документальный» / «Аниме» / «Мультфильм» on every poster.
+  public let omittedCaptionGenreIDs: Set<String>
 
   public init(id: String,
               title: String?,
@@ -548,6 +551,7 @@ public struct TVPageSection: Identifiable, Hashable {
               showsRating: Bool = false,
               groups: [TVPageGroup] = [],
               headerActions: [TVPageChip] = [],
+              omittedCaptionGenreIDs: Set<String> = [],
               items: [TVPageItem]) {
     self.id = id
     self.title = title
@@ -562,6 +566,7 @@ public struct TVPageSection: Identifiable, Hashable {
     self.showsRating = showsRating
     self.groups = groups
     self.headerActions = headerActions
+    self.omittedCaptionGenreIDs = omittedCaptionGenreIDs
     self.items = items
   }
 
@@ -583,11 +588,13 @@ public struct TVPageSection: Identifiable, Hashable {
                              loadsMore: Bool = false,
                              showsRating: Bool = false,
                              headerActions: [TVPageChip] = [],
+                             omittedCaptionGenreIDs: Set<String> = [],
                              cards: [MediaCard]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .poster, flow: flow,
                   columns: columns, caption: caption ?? (flow == .grid ? .always : .never),
                   loadsMore: loadsMore, showsRating: showsRating,
-                  headerActions: headerActions, items: cards.map(TVPageItem.card))
+                  headerActions: headerActions, omittedCaptionGenreIDs: omittedCaptionGenreIDs,
+                  items: cards.map(TVPageItem.card))
   }
 
   /// 1:1 art in the poster lockup, 6 across by default — collection covers, awards.
@@ -648,9 +655,11 @@ public struct TVPageSection: Identifiable, Hashable {
                            columns: Int = 3,
                            rows: Int = 1,
                            match: String? = nil,
+                           omittedCaptionGenreIDs: Set<String> = [],
                            items: [TVPageItem]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .card, flow: .rail,
-                  columns: columns, caption: .always, rows: rows, match: match, items: items)
+                  columns: columns, caption: .always, rows: rows, match: match,
+                  omittedCaptionGenreIDs: omittedCaptionGenreIDs, items: items)
   }
 
   /// The Home banner: large platters, untitled. Each title once (Sasha, 2026-10-01).
@@ -712,7 +721,8 @@ public struct TVPageSection: Identifiable, Hashable {
   public func withHeaderActions(_ actions: [TVPageChip]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: kind, flow: flow, columns: columns,
                   caption: caption, rows: rows, match: match, loadsMore: loadsMore,
-                  showsRating: showsRating, groups: groups, headerActions: actions, items: items)
+                  showsRating: showsRating, groups: groups, headerActions: actions,
+                  omittedCaptionGenreIDs: omittedCaptionGenreIDs, items: items)
   }
 
   /// The same section with `count` skeleton tiles after its items.
@@ -720,6 +730,7 @@ public struct TVPageSection: Identifiable, Hashable {
     TVPageSection(id: id, title: title, count: self.count, kind: kind, flow: flow, columns: columns,
                   caption: caption, rows: rows, match: match, loadsMore: loadsMore,
                   showsRating: showsRating, groups: groups, headerActions: headerActions,
+                  omittedCaptionGenreIDs: omittedCaptionGenreIDs,
                   items: items + (0..<count).map(TVPageItem.placeholder))
   }
 
@@ -747,7 +758,7 @@ public struct TVPageSection: Identifiable, Hashable {
     return TVPageSection(id: id, title: title, count: count, kind: kind, flow: flow, columns: columns,
                          caption: caption, rows: rows, match: match, loadsMore: loadsMore,
                          showsRating: showsRating, groups: groups, headerActions: headerActions,
-                         items: kept)
+                         omittedCaptionGenreIDs: omittedCaptionGenreIDs, items: kept)
   }
 
   /// The cell registration this item dequeues. Stable for a given item in a given

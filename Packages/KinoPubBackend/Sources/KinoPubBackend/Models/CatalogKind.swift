@@ -38,6 +38,17 @@ public enum CatalogKind: String, CaseIterable, Hashable, Sendable, Identifiable 
     }
   }
 
+  /// The genre a catalog caption should not repeat while the listing is this kind:
+  /// every cover would otherwise say «Документальный», «Аниме» or «Мультфильм».
+  public var redundantCaptionGenreID: String? {
+    switch self {
+    case .documentaries: "documentary"
+    case .anime: "anime"
+    case .cartoons: "animation"
+    default: nil
+    }
+  }
+
   /// The genre that makes the kind, for the genre axis.
   public var genreID: Int? {
     switch self {

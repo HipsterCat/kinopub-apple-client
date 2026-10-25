@@ -541,7 +541,8 @@ public final class TVPageCollectionViewController: UIViewController {
       cell.kind = kind
       switch self.itemsByID[id] {
       case .card(let card)?:
-        cell.configure(card: card, recipe: recipe, caption: caption, showsRating: section.showsRating)
+        cell.configure(card: card, recipe: recipe, caption: caption, showsRating: section.showsRating,
+                       omittingGenreIDs: section.omittedCaptionGenreIDs)
       case .tile(let tile)?:
         cell.configure(tile: tile, recipe: recipe, caption: caption)
       default:
@@ -595,7 +596,9 @@ public final class TVPageCollectionViewController: UIViewController {
         ?? cell.bounds.width
       cell.apply(recipe: TVPageCellMetrics.recipe(kind: .card, itemWidth: width, caption: .always))
       switch self.itemsByID[id] {
-      case .card(let item)?: cell.configure(card: item, match: self.sectionsByID[id.section]?.match)
+      case .card(let item)?:
+        cell.configure(card: item, match: self.sectionsByID[id.section]?.match,
+                       omittingGenreIDs: self.sectionsByID[id.section]?.omittedCaptionGenreIDs ?? [])
       case .person(let person)?: cell.configure(person: person)
       default: cell.configurePlaceholder()
       }

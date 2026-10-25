@@ -222,6 +222,25 @@ final class CatalogKindParameterTests: XCTestCase {
     XCTAssertNil(params["genre"])
   }
 
+  func testASingleKindOmitsItsOwnGenreFromCaptions() {
+    var filter = LibraryFilter()
+    filter.kinds = [.documentaries]
+    XCTAssertEqual(filter.captionOmittedGenreIDs, ["documentary"])
+    filter.kinds = [.anime]
+    XCTAssertEqual(filter.captionOmittedGenreIDs, ["anime"])
+    filter.kinds = [.cartoons]
+    XCTAssertEqual(filter.captionOmittedGenreIDs, ["animation"])
+    filter.kinds = [.concerts]
+    XCTAssertTrue(filter.captionOmittedGenreIDs.isEmpty, "a concert's caption is its tour, not a skipped genre")
+    filter.kinds = [.documentaries, .movies]
+    XCTAssertTrue(filter.captionOmittedGenreIDs.isEmpty)
+    filter.kinds = []
+    filter.genreIDs = [25]
+    XCTAssertEqual(filter.captionOmittedGenreIDs, ["anime"])
+    filter.genreIDs = [25, 23]
+    XCTAssertTrue(filter.captionOmittedGenreIDs.isEmpty, "two genres still need their own words")
+  }
+
   func testGenreKindsOwnTheGenreParameter() {
     var filter = LibraryFilter()
     filter.kinds = [.anime, .cartoons]
