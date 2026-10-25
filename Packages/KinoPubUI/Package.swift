@@ -14,6 +14,7 @@ let package = Package(
     .package(name: "KinoPubBackend", path: "../KinoPubBackend"),
     .package(name: "KinoPubLogging", path: "../KinoPubLogging"),
     .package(name: "KinoPubMedia", path: "../KinoPubMedia"),
+    .package(name: "KinoPubMetadata", path: "../KinoPubMetadata"),
     // Artwork pipeline. Everything Nuke-shaped stays behind `Artwork` /
     // `CachedRemoteImage` / `TVUIKitRemoteImage` — no call site imports it.
     .package(url: "https://github.com/kean/Nuke.git", from: "13.2.0"),
@@ -28,6 +29,7 @@ let package = Package(
         .product(name: "KinoPubBackend", package: "KinoPubBackend"),
         .product(name: "KinoPubLogging", package: "KinoPubLogging"),
         .product(name: "KinoPubMedia", package: "KinoPubMedia"),
+        .product(name: "KinoPubMetadata", package: "KinoPubMetadata"),
         .product(name: "Nuke", package: "Nuke"),
         // `TVPosterView` display path (`loadImage(into:)`). Imported only from
         // `TVUIKitRemoteImage` — no call site takes NukeExtensions. NukeUI is gone
@@ -43,7 +45,11 @@ let package = Package(
       resources: [.process("Media.xcassets")]),
     .testTarget(
       name: "KinoPubUITests",
-      dependencies: ["KinoPubUI", .product(name: "KinoPubMedia", package: "KinoPubMedia")])
+      dependencies: [
+        "KinoPubUI",
+        .product(name: "KinoPubMedia", package: "KinoPubMedia"),
+        .product(name: "KinoPubMetadata", package: "KinoPubMetadata")
+      ])
   ],
   // Tools 6.2 is required for `.v26` platforms; stay on language mode 5 until
   // ObservableObject view models move to @Observable (see research/en/04 §4.4).

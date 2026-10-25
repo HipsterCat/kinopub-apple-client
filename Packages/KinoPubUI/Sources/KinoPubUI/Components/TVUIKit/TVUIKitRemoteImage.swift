@@ -22,6 +22,7 @@ import UIKit
 import TVUIKit
 import Nuke
 import NukeExtensions
+import KinoPubMetadata
 
 /// Nuke's `TVPosterView` display path (`nuke_display`) is overridden to assign the
 /// image on the next main-queue turn — `TVPosterView` only computes a non-zero
@@ -85,13 +86,12 @@ public enum TVUIKitRemoteImage {
   /// (nil from a cache, which does not keep it) and the cache tier.
   public static func loadWithSource(url: URL?, size: CGSize = .zero,
                                     mode: Artwork.ResizeMode = .fill)
-    async -> (image: UIImage, answered: URL?, tier: String)? {
+    async -> (image: UIImage, answered: URL?, language: WorkerArtworkLanguageTag?, tier: String)? {
     guard let url else { return nil }
     do {
-      let response = try await Artwork.pipeline.imageTask(with: Artwork.request(url, size: size, mode: mode)).response
-      let tier = tier(of: response)
-      ArtworkLog.loaded(url, from: tier)
-      return (response.image, response.urlResponse?.url, tier)
+      let loaded = try await Artwork.imageWithSource(for: url, size: size)
+      ArtworkLog.loaded(url, from: loaded.tier)
+      return (loaded.image, loaded.answered, loaded.language, loaded.tier)
     } catch {
       // Missing actor portraits answer 403 by design (see `ActorImageProvider`), so
       // this is a routine line, not an incident.

@@ -9,6 +9,7 @@
 
 import Combine
 import Foundation
+import KinoPubMetadata
 #if os(macOS)
 import AppKit
 #else
@@ -23,9 +24,15 @@ typealias TitleLogoImage = NSImage
 typealias TitleLogoImage = UIImage
 #endif
 
+struct TitleLogoImageLoad: Sendable {
+  let image: TitleLogoImage
+  let deliveredLanguage: WorkerArtworkLanguageTag?
+}
+
 protocol TitleLogoImageLoading: Sendable {
   func cachedImage(for url: URL) -> TitleLogoImage?
-  func image(for url: URL) async throws -> TitleLogoImage
+  func deliveredLanguage(for url: URL) -> WorkerArtworkLanguageTag?
+  func load(for url: URL) async throws -> TitleLogoImageLoad
 }
 
 struct ArtworkTitleLogoImages: TitleLogoImageLoading {
@@ -33,21 +40,23 @@ struct ArtworkTitleLogoImages: TitleLogoImageLoading {
     Artwork.cachedImage(for: url)
   }
 
-  func image(for url: URL) async throws -> TitleLogoImage {
-#if os(tvOS)
-    // The logo URL is the worker's route; where it redirected to is the answer to
-    // "why this logo" (TMDB ru / en, tvoe…), so it goes in the source log.
+  func deliveredLanguage(for url: URL) -> WorkerArtworkLanguageTag? {
+    Artwork.workerLanguage(on: url)
+  }
+
+  func load(for url: URL) async throws -> TitleLogoImageLoad {
     do {
       let loaded = try await Artwork.imageWithSource(for: url)
+#if os(tvOS)
       ArtworkLog.source("logo", id: nil, asked: url, answered: loaded.answered, tier: loaded.tier)
-      return loaded.image
+#endif
+      return TitleLogoImageLoad(image: loaded.image, deliveredLanguage: loaded.language)
     } catch {
+#if os(tvOS)
       ArtworkLog.exhausted("logo", id: nil, tried: [url])
+#endif
       throw error
     }
-#else
-    try await Artwork.image(for: url)
-#endif
   }
 }
 
@@ -57,6 +66,7 @@ struct ArtworkTitleLogoImages: TitleLogoImageLoading {
 public final class TitleLogoSession: ObservableObject {
 
   @Published public private(set) var mark: TitleLogoMark = .empty
+  @Published public private(set) var deliveredLanguage: WorkerArtworkLanguageTag?
   @Published private(set) var image: TitleLogoImage?
 
   /// UIKit call sites that are not SwiftUI views.
@@ -90,6 +100,7 @@ public final class TitleLogoSession: ObservableObject {
     if !continuing {
       requestID += 1
       image = nil
+      deliveredLanguage = nil
       imageReady = false
       imageFailed = false
       timedOut = false
@@ -101,6 +112,7 @@ public final class TitleLogoSession: ObservableObject {
 
     if let url = new.url, let cached = images.cachedImage(for: url) {
       image = cached
+      deliveredLanguage = images.deliveredLanguage(for: url)
       imageReady = true
       imageFailed = false
       timedOut = false
@@ -132,6 +144,7 @@ public final class TitleLogoSession: ObservableObject {
     requestID += 1
     resolution = .pending
     image = nil
+    deliveredLanguage = nil
     imageReady = false
     imageFailed = false
     timedOut = false
@@ -147,12 +160,13 @@ public final class TitleLogoSession: ObservableObject {
     republish()
   }
 
-  func handleLoaded(_ image: TitleLogoImage, elapsed: TimeInterval) {
+  func handleLoaded(_ payload: TitleLogoImageLoad, elapsed: TimeInterval) {
     let showingText = mark == .text
     guard policy.shouldAdoptLogo(elapsed: elapsed, alreadyShowingText: showingText) else {
       return
     }
-    self.image = image
+    image = payload.image
+    deliveredLanguage = payload.deliveredLanguage
     imageReady = true
     imageFailed = false
     republish()
@@ -180,8 +194,8 @@ public final class TitleLogoSession: ObservableObject {
         }
         group.addTask {
           do {
-            let image = try await images.image(for: url)
-            return .loaded(image)
+            let payload = try await images.load(for: url)
+            return .loaded(payload)
           } catch is CancellationError {
             return .cancelled
           } catch {
@@ -195,9 +209,9 @@ public final class TitleLogoSession: ObservableObject {
             return
           }
           switch event {
-          case .loaded(let image):
+          case .loaded(let payload):
             let elapsed = Date().timeIntervalSince(self.startedAt)
-            self.handleLoaded(image, elapsed: elapsed)
+            self.handleLoaded(payload, elapsed: elapsed)
             group.cancelAll()
             return
           case .fail:
@@ -229,7 +243,7 @@ public final class TitleLogoSession: ObservableObject {
   }
 
   private enum LoadEvent {
-    case loaded(TitleLogoImage)
+    case loaded(TitleLogoImageLoad)
     case fail
     case timeout
     case cancelled

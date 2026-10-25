@@ -24,6 +24,7 @@ import Foundation
 import CoreGraphics
 import SwiftUI
 import Nuke
+import KinoPubMetadata
 
 /// Namespace for the shared artwork stack: the pipeline, the request shape, and the
 /// cache accounting Settings reports.
@@ -128,10 +129,11 @@ public enum Artwork {
   }
 
   /// `image(for:)`, plus where it came from: the URL that answered after redirects
-  /// (nil from a cache, which does not keep it) and the tier — `memory`, `disk` or
-  /// `network`. For the source log.
+  /// (nil from a cache, which does not keep it), the worker language stamp when the
+  /// final URL or `Content-Language` carries `ru` / `en` / `und`, and the tier —
+  /// `memory`, `disk` or `network`. For the source log and hero captions.
   public static func imageWithSource(for url: URL, size: CGSize = .zero) async throws
-    -> (image: PlatformImage, answered: URL?, tier: String) {
+    -> (image: PlatformImage, answered: URL?, language: WorkerArtworkLanguageTag?, tier: String) {
     let response = try await pipeline.imageTask(with: request(url, size: size)).response
     let tier: String
     switch response.cacheType {
@@ -140,7 +142,15 @@ public enum Artwork {
     case .none: tier = "network"
     @unknown default: tier = "unknown"
     }
-    return (response.image, response.urlResponse?.url, tier)
+    let answered = response.urlResponse?.url
+    let header = (response.urlResponse as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Language")
+    let language = WorkerArtworkLanguageTag.resolved(answeredURL: answered, contentLanguageHeader: header)
+    return (response.image, answered, language, tier)
+  }
+
+  /// Language stamp when the URL is already the worker's durable path (cache hit).
+  public static func workerLanguage(on url: URL) -> WorkerArtworkLanguageTag? {
+    WorkerArtworkLanguageTag.parseStampedURL(url)
   }
 
   // MARK: - Accounting, for Settings › Storage
