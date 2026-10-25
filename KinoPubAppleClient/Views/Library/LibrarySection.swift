@@ -124,3 +124,57 @@ enum LibrarySection: Hashable, Codable {
     }
   }
 }
+
+/// What an empty Library pane says. No buttons: the header chips (Unwatched / All,
+/// sort, a folder's Rename / Delete) stay, and they are the way out.
+struct LibraryPaneEmpty: Equatable {
+  var titleKey: String
+  var systemImage: String
+  var messageKey: String
+
+  /// `nil` when the pane has something to show, or it is Downloads (that screen has
+  /// its own empty state). A filter that removed every card speaks for the filter.
+  /// Subscriptions on Unwatched with only caught-up series is not "you follow nothing".
+  static func make(section: LibrarySection,
+                    cardCount: Int,
+                    visibleCount: Int,
+                    followingScope: LibraryFollowingScope,
+                    filtersActive: Bool) -> LibraryPaneEmpty? {
+    guard visibleCount == 0 else { return nil }
+    if filtersActive {
+      return LibraryPaneEmpty(titleKey: "No Results",
+                              systemImage: "magnifyingglass",
+                              messageKey: "Nothing Matches These Filters")
+    }
+    if section == .watchlist, cardCount > 0, followingScope == .unwatched {
+      return LibraryPaneEmpty(titleKey: "Library_EmptyUnwatched",
+                              systemImage: section.systemImage ?? "bell",
+                              messageKey: "Library_EmptyUnwatchedMessage")
+    }
+    let symbol = section.systemImage ?? "bookmark"
+    switch section {
+    case .watchlist:
+      return LibraryPaneEmpty(titleKey: "Library_EmptySubscriptions",
+                              systemImage: symbol,
+                              messageKey: "Library_EmptySubscriptionsMessage")
+    case .unwatched:
+      return LibraryPaneEmpty(titleKey: "Library_EmptyContinue",
+                              systemImage: symbol,
+                              messageKey: "Library_EmptyContinueMessage")
+    case .history:
+      return LibraryPaneEmpty(titleKey: "No History",
+                              systemImage: symbol,
+                              messageKey: "Library_EmptyHistoryMessage")
+    case .allBookmarks:
+      return LibraryPaneEmpty(titleKey: "No Bookmarks",
+                              systemImage: symbol,
+                              messageKey: "Library_EmptyBookmarksMessage")
+    case .folder:
+      return LibraryPaneEmpty(titleKey: "Library_EmptyFolder",
+                              systemImage: symbol,
+                              messageKey: "Library_EmptyFolderMessage")
+    case .downloads:
+      return nil
+    }
+  }
+}

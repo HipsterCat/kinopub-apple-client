@@ -423,10 +423,21 @@ struct LibraryShellView: View {
                        ?? "Check your connection and try again.".localized,
                      retryTitle: "Try Again".localized)
     }
-    if cards.isEmpty && !catalog.isLoading && catalog.isLoaded {
-      return .message("No Results".localized)
+    if let empty = paneEmpty(visibleCount: visibleLibraryCards.count) {
+      return .unavailable(title: empty.titleKey,
+                          systemImage: empty.systemImage,
+                          message: empty.messageKey.localized)
     }
     return .content
+  }
+
+  /// Cards the grid actually draws. Subscriptions on Unwatched hides caught-up series,
+  /// so the pane can be empty while `catalog.cards` is not.
+  private var visibleLibraryCards: [MediaCard] {
+    let cards = catalog.cards
+    guard model.selection == .watchlist else { return cards }
+    return LibrarySectionCatalog.followingPageGroups(from: cards, scope: catalog.followingScope)
+      .flatMap(\.cards)
   }
 #else
   @ViewBuilder
@@ -439,9 +450,10 @@ struct LibraryShellView: View {
                       message: catalog.loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
                       retryTitle: "Try Again",
                       onRetry: { Task { await catalog.refresh() } })
+    } else if let empty = paneEmpty(visibleCount: catalog.cards.count) {
+      paneUnavailable(empty)
     } else if catalog.cards.isEmpty {
-      UnavailableView(title: "No Results",
-                      systemImage: model.selection.systemImage ?? "bookmark")
+      LoadingIndicatorView()
     } else {
       MediaCardsListView(
         cards: catalog.cards,
@@ -465,6 +477,22 @@ struct LibraryShellView: View {
     }
   }
 #endif
+
+  /// Loaded, and the grid has nothing to draw. Not a failure — that keeps its retry.
+  private func paneEmpty(visibleCount: Int) -> LibraryPaneEmpty? {
+    guard !catalog.isLoading, catalog.isLoaded, !catalog.loadFailed else { return nil }
+    return LibraryPaneEmpty.make(section: model.selection,
+                                 cardCount: catalog.cards.count,
+                                 visibleCount: visibleCount,
+                                 followingScope: catalog.followingScope,
+                                 filtersActive: catalog.filter.hasActiveFilters)
+  }
+
+  private func paneUnavailable(_ empty: LibraryPaneEmpty) -> some View {
+    UnavailableView(title: LocalizedStringKey(stringLiteral: empty.titleKey),
+                    systemImage: empty.systemImage,
+                    message: empty.messageKey.localized)
+  }
 }
 
 #if os(tvOS)

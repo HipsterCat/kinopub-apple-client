@@ -71,7 +71,11 @@ public struct UnavailableView: View {
       }
     }
     .onAppear {
-      retryFocused = true
+      // An empty list has no button. Focusing a binding nothing uses pulled the
+      // remote off the header chips beside this view.
+      if onRetry != nil {
+        retryFocused = true
+      }
     }
   }
 }

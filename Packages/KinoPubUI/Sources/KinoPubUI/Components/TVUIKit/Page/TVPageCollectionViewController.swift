@@ -17,6 +17,7 @@
 //  the layout environment at the moment cells are sized, so the first size is final.
 //
 
+import SwiftUI
 import TVUIKit
 import UIKit
 
@@ -29,6 +30,10 @@ public enum TVPageStatus: Equatable {
   /// Nothing to show and nothing to retry — "No Results". Focus stays with whatever
   /// sits beside the page (the keyboard, a sidebar).
   case message(String)
+  /// `UnavailableView`: symbol, title, one line. No button, so focus stays on the
+  /// page's own chrome (a header chip, the sidebar). `title` is a localization key;
+  /// `message` is already localized.
+  case unavailable(title: String, systemImage: String, message: String)
 }
 
 @MainActor
@@ -135,6 +140,7 @@ public final class TVPageCollectionViewController: UIViewController {
     view.addSubview(collectionView)
     statusView.translatesAutoresizingMaskIntoConstraints = false
     statusView.onRetry = { [weak self] in self?.onRetry?() }
+    statusView.hostParent = self
     view.addSubview(statusView)
     let edges = [
       collectionView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -245,7 +251,6 @@ public final class TVPageCollectionViewController: UIViewController {
   private var coverObserver: NSObjectProtocol?
 
   deinit {
-    edgeClipLink?.invalidate()
     if let metricsMeasuredObserver {
       NotificationCenter.default.removeObserver(metricsMeasuredObserver)
     }
@@ -275,26 +280,20 @@ public final class TVPageCollectionViewController: UIViewController {
 
   /// top, leading, trailing, bottom — the collection's edges against the page's view.
   private var windowExtension: [NSLayoutConstraint] = []
-  /// Search: the collection's width, the full row. Inactive when the trailing edge
-  /// is pinned to the host instead.
+  /// Search: the collection's width, the full row, while the grid keyboard has narrowed
+  /// the host below that. Inactive when the host already fits the row — the trailing
+  /// edge stays on the host, and the screen clips whatever paints past it.
   private var spanningWidthConstraint: NSLayoutConstraint?
-  /// Clips the full row to the host's width. Taller than the host, so the vertical
-  /// window extension still draws. Its frame follows the presentation layer: the
-  /// model bounds are already the keyboard's final frame on the first tick, and a
-  /// mask set to that crops the row before the keyboard has moved.
-  private let edgeClip = CALayer()
-  private var edgeClipLink: CADisplayLink?
-  private let edgeClipClock = EdgeClipClock()
 
   /// The page is laid out inside a narrower box (the search container's safe area):
   /// `currentLeading()` counts the HIG side inset from the screen edge, not from the
-  /// box. The collection itself stays the full row wide (`pinSpanningWidth`) and the
-  /// host clips it (`updateEdgeClip`), so a column past the keyboard is the same cell
-  /// cut by the edge — a collection view drops a cell that leaves its own bounds, and
-  /// the keyboard's animation fades that cell out early and eases it back in. Off for
-  /// a page that shares the width with something beside it — the Library's section
-  /// list, which still reflows. Do not pin the collection to the window: that hung
-  /// the main thread when the grid keyboard hid (2026-10-20).
+  /// box. While the grid keyboard narrows the host below a full row, the collection
+  /// stays that wide so the last column is still a cell (`pinSpanningWidth`); the
+  /// screen clips it. A mask on the host clipped every rail there too, short of the
+  /// screen, so the next card's peek — and the one-column focus shift — disappeared.
+  /// Off for a page that shares the width with something beside it — the Library's
+  /// section list, which still reflows. Do not pin the collection to the window: that
+  /// hung the main thread when the grid keyboard hid (2026-10-20).
   public var spansScreenWidth = false {
     didSet { if isViewLoaded { view.setNeedsLayout() } }
   }
@@ -315,7 +314,7 @@ public final class TVPageCollectionViewController: UIViewController {
     // negative constant moves each edge outward.
     // Vertical only. Pinning the horizontal edges to the window while the grid
     // keyboard hid fought the search container and hung (`testGridKeyboardHidesWhileResultsHaveFocus`).
-    // A screen-spanning page instead keeps a constant row width and clips to the host.
+    // A narrowed host keeps the collection a full row wide; the screen clips the rest.
     let pinned = pinSpanningWidth()
     let trailing = pinned ? windowExtension[2].constant : CGFloat(0)
     let wanted = [-max(frame.minY, 0), CGFloat(0), trailing, -max(window.bounds.maxY - frame.maxY, 0)]
@@ -325,14 +324,16 @@ public final class TVPageCollectionViewController: UIViewController {
       changed = true
     }
     if changed { updateContentInsets() }
-    updateEdgeClip()
   }
 
-  /// Keeps the collection as wide as the full row, leading-aligned with the host.
-  /// The width does not follow the host, so the keyboard sliding the host does not
-  /// add or remove a column. Returns whether the trailing pin to the host is off.
+  /// Keeps the collection as wide as the full row while the host is narrower than
+  /// that — the grid keyboard. Returns whether the trailing pin to the host is off.
+  /// A host that already fits the row is not widened and not masked: a rail's next
+  /// card paints past the collection (`clipsToBounds` is off) and the screen clips
+  /// it, and focus shifts one column, the same as Home.
   private func pinSpanningWidth() -> Bool {
-    guard let width = spanningContentWidth(), windowExtension.count == 4 else {
+    guard let width = spanningContentWidth(), windowExtension.count == 4,
+          view.bounds.width + 1 < width else {
       spanningWidthConstraint?.isActive = false
       if windowExtension.count == 4 { windowExtension[2].isActive = true }
       return false
@@ -346,71 +347,6 @@ public final class TVPageCollectionViewController: UIViewController {
       constraint.isActive = true
     }
     return true
-  }
-
-  /// The host is the clip. The mask matches the width on screen this frame — the
-  /// presentation bounds, not the model — and is tall enough for the vertical window
-  /// extension. Actions stay off: an implicit ease would put the crop on its own clock,
-  /// behind the keyboard. While those two bounds differ, a display link copies the
-  /// presentation width each tick.
-  private func updateEdgeClip() {
-    guard spansScreenWidth, view.bounds.width > 1, windowExtension.count == 4 else {
-      stopEdgeClipLink()
-      if view.layer.mask != nil { view.layer.mask = nil }
-      return
-    }
-    applyEdgeClipFrame()
-    if edgeClipIsAnimating {
-      startEdgeClipLink()
-    } else {
-      stopEdgeClipLink()
-    }
-  }
-
-  private var edgeClipIsAnimating: Bool {
-    guard let presented = view.layer.presentation() else { return false }
-    return abs(presented.bounds.width - view.bounds.width) > 0.5
-      || abs(presented.bounds.height - view.bounds.height) > 0.5
-      || abs(presented.position.x - view.layer.position.x) > 0.5
-  }
-
-  private func applyEdgeClipFrame() {
-    let bounds = view.layer.presentation()?.bounds ?? view.bounds
-    let top = max(-windowExtension[0].constant, 0)
-    let bottom = max(-windowExtension[3].constant, 0)
-    let frame = CGRect(x: 0, y: -top, width: bounds.width,
-                       height: bounds.height + top + bottom)
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    if view.layer.mask !== edgeClip {
-      edgeClip.backgroundColor = UIColor.black.cgColor
-      view.layer.mask = edgeClip
-    }
-    edgeClip.frame = frame
-    CATransaction.commit()
-  }
-
-  private func startEdgeClipLink() {
-    guard edgeClipLink == nil else { return }
-    edgeClipClock.owner = self
-    let link = CADisplayLink(target: edgeClipClock, selector: #selector(EdgeClipClock.tick))
-    link.add(to: .main, forMode: .common)
-    edgeClipLink = link
-  }
-
-  fileprivate func trackEdgeClip() {
-    guard spansScreenWidth, view.window != nil else {
-      stopEdgeClipLink()
-      return
-    }
-    applyEdgeClipFrame()
-    if !edgeClipIsAnimating { stopEdgeClipLink() }
-  }
-
-  private func stopEdgeClipLink() {
-    edgeClipLink?.invalidate()
-    edgeClipLink = nil
-    edgeClipClock.owner = nil
   }
 
   /// How far the collection's content already starts from the screen's leading edge:
@@ -462,7 +398,6 @@ public final class TVPageCollectionViewController: UIViewController {
     super.viewDidDisappear(animated)
     heroCarousel.isPageVisible = false
     resetStrandedFocusAppearance()
-    stopEdgeClipLink()
   }
 
   /// A tab switched away mid focus animation can leave a whole row's lockups lifted and
@@ -558,6 +493,10 @@ public final class TVPageCollectionViewController: UIViewController {
     // Stop at a search controller: it owns the scroll that carries its keyboard and
     // suggestions over the results. Handing it our collection instead cut the keyboard
     // off the focus graph — Up from the results could never reach it again.
+    // Do not clear this while the grid keyboard is up. The search controller uses the
+    // same scroll view to hide that keyboard when focus moves into the results and to
+    // take the suggestion row with the scroll. Unreporting it left the keyboard on
+    // screen, parked the suggestions in the posters, and jumped them on every swipe.
     while let current = controller, !(current is UITabBarController) {
       if current is UISearchController { break }
       if current.contentScrollView(for: .top) !== collectionView {
@@ -1208,10 +1147,23 @@ public final class TVPageCollectionViewController: UIViewController {
   /// The status shows when the page has nothing but chrome: no sections, or only chip
   /// rows. A filter row stays on screen above "No Results" / "Try Again" — a filter or
   /// sort that emptied the page has to be undoable from where it was set.
+  ///
+  /// An empty grid with a header (the Library's "0 unwatched episodes" and its chips)
+  /// is the same hole: `.unavailable` and `.failed` draw over it. The header stays,
+  /// because those chips are how the empty page is changed.
   private func applyStatus() {
     guard isViewLoaded else { return }
     let onlyChrome = sections.allSatisfy { $0.kind == .chip || $0.kind == .masthead }
-    let showsStatus = onlyChrome && status != .content
+    let noGridItems = !sections.contains { section in
+      section.kind != .chip && section.kind != .masthead && !section.items.isEmpty
+    }
+    let showsOverEmptyGrid: Bool = {
+      switch status {
+      case .unavailable, .failed: return noGridItems
+      default: return false
+      }
+    }()
+    let showsStatus = showsOverEmptyGrid || (onlyChrome && status != .content)
     statusView.isHidden = !showsStatus
     collectionView.isHidden = showsStatus && sections.isEmpty
     statusView.apply(status)
@@ -1243,7 +1195,9 @@ public final class TVPageCollectionViewController: UIViewController {
 
   public override var preferredFocusEnvironments: [UIFocusEnvironment] {
     guard claimsInitialFocus else { return super.preferredFocusEnvironments }
-    if !statusView.isHidden { return [statusView] }
+    // A retry button is the landing spot. An empty state with no button is not —
+    // the header chips (or the sidebar) keep the remote.
+    if !statusView.isHidden, statusView.claimsFocus { return [statusView] }
     return [collectionView]
   }
 
@@ -1715,11 +1669,18 @@ final class TVPageLoadingFooterView: UICollectionReusableView {
 @MainActor
 final class TVPageStatusView: UIView {
   var onRetry: (() -> Void)?
+  /// Owns the hosted `UnavailableView`. Set before the first `apply`.
+  weak var hostParent: UIViewController?
+
+  /// True when the status itself is a focus target (the retry button). An empty
+  /// state is not: nothing on it takes the remote.
+  var claimsFocus: Bool { !retryButton.isHidden }
 
   private let spinner = UIActivityIndicatorView(style: .large)
   private let label = UILabel()
   private let retryButton = UIButton(configuration: .gray())
   private let stack = UIStackView()
+  private var unavailableHost: UIHostingController<UnavailableView>?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -1751,6 +1712,7 @@ final class TVPageStatusView: UIView {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func apply(_ status: TVPageStatus) {
+    unavailableHost?.view.isHidden = true
     switch status {
     case .content:
       spinner.stopAnimating()
@@ -1769,7 +1731,40 @@ final class TVPageStatusView: UIView {
       spinner.stopAnimating()
       label.text = text
       retryButton.isHidden = true
+    case .unavailable(let title, let symbol, let message):
+      spinner.stopAnimating()
+      label.text = nil
+      retryButton.isHidden = true
+      showUnavailable(title: title, systemImage: symbol, message: message)
     }
+  }
+
+  /// `title` is a catalog key. `message` is already localized — `UnavailableView`
+  /// prints it as written.
+  private func showUnavailable(title: String, systemImage: String, message: String) {
+    let root = UnavailableView(title: LocalizedStringKey(stringLiteral: title),
+                               systemImage: systemImage,
+                               message: message)
+    if let unavailableHost {
+      unavailableHost.rootView = root
+      unavailableHost.view.isHidden = false
+      return
+    }
+    let host = UIHostingController(rootView: root)
+    host.view.backgroundColor = .clear
+    host.safeAreaRegions = []
+    host.sizingOptions = .intrinsicContentSize
+    // No control here. Leaving the host in the focus search put the remote on the
+    // empty state and off the header chips.
+    host.view.isUserInteractionEnabled = false
+    host.view.translatesAutoresizingMaskIntoConstraints = false
+    if let hostParent {
+      hostParent.addChild(host)
+    }
+    stack.addArrangedSubview(host.view)
+    host.view.widthAnchor.constraint(equalToConstant: 840).isActive = true
+    host.didMove(toParent: hostParent)
+    unavailableHost = host
   }
 
   override var preferredFocusEnvironments: [UIFocusEnvironment] {
@@ -1777,16 +1772,4 @@ final class TVPageStatusView: UIView {
   }
 }
 
-/// Display-link target for the search clip. The link retains its target, so this
-/// does not retain the page — otherwise the page could not deinit mid-animation.
-private final class EdgeClipClock: NSObject {
-  weak var owner: TVPageCollectionViewController?
-
-  @objc func tick() {
-    // The link is added on the main run loop.
-    MainActor.assumeIsolated {
-      owner?.trackEdgeClip()
-    }
-  }
-}
 #endif

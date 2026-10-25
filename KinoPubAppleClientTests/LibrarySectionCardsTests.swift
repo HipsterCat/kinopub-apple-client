@@ -42,6 +42,48 @@ final class LibrarySectionCardsTests: XCTestCase {
                       model.title(for: .watchlist))
   }
 
+  func testAnEmptyPaneSaysWhatBelongsThere() {
+    let subscriptions = LibraryPaneEmpty.make(section: .watchlist, cardCount: 0, visibleCount: 0,
+                                              followingScope: .unwatched, filtersActive: false)
+    XCTAssertEqual(subscriptions?.titleKey, "Library_EmptySubscriptions")
+    XCTAssertEqual(subscriptions?.systemImage, "bell.fill")
+    XCTAssertEqual(subscriptions?.messageKey, "Library_EmptySubscriptionsMessage")
+
+    let caughtUp = LibraryPaneEmpty.make(section: .watchlist, cardCount: 4, visibleCount: 0,
+                                         followingScope: .unwatched, filtersActive: false)
+    XCTAssertEqual(caughtUp?.titleKey, "Library_EmptyUnwatched",
+                   "Unwatched with only finished series is not “you follow nothing”")
+
+    let watchingAll = LibraryPaneEmpty.make(section: .watchlist, cardCount: 4, visibleCount: 2,
+                                            followingScope: .all, filtersActive: false)
+    XCTAssertNil(watchingAll)
+
+    XCTAssertEqual(LibraryPaneEmpty.make(section: .unwatched, cardCount: 0, visibleCount: 0,
+                                         followingScope: .unwatched, filtersActive: false)?.titleKey,
+                   "Library_EmptyContinue")
+    XCTAssertEqual(LibraryPaneEmpty.make(section: .history, cardCount: 0, visibleCount: 0,
+                                         followingScope: .unwatched, filtersActive: false)?.titleKey,
+                   "No History")
+    XCTAssertEqual(LibraryPaneEmpty.make(section: .folder(3), cardCount: 0, visibleCount: 0,
+                                         followingScope: .unwatched, filtersActive: false)?.titleKey,
+                   "Library_EmptyFolder")
+    XCTAssertEqual(LibraryPaneEmpty.make(section: .folder(3), cardCount: 0, visibleCount: 0,
+                                         followingScope: .unwatched, filtersActive: false)?.systemImage,
+                   "bookmark")
+    XCTAssertEqual(LibraryPaneEmpty.make(section: .allBookmarks, cardCount: 0, visibleCount: 0,
+                                         followingScope: .unwatched, filtersActive: false)?.titleKey,
+                   "No Bookmarks")
+    XCTAssertNil(LibraryPaneEmpty.make(section: .downloads, cardCount: 0, visibleCount: 0,
+                                       followingScope: .unwatched, filtersActive: false))
+  }
+
+  func testAFilterThatEmptiesThePaneSaysSo() {
+    let filtered = LibraryPaneEmpty.make(section: .folder(1), cardCount: 0, visibleCount: 0,
+                                         followingScope: .unwatched, filtersActive: true)
+    XCTAssertEqual(filtered?.titleKey, "No Results")
+    XCTAssertEqual(filtered?.messageKey, "Nothing Matches These Filters")
+  }
+
   @MainActor
   func testASectionHeaderIsOneLabel() {
     let cards = [
