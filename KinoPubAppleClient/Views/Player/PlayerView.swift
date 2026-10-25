@@ -142,10 +142,19 @@ struct PlayerView: View {
 
 #if os(tvOS)
   /// Picture in Picture back to full screen: the player's route again, on the tab the
-  /// viewer is on now (`PictureInPictureKeeper`).
-  private func restoreFromPictureInPicture(_ route: Route) {
-    let path = navigationState.path(for: navigationState.selectedTab)
-    path.wrappedValue.append(route)
+  /// viewer is on now (`PictureInPictureKeeper`) — or, when that tab has no stack to push
+  /// on (Settings), on the tab the player was opened from, which is selected first.
+  /// Pushed onto Settings' inert path the route went nowhere: AVKit closed the window and
+  /// waited for a player that never came, and only the sound was left, with no way to
+  /// stop it (Sasha, 2026-10-25).
+  private func restoreFromPictureInPicture(_ route: Route, origin: NavigationTabs) {
+    var tab = navigationState.selectedTab
+    if !navigationState.hasStack(tab) {
+      tab = navigationState.hasStack(origin) ? origin : .home
+      Logger.app.info("PiP: restoring on \(String(describing: tab), privacy: .public), the selected tab has no stack")
+      navigationState.selectedTab = tab
+    }
+    navigationState.path(for: tab).wrappedValue.append(route)
   }
 #endif
 
@@ -178,7 +187,9 @@ struct PlayerView: View {
     // and it's fully Siri-Remote navigable. `PlayerManager` hangs the title, subtitle and
     // the Subtitles/Audio menus off the controller.
     TVVideoPlayer(manager: liveManager, onMenuPress: { dismiss() }, onGoToTitle: goToTitle,
-                  onRestoreFromPictureInPicture: restoreFromPictureInPicture)
+                  onRestoreFromPictureInPicture: { [origin = navigationState.selectedTab] route in
+                    restoreFromPictureInPicture(route, origin: origin)
+                  })
       .task {
         // Playback starts itself once the stream is ready and the resume point applied.
         await playerManager.preparePlayback()

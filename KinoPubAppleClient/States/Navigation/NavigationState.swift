@@ -222,6 +222,11 @@ final class NavigationState {
   }
 #endif
 
+  /// Whether a tab has a stack a route can be pushed on — Settings does not.
+  func hasStack(_ tab: NavigationTabs) -> Bool {
+    Self.routes(for: tab) != nil
+  }
+
   /// The path a tab's `NavigationStack` binds to. A tab with no shared stack gets an
   /// inert binding rather than a crash — see `routes(for:)`.
   func path(for tab: NavigationTabs) -> Binding<[Route]> {
