@@ -38,8 +38,10 @@ enum TVChannelsFixture {
   }
 
   /// Apple's public HLS sample, for `-KINOPUBFixtureRealPlayer`: a stream anyone can open.
-  static let sampleStream =
-    "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8"
+  static var sampleStream: String {
+    DebugLaunch.fixtureStream
+      ?? "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8"
+  }
 
   /// A slice of what `/v1/tv` answered on 2026-10-17: names in both scripts, one long
   /// enough to need two lines, logos with a gradient behind the mark (Окко) and flat ones.

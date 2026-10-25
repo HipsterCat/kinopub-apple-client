@@ -122,6 +122,16 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBFixtureStream <url>`: the stream the real-player fixtures open instead of
+  /// Apple's sample — a local server that holds the playlist back stands in for a slow CDN.
+  public static var fixtureStream: String? {
+#if DEBUG
+    UserDefaults.standard.string(forKey: "KINOPUBFixtureStream")
+#else
+    nil
+#endif
+  }
+
   /// `-KINOPUBFixtureOpensAt <n>`: the `seasonStrip` fixture's second season has ten
   /// episodes and is watched up to `n − 1`, so Play opens S2E`n` with the rest ahead — the
   /// player's Episodes tab opening in the middle of a season.

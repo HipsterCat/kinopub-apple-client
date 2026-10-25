@@ -107,6 +107,41 @@ final class PlayerTabsUITests: XCTestCase {
     XCTAssertTrue(goToShow.exists, "Info never opened\n\(app.debugDescription)")
   }
 
+  /// Down pressed at once, while the stream is still opening (a playlist held back by
+  /// `tools/slow-hls-server.py 6`, which must be running): the
+  /// strip that comes up must lead with Info, as it does once the stream plays (Sasha,
+  /// 2026-10-25: from most places a quick Down showed Episodes and Up Next with no Info).
+  func testInfoLeadsTheStripOnAnEarlyDown() throws {
+    app = XCUIApplication()
+    app.launchArguments += ["-ui-testing",
+                            "-KINOPUBDetailFixture", "seasonStrip",
+                            "-KINOPUBFixtureRealPlayer", "YES",
+                            "-KINOPUBFixtureStream", "http://127.0.0.1:8765/slow.m3u8",
+                            "-KINOPUBForceColorScheme", "dark",
+                            "-AppleLanguages", "(ru)",
+                            "-AppleLocale", "ru_RU"]
+    app.launch()
+    let play = app.buttons.matching(identifier: "kinopub.hero.play").firstMatch
+    XCTAssertTrue(play.waitForExistence(timeout: 30), "the fixture page never painted")
+    Thread.sleep(forTimeInterval: 2)
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 1)
+    // Down every second while the stream opens; no strip may come up without Info. The
+    // first strip that does come up is open on Info, so its Go to Show is there with it.
+    let strip = app.collectionViews["AVInfoMenuCollection"]
+    let goToShow = app.buttons["Перейти к сериалу"]
+    for step in 0..<20 {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 1)
+      try shoot("player-early-\(step)")
+      if strip.exists {
+        XCTAssertTrue(goToShow.exists, "a strip without Info came up at step \(step)")
+        return
+      }
+    }
+    XCTFail("the stream never opened")
+  }
+
   /// *Go to Show* from the Info tab: the panel goes away first, then the title page comes —
   /// the Apple TV app's order. The panel must never sit over the page (Sasha, 2026-10-25).
   /// The shots after Select are the record; the test asserts the page arrived.

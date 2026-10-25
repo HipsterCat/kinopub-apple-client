@@ -402,6 +402,10 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
           // frame it renders.
           self.applyPendingSeekIfPossible()
           self.player.play()
+#if os(tvOS)
+          // The second thing the custom tabs wait for (`rebuildContentTabs`).
+          self.rebuildContentTabs()
+#endif
           // Nothing is said to the server until there is something to play. The view
           // used to ask on appear — before the player had an item, on a title the
           // viewer had not started.
@@ -1715,13 +1719,18 @@ extension PlayerManager {
       return
     }
     // **Apple API limitation:** AVKit decides whether there is an Info tab when the custom
-    // tabs are handed over, from the item's `externalMetadata` at that moment, and does
-    // not look again when the metadata arrives later. A thin card (Home's banner) starts the
-    // stream before the details call answers, so the strip came up as Episodes and Up Next
-    // alone until a key press rebuilt it (Sasha, 2026-10-23; reproduced with
-    // `-KINOPUBSlowInfo`, `PlayerTabsUITests.testInfoTabArrivesWithLateMetadata`). So the
-    // tabs wait for the first stamp (`releaseContentTabs`).
-    guard hasStampedInfo else { return }
+    // tabs are handed over, and does not look again later. It needs two things then: the
+    // item's `externalMetadata`, and an item that is ready to play. Tabs handed over earlier
+    // gave a strip of Episodes and Up Next alone, for good, until a key press rebuilt it:
+    // - metadata late — a thin card (Home's banner) starts the stream before the details
+    //   call answers (Sasha, 2026-10-23; `-KINOPUBSlowInfo`,
+    //   `PlayerTabsUITests.testInfoTabArrivesWithLateMetadata`);
+    // - stream late — Down pressed while the stream was still opening, from almost
+    //   anywhere (Sasha, 2026-10-25; a playlist held back by a local server,
+    //   `PlayerTabsUITests.testInfoLeadsTheStripOnAnEarlyDown`).
+    // So the tabs wait for both: the first stamp (`releaseContentTabs`) and `readyToPlay`
+    // (`observePlaybackState`). Until then the strip is not there at all.
+    guard hasStampedInfo, player.currentItem?.status == .readyToPlay else { return }
     ensureSeriesForEpisodesTab()
     let episodes = MainActor.assumeIsolated { makeEpisodesTab() }
     let upNext = makeUpNextTab()
