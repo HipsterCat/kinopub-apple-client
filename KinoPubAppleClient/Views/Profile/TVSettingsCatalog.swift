@@ -1613,6 +1613,9 @@ struct TVSettingKitSettingsView: View {
 
   @State private var catalog: TVSettingsCatalog?
   @State private var depth = 0
+#if DEBUG
+  @State private var didOpenDebugPage = false
+#endif
 
   var body: some View {
     Group {
@@ -1626,6 +1629,15 @@ struct TVSettingKitSettingsView: View {
     // Settings app; it reads UIKit's safe area itself.
     .ignoresSafeArea()
     .toolbar(depth > 0 ? .hidden : .automatic, for: .tabBar)
+    // Deep in Settings the tab bar is hidden, so leaving is Menu back to the top — unless
+    // something else selects another tab. Coming back then reopened the page it was left
+    // on with the tab bar already gone (Sasha, 2026-10-25: Experiments, after a Top Shelf
+    // title). Leaving resets Settings to its first level, as Menu would have.
+    .onChange(of: navigationState.selectedTab) { _, tab in
+      if tab != .settings {
+        catalog?.host.resetToRoot()
+      }
+    }
     .onAppear {
       if catalog == nil {
         let catalog = TVSettingsCatalog(
@@ -1660,6 +1672,9 @@ struct TVSettingKitSettingsView: View {
     // `-KINOPUBSettingsPage <category>` opens a page and `-KINOPUBSettingsLab <lab>` a
     // developer tool directly — the simulator's remote is too unreliable to walk there.
     .task {
+      // Once per launch: `.task` runs again each time the tab comes back.
+      guard !didOpenDebugPage else { return }
+      didOpenDebugPage = true
       let defaults = UserDefaults.standard
       try? await Task.sleep(for: .seconds(1))
       if let raw = defaults.string(forKey: "KINOPUBSettingsPage"),

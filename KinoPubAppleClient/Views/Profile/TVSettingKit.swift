@@ -516,6 +516,14 @@ final class TSKSplitHost: NSObject {
     navigation?.popToRootViewController(animated: true)
   }
 
+  /// Back to the first level at once, anything presented gone with it: Settings was left
+  /// for another tab without Menu (a Top Shelf link, Picture in Picture back to full
+  /// screen), and is to be found at its first level next time, the tab bar with it.
+  func resetToRoot() {
+    split?.presentedViewController?.dismiss(animated: false)
+    navigation?.popToRootViewController(animated: false)
+  }
+
   /// Rebuilds every page in the stack from current state.
   func reloadPages() {
     navigation?.viewControllers.forEach(TSKPageController.reload)

@@ -75,6 +75,36 @@ final class TVMenuBackUITests: XCTestCase {
     ).firstMatch.exists
   }
 
+  /// Settings left from deep inside without Menu — a Top Shelf link selects Home over the
+  /// Experiments page — and then chosen again from the tab bar: it opens at its first
+  /// level with the tab bar showing, not on Experiments with the bar gone (Sasha,
+  /// 2026-10-25). Needs the simulator's kino.pub session; the shots are the record.
+  func testSettingsLeftWithoutMenuReopensAtItsFirstLevel() throws {
+    let app = XCUIApplication()
+    app.launchArguments += ["-KINOPUBInitialTab", "settings", "-KINOPUBSettingsPage", "experiments",
+                            "-KINOPUBForceColorScheme", "dark"]
+    app.launch()
+    Thread.sleep(forTimeInterval: 4)
+    try shoot(app, name: "settings-0-experiments")
+    XCTAssertFalse(app.tabBars.firstMatch.isHittable, "Experiments should hide the tab bar")
+    app.open(URL(string: "kinopub://title/1")!)
+    Thread.sleep(forTimeInterval: 3)
+    try shoot(app, name: "settings-1-top-shelf-link")
+    for _ in 0..<4 where !tabBarFocused(in: app) {
+      XCUIRemote.shared.press(.menu)
+      Thread.sleep(forTimeInterval: 1.5)
+    }
+    XCTAssertTrue(tabBarFocused(in: app), focusDescription(app))
+    // Settings is the last tab; moving focus onto a tab selects it.
+    for _ in 0..<10 {
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 0.6)
+    }
+    Thread.sleep(forTimeInterval: 2)
+    try shoot(app, name: "settings-2-back-in-settings")
+    XCTAssertTrue(tabBarFocused(in: app), "the tab bar went away\n\(focusDescription(app))")
+  }
+
   private func tabBarFocused(in app: XCUIApplication) -> Bool {
     app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count > 0
   }
