@@ -102,6 +102,7 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   private var installedAxis: TVUIKitCollectionAxis?
 
   private var onSelect: ((MediaCard) -> Void)?
+  private var coverObserver: NSObjectProtocol?
   private var onNearEnd: ((MediaCard) -> Void)?
   private var contextMenuProvider: ((MediaCard) -> [MediaCardContextEntry])?
   private var prefersInitialFocus = false
@@ -142,6 +143,11 @@ public final class TVUIKitMediaCollectionController: UIViewController {
 
   public override func viewDidLoad() {
     super.viewDidLoad()
+    coverObserver = NotificationCenter.default.addObserver(
+      forName: CoverArtworkPreferences.didChange, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.reloadVisibleCovers()
+    }
     view.backgroundColor = .clear
     view.clipsToBounds = false
     view.insetsLayoutMarginsFromSafeArea = false
@@ -153,6 +159,26 @@ public final class TVUIKitMediaCollectionController: UIViewController {
       collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
     ])
+  }
+
+  deinit {
+    if let coverObserver {
+      NotificationCenter.default.removeObserver(coverObserver)
+    }
+  }
+
+  /// Same as the page collection: a cover-language change reloads the posters already
+  /// on screen. Landscape rows paint wide art and have nothing to swap.
+  private func reloadVisibleCovers() {
+    guard isViewLoaded, !isLandscape else { return }
+    for path in collectionView.indexPathsForVisibleItems {
+      guard cards.indices.contains(path.item),
+            let cell = collectionView.cellForItem(at: path) as? TVUIKitPosterCell else { continue }
+      let layoutWidth = collectionView.layoutAttributesForItem(at: path)?.size.width ?? cell.bounds.width
+      let width = layoutWidth > 1 ? layoutWidth : max(tileSize.width, ShelfMetrics.tvCardWidth)
+      let size = CGSize(width: width, height: width / CardAspect.poster.ratio)
+      cell.configure(card: cards[path.item], size: size)
+    }
   }
 
   public override func viewDidAppear(_ animated: Bool) {
@@ -465,7 +491,7 @@ extension TVUIKitMediaCollectionController: UICollectionViewDataSourcePrefetchin
   private func artworkURL(for card: MediaCard) -> URL? {
     let string = isLandscape
       ? (card.landscapeImageURL ?? card.backdropURL ?? card.posterURL)
-      : card.posterURL
+      : card.coverURL
     return URL(string: string)
   }
 

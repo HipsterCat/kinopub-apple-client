@@ -209,13 +209,13 @@ enum MediaCardContextMenus {
       if let landscape = card.landscapeImageURL, !landscape.isEmpty {
         raw = landscape
       } else {
-        raw = card.posterURL
+        raw = card.coverURL
       }
     case .banner:
       if let backdrop = card.backdropURL, !backdrop.isEmpty {
         raw = backdrop
       } else {
-        raw = card.posterURL
+        raw = card.coverURL
       }
     }
     return raw.isEmpty ? nil : raw

@@ -1366,7 +1366,8 @@ class HomeCatalog: ObservableObject {
                      isInHistory: isInHistory,
                      viewerState: ViewerState(isFollowing: isSeries ? isInWatchlist : nil),
                      durationSeconds: durationSeconds,
-                     primaryAction: .play)
+                     primaryAction: .play,
+                     kinopoiskID: item.kinopoisk)
   }
 
   private static func durationSeconds(history: HistoryEntry?, local: LocalWatchEntry?) -> Int? {

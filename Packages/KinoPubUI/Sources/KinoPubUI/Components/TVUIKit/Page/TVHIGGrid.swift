@@ -64,11 +64,20 @@ public enum TVHIGGrid {
     return (usable / n).rounded(.down)
   }
 
+  /// The content box a screen-spanning page resolves columns against: the window
+  /// minus the two side insets. The grid keyboard narrows the results view; passing
+  /// that pane here wraps posters onto the next row, and they jump when the keyboard
+  /// hides. Search passes this width instead, and the last column clips.
+  public static func spanningContentWidth(screenWidth: CGFloat, sideInset: CGFloat = sideInset) -> CGFloat {
+    max(screenWidth - sideInset * 2, 1)
+  }
+
   /// A classic collection: fixed side insets, fixed gutter, and as many cards of the
   /// section's size as fit, adjusted to fill the row exactly. `columns` is the count at
   /// 1920 (6 → 256-wide posters with the 44 gutter); a narrower container takes the
   /// nearest whole count, so a card stays within a few percent of its class — the
-  /// 1400 pt Library pane beside the sidebar gets five posters of 245.
+  /// 1400 pt Library pane beside the sidebar gets five posters of 245. A screen-spanning
+  /// page does not pass the keyboard's pane: it passes `spanningContentWidth`.
   public static func resolve(columns: Int, contentWidth: CGFloat) -> (columns: Int, cardWidth: CGFloat) {
     let preferred = cardWidth(columns: columns, contentWidth: referenceContentWidth)
     // Nearest, not floor: the card stays within a few percent of its class either way

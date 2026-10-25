@@ -589,6 +589,13 @@ final class TVSettingsCatalog {
              kind: .choice(key: "language",
                            values: model.availableLanguages.keys.sorted().map { $0 as NSString },
                            label: { [unowned self] in ($0 as? String).map { self.model.availableLanguages[$0] ?? $0 } })),
+      TSKRow(title: "Covers and images".localized,
+             description: "Settings_Tip_Covers".localized,
+             kind: .choice(key: "coverLanguage",
+                           values: CoverArtworkLanguage.allCases.map { $0.rawValue as NSString },
+                           label: { value in
+                             (value as? String).flatMap(CoverArtworkLanguage.init(rawValue:))?.titleKey.localized
+                           })),
       info("Theme", "Dark".localized),
       TSKRow(title: "Вкладки и Главная",
              description: "Включение, отключение и сортировка вкладок верхнего меню и секций Главной страницы.",
@@ -1313,6 +1320,13 @@ final class TVSettingsCatalog {
                  guard let code = value as? String else { return }
                  defaults.set(code, forKey: "selectedLanguage")
                  self.onLanguageChange(code)
+               })
+    store.bind("coverLanguage",
+               get: { CoverArtworkPreferences.language.rawValue as NSString },
+               set: { value in
+                 guard let raw = value as? String,
+                       let language = CoverArtworkLanguage(rawValue: raw) else { return }
+                 CoverArtworkPreferences.set(language)
                })
     store.bind("streamQuality",
                get: { (defaults.string(forKey: StreamQuality.userDefaultsKey) ?? StreamQuality.auto.rawValue) as NSString },

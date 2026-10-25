@@ -8,6 +8,7 @@
 import Foundation
 import KinoPubBackend
 import KinoPubKit
+import KinoPubUI
 
 public struct DownloadMeta: PlayableItem, Codable, Equatable, Sendable {
   public var id: Int
@@ -53,7 +54,8 @@ extension DownloadMeta {
       files: item.files,
       originalTitle: item.mediaItem.originalTitle,
       localizedTitle: item.mediaItem.localizedTitle,
-      imageUrl: item.mediaItem.posters.small,
+      imageUrl: CoverArtwork.resolve(url: item.mediaItem.posters.small,
+                                      kinopoiskID: item.mediaItem.kinopoisk),
       metadata: item.watchingMetadata,
       quality: quality,
       episode: item.mediaItem.isSeries ? item.name : nil

@@ -116,6 +116,7 @@ struct MediaItemView: View {
   /// Bound by the hero's controls and read by nothing in this body. `.defaultFocus`
   /// takes the binding, not the value, so hero focus moves re-render the hero alone.
   @FocusState private var focus: MediaItemFocusTarget?
+  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
   /// Owns folder state + context-menu wiring for the related-item rows (Similar /
   /// More from Director / More with Actor) as ONE coordinator shared across all of
   /// them — see `MediaItemRelatedRowsSection`. Previously each of those three
@@ -382,7 +383,8 @@ struct MediaItemView: View {
     }
     guard let seasonWatching: SeasonWatching = decoded(#"{"status":-1}"#) else { return nil }
 
-    let still = item.posters.wideURL ?? item.posters.medium
+    let still = item.posters.wideURL ?? CoverArtwork.resolve(
+      url: item.posters.medium, kinopoiskID: item.kinopoisk)
     let episodes: [Episode] = (1...6).compactMap { number in
       // Two watched, one mid-progress, rest fresh — enough states to see the rail's chrome.
       let status = number <= 2 ? 1 : -1
@@ -430,7 +432,7 @@ struct MediaItemView: View {
       if !itemModel.mediaItem.playbackVariants.isEmpty {
         VersionsRailView(variants: itemModel.mediaItem.playbackVariants,
                          linkProvider: itemModel.linkProvider,
-                         stillURL: itemModel.mediaItem.posters.wideURL ?? itemModel.mediaItem.posters.medium,
+                         stillURL: itemModel.mediaItem.posters.wideURL ?? verticalCover(itemModel.mediaItem.posters.medium),
                          showsChrome: true)
       }
 
@@ -589,7 +591,7 @@ struct MediaItemView: View {
     ZStack {
       Color.KinoPub.background
 /// TODO IT MUST BE SAME IDENTICAL PICTURE - WIDE ONE. TVOS, IOS, MACOS, etc
-      CachedRemoteImage(url: URL(string: itemModel.mediaItem.posters.medium), contentMode: .fill)
+      CachedRemoteImage(url: URL(string: verticalCover(itemModel.mediaItem.posters.medium)), contentMode: .fill)
         .frame(width: Self.ambientBuffer.width, height: Self.ambientBuffer.height)
         .clipped()
         .blur(radius: Self.ambientBlur, opaque: true)
@@ -614,6 +616,7 @@ struct MediaItemView: View {
   /// This title's picture for the stack's backdrop. The id is the title, so a payload
   /// that only adds a palette later animates in place rather than crossfading.
   private var tvBackdrop: PageBackdrop? {
+    _ = coverLanguage
     let urls = MediaItemHeroView.backdropCandidates(
       for: itemModel.mediaItem,
       preferredBackdropURL: itemModel.heroBackdropURL
@@ -622,6 +625,13 @@ struct MediaItemView: View {
     return PageBackdrop(id: Route.backdropKey(itemID: itemModel.mediaItem.id), imageURLs: urls)
   }
 #endif
+
+  /// A vertical cover (`medium` / `big` / `small`) in the viewer's cover language.
+  /// Wide art is left alone: this only runs when the caller already chose a poster size.
+  private func verticalCover(_ url: String) -> String {
+    _ = coverLanguage
+    return CoverArtwork.resolve(url: url, kinopoiskID: itemModel.mediaItem.kinopoisk)
+  }
 
   private static let ambientBuffer = CGSize(width: 160, height: 90)
   private static let ambientBlur: CGFloat = 10

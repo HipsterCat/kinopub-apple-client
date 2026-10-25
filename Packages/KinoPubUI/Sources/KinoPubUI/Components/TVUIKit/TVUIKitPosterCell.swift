@@ -164,7 +164,7 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
     }
     configureProgress(card)
     configureWatched(card)
-    loadImage(from: URL(string: card.posterURL))
+    loadImage(from: URL(string: card.coverURL))
   }
 
   /// Size the lockup from the layout item, not a SwiftUI-passed point size.

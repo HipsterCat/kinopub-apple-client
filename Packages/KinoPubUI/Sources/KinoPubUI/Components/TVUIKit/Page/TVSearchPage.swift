@@ -17,9 +17,10 @@
 //  - minimising: the results controller reports its collection through
 //    `setContentScrollView(_:for:)` (the replacement for the deprecated
 //    `searchControllerObservedScrollView`), so the keyboard scrolls away with results.
-//  - the grid keyboard (Settings → General → Keyboard) stands on the left with the
-//    results beside it, and slides away when focus moves into them, so the results get
-//    the screen's width back (`hidesGridKeyboardWhenUnfocused`, the one private switch).
+//  - the grid keyboard (Settings → General → Keyboard) stands on the left and shifts
+//    the results right; the posters stay the full-screen size and the last column
+//    clips. Focus in the results hides the keyboard (`hidesGridKeyboardWhenUnfocused`,
+//    the one private switch) and the same row fills the width.
 //  The stack itself is built by `TVSearchChrome` when the tab bar is created, so the
 //  first paint is the field and keyboard; posters apply on the next run-loop turn.
 //  Remembering recent queries is the app's job — the system keeps no search history.

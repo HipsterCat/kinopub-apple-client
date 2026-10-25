@@ -85,6 +85,7 @@ public final class TVPageCollectionViewController: UIViewController {
       adjustedLeading: { [weak self] in self?.currentLeading() ?? 0 },
       stripScrolled: { [weak self] section, shifts in self?.stripTitlesMoved(section: section, shifts: shifts) },
       heroHeight: { [weak self] in self?.heroHeight ?? 0 },
+      screenContentWidth: { [weak self] in self?.spanningContentWidth() },
       sections: { [weak self] in self?.sections ?? [] }
     )
     let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
@@ -158,6 +159,20 @@ public final class TVPageCollectionViewController: UIViewController {
     registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _) in
       self.collectionView.collectionViewLayout.invalidateLayout()
     }
+    // A poster width asked for during a keyboard slide is estimated first. When the
+    // width settles, the real envelope replaces it and the grid needs a new pass.
+    metricsMeasuredObserver = NotificationCenter.default.addObserver(
+      forName: TVPageCellMetrics.didMeasureNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.scheduleLayoutWork {
+        self?.collectionView.collectionViewLayout.invalidateLayout()
+      }
+    }
+    coverObserver = NotificationCenter.default.addObserver(
+      forName: CoverArtworkPreferences.didChange, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.reloadVisibleCovers()
+    }
 
     configureDataSource()
     applySnapshot(animated: false)
@@ -218,6 +233,17 @@ public final class TVPageCollectionViewController: UIViewController {
 
   /// Nested `viewDidLayoutSubviews` from our own constraint / inset changes.
   private var nestedLayoutCount = 0
+  private var metricsMeasuredObserver: NSObjectProtocol?
+  private var coverObserver: NSObjectProtocol?
+
+  deinit {
+    if let metricsMeasuredObserver {
+      NotificationCenter.default.removeObserver(metricsMeasuredObserver)
+    }
+    if let coverObserver {
+      NotificationCenter.default.removeObserver(coverObserver)
+    }
+  }
   private var lastCollectionBounds: CGRect = .null
   private var lastSafeArea: UIEdgeInsets = .zero
   private var layoutWorkQueued = false
@@ -243,9 +269,11 @@ public final class TVPageCollectionViewController: UIViewController {
 
   /// The page is laid out inside a narrower box (the search container's safe area):
   /// `currentLeading()` counts the HIG side inset from the screen edge, not from the
-  /// box. Off for a page that shares the width with something beside it — the Library's
-  /// section list. Do not grow the collection horizontally to the window: that hung
-  /// the main thread when the grid keyboard hid (2026-10-20).
+  /// box, and `spanningContentWidth()` keeps the column count at the full screen so
+  /// the grid keyboard only shifts the collection. Off for a page that shares the
+  /// width with something beside it — the Library's section list, which still reflows.
+  /// Do not grow the collection horizontally to the window: that hung the main thread
+  /// when the grid keyboard hid (2026-10-20).
   public var spansScreenWidth = false {
     didSet { if isViewLoaded { view.setNeedsLayout() } }
   }
@@ -295,11 +323,10 @@ public final class TVPageCollectionViewController: UIViewController {
   /// The last leading `updateAdjustedLeading` saw — only to tell when it moved.
   private var adjustedLeading: CGFloat = 0
 
-  /// The leading edge as the collection sits *now*. The layout reads this, never the
-  /// value cached in `viewDidLayoutSubviews`: the search container re-lays its results
-  /// out while the keyboard collapses, and a width from one pass with a leading from the
-  /// other put the grid at 5, 6 or 7 columns while pages arrived (2026-09-27) — the
-  /// column count comes from that width (`TVHIGGrid.resolve`).
+  /// The leading edge as the collection sits *now*. The layout reads this for the side
+  /// inset, never the value cached in `viewDidLayoutSubviews`: the search container
+  /// re-lays its results out while the keyboard collapses. A screen-spanning page's
+  /// column count does not follow that width — it is `spanningContentWidth()`.
   private func currentLeading() -> CGFloat {
     // Beside a sidebar the inset counts from the page's own edge.
     guard spansScreenWidth else { return 0 }
@@ -944,13 +971,29 @@ public final class TVPageCollectionViewController: UIViewController {
     return section.appendingPlaceholders(remainder == 0 ? columns : columns - remainder)
   }
 
-  /// How many columns the layout gives a grid at the collection's current width — the
-  /// same formula `TVPageLayout.grid` runs.
+  /// The width a screen-spanning page resolves columns against. Nil on a page that
+  /// shares its width (the Library sidebar): that one still fits the pane. Before the
+  /// window exists, the HIG 1920 box, so the first pass is already the full-screen count.
+  private func spanningContentWidth() -> CGFloat? {
+    guard spansScreenWidth else { return nil }
+    guard let screen = viewIfLoaded?.window?.bounds.width, screen > 1 else {
+      return TVHIGGrid.referenceContentWidth
+    }
+    return TVHIGGrid.spanningContentWidth(screenWidth: screen, sideInset: resolvedSideInset)
+  }
+
+  /// How many columns the layout gives a grid — the same width `TVPageLayout.grid` uses.
   private func gridColumns(for section: TVPageSection) -> Int {
-    let width = isViewLoaded ? collectionView.bounds.width : 0
-    guard width > 0 else { return max(section.columns, 1) }
-    let inset = max(resolvedSideInset - currentLeading(), 0)
-    return TVHIGGrid.resolve(columns: section.columns, contentWidth: max(width - inset * 2, 1)).columns
+    let contentWidth: CGFloat
+    if let spanning = spanningContentWidth() {
+      contentWidth = spanning
+    } else {
+      let width = isViewLoaded ? collectionView.bounds.width : 0
+      guard width > 0 else { return max(section.columns, 1) }
+      let inset = max(resolvedSideInset - currentLeading(), 0)
+      contentWidth = max(width - inset * 2, 1)
+    }
+    return TVHIGGrid.resolve(columns: section.columns, contentWidth: contentWidth).columns
   }
 
   /// The width moved and a tail was padded for another column count: pad again.
@@ -972,6 +1015,17 @@ public final class TVPageCollectionViewController: UIViewController {
       let section = sections[index]
       view.configure(title: section.title ?? "", count: section.count, actions: section.headerActions)
     }
+  }
+
+  /// Cover language changed under a page that is still on screen. Reconfigure what
+  /// is visible so the new poster URL is the one the cell asks for; off-screen cells
+  /// pick it up when they are dequeued.
+  private func reloadVisibleCovers() {
+    guard isViewLoaded, dataSource != nil else { return }
+    let ids = collectionView.indexPathsForVisibleItems.compactMap { dataSource.itemIdentifier(for: $0) }
+    guard !ids.isEmpty else { return }
+    pendingReconfigure = ids
+    applySnapshot(animated: false)
   }
 
   private func applySnapshot(animated: Bool) {
@@ -1481,7 +1535,7 @@ extension TVPageCollectionViewController: UICollectionViewDataSourcePrefetching 
     case .card(let card):
       let string = section.kind == .still
         ? (card.landscapeImageURL ?? card.backdropURL ?? card.posterURL)
-        : card.posterURL
+        : card.coverURL
       return URL(string: string)
     case .person(let person):
       return person.photoURL

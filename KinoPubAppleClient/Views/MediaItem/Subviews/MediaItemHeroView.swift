@@ -608,7 +608,8 @@ struct MediaItemHeroView: View {
 #endif
 
   /// Clean textless backdrop from external metadata (TMDB) first when available, then
-  /// wide → big → medium from kino.pub.
+  /// wide → big → medium from kino.pub. Russian covers swap the vertical sizes when
+  /// the title has a Kinopoisk id; wide stays kino.pub's.
   static func backdropCandidates(for mediaItem: MediaItem, preferredBackdropURL: URL? = nil) -> [URL] {
     var seen = Set<String>()
     var urls: [URL] = []
@@ -616,15 +617,20 @@ struct MediaItemHeroView: View {
       urls.append(preferredBackdropURL)
     }
     for raw in [mediaItem.posters.wideURL, mediaItem.posters.big, mediaItem.posters.medium]
-      .compactMap({ $0 }) where !raw.isEmpty && seen.insert(raw).inserted {
-      if let url = URL(string: raw) { urls.append(url) }
+      .compactMap({ $0 }) where !raw.isEmpty {
+      let resolved = CoverArtwork.resolve(url: raw, kinopoiskID: mediaItem.kinopoisk)
+      guard seen.insert(resolved).inserted, let url = URL(string: resolved) else { continue }
+      urls.append(url)
     }
     return urls
   }
 
 #if !os(tvOS)
+  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
+
   private var backdropCandidates: [URL] {
-    Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
+    _ = coverLanguage
+    return Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
   }
 
   @ViewBuilder

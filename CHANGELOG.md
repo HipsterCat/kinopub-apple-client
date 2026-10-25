@@ -5,11 +5,48 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Appearance: cover language (2026-10-25)
+
+- Settings › Appearance › Covers and images. Unset, it follows the app language
+  (Russian → Russian, anything else → English). An explicit choice stays when the
+  interface language changes.
+- In Russian, a vertical kino.pub cover (`/item/big/` and `/item/medium/`) for a title
+  with a Kinopoisk id loads `kinopoiskapiunofficial.tech/images/posters/kp/{id}.jpg`
+  (667×1000) — the size Apple TV asks for. `/item/small/` loads `kp_small` (360×540).
+  Wide stills stay kino.pub's. The stored card URL stays the kino.pub one, so switching
+  back does not refetch the row. A watching payload with no Kinopoisk id keeps the
+  kino.pub cover.
+
 ### tvOS Search: Up from the keyboard returns to the tab (2026-10-25)
 
 - The focus guide that carries Down from the Search tab into the keyboard was also
   catching Up and redirecting it into the results, onto a filter chip. Menu was the
   only way back to the tab. The guide is on only while the tab bar has focus.
+
+### tvOS Search: the grid keyboard's globe key no longer freezes the page (2026-10-25)
+
+- Select on the globe, and the first Down beside the grid keyboard, ran the poster
+  probe (`TVPosterView.setFrame`) for every width the keyboard slid through, inside
+  the press. `setFrame` spins the run loop, so the next width probed before the
+  press could return. An unmeasured width is estimated; the poster is measured
+  once that width stays still.
+
+### tvOS Search: the grid keyboard shifts the results instead of reflowing them (2026-10-25)
+
+- The column count followed the width beside the keyboard, so posters grew and
+  wrapped onto the next row, then jumped back when focus hid the keyboard. A
+  screen-spanning page sizes the grid for the full screen. The keyboard only
+  moves the collection; the last column clips, as in Podcasts.
+
+### Library sidebar: a count on the trailing edge (2026-10-23)
+
+- tvOS draws it in the cell's accessory slot: the folder's number, and All Bookmarks
+  as the sum of those numbers, on the trailing edge. The title is what truncates — a
+  value cell's secondary text gave the spare width to the title and the number
+  disappeared. Focused, the number takes the title's colour so it stays readable on
+  the light platter. Subscriptions, Continue and History stay blank — the folder list
+  does not know them, and a first page's length would be wrong. macOS already showed
+  a folder's count; All Bookmarks now shows the same sum there.
 
 ### tvOS player: the Info tab is always there (2026-10-23)
 

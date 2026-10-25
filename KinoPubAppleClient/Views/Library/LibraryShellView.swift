@@ -241,6 +241,7 @@ struct LibraryShellView: View {
       rows: model.sections.map { section in
         LibrarySidebarRow(section: section,
                           title: model.title(for: section),
+                          count: model.count(for: section),
                           systemImage: section.systemImage)
       },
       selection: model.selection,
@@ -477,6 +478,8 @@ struct LibrarySidebarLayout: Equatable {
 private struct LibrarySidebarRow: Equatable {
   let section: LibrarySection
   let title: String
+  /// Trailing value. Nil on the rows that have no honest total.
+  let count: String?
   let systemImage: String?
 }
 
@@ -582,17 +585,37 @@ private final class LibrarySidebarController: UITableViewController {
     tableView.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: leading,
                                                                  bottom: 0, trailing: room)
     let sizing = LibrarySidebarCell(style: .default, reuseIdentifier: nil)
-    let widest = rows.map { row -> CGFloat in
-      sizing.contentConfiguration = Self.content(for: row, in: sizing)
-      return sizing.contentView.systemLayoutSizeFitting(
-        CGSize(width: UIView.layoutFittingCompressedSize.width, height: UIView.layoutFittingCompressedSize.height),
-        withHorizontalFittingPriority: .fittingSizeLevel,
-        verticalFittingPriority: .fittingSizeLevel
-      ).width
-    }.max() ?? 0
+    let widest = rows.map { titleWidth(of: $0, in: sizing) }.max() ?? 0
+    let font = Self.titleFont(in: sizing)
+    // The 25% cap limits the title. The count is a column after it, so a number never
+    // steals letters from a title that already fit — «All Bookmarks» stays whole, and
+    // a long folder name still marquees inside the cap.
+    let countColumn = rows.map { Self.countColumnWidth(for: $0, font: font) }.max() ?? 0
     let screen = view.window?.screen.bounds.width ?? 1920
-    let width = min(max(ceil(leading + widest + room), Self.minWidth), (screen * Self.maxScreenShare).rounded())
-    onLayoutChange(LibrarySidebarLayout(width: width, focusRoom: room))
+    let capped = min(max(ceil(leading + widest + room), Self.minWidth), (screen * Self.maxScreenShare).rounded())
+    onLayoutChange(LibrarySidebarLayout(width: capped + countColumn, focusRoom: room))
+  }
+
+  /// The title and symbol. The count is the cell's accessory, laid out beside this.
+  private func titleWidth(of row: LibrarySidebarRow, in sizing: LibrarySidebarCell) -> CGFloat {
+    sizing.contentConfiguration = Self.content(for: row, in: sizing)
+    return sizing.contentView.systemLayoutSizeFitting(
+      CGSize(width: UIView.layoutFittingCompressedSize.width, height: UIView.layoutFittingCompressedSize.height),
+      withHorizontalFittingPriority: .fittingSizeLevel,
+      verticalFittingPriority: .fittingSizeLevel
+    ).width
+  }
+
+  private static func titleFont(in cell: UITableViewCell) -> UIFont {
+    content(for: LibrarySidebarRow(section: .history, title: " ", count: nil, systemImage: nil),
+            in: cell).textProperties.font
+  }
+
+  /// Width the trailing number takes, including the gap before it. Zero when the row
+  /// has no count.
+  private static func countColumnWidth(for row: LibrarySidebarRow, font: UIFont) -> CGFloat {
+    guard let count = row.count, !count.isEmpty else { return 0 }
+    return ceil((count as NSString).size(withAttributes: [.font: font]).width) + 12
   }
 
   private static func content(for row: LibrarySidebarRow, in cell: UITableViewCell) -> UIListContentConfiguration {
@@ -610,6 +633,21 @@ private final class LibrarySidebarController: UITableViewController {
     return content
   }
 
+  /// The count sits in the cell's accessory slot, so it keeps its width and the title
+  /// is what truncates. A value cell's secondary text does the opposite once the row
+  /// is tight: the number compresses to nothing.
+  private static func countAccessory(for row: LibrarySidebarRow, font: UIFont) -> UILabel? {
+    guard let count = row.count, !count.isEmpty else { return nil }
+    let label = UILabel()
+    label.text = count
+    label.font = font
+    label.adjustsFontForContentSizeCategory = true
+    label.textColor = .secondaryLabel
+    label.setContentCompressionResistancePriority(.required, for: .horizontal)
+    label.sizeToFit()
+    return label
+  }
+
   override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     rows.count
   }
@@ -617,7 +655,9 @@ private final class LibrarySidebarController: UITableViewController {
   override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = tableView.dequeueReusableCell(withIdentifier: LibrarySidebarCell.reuseIdentifier, for: indexPath)
     let row = rows[indexPath.row]
-    cell.contentConfiguration = Self.content(for: row, in: cell)
+    let content = Self.content(for: row, in: cell)
+    cell.contentConfiguration = content
+    cell.accessoryView = Self.countAccessory(for: row, font: content.textProperties.font)
     cell.accessibilityIdentifier = "kinopub.library.section.\(row.section.persistenceID)"
     return cell
   }
@@ -670,12 +710,16 @@ private final class LibrarySidebarCell: UITableViewCell {
     super.updateConfiguration(using: state)
     // The symbol is secondary at rest and takes the title's colour when the row is focused
     // or selected — the system's colour for that state, whatever the platter behind it.
+    // The accessory count follows: grey on grey does not read on the light platter.
     if var content = contentConfiguration as? UIListContentConfiguration {
       let active = state.isFocused || state.isSelected
       let tint = active ? content.updated(for: state).textProperties.resolvedColor() : .secondaryLabel
       if content.imageProperties.tintColor != tint {
         content.imageProperties.tintColor = tint
         contentConfiguration = content
+      }
+      if let count = accessoryView as? UILabel, count.textColor != tint {
+        count.textColor = tint
       }
     }
     enableMarquee(in: contentView)

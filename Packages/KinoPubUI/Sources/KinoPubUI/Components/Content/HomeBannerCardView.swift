@@ -11,6 +11,7 @@ import SwiftUI
 /// One contained featured banner for the Home shelf.
 public struct HomeBannerCardView: View {
   private let card: MediaCard
+  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
 
   public init(card: MediaCard) {
     self.card = card
@@ -141,7 +142,7 @@ public struct HomeBannerCardView: View {
 
   private func poster(height: CGFloat) -> some View {
     CachedRemoteImage(
-      url: URL(string: card.posterURL),
+      url: URL(string: card.coverURL),
       contentMode: .fill,
       placeholder: {
         ZStack {
@@ -162,6 +163,7 @@ public struct HomeBannerCardView: View {
       }
     }
     .clipShape(RoundedRectangle(cornerRadius: Self.posterCornerRadius, style: .continuous))
+    .id(coverLanguage)
 #if !os(tvOS)
 //    .shadow(color: .black.opacity(0.45), radius: 10, y: 4)
 #endif

@@ -109,6 +109,7 @@ struct WatchlistView: View {
               badge: item.hasNewEpisodes ? "+\(item.new ?? 0)" : nil,
               backdropURL: item.posters.wideURL ?? item.posters.big,
               isSeries: true,
-              viewerState: ViewerState(isFollowing: true))
+              viewerState: ViewerState(isFollowing: true),
+              kinopoiskID: item.kinopoisk)
   }
 }

@@ -199,7 +199,7 @@ final class TVPageHeroBackdropView: UIView {
     stageView.addSubview(dim)
 
     stageView.backgroundColor = .black
-    fade.colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.8).cgColor, UIColor.black.cgColor]
+    fade.colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.4).cgColor]
     fade.locations = [NSNumber(value: Double(Self.fadeStart)), 0.85, NSNumber(value: Double(Self.fadeEnd))]
     stageView.layer.insertSublayer(fade, below: dim.layer)
   }

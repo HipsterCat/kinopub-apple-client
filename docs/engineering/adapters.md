@@ -22,6 +22,8 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   Widening the results used to hang the main thread (the collection growing to the window
   fought the search container; losing focus on the rebuild showed the keyboard again).
   The page extends vertically only, and remembers the focused poster while results have it.
+  The column count stays the full screen's: the keyboard shifts the collection and the
+  last column clips, instead of the pane's width wrapping posters onto the next row.
   Checked by `TVSearchLayoutUITests` (`-KINOPUBSearchFixture -ForceGridKeyboard YES`).
 
 - **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`

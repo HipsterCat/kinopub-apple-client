@@ -69,13 +69,37 @@ struct AppearanceSettingsPane: View {
   private var progressVisibility = MediaCardDisplayPreferences.defaultProgressVisibility.rawValue
   @AppStorage(MediaCardDisplayPreferences.watchedStyleKey)
   private var watchedStyle = MediaCardDisplayPreferences.defaultWatchedStyle.rawValue
+  /// Read so the picker refreshes when the key is written. The selection itself
+  /// goes through `coverLanguage`, which keeps an unset value following the app language.
+  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguageToken = ""
+
+  private var coverLanguage: Binding<String> {
+    Binding(
+      get: { CoverArtworkPreferences.language.rawValue },
+      set: { raw in
+        guard let language = CoverArtworkLanguage(rawValue: raw) else { return }
+        CoverArtworkPreferences.set(language)
+      }
+    )
+  }
 
   var body: some View {
+    let _ = coverLanguageToken
     Form {
       Section {
         LabeledContent("Theme", value: "Dark")
       } footer: {
         Text("Dark-only until a deliberate light-theme pass.")
+      }
+
+      Section {
+        Picker("Covers and images", selection: coverLanguage) {
+          ForEach(CoverArtworkLanguage.allCases) { language in
+            Text(LocalizedStringKey(language.titleKey)).tag(language.rawValue)
+          }
+        }
+      } footer: {
+        Text("Settings_Tip_Covers")
       }
 
       // Both controls only choose how the combined plaque is drawn — with the

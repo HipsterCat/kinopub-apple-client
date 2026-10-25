@@ -372,7 +372,8 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
                      backdropURL: item.posters.wideURL ?? item.posters.big,
                      isSeries: true,
                      viewerState: ViewerState(isFollowing: true),
-                     unwatchedEpisodes: left)
+                     unwatchedEpisodes: left,
+                     kinopoiskID: item.kinopoisk)
   }
 
   /// Every folder's titles, first page of each in parallel, then the same page
@@ -469,7 +470,8 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
                      mediaID: history?.media?.id,
                      isSeries: isSeries,
                      durationSeconds: duration,
-                     primaryAction: .play)
+                     primaryAction: .play,
+                     kinopoiskID: item.kinopoisk)
   }
 
   /// A followed series with nothing left to watch. `nil` unwatched counts stay with

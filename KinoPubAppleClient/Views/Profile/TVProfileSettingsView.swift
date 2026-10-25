@@ -27,6 +27,8 @@ struct TVProfileSettingsView: View {
   let model: ProfileModel
   let kinopoiskKeyProvider: KinopoiskKeyProvider
   @Binding var selectedLanguage: String
+  /// Bumps the cover row when the choice page writes the key.
+  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguageToken = ""
   @Binding var preferEnglishSubtitles: Bool
   @Binding var preferNonCCSubtitles: Bool
   @Binding var dualSubtitlesEnabled: Bool
@@ -61,6 +63,21 @@ struct TVProfileSettingsView: View {
   /// The left panel shifts sideways instead of crossfading.
   fileprivate static let panelTransition = AnyTransition.push(from: .trailing)
 
+  private var coverLanguageLabel: String {
+    _ = coverLanguageToken
+    return CoverArtworkPreferences.language.titleKey.localized
+  }
+
+  private var coverLanguageSelection: Binding<String> {
+    Binding(
+      get: { CoverArtworkPreferences.language.rawValue },
+      set: { raw in
+        guard let language = CoverArtworkLanguage(rawValue: raw) else { return }
+        CoverArtworkPreferences.set(language)
+      }
+    )
+  }
+
   // MARK: - Destinations
 
   @ViewBuilder
@@ -68,6 +85,16 @@ struct TVProfileSettingsView: View {
     switch route {
     case .category(let category):
       categoryPage(category)
+    case .coverLanguage:
+      SettingsChoiceView(
+        title: "Covers and images",
+        pageSymbol: "photo",
+        tipKey: "Settings_Tip_Covers",
+        options: CoverArtworkLanguage.allCases.map { language in
+          SettingsChoiceOption(id: language.rawValue, title: language.titleKey.localized)
+        },
+        selection: coverLanguageSelection
+      )
     case .language:
       SettingsChoiceView(
         title: "Language",
@@ -319,6 +346,13 @@ struct TVProfileSettingsView: View {
         route: .language,
         focus: focus,
         equals: .language
+      )
+      navigationRow(
+        "Covers and images",
+        value: coverLanguageLabel,
+        route: .coverLanguage,
+        focus: focus,
+        equals: .coverLanguage
       )
       infoRow(label: "Theme", value: "Dark".localized, focus: focus, id: "theme")
     }
@@ -953,6 +987,7 @@ private struct TVReleaseNotesPage: View {
 
 private enum SettingsRoute: Hashable {
   case category(TVSettingsCategory)
+  case coverLanguage
   case language
   case secondSubtitleLanguage
   case streamQuality
@@ -969,6 +1004,7 @@ private enum SettingsRoute: Hashable {
 /// pattern `.claude/skills/tvos-surface/SKILL.md` bans: the engine cannot tell which of
 /// them is focused). Payloads only keep siblings apart.
 private enum SettingsFocusItem: Hashable {
+  case coverLanguage
   case language
   case streamQuality
   case rememberedTracks
@@ -995,6 +1031,7 @@ private enum SettingsFocusItem: Hashable {
   /// The row's own tip; `nil` falls back to its category's.
   var tipKey: LocalizedStringKey? {
     switch self {
+    case .coverLanguage: "Settings_Tip_Covers"
     case .language: "Settings_Tip_Language"
     case .streamQuality: "Settings_Tip_StreamQuality"
     case .rememberedTracks: "Settings_Tip_RememberedTracks"

@@ -100,11 +100,12 @@ final class TVSearchLayoutUITests: XCTestCase {
   }
 
   /// Under the tab bar the grid keyboard ends at x = 512 of 1920 and the system starts the
-  /// results, its suggestion row with them, at 590 (tvOS 27.2, measured); they end at the
-  /// right overscan line, not the screen's edge.
+  /// results at 590 (tvOS 27.2, measured). The row is the full-screen grid, shifted right,
+  /// so the last card is clipped and its frame can reach the screen edge.
   private func assertBesideGridKeyboard(_ frame: CGRect, width: CGFloat) {
     XCTAssertGreaterThan(frame.minX, width * 540 / 1920, "results over the keyboard: \(frame)")
-    XCTAssertLessThanOrEqual(frame.maxX, width * 1880 / 1920, "results past the overscan line: \(frame)")
+    XCTAssertGreaterThan(frame.maxX, width * 0.85, "results stopped short of the right edge: \(frame)")
+    XCTAssertLessThanOrEqual(frame.maxX, width + 1, "results \(frame)")
   }
 
   private func shoot(_ app: XCUIApplication, name: String) throws {

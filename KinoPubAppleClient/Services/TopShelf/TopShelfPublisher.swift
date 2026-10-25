@@ -68,7 +68,12 @@ enum TopShelfPublisher {
     case .wide:
       return URL(string: card.landscapeImageURL ?? card.backdropImageURL)
     case .poster:
-      return store.records.record(for: card.ref)?.entity.artwork.poster ?? URL(string: card.posterURL)
+      let record = store.records.record(for: card.ref)
+      if let poster = record?.entity.artwork.poster?.absoluteString {
+        let id = card.kinopoiskID ?? record?.entity.id(.kinopoisk).flatMap(Int.init)
+        return URL(string: CoverArtwork.resolve(url: poster, kinopoiskID: id))
+      }
+      return URL(string: card.coverURL)
     }
   }
 }

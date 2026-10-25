@@ -129,7 +129,7 @@ final class TVPageLockupPosterCell: UICollectionViewCell {
     ratingChip.isHidden = rating == nil
 
     drawnTile = nil
-    loadImage(URL(string: card.posterURL))
+    loadImage(URL(string: card.coverURL))
   }
 
   /// A drawn tile in the lockup: the tint and glyph are the artwork, the name is the
@@ -839,7 +839,7 @@ final class TVPageWideCardCell: UICollectionViewCell {
     let label = [card.title, original, detailLabel.text].compactMap { $0 }.joined(separator: ", ")
     accessibilityLabel = label
     cardView.accessibilityLabel = label
-    loadThumbnail(URL(string: card.posterURL))
+    loadThumbnail(URL(string: card.coverURL))
   }
 
   func configure(person: TVUIKitPerson) {

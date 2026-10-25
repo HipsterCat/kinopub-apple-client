@@ -16,12 +16,16 @@ public struct HistoryEntry: Codable, Hashable {
     public let type: String?
     public let title: String?
     public let posters: Posters?
+    /// Present when this row's item still carries it. Cover language needs it.
+    public let kinopoisk: Int?
 
-    public init(id: Int, type: String? = nil, title: String? = nil, posters: Posters? = nil) {
+    public init(id: Int, type: String? = nil, title: String? = nil, posters: Posters? = nil,
+                kinopoisk: Int? = nil) {
       self.id = id
       self.type = type
       self.title = title
       self.posters = posters
+      self.kinopoisk = kinopoisk
     }
   }
 

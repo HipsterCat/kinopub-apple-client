@@ -382,7 +382,7 @@ final class TVPageBannerCell: UICollectionViewCell {
     if chrome.showsPoster, !sameCard || poster.image == nil {
       let posterSize = CGSize(width: size.height * chrome.posterHeightRatio * CardAspect.poster.ratio,
                               height: size.height * chrome.posterHeightRatio)
-      load([URL(string: card.posterURL)], size: posterSize) { [weak self] image in
+      load([URL(string: card.coverURL)], size: posterSize) { [weak self] image in
         guard let self, let image else { return }
         if self.poster.image == nil {
           UIView.transition(with: self.poster, duration: 0.25, options: .transitionCrossDissolve) {

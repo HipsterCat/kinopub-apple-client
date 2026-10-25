@@ -77,12 +77,21 @@ final class LibraryModel: ObservableObject {
     return folders.first { $0.id == id }?.title ?? "Bookmarks".localized
   }
 
-  /// Item count shown beside a folder row, like the reference client. `nil` for the
-  /// fixed sections — those would need an extra request each to count honestly, and a
-  /// wrong number is worse than none.
+  /// Item count beside a sidebar row. A folder's number comes with the folder list.
+  /// All Bookmarks is the sum of those — the same list, no second request. The other
+  /// fixed sections stay blank: Subscriptions, Continue and History would each need
+  /// their own fetch, and a first-page length would be a lie.
   func count(for section: LibrarySection) -> String? {
-    guard case .folder(let id) = section else { return nil }
-    return folders.first { $0.id == id }?.count
+    switch section {
+    case .folder(let id):
+      guard let value = folders.first(where: { $0.id == id })?.count, !value.isEmpty else { return nil }
+      return value
+    case .allBookmarks:
+      guard !folders.isEmpty else { return nil }
+      return "\(folders.compactMap { Int($0.count) }.reduce(0, +))"
+    case .watchlist, .unwatched, .history, .downloads:
+      return nil
+    }
   }
 
   /// The header's count: unwatched episodes on Following, the folder's own number,

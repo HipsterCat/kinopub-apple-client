@@ -19,6 +19,9 @@ public struct WatchingItem: Codable, Hashable, Identifiable {
   public let total: Int?
   public let watched: Int?
   public let new: Int?
+  /// Present when this trimmed payload still carries it. Cover language needs it to
+  /// ask Kinopoisk for the poster; a listing that omits it keeps kino.pub's cover.
+  public let kinopoisk: Int?
 
   public init(id: Int,
               type: String,
@@ -27,7 +30,8 @@ public struct WatchingItem: Codable, Hashable, Identifiable {
               posters: Posters,
               total: Int? = nil,
               watched: Int? = nil,
-              new: Int? = nil) {
+              new: Int? = nil,
+              kinopoisk: Int? = nil) {
     self.id = id
     self.type = type
     self.subtype = subtype
@@ -36,6 +40,7 @@ public struct WatchingItem: Codable, Hashable, Identifiable {
     self.total = total
     self.watched = watched
     self.new = new
+    self.kinopoisk = kinopoisk
   }
 }
 
@@ -88,7 +93,8 @@ public extension WatchingItem {
     self.init(id: entry.item.id,
               type: entry.item.type ?? "movie",
               title: entry.item.title ?? "",
-              posters: posters)
+              posters: posters,
+              kinopoisk: entry.item.kinopoisk)
   }
 
   /// Local resume point whose `MediaItem` snapshot is enough to draw a Continue Watching card
@@ -98,6 +104,7 @@ public extension WatchingItem {
               type: mediaItem.type,
               subtype: mediaItem.subtype,
               title: mediaItem.title,
-              posters: mediaItem.posters)
+              posters: mediaItem.posters,
+              kinopoisk: mediaItem.kinopoisk)
   }
 }

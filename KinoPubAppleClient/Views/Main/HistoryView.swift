@@ -227,7 +227,8 @@ struct HistoryView: View {
           durationSeconds: card.durationSeconds,
           genres: card.genres,
           country: card.country,
-          primaryAction: card.primaryAction
+          primaryAction: card.primaryAction,
+          kinopoiskID: card.kinopoiskID
         )
       }
     }
@@ -459,7 +460,8 @@ struct HistoryView: View {
       isSeries: isSeries,
       isInHistory: true,
       durationSeconds: durationSeconds,
-      primaryAction: .play
+      primaryAction: .play,
+      kinopoiskID: entry.item.kinopoisk
     )
   }
 }

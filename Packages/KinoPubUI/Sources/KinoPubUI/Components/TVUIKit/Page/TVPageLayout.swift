@@ -90,11 +90,19 @@ public enum TVPageLayout {
   /// `stripScrolled` hears, for the strip at a section index, where its group titles should
   /// stand as the row scrolls (`TVPageStripPlan.stickyShifts`), so the page can put it on
   /// the title cells.
+  ///
+  /// `screenContentWidth`, when it returns a width, is what a grid or a rail resolves
+  /// its column count against — the window minus the side insets, not the collection's
+  /// current bounds. The grid keyboard narrows the results; fitting that pane wraps
+  /// posters onto the next row and they jump when the keyboard hides. The cards stay
+  /// the full-screen size and the last column clips. Nil uses the container, so a page
+  /// beside a sidebar still reflows.
   @MainActor
   public static func makeLayout(sideInset: @escaping () -> CGFloat = { TVHIGGrid.sideInset },
                                 adjustedLeading: @escaping () -> CGFloat = { 0 },
                                 stripScrolled: (@MainActor (Int, [Int: CGFloat]) -> Void)? = nil,
                                 heroHeight: @escaping () -> CGFloat = { 0 },
+                                screenContentWidth: @escaping () -> CGFloat? = { nil },
                                 sections: @escaping () -> [TVPageSection]) -> UICollectionViewCompositionalLayout {
     let configuration = UICollectionViewCompositionalLayoutConfiguration()
     configuration.scrollDirection = .vertical
@@ -112,8 +120,10 @@ public enum TVPageLayout {
         let scrolled: (@MainActor ([Int: CGFloat]) -> Void)? = stripScrolled.map { report in
           { @MainActor shifts in report(index, shifts) }
         }
+        let containerWidth = environment.container.effectiveContentSize.width
+        let contentWidth = screenContentWidth() ?? max(containerWidth - inset * 2, 1)
         let built = section(for: all[index], environment: environment, sideInset: inset, next: next,
-                            stripScrolled: scrolled, heroHeight: heroHeight())
+                            contentWidth: contentWidth, stripScrolled: scrolled, heroHeight: heroHeight())
         if DebugLaunch.layoutDebug {
           built.decorationItems = [NSCollectionLayoutDecorationItem.background(elementKind: debugBackgroundKind)]
         }
@@ -132,10 +142,11 @@ public enum TVPageLayout {
                              environment: NSCollectionLayoutEnvironment,
                              sideInset: CGFloat,
                              next: TVPageSection? = nil,
+                             contentWidth fixedContentWidth: CGFloat? = nil,
                              stripScrolled: (@MainActor ([Int: CGFloat]) -> Void)? = nil,
                              heroHeight: CGFloat = 0) -> NSCollectionLayoutSection {
     let containerWidth = environment.container.effectiveContentSize.width
-    let contentWidth = max(containerWidth - sideInset * 2, 1)
+    let contentWidth = fixedContentWidth ?? max(containerWidth - sideInset * 2, 1)
 
     let layoutSection: NSCollectionLayoutSection
     switch (section.kind, section.flow) {
@@ -636,8 +647,18 @@ public struct TVPageCellRecipe: Equatable {
 /// text-block height, so each family is probed once per art width with representative
 /// content and the answer cached. The probe is the real view type; whatever Apple
 /// changes about a lockup's proportions, the next launch measures it.
+///
+/// A poster or card probe builds a real UIKit view and sets its frame. That lays the
+/// window out, so it cannot run inside a press: the grid keyboard changes the results'
+/// width on every frame, and Select on its globe key does it from `pressesBegan`. An
+/// unmeasured width returns an estimate; the view is measured once the width has
+/// stayed still, then `didMeasureNotification` asks pages to lay out again.
 @MainActor
 public enum TVPageCellMetrics {
+  /// Posted on the main queue after a poster or card width has been measured. Pages
+  /// invalidate layout so the estimate is replaced by the probed envelope.
+  public static let didMeasureNotification = Notification.Name("kinopub.tvPageCellMetrics.didMeasure")
+
   private struct Key: Hashable {
     let kind: TVPageCellKind
     let width: CGFloat
@@ -652,40 +673,166 @@ public enum TVPageCellMetrics {
   }
 
   private static var cache: [Key: TVPageCellRecipe] = [:]
+  /// Widths whose cache entry came from `TVPosterView` / `TVCardView`, not the estimate.
+  private static var measuredKeys: Set<Key> = []
+  /// Inside `measureCover` / `measureCard`. A poster's `setFrame` lays the window
+  /// out again; a recipe asked for from there must not build another poster.
+  private static var probing = false
+  private static var settleQueued = false
+  /// Bumped to drop a measurement already handed to the main queue.
+  private static var settleGeneration = 0
+  private struct PendingProbe {
+    var key: Key
+    var caption: TVPageCaption
+    var requestedAt: CFTimeInterval
+  }
+  private static var pendingProbe: PendingProbe?
+  /// Real poster or card builds. A width sweep must leave this at zero.
+  static var probeCount = 0
+
+  /// Drop a measurement waiting for the width to settle. The synchronous recipe
+  /// path never builds a view; tests call this so a queued build does not run
+  /// while the runner is tearing down.
+  static func cancelPendingMeasurement() {
+    settleGeneration += 1
+    pendingProbe = nil
+    settleQueued = false
+  }
 
   public static func recipe(kind: TVPageCellKind, artWidth: CGFloat, caption: TVPageCaption) -> TVPageCellRecipe {
     let key = Key(kind: kind, width: artWidth.rounded(), caption: kind.isLockup ? caption : .always,
                   category: contentSizeCategory)
-    if let cached = cache[key] { return cached }
-    let recipe: TVPageCellRecipe
-    switch kind {
-    case .poster: recipe = measurePoster(artWidth: key.width, caption: caption, aspect: .poster)
-    case .square: recipe = measurePoster(artWidth: key.width, caption: caption, aspect: .square)
-    case .still: recipe = still(artWidth: key.width)
-    case .person: recipe = person(artWidth: key.width)
+    // Only a lockup or a card builds a real UIKit view. Chips and stills are arithmetic.
+    let expensive = kind == .poster || kind == .square || kind == .card || kind == .infoCard
+    if let cached = cache[key] {
+      if expensive, !probing, !measuredKeys.contains(key) {
+        scheduleSettle(key, caption: caption)
+      }
+      return cached
+    }
+    if expensive {
+      // Never build the view on this call. The grid keyboard's width sweep, and Select
+      // on its globe key, ask for a new width from inside the press; `setFrame` on the
+      // probe spins the run loop and the press never came back (2026-10-25).
+      let estimate = estimated(key)
+      cache[key] = estimate
+      if !probing { scheduleSettle(key, caption: caption) }
+      return estimate
+    }
+    let recipe = measureStored(key, caption: caption)
+    cache[key] = recipe
+    return recipe
+  }
+
+  /// Remember the latest unmeasured width and probe it once it has stopped changing.
+  /// Requests during a slide only push the deadline; they do not build a view.
+  private static func scheduleSettle(_ key: Key, caption: TVPageCaption) {
+    pendingProbe = PendingProbe(key: key, caption: caption, requestedAt: CACurrentMediaTime())
+    guard !settleQueued, !probing else { return }
+    settleQueued = true
+    let generation = settleGeneration
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      guard generation == settleGeneration else { return }
+      drainSettle(generation: generation)
+    }
+  }
+
+  private static func drainSettle(generation: Int) {
+    guard generation == settleGeneration, !probing else {
+      settleQueued = false
+      return
+    }
+    guard let pending = pendingProbe else {
+      settleQueued = false
+      return
+    }
+    // A newer width arrived while this wait was queued: the slide has not stopped.
+    if CACurrentMediaTime() - pending.requestedAt < 0.15 {
+      settleQueued = false
+      scheduleSettle(pending.key, caption: pending.caption)
+      return
+    }
+    pendingProbe = nil
+    settleQueued = false
+    guard cache[pending.key] != nil, !measuredKeys.contains(pending.key) else { return }
+    probing = true
+    probeCount += 1
+    let recipe = measureStored(pending.key, caption: pending.caption)
+    cache[pending.key] = recipe
+    measuredKeys.insert(pending.key)
+    probing = false
+    NotificationCenter.default.post(name: didMeasureNotification, object: nil)
+    if let pending = pendingProbe {
+      scheduleSettle(pending.key, caption: pending.caption)
+    }
+  }
+
+  private static func measureStored(_ key: Key, caption: TVPageCaption) -> TVPageCellRecipe {
+    switch key.kind {
+    case .poster: return measurePoster(artWidth: key.width, caption: caption, aspect: .poster)
+    case .square: return measurePoster(artWidth: key.width, caption: caption, aspect: .square)
+    case .still: return still(artWidth: key.width)
+    case .person: return person(artWidth: key.width)
     case .chip:
       let size = CGSize(width: key.width, height: TVPageLayout.chipHeight)
-      recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
-                                artSize: size, posterContentSize: size)
+      return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                              artSize: size, posterContentSize: size)
     case .masthead:
       let size = CGSize(width: key.width, height: 220)
-      recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
-                                artSize: size, posterContentSize: size)
-    case .card: recipe = measureCard(artWidth: key.width, height: TVPageLayout.cardHeight)
-    case .infoCard: recipe = measureCard(artWidth: key.width, height: TVPageLayout.infoCardHeight)
+      return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                              artSize: size, posterContentSize: size)
+    case .card: return measureCard(artWidth: key.width, height: TVPageLayout.cardHeight)
+    case .infoCard: return measureCard(artWidth: key.width, height: TVPageLayout.infoCardHeight)
     case .strip:
       // A strip is sized item by item (`TVPageStripPlan`); there is no one recipe for it.
       let size = CGSize(width: key.width, height: TVPageLayout.infoCardHeight)
-      recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
-                                artSize: size, posterContentSize: size)
+      return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                              artSize: size, posterContentSize: size)
     case .banner, .hero:
       let height = (key.width / TVPageLayout.bannerAspect).rounded()
       let size = CGSize(width: key.width, height: height)
-      recipe = TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
-                                artSize: size, posterContentSize: size)
+      return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                              artSize: size, posterContentSize: size)
     }
-    cache[key] = recipe
-    return recipe
+  }
+
+  /// The focus margin as a fraction of the art, with no `TVPosterView`. Used when a
+  /// probe is already on the stack, so the layout pass can finish.
+  private static func estimated(_ key: Key) -> TVPageCellRecipe {
+    switch key.kind {
+    case .poster, .square:
+      let aspect: CardAspect = key.kind == .square ? .square : .poster
+      let art = CGSize(width: key.width, height: (key.width / aspect.ratio).rounded())
+      let pad = (art.width * TVHIGGrid.focusGrowth / 2).rounded()
+      var recipe = TVPageCellRecipe(
+        itemSize: CGSize(width: art.width + pad * 2, height: art.height + pad * 2),
+        artInsets: NSDirectionalEdgeInsets(top: pad, leading: pad, bottom: pad, trailing: pad),
+        belowItem: 0, artSize: art, posterContentSize: art
+      )
+      guard key.caption != .never else { return recipe }
+      let captionHeight = TVPageCaptionView.height(category: key.category)
+      let block = TVPageLockupPosterCell.footerGap + captionHeight
+      recipe.itemSize.height += block
+      recipe.artInsets.bottom += block
+      recipe.captionHeight = captionHeight
+      return recipe
+    case .card:
+      return box(key, height: TVPageLayout.cardHeight)
+    case .infoCard:
+      return box(key, height: TVPageLayout.infoCardHeight)
+    case .chip:
+      return box(key, height: TVPageLayout.chipHeight)
+    case .person:
+      return box(key, height: key.width + 96)
+    default:
+      return box(key, height: (key.width / CardAspect.landscape.ratio).rounded())
+    }
+  }
+
+  private static func box(_ key: Key, height: CGFloat) -> TVPageCellRecipe {
+    let size = CGSize(width: key.width, height: height)
+    return TVPageCellRecipe(itemSize: size, artInsets: .zero, belowItem: 0,
+                            artSize: size, posterContentSize: size)
   }
 
   /// A `TVCardView` platter of any size, measured like the wide card: its resting platter

@@ -647,6 +647,7 @@ public struct MediaCardView: View {
   private var progressVisibilityRaw = MediaCardDisplayPreferences.defaultProgressVisibility.rawValue
   @AppStorage(MediaCardDisplayPreferences.watchedStyleKey)
   private var watchedStyleRaw = MediaCardDisplayPreferences.defaultWatchedStyle.rawValue
+  @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
 
   private var ratingPlacement: MediaCardChromePlacement {
     MediaCardChromePlacement(rawValue: ratingPlacementRaw)
@@ -679,7 +680,11 @@ public struct MediaCardView: View {
   private var aspect: CardAspect { card.isLandscape ? .landscape : .poster }
 
   private var imageURL: String {
-    card.landscapeImageURL ?? card.posterURL
+    _ = coverLanguage
+    if card.isLandscape {
+      return card.landscapeImageURL ?? card.posterURL
+    }
+    return card.coverURL
   }
 
   private var playsOnSelect: Bool { card.primaryAction == .play }

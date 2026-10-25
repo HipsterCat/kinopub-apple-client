@@ -37,6 +37,31 @@ final class TVPageChromeTests: XCTestCase {
                    "pinning overlays the title on the first row of covers")
   }
 
+  func testScreenWideColumnsIgnoreTheKeyboardPane() {
+    let screen = TVHIGGrid.spanningContentWidth(screenWidth: 1920)
+    XCTAssertEqual(screen, TVHIGGrid.referenceContentWidth)
+    let full = TVHIGGrid.resolve(columns: 6, contentWidth: screen)
+    // Results start at 590; the pane the keyboard leaves is not the content box.
+    let pane = TVHIGGrid.resolve(columns: 6, contentWidth: 1920 - 590 - 80)
+    XCTAssertEqual(full.columns, 6)
+    XCTAssertLessThan(pane.columns, full.columns)
+    XCTAssertEqual(full.cardWidth, TVHIGGrid.cardWidth(columns: 6, contentWidth: screen))
+  }
+
+  func testPosterRecipeSurvivesAKeyboardWidthSweep() {
+    defer { TVPageCellMetrics.cancelPendingMeasurement() }
+    let probesBefore = TVPageCellMetrics.probeCount
+    let start = CACurrentMediaTime()
+    var previous: CGFloat = 0
+    for offset in 0..<40 {
+      let recipe = TVPageCellMetrics.recipe(kind: .poster, artWidth: 240 + CGFloat(offset), caption: .always)
+      XCTAssertGreaterThan(recipe.itemSize.width, previous, "width \(240 + offset) collapsed onto a neighbour")
+      previous = recipe.itemSize.width
+    }
+    XCTAssertEqual(TVPageCellMetrics.probeCount, probesBefore, "the sweep built a poster")
+    XCTAssertLessThan(CACurrentMediaTime() - start, 2, "each keyboard frame built a poster")
+  }
+
   func testLeadingConstantIsNeverNegative() {
     let chrome = ShelfMetrics.tvPageChrome(
       viewFrameInWindow: CGRect(x: 120, y: 0, width: 1680, height: 1080),
