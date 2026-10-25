@@ -13,7 +13,9 @@ refresh the token: a refresh rotates the live app session.
 from __future__ import annotations
 
 import json
+import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -26,6 +28,7 @@ DRAFT = ROOT / "draft.json"
 DEV_SESSION = Path.home() / ".kinopub-dev-session.json"
 API = "https://api.service-kp.com"
 MAX_DRAFT = 1_000_000
+CATALOG_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$")
 
 def access_token() -> str | None:
     if not DEV_SESSION.exists():
@@ -89,11 +92,25 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._json({"error": "not json"}, 400)
             return
-        if not isinstance(body, dict) or not isinstance(body.get("catalogs"), dict):
-            self._json({"error": "expected catalogs"}, 400)
+        catalog = body.get("catalog") if isinstance(body, dict) else None
+        sections = body.get("sections") if isinstance(body, dict) else None
+        if not isinstance(catalog, str) or CATALOG_ID.fullmatch(catalog) is None or not isinstance(sections, list):
+            self._json({"error": "expected one catalog"}, 400)
             return
-        DRAFT.write_text(json.dumps(body, ensure_ascii=False, indent=2) + "\n")
-        self._json({"ok": True, "path": str(DRAFT)})
+        draft = load_draft()
+        draft["catalogs"][catalog] = sections
+        draft["savedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        if "excludeConcerts" in body:
+            draft["excludeConcerts"] = bool(body["excludeConcerts"])
+        limit = body.get("limit")
+        if isinstance(limit, int) and not isinstance(limit, bool):
+            draft["limit"] = max(1, min(40, limit))
+        text = json.dumps(draft, ensure_ascii=False, indent=2) + "\n"
+        if len(text.encode()) > MAX_DRAFT:
+            self._json({"error": "too big"}, 400)
+            return
+        DRAFT.write_text(text)
+        self._json({"ok": True, "catalog": catalog, "path": str(DRAFT)})
 
     def _proxy(self, upstream: str) -> None:
         token = access_token()
@@ -142,6 +159,23 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(payload)
+
+
+def load_draft() -> dict:
+    raw: dict = {}
+    if DRAFT.exists():
+        try:
+            loaded = json.loads(DRAFT.read_text())
+        except json.JSONDecodeError:
+            loaded = {}
+        if isinstance(loaded, dict):
+            raw = loaded
+    catalogs = raw.get("catalogs")
+    if not isinstance(catalogs, dict):
+        catalogs = {}
+    raw["version"] = 1
+    raw["catalogs"] = catalogs
+    return raw
 
 
 def main() -> None:

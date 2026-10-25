@@ -16,6 +16,7 @@ The access token is read from `~/.kinopub-dev-session.json` on each request
 (the DEBUG `DevSessionMirror` file). It is not copied into the page or the
 draft. The server does not refresh it — a refresh rotates the live app session.
 
-**Save** writes the whole working set, kept and dropped shelves, to
-`tools/home-curator/draft.json` (gitignored). Reopen the page and the draft
-comes back. **Download kept** saves only shelves left switched on.
+**Save** writes only the open tab, kept and dropped shelves, into
+`tools/home-curator/draft.json` (gitignored). The other tabs in that file stay
+as they were. Reopen the page and each saved tab comes back on its own.
+**Download kept** saves the open tab's shelves that are still switched on.

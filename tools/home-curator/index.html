@@ -39,7 +39,7 @@
   header h1 { margin: 0 0 4px; font-size: 18px; font-weight: 620; letter-spacing: -0.02em; }
   .lede { margin: 0; color: var(--muted); max-width: 78ch; }
   .bar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-top: 12px; }
-  .tabs, .views { display: flex; gap: 4px; padding: 3px; background: var(--inset); border-radius: 10px; }
+  .tabs, .views { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; background: var(--inset); border-radius: 10px; }
   .tabs button, .views button, .text-btn, .icon-btn, .chip {
     border: 0; background: transparent; color: var(--soft); border-radius: 8px;
   }
@@ -149,7 +149,7 @@
 <body>
 <header>
   <h1>Секции главной</h1>
-  <p class="lede">Полки как они сейчас задуманы в приложении: запрос, который реально уходит, а не короткая подпись из настроек. Токен читается из ~/.kinopub-dev-session.json и в страницу не вставляется. Обновлять его эта страница не будет.</p>
+  <p class="lede">Первые три вкладки — сохранённый черновик, его страница сама не переписывает. Дальше три концепции главной: запросы проверены по живому каталогу 25 октября 2026. «Сохранить» пишет только открытую вкладку и не трогает остальные. Токен читается из ~/.kinopub-dev-session.json и в страницу не вставляется.</p>
   <div class="bar">
     <div class="tabs" id="tabs"></div>
     <div class="views" id="views">
@@ -163,8 +163,8 @@
     <span class="session" id="session">сессия…</span>
     <span class="saved" id="saved"></span>
     <button type="button" class="text-btn" id="download">Скачать оставленные</button>
-    <button type="button" class="text-btn" id="reset-all">Вернуть задуманное</button>
-    <button type="button" class="primary" id="save">Сохранить</button>
+    <button type="button" class="text-btn" id="reset-all">Вернуть вкладку</button>
+    <button type="button" class="primary" id="save">Сохранить вкладку</button>
   </div>
 </header>
 <div class="layout">
@@ -209,11 +209,17 @@ const CATALOGS = [
   ["home", "Главная"],
   ["movies", "Фильмы"],
   ["series", "Сериалы"],
+  ["apple", "Как в Apple TV"],
+  ["netflix", "Как в Netflix"],
+  ["beacons", "Маячки"],
 ];
 const CATALOG_NOTE = {
-  home: "«Продолжить просмотр» — личная лента, её здесь нет. Пустой тип при включённом «без концертов» превращается в фильмы, сериалы, оба документальных и передачи. Строка запроса редактируется: это и есть GET.",
-  movies: "Вкладки фильмов. У жанровых полок в коде ещё стоит period=year — в подписи настроек этого часто нет.",
-  series: "Сериальное аниме здесь только type=serial и genre 25. На главной аниме — это movie+serial и тот же жанр.",
+  home: "Сохранённый черновик. «Продолжить просмотр» — личная лента, её здесь нет. Строка запроса редактируется: это и есть GET.",
+  movies: "Сохранённый черновик вкладки фильмов.",
+  series: "Сохранённый черновик вкладки сериалов.",
+  apple: "Разбивка как у приложения Кинопаб на Apple TV: фильмы и сериалы отдельно, горячие / популярные / новые / 4K. period=week, month и year проверены: ни порядок, ни число тайтлов не меняются, поэтому окна нет. Недосмотренное сюда не входит.",
+  netflix: "Одна главная, полка зовёт в свой тип. sort=-views без фильтра — это «Друзья» и «Теория большого взрыва». Жанр «семейное» по просмотрам — пять «Гарри Поттеров» подряд. Этих запросов нет. Подборки внизу — фильмы внутри, не список подборок по просмотрам.",
+  beacons: "Каждая полка — дверь: аниме, дорамы, стендап, концерты, документальное, шоу, мультфильмы, эфир. Хвост — подборки из разных категорий. MARVEL, «Гарри Поттер» и «Звёздные войны» специально не первые: по просмотрам они и есть верх списка.",
 };
 const NO_CONCERT = ["movie", "serial", "documovie", "docuserial", "tvshow"];
 const SOURCE_NOTE = {
@@ -233,7 +239,25 @@ function shortcutShelf(id, name, title) {
     "shortcut"
   );
   section.shortcut = name;
+  section.keepTypes = true;
   return section;
+}
+
+function keepShelf(id, title, hint, patch = {}, source = "filter") {
+  const section = source === "shortcut"
+    ? shortcutShelf(id, patch.shortcut || "hot", title)
+    : shelf(id, title, hint, patch, source);
+  section.title = title;
+  section.hint = hint;
+  section.keepTypes = true;
+  if (patch.types) section.filter.types = patch.types.slice();
+  if (patch.genres) section.filter.genres = patch.genres.slice();
+  if (patch.collectionId) section.collectionId = String(patch.collectionId);
+  return section;
+}
+
+function collectionShelf(id, collectionId, title, hint) {
+  return keepShelf(id, title, hint, { collectionId }, "collection");
 }
 
 function shelf(id, title, hint, patch = {}, source = "filter") {
@@ -242,6 +266,8 @@ function shelf(id, title, hint, patch = {}, source = "filter") {
     shortcut: "hot",
     shortcutType: "movie",
     collectionSort: "views-",
+    collectionId: "",
+    keepTypes: false,
     filter: {
       types: patch.types || [],
       genres: patch.genres || [],
@@ -321,13 +347,64 @@ const SEED = {
       shelf("series-docu", "Документальные сериалы", "Задумано: type docuserial, sort -views, period=year.", { types: ["docuserial"], sort: "views", period: "year" }),
       shelf("series-tvshows", "Телешоу и Передачи", "Задумано: type tvshow, sort -updated.", { types: ["tvshow"], sort: "recentlyUpdated" }),
     ],
+    apple: [
+      keepShelf("atv-hot-movies", "Горячие фильмы", "Проверено: Электрический поцелуй, Надежда, Вышка 2. Не то же, что популярные и не то же, что новые.", { shortcut: "hot", types: ["movie"] }, "shortcut"),
+      keepShelf("atv-popular-movies", "Популярные фильмы", "Проверено: Человек-паук: Новый день, Мэйдэй, Тони. Это не горячие.", { shortcut: "popular", types: ["movie"] }, "shortcut"),
+      keepShelf("atv-fresh-movies", "Новые фильмы", "Проверено: Язык любви, Королева у моря, Турбулентные годы.", { shortcut: "fresh", types: ["movie"] }, "shortcut"),
+      keepShelf("atv-4k-movies", "Фильмы в 4K", "Проверено: До последнего грамма, В ловушке, Любовь твоей жизни. sort=-created, не period.", { types: ["movie"], quality: "4" }),
+      keepShelf("atv-hot-serials", "Горячие сериалы", "Проверено: В поисках зомби, Некий ITEM тёмной стороны, Шериф округа.", { shortcut: "hot", types: ["serial"] }, "shortcut"),
+      keepShelf("atv-popular-serials", "Популярные сериалы", "Проверено: Кэрри, Трудно быть богом, К востоку от Эдема.", { shortcut: "popular", types: ["serial"] }, "shortcut"),
+      keepShelf("atv-watchers", "Больше всего подписчиков", "Проверено: Пацаны, Одни из нас, Очень странные дела. Это не горячие и не новые.", { types: ["serial"], sort: "watchers" }),
+      keepShelf("atv-fresh-serials", "Новые сериалы", "Проверено: Баба-яга, Некий ITEM тёмной стороны, Самозванка. С горячими пересекается один тайтл.", { shortcut: "fresh", types: ["serial"] }, "shortcut"),
+      keepShelf("atv-4k-serials", "Сериалы в 4K", "Проверено: Хрустальное озеро, Квест Вижна, Глубина. Кэрри и озеро есть и в популярных: полка честная, но не целиком другая.", { types: ["serial"], quality: "4" }),
+    ],
+    netflix: [
+      keepShelf("nfx-fresh", "Новое на сервисе", "Свежее по всем типам сразу, включая концерт. Проверено: Язык любви, Королева у моря, Brìghde Chaimbeul / Tiny Desk.", { shortcut: "fresh", types: ["movie", "serial", "concert", "documovie", "docuserial", "tvshow"] }, "shortcut"),
+      keepShelf("nfx-rating", "Выбор зрителей", "Проверено: Пацаны, Очень странные дела, Проект «Конец света», Интерстеллар. Фильмы и сериалы в одной полке.", { types: ["movie", "serial"], sort: "rating" }),
+      keepShelf("nfx-watchers", "Досматривают сейчас", "Проверено: Пацаны, Одни из нас, Очень странные дела, Fallout. sort=-watchers, не просмотры за всё время.", { types: ["serial"], sort: "watchers" }),
+      keepShelf("nfx-hot-movies", "Горячие фильмы", "Проверено: Электрический поцелуй, Надежда, Вышка 2.", { shortcut: "hot", types: ["movie"] }, "shortcut"),
+      keepShelf("nfx-popular", "О чём говорят", "Проверено: Человек-паук: Новый день, Кэрри, Мэйдэй. Фильм и сериал рядом.", { shortcut: "popular", types: ["movie", "serial"] }, "shortcut"),
+      keepShelf("nfx-anime", "Аниме", "Дверь в аниме. Проверено: Магическая битва, Клинок, рассекающий демонов, Поднятие уровня в одиночку.", { types: ["movie", "serial"], genres: [25], sort: "watchers" }),
+      keepShelf("nfx-dorama", "Дорамы", "Проверено: Игра смерти, Королевство, Паразит: Серый.", { types: ["serial"], genres: [107], sort: "watchers" }),
+      keepShelf("nfx-standup", "Стендап", "Проверено: Ваша Бриташа, Билл Бэйли: Лимболэнд, Луи С.К.: Нелепица.", { types: ["movie"], genres: [101] }),
+      keepShelf("nfx-concerts", "Концерты", "Проверено: Brìghde Chaimbeul / Tiny Desk, Olivia Rodrigo / Austin City Limits.", { types: ["concert"] }),
+      keepShelf("nfx-docs", "Документальное", "Проверено: Взгляд в небо, Oasis: Не оглядывайся в гневе, Нил Пирт.", { types: ["documovie", "docuserial"] }),
+      keepShelf("nfx-shows", "Передачи и шоу", "Проверено: Голос. Дети, Уральские пельмени, Король Выживания.", { types: ["tvshow"], sort: "recentlyUpdated" }),
+      keepShelf("nfx-cartoons", "Мультфильмы", "Проверено: Душа, Зверопой 2, Кот в сапогах 2. Не жанр «семейное»: тот по просмотрам начинается с пяти Гарри Поттеров.", { types: ["movie"], genres: [23], sort: "views" }),
+      collectionShelf("nfx-cannes", 11, "Канны. Золотая пальмовая ветвь", "Подборка 11, категория «Кинофестивали». Внутри: Легенда о Нараяме, Леопард, Если… Порядок подборки, не просмотры."),
+      collectionShelf("nfx-king", 72, "Экранизации Стивена Кинга", "Подборка 72. Внутри: Кэрри 1976, Салемские вампиры, Сияние."),
+      collectionShelf("nfx-black", 193, "Чёрные-пречёрные комедии", "Подборка 193, категория «Юмор». Внутри: Семейка Аддамс, Деликатесы, Смерть ей к лицу."),
+      collectionShelf("nfx-newyear", 3, "Любимые новогодние фильмы", "Подборка 3. Внутри: Карнавальная ночь, Морозко, Зигзаг удачи."),
+      collectionShelf("nfx-time", 43, "Путешествия во времени", "Подборка 43. Внутри: Назад в будущее, часть 2, часть 3."),
+      collectionShelf("nfx-goblin", 310, "В озвучке Goblin", "Подборка 310. Внутри: Телохранитель, За пригоршню долларов, Пьяный мастер."),
+    ],
+    beacons: [
+      keepShelf("door-fresh", "Новое на Кинопабе", "Одна дверь во всё свежее: фильм, сериал, концерт, документ, шоу. Проверено: Язык любви, Королева у моря, Tiny Desk.", { shortcut: "fresh", types: ["movie", "serial", "concert", "documovie", "docuserial", "tvshow"] }, "shortcut"),
+      keepShelf("door-rating", "Стоит видеть", "Смешанный выбор зрителей, не топ просмотров. Проверено: Пацаны, Очень странные дела, Проект «Конец света», Интерстеллар.", { types: ["movie", "serial"], sort: "rating" }),
+      keepShelf("door-anime", "Аниме", "Проверено: Магическая битва, Клинок, рассекающий демонов, Поднятие уровня в одиночку.", { types: ["movie", "serial"], genres: [25], sort: "watchers" }),
+      keepShelf("door-dorama", "Дорамы", "Проверено: Игра смерти, Королевство, Паразит: Серый. 118 тайтлов.", { types: ["serial"], genres: [107], sort: "watchers" }),
+      keepShelf("door-standup", "Стендап", "Проверено: Ваша Бриташа, Билл Бэйли, Луи С.К. 275 тайтлов.", { types: ["movie"], genres: [101] }),
+      keepShelf("door-concerts", "Концерты", "Не выключены. Проверено: Tiny Desk, Olivia Rodrigo / Austin City Limits. 4725 записей.", { types: ["concert"] }),
+      keepShelf("door-docs", "Документальное", "Фильмы и сериалы вместе. Проверено: Взгляд в небо, Oasis, Нил Пирт.", { types: ["documovie", "docuserial"] }),
+      keepShelf("door-shows", "Шоу и передачи", "Проверено: Голос. Дети, Уральские пельмени, RuPaul's Drag Race UK.", { types: ["tvshow"], sort: "recentlyUpdated" }),
+      keepShelf("door-cartoons", "Мультфильмы", "Проверено: Душа, Зверопой 2, Кот в сапогах 2.", { types: ["movie"], genres: [23], sort: "views" }),
+      shelf("door-tv", "Сейчас в эфире", "Каналы с главной, не отдельная вкладка. Ответ /v1/tv целиком, на полке первые по лимиту.", {}, "tv"),
+      collectionShelf("door-cannes", 11, "Канны. Золотая пальмовая ветвь", "Категория «Кинофестивали». Секция равна подборке."),
+      collectionShelf("door-king", 72, "Экранизации Стивена Кинга", "Категория «Экранизации». Внутри Кэрри, Салемские вампиры, Сияние."),
+      collectionShelf("door-black", 193, "Чёрные-пречёрные комедии", "Категория «Юмор», не франшиза."),
+      collectionShelf("door-newyear", 3, "Любимые новогодние фильмы", "Категория «Даты и события». Карнавальная ночь, Морозко."),
+      collectionShelf("door-time", 43, "Путешествия во времени", "Категория «Фантастика и мир будущего». Назад в будущее."),
+      collectionShelf("door-goblin", 310, "В озвучке Goblin", "Категория «Переводы». Телохранитель, долларовая трилогия, Пьяный мастер."),
+      collectionShelf("door-war", 229, "Фильмы о Великой Отечественной войне", "Категория «История», 105 тайтлов. Порядок подборки начинается с «Валерия Чкалова» и «Небесного тихохода»."),
+    ],
   },
 };
 
 let state = structuredClone(SEED);
 state.catalog = "home";
 state.view = "all";
-let clean = "";
+const baselines = {};
+let settingsBaseline = "";
 const genres = new Map();
 const countries = new Map();
 const previews = new Map();
@@ -360,6 +437,7 @@ function sortApi(key) {
 
 function resolvedTypes(section) {
   const selected = section.filter.types.slice();
+  if (section.keepTypes) return selected;
   if (!state.excludeConcerts) return selected;
   if (!selected.length) return NO_CONCERT.slice();
   return selected.filter((type) => type !== "concert");
@@ -391,6 +469,8 @@ function normalize(section) {
     shortcutType: section.shortcutType || "movie",
     query: typeof section.query === "string" ? section.query : "",
     collectionSort: section.collectionSort || "views-",
+    collectionId: String(section.collectionId || "").replace(/\D/g, ""),
+    keepTypes: !!section.keepTypes,
     filter,
   };
 }
@@ -414,6 +494,8 @@ function core(section) {
     shortcutType: section.shortcutType,
     query: section.query || "",
     collectionSort: section.collectionSort,
+    collectionId: section.collectionId || "",
+    keepTypes: !!section.keepTypes,
     types: filter.types.slice().sort(),
     genres: filter.genres.map(Number),
     countries: filter.countries.map(Number),
@@ -486,7 +568,9 @@ function catalogQuery(section) {
   if (filter.kpMin !== "") params.append("conditions[]", "kinopoisk_rating>=" + filter.kpMin);
   if (filter.quality) params.set("quality", filter.quality);
   if (filter.period) params.set("period", filter.period);
-  params.set("sort", sortApi(filter.sort));
+  if (section.source !== "shortcut" || filter.sort !== "recentlyAdded") {
+    params.set("sort", sortApi(filter.sort));
+  }
   params.set("perpage", String(clampLimit(state.limit)));
   return params;
 }
@@ -499,6 +583,10 @@ function builtPath(section) {
   }
   if (section.source === "bookmarks") return "/v1/bookmarks";
   if (section.source === "tv") return "/v1/tv";
+  if (section.source === "collection") {
+    const id = String(section.collectionId || "").replace(/\D/g, "");
+    return id ? `/v1/collections/view?id=${id}` : "/v1/collections/view";
+  }
   if (section.source === "collections") {
     return `/v1/collections?sort=${encodeURIComponent(section.collectionSort)}&perpage=${limit}`;
   }
@@ -535,6 +623,7 @@ function articleHTML(section, index) {
   const filters = usesFilters(section) ? "" : "hidden";
   const shortcut = section.source === "shortcut" ? "" : "hidden";
   const collections = section.source === "collections" ? "" : "hidden";
+  const collection = section.source === "collection" ? "" : "hidden";
   return `<article class="${section.approved ? "" : "dropped"}" data-index="${index}" id="s-${index}">
     <div class="head">
       <button type="button" class="grip" draggable="true" data-action="grip" title="Перетащить">↕</button>
@@ -544,8 +633,9 @@ function articleHTML(section, index) {
     </div>
     <p class="hint">${esc(section.hint)}${mark ? `<span class="badge">${esc(mark)}</span>` : ""}</p>
     <div class="controls">
-      <label class="field">Источник<select data-field="source">${options([["filter", "Каталог"], ["shortcut", "Ярлык"], ["bookmarks", "Закладки"], ["tv", "Эфир"], ["collections", "Подборки"]], section.source)}</select></label>
+      <label class="field">Источник<select data-field="source">${options([["filter", "Каталог"], ["shortcut", "Ярлык"], ["collection", "Подборка"], ["bookmarks", "Закладки"], ["tv", "Эфир"], ["collections", "Список подборок"]], section.source)}</select></label>
       <label class="field" data-panel="shortcut" ${shortcut}>Ярлык<select data-field="shortcut">${options(SHORTCUTS, section.shortcut)}</select></label>
+      <label class="field" data-panel="collection" ${collection}>id подборки<input class="num" data-field="collectionId" inputmode="numeric" value="${esc(section.collectionId)}"></label>
       <label class="field" data-panel="filter" ${filters}>Сортировка<select data-field="sort">${options(SORTS.map(([value, label]) => [value, label]), section.filter.sort)}</select></label>
       <label class="field" data-panel="filter" ${filters}>Окно<select data-field="period">${options(PERIODS, section.filter.period)}</select></label>
       <label class="field" data-panel="filter" ${filters}>Качество<select data-field="quality">${options(QUALITY, section.filter.quality)}</select></label>
@@ -599,6 +689,7 @@ function render() {
     const kept = list.filter((item) => item.approved).length;
     return `<button type="button" data-catalog="${id}" class="${id === state.catalog ? "on" : ""}" onclick="__catalog('${id}')">${esc(title)} ${kept}/${list.length}</button>`;
   }).join("");
+  $("save").textContent = "Сохранить «" + catalogTitle(state.catalog) + "»";
   $("exclude").checked = state.excludeConcerts;
   if (document.activeElement !== $("limit")) $("limit").value = state.limit;
   document.querySelectorAll("#views button").forEach((button) => button.classList.toggle("on", button.dataset.view === state.view));
@@ -669,11 +760,12 @@ function onField(event) {
   if (field === "approved") section.approved = event.target.checked;
   else if (field === "title" || field === "id") section[field] = event.target.value.trimStart();
   else if (field === "collectionSort" || field === "source" || field === "shortcut") section[field] = event.target.value;
+  else if (field === "collectionId") section.collectionId = event.target.value.replace(/\D/g, "");
   else if (field === "finished") section.filter.finished = event.target.checked;
   else if (["sort", "period", "quality", "yearFrom", "yearTo", "imdbMin", "kpMin"].includes(field)) {
     section.filter[field] = event.target.value;
   } else return;
-  if (field !== "approved" && field !== "title" && field !== "id") section.query = "";
+  if (field !== "approved" && field !== "title" && field !== "id" && field !== "query") section.query = "";
   if (field === "id") section.id = section.id.trim();
   if (field === "source") {
     const y = window.scrollY;
@@ -1012,34 +1104,67 @@ function logoOf(channel) {
   return logos.m || logos.s || Object.values(logos)[0] || "";
 }
 
-function snapshot() {
-  return JSON.stringify({ excludeConcerts: state.excludeConcerts, limit: clampLimit(state.limit), catalogs: state.catalogs });
+function catalogTitle(id) {
+  const row = CATALOGS.find((item) => item[0] === id);
+  return row ? row[1] : id;
 }
 
-function payload(keptOnly) {
-  const catalogs = {};
-  for (const [id, list] of Object.entries(state.catalogs)) {
-    catalogs[id] = (keptOnly ? list.filter((item) => item.approved) : list).map((section) => ({
-      id: section.id, origin: section.origin, title: section.title, hint: section.hint,
-      approved: section.approved, source: section.source,
-      shortcut: section.shortcut, shortcutType: section.shortcutType,
-      query: section.query || "",
-      collectionSort: section.collectionSort, filter: section.filter,
-    }));
-  }
-  return { version: 1, savedAt: new Date().toISOString(), excludeConcerts: state.excludeConcerts, limit: clampLimit(state.limit), catalogs };
+function sectionRecord(section) {
+  return {
+    id: section.id, origin: section.origin, title: section.title, hint: section.hint,
+    approved: section.approved, source: section.source,
+    shortcut: section.shortcut, shortcutType: section.shortcutType,
+    query: section.query || "",
+    collectionId: section.collectionId || "",
+    keepTypes: !!section.keepTypes,
+    collectionSort: section.collectionSort, filter: section.filter,
+  };
+}
+
+function catalogBody(id, keptOnly) {
+  const list = state.catalogs[id] || [];
+  return (keptOnly ? list.filter((item) => item.approved) : list).map(sectionRecord);
+}
+
+function settingsKey() {
+  return JSON.stringify({ excludeConcerts: state.excludeConcerts, limit: clampLimit(state.limit) });
+}
+
+function remember(id) {
+  baselines[id] = JSON.stringify(catalogBody(id, false));
+}
+
+function rememberAll() {
+  settingsBaseline = settingsKey();
+  for (const id of Object.keys(state.catalogs)) remember(id);
+}
+
+function unsaved() {
+  const ids = Object.keys(state.catalogs).filter((id) => JSON.stringify(catalogBody(id, false)) !== baselines[id]);
+  return { ids, settings: settingsKey() !== settingsBaseline };
 }
 
 async function save() {
+  const id = state.catalog;
   const button = $("save");
   button.disabled = true;
   try {
-    const response = await fetch("/api/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload(false)) });
+    const response = await fetch("/api/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        catalog: id,
+        sections: catalogBody(id, false),
+        excludeConcerts: state.excludeConcerts,
+        limit: clampLimit(state.limit),
+      }),
+    });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "не сохранилось");
-    clean = snapshot();
+    remember(id);
+    settingsBaseline = settingsKey();
     const when = new Date().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" });
-    $("saved").textContent = "черновик " + when;
+    $("saved").textContent = "сохранена «" + catalogTitle(id) + "» " + when;
   } catch (error) {
     $("saved").textContent = error.message;
   } finally {
@@ -1048,10 +1173,12 @@ async function save() {
 }
 
 function download() {
-  const blob = new Blob([JSON.stringify(payload(true), null, 2) + "\n"], { type: "application/json" });
+  const id = state.catalog;
+  const body = { version: 1, catalog: id, sections: catalogBody(id, true) };
+  const blob = new Blob([JSON.stringify(body, null, 2) + "\n"], { type: "application/json" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "home-sections-kept.json";
+  link.download = "home-sections-" + id + "-kept.json";
   link.click();
   URL.revokeObjectURL(link.href);
 }
@@ -1110,11 +1237,7 @@ $("limit").addEventListener("change", () => {
 $("save").addEventListener("click", save);
 $("download").addEventListener("click", download);
 $("reset-all").addEventListener("click", () => {
-  const catalog = state.catalog;
-  const view = state.view;
-  state = structuredClone(SEED);
-  state.catalog = catalog;
-  state.view = view;
+  state.catalogs[state.catalog] = structuredClone(SEED.catalogs[state.catalog]);
   previews.clear();
   closePicker();
   render();
@@ -1126,7 +1249,8 @@ $("list").addEventListener("error", (event) => {
   event.target.replaceWith(empty);
 }, true);
 window.addEventListener("beforeunload", (event) => {
-  if (snapshot() !== clean) {
+  const pending = unsaved();
+  if (pending.ids.length || pending.settings) {
     event.preventDefault();
     event.returnValue = "";
   }
@@ -1142,32 +1266,8 @@ function fillNames(data, target, withType) {
   });
 }
 
-function withMissingSeed(catalogId, loaded) {
-  const seed = SEED.catalogs[catalogId];
-  const result = loaded.slice();
-  const present = new Set(result.flatMap((section) => [section.id, section.origin].filter(Boolean)));
-  seed.forEach((item, index) => {
-    if (present.has(item.id)) return;
-    let at = result.length;
-    let placed = false;
-    for (let i = index - 1; i >= 0; i--) {
-      const prev = result.findIndex((section) => section.id === seed[i].id || section.origin === seed[i].id);
-      if (prev >= 0) { at = prev + 1; placed = true; break; }
-    }
-    if (!placed) {
-      for (let i = index + 1; i < seed.length; i++) {
-        const next = result.findIndex((section) => section.id === seed[i].id || section.origin === seed[i].id);
-        if (next >= 0) { at = next; break; }
-      }
-    }
-    result.splice(at, 0, structuredClone(item));
-    present.add(item.id);
-  });
-  return result;
-}
-
 async function boot() {
-  clean = snapshot();
+  rememberAll();
   render();
   const [session, draft, genreData, countryData] = await Promise.all([
     fetch("/api/session").then((response) => response.json()).catch(() => ({ ok: false })),
@@ -1183,17 +1283,17 @@ async function boot() {
   if (draft && draft.version === 1 && draft.catalogs) {
     state.excludeConcerts = draft.excludeConcerts !== false;
     if (draft.limit != null) state.limit = clampLimit(draft.limit);
-    for (const id of ["home", "movies", "series"]) {
-      if (Array.isArray(draft.catalogs[id]) && draft.catalogs[id].length) {
-        state.catalogs[id] = withMissingSeed(id, draft.catalogs[id].map(normalize));
-      }
+    for (const id of Object.keys(SEED.catalogs)) {
+      const loaded = draft.catalogs[id];
+      if (Array.isArray(loaded) && loaded.length) state.catalogs[id] = loaded.map(normalize);
     }
     $("saved").textContent = "открыт черновик";
     previews.clear();
-    clean = snapshot();
+    rememberAll();
     render();
     return;
   }
+  rememberAll();
   current().forEach((section) => { if (visible(section)) paint(section); });
 }
 
