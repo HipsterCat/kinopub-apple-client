@@ -17,14 +17,15 @@ public extension MediaCard {
   ///
   /// The card keeps facts — genres, country, season count, year, runtime — and words them
   /// when it is painted, in the viewer's language.
-  init(ref: MediaRef, entity: MediaEntity, state: ViewerState) {
+  init(ref: MediaRef, entity: MediaEntity, state: ViewerState, kinopubWideSpecified: Bool? = nil) {
+    let specifiedWide = kinopubWideSpecified ?? entity.artwork.backdropFromSpecifiedWide
     self.init(id: ref.itemID,
               posterURL: (entity.artwork.posterPreview ?? entity.artwork.poster)?.absoluteString ?? "",
               title: entity.title ?? "",
               subtitle: entity.originalTitle,
               scores: MediaScores(entity.scores),
               backdropURL: entity.artwork.backdrop?.absoluteString,
-              hasSpecifiedWideArtwork: entity.artwork.backdropFromSpecifiedWide,
+              hasSpecifiedWideArtwork: specifiedWide,
               overview: entity.synopsis.best,
               seasonCount: entity.seasonCount,
               isSeries: entity.kind == .show,

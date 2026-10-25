@@ -18,6 +18,9 @@ struct MediaRecord: Codable, Hashable, Sendable {
   /// reader to lay this device's knowledge over. Not the viewer's state itself.
   var reported: ViewerState
   var updatedAt: Date
+  /// Whether kino.pub's listing sent a `posters.wide` field when this record was ingested.
+  /// `nil` on records written before this metadata existed — a catalog refresh re-ingests.
+  var kinopubWideSpecified: Bool?
 }
 
 /// **The one place a title's facts are kept**, under its `MediaRef`. Rows keep refs and
@@ -47,7 +50,10 @@ final class MediaRecordStore {
   @discardableResult
   func ingest(_ item: MediaItem, at date: Date = Date()) -> MediaRef {
     let ref = item.titleRef
-    records[ref] = MediaRecord(entity: item.mediaEntity, reported: ViewerState(reportedBy: item), updatedAt: date)
+    records[ref] = MediaRecord(entity: item.mediaEntity,
+                               reported: ViewerState(reportedBy: item),
+                               updatedAt: date,
+                               kinopubWideSpecified: item.posters.hasSpecifiedWide)
     return ref
   }
 

@@ -187,16 +187,19 @@ struct MainView: View {
   private var pageSections: [TVPageSection] {
     var result: [TVPageSection] = []
     if catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled && FeatureFlags.homeHeroCarouselEnabled {
-      if !catalog.bannerCards.isEmpty {
-        result.append(.hero(id: Self.heroSectionID, TVPageHero(
-          features: bannerFeatures,
-          labels: .init(play: "Play".localized,
-                        details: "Hero.Details".localized,
-                        bookmark: "Bookmarks".localized,
-                        next: "Hero.Next".localized,
-                        noBookmarkFolders: "No bookmark folders yet".localized)
-        )))
-      }
+      let features = catalog.bannerCards.isEmpty
+        ? (0..<2).map { idx in
+            TVPageFeature(card: MediaCard.placeholder(id: -201 - idx))
+          }
+        : bannerFeatures
+      result.append(.hero(id: Self.heroSectionID, TVPageHero(
+        features: features,
+        labels: .init(play: "Play".localized,
+                      details: "Hero.Details".localized,
+                      bookmark: "Bookmarks".localized,
+                      next: "Hero.Next".localized,
+                      noBookmarkFolders: "No bookmark folders yet".localized)
+      )))
     } else if catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled {
       let banner = catalog.bannerCards
       if !banner.isEmpty {

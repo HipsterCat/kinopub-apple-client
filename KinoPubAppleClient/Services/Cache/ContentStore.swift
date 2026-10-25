@@ -45,6 +45,8 @@ final class ContentStore {
   /// Nil in tests and previews: the cards come out with what their payload reported.
   private let viewer: ViewerStateReading?
 
+  private static let kinopubWideArtworkMigrationKey = "ContentStore.kinopubWideArtwork.v1"
+
   init(disk: RowSnapshotStore = RowSnapshotStore(),
        records: MediaRecordStore = MediaRecordStore(),
        viewer: ViewerStateReading? = nil) {
@@ -52,6 +54,15 @@ final class ContentStore {
     self.records = records
     self.viewer = viewer
     self.rows = disk.loadAll()
+    migrateKinopubWideArtworkIfNeeded()
+  }
+
+  /// Records cached before `kinopubWideSpecified` / `backdropFromSpecifiedWide` existed
+  /// read as ineligible for the hero until catalogue rows refresh and re-ingest.
+  private func migrateKinopubWideArtworkIfNeeded() {
+    guard !UserDefaults.standard.bool(forKey: Self.kinopubWideArtworkMigrationKey) else { return }
+    invalidate(family: .catalog)
+    UserDefaults.standard.set(true, forKey: Self.kinopubWideArtworkMigrationKey)
   }
 
   // MARK: - Reading (synchronous, from memory)
@@ -71,7 +82,10 @@ final class ContentStore {
     switch entry {
     case .title(let ref):
       guard let record = records.record(for: ref) else { return nil }
-      let card = MediaCard(ref: ref, entity: record.entity, state: record.reported)
+      let card = MediaCard(ref: ref,
+                           entity: record.entity,
+                           state: record.reported,
+                           kinopubWideSpecified: record.kinopubWideSpecified)
       // The same two steps a cached card took: the payload's card, then today's state
       // over it (the card's builder does not fill watched or progress).
       guard let viewer else { return card }

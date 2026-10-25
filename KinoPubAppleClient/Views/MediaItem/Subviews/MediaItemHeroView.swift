@@ -343,7 +343,9 @@ struct MediaItemHeroView: View {
   /// the metadata row without leaving the page.
   @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
   private var showsAgeRatingBadge = false
-
+  /// While a real wide backdrop is still loading, a portrait poster sits on the trailing
+  /// edge — never stretched into the 16:9 background.
+  @State private var backdropDidLoad = false
 
   private var isSeries: Bool {
     !(mediaItem.seasons?.isEmpty ?? true)
@@ -358,6 +360,8 @@ struct MediaItemHeroView: View {
 
   var body: some View {
     platformBody
+      .onChange(of: mediaItem.id, initial: true) { _, _ in backdropDidLoad = false }
+      .onChange(of: preferredBackdropURL) { _, _ in backdropDidLoad = false }
       // The hero is the only reader of `phase`, so the write lands here alone and the
       // page's body never re-runs for it.
       .onChange(of: phase.isHeroOnScreen) { _, onScreen in
@@ -539,40 +543,45 @@ struct MediaItemHeroView: View {
 
   @ViewBuilder
   private var platformBody: some View {
+    Group {
 #if os(tvOS)
-    // The page gives the hero its height (`MediaItemLayout.heroFraction` of the screen)
-    // and the chrome sits at its bottom edge. The hero draws no picture: the artwork and
-    // its scrim are the navigation stack's backdrop, behind the scroll (`MediaItemView`
-    // claims it), so the hero's text scrolls away over a picture that stays.
-    content
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-      // The same muted preview, promoted to sound and full screen without restarting.
-      // Menu on the remote dismisses it — no chrome of our own over the picture.
-      .fullScreenCover(isPresented: $isTrailerFullScreen, onDismiss: { trailer.setFullScreen(false) }) {
-        fullScreenTrailer
-      }
-#else
-    // 16:9 is the floor rather than the height, so a narrow window or a phone grows
-    // the band instead of clipping the buttons off the top of it.
-    //
-    // Backdrop stays in the ambient scheme so the bottom seam still blends into the
-    // page colour; only the overlay chrome is forced dark.
-    ZStack(alignment: .bottomLeading) {
-      Color.clear
-        .aspectRatio(16 / 9, contentMode: .fit)
-
+      // The page gives the hero its height (`MediaItemLayout.heroFraction` of the screen)
+      // and the chrome sits at its bottom edge. The hero draws no picture: the artwork and
+      // its scrim are the navigation stack's backdrop, behind the scroll (`MediaItemView`
+      // claims it), so the hero's text scrolls away over a picture that stays.
       content
-//        .environment(\.colorScheme, .dark)
-    }
-    .frame(maxWidth: .infinity, alignment: .bottomLeading)
-    .background {
-      ZStack {
-        scrollingBackdrop
-        scrollingScrim
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        // The same muted preview, promoted to sound and full screen without restarting.
+        // Menu on the remote dismisses it — no chrome of our own over the picture.
+        .fullScreenCover(isPresented: $isTrailerFullScreen, onDismiss: { trailer.setFullScreen(false) }) {
+          fullScreenTrailer
+        }
+#else
+      // 16:9 is the floor rather than the height, so a narrow window or a phone grows
+      // the band instead of clipping the buttons off the top of it.
+      //
+      // Backdrop stays in the ambient scheme so the bottom seam still blends into the
+      // page colour; only the overlay chrome is forced dark.
+      ZStack(alignment: .bottomLeading) {
+        Color.clear
+          .aspectRatio(16 / 9, contentMode: .fit)
+
+        content
       }
+      .frame(maxWidth: .infinity, alignment: .bottomLeading)
+      .background {
+        ZStack {
+          scrollingBackdrop
+          scrollingScrim
+        }
+      }
+      .clipped()
+      .background(visibilityProbe)
+#endif
     }
-    .clipped()
-    .background(visibilityProbe)
+    .overlay(alignment: .bottomTrailing) { trailingPosterAccent }
+#if os(tvOS)
+    .task(id: backdropLoadToken) { await probeBackdropLoaded() }
 #endif
   }
 
@@ -611,22 +620,72 @@ struct MediaItemHeroView: View {
   }
 #endif
 
-  /// Clean textless backdrop from external metadata (TMDB) first when available, then
-  /// wide → big → medium from kino.pub. Russian covers swap the vertical sizes when
-  /// the title has a Kinopoisk id; wide stays kino.pub's.
+  /// Textless enrichment first, then kino.pub's own `wide` when the payload sent one.
+  /// Portrait sizes are never stretched into the hero — they sit in `trailingPosterAccent`.
   static func backdropCandidates(for mediaItem: MediaItem, preferredBackdropURL: URL? = nil) -> [URL] {
     var seen = Set<String>()
     var urls: [URL] = []
     if let preferredBackdropURL, seen.insert(preferredBackdropURL.absoluteString).inserted {
       urls.append(preferredBackdropURL)
     }
-    for raw in [mediaItem.posters.wideURL, mediaItem.posters.big, mediaItem.posters.medium]
-      .compactMap({ $0 }) where !raw.isEmpty {
-      let resolved = CoverArtwork.resolve(url: raw, kinopoiskID: mediaItem.kinopoisk)
-      guard seen.insert(resolved).inserted, let url = URL(string: resolved) else { continue }
-      urls.append(url)
+    if mediaItem.posters.hasSpecifiedWide, let wide = mediaItem.posters.wide, !wide.isEmpty {
+      let resolved = CoverArtwork.resolve(url: wide, kinopoiskID: mediaItem.kinopoisk)
+      if seen.insert(resolved).inserted, let url = URL(string: resolved) {
+        urls.append(url)
+      }
     }
     return urls
+  }
+
+  private var needsPosterAccent: Bool { !mediaItem.posters.hasSpecifiedWide }
+
+  private var backdropLoadToken: String {
+    let urls = Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
+    return "\(mediaItem.id)|" + urls.map(\.absoluteString).joined(separator: "|")
+  }
+
+  private func noteBackdropLoaded() {
+    guard needsPosterAccent, !backdropDidLoad else { return }
+    withAnimation(.easeOut(duration: 0.4)) { backdropDidLoad = true }
+  }
+
+  @MainActor
+  private func probeBackdropLoaded() async {
+    backdropDidLoad = false
+    guard needsPosterAccent else { return }
+    let urls = Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
+    guard !urls.isEmpty else { return }
+    for url in urls {
+      if Task.isCancelled { return }
+      if (try? await Artwork.image(for: url)) != nil {
+        noteBackdropLoaded()
+        return
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var trailingPosterAccent: some View {
+    if needsPosterAccent, !backdropDidLoad, let url = heroPosterURL {
+      CachedRemoteImage(url: url, contentMode: .fill)
+        .aspectRatio(CardAspect.poster.ratio, contentMode: .fit)
+        .frame(height: Self.trailingPosterHeight)
+        .clipShape(RoundedRectangle(cornerRadius: Self.trailingPosterCornerRadius, style: .continuous))
+        .padding(.trailing, Self.horizontalInset)
+        .padding(.bottom, Self.bottomInset)
+        .accessibilityHidden(true)
+        .transition(.opacity)
+    }
+  }
+
+  private var heroPosterURL: URL? {
+#if !os(tvOS)
+    _ = coverLanguage
+#endif
+    let raw = [mediaItem.posters.big, mediaItem.posters.medium, mediaItem.posters.small]
+      .first(where: { !$0.isEmpty }) ?? ""
+    guard !raw.isEmpty else { return nil }
+    return URL(string: CoverArtwork.resolve(url: raw, kinopoiskID: mediaItem.kinopoisk))
   }
 
 #if !os(tvOS)
@@ -640,13 +699,17 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var scrollingBackdrop: some View {
     ZStack {
-      FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill)
-        .onAppear {
+      if backdropCandidates.isEmpty {
+        Color.KinoPub.background
+      } else {
+        FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill, onLoaded: noteBackdropLoaded)
+          .onAppear {
 #if DEBUG
-          let list = backdropCandidates.map(\.absoluteString).joined(separator: " | ")
-          print("[Artwork] hero id=\(mediaItem.id) candidates=\(list)")
+            let list = backdropCandidates.map(\.absoluteString).joined(separator: " | ")
+            print("[Artwork] hero id=\(mediaItem.id) candidates=\(list)")
 #endif
-        }
+          }
+      }
 
       if let player = trailer.player, trailer.isReady {
         TrailerVideoLayer(player: player)
@@ -658,7 +721,6 @@ struct MediaItemHeroView: View {
     .clipped()
     .animation(.easeInOut(duration: 0.6), value: trailer.isReady)
   }
-
 
   /// Barely there, the way the Apple TV app leaves its hero video alone: clear for
   /// most of the frame, a light shade under the text, and the background colour only
@@ -1345,6 +1407,8 @@ struct MediaItemHeroView: View {
   static let actionsRowGap: CGFloat = 16
   static let creditLineSpacing: CGFloat = 8
   static let columnGutter: CGFloat = 48
+  static let trailingPosterHeight: CGFloat = 420
+  static let trailingPosterCornerRadius: CGFloat = 12
 #elseif os(macOS)
   /// Preview / fallback only — live layout uses `.aspectRatio(16/9)`.
   static let heroHeight: CGFloat = 420
@@ -1360,6 +1424,8 @@ struct MediaItemHeroView: View {
   static let actionsRowGap: CGFloat = 10
   static let creditLineSpacing: CGFloat = 3
   static let columnGutter: CGFloat = 28
+  static let trailingPosterHeight: CGFloat = 280
+  static let trailingPosterCornerRadius: CGFloat = 10
 #else
   /// Preview / fallback only — live layout uses `.aspectRatio(16/9)`.
   static let heroHeight: CGFloat = 380
@@ -1375,6 +1441,8 @@ struct MediaItemHeroView: View {
   static let actionsRowGap: CGFloat = 10
   static let creditLineSpacing: CGFloat = 3
   static let columnGutter: CGFloat = 16
+  static let trailingPosterHeight: CGFloat = 200
+  static let trailingPosterCornerRadius: CGFloat = 10
 #endif
 }
 

@@ -284,7 +284,11 @@ public struct TVPageFeature: Hashable {
   /// The backdrop chain, first that loads wins.
   public var backdropCandidates: [URL] {
     var seen = Set<String>()
-    return [backdrop, URL(string: card.backdropURL ?? card.landscapeImageURL ?? "")]
+    var ordered: [URL?] = [backdrop]
+    if card.hasSpecifiedWideArtwork || !(card.backdropURL ?? "").isEmpty {
+      ordered.append(URL(string: card.backdropURL ?? card.landscapeImageURL ?? ""))
+    }
+    return ordered
       .compactMap { $0 }
       .filter { !$0.absoluteString.isEmpty && seen.insert($0.absoluteString).inserted }
   }

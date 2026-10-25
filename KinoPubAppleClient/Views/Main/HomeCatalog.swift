@@ -22,6 +22,8 @@ import Combine
 @MainActor
 class HomeCatalog: ObservableObject {
 
+  private let bannerLog = Logger(subsystem: "com.soda.kinopub", category: "HomeBanner")
+
   static var shelfPageSize: Int {
 #if os(tvOS)
     8
@@ -846,6 +848,31 @@ class HomeCatalog: ObservableObject {
     }.prefix(ContinueWatchingPreferences.rules.maxItems))
   }
 
+  /// A title may be featured only when kino.pub sent `posters.wide` — not a derived
+  /// `/wide/` path. Cards from `ContentStore` carry that on the record; ready-made
+  /// cards carry it on `hasSpecifiedWideArtwork`.
+  private func isBannerEligible(_ card: MediaCard) -> Bool {
+    Self.isBannerEligible(card, record: store.records.record(for: card.ref))
+  }
+
+  private static func isBannerEligible(_ card: MediaCard, record: MediaRecord?) -> Bool {
+    if card.hasSpecifiedWideArtwork { return true }
+    if record?.kinopubWideSpecified == true { return true }
+    if record?.entity.artwork.backdropFromSpecifiedWide == true { return true }
+    if record?.kinopubWideSpecified == false { return false }
+    // Record not re-ingested since `kinopubWideSpecified` shipped: keep titles that
+    // already carry a wide URL on the card until the catalogue refresh lands.
+    if let backdrop = card.backdropURL, !backdrop.isEmpty { return true }
+    return false
+  }
+
+  private func logBanner(_ message: String) {
+    bannerLog.debug("\(message, privacy: .public)")
+#if DEBUG
+    print("[HomeBanner] \(message)")
+#endif
+  }
+
   /// v1 hack: up to six unique titles drawn at random from the catalog shelves
   /// (not Continue Watching). Only titles whose payload sent a `wide` still — derived
   /// `/wide/` paths often 404 and leave the hero empty.
@@ -854,11 +881,18 @@ class HomeCatalog: ObservableObject {
   /// therefore no wide-poster fetches from `HomeBannerCardView`.
   private func refreshBannerCards(from rows: [MediaRow]) {
     guard supportsHeroBanner, FeatureFlags.homeBannerEnabled else {
-      if !bannerCards.isEmpty { bannerCards = [] }
+      if !bannerCards.isEmpty {
+        logBanner("disabled — clearing \(bannerCards.count) card(s)")
+        bannerCards = []
+      }
       return
     }
 
-    bannerCards = bannerCards.filter(\.hasSpecifiedWideArtwork)
+    let before = bannerCards.count
+    bannerCards = bannerCards.filter(isBannerEligible)
+    if bannerCards.count != before {
+      logBanner("pruned \(before - bannerCards.count) on-screen card(s) — \(bannerCards.count) left")
+    }
 
     let continueWatchingTopIDs = Set(
       rows.first(where: { $0.id == Self.continueWatchingRowID })?
@@ -869,15 +903,17 @@ class HomeCatalog: ObservableObject {
     var pool: [MediaCard] = []
     for row in rows where row.id != Self.continueWatchingRowID && row.id != Self.collectionsRowID {
       for card in row.cards
-      where !card.isWatched && card.hasSpecifiedWideArtwork && seen.insert(card.id).inserted {
+      where !card.isWatched && isBannerEligible(card) && seen.insert(card.id).inserted {
         pool.append(card)
       }
     }
 
-    guard !pool.isEmpty else {
-      if !bannerCards.isEmpty { bannerCards = [] }
+    if pool.isEmpty {
+      logBanner("pool empty — keeping \(bannerCards.count) on-screen card(s); rows=\(rows.count)")
       return
     }
+
+    logBanner("pool=\(pool.count) eligible — on-screen=\(bannerCards.count)")
 
     // Soft-weight candidates: avoid duplicating the first 4 Continue Watching cards right
     // below the banner when there are enough candidates, and boost bookmarked/followed items.
@@ -891,7 +927,9 @@ class HomeCatalog: ObservableObject {
       guard bannerCards.count < 6 else { return }
       let missing = source.filter { card in !bannerCards.contains(where: { $0.id == card.id }) }
       guard !missing.isEmpty else { return }
-      bannerCards += missing.shuffled().prefix(6 - bannerCards.count)
+      let added = missing.shuffled().prefix(6 - bannerCards.count)
+      bannerCards += added
+      logBanner("topped up +\(added.count) — now \(bannerCards.count)")
       return
     }
 
@@ -903,6 +941,7 @@ class HomeCatalog: ObservableObject {
     }
     let combined = (bookmarked.shuffled().prefix(2) + others.shuffled()).prefix(6)
     bannerCards = Array(combined)
+    logBanner("sampled \(bannerCards.count): \(bannerCards.map { "\($0.id)" }.joined(separator: ", "))")
   }
 
   /// The banner's pictures are URLs, not lookups: the logo and the textless backdrop
@@ -936,8 +975,8 @@ class HomeCatalog: ObservableObject {
         self.bannerDetails[id] = detailed
         self.bannerItems[id] = (item, requestedAt)
         self.repaintBannerPlay(id: id)
-        if !detailed.hasSpecifiedWideArtwork {
-          self.bannerCards.removeAll { $0.id == id }
+        if !Self.isBannerEligible(detailed, record: self.store.records.record(for: detailed.ref)) {
+          self.logBanner("details id=\(id) not wide-eligible — keeping on-screen anyway")
         }
         // A cached shelf card can predate the IMDb id; the details one has it, and
         // the hero will ask with it, so the banner switches to that URL too.

@@ -18,12 +18,14 @@ private let artLog = Logger(subsystem: "com.soda.kinopub", category: "Artwork")
 public struct FallbackRemoteImage: View {
   private let urls: [URL]
   private let contentMode: ContentMode
+  private let onLoaded: (() -> Void)?
   @State private var image: Image?
   @State private var loading = true
 
-  public init(urls: [URL], contentMode: ContentMode = .fill) {
+  public init(urls: [URL], contentMode: ContentMode = .fill, onLoaded: (() -> Void)? = nil) {
     self.urls = urls
     self.contentMode = contentMode
+    self.onLoaded = onLoaded
   }
 
   public var body: some View {
@@ -60,6 +62,7 @@ public struct FallbackRemoteImage: View {
       do {
         let loaded = try await Artwork.image(for: url)
         image = Image(platformImage: loaded)
+        onLoaded?()
         artLog.debug("art OK \(url.absoluteString, privacy: .public)")
         #if DEBUG
         print("[Artwork] OK \(url.absoluteString)")
