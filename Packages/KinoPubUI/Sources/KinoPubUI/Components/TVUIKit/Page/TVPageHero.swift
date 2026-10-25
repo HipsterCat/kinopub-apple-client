@@ -394,7 +394,7 @@ final class TVPageHeroCell: UICollectionViewCell {
   private let overview = UILabel()
   private let buttons = UIStackView()
   private let playButton = UIButton(type: .system)
-  private let bookmarkButton = UIButton(type: .system)
+  private let bookmarkButton = TVPageMenuButton(configuration: .glass())
   private let detailsButton = UIButton(type: .system)
   private let nextButton = UIButton(type: .system)
   private let pageControl = UIPageControl()
@@ -757,6 +757,14 @@ final class TVPageHeroCell: UICollectionViewCell {
       self.onPlay?(feature)
     }, for: .primaryActionTriggered)
 
+    bookmarkButton.onMenuWillShow = { [weak self] in
+      self?.bookmarkMenuOpen = true
+      self?.updateTimer()
+    }
+    bookmarkButton.onMenuDidEnd = { [weak self] in
+      self?.bookmarkMenuOpen = false
+      self?.updateTimer()
+    }
     var bookmark = UIButton.Configuration.glass()
     bookmark.image = UIImage(systemName: "bookmark")
     bookmark.cornerStyle = .capsule
@@ -806,10 +814,11 @@ final class TVPageHeroCell: UICollectionViewCell {
       }
     }
     var toggles: [UIMenuElement] = folders.map { folder in
-      UIAction(title: folder.title, attributes: .keepsMenuPresented,
-               state: folder.isOn ? .on : .off) { action in
-        action.state = action.state == .on ? .off : .on
+      UIAction(title: folder.title, identifier: UIAction.Identifier(folder.id),
+               attributes: .keepsMenuPresented,
+               state: folder.isOn ? .on : .off) { [weak self] _ in
         folder.handler()
+        self?.flipCheck(folder.id)
       }
     }
     if toggles.isEmpty, let empty = appliedLabels?.noBookmarkFolders, !empty.isEmpty {
@@ -826,6 +835,25 @@ final class TVPageHeroCell: UICollectionViewCell {
       }))
     }
     return elements
+  }
+
+  /// The open menu's checkmark for a folder just toggled: the menu on screen is updated
+  /// through its interaction, the way the page's filter chips keep theirs.
+  private func flipCheck(_ id: String) {
+    bookmarkButton.contextMenuInteraction?.updateVisibleMenu { visible in
+      Self.flippingCheck(id, in: visible)
+    }
+  }
+
+  private static func flippingCheck(_ id: String, in menu: UIMenu) -> UIMenu {
+    menu.replacingChildren(menu.children.map { element in
+      if let action = element as? UIAction, action.identifier.rawValue == id {
+        action.state = action.state == .on ? .off : .on
+        return action
+      }
+      if let submenu = element as? UIMenu { return flippingCheck(id, in: submenu) }
+      return element
+    })
   }
 
   // MARK: Play
@@ -932,9 +960,13 @@ final class TVPageHeroCell: UICollectionViewCell {
     timer.currentProgress = 0
   }
 
+  /// The Bookmark menu is open: the title under it must not turn — a toggle meant for
+  /// one title landed on the next one (round 14, 2026-10-25).
+  private var bookmarkMenuOpen = false
+
   func updateTimer() {
     guard let carousel else { return }
-    if window != nil, carousel.advances {
+    if window != nil, carousel.advances, !bookmarkMenuOpen {
       timer.resumeTimer()
     } else {
       timer.pauseTimer()

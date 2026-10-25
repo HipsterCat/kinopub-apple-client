@@ -191,7 +191,10 @@ final class LocalWatchProgressStore: @unchecked Sendable {
   /// after the payload was requested counts: anything older the server has already seen
   /// through `marktime` and answered with, and the payload is the better source for it.
   /// The detail page and the Home hero both read Play's state through this, so their
-  /// Play buttons say the same thing. Returns whether anything changed.
+  /// Play buttons say the same thing. A position on a title kino.pub had as never
+  /// started (`watched == -1`) makes it started (`0`): the resume rule reads only
+  /// started ones, and the hero stayed on «Смотреть» after a minute of playback
+  /// (round 14, 2026-10-25). Returns whether anything changed.
   @discardableResult
   func layPositions(over item: inout MediaItem, writtenAfter requestedAt: Date) -> Bool {
     let records = records(forItem: item.id).filter { $0.updatedAt > requestedAt }
@@ -204,11 +207,13 @@ final class LocalWatchProgressStore: @unchecked Sendable {
           .first(where: { $0.number == record.episode }),
           episode.watching.time != time else { continue }
         episode.watching = EpisodeWatching(status: episode.watching.status, time: time)
+        if episode.watched < 0, time > 0 { episode.watched = 0 }
         changed = true
       } else if var videos = item.videos, !videos.isEmpty {
         let index = videos.firstIndex { $0.number == record.episode } ?? videos.startIndex
         guard videos[index].watching.time != time else { continue }
         videos[index].watching = EpisodeWatching(status: videos[index].watching.status, time: time)
+        if videos[index].watched < 0, time > 0 { videos[index].watched = 0 }
         item.videos = videos
         changed = true
       }
