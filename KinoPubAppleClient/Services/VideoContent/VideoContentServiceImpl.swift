@@ -66,8 +66,8 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
     return response
   }
   
-  func fetchBookmarkItems(id: String, page: Int?) async throws -> BookmarkFolderItemsData {
-    let request = BookmarkItemsRequest(id: id, page: page)
+  func fetchBookmarkItems(id: String, page: Int?, perPage: Int?) async throws -> BookmarkFolderItemsData {
+    let request = BookmarkItemsRequest(id: id, page: page, perPage: perPage)
     return try await apiClient.performRequest(with: request,
                                               decodingType: BookmarkFolderItemsData.self)
   }

@@ -12,42 +12,26 @@ import OSLog
 import KinoPubLogging
 import Combine
 
-/// Builds Watch Now / Movies / Series poster shelves from the same Hot / Fresh /
-/// Popular shortcuts. Watch Now (`contentType == nil`) also carries Continue
-/// Watching and Collections; a typed catalog is those shortcuts for one
-/// `MediaType` only. Empty rows are dropped rather than shown blank.
+/// Builds Watch Now / Movies / Series poster shelves from the configured Home
+/// sections. Watch Now (`contentType == nil`) also carries Continue Watching.
+/// Empty rows are dropped rather than shown blank.
+///
+/// A rail asks for a short page: eight titles on tvOS, twelve on iOS and macOS.
+/// The server's own page is about forty, and the shelf paints one screen; the
+/// rest arrives when the row pages.
 @MainActor
 class HomeCatalog: ObservableObject {
 
-  struct Shortcut: Sendable {
-    let shortcut: MediaShortcut
-    let contentType: MediaType
-    let title: String
-
-    var id: String { "\(shortcut.rawValue)-\(contentType.rawValue)" }
-  }
-
-  /// The catalog rows below "Continue watching", in display order.
-  static let shortcuts: [Shortcut] = [
-    Shortcut(shortcut: .hot, contentType: .movie, title: "Hot Movies"),
-    Shortcut(shortcut: .hot, contentType: .serial, title: "Hot Series"),
-    Shortcut(shortcut: .fresh, contentType: .movie, title: "Fresh Movies"),
-    Shortcut(shortcut: .fresh, contentType: .serial, title: "Fresh Series"),
-    Shortcut(shortcut: .popular, contentType: .movie, title: "Popular Movies"),
-    Shortcut(shortcut: .popular, contentType: .serial, title: "Popular Series")
-  ]
-
-  /// Watch Now shows every shortcut; Movies / Series keep the same order, one type.
-  static func shortcuts(for contentType: MediaType?) -> [Shortcut] {
-    guard let contentType else { return shortcuts }
-    return shortcuts.filter { $0.contentType == contentType }
+  static var shelfPageSize: Int {
+#if os(tvOS)
+    8
+#else
+    12
+#endif
   }
 
   /// `nil` is Watch Now. `.movie` / `.serial` are the Movies and Series tabs.
   let contentType: MediaType?
-
-  /// The shortcut rows this catalog actually fetches and paints.
-  var activeShortcuts: [Shortcut] { Self.shortcuts(for: contentType) }
 
   /// Configurable Home section specification backed by `/v1/items` filters, bookmarks,
   /// live TV channels, or collections.
@@ -594,14 +578,6 @@ class HomeCatalog: ObservableObject {
           }
         }
       }
-      for shortcut in activeShortcuts {
-        group.addTask { [store] in
-          await store.refreshIfStale(.shortcut(shortcut.shortcut, shortcut.contentType)) { [weak self] in
-            guard let self else { throw CancellationError() }
-            return try await self.fetchShortcutItems(shortcut)
-          }
-        }
-      }
     }
 
     seedCursorsFromStore()
@@ -609,13 +585,9 @@ class HomeCatalog: ObservableObject {
     isLoaded = true
     // Catalog shelves always have content when the network cooperates, so an empty
     // screen with at least one failed shelf means an outage, not an empty account.
-    let firstShortcutError = activeShortcuts.lazy
-      .compactMap { self.store.lastError(.shortcut($0.shortcut, $0.contentType)) }
-      .first
-    let firstSectionError = homeSections.lazy
+    let firstError = homeSections.lazy
       .compactMap { self.store.lastError(.homeSection($0.id)) }
       .first
-    let firstError = firstShortcutError ?? firstSectionError
     loadFailed = rows.isEmpty && firstError != nil
     loadError = rows.isEmpty ? firstError : nil
   }
@@ -666,40 +638,28 @@ class HomeCatalog: ObservableObject {
 
   private func fetchPage(_ page: Int, ofRow rowID: String) async throws -> [RowItem] {
     if rowID == Self.collectionsRowID {
-      let data = try await collectionsService.fetchCollections(page: page, sort: "views-")
+      let data = try await collectionsService.fetchCollections(page: page,
+                                                               sort: "views-",
+                                                               perpage: Self.shelfPageSize)
       if let total = data.pagination?.total {
         cursors[rowID]?.total = max(total, 1)
       }
       return data.collections.map { RowItem.card(CollectionMediaCard.make(from: $0)) }
     }
-    if let spec = Self.homeSectionSpecsByID[rowID],
-       let filter = spec.resolvedFilter(excludeConcerts: SectionVisibilityStore.shared.excludeConcertsOnHome) {
-      let data = try await itemsService.fetchItems(filter: filter, page: page)
-      cursors[rowID]?.total = max(data.pagination.total, 1)
-      return data.items.map(Self.item(for:))
-    }
-    guard let shortcut = Self.shortcuts.first(where: { $0.id == rowID }) else { return [] }
-    let data = try await itemsService.fetch(shortcut: shortcut.shortcut,
-                                            contentType: shortcut.contentType,
-                                            page: page)
+    guard let spec = Self.homeSectionSpecsByID[rowID],
+          let filter = spec.resolvedFilter(excludeConcerts: SectionVisibilityStore.shared.excludeConcertsOnHome)
+    else { return [] }
+    let data = try await itemsService.fetchItems(filter: filter, page: page, perPage: Self.shelfPageSize)
     cursors[rowID]?.total = max(data.pagination.total, 1)
     return data.items.map(Self.item(for:))
   }
 
-  /// Warm cache skips `fetchShortcutItems`, so the cursor that paging reads was
-  /// never written. Reconstruct it from the cards already in the store: Home rails
-  /// use the server default of 20 per page, and a later `fetchPage` overwrites
-  /// `total` with the real pagination. Without this, Movies/Series (and Watch Now
-  /// after a TTL-fresh relaunch) would paint page 1 and never ask for more.
+  /// Warm cache skips the fetch that writes the cursor. Reconstruct it from the
+  /// cards already in the store, and a later `fetchPage` overwrites `total` with
+  /// the real pagination. Without this, a TTL-fresh relaunch would paint page 1
+  /// and never ask for more.
   private func seedCursorsFromStore() {
-    let defaultPerPage = 20
-    for shortcut in activeShortcuts {
-      guard cursors[shortcut.id] == nil else { continue }
-      let count = store.cards(.shortcut(shortcut.shortcut, shortcut.contentType)).count
-      guard count > 0 else { continue }
-      let loaded = max(1, (count + defaultPerPage - 1) / defaultPerPage)
-      cursors[shortcut.id] = PageCursor(loaded: loaded, total: loaded + 1)
-    }
+    let defaultPerPage = Self.shelfPageSize
     for spec in activeHomeSections {
       guard cursors[spec.id] == nil else { continue }
       switch spec.source {
@@ -721,11 +681,8 @@ class HomeCatalog: ObservableObject {
 
   private func storeKey(forRow rowID: String) throws -> RowKey {
     if rowID == Self.collectionsRowID { return .collections }
-    if Self.homeSectionSpecsByID[rowID] != nil { return .homeSection(rowID) }
-    guard let shortcut = Self.shortcuts.first(where: { $0.id == rowID }) else {
-      throw CancellationError()
-    }
-    return .shortcut(shortcut.shortcut, shortcut.contentType)
+    guard Self.homeSectionSpecsByID[rowID] != nil else { throw CancellationError() }
+    return .homeSection(rowID)
   }
 
   /// Pull-to-refresh: forces every row to refetch regardless of TTL.
@@ -778,20 +735,17 @@ class HomeCatalog: ObservableObject {
       }
     }
 
-    var appendedAnyConfiguredSection = false
     for spec in activeHomeSections {
       switch spec.source {
       case .filter:
         let cards = store.cards(.homeSection(spec.id))
         guard !cards.isEmpty else { continue }
-        appendedAnyConfiguredSection = true
         assembled.append(MediaRow(id: spec.id,
                                   title: spec.title,
                                   cards: cards))
       case .topBookmarks:
         let cards = store.cards(.homeSection(spec.id))
         guard !cards.isEmpty else { continue }
-        appendedAnyConfiguredSection = true
         assembled.append(MediaRow(id: spec.id,
                                   title: spec.title,
                                   cards: cards))
@@ -801,7 +755,6 @@ class HomeCatalog: ObservableObject {
       case .collections:
         let collectionsCards = store.cards(.collections)
         if !collectionsCards.isEmpty {
-          appendedAnyConfiguredSection = true
           assembled.append(MediaRow(id: Self.collectionsRowID,
                                     title: spec.title,
                                     cards: collectionsCards,
@@ -810,30 +763,6 @@ class HomeCatalog: ObservableObject {
       }
     }
 
-    // Fallback to classic shortcut rows if no filter-backed sections have populated
-    // (for example in offline/fixture environments that only seed `.shortcut` keys).
-    if !appendedAnyConfiguredSection {
-      for shortcut in activeShortcuts {
-        let cards = store.cards(.shortcut(shortcut.shortcut, shortcut.contentType))
-        guard !cards.isEmpty else { continue }
-        assembled.append(MediaRow(id: shortcut.id,
-                                  title: shortcut.title.localized,
-                                  cards: cards,
-                                  destination: Route.shortcutItems(shortcut.shortcut,
-                                                                   shortcut.contentType,
-                                                                   title: shortcut.title.localized)))
-      }
-      if includesWatchNowExtras {
-        let collectionsCards = store.cards(.collections)
-        if !collectionsCards.isEmpty,
-           !assembled.contains(where: { $0.id == Self.collectionsRowID }) {
-          assembled.append(MediaRow(id: Self.collectionsRowID,
-                                    title: "Collections".localized,
-                                    cards: collectionsCards,
-                                    destination: Route.collections))
-        }
-      }
-    }
     rows = assembled
     refreshBannerCards(from: assembled)
 #if os(tvOS)
@@ -1488,20 +1417,11 @@ class HomeCatalog: ObservableObject {
       .text(for: .continueWatchingCard)
   }
 
-  // MARK: - Catalog shortcuts & Home sections
-
-  private func fetchShortcutItems(_ shortcut: Shortcut) async throws -> [RowItem] {
-    let data = try await itemsService.fetch(shortcut: shortcut.shortcut,
-                                             contentType: shortcut.contentType,
-                                             page: nil)
-    // Page 1 is also where we learn how many there are — the only place the API says so.
-    cursors[shortcut.id] = PageCursor(loaded: 1, total: max(data.pagination.total, 1))
-    return data.items.map(Self.item(for:))
-  }
+  // MARK: - Home sections
 
   private func fetchHomeSectionItems(_ spec: HomeSectionSpec, excludeConcerts: Bool) async throws -> [RowItem] {
     guard let filter = spec.resolvedFilter(excludeConcerts: excludeConcerts) else { return [] }
-    let data = try await itemsService.fetchItems(filter: filter, page: nil)
+    let data = try await itemsService.fetchItems(filter: filter, page: nil, perPage: Self.shelfPageSize)
     cursors[spec.id] = PageCursor(loaded: 1, total: max(data.pagination.total, 1))
     return data.items.map(Self.item(for:))
   }
@@ -1512,7 +1432,9 @@ class HomeCatalog: ObservableObject {
     var seen = Set<Int>()
     var items: [MediaItem] = []
     for folder in folders.prefix(2) {
-      guard let page = try? await itemsService.fetchBookmarkItems(id: "\(folder.id)", page: 1) else {
+      guard let page = try? await itemsService.fetchBookmarkItems(id: "\(folder.id)",
+                                                                  page: 1,
+                                                                  perPage: Self.shelfPageSize) else {
         continue
       }
       for item in page.items where seen.insert(item.id).inserted {
@@ -1521,13 +1443,13 @@ class HomeCatalog: ObservableObject {
         }
       }
     }
-    return items.prefix(20).map { MediaCard($0) }
+    return items.prefix(Self.shelfPageSize).map { MediaCard($0) }
   }
 
   private func fetchLiveChannelsIfNeeded() async {
     guard liveChannels.isEmpty else { return }
     if let channels = try? await itemsService.fetchTVChannels(), !channels.isEmpty {
-      liveChannels = Array(channels.prefix(15))
+      liveChannels = Array(channels.prefix(Self.shelfPageSize))
     }
   }
 
@@ -1541,7 +1463,9 @@ class HomeCatalog: ObservableObject {
   /// First page of curated collections, as poster tiles — `/v1/collections` ships
   /// each collection's own artwork + counters (no per-collection item fetch).
   private func fetchCollectionsPreviewCards() async throws -> [MediaCard] {
-    let data = try await collectionsService.fetchCollections(page: nil, sort: "views-")
+    let data = try await collectionsService.fetchCollections(page: nil,
+                                                            sort: "views-",
+                                                            perpage: Self.shelfPageSize)
     cursors[Self.collectionsRowID] = PageCursor(loaded: 1,
                                                 total: max(data.pagination?.total ?? 1, 1))
     // No longer capped at twelve: the row pages like the catalogue shelves now, and a

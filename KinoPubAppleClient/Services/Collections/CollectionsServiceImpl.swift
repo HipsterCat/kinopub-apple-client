@@ -14,8 +14,8 @@ final class CollectionsServiceImpl: CollectionsService, @unchecked Sendable {
     self.apiClient = apiClient
   }
 
-  func fetchCollections(page: Int?, sort: String?) async throws -> CollectionsData {
-    let request = CollectionsRequest(page: page, sort: sort)
+  func fetchCollections(page: Int?, sort: String?, perpage: Int?) async throws -> CollectionsData {
+    let request = CollectionsRequest(page: page, perpage: perpage, sort: sort)
     return try await apiClient.performRequest(with: request, decodingType: CollectionsData.self)
   }
 

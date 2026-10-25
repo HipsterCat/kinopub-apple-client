@@ -25,7 +25,7 @@ protocol VideoContentService: Sendable {
   func fetchMediaLinks(mediaId: Int) async throws -> MediaLinks
   func fetchSimilar(for id: String) async throws -> ArrayData<MediaItem>
   func fetchBookmarks() async throws -> ArrayData<Bookmark>
-  func fetchBookmarkItems(id: String, page: Int?) async throws -> BookmarkFolderItemsData
+  func fetchBookmarkItems(id: String, page: Int?, perPage: Int?) async throws -> BookmarkFolderItemsData
   func fetchWatchingMovies() async throws -> ArrayData<WatchingItem>
   func fetchWatchingSerials(subscribedOnly: Bool) async throws -> ArrayData<WatchingItem>
   /// - Parameter perPage: raw history *entries*, not cards. History is one entry per
@@ -41,12 +41,17 @@ protocol VideoContentService: Sendable {
 }
 
 extension VideoContentService {
-  /// Back-compat overloads for callers that don't tune page size. Home rails, the
-  /// background `StreamSurvey`, and the search screen keep the terse call and get the
-  /// server's default page; only the full-screen grids in `MediaCatalog` pass an
-  /// explicit `perPage` (see `CatalogPageSize`).
+  /// Back-compat overloads for callers that don't tune page size. Search, the
+  /// background `StreamSurvey` and the detail shelves keep the terse call and get
+  /// the server's default page. Home rails pass `HomeCatalog.shelfPageSize`
+  /// (8 on tvOS, 12 on iOS and macOS). The full-screen grids in `MediaCatalog`
+  /// pass `CatalogPageSize`.
   func fetch(shortcut: MediaShortcut, contentType: MediaType, page: Int?) async throws -> PaginatedData<MediaItem> {
     try await fetch(shortcut: shortcut, contentType: contentType, page: page, perPage: nil)
+  }
+
+  func fetchBookmarkItems(id: String, page: Int?) async throws -> BookmarkFolderItemsData {
+    try await fetchBookmarkItems(id: id, page: page, perPage: nil)
   }
 
   func fetchItems(filter: LibraryFilter, page: Int?) async throws -> PaginatedData<MediaItem> {
@@ -140,7 +145,7 @@ struct VideoContentServiceMock: VideoContentService {
     return ArrayData.mock(data: bookmarks?() ?? [])
   }
   
-  func fetchBookmarkItems(id: String, page: Int?) async throws -> BookmarkFolderItemsData {
+  func fetchBookmarkItems(id: String, page: Int?, perPage: Int?) async throws -> BookmarkFolderItemsData {
     return bookmarkItems?(id, page ?? 1) ?? BookmarkFolderItemsData(items: [])
   }
 

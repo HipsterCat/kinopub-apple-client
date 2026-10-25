@@ -24,8 +24,8 @@ struct MainView: View {
   /// Watch Now, Movies, or Series — same `MediaRowsView` stack of SwiftUI
   /// `Section(title) { rail }` shelves. On tvOS the rail is a TVUIKit representable;
   /// iOS/macOS keep SwiftUI cards. The catalog's `contentType` is what differs:
-  /// `nil` is Watch Now (all shortcuts, plus Continue Watching / Collections);
-  /// `.movie` / `.serial` are typed shelves.
+  /// `nil` is Watch Now (Continue Watching plus the configured shelves);
+  /// `.movie` / `.serial` are the typed shelves.
   init(tab: NavigationTabs = .home,
        catalog: @autoclosure @escaping () -> HomeCatalog) {
     self.tab = tab

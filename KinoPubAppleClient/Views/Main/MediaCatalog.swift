@@ -18,9 +18,8 @@ import UIKit
 /// How many items the full-screen catalog grids (iOS/macOS Movies / Series tabs and
 /// the pushed "see all" pages) request per page. Roomy screens show many rows at once,
 /// so a 20-item page paginates visibly as you scroll; 50 keeps it seamless. iPhone
-/// stays at 20 to keep payloads light. Watch Now rails (and tvOS Movies / Series,
-/// which share them) keep the server default — they call the terse `fetch`/`search`
-/// overloads, not this.
+/// stays at 20 to keep payloads light. Watch Now rails are `HomeCatalog.shelfPageSize`
+/// (8 on tvOS), not this grid size.
 @MainActor
 enum CatalogPageSize {
   static var grid: Int {

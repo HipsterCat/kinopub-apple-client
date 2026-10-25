@@ -8,10 +8,12 @@ public struct BookmarkItemsRequest: Endpoint {
 
   private var id: String
   private var page: Int?
+  private var perPage: Int?
 
-  public init(id: String, page: Int? = nil) {
+  public init(id: String, page: Int? = nil, perPage: Int? = nil) {
     self.id = id
     self.page = page
+    self.perPage = perPage
   }
 
   public var path: String {
@@ -23,8 +25,10 @@ public struct BookmarkItemsRequest: Endpoint {
   }
 
   public var parameters: [String: Any]? {
-    guard let page else { return nil }
-    return ["page": "\(page)"]
+    var params: [String: Any] = [:]
+    if let page { params["page"] = "\(page)" }
+    if let perPage { params["perpage"] = "\(perPage)" }
+    return params.isEmpty ? nil : params
   }
 
   public var headers: [String: String]? {

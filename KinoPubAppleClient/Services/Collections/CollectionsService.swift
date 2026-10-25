@@ -7,7 +7,7 @@ import Foundation
 import KinoPubBackend
 
 protocol CollectionsService: Sendable {
-  func fetchCollections(page: Int?, sort: String?) async throws -> CollectionsData
+  func fetchCollections(page: Int?, sort: String?, perpage: Int?) async throws -> CollectionsData
   func fetchCollection(id: Int) async throws -> (Collection, [MediaItem])
   /// Which collections a title sits in. Best-effort by contract: the endpoint was
   /// captured from the PWA on its own host branch, so callers treat a throw as "none".
@@ -18,9 +18,15 @@ protocol CollectionsServiceProvider {
   var collectionsService: CollectionsService { get set }
 }
 
+extension CollectionsService {
+  func fetchCollections(page: Int?, sort: String?) async throws -> CollectionsData {
+    try await fetchCollections(page: page, sort: sort, perpage: nil)
+  }
+}
+
 struct CollectionsServiceMock: CollectionsService {
 
-  func fetchCollections(page: Int?, sort: String?) async throws -> CollectionsData {
+  func fetchCollections(page: Int?, sort: String?, perpage: Int?) async throws -> CollectionsData {
     .mock(data: [
       Collection.mock(id: 1, title: "Mock Collection"),
       Collection.mock(id: 2, title: "Another Collection", watchers: 42, views: 900)

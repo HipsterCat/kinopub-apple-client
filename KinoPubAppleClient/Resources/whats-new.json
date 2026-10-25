@@ -4,6 +4,8 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "На Apple TV полка на главной, во вкладках «Фильмы» и «Сериалы» показывает 8 тайтлов; дальше ряд подгружается сам.",
+        "На iPhone, iPad и Mac такая полка запрашивает 12 тайтлов.",
         "Вкладки: Поиск · Главная · Моё · Сериалы · Фильмы · Каталог · ТВ · Настройки; «Подборки» по умолчанию скрыты — включить в настройках.",
         "На английском главная — Home, коллекции — Bundles; по-русски вкладка библиотеки — «Моё», подборки по-прежнему «Подборки».",
         "Медиатека: пустые Подписки, Продолжить, История и папка закладок объясняют, что здесь появится, вместо пустого экрана.",
@@ -60,6 +62,8 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "On Apple TV, a Home, Movies or Series shelf shows 8 titles and loads more as you scroll it.",
+        "On iPhone, iPad and Mac that shelf asks for 12 titles.",
         "Tabs default to Search · Home · Library · Series · Movies · Catalog · TV · Settings; Bundles is off until you turn it on in Settings.",
         "The Watch Now tab is Home again; curated lists are Bundles (Russian stays Подборки).",
         "Library: empty Subscriptions, Continue, History and a bookmark folder say what will show up there, instead of a blank screen.",

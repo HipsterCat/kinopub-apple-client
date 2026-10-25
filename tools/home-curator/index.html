@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Секции главной — KinoPub</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #101114;
+    --card: #181a1f;
+    --inset: #12141a;
+    --line: #2c3038;
+    --text: #f3f1ea;
+    --muted: #9b978c;
+    --soft: #c8c3b6;
+    --keep: #d6f58a;
+    --keep-dim: #243018;
+    --warn: #e6b15a;
+    --bad: #e5897c;
+    --chip: #262a32;
+    --focus: #f3f1ea;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(16, 17, 20, 0.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 22px 12px;
+  }
+  header h1 { margin: 0 0 4px; font-size: 18px; font-weight: 620; letter-spacing: -0.02em; }
+  .lede { margin: 0; color: var(--muted); max-width: 78ch; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-top: 12px; }
+  .tabs, .views { display: flex; gap: 4px; padding: 3px; background: var(--inset); border-radius: 10px; }
+  .tabs button, .views button, .text-btn, .icon-btn, .chip {
+    border: 0; background: transparent; color: var(--soft); border-radius: 8px;
+  }
+  .tabs button, .views button { padding: 6px 10px; }
+  .tabs button.on, .views button.on { background: var(--card); color: var(--text); }
+  .grow { flex: 1; }
+  .session { color: var(--muted); font-size: 12px; }
+  .session.bad { color: var(--bad); }
+  .primary, .text-btn, .icon-btn {
+    border: 1px solid var(--line); background: var(--card); border-radius: 9px; padding: 6px 10px;
+  }
+  .primary { background: var(--text); color: #16160f; border-color: transparent; font-weight: 600; }
+  .primary:disabled { opacity: 0.45; }
+  .check { display: flex; gap: 6px; align-items: center; color: var(--soft); }
+  [hidden] { display: none !important; }
+  main, article, nav, .rail { min-width: 0; }
+  .layout {
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 22px;
+    width: min(1180px, calc(100% - 36px)); margin: 18px auto 48px; align-items: start;
+  }
+  nav {
+    position: sticky; top: 118px; max-height: calc(100vh - 136px); overflow: auto;
+    display: flex; flex-direction: column; gap: 2px; padding-right: 4px;
+  }
+  nav button {
+    text-align: left; border: 0; background: transparent; color: var(--muted);
+    border-radius: 8px; padding: 6px 8px; display: flex; gap: 8px;
+  }
+  nav button strong { color: var(--soft); font-weight: 550; width: 1.4em; flex: none; }
+  nav button.off { opacity: 0.4; }
+  nav button.mark span::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 99px; background: var(--warn); vertical-align: middle; }
+  article {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 14px 16px 16px; margin-bottom: 14px; scroll-margin-top: 128px;
+  }
+  article.dropped { opacity: 0.48; }
+  .head { display: flex; gap: 8px; align-items: center; }
+  .grip { width: 28px; height: 28px; border: 0; background: transparent; color: var(--muted); border-radius: 8px; flex: none; }
+  .keep {
+    display: flex; gap: 6px; align-items: center; flex: none;
+    background: var(--inset); border-radius: 999px; padding: 4px 10px 4px 8px; color: var(--soft);
+  }
+  article:not(.dropped) .keep { background: var(--keep-dim); color: var(--keep); }
+  .title { flex: 1; min-width: 0; background: transparent; border: 0; border-bottom: 1px solid transparent; padding: 6px 2px; font-size: 16px; font-weight: 620; }
+  .title:focus { outline: none; border-bottom-color: var(--line); }
+  .id { width: 168px; background: var(--inset); border: 1px solid transparent; border-radius: 8px; padding: 6px 8px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
+  .id:focus, select:focus, .num:focus, #picker-search:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .hint { margin: 8px 0 0; color: var(--muted); }
+  .badge { color: var(--warn); font-size: 12px; margin-left: 8px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: end; }
+  label.field { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 11px; letter-spacing: 0.02em; }
+  select, .num {
+    background: var(--inset); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-height: 32px;
+  }
+  .num { width: 88px; }
+  .types { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { background: var(--chip); padding: 5px 9px; color: var(--soft); }
+  .chip.on { background: var(--text); color: #16160f; }
+  .note { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  .query {
+    display: block; width: 100%; margin: 10px 0 0; padding: 8px 10px;
+    background: var(--inset); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--soft); font: 12px/1.45 ui-monospace, SFMono-Regular, monospace;
+  }
+  .names { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+  .rail-meta { margin: 10px 0 6px; color: var(--muted); font-size: 12px; min-height: 1em; }
+  .rail { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; min-height: 168px; }
+  figure { margin: 0; width: 104px; flex: none; }
+  figure a { color: inherit; text-decoration: none; display: block; }
+  figure a:hover b { text-decoration: underline; }
+  figure.wide { width: 168px; }
+  figure img, .ph { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; background: #0c0d11; display: block; }
+  figure.wide img, figure.wide .ph { aspect-ratio: 16 / 9; object-fit: contain; }
+  figcaption { margin-top: 6px; }
+  figcaption b, figcaption span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  figcaption b { font-weight: 560; font-size: 12px; }
+  figcaption span { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .rail-status { color: var(--muted); padding: 28px 0; }
+  .rail-status.bad { color: var(--bad); }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .icon-btn { color: var(--soft); }
+  .add {
+    width: 100%; padding: 12px; border-radius: 14px; border: 1px dashed var(--line);
+    background: transparent; color: var(--soft);
+  }
+  #picker {
+    position: fixed; z-index: 30; width: min(320px, calc(100vw - 24px));
+    max-height: 340px; display: flex; flex-direction: column;
+    background: #1e2128; border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.4); padding: 8px;
+  }
+  #picker[hidden] { display: none; }
+  #picker-search { background: var(--inset); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; }
+  #picker-list { overflow: auto; margin-top: 8px; }
+  #picker-list button { display: flex; width: 100%; text-align: left; gap: 8px; border: 0; background: transparent; border-radius: 7px; padding: 6px 8px; color: var(--soft); }
+  #picker-list button.on { background: var(--chip); color: var(--text); }
+  #picker-list em { margin-left: auto; color: var(--muted); font-style: normal; font-size: 11px; }
+  .saved { color: var(--keep); font-size: 12px; }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    nav { position: static; max-height: none; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; }
+    nav button { flex: none; }
+    .id { width: 120px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Секции главной</h1>
+  <p class="lede">Полки как они сейчас задуманы в приложении: запрос, который реально уходит, а не короткая подпись из настроек. Токен читается из ~/.kinopub-dev-session.json и в страницу не вставляется. Обновлять его эта страница не будет.</p>
+  <div class="bar">
+    <div class="tabs" id="tabs"></div>
+    <div class="views" id="views">
+      <button type="button" data-view="all" class="on">Все</button>
+      <button type="button" data-view="kept">Оставленные</button>
+      <button type="button" data-view="dropped">Снятые</button>
+    </div>
+    <label class="check"><input type="checkbox" id="exclude" checked> Без концертов</label>
+    <label class="field">Лимит<input class="num" id="limit" type="number" min="1" max="40" value="20"></label>
+    <span class="grow"></span>
+    <span class="session" id="session">сессия…</span>
+    <span class="saved" id="saved"></span>
+    <button type="button" class="text-btn" id="download">Скачать оставленные</button>
+    <button type="button" class="text-btn" id="reset-all">Вернуть задуманное</button>
+    <button type="button" class="primary" id="save">Сохранить</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="nav"></nav>
+  <main id="list"></main>
+</div>
+<div id="picker" hidden>
+  <input id="picker-search" placeholder="Поиск" autocomplete="off">
+  <div id="picker-list"></div>
+</div>
+<script>
+const TYPES = [
+  ["movie", "Фильм"],
+  ["serial", "Сериал"],
+  ["documovie", "Док. фильм"],
+  ["docuserial", "Док. сериал"],
+  ["tvshow", "Передача"],
+  ["concert", "Концерт"],
+  ["3D", "3D"],
+];
+const SORTS = [
+  ["recentlyAdded", "Сначала новые", "-created"],
+  ["recentlyUpdated", "Недавно обновлённые", "-updated"],
+  ["views", "Просмотры", "-views"],
+  ["watchers", "Подписчики", "-watchers"],
+  ["rating", "Рейтинг Кинопаба", "-rating"],
+  ["imdbRating", "IMDb", "-imdb_rating"],
+  ["kinopoiskRating", "Кинопоиск", "-kinopoisk_rating"],
+  ["year", "Год", "-year"],
+  ["title", "Название", "title"],
+];
+const PERIODS = [["", "Без окна"], ["day", "День"], ["week", "Неделя"], ["month", "Месяц"], ["year", "Год"]];
+const QUALITY = [["", "Любое"], ["1", "от 480p"], ["2", "от 720p"], ["3", "от 1080p"], ["4", "4K"]];
+const COLLECTION_SORTS = [
+  ["views-", "Просмотры"],
+  ["watchers-", "Подписчики"],
+  ["updated-", "Обновление"],
+  ["created-", "Добавление"],
+  ["title", "Название"],
+];
+const CATALOGS = [
+  ["home", "Главная"],
+  ["movies", "Фильмы"],
+  ["series", "Сериалы"],
+];
+const CATALOG_NOTE = {
+  home: "«Продолжить просмотр» — личная лента, её здесь нет. Пустой тип при включённом «без концертов» превращается в фильмы, сериалы, оба документальных и передачи. Строка запроса редактируется: это и есть GET.",
+  movies: "Вкладки фильмов. У жанровых полок в коде ещё стоит period=year — в подписи настроек этого часто нет.",
+  series: "Сериальное аниме здесь только type=serial и genre 25. На главной аниме — это movie+serial и тот же жанр.",
+};
+const NO_CONCERT = ["movie", "serial", "documovie", "docuserial", "tvshow"];
+const SOURCE_NOTE = {
+  bookmarks: "Не каталог. Приложение берёт первые две папки и выкидывает уже досмотренное. Превью показывает папки как есть.",
+  tv: "GET /v1/tv. На tvOS полка показывает первые 8 каналов, на остальных платформах — 15. Сам ответ со всеми каналами.",
+  collections: "Сортировка подборок со знаком минуса в конце (views-). У /v1/items минус стоит впереди (-views). Это разные параметры.",
+  shortcut: "Тот же набор фильтров, что у каталога. Адрес /v1/items/hot, /fresh или /popular. Приложение эти полки не запрашивает.",
+};
+const SHORTCUTS = [["hot", "Hot"], ["fresh", "Fresh"], ["popular", "Popular"]];
+
+function shortcutShelf(id, name, title) {
+  const section = shelf(
+    id,
+    title,
+    "Адрес /v1/items/" + name + " и те же фильтры, что у каталога. Тип не зашит. Приложение это не запрашивает.",
+    {},
+    "shortcut"
+  );
+  section.shortcut = name;
+  return section;
+}
+
+function shelf(id, title, hint, patch = {}, source = "filter") {
+  return {
+    id, origin: id, title, hint, approved: true, source,
+    shortcut: "hot",
+    shortcutType: "movie",
+    collectionSort: "views-",
+    filter: {
+      types: patch.types || [],
+      genres: patch.genres || [],
+      countries: [],
+      sort: patch.sort || "recentlyAdded",
+      period: patch.period || "",
+      quality: patch.quality || "",
+      yearFrom: patch.yearFrom ?? "",
+      yearTo: patch.yearTo ?? "",
+      imdbMin: patch.imdbMin ?? "",
+      kpMin: patch.kpMin ?? "",
+      finished: !!patch.finished,
+    },
+  };
+}
+
+const SEED = {
+  excludeConcerts: true,
+  limit: 20,
+  catalogs: {
+    home: [
+      shelf("new-arrivals", "Новинки Кинопаба", "Задумано: sort -created, тип пустой. «Без концертов» подставляет пять типов."),
+      shortcutShelf("hot", "hot", "Горячие"),
+      shortcutShelf("fresh", "fresh", "Новые"),
+      shortcutShelf("popular", "popular", "Популярные"),
+      shelf("recently-updated", "Недавно обновлённые", "Задумано: type serial, docuserial, tvshow и sort -updated. Фильмы сюда не входят.", { types: ["serial", "docuserial", "tvshow"], sort: "recentlyUpdated" }),
+      shelf("weekly-top", "Топ недели", "Задумано: sort -views, period=week, тип пустой.", { sort: "views", period: "week" }),
+      shelf("must-see-hits", "Хиты месяца", "Задумано: sort -views, period=month. В настройках эта полка называется «Главные хиты месяца».", { sort: "views", period: "month" }),
+      shelf("binge-worthy", "Сериалы на запой (по подписчикам)", "Задумано: type serial, docuserial и sort -watchers.", { types: ["serial", "docuserial"], sort: "watchers" }),
+      shelf("top-rated", "Высокий рейтинг IMDb", "Задумано: sort -imdb_rating и year>=2020.", { sort: "imdbRating", yearFrom: 2020 }),
+      shelf("community-top", "Выбор Кинопаба", "Задумано: sort -rating, period=year.", { sort: "rating", period: "year" }),
+      shelf("latest-4k", "Последние 4K UHD релизы", "Задумано: sort -created, quality=4.", { quality: "4" }),
+      shelf("top-bookmarks", "Топовые закладки", "Задумано: не каталог. Первые две папки, в приложении до 20 и без досмотренных.", {}, "bookmarks"),
+      shelf("live-tv", "Спортивные и ТВ-каналы", "Задумано: GET /v1/tv, в приложении первые 15.", {}, "tv"),
+      shelf("tv-shows", "Передачи и стендап", "Задумано: type=tvshow и sort -updated. Стендап сюда не зашит — это genre 101, он на вкладке фильмов.", { types: ["tvshow"], sort: "recentlyUpdated" }),
+      shelf("anime-hits", "Аниме (по подписчикам)", "Задумано: type movie,serial и genre 25, sort -watchers.", { types: ["movie", "serial"], genres: [25], sort: "watchers" }),
+      shelf("docu-picks", "Документальные хиты", "Задумано: type documovie, docuserial, sort -views, period=year.", { types: ["documovie", "docuserial"], sort: "views", period: "year" }),
+      shelf("collections", "Подборки", "Задумано: GET /v1/collections?sort=views-.", {}, "collections"),
+    ],
+    movies: [
+      shelf("movies-new", "Новинки кино", "Задумано: type movie, sort -created.", { types: ["movie"] }),
+      shortcutShelf("movies-hot", "hot", "Горячие"),
+      shortcutShelf("movies-fresh", "fresh", "Новые"),
+      shortcutShelf("movies-popular", "popular", "Популярные"),
+      shelf("movies-weekly-top", "Топ фильмов недели", "Задумано: type movie, sort -views, period=week.", { types: ["movie"], sort: "views", period: "week" }),
+      shelf("movies-monthly-hits", "Главные хиты месяца", "Задумано: type movie, sort -views, period=month.", { types: ["movie"], sort: "views", period: "month" }),
+      shelf("movies-4k", "Новые релизы в 4K UHD", "Задумано: type movie, sort -created, quality=4.", { types: ["movie"], quality: "4" }),
+      shelf("movies-top-imdb", "Высокий рейтинг IMDb", "Задумано: type movie, sort -imdb_rating, year>=2020.", { types: ["movie"], sort: "imdbRating", yearFrom: 2020 }),
+      shelf("movies-community", "Выбор зрителей Кинопаба", "Задумано: type movie, sort -rating, period=year.", { types: ["movie"], sort: "rating", period: "year" }),
+      shelf("movies-scifi", "Фантастика и Фэнтези", "Задумано: type movie, genre 4 и 5, sort -views, period=year.", { types: ["movie"], genres: [4, 5], sort: "views", period: "year" }),
+      shelf("movies-thriller", "Остросюжетные триллеры и детективы", "Задумано: type movie, genre 7, 13, 17, sort -views, period=year.", { types: ["movie"], genres: [7, 13, 17], sort: "views", period: "year" }),
+      shelf("movies-action", "Экшен и Приключения", "Задумано: type movie, genre 2 и 8, sort -views, period=year.", { types: ["movie"], genres: [2, 8], sort: "views", period: "year" }),
+      shelf("movies-comedy", "Комедии для хорошего вечера", "Задумано: type movie, genre 1, sort -views, period=year.", { types: ["movie"], genres: [1], sort: "views", period: "year" }),
+      shelf("movies-drama", "Сильные драмы и биографии", "Задумано: type movie, genre 9 и 3, sort -imdb_rating, year>=2018.", { types: ["movie"], genres: [9, 3], sort: "imdbRating", yearFrom: 2018 }),
+      shelf("movies-horror", "Хорроры и Мистика", "Задумано: type movie, genre 12 и 11, sort -views, period=year.", { types: ["movie"], genres: [12, 11], sort: "views", period: "year" }),
+      shelf("movies-family", "Мультфильмы и Семейное кино", "Задумано: type movie, genre 23 и 6, sort -views, period=year.", { types: ["movie"], genres: [23, 6], sort: "views", period: "year" }),
+      shelf("movies-docu", "Документальные фильмы", "Задумано: type documovie, sort -views, period=year.", { types: ["documovie"], sort: "views", period: "year" }),
+      shelf("movies-standup", "Стендап-спешлы", "Задумано: type movie, genre 101, sort -created.", { types: ["movie"], genres: [101] }),
+    ],
+    series: [
+      shelf("series-updated", "Новые серии на этой неделе", "Задумано: type serial, sort -updated. Окна «эта неделя» в запросе нет.", { types: ["serial"], sort: "recentlyUpdated" }),
+      shelf("series-new", "Новые сериалы и премьеры", "Задумано: type serial, sort -created.", { types: ["serial"] }),
+      shortcutShelf("series-hot", "hot", "Горячие"),
+      shortcutShelf("series-fresh", "fresh", "Новые"),
+      shortcutShelf("series-popular", "popular", "Популярные"),
+      shelf("series-watchers", "Главные сериалы по подписчикам", "Задумано: type serial, sort -watchers.", { types: ["serial"], sort: "watchers" }),
+      shelf("series-weekly-top", "Топ сериалов недели", "Задумано: type serial, sort -views, period=week.", { types: ["serial"], sort: "views", period: "week" }),
+      shelf("series-finished", "Завершённые сериалы целиком", "Задумано: type serial, sort -watchers, finished=1.", { types: ["serial"], sort: "watchers", finished: true }),
+      shelf("series-top-imdb", "Золотой фонд IMDb", "Задумано: type serial, sort -imdb_rating, year>=2015.", { types: ["serial"], sort: "imdbRating", yearFrom: 2015 }),
+      shelf("series-4k", "Сериалы в 4K UHD", "Задумано: type serial, sort -updated, quality=4.", { types: ["serial"], sort: "recentlyUpdated", quality: "4" }),
+      shelf("series-crime", "Детективы, Триллеры и Криминал", "Задумано: type serial, genre 13, 7, 17, sort -watchers.", { types: ["serial"], genres: [13, 7, 17], sort: "watchers" }),
+      shelf("series-scifi", "Фантастика и Фэнтези", "Задумано: type serial, genre 4 и 5, sort -watchers.", { types: ["serial"], genres: [4, 5], sort: "watchers" }),
+      shelf("series-drama", "Престижные драмы", "Задумано: type serial, genre 9, sort -watchers.", { types: ["serial"], genres: [9], sort: "watchers" }),
+      shelf("series-comedy", "Комедийные сериалы и ситкомы", "Задумано: type serial, genre 1, sort -watchers.", { types: ["serial"], genres: [1], sort: "watchers" }),
+      shelf("series-anime", "Аниме-сериалы", "Задумано: type serial и genre 25, sort -watchers. Фильмы-аниме сюда не входят.", { types: ["serial"], genres: [25], sort: "watchers" }),
+      shelf("series-dorama", "Дорамы", "Задумано: type serial, genre 107, sort -watchers.", { types: ["serial"], genres: [107], sort: "watchers" }),
+      shelf("series-docu", "Документальные сериалы", "Задумано: type docuserial, sort -views, period=year.", { types: ["docuserial"], sort: "views", period: "year" }),
+      shelf("series-tvshows", "Телешоу и Передачи", "Задумано: type tvshow, sort -updated.", { types: ["tvshow"], sort: "recentlyUpdated" }),
+    ],
+  },
+};
+
+let state = structuredClone(SEED);
+state.catalog = "home";
+state.view = "all";
+let clean = "";
+const genres = new Map();
+const countries = new Map();
+const previews = new Map();
+const timers = new Map();
+const queue = [];
+let activeJobs = 0;
+const picker = { section: null, kind: null };
+
+const $ = (id) => document.getElementById(id);
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[ch]));
+}
+
+function options(list, current) {
+  return list.map(([value, label]) => `<option value="${esc(value)}"${String(value) === String(current) ? " selected" : ""}>${esc(label)}</option>`).join("");
+}
+
+function clampLimit(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 20;
+  return Math.max(1, Math.min(40, Math.round(number)));
+}
+
+function sortApi(key) {
+  return (SORTS.find((row) => row[0] === key) || SORTS[0])[2];
+}
+
+function resolvedTypes(section) {
+  const selected = section.filter.types.slice();
+  if (!state.excludeConcerts) return selected;
+  if (!selected.length) return NO_CONCERT.slice();
+  return selected.filter((type) => type !== "concert");
+}
+
+function blankFilter() {
+  return { types: [], genres: [], countries: [], sort: "recentlyAdded", period: "", quality: "", yearFrom: "", yearTo: "", imdbMin: "", kpMin: "", finished: false };
+}
+
+function normalize(section) {
+  const filter = Object.assign(blankFilter(), section.filter || {});
+  filter.types = Array.isArray(filter.types) ? filter.types.map(String) : [];
+  filter.genres = (filter.genres || []).map(Number).filter((id) => id > 0);
+  filter.countries = (filter.countries || []).map(Number).filter((id) => id > 0);
+  filter.finished = !!filter.finished;
+  filter.quality = filter.quality ? String(filter.quality) : "";
+  for (const key of ["yearFrom", "yearTo", "imdbMin", "kpMin", "period", "sort"]) {
+    if (filter[key] == null) filter[key] = "";
+  }
+  if (!filter.sort) filter.sort = "recentlyAdded";
+  return {
+    id: String(section.id || ("section-" + Math.random().toString(36).slice(2, 8))),
+    origin: Object.prototype.hasOwnProperty.call(section, "origin") ? section.origin : section.id,
+    title: section.title || "",
+    hint: section.hint || "",
+    approved: section.approved !== false,
+    source: section.source || "filter",
+    shortcut: ["hot", "fresh", "popular"].includes(section.shortcut) ? section.shortcut : "hot",
+    shortcutType: section.shortcutType || "movie",
+    query: typeof section.query === "string" ? section.query : "",
+    collectionSort: section.collectionSort || "views-",
+    filter,
+  };
+}
+
+function seedOf(section) {
+  if (!section.origin) return null;
+  for (const list of Object.values(SEED.catalogs)) {
+    const found = list.find((item) => item.id === section.origin);
+    if (found) return found;
+  }
+  return null;
+}
+
+function core(section) {
+  const filter = section.filter;
+  return JSON.stringify({
+    id: section.id,
+    title: section.title,
+    source: section.source,
+    shortcut: section.shortcut,
+    shortcutType: section.shortcutType,
+    query: section.query || "",
+    collectionSort: section.collectionSort,
+    types: filter.types.slice().sort(),
+    genres: filter.genres.map(Number),
+    countries: filter.countries.map(Number),
+    sort: filter.sort,
+    period: filter.period || "",
+    quality: String(filter.quality || ""),
+    yearFrom: String(filter.yearFrom || ""),
+    yearTo: String(filter.yearTo || ""),
+    imdbMin: String(filter.imdbMin || ""),
+    kpMin: String(filter.kpMin || ""),
+    finished: !!filter.finished,
+  });
+}
+
+function badge(section) {
+  if (!section.origin) return "своя";
+  const seed = seedOf(section);
+  if (seed && core(section) !== core(seed)) return "изменено";
+  return "";
+}
+
+function current() {
+  return state.catalogs[state.catalog];
+}
+
+function visible(section) {
+  if (state.view === "kept") return section.approved;
+  if (state.view === "dropped") return !section.approved;
+  return true;
+}
+
+function typeNote(section) {
+  if (section.source !== "filter" && section.source !== "shortcut") return "";
+  const selected = section.filter.types;
+  if (!selected.length && state.excludeConcerts) {
+    return "Пустой тип и «без концертов»: в запрос уйдут фильмы, сериалы, док. фильмы, док. сериалы и передачи. Концерты и 3D не входят.";
+  }
+  if (!selected.length) return "Тип не задан: сервер вернёт всё, включая концерты.";
+  if (selected.includes("concert") && state.excludeConcerts) return "Концерт снят переключателем «без концертов».";
+  return "Несколько типов и несколько жанров — это ИЛИ внутри поля и И между полями.";
+}
+
+function cleanPath(value) {
+  let text = String(value || "").trim().replace(/^get\s+/i, "");
+  if (/^https?:\/\//i.test(text)) {
+    try {
+      const url = new URL(text);
+      text = url.pathname + url.search;
+    } catch (error) { /* keep the typed text */ }
+  }
+  if (text && !text.startsWith("/")) text = "/" + text;
+  return text;
+}
+
+function usesFilters(section) {
+  return section.source === "filter" || section.source === "shortcut";
+}
+
+function catalogQuery(section) {
+  const filter = section.filter;
+  const params = new URLSearchParams();
+  const types = resolvedTypes(section);
+  if (types.length) params.set("type", types.slice().sort().join(","));
+  if (filter.genres.length) params.set("genre", filter.genres.join(","));
+  if (filter.countries.length) params.set("country", filter.countries.join(","));
+  if (filter.finished) params.set("finished", "1");
+  if (filter.yearFrom !== "") params.append("conditions[]", "year>=" + filter.yearFrom);
+  if (filter.yearTo !== "") params.append("conditions[]", "year<=" + filter.yearTo);
+  if (filter.imdbMin !== "") params.append("conditions[]", "imdb_rating>=" + filter.imdbMin);
+  if (filter.kpMin !== "") params.append("conditions[]", "kinopoisk_rating>=" + filter.kpMin);
+  if (filter.quality) params.set("quality", filter.quality);
+  if (filter.period) params.set("period", filter.period);
+  params.set("sort", sortApi(filter.sort));
+  params.set("perpage", String(clampLimit(state.limit)));
+  return params;
+}
+
+function builtPath(section) {
+  const limit = clampLimit(state.limit);
+  if (section.source === "shortcut") {
+    const name = ["hot", "fresh", "popular"].includes(section.shortcut) ? section.shortcut : "hot";
+    return `/v1/items/${name}?` + catalogQuery(section).toString();
+  }
+  if (section.source === "bookmarks") return "/v1/bookmarks";
+  if (section.source === "tv") return "/v1/tv";
+  if (section.source === "collections") {
+    return `/v1/collections?sort=${encodeURIComponent(section.collectionSort)}&perpage=${limit}`;
+  }
+  return "/v1/items?" + catalogQuery(section).toString();
+}
+
+function shownPath(section) {
+  const custom = cleanPath(section.query || "");
+  if (custom) return custom;
+  try { return decodeURIComponent(builtPath(section)); }
+  catch (error) { return builtPath(section); }
+}
+
+function requestOf(section) {
+  const custom = cleanPath(section.query || "");
+  return { path: custom || builtPath(section), custom: !!custom };
+}
+
+function names(ids, dict) {
+  return ids.map((id) => dict.get(Number(id)) || ("#" + id)).join(", ");
+}
+
+function nameLine(section) {
+  if (!usesFilters(section)) return "";
+  const parts = [];
+  if (section.filter.genres.length) parts.push("жанры: " + names(section.filter.genres, genres));
+  if (section.filter.countries.length) parts.push("страны: " + names(section.filter.countries, countries));
+  return parts.join("  ·  ");
+}
+
+function articleHTML(section, index) {
+  const mark = badge(section);
+  const preview = previews.get(section);
+  const filters = usesFilters(section) ? "" : "hidden";
+  const shortcut = section.source === "shortcut" ? "" : "hidden";
+  const collections = section.source === "collections" ? "" : "hidden";
+  return `<article class="${section.approved ? "" : "dropped"}" data-index="${index}" id="s-${index}">
+    <div class="head">
+      <button type="button" class="grip" draggable="true" data-action="grip" title="Перетащить">↕</button>
+      <label class="keep"><input type="checkbox" data-field="approved"${section.approved ? " checked" : ""}> Оставить</label>
+      <input class="title" data-field="title" value="${esc(section.title)}" placeholder="Название полки" autocomplete="off">
+      <input class="id" data-field="id" value="${esc(section.id)}" spellcheck="false" autocomplete="off" title="id полки">
+    </div>
+    <p class="hint">${esc(section.hint)}${mark ? `<span class="badge">${esc(mark)}</span>` : ""}</p>
+    <div class="controls">
+      <label class="field">Источник<select data-field="source">${options([["filter", "Каталог"], ["shortcut", "Ярлык"], ["bookmarks", "Закладки"], ["tv", "Эфир"], ["collections", "Подборки"]], section.source)}</select></label>
+      <label class="field" data-panel="shortcut" ${shortcut}>Ярлык<select data-field="shortcut">${options(SHORTCUTS, section.shortcut)}</select></label>
+      <label class="field" data-panel="filter" ${filters}>Сортировка<select data-field="sort">${options(SORTS.map(([value, label]) => [value, label]), section.filter.sort)}</select></label>
+      <label class="field" data-panel="filter" ${filters}>Окно<select data-field="period">${options(PERIODS, section.filter.period)}</select></label>
+      <label class="field" data-panel="filter" ${filters}>Качество<select data-field="quality">${options(QUALITY, section.filter.quality)}</select></label>
+      <label class="field" data-panel="collections" ${collections}>Сортировка подборок<select data-field="collectionSort">${options(COLLECTION_SORTS, section.collectionSort)}</select></label>
+      <label class="field" data-panel="filter" ${filters}>Год от<input class="num" data-field="yearFrom" type="number" value="${esc(section.filter.yearFrom)}"></label>
+      <label class="field" data-panel="filter" ${filters}>Год до<input class="num" data-field="yearTo" type="number" value="${esc(section.filter.yearTo)}"></label>
+      <label class="field" data-panel="filter" ${filters}>IMDb от<input class="num" data-field="imdbMin" type="number" min="0" max="10" step="0.1" value="${esc(section.filter.imdbMin)}"></label>
+      <label class="field" data-panel="filter" ${filters}>КП от<input class="num" data-field="kpMin" type="number" min="0" max="10" step="0.1" value="${esc(section.filter.kpMin)}"></label>
+      <label class="check" data-panel="filter" ${filters}><input type="checkbox" data-field="finished"${section.filter.finished ? " checked" : ""}> Только завершённые</label>
+    </div>
+    <div class="types" data-panel="filter" ${filters}>${TYPES.map(([value, label]) => `<button type="button" class="chip${section.filter.types.includes(value) ? " on" : ""}" data-type="${esc(value)}">${esc(label)}</button>`).join("")}</div>
+    <p class="note" data-note>${esc(usesFilters(section) ? typeNote(section) : (SOURCE_NOTE[section.source] || ""))}</p>
+    <div class="types" data-panel="filter" data-chips ${filters}>${chipsHTML(section)}</div>
+    <input class="query" data-field="query" data-query spellcheck="false" autocomplete="off" value="${esc(shownPath(section))}">
+    <p class="names" data-names>${esc(nameLine(section))}</p>
+    <p class="rail-meta" data-rail-meta>${esc(preview?.countLabel || "")}</p>
+    <div class="rail" data-rail>${railHTML(preview)}</div>
+    <div class="row-actions">
+      <button type="button" class="icon-btn" data-action="up"${index === 0 ? " disabled" : ""}>Выше</button>
+      <button type="button" class="icon-btn" data-action="down"${index === current().length - 1 ? " disabled" : ""}>Ниже</button>
+      <button type="button" class="icon-btn" data-action="reload">Обновить</button>
+      <button type="button" class="icon-btn" data-action="duplicate">Дублировать</button>
+      ${section.origin ? `<button type="button" class="icon-btn" data-action="restore">Как задумано</button>` : ""}
+      <button type="button" class="icon-btn" data-action="delete">Убрать</button>
+    </div>
+  </article>`;
+}
+
+function chipsHTML(section) {
+  const genre = section.filter.genres.map((id) => `<button type="button" class="chip on" data-action="remove-genre" data-pick="${id}">${esc(genres.get(id) || ("#" + id))} ×</button>`).join("");
+  const country = section.filter.countries.map((id) => `<button type="button" class="chip on" data-action="remove-country" data-pick="${id}">${esc(countries.get(id) || ("#" + id))} ×</button>`).join("");
+  return genre + country + `<button type="button" class="chip" data-action="genres">Жанр</button><button type="button" class="chip" data-action="countries">Страна</button>`;
+}
+
+function cardHTML(card) {
+  const body = `${card.image ? `<img src="${esc(card.image)}" alt="" loading="lazy">` : `<div class="ph"></div>`}<figcaption><b>${esc(card.title)}</b><span>${esc(card.meta)}</span></figcaption>`;
+  const inner = card.href ? `<a href="${esc(card.href)}" target="_blank" rel="noopener">${body}</a>` : body;
+  return `<figure class="${card.wide ? "wide" : ""}">${inner}</figure>`;
+}
+
+function railHTML(preview) {
+  if (!preview || preview.status === "loading") return `<div class="rail-status">Загружаю…</div>`;
+  if (preview.status === "error") return `<div class="rail-status bad">${esc(preview.error)}</div>`;
+  if (!preview.cards.length) return `<div class="rail-status">Пусто</div>`;
+  return preview.cards.map(cardHTML).join("");
+}
+
+function render() {
+  $("tabs").innerHTML = CATALOGS.map(([id, title]) => {
+    const list = state.catalogs[id];
+    const kept = list.filter((item) => item.approved).length;
+    return `<button type="button" data-catalog="${id}" class="${id === state.catalog ? "on" : ""}" onclick="__catalog('${id}')">${esc(title)} ${kept}/${list.length}</button>`;
+  }).join("");
+  $("exclude").checked = state.excludeConcerts;
+  if (document.activeElement !== $("limit")) $("limit").value = state.limit;
+  document.querySelectorAll("#views button").forEach((button) => button.classList.toggle("on", button.dataset.view === state.view));
+  const list = current();
+  $("nav").innerHTML = list.map((section, index) => {
+    if (!visible(section)) return "";
+    const mark = badge(section);
+    return `<button type="button" data-jump="${index}" class="${section.approved ? "" : "off"}${mark ? " mark" : ""}" onclick="__jump(${index})"><strong>${index + 1}</strong><span>${esc(section.title || "без названия")}</span></button>`;
+  }).join("");
+  const cards = list.map((section, index) => visible(section) ? articleHTML(section, index) : "").join("");
+  $("list").innerHTML = `<p class="note">${esc(CATALOG_NOTE[state.catalog])}</p>` + cards + `<button type="button" class="add" id="add">Добавить секцию</button>`;
+  list.forEach((section, index) => { if (visible(section)) schedule(section); });
+}
+
+function sectionFrom(node) {
+  const article = node.closest("article");
+  if (!article) return null;
+  return { article, index: Number(article.dataset.index), section: current()[Number(article.dataset.index)] };
+}
+
+function paint(section) {
+  const index = current().indexOf(section);
+  const article = document.querySelector(`article[data-index="${index}"]`);
+  if (!article) return;
+  const queryInput = article.querySelector("[data-query]");
+  const nextPath = shownPath(section);
+  if (queryInput && document.activeElement !== queryInput && queryInput.value !== nextPath) queryInput.value = nextPath;
+  article.querySelector("[data-names]").textContent = nameLine(section);
+  article.querySelector("[data-note]").textContent = usesFilters(section) ? typeNote(section) : (SOURCE_NOTE[section.source] || "");
+  const mark = badge(section);
+  const hint = article.querySelector(".hint");
+  hint.innerHTML = `${esc(section.hint)}${mark ? `<span class="badge">${esc(mark)}</span>` : ""}`;
+  article.classList.toggle("dropped", !section.approved);
+  const navButton = document.querySelector(`nav button[data-jump="${index}"]`);
+  if (navButton) {
+    navButton.classList.toggle("off", !section.approved);
+    navButton.classList.toggle("mark", !!mark);
+    navButton.querySelector("span").textContent = section.title || "без названия";
+  }
+  paintRail(article, section);
+  const chips = article.querySelector("[data-chips]");
+  if (chips) chips.innerHTML = chipsHTML(section);
+  article.querySelectorAll("[data-type]").forEach((button) => button.classList.toggle("on", section.filter.types.includes(button.dataset.type)));
+}
+
+function paintRail(article, section) {
+  const rail = article?.querySelector?.("[data-rail]");
+  if (!rail) return;
+  const preview = previews.get(section);
+  rail.innerHTML = railHTML(preview);
+  const meta = article.querySelector("[data-rail-meta]");
+  if (meta) meta.textContent = preview?.countLabel || "";
+}
+
+function onField(event) {
+  const found = sectionFrom(event.target);
+  if (!found) return;
+  const { section } = found;
+  const field = event.target.dataset.field;
+  if (!field) return;
+  if (field === "query") {
+    const typed = event.target.value;
+    section.query = cleanPath(typed) ? typed : "";
+    if (!section.query) event.target.value = shownPath(section);
+    scheduleSoon(section);
+    return;
+  }
+  if (field === "approved") section.approved = event.target.checked;
+  else if (field === "title" || field === "id") section[field] = event.target.value.trimStart();
+  else if (field === "collectionSort" || field === "source" || field === "shortcut") section[field] = event.target.value;
+  else if (field === "finished") section.filter.finished = event.target.checked;
+  else if (["sort", "period", "quality", "yearFrom", "yearTo", "imdbMin", "kpMin"].includes(field)) {
+    section.filter[field] = event.target.value;
+  } else return;
+  if (field !== "approved" && field !== "title" && field !== "id") section.query = "";
+  if (field === "id") section.id = section.id.trim();
+  if (field === "source") {
+    const y = window.scrollY;
+    render();
+    window.scrollTo(0, y);
+  } else {
+    paint(section);
+    scheduleSoon(section);
+    refreshTabCounts();
+  }
+}
+
+function refreshTabCounts() {
+  document.querySelectorAll("#tabs button").forEach((button) => {
+    const id = button.dataset.catalog;
+    const list = state.catalogs[id];
+    const title = CATALOGS.find((row) => row[0] === id)[1];
+    button.textContent = `${title} ${list.filter((item) => item.approved).length}/${list.length}`;
+  });
+}
+
+function onClick(event) {
+  const type = event.target.closest("[data-type]");
+  if (type) {
+    const found = sectionFrom(type);
+    const list = found.section.filter.types;
+    const value = type.dataset.type;
+    found.section.filter.types = list.includes(value) ? list.filter((item) => item !== value) : list.concat(value);
+    found.section.query = "";
+    paint(found.section);
+    scheduleSoon(found.section);
+    return;
+  }
+  const button = event.target.closest("[data-action], [data-jump], #add");
+  if (!button) return;
+  if (button.id === "add") {
+    const created = shelf("section-" + Date.now().toString(36), "Новая секция", "Своя полка.");
+    created.origin = null;
+    current().push(created);
+    state.view = "all";
+    render();
+    document.querySelector("article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  if (button.dataset.jump != null) {
+    document.getElementById("s-" + button.dataset.jump)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  const found = sectionFrom(button);
+  if (!found) return;
+  const { section, index } = found;
+  const action = button.dataset.action;
+  if (action === "up" && index > 0) move(index, index - 1);
+  else if (action === "down" && index < current().length - 1) move(index, index + 1);
+  else if (action === "duplicate") {
+    const copy = structuredClone(section);
+    copy.id = section.id + "-2";
+    copy.origin = null;
+    copy.title = section.title + " (копия)";
+    copy.hint = "Копия. «Как задумано» у неё нет.";
+    current().splice(index + 1, 0, copy);
+    render();
+  } else if (action === "restore") {
+    const seed = seedOf(section);
+    if (!seed) return;
+    const fresh = structuredClone(seed);
+    fresh.approved = section.approved;
+    current()[index] = fresh;
+    render();
+  } else if (action === "delete") {
+    if (button.dataset.arm !== "1") {
+      button.dataset.arm = "1";
+      button.textContent = "Точно убрать";
+      setTimeout(() => { if (button.isConnected) { button.dataset.arm = ""; button.textContent = "Убрать"; } }, 1800);
+      return;
+    }
+    current().splice(index, 1);
+    render();
+  } else if (action === "reload") {
+    previews.delete(section);
+    schedule(section);
+  } else if (action === "genres" || action === "countries") openPicker(button, section, action);
+  else if (action === "remove-genre" || action === "remove-country") {
+    const key = action === "remove-genre" ? "genres" : "countries";
+    const id = Number(button.dataset.pick);
+    section.filter[key] = section.filter[key].filter((item) => item !== id);
+    section.query = "";
+    paint(section);
+    scheduleSoon(section);
+  }
+}
+
+function move(from, to) {
+  const list = current();
+  const [item] = list.splice(from, 1);
+  list.splice(to, 0, item);
+  const y = window.scrollY;
+  render();
+  window.scrollTo(0, y);
+}
+
+let dragIndex = null;
+document.addEventListener("dragstart", (event) => {
+  const grip = event.target.closest("[data-action=grip]");
+  if (!grip) return;
+  dragIndex = sectionFrom(grip).index;
+  event.dataTransfer.effectAllowed = "move";
+});
+document.addEventListener("dragover", (event) => {
+  if (dragIndex == null || !event.target.closest("article")) return;
+  event.preventDefault();
+});
+document.addEventListener("drop", (event) => {
+  const article = event.target.closest("article");
+  if (dragIndex == null || !article) return;
+  event.preventDefault();
+  const to = Number(article.dataset.index);
+  const from = dragIndex;
+  dragIndex = null;
+  if (from !== to) move(from, to);
+});
+
+function openPicker(anchor, section, kind) {
+  picker.section = section;
+  picker.kind = kind;
+  const box = $("picker");
+  const rect = anchor.getBoundingClientRect();
+  box.hidden = false;
+  box.style.top = Math.min(rect.bottom + 6, window.innerHeight - 360) + "px";
+  box.style.left = Math.min(rect.left, window.innerWidth - 336) + "px";
+  $("picker-search").value = "";
+  renderPicker();
+  $("picker-search").focus();
+}
+
+function closePicker() { $("picker").hidden = true; picker.section = null; }
+
+function renderPicker() {
+  const dict = picker.kind === "genres" ? genres : countries;
+  const selected = new Set((picker.section?.filter[picker.kind] || []).map(Number));
+  const query = $("picker-search").value.trim().toLowerCase();
+  const rows = [];
+  dict.forEach((title, id) => {
+    if (query && !title.toLowerCase().includes(query) && !String(id).includes(query)) return;
+    rows.push([id, title]);
+  });
+  rows.sort((a, b) => a[1].localeCompare(b[1], "ru"));
+  $("picker-list").innerHTML = rows.slice(0, 80).map(([id, title]) => {
+    const meta = picker.kind === "genres" ? genreType.get(id) : "";
+    return `<button type="button" class="${selected.has(id) ? "on" : ""}" data-pick="${id}">${esc(title)}<em>${esc(meta || id)}</em></button>`;
+  }).join("") || `<p class="note">Ничего</p>`;
+}
+
+const genreType = new Map();
+
+$("picker-search").addEventListener("input", renderPicker);
+$("picker-list").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-pick]");
+  if (!button || !picker.section) return;
+  const id = Number(button.dataset.pick);
+  const key = picker.kind;
+  const list = picker.section.filter[key];
+  picker.section.filter[key] = list.includes(id) ? list.filter((item) => item !== id) : list.concat(id);
+  picker.section.query = "";
+  button.classList.toggle("on");
+  paint(picker.section);
+  scheduleSoon(picker.section);
+});
+document.addEventListener("click", (event) => {
+  if ($("picker").hidden) return;
+  if (event.target.closest("#picker, [data-action=genres], [data-action=countries]")) return;
+  closePicker();
+});
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") closePicker(); });
+
+function scheduleSoon(section) {
+  clearTimeout(timers.get(section));
+  timers.set(section, setTimeout(() => schedule(section), 280));
+}
+
+function schedule(section) {
+  const request = requestOf(section);
+  const previous = previews.get(section);
+  if (previous && previous.query === request.path && previous.status !== "error") return;
+  previews.set(section, { query: request.path, status: "loading", cards: [], countLabel: "" });
+  paintRail(document.querySelector(`article[data-index="${current().indexOf(section)}"]`), section);
+  enqueue(async () => {
+    try {
+      const result = await fetchPreview(section, request);
+      if (previews.get(section)?.query !== request.path) return;
+      previews.set(section, { query: request.path, status: "ready", ...result });
+    } catch (error) {
+      if (previews.get(section)?.query !== request.path) return;
+      previews.set(section, { query: request.path, status: "error", error: message(error), cards: [], countLabel: "" });
+    }
+    const article = document.querySelector(`article[data-index="${current().indexOf(section)}"]`);
+    if (article) paintRail(article, section);
+  });
+}
+
+function enqueue(job) {
+  queue.push(job);
+  pump();
+}
+
+function pump() {
+  while (activeJobs < 3 && queue.length) {
+    const job = queue.shift();
+    activeJobs += 1;
+    job().finally(() => { activeJobs -= 1; pump(); });
+  }
+}
+
+async function kp(path, attempt = 0) {
+  try {
+    const response = await fetch("/api/kp" + path);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(data.error || data.message || ("HTTP " + response.status));
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (attempt < 1 && error.status !== 401 && error.status !== 403) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return kp(path, attempt + 1);
+    }
+    throw error;
+  }
+}
+
+function message(error) {
+  if (error.status === 401) return "Токен не принят. Страница его не обновляет: открой приложение, чтобы файл сессии обновился, и нажми «Обновить».";
+  return error.message || "Ошибка";
+}
+
+function asList(data, keys) {
+  if (Array.isArray(data)) return data;
+  for (const key of keys) if (Array.isArray(data?.[key])) return data[key];
+  return [];
+}
+
+function poster(item) {
+  const posters = item.posters || {};
+  if (typeof posters === "string") return posters;
+  return posters.medium || posters.big || posters.small || "";
+}
+
+function itemCard(item, link) {
+  const meta = [
+    item.year || "",
+    item.imdb_rating ? "IMDb " + Number(item.imdb_rating).toFixed(1) : "",
+    item.kinopoisk_rating ? "КП " + Number(item.kinopoisk_rating).toFixed(1) : "",
+  ].filter(Boolean).join(" · ");
+  const id = Number(item.id);
+  return {
+    title: item.title || item.name || "",
+    image: poster(item),
+    meta,
+    wide: false,
+    href: link && id ? "https://kino.watch/item/view/" + id : "",
+  };
+}
+
+function countLabel(data, fallback) {
+  const pages = data.pagination || {};
+  if (pages.total_items != null) return Number(pages.total_items).toLocaleString("ru") + " в каталоге";
+  if (pages.total != null) return pages.total + " стр.";
+  return fallback;
+}
+
+async function fetchPreview(section, request) {
+  const limit = clampLimit(state.limit);
+  if (request.custom) {
+    const data = await kp(request.path);
+    if (Array.isArray(data.channels)) {
+      const cards = data.channels.slice(0, limit).map((channel) => ({
+        title: channel.title || channel.name || "",
+        image: logoOf(channel),
+        meta: "эфир",
+        wide: true,
+      }));
+      return { cards, countLabel: cards.length + " каналов" };
+    }
+    const collections = asList(data, ["collections"]);
+    if (collections.length && !asList(data, ["items"]).length) {
+      return { cards: collections.slice(0, limit).map((item) => itemCard(item, false)), countLabel: countLabel(data, collections.length + " на странице") };
+    }
+    const items = asList(data, ["items"]).slice(0, limit);
+    return { cards: items.map((item) => itemCard(item, true)), countLabel: countLabel(data, items.length + " на странице") };
+  }
+  if (section.source === "tv") {
+    const data = await kp(request.path);
+    const cards = asList(data, ["channels", "items"]).slice(0, limit).map((channel) => ({
+      title: channel.title || channel.name || "",
+      image: logoOf(channel),
+      meta: "эфир",
+      wide: true,
+    }));
+    return { cards, countLabel: cards.length + " каналов" };
+  }
+  if (section.source === "collections") {
+    const data = await kp(request.path);
+    const items = asList(data, ["collections", "items"]).slice(0, limit);
+    return { cards: items.map((item) => itemCard(item, false)), countLabel: countLabel(data, items.length + " на странице") };
+  }
+  if (section.source === "bookmarks") {
+    const data = await kp("/v1/bookmarks");
+    const folders = asList(data, ["items"]).slice(0, 2);
+    const seen = new Set();
+    const items = [];
+    for (const folder of folders) {
+      const page = await kp("/v1/bookmarks/" + folder.id);
+      for (const item of asList(page, ["items"])) {
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        items.push(item);
+        if (items.length >= limit) break;
+      }
+      if (items.length >= limit) break;
+    }
+    const folderNames = folders.map((folder) => folder.title).filter(Boolean).join(", ");
+    return { cards: items.map((item) => itemCard(item, true)), countLabel: (folderNames ? folderNames + " · " : "") + items.length + " тайтлов" };
+  }
+  const data = await kp(request.path);
+  const items = asList(data, ["items"]).slice(0, limit);
+  return { cards: items.map((item) => itemCard(item, true)), countLabel: countLabel(data, items.length + " на странице") };
+}
+
+function logoOf(channel) {
+  const logos = channel.logos;
+  if (!logos) return channel.logo || "";
+  if (typeof logos === "string") return logos;
+  if (Array.isArray(logos)) return logos[0] || "";
+  return logos.m || logos.s || Object.values(logos)[0] || "";
+}
+
+function snapshot() {
+  return JSON.stringify({ excludeConcerts: state.excludeConcerts, limit: clampLimit(state.limit), catalogs: state.catalogs });
+}
+
+function payload(keptOnly) {
+  const catalogs = {};
+  for (const [id, list] of Object.entries(state.catalogs)) {
+    catalogs[id] = (keptOnly ? list.filter((item) => item.approved) : list).map((section) => ({
+      id: section.id, origin: section.origin, title: section.title, hint: section.hint,
+      approved: section.approved, source: section.source,
+      shortcut: section.shortcut, shortcutType: section.shortcutType,
+      query: section.query || "",
+      collectionSort: section.collectionSort, filter: section.filter,
+    }));
+  }
+  return { version: 1, savedAt: new Date().toISOString(), excludeConcerts: state.excludeConcerts, limit: clampLimit(state.limit), catalogs };
+}
+
+async function save() {
+  const button = $("save");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload(false)) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "не сохранилось");
+    clean = snapshot();
+    const when = new Date().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" });
+    $("saved").textContent = "черновик " + when;
+  } catch (error) {
+    $("saved").textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function download() {
+  const blob = new Blob([JSON.stringify(payload(true), null, 2) + "\n"], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "home-sections-kept.json";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+$("list").addEventListener("input", onField);
+$("list").addEventListener("change", onField);
+$("list").addEventListener("click", onClick);
+window.__catalog = (id) => {
+  try {
+    if (id === state.catalog) return;
+    state.catalog = id;
+    closePicker();
+    render();
+    window.scrollTo(0, 0);
+  } catch (error) {
+    $("saved").textContent = error.message;
+  }
+};
+window.__jump = (index) => {
+  document.getElementById("s-" + index)?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+document.querySelectorAll("#views button").forEach((button) => {
+  button.onclick = () => {
+    state.view = button.dataset.view;
+    closePicker();
+    render();
+  };
+});
+$("exclude").addEventListener("change", () => {
+  state.excludeConcerts = $("exclude").checked;
+  previews.clear();
+  render();
+});
+let limitTimer = 0;
+function refreshForLimit() {
+  current().forEach((section) => {
+    if (!visible(section)) return;
+    const index = current().indexOf(section);
+    const article = document.querySelector(`article[data-index="${index}"]`);
+    const query = article?.querySelector("[data-query]");
+    if (query && document.activeElement !== query) query.value = shownPath(section);
+    scheduleSoon(section);
+  });
+}
+$("limit").addEventListener("input", () => {
+  state.limit = $("limit").value;
+  clearTimeout(limitTimer);
+  limitTimer = setTimeout(refreshForLimit, 400);
+});
+$("limit").addEventListener("change", () => {
+  state.limit = clampLimit($("limit").value);
+  $("limit").value = state.limit;
+  clearTimeout(limitTimer);
+  refreshForLimit();
+});
+$("save").addEventListener("click", save);
+$("download").addEventListener("click", download);
+$("reset-all").addEventListener("click", () => {
+  const catalog = state.catalog;
+  const view = state.view;
+  state = structuredClone(SEED);
+  state.catalog = catalog;
+  state.view = view;
+  previews.clear();
+  closePicker();
+  render();
+});
+$("list").addEventListener("error", (event) => {
+  if (event.target.tagName !== "IMG") return;
+  const empty = document.createElement("div");
+  empty.className = "ph";
+  event.target.replaceWith(empty);
+}, true);
+window.addEventListener("beforeunload", (event) => {
+  if (snapshot() !== clean) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
+
+function fillNames(data, target, withType) {
+  asList(data, ["items", "genres", "countries"]).forEach((item) => {
+    const id = Number(item.id);
+    const title = item.title || item.name;
+    if (!id || !title) return;
+    target.set(id, title);
+    if (withType && item.type) genreType.set(id, item.type);
+  });
+}
+
+function withMissingSeed(catalogId, loaded) {
+  const seed = SEED.catalogs[catalogId];
+  const result = loaded.slice();
+  const present = new Set(result.flatMap((section) => [section.id, section.origin].filter(Boolean)));
+  seed.forEach((item, index) => {
+    if (present.has(item.id)) return;
+    let at = result.length;
+    let placed = false;
+    for (let i = index - 1; i >= 0; i--) {
+      const prev = result.findIndex((section) => section.id === seed[i].id || section.origin === seed[i].id);
+      if (prev >= 0) { at = prev + 1; placed = true; break; }
+    }
+    if (!placed) {
+      for (let i = index + 1; i < seed.length; i++) {
+        const next = result.findIndex((section) => section.id === seed[i].id || section.origin === seed[i].id);
+        if (next >= 0) { at = next; break; }
+      }
+    }
+    result.splice(at, 0, structuredClone(item));
+    present.add(item.id);
+  });
+  return result;
+}
+
+async function boot() {
+  clean = snapshot();
+  render();
+  const [session, draft, genreData, countryData] = await Promise.all([
+    fetch("/api/session").then((response) => response.json()).catch(() => ({ ok: false })),
+    fetch("/api/draft").then(async (response) => response.ok ? response.json() : null).catch(() => null),
+    fetch("/api/kp/v1/genres").then((response) => response.ok ? response.json() : []).catch(() => []),
+    fetch("/api/kp/v1/countries").then((response) => response.ok ? response.json() : []).catch(() => []),
+  ]);
+  const sessionNode = $("session");
+  sessionNode.textContent = session.ok ? "дев-сессия на месте" : "нет ~/.kinopub-dev-session.json";
+  sessionNode.classList.toggle("bad", !session.ok);
+  fillNames(genreData, genres, true);
+  fillNames(countryData, countries, false);
+  if (draft && draft.version === 1 && draft.catalogs) {
+    state.excludeConcerts = draft.excludeConcerts !== false;
+    if (draft.limit != null) state.limit = clampLimit(draft.limit);
+    for (const id of ["home", "movies", "series"]) {
+      if (Array.isArray(draft.catalogs[id]) && draft.catalogs[id].length) {
+        state.catalogs[id] = withMissingSeed(id, draft.catalogs[id].map(normalize));
+      }
+    }
+    $("saved").textContent = "открыт черновик";
+    previews.clear();
+    clean = snapshot();
+    render();
+    return;
+  }
+  current().forEach((section) => { if (visible(section)) paint(section); });
+}
+
+boot();
+</script>
+</body>
+</html>

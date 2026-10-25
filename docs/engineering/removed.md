@@ -23,6 +23,9 @@ If you find a comment or a doc referencing these, it is stale. Each was tried he
   `clipsToBounds`. Aspect-fill crops 2:3 art, and **clipping the image view kills the parallax** —
   the lockup moves content inside its own frame. Not obvious from the API; do not retry blind.
 - `PlexDataStore`-style optimistic Continue Watching mutation from a shelf.
+- Home prefetch of `/v1/items/hot`, `/fresh` and `/popular`. Those rows painted only when
+  every configured shelf was empty, and the fetch ran on every launch anyway (2026-10-25).
+  The Catalog tab still opens a shortcut grid when the viewer asks for one.
 - The hand-rolled artwork cache: `TVUIKitRemoteImage`'s private `NSCache`, the `ArtworkFetcher`
   coalescing actor, `preparingThumbnail` downsampling, and `AsyncImage` in `CachedRemoteImage`.
   All four behaviours survive — `Artwork` provides them, on four platforms instead of one.

@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Home no longer fetches shelves it does not paint (2026-10-25)
+
+- Watch Now, Movies and Series stopped requesting `/v1/items/hot`, `/fresh` and
+  `/popular`. Those six calls ran on every launch and the rows appeared only when
+  every configured shelf was empty.
+- A rail asks for 8 titles on tvOS and 12 on iOS and macOS, instead of the
+  server's page of about 40. Bookmarks and collections on those rails use the
+  same page. The rest loads when the row scrolls.
+
 ### tvOS detail page: the picture stays behind menus and dialogs (2026-10-25)
 
 - Opening a hero menu, context menu, alert or popup cleared `@FocusState` and the
