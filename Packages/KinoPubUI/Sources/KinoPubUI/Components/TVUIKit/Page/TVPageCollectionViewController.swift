@@ -1257,7 +1257,10 @@ public final class TVPageCollectionViewController: UIViewController {
     collectionView.remembersLastFocusedIndexPath = false
     lastPublishedBelowTop = false
     onBelowTopRowChange?(false)
-    setNeedsFocusUpdate()
+    // The collection holds focus and its delegate names the top row. Not this controller:
+    // an ancestor's request wins over the collection's, and where the controller does not
+    // claim focus (Search) it falls through to its view, so the engine picked the nearest
+    // visible card — one row up per press (2026-10-25).
     collectionView.setNeedsFocusUpdate()
     collectionView.updateFocusIfNeeded()
     return true

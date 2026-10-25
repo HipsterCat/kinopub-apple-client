@@ -152,7 +152,60 @@ final class TVSearchLayoutUITests: XCTestCase {
     }
   }
 
+  /// Menu six rows deep in the results grid goes back to their top row in one press — the
+  /// filter row's first chip, Sort — and the next Menu leaves the results (the tab bar under
+  /// the linear keyboard, the keyboard beside the grid one). It went up one row per press: the
+  /// request landed on the controller, which Search keeps from claiming focus, and the chip
+  /// cell off screen offered no button, so the engine took the nearest visible card (2026-10-25).
+  func testMenuFromDeepInTheGridReturnsToTheTopRow() throws {
+    for grid in [false, true] {
+      let app = launch(gridKeyboard: grid)
+      let prefix = grid ? "menu-grid" : "menu-linear"
+      // Tab → keyboard → … → the first poster.
+      for _ in 0..<8 where focusedPoster(in: app) == nil {
+        press(.down, wait: 1)
+      }
+      let first = try XCTUnwrap(focusedPoster(in: app), "never reached the posters\n\(focusDescription(app))")
+      press(.down, 5, wait: 1)
+      try shoot(app, name: "\(prefix)-0-deep")
+      let deep = try XCTUnwrap(focusedPoster(in: app), "focus left the posters\n\(focusDescription(app))")
+      XCTAssertNotEqual(deep, first, "Down did not move through the grid")
+
+      press(.menu, wait: 1.6)
+      try shoot(app, name: "\(prefix)-1-menu")
+      XCTAssertTrue(sortChipFocused(in: app),
+                    "\(prefix): Menu from \(deep) did not reach the filter row\n\(focusDescription(app))")
+
+      press(.menu, wait: 1.6)
+      try shoot(app, name: "\(prefix)-2-menu-again")
+      XCTAssertFalse(sortChipFocused(in: app), "\(prefix): second Menu stayed on the filter row")
+      XCTAssertNil(focusedPoster(in: app), "\(prefix): second Menu went back into the posters")
+      app.terminate()
+    }
+  }
+
   // MARK: - Helpers
+
+  /// The first chip of the filter row, the page's top row. Queried, not read off the element:
+  /// scrolled away it is not in the tree at all.
+  private func sortChipFocused(in app: XCUIApplication) -> Bool {
+    app.buttons.matching(NSPredicate(format: "identifier == %@ AND hasFocus == true", "kinopub.chip.sort"))
+      .firstMatch.exists
+  }
+
+  private func focusedPoster(in app: XCUIApplication) -> String? {
+    let poster = app.collectionViews["kinopub.page.search"].cells.matching(
+      NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.poster.")
+    ).firstMatch
+    return poster.exists ? poster.identifier : nil
+  }
+
+  private func focusDescription(_ app: XCUIApplication) -> String {
+    let focused = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true"))
+    return (0..<min(focused.count, 6)).map {
+      focused.element(boundBy: $0).debugDescription.prefix(220).description
+    }.joined(separator: "\n")
+  }
 
   private func tabBarFocused(in app: XCUIApplication) -> Bool {
     app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count > 0

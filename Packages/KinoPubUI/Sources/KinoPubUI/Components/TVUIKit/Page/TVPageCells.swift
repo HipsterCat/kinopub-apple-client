@@ -522,6 +522,11 @@ final class TVPageChipCell: UICollectionViewCell {
 
   override var canBecomeFocused: Bool { false }
 
+  /// The button, by name. Left to the engine's inference from layout, a chip cell off
+  /// screen offered nothing: Menu deep in a grid asked for the filter row and focus went
+  /// to the nearest visible card instead, one row up per press (2026-10-25).
+  override var preferredFocusEnvironments: [UIFocusEnvironment] { [button] }
+
   /// System tvOS buttons. `.gray()` is white on white in light mode on a real Apple TV.
   /// An active filter is the filled one (`.borderedProminent`); the rest are
   /// `.bordered`. Focus, fill and padding stay the system's — including in light mode.
