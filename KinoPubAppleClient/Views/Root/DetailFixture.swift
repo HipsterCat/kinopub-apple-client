@@ -49,6 +49,9 @@ enum DetailFixture: String, CaseIterable, Identifiable {
   /// The same film with two directors and a long billing, kino.pub's order not TMDB's:
   /// some of the cast are the stars, some bit parts — the page ranks them and drops the rest.
   case filmCrew
+  /// A concert with a trailer: the show, a 33-minute set and three songs, one watched. The row
+  /// reads Концерт · Трейлер · Don't Look Down · «+ ещё 2», which takes focus to the «Видео» rail.
+  case concert
 
   var id: String { rawValue }
 
@@ -68,6 +71,7 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     case .film: 9_900_006
     case .filmCrew: 9_900_007
     case .seasonStrip: 9_900_008
+    case .concert: 9_900_009
     }
   }
 
@@ -81,13 +85,14 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     case .film: "Фильм со всеми секциями / Every Section"
     case .filmCrew: "Фильм: два режиссёра / Two Directors"
     case .seasonStrip: "Строка сезонов / Season Strip"
+    case .concert: "Концерт / Live in Concert"
     }
   }
 
   private var isSeries: Bool {
     switch self {
     case .awaiting, .missing, .rewatch, .seasonStrip: true
-    case .versions, .versionsUnnamed, .film, .filmCrew: false
+    case .versions, .versionsUnnamed, .film, .filmCrew, .concert: false
     }
   }
 
@@ -146,6 +151,26 @@ enum DetailFixture: String, CaseIterable, Identifiable {
       ]
     case .versionsUnnamed:
       json["videos"] = (1...3).map { video(number: $0, title: "", position: 0) }
+    case .concert:
+      json["type"] = "concert"
+      json["subtype"] = ""
+      json["trailer"] = ["id": 1, "file": "", "url": "https://example.invalid/trailer.m3u8"]
+      // The show, then a 33-minute set and three songs; the first song is watched already, so
+      // it has no pill. Main video, Trailer, then the extras: Концерт · Трейлер ·
+      // Don't Look Down · «+ ещё 2» (Counting Stars, Good Life).
+      json["videos"] = [("Концерт", 5160), ("Wherever I Go - live", 200), ("Don't Look Down", 1980),
+                        ("Counting Stars", 250), ("Good Life", 230)]
+        .enumerated().map { index, entry in
+          video(number: index + 1, title: entry.0, position: 0, duration: entry.1, watched: index == 1)
+        }
+      // The shapes kino.pub's hand-typed setlists come in: a timecode first, a part after a
+      // dash, a long edition after one, a plain name, and one it could not name (`N/A`).
+      json["tracklist"] = ["(00:00) Sexual Sportswear", "(07:14) Roche", "Autobahn - Part One",
+                           "Taschenrechner / Dentaku - Part Two",
+                           "Higher Love - Devotional (A Performance Filmed By Anton Corbijn)",
+                           "Condemnation (Paris Mix) - Promotional Videos",
+                           "MTV Documentary \"Depeche Mode Rockumentary\"", "N/A"]
+        .map { ["title": $0, "artists": "", "url": ""] }
     case .rewatch:
       json["finished"] = true
       json["seasons"] = [
@@ -331,18 +356,19 @@ enum DetailFixture: String, CaseIterable, Identifiable {
             "url": ["http": stream, "hls": stream, "hls4": stream, "hls2": stream]]
   }
 
-  private func video(number: Int, title: String, position: Int) -> [String: Any] {
-    let watched = DetailFixtureServer.shared.isWatched(item: itemID, season: nil, video: number)
+  private func video(number: Int, title: String, position: Int, duration: Int = 6000,
+                     watched alreadyWatched: Bool = false) -> [String: Any] {
+    let watched = alreadyWatched || DetailFixtureServer.shared.isWatched(item: itemID, season: nil, video: number)
     return ["id": itemID * 10 + number,
             "title": title,
             "thumbnail": "",
-            "duration": 6000,
+            "duration": duration,
             "tracks": 1,
             "number": number,
             "ac3": 0,
             "audios": [Any](),
             "watched": watched ? 1 : 0,
-            "watching": ["status": watched ? 1 : (position > 0 ? 0 : -1), "time": watched ? 6000 : position],
+            "watching": ["status": watched ? 1 : (position > 0 ? 0 : -1), "time": watched ? duration : position],
             "subtitles": [Any](),
             "files": [Any]()]
   }
@@ -372,7 +398,7 @@ enum DetailFixture: String, CaseIterable, Identifiable {
     case .rewatch:
       meta.status = "Ended"
       meta.seasonSummaries = [SeasonSummary(seasonNumber: 1, episodeCount: 3)]
-    case .versions, .versionsUnnamed:
+    case .versions, .versionsUnnamed, .concert:
       break
     case .film, .filmCrew:
       meta.tmdbId = 9_906

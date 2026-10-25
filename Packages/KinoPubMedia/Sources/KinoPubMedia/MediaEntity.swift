@@ -186,6 +186,34 @@ public struct SetlistEntry: Hashable, Codable, Sendable {
     self.artists = artists.nonBlank
     self.audio = audio
   }
+
+  /// The song's line as two: what it is called, and what the uploader wrote around it.
+  /// kino.pub's setlists are typed by hand, in a few shapes:
+  /// - «(07:14) Roche» — a timecode first: the name, and the time under it;
+  /// - «Autobahn - Part One», «Higher Love - Devotional (…)» — the part after the first
+  ///   dash is the second line;
+  /// - anything else is one line, with the artists under it when there are any.
+  /// Nil when the song has no name.
+  public var lines: (title: String, subtitle: String?)? {
+    guard let title else { return nil }
+    if let match = title.firstMatch(of: Self.timecodeFirst) {
+      let rest = String(match.output.2).trimmingCharacters(in: .whitespaces)
+      if !rest.isEmpty { return (rest, String(match.output.1)) }
+    }
+    for dash in [" - ", " – ", " — "] {
+      if let range = title.range(of: dash) {
+        let head = title[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
+        let tail = title[range.upperBound...].trimmingCharacters(in: .whitespaces)
+        if !head.isEmpty, !tail.isEmpty { return (head, tail) }
+      }
+    }
+    return (title, artists)
+  }
+
+  /// «(07:14) Roche», «[1:02:03] Roche», «07:14 - Roche».
+  nonisolated(unsafe) private static let timecodeFirst = try! Regex<(Substring, Substring, Substring)>(
+    #"^[\(\[]?(\d{1,2}:\d{2}(?::\d{2})?)[\)\]]?\s*(?:[-–—]\s*)?(.+)$"#
+  )
 }
 
 /// One source's statement of one fact.

@@ -287,6 +287,28 @@ public extension MediaItem {
       .map { PlaybackVariant(video: $0, mediaId: id, movieTitle: localizedTitle) }
   }
 
+  /// The versions the hero offers as play buttons: the main ones first and always — as long
+  /// as the longest, or nearly (`mainVersionShare`), so two halves of a show both are — then
+  /// the rest, only until they are watched; each part in number order. A concert's songs
+  /// drop out one by one and the show stays, with Replay once it is watched too (Sasha,
+  /// 2026-10-25). The rail under the hero keeps every version. A film's 24 / 48 fps are both
+  /// main: nothing drops.
+  var playChoices: [PlaybackVariant] {
+    let variants = playbackVariants
+    let main = variants.filter(isMainVersion)
+    return main + variants.filter { !isMainVersion($0) && !$0.isWatched }
+  }
+
+  /// A version as long as the longest, or nearly. Every version is, when none says how long.
+  func isMainVersion(_ variant: PlaybackVariant) -> Bool {
+    let longest = playbackVariants.map(\.duration).max() ?? 0
+    guard longest > 0 else { return true }
+    return Double(variant.duration) >= Double(longest) * Self.mainVersionShare
+  }
+
+  /// How long a version has to be, against the longest, to count as a main one.
+  static let mainVersionShare = 0.75
+
   /// The version Play should open: the one already started but unfinished, else the
   /// first.
   ///

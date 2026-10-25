@@ -5297,6 +5297,24 @@
         }
       }
     },
+    "MediaAction_Play" : {
+      "comment" : "A concert's play button, and its first video's when kino.pub gives it no name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Воспроизвести"
+          }
+        }
+      }
+    },
     "MediaAction_SecondVersion" : {
       "comment" : "Play button for a film's second version when kino.pub gives it no name.",
       "extractionState" : "manual",
@@ -5311,6 +5329,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Вторая версия"
+          }
+        }
+      }
+    },
+    "MediaAction_ThirdVersion" : {
+      "comment" : "Play button for a title's third version when kino.pub gives it no name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Third Version"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Третья версия"
           }
         }
       }
@@ -5380,6 +5416,23 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Оригинальное название"
+          }
+        }
+      }
+    },
+    "MediaItem_PosterHeroAdaptiveAppearance" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poster hero follows appearance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Герой с постером: как в системе"
           }
         }
       }
@@ -6613,6 +6666,24 @@
         }
       }
     },
+    "MediaItem_Setlist" : {
+      "comment" : "Header of a concert's setlist, the cards of its songs under the videos.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setlist"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Треклист"
+          }
+        }
+      }
+    },
     "MediaItem_SimilarCast" : {
       "comment" : "Subheading of a group under Similar on the tvOS detail page — the shelf's people, said as a role, with no name in it.",
       "extractionState" : "manual",
@@ -7473,6 +7544,24 @@
         }
       }
     },
+    "MediaItem_UntitledTrack" : {
+      "comment" : "A song of a setlist that kino.pub could not name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без названия"
+          }
+        }
+      }
+    },
     "MediaItem_Uploaded" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7503,6 +7592,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Версии"
+          }
+        }
+      }
+    },
+    "MediaItem_Videos" : {
+      "comment" : "Header of the rail of a concert's videos — the full show and the separate songs.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видео"
           }
         }
       }

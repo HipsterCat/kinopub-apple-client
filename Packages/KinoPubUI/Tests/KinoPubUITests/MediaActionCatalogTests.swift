@@ -27,14 +27,29 @@ final class MediaActionCatalogTests: XCTestCase {
     XCTAssertEqual(row.first(where: { $0.id == .markWatched })?.chrome, .circle)
   }
 
-  func testConcertUsesWatchNowTitle() {
+  /// A concert is played: «Воспроизвести» (EN fallback "Play" in package tests).
+  func testConcertUsesPlayTitle() {
     let play = MediaActionCatalog.play(for: MediaActionContext(
       playback: .play(season: nil, episode: nil),
       kind: .concert,
       isSeries: false
     ))
     XCTAssertEqual(play.title, MediaActionCopy.playTitle(kind: .concert))
-    XCTAssertEqual(play.title, "Watch Now")
+    XCTAssertEqual(play.title, "Play")
+  }
+
+  /// A concert's unnamed first video says the same, not «Смотреть».
+  func testConcertUnnamedFirstVideoSaysPlay() {
+    let fresh = PlaybackButtonContent.play(season: nil, episode: nil)
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: fresh,
+      kind: .concert,
+      isSeries: false,
+      versions: [MediaActionVersion(name: nil, playback: fresh),
+                 MediaActionVersion(name: "Encore", playback: fresh)]
+    ))
+    XCTAssertEqual(row[0].title, "Play")
+    XCTAssertEqual(row[1].title, "Encore")
   }
 
   func testMovieWatchedUsesQuieterReplay() {
@@ -246,9 +261,9 @@ final class MediaActionCatalogTests: XCTestCase {
     XCTAssertFalse(row.contains { $0.title == MediaActionCopy.playTitle(kind: .fiction) })
   }
 
-  /// No names: «Смотреть» and «Вторая версия» (EN fallbacks in package tests). A third
-  /// version is not a button.
-  func testUnnamedVersionsFallBackAndAThirdIsNotAButton() {
+  /// No names: «Смотреть», «Вторая версия», «Третья версия» (EN fallbacks in package
+  /// tests). With no Trailer pill a third version is a pill too.
+  func testUnnamedVersionsFallBackAndAThirdIsAPillWithoutTrailer() {
     let fresh = PlaybackButtonContent.play(season: nil, episode: nil)
     let row = MediaActionCatalog.row(for: MediaActionContext(
       playback: fresh,
@@ -257,11 +272,65 @@ final class MediaActionCatalogTests: XCTestCase {
                  MediaActionVersion(name: nil, playback: fresh),
                  MediaActionVersion(name: nil, playback: fresh)]
     ))
-    XCTAssertEqual(row.map(\.id), [.play, .playAlternate, .bookmark])
-    XCTAssertEqual(row[0].title, MediaActionCopy.versionTitle(name: nil, index: 0))
-    XCTAssertEqual(row[1].title, MediaActionCopy.versionTitle(name: nil, index: 1))
+    XCTAssertEqual(row.map(\.id), [.play, .playAlternate, .playThird, .bookmark])
     XCTAssertEqual(row[0].title, "Watch")
     XCTAssertEqual(row[1].title, "Second Version")
+    XCTAssertEqual(row[2].title, "Third Version")
+    XCTAssertEqual(row[2].chrome, .pill)
+  }
+
+  /// Trailer takes the third slot: two version pills (both main), Trailer, then «+ 1 more».
+  func testTrailerLeavesTwoVersionPillsAndAMorePill() {
+    let fresh = PlaybackButtonContent.play(season: nil, episode: nil)
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: fresh,
+      isSeries: false,
+      showsTrailer: true,
+      versions: Array(repeating: MediaActionVersion(name: nil, playback: fresh), count: 3)
+    ))
+    XCTAssertEqual(row.map(\.id), [.play, .playAlternate, .trailer, .moreVersions, .bookmark])
+    XCTAssertEqual(row[3].title, "+ 1 more")
+    XCTAssertEqual(row[3].systemImage, "")
+  }
+
+  /// The show, its trailer, then the extras: Trailer follows the main pills, never an extra.
+  func testTrailerFollowsTheMainVideoAndPrecedesTheExtras() {
+    let fresh = PlaybackButtonContent.play(season: nil, episode: nil)
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: fresh,
+      kind: .concert,
+      isSeries: false,
+      showsTrailer: true,
+      showsMore: true,
+      versions: [MediaActionVersion(name: "Концерт", playback: fresh),
+                 MediaActionVersion(name: "Song", playback: fresh, isMain: false),
+                 MediaActionVersion(name: "Another", playback: fresh, isMain: false)]
+    ))
+    XCTAssertEqual(row.map(\.id), [.play, .trailer, .playAlternate, .moreVersions, .bookmark, .more])
+  }
+
+  /// Two halves of one show are both main: both lead, then Trailer.
+  func testTwoMainHalvesBothPrecedeTheTrailer() {
+    let fresh = PlaybackButtonContent.play(season: nil, episode: nil)
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: fresh,
+      isSeries: false,
+      showsTrailer: true,
+      versions: [MediaActionVersion(name: "Part One", playback: fresh),
+                 MediaActionVersion(name: "Part Two", playback: fresh)]
+    ))
+    XCTAssertEqual(row.map(\.id), [.play, .playAlternate, .trailer, .bookmark])
+  }
+
+  /// Four versions, no trailer: three pills and «+ 1 more».
+  func testFourVersionsWithoutTrailerAreThreePillsAndAMorePill() {
+    let fresh = PlaybackButtonContent.play(season: nil, episode: nil)
+    let row = MediaActionCatalog.row(for: MediaActionContext(
+      playback: fresh,
+      isSeries: false,
+      versions: Array(repeating: MediaActionVersion(name: nil, playback: fresh), count: 4)
+    ))
+    XCTAssertEqual(row.map(\.id), [.play, .playAlternate, .playThird, .moreVersions, .bookmark])
   }
 
   /// Each pill shows its own version's state: a bar on the started one, Replay on the

@@ -447,7 +447,7 @@ public enum TVPageItem: Hashable {
 /// new identity and is reloaded, not reconfigured into a different cell class.
 public enum TVPageRegistration: Hashable, Sendable {
   case poster, still, person, chip, card, banner, hero, masthead, groupTitle
-  case rating, reviews, review, fact, gallery, spec
+  case rating, reviews, review, fact, gallery, spec, track
 }
 
 /// Diffable identity of one item on one page: the same title in Up Next and in Hot
@@ -489,15 +489,25 @@ public struct TVPageGroup: Identifiable, Hashable {
   /// card to each item in them, so focus moves from item to item and not over a column taller than
   /// the screen. A column that is not there leaves its width empty.
   public let stacked: Bool
+  /// Stacked columns of like cards that read as one grid — a setlist: the same air between
+  /// columns as between the cards of a column (`gridGap`), instead of a gutter beside and a
+  /// sliver under. Nil: the table's spacing.
+  public let gridGap: CGFloat?
+
+  /// A gutter and a half narrower than the columns' gutter, across and down alike
+  /// (Sasha, 2026-10-25).
+  public static let gridGap: CGFloat = (TVHIGGrid.gutter / 1.5).rounded()
 
   public init(id: String, title: String?, columns: Int, subheading: Bool = false,
-              cell: TVPageCellKind? = nil, stacked: Bool = false, items: [TVPageItem]) {
+              cell: TVPageCellKind? = nil, stacked: Bool = false, gridGap: CGFloat? = nil,
+              items: [TVPageItem]) {
     self.id = id
     self.title = title
     self.columns = columns
     self.isSubheading = subheading
     self.cell = cell
     self.stacked = stacked
+    self.gridGap = gridGap
     self.items = items
   }
 }
@@ -742,6 +752,7 @@ public struct TVPageSection: Identifiable, Hashable {
       let groups = self.groups.map { group in
         TVPageGroup(id: group.id, title: group.title, columns: group.columns,
                     subheading: group.isSubheading, cell: group.cell, stacked: group.stacked,
+                    gridGap: group.gridGap,
                     items: group.items.filter { item in
                       let id = TVPageItemID(section: self.id,
                                             item: "\(group.id)/\(item.localID)",

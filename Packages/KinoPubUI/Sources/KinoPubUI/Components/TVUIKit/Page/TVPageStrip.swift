@@ -69,8 +69,8 @@ struct TVPageStripPlan {
   ///   apart (`TVPageGroup.stacked`). Nil: the HIG column's width.
   static func metrics(of item: TVPageItem, columns: Int, contentWidth: CGFloat,
                       infoHeight: CGFloat? = nil, cell: TVPageCellKind? = nil,
-                      share: Int? = nil) -> Metrics {
-    let width = cardWidth(columns: columns, contentWidth: contentWidth, share: share)
+                      share: Int? = nil, shareGap: CGFloat = TVHIGGrid.gutter) -> Metrics {
+    let width = cardWidth(columns: columns, contentWidth: contentWidth, share: share, gap: shareGap)
     // A poster group is the rails' poster, with no caption — the covers are what it is for.
     if cell == .poster {
       switch item {
@@ -98,11 +98,12 @@ struct TVPageStripPlan {
 
   /// A card's width: the HIG column's, or — for a stacked column — the content width less the
   /// gutters between its columns, over their number.
-  static func cardWidth(columns: Int, contentWidth: CGFloat, share: Int?) -> CGFloat {
+  static func cardWidth(columns: Int, contentWidth: CGFloat, share: Int?,
+                        gap: CGFloat = TVHIGGrid.gutter) -> CGFloat {
     guard let share, share > 0 else {
       return TVHIGGrid.resolve(columns: max(columns, 1), contentWidth: contentWidth).cardWidth
     }
-    return ((contentWidth - TVHIGGrid.gutter * CGFloat(share - 1)) / CGFloat(share)).rounded(.down)
+    return ((contentWidth - gap * CGFloat(share - 1)) / CGFloat(share)).rounded(.down)
   }
 
   /// How many equal columns a stacked group is one of: `columns`, whether or not they are all there.
@@ -129,6 +130,7 @@ struct TVPageStripPlan {
   /// HIG gutter apart wherever they are — the groups' subheadings do the telling-apart — and
   /// stacked columns stand a gutter apart, twice what two cards of a row do (Sasha, 2026-10-11).
   private static func groupGap(after group: TVPageGroup) -> CGFloat {
+    if let gridGap = group.gridGap { return gridGap }
     if group.cell == .poster || group.stacked { return TVHIGGrid.gutter }
     if case .chip? = group.items.first { return TVPageLayout.stripPillGroupGap }
     return TVPageLayout.stripGroupGap
@@ -140,7 +142,9 @@ struct TVPageStripPlan {
 
     let metrics = section.groups.map { group -> [Metrics] in
       let share = Self.share(of: group)
-      let width = Self.cardWidth(columns: group.columns, contentWidth: contentWidth, share: share)
+      let shareGap = group.gridGap ?? TVHIGGrid.gutter
+      let width = Self.cardWidth(columns: group.columns, contentWidth: contentWidth, share: share,
+                                 gap: shareGap)
       // The cards of a row are one height, so their platters line up on focus; the cards of a
       // column are each as tall as what they say.
       let infoHeight = group.stacked ? nil : group.items.compactMap { item -> CGFloat? in
@@ -149,7 +153,7 @@ struct TVPageStripPlan {
       }.max()
       return group.items.map {
         Self.metrics(of: $0, columns: group.columns, contentWidth: contentWidth, infoHeight: infoHeight,
-                     cell: group.cell, share: share)
+                     cell: group.cell, share: share, shareGap: shareGap)
       }
     }
     let roomAbove = metrics.joined().map(\.insets.top).max() ?? 0
@@ -173,7 +177,7 @@ struct TVPageStripPlan {
           cards.append(CGRect(x: art.minX - card.insets.leading, y: art.minY - card.insets.top,
                               width: card.envelope.width, height: card.envelope.height))
           end = max(end, art.maxX)
-          stackY = art.maxY + Self.stackGap
+          stackY = art.maxY + (group.gridGap ?? Self.stackGap)
         } else {
           let art = CGRect(x: end, y: artTop, width: card.art.width, height: card.art.height)
           cards.append(CGRect(x: art.minX - card.insets.leading, y: art.minY - card.insets.top,
@@ -295,6 +299,7 @@ extension TVPageInfoCard {
     case .spec(let spec): return TVPageSpecContent.height(for: spec, cardWidth: width)
     case .rating, .reviews: return TVPageRatingContent.height
     case .review, .fact, .gallery: return TVPageLayout.infoCardHeight
+    case .track: return TVPageTrackContent.height
     }
   }
 }

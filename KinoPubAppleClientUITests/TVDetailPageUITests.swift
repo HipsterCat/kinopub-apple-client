@@ -139,18 +139,54 @@ final class TVDetailPageUITests: XCTestCase {
     try shoot("versions-1-second")
   }
 
-  func testUnnamedVersionsFallBackAndStopAtTwo() throws {
+  /// No trailer: all three unnamed versions are pills.
+  func testUnnamedVersionsFallBackAndTakeThreePills() throws {
     launch("versionsUnnamed")
     try waitForFocus(on: "play", timeout: 20, "open")
     XCTAssertTrue(control("play").label.contains("Смотреть"), control("play").label)
     XCTAssertTrue(control("playAlternate").label.contains("Вторая версия"), control("playAlternate").label)
-    let playButtons = app.descendants(matching: .any)
-      .matching(NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.hero.play"))
-      .allElementsBoundByIndex
-      .map { $0.identifier }
-    XCTAssertEqual(Set(playButtons), ["kinopub.hero.play", "kinopub.hero.playAlternate"],
-                   "a third version must not be a button")
+    XCTAssertTrue(control("playThird").label.contains("Третья версия"), control("playThird").label)
+    XCTAssertFalse(control("moreVersions").exists, "three versions fit without «+ ещё»")
     try shoot("versions-unnamed-0-open")
+  }
+
+  /// A concert with a trailer: the show, a 33-minute set and three songs, the first song
+  /// watched. The main video leads, then Trailer, then the extras: Концерт · Трейлер ·
+  /// Don't Look Down · «+ ещё 2». The watched song has no pill. «+ ещё 2» takes focus down to
+  /// the «Видео» rail, onto the first extra without a pill. The runtime in the metadata row is
+  /// the focused video's (the screenshots are the check: 1ч 26м on opening, 33м on the set).
+  func testConcertMoreVideosTakesFocusToTheRail() throws {
+    launch("concert")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    XCTAssertTrue(control("play").label.contains("Концерт"), control("play").label)
+    XCTAssertTrue(control("playAlternate").label.contains("Don't Look Down"), control("playAlternate").label)
+    XCTAssertTrue(control("moreVersions").label.contains("ещё 2"), control("moreVersions").label)
+    XCTAssertLessThan(control("trailer").frame.minX, control("playAlternate").frame.minX,
+                      "Trailer follows the main video, before the extras")
+    XCTAssertGreaterThan(control("trailer").frame.minX, control("play").frame.minX)
+    XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Wherever")).firstMatch.exists,
+                   "a watched song keeps no pill")
+    try shoot("concert-0-open")
+
+    XCUIRemote.shared.press(.right)
+    XCUIRemote.shared.press(.right)
+    try waitForFocus(on: "playAlternate", timeout: 5, "Right ×2")
+    try shoot("concert-1-set-runtime")
+
+    XCUIRemote.shared.press(.right)
+    try waitForFocus(on: "moreVersions", timeout: 5, "Right")
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 1.5)
+    XCTAssertFalse(focused("moreVersions").exists, "focus stayed on «+ ещё»: \(focusedDescription)")
+    // «Counting Stars», the first choice with no pill of its own.
+    XCTAssertTrue(focusedDescription.contains("kinopub.rail.item.99000094"), focusedDescription)
+    try shoot("concert-2-rail")
+
+    // Under the videos, the setlist: a card per song, in order along the rows.
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.0)
+    XCTAssertTrue(focusedDescription.contains("kinopub.track."), focusedDescription)
+    try shoot("concert-3-setlist")
   }
 
   // MARK: - Helpers

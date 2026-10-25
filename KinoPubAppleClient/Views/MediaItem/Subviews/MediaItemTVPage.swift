@@ -146,6 +146,10 @@ struct MediaItemTVPage: View {
     case .spec(let spec):
       // Select reads a card in full only where there is more to read; the others are for focus.
       if spec.opensInPopup { popup = .spec(id: spec.id) }
+
+    case .track:
+      // Nothing to open yet: a song's link out comes with a source for it.
+      break
     }
   }
 

@@ -24,6 +24,7 @@ public enum TVPageInfoCard: Hashable {
   case fact(Fact)
   case gallery(Gallery)
   case spec(Spec)
+  case track(Track)
 
   public var id: String {
     switch self {
@@ -33,6 +34,7 @@ public enum TVPageInfoCard: Hashable {
     case .fact(let fact): return "fact.\(fact.id)"
     case .gallery(let gallery): return "gallery.\(gallery.id)"
     case .spec(let spec): return "spec.\(spec.id)"
+    case .track(let track): return "track.\(track.id)"
     }
   }
 
@@ -44,6 +46,7 @@ public enum TVPageInfoCard: Hashable {
     case .fact: return .fact
     case .gallery: return .gallery
     case .spec: return .spec
+    case .track: return .track
     }
   }
 
@@ -194,6 +197,26 @@ public enum TVPageInfoCard: Hashable {
       self.id = id
       self.images = images
       self.accessibilityLabel = accessibilityLabel
+    }
+  }
+
+  // MARK: Track
+
+  /// One song of a concert's setlist: its place in the order, its name, and a line under it —
+  /// the time it starts, the part or edition, or who sings it. Room for the album art and a
+  /// link out (Apple Music) when there is a source for them.
+  public struct Track: Hashable {
+    public let id: String
+    /// «1.» — quiet, before the name.
+    public let number: String
+    public let title: String
+    public let subtitle: String?
+
+    public init(id: String, number: String, title: String, subtitle: String? = nil) {
+      self.id = id
+      self.number = number
+      self.title = title
+      self.subtitle = subtitle
     }
   }
 

@@ -24,6 +24,12 @@ enum MediaItemFocusTarget: Hashable {
   case play
   /// A film's second version, as its own play pill beside Play.
   case playAlternate
+  /// The third, when no Trailer pill takes its place.
+  case playThird
+  /// «+ ещё N» — into the versions rail.
+  case moreVersions
+  /// The versions rail as a whole (tvOS): what «+ ещё N» focuses. Not a hero control.
+  case versionsRail
   case watchlist
   case bookmark
   case watched
@@ -36,9 +42,10 @@ enum MediaItemFocusTarget: Hashable {
   /// Hero action-row controls (not the synopsis).
   var isActionControl: Bool {
     switch self {
-    case .play, .playAlternate, .watchlist, .bookmark, .watched, .trailer, .more, .download, .shuffle:
+    case .play, .playAlternate, .playThird, .moreVersions, .watchlist, .bookmark, .watched,
+         .trailer, .more, .download, .shuffle:
       return true
-    case .plot:
+    case .plot, .versionsRail:
       return false
     }
   }
@@ -46,9 +53,9 @@ enum MediaItemFocusTarget: Hashable {
   /// Controls that push the player over the page.
   var opensPlayer: Bool {
     switch self {
-    case .play, .playAlternate, .shuffle, .trailer:
+    case .play, .playAlternate, .playThird, .shuffle, .trailer:
       return true
-    case .watchlist, .bookmark, .watched, .more, .download, .plot:
+    case .moreVersions, .versionsRail, .watchlist, .bookmark, .watched, .more, .download, .plot:
       return false
     }
   }
@@ -168,6 +175,9 @@ struct MediaItemView: View {
   @StateObject private var trailer: TrailerPreviewModel
   /// See `MediaItemHeroPhase` — iOS and macOS only in practice.
   @State private var heroPhase = MediaItemHeroPhase()
+  /// Set by the hero's «+ ещё N»: the versions rail parks on, and focus lands on, the
+  /// first version that had no pill.
+  @State private var versionsEntry: Int?
   /// Bound by the hero's controls and read by nothing in this body. `.defaultFocus`
   /// takes the binding, not the value, so hero focus moves re-render the hero alone.
   @FocusState private var focus: MediaItemFocusTarget?
@@ -393,6 +403,7 @@ struct MediaItemView: View {
                             ageRating: itemModel.externalMetadata.ageRating,
                             externalMetadata: itemModel.externalMetadata,
                             externalMetadataLoaded: itemModel.heroLogoResolved,
+                            onShowMoreVersions: { showMoreVersions() },
                             onFocusEntered: {
                               withAnimation(.easeInOut(duration: 0.4)) {
                                 proxy.scrollTo(Self.heroAnchor, anchor: .top)
@@ -430,6 +441,21 @@ struct MediaItemView: View {
   }
 
   private static let heroAnchor = "media-item-hero"
+  /// «+ ещё N»: park the rail on the first version without a pill, then hand it focus —
+  /// a turn later, so the rail has its entry before the engine asks for it.
+  private func showMoreVersions() {
+    versionsEntry = firstVersionWithoutPill
+    Task { @MainActor in
+      focus = .versionsRail
+    }
+  }
+
+  /// Where «+ ещё N» lands: the first version the hero had no pill for.
+  private var firstVersionWithoutPill: Int? {
+    let variants = itemModel.mediaItem.playChoices
+    let limit = MediaActionCatalog.versionPillLimit(showsTrailer: itemModel.mediaItem.trailerURL != nil)
+    return variants.indices.contains(limit) ? variants[limit].id : nil
+  }
 
   /// Real seasons, or — under `FeatureFlags.fakeSeasonsOnMovies` — a fabricated one for
   /// titles that have none. **Temporary diagnostic, delete with the flag.**
@@ -501,7 +527,17 @@ struct MediaItemView: View {
         VersionsRailView(variants: itemModel.mediaItem.playbackVariants,
                          linkProvider: itemModel.linkProvider,
                          stillURL: itemModel.mediaItem.posters.wideURL ?? verticalCover(itemModel.mediaItem.posters.medium),
-                         showsChrome: true)
+                         showsChrome: true,
+                         titleKey: itemModel.mediaItem.presentation.videosRailTitleKey,
+                         showsCount: itemModel.mediaItem.presentation.countsVideosRail,
+                         entryVariantID: versionsEntry)
+#if os(tvOS)
+          // A UIKit rail is no SwiftUI focus target cell by cell, but the rail as a whole
+          // can be one: focusing it hands focus to UIKit, which lands on `entryVariantID`
+          // (the shape `TVSidebarSandbox` settled). A `UIFocusSystem` request from here is
+          // refused — "ineligible environment" — while a hero control holds focus.
+          .focused($focus, equals: .versionsRail)
+#endif
       }
 
       if let seasons = seasonsForDisplay, !seasons.isEmpty {

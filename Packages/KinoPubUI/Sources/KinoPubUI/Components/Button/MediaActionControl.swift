@@ -73,9 +73,12 @@ public struct MediaActionLabel: View {
       }
     case .playPill, .pill:
       HStack(spacing: MediaActionMetrics.contentSpacing) {
-        Image(systemName: appearance.systemImage)
-          .contentTransition(.symbolEffect(.replace))
-          .symbolEffect(.bounce, value: appearance.systemImage)
+        // A text-only pill («+ ещё 2») names no symbol.
+        if !appearance.systemImage.isEmpty {
+          Image(systemName: appearance.systemImage)
+            .contentTransition(.symbolEffect(.replace))
+            .symbolEffect(.bounce, value: appearance.systemImage)
+        }
         if let progress = appearance.progress {
           MediaActionProgressTrack(progress: progress)
         }

@@ -101,6 +101,12 @@ public struct MediaPresentationProfile: Equatable, Sendable {
     authorRole == .creator ? "MediaItem_CreatorRole" : "Director"
   }
 
+  /// The rail of a title's several videos. A concert's are the show and its songs, not
+  /// versions of one thing: «Видео», with no count beside it — the rail is right there to
+  /// count (Sasha, 2026-10-25). A film's are versions, counted.
+  public var videosRailTitleKey: String { kind == .concert ? "MediaItem_Videos" : "MediaItem_Versions" }
+  public var countsVideosRail: Bool { kind != .concert }
+
   /// "More from …" for the people in the `director` field. A concert's or a stand-up
   /// set's director is a TV credit nobody is following, so those get no such shelf.
   public var showsAuthorShelf: Bool { kind != .concert && kind != .standup }

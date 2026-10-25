@@ -311,6 +311,8 @@ struct MediaItemHeroView: View {
   /// lettered title and then swap it for a logo. Previews that want the name pass
   /// `true`. Text appears only after a confirmed miss.
   var externalMetadataLoaded: Bool = false
+  /// «+ ещё N»: the page moves focus into the versions rail.
+  var onShowMoreVersions: (() -> Void)? = nil
   /// tvOS: called whenever one of the hero's own controls takes focus, including moves
   /// between them. The page scrolls back to the top with it.
   var onFocusEntered: (() -> Void)? = nil
@@ -327,6 +329,9 @@ struct MediaItemHeroView: View {
   @State private var loadingActions: Set<MediaActionID> = []
   /// What the shared title slot is drawing — subtitle waits until this is not `.empty`.
   @State private var titleLogoMark: TitleLogoMark = .empty
+  /// The version play control that last held focus — its runtime stays in the metadata
+  /// row once focus moves on (`runtimeVersion`).
+  @State private var lastFocusedVersionID: Int?
 #if os(tvOS)
   /// Once Play (or Follow-primary) has held focus, the synopsis joins the focus
   /// chain. Until then it stays a plain paragraph so it cannot steal entry focus
@@ -389,12 +394,20 @@ struct MediaItemHeroView: View {
       // than on the page, so a focus move re-renders the hero and nothing else.
       .onChange(of: focus) { old, target in
         noteFocusLeavingRow(from: old, to: target)
+        if let target, let id = Self.actionID(forPlay: target), let version = choice(for: id) {
+          lastFocusedVersionID = version.id
+        }
         guard let target else {
           // The synopsis has only the action row below it, so focus leaving it never
           // means the details: it is the synopsis popup, which is not a presented
           // controller and slips past the overlay probe — the picture faded and the
           // text flipped scheme behind it (Sasha, 2026-10-25).
           if old != .plot { noteFocusLeftHero() }
+          return
+        }
+        // «+ ещё N» sent focus to the versions rail: that is the details, not the hero.
+        guard target != .versionsRail else {
+          inDetails = true
           return
         }
         inDetails = false
@@ -1042,7 +1055,7 @@ struct MediaItemHeroView: View {
            Text(genreCountryLine)
              .foregroundStyle(heroSecondaryForeground)
          }
-         let releaseLine = TitleMetaLine(mediaItem.mediaEntity).releaseParts().joined(separator: "   ")
+         let releaseLine = self.releaseLine
          if !releaseLine.isEmpty {
            Text(releaseLine)
              .lineLimit(1)
@@ -1197,7 +1210,9 @@ struct MediaItemHeroView: View {
 #else
     let showsMore = false
 #endif
-    let playback = mediaItem.playbackButtonContent
+    let choices = mediaItem.playChoices
+    // One version left of several: it is Play itself, in its own state — not a pill of one.
+    let playback = choices.count == 1 ? choices[0].playbackButtonContent : mediaItem.playbackButtonContent
     let promote = Self.promotesFollow(mediaItem: mediaItem,
                                       awaitedEpisodeAirDate: awaitedEpisodeAirDate,
                                       canFollow: onToggleWatchlist != nil)
@@ -1214,9 +1229,12 @@ struct MediaItemHeroView: View {
       showsShuffle: showsShuffleButton && !promote,
       showsMore: showsMore,
       promoteFollow: promote,
-      versions: mediaItem.playbackVariants.map {
-        MediaActionVersion(name: $0.name, playback: $0.playbackButtonContent)
-      },
+      versions: choices.count > 1
+        ? choices.map {
+          MediaActionVersion(name: $0.name, playback: $0.playbackButtonContent,
+                             isMain: mediaItem.isMainVersion($0))
+        }
+        : [],
       loading: loadingActions,
       seasonCount: mediaItem.seasons?.count
     )
@@ -1249,8 +1267,10 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private func actionControl(for appearance: MediaActionAppearance) -> some View {
     switch appearance.id {
-    case .play, .playAlternate:
+    case .play, .playAlternate, .playThird:
       playControl(appearance)
+    case .moreVersions:
+      moreVersionsControl(appearance)
     case .trailer:
       trailerControl(appearance)
     case .bookmark:
@@ -1504,18 +1524,83 @@ struct MediaItemHeroView: View {
   }
 
   private static func focusTarget(forPlay id: MediaActionID) -> MediaItemFocusTarget {
-    id == .playAlternate ? .playAlternate : .play
+    switch id {
+    case .playAlternate: .playAlternate
+    case .playThird: .playThird
+    default: .play
+    }
   }
 
-  /// What a play pill opens. A film shown as version pills: that version, by position
-  /// (`playbackVariants` is in number order, as the catalog's `versions` are).
-  /// Everything else: `playTarget`.
-  private func playTarget(for id: MediaActionID) -> any PlayableItem {
-    let variants = mediaItem.playbackVariants
-    if variants.count >= 2 {
-      return variants[id == .playAlternate ? 1 : 0]
+  /// «+ ещё N» — the versions without a pill are in the rail right under the hero.
+  private func moreVersionsControl(_ appearance: MediaActionAppearance) -> some View {
+    MediaActionButton(appearance) {
+      onShowMoreVersions?()
     }
-    return playTarget
+    .focused($focus, equals: .moreVersions)
+  }
+
+  /// What a play pill opens. A title shown as version pills: that version, by position
+  /// in `playChoices` (the catalog's `versions` are the same list). One choice left: that
+  /// one. Everything else: `playTarget`.
+  private func playTarget(for id: MediaActionID) -> any PlayableItem {
+    choice(for: id) ?? playTarget
+  }
+
+  /// The version a play control stands for, when the title is in several.
+  private func choice(for id: MediaActionID) -> PlaybackVariant? {
+    let choices = mediaItem.playChoices
+    guard !choices.isEmpty else { return nil }
+    let index = switch id {
+    case .playAlternate: 1
+    case .playThird: 2
+    default: 0
+    }
+    return choices[min(index, choices.count - 1)]
+  }
+
+  private static func actionID(forPlay target: MediaItemFocusTarget) -> MediaActionID? {
+    switch target {
+    case .play: .play
+    case .playAlternate: .playAlternate
+    case .playThird: .playThird
+    default: nil
+    }
+  }
+
+  /// The version whose runtime the metadata row shows: the play control in focus, else the
+  /// last one that was, else the first not yet watched (Sasha, 2026-10-25). Nil for a title
+  /// in one version — its own runtime stands.
+  private var runtimeVersion: PlaybackVariant? {
+    let choices = mediaItem.playChoices
+    guard !choices.isEmpty else { return nil }
+    if let target = focus, let id = Self.actionID(forPlay: target), let focused = choice(for: id) {
+      return focused
+    }
+    if let last = lastFocusedVersionID, let remembered = choices.first(where: { $0.id == last }) {
+      return remembered
+    }
+    return choices.first { !$0.isWatched } ?? choices.first
+  }
+
+  /// The year and how long what Play offers runs — not an average over the title (Sasha,
+  /// 2026-10-25). Several versions: «2024   1ч 26м», `runtimeVersion`'s runtime. A series:
+  /// «2024   2 сезона   42м», the episode the main button plays.
+  private var releaseLine: String {
+    let entity = mediaItem.mediaEntity
+    if isSeries {
+      var parts = TitleMetaLine(entity).releaseParts()
+      if let (_, episode) = mediaItem.primaryEpisode, episode.duration > 0,
+         let runtime = RuntimeText(seconds: episode.duration).text(for: .detailRuntime) {
+        parts.append(runtime)
+      }
+      return parts.joined(separator: "   ")
+    }
+    guard let version = runtimeVersion, version.duration > 0,
+          let runtime = RuntimeText(seconds: version.duration).text(for: .detailRuntime) else {
+      return TitleMetaLine(entity).releaseParts().joined(separator: "   ")
+    }
+    let year = entity.release.map { [String($0.year)] } ?? []
+    return (year + [runtime]).joined(separator: "   ")
   }
 
   /// For a series, play the first episode that still has something left; the rail

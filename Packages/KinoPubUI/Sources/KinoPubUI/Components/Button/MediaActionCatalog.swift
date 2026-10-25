@@ -15,6 +15,10 @@ public enum MediaActionID: String, Hashable, Sendable, CaseIterable {
   case play
   /// The second version of a film that has several: its own play pill beside Play.
   case playAlternate
+  /// The third version, when there is no Trailer pill to take its place in the row.
+  case playThird
+  /// «+ ещё N»: the versions that did not get a pill. Leads to the rail under the hero.
+  case moreVersions
   case markWatched
   case trailer
   case bookmark
@@ -74,10 +78,14 @@ public struct MediaActionAppearance: Hashable, Identifiable, Sendable {
 public struct MediaActionVersion: Equatable, Sendable {
   public var name: String?
   public var playback: PlaybackButtonContent
+  /// The show itself, or one of its halves — not an extra beside it (a song, a short).
+  /// Main versions lead the row and Trailer follows them; the extras come after it.
+  public var isMain: Bool
 
-  public init(name: String?, playback: PlaybackButtonContent) {
+  public init(name: String?, playback: PlaybackButtonContent, isMain: Bool = true) {
     self.name = name
     self.playback = playback
+    self.isMain = isMain
   }
 }
 
@@ -97,8 +105,9 @@ public struct MediaActionContext: Equatable, Sendable {
   /// Series ongoing, everything watched, and the next episode of the season kino.pub is
   /// on has a known date → labelled Follow leads.
   public var promoteFollow: Bool
-  /// A film's versions in number order. Two or more → the first two are play pills of
-  /// their own in place of Play; a third is reached from the Versions rail.
+  /// A film's versions in number order. Two or more → play pills of their own in place
+  /// of Play — three without a Trailer pill, two beside one — and «+ ещё N» for the rest,
+  /// which leads to the rail of them under the hero.
   public var versions: [MediaActionVersion]
   public var loading: Set<MediaActionID>
   /// How many seasons the show has that we know of — one, and it is the first, drops the
@@ -161,13 +170,23 @@ public struct MediaActionContext: Equatable, Sendable {
     return false
   }
 
-  /// Two version pills stand where Play would.
+  /// Version pills stand where Play would.
   public var showsVersionButtons: Bool {
     versions.count >= 2
+  }
+
+  /// How many versions get a pill: three, or two when Trailer is a pill in the row too.
+  public var versionPillLimit: Int {
+    MediaActionCatalog.versionPillLimit(showsTrailer: showsTrailer)
   }
 }
 
 public enum MediaActionCatalog {
+
+  /// Three version pills, or two when Trailer is a pill in the row too.
+  public static func versionPillLimit(showsTrailer: Bool) -> Int {
+    showsTrailer ? 2 : 3
+  }
 
   public static func row(for context: MediaActionContext) -> [MediaActionAppearance] {
     if context.promoteFollow {
@@ -181,7 +200,14 @@ public enum MediaActionCatalog {
       row.append(mark)
     }
     if context.showsTrailer {
-      row.append(trailer(for: context))
+      // The main video, then its trailer, then the extras and «+ ещё» (Sasha, 2026-10-25):
+      // a two-minute song between the show and its trailer read as the second thing to watch.
+      if context.showsVersionButtons {
+        let mainPills = context.versions.prefix(context.versionPillLimit).prefix { $0.isMain }.count
+        row.insert(trailer(for: context), at: max(mainPills, 1))
+      } else {
+        row.append(trailer(for: context))
+      }
     }
     row.append(bookmark(for: context))
     if context.showsFollow {
@@ -224,12 +250,30 @@ public enum MediaActionCatalog {
     return row
   }
 
-  /// Play — or, for a film with several versions, one play pill for each of the first
-  /// two. A third version is not a button; the Versions rail under the hero has it.
+  /// Play — or, for a title in several versions, a play pill for each of the first
+  /// `versionPillLimit`, then «+ ещё N» when there are more than that.
   static func playButtons(for context: MediaActionContext) -> [MediaActionAppearance] {
     guard context.showsVersionButtons else { return [play(for: context)] }
-    return [version(context.versions[0], at: 0, for: context),
-            version(context.versions[1], at: 1, for: context)]
+    let shown = min(context.versions.count, context.versionPillLimit)
+    var row = (0..<shown).map { version(context.versions[$0], at: $0, for: context) }
+    let hidden = context.versions.count - shown
+    if hidden > 0 {
+      row.append(moreVersions(hidden, for: context))
+    }
+    return row
+  }
+
+  /// «+ ещё 2» — text only, the quiet pill.
+  public static func moreVersions(_ count: Int, for context: MediaActionContext) -> MediaActionAppearance {
+    let title = MediaActionCopy.moreVersionsTitle(count)
+    return MediaActionAppearance(
+      id: .moreVersions,
+      chrome: .pill,
+      systemImage: "",
+      title: title,
+      accessibilityLabel: title,
+      isLoading: context.loading.contains(.moreVersions)
+    )
   }
 
   // MARK: Per-action
@@ -241,8 +285,12 @@ public enum MediaActionCatalog {
   public static func version(_ version: MediaActionVersion,
                              at index: Int,
                              for context: MediaActionContext) -> MediaActionAppearance {
-    let id: MediaActionID = index == 0 ? .play : .playAlternate
-    let title = MediaActionCopy.versionTitle(name: version.name, index: index)
+    let id: MediaActionID = switch index {
+    case 0: .play
+    case 1: .playAlternate
+    default: .playThird
+    }
+    let title = MediaActionCopy.versionTitle(name: version.name, index: index, kind: context.kind)
     switch version.playback {
     case .playAgain:
       return MediaActionAppearance(

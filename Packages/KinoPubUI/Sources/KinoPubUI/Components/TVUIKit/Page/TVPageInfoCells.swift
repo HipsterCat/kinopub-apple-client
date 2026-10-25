@@ -708,6 +708,97 @@ final class TVPageReviewContent: TVPageCardContent {
   }
 }
 
+// MARK: - Track
+
+@MainActor
+final class TVPageTrackCell: TVPageInfoCardCell {
+  private let body = TVPageTrackContent()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    install(body)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  func configure(_ track: TVPageInfoCard.Track) {
+    body.configure(track)
+    accessibilityIdentifier = "kinopub.track.\(track.id)"
+    accessibilityLabel = [track.number, track.title, track.subtitle].compactMap { $0 }.joined(separator: " ")
+  }
+}
+
+/// «1.  Distance» — the number quiet beside the name, the name on up to two lines, and the
+/// line under it (a time, a part, the artists) on one, gliding on focus when it is longer than
+/// the card (`enablesMarqueeWhenAncestorFocused`, the system's own). Every card is three lines
+/// tall whether it uses them or not, so a setlist reads as a grid (Sasha, 2026-10-25).
+@MainActor
+final class TVPageTrackContent: TVPageCardContent {
+  private let numberLabel = UILabel()
+  private let titleLabel = UILabel()
+  private let subtitleLabel = UILabel()
+
+  static let titleFont = TVPageFonts.font(.body, weight: .regular)
+  static let subtitleFont = TVPageFonts.font(.caption1, weight: .regular)
+  static let titleLines = 2
+  /// Between the number and the name; between the name and the line under it.
+  static let numberGap: CGFloat = 12
+  static let lineGap: CGFloat = 4
+
+  /// Two lines of name and one under it, inside the platter's padding.
+  static var height: CGFloat {
+    padding * 2 + titleFont.linePitch * CGFloat(titleLines) + lineGap + ceil(subtitleFont.lineHeight)
+  }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    numberLabel.font = Self.titleFont
+    titleLabel.font = Self.titleFont
+    subtitleLabel.font = Self.subtitleFont
+    titleLabel.numberOfLines = Self.titleLines
+    numberLabel.numberOfLines = 1
+    subtitleLabel.numberOfLines = 1
+    subtitleLabel.enablesMarqueeWhenAncestorFocused = true
+    for label in [numberLabel, titleLabel, subtitleLabel] {
+      label.adjustsFontForContentSizeCategory = true
+      label.lineBreakMode = .byTruncatingTail
+      addSubview(label)
+    }
+    applyFocusLook(false)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  func configure(_ track: TVPageInfoCard.Track) {
+    numberLabel.text = track.number
+    titleLabel.setUnhyphenated(track.title)
+    subtitleLabel.text = track.subtitle
+    subtitleLabel.isHidden = track.subtitle == nil
+    setNeedsLayout()
+  }
+
+  override func applyFocusLook(_ focused: Bool) {
+    numberLabel.textColor = Self.secondaryInk(focused: focused)
+    titleLabel.textColor = Self.ink(focused: focused)
+    subtitleLabel.textColor = Self.secondaryInk(focused: focused)
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let pad = Self.padding
+    let pitch = Self.titleFont.linePitch
+    let numberWidth = ceil(numberLabel.sizeThatFits(CGSize(width: bounds.width, height: pitch)).width)
+    numberLabel.frame = CGRect(x: pad, y: pad, width: numberWidth, height: pitch)
+    let textX = pad + numberWidth + Self.numberGap
+    let textWidth = max(bounds.width - pad - textX, 1)
+    let titleHeight = min(ceil(titleLabel.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height),
+                          pitch * CGFloat(Self.titleLines))
+    titleLabel.frame = CGRect(x: textX, y: pad, width: textWidth, height: max(titleHeight, pitch))
+    subtitleLabel.frame = CGRect(x: textX, y: titleLabel.frame.maxY + Self.lineGap,
+                                 width: textWidth, height: ceil(Self.subtitleFont.lineHeight))
+  }
+}
+
 // MARK: - Fact
 
 @MainActor

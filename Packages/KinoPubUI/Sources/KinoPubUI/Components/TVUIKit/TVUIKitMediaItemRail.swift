@@ -714,8 +714,13 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     collectionView.setContentOffset(CGPoint(x: x, y: collectionView.contentOffset.y), animated: animated)
   }
 
+  /// The collection view by name, not the default: the default searches the root view
+  /// by visual layout, which finds nothing when the rail is below the fold — and that is
+  /// exactly where it is when SwiftUI hands it focus from the hero (`.focused` on the
+  /// rail; the hero's «+ ещё N»). The collection view then asks
+  /// `indexPathForPreferredFocusedView`, so the entry item wins.
   public override var preferredFocusEnvironments: [UIFocusEnvironment] {
-    allowsFocus ? super.preferredFocusEnvironments : []
+    allowsFocus ? [collectionView] : []
   }
 
   private func index(of id: Int?) -> Int? {

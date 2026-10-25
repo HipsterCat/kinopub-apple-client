@@ -65,7 +65,8 @@ enum MediaItemTVSections {
   }
 
   static func make(_ input: Input) -> [TVPageSection] {
-    ratings(input)
+    setlist(input)
+      + ratings(input)
       + credits(input)
       + similar(input)
       + stillsAndFacts(input)
@@ -73,6 +74,31 @@ enum MediaItemTVSections {
       + specifications(input)
       + creditsAsText(input)
   }
+
+  // MARK: - Setlist
+
+  /// A concert's songs, right under its videos: a card each, four across, in order along the
+  /// rows — four stacked columns, so Down walks from a song to the one four later. Empty for
+  /// everything without a setlist, which is everything but a concert. Select does nothing yet;
+  /// the cards are where the album art and a link to the song go once there is a source.
+  static func setlist(_ input: Input) -> [TVPageSection] {
+    let songs = input.mediaItem.mediaEntity.setlist
+    guard !songs.isEmpty else { return [] }
+    let tracks = songs.enumerated().map { index, song in
+      let lines = song.lines
+      return TVPageInfoCard.Track(id: "\(index)", number: "\(index + 1).",
+                                  title: lines?.title ?? "MediaItem_UntitledTrack".localized,
+                                  subtitle: lines?.subtitle)
+    }
+    let columns = setlistColumns
+    let groups = (0..<min(columns, tracks.count)).map { column in
+      TVPageGroup(id: "setlist-\(column)", title: nil, columns: columns, stacked: true,
+                  gridGap: TVPageGroup.gridGap, items: stride(from: column, to: tracks.count, by: columns).map { .info(.track(tracks[$0])) })
+    }
+    return [.strip(id: "setlist", title: "MediaItem_Setlist".localized, groups: groups)]
+  }
+
+  static let setlistColumns = 4
 
   // MARK: - Ratings
 

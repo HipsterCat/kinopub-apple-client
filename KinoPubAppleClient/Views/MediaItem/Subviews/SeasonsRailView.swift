@@ -967,6 +967,13 @@ struct VersionsRailView: View {
   /// False while the hero owns the page — the header stays out from under the artwork,
   /// the same rule the season tabs follow.
   var showsChrome: Bool = true
+  /// What the rail is called, and whether it is counted (`MediaPresentationProfile`).
+  var titleKey: String = "MediaItem_Versions"
+  var showsCount: Bool = true
+  /// Where focus lands when it enters the rail, and where the rail parks — the hero's
+  /// «+ ещё N» sets it to the first version that had no pill. Nil at rest, so the rail
+  /// starts at the first version.
+  var entryVariantID: Int? = nil
 
   @Environment(\.dynamicTypeSize) private var typeSize
 #if os(tvOS)
@@ -980,8 +987,8 @@ struct VersionsRailView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       if showsChrome {
-        SectionHeader("MediaItem_Versions",
-                      count: "\(variants.count)",
+        SectionHeader(LocalizedStringKey(titleKey),
+                      count: showsCount ? "\(variants.count)" : nil,
                       leadingInset: metrics.inset)
           .transition(.opacity)
       }
@@ -1003,6 +1010,7 @@ struct VersionsRailView: View {
       items: variants.map(railItem(for:)),
       contentInset: metrics.inset,
       columns: MainView.stillColumns,
+      entryItemID: entryVariantID,
       onSelect: { id in
         guard let variant = variants.first(where: { $0.id == id }) else { return }
         // A UIKit cell cannot host a `NavigationLink`; the same environment hook the

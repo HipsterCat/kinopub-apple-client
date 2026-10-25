@@ -34,7 +34,10 @@ public enum MediaActionCopy {
   /// Fresh Play on a non-episodic title.
   public static func playTitle(kind: MediaPresentationKind) -> String {
     switch kind {
-    case .concert, .standup:
+    // A concert is played, not watched (Sasha, 2026-10-25).
+    case .concert:
+      return localizedFormat("MediaAction_Play", fallback: "Play")
+    case .standup:
       let value = localized("MediaAction_WatchNow")
       return value == "MediaAction_WatchNow" ? "Watch Now" : value
     case .documentary, .fiction, .animation:
@@ -52,11 +55,20 @@ public enum MediaActionCopy {
 
   /// A version's play pill: kino.pub's name for it when there is one ("24 fps"), else
   /// «Смотреть» for the first and «Вторая версия» for the second.
-  public static func versionTitle(name: String?, index: Int) -> String {
+  public static func versionTitle(name: String?, index: Int,
+                                  kind: MediaPresentationKind = .fiction) -> String {
     if let name, !name.isEmpty { return name }
-    return index == 0
-      ? localizedFormat("Watch", fallback: "Watch")
-      : localizedFormat("MediaAction_SecondVersion", fallback: "Second Version")
+    switch index {
+    case 0 where kind == .concert: return playTitle(kind: kind)
+    case 0: return localizedFormat("Watch", fallback: "Watch")
+    case 1: return localizedFormat("MediaAction_SecondVersion", fallback: "Second Version")
+    default: return localizedFormat("MediaAction_ThirdVersion", fallback: "Third Version")
+    }
+  }
+
+  /// «+ ещё 2» on the pill that stands for the versions without one.
+  public static func moreVersionsTitle(_ count: Int) -> String {
+    String(format: localizedFormat("+ %d more", fallback: "+ %d more"), count)
   }
 
   public static func followTitle(isFollowing: Bool) -> String {
