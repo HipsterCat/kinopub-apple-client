@@ -388,7 +388,11 @@ struct MediaItemHeroView: View {
       .onChange(of: focus) { old, target in
         noteFocusLeavingRow(from: old, to: target)
         guard let target else {
-          noteFocusLeftHero()
+          // The synopsis has only the action row below it, so focus leaving it never
+          // means the details: it is the synopsis popup, which is not a presented
+          // controller and slips past the overlay probe — the picture faded and the
+          // text flipped scheme behind it (Sasha, 2026-10-25).
+          if old != .plot { noteFocusLeftHero() }
           return
         }
         inDetails = false
