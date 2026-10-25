@@ -4,12 +4,14 @@
  *
  *   POST /admin/kinopub/{id}/forget?kind=logo|backdrop|poster
  *   POST /admin/kinopub/{id}/refresh?kind=logo|backdrop|poster&imdb=&kinopoisk=
+ *   POST /admin/kinopub/{id}/images?kind=logo|backdrop|poster&imdb=tt…
  *   POST /admin/kinopub/{id}/pick
- *        { "logo": "https://…", "backdrop": "https://…", "poster": "https://…" }
+ *        { "logo": "https://…", "logo_lang": "en", "backdrop": "https://…" }
  *
+ * images asks TMDB once for this title and returns the ru / en / und files.
+ * The url in that list is what pick expects. pick pins that file until forget.
  * forget drops that kind and bumps art_rev, so the next image URL is new.
  * refresh asks TMDB again and stores the result on the same KV document.
- * pick pins one URL; the image route serves that file until forget.
  */
 
 import { readDocument, resolveAndStore, writeDocument } from "./title.js";
@@ -21,11 +23,12 @@ export async function handleAdmin(request, env) {
   if (!authorized(request, env)) return json({ error: "not_found" }, 404);
 
   const url = new URL(request.url);
-  const match = url.pathname.match(/^\/admin\/kinopub\/(\d+)\/(forget|refresh|pick)$/);
+  const match = url.pathname.match(/^\/admin\/kinopub\/(\d+)\/(forget|refresh|pick|images)$/);
   if (!match) return json({ error: "not_found" }, 404);
   const id = match[1];
   const action = match[2];
 
+  if (action === "images") return images(env, id, url);
   if (action === "pick") return pick(request, env, id);
   const kind = url.searchParams.get("kind") || "logo";
   if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|poster" }, 400);
@@ -72,6 +75,97 @@ async function refresh(env, id, kind, url) {
     kind,
     count: Array.isArray(saved?.artwork?.[kind]) ? saved.artwork[kind].length : 0,
   });
+}
+
+async function images(env, id, url) {
+  const kind = url.searchParams.get("kind") || "logo";
+  if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|poster" }, 400);
+  const stored = await readDocument(env, id);
+  const imdb = url.searchParams.get("imdb") || stored?.ids?.imdb?.value;
+  const located = await locateTmdb(env, stored, imdb);
+  if (!located) return json({ error: "bad_request", hint: "pass ?imdb=tt… or open the title once" }, 400);
+  const payload = await tmdbGet(env, `/3/${located.type}/${located.tmdbId}/images`);
+  if (!payload) return json({ error: "bad_gateway", hint: "TMDB images did not answer" }, 502);
+  const field = kind === "logo" ? "logos" : kind === "poster" ? "posters" : "backdrops";
+  const grouped = { ru: [], en: [], und: [] };
+  for (const file of payload[field] || []) {
+    const bucket = langBucket(file.iso_639_1);
+    if (!bucket) continue;
+    grouped[bucket].push(presentFile(file));
+  }
+  for (const bucket of Object.keys(grouped)) {
+    grouped[bucket].sort((a, b) => compareRank(rankOf(kind, a), rankOf(kind, b)));
+    if (grouped[bucket][0]) grouped[bucket][0].pick = true;
+  }
+  return json({
+    ok: true,
+    id,
+    kind,
+    tmdb: `${located.type}/${located.tmdbId}`,
+    ...grouped,
+    stored: (stored?.artwork?.[kind] || []).map((item) => ({
+      url: item.url, lang: item.lang ?? null, pinned: item.pinned === true,
+      width: item.width ?? null, height: item.height ?? null,
+    })),
+  });
+}
+
+async function locateTmdb(env, stored, imdb) {
+  const existing = stored?.ids?.tmdb?.value;
+  if (typeof existing === "string" && existing.includes("/")) {
+    const [type, tmdbId] = existing.split("/");
+    if ((type === "movie" || type === "tv") && tmdbId) return { type, tmdbId };
+  }
+  if (!imdb) return null;
+  const found = await tmdbGet(env, `/3/find/${imdb}?external_source=imdb_id`);
+  const preferTv = stored?.kind === "show";
+  const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
+  for (const type of order) {
+    const hit = found?.[`${type}_results`]?.[0];
+    if (hit?.id) return { type, tmdbId: String(hit.id) };
+  }
+  return null;
+}
+
+async function tmdbGet(env, path) {
+  if (!env?.TMDB_READ_TOKEN) return null;
+  const response = await fetch(`https://api.themoviedb.org${path}`, {
+    headers: { Accept: "application/json", Authorization: `Bearer ${env.TMDB_READ_TOKEN}` },
+  });
+  return response.ok ? response.json() : null;
+}
+
+function langBucket(iso) {
+  if (iso === "ru" || iso === "en") return iso;
+  if (!iso) return "und";
+  return null;
+}
+
+function presentFile(file) {
+  const path = file.file_path || "";
+  const from = (path.match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase() || "";
+  const original = `https://image.tmdb.org/t/p/original${path}`;
+  const url = from === "svg" ? original.replace(/\.svg$/i, ".png") : original;
+  return {
+    url,
+    from: from || null,
+    width: file.width ?? null,
+    height: file.height ?? null,
+    vote: file.vote_average ?? null,
+  };
+}
+
+function rankOf(kind, item) {
+  if (kind !== "logo") return [-(item.width || 0)];
+  const raster = item.from === "png" || item.from === "jpg" || item.from === "jpeg" || item.from === "webp";
+  return [raster ? 0 : 1, -(item.height || 0), item.width || 0];
+}
+
+function compareRank(a, b) {
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+  }
+  return 0;
 }
 
 async function pick(request, env, id) {

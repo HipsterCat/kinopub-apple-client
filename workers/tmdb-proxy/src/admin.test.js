@@ -62,6 +62,42 @@ test("pick pins a logo and the image route serves that file", async () => {
   assert.equal(image.headers.get("content-language"), "en");
 });
 
+test("images returns the ru, en and textless files for one title", async () => {
+  const env = memoryEnv({
+    "title:kinopub:7": {
+      kind: "movie",
+      ids: { tmdb: { value: "movie/550" }, imdb: { value: "tt0137523" } },
+    },
+  });
+  env.TMDB_READ_TOKEN = "test";
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(String(url), "https://api.themoviedb.org/3/movie/550/images");
+    return new Response(JSON.stringify({
+      logos: [
+        { iso_639_1: "en", file_path: "/wide.svg", width: 2000, height: 280 },
+        { iso_639_1: "en", file_path: "/white.png", width: 400, height: 600 },
+        { iso_639_1: "ru", file_path: "/ru.png", width: 300, height: 300 },
+        { iso_639_1: null, file_path: "/blank.png", width: 100, height: 100 },
+        { iso_639_1: "de", file_path: "/de.png", width: 10, height: 10 },
+      ],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await handleAdmin(admin("/admin/kinopub/7/images?kind=logo"), env);
+    const body = await response.json();
+    assert.equal(body.en[0].url, "https://image.tmdb.org/t/p/original/white.png");
+    assert.equal(body.en[0].pick, true);
+    assert.equal(body.en[1].url, "https://image.tmdb.org/t/p/original/wide.png");
+    assert.equal(body.en[1].from, "svg");
+    assert.equal(body.ru[0].url, "https://image.tmdb.org/t/p/original/ru.png");
+    assert.equal(body.und[0].url, "https://image.tmdb.org/t/p/original/blank.png");
+    assert.equal(body.de, undefined);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("forget clears the logo", async () => {
   const env = memoryEnv({
     "title:kinopub:7": {
