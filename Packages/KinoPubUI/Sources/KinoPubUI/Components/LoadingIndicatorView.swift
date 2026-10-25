@@ -13,6 +13,9 @@ public struct LoadingIndicatorView: View {
   private let delay: Duration
 
   @State private var isVisible: Bool = false
+#if os(tvOS)
+  @FocusState private var holdsRemoteFocus: Bool
+#endif
 
   /// - Parameter delay: how long the screen stays empty before the spinner appears.
   public init(delay: Duration = .milliseconds(300)) {
@@ -20,19 +23,32 @@ public struct LoadingIndicatorView: View {
   }
 
   public var body: some View {
-    ProgressView()
-#if !os(tvOS)
-      .tint(Color.KinoPub.text)
+    ZStack {
+#if os(tvOS)
+      // Spinner-only pages had no focus target — Menu quit the app instead of going back.
+      Color.clear
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .focusable()
+        .focused($holdsRemoteFocus)
 #endif
-      .controlSize(.large)
-      .opacity(isVisible ? 1 : 0)
-      .animation(.easeIn(duration: 0.2), value: isVisible)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .task {
-        try? await Task.sleep(for: delay)
-        guard !Task.isCancelled else { return }
-        isVisible = true
-      }
+      ProgressView()
+#if !os(tvOS)
+        .tint(Color.KinoPub.text)
+#endif
+        .controlSize(.large)
+        .opacity(isVisible ? 1 : 0)
+        .animation(.easeIn(duration: 0.2), value: isVisible)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+#if os(tvOS)
+    .focusSection()
+    .onAppear { holdsRemoteFocus = true }
+#endif
+    .task {
+      try? await Task.sleep(for: delay)
+      guard !Task.isCancelled else { return }
+      isVisible = true
+    }
   }
 }
 

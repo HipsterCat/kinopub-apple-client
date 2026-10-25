@@ -1663,9 +1663,11 @@ final class TVPageStatusView: UIView {
   /// Owns the hosted `UnavailableView`. Set before the first `apply`.
   weak var hostParent: UIViewController?
 
-  /// True when the status itself is a focus target (the retry button). An empty
-  /// state is not: nothing on it takes the remote.
-  var claimsFocus: Bool { !retryButton.isHidden }
+  /// True when the status should own the remote — retry, or a loading spinner with
+  /// nothing else on the page to land on.
+  var claimsFocus: Bool { loadingClaimsFocus || !retryButton.isHidden }
+
+  private var loadingClaimsFocus = false
 
   private let spinner = UIActivityIndicatorView(style: .large)
   private let label = UILabel()
@@ -1706,23 +1708,28 @@ final class TVPageStatusView: UIView {
     unavailableHost?.view.isHidden = true
     switch status {
     case .content:
+      loadingClaimsFocus = false
       spinner.stopAnimating()
       label.text = nil
       retryButton.isHidden = true
     case .loading(let text):
+      loadingClaimsFocus = true
       spinner.startAnimating()
       label.text = text
       retryButton.isHidden = true
     case .failed(let message, let retryTitle):
+      loadingClaimsFocus = false
       spinner.stopAnimating()
       label.text = message
       retryButton.configuration?.title = retryTitle
       retryButton.isHidden = false
     case .message(let text):
+      loadingClaimsFocus = false
       spinner.stopAnimating()
       label.text = text
       retryButton.isHidden = true
     case .unavailable(let title, let symbol, let message):
+      loadingClaimsFocus = false
       spinner.stopAnimating()
       label.text = nil
       retryButton.isHidden = true
@@ -1758,8 +1765,12 @@ final class TVPageStatusView: UIView {
     unavailableHost = host
   }
 
+  override var canBecomeFocused: Bool { claimsFocus }
+
   override var preferredFocusEnvironments: [UIFocusEnvironment] {
-    retryButton.isHidden ? [] : [retryButton]
+    if !retryButton.isHidden { return [retryButton] }
+    if loadingClaimsFocus { return [self] }
+    return []
   }
 }
 

@@ -215,7 +215,9 @@ struct MediaItemView: View {
             }
           )
         } else if !itemModel.itemLoaded && !itemModel.hasPaintedItem {
+#if !os(tvOS)
           LoadingIndicatorView(delay: .milliseconds(700))
+#endif
         }
       }
       .animation(.easeInOut(duration: 0.3), value: itemModel.itemLoaded)
@@ -322,7 +324,11 @@ struct MediaItemView: View {
         // its `.task` — Follow when it leads, else Play.
         .defaultFocus($focus, entryFocus, priority: .userInitiated)
     } else {
+#if os(tvOS)
+      LoadingIndicatorView(delay: .milliseconds(700))
+#else
       Color.clear
+#endif
     }
   }
 
