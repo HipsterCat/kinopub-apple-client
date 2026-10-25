@@ -5,6 +5,7 @@
  * GET /t/p/... → image.tmdb.org/t/p/...   (no auth; bypasses local image.tmdb.org blocks)
  */
 
+import { handleAdmin } from "./admin.js";
 import { handleSeasons } from "./seasons.js";
 import { handleImage, handleTitle } from "./title.js";
 
@@ -18,11 +19,14 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
 
+    const url = new URL(request.url);
+    if (url.pathname.startsWith("/admin/")) {
+      return handleAdmin(request, env, ctx);
+    }
+
     if (request.method !== "GET" && request.method !== "HEAD") {
       return json({ error: "method_not_allowed" }, 405);
     }
-
-    const url = new URL(request.url);
 
     // Our own API, keyed by kino.pub id. Everything below it is the raw TMDB
     // passthrough the app used before this existed.

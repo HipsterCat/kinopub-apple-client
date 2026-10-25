@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test src/title.test.js src/seasons.test.js"
+    "test": "node --test src/title.test.js src/seasons.test.js src/admin.test.js"
   }
 }

@@ -69,9 +69,15 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 1. **Instant, by kino.pub id, no details needed** —
    `GET /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e=`
    with `Accept-Language` (`ru` by default, `en` when the app is not Russian).
-   Language is not a query parameter. Answers **302** to one file of that kind,
-   or **404**. `w` is a pixel width (snap up to that CDN's own bucket; omit it
-   for the largest file we will send, 3840).
+   Language is not a query parameter. The answer is **302** to our own URL
+   `…/{ru|en|und}/{kind}.png`, and that URL returns the bytes.
+   `Content-Language` is the same tag: `ru`, `en`, or `und` when the file has
+   no language. A cold id waits up to 5 seconds. **404** means there is no
+   file, or that wait ran out (`Cache-Control: no-store` on the timeout).
+   `w` is a pixel width (snap up to that CDN's own bucket; omit it
+   for the largest file we will send, 3840). A TMDB logo whose path ends in
+   `.svg` is fetched as `.png`. Among TMDB logos, a PNG beats an SVG; the
+   taller PNG wins, and the narrower one wins a tie.
    **Backdrop ignores `Accept-Language`.** It is a textless wide frame, or 404.
    A titled banner, a portrait, and any kino.pub CDN url are not a backdrop.
    `s` on `poster` is that season's poster. `s` and `e` on `thumbnail` is that
