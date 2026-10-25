@@ -384,6 +384,7 @@ struct MediaItemView: View {
                             onMarkUnwatchedInSeason: { itemModel.markUnwatchedInSeason($0) },
                             onMarkAllEpisodesWatched: { itemModel.markAllEpisodesWatched() },
                             titleLogoURL: itemModel.heroLogoURL,
+                            titleLogoRequestKind: itemModel.heroLogoRequestKind,
                             preferredBackdropURL: itemModel.heroBackdropURL,
                             ageRating: itemModel.externalMetadata.ageRating,
                             externalMetadataLoaded: itemModel.heroLogoResolved,

@@ -13,6 +13,31 @@ import Foundation
 /// **One title, one URL.** The Home banner and the detail hero build it from the same
 /// inputs (kino.pub id + IMDb id + the same width), so the hero gets the banner's bytes
 /// from the artwork cache instead of downloading the same logo again.
+/// Which logo the worker route asks for (`lang` query). Drives the line spelled under
+/// a wordmark on the detail hero once we treat the fetched image as that request.
+public enum TitleLogoRequestKind: Sendable, Equatable {
+  /// No `lang` on the route — Russian first, then English (``TitleImageRoute`` default).
+  case russianPreferred
+  /// `lang=en` on the route.
+  case english
+
+  public init(routeLanguage: String?) {
+    self = routeLanguage == "en" ? .english : .russianPreferred
+  }
+
+  /// Caption under a confirmed logo: English wordmark → localized name; Russian
+  /// wordmark → original / international title when it differs.
+  public func supplementaryUnderLogo(localized: String, original: String) -> String? {
+    switch self {
+    case .english:
+      return localized.isEmpty ? nil : localized
+    case .russianPreferred:
+      guard localized != original, !original.isEmpty else { return nil }
+      return original
+    }
+  }
+}
+
 public struct TitleImageRoute: Sendable, Hashable {
   public enum Kind: String, Sendable {
     /// `thumbnail` is an episode still and needs a season and an episode.
@@ -30,6 +55,10 @@ public struct TitleImageRoute: Sendable, Hashable {
   }
 
   public var isConfigured: Bool { baseURL != nil }
+
+  public var logoRequestKind: TitleLogoRequestKind {
+    TitleLogoRequestKind(routeLanguage: language)
+  }
 
   /// - Parameters:
   ///   - width: pixels the picture is drawn at; `nil` asks for the original.

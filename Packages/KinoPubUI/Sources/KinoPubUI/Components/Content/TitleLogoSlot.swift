@@ -14,6 +14,10 @@ public struct TitleLogoSlot<Title: View>: View {
   private let resolution: TitleLogoResolution
   private let maxWidth: CGFloat
   private let maxHeight: CGFloat
+  /// Lettered title width when it differs from the logo box (detail hero uses ~80% of
+  /// the column). `nil` keeps the logo `maxWidth`.
+  private let textMaxWidth: CGFloat?
+  private let onMarkChange: ((TitleLogoMark) -> Void)?
   private let title: () -> Title
 
   @StateObject private var session: TitleLogoSession
@@ -22,12 +26,16 @@ public struct TitleLogoSlot<Title: View>: View {
     resolution: TitleLogoResolution,
     maxWidth: CGFloat,
     maxHeight: CGFloat,
+    textMaxWidth: CGFloat? = nil,
     policy: TitleLogoPresentationPolicy = .whenResolved,
+    onMarkChange: ((TitleLogoMark) -> Void)? = nil,
     @ViewBuilder title: @escaping () -> Title
   ) {
     self.resolution = resolution
     self.maxWidth = maxWidth
     self.maxHeight = maxHeight
+    self.textMaxWidth = textMaxWidth
+    self.onMarkChange = onMarkChange
     self.title = title
     _session = StateObject(wrappedValue: TitleLogoSession(policy: policy))
   }
@@ -37,14 +45,18 @@ public struct TitleLogoSlot<Title: View>: View {
     lookupComplete: Bool,
     maxWidth: CGFloat,
     maxHeight: CGFloat,
+    textMaxWidth: CGFloat? = nil,
     policy: TitleLogoPresentationPolicy = .whenResolved,
+    onMarkChange: ((TitleLogoMark) -> Void)? = nil,
     @ViewBuilder title: @escaping () -> Title
   ) {
     self.init(
       resolution: TitleLogoResolution(url: url, lookupComplete: lookupComplete),
       maxWidth: maxWidth,
       maxHeight: maxHeight,
+      textMaxWidth: textMaxWidth,
       policy: policy,
+      onMarkChange: onMarkChange,
       title: title
     )
   }
@@ -53,7 +65,7 @@ public struct TitleLogoSlot<Title: View>: View {
     // A cached decode must paint on this frame, before `.onAppear` runs the session.
     let cached = resolution.url.flatMap { Artwork.cachedImage(for: $0) }
     let mark: TitleLogoMark = cached != nil ? .logo : session.mark
-    ZStack(alignment: .leading) {
+    Group {
       switch mark {
       case .logo:
         logoView(
@@ -62,15 +74,21 @@ public struct TitleLogoSlot<Title: View>: View {
         )
       case .text:
         title()
+          .frame(maxWidth: textMaxWidth ?? maxWidth, alignment: .leading)
       case .empty:
         Color.clear
+          .frame(maxWidth: maxWidth, minHeight: maxHeight, maxHeight: maxHeight, alignment: .topLeading)
       }
     }
-    // Reserved to the logo box so empty → logo / text does not shove the actions.
-    .frame(maxWidth: maxWidth, minHeight: maxHeight, maxHeight: maxHeight, alignment: .leading)
-    .onAppear { session.setResolution(resolution) }
+    .onAppear {
+      session.setResolution(resolution)
+      onMarkChange?(mark)
+    }
     .onChange(of: resolution) { _, new in
       session.setResolution(new)
+    }
+    .onChange(of: mark) { _, new in
+      onMarkChange?(new)
     }
   }
 
@@ -80,7 +98,8 @@ public struct TitleLogoSlot<Title: View>: View {
       image
         .resizable()
         .scaledToFit()
-        .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: .leading)
+        .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
     } else {
       Color.clear
     }

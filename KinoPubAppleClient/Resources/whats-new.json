@@ -4,6 +4,9 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Каталог: у концерта под обложкой год и название тура, а не жанр. В разделах «Документалки», «Аниме» и «Мультфильмы» подпись показывает следующий жанр. Строка под названием — мельче и обычным начертанием.",
+        "Страница тайтла: буквенное название до 80% ширины и в несколько строк; под логотипом — полное локализованное и оригинальное название, тоже без обрезки в одну строку.",
+        "Apple TV, светлая тема: кнопки под баннером — системные, их видно на белом фоне, и они растут вместе с размером текста.",
         "Apple TV: пока страница грузится (один спиннер), фокус остаётся на ней — Menu возвращает назад, а не выходит из приложения.",
         "Страница тайтла: без широкой картинки постер стоит справа внизу, а не растягивается на фон; когда широкий кадр загрузится, постер плавно исчезает.",
         "Главная, «Фильмы» и «Сериалы»: в баннере только тайтлы с широкой картинкой от kino.pub — без пустого фона.",
@@ -65,6 +68,9 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Catalog: a concert's caption is the year and the tour name, not the genre. In Documentaries, Anime and Cartoons the caption names the next genre. The line under the title is smaller, regular weight.",
+        "Title page: lettered titles use up to 80% width and wrap; under a logo you see the full localized and original names, also without a one-line clip.",
+        "Apple TV, light appearance: the buttons under the banner use the system style, stay visible on white, and grow with the text size.",
         "Apple TV: while a page is loading (spinner only), focus stays on that page — Menu goes back instead of quitting the app.",
         "Title page: without a wide still the poster sits bottom-trailing instead of stretching as the backdrop; when a wide frame loads, the poster fades out.",
         "Home, Movies and Series: the hero banner only features titles with a real kino.pub wide still — no empty backdrop.",

@@ -141,6 +141,14 @@ class MediaItemModel: ObservableObject {
     metadataService.images.isConfigured ? heroImagesReady : externalMetadataLoaded
   }
 
+  /// Matches the `lang` on ``heroLogoURL`` — what we expect the wordmark to be.
+  var heroLogoRequestKind: TitleLogoRequestKind {
+    if metadataService.images.isConfigured {
+      return metadataService.images.logoRequestKind
+    }
+    return TitleLogoRequestKind(routeLanguage: TitleImageRoute.appLanguage)
+  }
+
   private var heroImagesReady: Bool {
     hasPaintedItem && (mediaItem.imdb != nil || itemLoaded)
   }

@@ -187,4 +187,15 @@ final class TitleImageRouteTests: XCTestCase {
     XCTAssertNil(TitleImageRoute(baseURL: nil).logo(kinopubID: 5, imdb: 42, width: 960))
     XCTAssertNil(TitleImageRoute(baseURL: worker).logo(kinopubID: 0, imdb: 42, width: 960))
   }
+
+  func testSupplementaryUnderLogoFollowsRequestLanguage() {
+    let ru = TitleLogoRequestKind(routeLanguage: nil)
+    XCTAssertEqual(ru.supplementaryUnderLogo(localized: "Йеллоустоун", original: "Yellowstone"),
+                   "Yellowstone")
+    XCTAssertNil(ru.supplementaryUnderLogo(localized: "Solo", original: "Solo"))
+
+    let en = TitleLogoRequestKind(routeLanguage: "en")
+    XCTAssertEqual(en.supplementaryUnderLogo(localized: "Йеллоустоун", original: "Yellowstone"),
+                   "Йеллоустоун")
+  }
 }

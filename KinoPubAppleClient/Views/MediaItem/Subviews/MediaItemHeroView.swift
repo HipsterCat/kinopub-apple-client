@@ -10,6 +10,7 @@ import Combine
 import KinoPubUI
 import KinoPubBackend
 import KinoPubMedia
+import KinoPubMetadata
 
 /// Loads the trailer alongside the artwork and reports when it is actually ready to
 /// show, so the hero only swaps once there is something to swap to.
@@ -294,6 +295,8 @@ struct MediaItemHeroView: View {
   var onMarkAllEpisodesWatched: (() -> Void)? = nil
   /// TMDB / Kinopoisk title logo when enrichment supplied one.
   var titleLogoURL: URL? = nil
+  /// Which logo language the image route asked for (worker `lang` or default ru-first).
+  var titleLogoRequestKind: TitleLogoRequestKind = .russianPreferred
   /// Clean textless TMDB backdrop when enrichment supplied one.
   var preferredBackdropURL: URL? = nil
   /// Certification from enrichment ("TV-14", "16+"). Rendered as one more capability
@@ -318,6 +321,8 @@ struct MediaItemHeroView: View {
   /// Actions currently showing a spinner (Mark Watched, Follow, …). Cleared when the
   /// underlying flag flips, or by the control itself once the tap returns.
   @State private var loadingActions: Set<MediaActionID> = []
+  /// True while the title slot is showing artwork instead of lettered type.
+  @State private var titleShowsLogo = false
 #if os(tvOS)
   /// Once Play (or Follow-primary) has held focus, the synopsis joins the focus
   /// chain. Until then it stays a plain paragraph so it cannot steal entry focus
@@ -834,37 +839,58 @@ struct MediaItemHeroView: View {
   private var titleBlock: some View {
     // Same session as the Home banner: empty while a logo is expected, cached
     // logo on the first frame, lettered title only after a confirmed miss.
-    TitleLogoSlot(
-      resolution: TitleLogoResolution(
-        url: titleLogoURL,
-        lookupComplete: externalMetadataLoaded
-      ),
-      maxWidth: Self.logoMaxWidth,
-      maxHeight: Self.logoMaxHeight
-    ) {
-      titleTextBlock
+    VStack(alignment: .leading, spacing: Self.contentSpacing) {
+      TitleLogoSlot(
+        resolution: TitleLogoResolution(
+          url: titleLogoURL,
+          lookupComplete: externalMetadataLoaded
+        ),
+        maxWidth: Self.logoMaxWidth,
+        maxHeight: Self.logoMaxHeight,
+        textMaxWidth: .infinity,
+        onMarkChange: { titleShowsLogo = ($0 == .logo) }
+      ) {
+        titlePrimaryText
+      }
+      titleSupplementaryBlock
     }
+    .containerRelativeFrame(.horizontal, count: 5, span: 4, spacing: 0, alignment: .leading)
     .id(mediaItem.id)
     .padding(.top, Self.bottomInset / 1.5)
     .accessibilityElement(children: .combine)
     .accessibilityLabel(mediaItem.localizedTitle)
   }
 
-  private var titleTextBlock: some View {
-       VStack(alignment: .leading, spacing: Self.contentSpacing) {
-            // Above the localized title, as an eyebrow: it is the same title, not a second
-            // piece of information, so it leads into the big one rather than trailing it.
-            Text(mediaItem.localizedTitle)
-                 .font(Self.titleFont)
-                 .foregroundStyle(Color.KinoPub.text)
-                 .lineLimit(4)
-            
-            if mediaItem.originalTitle != mediaItem.localizedTitle {
-                 Text(mediaItem.originalTitle)
-                      .font(Self.secondaryFont)
-                      .foregroundStyle(Color.KinoPub.subtitle)
-                      .lineLimit(1)
-            }}
+  private var titlePrimaryText: some View {
+    Text(mediaItem.localizedTitle)
+      .font(Self.titleFont)
+      .foregroundStyle(Color.KinoPub.text)
+      .multilineTextAlignment(.leading)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+
+  /// Under the logo: localized vs original from the requested logo language. Under
+  /// lettered type: original when it differs from the big localized line.
+  @ViewBuilder
+  private var titleSupplementaryBlock: some View {
+    if let line = supplementaryUnderTitle {
+      Text(line)
+        .font(Self.secondaryFont)
+        .foregroundStyle(Color.KinoPub.subtitle)
+        .multilineTextAlignment(.leading)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private var supplementaryUnderTitle: String? {
+    if titleShowsLogo {
+      return titleLogoRequestKind.supplementaryUnderLogo(
+        localized: mediaItem.localizedTitle,
+        original: mediaItem.originalTitle
+      )
+    }
+    guard mediaItem.originalTitle != mediaItem.localizedTitle else { return nil }
+    return mediaItem.originalTitle
   }
 
   /// Heads the written column: the score, when and how long, then the capability
