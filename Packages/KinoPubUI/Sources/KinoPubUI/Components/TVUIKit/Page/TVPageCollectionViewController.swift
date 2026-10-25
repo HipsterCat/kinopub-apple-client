@@ -1795,11 +1795,13 @@ final class TVPageStatusView: UIView {
 /// extension (`extendToWindow`). The tab bar and the field follow this offset, so the bar
 /// stayed hidden above the screen with the field pinned under the top edge, and Up then
 /// focused a bar that was not there (measured, 26.5; 27.2 asks for the adjusted top).
-/// That target means "the top", so it lands at the real top.
+/// That target means "the top", so it lands at the real top. Within a point: the animator
+/// rounds its target, and asked for -241.5 against a 242 pt safe area (measured, 26.5,
+/// 2026-10-25), half a point outside the exact match this first checked.
 final class TVPageCollectionView: UICollectionView {
   override func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
     var target = contentOffset
-    if contentInset.top > 0.5, abs(target.y + safeAreaInsets.top) < 0.5 {
+    if contentInset.top > 0.5, abs(target.y + safeAreaInsets.top) <= 1 {
       target.y = -adjustedContentInset.top
     }
     super.setContentOffset(target, animated: animated)
