@@ -80,16 +80,18 @@ final class SectionVisibilityStore: ObservableObject {
   /// Default catalog of browse tabs in bar order.
   static let allBrowseTabs: [BrowseTabSpec] = {
     var tabs: [BrowseTabSpec] = [
-      BrowseTabSpec(id: "home", tab: .home, titleKey: "Watch Now",
-                    localizedTitle: "Watch Now".localized, systemImage: "house.fill", defaultVisible: true),
-      BrowseTabSpec(id: "catalog", tab: .catalog, titleKey: "Catalog",
-                    localizedTitle: "Каталог", systemImage: "square.grid.2x2", defaultVisible: true),
-      BrowseTabSpec(id: "movies", tab: .movies, titleKey: "Movies",
-                    localizedTitle: "Movies".localized, systemImage: "movieclapper", defaultVisible: true),
+      BrowseTabSpec(id: "home", tab: .home, titleKey: "Home",
+                    localizedTitle: "Home".localized, systemImage: "house.fill", defaultVisible: true),
+      BrowseTabSpec(id: "library", tab: .library, titleKey: "TabLibrary",
+                    localizedTitle: "TabLibrary".localized, systemImage: "rectangle.stack.badge.person.crop", defaultVisible: true),
       BrowseTabSpec(id: "series", tab: .series, titleKey: "Series",
                     localizedTitle: "Series".localized, systemImage: "rectangle.stack", defaultVisible: true),
-      BrowseTabSpec(id: "collections", tab: .collections, titleKey: "Collections",
-                    localizedTitle: "Collections".localized, systemImage: "rectangle.3.group", defaultVisible: true),
+      BrowseTabSpec(id: "movies", tab: .movies, titleKey: "Movies",
+                    localizedTitle: "Movies".localized, systemImage: "movieclapper", defaultVisible: true),
+      BrowseTabSpec(id: "collections", tab: .collections, titleKey: "Bundles",
+                    localizedTitle: "Bundles".localized, systemImage: "rectangle.3.group", defaultVisible: false),
+      BrowseTabSpec(id: "catalog", tab: .catalog, titleKey: "Catalog",
+                    localizedTitle: "Catalog".localized, systemImage: "square.grid.2x2", defaultVisible: true),
     ]
 #if os(tvOS)
     tabs.append(
@@ -97,10 +99,6 @@ final class SectionVisibilityStore: ObservableObject {
                     localizedTitle: "TV".localized, systemImage: "tv", defaultVisible: true)
     )
 #endif
-    tabs.append(
-      BrowseTabSpec(id: "library", tab: .library, titleKey: "Library",
-                    localizedTitle: "Library".localized, systemImage: "rectangle.stack.badge.person.crop", defaultVisible: true)
-    )
     return tabs
   }()
 

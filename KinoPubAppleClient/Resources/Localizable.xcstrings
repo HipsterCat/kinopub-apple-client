@@ -1470,7 +1470,21 @@
       }
     },
     "Catalog" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Catalog"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каталог"
+          }
+        }
+      }
     },
     "CC" : {
       "localizations" : {
@@ -1662,6 +1676,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Collections"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подборки"
+          }
+        }
+      }
+    },
+    "Bundles" : {
+      "comment" : "Browse tab for kino.pub collections (not localized as “Bundles” in Russian).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bundles"
           }
         },
         "ru" : {
@@ -3910,7 +3942,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Watch Now"
+            "value" : "Home"
           }
         },
         "ru" : {
@@ -4723,6 +4755,176 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Все закладки"
+          }
+        }
+      }
+    },
+    "Library_EmptyBookmarksMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved titles will show up here. Nothing yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранённые фильмы и сериалы появятся здесь. Пока ничего."
+          }
+        }
+      }
+    },
+    "Library_EmptyContinue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to Continue"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нечего продолжать"
+          }
+        }
+      }
+    },
+    "Library_EmptyContinueMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Films and series you start will show up here. Nothing yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начатые фильмы и сериалы появятся здесь. Пока ничего."
+          }
+        }
+      }
+    },
+    "Library_EmptyFolder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Folder is Empty"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка пуста"
+          }
+        }
+      }
+    },
+    "Library_EmptyFolderMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titles you save here will show up in this folder. Nothing yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фильмы и сериалы, которые вы сохраните сюда, появятся здесь. Пока ничего."
+          }
+        }
+      }
+    },
+    "Library_EmptyHistoryMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you watch will be listed here. Nothing yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Здесь появится то, что вы посмотрите. Пока ничего."
+          }
+        }
+      }
+    },
+    "Library_EmptySubscriptions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Subscriptions"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет подписок"
+          }
+        }
+      }
+    },
+    "Library_EmptySubscriptionsMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Series you follow will show up here. Nothing yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сериалы, на которые вы подпишетесь, появятся здесь. Пока ничего."
+          }
+        }
+      }
+    },
+    "Library_EmptyUnwatched" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing Unwatched"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет непросмотренных"
+          }
+        }
+      }
+    },
+    "Library_EmptyUnwatchedMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've caught up with everything you follow."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы досмотрели всё, на что подписаны."
           }
         }
       }
@@ -10863,6 +11065,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Повторить"
+          }
+        }
+      }
+    },
+    "TabLibrary" : {
+      "comment" : "Library browse tab label (Russian “Моё”; other “Library” strings stay “Библиотека”).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Моё"
           }
         }
       }

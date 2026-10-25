@@ -36,7 +36,7 @@ struct MainView: View {
     switch tab {
     case .movies: "Movies"
     case .series: "Series"
-    default: "Watch Now"
+    default: "Home"
     }
   }
 
@@ -442,7 +442,7 @@ struct MainView: View {
     switch tab {
     case .movies: String(localized: "Movies")
     case .series: String(localized: "Series")
-    default: String(localized: "Watch Now")
+    default: String(localized: "Home")
     }
   }
 #endif

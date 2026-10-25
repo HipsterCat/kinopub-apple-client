@@ -19,8 +19,8 @@ import KinoPubKit
 /// changed, which is how the iPad bar's comment ended up describing a shape its own code
 /// did not build.
 ///
-/// - **tvOS:** `.tabBarOnly` (top); glyph · words (Watch Now … TV, Library) · glyph. Search is
-///   the **first** tab (left of Watch Now) — not `role: .search`, which pins trailing.
+/// - **tvOS:** `.tabBarOnly` (top); glyph · words (Home … TV, Library) · glyph. Search is
+///   the **first** tab (left of Home) — not `role: .search`, which pins trailing.
 /// - **macOS:** `.tabBarOnly`; no Settings tab (Settings window / ⌘,); no Search tab —
 ///   compact trailing toolbar search via `macToolbarSearch()` on each `RouteStack`
 ///   (Finder/Photos). Return opens Search results.
@@ -224,7 +224,7 @@ struct TabsNavigationView: View {
 #endif
 
 #if os(tvOS)
-  /// Top tab bar — Search is first (left of Watch Now), not `role: .search` (that pins
+  /// Top tab bar — Search is first (left of Home), not `role: .search` (that pins
   /// trailing).
   ///
   /// The browse tabs pass a bare `Text`: `Tab("Title", systemImage:)` gives every tab an
@@ -247,18 +247,7 @@ struct TabsNavigationView: View {
           Tab(value: spec.tab) {
             content(for: spec.tab)
           } label: {
-            // Literals at the call site so String Catalog + TabView cannot drift
-            // back to Home / Shows (after shot at 8d0def4).
-            switch spec.tab {
-            case .home: Text("Watch Now")
-            case .catalog: Text("Catalog")
-            case .movies: Text("Movies")
-            case .series: Text("Series")
-            case .collections: Text("Collections")
-            case .tv: Text("TV")
-            case .library: Text("Library")
-            default: Text(spec.title)
-            }
+            Text(spec.title)
           }
         }
 

@@ -4,6 +4,9 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Вкладки: Поиск · Главная · Моё · Сериалы · Фильмы · Каталог · ТВ · Настройки; «Подборки» по умолчанию скрыты — включить в настройках.",
+        "На английском главная — Home, коллекции — Bundles; по-русски вкладка библиотеки — «Моё», подборки по-прежнему «Подборки».",
+        "Медиатека: пустые Подписки, Продолжить, История и папка закладок объясняют, что здесь появится, вместо пустого экрана.",
         "Страница тайтла: картинка остаётся, пока открыто меню, контекстное меню или окно.",
         "Внешний вид: «Обложки и изображения» — на английском или на русском. На русском постеры Кинопоиска, если у тайтла есть его id. По умолчанию как язык приложения.",
         "Поиск: «вверх» с клавиатуры возвращает на вкладку.",
@@ -57,6 +60,9 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Tabs default to Search · Home · Library · Series · Movies · Catalog · TV · Settings; Bundles is off until you turn it on in Settings.",
+        "The Watch Now tab is Home again; curated lists are Bundles (Russian stays Подборки).",
+        "Library: empty Subscriptions, Continue, History and a bookmark folder say what will show up there, instead of a blank screen.",
         "Title page: the picture stays up while a menu, context menu or dialog is open.",
         "Appearance: Covers and images, in English or in Russian. Russian uses Kinopoisk posters when a title has a Kinopoisk id. The default follows the app language.",
         "Search: Up from the keyboard returns to the tab.",
