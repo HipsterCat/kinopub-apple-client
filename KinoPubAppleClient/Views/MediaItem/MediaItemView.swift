@@ -65,15 +65,70 @@ enum MediaItemFocusTarget: Hashable {
 /// The focus engine's own answer to "is anything focused?". SwiftUI's `@FocusState`
 /// only knows the controls bound to it, so `nil` there can mean "a rail card below has
 /// focus" as easily as "nothing does" — the hero must not take focus back from the
-/// first.
+/// first, and it must not read a menu, alert or cover as the sections either.
 enum TVFocusProbe {
   @MainActor static var nothingFocused: Bool {
+    focusedItem == nil
+  }
+
+  /// Focus sits in a menu, context menu, alert, sheet or cover laid over the page.
+  /// Those take `@FocusState` off the hero without moving into the sections, and the
+  /// backdrop fades when that is read as the details (Sasha, 2026-10-25).
+  @MainActor static var focusedItemIsOverlay: Bool {
+    guard let item = focusedItem else { return false }
+    return isOverlay(item)
+  }
+
+  @MainActor private static var focusedItem: UIFocusItem? {
+    guard let window = keyWindow, let system = UIFocusSystem.focusSystem(for: window) else { return nil }
+    return system.focusedItem
+  }
+
+  @MainActor private static var keyWindow: UIWindow? {
     let windows = UIApplication.shared.connectedScenes
       .compactMap { $0 as? UIWindowScene }
-      .flatMap { $0.windows }
-    guard let window = windows.first(where: { $0.isKeyWindow }) ?? windows.first,
-          let system = UIFocusSystem.focusSystem(for: window) else { return false }
-    return system.focusedItem == nil
+      .flatMap(\.windows)
+    return windows.first(where: \.isKeyWindow) ?? windows.first
+  }
+
+  /// A presentation over the page, not a card in it. Two shapes show up here: the
+  /// system's menu and alert live outside the root controller's view (a transition
+  /// view on the window), and an over-full-screen cover is inside that view but its
+  /// controller is presented. A rail cell is neither.
+  @MainActor private static func isOverlay(_ item: UIFocusItem) -> Bool {
+    guard let view = item as? UIView, let window = view.window else { return false }
+    if let root = window.rootViewController?.view, !view.isDescendant(of: root) {
+      return true
+    }
+    var responder: UIResponder? = view
+    while let current = responder {
+      if let controller = current as? UIViewController, controllerIsPresented(controller) {
+        return true
+      }
+      if let candidate = current as? UIView, classNameIsOverlay(candidate) {
+        return true
+      }
+      responder = current.next
+    }
+    return false
+  }
+
+  @MainActor private static func controllerIsPresented(_ controller: UIViewController) -> Bool {
+    if controller is UIAlertController { return true }
+    var cursor: UIViewController? = controller
+    while let current = cursor {
+      if current.presentingViewController != nil { return true }
+      cursor = current.parent
+    }
+    return false
+  }
+
+  /// Private menu and keyboard containers that stay inside the root view. A focused
+  /// key is the New Folder alert's keyboard, never a section.
+  private static func classNameIsOverlay(_ view: UIView) -> Bool {
+    let name = NSStringFromClass(type(of: view))
+    return name.contains("ContextMenu") || name.contains("AlertController")
+      || name.contains("Keyboard") || name.contains("UIKB")
   }
 }
 #endif

@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Страница тайтла: картинка остаётся, пока открыто меню, контекстное меню или окно.",
         "Внешний вид: «Обложки и изображения» — на английском или на русском. На русском постеры Кинопоиска, если у тайтла есть его id. По умолчанию как язык приложения.",
         "Поиск: «вверх» с клавиатуры возвращает на вкладку.",
         "Поиск: сеточная клавиатура больше не замирает на кнопке с глобусом.",
@@ -56,6 +57,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Title page: the picture stays up while a menu, context menu or dialog is open.",
         "Appearance: Covers and images, in English or in Russian. Russian uses Kinopoisk posters when a title has a Kinopoisk id. The default follows the app language.",
         "Search: Up from the keyboard returns to the tab.",
         "Search: the grid keyboard no longer freezes on the globe key.",

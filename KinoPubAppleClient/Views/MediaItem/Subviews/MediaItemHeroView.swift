@@ -447,12 +447,16 @@ struct MediaItemHeroView: View {
   }
 
   /// Focus left the hero. It is the details only once something below has it and the
-  /// page is still in front — not when the player or another page took it, and not in
-  /// the instant nothing is focused while a control is rebuilt.
+  /// page is still in front — not when the player or another page took it, not in
+  /// the instant nothing is focused while a control is rebuilt, and not while a
+  /// menu, alert or cover holds focus. Those take `@FocusState` off the row without
+  /// moving into the sections, and treating them as the details faded the picture
+  /// out from behind the menu (Sasha, 2026-10-25).
   private func noteFocusLeftHero() {
     Task { @MainActor in
       try? await Task.sleep(for: .milliseconds(120))
       guard focus == nil, !isCovered, !TVFocusProbe.nothingFocused else { return }
+      guard !TVFocusProbe.focusedItemIsOverlay else { return }
       inDetails = true
     }
   }

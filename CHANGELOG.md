@@ -5,6 +5,12 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### tvOS detail page: the picture stays behind menus and dialogs (2026-10-25)
+
+- Opening a hero menu, context menu, alert or popup cleared `@FocusState` and the
+  page read that as focus moving into the sections, so `PageBackdrop` faded the
+  picture out. A presentation over the page is not the sections; the picture stays.
+
 ### Appearance: cover language (2026-10-25)
 
 - Settings › Appearance › Covers and images. Unset, it follows the app language
