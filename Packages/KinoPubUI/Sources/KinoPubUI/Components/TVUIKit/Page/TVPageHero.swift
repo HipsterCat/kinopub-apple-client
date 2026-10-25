@@ -409,6 +409,7 @@ final class TVPageHeroCell: UICollectionViewCell {
 
   private var leading: NSLayoutConstraint!
   private var wordsWidth: NSLayoutConstraint!
+  private var trailingRoom: NSLayoutConstraint!
   private var logoWidth: NSLayoutConstraint!
   private var logoHeight: NSLayoutConstraint!
   private var markHeight: NSLayoutConstraint!
@@ -501,13 +502,23 @@ final class TVPageHeroCell: UICollectionViewCell {
     contentView.addLayoutGuide(entryGuide)
 
     leading = words.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: sideInset)
-    wordsWidth = words.widthAnchor.constraint(equalToConstant: 600)
+    // The logo and the plot keep Apple TV's column (`wordsWidth`, on the mark; the plot
+    // wraps at it). The meta line may run past it to the page's side margin: it is one
+    // line, and «8 э…» cut short with half the screen free read as a bug (Sasha,
+    // 2026-10-25). The stack hugs whichever is wider.
+    wordsWidth = mark.widthAnchor.constraint(equalToConstant: 600)
+    trailingRoom = words.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor,
+                                                   constant: -sideInset)
+    let hug = words.widthAnchor.constraint(equalToConstant: 0)
+    hug.priority = .defaultLow
     logoWidth = logo.widthAnchor.constraint(equalToConstant: 0)
     logoHeight = logo.heightAnchor.constraint(equalToConstant: 0)
     markHeight = mark.heightAnchor.constraint(equalToConstant: 0)
     NSLayoutConstraint.activate([
       leading,
       wordsWidth,
+      trailingRoom,
+      hug,
       entryGuide.topAnchor.constraint(equalTo: contentView.topAnchor),
       entryGuide.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
       entryGuide.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
@@ -525,7 +536,6 @@ final class TVPageHeroCell: UICollectionViewCell {
       titleLabel.leadingAnchor.constraint(equalTo: mark.leadingAnchor),
       titleLabel.trailingAnchor.constraint(equalTo: mark.trailingAnchor),
       titleLabel.bottomAnchor.constraint(equalTo: mark.bottomAnchor),
-      mark.widthAnchor.constraint(equalTo: words.widthAnchor),
       markHeight
     ])
     updateEntryGuide(focusInButtons: false)
@@ -573,6 +583,7 @@ final class TVPageHeroCell: UICollectionViewCell {
   func configure(carousel: TVPageHeroCarousel, sideInset: CGFloat) {
     self.sideInset = sideInset
     leading.constant = sideInset
+    trailingRoom.constant = -sideInset
     self.carousel = carousel
     if carousel.cell !== self { carousel.cell = self } else { render(direction: 0) }
     updateTimer()
