@@ -209,7 +209,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .detailAmbientBackdrop: true
     case .tvOSSidecarSubtitles: false
     case .rewritesStreamTrackMenus: false
-    case .combinedRating: true
+    case .combinedRating: false
     case .playerTabsPlatter: false
 #if DEBUG
     case .fakeSeasonsOnMovies: false

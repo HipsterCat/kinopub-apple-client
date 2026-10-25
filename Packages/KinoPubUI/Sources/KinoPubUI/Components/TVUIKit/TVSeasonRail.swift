@@ -147,11 +147,11 @@ public final class TVSeasonRailController: UIViewController {
 
   /// Between the tab row and the rail. The rail's own top inset (room for the focus lift)
   /// adds 9; together they are the 22 pt Sasha asked for (2026-10-11).
-  public static let tabsToRail: CGFloat = 13
+  public static let tabsToRail: CGFloat = 16
   /// Headline text plus this above and below is a tab's height — and the row's.
   static let tabVerticalPadding: CGFloat = 10
   /// Each side of a tab's text. A tab is never narrower than tall, so one digit is a circle.
-  static let tabHorizontalPadding: CGFloat = 24
+  static let tabHorizontalPadding: CGFloat = 20
   /// Between the title and the first tab (Sasha, 2026-10-11).
   static let titleGap: CGFloat = 20
 
