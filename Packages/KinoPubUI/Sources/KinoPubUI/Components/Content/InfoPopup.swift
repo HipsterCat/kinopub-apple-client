@@ -29,11 +29,17 @@ public enum InfoPopupMetrics {
 #if os(tvOS)
   public static let maxWidth: CGFloat = 1100
   public static let padding: CGFloat = 64
-  public static let cornerRadius: CGFloat = 28
+  /// The system sheet's corner.
+  public static let cornerRadius: CGFloat = 56
   public static let titleFont: Font = .title3
   public static let subtitleFont: Font = .subheadline
   public static let bodyFont: Font = .caption
+  /// Smaller than the body: fact labels, the facts line, genres.
+  public static let captionFont: Font = .caption2
+  /// A section heading inside the popup («Информация»).
+  public static let sectionFont: Font = .headline
   public static let contentSpacing: CGFloat = 28
+  public static let scrimOpacity: Double = 0.5
 #elseif os(macOS)
   public static let maxWidth: CGFloat = 620
   public static let padding: CGFloat = 28
@@ -41,7 +47,10 @@ public enum InfoPopupMetrics {
   public static let titleFont: Font = .title2
   public static let subtitleFont: Font = .subheadline
   public static let bodyFont: Font = .body
+  public static let captionFont: Font = .footnote
+  public static let sectionFont: Font = .headline
   public static let contentSpacing: CGFloat = 18
+  public static let scrimOpacity: Double = 0.5
 #else
   public static let maxWidth: CGFloat = 640
   public static let padding: CGFloat = 24
@@ -49,7 +58,10 @@ public enum InfoPopupMetrics {
   public static let titleFont: Font = .title2
   public static let subtitleFont: Font = .subheadline
   public static let bodyFont: Font = .body
+  public static let captionFont: Font = .footnote
+  public static let sectionFont: Font = .headline
   public static let contentSpacing: CGFloat = 18
+  public static let scrimOpacity: Double = 0.5
 #endif
 }
 
@@ -94,10 +106,12 @@ public struct InfoPopupView<Content: View>: View {
   public var body: some View {
 #if os(tvOS)
     ZStack {
-      // A scrim, not a faded material: `.opacity` on a material draws the full-strength
-      // effect semi-transparently instead of weakening it (materials-blur-and-chrome).
-//      Color.black.opacity(0.55)
-//     .ignoresSafeArea()
+      // The page dims behind the panel, the way the TV app's info panel does. The system
+      // `.sheet` draws the same glass but neither dims nor grows: it is one fixed
+      // ~1000×370 pt platter whatever the content or `presentationSizing` asks (probed on
+      // tvOS 26.5, 2026-10-25), so a synopsis with an information table cannot live in it.
+      Color.black.opacity(InfoPopupMetrics.scrimOpacity)
+        .ignoresSafeArea()
       VStack(spacing: 0) {
         scrollingText
         if let confirmTitle {
@@ -107,10 +121,9 @@ public struct InfoPopupView<Content: View>: View {
         }
       }
       .frame(maxWidth: InfoPopupMetrics.maxWidth)
-      .background {
-        RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous)
-          .fill(.thinMaterial)
-      }
+      // The system's glass, rim and all — the material the tvOS sheet itself is drawn in.
+      .glassEffect(.regular,
+                   in: RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous))
       .padding(60)
       .defaultFocus($confirmFocused, confirmTitle != nil, priority: .userInitiated)
       // One focus stop — the button, or the text when there is none — so Up and Down
@@ -187,6 +200,50 @@ public struct InfoPopupView<Content: View>: View {
 
   private func close() {
     if let onDismiss { onDismiss() } else { environmentDismiss() }
+  }
+}
+
+/// A headed block inside the popup — «Информация» under a synopsis.
+public struct InfoPopupSection<Content: View>: View {
+  let title: Text
+  let content: () -> Content
+
+  public init(_ title: Text, @ViewBuilder content: @escaping () -> Content) {
+    self.title = title
+    self.content = content
+  }
+
+  public var body: some View {
+    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing * 0.75) {
+      title
+        .font(InfoPopupMetrics.sectionFont)
+        .foregroundStyle(Color.KinoPub.text)
+      content()
+    }
+    .padding(.top, InfoPopupMetrics.contentSpacing * 0.5)
+  }
+}
+
+/// One fact: a grey label over its value, as the TV app's information table stacks them.
+public struct InfoPopupFact: View {
+  let label: Text
+  let value: String
+
+  public init(_ label: Text, value: String) {
+    self.label = label
+    self.value = value
+  }
+
+  public var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      label
+        .font(InfoPopupMetrics.captionFont)
+        .foregroundStyle(Color.KinoPub.subtitle)
+      Text(verbatim: value)
+        .font(InfoPopupMetrics.bodyFont)
+        .foregroundStyle(Color.KinoPub.text)
+        .fixedSize(horizontal: false, vertical: true)
+    }
   }
 }
 

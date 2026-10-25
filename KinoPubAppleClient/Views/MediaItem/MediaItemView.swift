@@ -391,6 +391,7 @@ struct MediaItemView: View {
                             titlePartnerLine: itemModel.heroTitlePartnerLine,
                             preferredBackdropURL: itemModel.heroBackdropURL,
                             ageRating: itemModel.externalMetadata.ageRating,
+                            externalMetadata: itemModel.externalMetadata,
                             externalMetadataLoaded: itemModel.heroLogoResolved,
                             onFocusEntered: {
                               withAnimation(.easeInOut(duration: 0.4)) {

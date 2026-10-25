@@ -3383,6 +3383,11 @@ struct MediaItemPlotView: View {
   /// entry focus — otherwise it is the topmost focusable and steals Play on open
   /// (blink). Once true, Up from Play reaches it as usual.
   var allowsFocus: Bool = true
+  /// Under the popup's title: the original (or international) name.
+  var popupSubtitle: String? = nil
+  /// The title the popup summarises — genres, the facts line with its badges, and the
+  /// information table under the full synopsis. Nil shows the synopsis alone.
+  var summary: MediaItemSynopsisSummary? = nil
 
   /// The two heights the truncation decision is made from, kept as state so it is
   /// remade every time the layout changes — the old `ViewThatFits` probe latched
@@ -3442,8 +3447,13 @@ struct MediaItemPlotView: View {
         .padding(.horizontal, -Self.focusInsetH)
         .padding(.vertical, -Self.focusInsetV)
         .accessibilityIdentifier("hero.plot")
-        .infoPopup(Text(title), isPresented: $isPresented) {
-          expandedPlot
+        .infoPopup(Text(title), subtitle: popupSubtitle.map { Text(verbatim: $0) },
+                   isPresented: $isPresented) {
+          if let summary {
+            MediaItemSynopsisPopupContent(plot: plot, summary: summary)
+          } else {
+            expandedPlot
+          }
         }
         .onChange(of: isPresented) { _, presented in
           if !presented { focus = .plot }
@@ -3600,6 +3610,171 @@ private struct PlotParagraphLabel: View {
   }
 }
 #endif
+
+/// What the synopsis popup summarises besides the text itself.
+struct MediaItemSynopsisSummary {
+  var mediaItem: MediaItem
+  /// TMDB's answer: certification, air dates, status. Empty until it lands.
+  var metadata: TitleMetadata = TitleMetadata()
+}
+
+/// The synopsis popup: what the hero leaves out, not what it already says. One line
+/// with every piece that identifies the title — kind, every genre, the years, how much
+/// of it there is, the certification and the capability chips — then the full text,
+/// then what one picks a title by and cannot see on the page without digging: every
+/// audio language with its dubs, the subtitles, the video, who made it and where.
+/// No row repeats the facts line (a «Год: 2006» row told nobody anything).
+struct MediaItemSynopsisPopupContent: View {
+  let plot: String
+  let summary: MediaItemSynopsisSummary
+
+  private var item: MediaItem { summary.mediaItem }
+  private var metadata: TitleMetadata { summary.metadata }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+      factsLine
+
+      Text(plot)
+        .font(InfoPopupMetrics.bodyFont)
+        .foregroundStyle(Color.KinoPub.text)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if !audioGroups.isEmpty {
+        InfoPopupSection(Text("Audio")) {
+          ForEach(audioGroups) { group in
+            InfoPopupFact(Text(verbatim: group.name),
+                          value: group.detailLines.joined(separator: "\n"))
+          }
+        }
+      }
+
+      if !subtitleNames.isEmpty {
+        InfoPopupSection(Text("Subtitles")) {
+          Text(verbatim: subtitleNames.joined(separator: ", "))
+            .font(InfoPopupMetrics.bodyFont)
+            .foregroundStyle(Color.KinoPub.text)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      if !videoLines.isEmpty {
+        InfoPopupSection(Text("MediaItem_SpecVideo")) {
+          Text(verbatim: videoLines.joined(separator: "\n"))
+            .font(InfoPopupMetrics.bodyFont)
+            .foregroundStyle(Color.KinoPub.text)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      let facts = self.facts
+      if !facts.isEmpty {
+        InfoPopupSection(Text("Information")) {
+          ForEach(facts, id: \.label) { fact in
+            InfoPopupFact(Text(LocalizedStringKey(fact.label)), value: fact.value)
+          }
+        }
+      }
+    }
+  }
+
+  // MARK: Facts line
+
+  /// «Сериал · Документальный · Расследование · 2006– · 20 сезонов (704 серии) · 16+»
+  /// and the chips — 4K, HDR, the sound, CC.
+  private var factsLine: some View {
+    let badges = MediaCapabilityBadges.from(item: item)
+    return HStack(alignment: .firstTextBaseline, spacing: 14) {
+      Text(verbatim: factParts.joined(separator: " · "))
+        .font(InfoPopupMetrics.captionFont)
+        .foregroundStyle(Color.KinoPub.subtitle)
+        .fixedSize(horizontal: false, vertical: true)
+      if !badges.isEmpty {
+        MediaCapabilityBadgesView(badges: badges, mode: .detail)
+      }
+    }
+  }
+
+  private var factParts: [String] {
+    var parts: [String] = [item.contentTypeTitleKey.localized]
+    parts.append(contentsOf: item.genreNames)
+    if let years = yearsText { parts.append(years) }
+    if let volume = volumeText { parts.append(volume) }
+    if let rating = metadata.ageRating, !rating.isEmpty { parts.append(rating) }
+    return parts
+  }
+
+  /// A film: its year. A series: «2006–» while it runs, «2006–2020» once it ended.
+  private var yearsText: String? {
+    let calendar = Calendar.current
+    let first = metadata.firstAirDate.map { calendar.component(.year, from: $0) }
+      ?? (item.year > 0 ? item.year : nil)
+    guard let first else { return nil }
+    guard item.isSeries else { return String(first) }
+    guard SeriesFacts.isFinished(item, metadata) else { return "\(first)–" }
+    if let last = metadata.lastAirDate.map({ calendar.component(.year, from: $0) }), last != first {
+      return "\(first)–\(last)"
+    }
+    return String(first)
+  }
+
+  /// A film: its runtime. A series: what kino.pub has, «20 сезонов (704 серии)».
+  private var volumeText: String? {
+    guard item.isSeries else {
+      return item.mediaEntity.runtime.flatMap { RuntimeText(seconds: $0).text(for: .detailRuntime) }
+    }
+    guard let seasons = item.seasons, !seasons.isEmpty else { return nil }
+    let episodes = seasons.reduce(0) { $0 + $1.episodes.count }
+    var text = "\(seasons.count) \(SeriesFacts.unit(seasons.count, .season))"
+    if episodes > 0 {
+      text += " (\(episodes) \(SeriesFacts.unit(episodes, .episode)))"
+    }
+    return text
+  }
+
+  // MARK: Sections
+
+  private var preferredLanguages: [String] { mediaItemPreferredLanguages() }
+
+  /// Every language, preferred ones first, each with the dubs and voice-overs it comes in.
+  private var audioGroups: [MediaLanguageGroup] {
+    item.audioLanguageGroups(preferredLanguages: preferredLanguages)
+  }
+
+  private var subtitleNames: [String] {
+    item.subtitleLanguageGroups(preferredLanguages: preferredLanguages).map(\.name)
+  }
+
+  private var videoLines: [String] {
+    let tech = item.videoTechLines
+    if !tech.isEmpty { return tech }
+    return item.qualityDisplay.map { [$0] } ?? []
+  }
+
+  private var facts: [(label: String, value: String)] {
+    var rows: [(String, String)] = []
+    if !item.countryNames.isEmpty {
+      rows.append((item.countryNames.count == 1 ? "MediaItem_CountryOfOrigin" : "MediaItem_CountriesOfOrigin",
+                   item.countryNames.joined(separator: ", ")))
+    }
+    if !item.directorNames.isEmpty {
+      rows.append((item.presentation.authorCaptionKey, item.directorNames.joined(separator: ", ")))
+    }
+    if !item.castMembers.isEmpty {
+      rows.append(("Starring.short", item.castMembers.joined(separator: ", ")))
+    }
+    if item.isSeries {
+      let total = RuntimeText(seconds: item.duration.total)
+      if let episode = RuntimeText(seconds: item.duration.average).formatted(.short) {
+        rows.append(("MediaItem_EpisodeRuntime", episode))
+      }
+      if let totalText = total.withMinutesTotal() {
+        rows.append(("MediaItem_TotalDuration", totalText))
+      }
+    }
+    return rows
+  }
+}
 
 #if DEBUG
         private struct PlotPreviewHost: View {

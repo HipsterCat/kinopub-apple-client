@@ -304,6 +304,8 @@ struct MediaItemHeroView: View {
   /// Certification from enrichment ("TV-14", "16+"). Rendered as one more capability
   /// chip in the metadata row — the item payload has no rating of its own.
   var ageRating: String? = nil
+  /// TMDB's answer — air dates and status for the synopsis popup's facts line.
+  var externalMetadata: TitleMetadata = TitleMetadata()
   /// False until external metadata settles. While false, the title slot stays empty
   /// (a logo is expected). Defaults to `false` so a missed flag cannot paint the
   /// lettered title and then swap it for a logo. Previews that want the name pass
@@ -901,7 +903,9 @@ struct MediaItemHeroView: View {
         title: mediaItem.localizedTitle,
         plot: mediaItem.plot,
         focus: $focus,
-        allowsFocus: actionEntryClaimed
+        allowsFocus: actionEntryClaimed,
+        popupSubtitle: popupOriginalTitle,
+        summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
       )
 #else
       MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus)
@@ -1009,6 +1013,14 @@ struct MediaItemHeroView: View {
       guard partner != mediaItem.localizedTitle else { return nil }
       return partner
     }
+  }
+
+  /// The other name, under the synopsis popup's title — whatever the hero's own subtitle
+  /// line would say when the title is lettered, whether or not a logo replaced it.
+  private var popupOriginalTitle: String? {
+    let localized = mediaItem.localizedTitle
+    if let partner = titlePartnerLine, partner != localized { return partner }
+    return mediaItem.originalTitle != localized ? mediaItem.originalTitle : nil
   }
 
   /// Heads the written column: the score, when and how long, then the capability
