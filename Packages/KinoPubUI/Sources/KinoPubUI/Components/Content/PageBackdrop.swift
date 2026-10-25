@@ -57,8 +57,24 @@ public final class PageBackdropStage {
   public private(set) var current: PageBackdrop?
   /// The front page is in its details: its picture is faded out.
   public private(set) var showsDetails = false
+  /// Whether each published backdrop's picture actually loaded. Missing while it is
+  /// still being fetched.
+  private var pictureLoaded: [String: Bool] = [:]
 
   public init() {}
+
+  /// Whether the page under `key` has a picture behind it: true once one has loaded,
+  /// false when every candidate failed or there were none, nil while still loading.
+  /// What is drawn over the backdrop is forced dark only over a picture — with none,
+  /// the page sits on the system background and follows the appearance.
+  public func hasPicture(for key: String) -> Bool? {
+    pictureLoaded[key]
+  }
+
+  func notePicture(_ loaded: Bool, for key: String) {
+    guard pictureLoaded[key] != loaded else { return }
+    pictureLoaded[key] = loaded
+  }
 
   func setFront(_ key: String?) {
     guard key != frontKey else { return }
@@ -81,6 +97,7 @@ public final class PageBackdropStage {
   /// Keeps what the paths still hold; the rest is gone for good.
   func keepOnly(_ keys: Set<String>) {
     published = published.filter { keys.contains($0.key) }
+    pictureLoaded = pictureLoaded.filter { keys.contains($0.key) }
     inDetails.formIntersection(keys)
   }
 
@@ -102,7 +119,7 @@ public final class PageBackdropStage {
   }
 }
 
-extension EnvironmentValues {
+public extension EnvironmentValues {
   @Entry var pageBackdropStage: PageBackdropStage? = nil
 }
 
@@ -162,6 +179,7 @@ private struct PageBackdropPublisher: ViewModifier {
           PageBackdropHost(stage: ownStage)
         }
       }
+      .environment(\.pageBackdropStage, appStage ?? ownStage)
       .onChange(of: backdrop, initial: true) { _, backdrop in
         guard let backdrop else { return }
         if let appStage {
@@ -243,6 +261,7 @@ struct PageBackdropHost: View {
     }
     let image = await Self.firstImage(of: next.imageURLs, id: next.id)
     guard !Task.isCancelled else { return }
+    stage.notePicture(image != nil, for: next.id)
     withAnimation(shown == nil ? Self.fadeIn : Self.crossfade) {
       shown = Shown(backdrop: next, image: image)
     }
@@ -271,11 +290,23 @@ struct PageBackdropHost: View {
 /// Palette, picture, then the legibility scrim. The scrim is where text sits on every
 /// page that has a backdrop — the whole bottom band and the leading edge — and is black
 /// in any appearance: what is drawn over a backdrop is forced dark.
+///
+/// No picture and no palette — nothing loaded, or nothing to load — draws nothing at
+/// all: the page sits on the system background, light or dark with the appearance,
+/// instead of a black slab with a scrim over it (Sasha, 2026-10-25).
 private struct PageBackdropLayer: View {
   let palette: [Color]
   let image: Image?
 
   var body: some View {
+    if image == nil, palette.isEmpty {
+      Color.clear
+    } else {
+      layers
+    }
+  }
+
+  private var layers: some View {
     ZStack {
       Color.black
 

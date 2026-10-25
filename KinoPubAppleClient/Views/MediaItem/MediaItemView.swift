@@ -243,7 +243,10 @@ struct MediaItemView: View {
 #endif
 #if os(macOS)
       .toolbarBackground(.hidden, for: .windowToolbar)
-      .toolbarColorScheme(.dark, for: .windowToolbar)
+      .toolbarColorScheme(
+        itemModel.mediaItem.posters.hasSpecifiedWide ? .dark : nil,
+        for: .windowToolbar
+      )
 #endif
       .platformNavigationTitle("")
 #if os(iOS) || os(macOS)
@@ -415,6 +418,7 @@ struct MediaItemView: View {
         }
 //        .padding(.bottom, MediaItemLayout.bottomPadding)
       }
+      .background(Color.KinoPub.background)
       .coordinateSpace(name: MediaItemLayout.scrollSpace)
 #if os(tvOS)
       // A focused card's lift and a focused button's scale are drawn outside their
@@ -629,7 +633,8 @@ struct MediaItemView: View {
 #if os(tvOS)
        Color.clear
 #else
-    if FeatureFlags.detailAmbientBackdropEnabled {
+    if FeatureFlags.detailAmbientBackdropEnabled,
+       itemModel.mediaItem.posters.hasSpecifiedWide {
       ambientBackground
     } else {
       genericBackground
@@ -640,7 +645,7 @@ struct MediaItemView: View {
   /// What the page sits on with `detailAmbientBackdropEnabled` off: the app background
   /// and nothing else — no still, no blur buffer, nothing decoded for it.
   private var genericBackground: some View {
-    Color.clear
+    Color.KinoPub.background
 #if os(macOS)
       // Same reason as `ambientBackground`: ignoring horizontally paints under the
       // sidebar and makes every rail look clipped.
@@ -678,13 +683,14 @@ struct MediaItemView: View {
 #if os(tvOS)
   /// This title's picture for the stack's backdrop. The id is the title, so a payload
   /// that only adds a palette later animates in place rather than crossfading.
+  /// Published even with no candidates: an unpublished key keeps the previous page's
+  /// picture up, and an empty backdrop is what says "system background".
   private var tvBackdrop: PageBackdrop? {
     _ = coverLanguage
     let urls = MediaItemHeroView.backdropCandidates(
       for: itemModel.mediaItem,
       preferredBackdropURL: itemModel.heroBackdropURL
     )
-    guard !urls.isEmpty else { return nil }
     return PageBackdrop(id: Route.backdropKey(itemID: itemModel.mediaItem.id), imageURLs: urls)
   }
 #endif

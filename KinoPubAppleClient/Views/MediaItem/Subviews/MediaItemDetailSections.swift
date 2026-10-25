@@ -3584,10 +3584,19 @@ private struct PlotParagraphLabel: View {
     .background {
       if isFocused {
         RoundedRectangle(cornerRadius: 20, style: .continuous)
-          .fill(.thinMaterial)
+          .fill(plate)
       }
     }
     .animation(.easeOut(duration: 0.2), value: isFocused)
+  }
+
+  @Environment(\.colorScheme) private var colorScheme
+
+  /// A light veil over the picture, not a material: the hero is forced dark there, and
+  /// `.thinMaterial` came out dark on dark art — the focused synopsis was all but
+  /// invisible (Sasha, 2026-10-25). On the light system background a faint dark tint.
+  private var plate: Color {
+    colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.08)
   }
 }
 #endif

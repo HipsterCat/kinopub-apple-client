@@ -345,15 +345,25 @@ struct MediaItemHeroView: View {
   /// Focus is in the sections below, not in the hero: the app's backdrop puts the
   /// material over the picture (`pageBackdropDetails`).
   @State private var inDetails = false
+  @Environment(\.pageBackdropStage) private var backdropStage
+  @Environment(\.colorScheme) private var systemColorScheme
+
+  /// Dark only while a picture is actually behind the text. In the details the picture
+  /// fades out, and a title with no picture at all (portrait poster in the corner, or a
+  /// backdrop that never loaded) never had one: both sit on the system background, so
+  /// the text follows the appearance — white on light grey was the bug (Sasha,
+  /// 2026-10-25). While the picture is still loading, a catalogue `wide` is the guess.
+  private var heroChromeColorScheme: ColorScheme {
+    guard !inDetails else { return systemColorScheme }
+    let key = Route.backdropKey(itemID: mediaItem.id)
+    let onPicture = backdropStage?.hasPicture(for: key) ?? mediaItem.posters.hasSpecifiedWide
+    return onPicture ? .dark : systemColorScheme
+  }
 #endif
   /// Opt-in, off by default. Read as `@AppStorage` so flipping it in Settings redraws
   /// the metadata row without leaving the page.
   @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
   private var showsAgeRatingBadge = false
-  /// While a real wide backdrop is still loading, a portrait poster sits on the trailing
-  /// edge — never stretched into the 16:9 background.
-  @State private var backdropDidLoad = false
-
   private var isSeries: Bool {
     !(mediaItem.seasons?.isEmpty ?? true)
   }
@@ -367,8 +377,6 @@ struct MediaItemHeroView: View {
 
   var body: some View {
     platformBody
-      .onChange(of: mediaItem.id, initial: true) { _, _ in backdropDidLoad = false }
-      .onChange(of: preferredBackdropURL) { _, _ in backdropDidLoad = false }
       // The hero is the only reader of `phase`, so the write lands here alone and the
       // page's body never re-runs for it.
       .onChange(of: phase.isHeroOnScreen) { _, onScreen in
@@ -557,7 +565,9 @@ struct MediaItemHeroView: View {
       // its scrim are the navigation stack's backdrop, behind the scroll (`MediaItemView`
       // claims it), so the hero's text scrolls away over a picture that stays.
       content
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay(alignment: .topTrailing) { cornerPosterAccent }
+        .clipped()
         // The same muted preview, promoted to sound and full screen without restarting.
         // Menu on the remote dismisses it — no chrome of our own over the picture.
         .fullScreenCover(isPresented: $isTrailerFullScreen, onDismiss: { trailer.setFullScreen(false) }) {
@@ -569,31 +579,80 @@ struct MediaItemHeroView: View {
       //
       // Backdrop stays in the ambient scheme so the bottom seam still blends into the
       // page colour; only the overlay chrome is forced dark.
-      ZStack(alignment: .bottomLeading) {
-        Color.clear
-          .aspectRatio(16 / 9, contentMode: .fit)
+      heroCanvas
+        .frame(maxWidth: .infinity)
+        .background(visibilityProbe)
+#endif
+    }
+  }
 
-        content
-      }
-      .frame(maxWidth: .infinity, alignment: .bottomLeading)
+#if !os(tvOS)
+  /// 16:9 band — backdrop or clear fill, portrait poster top-trailing, chrome at the bottom.
+  private var heroCanvas: some View {
+    Color.clear
+      .aspectRatio(16 / 9, contentMode: .fit)
+      .frame(maxWidth: .infinity)
       .background {
         ZStack {
           scrollingBackdrop
-          scrollingScrim
+          if !usesAdaptivePosterHero {
+            scrollingScrim
+          }
         }
       }
+      .overlay {
+        GeometryReader { band in
+          ZStack(alignment: .topTrailing) {
+            if showsCornerPoster, let url = heroPosterURL {
+              cornerPosterImage(url: url, bandSize: band.size)
+                .padding(.top, Self.horizontalInset)
+                .padding(.trailing, Self.horizontalInset)
+            }
+          }
+          .frame(width: band.size.width, height: band.size.height)
+        }
+      }
+      .overlay {
+        content
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      }
       .clipped()
-      .background(visibilityProbe)
+  }
 #endif
-    }
-    .overlay(alignment: .bottomTrailing) { trailingPosterAccent }
-#if os(tvOS)
-    .task(id: backdropLoadToken) { await probeBackdropLoaded() }
-#endif
+
+  private func cornerPosterImage(url: URL, bandSize: CGSize) -> some View {
+    let size = Self.posterAccentSize(in: bandSize)
+    return CachedRemoteImage(url: url, contentMode: .fit)
+      .frame(width: size.width, height: size.height)
+      .clipShape(RoundedRectangle(cornerRadius: Self.trailingPosterCornerRadius, style: .continuous))
   }
 
+  /// 2:3 at `trailingPosterWidth`, scaled down only when the band is too short.
+  static func posterAccentSize(in bandSize: CGSize) -> CGSize {
+    let width = trailingPosterWidth
+    var height = width / CardAspect.poster.ratio
+    let maxHeight = max(0, bandSize.height - horizontalInset * 2)
+    if height > maxHeight, maxHeight > 0 {
+      height = maxHeight
+      return CGSize(width: height * CardAspect.poster.ratio, height: height)
+    }
+    return CGSize(width: width, height: height)
+  }
 
 #if os(tvOS)
+  @ViewBuilder
+  private var cornerPosterAccent: some View {
+    GeometryReader { band in
+      if showsCornerPoster, let url = heroPosterURL {
+        cornerPosterImage(url: url, bandSize: band.size)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+          .padding(.top, Self.horizontalInset)
+          .padding(.trailing, Self.horizontalInset)
+          .accessibilityHidden(true)
+      }
+    }
+  }
+
   /// The trailer with nothing on it: black surround, aspect-fit so nothing is cropped,
   /// and the preview's own player so it carries on from where the hero left it.
   @ViewBuilder
@@ -646,43 +705,51 @@ struct MediaItemHeroView: View {
 
   private var needsPosterAccent: Bool { !mediaItem.posters.hasSpecifiedWide }
 
-  private var backdropLoadToken: String {
-    let urls = Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
-    return "\(mediaItem.id)|" + urls.map(\.absoluteString).joined(separator: "|")
+  /// Portrait accent whenever the catalogue sent no `wide` still.
+  private var showsCornerPoster: Bool {
+    needsPosterAccent && heroPosterURL != nil
   }
 
-  private func noteBackdropLoaded() {
-    guard needsPosterAccent, !backdropDidLoad else { return }
-    withAnimation(.easeOut(duration: 0.4)) { backdropDidLoad = true }
+#if !os(tvOS)
+  @Environment(\.colorScheme) private var systemColorScheme
+
+  /// No kino.pub `wide` — system labels and a page plate, not cinema chrome over a still.
+  private var usesAdaptivePosterHero: Bool {
+    needsPosterAccent
   }
 
-  @MainActor
-  private func probeBackdropLoaded() async {
-    backdropDidLoad = false
-    guard needsPosterAccent else { return }
-    let urls = Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
-    guard !urls.isEmpty else { return }
-    for url in urls {
-      if Task.isCancelled { return }
-      if (try? await Artwork.image(for: url)) != nil {
-        noteBackdropLoaded()
-        return
-      }
-    }
+  private var heroChromeColorScheme: ColorScheme {
+    usesAdaptivePosterHero ? systemColorScheme : .dark
+  }
+#endif
+
+  /// Trailing column reserved in the title row — matches the poster in `heroCanvas`.
+  private var posterColumnWidth: CGFloat {
+    Self.trailingPosterWidth + Self.horizontalInset
   }
 
-  @ViewBuilder
-  private var trailingPosterAccent: some View {
-    if needsPosterAccent, !backdropDidLoad, let url = heroPosterURL {
-      CachedRemoteImage(url: url, contentMode: .fill)
-        .aspectRatio(CardAspect.poster.ratio, contentMode: .fit)
-        .frame(height: Self.trailingPosterHeight)
-        .clipShape(RoundedRectangle(cornerRadius: Self.trailingPosterCornerRadius, style: .continuous))
-        .padding(.trailing, Self.horizontalInset)
-        .padding(.bottom, Self.bottomInset)
-        .accessibilityHidden(true)
-        .transition(.opacity)
-    }
+  private var heroPrimaryForeground: Color {
+#if os(tvOS)
+    Color.KinoPub.text
+#else
+    usesAdaptivePosterHero ? .primary : Color.KinoPub.text
+#endif
+  }
+
+  private var heroSecondaryForeground: Color {
+#if os(tvOS)
+    Color.KinoPub.subtitle
+#else
+    usesAdaptivePosterHero ? .secondary : Color.KinoPub.subtitle
+#endif
+  }
+
+  private var heroMetaForeground: Color {
+#if os(tvOS)
+    Self.metaStyle
+#else
+    usesAdaptivePosterHero ? Color.primary.opacity(0.85) : Self.metaStyle
+#endif
   }
 
   private var heroPosterURL: URL? {
@@ -703,13 +770,19 @@ struct MediaItemHeroView: View {
     return Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
   }
 
+  private var heroEmptyBackdropFill: Color {
+    needsPosterAccent ? Color.KinoPub.posterHeroPlate : Color.KinoPub.background
+  }
+
   @ViewBuilder
   private var scrollingBackdrop: some View {
     ZStack {
-      if backdropCandidates.isEmpty {
+      if needsPosterAccent {
+        heroEmptyBackdropFill
+      } else if backdropCandidates.isEmpty {
         Color.KinoPub.background
       } else {
-        FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill, onLoaded: noteBackdropLoaded)
+        FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill)
           .onAppear {
 #if DEBUG
             let list = backdropCandidates.map(\.absoluteString).joined(separator: " | ")
@@ -750,45 +823,50 @@ struct MediaItemHeroView: View {
   /// Wide screens (tvOS / Mac): two columns — title + actions | everything written.
   /// The third "starring" column is gone; its lines moved under the synopsis.
   /// Phone keeps a single stacked column, with the metadata row above the buttons.
-  /// Hero chrome always reads as dark: plot/credits use `Color.primary` via
+  /// Hero chrome reads as dark over a picture: plot/credits use `Color.primary` via
   /// `Color.KinoPub.text`, and tvOS does not pin `preferredColorScheme` — light
-  /// appearance made the synopsis black on dark artwork (unreadable).
+  /// appearance made the synopsis black on dark artwork (unreadable). With no picture
+  /// behind it, it follows the appearance instead (`heroChromeColorScheme`).
   private var content: some View {
     contentBody
-      .environment(\.colorScheme, .dark)
+      .environment(\.colorScheme, heroChromeColorScheme)
+#if os(tvOS)
+      // In step with the picture fading out of / back into the backdrop.
+      .animation(.easeInOut(duration: 0.45), value: heroChromeColorScheme)
+#endif
+  }
+
+  /// Title / logo at the top, synopsis and actions on the bottom — Yellowstone layout.
+  @ViewBuilder
+  private var contentBody: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      heroTitleRow
+      Spacer(minLength: 0)
+      heroBottomBlock
+    }
+#if os(iOS)
+    .padding(.horizontal, Self.horizontalInset)
+    .padding(.bottom, Self.bottomInset)
+#else
+    .padding(.bottom, Self.horizontalInset)
+    .padding(.horizontal, Self.bottomInset)
+#endif
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 
   @ViewBuilder
-  private var contentBody: some View {
+  private var heroBottomBlock: some View {
 #if os(iOS)
     VStack(alignment: .leading, spacing: Self.contentSpacing) {
-      titleBlock
-//        .heroTextShadow()
-
+      detailColumn
       actions
         .padding(.top, Self.actionsGap)
-
-      detailColumn
-        .padding(.top, Self.actionsGap)
     }
-    .padding(.horizontal, Self.horizontalInset)
-    .padding(.bottom, Self.bottomInset)
-    .frame(maxWidth: .infinity, alignment: .leading)
 #else
     VStack(alignment: .leading, spacing: Self.columnGutter) {
-      // Fixed, not proportional: the title block and the action stack are a known
-      // size, and letting them share the width evenly with the prose left the
-      // synopsis in a narrow ravine on a wide window.
-         titleBlock
-               Spacer()
       detailColumn
-         actions
-//         leadingColumn
-//           .frame(width: Self.leadingWidth, alignment: .leading)
+      actions
     }
-    .padding(.bottom, Self.horizontalInset)
-    .padding(.horizontal, Self.bottomInset)
-    .frame(maxWidth: .infinity,  maxHeight: .infinity, alignment: .bottomLeading)
 #endif
   }
 
@@ -838,6 +916,21 @@ struct MediaItemHeroView: View {
   }
 
   @ViewBuilder
+  private var heroTitleRow: some View {
+    if showsCornerPoster {
+      HStack(alignment: .top, spacing: Self.columnGutter) {
+        titleBlock
+          .frame(maxWidth: .infinity, alignment: .leading)
+        Color.clear
+          .frame(width: posterColumnWidth)
+          .accessibilityHidden(true)
+      }
+    } else {
+      titleBlock
+    }
+  }
+
+  @ViewBuilder
   private var titleBlock: some View {
     // Same session as the Home banner: empty while a logo is expected, cached
     // logo on the first frame, lettered title only after a confirmed miss.
@@ -857,17 +950,17 @@ struct MediaItemHeroView: View {
       titleSupplementaryBlock
         .padding(.top, titleSupplementaryTopInset)
     }
-    .containerRelativeFrame(.horizontal, count: 5, span: 4, spacing: 0, alignment: .leading)
     .id(mediaItem.id)
     .padding(.top, Self.bottomInset / 1.5)
     .accessibilityElement(children: .combine)
     .accessibilityLabel(mediaItem.localizedTitle)
+    .modifier(TitleBlockHorizontalBounds(reservePosterColumn: showsCornerPoster))
   }
 
   private var titlePrimaryText: some View {
     Text(mediaItem.localizedTitle)
       .font(Self.titleFont)
-      .foregroundStyle(Color.KinoPub.text)
+      .foregroundStyle(heroPrimaryForeground)
       .multilineTextAlignment(.leading)
       .fixedSize(horizontal: false, vertical: true)
   }
@@ -879,7 +972,7 @@ struct MediaItemHeroView: View {
     if let line = supplementaryUnderTitle {
       Text(line)
         .font(Self.secondaryFont)
-        .foregroundStyle(Color.KinoPub.subtitle)
+        .foregroundStyle(heroSecondaryForeground)
         .multilineTextAlignment(.leading)
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -931,7 +1024,7 @@ struct MediaItemHeroView: View {
          }
          if !genreCountryLine.isEmpty {
            Text(genreCountryLine)
-             .foregroundStyle(Color.KinoPub.subtitle)
+             .foregroundStyle(heroSecondaryForeground)
          }
          let releaseLine = TitleMetaLine(mediaItem.mediaEntity).releaseParts().joined(separator: "   ")
          if !releaseLine.isEmpty {
@@ -950,7 +1043,7 @@ struct MediaItemHeroView: View {
       }
     }
     .font(Self.secondaryFont)
-    .foregroundStyle(Self.metaStyle)
+    .foregroundStyle(heroMetaForeground)
   }
 
   /// Under the synopsis: what kind of thing it is and where it is from, then who is
@@ -987,10 +1080,10 @@ struct MediaItemHeroView: View {
   /// to flow into the names on the same line anyway.
   private func creditLine(_ line: (role: String, names: String)) -> AttributedString {
     var label = AttributedString(line.role.localized + "  ")
-    label.foregroundColor = Color.KinoPub.subtitle
+    label.foregroundColor = heroSecondaryForeground
 
     var names = AttributedString(line.names)
-    names.foregroundColor = Color.KinoPub.text
+    names.foregroundColor = heroPrimaryForeground
     names.font = Self.secondaryFont.weight(.regular)
 
     return label + names
@@ -1036,8 +1129,9 @@ struct MediaItemHeroView: View {
   }
 
   /// One catalog-driven row. Order/chrome from `MediaActionCatalog`; this view wires
-  /// behaviour. Forced dark for now so glass samples against the hero artwork the
-  /// same way in light and dark until the light-theme stage owns these controls.
+  /// behaviour. Dark over the hero artwork so glass samples against it the same way in
+  /// light and dark. tvOS keeps them dark everywhere; iPhone / Mac follow the appearance
+  /// with no picture behind.
   private var actions: some View {
     MediaActionRow {
       ForEach(actionAppearances) { appearance in
@@ -1049,7 +1143,13 @@ struct MediaItemHeroView: View {
           ))
       }
     }
+#if os(tvOS)
+    // Always dark, the way the Apple TV app keeps them: light circles on the light
+    // details were the brightest thing on screen (Sasha, 2026-10-25).
     .environment(\.colorScheme, .dark)
+#else
+    .environment(\.colorScheme, heroChromeColorScheme)
+#endif
 #if os(tvOS)
     // Own focus section so Down from the plot section enters here at `defaultFocus`
     // Play — never `.disabled` on siblings to steer the remote (that killed Menus).
@@ -1454,8 +1554,8 @@ struct MediaItemHeroView: View {
   static let actionsRowGap: CGFloat = 16
   static let creditLineSpacing: CGFloat = 8
   static let columnGutter: CGFloat = 48
-  static let trailingPosterHeight: CGFloat = 420
-  static let trailingPosterCornerRadius: CGFloat = 12
+  static let trailingPosterWidth: CGFloat = 500
+  static let trailingPosterCornerRadius: CGFloat = 14
 #elseif os(macOS)
   /// Preview / fallback only — live layout uses `.aspectRatio(16/9)`.
   static let heroHeight: CGFloat = 420
@@ -1471,8 +1571,8 @@ struct MediaItemHeroView: View {
   static let actionsRowGap: CGFloat = 10
   static let creditLineSpacing: CGFloat = 3
   static let columnGutter: CGFloat = 28
-  static let trailingPosterHeight: CGFloat = 280
-  static let trailingPosterCornerRadius: CGFloat = 10
+  static let trailingPosterWidth: CGFloat = 500
+  static let trailingPosterCornerRadius: CGFloat = 14
 #else
   /// Preview / fallback only — live layout uses `.aspectRatio(16/9)`.
   static let heroHeight: CGFloat = 380
@@ -1488,9 +1588,22 @@ struct MediaItemHeroView: View {
   static let actionsRowGap: CGFloat = 10
   static let creditLineSpacing: CGFloat = 3
   static let columnGutter: CGFloat = 16
-  static let trailingPosterHeight: CGFloat = 200
-  static let trailingPosterCornerRadius: CGFloat = 10
+  static let trailingPosterWidth: CGFloat = 300
+  static let trailingPosterCornerRadius: CGFloat = 12
 #endif
+}
+
+/// Title width: ~80% of the hero, or the full column left of the portrait poster.
+private struct TitleBlockHorizontalBounds: ViewModifier {
+  let reservePosterColumn: Bool
+
+  func body(content: Content) -> some View {
+    if reservePosterColumn {
+      content.frame(maxWidth: .infinity, alignment: .leading)
+    } else {
+      content.containerRelativeFrame(.horizontal, count: 5, span: 4, spacing: 0, alignment: .leading)
+    }
+  }
 }
 
 private extension View {

@@ -176,7 +176,9 @@ public struct MediaScoresView: View {
   }
 
   /// Font and colour come from whatever this is dropped into. Scores read as part of
-  /// the metadata line, with primary white numbers and secondary vote turnout count.
+  /// the metadata line, with primary numbers and secondary vote turnout count. Primary,
+  /// not white: over art the caller forces dark, on the system background in the light
+  /// appearance white numbers vanished.
   private func score(item: MediaScoreItem) -> some View {
     HStack(spacing: 6) {
       MediaScoreLogo(item.source, height: Self.iconHeight)
@@ -184,7 +186,7 @@ public struct MediaScoresView: View {
         Text(item.displayScore)
           .fontDesign(.rounded)
           .fontWeight(.semibold)
-          .foregroundStyle(.white)
+          .foregroundStyle(Color.KinoPub.text)
       }
       if showsVotes, let votes = item.votesCompact {
         Text("(\(votes))")

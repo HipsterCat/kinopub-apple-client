@@ -36,6 +36,18 @@ extension Color {
 #endif
     }
 
+    /// Hero band on a poster-only title (no kino.pub `wide`): reads as part of the page,
+    /// not a cinema black slab over the scroll view.
+    public static var posterHeroPlate: Color {
+#if os(macOS)
+      Color(nsColor: .controlBackgroundColor)
+#elseif os(tvOS)
+      Color.clear
+#else
+      Color(uiColor: .secondarySystemGroupedBackground)
+#endif
+    }
+
     /// Chrome that sits on the page: chips, pickers, info panels.
     public static let selectionBackground = Color.primary.opacity(0.14)
 
