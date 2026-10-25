@@ -751,6 +751,10 @@ final class TVPageHeroCell: UICollectionViewCell {
     var play = UIButton.Configuration.glass()
     play.imagePadding = MediaActionMetrics.contentSpacing
     play.cornerStyle = .capsule
+    // One line, like the detail page's Play. A wrapping title made Play's width depend on
+    // its own bounds: back from the player, with «Продолжить …» and the bar, the row kept
+    // 43 pt it no longer needed and stretched Bookmark into a capsule (round 15).
+    play.titleLineBreakMode = .byTruncatingTail
     playButton.configuration = play
     playButton.accessibilityIdentifier = "kinopub.hero.play"
     playButton.addAction(UIAction { [weak self] _ in
