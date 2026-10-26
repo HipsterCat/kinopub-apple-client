@@ -212,10 +212,10 @@ async function handleImageQuery(request, url, env, ctx, route) {
   const vary = imageRequest.kind === "poster" || imageRequest.kind === "logo";
 
   // A finished document with no file is a real miss. Anything still cold
-  // waits, up to five seconds, and only then 404s. An empty logo is not
-  // finished forever: after 15 minutes we ask TMDB again, skipping the
-  // six-hour response cache, so a logo added later can show up.
-  const fresh = imageRequest.kind === "logo" && logoRecheckDue(stored);
+  // waits, up to five seconds, and only then 404s. A locale with no logo is
+  // asked again on a later request for that same locale, once six hours have
+  // passed, skipping the response cache.
+  const fresh = imageRequest.kind === "logo" && logoRecheckDue(stored, imageRequest.lang);
   let waitedMs = 0;
   if (!asset && (!stored || stored.pending === true || fresh)) {
     const waited = await resolveWithin(env, ctx, id, hints, stored, { fresh });
@@ -393,7 +393,12 @@ async function tmdb(env, path, params, options = {}) {
 const IMAGE_BASE = "https://image.tmdb.org/t/p/original";
 
 function mergeTMDB(base, mediaType, tmdbId, details) {
-  const document = { ...base, pending: false, built_at: new Date().toISOString() };
+  const document = {
+    ...base,
+    pending: false,
+    built_at: new Date().toISOString(),
+    logo_checked_at: new Date().toISOString(),
+  };
   document.ids = { ...document.ids, tmdb: { value: `${mediaType}/${tmdbId}`, confidence: 1,
                                             method: "find:imdb" } };
   const external = details.external_ids || {};
@@ -534,14 +539,15 @@ function langTag(lang) {
   return "und";
 }
 
-/** An empty logo is rechecked after this quiet period, not on every open. */
-export const LOGO_RECHECK_MS = 15 * 60 * 1000;
+/** A locale with no logo is rechecked on the next request, after this quiet period. */
+export const LOGO_RECHECK_MS = 6 * 60 * 60 * 1000;
 
-export function logoRecheckDue(stored, now = Date.now()) {
+export function logoRecheckDue(stored, lang, now = Date.now()) {
   if (!stored || stored.pending === true) return false;
-  const logos = stored.artwork?.logo;
-  if (Array.isArray(logos) && logos.length > 0) return false;
-  const built = Date.parse(stored.built_at || "");
+  const logos = Array.isArray(stored.artwork?.logo) ? stored.artwork.logo : [];
+  const want = langTag(lang);
+  if (logos.some((item) => langTag(item?.lang) === want)) return false;
+  const built = Date.parse(stored.logo_checked_at || stored.built_at || "");
   if (!Number.isFinite(built)) return true;
   return now - built >= LOGO_RECHECK_MS;
 }
