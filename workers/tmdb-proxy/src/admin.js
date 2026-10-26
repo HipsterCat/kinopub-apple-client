@@ -70,7 +70,7 @@ async function refresh(env, id, kind, url) {
     kinopoisk: url.searchParams.get("kinopoisk") || stored.ids?.kinopoisk?.value,
     type: stored.kind === "show" ? "show" : stored.kind,
   };
-  await resolveAndStore(env, id, hints, base);
+  await resolveAndStore(env, id, hints, base, { fresh: true });
   const saved = await readDocument(env, id);
   return json({
     ok: true,
@@ -90,15 +90,19 @@ async function images(env, id, url) {
   const payload = await tmdbGet(env, `/3/${located.type}/${located.tmdbId}/images`);
   if (!payload) return json({ error: "bad_gateway", hint: "TMDB images did not answer" }, 502);
   const field = kind === "logo" ? "logos" : kind === "poster" ? "posters" : "backdrops";
-  const grouped = { ru: [], en: [], und: [] };
+  const grouped = {};
   for (const file of payload[field] || []) {
     const bucket = langBucket(file.iso_639_1);
-    if (!bucket) continue;
-    grouped[bucket].push(presentFile(file));
+    if (!grouped[bucket]) grouped[bucket] = [];
+    grouped[bucket].push(presentFile(file, bucket));
   }
   for (const bucket of Object.keys(grouped)) {
     grouped[bucket].sort((a, b) => compareRank(rankOf(kind, a), rankOf(kind, b)));
-    if (grouped[bucket][0]) grouped[bucket][0].pick = true;
+    // The automatic choice is only ru / en / no-language. Every other file
+    // is still listed, so a pin can select it.
+    if ((bucket === "ru" || bucket === "en" || bucket === "und") && grouped[bucket][0]) {
+      grouped[bucket][0].pick = true;
+    }
   }
   return json({
     ok: true,
@@ -134,23 +138,26 @@ async function tmdbGet(env, path) {
   if (!env?.TMDB_READ_TOKEN) return null;
   const response = await fetch(`https://api.themoviedb.org${path}`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${env.TMDB_READ_TOKEN}` },
+    cf: { cacheTtl: 0, cacheEverything: false },
   });
   return response.ok ? response.json() : null;
 }
 
 function langBucket(iso) {
-  if (iso === "ru" || iso === "en") return iso;
   if (!iso) return "und";
-  return null;
+  const tag = String(iso).trim().toLowerCase();
+  if (!/^[a-z]{2,3}$/.test(tag)) return "und";
+  return tag;
 }
 
-function presentFile(file) {
+function presentFile(file, lang) {
   const path = file.file_path || "";
   const from = (path.match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase() || "";
   const original = `https://image.tmdb.org/t/p/original${path}`;
   const url = from === "svg" ? original.replace(/\.svg$/i, ".png") : original;
   return {
     url,
+    lang,
     from: from || null,
     width: file.width ?? null,
     height: file.height ?? null,
@@ -186,23 +193,20 @@ async function pick(request, env, id) {
     if (raw == null || raw === "") continue;
     const safe = safeURL(raw);
     if (!safe) return json({ error: "bad_request", hint: `${kind} must be an https URL` }, 400);
-    const lang = body[`${kind}_lang`] ?? null;
+    const lang = languageTag(body[`${kind}_lang`]);
     const pin = {
       source: "admin",
       url: safe,
-      lang: lang === "ru" || lang === "en" ? lang : null,
+      lang,
       pinned: true,
       width: null,
       height: null,
     };
     if (kind === "logo") {
       const prev = Array.isArray(artwork.logo) ? artwork.logo : [];
-      const tag = pin.lang;
       artwork.logo = prev.filter((item) => {
         if (item?.pinned !== true) return true;
-        if (!tag) return false;
-        const itemLang = item.lang === "ru" || item.lang === "en" ? item.lang : null;
-        return itemLang !== tag;
+        return languageTag(item.lang) !== languageTag(lang);
       });
       artwork.logo.push(pin);
     } else {
@@ -214,6 +218,13 @@ async function pick(request, env, id) {
   const next = { ...stored, artwork, art_rev: (stored.art_rev || 0) + 1, pending: false };
   await writeDocument(env, id, next);
   return json({ ok: true, id, art_rev: next.art_rev, picked });
+}
+
+function languageTag(raw) {
+  if (raw == null || raw === "") return null;
+  const tag = String(raw).trim().toLowerCase();
+  if (!/^[a-z]{2,3}$/.test(tag) || tag === "und") return null;
+  return tag;
 }
 
 function safeURL(raw) {

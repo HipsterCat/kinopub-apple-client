@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { handleImage } from "./title.js";
+import { handleImage, logoRecheckDue } from "./title.js";
 
 const originalWaitUntil = [];
 
@@ -459,6 +459,16 @@ test("the stamped logo URL proxies an SVG as PNG", async () => {
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("an empty logo is rechecked only after the quiet period", () => {
+  const recent = { pending: false, built_at: new Date().toISOString(), artwork: { logo: [] } };
+  const old = { pending: false, built_at: "2020-01-01T00:00:00.000Z", artwork: { logo: [] } };
+  const filled = { pending: false, built_at: "2020-01-01T00:00:00.000Z", artwork: { logo: [{ url: "https://example.test/a.png" }] } };
+  assert.equal(logoRecheckDue(recent), false);
+  assert.equal(logoRecheckDue(old), true);
+  assert.equal(logoRecheckDue(filled), false);
+  assert.equal(logoRecheckDue(null), false);
 });
 
 test("query route rejects a non-numeric id and an unknown namespace", async () => {

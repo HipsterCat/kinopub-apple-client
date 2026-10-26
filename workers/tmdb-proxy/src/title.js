@@ -212,10 +212,13 @@ async function handleImageQuery(request, url, env, ctx, route) {
   const vary = imageRequest.kind === "poster" || imageRequest.kind === "logo";
 
   // A finished document with no file is a real miss. Anything still cold
-  // waits, up to five seconds, and only then 404s.
+  // waits, up to five seconds, and only then 404s. An empty logo is not
+  // finished forever: after 15 minutes we ask TMDB again, skipping the
+  // six-hour response cache, so a logo added later can show up.
+  const fresh = imageRequest.kind === "logo" && logoRecheckDue(stored);
   let waitedMs = 0;
-  if (!asset && (!stored || stored.pending === true)) {
-    const waited = await resolveWithin(env, ctx, id, hints, stored);
+  if (!asset && (!stored || stored.pending === true || fresh)) {
+    const waited = await resolveWithin(env, ctx, id, hints, stored, { fresh });
     waitedMs = Date.now() - started;
     if (waited.timedOut) {
       noteImage(env, ctx, "timeout", imageRequest, waitedMs);
@@ -228,7 +231,9 @@ async function handleImageQuery(request, url, env, ctx, route) {
 
   if (!asset) {
     noteImage(env, ctx, "missing", imageRequest, Date.now() - started);
-    return imageNotFound(missHint(imageRequest), vary);
+    // A logo 404 must not sit on the edge, or a logo added on TMDB stays invisible.
+    const logoMiss = imageRequest.kind === "logo";
+    return imageNotFound(missHint(imageRequest), vary, { store: !logoMiss });
   }
   const location = stampedURL(url, imageRequest, asset, stored?.art_rev);
   if (!location) return imageNotFound(missHint(imageRequest), vary);
@@ -295,7 +300,7 @@ export async function writeDocument(env, id, document) {
  * latency is nobody's problem — which is exactly why the client never has to
  * choose between "fast" and "complete".
  */
-export async function resolveAndStore(env, id, hints, base) {
+export async function resolveAndStore(env, id, hints, base, options = {}) {
   let document = base;
 
   // No key, no quota risk — safe to run on every cold resolve that has a
@@ -328,7 +333,7 @@ export async function resolveAndStore(env, id, hints, base) {
   }
 
   try {
-    const found = await tmdb(env, `/3/find/${hints.imdb}`, { external_source: "imdb_id" });
+    const found = await tmdb(env, `/3/find/${hints.imdb}`, { external_source: "imdb_id" }, options);
     const preferTv = base.kind === "show";
     const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
     let match = null, mediaType = null;
@@ -347,7 +352,7 @@ export async function resolveAndStore(env, id, hints, base) {
     const details = await tmdb(env, `/3/${mediaType}/${match.id}`, {
       language: "ru-RU", append_to_response: append,
       include_image_language: "ru,en,null",
-    });
+    }, options);
     if (!details) {
       if (document !== base) await writeDocument(env, id, document);
       return;
@@ -370,12 +375,17 @@ async function kinopoiskProxyFacts(kinopoiskId) {
   return response.ok ? await response.json() : null;
 }
 
-async function tmdb(env, path, params) {
+async function tmdb(env, path, params, options = {}) {
   const url = new URL(path, "https://api.themoviedb.org");
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-  const response = await fetch(url.toString(), {
+  const requestURL = url.toString();
+  // A fresh read must not reuse the six-hour entry from the last resolve.
+  const cf = options.fresh
+    ? { cacheTtl: 0, cacheEverything: false, cacheKey: `${requestURL} fresh` }
+    : { cacheTtl: 21600, cacheEverything: true };
+  const response = await fetch(requestURL, {
     headers: { Accept: "application/json", Authorization: `Bearer ${env.TMDB_READ_TOKEN}` },
-    cf: { cacheTtl: 21600, cacheEverything: true },
+    cf,
   });
   return response.ok ? await response.json() : null;
 }
@@ -520,8 +530,20 @@ function pinnedAssetForLang(document, kind, lang) {
 }
 
 function langTag(lang) {
-  if (lang === "ru" || lang === "en") return lang;
+  if (typeof lang === "string" && /^[a-z]{2,3}$/.test(lang)) return lang;
   return "und";
+}
+
+/** An empty logo is rechecked after this quiet period, not on every open. */
+export const LOGO_RECHECK_MS = 15 * 60 * 1000;
+
+export function logoRecheckDue(stored, now = Date.now()) {
+  if (!stored || stored.pending === true) return false;
+  const logos = stored.artwork?.logo;
+  if (Array.isArray(logos) && logos.length > 0) return false;
+  const built = Date.parse(stored.built_at || "");
+  if (!Number.isFinite(built)) return true;
+  return now - built >= LOGO_RECHECK_MS;
 }
 
 function extensionOf(raw) {
@@ -566,7 +588,7 @@ function parseStampedPath(pathname) {
   if (parts.length !== 7 || parts[0] !== "img") return null;
   if (parts[2] !== "by" || parts[3] !== "kinopub") return null;
   if (!QUERY_KINDS.has(parts[1])) return null;
-  if (parts[5] !== "ru" && parts[5] !== "en" && parts[5] !== "und") return null;
+  if (parts[5] !== "und" && !/^[a-z]{2,3}$/.test(parts[5])) return null;
   return { kind: parts[1], id: parts[4], lang: parts[5] };
 }
 
@@ -643,10 +665,10 @@ function imageWaitMs(env) {
   return 5000;
 }
 
-async function resolveWithin(env, ctx, id, hints, stored) {
+async function resolveWithin(env, ctx, id, hints, stored, options = {}) {
   const ms = imageWaitMs(env);
   let timer;
-  const job = resolveAndStore(env, id, hints, stored || draftDocument(id, hints))
+  const job = resolveAndStore(env, id, hints, stored || draftDocument(id, hints), options)
     .then(async () => ({ timedOut: false, stored: await readDocument(env, id) }))
     .catch(() => ({ timedOut: false, stored }));
   const timeout = new Promise((resolve) => {
@@ -993,16 +1015,23 @@ function missHint(request) {
 }
 
 function redirect(location, vary, language) {
-  const headers = { Location: location, ...imageHeaders(60, vary) };
+  // The discovery URL must not stick. A pin bumps `v` on the file URL, and the
+  // next open has to see that new Location immediately.
+  const headers = {
+    Location: location,
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+  };
+  if (vary) headers.Vary = "Accept-Language";
   if (language) headers["Content-Language"] = language;
   return new Response(null, { status: 302, headers });
 }
 
-function imageNotFound(hint, vary, { timeout = false } = {}) {
-  const headers = timeout
+function imageNotFound(hint, vary, { timeout = false, store = true } = {}) {
+  const headers = (timeout || !store)
     ? { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" }
     : imageHeaders(30, vary);
-  if (timeout && vary) headers.Vary = "Accept-Language";
+  if ((timeout || !store) && vary) headers.Vary = "Accept-Language";
   return new Response(JSON.stringify({ error: "not_found", hint }), {
     status: 404,
     headers: {

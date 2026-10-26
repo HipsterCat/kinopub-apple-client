@@ -121,7 +121,9 @@ test("images returns the ru, en and textless files for one title", async () => {
     assert.equal(body.en[1].from, "svg");
     assert.equal(body.ru[0].url, "https://image.tmdb.org/t/p/original/ru.png");
     assert.equal(body.und[0].url, "https://image.tmdb.org/t/p/original/blank.png");
-    assert.equal(body.de, undefined);
+    assert.equal(body.de[0].url, "https://image.tmdb.org/t/p/original/de.png");
+    assert.equal(body.de[0].pick, undefined);
+    assert.equal(body.en[0].lang, "en");
   } finally {
     globalThis.fetch = original;
   }
