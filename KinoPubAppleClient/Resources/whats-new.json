@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "«Продолжить просмотр» — недосмотренные фильмы и сериалы, на которые вы подписаны, как в kino.pub. Давно брошенное из общего списка недосмотренных в ряд не попадает. Дата — самая свежая: этот девайс или другое устройство.",
         "Настройки › Дополнительно: «Память и данные». На Apple TV слева диаграмма: доли в процентах, в центре размер, под ней полоска — сейчас, лимит и сколько свободно. Справа сначала iCloud, потом каждый кеш. Внутри раздела видно, из чего он состоит: логотипы, постеры, кадры, карточки.",
         "Админка картинок на странице тайтла: «Сбросить локальный кеш» стирает картинки и метаданные только этого тайтла, они загружаются заново.",
         "Каталог: у концерта под обложкой год и название тура, а не жанр. В разделах «Документалки», «Аниме» и «Мультфильмы» подпись показывает следующий жанр. Строка под названием — мельче и обычным начертанием.",
@@ -70,6 +71,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Continue Watching is kino.pub's unfinished movies and the series you follow. Long-abandoned titles from the full unfinished list leave the row. The date is the newest one: this device or another.",
         "Settings › Advanced: Storage & Data. On Apple TV the chart shows each share on its slice and the size in the middle, with a bar under it for what's used, the limit, and free space. iCloud is the first row; opening a cache lists what's inside — logos, posters, stills, records.",
         "The title page's image admin has Reset local cache: it drops pictures and metadata for that title only, then loads them again.",
         "Catalog: a concert's caption is the year and the tour name, not the genre. In Documentaries, Anime and Cartoons the caption names the next genre. The line under the title is smaller, regular weight.",

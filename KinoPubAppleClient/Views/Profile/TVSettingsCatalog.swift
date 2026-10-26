@@ -286,23 +286,6 @@ final class TVSettingsCatalog {
       ),
     ]
 
-    let continueWatchingRows: [TSKRow] = [
-      TSKRow(
-        title: "Сколько недель учитывать",
-        description: "Что не смотрели, не обновлялось и не добавлялось в закладки столько недель, в «Продолжить просмотр» не попадает.",
-        kind: .choice(key: "continueWatchingWeeks",
-                      values: ContinueWatchingOrder.Rules.weekOptions.map { NSNumber(value: $0) },
-                      label: { ($0 as? NSNumber).map { Self.weeksLabel($0.intValue) } }),
-        previewSymbol: "calendar"
-      ),
-      TSKRow(
-        title: "Добавлять закладки",
-        description: "Подмешивает в «Продолжить просмотр» то, что недавно добавлено в закладки и ещё не начато, по дате добавления — не больше четырёх.",
-        kind: .toggle(key: "continueWatchingBookmarks"),
-        previewSymbol: "bookmark"
-      ),
-    ]
-
     let sections = store.orderedHomeSections
     let sectionRows: [TSKRow] = sections.enumerated().map { idx, section in
       let isVisible = store.isHomeSectionVisible(section.id)
@@ -360,29 +343,11 @@ final class TVSettingsCatalog {
     return [
       TSKSection(title: "Вкладки верхнего меню (Табы)", rows: tabRows),
       TSKSection(title: "Фильтры Главной", rows: filterRows),
-      TSKSection(title: "Продолжить просмотр", rows: continueWatchingRows),
       TSKSection(title: "Секции Главной (Watch Now)", rows: sectionRows),
       TSKSection(title: "Секции Фильмов (Movies)", rows: movieSectionRows),
       TSKSection(title: "Секции Сериалов и Шоу (Series)", rows: seriesSectionRows),
       TSKSection(title: "Сброс", rows: resetRows),
     ]
-  }
-
-  /// «1 неделя», «2 недели», «8 недель».
-  static func weeksLabel(_ weeks: Int) -> String {
-    let lastTwo = weeks % 100
-    let last = weeks % 10
-    let word: String
-    if (11...14).contains(lastTwo) {
-      word = "недель"
-    } else if last == 1 {
-      word = "неделя"
-    } else if (2...4).contains(last) {
-      word = "недели"
-    } else {
-      word = "недель"
-    }
-    return "\(weeks) \(word)"
   }
 
   private func tabDetailPage(specID: String) -> TSKPage {
@@ -1744,15 +1709,6 @@ final class TVSettingsCatalog {
     store.bindBool("autoPlayNextSeason",
                    get: { PlaybackPreferences.autoPlayNextSeason },
                    set: { defaults.set($0, forKey: PlaybackPreferences.autoPlayNextSeasonKey) })
-    store.bind("continueWatchingWeeks",
-               get: { NSNumber(value: ContinueWatchingPreferences.weeks) },
-               set: { value in
-                 guard let weeks = (value as? NSNumber)?.intValue else { return }
-                 ContinueWatchingPreferences.setWeeks(weeks)
-               })
-    store.bindBool("continueWatchingBookmarks",
-                   get: { ContinueWatchingPreferences.includesBookmarks },
-                   set: { ContinueWatchingPreferences.setIncludesBookmarks($0) })
     store.bindBool("subtitlesEnglish", get: { SubtitlePreferences.preferEnglishSubtitles },
                    set: { defaults.set($0, forKey: SubtitlePreferences.preferEnglishKey) })
     store.bindBool("subtitlesNonCC", get: { SubtitlePreferences.preferNonCCSubtitles },
