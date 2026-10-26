@@ -98,6 +98,8 @@ class MediaItemModel: ObservableObject {
   /// TMDB (and later other sources) overlay. Empty when the proxy is unset or the
   /// title has no IMDb id — the page then draws exactly as before.
   @Published public var externalMetadata: TitleMetadata = TitleMetadata()
+  /// Bumped when this title's local pictures are dropped, so the hero reloads them.
+  @Published var localCacheEpoch = 0
 
   /// True once `loadExternalMetadata` finishes or is skipped. Cast photos wait on
   /// this before falling back to the pushbr CDN so URLs don't swap mid-paint.
@@ -150,7 +152,8 @@ class MediaItemModel: ObservableObject {
   }
 
   /// Second line under lettered hero type — kino.pub's `RU / EN` split, else Kinopoisk
-  /// when the catalog title has no slash. Wordmarks use ``TitleLogoRequestKind`` only.
+  /// when the catalog title has no slash. Wordmarks pass this as ``partner`` into
+  /// ``TitleLogoRequestKind/supplementaryUnderLogo``.
   var heroTitlePartnerLine: String? {
     if let aka = mediaItem.alsoKnownAsTitle { return aka }
     for fragment in externalMetadata.fragments where fragment.source == .kinopoisk {
@@ -515,6 +518,67 @@ class MediaItemModel: ObservableObject {
 
   func schedule(for episode: Episode, in season: Season) -> EpisodeSchedule? {
     seasonSchedules[season.number]?.first(where: { $0.episodeNumber == episode.number })
+  }
+
+  /// Pictures and metadata cached for this title only. The catalog row stays.
+  /// The hero reads ``localCacheEpoch`` and loads the pictures again.
+  @MainActor
+  func resetLocalCache() async {
+    Artwork.remove(urls: localImageURLs())
+    await MetadataCache.removeTitle(
+      imdb: identity?.imdb,
+      kinopoisk: mediaItem.kinopoisk,
+      tmdbID: externalMetadata.tmdbId
+    )
+    seasonSchedules = [:]
+    localCacheEpoch += 1
+    await loadExternalMetadata()
+  }
+
+  @MainActor
+  private func localImageURLs() -> [URL] {
+    var urls: [URL] = []
+    func add(_ string: String) {
+      let resolved = CoverArtwork.resolve(url: string, kinopoiskID: mediaItem.kinopoisk)
+      if let url = URL(string: resolved) { urls.append(url) }
+      if resolved != string, let original = URL(string: string) { urls.append(original) }
+    }
+    for raw in [mediaItem.posters.small, mediaItem.posters.medium, mediaItem.posters.big,
+                mediaItem.posters.wide, mediaItem.posters.wideURL] {
+      if let raw, !raw.isEmpty { add(raw) }
+    }
+    for season in mediaItem.seasons ?? [] {
+      for episode in season.episodes where !episode.thumbnail.isEmpty {
+        add(episode.thumbnail)
+      }
+    }
+    for video in mediaItem.videos ?? [] where !video.thumbnail.isEmpty {
+      add(video.thumbnail)
+    }
+    let images = metadataService.images
+    if let logo = images.logo(kinopubID: mediaItem.id, imdb: mediaItem.imdb, width: ArtworkPixelWidth.logo) {
+      urls.append(logo)
+    }
+    if let backdrop = images.backdrop(kinopubID: mediaItem.id, imdb: mediaItem.imdb,
+                                      width: ArtworkPixelWidth.backdrop) {
+      urls.append(backdrop)
+    }
+    if let logo = externalMetadata.titleLogoURL { urls.append(logo) }
+    if let poster = externalMetadata.artwork.poster { urls.append(poster) }
+    if let backdrop = externalMetadata.backdropURL { urls.append(backdrop) }
+    for member in externalMetadata.cast {
+      if let photo = member.photo { urls.append(photo) }
+    }
+    for still in externalMetadata.stills {
+      urls.append(still.url)
+      if let preview = still.previewURL { urls.append(preview) }
+    }
+    for episodes in seasonSchedules.values {
+      for episode in episodes {
+        if let still = episode.still { urls.append(still) }
+      }
+    }
+    return urls
   }
 
   private func loadExternalMetadata() async {

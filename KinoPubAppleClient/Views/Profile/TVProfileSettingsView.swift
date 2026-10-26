@@ -148,6 +148,10 @@ struct TVProfileSettingsView: View {
       TVReleaseNotesPage()
     case .kinopoisk:
       TVKinopoiskKeyView(keyProvider: kinopoiskKeyProvider)
+    case .workerImageAdminToken:
+      WorkerImageAdminTokenEntryView()
+    case .storage:
+      StorageSettingsView()
     case .networkLog:
       NetworkConsoleView()
     case .lab(let lab):
@@ -381,6 +385,13 @@ struct TVProfileSettingsView: View {
     // Not DEBUG-only: this is the platform the slow launches happen on, and the builds
     // they happen in are TestFlight ones with no Xcode attached.
     SettingsSection("Diagnostics") {
+      navigationRow("Storage & Data", route: .storage, focus: focus, equals: .storage)
+      navigationRow(
+        "Worker admin token",
+        route: .workerImageAdminToken,
+        focus: focus,
+        equals: .workerImageAdminToken
+      )
       navigationRow("Network log", route: .networkLog, focus: focus, equals: .networkLog)
       // Reading a log on a television with a remote is nobody's idea of a good time;
       // this is the row that moves it to a Mac.
@@ -996,6 +1007,8 @@ private enum SettingsRoute: Hashable {
   case rememberedTracks
   case releaseNotes
   case kinopoisk
+  case workerImageAdminToken
+  case storage
   case networkLog
   case lab(TVSettingsLab)
 }
@@ -1020,8 +1033,10 @@ private enum SettingsFocusItem: Hashable {
   case info(String)
   case retry
   case kinopoisk
+  case workerImageAdminToken
   case source(TVDataSource)
   case logout
+  case storage
   case networkLog
   case streamToPulse
   case activityOverlay
@@ -1043,8 +1058,10 @@ private enum SettingsFocusItem: Hashable {
     case .secondLang: "Settings_Tip_SecondLanguage"
     case .capability: "Settings_Tip_DeviceCapabilities"
     case .kinopoisk: "Settings_Tip_Kinopoisk"
+    case .workerImageAdminToken: "Settings_Tip_WorkerAdminToken"
     case .source(let source): source.tipKey
     case .logout: "Settings_Tip_Logout"
+    case .storage: "Settings_Tip_Storage"
     case .networkLog: "Settings_Tip_NetworkLog"
     case .streamToPulse: "Settings_Tip_StreamToPulse"
     case .activityOverlay: "Settings_Tip_ActivityOverlay"

@@ -53,13 +53,42 @@ test("pick pins a logo and the image route serves that file", async () => {
   }), env);
   assert.equal(picked.status, 200);
   const image = await handleImage(
-    new Request("https://example.test/img/logo/by/kinopub/7"),
+    new Request("https://example.test/img/logo/by/kinopub/7", {
+      headers: { "Accept-Language": "en-US,en;q=0.9" },
+    }),
     env,
     { waitUntil() {} },
   );
   assert.equal(image.status, 302);
   assert.equal(image.headers.get("location"), "https://example.test/img/logo/by/kinopub/7/en/logo.png?v=1");
   assert.equal(image.headers.get("content-language"), "en");
+});
+
+test("pick logo merges ru and en pins without dropping the other language", async () => {
+  const env = memoryEnv({
+    "title:kinopub:7": {
+      pending: false,
+      artwork: { logo: [] },
+    },
+  });
+  const ru = await handleAdmin(admin("/admin/kinopub/7/pick", {
+    body: {
+      logo: "https://image.tmdb.org/t/p/original/ru-logo.png",
+      logo_lang: "ru",
+    },
+  }), env);
+  assert.equal(ru.status, 200);
+  const en = await handleAdmin(admin("/admin/kinopub/7/pick", {
+    body: {
+      logo: "https://image.tmdb.org/t/p/original/en-logo.png",
+      logo_lang: "en",
+    },
+  }), env);
+  assert.equal(en.status, 200);
+  const doc = env.documents["title:kinopub:7"];
+  assert.equal(doc.artwork.logo.length, 2);
+  const langs = doc.artwork.logo.map((item) => item.lang).sort();
+  assert.deepEqual(langs, ["en", "ru"]);
 });
 
 test("images returns the ru, en and textless files for one title", async () => {

@@ -8,6 +8,7 @@
  *   POST /admin/kinopub/{id}/images?kind=logo|backdrop|poster&imdb=tt…
  *   POST /admin/kinopub/{id}/pick
  *        { "logo": "https://…", "logo_lang": "en", "backdrop": "https://…" }
+ *        Logo picks merge by `logo_lang` (ru / en) — one pinned file per language.
  *
  * images asks TMDB once for this title and returns the ru / en / und files.
  * The url in that list is what pick expects. pick pins that file until forget.
@@ -186,10 +187,27 @@ async function pick(request, env, id) {
     const safe = safeURL(raw);
     if (!safe) return json({ error: "bad_request", hint: `${kind} must be an https URL` }, 400);
     const lang = body[`${kind}_lang`] ?? null;
-    artwork[kind] = [{
-      source: "admin", url: safe, lang: lang === "ru" || lang === "en" ? lang : null,
-      pinned: true, width: null, height: null,
-    }];
+    const pin = {
+      source: "admin",
+      url: safe,
+      lang: lang === "ru" || lang === "en" ? lang : null,
+      pinned: true,
+      width: null,
+      height: null,
+    };
+    if (kind === "logo") {
+      const prev = Array.isArray(artwork.logo) ? artwork.logo : [];
+      const tag = pin.lang;
+      artwork.logo = prev.filter((item) => {
+        if (item?.pinned !== true) return true;
+        if (!tag) return false;
+        const itemLang = item.lang === "ru" || item.lang === "en" ? item.lang : null;
+        return itemLang !== tag;
+      });
+      artwork.logo.push(pin);
+    } else {
+      artwork[kind] = [pin];
+    }
     picked[kind] = safe;
   }
   if (!Object.keys(picked).length) return json({ error: "bad_request", hint: "pass logo, backdrop, or poster" }, 400);

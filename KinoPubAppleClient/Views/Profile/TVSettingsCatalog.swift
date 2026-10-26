@@ -24,6 +24,10 @@ final class TVSettingsCatalog {
 
   private let model: ProfileModel
   private let device = DeviceSettingsPaneModel()
+  private let storageModel = StorageSettingsModel()
+  private var storageCharts: [String: StorageChartController] = [:]
+  private var storagePreviewControllers: [String: UIViewController] = [:]
+  private var storageOpening = false
   private let kinopoisk: KinopoiskKeySettingsModel
   private let deviceService: DeviceService
   private let errorHandler: ErrorHandler
@@ -669,6 +673,9 @@ final class TVSettingsCatalog {
 
   private func advancedSections() -> [TSKSection] {
     [TSKSection(title: "Diagnostics".localized, rows: [
+      TSKRow(title: "Storage & Data".localized,
+             description: "Settings_Tip_Storage".localized,
+             kind: .action(pushes: true) { [unowned self] in self.presentStorage() }),
       TSKRow(title: "Network log".localized,
              description: "Settings_Tip_NetworkLog".localized,
              kind: .action(pushes: true) { [unowned self] in self.presentPulseConsole() }),
@@ -678,6 +685,9 @@ final class TVSettingsCatalog {
       TSKRow(title: "Show in-flight requests".localized,
              description: "Settings_Tip_ActivityOverlay".localized,
              kind: .toggle(key: "activityOverlay")),
+      TSKRow(title: "Worker admin token".localized,
+             description: "Settings_Tip_WorkerAdminToken".localized,
+             kind: .action(pushes: false) { [unowned self] in self.presentWorkerAdminTokenEntry() }),
     ])]
   }
 
@@ -1321,7 +1331,357 @@ final class TVSettingsCatalog {
     host.present(host_(inStack ? AnyView(NavigationStack { view }) : AnyView(view)))
   }
   
-  /// Present Pulse console directly without custom environment wrapping.
+  /// Pushed into the settings split. The left column is the chart and the
+  /// budget bar. The right column starts with iCloud, then one row per colour.
+  private func presentStorage() {
+    guard !storageOpening else { return }
+    storageOpening = true
+    Task { @MainActor in
+      await self.storageModel.refresh(appContext: AppContext.shared)
+      self.storageOpening = false
+      self.storageCharts = [:]
+      self.storagePreviewControllers = [:]
+      self.host.push(self.storagePage())
+    }
+  }
+
+  private func storagePage() -> TSKPage {
+    TSKPage(
+      title: "Storage & Data".localized,
+      focusedPreview: { [unowned self] key, _ in
+        self.storagePreview(page: "root", key: key)
+      },
+      idlePreview: { [unowned self] in
+        self.storagePreview(page: "root", key: nil)
+      },
+      sections: { [unowned self] in
+        self.storageSections()
+      }
+    )
+  }
+
+  /// `key` nil is the whole chart. A slice id isolates that piece. Nothing is
+  /// written under the chart; the bar under it is part of the chart view.
+  private func storagePreview(page: String, key: String?) -> UIViewController {
+    let highlight = (key == nil || key == "all") ? nil : key
+    let chart = storageCharts[page] ?? StorageChartController()
+    storageCharts[page] = chart
+    let slices = storageChartSlices()
+    chart.model.apply(
+      slices: slices,
+      highlightedID: highlight,
+      capacity: storageCapacity(highlight: highlight, slices: slices)
+    )
+    if let controller = storagePreviewControllers[page] {
+      controller.perform(NSSelectorFromString("setAttributedDescriptionText:"), with: nil)
+      return controller
+    }
+    let controller = TSKPreview.make(contentView: chart.view, description: nil) ?? UIViewController()
+    storagePreviewControllers[page] = controller
+    return controller
+  }
+
+  private func storageChartSlices() -> [StorageChartSlice] {
+    let model = storageModel
+    var rows: [(String, Int64)] = [
+      ("artwork", Int64(model.artworkDiskBytes)),
+      ("catalog", model.catalogBytes),
+      ("metadata", model.metadataBytes),
+      ("log", model.log.totalBytes),
+      ("other", Int64(model.urlCacheDiskBytes) + model.apiResponseBytes + model.hlsTempBytes),
+    ]
+    if FeatureFlags.downloadsEnabled {
+      rows.append(("downloads", model.downloadsBytes))
+    }
+    return rows.map { id, bytes in
+      StorageChartSlice(
+        id: id,
+        title: Self.storageSliceTitle(id),
+        color: Self.storageSliceColor(id),
+        bytes: bytes
+      )
+    }
+  }
+
+  /// Pictures and the network log have a real cap. Everything else is bounded
+  /// by the disk, which is what the bar shows so a full cache is obvious
+  /// against the free space.
+  private func storageCapacity(highlight: String?, slices: [StorageChartSlice]) -> StorageCapacity {
+    let free = storageModel.freeBytes
+    switch highlight {
+    case "artwork":
+      return StorageCapacity(
+        used: Int64(storageModel.artworkDiskBytes),
+        limit: Int64(Artwork.diskByteLimit),
+        free: free,
+        capped: true
+      )
+    case "log":
+      return StorageCapacity(
+        used: storageModel.log.totalBytes,
+        limit: Int64(NetworkDiagnostics.storeByteLimit),
+        free: free,
+        capped: true
+      )
+    default:
+      let used = slices.reduce(Int64(0)) { $0 + max(0, $1.bytes) }
+      let volume = storageModel.volumeBytes
+      let ceiling = volume > 0 ? volume : used + max(free, 0)
+      return StorageCapacity(used: used, limit: max(ceiling, 1), free: free, capped: false)
+    }
+  }
+
+  private static func storageSliceTitle(_ id: String) -> String {
+    switch id {
+    case "artwork": "Pictures".localized
+    case "catalog": "Catalog".localized
+    case "metadata": "Metadata".localized
+    case "log": "Network log".localized
+    case "downloads": "Downloads".localized
+    default: "Other".localized
+    }
+  }
+
+  /// The row's colour, so the list and the chart use the same piece.
+  private static func storageSliceMark(_ id: String) -> String {
+    switch id {
+    case "artwork": "🔵"
+    case "catalog": "🟢"
+    case "metadata": "🟠"
+    case "log": "🟣"
+    case "downloads": "🔷"
+    default: "⚪️"
+    }
+  }
+
+  private static func storageSliceColor(_ id: String) -> Color {
+    switch id {
+    case "artwork": .blue
+    case "catalog": .green
+    case "metadata": .orange
+    case "log": .purple
+    case "downloads": .teal
+    default: .gray
+    }
+  }
+
+  private func storageSections() -> [TSKSection] {
+    let slices = storageChartSlices()
+    let caches = slices.map { slice in
+      TSKRow(
+        title: "\(Self.storageSliceMark(slice.id))  \(slice.title)",
+        kind: .action(pushes: true) { [unowned self] in
+          self.host.push(self.storageDetailPage(id: slice.id))
+        },
+        previewKey: slice.id,
+        trailingValue: StorageByteFormat.string(slice.bytes)
+      )
+    }
+    return [
+      TSKSection(rows: [
+        TSKRow(
+          title: "iCloud".localized,
+          kind: .choice(
+            key: "libraryPlace",
+            values: [LibraryPlace.device as NSString, LibraryPlace.iCloud as NSString],
+            label: { value in
+              let raw = value as? String
+              return raw == LibraryPlace.iCloud ? "iCloud" : "On this device".localized
+            }
+          )
+        ),
+      ]),
+      TSKSection(rows: caches),
+    ]
+  }
+
+  private func storageDetailPage(id: String) -> TSKPage {
+    TSKPage(
+      title: Self.storageSliceTitle(id),
+      focusedPreview: { [unowned self] _, _ in self.storagePreview(page: id, key: id) },
+      idlePreview: { [unowned self] in self.storagePreview(page: id, key: id) },
+      sections: { [unowned self] in self.storageDetailSections(id) }
+    )
+  }
+
+  private func storageDetailSections(_ id: String) -> [TSKSection] {
+    let model = storageModel
+    let localOnly = "This only affects local caches — nothing on your account changes.".localized
+    switch id {
+    case "artwork":
+      var rows = model.artworkGroups.map { group in
+        storageInfo(Self.artworkGroupTitle(group.id), Self.countAndSize(group.count, group.bytes))
+      }
+      let classified = model.artworkGroups.reduce(Int64(0)) { $0 + $1.bytes }
+      let rest = Int64(model.artworkDiskBytes) - classified
+      if rest > 64 * 1024 {
+        rows.append(storageInfo("Also on disk", StorageByteFormat.string(rest)))
+      }
+      rows.append(storageInfo(
+        "Memory",
+        "\(StorageByteFormat.string(Int64(model.artworkMemoryBytes))) · \("Limit".localized) \(StorageByteFormat.string(Int64(Artwork.memoryByteLimit)))"
+      ))
+      rows.append(storageClear(
+        "Clear pictures",
+        enabled: model.artworkDiskBytes > 0 || model.artworkMemoryBytes > 0,
+        confirm: "Clear pictures?",
+        message: localOnly
+      ) { [weak self] in
+        self?.storageModel.clearArtworkCache()
+      })
+      return [TSKSection(rows: rows)]
+    case "catalog":
+      return [TSKSection(rows: [
+        storageInfo("Catalog rows", Self.countAndSize(model.rowCount, model.rowSnapshotBytes)),
+        storageInfo("Title records", Self.countAndSize(model.recordCount, model.recordBytes)),
+        storageClear("Clear catalog cache", enabled: model.catalogBytes > 0,
+                     confirm: "Clear catalog cache?", message: localOnly) { [weak self] in
+          self?.storageModel.clearRowSnapshots()
+        },
+      ])]
+    case "metadata":
+      var rows = model.metadataGroups.map { group in
+        storageInfo(Self.metadataGroupTitle(group.id), Self.countAndSize(group.count, group.bytes))
+      }
+      if rows.isEmpty, model.metadataBytes > 0 {
+        rows.append(storageInfo("Also on disk", StorageByteFormat.string(model.metadataBytes)))
+      }
+      rows.append(storageClear("Clear metadata cache", enabled: model.metadataBytes > 0,
+                               confirm: "Clear metadata cache?", message: localOnly) { [weak self] in
+        await self?.storageModel.clearMetadata()
+      })
+      return [TSKSection(rows: rows)]
+    case "log":
+      return [TSKSection(rows: [
+        storageInfo("Logs", "\(model.log.messageCount) · \(StorageByteFormat.string(model.log.logsBytes))"),
+        storageInfo("Blobs", StorageByteFormat.string(model.log.blobsBytes)),
+        storageInfo("Requests", "\(model.log.requestCount)"),
+        TSKRow(title: "Open network log".localized,
+               kind: .action(pushes: true) { [unowned self] in self.presentPulseConsole() }),
+        storageClear("Clear network log", enabled: model.log.totalBytes > 0,
+                     confirm: "Clear network log?", message: localOnly) { [weak self] in
+          self?.storageModel.clearNetworkLog()
+        },
+      ])]
+    case "downloads":
+      return [TSKSection(rows: [
+        storageInfo("Downloaded files", "\(model.downloadsCount)"),
+        storageInfo("Downloads size", StorageByteFormat.string(model.downloadsBytes)),
+      ])]
+    default:
+      var rows = [
+        storageInfo(
+          "URL cache, disk",
+          "\(StorageByteFormat.string(Int64(model.urlCacheDiskBytes))) · \("Limit".localized) \(StorageByteFormat.string(Int64(URLCache.shared.diskCapacity)))"
+        ),
+        storageInfo(
+          "URL cache, memory",
+          "\(StorageByteFormat.string(Int64(model.urlCacheMemoryBytes))) · \("Limit".localized) \(StorageByteFormat.string(Int64(URLCache.shared.memoryCapacity)))"
+        ),
+        storageInfo("API responses", StorageByteFormat.string(model.apiResponseBytes)),
+        storageClear("Clear URL cache", enabled: model.urlCacheDiskBytes > 0 || model.urlCacheMemoryBytes > 0,
+                     confirm: "Clear URL cache?", message: localOnly) { [weak self] in
+          self?.storageModel.clearURLCache()
+        },
+        storageClear("Clear API responses", enabled: model.apiResponseBytes > 0,
+                     confirm: "Clear API responses?", message: localOnly) { [weak self] in
+          self?.storageModel.clearAPIResponses()
+        },
+        storageInfo("Recent searches", "\(model.searchRecents)"),
+        storageClear("Clear search recents", enabled: model.searchRecents > 0,
+                     confirm: "Clear search recents?", message: "Recent searches on this device are removed.".localized) { [weak self] in
+          self?.storageModel.clearSearchRecents()
+        },
+      ]
+      if model.hlsTempBytes > 0 {
+        rows.append(storageInfo("HLS temp files", StorageByteFormat.string(model.hlsTempBytes)))
+        rows.append(storageClear("Clear HLS temp files", enabled: true,
+                                 confirm: "Clear HLS temp files?", message: localOnly) { [weak self] in
+          self?.storageModel.clearHLSTemp()
+        })
+      }
+      return [TSKSection(rows: rows)]
+    }
+  }
+
+  private static func countAndSize(_ count: Int, _ bytes: Int64) -> String {
+    let size = StorageByteFormat.string(bytes)
+    if count > 0, bytes > 0 { return "\(count) · \(size)" }
+    if count > 0 { return "\(count)" }
+    return size
+  }
+
+  private static func artworkGroupTitle(_ id: String) -> String {
+    switch id {
+    case "logos": "Logos"
+    case "posters": "Posters"
+    case "backdrops": "Backdrops"
+    case "stills": "Stills"
+    case "people": "Cast photos"
+    default: "Other pictures"
+    }
+  }
+
+  private static func metadataGroupTitle(_ id: String) -> String {
+    switch id {
+    case "tmdb_find": "TMDB matches"
+    case "tmdb_details": "TMDB titles"
+    case "tmdb_season": "TMDB seasons"
+    case "tmdb_person": "TMDB people"
+    case "kinopoisk_details": "Kinopoisk titles"
+    case "kinopoisk_staff": "Kinopoisk cast"
+    case "kinopoisk_awards": "Kinopoisk awards"
+    case "kinopoisk_images": "Kinopoisk images"
+    case "kinopoisk_facts": "Kinopoisk facts"
+    case "kinopoiskProxy_reviews": "Kinopoisk reviews"
+    case "kinopoiskProxy_staff": "Proxy cast"
+    case "kinopoiskProxy": "Kinopoisk proxy"
+    default: "Other metadata"
+    }
+  }
+
+  private func storageInfo(_ title: String, _ value: String) -> TSKRow {
+    TSKRow(title: title.localized, kind: .info(value: value), previewKey: "all")
+  }
+
+  private func storageClear(
+    _ title: String,
+    enabled: Bool,
+    confirm: String,
+    message: String,
+    work: @escaping () async -> Void
+  ) -> TSKRow {
+    TSKRow(
+      title: title.localized,
+      kind: .action(pushes: false) { [weak self] in
+        self?.confirmStorageClear(title: confirm.localized, message: message, work: work)
+      },
+      isEnabled: enabled
+    )
+  }
+
+  private func confirmStorageClear(title: String, message: String, work: @escaping () async -> Void) {
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "Clear".localized, style: .destructive) { [weak self] _ in
+      guard let self else { return }
+      Task { @MainActor in
+        await work()
+        await self.storageModel.refresh(appContext: AppContext.shared)
+        let slices = self.storageChartSlices()
+        for chart in self.storageCharts.values {
+          chart.model.apply(
+            slices: slices,
+            highlightedID: chart.model.highlightedID,
+            capacity: self.storageCapacity(highlight: chart.model.highlightedID, slices: slices)
+          )
+        }
+        self.host.reloadPages()
+      }
+    })
+    alert.addAction(UIAlertAction(title: "Cancel".localized, style: .cancel))
+    host.presentPopup(alert)
+  }
+
   /// Pulse's ConsoleView sets up its own environment internally, and wrapping it
   /// in our custom hosting closure prevents that initialization.
   private func presentPulseConsole() {
@@ -1329,6 +1689,18 @@ final class TVSettingsCatalog {
     // Create a plain UIHostingController without custom environment injection
     let controller = UIHostingController(rootView: consoleView)
     host.present(controller)
+  }
+
+  private func presentWorkerAdminTokenEntry() {
+    let entry = WorkerAdminTextEntryViewController(
+      initialText: WorkerImageAdminTokenStore.token ?? "",
+      onCommit: { [unowned self] text in
+        let filtered = WorkerAdminTokenSanitizer.filter(text)
+        WorkerImageAdminTokenStore.token = filtered.isEmpty ? nil : filtered
+        self.host.reloadPages()
+      }
+    )
+    host.presentPopup(entry)
   }
 
   private func scopeLabel(_ scope: TrackMemoryScope) -> String {
@@ -1414,7 +1786,6 @@ final class TVSettingsCatalog {
                    self.host.reloadPages()
                  }
                })
-
     for flag in FeatureFlag.allCases {
       store.bindBool(Self.flagKey(flag), get: { flag.storedValue }, set: { flag.set($0) })
     }
@@ -1500,8 +1871,15 @@ final class TVSettingsCatalog {
                    set: { [unowned self] in self.bannerDedupAggregate = $0 })
 
     // Rows that depend on another row's value, and the experiments page's pending-quit row.
+    store.bind("libraryPlace",
+               get: { LibraryPlace.raw as NSString },
+               set: { value in
+                 let raw = (value as? String) == LibraryPlace.iCloud ? LibraryPlace.iCloud : LibraryPlace.device
+                 UserDefaults.standard.set(raw, forKey: LibraryPlace.defaultsKey)
+               })
+
     store.didWrite = { [unowned self] key in
-      if ["subtitlesEnglish", "subtitlesDual", "autoPlayNextEpisode"].contains(key)
+      if ["subtitlesEnglish", "subtitlesDual", "autoPlayNextEpisode", "libraryPlace"].contains(key)
           || key.hasPrefix("flag_") {
         self.host.reloadPages()
       } else if key.hasPrefix("banner") {

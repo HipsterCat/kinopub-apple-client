@@ -1130,8 +1130,7 @@ extension GenreKind {
 
 /// Recent queries, newest first, on this device only. The system keeps no search
 /// history of its own; HIG asks for recents among the suggestions and for a way to
-/// clear them (Settings › Storage clears `UserDefaults` too — a dedicated control is
-/// still to do).
+/// clear them (Settings › Storage & Data › Search).
 enum SearchHistory {
   private static let key = "search.recentQueries"
   private static let limit = 8

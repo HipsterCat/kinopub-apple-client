@@ -205,8 +205,13 @@ final class TitleImageRouteTests: XCTestCase {
     )
     XCTAssertEqual(
       TitleLogoRequestKind(deliveredLanguage: .ru).supplementaryUnderLogo(
-        localized: "Fallout", original: "Фоллаут"),
-      "Фоллаут"
+        localized: "Фоллаут", original: "Fallout"),
+      "Fallout"
+    )
+    XCTAssertEqual(
+      TitleLogoRequestKind(deliveredLanguage: .ru).supplementaryUnderLogo(
+        localized: "Уэнсдэй", original: "Wednesday"),
+      "Wednesday"
     )
   }
 
@@ -214,12 +219,15 @@ final class TitleImageRouteTests: XCTestCase {
     let ru = TitleLogoRequestKind(routeLanguage: nil)
     XCTAssertEqual(ru.supplementaryUnderLogo(localized: "Йеллоустоун", original: "Yellowstone"),
                    "Yellowstone")
-    XCTAssertEqual(ru.supplementaryUnderLogo(localized: "Фоллаут", original: "Фоллаут"),
-                   "Фоллаут")
+    XCTAssertNil(ru.supplementaryUnderLogo(localized: "Фоллаут", original: "Фоллаут"))
     XCTAssertNil(ru.supplementaryUnderLogo(localized: "Solo", original: "Solo"))
+    XCTAssertNil(
+      ru.supplementaryUnderLogo(localized: "Следствие вели…", original: "Следствие вели…")
+    )
 
     let en = TitleLogoRequestKind(routeLanguage: "en")
     XCTAssertEqual(en.supplementaryUnderLogo(localized: "Йеллоустоун", original: "Yellowstone"),
                    "Йеллоустоун")
+    XCTAssertNil(en.supplementaryUnderLogo(localized: "Dino Ranch", original: "Dino Ranch"))
   }
 }

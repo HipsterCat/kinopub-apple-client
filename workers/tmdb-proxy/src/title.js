@@ -507,6 +507,18 @@ function pinnedAsset(document, kind) {
   return null;
 }
 
+/** Admin pin for one language (logo / poster). Backdrop uses a single pin. */
+function pinnedAssetForLang(document, kind, lang) {
+  const list = document?.artwork?.[kind];
+  if (!Array.isArray(list)) return null;
+  const want = langTag(lang);
+  for (const item of list) {
+    const asset = normalizeAsset(item);
+    if (asset?.pinned && langTag(asset.lang) === want) return asset;
+  }
+  return null;
+}
+
 function langTag(lang) {
   if (lang === "ru" || lang === "en") return lang;
   return "und";
@@ -590,8 +602,10 @@ async function proxyStamped(request, url, env, stamp) {
 }
 
 function assetInLang(document, kind, lang, hints) {
-  const pinned = pinnedAsset(document, kind);
-  if (pinned && langTag(pinned.lang) === langTag(lang)) return pinned;
+  const pinned = kind === "logo" || kind === "poster"
+    ? pinnedAssetForLang(document, kind, lang)
+    : pinnedAsset(document, kind);
+  if (pinned) return pinned;
   if (kind === "backdrop") return bestAsset(textlessBackdrops(document), "backdrop", null);
   if (kind === "logo") return bestAsset(logoCandidates(document), "logo", lang, { strict: true });
   if (kind === "poster") return bestAsset(posterCandidates(document, hints, lang || "ru"), "poster", lang, { strict: true });
@@ -704,7 +718,9 @@ export function preferredLang(request) {
 
 function selectQueryAsset(document, request, hints) {
   const { kind, lang, s, e } = request;
-  const pinned = pinnedAsset(document, kind);
+  const pinned = kind === "logo" || kind === "poster"
+    ? pinnedAssetForLang(document, kind, lang)
+    : pinnedAsset(document, kind);
   if (pinned) return pinned;
   if (kind === "thumbnail") {
     if (!document || s == null || e == null) return null;

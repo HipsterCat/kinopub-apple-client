@@ -1,6 +1,297 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Everything" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всё"
+          }
+        }
+      }
+    },
+    "Clear everything" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить всё"
+          }
+        }
+      }
+    },
+    "Clear everything?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить всё?"
+          }
+        }
+      }
+    },
+    "On this device" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На устройстве"
+          }
+        }
+      }
+    },
+    "Within the limit" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В пределах лимита"
+          }
+        }
+      }
+    },
+    "At the limit" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У лимита"
+          }
+        }
+      }
+    },
+    "Within disk space" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В пределах диска"
+          }
+        }
+      }
+    },
+    "Limit" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лимит"
+          }
+        }
+      }
+    },
+    "Logos" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Логотипы"
+          }
+        }
+      }
+    },
+    "Backdrops" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фоны"
+          }
+        }
+      }
+    },
+    "Stills" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кадры"
+          }
+        }
+      }
+    },
+    "Cast photos" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фото актёров"
+          }
+        }
+      }
+    },
+    "Other pictures" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другие картинки"
+          }
+        }
+      }
+    },
+    "Also on disk" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё на диске"
+          }
+        }
+      }
+    },
+    "Catalog rows" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ряды каталога"
+          }
+        }
+      }
+    },
+    "Title records" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карточки тайтлов"
+          }
+        }
+      }
+    },
+    "TMDB matches" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Совпадения TMDB"
+          }
+        }
+      }
+    },
+    "TMDB titles" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карточки TMDB"
+          }
+        }
+      }
+    },
+    "TMDB seasons" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сезоны TMDB"
+          }
+        }
+      }
+    },
+    "TMDB people" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Люди TMDB"
+          }
+        }
+      }
+    },
+    "Kinopoisk titles" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карточки Кинопоиска"
+          }
+        }
+      }
+    },
+    "Kinopoisk cast" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Съёмочная группа"
+          }
+        }
+      }
+    },
+    "Kinopoisk awards" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Награды Кинопоиска"
+          }
+        }
+      }
+    },
+    "Kinopoisk images" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изображения Кинопоиска"
+          }
+        }
+      }
+    },
+    "Kinopoisk facts" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Факты Кинопоиска"
+          }
+        }
+      }
+    },
+    "Kinopoisk reviews" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рецензии Кинопоиска"
+          }
+        }
+      }
+    },
+    "Proxy cast" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Съёмочная группа прокси"
+          }
+        }
+      }
+    },
+    "Kinopoisk proxy" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прокси Кинопоиска"
+          }
+        }
+      }
+    },
+    "Other metadata" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другие метаданные"
+          }
+        }
+      }
+    },
+
     "" : {
       "localizations" : {
         "en" : {
@@ -22,6 +313,10 @@
     },
     " " : {
       "comment" : "A placeholder for the title of a movie.",
+      "isCommentAutoGenerated" : true
+    },
+    "—" : {
+      "comment" : "A placeholder text.",
       "isCommentAutoGenerated" : true
     },
     "(%@)" : {
@@ -366,6 +661,10 @@
     },
     "Action %lld" : {
 
+    },
+    "Actions" : {
+      "comment" : "A section of the Worker admin view that contains buttons for various actions.",
+      "isCommentAutoGenerated" : true
     },
     "Activity_Bookmarks" : {
       "comment" : "Launch status: what the app is waiting for",
@@ -888,9 +1187,53 @@
         }
       }
     },
-    "API responses cached by the system. Clearing just means the next loads refetch." : {
-      "comment" : "A description of the storage settings screen.",
-      "isCommentAutoGenerated" : true
+    "API responses" : {
+      "comment" : "A label for the API responses section in the storage settings view.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответы API"
+          }
+        }
+      }
+    },
+    "App" : {
+      "comment" : "The name of the app.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приложение"
+          }
+        }
+      }
+    },
+    "App memory" : {
+      "comment" : "The name of the memory usage of the app.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Память приложения"
+          }
+        }
+      }
+    },
+    "App memory is what the process is using right now. Pictures in memory are the decoded posters and stills. Free space is the disk." : {
+      "comment" : "A description of the storage settings view.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Память приложения — сколько процесс занимает сейчас. Картинки в памяти — уже раскодированные постеры и кадры. Свободно — место на диске."
+          }
+        }
+      }
     },
     "App version" : {
       "localizations" : {
@@ -957,10 +1300,6 @@
           }
         }
       }
-    },
-    "Artwork cache" : {
-      "comment" : "A heading for the artwork cache.",
-      "isCommentAutoGenerated" : true
     },
     "Aspirational — after local DB foundation. Demo controls are not saved." : {
       "comment" : "A description of the settings pane.",
@@ -1257,6 +1596,13 @@
         }
       }
     },
+    "Bearer token" : {
+
+    },
+    "Bearer token for POST /admin/* on the metadata worker. Stored in Keychain on this device." : {
+      "comment" : "A description of the bearer token for the metadata worker.",
+      "isCommentAutoGenerated" : true
+    },
     "Below the lowest acceptable dub, the original is played with subtitles instead. Preferred languages follow the system until an app setting overrides them." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1270,6 +1616,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Если озвучка хуже выбранной, играет оригинал с субтитрами. Предпочитаемые языки берутся из системы, пока не заданы в приложении."
+          }
+        }
+      }
+    },
+    "Blobs" : {
+      "comment" : "The title of the segment in the storage settings view that shows the number of bytes used by the blobs.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тела ответов"
+          }
+        }
+      }
+    },
+    "Blobs decompressed" : {
+      "comment" : "A label for the number of decompressed blobs.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тела ответов, распакованные"
           }
         }
       }
@@ -1408,9 +1778,35 @@
         }
       }
     },
+    "Bundles" : {
+      "comment" : "Browse tab for kino.pub collections (not localized as “Bundles” in Russian).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bundles"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подборки"
+          }
+        }
+      }
+    },
     "Cached rows paint Home and Library instantly on a cold start. Clearing forces the next launch to refetch from the network." : {
       "comment" : "The description of the row cache section in the storage settings view.",
-      "isCommentAutoGenerated" : true
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранённые ряды сразу рисуют Главную и Медиатеку. После стирания следующий запуск запросит их из сети."
+          }
+        }
+      }
     },
     "Cancel" : {
       "localizations" : {
@@ -1582,24 +1978,197 @@
         }
       }
     },
-    "Clear artwork cache?" : {
-      "comment" : "A button that clears the artwork cache.",
-      "isCommentAutoGenerated" : true
+    "Clear API responses" : {
+      "comment" : "The label of a button that clears the API responses stored in the cache.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть ответы API"
+          }
+        }
+      }
+    },
+    "Clear API responses?" : {
+      "comment" : "A button that clears the API responses stored on this device.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть ответы API?"
+          }
+        }
+      }
+    },
+    "Clear catalog cache" : {
+      "comment" : "A button that clears the cache of the catalog.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть каталог"
+          }
+        }
+      }
+    },
+    "Clear catalog cache?" : {
+      "comment" : "A button that clears the cache of the catalog.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть каталог?"
+          }
+        }
+      }
+    },
+    "Clear HLS temp files" : {
+      "comment" : "A button that clears HLS temp files.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть временные файлы HLS"
+          }
+        }
+      }
     },
     "Clear HLS temp files?" : {
       "comment" : "A button that clears the HLS temp files.",
-      "isCommentAutoGenerated" : true
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть временные файлы HLS?"
+          }
+        }
+      }
     },
-    "Clear network cache?" : {
-
+    "Clear metadata cache" : {
+      "comment" : "A button that clears the metadata cache.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть метаданные"
+          }
+        }
+      }
+    },
+    "Clear metadata cache?" : {
+      "comment" : "A button that clears the metadata cache.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть метаданные?"
+          }
+        }
+      }
+    },
+    "Clear network log" : {
+      "comment" : "A button that clears the network log.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть журнал"
+          }
+        }
+      }
     },
     "Clear network log?" : {
       "comment" : "A button that clears the network log.",
-      "isCommentAutoGenerated" : true
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть журнал?"
+          }
+        }
+      }
     },
-    "Clear row cache?" : {
-      "comment" : "A button that clears the row cache.",
-      "isCommentAutoGenerated" : true
+    "Clear pictures" : {
+      "comment" : "A button that clears the images of a movie's posters, stills and logos.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть картинки"
+          }
+        }
+      }
+    },
+    "Clear pictures?" : {
+      "comment" : "A button that clears the user's saved artwork.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть картинки?"
+          }
+        }
+      }
+    },
+    "Clear search recents" : {
+      "comment" : "A button that clears the search recents.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть недавние"
+          }
+        }
+      }
+    },
+    "Clear search recents?" : {
+      "comment" : "A button that clears the user's search history.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть недавние?"
+          }
+        }
+      }
+    },
+    "Clear URL cache" : {
+      "comment" : "The label of a button that clears the URL cache.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть кеш URL"
+          }
+        }
+      }
+    },
+    "Clear URL cache?" : {
+      "comment" : "A button that clears the URL cache.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть кеш URL?"
+          }
+        }
+      }
     },
     "Close" : {
       "extractionState" : "manual",
@@ -1676,24 +2245,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Collections"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Подборки"
-          }
-        }
-      }
-    },
-    "Bundles" : {
-      "comment" : "Browse tab for kino.pub collections (not localized as “Bundles” in Russian).",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bundles"
           }
         },
         "ru" : {
@@ -1906,6 +2457,18 @@
     "Create Bookmark" : {
       "comment" : "A button that creates a new bookmark.",
       "isCommentAutoGenerated" : true
+    },
+    "Created" : {
+      "comment" : "A label that displays the date and time a log was created.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создан"
+          }
+        }
+      }
     },
     "Credits" : {
       "extractionState" : "manual",
@@ -2205,7 +2768,14 @@
       }
     },
     "Disk" : {
-
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диск"
+          }
+        }
+      }
     },
     "Dislike" : {
       "extractionState" : "manual",
@@ -2404,7 +2974,14 @@
       }
     },
     "Downloaded files" : {
-
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачанные файлы"
+          }
+        }
+      }
     },
     "Downloads" : {
       "localizations" : {
@@ -2424,7 +3001,15 @@
     },
     "Downloads size" : {
       "comment" : "A label for the size of the downloads section.",
-      "isCommentAutoGenerated" : true
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер загрузок"
+          }
+        }
+      }
     },
     "Dual subtitles" : {
       "extractionState" : "manual",
@@ -2580,6 +3165,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Факты"
+          }
+        }
+      }
+    },
+    "Facts, cast and stills fetched for title pages. They load again the next time a title opens." : {
+      "comment" : "A description of the metadata cache.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Факты, актёры и кадры страниц тайтлов. Подгрузятся снова, когда тайтл откроется."
           }
         }
       }
@@ -2794,6 +3391,10 @@
         }
       }
     },
+    "Final image URLs" : {
+      "comment" : "A heading for the final image URLs of a media item.",
+      "isCommentAutoGenerated" : true
+    },
     "Finished" : {
       "comment" : "tvOS search filters: completed series only",
       "extractionState" : "manual",
@@ -2955,6 +3556,18 @@
     "Forward" : {
       "comment" : "The button that goes back to the previous screen.",
       "isCommentAutoGenerated" : true
+    },
+    "Free space" : {
+      "comment" : "A label for the free space on the device.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свободно"
+          }
+        }
+      }
     },
     "Fresh" : {
       "extractionState" : "manual",
@@ -3934,7 +4547,15 @@
     },
     "HLS temp files" : {
       "comment" : "A label for the size of temporary files created by HLS audio labeler.",
-      "isCommentAutoGenerated" : true
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Временные файлы HLS"
+          }
+        }
+      }
     },
     "Home" : {
       "extractionState" : "manual",
@@ -3953,9 +4574,17 @@
         }
       }
     },
-    "Home & Library snapshots" : {
-      "comment" : "A label for the size of the home and library snapshots.",
-      "isCommentAutoGenerated" : true
+    "Home & Library" : {
+      "comment" : "A label for the home and library storage.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Главная и Медиатека"
+          }
+        }
+      }
     },
     "Home banner" : {
       "extractionState" : "manual",
@@ -4028,8 +4657,24 @@
         }
       }
     },
+    "HTTP %lld" : {
+      "comment" : "A label displaying the HTTP status code for a given URL. The argument is the HTTP status code.",
+      "isCommentAutoGenerated" : true
+    },
     "iCloud Sync" : {
       "comment" : "A toggle that enables iCloud syncing.",
+      "isCommentAutoGenerated" : true
+    },
+    "IDs" : {
+      "comment" : "A section header for the IDs of a media item.",
+      "isCommentAutoGenerated" : true
+    },
+    "Image routes" : {
+      "comment" : "A heading for the image routes of a media item.",
+      "isCommentAutoGenerated" : true
+    },
+    "Image stats (worker)" : {
+      "comment" : "A section title for the image statistics of a worker.",
       "isCommentAutoGenerated" : true
     },
     "IMDb" : {
@@ -5073,6 +5718,23 @@
       "comment" : "A loading message.",
       "isCommentAutoGenerated" : true
     },
+    "Local cache cleared for this title." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local cache cleared for this title."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Локальный кеш этого тайтла сброшен."
+          }
+        }
+      }
+    },
     "Logout" : {
       "localizations" : {
         "en" : {
@@ -5092,6 +5754,18 @@
     "Logout…" : {
       "comment" : "The title of a button that logs out the user.",
       "isCommentAutoGenerated" : true
+    },
+    "Logs" : {
+      "comment" : "The title of the \"logs\" segment in the storage settings screen.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записи"
+          }
+        }
+      }
     },
     "Lowest acceptable dub" : {
       "extractionState" : "manual",
@@ -5132,7 +5806,14 @@
       "isCommentAutoGenerated" : true
     },
     "Manage individual downloads from the Downloads tab — remove titles you're done with from there." : {
-
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отдельные загрузки снимаются на вкладке «Загрузки»."
+          }
+        }
+      }
     },
     "Mark All Episodes Watched" : {
       "extractionState" : "manual",
@@ -5261,6 +5942,24 @@
       "comment" : "The type of material to use for the preview.",
       "isCommentAutoGenerated" : true
     },
+    "MediaAction_Play" : {
+      "comment" : "A concert's play button, and its first video's when kino.pub gives it no name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Воспроизвести"
+          }
+        }
+      }
+    },
     "MediaAction_PlayEpisodeRef" : {
       "comment" : "Fresh Play on an episode; %@ is the episode reference (S1, E1 / 1 сезон, 1 серия).",
       "extractionState" : "manual",
@@ -5293,24 +5992,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@"
-          }
-        }
-      }
-    },
-    "MediaAction_Play" : {
-      "comment" : "A concert's play button, and its first video's when kino.pub gives it no name.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Воспроизвести"
           }
         }
       }
@@ -5416,23 +6097,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Оригинальное название"
-          }
-        }
-      }
-    },
-    "MediaItem_PosterHeroAdaptiveAppearance" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Poster hero follows appearance"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Герой с постером: как в системе"
           }
         }
       }
@@ -6389,6 +7053,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Плохое качество"
+          }
+        }
+      }
+    },
+    "MediaItem_PosterHeroAdaptiveAppearance" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poster hero follows appearance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Герой с постером: как в системе"
           }
         }
       }
@@ -7596,24 +8277,6 @@
         }
       }
     },
-    "MediaItem_Videos" : {
-      "comment" : "Header of the rail of a concert's videos — the full show and the separate songs.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Videos"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Видео"
-          }
-        }
-      }
-    },
     "MediaItem_VideoCard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7644,6 +8307,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Качество видео"
+          }
+        }
+      }
+    },
+    "MediaItem_Videos" : {
+      "comment" : "Header of the rail of a concert's videos — the full show and the separate songs.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видео"
           }
         }
       }
@@ -7924,13 +8605,33 @@
     },
     "Memory" : {
       "comment" : "A label for the size of the URL cache in memory.",
-      "isCommentAutoGenerated" : true
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Память"
+          }
+        }
+      }
     },
     "Menu отсюда должен вернуть на страницу — и бар должен оказаться там же, где был." : {
 
     },
     "Merged" : {
 
+    },
+    "Messages" : {
+      "comment" : "The number of messages sent and received.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сообщения"
+          }
+        }
+      }
     },
     "Metadata" : {
       "extractionState" : "manual",
@@ -8153,7 +8854,15 @@
     },
     "Network cache" : {
       "comment" : "A section of the storage settings view that displays the user's network cache usage and allows them to clear it.",
-      "isCommentAutoGenerated" : true
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сетевой кеш"
+          }
+        }
+      }
     },
     "Network log" : {
       "comment" : "A link to the network log.",
@@ -8292,6 +9001,10 @@
           }
         }
       }
+    },
+    "No catalog loaded" : {
+      "comment" : "A message displayed when a TMDB image catalog is not available.",
+      "isCommentAutoGenerated" : true
     },
     "No channels on air right now" : {
       "extractionState" : "manual",
@@ -8533,6 +9246,18 @@
         }
       }
     },
+    "On disk" : {
+      "comment" : "The heading for the storage usage of the app on disk.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На диске"
+          }
+        }
+      }
+    },
     "On hover / focus" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8607,6 +9332,18 @@
     "Open Banner Lab" : {
 
     },
+    "Open network log" : {
+      "comment" : "A button that opens the network log.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть журнал"
+          }
+        }
+      }
+    },
     "Open templates page" : {
 
     },
@@ -8655,6 +9392,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Оригинальное название не показывается под горизонтальными карточками «Продолжить просмотр»."
+          }
+        }
+      }
+    },
+    "Other" : {
+      "comment" : "The name of the \"Other\" category in the storage bar.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прочее"
           }
         }
       }
@@ -8735,6 +9484,10 @@
         }
       }
     },
+    "Password" : {
+      "comment" : "A label for the password field.",
+      "isCommentAutoGenerated" : true
+    },
     "Pause Download" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8786,6 +9539,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Фото, факты и награды загружаются с помощью вашего собственного ключа Kinopoisk Unofficial API — стороннего сервиса, не являющегося официальным продуктом Kinopoisk."
+          }
+        }
+      }
+    },
+    "Pictures" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Картинки"
+          }
+        }
+      }
+    },
+    "Pictures in memory" : {
+      "comment" : "A label for the amount of memory taken by the decoded posters and stills.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Картинки в памяти"
           }
         }
       }
@@ -8974,9 +9749,17 @@
         }
       }
     },
-    "Posters, stills and portraits. Disk holds each image once; memory holds them decoded at the sizes on screen. Clearing just means the next loads re-download." : {
-      "comment" : "A description of the artwork cache.",
-      "isCommentAutoGenerated" : true
+    "Posters, stills and logos. Disk holds each image once; memory holds them decoded at the sizes on screen. Clearing means the next loads re-download." : {
+      "comment" : "A description of the storage settings for the pictures section.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Постеры, кадры и логотипы. На диске каждая картинка один раз, в памяти — раскодированная под размер на экране. После стирания они скачаются снова."
+          }
+        }
+      }
     },
     "Prefer IPv6" : {
       "comment" : "A toggle that lets the user choose whether to prefer IPv6 over IPv4.",
@@ -9212,6 +9995,34 @@
         }
       }
     },
+    "Re-probe redirects" : {
+      "comment" : "A button that runs the `probeRoutes` function.",
+      "isCommentAutoGenerated" : true
+    },
+    "Recent searches" : {
+      "comment" : "A label for the number of recent searches.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недавние запросы"
+          }
+        }
+      }
+    },
+    "Recent searches on this device are removed." : {
+      "comment" : "A description of the effect of clearing the search",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недавние запросы на этом устройстве удаляются."
+          }
+        }
+      }
+    },
     "Recently Added" : {
       "comment" : "tvOS search: catalog grid under an empty field",
       "extractionState" : "manual",
@@ -9250,9 +10061,6 @@
     "Recents" : {
       "comment" : "A section header for the user's search recents.",
       "isCommentAutoGenerated" : true
-    },
-    "Recorded requests" : {
-
     },
     "Registration Date" : {
       "localizations" : {
@@ -9419,6 +10227,30 @@
         }
       }
     },
+    "Requests" : {
+      "comment" : "A label for the number of requests made.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запросы"
+          }
+        }
+      }
+    },
+    "Requests with headers, body and timing. Pictures and video are not recorded. Bodies are capped, and the store drops the oldest entries past 32 MB." : {
+      "comment" : "A description of the contents of the network log.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запросы с заголовками, телом и временем. Картинки и видео не пишутся. Тела обрезаются, а журнал выбрасывает старое после 32 МБ."
+          }
+        }
+      }
+    },
     "Reset Filters" : {
       "comment" : "tvOS search filters: clears every filter",
       "extractionState" : "manual",
@@ -9433,6 +10265,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сбросить фильтры"
+          }
+        }
+      }
+    },
+    "Reset local cache" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset local cache"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить локальный кеш"
           }
         }
       }
@@ -9500,12 +10349,12 @@
         }
       }
     },
-    "Row cache" : {
-      "comment" : "A section header for the row cache in the storage settings.",
-      "isCommentAutoGenerated" : true
-    },
     "Run Speed Test" : {
       "comment" : "A button that runs a speed test.",
+      "isCommentAutoGenerated" : true
+    },
+    "Same as request — worker did not redirect (missing art or error)." : {
+      "comment" : "A description of a message that appears when a TMDB proxy worker does not redirect a URL.",
       "isCommentAutoGenerated" : true
     },
     "Save" : {
@@ -9644,7 +10493,14 @@
       }
     },
     "Scratch files from relabeling audio tracks in older builds. These are already swept on every launch." : {
-
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Временные файлы от переименования аудиодорожек в старых сборках. Они и так стираются при каждом запуске."
+          }
+        }
+      }
     },
     "Search" : {
       "extractionState" : "manual",
@@ -9854,9 +10710,6 @@
           }
         }
       }
-    },
-    "Settings › Advanced › Diagnostics reads this. Artwork and video are not recorded, bodies are capped at 512 KB each, and the store is capped at 32 MB — the oldest entries are dropped past that." : {
-
     },
     "Settings_Tip_About" : {
       "extractionState" : "manual",
@@ -10316,6 +11169,23 @@
         }
       }
     },
+    "Settings_Tip_Storage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How much this device keeps for pictures, the catalog, metadata and the network log, and where to clear each."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сколько на устройстве картинок, каталога, метаданных и журнала сети, и где каждое стереть."
+          }
+        }
+      }
+    },
     "Settings_Tip_StreamQuality" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10363,6 +11233,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Качество потока, что происходит в конце серии, субтитры и дорожки, которые запомнил плеер."
+          }
+        }
+      }
+    },
+    "Settings_Tip_WorkerAdminToken" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select — opens the password-style entry sheet (system keyboard on the left). Stored in Keychain on this Apple TV. When set, the title page shows an info button before ⋯."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select — экран ввода как у пароля (слева системная клавиатура). Keychain на этом Apple TV. После сохранения на тайтле появится ⓘ перед ⋯."
           }
         }
       }
@@ -10786,8 +11673,22 @@
         }
       }
     },
-    "Storage" : {
-
+    "Storage & Data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage & Data"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Память и данные"
+          }
+        }
+      }
     },
     "Stored on this device only. A build ships with the defaults." : {
 
@@ -10888,6 +11789,24 @@
       "comment" : "The title of the page.",
       "isCommentAutoGenerated" : true
     },
+    "TabLibrary" : {
+      "comment" : "Library browse tab label (Russian “Моё”; other “Library” strings stay “Библиотека”).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Моё"
+          }
+        }
+      }
+    },
     "Tap for material preview" : {
       "comment" : "A call-to-action button.",
       "isCommentAutoGenerated" : true
@@ -10984,7 +11903,15 @@
     },
     "This only affects local caches — nothing on your account changes." : {
       "comment" : "The text that appears in the body of the StorageSettingsView.",
-      "isCommentAutoGenerated" : true
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это только локальный кеш. Аккаунт не меняется."
+          }
+        }
+      }
     },
     "This product uses the TMDB API but is not endorsed or certified by TMDB." : {
       "localizations" : {
@@ -11002,8 +11929,28 @@
         }
       }
     },
+    "timeout / missing / waited — POST /admin/stats" : {
+      "comment" : "A description of the stats of a TMDB image.",
+      "isCommentAutoGenerated" : true
+    },
     "TMDB" : {
       "comment" : "The name of the TMDB website.",
+      "isCommentAutoGenerated" : true
+    },
+    "TMDB & Kinopoisk" : {
+      "comment" : "The name of the TMDB and Kinopoisk metadata.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDB и Кинопоиск"
+          }
+        }
+      }
+    },
+    "TMDB %@ catalog" : {
+      "comment" : "A section of the TMDB (overlay) catalog. The argument is the kind of image being displayed (logo or backdrop).",
       "isCommentAutoGenerated" : true
     },
     "TMDB enrichment" : {
@@ -11172,24 +12119,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Повторить"
-          }
-        }
-      }
-    },
-    "TabLibrary" : {
-      "comment" : "Library browse tab label (Russian “Моё”; other “Library” strings stay “Библиотека”).",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Library"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Моё"
           }
         }
       }
@@ -11503,6 +12432,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Обновлено"
+          }
+        }
+      }
+    },
+    "URL cache is the system's. API responses are genres and countries. Pictures are not in either." : {
+      "comment" : "A description of the storage settings.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кеш URL — системный. Ответы API — жанры и страны. Картинок там нет."
+          }
+        }
+      }
+    },
+    "URL cache, disk" : {
+      "comment" : "A label for the URL cache's disk usage.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кеш URL, диск"
+          }
+        }
+      }
+    },
+    "URL cache, memory" : {
+      "comment" : "The amount of memory taken up by the URL cache.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кеш URL, память"
           }
         }
       }
@@ -11910,6 +12875,387 @@
     "Window" : {
       "comment" : "A section in the settings pane that allows the user to change the window's position.",
       "isCommentAutoGenerated" : true
+    },
+    "Worker admin token" : {
+
+    },
+    "Worker images" : {
+      "comment" : "The title of the popup.",
+      "isCommentAutoGenerated" : true
+    },
+    "WorkerAdmin_BackdropTmdbNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDB backdrops include text and logos on the frame — pick a wide still without lettering if you want a clean hero."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В TMDB среди backdrops часто кадры с надписями и логотипами — для чистого героя выбирай широкий кадр без текста."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_CatalogGridHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↓ Remote: move between cards, Select to pick. Up/Down also scrolls this list."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↓ Пульт: между карточками, Select — выбрать. Вверх/вниз листает список."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_CurrentOnTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serving on this title now"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сейчас отдаётся на тайтле"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_EmptyLanguageBucket" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No TMDB %@ assets for this title."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В TMDB нет %@ для этого тайтла."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_NoServingURL" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not resolve a final image URL yet — try Re-probe on the home screen."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Финальный URL пока не получен — на главном экране панели нажми Re-probe."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_BackdropUndNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backdrop is always UND — textless wide art; the worker ignores language."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backdrop всегда UND — широкий кадр без текста; язык воркер не смотрит."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_HeroSubtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subtitle under wordmark: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Строка под логотипом: %@"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_HeroSubtitleNone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No subtitle line under this wordmark (rules in TitleLogoRequestKind)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Строки под логотипом нет (правила в TitleLogoRequestKind)."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_HighlightLive" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serving now (redirect)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сейчас на тайтле (редирект)"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_HighlightPinned" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned in worker KV"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закреплено в KV воркера"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_LogoEnFallback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EN stamp while the app asks Russian first — TMDB has no Russian wordmark; worker fallback."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Штамп EN при запросе ru-first — в каталоге нет русского wordmark, воркер отдаёт английский."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_NoToken" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No admin token — set it in Settings › Advanced › Worker admin token first. Admin actions stay disabled until then."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет admin-токена — сначала Настройки › Дополнительно › Worker admin token. Кнопки admin не работают, пока токен не сохранён."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_PickLogoSaved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned for this language. Pick the other language too if you need both RU and EN wordmarks."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закреплено для этого языка. Выбери второй язык отдельно, если нужны и RU, и EN wordmark."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_Pick" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick for this title"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать для тайтла"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_TokenChecking" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking admin token…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверяем admin-токен…"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_TokenFailedHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong or missing token looks like HTTP 404 from the worker. Re-enter it in Settings › Advanced › Worker admin token (not your kino.pub password)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неверный или пустой токен воркер отвечает как HTTP 404. Введи его в Настройки › Дополнительно › Worker admin token — это не пароль от kino.pub."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_TokenFailedTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Admin token rejected"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Admin-токен не принят"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_TokenOK" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Admin token accepted"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Admin-токен принят"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_TVRemoteTip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote: ↑↓ move between buttons (white pill = focus). Select runs the action. Menu closes the panel — or Done at the bottom. Scroll the text above by moving focus through Actions first; in the simulator Return is Select, not Enter-to-type."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пульт: ↑↓ между кнопками (белая «таблетка» = фокус). Select — нажать. Menu — закрыть панель, или Done внизу. Сначала дойди до Actions и листай кнопки; длинные URL выше просто читаются. В симуляторе Return = Select."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_VoteFormat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vote %.1f"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "голос %.1f"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_WorkerPick" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "worker pick"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "выбор воркера"
+          }
+        }
+      }
+    },
+    "WorkerAdminToken_TVInputTip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select the field — the system password keyboard opens (tab 123 or globe for Latin). Done saves to Keychain on this Apple TV. Does not sync to iPhone or Mac."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select на строке — откроется системный ввод как у пароля (вкладка 123 или глобус для латиницы). Готово сохраняет в Keychain на этом Apple TV. С iPhone/Mac не синхронизируется."
+          }
+        }
+      }
     },
     "Year" : {
       "localizations" : {

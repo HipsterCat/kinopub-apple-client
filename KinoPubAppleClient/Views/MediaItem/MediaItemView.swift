@@ -35,6 +35,7 @@ enum MediaItemFocusTarget: Hashable {
   case watched
   case trailer
   case more
+  case workerImageAdmin
   case download
   case shuffle
   case plot
@@ -43,7 +44,7 @@ enum MediaItemFocusTarget: Hashable {
   var isActionControl: Bool {
     switch self {
     case .play, .playAlternate, .playThird, .moreVersions, .watchlist, .bookmark, .watched,
-         .trailer, .more, .download, .shuffle:
+         .trailer, .more, .workerImageAdmin, .download, .shuffle:
       return true
     case .plot, .versionsRail:
       return false
@@ -55,7 +56,8 @@ enum MediaItemFocusTarget: Hashable {
     switch self {
     case .play, .playAlternate, .playThird, .shuffle, .trailer:
       return true
-    case .moreVersions, .versionsRail, .watchlist, .bookmark, .watched, .more, .download, .plot:
+    case .moreVersions, .versionsRail, .watchlist, .bookmark, .watched, .more, .workerImageAdmin,
+         .download, .plot:
       return false
     }
   }
@@ -170,6 +172,8 @@ struct MediaItemView: View {
 
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(NavigationState.self) var navigationState
+  @Environment(\.appContext) private var appContext
+  @State private var showsWorkerImageAdmin = false
   @StateObject private var itemModel: MediaItemModel
   /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
   @StateObject private var trailer: TrailerPreviewModel
@@ -261,9 +265,46 @@ struct MediaItemView: View {
       .platformNavigationTitle("")
 #if os(iOS) || os(macOS)
       .toolbar {
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .primaryAction) {
+          if WorkerImageAdminTokenStore.isConfigured,
+             appContext.metadataService.images.isConfigured {
+            Button {
+              showsWorkerImageAdmin = true
+            } label: {
+              Image(systemName: "info.circle")
+            }
+            .accessibilityLabel("Worker image admin")
+            .disabled(!itemModel.itemLoaded)
+          }
           overflowMenu
         }
+      }
+#endif
+#if os(tvOS)
+      .fullScreenCover(isPresented: $showsWorkerImageAdmin) {
+        MediaItemWorkerAdminView(
+          item: itemModel.mediaItem,
+          images: appContext.metadataService.images,
+          overlayTMDBId: itemModel.externalMetadata.tmdbId,
+          logoPartnerLine: itemModel.heroTitlePartnerLine,
+          onArtworkChanged: {
+            Task { await itemModel.resetLocalCache() }
+          },
+          onResetLocalCache: { await itemModel.resetLocalCache() }
+        )
+      }
+#else
+      .sheet(isPresented: $showsWorkerImageAdmin) {
+        MediaItemWorkerAdminView(
+          item: itemModel.mediaItem,
+          images: appContext.metadataService.images,
+          overlayTMDBId: itemModel.externalMetadata.tmdbId,
+          logoPartnerLine: itemModel.heroTitlePartnerLine,
+          onArtworkChanged: {
+            Task { await itemModel.resetLocalCache() }
+          },
+          onResetLocalCache: { await itemModel.resetLocalCache() }
+        )
       }
 #endif
       .task {
@@ -308,6 +349,13 @@ struct MediaItemView: View {
 #endif
       .handleError(state: $errorHandler.state)
       .hudToast($itemModel.hudToast)
+  }
+
+  private var workerImageAdminAction: (() -> Void)? {
+    guard WorkerImageAdminTokenStore.isConfigured,
+          appContext.metadataService.images.isConfigured,
+          itemModel.itemLoaded else { return nil }
+    return { showsWorkerImageAdmin = true }
   }
 
 #if os(iOS) || os(macOS)
@@ -400,6 +448,7 @@ struct MediaItemView: View {
                             titleLogoRequestKind: itemModel.heroLogoRequestKind,
                             titlePartnerLine: itemModel.heroTitlePartnerLine,
                             preferredBackdropURL: itemModel.heroBackdropURL,
+                            localCacheEpoch: itemModel.localCacheEpoch,
                             ageRating: itemModel.externalMetadata.ageRating,
                             externalMetadata: itemModel.externalMetadata,
                             externalMetadataLoaded: itemModel.heroLogoResolved,
@@ -411,7 +460,8 @@ struct MediaItemView: View {
                             },
                             ensureBookmarkFoldersLoaded: {
                               await itemModel.ensureBookmarkFoldersLoaded()
-                            })
+                            },
+                            onWorkerImageAdmin: workerImageAdminAction)
             .id(Self.heroAnchor)
 #if os(tvOS)
             // Screen height minus a peek strip: the slice of the first section showing

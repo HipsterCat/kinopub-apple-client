@@ -37,6 +37,9 @@ public enum NetworkDiagnostics {
 
   // MARK: - The store
 
+  /// The cap passed to `LoggerStore`. Settings shows the log against this.
+  public static let storeByteLimit: Int64 = 32 * 1024 * 1024
+
   /// Our own store rather than `LoggerStore.shared`, which is created with Pulse's
   /// defaults and cannot be reconfigured afterwards. Those defaults are why log files
   /// reached tens of megabytes: **256 MB** of store and **8 MB** per response body.
@@ -50,7 +53,7 @@ public enum NetworkDiagnostics {
   /// is the documented tvOS trade and not a bug to chase.
   public static let store: LoggerStore = {
     var configuration = LoggerStore.Configuration()
-    configuration.sizeLimit = 32 * 1024 * 1024
+    configuration.sizeLimit = storeByteLimit
     configuration.responseBodySizeLimit = 512 * 1024
 
     let url = URL.cachesDirectory.appending(path: "kinopub-network-log", directoryHint: .isDirectory)
@@ -134,6 +137,41 @@ public enum NetworkDiagnostics {
   }
 
   // MARK: - What Settings shows
+
+  /// What Settings shows for the log: the same split Pulse's store screen draws
+  /// (the database versus response bodies).
+  public struct StoreSnapshot: Sendable {
+    public var created: Date
+    public var totalBytes: Int64
+    public var blobsBytes: Int64
+    public var blobsDecompressedBytes: Int64
+    public var messageCount: Int
+    public var requestCount: Int
+
+    public var logsBytes: Int64 { max(0, totalBytes - blobsBytes) }
+
+    public init(created: Date, totalBytes: Int64, blobsBytes: Int64, blobsDecompressedBytes: Int64,
+                messageCount: Int, requestCount: Int) {
+      self.created = created
+      self.totalBytes = totalBytes
+      self.blobsBytes = blobsBytes
+      self.blobsDecompressedBytes = blobsDecompressedBytes
+      self.messageCount = messageCount
+      self.requestCount = requestCount
+    }
+  }
+
+  public static func storeSnapshot() async -> StoreSnapshot? {
+    guard let info = try? await store.info() else { return nil }
+    return StoreSnapshot(
+      created: info.creationDate,
+      totalBytes: info.totalStoreSize,
+      blobsBytes: info.blobsSize,
+      blobsDecompressedBytes: info.blobsDecompressedSize,
+      messageCount: info.messageCount,
+      requestCount: info.taskCount
+    )
+  }
 
   /// Walks the store directory, so call it off a hot path.
   public static func storeBytes() async -> Int64 {

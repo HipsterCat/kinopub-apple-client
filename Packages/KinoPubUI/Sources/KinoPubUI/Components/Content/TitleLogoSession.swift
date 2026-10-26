@@ -116,8 +116,12 @@ public final class TitleLogoSession: ObservableObject {
       imageReady = true
       imageFailed = false
       timedOut = false
-      loadTask?.cancel()
-      loadTask = nil
+      if deliveredLanguage == nil {
+        refreshWorkerLanguageStamp(for: url, requestID: id)
+      } else {
+        loadTask?.cancel()
+        loadTask = nil
+      }
       republish()
       return
     }
@@ -175,6 +179,20 @@ public final class TitleLogoSession: ObservableObject {
   func handleFailed() {
     imageFailed = true
     republish()
+  }
+
+  /// Nuke cache hits do not record the post-redirect stamp; probe so hero captions work.
+  private func refreshWorkerLanguageStamp(for url: URL, requestID id: Int) {
+    loadTask?.cancel()
+    loadTask = Task { [weak self] in
+      guard let tag = await Artwork.fetchWorkerLanguageStamp(for: url) else { return }
+      await MainActor.run {
+        guard let self, self.requestID == id else { return }
+        self.deliveredLanguage = tag
+        self.loadTask = nil
+        self.republish()
+      }
+    }
   }
 
   private func startLoad(url: URL, requestID id: Int, resetTimeout: Bool) {

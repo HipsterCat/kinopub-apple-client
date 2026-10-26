@@ -5,11 +5,13 @@
 
 import SwiftUI
 import KinoPubUI
+import KinoPubMetadata
 
 #if !os(tvOS)
 struct AdvancedSettingsPane: View {
   @AppStorage(DiagnosticsSettings.activityOverlayKey) private var showsActivityOverlay = false
   @AppStorage(DiagnosticsSettings.remoteLoggingKey) private var streamsToPulse = false
+  @State private var workerAdminToken = WorkerImageAdminTokenStore.token ?? ""
 #if DEBUG && os(macOS)
   @Environment(\.openWindow) private var openWindow
 #endif
@@ -17,7 +19,7 @@ struct AdvancedSettingsPane: View {
   var body: some View {
     Form {
       Section {
-        NavigationLink("Storage", value: SettingsDetailRoute.storage)
+        NavigationLink("Storage & Data", value: SettingsDetailRoute.storage)
       }
 
       Section {
@@ -36,6 +38,19 @@ struct AdvancedSettingsPane: View {
       }
       .onChange(of: streamsToPulse) { _, isOn in
         NetworkDiagnostics.setRemoteLoggingEnabled(isOn)
+      }
+
+      Section {
+        SecureField("Worker admin token", text: $workerAdminToken)
+          .textContentType(.password)
+          .onSubmit { WorkerImageAdminTokenStore.token = workerAdminToken }
+          .onChange(of: workerAdminToken) { _, new in
+            WorkerImageAdminTokenStore.token = new
+          }
+      } header: {
+        Text("TMDB proxy admin")
+      } footer: {
+        Text("Bearer token for POST /admin/* on the metadata worker. Stored in Keychain on this device. When set, the detail page toolbar shows an info button before ⋯.")
       }
 
 #if DEBUG

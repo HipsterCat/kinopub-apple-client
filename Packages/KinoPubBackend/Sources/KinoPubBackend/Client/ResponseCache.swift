@@ -87,6 +87,48 @@ public final class ResponseCache: ResponseCaching {
     } else {
       self.directory = nil
     }
+    Self.remember(self)
+  }
+
+  private struct Live {
+    weak var cache: ResponseCache?
+  }
+
+  private static let liveLock = NSLock()
+  nonisolated(unsafe) private static var live: [Live] = []
+
+  private static func remember(_ cache: ResponseCache) {
+    liveLock.lock()
+    live.append(Live(cache: cache))
+    liveLock.unlock()
+  }
+
+  /// Genres and countries. The directory name is the default one Settings measures.
+  public static func diskBytes() -> Int64 {
+    guard let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+      return 0
+    }
+    let directory = base.appendingPathComponent("APIResponseCache", isDirectory: true)
+    guard let enumerator = FileManager.default.enumerator(
+      at: directory,
+      includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]
+    ) else { return 0 }
+    var total: Int64 = 0
+    for case let file as URL in enumerator {
+      let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+      if values?.isRegularFile == true {
+        total += Int64(values?.fileSize ?? 0)
+      }
+    }
+    return total
+  }
+
+  public static func clearAll() {
+    liveLock.lock()
+    live = live.filter { $0.cache != nil }
+    let caches = live.compactMap(\.cache)
+    liveLock.unlock()
+    caches.forEach { $0.clear() }
   }
 
   public func data(for key: String) -> Data? {

@@ -75,7 +75,7 @@ struct SettingsRootView: View {
                 .settingsMacChrome(title: "Devices", isRoot: false)
             case .storage:
               StorageSettingsView()
-                .settingsMacChrome(title: "Storage", isRoot: false)
+                .settingsMacChrome(title: "Storage & Data", isRoot: false)
             case .sections:
               SectionsSettingsView()
                 .settingsMacChrome(title: "Sections", isRoot: false)

@@ -112,6 +112,11 @@ struct TSKRow {
   var isFocusable = true
   /// The left column's picture for this row; the page's when nil.
   var previewSymbol: String?
+  /// Passed to `TSKPage.focusedPreview` so one preview can change with the row
+  /// (the storage chart's highlighted slice). Nil when the row does not care.
+  var previewKey: String? = nil
+  /// Shown on the right of an action row, the way an info row shows its value.
+  var trailingValue: String? = nil
 }
 
 struct TSKSection {
@@ -126,6 +131,8 @@ struct TSKPage {
   var previewSymbol: String?
   /// Replaces the picture-and-description preview entirely (About's app plate).
   var customPreview: (@MainActor (_ description: String?) -> UIViewController)?
+  /// Like `customPreview`, but told which row is focused (`TSKRow.previewKey`).
+  var focusedPreview: (@MainActor (_ key: String?, _ description: String?) -> UIViewController)?
   /// What the left column shows while no row has focus. Nil leaves TVSettingKit's default.
   var idlePreview: (@MainActor () -> UIViewController)?
   var sections: @MainActor () -> [TSKSection]
@@ -264,10 +271,16 @@ private enum TSKItemFactory {
     case let .action(pushes, perform):
       typealias Make = @convention(c) (AnyClass, Selector, NSString, NSString?, AnyObject?, NSString?, AnyObject?, Selector) -> NSObject?
       let sel = NSSelectorFromString("actionItemWithTitle:description:representedObject:keyPath:target:action:")
-      item = call(cls, sel, as: Make.self)?(cls, sel, title, description, nil, nil,
+      let valueObject = row.trailingValue.map { ["value": $0] as NSDictionary }
+      let valueKey = row.trailingValue == nil ? nil : "value" as NSString?
+      item = call(cls, sel, as: Make.self)?(cls, sel, title, description, valueObject, valueKey,
                                              actions, #selector(TSKActionTarget.handleAction(_:)))
       if let item {
         actions.register(item, perform: perform)
+        if row.trailingValue != nil {
+          item.perform(NSSelectorFromString("setLocalizedValueFormatter:"),
+                       with: TSKLabelFormatter { $0 as? String })
+        }
         // 1 = the disclosure chevron.
         item.setValue(pushes ? 1 : 0, forKey: "accessoryTypes")
       }
@@ -281,6 +294,9 @@ private enum TSKItemFactory {
       }
       if let symbol = row.previewSymbol {
         objc_setAssociatedObject(item, &TSKKeys.previewSymbol, symbol, .OBJC_ASSOCIATION_COPY_NONATOMIC)
+      }
+      if let key = row.previewKey {
+        objc_setAssociatedObject(item, &TSKKeys.previewKey, key, .OBJC_ASSOCIATION_COPY_NONATOMIC)
       }
     }
     return item
@@ -316,6 +332,7 @@ private final class TSKClosureBox: NSObject {
 private enum TSKKeys {
   nonisolated(unsafe) static var page: UInt8 = 0
   nonisolated(unsafe) static var previewSymbol: UInt8 = 0
+  nonisolated(unsafe) static var previewKey: UInt8 = 0
 }
 
 // MARK: - Previews
@@ -446,6 +463,10 @@ private final class TSKPageBox: NSObject {
     let item = controller.perform(NSSelectorFromString("settingItemAtIndexPath:"), with: indexPath)?
       .takeUnretainedValue() as? NSObject
     let description = item?.value(forKey: "localizedDescription") as? String
+    if let focused = page.focusedPreview {
+      let key = item.flatMap { objc_getAssociatedObject($0, &TSKKeys.previewKey) as? String }
+      return focused(key, description)
+    }
     if let custom = page.customPreview {
       return custom(description)
     }

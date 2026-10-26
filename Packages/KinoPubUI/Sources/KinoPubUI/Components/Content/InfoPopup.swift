@@ -249,16 +249,22 @@ public struct InfoPopupFact: View {
 
 #if os(tvOS)
 /// Up / Down on the remote, as a page of the popup's text.
-enum ScrollPage {
-  struct Geometry: Equatable {
-    var offset: CGFloat = 0
-    var viewport: CGFloat = 0
-    var content: CGFloat = 0
+public enum ScrollPage {
+  public struct Geometry: Equatable {
+    public var offset: CGFloat
+    public var viewport: CGFloat
+    public var content: CGFloat
+
+    public init(offset: CGFloat = 0, viewport: CGFloat = 0, content: CGFloat = 0) {
+      self.offset = offset
+      self.viewport = viewport
+      self.content = content
+    }
   }
 
   /// Where a press moves the text: most of a page, so a line or two stays on screen
   /// for the eye to follow. Nil when it would not move.
-  static func target(of geometry: Geometry, direction: MoveCommandDirection) -> CGFloat? {
+  public static func target(of geometry: Geometry, direction: MoveCommandDirection) -> CGFloat? {
     let step: CGFloat
     switch direction {
     case .up: step = -geometry.viewport * 0.8

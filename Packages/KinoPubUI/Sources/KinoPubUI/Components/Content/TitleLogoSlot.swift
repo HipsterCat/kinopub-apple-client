@@ -89,7 +89,7 @@ public struct TitleLogoSlot<Title: View>: View {
     .onAppear {
       session.setResolution(resolution)
       onMarkChange?(mark)
-      onDeliveredLanguageChange?(session.deliveredLanguage)
+      publishDeliveredLanguage()
     }
     .onChange(of: resolution) { _, new in
       session.setResolution(new)
@@ -97,9 +97,14 @@ public struct TitleLogoSlot<Title: View>: View {
     .onChange(of: mark) { _, new in
       onMarkChange?(new)
     }
-    .onChange(of: session.deliveredLanguage) { _, new in
-      onDeliveredLanguageChange?(new)
+    .onChange(of: session.deliveredLanguage) { _, _ in
+      publishDeliveredLanguage()
     }
+  }
+
+  private func publishDeliveredLanguage() {
+    let fromRequest = resolution.url.flatMap { Artwork.workerLanguage(on: $0) }
+    onDeliveredLanguageChange?(fromRequest ?? session.deliveredLanguage)
   }
 
   @ViewBuilder

@@ -301,6 +301,9 @@ struct MediaItemHeroView: View {
   var titlePartnerLine: String? = nil
   /// Clean textless TMDB backdrop when enrichment supplied one.
   var preferredBackdropURL: URL? = nil
+  /// Changes when this title's local picture cache is dropped, so the logo and
+  /// backdrop load again instead of keeping the image they already decoded.
+  var localCacheEpoch: Int = 0
   /// Certification from enrichment ("TV-14", "16+"). Rendered as one more capability
   /// chip in the metadata row — the item payload has no rating of its own.
   var ageRating: String? = nil
@@ -318,6 +321,8 @@ struct MediaItemHeroView: View {
   var onFocusEntered: (() -> Void)? = nil
   /// Warm `BookmarkFoldersStore` once so a cold install is not an empty bookmark menu.
   var ensureBookmarkFoldersLoaded: (() async -> Void)? = nil
+  /// TMDB proxy `/admin` panel — circle before ⋯ when a token is configured.
+  var onWorkerImageAdmin: (() -> Void)? = nil
 
   /// tvOS only: the Up gesture lifts the muted inline preview into a real full-screen
   /// player. Kept here so the same view that owns the preview owns its promotion.
@@ -803,6 +808,7 @@ struct MediaItemHeroView: View {
         Color.KinoPub.background
       } else {
         FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill)
+          .id(localCacheEpoch)
           .onAppear {
 #if DEBUG
             let list = backdropCandidates.map(\.absoluteString).joined(separator: " | ")
@@ -970,6 +976,7 @@ struct MediaItemHeroView: View {
       ) {
         titlePrimaryText
       }
+      .id(localCacheEpoch)
       titleSupplementaryBlock
         .padding(.top, titleSupplementaryTopInset)
     }
@@ -1001,10 +1008,16 @@ struct MediaItemHeroView: View {
     }
   }
 
+  /// Cached logo paints before ``TitleLogoSlot`` calls ``onMarkChange`` — treat as `.logo`.
+  private var resolvedTitleLogoMark: TitleLogoMark {
+    if let url = titleLogoURL, Artwork.cachedImage(for: url) != nil { return .logo }
+    return titleLogoMark
+  }
+
   /// Gap above the subtitle: looser under a wordmark than under lettered type.
   private var titleSupplementaryTopInset: CGFloat {
     guard supplementaryUnderTitle != nil else { return 0 }
-    switch titleLogoMark {
+    switch resolvedTitleLogoMark {
     case .logo: return Self.contentSpacing * 1.5
     case .text: return Self.contentSpacing
     case .empty: return 0
@@ -1012,15 +1025,17 @@ struct MediaItemHeroView: View {
   }
 
   private var supplementaryUnderTitle: String? {
-    switch titleLogoMark {
+    switch resolvedTitleLogoMark {
     case .empty:
       return nil
     case .logo:
-      let kind = deliveredLogoLanguage.map(TitleLogoRequestKind.init(deliveredLanguage:))
-        ?? titleLogoRequestKind
+      let stamp = deliveredLogoLanguage ?? titleLogoURL.flatMap { Artwork.workerLanguage(on: $0) }
+      let kind = stamp.map(TitleLogoRequestKind.init(deliveredLanguage:))
+        ?? (TitleImageRoute.appLanguage == "en" ? .english : .russianPreferred)
       return kind.supplementaryUnderLogo(
         localized: mediaItem.localizedTitle,
-        original: mediaItem.originalTitle
+        original: mediaItem.originalTitle,
+        partner: titlePartnerLine
       )
     case .text:
       guard let partner = titlePartnerLine else {
@@ -1168,6 +1183,9 @@ struct MediaItemHeroView: View {
   private var actions: some View {
     MediaActionRow {
       ForEach(actionAppearances) { appearance in
+        if appearance.id == .more, onWorkerImageAdmin != nil {
+          workerImageAdminControl()
+        }
         actionControl(for: appearance)
           .accessibilityIdentifier("kinopub.hero.\(appearance.id.rawValue)")
           .transition(.asymmetric(
@@ -1502,6 +1520,20 @@ struct MediaItemHeroView: View {
 
   private func beginMarkWatched() {
     loadingActions.insert(.markWatched)
+  }
+
+  private func workerImageAdminControl() -> some View {
+    let appearance = MediaActionAppearance(
+      id: .more,
+      chrome: .circle,
+      systemImage: "info.circle",
+      accessibilityLabel: MediaActionCopy.localized("Worker images"),
+      isLoading: false
+    )
+    return MediaActionButton(appearance) {
+      onWorkerImageAdmin?()
+    }
+    .focused($focus, equals: .workerImageAdmin)
   }
 
   @ViewBuilder
