@@ -998,9 +998,12 @@ final class TVPageHeroCell: UICollectionViewCell {
   /// Focus is in a presentation over the page — a sheet like What's New, an alert: the
   /// title under it must not turn unseen (Sasha, 2026-10-26). Read from where focus is,
   /// not from `presentedViewController`, which is still set while a sheet animates
-  /// away after focus has already come back.
+  /// away after focus has already come back. A SwiftUI button's focus item is not a
+  /// view, so the item is walked up its focus environments to the first one that is.
   private var isCoveredByPresentation: Bool {
-    guard let focused = UIFocusSystem.focusSystem(for: self)?.focusedItem as? UIView else { return false }
+    var environment: UIFocusEnvironment? = UIFocusSystem.focusSystem(for: self)?.focusedItem
+    while let item = environment, !(item is UIView) { environment = item.parentFocusEnvironment }
+    guard let focused = environment as? UIView else { return false }
     return Self.presentationRoot(of: focused) !== Self.presentationRoot(of: self)
   }
 
