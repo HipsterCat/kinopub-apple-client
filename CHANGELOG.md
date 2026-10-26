@@ -5,6 +5,19 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Continue Watching is kino.pub's watching lists (2026-10-26)
+
+The Home row is `/v1/watching/movies` and `/v1/watching/serials?subscribed=1`,
+capped at 20. `subscribed=0` (every unfinished series) only stays if it was
+touched in **90 days**; a sample under 90 s drops after **14 days**, even from
+the native lists. `/v1/history` and this device are dates and a gap-fill, not
+the backbone. Ranking uses `max(history last_seen, local updatedAt)` so a
+series watched later on the phone is not ranked by an older Apple TV resume —
+that date also feeds the abandoned filter, and an unstarted next episode still
+inherits the series' newest history row (Sashimi #651). Mark-watched tombstones
+and the foreground / invalidate refresh from 2026-10-12 stay. Bookmarks and the
+weeks-to-consider setting are off the row.
+
 ### Home no longer fetches shelves it does not paint (2026-10-25)
 
 - Watch Now, Movies and Series stopped requesting `/v1/items/hot`, `/fresh` and

@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import KinoPubBackend
 
 #if !os(tvOS)
 
@@ -12,10 +11,6 @@ import KinoPubBackend
 /// `TabsNavigationView` and `HomeCatalog` live.
 struct SectionsSettingsView: View {
   @ObservedObject private var store = SectionVisibilityStore.shared
-  @AppStorage(ContinueWatchingPreferences.weeksKey)
-  private var continueWatchingWeeks = ContinueWatchingOrder.Rules.defaultWeeks
-  @AppStorage(ContinueWatchingPreferences.includesBookmarksKey)
-  private var continueWatchingBookmarks = true
 
   var body: some View {
     Form {
@@ -54,21 +49,6 @@ struct SectionsSettingsView: View {
       Section("Фильтры Главной") {
         Toggle("Без концертов на Главной", isOn: $store.excludeConcertsOnHome)
       }
-
-      Section {
-        Picker("Сколько недель учитывать", selection: $continueWatchingWeeks) {
-          ForEach(ContinueWatchingOrder.Rules.weekOptions, id: \.self) { weeks in
-            Text(verbatim: "\(weeks)").tag(weeks)
-          }
-        }
-        Toggle("Добавлять закладки", isOn: $continueWatchingBookmarks)
-      } header: {
-        Text("Продолжить просмотр")
-      } footer: {
-        Text("Что не смотрели, не обновлялось и не добавлялось в закладки столько недель, в ряд не попадает. Закладки — по дате добавления, не больше четырёх.")
-      }
-      .onChange(of: continueWatchingWeeks) { _, weeks in ContinueWatchingPreferences.setWeeks(weeks) }
-      .onChange(of: continueWatchingBookmarks) { _, isOn in ContinueWatchingPreferences.setIncludesBookmarks(isOn) }
 
       Section {
         ForEach(Array(store.orderedHomeSections.enumerated()), id: \.element.id) { idx, section in
