@@ -417,6 +417,7 @@ final class TVPageHeroCell: UICollectionViewCell {
   private let logoSession = TitleLogoSession()
   private var renderedID: Int?
   private var focusFailObserver: NSObjectProtocol?
+  private var focusUpdateObserver: NSObjectProtocol?
 
   private static let metaChrome: TVPageBannerChrome = {
     var chrome = TVPageBannerChrome.current
@@ -622,7 +623,17 @@ final class TVPageHeroCell: UICollectionViewCell {
     if window == nil {
       if let focusFailObserver { NotificationCenter.default.removeObserver(focusFailObserver) }
       focusFailObserver = nil
+      if let focusUpdateObserver { NotificationCenter.default.removeObserver(focusUpdateObserver) }
+      focusUpdateObserver = nil
     } else if focusFailObserver == nil {
+      // A sheet over the page (What's New, an alert) takes focus into its own
+      // presentation, and focus coming back is how it ends: the timer is re-read on
+      // every focus update, no presentation bookkeeping of our own.
+      focusUpdateObserver = NotificationCenter.default.addObserver(
+        forName: UIFocusSystem.didUpdateNotification, object: nil, queue: .main
+      ) { [weak self] _ in
+        MainActor.assumeIsolated { self?.updateTimer() }
+      }
       focusFailObserver = NotificationCenter.default.addObserver(
         forName: UIFocusSystem.movementDidFailNotification, object: nil, queue: .main
       ) { [weak self] note in
@@ -984,9 +995,28 @@ final class TVPageHeroCell: UICollectionViewCell {
   private var bookmarkMenuOpen = false
   private var paintedBookmarkGlyph = "bookmark"
 
+  /// Focus is in a presentation over the page — a sheet like What's New, an alert: the
+  /// title under it must not turn unseen (Sasha, 2026-10-26). Read from where focus is,
+  /// not from `presentedViewController`, which is still set while a sheet animates
+  /// away after focus has already come back.
+  private var isCoveredByPresentation: Bool {
+    guard let focused = UIFocusSystem.focusSystem(for: self)?.focusedItem as? UIView else { return false }
+    return Self.presentationRoot(of: focused) !== Self.presentationRoot(of: self)
+  }
+
+  /// The outermost controller of the presentation a view is in: the window's root, or
+  /// the controller presented over it.
+  private static func presentationRoot(of view: UIView) -> UIViewController? {
+    var responder: UIResponder? = view
+    while let next = responder, !(next is UIViewController) { responder = next.next }
+    var controller = responder as? UIViewController
+    while let parent = controller?.parent { controller = parent }
+    return controller
+  }
+
   func updateTimer() {
     guard let carousel else { return }
-    if window != nil, carousel.advances, !bookmarkMenuOpen {
+    if window != nil, carousel.advances, !bookmarkMenuOpen, !isCoveredByPresentation {
       timer.resumeTimer()
     } else {
       timer.pauseTimer()
