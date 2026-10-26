@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { handleImage } from "./title.js";
+import { handleImage, logoRecheckDue } from "./title.js";
 
 const originalWaitUntil = [];
 
@@ -459,6 +459,21 @@ test("the stamped logo URL proxies an SVG as PNG", async () => {
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("an empty logo locale is rechecked on a later request, after six hours", () => {
+  const recent = { pending: false, built_at: new Date().toISOString(), artwork: { logo: [] } };
+  const old = { pending: false, built_at: "2020-01-01T00:00:00.000Z", artwork: { logo: [] } };
+  const englishOnly = {
+    pending: false,
+    built_at: "2020-01-01T00:00:00.000Z",
+    artwork: { logo: [{ url: "https://example.test/a.png", lang: "en" }] },
+  };
+  assert.equal(logoRecheckDue(recent, "ru"), false);
+  assert.equal(logoRecheckDue(old, "ru"), true);
+  assert.equal(logoRecheckDue(englishOnly, "en"), false);
+  assert.equal(logoRecheckDue(englishOnly, "ru"), true);
+  assert.equal(logoRecheckDue(null, "ru"), false);
 });
 
 test("query route rejects a non-numeric id and an unknown namespace", async () => {
