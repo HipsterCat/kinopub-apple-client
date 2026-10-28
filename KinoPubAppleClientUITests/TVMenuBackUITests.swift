@@ -80,9 +80,14 @@ final class TVMenuBackUITests: XCTestCase {
   /// level with the tab bar showing, not on Experiments with the bar gone (Sasha,
   /// 2026-10-25). Needs the simulator's kino.pub session; the shots are the record.
   func testSettingsLeftWithoutMenuReopensAtItsFirstLevel() throws {
+    try XCTSkipUnless(FileManager.default.fileExists(atPath: UITestDevSession.filePath),
+                      "no ~/.kinopub-dev-session.json — local Settings walk only")
     let app = XCUIApplication()
     app.launchArguments += ["-KINOPUBInitialTab", "settings", "-KINOPUBSettingsPage", "experiments",
                             "-KINOPUBForceColorScheme", "dark"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
     app.launch()
     Thread.sleep(forTimeInterval: 4)
     try shoot(app, name: "settings-0-experiments")

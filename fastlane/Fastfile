@@ -544,6 +544,15 @@ def upload_with_retry!(args)
       return
     end
 
+    # Xcode 27's altool logs ERROR CDUploaderStateInfoResumeFilePath after a real
+    # "UPLOAD SUCCEEDED with no errors". Fastlane 2.238 treated that as failure;
+    # 2.240+ ignores it (fastlane/fastlane#30130). Keep the same rule here so a
+    # future altool line that still bubbles up does not fail a delivered build.
+    if message.match?(/CDUploaderStateInfoResumeFilePath/)
+      UI.success("altool uploaded; ignoring CDUploaderStateInfoResumeFilePath (fastlane#30130)")
+      return
+    end
+
     tries += 1
     if tries < 3 && message.match?(/status code 500|internal server error/i)
       UI.important("App Store Connect 500 on upload (#{tries}/3). Waiting 30s.")

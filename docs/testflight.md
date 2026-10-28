@@ -6,10 +6,16 @@ on Apple TV from TestFlight.
 
 The workflow is `.github/workflows/testflight.yml`. Fastlane lives in `fastlane/`.
 Upload jobs run on GitHub's `xcode-27` image (Xcode 26 cannot open
-`KinoPubAppleClient.xcodeproj/project.xcproj`). Signing patches that JSON5 file
-for the app target only; archives are `xcodebuild archive` / `exportArchive`.
-The Fastlane `xcodeproj` gem and gym both look for `project.pbxproj`, which this
-repo does not have — do not bring them back.
+`KinoPubAppleClient.xcodeproj/project.xcproj`). `.github/scripts/select-xcode-27.sh`
+picks a 27.x GM, then an RC, then a beta — `sort -V | tail -1` prefers
+`Xcode_27.2_beta_2` over `Xcode_27.2_Release_Candidate`, and App Store Connect
+rejects a 27.2 beta (`Unsupported SDK or Xcode version`). Signing patches that
+JSON5 file for the app target only; archives are `xcodebuild archive` /
+`exportArchive`. Fastlane 2.240+ is required: Xcode 27's altool can log
+`CDUploaderStateInfoResumeFilePath` after `UPLOAD SUCCEEDED`, and 2.238 treated
+that as failure (fastlane/fastlane#30130). The Fastlane `xcodeproj` gem and gym
+both look for `project.pbxproj`, which this repo does not have — do not bring
+them back.
 
 A secrets-free check is `.github/workflows/testflight-lint.yml` (`fastlane ios lint`
 plus `xcodebuild -list`). It runs on Fastlane / xcproj changes without Apple

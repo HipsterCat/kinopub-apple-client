@@ -5,6 +5,29 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### TestFlight: Xcode 27.2 RC uploaded and Fastlane called it a failure (2026-10-28)
+
+- From 22 Oct the `xcode-27` image selected Xcode 27.2 beta 2; App Store Connect
+  rejected those archives (`Unsupported SDK or Xcode version`). The image then
+  shipped 27.2 RC: archive, export and `altool` `UPLOAD SUCCEEDED`, but Fastlane
+  2.238.0 treated a spurious `CDUploaderStateInfoResumeFilePath` ERROR as
+  failure ([fastlane#30130](https://github.com/fastlane/fastlane/issues/30130),
+  fixed in 2.240.0). Fastlane is 2.241.2. The Xcode picker prefers a 27.x GM,
+  then an RC, then a beta — `sort -V` would pick `beta_2` over
+  `Release_Candidate` when both are on the image.
+
+### tvOS tests: wait for the deferred poster probe; skip local-only UI walks (2026-10-28)
+
+- `TVPageCellMetrics.recipe` returns an estimate and probes `TVPosterView` 0.2 s
+  later (Search grid keyboard, 2026-10-25). Cover tests were asserting against
+  the estimate (art 370 pt high where the recipe promised 384). They wait for
+  the probe.
+- `PlayerTabsUITests.testInfoLeadsTheStripOnAnEarlyDown` needs
+  `tools/slow-hls-server.py` on `:8765`. CI starts it for the tvOS test job;
+  the test skips if the port is down.
+- `TVMenuBackUITests.testSettingsLeftWithoutMenuReopensAtItsFirstLevel` needs a
+  kino.pub session and skips in CI like the other local walks.
+
 ### Home no longer fetches shelves it does not paint (2026-10-25)
 
 - Watch Now, Movies and Series stopped requesting `/v1/items/hot`, `/fresh` and

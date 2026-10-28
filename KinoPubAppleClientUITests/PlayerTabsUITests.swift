@@ -112,6 +112,8 @@ final class PlayerTabsUITests: XCTestCase {
   /// strip that comes up must lead with Info, as it does once the stream plays (Sasha,
   /// 2026-10-25: from most places a quick Down showed Episodes and Up Next with no Info).
   func testInfoLeadsTheStripOnAnEarlyDown() throws {
+    try XCTSkipUnless(slowHLSIsListening(),
+                      "start tools/slow-hls-server.py 6; CI starts it for the tvOS test job")
     app = XCUIApplication()
     app.launchArguments += ["-ui-testing",
                             "-KINOPUBDetailFixture", "seasonStrip",
@@ -166,6 +168,21 @@ final class PlayerTabsUITests: XCTestCase {
   private func press(_ button: XCUIRemote.Button) {
     XCUIRemote.shared.press(button)
     Thread.sleep(forTimeInterval: 2)
+  }
+
+  /// `tools/slow-hls-server.py` 302s any path except `/slow.m3u8` (that one sleeps).
+  /// A refused connection means the script is not running; do not hit `/slow.m3u8`.
+  private func slowHLSIsListening() -> Bool {
+    var request = URLRequest(url: URL(string: "http://127.0.0.1:8765/ok")!)
+    request.timeoutInterval = 1.5
+    var ok = false
+    let sem = DispatchSemaphore(value: 0)
+    URLSession.shared.dataTask(with: request) { _, response, _ in
+      ok = response != nil
+      sem.signal()
+    }.resume()
+    _ = sem.wait(timeout: .now() + 2)
+    return ok
   }
 
   // MARK: - Helpers

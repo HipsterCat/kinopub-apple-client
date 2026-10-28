@@ -155,6 +155,26 @@ jobs:
       - name: Ensure Metal toolchain
         run: xcodebuild -downloadComponent MetalToolchain || echo "bundled with this Xcode"
 
+      # PlayerTabsUITests.testInfoLeadsTheStripOnAnEarlyDown points the fixture
+      # player at http://127.0.0.1:8765/slow.m3u8. Without this the test waits
+      # 20s and fails "the stream never opened". The test skips if the port is
+      # down, so iOS (and a local run without the script) stay green.
+      - name: Slow HLS for the early-Down player test
+        if: matrix.platform == 'tvOS'
+        run: |
+          python3 tools/slow-hls-server.py 6 >/tmp/slow-hls-server.log 2>&1 &
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:8765/ok || true)
+            if [ "$code" = "302" ]; then
+              echo "slow HLS listening on :8765"
+              exit 0
+            fi
+            sleep 0.2
+          done
+          echo "::error::slow-hls-server.py did not listen on :8765"
+          cat /tmp/slow-hls-server.log
+          exit 1
+
       # By udid, not by name: runner images rename and renumber their devices, and a
       # hard-coded "Apple TV 4K (3rd generation)" is a job that dies on an image refresh.
       - name: Pick a simulator

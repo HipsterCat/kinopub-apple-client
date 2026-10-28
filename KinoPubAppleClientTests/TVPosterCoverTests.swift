@@ -31,6 +31,7 @@ final class TVPosterCoverTests: XCTestCase {
   }
 
   override func tearDown() async throws {
+    TVPageCellMetrics.cancelPendingMeasurement()
     window.isHidden = true
     window = nil
     try await super.tearDown()
@@ -42,6 +43,22 @@ final class TVPosterCoverTests: XCTestCase {
   /// no such slack: that is the one that grew by 37 pt.
   private let artWidthSlack: CGFloat = 2.5
 
+  /// `recipe(kind:artWidth:)` returns an estimate on the first call (`posterContentSize ==
+  /// artSize`) and probes `TVPosterView` ~0.2 s later — a press on the Search grid keyboard
+  /// must not build a poster. Asserting against the estimate is a 14 pt shorter cover
+  /// (CI, 2026-10-25). The estimate is gone once content size is larger than the art.
+  private func measuredRecipe(caption: TVPageCaption) async throws -> TVPageCellRecipe {
+    let first = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: caption)
+    if first.posterContentSize != first.artSize { return first }
+    let deadline = Date().addingTimeInterval(2)
+    while Date() < deadline {
+      try await Task.sleep(nanoseconds: 50_000_000)
+      let next = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: caption)
+      if next.posterContentSize != next.artSize { return next }
+    }
+    return TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: caption)
+  }
+
   private let entries: [(title: String, year: Int?)] = [
     ("Дальше от дома", 2023), ("The Old Man", nil), ("Х", nil),
     ("A title long enough to run out of room under any lockup, and then some", 1999), ("Wayne", 2019)
@@ -49,7 +66,7 @@ final class TVPosterCoverTests: XCTestCase {
 
   /// A row of covers, laid out in cells of the recipe's envelope, with the art arrived.
   private func row(caption: TVPageCaption) async throws -> (cells: [TVPageLockupPosterCell], recipe: TVPageCellRecipe) {
-    let recipe = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: caption)
+    let recipe = try await measuredRecipe(caption: caption)
     var cells: [TVPageLockupPosterCell] = []
     for (index, entry) in entries.enumerated() {
       let cell = TVPageLockupPosterCell(frame: CGRect(x: 40 + CGFloat(index) * 320, y: 100,
@@ -129,9 +146,9 @@ final class TVPosterCoverTests: XCTestCase {
   /// The envelope of a captioned cover is the bare cover's, the air under the art and two lines
   /// of the caption — the grid's rows keep the pitch they always had (510 pt at a 256 art), and
   /// the lockup is exactly the bare cover.
-  func testACaptionedRecipeIsTheBareCoverPlusTwoLines() {
-    let bare = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: .never)
-    let captioned = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: .always)
+  func testACaptionedRecipeIsTheBareCoverPlusTwoLines() async throws {
+    let bare = try await measuredRecipe(caption: .never)
+    let captioned = try await measuredRecipe(caption: .always)
     let lines = TVPageCaptionView.height(category: TVPageCellMetrics.contentSizeCategory)
     XCTAssertEqual(captioned.captionHeight, lines)
     XCTAssertEqual(captioned.itemSize.height, bare.itemSize.height + TVPageLockupPosterCell.footerGap + lines)
@@ -164,8 +181,8 @@ final class TVPosterCoverTests: XCTestCase {
   /// A cell is dequeued again and again as a grid scrolls, with a cover of another shape each
   /// time. Nothing it showed before may change the art or the caption it shows now.
   func testReusedCellsKeepTheirArtAndTheirTwoLines() async throws {
-    let captioned = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: .always)
-    let bare = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: .never)
+    let captioned = try await measuredRecipe(caption: .always)
+    let bare = try await measuredRecipe(caption: .never)
     var cells: [TVPageLockupPosterCell] = []
     for index in 0..<6 {
       let cell = TVPageLockupPosterCell(frame: CGRect(x: 40 + CGFloat(index) * 300, y: 100,
