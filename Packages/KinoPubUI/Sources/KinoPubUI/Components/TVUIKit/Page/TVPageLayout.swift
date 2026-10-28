@@ -701,6 +701,16 @@ public enum TVPageCellMetrics {
     settleQueued = false
   }
 
+  /// True once this width has had a real `TVPosterView` / `TVCardView` probe, not
+  /// the estimate. Cover tests wait on this; they must not call `recipe` while
+  /// waiting — each call resets `pendingProbe.requestedAt` and `drainSettle`
+  /// postpones the probe forever.
+  static func isMeasured(kind: TVPageCellKind, artWidth: CGFloat, caption: TVPageCaption) -> Bool {
+    let key = Key(kind: kind, width: artWidth.rounded(), caption: kind.isLockup ? caption : .always,
+                  category: contentSizeCategory)
+    return measuredKeys.contains(key)
+  }
+
   public static func recipe(kind: TVPageCellKind, artWidth: CGFloat, caption: TVPageCaption) -> TVPageCellRecipe {
     let key = Key(kind: kind, width: artWidth.rounded(), caption: kind.isLockup ? caption : .always,
                   category: contentSizeCategory)

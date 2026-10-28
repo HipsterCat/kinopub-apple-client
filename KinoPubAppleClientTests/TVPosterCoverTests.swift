@@ -43,19 +43,22 @@ final class TVPosterCoverTests: XCTestCase {
   /// no such slack: that is the one that grew by 37 pt.
   private let artWidthSlack: CGFloat = 2.5
 
-  /// `recipe(kind:artWidth:)` returns an estimate on the first call (`posterContentSize ==
-  /// artSize`) and probes `TVPosterView` ~0.2 s later — a press on the Search grid keyboard
-  /// must not build a poster. Asserting against the estimate is a 14 pt shorter cover
-  /// (CI, 2026-10-25). The estimate is gone once content size is larger than the art.
+  /// `recipe(kind:artWidth:)` returns an estimate on the first call and probes
+  /// `TVPosterView` ~0.2 s later — a press on the Search grid keyboard must not
+  /// build a poster. Do not call `recipe` again until `isMeasured`: each call
+  /// resets the probe deadline and the estimate stays (art 370 pt high where
+  /// the recipe promised 384; CI, 2026-10-28).
   private func measuredRecipe(caption: TVPageCaption) async throws -> TVPageCellRecipe {
-    let first = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: caption)
-    if first.posterContentSize != first.artSize { return first }
-    let deadline = Date().addingTimeInterval(2)
-    while Date() < deadline {
+    _ = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: caption)
+    let deadline = Date().addingTimeInterval(1.5)
+    while !TVPageCellMetrics.isMeasured(kind: .poster, artWidth: 256, caption: caption),
+          Date() < deadline {
       try await Task.sleep(nanoseconds: 50_000_000)
-      let next = TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: caption)
-      if next.posterContentSize != next.artSize { return next }
     }
+    XCTAssertTrue(
+      TVPageCellMetrics.isMeasured(kind: .poster, artWidth: 256, caption: caption),
+      "TVPosterView probe never ran for caption \(caption)"
+    )
     return TVPageCellMetrics.recipe(kind: .poster, artWidth: 256, caption: caption)
   }
 

@@ -21,7 +21,8 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 - `TVPageCellMetrics.recipe` returns an estimate and probes `TVPosterView` 0.2 s
   later (Search grid keyboard, 2026-10-25). Cover tests were asserting against
   the estimate (art 370 pt high where the recipe promised 384). They wait for
-  the probe.
+  the probe without calling `recipe` again — polling it reset the probe deadline
+  and the estimate never left.
 - `PlayerTabsUITests.testInfoLeadsTheStripOnAnEarlyDown` needs
   `tools/slow-hls-server.py` on `:8765`. CI starts it for the tvOS test job;
   the test skips if the port is down.
