@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import KinoPubLogging
 
 public struct KinoPubConfig: Decodable, Sendable {
   public struct TypeEntry: Decodable, Sendable {
@@ -83,6 +84,8 @@ public struct KinoPubConfig: Decodable, Sendable {
       .appendingPathComponent("kinopub-config.json")
     var request = URLRequest(url: url)
     request.timeoutInterval = 8
+    let activity = NetworkActivity.begin(request)
+    defer { NetworkActivity.end(activity) }
     if let (data, response) = try? await session.data(for: request),
        (response as? HTTPURLResponse)?.statusCode == 200,
        let config = try? JSONDecoder().decode(KinoPubConfig.self, from: data) {

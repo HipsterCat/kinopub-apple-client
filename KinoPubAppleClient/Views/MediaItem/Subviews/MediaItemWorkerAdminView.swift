@@ -6,6 +6,7 @@ import SwiftUI
 import KinoPubUI
 import KinoPubMetadata
 import KinoPubBackend
+import KinoPubLogging
 
 /// TMDB proxy admin: routes, KV picks, forget / refresh / catalog / pick.
 struct MediaItemWorkerAdminView: View {
@@ -1060,6 +1061,8 @@ enum WorkerRouteProber {
       request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
       request.timeoutInterval = 30
       request.setValue(acceptLanguage, forHTTPHeaderField: "Accept-Language")
+      let activity = NetworkActivity.begin(request)
+      defer { NetworkActivity.end(activity) }
       let (_, response) = try await URLSession.shared.data(for: request)
       guard let http = response as? HTTPURLResponse else {
         result.error = "No HTTP response"

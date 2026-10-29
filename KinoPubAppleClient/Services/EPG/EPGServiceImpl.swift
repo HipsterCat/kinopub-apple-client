@@ -89,6 +89,8 @@ actor EPGServiceImpl: EPGService {
     do {
       var request = URLRequest(url: url)
       request.timeoutInterval = 20
+      let activity = NetworkActivity.begin(request)
+      defer { NetworkActivity.end(activity) }
       let (data, response) = try await session.data(for: request)
       if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
         return cached?.programs

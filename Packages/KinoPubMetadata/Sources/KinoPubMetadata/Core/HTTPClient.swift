@@ -1,4 +1,5 @@
 import Foundation
+import KinoPubLogging
 
 /// Minimal HTTP client that surfaces status codes (unlike KinoPubBackend.APIClient).
 public actor MetadataHTTPClient {
@@ -19,6 +20,8 @@ public actor MetadataHTTPClient {
       request.setValue(value, forHTTPHeaderField: key)
     }
 
+    let activity = NetworkActivity.begin(request)
+    defer { NetworkActivity.end(activity) }
     let (data, response) = try await session.data(for: request)
     guard let http = response as? HTTPURLResponse else {
       throw MetadataError.httpStatus(-1)

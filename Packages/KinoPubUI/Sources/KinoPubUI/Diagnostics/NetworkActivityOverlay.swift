@@ -27,17 +27,17 @@ public struct NetworkActivityOverlay: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 4) {
       ForEach(activity.inFlight) { entry in
-        HStack(spacing: 8) {
-          // The path, not the friendly name: this overlay is for whoever is debugging,
-          // and "Activity_Catalog" three times says less than three distinct paths.
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          // The request, not the friendly name: "Activity_Catalog" three times says
+          // less than three distinct methods, and the host says which stack it is.
           Text(entry.detail.isEmpty ? entry.nameKey : entry.detail)
             .fontWeight(.medium)
-            .lineLimit(1)
-            .truncationMode(.head)
-          Spacer(minLength: 12)
+            .lineLimit(2)
+            .truncationMode(.middle)
+            .frame(maxWidth: .infinity, alignment: .leading)
           Text(elapsed(entry.elapsed(at: now)))
             .monospacedDigit()
-            .foregroundStyle(entry.elapsed(at: now) > 3 ? .orange : .secondary)
+            .foregroundStyle(entry.finishedAt == nil && entry.elapsed(at: now) > 3 ? .orange : .secondary)
         }
       }
     }
@@ -46,7 +46,7 @@ public struct NetworkActivityOverlay: View {
     .padding(.vertical, 8)
     .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     .foregroundStyle(.white)
-    .frame(maxWidth: 360, alignment: .leading)
+    .frame(maxWidth: 440, alignment: .leading)
     .opacity(activity.inFlight.isEmpty ? 0 : 1)
     .animation(.easeOut(duration: 0.15), value: activity.inFlight.count)
     .allowsHitTesting(false)
@@ -77,9 +77,9 @@ public extension View {
     NetworkActivityOverlay()
   }
   .task {
-    _ = NetworkActivity.begin(nameKey: "Activity_History", detail: "/v1/history")
-    _ = NetworkActivity.begin(nameKey: "Activity_Watching", detail: "/v1/watching/serials")
-    _ = NetworkActivity.begin(nameKey: "Activity_Session", detail: "/v1/user")
+    _ = NetworkActivity.begin(nameKey: "Activity_History", detail: "GET api.service-kp.com/v1/history")
+    _ = NetworkActivity.begin(nameKey: "Activity_TMDB", detail: "GET tmdb-proxy.workers.dev/3/tv/1396")
+    _ = NetworkActivity.begin(nameKey: "Activity_Kinopoisk", detail: "GET kpapp.link/kpapi/films/301/facts")
   }
   // .preferredColorScheme(.dark)
 }

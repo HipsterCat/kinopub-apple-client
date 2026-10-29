@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import KinoPubLogging
 
 public struct SearchAutocompleteEntry: Decodable, Hashable, Sendable, Identifiable {
   public let id: Int
@@ -48,6 +49,8 @@ public enum SearchAutocomplete {
     guard let url = url(for: query) else { return [] }
     var request = URLRequest(url: url)
     request.timeoutInterval = 6
+    let activity = NetworkActivity.begin(request)
+    defer { NetworkActivity.end(activity) }
     let (data, response) = try await session.data(for: request)
     guard (response as? HTTPURLResponse)?.statusCode == 200 else { return [] }
     return try JSONDecoder().decode([SearchAutocompleteEntry].self, from: data)

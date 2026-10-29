@@ -24,6 +24,7 @@ import Foundation
 import CoreGraphics
 import SwiftUI
 import Nuke
+import KinoPubLogging
 import KinoPubMetadata
 
 /// Namespace for the shared artwork stack: the pipeline, the request shape, and the
@@ -49,7 +50,7 @@ public enum Artwork {
     configuration.timeoutIntervalForRequest = requestTimeout
 
     return ImagePipeline {
-      $0.dataLoader = DataLoader(configuration: configuration)
+      $0.dataLoader = ActivityReportingDataLoader(DataLoader(configuration: configuration))
       $0.dataLoadingQueue = TaskQueue(maxConcurrentOperationCount: concurrentDownloads)
       $0.dataCache = diskCache
       $0.imageCache = memoryCache
@@ -191,6 +192,8 @@ public enum Artwork {
     request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
     request.timeoutInterval = 15
     request.setValue(workerHTTPAcceptLanguage, forHTTPHeaderField: "Accept-Language")
+    let activity = NetworkActivity.begin(request)
+    defer { NetworkActivity.end(activity) }
     guard let (_, response) = try? await URLSession.shared.data(for: request),
           let http = response as? HTTPURLResponse,
           let final = http.url else { return nil }
@@ -334,6 +337,61 @@ public enum Artwork {
     seenLock.lock()
     seen[url, default: []].insert(SeenVariant(size: size, mode: mode))
     seenLock.unlock()
+  }
+}
+
+/// Reports worker image routes (`/img/…`) on the in-flight overlay. Poster CDNs stay
+/// quiet — a rail of twenty covers is not twenty methods.
+private final class ActivityReportingDataLoader: DataLoading, @unchecked Sendable {
+  private let inner: DataLoader
+
+  init(_ inner: DataLoader) {
+    self.inner = inner
+  }
+
+  func loadData(
+    with request: URLRequest,
+    didReceiveData: @escaping @Sendable (Data, URLResponse) -> Void,
+    completion: @escaping @Sendable (Error?) -> Void
+  ) -> any Cancellable {
+    guard let url = request.url, NetworkActivity.reportsArtworkRequest(url) else {
+      return inner.loadData(with: request, didReceiveData: didReceiveData, completion: completion)
+    }
+    let token = NetworkActivity.begin(request)
+    let box = ActivityReportCancellable(token: token)
+    box.inner = inner.loadData(with: request, didReceiveData: didReceiveData) { error in
+      box.complete()
+      completion(error)
+    }
+    return box
+  }
+}
+
+private final class ActivityReportCancellable: Cancellable, @unchecked Sendable {
+  private let token: UUID
+  private let lock = NSLock()
+  private var ended = false
+  var inner: (any Cancellable)?
+
+  init(token: UUID) {
+    self.token = token
+  }
+
+  func cancel() {
+    end(holdMinimum: false)
+    inner?.cancel()
+  }
+
+  func complete() {
+    end(holdMinimum: true)
+  }
+
+  private func end(holdMinimum: Bool) {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !ended else { return }
+    ended = true
+    NetworkActivity.end(token, holdMinimum: holdMinimum)
   }
 }
 

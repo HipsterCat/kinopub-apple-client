@@ -1,4 +1,5 @@
 import Foundation
+import KinoPubLogging
 
 public enum WorkerImageAdminKind: String, Sendable, CaseIterable {
   case logo
@@ -170,6 +171,8 @@ public struct WorkerImageAdminClient: Sendable {
       request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     }
 
+    let activity = NetworkActivity.begin(request)
+    defer { NetworkActivity.end(activity) }
     let (data, response) = try await session.data(for: request)
     guard let http = response as? HTTPURLResponse else { throw WorkerImageAdminError.transport }
     if http.statusCode == 404 {

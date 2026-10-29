@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import KinoPubLogging
 
 // MARK: - Models
 
@@ -106,7 +107,10 @@ public final class KinopoiskExtrasService: @unchecked Sendable {
     guard let url = URL(string: "\(baseURL)/\(filmId)/\(resource)") else {
       throw URLError(.badURL)
     }
-    let (data, response) = try await session.data(from: url)
+    let request = URLRequest(url: url)
+    let activity = NetworkActivity.begin(request)
+    defer { NetworkActivity.end(activity) }
+    let (data, response) = try await session.data(for: request)
     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
       throw URLError(.badServerResponse)
     }
