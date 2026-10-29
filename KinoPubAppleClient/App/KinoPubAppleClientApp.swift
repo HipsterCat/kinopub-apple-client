@@ -75,6 +75,17 @@ struct KinoPubAppleClientApp: App {
           TopShelfRouter.open(link, navigation: navigationState)
         }
 #endif
+#if DEBUG
+        // `-KINOPUBOpenItem <id>`: open on a title's page, for screenshots of a live
+        // detail page without walking there.
+        .task(id: authState.userState) {
+          guard authState.userState == .authorized,
+                let id = Int(UserDefaults.standard.string(forKey: "KINOPUBOpenItem") ?? "")
+          else { return }
+          navigationState.selectBrowseTab(.home)
+          navigationState.mainRoutes = [.detailsById(id)]
+        }
+#endif
         // Register a readable device identity + advertise HEVC/4K/HDR at activation, so
         // the kino.pub Devices list isn't "unknown / unknown" and streams match what
         // AVPlayer can open. A launch that only revived a Keychain token sends nothing
@@ -300,7 +311,8 @@ private struct UILabCommands: Commands {
 /// dark-only, and `.preferredColorScheme(nil)` still pinned Dark on the simulator
 /// (hig could not get Light). The modifier is applied only when DEBUG
 /// `-KINOPUBForceColorScheme light|dark` is set (`simctl ui appearance` unsupported).
-/// iOS/macOS stay dark until their pass.
+/// iOS / macOS follow the system too (Sasha, 2026-10-18 / 2026-10-29); what is drawn
+/// over a picture forces itself dark, the way the Apple TV app does.
 enum LaunchAppearance {
 #if DEBUG
   static var forcedColorScheme: ColorScheme? {
@@ -327,19 +339,10 @@ private extension View {
     if let scheme = LaunchAppearance.forcedColorScheme {
       preferredColorScheme(scheme)
     } else {
-      unforcedLaunchColorScheme
+      self
     }
 #else
-    unforcedLaunchColorScheme
-#endif
-  }
-
-  @ViewBuilder
-  private var unforcedLaunchColorScheme: some View {
-#if os(tvOS)
     self
-#else
-    preferredColorScheme(.dark)
 #endif
   }
 }

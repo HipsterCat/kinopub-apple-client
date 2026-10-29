@@ -3602,6 +3602,7 @@ struct MediaItemPlotView: View {
           .accessibilityHidden(true)
       }
     }
+    .modifier(PlotHoverPlate())
   }
 #endif
 
@@ -3654,8 +3655,14 @@ struct MediaItemPlotView: View {
   static let maxWidth: CGFloat = 900
   static let moreTracking: CGFloat = 1
 #else
+  /// The tvOS plate's room around the glyphs, drawn outside the paragraph's frame so
+  /// the hover plate moves nothing.
+  static let focusInsetH: CGFloat = 10
+  static let focusInsetV: CGFloat = 6
   static let lineLimit = 4
-  static let maxWidth: CGFloat = .infinity
+  /// A reading measure, not the window: on a wide Mac window the synopsis ran the
+  /// full width of the page (Sasha, 2026-10-29: 660 pt).
+  static let maxWidth: CGFloat = 660
   static let moreTracking: CGFloat = 0.8
 #endif
 
@@ -3710,6 +3717,29 @@ private struct PlotParagraphLabel: View {
   /// invisible (Sasha, 2026-10-25). On the light system background a faint dark tint.
   private var plate: Color {
     colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.08)
+  }
+}
+#endif
+
+#if !os(tvOS)
+/// The tvOS focus plate for a pointer: the synopsis opens the info popup, and with no
+/// chrome at rest nothing said so until it was clicked. Shown while the pointer is over
+/// it, in the system fill, so it follows the hero's forced-dark chrome over a picture
+/// and the appearance without one.
+private struct PlotHoverPlate: ViewModifier {
+  @State private var isHovered = false
+
+  func body(content: Content) -> some View {
+    content
+      .background {
+        RoundedRectangle(cornerRadius: MediaItemPlotView.focusInsetH, style: .continuous)
+          .fill(.fill.tertiary)
+          .padding(.horizontal, -MediaItemPlotView.focusInsetH)
+          .padding(.vertical, -MediaItemPlotView.focusInsetV)
+          .opacity(isHovered ? 1 : 0)
+      }
+      .onHover { isHovered = $0 }
+      .animation(.easeOut(duration: 0.2), value: isHovered)
   }
 }
 #endif
