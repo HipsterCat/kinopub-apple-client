@@ -513,6 +513,7 @@
               "kind": "group",
               "path": "TV",
               "children": [
+                { "path": "TVChannelCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "TVChannelsModel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "TVChannelsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "TVChannelsFixture.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },

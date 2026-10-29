@@ -89,7 +89,8 @@ struct TVChannelsFixtureRoot: View {
       Tab(value: NavigationTabs.home) { Color.clear } label: { Text("Watch Now") }
       Tab(value: NavigationTabs.tv) {
         TVChannelsView(model: TVChannelsModel(contentService: appContext.contentService,
-                                              epgService: TVChannelsFixture.guide))
+                                              epgService: TVChannelsFixture.guide,
+                                              initialChannels: TVChannelsFixture.channels))
       } label: { Text("TV") }
     }
     .tabViewStyle(.tabBarOnly)

@@ -63,6 +63,53 @@ final class TVChannelsModelTests: XCTestCase {
 #endif
   }
 
+  /// The tab opens on the whole baked grid, in the order the loaded list uses:
+  /// Latin titles first, the Russian block at the bottom. No stream yet.
+  func testOpensOnTheBakedGrid() {
+    let model = TVChannelsModel(contentService: VideoContentServiceMock())
+    XCTAssertEqual(model.channels.count, 51)
+    XCTAssertEqual(model.channels.first?.title, "CBS Sports")
+    XCTAssertEqual(model.channels.last?.title, "Футбол ТВ")
+    XCTAssertEqual(model.channels.map(\.title).firstIndex(of: "Бокс ТВ"),
+                   model.channels.map(\.title).firstIndex(of: "Беларусь 5").map { $0 + 2 })
+    XCTAssertTrue(model.channels.allSatisfy { $0.stream.isEmpty && $0.logo != nil })
+    XCTAssertFalse(model.isLoading)
+  }
+
+  /// The guide is asked for the channels already on screen, alongside `/v1/tv`.
+  func testGuideUsesTheChannelsAlreadyShown() async {
+    let asked = Streams()
+    let shown = TVChannel(id: 7, title: "Матч! Футбол 3", stream: "")
+    let now = Date()
+    let model = TVChannelsModel(
+      contentService: VideoContentServiceMock(tvChannels: {
+        [TVChannel(id: 7, title: "Матч! Футбол 3", stream: "https://cdn.example/7.m3u8")]
+      }),
+      epgService: EPGServiceMock { channels in
+        asked.record(channels.map(\.stream))
+        return [7: [EPGProgram(title: "Now", start: now.addingTimeInterval(-600),
+                               stop: now.addingTimeInterval(600))]]
+      },
+      initialChannels: [shown])
+    await model.fetch()
+    XCTAssertEqual(asked.value, [[""]])
+    XCTAssertEqual(model.channels.first?.stream, "https://cdn.example/7.m3u8")
+    XCTAssertEqual(model.nowPlaying(channelID: 7, at: now)?.title, "Now")
+  }
+
+  /// The same channels in another order stay in the baked order, so the grid
+  /// does not reshuffle when the list arrives.
+  func testServerListKeepsTheBakedOrder() async {
+    let reversed = TVChannelCatalog.channels.reversed().map {
+      TVChannel(id: $0.id, title: $0.title, logo: $0.logo, stream: "https://cdn.example/\($0.id).m3u8")
+    }
+    let model = TVChannelsModel(contentService: VideoContentServiceMock(tvChannels: { reversed }),
+                                initialChannels: TVChannelCatalog.channels)
+    await model.fetch()
+    XCTAssertEqual(model.channels.map(\.id), TVChannelCatalog.channels.map(\.id))
+    XCTAssertEqual(model.channels.first?.stream, "https://cdn.example/80.m3u8")
+  }
+
   /// Live playback reports nothing, and has no Up Next or episodes: every gate in the
   /// player reads `watchMode == .media`, so `.live` must stay a mode of its own.
   func testLiveIsNotMediaPlayback() {
@@ -78,4 +125,11 @@ private final class Counter: @unchecked Sendable {
   private var count = 0
   var value: Int { lock.withLock { count } }
   func increment() { lock.withLock { count += 1 } }
+}
+
+private final class Streams: @unchecked Sendable {
+  private let lock = NSLock()
+  private var calls: [[String]] = []
+  var value: [[String]] { lock.withLock { calls } }
+  func record(_ streams: [String]) { lock.withLock { calls.append(streams) } }
 }

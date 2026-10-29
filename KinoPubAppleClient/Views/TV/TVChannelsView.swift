@@ -45,7 +45,8 @@ struct TVChannelsView: View {
       onSelect: { _, item in
         guard case .tile(let tile) = item,
               let id = Int(tile.id),
-              let channel = model.channel(id: id) else { return }
+              let channel = model.channel(id: id),
+              !channel.stream.isEmpty else { return }
         navigationState.push(.livePlayer(channel, token: UUID()))
       },
       onRetry: { Task { await model.fetch() } }
@@ -57,7 +58,9 @@ struct TVChannelsView: View {
 
   private func sections(at date: Date) -> [TVPageSection] {
     if model.channels.isEmpty && model.isLoading {
-      return [.placeholder(id: "channels", title: nil, kind: .still, columns: Self.columns, flow: .grid)]
+      // The same cells the baked list paints, so a cold load is not a shorter grid.
+      return [.placeholder(id: "channels", title: nil, kind: .still, columns: Self.columns,
+                           flow: .grid, count: TVChannelCatalog.channels.count)]
     }
     guard !model.channels.isEmpty else { return [] }
     return [.tiles(id: "channels", title: nil, columns: Self.columns, flow: .grid,
@@ -66,12 +69,23 @@ struct TVChannelsView: View {
                    })]
   }
 
-  /// The channel's name, and under it what it has on air when the guide knows.
+  /// The logo's plate, or the quiet grey a channel outside the baked list gets.
+  private static func plate(for id: Int) -> UIColor {
+    guard let hex = TVChannelCatalog.plateHex(for: id) else {
+      return UIColor(white: 0.16, alpha: 1)
+    }
+    return UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255,
+                   green: CGFloat((hex >> 8) & 0xFF) / 255,
+                   blue: CGFloat(hex & 0xFF) / 255,
+                   alpha: 1)
+  }
+
+  /// The channel's name under the tile. The plate is the logo's own background; the
+  /// programme, when the guide knows it, is the still's secondary line on the focused tile.
   static func tile(for channel: TVChannel, onAir: EPGProgram? = nil) -> TVPageTile {
-    // A quiet plate while the logo loads, not a colour per channel: the logo is the art.
     TVPageTile(id: String(channel.id),
                title: channel.title,
-               tint: UIColor(white: 0.16, alpha: 1),
+               tint: Self.plate(for: channel.id),
                style: .flat,
                logoURL: channel.logo.flatMap(URL.init(string:)),
                subtitle: onAir?.title)

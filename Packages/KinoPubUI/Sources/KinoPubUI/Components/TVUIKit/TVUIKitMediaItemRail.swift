@@ -1012,7 +1012,13 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
 
   private func fallbackImage(for item: TVUIKitMediaItem) -> UIImage {
     guard let tint = item.tint else { return TVUIKitTileArtwork.placeholder(traits: traitCollection) }
-    return TVUIKitTileArtwork.wide(tint: tint, symbol: item.symbol, style: item.tileStyle)
+    // A channel plate is the logo's own colour, opaque, so the tile does not change
+    // shade when the picture lands. Other drawn tiles stay the quieter wash.
+    let alpha: CGFloat = item.artworkFit == .letterbox ? 1 : 0.85
+    return TVUIKitTileArtwork.image(tint: tint, symbol: item.symbol,
+                                    size: TVUIKitTileArtwork.wideSize,
+                                    fillAlpha: alpha, style: item.tileStyle,
+                                    traits: traitCollection)
   }
 
   private func loadArtwork(for item: TVUIKitMediaItem) {
