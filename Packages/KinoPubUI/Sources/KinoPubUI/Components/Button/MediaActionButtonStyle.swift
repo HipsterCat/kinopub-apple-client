@@ -95,8 +95,9 @@ public extension View {
   /// Play white at rest (the preview only painted it white as default focus).
   ///
   /// iOS / macOS: monochrome — the primary colour of the hero's (dark) chrome, white,
-  /// with the label in the page's background colour, the way the TV app's Play reads on
-  /// a Mac (Sasha, 2026-10-29). The accent blue was the loudest thing on the artwork.
+  /// with the label in the page's background colour (`MediaActionLabel` sets it), the
+  /// way the TV app's Play reads on a Mac (Sasha, 2026-10-29). The accent blue was the
+  /// loudest thing on the artwork.
   func mediaActionPlayPillStyle() -> some View {
 #if os(tvOS)
     buttonStyle(.glassProminent)
@@ -107,7 +108,11 @@ public extension View {
       .buttonBorderShape(.capsule)
       .controlSize(MediaActionMetrics.controlSize)
       .tint(.primary)
+#if os(macOS)
+      // On the button, not the label: in an inactive window the system greys the fill
+      // and this greys with it; a fixed label colour stayed black on the dark grey.
       .foregroundStyle(.background)
+#endif
 #endif
   }
 
@@ -122,21 +127,17 @@ public extension View {
   /// Icon-only circle. Same glass family as the labelled pills — focus owns the
   /// lift; the glyph slot is fixed so a wider SF Symbol does not shove neighbours.
   ///
-  /// iOS / macOS: the shape hugs its content rather than being forced round. The glyph
-  /// slot is square, so a lone glyph still makes a circle — that is the minimum — and a
-  /// menu that adds its own indicator (Bookmarks on a Mac) grows into a capsule instead
-  /// of breaking out of the circle (Sasha, 2026-10-29). `.button` menu style so a `Menu`
-  /// wears the same glass as a `Button`.
+  /// iOS / macOS: a `Menu` (Bookmarks, More) is the same circle as a `Button` — no
+  /// indicator, `.button` menu style so it wears the same glass. A capsule shape here let
+  /// the extra-large padding stretch every lone glyph into a pill, and the Mac's menu
+  /// chevron grew Bookmarks wider still (Sasha, 2026-10-29).
   func mediaActionCircleStyle() -> some View {
 #if os(tvOS)
     buttonStyle(.glass)
       .buttonBorderShape(.circle)
       .controlSize(MediaActionMetrics.controlSize)
 #else
-    buttonStyle(.glass)
-      .menuStyle(.button)
-      .buttonBorderShape(.capsule)
-      .controlSize(MediaActionMetrics.controlSize)
+    modifier(MediaActionCircleChrome())
 #endif
   }
 }
@@ -318,5 +319,18 @@ private struct MediaActionCatalogPreviewRow: View {
   }
   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   .background(Color.black)
+}
+#endif
+
+#if !os(tvOS)
+private struct MediaActionCircleChrome: ViewModifier {
+  func body(content: Content) -> some View {
+    content
+      .buttonStyle(.glass)
+      .menuStyle(.button)
+      .menuIndicator(.hidden)
+      .buttonBorderShape(.circle)
+      .controlSize(MediaActionMetrics.controlSize)
+  }
 }
 #endif
