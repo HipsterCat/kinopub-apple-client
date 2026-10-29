@@ -1477,11 +1477,13 @@ struct MediaItemHeroView: View {
       }
     } label: {
       MediaActionLabel(appearance)
+        .mediaActionMenuLabel()
     }
 #if !os(macOS)
     .menuActionDismissBehavior(.disabled)
 #endif
     .mediaActionStyle(appearance)
+    .mediaActionMenu()
     .focused($focus, equals: .bookmark)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .alert("New Folder", isPresented: $showNewFolderAlert) {
@@ -1597,8 +1599,10 @@ struct MediaItemHeroView: View {
       }
     } label: {
       MediaActionLabel(appearance)
+        .mediaActionMenuLabel()
     }
     .mediaActionStyle(appearance)
+    .mediaActionMenu()
     .focused($focus, equals: .more)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
   }
