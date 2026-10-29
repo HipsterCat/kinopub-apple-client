@@ -166,6 +166,9 @@ enum MediaItemHeroActionAvailability {
 @Observable
 final class MediaItemHeroPhase {
   var isHeroOnScreen = true
+  /// How far the window's bars (toolbar, status bar) reach down over the hero. The page
+  /// ignores the top safe area so the picture runs under them; the hero's title must not.
+  var topChromeInset: CGFloat = 0
 }
 
 struct MediaItemView: View {
@@ -242,6 +245,13 @@ struct MediaItemView: View {
       .ignoresSafeArea(edges: .top)
 #else
       .ignoresSafeArea()
+#endif
+#if !os(tvOS)
+      // Measured on the full-window frame, which overlaps the bars by exactly this much.
+      // Written into `heroPhase`, so only the hero re-reads it.
+      .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.top }) { inset in
+        heroPhase.topChromeInset = inset
+      }
 #endif
       // Tabs stay visible over the detail page for now (2026-08-09): the hide-on-enter
       // here plus the system's own tab-bar minimize timing was reading as "tabs fade in

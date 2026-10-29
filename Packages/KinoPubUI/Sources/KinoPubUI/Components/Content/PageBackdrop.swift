@@ -324,29 +324,9 @@ private struct PageBackdropLayer: View {
           .clipped()
       }
 
-      scrim
+      BackdropScrim()
     }
     .animation(PageBackdropHost.crossfade, value: palette)
-  }
-
-  /// Stops are in screen height. The hero's text spans roughly 0.3–0.75 of the screen,
-  /// and everything scrolled up over the backdrop passes through the bottom band.
-  private var scrim: some View {
-    ZStack {
-      Color.black.opacity(0.22)
-
-      LinearGradient(stops: [
-        .init(color: .clear, location: 0.35),
-        .init(color: .black.opacity(0.28), location: 0.55),
-        .init(color: .black.opacity(0.55), location: 0.82),
-        .init(color: .black.opacity(0.72), location: 1)
-      ], startPoint: .top, endPoint: .bottom)
-
-      LinearGradient(stops: [
-        .init(color: .black.opacity(0.35), location: 0),
-        .init(color: .clear, location: 0.35)
-      ], startPoint: .leading, endPoint: .trailing)
-    }
   }
 }
 

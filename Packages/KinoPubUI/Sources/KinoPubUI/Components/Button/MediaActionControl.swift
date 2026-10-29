@@ -24,14 +24,19 @@ public struct MediaActionLabel: View {
   public var body: some View {
     Group {
       if appearance.isLoading {
-        ProgressView()
+        if appearance.chrome == .circle {
+          MediaActionGlyphSlot {
+            ProgressView()
 #if !os(tvOS)
-          .controlSize(.small)
+              .controlSize(.small)
 #endif
-          .frame(
-            width: appearance.chrome == .circle ? MediaActionMetrics.circleGlyphSlot : nil,
-            height: appearance.chrome == .circle ? MediaActionMetrics.circleGlyphSlot : nil
-          )
+          }
+        } else {
+          ProgressView()
+#if !os(tvOS)
+            .controlSize(.small)
+#endif
+        }
       } else {
         content
       }
@@ -52,24 +57,24 @@ public struct MediaActionLabel: View {
     switch appearance.chrome {
     case .circle:
       if let circular = appearance.circularProgress {
-        ZStack {
-          Circle()
-            .stroke(.tertiary, lineWidth: 2)
-          Circle()
-            .trim(from: 0, to: min(max(circular, 0), 1))
-            .stroke(.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-            .rotationEffect(.degrees(-90))
-          Image(systemName: appearance.systemImage)
+        MediaActionGlyphSlot {
+          ZStack {
+            Circle()
+              .stroke(.tertiary, lineWidth: 2)
+            Circle()
+              .trim(from: 0, to: min(max(circular, 0), 1))
+              .stroke(.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+              .rotationEffect(.degrees(-90))
+            Image(systemName: appearance.systemImage)
+          }
         }
-        .frame(width: MediaActionMetrics.circleGlyphSlot,
-               height: MediaActionMetrics.circleGlyphSlot)
       } else {
-        Image(systemName: appearance.systemImage)
-          .contentTransition(.symbolEffect(.replace))
-          .symbolEffect(.bounce, value: appearance.systemImage)
-          .frame(width: MediaActionMetrics.circleGlyphSlot,
-                 height: MediaActionMetrics.circleGlyphSlot)
-          .animation(.easeOut(duration: 0.25), value: appearance.systemImage)
+        MediaActionGlyphSlot {
+          Image(systemName: appearance.systemImage)
+            .contentTransition(.symbolEffect(.replace))
+            .symbolEffect(.bounce, value: appearance.systemImage)
+            .animation(.easeOut(duration: 0.25), value: appearance.systemImage)
+        }
       }
     case .playPill, .pill:
       HStack(spacing: MediaActionMetrics.contentSpacing) {
@@ -94,6 +99,28 @@ public struct MediaActionLabel: View {
   }
 }
 
+/// One box for every circle's glyph, so `bell` → `bell.and.waves…` (or a spinner)
+/// cannot widen the button and look like the row's spacing grew.
+///
+/// tvOS: the measured slot. iOS / macOS: the square of the label's own type — a hidden
+/// `square` symbol at the current font and Dynamic Type size — with the glyph centred
+/// over it, so every circle is the same size and grows with the control's type.
+private struct MediaActionGlyphSlot<Content: View>: View {
+  @ViewBuilder var content: Content
+
+  var body: some View {
+#if os(tvOS)
+    content
+      .frame(width: MediaActionMetrics.circleGlyphSlot,
+             height: MediaActionMetrics.circleGlyphSlot)
+#else
+    Image(systemName: "square")
+      .hidden()
+      .overlay { content }
+#endif
+  }
+}
+
 // MARK: - Plain button
 
 /// `Button` + label + chrome. Prefer this for actions that are not a `Menu` or
@@ -111,7 +138,7 @@ public struct MediaActionButton: View {
     Button(action: action) {
       MediaActionLabel(appearance)
     }
-    .mediaActionStyle(appearance.chrome)
+    .mediaActionStyle(appearance)
     .disabled(appearance.isLoading)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
   }
@@ -232,5 +259,21 @@ public extension View {
     case .circle:
       self.mediaActionCircleStyle()
     }
+  }
+
+  /// The chrome, plus on a Mac the action's name as a tooltip on the icon-only circles:
+  /// hovering a glyph is the only way to learn what it does there.
+  @ViewBuilder
+  func mediaActionStyle(_ appearance: MediaActionAppearance) -> some View {
+#if os(macOS)
+    if appearance.chrome == .circle {
+      mediaActionStyle(appearance.chrome)
+        .help(Text(appearance.accessibilityLabel))
+    } else {
+      mediaActionStyle(appearance.chrome)
+    }
+#else
+    mediaActionStyle(appearance.chrome)
+#endif
   }
 }

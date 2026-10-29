@@ -93,9 +93,17 @@ public struct MediaScoreLogo: View {
     let image = Image(assetName, bundle: .module)
       .renderingMode(style == .template ? .template : .original)
     if style == .line {
+#if os(tvOS)
       // Already 32 pt tall. `fixedSize` keeps each file's width; the row must not
       // stretch them into one box.
       image.fixedSize()
+#else
+      // Sized by the row: `MediaScoresView` lays it at its score's line height
+      // (`MarkFillsLineHeight`). The 32 pt files were drawn for the TV's type.
+      image
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+#endif
     } else {
       image
         .resizable()
@@ -242,27 +250,49 @@ public struct MediaScoresView: View {
   /// the metadata line, with primary numbers and secondary vote turnout count. Primary,
   /// not white: over art the caller forces dark, on the system background in the light
   /// appearance white numbers vanished.
+  @ViewBuilder
   private func score(item: MediaScoreItem, showsVotes: Bool) -> some View {
-    HStack(spacing: 6) {
-      MediaScoreLogo(
-        item.source,
-        height: detailLine ? Self.lineIconHeight : Self.iconHeight,
-        style: detailLine ? .line : .color
-      )
-      if !item.displayScore.isEmpty {
-        Text(item.displayScore)
-          .fontDesign(.rounded)
-          .fontWeight(.semibold)
-          .foregroundStyle(item.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
+#if os(tvOS)
+    HStack(spacing: Self.markSpacing) {
+      scoreContent(item: item, showsVotes: showsVotes)
+    }
+#else
+    if detailLine {
+      // The title page's line follows the type: the mark fills the score's line height
+      // at any Dynamic Type size (Sasha, 2026-10-29).
+      MarkFillsLineHeight(spacing: Self.markSpacing) {
+        scoreContent(item: item, showsVotes: showsVotes)
       }
-      if showsVotes, let votes = item.votesCompact {
-        Text("(\(votes))")
-          .font(.caption2)
-          .fontWeight(.medium)
-          .foregroundStyle(Color.KinoPub.subtitle)
+    } else {
+      HStack(spacing: Self.markSpacing) {
+        scoreContent(item: item, showsVotes: showsVotes)
       }
     }
+#endif
   }
+
+  @ViewBuilder
+  private func scoreContent(item: MediaScoreItem, showsVotes: Bool) -> some View {
+    MediaScoreLogo(
+      item.source,
+      height: detailLine ? Self.lineIconHeight : Self.iconHeight,
+      style: detailLine ? .line : .color
+    )
+    if !item.displayScore.isEmpty {
+      Text(item.displayScore)
+        .fontDesign(.rounded)
+        .fontWeight(.semibold)
+        .foregroundStyle(item.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
+    }
+    if showsVotes, let votes = item.votesCompact {
+      Text("(\(votes))")
+        .font(.caption2)
+        .fontWeight(.medium)
+        .foregroundStyle(Color.KinoPub.subtitle)
+    }
+  }
+
+  private static let markSpacing: CGFloat = 6
 
   /// The synopsis-line marks. The PNGs are this tall; the view draws them at
   /// their own width.
@@ -279,6 +309,35 @@ public struct MediaScoresView: View {
   public static let imdbHeight: CGFloat = 14
   public static let kinopoiskHeight: CGFloat = 14
 #endif
+}
+
+/// A row whose first subview — a resizable mark — is as tall as the tallest of the rest,
+/// its width following the mark's own aspect. Everything is centred on one line.
+private struct MarkFillsLineHeight: Layout {
+  var spacing: CGFloat
+
+  private func sizes(_ subviews: Subviews) -> [CGSize] {
+    guard let mark = subviews.first else { return [] }
+    let rest = subviews.dropFirst().map { $0.sizeThatFits(.unspecified) }
+    let height = rest.map(\.height).max() ?? 0
+    let natural = mark.sizeThatFits(.unspecified)
+    let width = natural.height > 0 ? natural.width * height / natural.height : 0
+    return [CGSize(width: width, height: height)] + rest
+  }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let all = sizes(subviews)
+    let width = all.map(\.width).reduce(0, +) + spacing * CGFloat(max(all.count - 1, 0))
+    return CGSize(width: width, height: all.map(\.height).max() ?? 0)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    var x = bounds.minX
+    for (subview, size) in zip(subviews, sizes(subviews)) {
+      subview.place(at: CGPoint(x: x, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(size))
+      x += size.width + spacing
+    }
+  }
 }
 
 #Preview {

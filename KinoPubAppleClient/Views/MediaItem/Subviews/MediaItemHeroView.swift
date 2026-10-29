@@ -630,7 +630,7 @@ struct MediaItemHeroView: View {
     Group {
       if phoneHeroGrows {
         content
-          .safeAreaPadding(.top)
+          .padding(.top, phase.topChromeInset)
           .frame(maxWidth: .infinity, alignment: .topLeading)
           .background {
             ZStack {
@@ -665,7 +665,9 @@ struct MediaItemHeroView: View {
             }
           }
           .overlay {
+            // The picture runs under the toolbar; the title starts below it.
             content
+              .padding(.top, phase.topChromeInset)
               .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
           }
           .clipped()
@@ -857,12 +859,19 @@ struct MediaItemHeroView: View {
     .animation(.easeInOut(duration: 0.6), value: trailer.isReady)
   }
 
-  /// Barely there, the way the Apple TV app leaves its hero video alone: clear for
-  /// most of the frame, a light shade under the text, and the background colour only
-  /// at the last few percent — without that the hero would meet the page on a visible
-  /// seam. What carries the text is `heroTextShadow` on the type itself, not a slab
-  /// over the picture.
+  /// Mac: the tvOS backdrop's own scrim (`BackdropScrim`) under the logo and the text,
+  /// and nothing fading the picture into the page — it ends on a clean edge (Sasha,
+  /// 2026-10-29).
+  ///
+  /// Phone / iPad: barely there, the way the Apple TV app leaves its hero video alone:
+  /// clear for most of the frame, a light shade under the text, and the background colour
+  /// only at the last few percent — without that the hero would meet the page on a
+  /// visible seam.
+  @ViewBuilder
   private var scrollingScrim: some View {
+#if os(macOS)
+    BackdropScrim()
+#else
     LinearGradient(stops: [
       .init(color: .clear, location: 0),
       .init(color: .clear, location: 0.62),
@@ -870,6 +879,7 @@ struct MediaItemHeroView: View {
       .init(color: Color.KinoPub.background.opacity(0.9), location: 0.97),
       .init(color: Color.KinoPub.background, location: 1)
     ], startPoint: .top, endPoint: .bottom)
+#endif
   }
 #endif
 
@@ -1356,7 +1366,7 @@ struct MediaItemHeroView: View {
     } label: {
       MediaActionLabel(appearance)
     }
-    .mediaActionStyle(appearance.chrome)
+    .mediaActionStyle(appearance)
     .focused($focus, equals: .download)
     .contextMenu {
       if isSeries, let (season, _) = mediaItem.primaryEpisode {
@@ -1386,7 +1396,7 @@ struct MediaItemHeroView: View {
       PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
         MediaActionLabel(appearance)
       }
-      .mediaActionStyle(appearance.chrome)
+      .mediaActionStyle(appearance)
       .focused($focus, equals: .shuffle)
       .accessibilityLabel(Text(appearance.accessibilityLabel))
     } else {
@@ -1415,7 +1425,7 @@ struct MediaItemHeroView: View {
     PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
       MediaActionLabel(appearance)
     }
-    .mediaActionStyle(appearance.chrome)
+    .mediaActionStyle(appearance)
     .focused($focus, equals: Self.focusTarget(forPlay: appearance.id))
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .accessibilityHint(Text("Starts playback"))
@@ -1429,7 +1439,7 @@ struct MediaItemHeroView: View {
     PlayerLink(route: linkProvider.trailerPlayer(for: mediaItem), item: mediaItem, mode: .trailer) {
       MediaActionLabel(appearance)
     }
-    .mediaActionStyle(appearance.chrome)
+    .mediaActionStyle(appearance)
     .focused($focus, equals: .trailer)
   }
 
@@ -1471,7 +1481,7 @@ struct MediaItemHeroView: View {
 #if !os(macOS)
     .menuActionDismissBehavior(.disabled)
 #endif
-    .mediaActionStyle(appearance.chrome)
+    .mediaActionStyle(appearance)
     .focused($focus, equals: .bookmark)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .alert("New Folder", isPresented: $showNewFolderAlert) {
@@ -1493,7 +1503,7 @@ struct MediaItemHeroView: View {
     } label: {
       MediaActionLabel(appearance)
     }
-    .mediaActionStyle(appearance.chrome)
+    .mediaActionStyle(appearance)
     .focused($focus, equals: .watchlist)
   }
 
@@ -1507,7 +1517,7 @@ struct MediaItemHeroView: View {
     } label: {
       MediaActionLabel(appearance)
     }
-    .mediaActionStyle(appearance.chrome)
+    .mediaActionStyle(appearance)
     .focused($focus, equals: .watched)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .contextMenu {
@@ -1588,7 +1598,7 @@ struct MediaItemHeroView: View {
     } label: {
       MediaActionLabel(appearance)
     }
-    .mediaActionStyle(appearance.chrome)
+    .mediaActionStyle(appearance)
     .focused($focus, equals: .more)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
   }
