@@ -48,13 +48,15 @@ public enum MediaActionMetrics {
   public static let circleGlyphSlot: CGFloat = 39
 #else
   public static let playPillMinWidth: CGFloat = 60
-  public static let labelFont: Font? = TypeScale.actionLabel
-  public static let controlSize: ControlSize = .large
+  /// None: the control size picks the type, the way a system button does. A fixed
+  /// `.subheadline` here held every control at the small size whatever `controlSize`
+  /// said (Sasha, 2026-10-29: «увеличить, нативно»).
+  public static let labelFont: Font? = nil
+  public static let controlSize: ControlSize = .extraLarge
   public static let progressWidth: CGFloat = 40
   public static let progressHeight: CGFloat = 3
   public static let contentSpacing: CGFloat = 6
   public static let rowSpacing: CGFloat = 12
-  public static let circleGlyphSlot: CGFloat = 18
 #endif
 }
 
@@ -91,10 +93,22 @@ public extension View {
   /// Entry Play / Resume capsule. Glass adapts with the environment; white elevated
   /// fill is **focus**, not a forced tint. Do not add `.tint(.primary)` — that froze
   /// Play white at rest (the preview only painted it white as default focus).
+  ///
+  /// iOS / macOS: monochrome — the primary colour of the hero's (dark) chrome, white,
+  /// with the label in the page's background colour, the way the TV app's Play reads on
+  /// a Mac (Sasha, 2026-10-29). The accent blue was the loudest thing on the artwork.
   func mediaActionPlayPillStyle() -> some View {
+#if os(tvOS)
     buttonStyle(.glassProminent)
       .buttonBorderShape(.capsule)
       .controlSize(MediaActionMetrics.controlSize)
+#else
+    buttonStyle(.glassProminent)
+      .buttonBorderShape(.capsule)
+      .controlSize(MediaActionMetrics.controlSize)
+      .tint(.primary)
+      .foregroundStyle(.background)
+#endif
   }
 
   /// Labelled secondary capsule (Trailer, Mark Watched, Replay). System `.glass` so
@@ -107,10 +121,23 @@ public extension View {
 
   /// Icon-only circle. Same glass family as the labelled pills — focus owns the
   /// lift; the glyph slot is fixed so a wider SF Symbol does not shove neighbours.
+  ///
+  /// iOS / macOS: the shape hugs its content rather than being forced round. The glyph
+  /// slot is square, so a lone glyph still makes a circle — that is the minimum — and a
+  /// menu that adds its own indicator (Bookmarks on a Mac) grows into a capsule instead
+  /// of breaking out of the circle (Sasha, 2026-10-29). `.button` menu style so a `Menu`
+  /// wears the same glass as a `Button`.
   func mediaActionCircleStyle() -> some View {
+#if os(tvOS)
     buttonStyle(.glass)
       .buttonBorderShape(.circle)
       .controlSize(MediaActionMetrics.controlSize)
+#else
+    buttonStyle(.glass)
+      .menuStyle(.button)
+      .buttonBorderShape(.capsule)
+      .controlSize(MediaActionMetrics.controlSize)
+#endif
   }
 }
 
