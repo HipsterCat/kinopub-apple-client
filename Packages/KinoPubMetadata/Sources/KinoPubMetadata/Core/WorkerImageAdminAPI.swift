@@ -9,6 +9,8 @@ public enum WorkerImageAdminKind: String, Sendable, CaseIterable {
 
 public struct WorkerImageAdminCandidate: Sendable, Codable, Identifiable, Hashable {
   public let url: String
+  /// TMDB iso bucket from the worker (`ru`, `en`, `de`, …).
+  public let lang: String?
   public let from: String?
   public let width: Int?
   public let height: Int?
@@ -42,6 +44,54 @@ public struct WorkerImageAdminCatalog: Sendable, Codable {
   public let en: [WorkerImageAdminCandidate]
   public let und: [WorkerImageAdminCandidate]
   public let stored: [WorkerImageAdminStoredAsset]?
+  /// TMDB files bucketed by other iso codes (`de`, `fr`, …) — not ru / en / und.
+  public let extra: [String: [WorkerImageAdminCandidate]]
+
+  public init(
+    ok: Bool,
+    id: String,
+    kind: String,
+    tmdb: String?,
+    ru: [WorkerImageAdminCandidate],
+    en: [WorkerImageAdminCandidate],
+    und: [WorkerImageAdminCandidate],
+    stored: [WorkerImageAdminStoredAsset]?,
+    extra: [String: [WorkerImageAdminCandidate]] = [:]
+  ) {
+    self.ok = ok
+    self.id = id
+    self.kind = kind
+    self.tmdb = tmdb
+    self.ru = ru
+    self.en = en
+    self.und = und
+    self.stored = stored
+    self.extra = extra
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: WorkerImageAdminJSONKey.self)
+    ok = try container.decode(Bool.self, forKey: WorkerImageAdminJSONKey("ok"))
+    if let idString = try? container.decode(String.self, forKey: WorkerImageAdminJSONKey("id")) {
+      id = idString
+    } else {
+      id = String(try container.decode(Int.self, forKey: WorkerImageAdminJSONKey("id")))
+    }
+    kind = try container.decode(String.self, forKey: WorkerImageAdminJSONKey("kind"))
+    tmdb = try container.decodeIfPresent(String.self, forKey: WorkerImageAdminJSONKey("tmdb"))
+    ru = try container.decodeIfPresent([WorkerImageAdminCandidate].self, forKey: WorkerImageAdminJSONKey("ru")) ?? []
+    en = try container.decodeIfPresent([WorkerImageAdminCandidate].self, forKey: WorkerImageAdminJSONKey("en")) ?? []
+    und = try container.decodeIfPresent([WorkerImageAdminCandidate].self, forKey: WorkerImageAdminJSONKey("und")) ?? []
+    stored = try container.decodeIfPresent([WorkerImageAdminStoredAsset].self, forKey: WorkerImageAdminJSONKey("stored"))
+    let known = Set(["ok", "id", "kind", "tmdb", "ru", "en", "und", "stored"])
+    var extras: [String: [WorkerImageAdminCandidate]] = [:]
+    for key in container.allKeys where !known.contains(key.stringValue) {
+      if let files = try container.decodeIfPresent([WorkerImageAdminCandidate].self, forKey: key) {
+        extras[key.stringValue] = files
+      }
+    }
+    extra = extras
+  }
 
   public func bucket(_ tag: WorkerArtworkLanguageTag) -> [WorkerImageAdminCandidate] {
     switch tag {
@@ -49,6 +99,23 @@ public struct WorkerImageAdminCatalog: Sendable, Codable {
     case .en: return en
     case .und: return und
     }
+  }
+
+  /// Extra TMDB language buckets sorted for stable UI (`de`, `fr`, …).
+  public var extraLanguageSections: [(code: String, files: [WorkerImageAdminCandidate])] {
+    extra.keys.sorted().map { ($0, extra[$0] ?? []) }
+  }
+}
+
+private struct WorkerImageAdminJSONKey: CodingKey {
+  var stringValue: String
+  var intValue: Int?
+
+  init(_ string: String) { stringValue = string }
+  init?(stringValue: String) { self.stringValue = stringValue }
+  init?(intValue: Int) {
+    self.intValue = intValue
+    stringValue = "\(intValue)"
   }
 }
 

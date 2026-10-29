@@ -1219,13 +1219,14 @@ struct MediaItemHeroView: View {
       ForEach(actionAppearances) { appearance in
         if appearance.id == .more, onWorkerImageAdmin != nil {
           workerImageAdminControl()
+        } else {
+          actionControl(for: appearance)
+            .accessibilityIdentifier("kinopub.hero.\(appearance.id.rawValue)")
+            .transition(.asymmetric(
+              insertion: .scale(scale: 0.85).combined(with: .opacity),
+              removal: .scale(scale: 0.85).combined(with: .opacity)
+            ))
         }
-        actionControl(for: appearance)
-          .accessibilityIdentifier("kinopub.hero.\(appearance.id.rawValue)")
-          .transition(.asymmetric(
-            insertion: .scale(scale: 0.85).combined(with: .opacity),
-            removal: .scale(scale: 0.85).combined(with: .opacity)
-          ))
       }
     }
 #if os(tvOS)
@@ -1567,7 +1568,9 @@ struct MediaItemHeroView: View {
     return MediaActionButton(appearance) {
       onWorkerImageAdmin?()
     }
+#if os(tvOS)
     .focused($focus, equals: .workerImageAdmin)
+#endif
   }
 
   @ViewBuilder

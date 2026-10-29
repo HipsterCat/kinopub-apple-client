@@ -231,3 +231,23 @@ final class TitleImageRouteTests: XCTestCase {
     XCTAssertNil(en.supplementaryUnderLogo(localized: "Dino Ranch", original: "Dino Ranch"))
   }
 }
+
+final class WorkerImageAdminCatalogDecodingTests: XCTestCase {
+  func testDecodesWhenOnlyEnglishBucketPresent() throws {
+    let json = """
+    {"ok":true,"id":"128455","kind":"logo","tmdb":"movie/1","en":[{"url":"https://example.test/a.png"}]}
+    """
+    let catalog = try JSONDecoder().decode(WorkerImageAdminCatalog.self, from: Data(json.utf8))
+    XCTAssertTrue(catalog.ru.isEmpty)
+    XCTAssertEqual(catalog.en.count, 1)
+    XCTAssertTrue(catalog.und.isEmpty)
+  }
+
+  func testDecodesExtraLanguageBuckets() throws {
+    let json = """
+    {"ok":true,"id":"7","kind":"logo","tmdb":"movie/550","ru":[],"en":[],"und":[],"de":[{"url":"https://example.test/de.png","lang":"de"}]}
+    """
+    let catalog = try JSONDecoder().decode(WorkerImageAdminCatalog.self, from: Data(json.utf8))
+    XCTAssertEqual(catalog.extra["de"]?.count, 1)
+  }
+}

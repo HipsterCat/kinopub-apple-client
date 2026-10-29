@@ -158,9 +158,14 @@ public enum Artwork {
   /// (nil from a cache, which does not keep it), the worker language stamp when the
   /// final URL or `Content-Language` carries `ru` / `en` / `und`, and the tier —
   /// `memory`, `disk` or `network`. For the source log and hero captions.
-  public static func imageWithSource(for url: URL, size: CGSize = .zero) async throws
+  ///
+  /// `mode` is part of the decode, the same as `request`: `.fill` centre-crops, `.fit`
+  /// keeps the whole picture. A caller that passes `.fit` to `load` and then forgets it
+  /// here gets a cropped bitmap back.
+  public static func imageWithSource(for url: URL, size: CGSize = .zero,
+                                     mode: ResizeMode = .fill) async throws
     -> (image: PlatformImage, answered: URL?, language: WorkerArtworkLanguageTag?, tier: String) {
-    let response = try await pipeline.imageTask(with: request(url, size: size)).response
+    let response = try await pipeline.imageTask(with: request(url, size: size, mode: mode)).response
     let tier: String
     switch response.cacheType {
     case .memory: tier = "memory"

@@ -104,17 +104,24 @@ async function images(env, id, url) {
       grouped[bucket][0].pick = true;
     }
   }
-  return json({
+  const body = {
     ok: true,
     id,
     kind,
     tmdb: `${located.type}/${located.tmdbId}`,
-    ...grouped,
+    ru: grouped.ru || [],
+    en: grouped.en || [],
+    und: grouped.und || [],
     stored: (stored?.artwork?.[kind] || []).map((item) => ({
       url: item.url, lang: item.lang ?? null, pinned: item.pinned === true,
       width: item.width ?? null, height: item.height ?? null,
     })),
-  });
+  };
+  for (const [key, list] of Object.entries(grouped)) {
+    if (key === "ru" || key === "en" || key === "und") continue;
+    body[key] = list;
+  }
+  return json(body);
 }
 
 async function locateTmdb(env, stored, imdb) {

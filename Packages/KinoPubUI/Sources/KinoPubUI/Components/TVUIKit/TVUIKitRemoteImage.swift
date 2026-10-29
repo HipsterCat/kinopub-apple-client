@@ -89,7 +89,9 @@ public enum TVUIKitRemoteImage {
     async -> (image: UIImage, answered: URL?, language: WorkerArtworkLanguageTag?, tier: String)? {
     guard let url else { return nil }
     do {
-      let loaded = try await Artwork.imageWithSource(for: url, size: size)
+      // `mode` has to reach the decode. Dropping it centre-cropped every logo to the
+      // 16:9 tile (a 240×180 channel card lost its top and bottom) before letterbox ran.
+      let loaded = try await Artwork.imageWithSource(for: url, size: size, mode: mode)
       ArtworkLog.loaded(url, from: loaded.tier)
       return (loaded.image, loaded.answered, loaded.language, loaded.tier)
     } catch {

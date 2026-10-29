@@ -27,7 +27,7 @@ import UIKit
 
 public enum InfoPopupMetrics {
 #if os(tvOS)
-  public static let maxWidth: CGFloat = 1100
+  public static let maxWidth: CGFloat = 1280
   public static let padding: CGFloat = 64
   /// The system sheet's corner.
   public static let cornerRadius: CGFloat = 56
@@ -217,7 +217,7 @@ public struct InfoPopupSection<Content: View>: View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing * 0.75) {
       title
         .font(InfoPopupMetrics.sectionFont)
-        .foregroundStyle(Color.KinoPub.text)
+        .foregroundStyle(Color.KinoPub.subtitle)
       content()
     }
     .padding(.top, InfoPopupMetrics.contentSpacing * 0.5)
@@ -465,7 +465,7 @@ public enum InfoPopupTriggerStyle {
       }
   }
   .padding(40)
-  .frame(maxWidth: 900, alignment: .leading)
+  .frame(maxWidth: 820, alignment: .leading)
   // .preferredColorScheme(.dark)
 }
 #endif

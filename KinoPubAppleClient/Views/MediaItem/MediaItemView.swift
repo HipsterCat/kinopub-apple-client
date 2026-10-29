@@ -308,6 +308,13 @@ struct MediaItemView: View {
           },
           onResetLocalCache: { await itemModel.resetLocalCache() }
         )
+#if os(iOS)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+#endif
+#if os(macOS)
+        .frame(minWidth: 920, minHeight: 640)
+#endif
       }
 #endif
       .task {
@@ -373,6 +380,12 @@ struct MediaItemView: View {
   /// them. Same list the tvOS hero shows in its overflow circle.
   private var overflowMenu: some View {
     Menu {
+      if let openWorkerImageAdmin = workerImageAdminAction {
+        Button(action: openWorkerImageAdmin) {
+          Label("Worker images", systemImage: "info.circle")
+        }
+        Divider()
+      }
       MediaItemOverflowMenu(isSeries: itemModel.mediaItem.isSeries,
                             isWatched: itemModel.isWatched,
                             isBookmarked: itemModel.isBookmarked,

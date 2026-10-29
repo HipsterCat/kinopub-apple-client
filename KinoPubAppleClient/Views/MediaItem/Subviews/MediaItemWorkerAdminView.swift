@@ -21,9 +21,8 @@ struct MediaItemWorkerAdminView: View {
 
   @Environment(\.dismiss) private var dismiss
   @State private var model = WorkerAdminPanelModel()
-  @State private var browsingKind: WorkerImageAdminKind?
+  @State private var catalogKind: WorkerImageAdminKind?
 #if os(tvOS)
-  @State private var tvCatalogKind: WorkerImageAdminKind?
   @FocusState private var tvFocus: TVAdminFocus?
   @State private var catalogScrollPosition = ScrollPosition(edge: .top)
   @State private var catalogScrollGeometry = ScrollPage.Geometry()
@@ -52,7 +51,16 @@ struct MediaItemWorkerAdminView: View {
       tvPanel
 #else
       InfoPopupView(title: Text("Worker images"), subtitle: subtitle, confirmTitle: Text("Close")) {
-        adminBody
+        Group {
+          if let kind = catalogKind {
+            ScrollView(.vertical) {
+              handheldCatalogContent(kind: kind)
+                .padding(.vertical, 4)
+            }
+          } else {
+            adminHomeBody
+          }
+        }
       }
 #endif
     }
@@ -88,7 +96,7 @@ struct MediaItemWorkerAdminView: View {
         .ignoresSafeArea()
       VStack(spacing: 0) {
         Group {
-          if let kind = tvCatalogKind {
+          if let kind = catalogKind {
             tvCatalogScreen(kind: kind)
           } else {
             ScrollView(.vertical) {
@@ -98,21 +106,21 @@ struct MediaItemWorkerAdminView: View {
           }
         }
         .frame(
-          maxWidth: tvCatalogKind == nil ? InfoPopupMetrics.maxWidth : .infinity,
+          maxWidth: catalogKind == nil ? InfoPopupMetrics.maxWidth : .infinity,
           maxHeight: .infinity,
           alignment: .top
         )
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .padding(tvCatalogKind == nil ? WorkerAdminTVMetrics.outerPadding : WorkerAdminTVMetrics.catalogOuterPadding)
+      .padding(catalogKind == nil ? WorkerAdminTVMetrics.outerPadding : WorkerAdminTVMetrics.catalogOuterPadding)
       .glassEffect(
         .regular,
         in: RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous)
       )
     }
     .onExitCommand {
-      if tvCatalogKind != nil {
-        tvCatalogKind = nil
+      if catalogKind != nil {
+        catalogKind = nil
         tvFocus = .firstAction
       } else {
         dismiss()
@@ -143,7 +151,7 @@ struct MediaItemWorkerAdminView: View {
     ScrollView(.vertical) {
       VStack(alignment: .leading, spacing: WorkerAdminTVMetrics.catalogSectionSpacing) {
         Button("Back") {
-          tvCatalogKind = nil
+          catalogKind = nil
           tvFocus = .firstAction
         }
         .buttonStyle(.card)
@@ -188,31 +196,7 @@ struct MediaItemWorkerAdminView: View {
 
   @ViewBuilder
   private func tvCatalogHeader(kind: WorkerImageAdminKind) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      switch model.tokenStatus {
-      case .ok:
-        Label("WorkerAdmin_TokenOK", systemImage: "checkmark.seal.fill")
-          .font(WorkerAdminTVMetrics.secondaryFont)
-          .foregroundStyle(.green)
-      case .failed(let message):
-        Text(message)
-          .font(WorkerAdminTVMetrics.secondaryFont)
-          .foregroundStyle(.red)
-      case .unknown:
-        EmptyView()
-      }
-      Text("TMDB \(kind.rawValue) catalog")
-        .font(.title2)
-        .foregroundStyle(Color.KinoPub.text)
-      subtitle
-        .font(WorkerAdminTVMetrics.secondaryFont)
-        .foregroundStyle(.secondary)
-      if kind == .backdrop {
-        Text("WorkerAdmin_BackdropTmdbNote")
-          .font(InfoPopupMetrics.captionFont)
-          .foregroundStyle(.secondary)
-      }
-    }
+    catalogScreenHeader(kind: kind)
   }
 
   private func firstGalleryPickID(kind: WorkerImageAdminKind) -> String? {
@@ -414,19 +398,6 @@ struct MediaItemWorkerAdminView: View {
     }
   }
 
-  private func openCatalog(_ kind: WorkerImageAdminKind) async {
-    browsingKind = kind
-    tvCatalogKind = kind
-    tvFocus = .catalogBack
-    await model.probeRoutes(
-      logo: logoRequestURL,
-      backdrop: backdropRequestURL,
-      acceptLanguage: workerHTTPAcceptLanguage
-    )
-    await loadCatalog(kind)
-    focusFirstGalleryItem(kind: kind)
-  }
-
   @ViewBuilder
   private func tvAdminButton(
     _ title: String,
@@ -447,7 +418,23 @@ struct MediaItemWorkerAdminView: View {
   }
 #endif
 
-  private var adminBody: some View {
+  private func openCatalog(_ kind: WorkerImageAdminKind) async {
+    catalogKind = kind
+#if os(tvOS)
+    tvFocus = .catalogBack
+#endif
+    await model.probeRoutes(
+      logo: logoRequestURL,
+      backdrop: backdropRequestURL,
+      acceptLanguage: workerHTTPAcceptLanguage
+    )
+    await loadCatalog(kind)
+#if os(tvOS)
+    focusFirstGalleryItem(kind: kind)
+#endif
+  }
+
+  private var adminHomeBody: some View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
       adminAccessBanner
       idsSection
@@ -459,11 +446,62 @@ struct MediaItemWorkerAdminView: View {
       }
       actionsSection
       statsSection
-      if let kind = browsingKind {
-        catalogSection(kind: kind)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func handheldCatalogContent(kind: WorkerImageAdminKind) -> some View {
+    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+      Button("Back") {
+        catalogKind = nil
+      }
+      catalogScreenHeader(kind: kind)
+      if model.isLoadingCatalog {
+        ProgressView()
+          .frame(maxWidth: .infinity, minHeight: 160, alignment: .center)
+      } else {
+        Text("WorkerAdmin_CatalogGridHint")
+          .font(InfoPopupMetrics.captionFont)
+          .foregroundStyle(.secondary)
+        catalogRows(kind: kind)
+        catalogServingStrip(kind: kind)
+      }
+      if let message = model.statusMessage {
+        Text(message)
+          .font(InfoPopupMetrics.captionFont)
+          .foregroundStyle(.secondary)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  @ViewBuilder
+  private func catalogScreenHeader(kind: WorkerImageAdminKind) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      switch model.tokenStatus {
+      case .ok:
+        Label("WorkerAdmin_TokenOK", systemImage: "checkmark.seal.fill")
+          .font(InfoPopupMetrics.captionFont)
+          .foregroundStyle(.green)
+      case .failed(let message):
+        Text(message)
+          .font(InfoPopupMetrics.captionFont)
+          .foregroundStyle(.red)
+      case .unknown:
+        EmptyView()
+      }
+      Text("TMDB \(kind.rawValue) catalog")
+        .font(InfoPopupMetrics.sectionFont)
+        .foregroundStyle(Color.KinoPub.text)
+      subtitle
+        .font(InfoPopupMetrics.captionFont)
+        .foregroundStyle(.secondary)
+      if kind == .backdrop {
+        Text("WorkerAdmin_BackdropTmdbNote")
+          .font(InfoPopupMetrics.captionFont)
+          .foregroundStyle(.secondary)
+      }
+    }
   }
 
   private var subtitle: Text {
@@ -542,12 +580,10 @@ struct MediaItemWorkerAdminView: View {
           }
         }
         adminButton("All logos") {
-          browsingKind = .logo
-          await loadCatalog(.logo)
+          await openCatalog(.logo)
         }
         adminButton("All backdrops") {
-          browsingKind = .backdrop
-          await loadCatalog(.backdrop)
+          await openCatalog(.backdrop)
         }
       }
       .focusSection()
@@ -570,12 +606,10 @@ struct MediaItemWorkerAdminView: View {
       }
       HStack(spacing: 12) {
         adminButton("All logos") {
-          browsingKind = .logo
-          await loadCatalog(.logo)
+          await openCatalog(.logo)
         }
         adminButton("All backdrops") {
-          browsingKind = .backdrop
-          await loadCatalog(.backdrop)
+          await openCatalog(.backdrop)
         }
       }
       resetLocalCacheButton
@@ -617,13 +651,6 @@ struct MediaItemWorkerAdminView: View {
   }
 
   @ViewBuilder
-  private func catalogSection(kind: WorkerImageAdminKind) -> some View {
-    InfoPopupSection(Text("TMDB \(kind.rawValue) catalog")) {
-      catalogRows(kind: kind)
-    }
-  }
-
-  @ViewBuilder
   private func catalogRows(kind: WorkerImageAdminKind) -> some View {
 #if os(tvOS)
     tvCatalogRows(kind: kind)
@@ -654,24 +681,60 @@ struct MediaItemWorkerAdminView: View {
   ) -> some View {
     VStack(alignment: .leading, spacing: WorkerAdminGalleryMetrics.sectionSpacing) {
       ForEach([WorkerArtworkLanguageTag.ru, .en, .und], id: \.self) { tag in
-        let files = catalog.bucket(tag)
-        Text(tag.rawValue.uppercased())
-          .font(WorkerAdminGalleryMetrics.sectionFont)
-          .foregroundStyle(Color.KinoPub.text)
-        if files.isEmpty {
-          Text(String(format: String(localized: "WorkerAdmin_EmptyLanguageBucket"), tag.rawValue.uppercased()))
-            .font(WorkerAdminGalleryMetrics.footerFont)
-            .foregroundStyle(.secondary)
-        } else {
-          catalogGridRows(
-            files: files,
-            columns: columns,
-            kind: kind,
-            language: tag,
-            catalog: catalog
-          )
-        }
+        catalogLanguageSection(
+          title: tag.rawValue.uppercased(),
+          files: catalog.bucket(tag),
+          columns: columns,
+          kind: kind,
+          language: tag,
+          catalog: catalog
+        )
       }
+      ForEach(catalog.extraLanguageSections, id: \.code) { section in
+        catalogLanguageSection(
+          title: section.code.uppercased(),
+          files: section.files,
+          columns: columns,
+          kind: kind,
+          language: workerArtworkTag(forISO: section.code),
+          catalog: catalog
+        )
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func catalogLanguageSection(
+    title: String,
+    files: [WorkerImageAdminCandidate],
+    columns: [GridItem],
+    kind: WorkerImageAdminKind,
+    language: WorkerArtworkLanguageTag,
+    catalog: WorkerImageAdminCatalog
+  ) -> some View {
+    Text(title)
+      .font(WorkerAdminGalleryMetrics.sectionFont)
+      .foregroundStyle(Color.KinoPub.text)
+    if files.isEmpty {
+      Text(String(format: String(localized: "WorkerAdmin_EmptyLanguageBucket"), title))
+        .font(WorkerAdminGalleryMetrics.footerFont)
+        .foregroundStyle(.secondary)
+    } else {
+      catalogGridRows(
+        files: files,
+        columns: columns,
+        kind: kind,
+        language: language,
+        catalog: catalog
+      )
+    }
+  }
+
+  private func workerArtworkTag(forISO code: String) -> WorkerArtworkLanguageTag {
+    switch code.lowercased() {
+    case "ru": .ru
+    case "en": .en
+    default: .und
     }
   }
 
@@ -983,7 +1046,11 @@ struct MediaItemWorkerAdminView: View {
       model.statusMessage = "Loaded \(kind.rawValue) from \(catalog.tmdb ?? "TMDB")"
     } catch {
       model.statusMessage = error.localizedDescription
-      model.tokenStatus = .failed(error.localizedDescription)
+      switch kind {
+      case .logo: model.logoCatalog = nil
+      case .backdrop: model.backdropCatalog = nil
+      case .poster: break
+      }
     }
   }
 
@@ -1008,7 +1075,7 @@ struct MediaItemWorkerAdminView: View {
       if kind == .logo {
         model.statusMessage = String(localized: "WorkerAdmin_PickLogoSaved")
       } else {
-        tvCatalogKind = nil
+        catalogKind = nil
         tvFocus = .firstAction
       }
     } else {
@@ -1019,6 +1086,8 @@ struct MediaItemWorkerAdminView: View {
       await loadCatalog(kind)
       if kind == .logo {
         model.statusMessage = String(localized: "WorkerAdmin_PickLogoSaved")
+      } else {
+        catalogKind = nil
       }
     }
 #endif
