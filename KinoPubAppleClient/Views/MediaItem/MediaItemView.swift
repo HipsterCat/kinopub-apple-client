@@ -253,6 +253,9 @@ struct MediaItemView: View {
 #if os(iOS)
       .navigationBarTitleDisplayMode(.inline)
       .toolbarBackground(.hidden, for: .navigationBar)
+      // One back control. Otherwise the bar draws the chevron and the previous
+      // screen's name as two pills over the picture.
+      .toolbarRole(.editor)
 //      .toolbarColorScheme(.dark, for: .navigationBar)
 #endif
 #if os(macOS)
@@ -349,6 +352,13 @@ struct MediaItemView: View {
 #endif
       .handleError(state: $errorHandler.state)
       .hudToast($itemModel.hudToast)
+      .modifier(VoteChoicePresentation(isPresented: $itemModel.showsVoteChoice,
+                                       onVote: { itemModel.vote(up: $0) }))
+      .alert("MediaItem_VoteCastTitle".localized, isPresented: $itemModel.showsVoteLockedNotice) {
+        Button("OK".localized, role: .cancel) {}
+      } message: {
+        Text("MediaItem_VoteCastBody".localized)
+      }
   }
 
   private var workerImageAdminAction: (() -> Void)? {
@@ -579,7 +589,6 @@ struct MediaItemView: View {
                          stillURL: itemModel.mediaItem.posters.wideURL ?? verticalCover(itemModel.mediaItem.posters.medium),
                          showsChrome: true,
                          titleKey: itemModel.mediaItem.presentation.videosRailTitleKey,
-                         showsCount: itemModel.mediaItem.presentation.countsVideosRail,
                          entryVariantID: versionsEntry)
 #if os(tvOS)
           // A UIKit rail is no SwiftUI focus target cell by cell, but the rail as a whole
@@ -649,7 +658,7 @@ struct MediaItemView: View {
       MediaItemCommunityVoteSection(likeCount: itemModel.likeCount,
                                     dislikeCount: itemModel.dislikeCount,
                                     myVote: itemModel.myVote,
-                                    onVote: { itemModel.vote(up: $0) })
+                                    onVote: { _ in itemModel.askToVote() })
         .detailFocusSection()
       MediaItemCastSection(mediaItem: itemModel.mediaItem,
                            linkProvider: itemModel.linkProvider,
@@ -818,6 +827,80 @@ extension View {
 #endif
   }
 }
+
+/// The vote chooser. tvOS's system dialog drops the image on a button, so the thumbs
+/// are drawn here. Everywhere else the system dialog keeps them.
+private struct VoteChoicePresentation: ViewModifier {
+  @Binding var isPresented: Bool
+  var onVote: (Bool) -> Void
+
+  func body(content: Content) -> some View {
+#if os(tvOS)
+    content.fullScreenCover(isPresented: $isPresented) {
+      VoteChoiceDialog(onUp: { choose(true) },
+                       onDown: { choose(false) },
+                       onCancel: { isPresented = false })
+        .presentationBackground(.clear)
+    }
+#else
+    content.confirmationDialog("MediaItem_VoteChoice".localized,
+                               isPresented: $isPresented,
+                               titleVisibility: .visible) {
+      Button("Like".localized, systemImage: "hand.thumbsup") { onVote(true) }
+      Button("Dislike".localized, systemImage: "hand.thumbsdown") { onVote(false) }
+      Button("Cancel".localized, role: .cancel) {}
+    } message: {
+      Text("MediaItem_VoteLocked".localized)
+    }
+#endif
+  }
+
+  private func choose(_ up: Bool) {
+    isPresented = false
+    onVote(up)
+  }
+}
+
+#if os(tvOS)
+private struct VoteChoiceDialog: View {
+  var onUp: () -> Void
+  var onDown: () -> Void
+  var onCancel: () -> Void
+
+  var body: some View {
+    ZStack {
+      Color.black.opacity(0.55).ignoresSafeArea()
+      VStack(spacing: 28) {
+        Text("MediaItem_VoteChoice")
+          .font(.title2.weight(.semibold))
+        Text("MediaItem_VoteLocked")
+          .font(.body)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: 560)
+        VStack(spacing: 16) {
+          choice("Like", systemImage: "hand.thumbsup", action: onUp)
+          choice("Dislike", systemImage: "hand.thumbsdown", action: onDown)
+          Button("Cancel".localized, role: .cancel, action: onCancel)
+            .buttonStyle(.bordered)
+        }
+        .frame(width: 520)
+      }
+      .padding(48)
+      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 40, style: .continuous))
+    }
+    .onExitCommand(perform: onCancel)
+  }
+
+  private func choice(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Label(title.localized, systemImage: systemImage)
+        .frame(maxWidth: .infinity)
+    }
+    .buttonStyle(.bordered)
+  }
+}
+#endif
 
 struct MediaItemView_Previews: PreviewProvider {
   struct Preview: View {

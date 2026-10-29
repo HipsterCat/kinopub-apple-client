@@ -1222,11 +1222,14 @@ private struct SettingsChoiceView: View {
 // MARK: - Tabs & Home sections destination
 
 private struct TVTabsAndSectionsPage: View {
+  @AppStorage(FeatureFlag.homeBanner.defaultsKey) private var homeBanner = true
+
   private enum Row: Hashable {
     case tabToggle(String)
     case tabUp(String)
     case tabDown(String)
     case excludeConcerts
+    case homeBanner
     case sectionToggle(String)
     case sectionUp(String)
     case sectionDown(String)
@@ -1285,6 +1288,17 @@ private struct TVTabsAndSectionsPage: View {
         }
         .buttonStyle(SettingsPillButtonStyle())
         .focused($focused, equals: .excludeConcerts)
+
+        Button {
+          homeBanner.toggle()
+        } label: {
+          SettingsPillLabel(
+            title: "Баннер на Главной",
+            value: homeBanner ? "Вкл" : "Выкл"
+          )
+        }
+        .buttonStyle(SettingsPillButtonStyle())
+        .focused($focused, equals: .homeBanner)
       }
 
       SettingsSection("Секции Главной (Watch Now)") {

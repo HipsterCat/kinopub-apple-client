@@ -69,6 +69,12 @@ class PersonalLibraryCatalog: ObservableObject {
           return try await self.fetchHistoryCards().map(RowItem.card)
         }
       }
+      group.addTask { [store] in
+        await store.refreshIfStale(.unfinishedSerials) { [weak self] in
+          guard let self else { throw CancellationError() }
+          return try await LibrarySectionCatalog.continueCards(using: self.contentService).map(RowItem.card)
+        }
+      }
       for folder in folders {
         group.addTask { [store] in
           await store.refreshIfStale(.folder(folder.id)) { [weak self] in // 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope
@@ -108,6 +114,15 @@ class PersonalLibraryCatalog: ObservableObject {
                                 title: "Watchlist".localized,
                                 count: "\(watchlistCards.count)",
                                 cards: watchlistCards))
+    }
+
+    let continueCards = store.cards(.unfinishedSerials)
+    if !continueCards.isEmpty {
+      assembled.append(MediaRow(id: "continue",
+                                title: "Continue".localized,
+                                count: "\(continueCards.count)",
+                                cards: continueCards,
+                                destination: Route.continueWatching))
     }
 
     let historyCards = store.cards(.history)

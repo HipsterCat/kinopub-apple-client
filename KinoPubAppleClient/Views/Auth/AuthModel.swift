@@ -269,7 +269,7 @@ class AuthModel: ObservableObject {
       return
     }
 
-    if let expiresAt = codeValidRange?.upperBound, now() >= expiresAt {
+    if let expiresAt = codeValidRange?.upperBound, now().isOnOrAfter(expiresAt) {
       await requestNewCode()
       return
     }
@@ -324,7 +324,7 @@ class AuthModel: ObservableObject {
     }
 
     if let expiresAt = codeValidRange?.upperBound, activeVerification != nil {
-      if now() >= expiresAt {
+      if now().isOnOrAfter(expiresAt) {
         markExpired()
         return
       }
@@ -356,7 +356,7 @@ class AuthModel: ObservableObject {
           let expiresAt = codeValidRange?.upperBound else {
       return isExpired
     }
-    if now() >= expiresAt {
+    if now().isOnOrAfter(expiresAt) {
       markExpired()
       return true
     }
@@ -404,7 +404,7 @@ class AuthModel: ObservableObject {
           let expiresAt = codeValidRange?.upperBound else {
       return isExpired ? .expired : .pending
     }
-    if now() >= expiresAt {
+    if now().isOnOrAfter(expiresAt) {
       markExpired()
       return .expired
     }
@@ -454,7 +454,7 @@ class AuthModel: ObservableObject {
     } catch let error as APIClientError where error.isCancellation {
       return .pending
     } catch {
-      if now() >= expiresAt {
+      if now().isOnOrAfter(expiresAt) {
         markExpired()
         return .expired
       }
@@ -646,7 +646,7 @@ class AuthModel: ObservableObject {
       guard let self else { return }
       await self.sleep(remaining)
       guard !Task.isCancelled else { return }
-      if self.now() >= expiresAt, self.authState.phase != .signedIn {
+      if self.now().isOnOrAfter(expiresAt), self.authState.phase != .signedIn {
         self.markExpired()
       }
     }

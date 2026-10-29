@@ -292,7 +292,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   /// The rest are read whenever the thing they gate is next opened.
   var appliesAtLaunch: Bool {
     switch self {
-    case .homeBanner, .homeHeroCarousel, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
+    case .homeHeroCarousel, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
          .tvUIKitSearch, .combinedRating:
       true
     default:
@@ -334,7 +334,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     allCases.forEach { UserDefaults.standard.removeObject(forKey: $0.defaultsKey) }
   }
 
-  private var defaultsKey: String { "featureFlag.\(rawValue)" }
+  var defaultsKey: String { "featureFlag.\(rawValue)" }
 
   private static let launchValues: [FeatureFlag: Bool] = Dictionary(
     uniqueKeysWithValues: allCases.filter(\.appliesAtLaunch).map { ($0, $0.storedValue) }

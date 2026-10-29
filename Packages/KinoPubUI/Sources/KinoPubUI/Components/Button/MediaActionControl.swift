@@ -84,7 +84,7 @@ public struct MediaActionLabel: View {
         }
         if let title = appearance.title {
           Text(title)
-            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .contentTransition(.opacity)
         }
       }
@@ -130,8 +130,59 @@ public struct MediaActionRow<Content: View>: View {
   }
 
   public var body: some View {
+#if os(tvOS)
     HStack(alignment: .center, spacing: MediaActionMetrics.rowSpacing) {
       content
+    }
+#else
+    // One line while the labels fit. When they do not, the next ones drop to
+    // another line — a label is never cut down to "Play…".
+    ActionWrapLayout(spacing: MediaActionMetrics.rowSpacing) {
+      content
+    }
+#endif
+  }
+}
+
+/// Left-to-right rows that wrap once the next control does not fit.
+private struct ActionWrapLayout: Layout {
+  var spacing: CGFloat
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let limit = proposal.width ?? .greatestFiniteMagnitude
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+    var rowHeight: CGFloat = 0
+    var used: CGFloat = 0
+    for subview in subviews {
+      let size = subview.sizeThatFits(.unspecified)
+      if x > 0, x + size.width > limit {
+        used = max(used, x - spacing)
+        x = 0
+        y += rowHeight + spacing
+        rowHeight = 0
+      }
+      rowHeight = max(rowHeight, size.height)
+      x += size.width + spacing
+    }
+    used = max(used, max(0, x - spacing))
+    return CGSize(width: proposal.width ?? used, height: y + rowHeight)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    var x = bounds.minX
+    var y = bounds.minY
+    var rowHeight: CGFloat = 0
+    for subview in subviews {
+      let size = subview.sizeThatFits(.unspecified)
+      if x > bounds.minX, x + size.width > bounds.maxX {
+        x = bounds.minX
+        y += rowHeight + spacing
+        rowHeight = 0
+      }
+      subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+      rowHeight = max(rowHeight, size.height)
+      x += size.width + spacing
     }
   }
 }

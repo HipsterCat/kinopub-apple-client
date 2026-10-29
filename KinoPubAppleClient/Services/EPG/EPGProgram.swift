@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import KinoPubBackend
 
 /// A broadcast on a channel: what it is called, when it starts and when it ends.
 struct EPGProgram: Hashable, Codable, Sendable {
@@ -14,7 +15,7 @@ struct EPGProgram: Hashable, Codable, Sendable {
   let stop: Date
 
   /// On air at `date`.
-  func isLive(at date: Date) -> Bool { start <= date && date < stop }
+  func isLive(at date: Date) -> Bool { start.isOnOrBefore(date) && date < stop }
 }
 
 extension Array where Element == EPGProgram {

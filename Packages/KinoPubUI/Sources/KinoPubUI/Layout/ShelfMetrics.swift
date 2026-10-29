@@ -218,10 +218,10 @@ public struct ShelfMetrics: Equatable, Sendable {
   public static func banner(width: CGFloat, typeSize: DynamicTypeSize) -> Self {
     let p = posters(width: width, typeSize: typeSize)
     let columns: Int = width < 900 ? 1 : 2
-    // Same gutter as the rails underneath it. A banner-only number (this was
-    // `max(p.gutter, 24)`) put a different gap on the top of Home than on every row
-    // below it, on the one screen where both are in view at once.
-    return .init(inset: p.inset, gutter: p.gutter, columns: columns)
+    // Phone: the still runs to the screen edge. Wider canvases keep the page inset
+    // and a neighbour peeking.
+    let inset: CGFloat = width < 700 ? 0 : p.inset
+    return .init(inset: inset, gutter: p.gutter, columns: columns)
   }
 
   /// Leading/trailing margin for a **grid**: the page inset plus half of whatever a

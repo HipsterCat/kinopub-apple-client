@@ -405,29 +405,11 @@ struct TabsNavigationView: View {
   }
 
   private var moviesContent: some View {
-#if os(tvOS)
     posterShelves(tab: .movies, contentType: .movie)
-#else
-    CatalogView(title: "Movies",
-                tab: .movies,
-                catalog: MediaCatalog(itemsService: appContext.contentService,
-                                      authState: authState,
-                                      errorHandler: errorHandler,
-                                      contentType: .movie))
-#endif
   }
 
   private var seriesContent: some View {
-#if os(tvOS)
     posterShelves(tab: .series, contentType: .serial)
-#else
-    CatalogView(title: "Series",
-                tab: .series,
-                catalog: MediaCatalog(itemsService: appContext.contentService,
-                                      authState: authState,
-                                      errorHandler: errorHandler,
-                                      contentType: .serial))
-#endif
   }
 
 #if os(tvOS)

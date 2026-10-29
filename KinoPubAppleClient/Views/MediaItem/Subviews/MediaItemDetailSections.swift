@@ -39,6 +39,24 @@ func localizedPluralForm(_ count: Int) -> Int {
   return count == 1 ? 0 : 2
 }
 
+/// The videos or versions rail. One item keeps the section name («Видео», «Версии»).
+/// More than one puts the number in the title («4 видео», «2 версии», «21 версия»)
+/// and does not add a count beside it.
+func videosRailHeading(titleKey: String, count: Int) -> String {
+  guard count > 1 else { return titleKey.localized }
+  let unit: String
+  if titleKey == "MediaItem_Videos" {
+    unit = "MediaItem_UnitVideo".localized
+  } else {
+    switch localizedPluralForm(count) {
+    case 0: unit = "MediaItem_UnitVersionOne".localized
+    case 1: unit = "MediaItem_UnitVersionFew".localized
+    default: unit = "MediaItem_UnitVersionMany".localized
+    }
+  }
+  return "\(count.formatted(.number.grouping(.automatic))) \(unit)"
+}
+
 /// "53 рецензии" / "53 reviews" — the declined unit, not a capitalised section title
 /// glued to a number.
 func localizedReviewsUnit(_ count: Int) -> String {
@@ -101,8 +119,8 @@ enum RatingSources {
     /// counts votes long before it prints a number.
     let value: Double?
     let votes: Int?
-    /// What the tile prints. Not derived from `value` in the view, because kino.pub's
-    /// score is a percentage to read and a 0…10 number to average.
+    /// What the tile prints. Not derived from `value` in the view: TMDB and kino.pub
+    /// are a percentage to read and a 0…10 number to average.
     let display: String
     /// Turnout beside the score, short enough to sit in a chip: `1.4K`, `24.5K`.
     var votesCompact: String? {
@@ -117,14 +135,29 @@ enum RatingSources {
     /// The source's own page. Nil on tvOS — there is no browser to hand it to — and
     /// nil for any source we hold no id for.
     let url: URL?
+    /// The source is known — an id, or kino.pub itself — and nobody has rated it yet.
+    /// The card is the mark and «No ratings», so a vote still has somewhere to land.
+    var isPlaceholder = false
+
+    /// A number from five voters or fewer (TMDB, kino.pub), or a "?" where the
+    /// source has not published a score. The mark stays; the number goes secondary.
+    var drawsFaint: Bool {
+      if value == nil { return true }
+      switch logo {
+      case .tmdb, .kinopub:
+        return (votes ?? 0) <= MediaScoreItem.faintVoteCeiling
+      case .imdb, .kinopoisk:
+        return false
+      }
+    }
   }
 
   /// Every source that has something to say about this title, **ordered by vote count,
   /// biggest audience first.** The order used to be the order the cases were written
   /// in, which put a source with 300 voters ahead of one with 300 000 on every title.
   ///
-  /// The same four that feed the aggregate — a tile the user can see and a number the
-  /// user cannot audit must not come from two different lists.
+  /// The sources the page shows. kino.pub is among them and is not weighed: a thumb
+  /// cannot be changed, so it is not a rating. It sorts last.
   static func scores(for mediaItem: MediaItem,
                      metadata: TitleMetadata = TitleMetadata(),
                      likeCount: Int = 0,
@@ -138,48 +171,65 @@ enum RatingSources {
             logo: .imdb,
             value: bundle.imdbScore,
             votes: bundle.imdbVotes,
-            url: imdbURL(mediaItem)),
+            url: imdbURL(mediaItem),
+            known: (mediaItem.imdb ?? 0) > 0),
       score(id: "Кинопоиск",
             logo: .kinopoisk,
             value: bundle.kinopoiskScore,
             votes: bundle.kinopoiskVotes,
-            url: kinopoiskURL(mediaItem)),
+            url: kinopoiskURL(mediaItem),
+            known: (mediaItem.kinopoisk ?? 0) > 0),
       score(id: "TMDB",
             logo: .tmdb,
             value: bundle.tmdbScore,
             votes: bundle.tmdbVotes,
-            url: tmdbURL(mediaItem, metadata: metadata)),
-      // Printed as the share that liked it, which is what the thumbs mean — the 0…10
-      // form exists so it can be averaged with the rest, not so it can be read.
+            url: tmdbURL(mediaItem, metadata: metadata),
+            known: (metadata.tmdbId ?? 0) > 0),
+      // Printed as the share that liked it. Not averaged: a thumb cannot be changed.
+      // Always present: the title is on kino.pub, and the card is how you vote
+      // before anyone else has.
       score(id: "KinoPub",
             logo: .kinopub,
             value: bundle.kinopubScore,
             votes: bundle.kinopubVotes,
             url: nil,
-            display: bundle.kinopubScore.map { "\(Int(($0 * 10).rounded()))%" })
+            known: true)
     ]
       .compactMap { $0 }
-      .sorted { ($0.votes ?? 0) > ($1.votes ?? 0) }
+      .sorted { lhs, rhs in
+        if lhs.logo == .kinopub { return false }
+        if rhs.logo == .kinopub { return true }
+        return (lhs.votes ?? 0) > (rhs.votes ?? 0)
+      }
   }
 
-  /// A source earns a tile once it has *either* a score or voters. Votes without a
-  /// score is Kinopoisk's "недостаточно оценок" state — worth showing as a dash and a
-  /// note rather than pretending the source has nothing.
+  /// A source earns a tile once it has a score, voters, or a page we already know.
+  /// Votes without a score is Kinopoisk's "недостаточно оценок" state — a "?" and how
+  /// many voted. A known page with neither is an empty card, so the row does not gain
+  /// a plaque when the number arrives. kino.pub's 0% is a score.
   private static func score(id: String,
                             logo: MediaScoreLogo.Source,
                             value: Double?,
                             votes: Int?,
                             url: URL?,
+                            known: Bool,
                             display: String? = nil) -> Score? {
-    let isRated = (value ?? 0) > 0
+    // 0% is a score for kino.pub: nobody liked it. Every other source's 0 means
+    // "not rated".
+    let isRated = logo == .kinopub ? value != nil : (value ?? 0) > 0
     let hasVoters = (votes ?? 0) > 0
-    guard isRated || hasVoters else { return nil }
-    let printed = display ?? value.map { String(format: "%.1f", $0) } ?? "—"
+    guard isRated || hasVoters || known else { return nil }
+    if !isRated && !hasVoters {
+      var placeholder = Score(id: id, logo: logo, value: nil, votes: nil, display: "", url: url)
+      placeholder.isPlaceholder = true
+      return placeholder
+    }
+    let printed = display ?? value.map { logo.formattedScore($0) } ?? "?"
     return Score(id: id,
                  logo: logo,
                  value: isRated ? value : nil,
                  votes: votes,
-                 display: isRated ? printed : "—",
+                 display: isRated ? printed : "?",
                  url: url)
   }
 
@@ -219,8 +269,7 @@ struct MediaItemRatingsSection: View {
   let mediaItem: MediaItem
   /// Carries TMDB's audience score, which is not on the kino.pub payload.
   var externalMetadata: TitleMetadata = TitleMetadata()
-  /// The community thumbs — kino.pub's own rating, and one of the four the aggregate
-  /// weighs.
+  /// The community thumbs — kino.pub's own rating. Shown, not averaged.
   var likeCount: Int = 0
   var dislikeCount: Int = 0
   /// Hidden while the hero/trailer owns the page — same chrome gate as season tabs,
@@ -287,6 +336,8 @@ struct MediaItemRatingsSection: View {
             }
           }
           .padding(.horizontal, MediaItemLayout.horizontalInset)
+          .animation(.easeOut(duration: 0.35),
+                     value: scores.map { "\($0.id):\($0.isPlaceholder)" }.joined(separator: "|"))
 #if os(tvOS)
           // Slack for the focus-scale grow, so a focused tile is not clipped by the
           // section above/below it.
@@ -308,6 +359,7 @@ struct MediaItemRatingsSection: View {
   static let tilePadding: CGFloat = 24
   static let iconSize: CGFloat = 48
   static let valueFont: Font = .system(size: 48, weight: .bold, design: .rounded)
+  static let valueUIFont = ScoreValueTypography.rounded(size: 48, weight: .bold)
   static let titleFont: Font = TypeScale.detailBody
 static let captionFont: Font = .caption
 #else
@@ -315,6 +367,7 @@ static let captionFont: Font = .caption
   static let tilePadding: CGFloat = 14
   static let iconSize: CGFloat = 32
   static let valueFont: Font = .system(size: 32, weight: .semibold, design: .rounded)
+  static let valueUIFont = ScoreValueTypography.rounded(size: 32, weight: .semibold)
   static let titleFont: Font = .system(size: 14, weight: .semibold)
     static let captionFont: Font = TypeScale.detailBody
 
@@ -403,10 +456,10 @@ private struct RatingTile: View {
     HStack(alignment: .center, spacing: 10) {
       MediaScoreLogo(score.logo, height: MediaItemRatingsSection.iconSize, style: .compact)
 
-      Text(score.display)
-        .font(MediaItemRatingsSection.valueFont)
-        // .monospacedDigit()
-        .foregroundStyle(Color.KinoPub.subtitle)
+      if !score.isPlaceholder {
+        ScoreValueText(score.display, font: MediaItemRatingsSection.valueUIFont)
+          .foregroundStyle(score.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
+      }
 
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 6) {
@@ -421,7 +474,12 @@ private struct RatingTile: View {
         }
         // Voters but no score yet — say so the way the source itself does, rather
         // than printing a count next to a dash and leaving it unexplained.
-        if score.value == nil {
+        if score.isPlaceholder {
+          Text("MediaItem_NoRatings")
+            .font(MediaItemRatingsSection.captionFont)
+            .foregroundStyle(Color.KinoPub.subtitle)
+            .fixedSize(horizontal: false, vertical: true)
+        } else if score.value == nil {
           Text("MediaItem_NotEnoughRatings")
             .font(MediaItemRatingsSection.captionFont)
             .foregroundStyle(Color.KinoPub.subtitle)
@@ -1141,35 +1199,11 @@ struct MediaItemCommunityVoteSection: View {
   }
 
   private func voteButton(up: Bool) -> some View {
-    let active = myVote == (up ? .up : .down)
-    let count = up ? likeCount : dislikeCount
-    let symbol = active
-      ? (up ? "hand.thumbsup.fill" : "hand.thumbsdown.fill")
-      : (up ? "hand.thumbsup" : "hand.thumbsdown")
-    return Button {
-      onVote(up)
-    } label: {
-      HStack(spacing: 8) {
-        Image(systemName: symbol)
-          .font(.system(size: Self.iconSize, weight: .semibold))
-        if count > 0 {
-          Text("\(count.formatted(.number.grouping(.automatic)))")
-            .font(MediaItemRatingsSection.titleFont)
-        }
-      }
-      .foregroundStyle(active ? (up ? Color.KinoPub.background : Color.white) : Color.KinoPub.text)
-      .padding(.horizontal, MediaItemRatingsSection.tilePadding)
-      .padding(.vertical, MediaItemRatingsSection.tilePadding * 0.7)
-      .background(
-        active
-          ? (up ? Color.KinoPub.text : Color.red.opacity(0.85))
-          : Color.KinoPub.selectionBackground.opacity(0.5),
-        in: Capsule(style: .continuous)
-      )
-    }
-    .buttonStyle(DetailTileStyle.buttonStyle)
-    .disabled(myVote != .none && !active)
-    .accessibilityLabel(up ? "Like" : "Dislike")
+    CommunityVoteButton(up: up,
+                        count: up ? likeCount : dislikeCount,
+                        active: myVote == (up ? .up : .down),
+                        enabled: myVote == .none || myVote == (up ? .up : .down),
+                        onVote: { onVote(up) })
   }
 
 #if os(tvOS)
@@ -1177,6 +1211,52 @@ struct MediaItemCommunityVoteSection: View {
 #else
   static let iconSize: CGFloat = 16
 #endif
+}
+
+/// One thumb. The count beside a thumb the viewer just cast is the text colour and
+/// springs once; the other count stays secondary.
+private struct CommunityVoteButton: View {
+  let up: Bool
+  let count: Int
+  let active: Bool
+  let enabled: Bool
+  var onVote: () -> Void
+
+  @State private var pulse = false
+
+  var body: some View {
+    let symbol = active
+      ? (up ? "hand.thumbsup.fill" : "hand.thumbsdown.fill")
+      : (up ? "hand.thumbsup" : "hand.thumbsdown")
+    let finger: Color = active ? (up ? .green : .red) : .secondary
+    Button(action: onVote) {
+      HStack(spacing: 8) {
+        Image(systemName: symbol)
+          .font(.system(size: MediaItemCommunityVoteSection.iconSize, weight: .semibold))
+          .foregroundStyle(finger)
+        if count > 0 {
+          Text("\(count.formatted(.number.grouping(.automatic)))")
+            .font(MediaItemRatingsSection.titleFont)
+            .foregroundStyle(active ? Color.KinoPub.text : Color.KinoPub.subtitle)
+            .scaleEffect(pulse ? 1.22 : 1)
+        }
+      }
+      .padding(.horizontal, MediaItemRatingsSection.tilePadding)
+      .padding(.vertical, MediaItemRatingsSection.tilePadding * 0.7)
+      .background(Color.KinoPub.selectionBackground.opacity(0.5), in: Capsule(style: .continuous))
+    }
+    .buttonStyle(DetailTileStyle.buttonStyle)
+    .disabled(!enabled)
+    .accessibilityLabel(up ? "Like" : "Dislike")
+    .onChange(of: active) { _, now in
+      guard now else { return }
+      withAnimation(.spring(response: 0.22, dampingFraction: 0.5)) { pulse = true }
+      Task { @MainActor in
+        try? await Task.sleep(for: .milliseconds(160))
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { pulse = false }
+      }
+    }
+  }
 }
 
 //private struct CommunityVoteButtonStyle: ButtonStyle {
@@ -1494,7 +1574,8 @@ struct MediaItemRatingsCard: View {
   /// four differently-indented lines.
   private func tableRow(_ score: RatingSources.Score) -> some View {
     HStack(spacing: 8) {
-      Text(score.display)
+      ScoreValueText(score.display, font: ScoreValueTypography.runningText)
+        .foregroundStyle(score.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
         .frame(width: Self.valueColumn, alignment: .leading)
 
       MediaScoreLogo(score.logo, height: Self.logoHeight, style: .compact)
@@ -1505,7 +1586,10 @@ struct MediaItemRatingsCard: View {
 
       Spacer(minLength: 8)
 
-      if let votes = score.votesGrouped {
+      if score.isPlaceholder {
+        Text("MediaItem_NoRatings")
+          .foregroundStyle(.secondary)
+      } else if let votes = score.votesGrouped {
         Text(votes)
           .foregroundStyle(.secondary)
       }
@@ -1525,9 +1609,14 @@ struct MediaItemRatingsCard: View {
   private func sourceChip(_ score: RatingSources.Score) -> some View {
     HStack(spacing: 5) {
       MediaScoreLogo(score.logo, height: Self.logoHeight, style: .compact)
-      Text(score.display)
-        .font(TypeScale.detailBody)
-        .foregroundStyle(Color.KinoPub.text)
+      if score.isPlaceholder {
+        Text("MediaItem_NoRatings")
+          .font(TypeScale.detailBody)
+          .foregroundStyle(.secondary)
+      } else {
+        ScoreValueText(score.display, font: ScoreValueTypography.runningText)
+          .foregroundStyle(score.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
+      }
       if let votes = score.votesCompact {
         Text("(\(votes))")
           .font(TypeScale.detailBody)
@@ -1540,8 +1629,8 @@ struct MediaItemRatingsCard: View {
     .accessibilityLabel(Text(score.id))
   }
 
-  /// Wide enough for "100%" and "10.0" at body size, so the marks line up.
-  static let valueColumn: CGFloat = 44
+  /// Wide enough for "100%" — digits plus a smaller percent — and "10.0", so the marks line up.
+  static let valueColumn: CGFloat = 52
   /// Wide enough for the IMDb wordmark at `logoHeight`, which is the widest mark.
   static let markColumn: CGFloat = 40
   static let logoHeight: CGFloat = 16
@@ -1572,7 +1661,8 @@ struct MediaItemRatingSourceRows: View {
   @ViewBuilder
   private func row(_ score: RatingSources.Score) -> some View {
     let content = HStack(spacing: 12) {
-      Text(score.display)
+      ScoreValueText(score.display, font: ScoreValueTypography.runningText)
+        .foregroundStyle(score.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
         .frame(width: Self.valueColumn, alignment: .leading)
 
       MediaScoreLogo(score.logo, height: Self.logoHeight, style: .compact)
@@ -1589,7 +1679,10 @@ struct MediaItemRatingSourceRows: View {
 
       Spacer(minLength: 12)
 
-      if let votes = score.votesGrouped {
+      if score.isPlaceholder {
+        Text("MediaItem_NoRatings")
+          .foregroundStyle(.secondary)
+      } else if let votes = score.votesGrouped {
         Text(votes)
           .foregroundStyle(.secondary)
       } else {
@@ -1618,7 +1711,7 @@ struct MediaItemRatingSourceRows: View {
 
   /// Same columns as the card's table, one step wider — the page has the room, and
   /// two tables of the same thing must not line up differently.
-  static let valueColumn: CGFloat = 52
+  static let valueColumn: CGFloat = 60
   static let logoHeight: CGFloat = 20
   /// A fixed column for marks of wildly different widths, so the names line up.
   static let markColumn: CGFloat = 52
@@ -1647,18 +1740,28 @@ struct ReviewsSummaryCard: View {
 
         // Plural keys, not the singular `Positive` the card badge uses: these label a
         // count of reviews, and Russian declines the adjective for it.
-        breakdownRow("MediaItem_ReviewsPositive", count: summary.positive)
-        breakdownRow("MediaItem_ReviewsNeutral", count: summary.neutral)
-        breakdownRow("MediaItem_ReviewsNegative", count: summary.negative)
+        ForEach(breakdown, id: \.title) { row in
+          breakdownRow(row.title, count: row.count)
+        }
       }
     }
   }
 
+  private var breakdown: [(title: String, count: Int)] {
+    [
+      ("MediaItem_ReviewsPositive", summary.positive),
+      ("MediaItem_ReviewsNegative", summary.negative),
+      ("MediaItem_ReviewsNeutral", summary.neutral)
+    ]
+    .filter { $0.1 > 0 }
+    .sorted { $0.1 > $1.1 }
+  }
+
   @ViewBuilder
-  private func breakdownRow(_ title: LocalizedStringKey, count: Int) -> some View {
+  private func breakdownRow(_ title: String, count: Int) -> some View {
     if count > 0 {
       HStack(spacing: 8) {
-        Text(title)
+        Text(LocalizedStringKey(title))
           .foregroundStyle(.secondary)
         Spacer(minLength: 8)
         Text(count.formatted(.number.grouping(.automatic)))
@@ -1989,8 +2092,8 @@ private struct VideoCard: View {
     BlockCard(width: BlockMetrics.textCardWidth, fillsHeight: true) {
       VStack(alignment: .leading, spacing: 12) {
         Text("MediaItem_VideoCard")
-          .font(TypeScale.detailBody.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.text)
+          .font(TypeScale.detailBody.weight(.regular))
+          .foregroundStyle(Color.KinoPub.subtitle)
 
         VStack(alignment: .leading, spacing: 10) {
           ForEach(badges) { badge in
@@ -2011,8 +2114,8 @@ private struct VideoCard: View {
             icon(for: badge, height: Self.popupIconHeight)
             VStack(alignment: .leading, spacing: 2) {
               Text(badge.label)
-                .font(InfoPopupMetrics.bodyFont.weight(.medium))
-                .foregroundStyle(Color.KinoPub.text)
+                .font(InfoPopupMetrics.bodyFont.weight(.regular))
+                .foregroundStyle(Color.KinoPub.subtitle)
               Text(badge.explanation)
                 .font(.caption)
                 .foregroundStyle(Color.KinoPub.subtitle)
@@ -2577,7 +2680,7 @@ struct MediaItemInfoColumns: View {
 
     let lastAiredSeason = externalMetadata.lastEpisode?.seasonNumber
       ?? externalMetadata.seasonSummaries
-        .filter { ($0.airDate ?? .distantFuture) <= Date() }
+        .filter { ($0.airDate ?? .distantFuture).isOnOrBefore(Date()) }
         .map(\.seasonNumber)
         .max()
     let isSeasonPremiere = lastAiredSeason.map { next.seasonNumber > $0 } ?? false
@@ -2967,7 +3070,7 @@ struct MediaItemInfoColumns: View {
                   : MediaItemInfoColumns.plainValueFont)
             .foregroundStyle(value.style == .note
                              ? Color.KinoPub.subtitle
-                             : Color.KinoPub.text)
+                             : Color.KinoPub.subtitle)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -3239,7 +3342,7 @@ struct MediaItemInfoColumns: View {
   /// Captions and values differ by weight, not by size — the size is the page's one
   /// running-text token, shared with the hero and the rating captions.
   static let captionFont: Font = TypeScale.detailBody
-  static let valueFont: Font = TypeScale.detailBody.weight(.medium)
+  static let valueFont: Font = TypeScale.detailBody.weight(.regular)
   static let plainValueFont: Font = TypeScale.detailBody
 }
 
@@ -3478,7 +3581,7 @@ struct MediaItemPlotView: View {
   private var expandedPlot: some View {
     Text(plot)
       .font(InfoPopupMetrics.bodyFont)
-      .foregroundStyle(.primary)
+      .foregroundStyle(Color.KinoPub.subtitle)
       .multilineTextAlignment(.leading)
   }
 
@@ -3545,10 +3648,10 @@ struct MediaItemPlotView: View {
   /// negative padding on the button, so it does not move the lines around it.
   static let focusInsetH: CGFloat = 20
   static let focusInsetV: CGFloat = 12
-  static let lineLimit = 6
+  static let lineLimit = 8
   /// Fills its column: the hero's written column already caps the width, and a
   /// second, narrower ceiling here left the synopsis short of the lines beneath it.
-  static let maxWidth: CGFloat = 960
+  static let maxWidth: CGFloat = 900
   static let moreTracking: CGFloat = 1
 #else
   static let lineLimit = 4

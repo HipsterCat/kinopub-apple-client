@@ -72,6 +72,16 @@ struct RouteDestination: View {
                              context: appContext,
                              authState: authState,
                              errorHandler: errorHandler)
+    case .filteredShelf(let filter, let title):
+      FilteredShelfView.make(filter: filter,
+                             title: title,
+                             context: appContext,
+                             authState: authState,
+                             errorHandler: errorHandler)
+    case .continueWatching:
+      ContinueWatchingListView.make(context: appContext,
+                                    authState: authState,
+                                    errorHandler: errorHandler)
     case .ratingsAndReviews(let payload):
 #if os(tvOS)
       // The scores' row ends in a card that counts the reviews; this is where they are read.

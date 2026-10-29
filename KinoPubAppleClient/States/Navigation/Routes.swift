@@ -38,6 +38,10 @@ enum Route: Hashable {
   /// paginated grid — the shelf's "see all". `title` carries the already-localized
   /// row name so the pushed page and the row header read identically.
   case shortcutItems(MediaShortcut, MediaType, title: String)
+  /// A Home filter shelf (`/v1/items`) opened as its own paginated grid.
+  case filteredShelf(LibraryFilter, title: String)
+  /// Continue Watching past the row's cap, same ranking, its own page.
+  case continueWatching
   /// A detail page's Ratings and Reviews block, opened in full.
   case ratingsAndReviews(RatingsAndReviews)
 
@@ -104,6 +108,12 @@ enum Route: Hashable {
     case .ratingsAndReviews(let payload):
       hasher.combine(12)
       hasher.combine(payload)
+    case .filteredShelf(let filter, let title):
+      hasher.combine(14)
+      hasher.combine(filter)
+      hasher.combine(title)
+    case .continueWatching:
+      hasher.combine(15)
     }
   }
 
@@ -137,6 +147,10 @@ enum Route: Hashable {
       return a == b && at == bt && atitle == btitle
     case (.ratingsAndReviews(let a), .ratingsAndReviews(let b)):
       return a == b
+    case (.filteredShelf(let a, let atitle), .filteredShelf(let b, let btitle)):
+      return a == b && atitle == btitle
+    case (.continueWatching, .continueWatching):
+      return true
     default:
       return false
     }

@@ -71,6 +71,9 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let landscapeImageURL: String?
   /// Overlaid on a landscape card, e.g. "S2, E5 · 42 min".
   public let overlayLabel: String?
+  /// The name of the video Play opens, for a title in several — a concert's next set. Continue
+  /// Watching shows it in place of the title while the card is focused (Sasha, 2026-10-26).
+  public let offeredName: String?
 
   /// The title this card belongs to. For an episode card this is the series id;
   /// for a normal poster it matches `id`.
@@ -293,6 +296,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               overview: String? = nil,
               landscapeImageURL: String? = nil,
               overlayLabel: String? = nil,
+              offeredName: String? = nil,
               itemID: Int? = nil,
               video: Int? = nil,
               season: Int? = nil,
@@ -337,6 +341,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.overview = overview
     self.landscapeImageURL = landscapeImageURL
     self.overlayLabel = overlayLabel
+    self.offeredName = offeredName
     self.itemID = itemID ?? id
     self.video = video
     self.season = season
@@ -385,6 +390,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               overview: overview,
               landscapeImageURL: landscapeImageURL,
               overlayLabel: overlayLabel,
+              offeredName: offeredName,
               itemID: itemID,
               video: video,
               season: season,
@@ -427,6 +433,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               overview: overview,
               landscapeImageURL: landscapeImageURL,
               overlayLabel: overlayLabel,
+              offeredName: offeredName,
               itemID: itemID,
               video: video,
               season: season,
@@ -475,6 +482,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     overview = try c.decodeIfPresent(String.self, forKey: .overview)
     landscapeImageURL = try c.decodeIfPresent(String.self, forKey: .landscapeImageURL)
     overlayLabel = try c.decodeIfPresent(String.self, forKey: .overlayLabel)
+    offeredName = try c.decodeIfPresent(String.self, forKey: .offeredName)
     itemID = try c.decodeIfPresent(Int.self, forKey: .itemID) ?? id
     video = try c.decodeIfPresent(Int.self, forKey: .video)
     season = try c.decodeIfPresent(Int.self, forKey: .season)
@@ -540,6 +548,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(overview, forKey: .overview)
     try c.encodeIfPresent(landscapeImageURL, forKey: .landscapeImageURL)
     try c.encodeIfPresent(overlayLabel, forKey: .overlayLabel)
+    try c.encodeIfPresent(offeredName, forKey: .offeredName)
     try c.encode(itemID, forKey: .itemID)
     try c.encodeIfPresent(video, forKey: .video)
     try c.encodeIfPresent(season, forKey: .season)
@@ -571,7 +580,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   private enum CodingKeys: String, CodingKey {
     case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
     case progress, badge, backdropURL, hasSpecifiedWideArtwork, overview
-    case landscapeImageURL, overlayLabel, itemID, video, season, seasonCount, episodeCount, mediaID
+    case landscapeImageURL, overlayLabel, offeredName, itemID, video, season, seasonCount, episodeCount, mediaID
     case isWatched, isSeries, isInHistory, viewerState, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, yearEnd, unwatchedEpisodes, durationSeconds
     case genres, country, primaryAction
@@ -1187,7 +1196,7 @@ public struct MediaCardView: View {
       }
 
       if showsCaptionScores {
-        MediaScoresView(captionScores)
+        MediaScoresView(captionScores, collapsesVotesToFit: true)
           .font(TypeScale.cardMeta)
           .foregroundStyle(Color.KinoPub.subtitle)
       }

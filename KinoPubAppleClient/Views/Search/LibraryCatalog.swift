@@ -417,12 +417,14 @@ class LibraryCatalog: ObservableObject {
     transform(&updated)
     guard updated != filter else { return }
     let typeChanged = updated.contentType != filter.contentType
+      || updated.contentTypes != filter.contentTypes
     filter = updated
     // Genres are per content type, so a type change invalidates the list — and any
     // genre picked from the old one.
     if typeChanged {
       genres = []
       self.filter.genreID = nil
+      self.filter.genreIDs = []
     }
     Task { await refresh() }
   }

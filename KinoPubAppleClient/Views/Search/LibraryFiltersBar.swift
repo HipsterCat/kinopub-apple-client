@@ -116,65 +116,115 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
   }
 
   private var typeMenu: some View {
-    glassMenu(
-      label: catalog.filter.contentType.map { LocalizedStringKey($0.title) } ?? "Type",
+    let selected = catalog.filter.contentTypes.union(catalog.filter.contentType.map { [$0] } ?? [])
+    return glassMenu(
+      label: typeLabel(selected),
       icon: "square.grid.2x2",
-      isActive: catalog.filter.contentType != nil
+      isActive: !selected.isEmpty
     ) {
       Button {
-        catalog.update { $0.contentType = nil }
+        catalog.update {
+          $0.contentType = nil
+          $0.contentTypes = []
+        }
       } label: {
-        Self.checkmarkLabel("Any", selected: catalog.filter.contentType == nil)
+        Self.checkmarkLabel("Any", selected: selected.isEmpty)
       }
       ForEach(MediaType.allCases) { type in
-        Button {
-          catalog.update { $0.contentType = type }
-        } label: {
-          Self.checkmarkLabel(LocalizedStringKey(type.title), selected: catalog.filter.contentType == type)
+        Toggle(isOn: Binding(
+          get: { selected.contains(type) },
+          set: { isOn in
+            catalog.update { filter in
+              var types = filter.contentTypes
+              if let one = filter.contentType { types.insert(one) }
+              filter.contentType = nil
+              if isOn { types.insert(type) } else { types.remove(type) }
+              filter.contentTypes = types
+            }
+          }
+        )) {
+          Text(LocalizedStringKey(type.title))
         }
       }
     }
   }
 
+  private func typeLabel(_ selected: Set<MediaType>) -> LocalizedStringKey {
+    if selected.count == 1, let only = selected.first {
+      return LocalizedStringKey(only.title)
+    }
+    return "Type"
+  }
+
   private var genreMenu: some View {
-    let selected = catalog.genres.first { $0.id == catalog.filter.genreID }
+    let selected = Set(catalog.filter.genreIDs).union(catalog.filter.genreID.map { [$0] } ?? [])
+    let single = selected.count == 1
+      ? catalog.genres.first { $0.id == selected.first }
+      : nil
     return glassMenu(
-      label: selected.map { LocalizedStringKey($0.title) } ?? "Genre",
+      label: single.map { LocalizedStringKey($0.title) } ?? "Genre",
       icon: "theatermasks",
-      isActive: catalog.filter.genreID != nil
+      isActive: !selected.isEmpty
     ) {
       Button {
-        catalog.update { $0.genreID = nil }
+        catalog.update {
+          $0.genreID = nil
+          $0.genreIDs = []
+        }
       } label: {
-        Self.checkmarkLabel("Any", selected: catalog.filter.genreID == nil)
+        Self.checkmarkLabel("Any", selected: selected.isEmpty)
       }
       ForEach(catalog.genres) { genre in
-        Button {
-          catalog.update { $0.genreID = genre.id }
-        } label: {
-          Self.checkmarkLabel(LocalizedStringKey(genre.title), selected: catalog.filter.genreID == genre.id)
+        Toggle(isOn: Binding(
+          get: { selected.contains(genre.id) },
+          set: { isOn in
+            catalog.update { filter in
+              var ids = Set(filter.genreIDs)
+              if let one = filter.genreID { ids.insert(one) }
+              filter.genreID = nil
+              if isOn { ids.insert(genre.id) } else { ids.remove(genre.id) }
+              filter.genreIDs = ids.sorted()
+            }
+          }
+        )) {
+          Text(LocalizedStringKey(genre.title))
         }
       }
     }
   }
 
   private var countryMenu: some View {
-    let selected = catalog.countries.first { $0.id == catalog.filter.countryID }
+    let selected = catalog.filter.countryIDs.union(catalog.filter.countryID.map { [$0] } ?? [])
+    let single = selected.count == 1
+      ? catalog.countries.first { $0.id == selected.first }
+      : nil
     return glassMenu(
-      label: selected.map { LocalizedStringKey($0.title) } ?? "Country",
+      label: single.map { LocalizedStringKey($0.title) } ?? "Country",
       icon: "globe",
-      isActive: catalog.filter.countryID != nil
+      isActive: !selected.isEmpty
     ) {
       Button {
-        catalog.update { $0.countryID = nil }
+        catalog.update {
+          $0.countryID = nil
+          $0.countryIDs = []
+        }
       } label: {
-        Self.checkmarkLabel("Any", selected: catalog.filter.countryID == nil)
+        Self.checkmarkLabel("Any", selected: selected.isEmpty)
       }
       ForEach(catalog.countries, id: \.id) { country in
-        Button {
-          catalog.update { $0.countryID = country.id }
-        } label: {
-          Self.checkmarkLabel(LocalizedStringKey(country.title), selected: catalog.filter.countryID == country.id)
+        Toggle(isOn: Binding(
+          get: { selected.contains(country.id) },
+          set: { isOn in
+            catalog.update { filter in
+              var ids = filter.countryIDs
+              if let one = filter.countryID { ids.insert(one) }
+              filter.countryID = nil
+              if isOn { ids.insert(country.id) } else { ids.remove(country.id) }
+              filter.countryIDs = ids
+            }
+          }
+        )) {
+          Text(LocalizedStringKey(country.title))
         }
       }
     }

@@ -284,6 +284,16 @@ final class TVSettingsCatalog {
         },
         previewSymbol: "music.mic.slash"
       ),
+      TSKRow(
+        title: "Баннер на Главной: \(FeatureFlag.homeBanner.storedValue ? "Вкл" : "Выкл")",
+        description: "Широкие карточки вверху Главной, Фильмов и Сериалов. Нажмите Select, чтобы скрыть или вернуть. Сразу, без перезапуска.",
+        kind: .action(pushes: false) { [unowned self] in
+          let flag = FeatureFlag.homeBanner
+          flag.set(!flag.storedValue)
+          self.host.reloadPages()
+        },
+        previewSymbol: "rectangle.stack"
+      ),
     ]
 
     let continueWatchingRows: [TSKRow] = [

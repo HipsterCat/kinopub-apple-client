@@ -115,7 +115,7 @@ public enum MediaCardDisplayPreferences {
   public static let defaultRatingPlacement: MediaCardChromePlacement = .onArtwork
   public static let defaultRatingSource: MediaCardRatingSource = .combined
   public static let defaultCapabilityPlacement: MediaCardChromePlacement = .onArtwork
-  public static let defaultShow4K = true
+  public static let defaultShow4K = false
   public static let defaultShowHDR = false
   public static let defaultShowHD = false
   public static let defaultShow3D = false

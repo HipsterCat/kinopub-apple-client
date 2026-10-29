@@ -217,12 +217,6 @@ public struct ContentItemsListView<Header: View>: View {
     // Default priority — `.userInitiated` yanked focus back to the first cell on every
     // return from a detail page.
     .defaultFocus($focusedItemID, items.first?.id)
-#else
-    // Native fade as the grid passes under the nav bar / search field. A plain
-    // `ScrollView` doesn't inherit the edge treatment `List` gets automatically, so it
-    // needs asking for explicitly. tvOS has no floating bar over this screen to slide
-    // under — see `.claude/skills/apple-chrome/SKILL.md`.
-    .scrollEdgeEffectStyle(.soft, for: .top)
 #endif
   }
 

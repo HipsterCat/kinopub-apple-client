@@ -487,7 +487,8 @@ class HomeCatalog: ObservableObject {
        store: ContentStore = AppContext.shared.contentStore,
        localProgressStore: LocalWatchProgressStore = AppContext.shared.localProgressStore,
        metadataService: MetadataService = AppContext.shared.metadataService,
-       contentType: MediaType? = nil) {
+       contentType: MediaType? = nil,
+       watchesHome: Bool = true) {
     self.itemsService = itemsService
     self.authState = authState
     self.errorHandler = errorHandler
@@ -497,6 +498,7 @@ class HomeCatalog: ObservableObject {
     self.localProgressStore = localProgressStore
     self.metadataService = metadataService
     self.contentType = contentType
+    guard watchesHome else { return }
     NotificationCenter.default.publisher(for: .localWatchProgressDidChange)
       .receive(on: RunLoop.main)
       .sink { [weak self] _ in
@@ -740,7 +742,8 @@ class HomeCatalog: ObservableObject {
       if !continueWatchingCards.isEmpty {
         assembled.append(MediaRow(id: Self.continueWatchingRowID,
                                   title: "Continue Watching".localized,
-                                  cards: continueWatchingCards))
+                                  cards: continueWatchingCards,
+                                  destination: Route.continueWatching))
       }
     }
 
@@ -749,9 +752,13 @@ class HomeCatalog: ObservableObject {
       case .filter:
         let cards = store.cards(.homeSection(spec.id))
         guard !cards.isEmpty else { continue }
+        let destination = spec.resolvedFilter(
+          excludeConcerts: SectionVisibilityStore.shared.excludeConcertsOnHome
+        ).map { Route.filteredShelf($0, title: spec.title) }
         assembled.append(MediaRow(id: spec.id,
                                   title: spec.title,
-                                  cards: cards))
+                                  cards: cards,
+                                  destination: destination))
       case .topBookmarks:
         let cards = store.cards(.homeSection(spec.id))
         guard !cards.isEmpty else { continue }
@@ -879,6 +886,11 @@ class HomeCatalog: ObservableObject {
   /// Sampled once per launch; later refreshes only top it up.
   /// Skipped entirely when `FeatureFlags.homeBannerEnabled` is off — no sampling and
   /// therefore no wide-poster fetches from `HomeBannerCardView`.
+  /// Re-reads the banner switch and either samples the shelf or clears it.
+  func applyHomeBannerVisibility() {
+    refreshBannerCards(from: rows)
+  }
+
   private func refreshBannerCards(from rows: [MediaRow]) {
     guard supportsHeroBanner, FeatureFlags.homeBannerEnabled else {
       if !bannerCards.isEmpty {
@@ -1066,8 +1078,18 @@ class HomeCatalog: ObservableObject {
   /// The row (`ContinueWatchingOrder` says what goes on it and why). Sources: the three
   /// watching lists for what is unfinished and what has new episodes, history and this
   /// device for when something was watched, bookmarks for what was saved for later.
-  private func fetchContinueWatchingCards() async throws -> [MediaCard] {
+  /// The row stays at `rules.maxItems`. The header's page asks for a longer cut of
+  /// the same ranking and does not write it back over the shelf.
+  func expandedContinueWatching() async throws -> [MediaCard] {
+    try await fetchContinueWatchingCards(limit: Self.expandedContinueWatchingCap)
+  }
+
+  /// Past the sideways row, still short of a years-long abandoned list.
+  private static let expandedContinueWatchingCap = 48
+
+  private func fetchContinueWatchingCards(limit: Int? = nil) async throws -> [MediaCard] {
     let rules = ContinueWatchingPreferences.rules
+    let cap = limit ?? rules.maxItems
     async let moviesTask = try? itemsService.fetchWatchingMovies().items
     async let allSerialsTask = try? itemsService.fetchWatchingSerials(subscribedOnly: false).items
     async let watchlistTask = try? itemsService.fetchWatchingSerials(subscribedOnly: true).items
@@ -1131,7 +1153,7 @@ class HomeCatalog: ObservableObject {
       let isSeries = entry.item.isEpisodicType || entry.season != nil
       let date = Date(timeIntervalSince1970: entry.updatedAt)
       if entry.watch.isFinished, !isSeries { continue }
-      if lastSeen[entry.id].map({ date >= $0 }) ?? true {
+      if lastSeen[entry.id].map({ date.isOnOrAfter($0) }) ?? true {
         lastSeen[entry.id] = date
         stoppedMidway[entry.id] = !entry.watch.isFinished
       }
@@ -1205,9 +1227,9 @@ class HomeCatalog: ObservableObject {
     var cards: [MediaCard] = []
     var next = 0
     var rounds = 0
-    while cards.count < rules.maxItems, next < ranked.count, rounds < Self.drawRounds {
+    while cards.count < cap, next < ranked.count, rounds < Self.drawRounds {
       rounds += 1
-      let batch = Array(ranked[next..<min(ranked.count, next + rules.maxItems - cards.count + Self.spareCards)])
+      let batch = Array(ranked[next..<min(ranked.count, next + cap - cards.count + Self.spareCards)])
       next += batch.count
       let versions = Dictionary(uniqueKeysWithValues: batch.map { ($0.id, version($0)) })
       details.merge(await titleDetails(for: batch, serverListed: serverListed, versions: versions)) { _, new in new }
@@ -1222,7 +1244,7 @@ class HomeCatalog: ObservableObject {
                   cached: cachedByID[$0.id])
       }
     }
-    return Array(cards.prefix(rules.maxItems))
+    return Array(cards.prefix(cap))
   }
 
   /// One page of history: it is newest first, and fifty rows reach back about a week of
@@ -1348,7 +1370,7 @@ class HomeCatalog: ObservableObject {
   private static func newestEntryByItemID(_ history: [HistoryEntry]) -> [Int: HistoryEntry] {
     history.reduce(into: [Int: HistoryEntry]()) { result, entry in
       guard let date = entry.lastSeenDate else { return }
-      if let existing = result[entry.item.id], let seen = existing.lastSeenDate, seen >= date { return }
+      if let existing = result[entry.item.id], let seen = existing.lastSeenDate, seen.isOnOrAfter(date) { return }
       result[entry.item.id] = entry
     }
   }
@@ -1356,7 +1378,7 @@ class HomeCatalog: ObservableObject {
   /// Continue-watching cards are landscape wide covers — episode stills are too
   /// anonymous to recognise a title from across the room. History still supplies the
   /// S/E label and resume bar; local progress fills gaps before the server catches up.
-  private static func card(for item: WatchingItem,
+  static func card(for item: WatchingItem,
                            detail: MediaItem?,
                            history: HistoryEntry?,
                            finishedEpisodes: [Int: Set<Int>],
@@ -1370,6 +1392,8 @@ class HomeCatalog: ObservableObject {
     // True while the viewer is mid-video: only then do a progress bar and a "N left"
     // label belong on the card. A film is always "resuming" — there is one video.
     var isResuming = true
+    // A title in several videos: the one the card offers, with its own progress and runtime.
+    var offeredVersion: PlaybackVariant?
 
     if isSeries {
       // The newest history row is where the viewer *was*, not what to play next: on a
@@ -1411,6 +1435,15 @@ class HomeCatalog: ObservableObject {
           return nil
         }
       }
+    } else if let detail, detail.playbackVariants.count > 1 {
+      // A title in several videos — a concert in sets, a film's cuts: the one the detail page's
+      // first play button offers (`playChoices`), not the newest history row — that is where
+      // the viewer was, and on a finished set it offered it again. Done only when none is
+      // left to watch; the first video watched used to read as the whole title watched.
+      guard let next = detail.playChoices.first(where: { !$0.isWatched }) else { return nil }
+      video = next.number
+      season = nil
+      offeredVersion = next
     } else {
       // The film's own flag, when we asked for it: watched is watched, whatever the play
       // head says about the credits.
@@ -1427,10 +1460,12 @@ class HomeCatalog: ObservableObject {
     let localFraction = local?.watch.resumeFraction
     // Episode resume only — never serial watched/total (that is not a scrubber) — and
     // never the *previous* episode's progress under a fresh one.
-    let episodeProgress = isResuming
-      ? (offered?.watchProgress.fraction ?? localFraction ?? history?.progress)
-      : nil
+    let episodeProgress = offeredVersion.map { $0.watchProgress.hasStarted ? $0.watchProgress.fraction : nil }
+      ?? (isResuming
+          ? (offered?.watchProgress.fraction ?? localFraction ?? history?.progress)
+          : nil)
     let durationSeconds = offered.map(\.duration)
+      ?? offeredVersion.map(\.duration)
       ?? (isResuming
           ? (cached?.durationSeconds ?? Self.durationSeconds(history: history, local: local))
           : nil)
@@ -1441,9 +1476,10 @@ class HomeCatalog: ObservableObject {
     let newCount = item.new.flatMap { $0 > 0 ? $0 : nil }
 
     let posters = history?.item.posters ?? local?.item.posters ?? item.posters
+    let presentation = MediaPresentationProfile(type: item.type, genres: detail?.genres ?? [])
     return MediaCard(id: item.id,
                      posterURL: item.posters.medium,
-                     title: item.localizedTitle,
+                     title: presentation.cardTitle(localized: item.localizedTitle, original: item.originalTitle),
                      subtitle: item.originalTitle,
                      progress: episodeProgress,
                      badge: newCount.map { "+\($0)" },
@@ -1451,6 +1487,7 @@ class HomeCatalog: ObservableObject {
                      hasSpecifiedWideArtwork: posters.hasSpecifiedWide,
                      landscapeImageURL: landscapeImageURL(for: item, history: history, local: local),
                      overlayLabel: overlay,
+                     offeredName: offeredVersion?.name,
                      itemID: item.id,
                      video: video,
                      season: season,

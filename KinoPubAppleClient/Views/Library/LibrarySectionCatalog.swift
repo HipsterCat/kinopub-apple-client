@@ -413,7 +413,7 @@ final class LibrarySectionCatalog: ObservableObject, FilterBarDriver {
   /// «Недосмотренные › Фильмы») and unfinished series (`/v1/watching/serials?subscribed=0`)
   /// that are not in Subscriptions — those have their own section (Sasha, 2026-10-17).
   /// 16:9 title artwork (not the episode still), Select plays, subtitle is time remaining.
-  private nonisolated static func continueCards(using service: VideoContentService) async throws -> [MediaCard] {
+  nonisolated static func continueCards(using service: VideoContentService) async throws -> [MediaCard] {
     async let moviesTask = service.fetchWatchingMovies()
     async let unfinishedTask = service.fetchWatchingSerials(subscribedOnly: false)
     async let followedTask = service.fetchWatchingSerials(subscribedOnly: true)

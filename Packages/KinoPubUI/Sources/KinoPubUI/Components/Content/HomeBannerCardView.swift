@@ -12,6 +12,7 @@ import SwiftUI
 public struct HomeBannerCardView: View {
   private let card: MediaCard
   @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   public init(card: MediaCard) {
     self.card = card
@@ -25,8 +26,17 @@ public struct HomeBannerCardView: View {
           content(in: geo.size)
         }
       }
-      .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
+      .clipShape(RoundedRectangle(cornerRadius: phoneHero ? 0 : Self.cornerRadius, style: .continuous))
       .environment(\.colorScheme, .dark)
+  }
+
+  /// Phone: one full-width still, title and plot on it. A side poster left no room.
+  private var phoneHero: Bool {
+#if os(iOS)
+    horizontalSizeClass == .compact
+#else
+    false
+#endif
   }
 
   private func content(in size: CGSize) -> some View {
@@ -48,29 +58,32 @@ public struct HomeBannerCardView: View {
 
         VStack(alignment: .leading, spacing: Self.titleSpacing) {
           Text(card.title)
-            .font(Self.titleFont)
-//            .foregroundStyle(.primary).colorScheme(.dark)
+            .font(phoneHero ? .title2.weight(.semibold) : Self.titleFont)
             .lineLimit(3)
 
           if let subtitle = card.subtitle, !subtitle.isEmpty, subtitle != card.title {
             Text(subtitle)
               .font(Self.subtitleFont)
-//              .foregroundStyle(.secondary).colorScheme(.dark)
-              .lineLimit(1)
+              .lineLimit(2)
           }
 
-          // Detailed IMDb / KP scores stay beside the copy; the poster carries the
-          // compact aggregate badge so the still reads like a catalog lockup.
+          if phoneHero, let overview = card.overview, !overview.isEmpty {
+            Text(overview)
+              .font(Self.subtitleFont)
+              .lineLimit(3)
+          }
+
           if card.scores.hasDisplayableScore {
             MediaScoresView(card.scores)
               .font(Self.scoreFont)
-//              .foregroundStyle(.primary).colorScheme(.dark)
               .padding(.top, 8)
           }
 
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        if !phoneHero {
           poster(height: posterHeight)
+        }
 
       }
       .padding(Self.contentPadding)
@@ -175,9 +188,9 @@ public struct HomeBannerCardView: View {
   static let contentPadding: CGFloat = 28
   static let infoSpacing: CGFloat = 24
   static let titleSpacing: CGFloat = 8
-  static let titleFont: Font = .title2.weight(.semibold)
+  static let titleFont: Font = .title3.weight(.semibold)
   static let subtitleFont: Font = .subheadline
-  static let scoreFont: Font = .callout.weight(.medium)
+  static let scoreFont: Font = .callout.weight(.regular)
 #else
   static let cornerRadius: CGFloat = 14
   static let posterCornerRadius: CGFloat = 8

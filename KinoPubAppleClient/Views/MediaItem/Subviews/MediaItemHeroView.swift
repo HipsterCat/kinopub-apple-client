@@ -612,36 +612,65 @@ struct MediaItemHeroView: View {
   }
 
 #if !os(tvOS)
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  /// Phone: the band grows with the title, plot and buttons. A fixed 16:9 clipped
+  /// all of that into one short strip, and none of it was further up the scroll.
+  /// Wider canvases keep the 16:9 floor.
+  private var phoneHeroGrows: Bool {
+#if os(iOS)
+    horizontalSizeClass == .compact
+#else
+    false
+#endif
+  }
+
   /// 16:9 band — backdrop or clear fill, portrait poster top-trailing, chrome at the bottom.
   private var heroCanvas: some View {
-    Color.clear
-      .aspectRatio(16 / 9, contentMode: .fit)
-      .frame(maxWidth: .infinity)
-      .background {
-        ZStack {
-          scrollingBackdrop
-          if !usesAdaptivePosterHero {
-            scrollingScrim
-          }
-        }
-      }
-      .overlay {
-        GeometryReader { band in
-          ZStack(alignment: .topTrailing) {
-            if showsCornerPoster, let url = heroPosterURL {
-              cornerPosterImage(url: url, bandSize: band.size)
-                .padding(.top, Self.horizontalInset)
-                .padding(.trailing, Self.horizontalInset)
+    Group {
+      if phoneHeroGrows {
+        content
+          .safeAreaPadding(.top)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background {
+            ZStack {
+              scrollingBackdrop
+              if !usesAdaptivePosterHero {
+                scrollingScrim
+              }
             }
           }
-          .frame(width: band.size.width, height: band.size.height)
-        }
+      } else {
+        Color.clear
+          .aspectRatio(16 / 9, contentMode: .fit)
+          .frame(maxWidth: .infinity)
+          .background {
+            ZStack {
+              scrollingBackdrop
+              if !usesAdaptivePosterHero {
+                scrollingScrim
+              }
+            }
+          }
+          .overlay {
+            GeometryReader { band in
+              ZStack(alignment: .topTrailing) {
+                if showsCornerPoster, let url = heroPosterURL {
+                  cornerPosterImage(url: url, bandSize: band.size)
+                    .padding(.top, Self.horizontalInset)
+                    .padding(.trailing, Self.horizontalInset)
+                }
+              }
+              .frame(width: band.size.width, height: band.size.height)
+            }
+          }
+          .overlay {
+            content
+              .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          }
+          .clipped()
       }
-      .overlay {
-        content
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      }
-      .clipped()
+    }
   }
 #endif
 
@@ -1055,20 +1084,25 @@ struct MediaItemHeroView: View {
     return mediaItem.originalTitle != localized ? mediaItem.originalTitle : nil
   }
 
-  /// Heads the written column: the score, when and how long, then the capability
-  /// chips. Whatever is drawn here is the same component the posters wear — a title
-  /// scores the same wherever it is shown, so it should not be spelled two ways.
+  /// Heads the written column: the scores, when and how long, then the capability
+  /// chips. IMDb, Kinopoisk, TMDB — the ratings block's sources except kino.pub,
+  /// whose thumbs are not a rating. Kinopoisk with voters and no number is "?".
+  private var lineScores: MediaScores {
+    MediaScores(mediaItem).adding(tmdb: externalMetadata.tmdbRating,
+                                 tmdbVotes: externalMetadata.tmdbVotes)
+  }
+
   private var metadata: some View {
     HStack(spacing: Self.metaSpacing) {
          if FeatureFlags.combinedRatingEnabled {
-           if let rating = MediaScores(mediaItem).aggregate {
+           if let rating = lineScores.aggregate {
              RatingBadgeView(rating: rating)
-               MediaScoresView(MediaScores(mediaItem), deduplicateAgainstAggregate: true)
+               MediaScoresView(lineScores, deduplicateAgainstAggregate: true, detailLine: true)
 
            }
          } else {
            // No aggregate: each score keeps its own logo rather than becoming one number.
-           MediaScoresView(MediaScores(mediaItem))
+           MediaScoresView(lineScores, detailLine: true)
          }
          if !genreCountryLine.isEmpty {
            Text(genreCountryLine)

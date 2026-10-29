@@ -16,6 +16,8 @@ struct SectionsSettingsView: View {
   private var continueWatchingWeeks = ContinueWatchingOrder.Rules.defaultWeeks
   @AppStorage(ContinueWatchingPreferences.includesBookmarksKey)
   private var continueWatchingBookmarks = true
+  @AppStorage(FeatureFlag.homeBanner.defaultsKey)
+  private var homeBanner = true
 
   var body: some View {
     Form {
@@ -53,6 +55,7 @@ struct SectionsSettingsView: View {
 
       Section("Фильтры Главной") {
         Toggle("Без концертов на Главной", isOn: $store.excludeConcertsOnHome)
+        Toggle("Баннер на Главной", isOn: $homeBanner)
       }
 
       Section {

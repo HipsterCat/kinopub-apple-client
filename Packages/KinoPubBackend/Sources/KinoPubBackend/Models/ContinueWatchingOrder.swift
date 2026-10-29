@@ -118,7 +118,7 @@ public enum ContinueWatchingOrder {
   /// The newest reason the title belongs on the row, or nil when it does not.
   public static func reason(for candidate: Candidate, rules: Rules, now: Date = Date()) -> Reason? {
     func fresh(_ date: Date?) -> Date? {
-      guard let date, date <= now, now.timeIntervalSince(date) <= rules.window else { return nil }
+      guard let date, date.isOnOrBefore(now), now.timeIntervalSince(date) <= rules.window else { return nil }
       return date
     }
 
@@ -205,7 +205,7 @@ public enum ContinueWatchingOrder {
                                    knownAdds: [Int: Date] = [:]) -> [Int: Date] {
     var result: [Int: Date] = [:]
     func keep(_ id: Int, _ date: Date) {
-      if let existing = result[id], existing >= date { return }
+      if let existing = result[id], existing.isOnOrAfter(date) { return }
       result[id] = date
     }
     for folder in folders {
@@ -225,7 +225,7 @@ public enum ContinueWatchingOrder {
   public static func lastSeenByItemID(_ history: [HistoryEntry]) -> [Int: Date] {
     history.reduce(into: [Int: Date]()) { result, entry in
       guard let date = entry.lastSeenDate else { return }
-      if let existing = result[entry.item.id], existing >= date { return }
+      if let existing = result[entry.item.id], existing.isOnOrAfter(date) { return }
       result[entry.item.id] = date
     }
   }
@@ -234,7 +234,7 @@ public enum ContinueWatchingOrder {
   public static func positionByItemID(_ history: [HistoryEntry]) -> [Int: Double] {
     history.reduce(into: [Int: (date: Date, position: Double)]()) { result, entry in
       guard let date = entry.lastSeenDate, let time = entry.time else { return }
-      if let existing = result[entry.item.id], existing.date >= date { return }
+      if let existing = result[entry.item.id], existing.date.isOnOrAfter(date) { return }
       result[entry.item.id] = (date, time)
     }.mapValues(\.position)
   }

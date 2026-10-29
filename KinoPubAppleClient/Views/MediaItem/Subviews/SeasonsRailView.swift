@@ -245,9 +245,11 @@ struct SeasonsRailView: View {
   private var firstUnseen: RailEntry? {
     entries.first {
       guard case .playable(_, let episode, let schedule) = $0 else { return false }
-      return episode.watched == 0 && schedule?.isUpcoming != true
+      // Unwatched is `-1` on the payload, not `0`. Matching only zero sent a series
+      // nobody had started to its last episode.
+      return !episode.isWatched && schedule?.isUpcoming != true
     }
-    ?? entries.last { $0.isPlayable }
+    ?? entries.first { $0.isPlayable }
     ?? entries.first
   }
 
@@ -377,25 +379,6 @@ struct SeasonsRailView: View {
     return String(format: "MediaItem_SeasonSingle".localized, only.first)
   }
 
-  /// Where the rail stands and Down from the hero lands: the episode the hero's main
-  /// button plays. With everything kino.pub has watched and the next episode dated, the
-  /// last one watched — Replay's episode 1 is not what someone following a show is
-  /// after (Sasha, 2026-10-11).
-  private func openingEntry(in entries: [RailEntry]) -> RailEntry? {
-    let playable = entries.filter(\.isPlayable)
-    let allWatched = !playable.isEmpty && playable.allSatisfy {
-      if case .playable(_, let episode, _) = $0 { return episode.isWatched }
-      return false
-    }
-    if allWatched, awaitsNextEpisode, let last = playable.last {
-      return last
-    }
-    if let openingEpisodeID, let entry = entries.first(where: { $0.id == openingEpisodeID }) {
-      return entry
-    }
-    return firstUnseen
-  }
-
   /// Where picking a tab takes the rail: the season's first unfinished aired episode, else
   /// its first entry — a trailing card stands for itself.
   private static func entryByTab(_ entries: [RailEntry]) -> [Int: Int] {
@@ -510,11 +493,28 @@ struct SeasonsRailView: View {
             .id(Self.episodeAnchor(entry.id))
         }
       }
+      .scrollTargetLayout()
       .padding(.vertical, Metrics.landscapeFocusPadding)
     }
     // Content margins, not padding: `scrollTo(anchor: .leading)` would otherwise park
     // the first episode of a season under the page inset instead of beside it.
     .contentMargins(.horizontal, metrics.inset, for: .scrollContent)
+    .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in
+      guard !isScrollingFromTab else { return }
+      let visible = ids.compactMap { anchor -> RailEntry? in
+        guard let entryID = Self.episodeID(from: anchor) else { return nil }
+        return entries.first { $0.id == entryID }
+      }
+      guard let entry = visible.min(by: { lhs, rhs in
+        let left = entries.firstIndex { $0.id == lhs.id } ?? 0
+        let right = entries.firstIndex { $0.id == rhs.id } ?? 0
+        return left < right
+      }), entry.tabID != selectedTabID else { return }
+      selectedTabID = entry.tabID
+      if let season = seasons.first(where: { $0.id == entry.tabID }) {
+        onSeasonVisible?(season.number)
+      }
+    }
   }
 #endif
 
@@ -627,14 +627,43 @@ struct SeasonsRailView: View {
     }
   }
 
+  /// Where the rail stands and Down from the hero lands: the episode the hero's main
+  /// button plays. With everything kino.pub has watched and the next episode dated, the
+  /// last one watched — Replay's episode 1 is not what someone following a show is
+  /// after (Sasha, 2026-10-11).
+  private func openingEntry(in entries: [RailEntry]) -> RailEntry? {
+    let playable = entries.filter(\.isPlayable)
+    let allWatched = !playable.isEmpty && playable.allSatisfy {
+      if case .playable(_, let episode, _) = $0 { return episode.isWatched }
+      return false
+    }
+    if allWatched, awaitsNextEpisode, let last = playable.last {
+      return last
+    }
+    if let openingEpisodeID, let entry = entries.first(where: { $0.id == openingEpisodeID }) {
+      return entry
+    }
+    return firstUnseen
+  }
+
   private func scrollToFirstUnseen(proxy: ScrollViewProxy) async {
-    guard !didScrollToUnseen, let target = firstUnseen else { return }
+    guard !didScrollToUnseen, let target = openingEntry(in: entries) else { return }
     try? await Task.sleep(for: .milliseconds(120))
     guard !Task.isCancelled else { return }
     // Only now: bailing above must leave this false so a later payload gets its turn.
     didScrollToUnseen = true
-    // The specific resume episode, not just its season — see `seasonEntryEpisodeID`.
+    // The first episode is already where the rail opens. `scrollTo` would also drag
+    // the page down onto the episodes, and there is nothing to reveal.
+    guard target.id != entries.first?.id else {
+      selectedTabID = target.tabID
+      return
+    }
     selectTab(target.tabID, entryEpisodeID: target.id, proxy: proxy, animated: false)
+  }
+
+  private static func episodeID(from anchor: String) -> Int? {
+    guard anchor.hasPrefix("episode-") else { return nil }
+    return Int(anchor.dropFirst("episode-".count))
   }
 
   private func contextEntries(for episode: Episode, season: Season) -> [MediaCardContextEntry] {
@@ -967,9 +996,9 @@ struct VersionsRailView: View {
   /// False while the hero owns the page — the header stays out from under the artwork,
   /// the same rule the season tabs follow.
   var showsChrome: Bool = true
-  /// What the rail is called, and whether it is counted (`MediaPresentationProfile`).
+  /// What the rail is called (`MediaPresentationProfile`). The count, when there is
+  /// more than one, is part of that title — not a number beside it.
   var titleKey: String = "MediaItem_Versions"
-  var showsCount: Bool = true
   /// Where focus lands when it enters the rail, and where the rail parks — the hero's
   /// «+ ещё N» sets it to the first version that had no pill. Nil at rest, so the rail
   /// starts at the first version.
@@ -987,8 +1016,7 @@ struct VersionsRailView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       if showsChrome {
-        SectionHeader(LocalizedStringKey(titleKey),
-                      count: showsCount ? "\(variants.count)" : nil,
+        SectionHeader(title: videosRailHeading(titleKey: titleKey, count: variants.count),
                       leadingInset: metrics.inset)
           .transition(.opacity)
       }

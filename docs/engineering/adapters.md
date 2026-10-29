@@ -2,6 +2,11 @@
 
 Allowed to exist, one place each, the limitation in the type's doc comment. Rule: [AGENTS.md › Constraints are not requirements](../../AGENTS.md#constraints-are-not-requirements). An adapter that stops being needed gets deleted, not kept "in case"; re-probe each one on the next SDK or package major.
 
+- **`Date.isOnOrAfter` / `isOnOrBefore`** — `Date.>=` and `Date.<=` are weak-linked to a
+  Foundation overlay the compiler calls on any OS that reports 27.2. iPad OS 27.2 seed
+  24B5089g has no such symbol: the stub is null and the call lands at address 0
+  (launch crash in `ContinueWatchingOrder.lastSeenByItemID`, 2026-10-26). Ordering uses
+  the reference interval, which is the compiler's own fallback. Re-probe on the next SDK.
 - **`TVUIKitMediaItemMetrics`** — `orthogonalLayoutSectionForMediaItems()` exposes neither its group
   nor its item, so it cannot be resized. We measure what it produces per width and rebuild an
   equivalent section at our scale; Apple keeps owning the proportions.

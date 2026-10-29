@@ -20,6 +20,7 @@ struct MainView: View {
   @StateObject private var catalog: HomeCatalog
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
   @ObservedObject private var sectionStore = SectionVisibilityStore.shared
+  @AppStorage(FeatureFlag.homeBanner.defaultsKey) private var homeBannerEnabled = true
 
   /// Watch Now, Movies, or Series — same `MediaRowsView` stack of SwiftUI
   /// `Section(title) { rail }` shelves. On tvOS the rail is a TVUIKit representable;
@@ -73,6 +74,9 @@ struct MainView: View {
           if phase == .active {
             Task { await catalog.refreshContinueWatching() }
           }
+        }
+        .onChange(of: homeBannerEnabled) { _, _ in
+          catalog.applyHomeBannerVisibility()
         }
         .task {
           await cardMenu.refreshFolders()
@@ -186,7 +190,7 @@ struct MainView: View {
 
   private var pageSections: [TVPageSection] {
     var result: [TVPageSection] = []
-    if catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled && FeatureFlags.homeHeroCarouselEnabled {
+    if catalog.supportsHeroBanner && homeBannerEnabled && FeatureFlags.homeHeroCarouselEnabled {
       let features = catalog.bannerCards.isEmpty
         ? (0..<2).map { idx in
             TVPageFeature(card: MediaCard.placeholder(id: -201 - idx))
@@ -200,7 +204,7 @@ struct MainView: View {
                       next: "Hero.Next".localized,
                       noBookmarkFolders: "No bookmark folders yet".localized)
       )))
-    } else if catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled {
+    } else if catalog.supportsHeroBanner && homeBannerEnabled {
       let banner = catalog.bannerCards
       if !banner.isEmpty {
         result.append(.banner(id: Self.bannerSectionID, features: bannerFeatures))
@@ -219,8 +223,12 @@ struct MainView: View {
       if row.cards.first?.isLandscape == true {
         let columns = row.id == HomeCatalog.continueWatchingRowID ? Self.continueWatchingColumns : Self.stillColumns
         let caption: TVPageCaption = row.id == HomeCatalog.continueWatchingRowID ? .always : .onFocus
+        // Continue Watching: the runtime and the bar on the focused card only, as the
+        // player's small cards have them (Sasha, 2026-10-26).
         result.append(.stills(id: row.id, title: row.title, count: row.count, columns: columns,
-                              caption: caption, cards: row.cards))
+                              caption: caption,
+                              overlayOnFocus: row.id == HomeCatalog.continueWatchingRowID,
+                              cards: row.cards))
       } else {
         // Poster rails — Watch Now, Movies, Series alike — have no title or year under the art,
         // not even on focus (Sasha, 2026-10-06): that is `TVPageSection.posters`' own caption for
@@ -235,7 +243,7 @@ struct MainView: View {
     }
 
     if !insertedQuickPresets && !homeRows.isEmpty {
-      let insertIndex = min(result.count, (catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled) ? 1 : 0)
+      let insertIndex = min(result.count, (catalog.supportsHeroBanner && homeBannerEnabled) ? 1 : 0)
       result.insert(quickPresetsSection, at: insertIndex)
     }
 
@@ -474,9 +482,9 @@ struct MainView: View {
   private var rows: some View {
     MediaRowsView(
       rows: homeRows,
-      // Gated by `FeatureFlags.homeBannerEnabled`. When off, HomeCatalog also
+      // Gated by `homeBannerEnabled`. When off, HomeCatalog also
       // skips sampling so wide-poster artwork is never requested.
-      bannerCards: (catalog.supportsHeroBanner && FeatureFlags.homeBannerEnabled) ? catalog.bannerCards : [],
+      bannerCards: (catalog.supportsHeroBanner && homeBannerEnabled) ? catalog.bannerCards : [],
       navigationLinkProvider: { card in
         if card.opensCollection {
           Route.collection(CollectionMediaCard.routeCollection(from: card))
@@ -498,6 +506,7 @@ struct MainView: View {
       onRetryPagination: { row in
         catalog.retryPagination(rowID: row.id)
       },
+      onLoadMoreSections: catalog.hasMoreSections ? { catalog.loadMoreSections() } : nil,
       contextMenuProvider: { card, surface in
         guard !card.opensCollection else { return [] }
         return menuEntries(for: card, surface: surface, isContinueWatching: card.isLandscape)
@@ -505,16 +514,11 @@ struct MainView: View {
     )
   }
 
-  /// Continue Watching's "see all" is the Library tab, not a push: what the row shows
-  /// is the head of three lists that live there — series being watched, films being
-  /// watched, and history. Every other row's chevron still pushes its own grid, so the
-  /// destination stays on the row and only this one is attached here, where navigation
-  /// belongs. `HomeCatalog` keeps knowing nothing about tabs.
+  /// Each row's header already carries its own page (`HomeCatalog` sets `destination`).
+  /// Continue Watching included: a longer cut of the same ranking, not the Library tab
+  /// and not Catalog.
   private var homeRows: [MediaRow] {
-    catalog.rows.map { row in
-      guard row.id == HomeCatalog.continueWatchingRowID else { return row }
-      return row.opening { navigationState.selectedTab = .library }
-    }
+    catalog.rows
   }
 
   private func menuEntries(for card: MediaCard,

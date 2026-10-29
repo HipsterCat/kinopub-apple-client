@@ -9,8 +9,9 @@ mechanics are on `ContinueWatchingOrder` and `ContinueWatchingLocalOverlay`.
 
 ## What the row is for
 
-**prd** — It is "carry on with what you were doing", not the watching list. The whole watching list
-is the Library tab, which is where the row's header chevron goes.
+**prd** — It is "carry on with what you were doing", not the watching list. On iPhone, iPad and
+Mac the row's header opens a longer cut of this same ranking on its own page. It does not switch
+to the Library tab or to Catalog. On tvOS the header has no chevron.
 
 **prd** — It is capped (`ContinueWatchingOrder.maxItems`). `/v1/watching/serials` returns every
 unfinished serial on the account — hundreds, for a long-lived one — and past the first screen that

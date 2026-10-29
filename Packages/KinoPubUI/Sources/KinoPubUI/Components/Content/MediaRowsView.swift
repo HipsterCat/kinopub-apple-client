@@ -16,9 +16,7 @@ public struct MediaRow: Identifiable {
   /// Where the title leads: the same content as a full screen. Nil leaves the title
   /// as plain text, for rows that have no page of their own.
   public let destination: (any Hashable)?
-  /// For a row whose "see all" is not a push at all — Continue Watching sends the user
-  /// to the Library tab, where the same titles live split into series, movies and
-  /// history. Set this *or* `destination`, never both.
+  /// A "see all" that is not a push. Set this *or* `destination`, never both.
   public let onOpen: (() -> Void)?
 
   public init(id: String,
@@ -61,6 +59,8 @@ public struct MediaRowsView: View {
   /// it mid-scroll.
   private let paginationProvider: ((MediaRow) -> PaginationState)?
   private let onRetryPagination: ((MediaRow) -> Void)?
+  /// More titled shelves exist below the ones on screen. Nil when the page has them all.
+  private let onLoadMoreSections: (() -> Void)?
   /// Long-press menu for a card. Return an empty array to leave the card without one.
   /// `surface` distinguishes shelf lockups from featured banners (artwork URL, etc.).
   private let contextMenuProvider: ((MediaCard, MediaCardContextSurface) -> [MediaCardContextEntry])?
@@ -87,6 +87,7 @@ public struct MediaRowsView: View {
               onLoadMore: ((MediaRow, MediaCard) -> Void)? = nil,
               paginationProvider: ((MediaRow) -> PaginationState)? = nil,
               onRetryPagination: ((MediaRow) -> Void)? = nil,
+              onLoadMoreSections: (() -> Void)? = nil,
               contextMenuProvider: ((MediaCard, MediaCardContextSurface) -> [MediaCardContextEntry])? = nil) {
     self.rows = rows
     self.bannerCards = bannerCards
@@ -96,6 +97,7 @@ public struct MediaRowsView: View {
     self.onLoadMore = onLoadMore
     self.paginationProvider = paginationProvider
     self.onRetryPagination = onRetryPagination
+    self.onLoadMoreSections = onLoadMoreSections
     self.contextMenuProvider = contextMenuProvider
   }
 
@@ -168,8 +170,6 @@ public struct MediaRowsView: View {
     }
 #if os(tvOS)
     .scrollClipDisabled()
-#else
-    .scrollEdgeEffectStyle(.soft, for: .top)
 #endif
   }
 
@@ -198,6 +198,18 @@ public struct MediaRowsView: View {
 
     ForEach(rows) { row in
       section(for: row)
+    }
+
+    if let onLoadMoreSections {
+      Button(action: onLoadMoreSections) {
+        Label("Показать ещё секции", systemImage: "plus.circle")
+          .font(TypeScale.cardMeta)
+      }
+      .buttonStyle(.glass)
+      .controlSize(.large)
+      .frame(maxWidth: .infinity)
+      .padding(.horizontal, ShelfMetrics.posters(width: containerWidth, typeSize: typeSize).inset)
+      .padding(.top, 8)
     }
   }
 
