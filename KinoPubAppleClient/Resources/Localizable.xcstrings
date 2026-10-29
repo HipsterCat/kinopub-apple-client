@@ -1,297 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Everything" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Всё"
-          }
-        }
-      }
-    },
-    "Clear everything" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Очистить всё"
-          }
-        }
-      }
-    },
-    "Clear everything?" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Очистить всё?"
-          }
-        }
-      }
-    },
-    "On this device" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "На устройстве"
-          }
-        }
-      }
-    },
-    "Within the limit" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "В пределах лимита"
-          }
-        }
-      }
-    },
-    "At the limit" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "У лимита"
-          }
-        }
-      }
-    },
-    "Within disk space" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "В пределах диска"
-          }
-        }
-      }
-    },
-    "Limit" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Лимит"
-          }
-        }
-      }
-    },
-    "Logos" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Логотипы"
-          }
-        }
-      }
-    },
-    "Backdrops" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Фоны"
-          }
-        }
-      }
-    },
-    "Stills" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кадры"
-          }
-        }
-      }
-    },
-    "Cast photos" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Фото актёров"
-          }
-        }
-      }
-    },
-    "Other pictures" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Другие картинки"
-          }
-        }
-      }
-    },
-    "Also on disk" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ещё на диске"
-          }
-        }
-      }
-    },
-    "Catalog rows" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ряды каталога"
-          }
-        }
-      }
-    },
-    "Title records" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Карточки тайтлов"
-          }
-        }
-      }
-    },
-    "TMDB matches" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Совпадения TMDB"
-          }
-        }
-      }
-    },
-    "TMDB titles" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Карточки TMDB"
-          }
-        }
-      }
-    },
-    "TMDB seasons" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сезоны TMDB"
-          }
-        }
-      }
-    },
-    "TMDB people" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Люди TMDB"
-          }
-        }
-      }
-    },
-    "Kinopoisk titles" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Карточки Кинопоиска"
-          }
-        }
-      }
-    },
-    "Kinopoisk cast" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Съёмочная группа"
-          }
-        }
-      }
-    },
-    "Kinopoisk awards" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Награды Кинопоиска"
-          }
-        }
-      }
-    },
-    "Kinopoisk images" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Изображения Кинопоиска"
-          }
-        }
-      }
-    },
-    "Kinopoisk facts" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Факты Кинопоиска"
-          }
-        }
-      }
-    },
-    "Kinopoisk reviews" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Рецензии Кинопоиска"
-          }
-        }
-      }
-    },
-    "Proxy cast" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Съёмочная группа прокси"
-          }
-        }
-      }
-    },
-    "Kinopoisk proxy" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Прокси Кинопоиска"
-          }
-        }
-      }
-    },
-    "Other metadata" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Другие метаданные"
-          }
-        }
-      }
-    },
-
     "" : {
       "localizations" : {
         "en" : {
@@ -439,6 +148,18 @@
     },
     "%@ will be signed out and can't stream until it's activated again." : {
 
+    },
+    "%@, %@, %@ %@, %@ %@" : {
+      "comment" : "A description of the storage donut chart, including the amount of used storage, the limit, and the free space.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$@ %4$@, %5$@ %6$@"
+          }
+        }
+      }
     },
     "%lld" : {
       "localizations" : {
@@ -995,6 +716,16 @@
       "comment" : "A heading for the list of all roles on a specific material.",
       "isCommentAutoGenerated" : true
     },
+    "Also on disk" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё на диске"
+          }
+        }
+      }
+    },
     "Always" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1305,6 +1036,16 @@
       "comment" : "A description of the settings pane.",
       "isCommentAutoGenerated" : true
     },
+    "At the limit" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У лимита"
+          }
+        }
+      }
+    },
     "Audio" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1576,6 +1317,16 @@
       "comment" : "The backdrop of the preview.",
       "isCommentAutoGenerated" : true
     },
+    "Backdrops" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фоны"
+          }
+        }
+      }
+    },
     "Backups" : {
       "comment" : "Display name for the backup settings category.",
       "isCommentAutoGenerated" : true
@@ -1601,6 +1352,10 @@
     },
     "Bearer token for POST /admin/* on the metadata worker. Stored in Keychain on this device." : {
       "comment" : "A description of the bearer token for the metadata worker.",
+      "isCommentAutoGenerated" : true
+    },
+    "Bearer token for POST /admin/* on the metadata worker. Stored in Keychain on this device. When set, the detail page toolbar shows an info button before ⋯." : {
+      "comment" : "A description of the TMDB proxy admin token.",
       "isCommentAutoGenerated" : true
     },
     "Below the lowest acceptable dub, the original is played with subtitles instead. Preferred languages follow the system until an app setting overrides them." : {
@@ -1796,6 +1551,10 @@
         }
       }
     },
+    "Bytes" : {
+      "comment" : "The label in the center of the donut chart.",
+      "isCommentAutoGenerated" : true
+    },
     "Cached rows paint Home and Library instantly on a cold start. Clearing forces the next launch to refetch from the network." : {
       "comment" : "The description of the row cache section in the storage settings view.",
       "isCommentAutoGenerated" : true,
@@ -1865,6 +1624,16 @@
         }
       }
     },
+    "Cast photos" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фото актёров"
+          }
+        }
+      }
+    },
     "Catalog" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1878,6 +1647,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Каталог"
+          }
+        }
+      }
+    },
+    "Catalog rows" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ряды каталога"
           }
         }
       }
@@ -2022,6 +1801,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Стереть каталог?"
+          }
+        }
+      }
+    },
+    "Clear everything" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить всё"
+          }
+        }
+      }
+    },
+    "Clear everything?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить всё?"
           }
         }
       }
@@ -3147,6 +2948,17 @@
     },
     "Every row below is a real TVUIKit view, bare. No custom scale, highlight, shadow, or focus code anywhere on this page — whatever motion and chrome you see is entirely system-owned." : {
 
+    },
+    "Everything" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всё"
+          }
+        }
+      }
     },
     "Expect: %@" : {
       "comment" : "A label that shows what the product expects from the player.",
@@ -5218,6 +5030,76 @@
         }
       }
     },
+    "Kinopoisk awards" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Награды Кинопоиска"
+          }
+        }
+      }
+    },
+    "Kinopoisk cast" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Съёмочная группа"
+          }
+        }
+      }
+    },
+    "Kinopoisk facts" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Факты Кинопоиска"
+          }
+        }
+      }
+    },
+    "Kinopoisk images" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изображения Кинопоиска"
+          }
+        }
+      }
+    },
+    "Kinopoisk proxy" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прокси Кинопоиска"
+          }
+        }
+      }
+    },
+    "Kinopoisk reviews" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рецензии Кинопоиска"
+          }
+        }
+      }
+    },
+    "Kinopoisk titles" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карточки Кинопоиска"
+          }
+        }
+      }
+    },
     "Kinopoisk Unofficial API" : {
       "localizations" : {
         "ru" : {
@@ -5696,6 +5578,16 @@
         }
       }
     },
+    "Limit" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лимит"
+          }
+        }
+      }
+    },
     "Loading %@" : {
       "comment" : "Page status while a tab has nothing cached: the tab name follows",
       "extractionState" : "manual",
@@ -5731,6 +5623,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Локальный кеш этого тайтла сброшен."
+          }
+        }
+      }
+    },
+    "Logos" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Логотипы"
           }
         }
       }
@@ -6967,6 +6869,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Следующая серия"
+          }
+        }
+      }
+    },
+    "MediaItem_NoRatings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No ratings"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценок нет"
           }
         }
       }
@@ -8225,6 +8144,74 @@
         }
       }
     },
+    "MediaItem_UnitVersionFew" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "versions"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "версии"
+          }
+        }
+      }
+    },
+    "MediaItem_UnitVersionMany" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "versions"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "версий"
+          }
+        }
+      }
+    },
+    "MediaItem_UnitVersionOne" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "version"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "версия"
+          }
+        }
+      }
+    },
+    "MediaItem_UnitVideo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "videos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "видео"
+          }
+        }
+      }
+    },
     "MediaItem_UntitledTrack" : {
       "comment" : "A song of a setlist that kino.pub could not name.",
       "extractionState" : "manual",
@@ -8414,19 +8401,70 @@
         }
       }
     },
+    "MediaItem_VoteCastBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kino.pub won't let you change it. That's why it isn't counted in the combined score."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кинопаб не даёт её изменить. Поэтому она не учитывается в общей оценке."
+          }
+        }
+      }
+    },
+    "MediaItem_VoteCastTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rating saved"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценка поставлена"
+          }
+        }
+      }
+    },
     "MediaItem_VoteChoice" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rate this title"
+            "value" : "Want to rate?"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Оцените фильм"
+            "value" : "Хотите оценить?"
+          }
+        }
+      }
+    },
+    "MediaItem_VoteLocked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You won't be able to change it. kino.pub doesn't allow that, so it isn't part of the combined score."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поменять будет нельзя. Кинопаб этого не разрешает, поэтому оценка не входит в общую."
           }
         }
       }
@@ -9325,6 +9363,16 @@
         }
       }
     },
+    "On this device" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На устройстве"
+          }
+        }
+      }
+    },
     "On-device translation is not available on this platform." : {
       "comment" : "A message displayed when on-device translation is not available.",
       "isCommentAutoGenerated" : true
@@ -9404,6 +9452,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Прочее"
+          }
+        }
+      }
+    },
+    "Other metadata" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другие метаданные"
+          }
+        }
+      }
+    },
+    "Other pictures" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другие картинки"
           }
         }
       }
@@ -9846,6 +9914,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Полоса прогресса"
+          }
+        }
+      }
+    },
+    "Proxy cast" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Съёмочная группа прокси"
           }
         }
       }
@@ -11655,6 +11733,16 @@
         }
       }
     },
+    "Stills" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кадры"
+          }
+        }
+      }
+    },
     "Stop Tracking" : {
       "comment" : "Context menu: stop following a series.",
       "extractionState" : "manual",
@@ -11933,6 +12021,16 @@
       "comment" : "A description of the stats of a TMDB image.",
       "isCommentAutoGenerated" : true
     },
+    "Title records" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карточки тайтлов"
+          }
+        }
+      }
+    },
     "TMDB" : {
       "comment" : "The name of the TMDB website.",
       "isCommentAutoGenerated" : true
@@ -11956,6 +12054,50 @@
     "TMDB enrichment" : {
       "comment" : "A toggle that enables or disables TMDB data enrichment.",
       "isCommentAutoGenerated" : true
+    },
+    "TMDB matches" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Совпадения TMDB"
+          }
+        }
+      }
+    },
+    "TMDB people" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Люди TMDB"
+          }
+        }
+      }
+    },
+    "TMDB proxy admin" : {
+      "comment" : "A section for configuring the TMDB proxy admin.",
+      "isCommentAutoGenerated" : true
+    },
+    "TMDB seasons" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сезоны TMDB"
+          }
+        }
+      }
+    },
+    "TMDB titles" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карточки TMDB"
+          }
+        }
+      }
     },
     "to %lld" : {
       "comment" : "Years chip: only an upper bound",
@@ -12876,7 +13018,30 @@
       "comment" : "A section in the settings pane that allows the user to change the window's position.",
       "isCommentAutoGenerated" : true
     },
+    "Within disk space" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В пределах диска"
+          }
+        }
+      }
+    },
+    "Within the limit" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В пределах лимита"
+          }
+        }
+      }
+    },
     "Worker admin token" : {
+
+    },
+    "Worker image admin" : {
 
     },
     "Worker images" : {
@@ -12896,6 +13061,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "В TMDB среди backdrops часто кадры с надписями и логотипами — для чистого героя выбирай широкий кадр без текста."
+          }
+        }
+      }
+    },
+    "WorkerAdmin_BackdropUndNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backdrop is always UND — textless wide art; the worker ignores language."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backdrop всегда UND — широкий кадр без текста; язык воркер не смотрит."
           }
         }
       }
@@ -12947,40 +13129,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "В TMDB нет %@ для этого тайтла."
-          }
-        }
-      }
-    },
-    "WorkerAdmin_NoServingURL" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not resolve a final image URL yet — try Re-probe on the home screen."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Финальный URL пока не получен — на главном экране панели нажми Re-probe."
-          }
-        }
-      }
-    },
-    "WorkerAdmin_BackdropUndNote" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Backdrop is always UND — textless wide art; the worker ignores language."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Backdrop всегда UND — широкий кадр без текста; язык воркер не смотрит."
           }
         }
       }
@@ -13070,6 +13218,23 @@
         }
       }
     },
+    "WorkerAdmin_NoServingURL" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not resolve a final image URL yet — try Re-probe on the home screen."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Финальный URL пока не получен — на главном экране панели нажми Re-probe."
+          }
+        }
+      }
+    },
     "WorkerAdmin_NoToken" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13087,23 +13252,6 @@
         }
       }
     },
-    "WorkerAdmin_PickLogoSaved" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pinned for this language. Pick the other language too if you need both RU and EN wordmarks."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Закреплено для этого языка. Выбери второй язык отдельно, если нужны и RU, и EN wordmark."
-          }
-        }
-      }
-    },
     "WorkerAdmin_Pick" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13117,6 +13265,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Выбрать для тайтла"
+          }
+        }
+      }
+    },
+    "WorkerAdmin_PickLogoSaved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned for this language. Pick the other language too if you need both RU and EN wordmarks."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закреплено для этого языка. Выбери второй язык отдельно, если нужны и RU, и EN wordmark."
           }
         }
       }
@@ -13394,7 +13559,13 @@
         }
       }
     },
+    "Баннер на Главной" : {
+
+    },
     "Без концертов на Главной" : {
+
+    },
+    "Вкладки (Табы)" : {
 
     },
     "Вкладки верхнего меню (Табы)" : {
@@ -13403,13 +13574,25 @@
     "Вкладки и Главная" : {
 
     },
+    "Включение, отключение и порядок вкладок верхнего меню и боковой панели." : {
+
+    },
+    "Добавлять закладки" : {
+
+    },
     "Настройка видимости и порядка вкладок верхнего меню и секций Главной страницы." : {
+
+    },
+    "Продолжить просмотр" : {
 
     },
     "Сброс" : {
 
     },
     "Сбросить вкладки и секции по умолчанию" : {
+
+    },
+    "Сбросить по умолчанию" : {
 
     },
     "Секции Главной (Watch Now)" : {
@@ -13421,7 +13604,13 @@
     "Секции Фильмов (Movies)" : {
 
     },
+    "Сколько недель учитывать" : {
+
+    },
     "Фильтры Главной" : {
+
+    },
+    "Что не смотрели, не обновлялось и не добавлялось в закладки столько недель, в ряд не попадает. Закладки — по дате добавления, не больше четырёх." : {
 
     }
   },

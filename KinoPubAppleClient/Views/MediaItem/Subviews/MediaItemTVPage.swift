@@ -27,7 +27,6 @@ struct MediaItemTVPage: View {
   @State private var revealedFacts: Set<String> = []
   @State private var popup: Popup?
   @State private var showsGallery = false
-  @State private var showsVoteChoice = false
 
   /// What the info popup holds. Content comes from the model at the moment of the tap, so
   /// a popup is only the id of the thing that was selected.
@@ -48,6 +47,7 @@ struct MediaItemTVPage: View {
           metadata: model.externalMetadata,
           likeCount: model.likeCount,
           dislikeCount: model.dislikeCount,
+          myVote: model.myVote,
           relatedRows: model.relatedRows,
           authorGroup: model.authorGroup,
           castGroup: model.castGroup,
@@ -86,11 +86,6 @@ struct MediaItemTVPage: View {
     .fullScreenCover(isPresented: $showsGallery) {
       StillsGallery(stills: model.externalMetadata.stills)
     }
-    .confirmationDialog("MediaItem_VoteChoice".localized, isPresented: $showsVoteChoice, titleVisibility: .visible) {
-      Button("Like".localized) { model.vote(up: true) }
-      Button("Dislike".localized) { model.vote(up: false) }
-      Button("Cancel".localized, role: .cancel) {}
-    }
   }
 
   // MARK: - Select
@@ -120,8 +115,8 @@ struct MediaItemTVPage: View {
     switch card {
     case .rating(let rating):
       // kino.pub's own score is the one the viewer can add to — once: votes are one-shot.
-      if rating.id == MediaItemTVSections.ID.kinoPubScore, model.myVote == .none {
-        showsVoteChoice = true
+      if rating.id == MediaItemTVSections.ID.kinoPubScore {
+        model.askToVote()
       }
 
     case .reviews:

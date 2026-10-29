@@ -426,6 +426,8 @@ final class TVPageHeroCell: UICollectionViewCell {
     // line carries it, as it does the plot.
     chrome.textColor = UIColor(white: 1, alpha: 0.88)
     chrome.vibranceEnabled = false
+    chrome.scoreIconHeight = MediaScoresView.lineIconHeight
+    chrome.scoreMark = .line
     return chrome
   }()
 

@@ -288,6 +288,7 @@ extension TVPageInfoCard {
   func width(inColumn columnWidth: CGFloat) -> CGFloat {
     switch self {
     case .reviews(let reviews): return max(columnWidth, TVPageReviewsContent.fittingWidth(for: reviews))
+    case .rating: return max(columnWidth + TVPageRatingContent.extraWidth, TVPageRatingContent.fittingWidth)
     default: return columnWidth
     }
   }

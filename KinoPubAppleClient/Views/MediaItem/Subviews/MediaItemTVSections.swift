@@ -38,6 +38,8 @@ enum MediaItemTVSections {
     var metadata: TitleMetadata = TitleMetadata()
     var likeCount: Int = 0
     var dislikeCount: Int = 0
+    /// The viewer's own thumb, so the kino.pub card can fill the one they cast.
+    var myVote: MediaItemUserVote = .none
     /// `MediaItemModel.relatedRows`: Similar first, then the people's, collections' and
     /// genre shelves.
     var relatedRows: [MediaRow] = []
@@ -157,18 +159,38 @@ enum MediaItemTVSections {
 
   static func rating(_ score: RatingSources.Score, _ input: Input) -> TVPageInfoCard.Rating {
     let isKinoPub = score.logo == .kinopub
+    if score.isPlaceholder {
+      // kino.pub's empty card is the vote. Outline thumbs at 0 say what the card is;
+      // the other sources have no thumbs, so the caption says there is nothing yet.
+      let thumbs: TVPageInfoCard.Rating.Thumbs? = isKinoPub
+        ? .init(up: 0.formatted(.number.grouping(.automatic)),
+                down: 0.formatted(.number.grouping(.automatic)))
+        : nil
+      return TVPageInfoCard.Rating(id: score.id, source: score.logo, title: score.id,
+                                   value: nil,
+                                   caption: thumbs == nil ? "MediaItem_NoRatings".localized : nil,
+                                   thumbs: thumbs,
+                                   hidesNumber: true)
+    }
     var caption: String?
     var thumbs: TVPageInfoCard.Rating.Thumbs?
     if isKinoPub, input.likeCount + input.dislikeCount > 0 {
+      let mark: TVPageInfoCard.Rating.Thumbs.Mark
+      switch input.myVote {
+      case .up: mark = .up
+      case .down: mark = .down
+      case .none: mark = .none
+      }
       thumbs = .init(up: input.likeCount.formatted(.number.grouping(.automatic)),
-                     down: input.dislikeCount.formatted(.number.grouping(.automatic)))
+                     down: input.dislikeCount.formatted(.number.grouping(.automatic)),
+                     mark: mark)
     } else if let votes = score.votes, votes > 0 {
       caption = "\(votes.formatted(.number.grouping(.automatic))) \(ratingsUnit(votes))"
     }
     // Voters but no score yet ("not enough ratings"): no number, and the card says how many voted.
     return TVPageInfoCard.Rating(id: score.id, source: score.logo, title: score.id,
                                  value: score.value == nil ? nil : score.display,
-                                 caption: caption, thumbs: thumbs)
+                                 caption: caption, thumbs: thumbs, faint: score.drawsFaint)
   }
 
   private static func ratingsUnit(_ count: Int) -> String {

@@ -547,6 +547,9 @@ public struct TVPageSection: Identifiable, Hashable {
   /// Genre ids this section already is, so a cover's caption names the next one
   /// instead of «Документальный» / «Аниме» / «Мультфильм» on every poster.
   public let omittedCaptionGenreIDs: Set<String>
+  /// A still's runtime and progress bar show on the focused tile only — Continue Watching,
+  /// like the player's small cards (Sasha, 2026-10-26).
+  public let overlayOnFocus: Bool
 
   public init(id: String,
               title: String?,
@@ -562,6 +565,7 @@ public struct TVPageSection: Identifiable, Hashable {
               groups: [TVPageGroup] = [],
               headerActions: [TVPageChip] = [],
               omittedCaptionGenreIDs: Set<String> = [],
+              overlayOnFocus: Bool = false,
               items: [TVPageItem]) {
     self.id = id
     self.title = title
@@ -577,6 +581,7 @@ public struct TVPageSection: Identifiable, Hashable {
     self.groups = groups
     self.headerActions = headerActions
     self.omittedCaptionGenreIDs = omittedCaptionGenreIDs
+    self.overlayOnFocus = overlayOnFocus
     self.items = items
   }
 
@@ -642,10 +647,12 @@ public struct TVPageSection: Identifiable, Hashable {
                             caption: TVPageCaption = .onFocus,
                             loadsMore: Bool = false,
                             headerActions: [TVPageChip] = [],
+                            overlayOnFocus: Bool = false,
                             cards: [MediaCard]) -> TVPageSection {
     TVPageSection(id: id, title: title, count: count, kind: .still, flow: flow,
                   columns: columns, caption: caption, loadsMore: loadsMore,
-                  headerActions: headerActions, items: cards.map(TVPageItem.card))
+                  headerActions: headerActions, overlayOnFocus: overlayOnFocus,
+                  items: cards.map(TVPageItem.card))
   }
 
   public static func people(id: String,
@@ -732,7 +739,8 @@ public struct TVPageSection: Identifiable, Hashable {
     TVPageSection(id: id, title: title, count: count, kind: kind, flow: flow, columns: columns,
                   caption: caption, rows: rows, match: match, loadsMore: loadsMore,
                   showsRating: showsRating, groups: groups, headerActions: actions,
-                  omittedCaptionGenreIDs: omittedCaptionGenreIDs, items: items)
+                  omittedCaptionGenreIDs: omittedCaptionGenreIDs, overlayOnFocus: overlayOnFocus,
+                  items: items)
   }
 
   /// The same section with `count` skeleton tiles after its items.
@@ -740,7 +748,7 @@ public struct TVPageSection: Identifiable, Hashable {
     TVPageSection(id: id, title: title, count: self.count, kind: kind, flow: flow, columns: columns,
                   caption: caption, rows: rows, match: match, loadsMore: loadsMore,
                   showsRating: showsRating, groups: groups, headerActions: headerActions,
-                  omittedCaptionGenreIDs: omittedCaptionGenreIDs,
+                  omittedCaptionGenreIDs: omittedCaptionGenreIDs, overlayOnFocus: overlayOnFocus,
                   items: items + (0..<count).map(TVPageItem.placeholder))
   }
 
@@ -769,7 +777,8 @@ public struct TVPageSection: Identifiable, Hashable {
     return TVPageSection(id: id, title: title, count: count, kind: kind, flow: flow, columns: columns,
                          caption: caption, rows: rows, match: match, loadsMore: loadsMore,
                          showsRating: showsRating, groups: groups, headerActions: headerActions,
-                         omittedCaptionGenreIDs: omittedCaptionGenreIDs, items: kept)
+                         omittedCaptionGenreIDs: omittedCaptionGenreIDs, overlayOnFocus: overlayOnFocus,
+                         items: kept)
   }
 
   /// The cell registration this item dequeues. Stable for a given item in a given

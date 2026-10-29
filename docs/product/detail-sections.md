@@ -67,10 +67,29 @@ next group's title taking its place. It does not slide off to the left with the 
 **prd — Ratings (Sasha, 2026-10-11).** One card per source that has something to say — IMDb,
 Kinopoisk, TMDB, kino.pub — kept small: **the source's mark before the number**, 16 pt apart, on one
 line, and how many people stand behind it under them. The number is title2, rounded, medium; the
-count is caption2, regular. No source's name is written beside its mark. The card is as tall as
+count is caption2, regular. TMDB is printed as a percentage, the way its own site writes the
+audience score (`75%`); IMDb and Kinopoisk stay one decimal. The percent sign is the same
+character, smaller than the digits (Sasha, 2026-10-26). **kino.pub's thumbs are not an input
+to the aggregate** (Sasha, 2026-10-26): a thumb cannot be changed, so a misclick is not a
+rating. The card stays, last. `0%` is written as `0%`. Five voters or fewer — TMDB or
+kino.pub — print the number in secondary ink. The line under the synopsis uses the same
+order as the cards, biggest audience first. A published score stays, including a small
+one beside a large one. A "?" is left off only when two published scores already outvote
+it by about a hundred to one. Kinopoisk with voters but no score is a secondary "?".
+kino.pub is not on that line. The marks there are the 32 pt colour drawings
+(`imdb_small_color`, `kp_small_colorful`, `tmdb_small_color`), each at the
+width of its file. The home hero uses the same drawings (Sasha, 2026-10-26). No source's name is written beside its mark. The card is as tall as
 those two lines (168 pt at the default text size), not as tall as a review's card (276), and sits
 at the top of the row beside it. kino.pub's score is thumbs, so under its percentage it shows how
-many of each. A source with voters but no score yet (Kinopoisk's «недостаточно оценок») prints a
+many of each. Both thumbs are outline and secondary until the viewer has voted; the one they
+cast fills green (up) or red (down), the count beside it is the text colour, and the other stays
+an outline (Sasha, 2026-10-26). Choosing it asks “Want to rate?” first. The buttons carry the
+thumbs, and the message says the vote cannot be changed, which is why it is not in the combined
+score. The vote itself is a toast. Selecting the card again is the reminder that it
+cannot be changed. A source whose page is already
+known — an IMDb, Kinopoisk or TMDB id, and kino.pub on every title — keeps its card before
+anyone has rated it: the mark alone, and «No ratings» under it. kino.pub's empty card shows
+the two outline thumbs at 0, because that card is the vote (Sasha, 2026-10-26). A source with voters but no score yet (Kinopoisk's «недостаточно оценок») prints a
 **dash in secondary ink in place of the number** and still writes how many voted — it does not say
 "not enough ratings".
 
@@ -78,8 +97,8 @@ many of each. A source with voters but no score yet (Kinopoisk's «недост�
 page**. The last card of the scores' row — **the same height and style as a score**, a little wider
 because it carries two things — says how many there are and how they were meant: the speech bubbles
 before the total (a score's mark before its number), the title «Отзывы» under them, and on the right
-a face and a count for each tone — **green smiling** (positive), **red frowning** (negative), **grey
-straight-mouthed** (neutral). The total is the source's (the proxy pages its reviews, so it is more
+a face and a count for each tone that has any — **green smiling** (positive), **red frowning** (negative), **grey
+straight-mouthed** (neutral), largest first, zeros absent. When every review shares one reaction, that face replaces the speech bubbles. The total is the source's (the proxy pages its reviews, so it is more
 than the page carries), the tones are from its summary or, with none, tallied from the reviews we
 hold; nothing to count, no card. **Select opens a page of their own**: the review cards, three
 across, under the same count in the header, and Select on one reads it whole in the shared info

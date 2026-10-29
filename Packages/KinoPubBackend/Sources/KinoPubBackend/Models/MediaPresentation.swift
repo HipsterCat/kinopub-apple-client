@@ -101,11 +101,19 @@ public struct MediaPresentationProfile: Equatable, Sendable {
     authorRole == .creator ? "MediaItem_CreatorRole" : "Director"
   }
 
-  /// The rail of a title's several videos. A concert's are the show and its songs, not
-  /// versions of one thing: «Видео», with no count beside it — the rail is right there to
-  /// count (Sasha, 2026-10-25). A film's are versions, counted.
+  /// The rail of a title's several videos. A concert's are the show and its songs
+  /// («4 видео», and just «Видео» when there is one). A film's are versions, said the
+  /// same way («2 версии», «Версии» when there is one). The number is part of the
+  /// title; the separate count beside it is off for now (Sasha, 2026-10-26).
   public var videosRailTitleKey: String { kind == .concert ? "MediaItem_Videos" : "MediaItem_Versions" }
-  public var countsVideosRail: Bool { kind != .concert }
+
+  /// The title as one line on a card. kino.pub writes a concert «Artist / Show», which the
+  /// bilingual split reads as a Russian and an original title: on a card that is the artist
+  /// and the show, joined with an en dash — «VA – Back to the Beginning» (Sasha, 2026-10-26).
+  public func cardTitle(localized: String, original: String) -> String {
+    guard kind == .concert, !original.isEmpty, original != localized else { return localized }
+    return "\(localized) – \(original)"
+  }
 
   /// Whether kino.pub's `tracklist` is a setlist. Only a concert's is: a film or a series
   /// sends the field too, with its audio tracks in it.

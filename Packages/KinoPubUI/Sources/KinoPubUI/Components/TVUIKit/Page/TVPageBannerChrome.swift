@@ -175,6 +175,9 @@ public struct TVPageBannerChrome: Sendable {
   /// Rating-mark height. `nil` uses the caption font's cap height, so the mark
   /// sits on the digits.
   public var scoreIconHeight: CGFloat? = nil
+  /// Which drawing. The home hero uses `.line`, the same 32 pt marks as the
+  /// synopsis line.
+  public var scoreMark: MediaScoreLogo.Style = .color
   /// Whether to display voter turnout in parentheses after the rating: `(12K)`.
   public var showsRatingVotes: Bool = false
   /// Maximum number of rating badges in the banner meta row (default 2).

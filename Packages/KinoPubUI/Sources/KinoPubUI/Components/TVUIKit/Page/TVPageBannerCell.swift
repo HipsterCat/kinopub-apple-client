@@ -525,7 +525,7 @@ final class TVPageBannerCell: UICollectionViewCell {
       )
 
       for item in scoreItems {
-        guard let mark = Self.scoreLogo(item.source, height: iconHeight) else { continue }
+        guard let mark = Self.scoreLogo(item.source, height: iconHeight, style: chrome.scoreMark) else { continue }
         let group = UIStackView()
         group.axis = .horizontal
         group.alignment = .center
@@ -608,11 +608,15 @@ final class TVPageBannerCell: UICollectionViewCell {
     return container
   }
 
-  /// The source's colour mark at a fixed height, width following the artwork.
+  /// The source's mark at a fixed height, width following the artwork.
   /// Colour, not the template wordmark: the template drew as a faint smear, or not
   /// at all, and the digit sat there on its own.
-  private static func scoreLogo(_ source: MediaScoreLogo.Source, height: CGFloat) -> UIImageView? {
-    guard let image = source.uiImage(style: .color), image.size.height > 0 else { return nil }
+  private static func scoreLogo(
+    _ source: MediaScoreLogo.Source,
+    height: CGFloat,
+    style: MediaScoreLogo.Style
+  ) -> UIImageView? {
+    guard let image = source.uiImage(style: style), image.size.height > 0 else { return nil }
     let view = UIImageView(image: image.withRenderingMode(.alwaysOriginal))
     view.contentMode = .scaleAspectFit
     view.translatesAutoresizingMaskIntoConstraints = false

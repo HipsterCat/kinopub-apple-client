@@ -558,7 +558,8 @@ public final class TVPageCollectionViewController: UIViewController {
       let stacked = section?.flow == .grid
       switch self.itemsByID[id] {
       case .card(let card)?:
-        cell.configure(TVUIKitMediaItem(card: card, stackedCaption: stacked), captionOnFocus: captionOnFocus)
+        cell.configure(TVUIKitMediaItem(card: card, stackedCaption: stacked), captionOnFocus: captionOnFocus,
+                       overlayOnFocus: section?.overlayOnFocus ?? false)
       case .tile(let tile)?:
         cell.configure(TVUIKitMediaItem(tile: tile), captionOnFocus: captionOnFocus)
       default:
@@ -828,6 +829,11 @@ public final class TVPageCollectionViewController: UIViewController {
     let newSections = givenSections.map { withLoadingTail($0).uniquedItems() }
     let sectionsChanged = newSections != sections
     if sectionsChanged {
+      // The scores row is the one diff worth animating: a source arrives after the
+      // page (TMDB, or a first kino.pub vote) and the cards have to change places.
+      // Everything else stays put — animating the whole page made posters hop while
+      // enrichment landed row by row.
+      let previousRatings = sections.first { $0.id == "ratings" }
       // Items whose content changed under the same id (progress moved, watched
       // flipped) are reconfigured in place; the diff only moves what moved.
       var nextItems: [TVPageItemID: TVPageItem] = [:]
@@ -862,7 +868,19 @@ public final class TVPageCollectionViewController: UIViewController {
         // Column count / kind / flow moved: the section provider must run again.
         collectionView.collectionViewLayout.invalidateLayout()
       }
-      applySnapshot(animated: animated)
+      let nextRatings = newSections.first { $0.id == "ratings" }
+      if let previousRatings, let nextRatings, hasAppliedOnce,
+         Self.groupItemIDs(previousRatings) != Self.groupItemIDs(nextRatings) {
+        // Old order, new content, no animation — then the sorted order, animated,
+        // so only these cards slide. The rest of the page already matches.
+        let settled = sections
+        sections = Self.stagingRatings(in: newSections, like: previousRatings)
+        applySnapshot(animated: false)
+        sections = settled
+        applySnapshot(animated: true)
+      } else {
+        applySnapshot(animated: animated)
+      }
       reconfigureHeaders(headersChanged)
       if let handoff { handFocus(to: handoff, now: ownsFocus) }
     }
@@ -1106,6 +1124,29 @@ public final class TVPageCollectionViewController: UIViewController {
     pendingReconfigure = []
     dataSource.apply(snapshot, animatingDifferences: animated && hasAppliedOnce)
     hasAppliedOnce = true
+  }
+
+  /// Item ids per group, so a scores row can be told apart from the same cards resorted.
+  private static func groupItemIDs(_ section: TVPageSection) -> [[String]] {
+    section.groups.map { $0.items.map(\.localID) }
+  }
+
+  /// `sections`, with the ratings row's cards put back in `like`'s order. Cards that
+  /// were not there yet are left out, so the animated apply is the one that inserts them.
+  private static func stagingRatings(in sections: [TVPageSection], like previous: TVPageSection) -> [TVPageSection] {
+    let previousIDs = Dictionary(uniqueKeysWithValues: previous.groups.map { ($0.id, $0.items.map(\.localID)) })
+    return sections.map { section in
+      guard section.id == "ratings" else { return section }
+      let groups = section.groups.map { group in
+        let order = previousIDs[group.id] ?? []
+        let byID = Dictionary(uniqueKeysWithValues: group.items.map { ($0.localID, $0) })
+        let items = order.compactMap { byID[$0] }
+        return TVPageGroup(id: group.id, title: group.title, columns: group.columns,
+                           subheading: group.isSubheading, cell: group.cell,
+                           stacked: group.stacked, gridGap: group.gridGap, items: items)
+      }
+      return .strip(id: section.id, title: section.title, groups: groups)
+    }
   }
 
   /// Everything the layout reads from a section — not its items, except a chip row's

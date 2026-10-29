@@ -93,6 +93,49 @@ final class RatingTests: XCTestCase {
     XCTAssertEqual(ranked.last?.source, .kinopub)
   }
 
+  func testKinopubThumbsDoNotMoveTheAggregate() {
+    let without = MediaScores(imdb: 8.0, imdbVotes: 1000)
+    let withThumbs = MediaScores(imdb: 8.0, imdbVotes: 1000, kinopubLikes: 10, kinopubDislikes: 0)
+    XCTAssertEqual(without.aggregate?.value, withThumbs.aggregate?.value)
+    XCTAssertEqual(withThumbs.aggregate?.value ?? 0, 8.0, accuracy: 0.001)
+  }
+
+  func testDetailLineSortsByTurnoutAndDropsAScoreUnderAFifth() {
+    let scores = MediaScores(imdb: 7.7, imdbVotes: 588,
+                             kinopoisk: nil, kinopoiskVotes: 214,
+                             tmdb: 7.2, tmdbVotes: 4,
+                             kinopubLikes: 0, kinopubDislikes: 1)
+    let line = scores.detailLine()
+    // A published 4 stays. A silent Kinopoisk is not a reason to drop it.
+    XCTAssertEqual(line.map(\.source), [.imdb, .kinopoisk, .tmdb])
+    XCTAssertEqual(line.map(\.displayScore), ["7.7", "?", "72%"])
+    XCTAssertFalse(line[0].drawsFaint)
+    XCTAssertTrue(line[1].drawsFaint)
+
+    let shown = MediaScores(imdb: 6.2, imdbVotes: 78, kinopoisk: nil, kinopoiskVotes: 4, tmdb: 6.7, tmdbVotes: 10)
+    XCTAssertEqual(shown.detailLine().map(\.source), [.imdb, .tmdb, .kinopoisk])
+
+    let kinopoiskSilent = MediaScores(imdb: 7.0, imdbVotes: 8, kinopoisk: nil, kinopoiskVotes: 29, tmdb: 6.0, tmdbVotes: 2)
+    XCTAssertEqual(kinopoiskSilent.detailLine().map(\.source), [.kinopoisk, .imdb, .tmdb])
+
+    let huge = MediaScores(imdb: 8, imdbVotes: 600_000, kinopoisk: nil, kinopoiskVotes: 1_000, tmdb: 7, tmdbVotes: 500_000)
+    XCTAssertEqual(huge.detailLine().map(\.source), [.imdb, .tmdb])
+
+    let stillUseful = MediaScores(imdb: 8, imdbVotes: 600_000, kinopoisk: 7, kinopoiskVotes: 5_000, tmdb: 6, tmdbVotes: 500_000)
+    XCTAssertEqual(stillUseful.detailLine().map(\.source), [.imdb, .tmdb, .kinopoisk])
+    XCTAssertEqual(MediaScoreItem(source: .kinopub, score: 0, votes: 1).displayScore, "0%")
+    XCTAssertTrue(MediaScoreItem(source: .kinopub, score: 0, votes: 1).drawsFaint)
+    XCTAssertFalse(MediaScoreItem(source: .tmdb, score: 7.2, votes: 6).drawsFaint)
+  }
+
+  func testTMDBPrintsAsAPercentageAndIMDbStaysOneDecimal() {
+    XCTAssertEqual(MediaScoreItem(source: .tmdb, score: 7.54, votes: 10).displayScore, "75%")
+    XCTAssertEqual(MediaScoreItem(source: .tmdb, score: 10, votes: 1).displayScore, "100%")
+    XCTAssertEqual(MediaScoreItem(source: .tmdb, score: 7.55, votes: 1).displayScore, "76%")
+    XCTAssertEqual(MediaScoreItem(source: .kinopub, score: 8.8, votes: 10).displayScore, "88%")
+    XCTAssertEqual(MediaScoreItem(source: .imdb, score: 7.54, votes: 10).displayScore, "7.5")
+  }
+
   func testKinopubScoresCleanZeroAndHundredPercent() {
     let hundred = MediaScores(kinopubLikes: 50, kinopubDislikes: 0)
     XCTAssertEqual(hundred.kinopubScore, 10.0)

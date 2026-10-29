@@ -60,10 +60,11 @@ public struct RatingInput: Hashable, Sendable {
 /// payload) once at the boundary; views take this, not eight loose optionals.
 ///
 /// **Not every caller can fill it.** kino.pub's own payload carries IMDb and Kinopoisk
-/// only, so a poster badge aggregates those two; TMDB's score arrives with enrichment
-/// and the thumbs with the vote endpoint, so the detail page aggregates four. The
-/// numbers can differ by a tenth between a card and the page it opens — the alternative
+/// only, so a poster badge aggregates those two; TMDB's score arrives with enrichment.
+/// The numbers can differ by a tenth between a card and the page it opens — the alternative
 /// is plumbing enrichment through every shelf, which buys a decimal point.
+/// kino.pub's thumbs are on the detail page and nowhere in the average: a vote there
+/// cannot be changed, so a misclick is not a rating.
 public struct MediaScores: Hashable, Codable, Sendable {
 
   public let imdb: Double?
@@ -132,10 +133,7 @@ public struct MediaScores: Hashable, Codable, Sendable {
 
   /// The share that liked it, on the 0…10 scale everything else uses.
   ///
-  /// A thumbs system runs high — most titles land well above where their star ratings
-  /// sit — but the aggregate weighs by turnout, and kino.pub's few hundred voters next
-  /// to IMDb's hundreds of thousands move the number by a hair.
-  /// When one side is 0, it faithfully reflects 0% or 100%.
+  /// When one side is 0, it is 0% or 100%. Not an input to the aggregate.
   public var kinopubScore: Double? {
     guard let votes = kinopubVotes, votes > 0, (kinopubLikes != nil || kinopubDislikes != nil) else { return nil }
     let likes = max(0, kinopubLikes ?? 0)
@@ -151,13 +149,12 @@ public struct MediaScores: Hashable, Codable, Sendable {
     imdbScore != nil || kinopoiskScore != nil || tmdbScore != nil || kinopubScore != nil
   }
 
-  /// Every source, in one place, so a new one is added once.
+  /// What the aggregate weighs. kino.pub is absent on purpose.
   public var inputs: [RatingInput] {
     [
       RatingInput(id: .imdb, score: imdbScore, votes: imdbVotes),
       RatingInput(id: .kinopoisk, score: kinopoiskScore, votes: kinopoiskVotes),
-      RatingInput(id: .tmdb, score: tmdbScore, votes: tmdbVotes),
-      RatingInput(id: .kinopub, score: kinopubScore, votes: kinopubVotes)
+      RatingInput(id: .tmdb, score: tmdbScore, votes: tmdbVotes)
     ]
   }
 
@@ -208,7 +205,7 @@ public struct MediaScoreItem: Identifiable, Hashable, Sendable {
   public let source: MediaScoreLogo.Source
   /// 0…10 numeric score, or nil if only voter turnout is known.
   public let score: Double?
-  /// Formatted score string, e.g. "8.8" or "100%" or "0%" or "—".
+  /// Formatted score string, e.g. "8.8", "75%", "100%" or "—".
   public let displayScore: String
   /// Voter turnout count.
   public let votes: Int?
@@ -217,6 +214,21 @@ public struct MediaScoreItem: Identifiable, Hashable, Sendable {
 
   public var id: String { source.rawValue }
   public var hasKnownScore: Bool { score != nil }
+
+  /// Five voters or fewer is a handful, not an audience. TMDB and kino.pub at that
+  /// size keep the number and draw it in secondary ink. A source that has voters but
+  /// no score yet — Kinopoisk's "?" — is the same.
+  public var drawsFaint: Bool {
+    if score == nil { return true }
+    switch source {
+    case .tmdb, .kinopub:
+      return (votes ?? 0) <= Self.faintVoteCeiling
+    case .imdb, .kinopoisk:
+      return false
+    }
+  }
+
+  public static let faintVoteCeiling = 5
 
   public init(
     source: MediaScoreLogo.Source,
@@ -230,11 +242,7 @@ public struct MediaScoreItem: Identifiable, Hashable, Sendable {
     if let displayScore {
       self.displayScore = displayScore
     } else if let score {
-      if source == .kinopub {
-        self.displayScore = "\(Int((score * 10).rounded()))%"
-      } else {
-        self.displayScore = String(format: "%.1f", score)
-      }
+      self.displayScore = source.formattedScore(score)
     } else {
       self.displayScore = "—"
     }
@@ -320,6 +328,38 @@ public extension MediaScores {
     return a.source.rawValue < b.source.rawValue
   }
 
+  /// The title page's line under the synopsis. Same order as the score cards: the
+  /// bigger audience first. kino.pub stays off it. A source with voters and no score
+  /// prints "?".
+  ///
+  /// A published score stays. Three numbers are worth more than two, and 5 000 beside
+  /// 600 000 is still a rating. The only thing left off is a "?" that two published
+  /// scores already outvote by about a hundred to one — a few hundred votes beside
+  /// half a million, not four beside seventy-eight, and not a silent Kinopoisk
+  /// pushing a real percentage off the line.
+  func detailLine(deduplicateAgainstAggregate: Bool = false) -> [MediaScoreItem] {
+    let order: [MediaScoreLogo.Source] = [.imdb, .kinopoisk, .tmdb]
+    var items: [MediaScoreItem] = order.compactMap { source in
+      guard let item = allItems.first(where: { $0.source == source }) else { return nil }
+      guard item.score == nil else { return item }
+      return MediaScoreItem(source: item.source, score: nil, displayScore: "?", votes: item.votes)
+    }
+    items.sort { ($0.votes ?? 0) > ($1.votes ?? 0) }
+    let published = items.filter(\.hasKnownScore)
+    let peak = published.map { $0.votes ?? 0 }.max() ?? 0
+    items = items.filter { item in
+      guard !item.hasKnownScore else { return true }
+      let votes = item.votes ?? 0
+      let larger = published.filter { ($0.votes ?? 0) > votes }.count
+      if larger >= 2, votes * 150 < peak { return false }
+      return true
+    }
+    if deduplicateAgainstAggregate && items.filter(\.hasKnownScore).count == 1 {
+      items = items.map { $0.hasKnownScore ? $0.withoutScore() : $0 }
+    }
+    return items
+  }
+
   /// Ordered rating items for Hero row (shows all available ranked sources).
   var heroScores: [MediaScoreItem] {
     heroScores(deduplicateAgainstAggregate: false)
@@ -377,5 +417,18 @@ public extension MediaScores {
     }
 
     return Array(items.prefix(max(1, limit)))
+  }
+}
+
+extension MediaScoreLogo.Source {
+  /// What a person reads. TMDB's own site and kino.pub's thumbs are a percentage;
+  /// the stored score stays 0…10 so it can be averaged with IMDb and Kinopoisk.
+  public func formattedScore(_ score: Double) -> String {
+    switch self {
+    case .tmdb, .kinopub:
+      return "\(Int((score * 10).rounded()))%"
+    case .imdb, .kinopoisk:
+      return String(format: "%.1f", score)
+    }
   }
 }

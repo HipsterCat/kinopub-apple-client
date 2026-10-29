@@ -89,6 +89,10 @@ class MediaItemModel: ObservableObject {
   @Published public var folderIDsContainingItem: Set<Int> = []
   @Published public var isWatched: Bool = false
   @Published public var myVote: MediaItemUserVote = .none
+  /// The chooser, before a thumb is cast. kino.pub will not take it back.
+  @Published var showsVoteChoice = false
+  /// Said again after the vote, once the chooser has gone.
+  @Published var showsVoteLockedNotice = false
   @Published public var likeCount: Int = 0
   @Published public var dislikeCount: Int = 0
   /// Glyph + Title confirmation for hero library actions. Cleared by the view
@@ -1140,6 +1144,16 @@ class MediaItemModel: ObservableObject {
     }
   }
 
+  /// Opens the chooser, or — once a thumb is already cast — the reminder that
+  /// kino.pub will not take it back.
+  func askToVote() {
+    if myVote == .none {
+      showsVoteChoice = true
+    } else {
+      showsVoteLockedNotice = true
+    }
+  }
+
   /// Cast a like (`up: true` → `like=1`) or dislike. One-shot — can't switch or re-cast.
   func vote(up: Bool) {
     let target: MediaItemUserVote = up ? .up : .down
@@ -1149,6 +1163,8 @@ class MediaItemModel: ObservableObject {
     myVote = target
     libraryState.setUserVote(itemId: mediaItemId, up: up)
     if up { likeCount += 1 } else { dislikeCount += 1 }
+    hudToast = HudToast(systemImage: up ? "hand.thumbsup.fill" : "hand.thumbsdown.fill",
+                        title: (up ? "Like" : "Dislike").localized)
     Task {
       do {
         let result = try await actionsService.vote(id: mediaItemId, like: up ? 1 : 0)

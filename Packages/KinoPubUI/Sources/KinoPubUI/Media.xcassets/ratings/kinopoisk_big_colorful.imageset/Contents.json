@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "kinopoisk_big_colorful.svg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

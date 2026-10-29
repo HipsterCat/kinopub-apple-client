@@ -56,6 +56,10 @@ KinoPubMedia), which holds kino.pub's whole id list; a name only decides for an 
 - A shelf standing for several people has **no header link** — there is no one person page to open.
 - `concert` and `standup` get no author shelf: that director is a TV credit nobody follows.
 
+**prd — The videos rail's title (Sasha, 2026-10-26).** A concert's rail and a film's versions
+rail say the count in the title: «4 видео», «2 версии», «5 версий», «21 версия». One item
+keeps the bare name, «Видео» or «Версии». The separate number beside the title is off for now.
+
 **prd — Person shelves, generally.** One card per film — the 3D and the flat entry of one title are
 one card (`MediaItem.filmIdentity`). Picked by Kinopoisk rating, shown **newest first**, ties by
 views: a rating is only as good as the crowd behind it and kino.pub does not guarantee a vote count.

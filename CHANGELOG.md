@@ -29,6 +29,60 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 - `TVMenuBackUITests.testSettingsLeftWithoutMenuReopensAtItsFirstLevel` needs a
   kino.pub session and skips in CI like the other local walks.
 
+### A rail's count is its title (2026-10-26)
+
+- The videos and versions rails say “4 видео” and “2 версии”. One item keeps
+  «Видео» or «Версии». The separate count beside the title is off for now.
+
+### kino.pub's thumbs are not a rating (2026-10-26)
+
+- The aggregate no longer weighs kino.pub. A thumb cannot be changed, so a misclick
+  is not a score. The card stays, and it still sorts last.
+- The line under the synopsis is IMDb, then Kinopoisk, then TMDB. Kinopoisk with
+  voters and no published number is a secondary "?". `0%` is written as `0%`.
+  TMDB and kino.pub with five voters or fewer keep the number, in secondary ink.
+- The thumbs under that card are outline and secondary until the viewer has
+  voted. The thumb they cast fills green (up) or red (down), and the count
+  beside it is the text colour; the other stays an outline. The line springs
+  once when the vote lands. Same colours on the vote buttons.
+- A known source with no ratings yet still has a card: the mark, and “No ratings”
+  under it. kino.pub is one of them even at 0 votes, because that card is the vote.
+  When a score arrives and the row reorders, those cards slide; the rest of the
+  page does not.
+- The chooser is “Want to rate?”. tvOS draws the thumbs itself, because the
+  system dialog drops a button's image. The vote lands as a toast. Selecting
+  the card again is what repeats that the vote cannot be changed.
+- The line under the synopsis uses the 32 pt colour marks, each at its own
+  width. The home hero uses the same drawings. The black drawings of the same
+  marks are in the catalogue for a later tint.
+- The line under the synopsis sorts like the cards. A published score stays.
+  A "?" is dropped only when two published scores outvote it about a hundred
+  to one.
+- Review faces are largest first, zeros are absent, and a single reaction
+  replaces the speech bubbles.
+- kino.pub with no votes shows both outline thumbs at 0.
+
+### TMDB's score reads as a percentage (2026-10-26)
+
+- Wherever a TMDB score is printed it is a whole percent (`75%`), the same way
+  kino.pub's thumbs already are. The stored value stays 0…10 so the aggregate can
+  weigh it. On the detail plaques and the ratings table the percent sign is the
+  same character at three quarters of the digit size: SF has no OpenType feature
+  that shrinks only `%`.
+- tvOS score cards are 20 pt wider than the column, so `100%` sits beside the IMDb
+  mark without the digits shrinking to fit.
+
+### TV tab: the grid is the loaded grid (2026-10-26)
+
+- The full channel list is baked in (`TVChannelCatalog`, 51 channels, title order):
+  name, logo URL and the average colour of the card's edge. The tab paints that grid
+  on the first frame. `/v1/tv` and the guide run together; the list replaces the baked
+  one, and the same set keeps this order so the grid does not reshuffle. Select does
+  nothing until a stream link is in.
+- Channel logos were centre-cropped. `TVUIKitRemoteImage.load` takes a fit/fill mode
+  and then `imageWithSource` decoded with fill anyway, so a 240×180 card lost its
+  top and bottom before letterbox could run. The mode now reaches the decode.
+
 ### Home no longer fetches shelves it does not paint (2026-10-25)
 
 - Watch Now, Movies and Series stopped requesting `/v1/items/hot`, `/fresh` and

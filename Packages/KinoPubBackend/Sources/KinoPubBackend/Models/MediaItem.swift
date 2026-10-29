@@ -287,27 +287,50 @@ public extension MediaItem {
       .map { PlaybackVariant(video: $0, mediaId: id, movieTitle: localizedTitle) }
   }
 
-  /// The versions the hero offers as play buttons: the main ones first and always — as long
-  /// as the longest, or nearly (`mainVersionShare`), so two halves of a show both are — then
-  /// the rest, only until they are watched; each part in number order. A concert's songs
-  /// drop out one by one and the show stays, with Replay once it is watched too (Sasha,
-  /// 2026-10-25). The rail under the hero keeps every version. A film's 24 / 48 fps are both
-  /// main: nothing drops.
+  /// The versions the hero offers as play buttons. Three shapes:
+  /// - **Versions of one film** (`subtype: multi` — 24 / 48 fps, director's cut): every one,
+  ///   in number order; none drops when watched, each is a different way to see the same film.
+  /// - **A show with extras** — one video far longer than any other (`dominantVersion`): the show
+  ///   first and always, with Replay once watched, then the extras not yet watched.
+  /// - **Parts** — everything else, a concert in fifteen-minute sets: in order, from the first
+  ///   not yet watched, the way a series offers its next episode. Never the longest first:
+  ///   jumping into the middle for the 41-minute set was the bug (Sasha, 2026-10-26).
+  ///   Everything watched: from the top again.
+  /// The rail under the hero keeps every version whatever the shape.
   var playChoices: [PlaybackVariant] {
     let variants = playbackVariants
-    let main = variants.filter(isMainVersion)
-    return main + variants.filter { !isMainVersion($0) && !$0.isWatched }
+    guard variants.count > 1, !isMultiVersion else { return variants }
+    if let dominant = dominantVersion {
+      return [dominant] + variants.filter { $0.id != dominant.id && !$0.isWatched }
+    }
+    guard let next = variants.firstIndex(where: { !$0.isWatched }) else { return variants }
+    return variants[next...].filter { !$0.isWatched }
   }
 
-  /// A version as long as the longest, or nearly. Every version is, when none says how long.
+  /// Whether this version is the title itself rather than an extra beside it — what leads the
+  /// row with Trailer after it. Every version of a film is; of a show with extras, the show;
+  /// of parts, the next one to play.
   func isMainVersion(_ variant: PlaybackVariant) -> Bool {
-    let longest = playbackVariants.map(\.duration).max() ?? 0
-    guard longest > 0 else { return true }
-    return Double(variant.duration) >= Double(longest) * Self.mainVersionShare
+    if isMultiVersion { return true }
+    if let dominant = dominantVersion { return variant.id == dominant.id }
+    return variant.id == playChoices.first?.id
   }
 
-  /// How long a version has to be, against the longest, to count as a main one.
-  static let mainVersionShare = 0.75
+  /// The one video that is the title, with the rest beside it — a concert film and its songs:
+  /// at least `dominanceRatio` times as long as any other, and longer than all the others
+  /// together. One long set among short ones is neither (a 41-minute encore among
+  /// fifteen-minute sets is still a set). Nil when the videos are parts, or versions.
+  var dominantVersion: PlaybackVariant? {
+    let byLength = playbackVariants.sorted { $0.duration > $1.duration }
+    guard byLength.count > 1, byLength[0].duration > 0 else { return nil }
+    let longest = byLength[0].duration
+    let rest = byLength.dropFirst().map(\.duration)
+    guard Double(longest) >= Double(rest[rest.startIndex]) * Self.dominanceRatio,
+          longest > rest.reduce(0, +) else { return nil }
+    return byLength[0]
+  }
+
+  static let dominanceRatio = 2.0
 
   /// The version Play should open: the one already started but unfinished, else the
   /// first.

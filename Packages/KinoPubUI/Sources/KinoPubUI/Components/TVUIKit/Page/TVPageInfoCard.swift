@@ -74,25 +74,39 @@ public enum TVPageInfoCard: Hashable {
     public let caption: String?
     /// kino.pub's own score is thumbs, and shows how many of each.
     public let thumbs: Thumbs?
+    /// Five voters or fewer, or no published score. The number is secondary ink.
+    public let faint: Bool
+    /// A known source nobody has rated. The mark stands alone; `caption` says so.
+    public let hidesNumber: Bool
 
     public struct Thumbs: Hashable {
+      public enum Mark: Hashable {
+        case none, up, down
+      }
+
       public let up: String
       public let down: String
+      /// The viewer's own thumb. `.none` draws both outline; a cast vote fills that one.
+      public let mark: Mark
 
-      public init(up: String, down: String) {
+      public init(up: String, down: String, mark: Mark = .none) {
         self.up = up
         self.down = down
+        self.mark = mark
       }
     }
 
     public init(id: String, source: MediaScoreLogo.Source?, title: String,
-                value: String?, caption: String? = nil, thumbs: Thumbs? = nil) {
+                value: String?, caption: String? = nil, thumbs: Thumbs? = nil,
+                faint: Bool = false, hidesNumber: Bool = false) {
       self.id = id
       self.source = source
       self.title = title
       self.value = value
       self.caption = caption
       self.thumbs = thumbs
+      self.faint = faint
+      self.hidesNumber = hidesNumber
     }
   }
 
@@ -113,6 +127,15 @@ public enum TVPageInfoCard: Hashable {
     public let accessibilityLabel: String
 
     public struct Tones: Hashable {
+      public enum Mood: Hashable {
+        case positive, negative, neutral
+      }
+
+      public struct Row: Hashable {
+        public let mood: Mood
+        public let text: String
+      }
+
       public let positive: String
       public let negative: String
       public let neutral: String
@@ -121,6 +144,28 @@ public enum TVPageInfoCard: Hashable {
         self.positive = positive
         self.negative = negative
         self.neutral = neutral
+      }
+
+      /// Non-zero tones, largest first. A tie keeps positive, then negative, then neutral.
+      public var ranked: [Row] {
+        let rows = [
+          Row(mood: .positive, text: positive),
+          Row(mood: .negative, text: negative),
+          Row(mood: .neutral, text: neutral)
+        ]
+        return rows.filter { Self.count($0.text) > 0 }
+          .sorted { Self.count($0.text) > Self.count($1.text) }
+      }
+
+      /// The one face, when every counted review shares it and that is the card's total.
+      public func singleMood(matchingTotal total: String) -> Mood? {
+        let rows = ranked
+        guard rows.count == 1, Self.count(rows[0].text) == Self.count(total) else { return nil }
+        return rows[0].mood
+      }
+
+      private static func count(_ text: String) -> Int {
+        Int(text.filter(\.isNumber)) ?? 0
       }
     }
 

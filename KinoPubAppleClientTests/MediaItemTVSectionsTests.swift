@@ -228,11 +228,40 @@ final class MediaItemTVSectionsTests: XCTestCase {
       if case .info(.rating(let rating)) = item { return rating }
       return nil
     }
-    XCTAssertEqual(scores.map(\.id), ["IMDb", "Кинопоиск", "KinoPub", "TMDB"])
+    XCTAssertEqual(scores.map(\.id), ["IMDb", "Кинопоиск", "TMDB", "KinoPub"])
     let kinoPub = scores.first { $0.id == "KinoPub" }!
     XCTAssertEqual(kinoPub.thumbs?.up, 145.formatted(.number.grouping(.automatic)))
     XCTAssertEqual(kinoPub.thumbs?.down, 19.formatted(.number.grouping(.automatic)))
+    XCTAssertEqual(kinoPub.thumbs?.mark, .some(.none), "outline until the viewer has voted")
     XCTAssertNil(kinoPub.caption, "its thumbs are its caption")
+
+    let voted = MediaItemTVSections.make(input { $0.myVote = .down }).first { $0.id == "ratings" }!
+    let votedKinoPub = voted.groups[0].items.compactMap { item -> TVPageInfoCard.Rating? in
+      if case .info(.rating(let rating)) = item { return rating }
+      return nil
+    }.first { $0.id == "KinoPub" }!
+    XCTAssertEqual(votedKinoPub.thumbs?.mark, .down)
+  }
+
+  /// Nobody has voted, and the card is still there: Select on it is how a vote starts.
+  /// The mark stands alone, and the line under it says so.
+  func testKinoPubWithNoVotesIsStillACard() {
+    let ratings = MediaItemTVSections.make(input {
+      $0.likeCount = 0
+      $0.dislikeCount = 0
+    }).first { $0.id == "ratings" }!
+    let scores = ratings.groups[0].items.compactMap { item -> TVPageInfoCard.Rating? in
+      if case .info(.rating(let rating)) = item { return rating }
+      return nil
+    }
+    let kinoPub = scores.first { $0.id == "KinoPub" }
+    XCTAssertNotNil(kinoPub, "a title on kino.pub can be rated before anyone else has")
+    XCTAssertTrue(kinoPub?.hidesNumber == true)
+    XCTAssertNil(kinoPub?.value)
+    XCTAssertNil(kinoPub?.caption)
+    XCTAssertEqual(kinoPub?.thumbs?.up, 0.formatted(.number.grouping(.automatic)))
+    XCTAssertEqual(kinoPub?.thumbs?.down, 0.formatted(.number.grouping(.automatic)))
+    XCTAssertEqual(kinoPub?.thumbs?.mark, .some(.none))
   }
 
   /// Kinopoisk counts voters long before it prints a number: the card has no number — it

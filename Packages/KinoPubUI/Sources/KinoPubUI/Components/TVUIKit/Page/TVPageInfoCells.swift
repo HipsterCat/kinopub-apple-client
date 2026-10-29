@@ -264,6 +264,11 @@ final class TVPageRatingCell: TVPageInfoCardCell {
     accessibilityIdentifier = "kinopub.rating.\(rating.id)"
     accessibilityLabel = [rating.title, rating.value, rating.caption].compactMap { $0 }.joined(separator: ", ")
   }
+
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    body.resetVoteBounce()
+  }
 }
 
 /// The source's mark before its number, with how many people stand behind it underneath —
@@ -282,7 +287,12 @@ final class TVPageRatingContent: TVPageCardContent {
   private let thumbsLabel = UILabel()
   private var thumbs: TVPageInfoCard.Rating.Thumbs?
   private var hasValue = true
+  private var hidesNumber = false
+  private var faint = false
   private var looksFocused = false
+  /// The mark last drawn. Nil until the first configure, so opening a page the viewer
+  /// already voted on does not bounce. A change from `.none` is the vote landing.
+  private var shownMark: TVPageInfoCard.Rating.Thumbs.Mark?
 
   /// The number: title2, rounded, medium. (SF Compact is not on tvOS — probed 2026-10-11.)
   static var valueFont: UIFont { TVPageFonts.font(.title2, weight: .regular, rounded: true) }
@@ -294,6 +304,17 @@ final class TVPageRatingContent: TVPageCardContent {
   static let noValue = "?"
   /// Between the mark and the number.
   static let markGap: CGFloat = 16
+  /// Every score card, a little past the column, so "100%" sits beside the widest
+  /// mark without the digits shrinking.
+  static let extraWidth: CGFloat = 20
+
+  /// Padding, the IMDb wordmark (the widest mark, 74×48) at `markHeight`, the gap,
+  /// and "100%" at `valueFont` with its smaller percent sign.
+  static var fittingWidth: CGFloat {
+    let number = ceil(ScoreValueTypography.nsAttributed("100%", font: valueFont).size().width)
+    let mark = markHeight * (74 / 48)
+    return (padding * 2 + mark + markGap + number).rounded(.up)
+  }
   /// Between the mark-and-number line and the line under it.
   static let lineGap: CGFloat = 14
 
@@ -324,8 +345,9 @@ final class TVPageRatingContent: TVPageCardContent {
       label.textAlignment = .center
       label.lineBreakMode = .byTruncatingTail
     }
-    // A full score (`100%`) is wider than the room beside a mark: it shrinks to fit rather
-    // than lose its last digit.
+    // A full score (`100%`) used to be wider than the room beside a mark. The card is
+    // a little wider than the column now; this still shrinks rather than clip a digit
+    // if Dynamic Type outgrows that.
     valueLabel.adjustsFontSizeToFitWidth = true
     valueLabel.minimumScaleFactor = 0.6
     addSubview(logoView)
@@ -343,40 +365,86 @@ final class TVPageRatingContent: TVPageCardContent {
     nameLabel.text = rating.title
     nameLabel.isHidden = mark != nil
     hasValue = rating.value != nil
-    valueLabel.text = rating.value ?? Self.noValue
+    faint = rating.faint
+    hidesNumber = rating.hidesNumber
+    valueLabel.isHidden = hidesNumber
+    if hidesNumber {
+      valueLabel.attributedText = nil
+    } else {
+      valueLabel.attributedText = ScoreValueTypography.nsAttributed(rating.value ?? Self.noValue, font: Self.valueFont)
+    }
     captionLabel.text = rating.caption
     captionLabel.isHidden = rating.thumbs != nil || rating.caption == nil
+    let nextMark = rating.thumbs?.mark ?? .none
+    let voteJustLanded = shownMark == .none && nextMark != .none
     thumbs = rating.thumbs
+    shownMark = nextMark
     thumbsLabel.isHidden = rating.thumbs == nil
     applyFocusLook(looksFocused)
     setNeedsLayout()
+    if voteJustLanded { bounceThumbs() }
+  }
+
+  func resetVoteBounce() {
+    shownMark = nil
+    thumbsLabel.transform = .identity
   }
 
   private func renderThumbs() {
     guard let thumbs else { thumbsLabel.attributedText = nil; return }
     let ink = Self.secondaryInk(focused: looksFocused)
     let configuration = UIImage.SymbolConfiguration(textStyle: .caption2)
-    func symbol(_ name: String) -> NSAttributedString {
+    // Outline and secondary until the viewer has voted. The thumb they cast fills
+    // and takes its colour; the other stays an outline.
+    func symbol(up: Bool) -> NSAttributedString {
+      let chosenUp = thumbs.mark == .up
+      let chosenDown = thumbs.mark == .down
+      let name: String
+      let color: UIColor
+      if up, chosenUp {
+        name = "hand.thumbsup.fill"
+        color = .systemGreen
+      } else if !up, chosenDown {
+        name = "hand.thumbsdown.fill"
+        color = .systemRed
+      } else {
+        name = up ? "hand.thumbsup" : "hand.thumbsdown"
+        color = ink
+      }
       let attachment = NSTextAttachment()
       attachment.image = UIImage(systemName: name, withConfiguration: configuration)?
-        .withTintColor(ink, renderingMode: .alwaysOriginal)
+        .withTintColor(color, renderingMode: .alwaysOriginal)
       return NSAttributedString(attachment: attachment)
     }
+    let text = Self.ink(focused: looksFocused)
+    func counts(chosen: Bool) -> [NSAttributedString.Key: Any] {
+      [.foregroundColor: chosen ? text : ink, .font: thumbsLabel.font as Any]
+    }
     let line = NSMutableAttributedString()
-    line.append(symbol("hand.thumbsup.fill"))
-    line.append(NSAttributedString(string: " \(thumbs.up)"))
-    line.append(NSAttributedString(string: "     "))
-    line.append(symbol("hand.thumbsdown.fill"))
-    line.append(NSAttributedString(string: " \(thumbs.down)"))
-    line.addAttributes([.foregroundColor: ink, .font: thumbsLabel.font as Any],
-                       range: NSRange(location: 0, length: line.length))
+    line.append(symbol(up: true))
+    line.append(NSAttributedString(string: " \(thumbs.up)", attributes: counts(chosen: thumbs.mark == .up)))
+    line.append(NSAttributedString(string: "     ", attributes: counts(chosen: false)))
+    line.append(symbol(up: false))
+    line.append(NSAttributedString(string: " \(thumbs.down)", attributes: counts(chosen: thumbs.mark == .down)))
+    line.addAttribute(.font, value: thumbsLabel.font as Any,
+                      range: NSRange(location: 0, length: line.length))
     thumbsLabel.attributedText = line
+  }
+
+  /// The whole thumbs line, because the count is a run inside one label. A single digit
+  /// would need its own view.
+  private func bounceThumbs() {
+    thumbsLabel.transform = CGAffineTransform(scaleX: 1.18, y: 1.18)
+    UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.55,
+                   initialSpringVelocity: 0.6, options: [.allowUserInteraction]) {
+      self.thumbsLabel.transform = .identity
+    }
   }
 
   override func applyFocusLook(_ focused: Bool) {
     self.looksFocused = focused
     nameLabel.textColor = Self.ink(focused: focused)
-    valueLabel.textColor = hasValue ? Self.ink(focused: focused) : Self.secondaryInk(focused: focused)
+    valueLabel.textColor = (hasValue && !faint) ? Self.ink(focused: focused) : Self.secondaryInk(focused: focused)
     captionLabel.textColor = Self.secondaryInk(focused: focused)
     thumbsLabel.textColor = Self.secondaryInk(focused: focused)
     renderThumbs()
@@ -404,8 +472,10 @@ final class TVPageRatingContent: TVPageCardContent {
       let name = nameLabel.sizeThatFits(unbounded)
       leading = CGSize(width: min(name.width, width / 2), height: name.height)
     }
-    let gap = leading.width > 0 ? Self.markGap : 0
-    let valueWidth = min(valueLabel.sizeThatFits(unbounded).width, max(width - leading.width - gap, 1))
+    let gap = leading.width > 0 && !valueLabel.isHidden ? Self.markGap : 0
+    let valueWidth = valueLabel.isHidden
+      ? 0
+      : min(valueLabel.sizeThatFits(unbounded).width, max(width - leading.width - gap, 1))
     let left = (bounds.width - (leading.width + gap + valueWidth)) / 2
     let leadingFrame = CGRect(x: left, y: top + (line - leading.height) / 2,
                               width: leading.width, height: leading.height)
@@ -468,6 +538,9 @@ final class TVPageReviewsContent: TVPageCardContent {
   private let tones: [(mood: TVPageMoodGlyph.Mood, glyph: UIImageView, count: UILabel)]
   private var showsTones = false
   private var looksFocused = false
+  /// Set when every review shares one reaction: that face stands where the bubbles did,
+  /// and the column of tones is absent.
+  private var markMood: TVPageInfoCard.Reviews.Tones.Mood?
 
   private static var countFont: UIFont { TVPageRatingContent.valueFont }
   private static var symbolFont: UIFont { TVPageRatingContent.symbolFont }
@@ -518,20 +591,24 @@ final class TVPageReviewsContent: TVPageCardContent {
   func configure(_ reviews: TVPageInfoCard.Reviews) {
     countLabel.text = reviews.count
     titleLabel.text = reviews.title
-    showsTones = reviews.tones != nil
-    if let counts = reviews.tones {
-      for (tone, text) in zip(tones, [counts.positive, counts.negative, counts.neutral]) { tone.count.text = text }
-    }
+    let ranked = reviews.tones?.ranked ?? []
+    markMood = reviews.tones?.singleMood(matchingTotal: reviews.count)
+    showsTones = markMood == nil && !ranked.isEmpty
     for tone in tones {
-      tone.glyph.isHidden = !showsTones
-      tone.count.isHidden = !showsTones
+      let row = ranked.first { $0.mood == Self.cardMood(tone.mood) }
+      tone.count.text = row?.text
+      let shown = showsTones && row != nil
+      tone.glyph.isHidden = !shown
+      tone.count.isHidden = !shown
     }
+    iconView.image = Self.markImage(mood: markMood)
+    applyFocusLook(looksFocused)
     setNeedsLayout()
   }
 
   override func applyFocusLook(_ focused: Bool) {
     self.looksFocused = focused
-    iconView.tintColor = Self.secondaryInk(focused: focused)
+    iconView.tintColor = Self.markTint(markMood, focused: focused)
     countLabel.textColor = Self.ink(focused: focused)
     titleLabel.textColor = Self.secondaryInk(focused: focused)
     for tone in tones {
@@ -546,12 +623,22 @@ final class TVPageReviewsContent: TVPageCardContent {
 
   // MARK: Geometry
 
-  /// What the left of the card needs: the bubbles and the total, or the title under them if wider.
+  /// What the left of the card needs: the mark and the total, or the title under them if wider.
   private static func leftWidth(_ reviews: TVPageInfoCard.Reviews) -> CGFloat {
-    let icon = iconImage?.size.width ?? 0
+    let icon = markImage(mood: reviews.tones?.singleMood(matchingTotal: reviews.count))?.size.width ?? 0
     let count = ceil((reviews.count as NSString).size(withAttributes: [.font: countFont]).width)
     let title = ceil((reviews.title as NSString).size(withAttributes: [.font: TVPageRatingContent.captionFont]).width)
     return max(icon + markGap + count, title)
+  }
+
+  /// Visible tones, largest count first. A tie keeps the order the faces were built in.
+  private static func rankedTones(
+    _ tones: [(mood: TVPageMoodGlyph.Mood, glyph: UIImageView, count: UILabel)]
+  ) -> [(mood: TVPageMoodGlyph.Mood, glyph: UIImageView, count: UILabel)] {
+    tones.filter { !$0.count.isHidden }.sorted { lhs, rhs in
+      func value(_ text: String?) -> Int { Int(text?.filter(\.isNumber) ?? "") ?? 0 }
+      return value(lhs.count.text) > value(rhs.count.text)
+    }
   }
 
   /// What the right of the card needs: a face, then the widest of the three counts.
@@ -565,8 +652,46 @@ final class TVPageReviewsContent: TVPageCardContent {
   /// How wide the card has to be: its padding, the left and, when it has them, the tones.
   static func fittingWidth(for reviews: TVPageInfoCard.Reviews) -> CGFloat {
     var width = padding * 2 + leftWidth(reviews)
-    if let tones = reviews.tones { width += columnGap + tonesWidth(tones) }
+    if let tones = reviews.tones, tones.singleMood(matchingTotal: reviews.count) == nil, !tones.ranked.isEmpty {
+      width += columnGap + tonesWidth(tones)
+    }
     return ceil(width)
+  }
+
+  private static func cardMood(_ mood: TVPageMoodGlyph.Mood) -> TVPageInfoCard.Reviews.Tones.Mood {
+    switch mood {
+    case .positive: return .positive
+    case .negative: return .negative
+    case .neutral: return .neutral
+    }
+  }
+
+  /// The bubbles, or the one face when every review shares it. The face is drawn at the
+  /// bubbles' height so the line does not grow.
+  private static func markImage(mood: TVPageInfoCard.Reviews.Tones.Mood?) -> UIImage? {
+    guard let mood else { return iconImage }
+    let glyph: TVPageMoodGlyph.Mood
+    switch mood {
+    case .positive: glyph = .positive
+    case .negative: glyph = .negative
+    case .neutral: glyph = .neutral
+    }
+    let side = iconImage?.size.height ?? glyphSide
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = UITraitCollection.current.displayScale
+    let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+    return renderer.image { _ in
+      TVPageMoodGlyph.image(glyph)?.draw(in: CGRect(x: 0, y: 0, width: side, height: side))
+    }.withRenderingMode(.alwaysTemplate)
+  }
+
+  private static func markTint(_ mood: TVPageInfoCard.Reviews.Tones.Mood?, focused: Bool) -> UIColor {
+    switch mood {
+    case .positive: return .systemGreen
+    case .negative: return .systemRed
+    case .neutral: return secondaryInk(focused: focused)
+    case nil: return secondaryInk(focused: focused)
+    }
   }
 
   override func layoutSubviews() {
@@ -580,13 +705,14 @@ final class TVPageReviewsContent: TVPageCardContent {
     // The right: a face and a count for each tone, stacked, right-aligned, centred in the card.
     var rightEdge = bounds.width - pad
     if showsTones {
+      let visible = Self.rankedTones(tones)
       let rowHeight = max(Self.glyphSide, ceil(Self.toneFont.linePitch))
-      let stack = rowHeight * CGFloat(tones.count) + Self.toneGap * CGFloat(tones.count - 1)
-      let widest = tones.map { ceil($0.count.sizeThatFits(CGSize(width: 1000, height: rowHeight)).width) }.max() ?? 0
+      let stack = rowHeight * CGFloat(visible.count) + Self.toneGap * CGFloat(max(visible.count - 1, 0))
+      let widest = visible.map { ceil($0.count.sizeThatFits(CGSize(width: 1000, height: rowHeight)).width) }.max() ?? 0
       let width = Self.glyphSide + Self.glyphGap + widest
       let left = bounds.width - pad - width
       var y = (bounds.height - stack) / 2
-      for tone in tones {
+      for tone in visible {
         tone.glyph.frame = CGRect(x: left, y: y + (rowHeight - Self.glyphSide) / 2,
                                   width: Self.glyphSide, height: Self.glyphSide)
         tone.count.frame = CGRect(x: left + Self.glyphSide + Self.glyphGap, y: y, width: widest, height: rowHeight)
@@ -646,8 +772,8 @@ final class TVPageReviewContent: TVPageCardContent {
     headlineLabel.font = TVPageFonts.font(.body, weight: .medium)
     headlineLabel.numberOfLines = 2
     bodyLabel.font = .preferredFont(forTextStyle: .body)
-    sentimentLabel.font = TVPageFonts.font(.caption1, weight: .medium)
-    dateLabel.font = .preferredFont(forTextStyle: .caption1)
+    sentimentLabel.font = TVPageFonts.font(.caption2, weight: .regular)
+    dateLabel.font = .preferredFont(forTextStyle: .caption2)
     dateLabel.textAlignment = .right
     for label in [headlineLabel, bodyLabel, sentimentLabel, dateLabel] {
       label.adjustsFontForContentSizeCategory = true
