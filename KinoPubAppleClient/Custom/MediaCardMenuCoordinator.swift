@@ -218,6 +218,19 @@ final class MediaCardMenuCoordinator: ObservableObject {
       episode.seriesTitle = item.localizedTitle
       return episode
     }
+    // A title in several videos: the one the card says, else the one its first play button
+    // offers — the next set of a concert. `item` alone plays `primaryVideo`, which is the
+    // first set again once it is watched.
+    let variants = item.playbackVariants
+    if !variants.isEmpty {
+      if card.season == nil, let video = card.video,
+         let offered = variants.first(where: { $0.number == video }) {
+        return offered
+      }
+      if let next = item.playChoices.first(where: { !$0.isWatched }) ?? item.playChoices.first {
+        return next
+      }
+    }
     return item
   }
 }

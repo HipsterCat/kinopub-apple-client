@@ -128,6 +128,9 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   public let tileStyle: TVUIKitTileArtwork.Style
   /// The line under the tile — always visible: a movie's title, or "S2, E11 · Show".
   public let caption: String?
+  /// What the line says while the tile is focused, when that is something else — the video
+  /// Play opens on a concert in several («VA – Back to the Beginning» → «Metallica»).
+  public let focusedCaption: String?
   /// Second system line under a Library still grid — remaining time, or when it was watched.
   public let detail: String?
   public let status: TVUIKitMediaItemStatus
@@ -156,6 +159,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               symbol: String? = nil,
               tileStyle: TVUIKitTileArtwork.Style = .flat,
               caption: String? = nil,
+              focusedCaption: String? = nil,
               detail: String? = nil,
               status: TVUIKitMediaItemStatus = .ready,
               timeLabel: String? = nil,
@@ -169,6 +173,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.symbol = symbol
     self.tileStyle = tileStyle
     self.caption = caption
+    self.focusedCaption = focusedCaption
     self.detail = detail
     self.status = status
     self.timeLabel = timeLabel
@@ -207,6 +212,7 @@ public extension TVUIKitMediaItem {
     self.init(id: card.id,
               imageURL: URL(string: art),
               caption: stackedCaption ? card.title : TVUIKitCardText.caption(for: card),
+              focusedCaption: stackedCaption ? nil : card.offeredName,
               detail: stackedCaption ? (subtitle?.isEmpty == false ? subtitle : nil) : nil,
               status: status,
               timeLabel: stackedCaption ? nil : Self.timeLabel(for: card, status: status),
@@ -920,7 +926,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     // when focused (CURRENT.md caption law); the configuration's default is white
     // regardless of appearance, which is what read as "always white, with a shadow".
     let hideCaption = hidesCaption || (captionOnFocus && !state.isFocused)
-    config.text = hideCaption ? nil : item.caption
+    config.text = hideCaption ? nil : (state.isFocused ? item.focusedCaption ?? item.caption : item.caption)
     config.textProperties.color = state.isFocused || item.isNowPlaying ? .label : .secondaryLabel
     // Library still grids ask for the system's second line (title + remaining / when).
     // Home's rail leaves `detail` nil and stays one line. `updated(for:)` is the

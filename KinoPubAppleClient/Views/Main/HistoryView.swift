@@ -210,6 +210,7 @@ struct HistoryView: View {
           badge: card.badge,
           backdropURL: card.backdropURL,
           overlayLabel: card.overlayLabel,
+          offeredName: card.offeredName,
           itemID: card.itemID,
           video: card.video,
           season: card.season,

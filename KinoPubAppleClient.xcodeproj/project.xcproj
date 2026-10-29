@@ -566,6 +566,7 @@
         { "path": "SeasonTabStripTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "AppChangelogTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LibrarySectionCardsTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "ContinueWatchingVersionsTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "TopShelfLinkTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlaybackEpisodesTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "AuthFlowAndKeychainSyncTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
