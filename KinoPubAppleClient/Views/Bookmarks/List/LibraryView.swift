@@ -147,7 +147,7 @@ struct LibraryView: View {
   // MARK: - All Bookmarks
 
   private var allBookmarks: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: 6) {
       SectionHeader(title: "Library_AllBookmarks".localized, leadingInset: metrics.inset)
       HStack(spacing: 8) {
         folderMenu

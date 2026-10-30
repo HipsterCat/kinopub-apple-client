@@ -1114,7 +1114,7 @@ private struct MediaItemPosterShelfSkeleton: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: 6) {
       SectionHeader(title: title)
         .safeAreaPadding(.horizontal, metrics.inset)
 
@@ -1154,7 +1154,7 @@ struct MediaItemAwardsSection: View {
 
   var body: some View {
     if !awards.isEmpty {
-      VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing:6) {
         MediaItemSectionHeader("Awards")
         VStack(alignment: .leading, spacing: 8) {
           ForEach(Array(awards.enumerated()), id: \.offset) { _, award in
@@ -1203,7 +1203,7 @@ struct MediaItemPhotosSection: View {
 
   var body: some View {
     if !stills.isEmpty {
-      VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 6) {
         MediaItemSectionHeader("Photos")
         ScrollView(.horizontal, showsIndicators: false) {
           LazyHStack(alignment: .top, spacing: Self.spacing) {
@@ -1364,7 +1364,7 @@ struct MediaItemFactsSection: View {
 
   var body: some View {
     if !facts.isEmpty {
-      VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 6) {
         MediaItemSectionHeader("Facts")
         BlockRail(height: BlockMetrics.textCardHeight,
                   inset: MediaItemLayout.horizontalInset) {

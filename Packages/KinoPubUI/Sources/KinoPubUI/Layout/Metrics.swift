@@ -42,7 +42,7 @@ public enum Metrics {
 #else
   public static let cardCaptionSpacing: CGFloat = 6
   public static let rowSpacing: CGFloat = 36
-  public static let sectionHeaderSpacing: CGFloat = 18
+  public static let sectionHeaderSpacing: CGFloat = 10
   public static let focusPadding: CGFloat = 4
   /// The same as `focusPadding` off tvOS, and that is the point. It is lift room for
   /// the focus engine, which only exists on TV; giving landscape rails their own

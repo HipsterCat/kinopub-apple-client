@@ -812,8 +812,13 @@ struct SeasonsRailView: View {
 
   /// Between the season line and the rail. The air there used to measure 11 pt on tvOS (2 here,
   /// the rest the rail's own top inset); Sasha asked for twice that (2026-10-11), so 22.
+#if os(tvOS)
   private static let stripToRailSpacing: CGFloat = 13
-
+#elseif os(macOS)
+     private static let stripToRailSpacing: CGFloat = 4
+#else
+     private static let stripToRailSpacing: CGFloat = 4
+     #endif
 #if os(tvOS)
   /// Width to lay out with until the rail has measured itself.
   static let referenceWidth: CGFloat = 1920
@@ -1062,7 +1067,7 @@ struct VersionsRailView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: 6) {
       if showsChrome {
         SectionHeader(title: videosRailHeading(titleKey: titleKey, count: variants.count),
                       leadingInset: pageInset)

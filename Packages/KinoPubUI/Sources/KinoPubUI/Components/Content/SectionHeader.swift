@@ -41,7 +41,7 @@ public struct SectionHeader: View {
   }
 
   public var body: some View {
-      HStack(alignment: .center, spacing: 8) {
+      HStack(alignment: .center, spacing: 4) {
       // `.secondary` the *hierarchical shape style*, not `Color.secondary`. They
       // resolve to the same colour over an opaque background, but only the shape
       // style gets the system's vibrancy treatment when the header sits over a
@@ -51,20 +51,27 @@ public struct SectionHeader: View {
       // is the weight a *title* carries, not a section label.
       title
         .font(TypeScale.rowHeader)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(.primary)
 
       if let count, !count.isEmpty {
         // A step below the title so the two stay distinguishable now that the title
         // is itself secondary.
+        
         Text(count)
           .font(TypeScale.rowCount)
-          .foregroundStyle(.tertiary)
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 7)
+          .padding(.vertical, 1)
+          .background {
+               Capsule().fill(.fill.secondary)
+          }
+           
       }
 
       if showsChevron {
         Image(systemName: "chevron.forward")
           .font(TypeScale.rowChevron)
-          .foregroundStyle(.tertiary)
+          .foregroundStyle(.secondary).opacity(0.7)
           .opacity(chevronOpacity)
       }
     }
@@ -91,6 +98,8 @@ public struct SectionHeader: View {
     SectionHeader("Continue Watching", count: "8", showsChevron: true)
       .environment(\.cardFocused, true)
     SectionHeader(title: "Credits", count: "24")
+       SectionHeader(title: "New & Returning Series", showsChevron: true)
+
   }
   .padding()
   .background(Color.KinoPub.background)
