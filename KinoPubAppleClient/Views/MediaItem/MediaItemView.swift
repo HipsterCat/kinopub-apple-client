@@ -170,6 +170,9 @@ final class MediaItemHeroPhase {
   /// How far the window's bars (toolbar, status bar) reach down over the hero. The page
   /// ignores the top safe area so the picture runs under them; the hero's title must not.
   var topChromeInset: CGFloat = 0
+  /// The hero has a picture behind its chrome (it loaded), so the toolbar over it goes
+  /// dark. Written by the hero once per change.
+  var showsPicture = false
 }
 
 struct MediaItemView: View {
@@ -275,10 +278,7 @@ struct MediaItemView: View {
 #endif
 #if os(macOS)
       .toolbarBackground(.hidden, for: .windowToolbar)
-      .toolbarColorScheme(
-        itemModel.mediaItem.posters.hasSpecifiedWide ? .dark : nil,
-        for: .windowToolbar
-      )
+      .toolbarColorScheme(heroPhase.showsPicture ? .dark : nil, for: .windowToolbar)
 #endif
       .platformNavigationTitle("")
 #if os(iOS) || os(macOS)

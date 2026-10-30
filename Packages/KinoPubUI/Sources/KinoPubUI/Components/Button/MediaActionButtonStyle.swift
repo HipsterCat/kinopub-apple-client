@@ -108,11 +108,6 @@ public extension View {
       .buttonBorderShape(.capsule)
       .controlSize(MediaActionMetrics.controlSize)
       .tint(.primary)
-#if os(macOS)
-      // On the button, not the label: in an inactive window the system greys the fill
-      // and this greys with it; a fixed label colour stayed black on the dark grey.
-      .foregroundStyle(.background)
-#endif
 #endif
   }
 

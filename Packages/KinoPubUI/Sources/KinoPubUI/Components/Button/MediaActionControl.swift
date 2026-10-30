@@ -42,10 +42,8 @@ public struct MediaActionLabel: View {
       }
     }
     .font(MediaActionMetrics.labelFont)
-#if os(iOS)
-    // The monochrome Play's label (`mediaActionPlayPillStyle`). Set on the label: on iOS
-    // `.glassProminent` overrides a foreground set on the button, and the label came out
-    // white on the white pill.
+#if !os(tvOS)
+    // The monochrome Play's label (`mediaActionPlayPillStyle`), set on the label.
     .modifier(PlayPillLabelColor(isPlayPill: appearance.chrome == .playPill))
 #endif
 #if os(tvOS)
@@ -105,19 +103,30 @@ public struct MediaActionLabel: View {
   }
 }
 
-#if os(iOS)
+#if !os(tvOS)
 /// Only the Play pill: any other label keeps the colour its button style gives it.
-/// The pill is filled with `.primary`, so its label is the other end of the scheme.
-/// Not `.background`: inside an iOS button label that resolves to the button's own
-/// fill, and the label vanished into the white pill.
+/// The pill is filled with `.primary`, so its label is the other end of the scheme —
+/// black on the white pill over a picture or in dark, white on the black one in light.
+/// Not `.background`: inside a button label it resolves to the button's own fill, and
+/// the label vanished into the pill (white on white on iOS, black on black on a Mac).
+/// In an inactive Mac window the system greys the fill, and the label greys with it.
 private struct PlayPillLabelColor: ViewModifier {
   let isPlayPill: Bool
 
   @Environment(\.colorScheme) private var colorScheme
+#if os(macOS)
+  @Environment(\.appearsActive) private var appearsActive
+#else
+  private let appearsActive = true
+#endif
 
   func body(content: Content) -> some View {
     if isPlayPill {
-      content.foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+      if appearsActive {
+        content.foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+      } else {
+        content.foregroundStyle(.secondary)
+      }
     } else {
       content
     }

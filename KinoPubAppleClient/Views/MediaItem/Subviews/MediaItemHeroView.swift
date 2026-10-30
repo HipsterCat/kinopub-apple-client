@@ -327,6 +327,14 @@ struct MediaItemHeroView: View {
   /// tvOS only: the Up gesture lifts the muted inline preview into a real full-screen
   /// player. Kept here so the same view that owns the preview owns its promotion.
   @State private var isTrailerFullScreen = false
+#if !os(tvOS)
+  /// What became of the backdrop candidates, keyed by them: the hero is a picture hero
+  /// once one has loaded, whether or not kino.pub sent a `wide` (the worker often has a
+  /// backdrop when it did not), and a poster hero once all have failed.
+  @State private var backdropOutcome: (key: String, loaded: Bool)?
+  /// The band's size, for the corner poster and the column the title leaves it.
+  @State private var heroBandSize: CGSize = .zero
+#endif
   @State private var showNewFolderAlert = false
   @State private var newFolderName = ""
   /// Actions currently showing a spinner (Mark Watched, Follow, …). Cleared when the
@@ -390,6 +398,12 @@ struct MediaItemHeroView: View {
 
   var body: some View {
     platformBody
+#if !os(tvOS)
+      // The window toolbar goes dark over a picture too — the page reads it from here.
+      .onChange(of: showsPicture, initial: true) { _, picture in
+        phase.showsPicture = picture
+      }
+#endif
       // The hero is the only reader of `phase`, so the write lands here alone and the
       // page's body never re-runs for it.
       .onChange(of: phase.isHeroOnScreen) { _, onScreen in
@@ -652,16 +666,15 @@ struct MediaItemHeroView: View {
               }
             }
           }
-          .overlay {
-            GeometryReader { band in
-              ZStack(alignment: .topTrailing) {
-                if showsCornerPoster, let url = heroPosterURL {
-                  cornerPosterImage(url: url, bandSize: band.size)
-                    .padding(.top, Self.horizontalInset)
-                    .padding(.trailing, Self.horizontalInset)
-                }
-              }
-              .frame(width: band.size.width, height: band.size.height)
+          .onGeometryChange(for: CGSize.self, of: \.size) { heroBandSize = $0 }
+          .overlay(alignment: .topTrailing) {
+            // Top-trailing, below the toolbar, in the band's upper half: it was centred
+            // and filled the band, over the synopsis (Sasha, 2026-10-30).
+            if showsCornerPoster, let url = heroPosterURL {
+              cornerPosterImage(url: url, bandSize: heroBandSize)
+                .padding(.top, phase.topChromeInset + Self.horizontalInset)
+                .padding(.trailing, Self.horizontalInset)
+                .transition(.opacity)
             }
           }
           .overlay {
@@ -671,6 +684,7 @@ struct MediaItemHeroView: View {
               .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
           }
           .clipped()
+          .animation(Self.heroStateChange, value: showsPicture)
       }
     }
   }
@@ -683,6 +697,7 @@ struct MediaItemHeroView: View {
       .clipShape(RoundedRectangle(cornerRadius: Self.trailingPosterCornerRadius, style: .continuous))
   }
 
+#if os(tvOS)
   /// 2:3 at `trailingPosterWidth`, scaled down only when the band is too short.
   static func posterAccentSize(in bandSize: CGSize) -> CGSize {
     let width = trailingPosterWidth
@@ -694,6 +709,16 @@ struct MediaItemHeroView: View {
     }
     return CGSize(width: width, height: height)
   }
+#else
+  /// 2:3, as tall as half the band — the upper half, which the title shares with it; the
+  /// synopsis and the buttons below stay clear.
+  static func posterAccentSize(in bandSize: CGSize) -> CGSize {
+    let height = max(0, bandSize.height * posterAccentBandShare)
+    return CGSize(width: height * CardAspect.poster.ratio, height: height)
+  }
+
+  static let posterAccentBandShare: CGFloat = 0.5
+#endif
 
 #if os(tvOS)
   @ViewBuilder
@@ -759,7 +784,35 @@ struct MediaItemHeroView: View {
     return urls
   }
 
+#if os(tvOS)
   private var needsPosterAccent: Bool { !mediaItem.posters.hasSpecifiedWide }
+#else
+  /// A picture behind the chrome — from the load, not a guess: loaded is a picture,
+  /// failed is a poster. Until it answers, a `wide` from kino.pub says to expect one.
+  private var showsPicture: Bool {
+    if let backdropOutcome, backdropOutcome.key == backdropKey {
+      return backdropOutcome.loaded
+    }
+    return mediaItem.posters.hasSpecifiedWide && !backdropCandidates.isEmpty
+  }
+
+  private var needsPosterAccent: Bool { !showsPicture }
+
+  private var backdropKey: String {
+    "\(localCacheEpoch)|" + backdropCandidates.map(\.absoluteString).joined(separator: "|")
+  }
+
+  private func noteBackdrop(loaded: Bool) {
+    let key = backdropKey
+    withAnimation(Self.heroStateChange) {
+      backdropOutcome = (key, loaded)
+    }
+  }
+
+  /// One crossfade for every change of what the hero is: wash → picture, poster →
+  /// picture, the chrome going dark over it.
+  static let heroStateChange = Animation.easeInOut(duration: 0.5)
+#endif
 
   /// Portrait accent whenever the catalogue sent no `wide` still.
   private var showsCornerPoster: Bool {
@@ -781,7 +834,11 @@ struct MediaItemHeroView: View {
 
   /// Trailing column reserved in the title row — matches the poster in `heroCanvas`.
   private var posterColumnWidth: CGFloat {
+#if os(tvOS)
     Self.trailingPosterWidth + Self.horizontalInset
+#else
+    Self.posterAccentSize(in: heroBandSize).width + Self.horizontalInset
+#endif
   }
 
   private var heroPrimaryForeground: Color {
@@ -835,23 +892,19 @@ struct MediaItemHeroView: View {
     return Self.backdropCandidates(for: mediaItem, preferredBackdropURL: preferredBackdropURL)
   }
 
-  private var heroEmptyBackdropFill: Color {
-    needsPosterAccent ? Color.KinoPub.posterHeroPlate : Color.KinoPub.background
-  }
-
+  /// The candidates always load, whatever the hero currently is, so a backdrop the
+  /// worker has for a title kino.pub sent no `wide` for still arrives and takes over.
+  /// Under it the page's blurred poster, unwashed: the plain page under a picture still on
+  /// its way read as a grey slab (Sasha, 2026-10-30). Over both, the poster hero's plate
+  /// while there is no picture.
   @ViewBuilder
   private var scrollingBackdrop: some View {
     ZStack {
-      if needsPosterAccent {
-        heroEmptyBackdropFill
-      } else if backdropCandidates.isEmpty {
-        Color.KinoPub.background
-      } else {
-        // The page's own blurred poster, unwashed, until the picture fades in over it —
-        // and in its place if no candidate loads. The plain page under a picture still
-        // on its way read as a grey slab (Sasha, 2026-10-30).
+      if !backdropCandidates.isEmpty {
         MediaItemPosterWash(url: heroWashURL)
-        FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill)
+        FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill,
+                            onLoaded: { noteBackdrop(loaded: true) },
+                            onFailed: { noteBackdrop(loaded: false) })
           .id(localCacheEpoch)
           .onAppear {
 #if DEBUG
@@ -860,6 +913,8 @@ struct MediaItemHeroView: View {
 #endif
           }
       }
+      Color.KinoPub.posterHeroPlate
+        .opacity(showsPicture ? 0 : 1)
 
       if let player = trailer.player, trailer.isReady {
         TrailerVideoLayer(player: player)
@@ -1774,7 +1829,6 @@ struct MediaItemHeroView: View {
   static let actionsRowGap: CGFloat = 10
   static let creditLineSpacing: CGFloat = 3
   static let columnGutter: CGFloat = 28
-  static let trailingPosterWidth: CGFloat = 500
   static let trailingPosterCornerRadius: CGFloat = 14
 #else
   /// Preview / fallback only — live layout uses `.aspectRatio(16/9)`.
@@ -1791,7 +1845,6 @@ struct MediaItemHeroView: View {
   static let actionsRowGap: CGFloat = 10
   static let creditLineSpacing: CGFloat = 3
   static let columnGutter: CGFloat = 16
-  static let trailingPosterWidth: CGFloat = 300
   static let trailingPosterCornerRadius: CGFloat = 12
 #endif
 }

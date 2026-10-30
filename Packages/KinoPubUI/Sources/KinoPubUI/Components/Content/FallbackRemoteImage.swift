@@ -19,13 +19,17 @@ public struct FallbackRemoteImage: View {
   private let urls: [URL]
   private let contentMode: ContentMode
   private let onLoaded: (() -> Void)?
+  private let onFailed: (() -> Void)?
   @State private var image: Image?
   @State private var loading = true
 
-  public init(urls: [URL], contentMode: ContentMode = .fill, onLoaded: (() -> Void)? = nil) {
+  /// `onFailed`: every candidate failed, or there was none.
+  public init(urls: [URL], contentMode: ContentMode = .fill,
+              onLoaded: (() -> Void)? = nil, onFailed: (() -> Void)? = nil) {
     self.urls = urls
     self.contentMode = contentMode
     self.onLoaded = onLoaded
+    self.onFailed = onFailed
   }
 
   public var body: some View {
@@ -54,6 +58,7 @@ public struct FallbackRemoteImage: View {
 
     guard !urls.isEmpty else {
       artLog.debug("FallbackRemoteImage: no candidate URLs")
+      onFailed?()
       return
     }
 
@@ -78,6 +83,8 @@ public struct FallbackRemoteImage: View {
       }
     }
 
+    if Task.isCancelled { return }
+    onFailed?()
     artLog.debug("FallbackRemoteImage: all candidates failed (\(urls.count))")
     #if DEBUG
     print("[Artwork] exhausted \(urls.count) candidates")
