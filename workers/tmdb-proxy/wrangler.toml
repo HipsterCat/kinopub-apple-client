@@ -9,6 +9,16 @@ main = "src/index.js"
 compatibility_date = "2026-07-01"
 workers_dev = true
 
+# Dashboard logs stay on. A deploy without this block can switch them off.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+head_sampling_rate = 1
+
 # Optional override: vars.TMDB_API_BASE = "https://api.themoviedb.org"
 
 [vars]
