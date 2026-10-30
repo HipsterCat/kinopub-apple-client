@@ -304,9 +304,21 @@ export async function readDocument(env, id) {
 }
 
 export async function writeDocument(env, id, document) {
-  if (!env.DOCUMENTS) return;
-  await env.DOCUMENTS.put(`title:kinopub:${id}`, JSON.stringify(document),
-                          { expirationTtl: DOC_TTL });
+  if (!env.DOCUMENTS) return false;
+  try {
+    await env.DOCUMENTS.put(`title:kinopub:${id}`, JSON.stringify(document),
+                            { expirationTtl: DOC_TTL });
+    return true;
+  } catch (error) {
+    // The daily KV write cap is a real wall. The picture for this request
+    // can still be served from the document we already built.
+    console.log(JSON.stringify({
+      kv: "put_failed",
+      id,
+      message: error?.message || String(error),
+    }));
+    return false;
+  }
 }
 
 /**
@@ -372,11 +384,17 @@ export async function resolveAndStore(env, id, hints, base, options = {}) {
       return;
     }
 
-    await writeDocument(env, id, mergeTMDB(document, mediaType, match.id, details));
-  } catch (_) {
-    // Background work: a failure must never be visible, and must not poison the
-    // store with a half-built document.
+    const merged = mergeTMDB(document, mediaType, match.id, details);
+    await writeDocument(env, id, merged);
+    return merged;
+  } catch (error) {
+    console.log(JSON.stringify({
+      resolve: "failed",
+      id,
+      message: error?.message || String(error),
+    }));
     if (document !== base) await writeDocument(env, id, document);
+    return document !== base ? document : null;
   }
 }
 
@@ -656,22 +674,15 @@ function assetInLang(document, kind, lang, hints) {
 
 const IMAGE_STATS_KEY = "stats:img";
 
-function noteImage(env, ctx, reason, imageRequest, ms) {
+function noteImage(_env, _ctx, reason, imageRequest, ms) {
+  // Console only. A KV counter here burned the daily write cap and then
+  // threw on every later miss, which hid the picture we had just fetched.
   console.log(JSON.stringify({
     img: reason,
     kind: imageRequest.kind,
     id: imageRequest.id,
     ms,
   }));
-  ctx.waitUntil(bumpImageStat(env, reason));
-}
-
-async function bumpImageStat(env, reason) {
-  if (!env?.DOCUMENTS) return;
-  const current = (await env.DOCUMENTS.get(IMAGE_STATS_KEY, { type: "json" })) || {};
-  current[reason] = (current[reason] || 0) + 1;
-  current.updated_at = new Date().toISOString();
-  await env.DOCUMENTS.put(IMAGE_STATS_KEY, JSON.stringify(current));
 }
 
 export async function imageStats(env) {
@@ -689,7 +700,10 @@ async function resolveWithin(env, ctx, id, hints, stored, options = {}) {
   const ms = imageWaitMs(env);
   let timer;
   const job = resolveAndStore(env, id, hints, stored || draftDocument(id, hints), options)
-    .then(async () => ({ timedOut: false, stored: await readDocument(env, id) }))
+    .then(async (built) => ({
+      timedOut: false,
+      stored: built || await readDocument(env, id) || stored,
+    }))
     .catch(() => ({ timedOut: false, stored }));
   const timeout = new Promise((resolve) => {
     timer = setTimeout(() => resolve({ timedOut: true, stored }), ms);
