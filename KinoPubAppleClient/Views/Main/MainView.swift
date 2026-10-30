@@ -64,7 +64,8 @@ struct MainView: View {
       rowsView
         .modifier(PageTitle(title: title, isBlank: showsHeroChrome))
 #if os(iOS)
-        .modifier(HeroNavigationChrome(isActive: showsHeroChrome))
+        .modifier(HeroNavigationChrome(isActive: showsHeroChrome,
+                                       isPushedOverHero: rowsHero != nil && isPushed))
 #endif
 #if os(macOS)
         .macToolbarSearch()
@@ -626,12 +627,18 @@ struct MainView_Previews: PreviewProvider {
 /// knows when the picture is under the bar.
 private struct HeroNavigationChrome: ViewModifier {
   let isActive: Bool
+  /// Pushed from More over a hero: the title inline, where the bar's dark scheme over
+  /// the picture reaches it — a large title stayed black on the picture.
+  let isPushedOverHero: Bool
 
   func body(content: Content) -> some View {
     if isActive {
       content
         .toolbarTitleDisplayMode(.inlineLarge)
 
+    } else if isPushedOverHero {
+      content
+        .toolbarTitleDisplayMode(.inline)
     } else {
       content
     }
