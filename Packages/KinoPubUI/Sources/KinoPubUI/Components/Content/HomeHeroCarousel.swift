@@ -523,7 +523,11 @@ private struct HeroBackdrop: View {
   let isCompact: Bool
 
   /// How far a picture drifts against a whole page of scroll.
-  private static let drift: CGFloat = 0.2
+  private static let drift: CGFloat = 0.12
+
+  /// Each picture is wider than the hero by its drift on both sides, so a drifting one
+  /// never shows its edge (a narrower layer left seams and a white strip mid-turn).
+  private var pictureWidth: CGFloat { (width * (1 + 2 * Self.drift)).rounded() }
 
   var body: some View {
     let position = min(max(pager.page, 0), CGFloat(max(slots.count - 1, 0)))
@@ -549,47 +553,49 @@ private struct HeroBackdrop: View {
   }
 
   /// The picture from the top of the screen. Cropped, it keeps its top — heads and
-  /// skies, not the middle. On a phone the 16:10 still starts under the bars and the
-  /// system's background extension carries it on above, under the status bar, and below
-  /// as mirrored, blurred glass; a blurred copy fades in toward both edges so the still
-  /// melts into the glass instead of stopping on a line (Sasha, 2026-10-30).
+  /// skies, not the middle. On a phone the 16:10 still starts under the bars, and the
+  /// system's background extension carries it on above, under the status bar, and
+  /// below. That whole layer is blurred into glass, and the sharp still lies over it
+  /// fading out toward both edges, so it melts into the glass instead of stopping on a
+  /// line (Sasha, 2026-10-30).
   @ViewBuilder
   private func picture(_ feature: HomeHeroFeature) -> some View {
+    let wide = pictureWidth
 #if os(iOS)
     if isCompact {
       let still = HomeHeroCarousel.stillHeight(width: width)
       let below = max(height - topBleed - still, 0)
       ZStack(alignment: .top) {
         FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
-          .frame(width: width, height: still)
+          .frame(width: wide, height: still)
           .clipped()
           .backgroundExtensionEffect()
           .safeAreaPadding(.top, topBleed)
           .safeAreaPadding(.bottom, below)
+          .blur(radius: width * 0.06, opaque: true)
         FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
-          .frame(width: width, height: still)
-          .blur(radius: width * 0.04, opaque: true)
+          .frame(width: wide, height: still)
           .clipped()
           .mask {
             LinearGradient(stops: [
-              .init(color: .black, location: 0),
-              .init(color: .clear, location: 0.18),
-              .init(color: .clear, location: 0.62),
-              .init(color: .black, location: 1)
+              .init(color: .clear, location: 0),
+              .init(color: .black, location: 0.22),
+              .init(color: .black, location: 0.55),
+              .init(color: .clear, location: 1)
             ], startPoint: .top, endPoint: .bottom)
           }
           .padding(.top, topBleed)
       }
-      .frame(width: width, height: height, alignment: .top)
+      .frame(width: wide, height: height, alignment: .top)
     } else {
-      croppedPicture(feature)
+      croppedPicture(feature, width: wide)
     }
 #else
-    croppedPicture(feature)
+    croppedPicture(feature, width: wide)
 #endif
   }
 
-  private func croppedPicture(_ feature: HomeHeroFeature) -> some View {
+  private func croppedPicture(_ feature: HomeHeroFeature, width: CGFloat) -> some View {
     FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
       .frame(width: width, height: height, alignment: .top)
       .clipped()
