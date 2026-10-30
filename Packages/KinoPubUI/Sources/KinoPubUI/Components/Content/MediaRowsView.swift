@@ -424,6 +424,12 @@ private struct HeroUnderChrome: ViewModifier {
           heroUnderBar = under
         }
 #if os(iOS)
+        // The bar applies a colour scheme only while it counts as having a background:
+        // a clear one, shown while the picture is under it. Without it the large title
+        // stayed black over the picture in light appearance. Scrolled down, the bar is
+        // the system's again, scroll-edge effect and all.
+        .toolbarBackground(Color.clear, for: .navigationBar)
+        .toolbarBackground(heroUnderBar ? .visible : .automatic, for: .navigationBar)
         .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .navigationBar)
 #else
         .toolbarBackground(.hidden, for: .windowToolbar)
