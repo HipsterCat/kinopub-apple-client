@@ -81,11 +81,16 @@ public struct TitleLogoSlot<Title: View>: View {
       case .text:
         title()
           .frame(maxWidth: textMaxWidth ?? maxWidth, alignment: .leading)
+          .transition(.opacity)
       case .empty:
         Color.clear
           .frame(maxWidth: maxWidth, minHeight: maxHeight, maxHeight: maxHeight, alignment: .topLeading)
       }
     }
+    // A logo or lettered title that arrives after the first frame fades in; one painted
+    // from the cache is there on the first frame and has nothing to animate.
+    .animation(.easeInOut(duration: 0.4), value: mark)
+    .animation(.easeInOut(duration: 0.4), value: session.image != nil)
     .onAppear {
       session.setResolution(resolution)
       onMarkChange?(mark)
@@ -115,6 +120,7 @@ public struct TitleLogoSlot<Title: View>: View {
         .scaledToFit()
         .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
+        .transition(.opacity)
     } else {
       Color.clear
     }

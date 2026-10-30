@@ -50,8 +50,18 @@ public struct FallbackRemoteImage: View {
     }
   }
 
+  /// How a picture that had to be fetched comes in. One from the memory cache paints on
+  /// the first frame instead — fading in art that is already there reads as a flicker.
+  public static let fadeIn = Animation.easeInOut(duration: 0.5)
+
   @MainActor
   private func load() async {
+    if let first = urls.first, let cached = Artwork.cachedImage(for: first) {
+      image = Image(platformImage: cached)
+      loading = false
+      onLoaded?()
+      return
+    }
     image = nil
     loading = true
     defer { loading = false }
@@ -66,7 +76,8 @@ public struct FallbackRemoteImage: View {
       if Task.isCancelled { return }
       do {
         let loaded = try await Artwork.image(for: url)
-        image = Image(platformImage: loaded)
+        // `.transition(.opacity)` only plays inside an animated change.
+        withAnimation(Self.fadeIn) { image = Image(platformImage: loaded) }
         onLoaded?()
         artLog.debug("art OK \(url.absoluteString, privacy: .public)")
         #if DEBUG
