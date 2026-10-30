@@ -2,8 +2,7 @@
 //  BackdropScrim.swift
 //  KinoPubUI
 //
-//  The legibility scrim over a title's picture — the one the tvOS page backdrop draws,
-//  shared so the Mac hero carries the same one (Sasha, 2026-10-29).
+//  The legibility scrim the tvOS page backdrop draws over a title's picture.
 //
 
 import SwiftUI

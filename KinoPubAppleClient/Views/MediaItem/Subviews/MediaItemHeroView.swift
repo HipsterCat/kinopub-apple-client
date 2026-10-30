@@ -859,9 +859,10 @@ struct MediaItemHeroView: View {
     .animation(.easeInOut(duration: 0.6), value: trailer.isReady)
   }
 
-  /// Mac: the tvOS backdrop's own scrim (`BackdropScrim`) under the logo and the text,
-  /// and nothing fading the picture into the page — it ends on a clean edge (Sasha,
-  /// 2026-10-29).
+  /// Mac: the tvOS Home hero's legibility texture (`HeroBannerOverlay`: a 6% wash, the
+  /// leading edge ramping in from a third of the way down, an eased bottom fade), and
+  /// nothing fading the picture into the page — it ends on a clean edge. The flat
+  /// top-and-bottom bands of `BackdropScrim` read as two slabs (Sasha, 2026-10-30).
   ///
   /// Phone / iPad: barely there, the way the Apple TV app leaves its hero video alone:
   /// clear for most of the frame, a light shade under the text, and the background colour
@@ -870,7 +871,7 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var scrollingScrim: some View {
 #if os(macOS)
-    BackdropScrim()
+    HeroLegibilityTexture(tone: .black)
 #else
     LinearGradient(stops: [
       .init(color: .clear, location: 0),
