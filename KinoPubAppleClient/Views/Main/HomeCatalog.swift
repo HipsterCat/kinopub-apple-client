@@ -439,18 +439,13 @@ class HomeCatalog: ObservableObject {
   @Published public private(set) var rows: [MediaRow] = []
   /// Up to six contained banner cards sampled from the catalog shelves below.
   @Published public private(set) var bannerCards: [MediaCard] = [] {
-    didSet { resolveBannerDetails() }
+    didSet { resolveBannerImages() }
   }
-  /// The banner cards re-read from the details payload once it lands, by card id. A
-  /// shelf's payload has no seasons, so its card cannot say "12 episodes"; the details
-  /// one can, and its wide still is a real file.
-  @Published public private(set) var bannerDetails: [Int: MediaCard] = [:]
-  /// What each banner title's Play button says — the detail page's own Play
-  /// (`MediaActionCatalog.play`) over the same details payload with this device's
-  /// positions laid on it, so «Ещё 12 мин» and its bar read the same in both places.
+  /// What each banner title's Play button says, when this device has played it: the
+  /// detail page's own Play (`MediaActionCatalog.play`) over the payload the player kept
+  /// with its positions laid on it. No entry = plain Play. The banner asks the server
+  /// for nothing beyond the shelves (Sasha, 2026-10-30).
   @Published public private(set) var bannerPlay: [Int: MediaActionAppearance] = [:]
-  /// The details payloads behind `bannerPlay`, and when each was asked for.
-  private var bannerItems: [Int: (item: MediaItem, requestedAt: Date)] = [:]
   /// Title logos for the banner cards, by card id: the worker's logo URL, whose 404 is
   /// the confirmed miss. ``.missing`` only when no worker is configured.
   @Published public private(set) var bannerLogos: [Int: TitleLogoResolution] = [:]
@@ -473,10 +468,8 @@ class HomeCatalog: ObservableObject {
   private var store: ContentStore
   private var localProgressStore: LocalWatchProgressStore
   private let metadataService: MetadataService
-  /// Banner cards whose images and details were already set up, found or not.
+  /// Banner cards whose images were already set up.
   private var bannerLookups: Set<Int> = []
-  /// In-flight details tasks, cancelled when the banner set changes or on refresh.
-  private var bannerTasks: [Int: Task<Void, Never>] = [:]
   private var bag = Set<AnyCancellable>()
 
   init(itemsService: VideoContentService,
@@ -959,61 +952,35 @@ class HomeCatalog: ObservableObject {
   /// The banner's pictures are URLs, not lookups: the logo and the textless backdrop
   /// come straight from the worker's image route by kino.pub id (`TitleImageRoute`),
   /// and a 404 is the confirmed miss that letters the name. The detail hero builds the
-  /// same URLs, so opening a banner title draws its logo from the artwork cache. The
-  /// only call left is kino.pub's details, for what a shelf payload lacks (seasons,
-  /// episodes) — the same call and cache the detail page makes. Stale tasks are
-  /// cancelled when the banner set changes; failed ids retry on the next `refresh()`.
-  private func resolveBannerDetails() {
+  /// same URLs, so opening a banner title draws its logo from the artwork cache. Nothing
+  /// else is asked for: the words are the shelf card's, Play is from this device.
+  private func resolveBannerImages() {
     let live = Set(bannerCards.map(\.id))
-    for id in bannerTasks.keys where !live.contains(id) {
-      bannerTasks[id]?.cancel()
-      bannerTasks.removeValue(forKey: id)
-    }
     bannerLookups = bannerLookups.intersection(live)
-
     let images = metadataService.images
     for card in bannerCards where bannerLookups.insert(card.id).inserted {
-      let id = card.id
       applyBannerImages(images, to: card)
-      bannerTasks[id] = Task { [weak self, itemsService] in
-        let requestedAt = Date()
-        let item = try? await itemsService.fetchDetails(for: "\(card.itemID)", excludeLinks: true).item
-        guard let self, let item, !Task.isCancelled,
-              self.bannerCards.contains(where: { $0.id == id }) else { return }
-        let detailed = MediaCard(item)
-        // The details card keeps kino.pub's own wide still: it is the banner's fallback
-        // when the worker has no textless frame (a 404), and a shelf card's derived
-        // `/wide/` often does not exist.
-        self.bannerDetails[id] = detailed
-        self.bannerItems[id] = (item, requestedAt)
-        self.repaintBannerPlay(id: id)
-        if !Self.isBannerEligible(detailed, record: self.store.records.record(for: detailed.ref)) {
-          self.logBanner("details id=\(id) not wide-eligible — keeping on-screen anyway")
-        }
-        // A cached shelf card can predate the IMDb id; the details one has it, and
-        // the hero will ask with it, so the banner switches to that URL too.
-        if card.imdbID == nil, detailed.imdbID != nil {
-          self.applyBannerImages(images, to: detailed)
-        }
-      }
     }
+    repaintBannerPlay()
   }
 
-  /// Play's state for the banner titles (or one), from their payloads with this device's
-  /// newer positions on top: the detail page's rule (`layPositions`), no request.
-  private func repaintBannerPlay(id: Int? = nil) {
-    for key in id.map({ [$0] }) ?? Array(bannerItems.keys) {
-      guard var entry = bannerItems[key] else { continue }
-      localProgressStore.layPositions(over: &entry.item, writtenAfter: entry.requestedAt)
-      let item = entry.item
-      let play = MediaActionCatalog.play(for: MediaActionContext(
+  /// Play's state for the banner titles from what the player wrote on this device —
+  /// the payload it kept and its positions, the detail page's rule (`layPositions`).
+  /// A title never played here keeps plain Play.
+  private func repaintBannerPlay() {
+    let entries = localProgressStore.allEntries()
+    var play: [Int: MediaActionAppearance] = [:]
+    for card in bannerCards {
+      guard var item = entries.first(where: { $0.item.id == card.itemID })?.item else { continue }
+      localProgressStore.layPositions(over: &item, writtenAfter: .distantPast)
+      play[card.id] = MediaActionCatalog.play(for: MediaActionContext(
         playback: item.playbackButtonContent,
         kind: item.presentation.kind,
         isSeries: item.isSeries,
         seasonCount: item.seasons?.count
       ))
-      if bannerPlay[key] != play { bannerPlay[key] = play }
     }
+    if bannerPlay != play { bannerPlay = play }
   }
 
   private func applyBannerImages(_ images: TitleImageRoute, to card: MediaCard) {
@@ -1028,11 +995,8 @@ class HomeCatalog: ObservableObject {
   }
 
   private func cancelBannerLookups() {
-    bannerTasks.values.forEach { $0.cancel() }
-    bannerTasks.removeAll()
     bannerLookups.removeAll()
     bannerLogos.removeAll()
-    bannerItems.removeAll()
   }
 
   // MARK: - Continue watching actions

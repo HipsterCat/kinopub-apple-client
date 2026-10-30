@@ -528,11 +528,11 @@ struct MainView: View {
     catalog.rows
   }
 
-  /// The banner titles with what the hero shows for each: the details card once it is
-  /// in, the logo and textless picture from the worker, Play as the title page draws it.
+  /// The banner titles with what the hero shows for each: the shelf card, the logo and
+  /// textless picture from the worker, Play as the title page draws it.
   private var bannerFeatures: [TVPageFeature] {
     catalog.bannerCards.map {
-      TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
+      TVPageFeature(card: $0,
                     logo: catalog.bannerLogos[$0.id] ?? .pending,
                     backdrop: catalog.bannerBackdrops[$0.id],
                     play: catalog.bannerPlay[$0.id],

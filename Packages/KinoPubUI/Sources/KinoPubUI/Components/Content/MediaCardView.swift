@@ -254,17 +254,17 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
 
   /// Duration or volume line for banner:
   /// - Series with 2+ seasons: "2 сезона" / "2 seasons"
-  /// - Series with 1 season: episode count "8 серий" / "8 episodes"
+  /// - Series with 1 season: episode count "8 серий" / "8 episodes", when known
+  /// - Series without counts (a shelf payload): nothing
   /// - Film: runtime (e.g. "135 мин")
   public func bannerDurationText(language: MediaLanguage = .current) -> String? {
     if isSeries {
-      let seasons = seasonCount ?? 1
-      if seasons > 1 {
+      // A shelf payload carries no seasons: say nothing rather than guess a count.
+      if let seasons = seasonCount, seasons > 1 {
         return SeasonCountText(seasons)?.formatted(language: language)
-      } else {
-        let episodes = episodeCount ?? (unwatchedEpisodes ?? 8)
-        return EpisodesLeftText(episodes)?.formatted(language: language)
       }
+      guard let episodes = episodeCount else { return nil }
+      return EpisodesLeftText(episodes)?.formatted(language: language)
     } else {
       return durationLabel
     }
