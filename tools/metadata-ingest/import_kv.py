@@ -6,7 +6,10 @@
 Reads data/kv-documents-*.jsonl.gz (the newest one) and writes two files
 next to it, both gitignored:
 
-  data/kv.db       every field of the archive, one concept per table
+  data/kv.db       every field of the archive, one concept per table.
+                   People keep their TMDB id, gender and popularity, and every
+                   role is its own row. Episodes keep a TMDB id and a rating,
+                   plus the IMDb rating when record-v2 already has that episode.
   data/card-2.db   a copy of card.db with the empty cells filled from kv.db
 
 card.db is not modified. A cell that already has a value stays: tvoe's
