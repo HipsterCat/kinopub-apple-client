@@ -47,6 +47,10 @@ struct TabsNavigationView: View {
   @ObservedObject private var sectionStore = SectionVisibilityStore.shared
 
   @State private var sidebarFolders: [Bookmark] = []
+#if os(macOS)
+  @FocusState private var detailFocused: Bool
+  @State private var heroStep: HeroStepRequest?
+#endif
   @State private var watchlistBadgeCount = 0
   @State private var sidebarSyncedAt: Date?
   private static let sidebarSyncTTL: TimeInterval = 120
@@ -335,8 +339,6 @@ struct TabsNavigationView: View {
       }
       .listStyle(.sidebar)
       .environment(\.symbolVariants, .none)
-      // Glyphs in the label colour, not the accent: the TV app's sidebar is monochrome.
-      .listItemTint(.monochrome)
         // Under the list, not over it: an inset let the last folder scroll beneath it.
         MacSidebarAccount(userService: appContext.userService)
       }
@@ -347,7 +349,26 @@ struct TabsNavigationView: View {
       // (Sasha, 2026-10-30), and nothing collapses it.
       .toolbar(removing: .sidebarToggle)
     } detail: {
+      // Focus lives in the page, not the list, as in Apple's own sidebar apps: the
+      // selection then sits grey under bold type instead of the blue of a focused list,
+      // and the keyboard works the page — Left / Right turn the Home hero (Sasha,
+      // 2026-10-30). Taken on launch and after every pick in the sidebar.
       macSidebarDetail
+        .focusable()
+        .focusEffectDisabled()
+        .focused($detailFocused)
+        .onMoveCommand { direction in
+          switch direction {
+          case .left: heroStep = HeroStepRequest(delta: -1)
+          case .right: heroStep = HeroStepRequest(delta: 1)
+          default: break
+          }
+        }
+        .environment(\.heroStepRequest, heroStep)
+        .onAppear { detailFocused = true }
+        .onChange(of: navigationState.selectedTab) {
+          if navigationState.selectedTab != .search { detailFocused = true }
+        }
     }
   }
 

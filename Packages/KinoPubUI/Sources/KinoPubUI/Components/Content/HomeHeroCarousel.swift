@@ -1,3 +1,4 @@
+import Foundation
 #if !os(tvOS)
 //
 //  HomeHeroCarousel.swift
@@ -35,6 +36,7 @@ public struct HomeHeroCarousel: View {
   private let bookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])?
   private let isActive: Bool
   @Binding private var shownIndex: Int
+  @Environment(\.heroStepRequest) private var heroStepRequest
 
   /// One page: which title, on which lap of the three.
   struct Slot: Hashable, Sendable {
@@ -224,6 +226,10 @@ public struct HomeHeroCarousel: View {
       generation += 1
     }
     .onChange(of: isActive) { move(to: current, animated: false) }
+    // Left / Right from the keyboard while the page holds focus (Mac sidebar shell).
+    .onChange(of: heroStepRequest) { _, request in
+      if let request { step(request.delta) }
+    }
     .onChange(of: current.index) { _, index in
       if index != shownIndex { shownIndex = index }
     }
@@ -944,3 +950,19 @@ private struct DrawnPageDots: View {
   )
 }
 #endif
+
+/// A keyboard turn of the Home hero, from whatever holds focus in the page: each request
+/// has its own id, so the same direction twice is two turns.
+public struct HeroStepRequest: Equatable, Sendable {
+  public let id: UUID
+  public let delta: Int
+
+  public init(delta: Int) {
+    self.id = UUID()
+    self.delta = delta
+  }
+}
+
+public extension EnvironmentValues {
+  @Entry var heroStepRequest: HeroStepRequest? = nil
+}
