@@ -23,6 +23,8 @@ struct MainView: View {
   @AppStorage(FeatureFlag.homeBanner.defaultsKey) private var homeBannerEnabled = true
   /// The hero's title on screen, kept here so back from a pushed page it is the same one.
   @State private var heroIndex = 0
+  /// Pushed, not a tab's root: iPhone's More list pushes Movies and the rest.
+  @Environment(\.isPresented) private var isPushed
 
   /// Watch Now, Movies, or Series — same `MediaRowsView` stack of SwiftUI
   /// `Section(title) { rail }` shelves. On tvOS the rail is a TVUIKit representable;
@@ -485,7 +487,9 @@ struct MainView: View {
           .filter { $0.id == MediaCardContextMenus.bookmarksMenuID }
       },
       heroIsActive: navigationState.selectedTab == tab && navigationState.path(for: tab).wrappedValue.isEmpty,
-      heroProfile: (label: "Settings".localized, action: { navigationState.selectedTab = .settings }),
+      heroProfile: showsHeroChrome
+        ? (label: "Settings".localized, action: { navigationState.selectedTab = .settings })
+        : nil,
       heroIndex: $heroIndex,
       navigationLinkProvider: { card in
         if card.opensCollection {
@@ -543,10 +547,12 @@ struct MainView: View {
           noBookmarkFolders: "No bookmark folders yet".localized)
   }
 
-  /// iOS: under the hero the bar has no title (Sasha, 2026-10-30).
+  /// iOS: under the hero the bar has no title and Settings sits at its trailing end
+  /// (Sasha, 2026-10-30) — on a tab's root. Pushed from More, the page keeps the
+  /// ordinary bar: a back button and a trailing item went onto two rows there.
   private var showsHeroChrome: Bool {
 #if os(iOS)
-    rowsHero != nil
+    rowsHero != nil && !isPushed
 #else
     false
 #endif
