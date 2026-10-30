@@ -343,8 +343,11 @@ struct TabsNavigationView: View {
         MacSidebarAccount(userService: appContext.userService)
       }
       // The TV app's width, and fixed as its is: its divider does not move.
-      .frame(width: 220)
       .navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 220)
+      // SwiftUI's width is a preference the divider can still be dragged past, and the
+      // sidebar could be dragged shut (Sasha, 2026-10-31). The TV app's is fixed: the
+      // split view item itself is pinned.
+      .background(MacFixedSidebar(width: 220))
       // The TV app's sidebar is always there: no «Hide Sidebar» button in the toolbar
       // (Sasha, 2026-10-30), and nothing collapses it.
       .toolbar(removing: .sidebarToggle)
@@ -354,6 +357,10 @@ struct TabsNavigationView: View {
       // and the keyboard works the page — Left / Right turn the Home hero (Sasha,
       // 2026-10-30). Taken on launch and after every pick in the sidebar.
       macSidebarDetail
+        // Every page under the same window toolbar, as the TV app's: with nothing in it a
+        // page had none, and switching between pages moved everything up and down by the
+        // bar's height (Sasha, 2026-10-31). The picture of Home runs on up under it.
+        .toolbar { ToolbarSpacer(.flexible) }
         // `.edit`: focusable whatever the system's keyboard-navigation setting; the
         // default (`.activate`) takes focus only with Full Keyboard Access on, so the
         // page never held the keyboard and the arrows did not reach it.
@@ -1066,6 +1073,49 @@ enum MacGenreSymbol {
       ("наук", "atom"), ("концерт", "music.quarternote.3"), ("стендап", "music.mic"),
     ]
     return table.first { lower.hasPrefix($0.0) || lower.contains($0.0) }?.1 ?? "film"
+  }
+}
+#endif
+
+#if os(macOS)
+import AppKit
+
+/// Pins the sidebar column of the split view it sits in, as the TV app's is: one width,
+/// no collapsing, the divider does not move.
+private struct MacFixedSidebar: NSViewRepresentable {
+  let width: CGFloat
+
+  func makeNSView(context: Context) -> NSView { Probe(width: width) }
+  func updateNSView(_ nsView: NSView, context: Context) {}
+
+  private final class Probe: NSView {
+    let width: CGFloat
+    init(width: CGFloat) {
+      self.width = width
+      super.init(frame: .zero)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      DispatchQueue.main.async { [weak self] in self?.pin() }
+    }
+
+    private func pin() {
+      var view: NSView? = superview
+      while let current = view, !(current is NSSplitView) { view = current.superview }
+      guard let split = view as? NSSplitView,
+            let controller = split.delegate as? NSSplitViewController,
+            let sidebar = controller.splitViewItems.first else { return }
+      sidebar.canCollapse = false
+      sidebar.canCollapseFromWindowResize = false
+      sidebar.minimumThickness = width
+      sidebar.maximumThickness = width
+      sidebar.holdingPriority = .defaultHigh
+      if split.arrangedSubviews.first?.frame.width != width {
+        split.setPosition(width, ofDividerAt: 0)
+      }
+    }
   }
 }
 #endif

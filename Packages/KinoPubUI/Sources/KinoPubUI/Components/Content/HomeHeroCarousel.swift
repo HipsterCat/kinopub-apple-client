@@ -157,7 +157,12 @@ public struct HomeHeroCarousel: View {
     .scrollPosition($scroll)
     .onScrollGeometryChange(for: CGFloat.self) { geometry in
       let width = geometry.containerSize.width
-      return width > 0 ? geometry.contentOffset.x / width : 0
+      // Counted from the inset edge: on a Mac the page runs under the floating sidebar,
+      // which sets a leading content inset as wide as the sidebar. A page at rest then
+      // sits at offset `n × width − inset`, and the bare offset read as a page part-way
+      // through a turn — two pictures at once, until a resize moved the inset (Sasha,
+      // 2026-10-31).
+      return width > 0 ? (geometry.contentOffset.x + geometry.contentInsets.leading) / width : 0
     } action: { _, page in
       pager.page = page
       // At rest between two pages — a burst of window resizes outran the re-snap on
