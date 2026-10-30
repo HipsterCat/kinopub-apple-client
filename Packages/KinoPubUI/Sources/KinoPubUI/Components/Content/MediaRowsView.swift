@@ -54,6 +54,9 @@ public struct MediaRowsView: View {
   private let onHeroDetails: ((MediaCard) -> Void)?
   private let heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])?
   private let heroIsActive: Bool
+  /// iOS: the button at the bar's trailing end over the hero (Settings), its
+  /// accessibility name and action.
+  private let heroProfile: (label: String, action: () -> Void)?
   private let heroIndex: Binding<Int>
   private let navigationLinkProvider: (MediaCard) -> any Hashable
   /// When a card's `primaryAction` is `.play`, Select/click runs this instead of navigating.
@@ -103,6 +106,7 @@ public struct MediaRowsView: View {
               onHeroDetails: ((MediaCard) -> Void)? = nil,
               heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               heroIsActive: Bool = true,
+              heroProfile: (label: String, action: () -> Void)? = nil,
               heroIndex: Binding<Int> = .constant(0),
               navigationLinkProvider: @escaping (MediaCard) -> any Hashable,
               onPlay: ((MediaCard) -> Void)? = nil,
@@ -119,6 +123,7 @@ public struct MediaRowsView: View {
     self.onHeroDetails = onHeroDetails
     self.heroBookmarkEntries = heroBookmarkEntries
     self.heroIsActive = heroIsActive
+    self.heroProfile = heroProfile
     self.heroIndex = heroIndex
     self.navigationLinkProvider = navigationLinkProvider
     self.onPlay = onPlay
@@ -206,8 +211,8 @@ public struct MediaRowsView: View {
 #if os(tvOS)
     .scrollClipDisabled()
 #else
-    .modifier(HeroUnderChrome(isActive: showsHero, heroUnderBar: $heroUnderBar,
-                              heroHeight: heroSize.height))
+    .modifier(HeroUnderChrome(isActive: showsHero, heroUnderBar: heroUnderBar,
+                              profile: heroProfile))
 #endif
   }
 
@@ -244,6 +249,12 @@ public struct MediaRowsView: View {
         isActive: heroIsActive,
         shownIndex: heroIndex
       )
+      // The picture is under the bar while its foot is below the bar's.
+      .onGeometryChange(for: Bool.self) { proxy in
+        proxy.frame(in: .global).maxY > barInsets.top + 1
+      } action: { under in
+        heroUnderBar = under
+      }
     } else if !bannerCards.isEmpty {
       bannerSection
     }
@@ -420,19 +431,27 @@ public struct MediaRowsView: View {
 /// picture is under them, and back to the system's appearance once the rows are.
 private struct HeroUnderChrome: ViewModifier {
   let isActive: Bool
-  @Binding var heroUnderBar: Bool
-  let heroHeight: CGFloat
+  let heroUnderBar: Bool
+  let profile: (label: String, action: () -> Void)?
   @Environment(\.colorScheme) private var colorScheme
 
   func body(content: Content) -> some View {
     if isActive {
       content
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-          geometry.contentOffset.y + geometry.contentInsets.top < heroHeight * 0.85
-        } action: { _, under in
-          heroUnderBar = under
-        }
 #if os(iOS)
+        .toolbar {
+          if let profile {
+            ToolbarItem(placement: .topBarTrailing) {
+              Button(action: profile.action) {
+                Image(systemName: "person.crop.circle")
+              }
+              .accessibilityLabel(Text(profile.label))
+              // Rebuilt when the picture leaves the bar: the glyph kept the dark
+              // scheme's white over the light page otherwise.
+              .id(heroUnderBar)
+            }
+          }
+        }
         // The bar takes a colour scheme only while it has a background: a clear one
         // while the picture is under it. Back over the rows the scheme is set back to
         // the system's by value — `nil` left the bar dark over a light page.

@@ -60,11 +60,9 @@ struct MainView: View {
       // The navigation bar is likewise left to the system: on 26 it is already
       // Liquid Glass with the scroll-edge effect.
       rowsView
-        .platformNavigationTitle(showsHeroChrome ? "" : title)
+        .platformNavigationTitle(title)
 #if os(iOS)
-        .modifier(HeroNavigationChrome(isActive: showsHeroChrome) {
-          navigationState.selectedTab = .settings
-        })
+        .modifier(HeroNavigationChrome(isActive: showsHeroChrome))
 #endif
 #if os(macOS)
         .macToolbarSearch()
@@ -488,6 +486,7 @@ struct MainView: View {
       },
       heroIsActive: navigationState.selectedTab == tab && navigationState.path(for: tab).wrappedValue.isEmpty,
       heroIndex: $heroIndex,
+      heroProfile: (label: "Settings".localized, action: { navigationState.selectedTab = .settings }),
       navigationLinkProvider: { card in
         if card.opensCollection {
           Route.collection(CollectionMediaCard.routeCollection(from: card))
@@ -616,24 +615,18 @@ struct MainView_Previews: PreviewProvider {
 }
 
 #if os(iOS)
-/// The bar over the Home hero: inline-large with no title, the picture under it, and
-/// Settings as the profile button at the trailing end, the way the Apple TV app
-/// keeps its account button there.
+/// The bar over the Home hero: inline-large with its title removed (an empty title
+/// still drew a dot), the picture under it. The page keeps its title for the back
+/// button of what is pushed onto it. The Settings button is `MediaRowsView`'s, which
+/// knows when the picture is under the bar.
 private struct HeroNavigationChrome: ViewModifier {
   let isActive: Bool
-  let openSettings: () -> Void
 
   func body(content: Content) -> some View {
     if isActive {
       content
         .toolbarTitleDisplayMode(.inlineLarge)
-        .toolbar {
-          ToolbarItem(placement: .topBarTrailing) {
-            Button(action: openSettings) {
-              Label("Settings", systemImage: "person.crop.circle")
-            }
-          }
-        }
+        .toolbar(removing: .title)
     } else {
       content
     }
