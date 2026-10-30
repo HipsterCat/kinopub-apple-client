@@ -7013,6 +7013,24 @@
         }
       }
     },
+    "MediaItem_NotOnKinoPubChip" : {
+      "comment" : "Chip with a lock on the still of an episode that has aired but is not on kino.pub. The air date is in the caption under it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not on KinoPub"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет на Кинопабе"
+          }
+        }
+      }
+    },
     "MediaItem_PoorQuality" : {
       "extractionState" : "manual",
       "localizations" : {

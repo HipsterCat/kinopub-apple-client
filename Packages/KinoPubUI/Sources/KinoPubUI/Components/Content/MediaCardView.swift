@@ -126,6 +126,9 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   public let country: String?
   /// Single-click / Select target. Continue Watching uses `.play`; History stays detail for now.
   public let primaryAction: MediaCardPrimaryAction
+  /// A lock and these words on top of a landscape still: an episode that has aired and is
+  /// not on kino.pub («Нет на Кинопабе»). Not encoded — the rail builds it every time.
+  public var unavailableNotice: String? = nil
   /// When true, Select opens a curated collection rather than a media title — Home /
   /// Collections grids use this so collection ids are not mistaken for item ids.
   public let opensCollection: Bool
@@ -975,7 +978,11 @@ public struct MediaCardView: View {
 
 #if os(macOS)
       // Cheap pointer affordance — dim the still, keep the glass rim on top.
-        Color.black.opacity((isHovered && !card.isWatched && dimsWatchedArtwork) ? 0.34 : (isHovered && !dimsWatchedArtwork) ? 0.34 : 0)
+        // Not on a landscape card with nothing to play (an episode not out, or not on
+        // kino.pub): the dim is the play affordance there (Sasha, 2026-10-30).
+        Color.black.opacity(card.isLandscape && !playsOnSelect ? 0
+                            : (isHovered && !card.isWatched && dimsWatchedArtwork) ? 0.34
+                            : (isHovered && !dimsWatchedArtwork) ? 0.34 : 0)
         .allowsHitTesting(false)
 #endif
 
@@ -1133,6 +1140,20 @@ public struct MediaCardView: View {
     .overlay(alignment: .bottomLeading) {
       if let landscapeTimeBadge {
         landscapeTimeBadge
+          .padding(6)
+      }
+    }
+    .overlay(alignment: .topLeading) {
+      if let notice = card.unavailableNotice {
+        // The time chip's look: the system's thin material, dark, over the still.
+        Label(notice, systemImage: "lock.fill")
+          .font(.caption2.weight(.medium))
+          .labelStyle(.titleAndIcon)
+          .foregroundStyle(.white)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 3)
+          .background(.thinMaterial, in: Capsule(style: .continuous))
+          .environment(\.colorScheme, .dark)
           .padding(6)
       }
     }

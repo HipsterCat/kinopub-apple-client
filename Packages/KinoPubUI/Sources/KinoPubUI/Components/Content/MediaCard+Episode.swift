@@ -68,7 +68,8 @@ public extension MediaCard {
        title: String?,
        episodeLabel: String?,
        dateLabel: String?,
-       stillURL: String?) {
+       stillURL: String?,
+       unavailableNotice: String? = nil) {
     let still = stillURL ?? ""
     let caption = Self.episodeCaption(name: title ?? "",
                                       number: number,
@@ -82,6 +83,7 @@ public extension MediaCard {
               overlayLabel: caption.meta,
               isSeries: true,
               primaryAction: .openDetail)
+    self.unavailableNotice = unavailableNotice
   }
 
   /// Title line + meta line for an episode caption.

@@ -586,8 +586,10 @@ struct SeasonsRailView: View {
                                       number: schedule.episodeNumber,
                                       title: schedule.name,
                                       episodeLabel: Self.episodeLabel(number: schedule.episodeNumber),
-                                      dateLabel: state.badgeText,
-                                      stillURL: (schedule.still ?? seriesBackdropURL)?.absoluteString),
+                                      dateLabel: state.captionDate,
+                                      stillURL: (schedule.still ?? seriesBackdropURL)?.absoluteString,
+                                      unavailableNotice: state.isAired
+                                        ? "MediaItem_NotOnKinoPubChip".localized : nil),
                       caption: .always)
       }
 
@@ -852,6 +854,23 @@ enum MissingEpisodeAirState: Equatable {
   /// The corner's date, capitalised because it starts the chip. Nil once the episode has
   /// aired: the lock takes the corner instead.
   @MainActor var badgeText: String? { badge() }
+
+  /// Aired, and kino.pub does not have it: the lock and «Нет на Кинопабе» on the still.
+  var isAired: Bool {
+    switch self {
+    case .justAired, .aired: true
+    case .upcoming, .undated: false
+    }
+  }
+
+  /// The caption's date on iOS / macOS: when it airs while it is ahead, when it aired once
+  /// it has (the lock says the rest), «Позже» with none.
+  @MainActor var captionDate: String? {
+    switch self {
+    case .upcoming, .undated: badgeText
+    case .justAired(let date, _), .aired(let date): SeasonsRailView.airDateLabel(date)
+    }
+  }
 
   @MainActor
   func badge(now: Date = Date(), locale: Locale = .current) -> String? {
