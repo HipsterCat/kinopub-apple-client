@@ -201,7 +201,9 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     .frame(width: max(containerWidth, 1), alignment: .leading)
     .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
 #else
+    // On the first card's inset, outside the link so the margin is not part of it.
     header
+      .padding(.leading, leadingInset)
 #endif
   }
 

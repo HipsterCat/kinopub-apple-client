@@ -85,6 +85,8 @@ public struct MediaRowsView: View {
   @Environment(\.dynamicTypeSize) private var typeSize
   @State private var containerWidth: CGFloat = 1920
   @State private var containerHeight: CGFloat = 0
+  /// The bars' insets over the page: the hero's picture runs on under the top one.
+  @State private var barInsets = EdgeInsets()
   /// The hero is still under the navigation bar / window toolbar: its titles and
   /// buttons go light over the picture.
   @State private var heroUnderBar = true
@@ -137,6 +139,11 @@ public struct MediaRowsView: View {
       } action: { size in
         if size.width > 0 { containerWidth = size.width }
         if size.height > 0 { containerHeight = size.height }
+      }
+      .onGeometryChange(for: EdgeInsets.self) { proxy in
+        proxy.safeAreaInsets
+      } action: { insets in
+        barInsets = insets
       }
 #endif
   }
@@ -222,6 +229,7 @@ public struct MediaRowsView: View {
       HomeHeroCarousel(
         hero: hero,
         size: heroSize,
+        topBleed: barInsets.top,
         sideInset: ShelfMetrics.posters(width: containerWidth, typeSize: typeSize).inset,
         isCompact: heroIsCompact,
         onPlay: { onHeroPlay?($0) },
@@ -291,15 +299,17 @@ public struct MediaRowsView: View {
 #endif
   }
 
-  /// The hero takes the page's width and a share of its height, the rows below peeking
+  /// The hero takes the page's width and a share of the screen's height, the bars'
+  /// strip above it included (the picture runs on under them), and the rows below peek
   /// in under it as they do under the Apple TV app's: wide, a 16:9 picture as long as it
-  /// leaves a fifth of the window; phone, most of a portrait screen, never taller than
-  /// the picture can fill without cropping to a sliver.
+  /// leaves a fifth of the window; phone, 70% of a portrait screen, as the TV app's and
+  /// Kinopoisk's phone heroes are. The returned height is the part below the bars.
   private var heroSize: CGSize {
-    let height: CGFloat = heroIsCompact
-      ? min(containerHeight * 0.7, containerWidth * 1.45)
-      : min(containerWidth * 9 / 16, containerHeight * 0.8)
-    return CGSize(width: containerWidth, height: height.rounded())
+    let screen = containerHeight + barInsets.top + barInsets.bottom
+    let picture: CGFloat = heroIsCompact
+      ? screen * 0.7
+      : min(containerWidth * 9 / 16 + barInsets.top, screen * 0.8)
+    return CGSize(width: containerWidth, height: max(picture - barInsets.top, 0).rounded())
   }
 
   // MARK: - Banner
@@ -395,10 +405,11 @@ public struct MediaRowsView: View {
 }
 
 #if !os(tvOS)
-/// With the hero on top, the page runs up under the navigation bar (Mac: the window
-/// toolbar), the picture filling the space behind the large title and the tabs as the
-/// Apple TV app's does; the bar's titles and controls go light while the picture is
-/// still under them, and back to the system's appearance once the rows are.
+/// With the hero on top, its picture fills the strip under the navigation bar (Mac: the
+/// window toolbar) — behind the large title and the tabs, as the Apple TV app's does —
+/// while the page keeps its safe area, so the bars keep their scroll-edge effect over
+/// whatever scrolls under them. The bar's titles and controls go light while the
+/// picture is under them, and back to the system's appearance once the rows are.
 private struct HeroUnderChrome: ViewModifier {
   let isActive: Bool
   @Binding var heroUnderBar: Bool
@@ -407,9 +418,8 @@ private struct HeroUnderChrome: ViewModifier {
   func body(content: Content) -> some View {
     if isActive {
       content
-        .ignoresSafeArea(edges: .top)
         .onScrollGeometryChange(for: Bool.self) { geometry in
-          geometry.contentOffset.y < heroHeight * 0.85
+          geometry.contentOffset.y + geometry.contentInsets.top < heroHeight * 0.85
         } action: { _, under in
           heroUnderBar = under
         }

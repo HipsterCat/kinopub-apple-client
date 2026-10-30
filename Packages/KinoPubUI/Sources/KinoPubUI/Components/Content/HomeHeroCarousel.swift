@@ -24,6 +24,7 @@ import SwiftUI
 public struct HomeHeroCarousel: View {
   private let hero: HomeHero
   private let size: CGSize
+  private let topBleed: CGFloat
   private let sideInset: CGFloat
   private let isCompact: Bool
   private let onPlay: (MediaCard) -> Void
@@ -40,16 +41,18 @@ public struct HomeHeroCarousel: View {
   @State private var isPresented = false
   @State private var isVisibleInPage = true
   @State private var isScrolling = false
-  @State private var isHovering = false
   @State private var isMenuOpen = false
   @Environment(\.scenePhase) private var scenePhase
 
   /// - Parameters:
   ///   - size: the hero's frame — the page's width, and the height the page gives it.
+  ///   - topBleed: how far the picture runs on above the frame, under the navigation
+  ///     bar or window toolbar (their safe-area inset). The words stay inside the frame.
   ///   - sideInset: the page's leading margin, so the words start where the rows do.
   ///   - isCompact: the phone's centred column instead of the leading one.
   public init(hero: HomeHero,
               size: CGSize,
+              topBleed: CGFloat = 0,
               sideInset: CGFloat,
               isCompact: Bool,
               onPlay: @escaping (MediaCard) -> Void,
@@ -57,6 +60,7 @@ public struct HomeHeroCarousel: View {
               bookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])? = nil) {
     self.hero = hero
     self.size = size
+    self.topBleed = topBleed
     self.sideInset = sideInset
     self.isCompact = isCompact
     self.onPlay = onPlay
@@ -77,10 +81,11 @@ public struct HomeHeroCarousel: View {
 
   /// The tvOS rule: titles turn on their own only while someone can see the hero — not
   /// under a pushed page, another tab or the player, not scrolled away, not while a
-  /// finger or the pointer is on it or its Bookmarks menu is open.
+  /// finger is turning it or its Bookmarks menu is open. Not paused under the pointer:
+  /// on a Mac the hero is most of the window, and the pointer is nearly always on it.
   private var advances: Bool {
     features.count > 1 && isPresented && isVisibleInPage && scenePhase == .active
-      && !isScrolling && !isHovering && !isMenuOpen
+      && !isScrolling && !isMenuOpen
   }
 
   public var body: some View {
@@ -94,6 +99,8 @@ public struct HomeHeroCarousel: View {
       .scrollTargetLayout()
     }
     .scrollIndicators(.hidden)
+    // The pictures run up under the bars, past the pager's own frame.
+    .scrollClipDisabled()
     .scrollTargetBehavior(.paging)
     .scrollPosition(id: $position)
     .onScrollPhaseChange { _, phase in
@@ -112,7 +119,6 @@ public struct HomeHeroCarousel: View {
       }
     }
     .environment(\.colorScheme, .dark)
-    .onHover { isHovering = $0 }
     .onScrollVisibilityChange(threshold: 0.5) { isVisibleInPage = $0 }
     .onAppear { isPresented = true }
     .onDisappear { isPresented = false }
@@ -144,7 +150,12 @@ public struct HomeHeroCarousel: View {
       next = Slot(lap: from.lap - 1, index: features.count - 1)
     }
     guard slots.contains(next) else { return }
-    withAnimation(.smooth(duration: 0.6)) { position = next }
+    withAnimation(.smooth(duration: 0.6)) {
+      position = next
+    } completion: {
+      // A turn the code makes may not report a scroll phase of its own.
+      settleOnMiddleLap()
+    }
   }
 
   /// A turn that ended on an outer lap goes back to the same title in the middle one,
@@ -160,13 +171,11 @@ public struct HomeHeroCarousel: View {
 
   // MARK: Page
 
+  /// The picture fills the frame and the bars' strip above it; the words sit in the
+  /// frame. A tap anywhere that is not a button opens the title, as in the Apple TV app.
   private func page(_ feature: HomeHeroFeature) -> some View {
     ZStack(alignment: isCompact ? .bottom : .bottomLeading) {
-      Color.black
-      FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
-        .frame(width: size.width, height: size.height)
-        .clipped()
-      scrim
+      Color.clear
       if feature.card.id > 0 {
         words(feature)
           .padding(.horizontal, sideInset)
@@ -174,7 +183,22 @@ public struct HomeHeroCarousel: View {
       }
     }
     .frame(width: size.width, height: size.height)
-    .clipped()
+    .background(alignment: .bottom) {
+      ZStack {
+        Color.black
+        FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
+          .frame(width: size.width, height: size.height + topBleed)
+          .clipped()
+        scrim
+      }
+      .frame(width: size.width, height: size.height + topBleed)
+      .clipped()
+    }
+    .contentShape(Rectangle())
+    .onTapGesture {
+      guard feature.card.id > 0 else { return }
+      onDetails(feature.card)
+    }
   }
 
   /// Wide: the tvOS hero's own legibility texture (`HeroBannerOverlay`) — the leading
@@ -263,13 +287,19 @@ public struct HomeHeroCarousel: View {
 
   // MARK: Buttons
 
-  /// Play, Bookmarks, Details, Next — tvOS's row. Where the row does not fit (a phone),
-  /// Next goes first (a swipe turns the page), then Details.
+  /// Play, Bookmarks, Details, Next — tvOS's row. The phone keeps Play and Bookmarks,
+  /// as the Apple TV app's phone hero does: a swipe turns the page and a tap on the
+  /// picture opens the title. A wide row that does not fit drops Next, then Details.
+  @ViewBuilder
   private func buttons(_ feature: HomeHeroFeature) -> some View {
-    ViewThatFits(in: .horizontal) {
-      buttonRow(feature, details: true, next: true)
-      buttonRow(feature, details: true, next: false)
+    if isCompact {
       buttonRow(feature, details: false, next: false)
+    } else {
+      ViewThatFits(in: .horizontal) {
+        buttonRow(feature, details: true, next: true)
+        buttonRow(feature, details: true, next: false)
+        buttonRow(feature, details: false, next: false)
+      }
     }
   }
 
@@ -424,6 +454,8 @@ private struct SystemPageDots: UIViewRepresentable {
     control.backgroundStyle = .minimal
     control.overrideUserInterfaceStyle = .dark
     let timer = UIPageControlTimerProgress(preferredDuration: dwell)
+    // Past the last page the timer asks for the first one instead of stopping there.
+    timer.resetsToInitialPageAfterEnd = true
     timer.delegate = context.coordinator
     control.progress = timer
     return control
