@@ -376,6 +376,9 @@ public struct HomeHeroCarousel: View {
       .multilineTextAlignment(isCompact ? .center : .leading)
       .shadow(color: .black.opacity(0.32), radius: 7, y: 2)
       .accessibilityElement(children: .combine)
+      // The words float over the pager: a swipe or tap on them goes to the page under
+      // them (turn, open the title). Only the buttons take touches of their own.
+      .allowsHitTesting(false)
 
       buttons(feature)
         .padding(.top, Metrics.buttonsGap)
