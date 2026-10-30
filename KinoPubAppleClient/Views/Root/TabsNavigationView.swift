@@ -54,8 +54,26 @@ struct TabsNavigationView: View {
   @Environment(\.openWindow) private var openWindow
 #endif
 
+  /// The sidebar item (Mac) / tab (iPad) the app was on, restored at launch. App storage,
+  /// not scene storage: a Mac quit with «Close windows when quitting» on (the default)
+  /// restores no scene, and the place was lost every time.
+  @AppStorage("selectedNavigationTab") private var storedTab = ""
+
   var body: some View {
     modernTabs
+#if !os(tvOS)
+      .onAppear { restoreSelectedTab() }
+      .onChange(of: navigationState.selectedTab, initial: true) { _, tab in
+        storedTab = Self.storageKey(for: tab) ?? storedTab
+      }
+      // A remembered folder that is gone falls back to Home once the folders are known.
+      .onChange(of: sidebarFolders) { _, folders in
+        if case .bookmark(let id) = navigationState.selectedTab,
+           !folders.isEmpty, !folders.contains(where: { $0.id == id }) {
+          navigationState.selectBrowseTab(.home)
+        }
+      }
+#endif
 #if os(tvOS)
       // The one backdrop, behind the tab bar and every stack, and everything over it
       // transparent. The selected tab's path says whose picture is in front; the title's
@@ -83,6 +101,48 @@ struct TabsNavigationView: View {
       // DESIGN: offline / reachability banner when `networkMonitor.isOnline` flips false.
       .onChange(of: networkMonitor.isOnline) { _, _ in }
   }
+
+#if !os(tvOS)
+  private func restoreSelectedTab() {
+#if DEBUG
+    guard UserDefaults.standard.string(forKey: "KINOPUBInitialTab") == nil else { return }
+#endif
+#if os(iOS)
+    // iPhone opens on Home; the restored place is the sidebar's (iPad).
+    guard horizontalSizeClass == .regular else { return }
+#endif
+    guard navigationState.selectedTab == .home, let tab = Self.tab(forStorageKey: storedTab) else { return }
+    navigationState.selectBrowseTab(tab)
+  }
+
+  /// Search and Settings are not places to come back to.
+  static func storageKey(for tab: NavigationTabs) -> String? {
+    switch tab {
+    case .search, .settings: nil
+    case .bookmark(let id): "bookmark:\(id)"
+    case .home: "home"
+    case .catalog: "catalog"
+    case .movies: "movies"
+    case .series: "series"
+    case .collections: "collections"
+    case .tv: "tv"
+    case .library: "library"
+    case .watchlist: "watchlist"
+    case .recentlyWatched: "history"
+    case .downloads: "downloads"
+    case .bookmarks: "bookmarks"
+    case .continueWatching: "continue"
+    case .genres: "genres"
+    }
+  }
+
+  static func tab(forStorageKey key: String) -> NavigationTabs? {
+    if key.hasPrefix("bookmark:"), let id = Int(key.dropFirst("bookmark:".count)) { return .bookmark(id) }
+    let all: [NavigationTabs] = [.home, .catalog, .movies, .series, .collections, .library, .watchlist,
+                                 .recentlyWatched, .continueWatching, .genres]
+    return all.first { storageKey(for: $0) == key }
+  }
+#endif
 
   private var tabSelection: Binding<NavigationTabs> {
     Binding(
@@ -402,6 +462,9 @@ struct TabsNavigationView: View {
         }
         Tab("History", systemImage: "clock.arrow.circlepath", value: NavigationTabs.recentlyWatched) {
           RouteStack(tab: .recentlyWatched) { HistoryView() }
+        }
+        Tab("SidebarGenres".localized, systemImage: "theatermasks", value: NavigationTabs.genres) {
+          MacGenresView()
         }
         Tab("TabLibrary", systemImage: "rectangle.stack", value: NavigationTabs.library) {
           libraryContent
@@ -874,16 +937,31 @@ private struct MacSidebarAccount: View {
   }
 }
 
-/// Genres as the TV app has them: the list in a column of its own beside the sidebar,
-/// the selected genre's titles beside it.
+#endif
+
+#if !os(tvOS)
+/// Genres as the TV app has them. Mac: the list in a column of its own beside the
+/// sidebar, the selected genre's titles beside it. iPad: the list, each genre pushing its
+/// titles.
 private struct MacGenresView: View {
   @Environment(\.appContext) private var appContext
   @EnvironmentObject private var authState: AuthState
   @Environment(ErrorHandler.self) private var errorHandler
   @State private var genres: [MediaGenre] = []
-  @SceneStorage("macGenreSelection") private var selection: Int?
+  @AppStorage("genreSelection") private var selection: Int?
 
   var body: some View {
+#if os(iOS)
+    RouteStack(tab: .genres) {
+      List(genres) { genre in
+        NavigationLink(value: Route.filteredShelf(LibraryFilter(genreID: genre.id), title: genre.title)) {
+          Label(genre.title, systemImage: MacGenreSymbol.name(for: genre.title))
+        }
+      }
+      .platformNavigationTitle("SidebarGenres".localized)
+    }
+    .task { await loadGenres() }
+#else
     HStack(spacing: 0) {
       List(selection: $selection) {
         ForEach(genres) { genre in
@@ -908,13 +986,19 @@ private struct MacGenresView: View {
         }
       }
     }
-    .task {
-      guard genres.isEmpty, let all = try? await appContext.contentService.fetchGenres(for: nil).items
-      else { return }
-      var seen = Set<String>()
-      genres = all.filter { seen.insert($0.title.lowercased()).inserted }
-        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-      if selection == nil { selection = genres.first?.id }
+    .task { await loadGenres() }
+#endif
+  }
+
+  private func loadGenres() async {
+    guard genres.isEmpty, let all = try? await appContext.contentService.fetchGenres(for: nil).items
+    else { return }
+    var seen = Set<String>()
+    genres = all.filter { seen.insert($0.title.lowercased()).inserted }
+      .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    // A remembered genre that is gone falls back to the first.
+    if selection == nil || !genres.contains(where: { $0.id == selection }) {
+      selection = genres.first?.id
     }
   }
 }
