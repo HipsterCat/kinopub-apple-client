@@ -60,9 +60,7 @@ struct MainView: View {
       // The navigation bar is likewise left to the system: on 26 it is already
       // Liquid Glass with the scroll-edge effect.
       rowsView
-        // Over the hero (iOS) a blank title: an empty one drew a dot, and
-        // `toolbar(removing: .title)` kept «Home» on the bar.
-        .platformNavigationTitle(showsHeroChrome ? " " : title)
+        .modifier(PageTitle(title: title, isBlank: showsHeroChrome))
 #if os(iOS)
         .modifier(HeroNavigationChrome(isActive: showsHeroChrome))
 #endif
@@ -634,3 +632,19 @@ private struct HeroNavigationChrome: ViewModifier {
   }
 }
 #endif
+
+/// The page's title, or none over the iOS hero (Sasha, 2026-10-30). None is a verbatim
+/// empty string: as a localized key, "" is translated to "." in the catalogue (the dot
+/// on the bar) and " " drew its quote marks.
+private struct PageTitle: ViewModifier {
+  let title: LocalizedStringKey
+  let isBlank: Bool
+
+  func body(content: Content) -> some View {
+    if isBlank {
+      content.platformNavigationTitle(String())
+    } else {
+      content.platformNavigationTitle(title)
+    }
+  }
+}
