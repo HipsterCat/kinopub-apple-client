@@ -335,8 +335,18 @@ private struct MacToolbarSearchModifier: ViewModifier {
   @Environment(NavigationState.self) private var navigationState
 
   func body(content: Content) -> some View {
+    // With the sidebar, Search is a place of its own, as in the TV app: the field is on
+    // that page alone, not over every other one.
+    if FeatureFlags.macSidebarEnabled && navigationState.selectedTab != .search {
+      content
+    } else {
+      field(content)
+    }
+  }
+
+  private func field(_ content: Content) -> some View {
     @Bindable var navigationState = navigationState
-    content
+    return content
       // Probe: `.toolbar` = compact trailing field beside `.tabBarOnly` tabs (Finder/Photos).
       // `.automatic` / no placement on this shell can still stretch; `.toolbarPrincipal` is the giant center field.
       .searchable(

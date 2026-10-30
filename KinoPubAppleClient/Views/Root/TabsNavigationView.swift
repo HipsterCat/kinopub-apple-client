@@ -303,7 +303,7 @@ struct TabsNavigationView: View {
   /// at the foot. Settings is the Settings window (⌘,). Each destination keeps its own
   /// stack for pushes.
   private var macSidebarShell: some View {
-    NavigationSplitView {
+    NavigationSplitView(columnVisibility: .constant(.all)) {
       VStack(spacing: 0) {
       List(selection: sidebarSelection) {
         Label("Search", systemImage: "magnifyingglass").tag(NavigationTabs.search)
@@ -336,7 +336,12 @@ struct TabsNavigationView: View {
         // Under the list, not over it: an inset let the last folder scroll beneath it.
         MacSidebarAccount(userService: appContext.userService)
       }
-      .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 320)
+      // The TV app's width, and fixed as its is: its divider does not move.
+      .frame(width: 220)
+      .navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 220)
+      // The TV app's sidebar is always there: no «Hide Sidebar» button in the toolbar
+      // (Sasha, 2026-10-30), and nothing collapses it.
+      .toolbar(removing: .sidebarToggle)
     } detail: {
       macSidebarDetail
     }
