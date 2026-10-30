@@ -354,15 +354,16 @@ struct TabsNavigationView: View {
       // and the keyboard works the page — Left / Right turn the Home hero (Sasha,
       // 2026-10-30). Taken on launch and after every pick in the sidebar.
       macSidebarDetail
-        .focusable()
+        // `.edit`: focusable whatever the system's keyboard-navigation setting; the
+        // default (`.activate`) takes focus only with Full Keyboard Access on, so the
+        // page never held the keyboard and the arrows did not reach it.
+        .focusable(interactions: .edit)
         .focusEffectDisabled()
         .focused($detailFocused)
-        .onMoveCommand { direction in
-          switch direction {
-          case .left: heroStep = HeroStepRequest(delta: -1)
-          case .right: heroStep = HeroStepRequest(delta: 1)
-          default: break
-          }
+        // Key presses, not move commands: the scroll views inside take the arrows first.
+        .onKeyPress(keys: [.leftArrow, .rightArrow]) { press in
+          heroStep = HeroStepRequest(delta: press.key == .leftArrow ? -1 : 1)
+          return .handled
         }
         .environment(\.heroStepRequest, heroStep)
         .onAppear { detailFocused = true }
