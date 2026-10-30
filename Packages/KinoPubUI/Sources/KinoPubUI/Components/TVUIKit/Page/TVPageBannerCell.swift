@@ -399,24 +399,8 @@ final class TVPageBannerCell: UICollectionViewCell {
     }
   }
 
-  /// Returns a concise, readable synopsis snippet of at least `minLength` characters
-  /// (or the full text if shorter), preventing awkward short fragments like "1903 год.".
   static func smartSynopsis(of text: String, minLength: Int = 45) -> String? {
-    let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty else { return nil }
-    var result = ""
-    text.enumerateSubstrings(in: text.startIndex..., options: .bySentences) { sentence, _, _, stop in
-      guard let s = sentence?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return }
-      if result.isEmpty {
-        result = s
-      } else {
-        result += " " + s
-      }
-      if result.count >= minLength {
-        stop = true
-      }
-    }
-    return result.isEmpty ? text : result
+    HomeHeroText.synopsis(of: text, minLength: minLength)
   }
 
   /// Width the sentence can use: the column's pins, read off the platter rather
@@ -449,32 +433,8 @@ final class TVPageBannerCell: UICollectionViewCell {
 
   // MARK: - Meta
 
-  /// The metadata parts after the scores:
-  /// Order: 1. Genre (useful, skipping generic anime/cartoons), 2. Year/span (2026, 2024–26), 3. Country, 4. Duration/Volume (2+ seasons / episodes / runtime).
   static func metaParts(for card: MediaCard) -> [String] {
-    var parts: [String] = []
-
-    // 1. Жанр (пропуская базовые/банальные: аниме, мультфильм)
-    if let genre = card.usefulGenre(), !genre.isEmpty {
-      parts.append(genre)
-    }
-
-    // 2. Год / года (2026, 2024–26)
-    if let years = card.bannerYearSpan, !years.isEmpty {
-      parts.append(years)
-    }
-
-    // 3. Страна
-    if let country = card.country, !country.isEmpty {
-      parts.append(country)
-    }
-
-    // 4. Длительность: сезоны если 1+, серии если 1, duration у фильма
-    if let duration = card.bannerDurationText(), !duration.isEmpty {
-      parts.append(duration)
-    }
-
-    return parts
+    HomeHeroText.metaParts(for: card)
   }
 
   /// Logo, then the number, in the same font as the description. No logo, no number —

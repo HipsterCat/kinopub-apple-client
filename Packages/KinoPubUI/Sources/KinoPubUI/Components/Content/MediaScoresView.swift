@@ -168,6 +168,10 @@ public struct MediaScoresView: View {
   /// The title page's line: IMDb, Kinopoisk, TMDB, in that order. Cards and banners
   /// keep the ranked lineup.
   public var detailLine: Bool
+  /// The Home hero's line: the banner's lineup (`bannerScores` — two at most, a source
+  /// with a handful of votes or one swamped by another dropped), in the title page's
+  /// line marks.
+  public var bannerLine: Bool
   /// Under a poster the line has one width. Per-source vote counts when they fit;
   /// otherwise the logos and scores plus one combined count; scores alone if that
   /// still does not fit.
@@ -179,6 +183,7 @@ public struct MediaScoresView: View {
     showsVotes: Bool = true,
     deduplicateAgainstAggregate: Bool = false,
     detailLine: Bool = false,
+    bannerLine: Bool = false,
     collapsesVotesToFit: Bool = false
   ) {
     self.scores = scores
@@ -186,6 +191,7 @@ public struct MediaScoresView: View {
     self.showsVotes = showsVotes
     self.deduplicateAgainstAggregate = deduplicateAgainstAggregate
     self.detailLine = detailLine
+    self.bannerLine = bannerLine
     self.collapsesVotesToFit = collapsesVotesToFit
   }
 
@@ -208,7 +214,9 @@ public struct MediaScoresView: View {
   }
 
   public var body: some View {
-    let items = detailLine
+    let items = bannerLine
+      ? scores.bannerScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+      : detailLine
       ? scores.detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
       : scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
     let slice = limit.map { Array(items.prefix($0)) } ?? items
@@ -257,7 +265,7 @@ public struct MediaScoresView: View {
       scoreContent(item: item, showsVotes: showsVotes)
     }
 #else
-    if detailLine {
+    if detailLine || bannerLine {
       // The title page's line follows the type: the mark fills the score's line height
       // at any Dynamic Type size (Sasha, 2026-10-29).
       MarkFillsLineHeight(spacing: Self.markSpacing) {
@@ -275,8 +283,8 @@ public struct MediaScoresView: View {
   private func scoreContent(item: MediaScoreItem, showsVotes: Bool) -> some View {
     MediaScoreLogo(
       item.source,
-      height: detailLine ? Self.lineIconHeight : Self.iconHeight,
-      style: detailLine ? .line : .color
+      height: usesLineMarks ? Self.lineIconHeight : Self.iconHeight,
+      style: usesLineMarks ? .line : .color
     )
     if !item.displayScore.isEmpty {
       Text(item.displayScore)
@@ -291,6 +299,8 @@ public struct MediaScoresView: View {
         .foregroundStyle(Color.KinoPub.subtitle)
     }
   }
+
+  private var usesLineMarks: Bool { detailLine || bannerLine }
 
   private static let markSpacing: CGFloat = 6
 

@@ -19,14 +19,11 @@ enum FeatureFlags {
   /// not sample banner cards and does not load wide poster artwork for them.
   static var homeBannerEnabled: Bool { FeatureFlag.homeBanner.isEnabled }
 
-  /// tvOS: the banner titles as one full-screen carousel at the top of Home, Apple TV
-  /// style (`TVPageSection.hero`). Off: the banner shelf, two platters across. Needs
-  /// `homeBannerEnabled` — it is the same sample of titles.
-#if os(tvOS)
+  /// The banner titles as one full-width carousel at the top of Home, Apple TV style —
+  /// `TVPageSection.hero` on tvOS, `HomeHeroCarousel` on iOS, iPadOS and macOS. Off: the
+  /// banner shelf, two cards across. Needs `homeBannerEnabled` — it is the same sample
+  /// of titles.
   static var homeHeroCarouselEnabled: Bool { FeatureFlag.homeHeroCarousel.isEnabled }
-#else
-  static let homeHeroCarouselEnabled = false
-#endif
 
   /// Gates the Downloads tab, the item-detail download action, and any other
   /// downloads-facing UI. `KinoPubKit`'s `DownloadManager` / `DownloadedFilesDatabase`
@@ -245,7 +242,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var summary: String {
     switch self {
     case .homeBanner: "Wide banner cards at the top of Home."
-    case .homeHeroCarousel: "The banner titles one at a time over the whole screen, Apple TV style; off is the shelf of two."
+    case .homeHeroCarousel: "The banner titles one at a time across the whole width, Apple TV style; off is the shelf of two."
     case .downloads: "Downloads tab, download actions and storage rows."
     case .allBookmarks: "The folder-shelves overview tab in Library."
     case .tvUIKitPosters: "TVUIKit cells in a recycling collection view; off is SwiftUI cards."
@@ -270,7 +267,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var isRelevantHere: Bool {
     switch self {
     case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvDetailSections, .tvOSSidecarSubtitles,
-         .playerTabsPlatter, .homeHeroCarousel:
+         .playerTabsPlatter:
 #if os(tvOS)
       true
 #else

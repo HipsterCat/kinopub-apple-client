@@ -178,16 +178,6 @@ struct MainView: View {
   /// Only once there are titles: an empty hero would be inert space above the first row.
   private static let heroSectionID = "home-hero"
 
-  private var bannerFeatures: [TVPageFeature] {
-    catalog.bannerCards.map {
-      TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
-                    logo: catalog.bannerLogos[$0.id] ?? .pending,
-                    backdrop: catalog.bannerBackdrops[$0.id],
-                    play: catalog.bannerPlay[$0.id],
-                    isBookmarked: !cardMenu.containingFolders(for: $0).isEmpty)
-    }
-  }
-
   private var pageSections: [TVPageSection] {
     var result: [TVPageSection] = []
     if catalog.supportsHeroBanner && homeBannerEnabled && FeatureFlags.homeHeroCarouselEnabled {
@@ -196,14 +186,7 @@ struct MainView: View {
             TVPageFeature(card: MediaCard.placeholder(id: -201 - idx))
           }
         : bannerFeatures
-      result.append(.hero(id: Self.heroSectionID, TVPageHero(
-        features: features,
-        labels: .init(play: "Play".localized,
-                      details: "Hero.Details".localized,
-                      bookmark: "Bookmarks".localized,
-                      next: "Hero.Next".localized,
-                      noBookmarkFolders: "No bookmark folders yet".localized)
-      )))
+      result.append(.hero(id: Self.heroSectionID, TVPageHero(features: features, labels: heroLabels)))
     } else if catalog.supportsHeroBanner && homeBannerEnabled {
       let banner = catalog.bannerCards
       if !banner.isEmpty {
@@ -485,6 +468,17 @@ struct MainView: View {
       // Gated by `homeBannerEnabled`. When off, HomeCatalog also
       // skips sampling so wide-poster artwork is never requested.
       bannerCards: (catalog.supportsHeroBanner && homeBannerEnabled) ? catalog.bannerCards : [],
+      hero: rowsHero,
+      onHeroPlay: { card in
+        cardMenu.play(card) { navigationState.push($0) }
+      },
+      onHeroDetails: { card in
+        navigationState.push(Route.detailsById(card.itemID))
+      },
+      heroBookmarkEntries: { card in
+        menuEntries(for: card, surface: .banner, isContinueWatching: false)
+          .filter { $0.id == MediaCardContextMenus.bookmarksMenuID }
+      },
       navigationLinkProvider: { card in
         if card.opensCollection {
           Route.collection(CollectionMediaCard.routeCollection(from: card))
@@ -519,6 +513,34 @@ struct MainView: View {
   /// and not Catalog.
   private var homeRows: [MediaRow] {
     catalog.rows
+  }
+
+  /// The banner titles with what the hero shows for each: the details card once it is
+  /// in, the logo and textless picture from the worker, Play as the title page draws it.
+  private var bannerFeatures: [TVPageFeature] {
+    catalog.bannerCards.map {
+      TVPageFeature(card: catalog.bannerDetails[$0.id] ?? $0,
+                    logo: catalog.bannerLogos[$0.id] ?? .pending,
+                    backdrop: catalog.bannerBackdrops[$0.id],
+                    play: catalog.bannerPlay[$0.id],
+                    isBookmarked: !cardMenu.containingFolders(for: $0).isEmpty)
+    }
+  }
+
+  private var heroLabels: TVPageHero.Labels {
+    .init(play: "Play".localized,
+          details: "Hero.Details".localized,
+          bookmark: "Bookmarks".localized,
+          next: "Hero.Next".localized,
+          noBookmarkFolders: "No bookmark folders yet".localized)
+  }
+
+  /// iOS / iPadOS / macOS: the banner titles as `HomeHeroCarousel`, behind the same
+  /// switch as tvOS's hero; nil leaves the banner shelf in its place.
+  private var rowsHero: HomeHero? {
+    guard catalog.supportsHeroBanner, homeBannerEnabled, FeatureFlags.homeHeroCarouselEnabled,
+          !catalog.bannerCards.isEmpty else { return nil }
+    return HomeHero(features: bannerFeatures, labels: heroLabels)
   }
 
   private func menuEntries(for card: MediaCard,

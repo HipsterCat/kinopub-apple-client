@@ -47,6 +47,12 @@ public struct MediaRowsView: View {
   private let rows: [MediaRow]
   /// Contained 16:9 featured cards shown above the catalog rows (Home). Empty elsewhere.
   private let bannerCards: [MediaCard]
+  /// The same titles as one full-width carousel (`HomeHeroCarousel`), in the banner's
+  /// place. iOS / iPadOS / macOS; tvOS draws its hero in the page collection.
+  private let hero: HomeHero?
+  private let onHeroPlay: ((MediaCard) -> Void)?
+  private let onHeroDetails: ((MediaCard) -> Void)?
+  private let heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])?
   private let navigationLinkProvider: (MediaCard) -> any Hashable
   /// When a card's `primaryAction` is `.play`, Select/click runs this instead of navigating.
   private let onPlay: ((MediaCard) -> Void)?
@@ -78,9 +84,20 @@ public struct MediaRowsView: View {
   @FocusState private var focusedCard: CardKey?
   @Environment(\.dynamicTypeSize) private var typeSize
   @State private var containerWidth: CGFloat = 1920
+  @State private var containerHeight: CGFloat = 0
+  /// The hero is still under the navigation bar / window toolbar: its titles and
+  /// buttons go light over the picture.
+  @State private var heroUnderBar = true
+#if os(iOS)
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#endif
 
   public init(rows: [MediaRow],
               bannerCards: [MediaCard] = [],
+              hero: HomeHero? = nil,
+              onHeroPlay: ((MediaCard) -> Void)? = nil,
+              onHeroDetails: ((MediaCard) -> Void)? = nil,
+              heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])? = nil,
               navigationLinkProvider: @escaping (MediaCard) -> any Hashable,
               onPlay: ((MediaCard) -> Void)? = nil,
               onRowAppear: ((MediaRow) -> Void)? = nil,
@@ -91,6 +108,10 @@ public struct MediaRowsView: View {
               contextMenuProvider: ((MediaCard, MediaCardContextSurface) -> [MediaCardContextEntry])? = nil) {
     self.rows = rows
     self.bannerCards = bannerCards
+    self.hero = hero
+    self.onHeroPlay = onHeroPlay
+    self.onHeroDetails = onHeroDetails
+    self.heroBookmarkEntries = heroBookmarkEntries
     self.navigationLinkProvider = navigationLinkProvider
     self.onPlay = onPlay
     self.onRowAppear = onRowAppear
@@ -111,10 +132,11 @@ public struct MediaRowsView: View {
       }
 #else
     scroll
-      .onGeometryChange(for: CGFloat.self) { proxy in
-        proxy.size.width
-      } action: { width in
-        if width > 0 { containerWidth = width }
+      .onGeometryChange(for: CGSize.self) { proxy in
+        proxy.size
+      } action: { size in
+        if size.width > 0 { containerWidth = size.width }
+        if size.height > 0 { containerHeight = size.height }
       }
 #endif
   }
@@ -165,11 +187,14 @@ public struct MediaRowsView: View {
   private var verticalScroll: some View {
     ScrollView(.vertical) {
       stack
-        .padding(.top, Self.pageVerticalInset)
+        .padding(.top, showsHero ? 0 : Self.pageVerticalInset)
         .padding(.bottom, Self.pageVerticalInset)
     }
 #if os(tvOS)
     .scrollClipDisabled()
+#else
+    .modifier(HeroUnderChrome(isActive: showsHero, heroUnderBar: $heroUnderBar,
+                              heroHeight: heroSize.height))
 #endif
   }
 
@@ -192,9 +217,25 @@ public struct MediaRowsView: View {
 
   @ViewBuilder
   private var scrollContent: some View {
+#if !os(tvOS)
+    if showsHero, let hero {
+      HomeHeroCarousel(
+        hero: hero,
+        size: heroSize,
+        sideInset: ShelfMetrics.posters(width: containerWidth, typeSize: typeSize).inset,
+        isCompact: heroIsCompact,
+        onPlay: { onHeroPlay?($0) },
+        onDetails: { onHeroDetails?($0) },
+        bookmarkEntries: heroBookmarkEntries
+      )
+    } else if !bannerCards.isEmpty {
+      bannerSection
+    }
+#else
     if !bannerCards.isEmpty {
       bannerSection
     }
+#endif
 
     ForEach(rows) { row in
       section(for: row)
@@ -230,6 +271,36 @@ public struct MediaRowsView: View {
       ?? rows.first(where: { $0.cards.first?.isLandscape != true })
   }
 #endif
+
+  // MARK: - Hero
+
+  private var showsHero: Bool {
+#if os(tvOS)
+    false
+#else
+    !(hero?.features.isEmpty ?? true) && containerHeight > 0
+#endif
+  }
+
+  /// The phone's centred column: a compact width class (iOS), never on a Mac.
+  private var heroIsCompact: Bool {
+#if os(iOS)
+    horizontalSizeClass == .compact
+#else
+    false
+#endif
+  }
+
+  /// The hero takes the page's width and a share of its height, the rows below peeking
+  /// in under it as they do under the Apple TV app's: wide, a 16:9 picture as long as it
+  /// leaves a fifth of the window; phone, most of a portrait screen, never taller than
+  /// the picture can fill without cropping to a sliver.
+  private var heroSize: CGSize {
+    let height: CGFloat = heroIsCompact
+      ? min(containerHeight * 0.7, containerWidth * 1.45)
+      : min(containerWidth * 9 / 16, containerHeight * 0.8)
+    return CGSize(width: containerWidth, height: height.rounded())
+  }
 
   // MARK: - Banner
 
@@ -322,6 +393,38 @@ public struct MediaRowsView: View {
   static let pageVerticalInset: CGFloat = Metrics.rowSpacing
 #endif
 }
+
+#if !os(tvOS)
+/// With the hero on top, the page runs up under the navigation bar (Mac: the window
+/// toolbar), the picture filling the space behind the large title and the tabs as the
+/// Apple TV app's does; the bar's titles and controls go light while the picture is
+/// still under them, and back to the system's appearance once the rows are.
+private struct HeroUnderChrome: ViewModifier {
+  let isActive: Bool
+  @Binding var heroUnderBar: Bool
+  let heroHeight: CGFloat
+
+  func body(content: Content) -> some View {
+    if isActive {
+      content
+        .ignoresSafeArea(edges: .top)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+          geometry.contentOffset.y < heroHeight * 0.85
+        } action: { _, under in
+          heroUnderBar = under
+        }
+#if os(iOS)
+        .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .navigationBar)
+#else
+        .toolbarBackground(.hidden, for: .windowToolbar)
+        .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .windowToolbar)
+#endif
+    } else {
+      content
+    }
+  }
+}
+#endif
 
 /// Lifts the row title on focus. The stock tvOS button styles would wrap it in a filled
 /// card, which is not how a section header reads.
