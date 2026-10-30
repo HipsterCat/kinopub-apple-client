@@ -122,13 +122,13 @@ public enum MediaCardDisplayPreferences {
   public static let defaultShowCC = false
   public static let defaultEditorialPlacement: MediaCardChromePlacement = .onArtwork
   public static let defaultShowOriginalTitle = false
-  public static let defaultShowYear = false
+  public static let defaultShowYear = true
   public static let defaultShowDuration = true
-  public static let defaultShowGenre = false
+  public static let defaultShowGenre = true
   public static let defaultShowCountry = false
   public static let defaultShowBookmarkSymbol = true
-  public static let defaultProgressVisibility: MediaCardProgressVisibility = .always
-  public static let defaultWatchedStyle: MediaCardWatchedStyle = .dim
+  public static let defaultProgressVisibility: MediaCardProgressVisibility = .onFocusHover
+  public static let defaultWatchedStyle: MediaCardWatchedStyle = .checkmark
 
   // MARK: Readers (non-View call sites)
 
