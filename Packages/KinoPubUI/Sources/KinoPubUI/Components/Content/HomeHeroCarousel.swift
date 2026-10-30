@@ -689,7 +689,7 @@ private struct HeroWords<Content: View>: View {
   @ViewBuilder let content: (HomeHeroFeature) -> Content
 
   /// How far the words travel while they fade, against the hero's width.
-  private static let travel: CGFloat = 0.06
+  private static var travel: CGFloat { 0.06 }
 
   var body: some View {
     let (from, to, fraction) = pager.blend(over: slots)
