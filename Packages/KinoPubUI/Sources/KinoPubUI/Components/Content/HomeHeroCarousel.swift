@@ -100,14 +100,20 @@ public struct HomeHeroCarousel: View {
   }
 
   /// The hero's height under the bars for a page `width` wide on a `screen` tall
-  /// screen, the bars' `topBleed` above it. Wide (iPad, Mac): a 16:9 picture as long
-  /// as it leaves a fifth of the window. Phone: a 16:10 still under the bars and room
-  /// under it for the words, at most 70% of the screen (Sasha, 2026-10-30).
+  /// screen, the bars' `topBleed` above it. Mac: the picture, toolbar strip included,
+  /// is always 16:9 of the window's width, whatever the window's height (Sasha,
+  /// 2026-10-30). iPad: a 16:9 picture as long as it leaves a fifth of the screen.
+  /// Phone: a 16:10 still under the bars and room under it for the words, at most 70%
+  /// of the screen.
   public static func height(width: CGFloat, topBleed: CGFloat, screen: CGFloat,
                             isCompact: Bool) -> CGFloat {
+#if os(macOS)
+    let picture = width * 9 / 16
+#else
     let picture: CGFloat = isCompact
       ? min(topBleed + stillHeight(width: width) * Metrics.compactStillsTall, screen * 0.7)
       : min(width * 9 / 16 + topBleed, screen * 0.8)
+#endif
     return max(picture - topBleed, 0).rounded()
   }
 
@@ -139,7 +145,6 @@ public struct HomeHeroCarousel: View {
       LazyHStack(spacing: 0) {
         ForEach(slots, id: \.self) { slot in
           page(features[slot.index])
-            .frame(width: size.width, height: size.height)
         }
       }
       .scrollTargetLayout()
@@ -165,11 +170,22 @@ public struct HomeHeroCarousel: View {
     }
     .frame(width: size.width, height: size.height)
     // The pictures run up under the bars, past the pager's own frame.
+    // The scrim is its own layer over the pictures, never redrawn by a turn.
     .background(alignment: .bottom) {
-      HeroBackdrop(features: features, slots: slots, pager: pager,
-                   width: size.width, height: size.height + topBleed, topBleed: topBleed,
-                   isCompact: isCompact)
-        .allowsHitTesting(false)
+      ZStack {
+        HeroBackdrop(features: features, slots: slots, pager: pager,
+                     width: size.width, height: size.height + topBleed, topBleed: topBleed,
+                     isCompact: isCompact)
+        HeroScrim(isCompact: isCompact)
+      }
+      .frame(width: size.width, height: size.height + topBleed)
+      .allowsHitTesting(false)
+    }
+    .overlay(alignment: isCompact ? .bottom : .bottomLeading) {
+      HeroWords(features: features, slots: slots, pager: pager, width: size.width,
+                alignment: isCompact ? .bottom : .bottomLeading) { feature in
+        wordsBlock(feature)
+      }
     }
     .overlay(alignment: .bottom) {
       if features.count > 1 {
@@ -287,22 +303,26 @@ public struct HomeHeroCarousel: View {
 
   // MARK: Page
 
-  /// The words over the pictures, which are the backdrop's. A tap anywhere that is not
+  /// A page is only the swipe and the tap: the words are one element over all pages
+  /// (`HeroWords`) and the pictures one backdrop under them. A tap anywhere that is not
   /// a button opens the title, as in the Apple TV app.
   private func page(_ feature: HomeHeroFeature) -> some View {
-    ZStack(alignment: isCompact ? .bottom : .bottomLeading) {
-      Color.clear
-      if feature.card.id > 0 {
-        words(feature)
-          .padding(.horizontal, sideInset)
-          .padding(.bottom, features.count > 1 ? Metrics.dotsReserve : Metrics.bottomInset)
+    Color.clear
+      .frame(width: size.width, height: size.height)
+      .contentShape(Rectangle())
+      .onTapGesture {
+        guard feature.card.id > 0 else { return }
+        onDetails(feature.card)
       }
-    }
-    .frame(width: size.width, height: size.height)
-    .contentShape(Rectangle())
-    .onTapGesture {
-      guard feature.card.id > 0 else { return }
-      onDetails(feature.card)
+  }
+
+  /// The words and buttons for one title, where they sit in the hero.
+  @ViewBuilder
+  private func wordsBlock(_ feature: HomeHeroFeature) -> some View {
+    if feature.card.id > 0 {
+      words(feature)
+        .padding(.horizontal, sideInset)
+        .padding(.bottom, features.count > 1 ? Metrics.dotsReserve : Metrics.bottomInset)
     }
   }
 
@@ -536,6 +556,16 @@ public struct HomeHeroCarousel: View {
 @Observable
 final class HeroPager {
   var page: CGFloat = 0
+
+  /// The title the scroll is leaving, the one it is heading for, and how far along
+  /// (0 = all `from`).
+  func blend(over slots: [HomeHeroCarousel.Slot]) -> (from: Int, to: Int, fraction: CGFloat) {
+    let position = min(max(page, 0), CGFloat(max(slots.count - 1, 0)))
+    let base = Int(position.rounded(.down))
+    let from = slots.indices.contains(base) ? slots[base].index : 0
+    let to = slots.indices.contains(base + 1) ? slots[base + 1].index : from
+    return (from, to, position - CGFloat(base))
+  }
 }
 
 /// Every title's picture stacked, the one under the pager opaque and the next fading in
@@ -558,11 +588,7 @@ private struct HeroBackdrop: View {
   private var pictureWidth: CGFloat { (width * (1 + 2 * Self.drift)).rounded() }
 
   var body: some View {
-    let position = min(max(pager.page, 0), CGFloat(max(slots.count - 1, 0)))
-    let base = Int(position.rounded(.down))
-    let fraction = position - CGFloat(base)
-    let from = slots.indices.contains(base) ? slots[base].index : 0
-    let to = slots.indices.contains(base + 1) ? slots[base + 1].index : from
+    let (from, to, fraction) = pager.blend(over: slots)
     ZStack(alignment: .top) {
       Color.black
       ForEach(features.indices, id: \.self) { index in
@@ -574,7 +600,6 @@ private struct HeroBackdrop: View {
           .zIndex(index == to && to != from ? 1 : 0)
           .opacity(opacity)
       }
-      scrim
     }
     .frame(width: width, height: height)
     .clipped()
@@ -628,12 +653,16 @@ private struct HeroBackdrop: View {
       .frame(width: width, height: height, alignment: .top)
       .clipped()
   }
+}
 
-  /// Wide: the tvOS hero's own legibility texture (`HeroBannerOverlay`) — the leading
-  /// edge and the foot shaded under the words. Phone: the words are centred, so the
-  /// shade is the foot alone, the way the Apple TV app's phone hero has it.
-  @ViewBuilder
-  private var scrim: some View {
+/// Wide: the tvOS hero's own legibility texture (`HeroBannerOverlay`) — the leading
+/// edge and the foot shaded under the words. Phone: the words are centred, so the shade
+/// is the foot alone, the way the Apple TV app's phone hero has it. One layer for all
+/// titles, outside the pictures, so a turn never makes it blink.
+private struct HeroScrim: View {
+  let isCompact: Bool
+
+  var body: some View {
     if isCompact {
       LinearGradient(stops: [
         .init(color: .black.opacity(0), location: 0.38),
@@ -642,6 +671,40 @@ private struct HeroBackdrop: View {
       ], startPoint: .top, endPoint: .bottom)
     } else {
       HeroLegibilityTexture(tone: .black)
+    }
+  }
+}
+
+/// The words and buttons as one element over all the pages: as the scroll turns, the
+/// outgoing title's words slide a little to the leading side and fade out by halfway,
+/// and the incoming one's come in from the trailing side out of nothing — the Apple TV
+/// app's hero, where the words never travel with the picture (Sasha, 2026-10-30). Only
+/// the one more than half there takes clicks.
+private struct HeroWords<Content: View>: View {
+  let features: [HomeHeroFeature]
+  let slots: [HomeHeroCarousel.Slot]
+  let pager: HeroPager
+  let width: CGFloat
+  let alignment: Alignment
+  @ViewBuilder let content: (HomeHeroFeature) -> Content
+
+  /// How far the words travel while they fade, against the hero's width.
+  private static let travel: CGFloat = 0.06
+
+  var body: some View {
+    let (from, to, fraction) = pager.blend(over: slots)
+    // Keyed by title, so the incoming words stay the same view when they become the
+    // outgoing ones — no logo reloading as a turn ends.
+    let shown = (to != from && fraction > 0 ? [from, to] : [from]).filter(features.indices.contains)
+    ZStack(alignment: alignment) {
+      Color.clear.allowsHitTesting(false)
+      ForEach(shown, id: \.self) { index in
+        let leaving = index == from
+        content(features[index])
+          .offset(x: (leaving ? -fraction : 1 - fraction) * width * Self.travel)
+          .opacity(leaving ? max(0, 1 - fraction * 2) : max(0, fraction * 2 - 1))
+          .allowsHitTesting(leaving ? fraction < 0.5 : fraction >= 0.5)
+      }
     }
   }
 }
