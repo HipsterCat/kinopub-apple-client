@@ -930,7 +930,7 @@ struct MediaItemView: View {
 #if os(macOS)
     navigationState.selectedTab = .watchlist
 #else
-    navigationState.selectedTab = .library
+    navigationState.selectedTab = SectionVisibilityStore.shared.isTabVisible(.watchlist) ? .watchlist : .library
 #endif
   }
 }

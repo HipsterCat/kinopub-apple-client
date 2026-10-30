@@ -78,6 +78,8 @@ struct RouteDestination: View {
                              context: appContext,
                              authState: authState,
                              errorHandler: errorHandler)
+    case .watchlist:
+      WatchlistView(embedded: true)
     case .continueWatching:
       ContinueWatchingListView.make(context: appContext,
                                     authState: authState,

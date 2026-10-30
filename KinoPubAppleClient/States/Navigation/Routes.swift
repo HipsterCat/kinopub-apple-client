@@ -42,6 +42,8 @@ enum Route: Hashable {
   case filteredShelf(LibraryFilter, title: String)
   /// Continue Watching past the row's cap, same ranking, its own page.
   case continueWatching
+  /// The followed serials in full, pushed from the Library's Watchlist row.
+  case watchlist
   /// A detail page's Ratings and Reviews block, opened in full.
   case ratingsAndReviews(RatingsAndReviews)
 
@@ -114,6 +116,8 @@ enum Route: Hashable {
       hasher.combine(title)
     case .continueWatching:
       hasher.combine(15)
+    case .watchlist:
+      hasher.combine(16)
     }
   }
 
@@ -149,6 +153,8 @@ enum Route: Hashable {
       return a == b
     case (.filteredShelf(let a, let atitle), .filteredShelf(let b, let btitle)):
       return a == b && atitle == btitle
+    case (.watchlist, .watchlist):
+      return true
     case (.continueWatching, .continueWatching):
       return true
     default:

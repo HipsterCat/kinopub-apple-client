@@ -20,15 +20,26 @@ struct WatchlistView: View {
   @Environment(\.openURL) private var openURL
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
 
+  /// Pushed onto another tab's stack (`Route.watchlist`) rather than a tab of its own:
+  /// no stack of its own then.
+  var embedded = false
+
   @State private var cards: [MediaCard] = []
   @State private var isLoaded = false
   @State private var loadFailed = false
   @State private var loadError: Error?
 
   var body: some View {
+    if embedded {
+      page
+    } else {
+      RouteStack(tab: .watchlist) { page }
+    }
+  }
+
+  private var page: some View {
     @Bindable var errorHandler = errorHandler
-    RouteStack(tab: .watchlist) {
-      content
+    return content
         .platformNavigationTitle("Watchlist")
         .background(Color.KinoPub.background)
         .task {
@@ -38,7 +49,6 @@ struct WatchlistView: View {
         .task { await cardMenu.refreshFolders() }
         .mediaCardNewFolderAlert(cardMenu)
         .handleError(state: $errorHandler.state)
-    }
   }
 
   @ViewBuilder

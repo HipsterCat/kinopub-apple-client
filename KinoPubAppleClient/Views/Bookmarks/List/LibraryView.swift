@@ -18,8 +18,13 @@ struct LibraryView: View {
 
   @StateObject private var catalog: PersonalLibraryCatalog
 
-  init(catalog: @autoclosure @escaping () -> PersonalLibraryCatalog) {
+  /// iPhone: Settings behind a gear in the bar, not a tab of its own.
+  private let settings: AnyView?
+  @State private var showsSettings = false
+
+  init(catalog: @autoclosure @escaping () -> PersonalLibraryCatalog, settings: AnyView? = nil) {
     _catalog = StateObject(wrappedValue: catalog())
+    self.settings = settings
   }
 
   var body: some View {
@@ -38,6 +43,22 @@ struct LibraryView: View {
         .task { await cardMenu.refreshFolders() }
         .mediaCardNewFolderAlert(cardMenu)
         .handleError(state: $errorHandler.state)
+#if os(iOS)
+        .toolbar {
+          if settings != nil {
+            ToolbarItem(placement: .primaryAction) {
+              Button {
+                showsSettings = true
+              } label: {
+                Label("Settings", systemImage: "gear")
+              }
+            }
+          }
+        }
+        .sheet(isPresented: $showsSettings) {
+          settings
+        }
+#endif
     }
   }
 

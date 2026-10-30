@@ -170,6 +170,9 @@ struct TabsNavigationView: View {
     case .tv: tvContent
 #endif
     case .library: libraryContent
+#if os(iOS)
+    case .watchlist: WatchlistView()
+#endif
     default: EmptyView()
     }
   }
@@ -299,8 +302,12 @@ struct TabsNavigationView: View {
         browseTab(spec)
       }
 
-      Tab("Settings", systemImage: "gear", value: NavigationTabs.settings) {
-        settingsContent
+      // With Library in the bar, Settings is its gear (`LibraryView`), as in Sasha's
+      // layout (2026-10-30); a bar without Library keeps the tab.
+      if !SectionVisibilityStore.shared.isTabVisible(.library) {
+        Tab("Settings", systemImage: "gear", value: NavigationTabs.settings) {
+          settingsContent
+        }
       }
 
       Tab(value: NavigationTabs.search, role: .search) {
@@ -319,11 +326,11 @@ struct TabsNavigationView: View {
   /// `@available(tvOS, unavailable)` — the TV bar builds its tabs without this.
   @TabContentBuilder<NavigationTabs>
   private func browseTab(_ spec: TabSpec) -> some TabContent<NavigationTabs> {
-    if spec.tab == .library {
+    if spec.tab == .watchlist {
       Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
         content(for: spec.tab)
       }
-      .badge(libraryBadgeCount)
+      .badge(unwatchedEpisodesCount)
     } else {
       Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
         content(for: spec.tab)
@@ -334,13 +341,11 @@ struct TabsNavigationView: View {
 
   // MARK: - Badges
 
-  private var libraryBadgeCount: Int {
-    watchlistBadgeCount + bookmarksBadgeCount
-  }
-
-  private var bookmarksBadgeCount: Int {
-    sidebarFolders.reduce(0) { $0 + (Int($1.count) ?? 0) }
-  }
+  /// Episodes out and not yet watched, across every followed serial — kino.pub's own
+  /// `new` per serial, summed. The Library badge it replaces added the number of followed
+  /// serials to the number of titles in every bookmark folder: a sum of two unrelated
+  /// counts (Sasha, 2026-10-30). Zero shows no badge.
+  private var unwatchedEpisodesCount: Int { watchlistBadgeCount }
 
   // MARK: - Tab roots
 
@@ -445,7 +450,8 @@ struct TabsNavigationView: View {
 #else
     LibraryView(catalog: PersonalLibraryCatalog(itemsService: appContext.contentService,
                                                 authState: authState,
-                                                errorHandler: errorHandler))
+                                                errorHandler: errorHandler),
+                settings: horizontalSizeClass == .compact ? AnyView(settingsContent) : nil)
 #endif
   }
 
@@ -498,7 +504,8 @@ struct TabsNavigationView: View {
 
   private func fetchWatchlistCount() async -> Int {
     do {
-      return try await appContext.contentService.fetchWatchingSerials(subscribedOnly: true).items.count
+      return try await appContext.contentService.fetchWatchingSerials(subscribedOnly: true).items
+        .reduce(0) { $0 + max($1.new ?? 0, 0) }
     } catch {
       return watchlistBadgeCount
     }

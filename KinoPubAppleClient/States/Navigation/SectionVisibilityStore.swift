@@ -8,6 +8,9 @@
 
 import Foundation
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 extension Notification.Name {
   static let homeSectionsConfigurationDidChange = Notification.Name("homeSectionsConfigurationDidChange")
@@ -99,8 +102,31 @@ final class SectionVisibilityStore: ObservableObject {
                     localizedTitle: "TV".localized, systemImage: "tv", defaultVisible: true)
     )
 #endif
+#if os(iOS)
+    // The followed serials, as a tab of their own: they could not be opened on their own
+    // on iPhone (Sasha, 2026-10-30).
+    tabs.insert(
+      BrowseTabSpec(id: "watching", tab: .watchlist, titleKey: "TabWatching",
+                    localizedTitle: "TabWatching".localized, systemImage: "heart.fill",
+                    defaultVisible: true),
+      at: 1
+    )
+    // iPhone: Home, Watching, Library — the rest are a Settings switch away.
+    if UIDevice.current.userInterfaceIdiom == .phone {
+      let phoneTabs: Set<String> = ["home", "watching", "library"]
+      tabs = tabs.map {
+        BrowseTabSpec(id: $0.id, tab: $0.tab, titleKey: $0.titleKey, localizedTitle: $0.localizedTitle,
+                      systemImage: $0.systemImage, defaultVisible: phoneTabs.contains($0.id))
+      }
+    }
+#endif
     return tabs
   }()
+
+  /// Bumped when the default tab set changes enough that a saved one should give way to it
+  /// once (2: iPhone's Home / Watching / Library, 2026-10-30).
+  private static let tabLayoutVersion = 2
+  private let tabLayoutVersionKey = "browseTabLayoutVersion"
 
   /// Configurable sections on Watch Now (`HomeCatalog`).
   static let allHomeSections: [HomeSectionMeta] = [
@@ -292,6 +318,11 @@ final class SectionVisibilityStore: ObservableObject {
 
   private init() {
     let defaultTabOrder = Self.allBrowseTabs.map(\.id)
+    if UserDefaults.standard.integer(forKey: tabLayoutVersionKey) < Self.tabLayoutVersion {
+      UserDefaults.standard.removeObject(forKey: hiddenTabsKey)
+      UserDefaults.standard.removeObject(forKey: orderedTabsKey)
+      UserDefaults.standard.set(Self.tabLayoutVersion, forKey: tabLayoutVersionKey)
+    }
     if let savedHidden = UserDefaults.standard.stringArray(forKey: hiddenTabsKey) {
       hiddenIDs = Set(savedHidden)
     } else {

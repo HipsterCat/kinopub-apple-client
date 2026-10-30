@@ -108,12 +108,15 @@ class PersonalLibraryCatalog: ObservableObject {
   private func assembleRows() {
     var assembled: [MediaRow] = []
 
+    // Not here when Watching is a tab of its own (iPhone's default): it would be the same
+    // list twice. Elsewhere its header opens the full list — it opened nothing before.
     let watchlistCards = store.cards(.watchlist)
-    if !watchlistCards.isEmpty {
+    if !watchlistCards.isEmpty, !SectionVisibilityStore.shared.isTabVisible(.watchlist) {
       assembled.append(MediaRow(id: "watchlist",
                                 title: "Watchlist".localized,
                                 count: "\(watchlistCards.count)",
-                                cards: watchlistCards))
+                                cards: watchlistCards,
+                                destination: Route.watchlist))
     }
 
     let continueCards = store.cards(.unfinishedSerials)
@@ -130,7 +133,8 @@ class PersonalLibraryCatalog: ObservableObject {
       assembled.append(MediaRow(id: "history",
                                 title: "Recently Watched".localized,
                                 count: "\(historyCards.count)",
-                                cards: historyCards))
+                                cards: historyCards,
+                                destination: Route.history))
     }
 
     for folder in folders {
