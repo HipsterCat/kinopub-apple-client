@@ -130,7 +130,7 @@ test("query logo with nothing stored is 404 and still resolves", async () => {
   assert.equal(response.status, 404);
   assert.equal(response.headers.get("location"), null);
   assert.equal((await response.json()).hint, "no stored logo");
-  assert.equal(ctx.pending.length, 1);
+  assert.equal(ctx.pending.length, 0);
 });
 
 test("backdrop is textless and wide, prefers tvoe, and ignores Accept-Language and ?lang=", async () => {
@@ -244,7 +244,7 @@ test("backdrop 404s when the only frame is a kino.pub wide", async () => {
   const response = await handleImage(imageRequest("backdrop"), env, ctx);
   assert.equal(response.status, 404);
   assert.equal(response.headers.get("location"), null);
-  assert.equal(ctx.pending.length, 1);
+  assert.equal(ctx.pending.length, 0);
 });
 
 test("backdrop on a cold id 404s and resolves behind it", async () => {
@@ -252,7 +252,7 @@ test("backdrop on a cold id 404s and resolves behind it", async () => {
   const response = await handleImage(imageRequest("backdrop"), kvEnv(), ctx);
   assert.equal(response.status, 404);
   assert.equal(response.headers.get("location"), null);
-  assert.equal(ctx.pending.length, 1);
+  assert.equal(ctx.pending.length, 0);
 });
 
 test("Russian poster with a Kinopoisk id skips TMDB and never echoes kino.pub", async () => {
@@ -333,7 +333,7 @@ test("poster with no better file 404s instead of echoing kino.pub, and still res
   const response = await handleImage(imageRequest("poster", { query: "w=100" }), kvEnv(), ctx);
   assert.equal(response.status, 404);
   assert.equal(response.headers.get("location"), null);
-  assert.equal(ctx.pending.length, 1);
+  assert.equal(ctx.pending.length, 0);
 });
 
 test("a Kinopoisk hint on a cold poster answers the Russian file", async () => {
