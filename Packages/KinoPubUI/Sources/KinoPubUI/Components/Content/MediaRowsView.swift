@@ -79,7 +79,7 @@ public struct MediaRowsView: View {
   /// Identifies one card in one row. The same item can sit in two rows — Continue
   /// Watching and Hot Series both — so the card's own id is not unique enough to
   /// track focus by.
-  private struct CardKey: Hashable {
+  fileprivate struct CardKey: Hashable {
     let row: String
     let card: Int
   }
@@ -198,7 +198,12 @@ public struct MediaRowsView: View {
         }
     }
 #else
-    verticalScroll
+    ScrollViewReader { proxy in
+      verticalScroll
+#if os(macOS)
+        .modifier(RowsKeyboardTravel(rows: rows, focusedCard: $focusedCard, proxy: proxy))
+#endif
+    }
 #endif
   }
 
@@ -658,5 +663,51 @@ public struct MediaCardContextMenuModifier: ViewModifier {
   }
   .environment(\.usesTVUIKitPosters, true)
 //  .frame(width: 500, height: 200)
+}
+#endif
+
+#if os(macOS)
+/// Arrow keys through the rails (`PageKeyboardTravel`): the first card of the first rail
+/// when the page hands over the keyboard, Up from the top rail back to the page.
+private struct RowsKeyboardTravel: ViewModifier {
+  let rows: [MediaRow]
+  var focusedCard: FocusState<MediaRowsView.CardKey?>.Binding
+  let proxy: ScrollViewProxy
+  @Environment(\.pageKeyboardEntry) private var entry
+  @Environment(\.pageKeyboardExit) private var exit
+
+  private var keyRows: [[MediaRowsView.CardKey]] {
+    rows.filter { !$0.cards.isEmpty }.map { row in
+      row.cards.map { MediaRowsView.CardKey(row: row.id, card: $0.id) }
+    }
+  }
+
+  func body(content: Content) -> some View {
+    content
+      .onChange(of: entry) { _, request in
+        guard request != nil, let first = keyRows.first?.first else { return }
+        // A turn later: the page lets go of focus in the same update.
+        DispatchQueue.main.async { move(to: first) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { NSLog("KBDBG focused=\(String(describing: focusedCard.wrappedValue))") }
+      }
+      .onKeyPress(keys: .arrows) { press in
+        guard let current = focusedCard.wrappedValue, let direction = press.moveDirection else {
+          return .ignored
+        }
+        switch PageKeyboardTravel.next(from: current, rows: keyRows, direction: direction) {
+        case .some(.some(let key)): move(to: key)
+        case .some(.none):
+          focusedCard.wrappedValue = nil
+          exit?()
+        case .none: break
+        }
+        return .handled
+      }
+  }
+
+  private func move(to key: MediaRowsView.CardKey) {
+    focusedCard.wrappedValue = key
+    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(key, anchor: nil) }
+  }
 }
 #endif

@@ -25,8 +25,12 @@ public struct MediaCardsListView: View {
   @Environment(\.mediaNavigation) private var mediaNavigation
   @State private var containerWidth: CGFloat = 1920
 
-#if os(tvOS)
+#if os(tvOS) || os(macOS)
   @FocusState private var focusedItemID: Int?
+#endif
+#if os(macOS)
+  @Environment(\.pageKeyboardEntry) private var keyboardEntry
+  @Environment(\.pageKeyboardExit) private var keyboardExit
 #endif
 
 #if os(tvOS)
@@ -115,6 +119,11 @@ public struct MediaCardsListView: View {
         .focused($focusedItemID, equals: card.id)
 #else
         .buttonStyle(MediaCardButtonStyle())
+        .macKeyboardCard { mediaNavigation?(navigationLinkProvider(card)) }
+#if os(macOS)
+        .focused($focusedItemID, equals: card.id)
+        .id(card.id)
+#endif
 #endif
         .modifier(MediaCardContextMenuModifier(
           isEnabled: contextMenuProvider != nil,
@@ -125,6 +134,48 @@ public struct MediaCardsListView: View {
   }
 
   private var swiftUIGrid: some View {
+#if os(macOS)
+    ScrollViewReader { proxy in
+      gridScroll
+        .onChange(of: keyboardEntry) { _, request in
+          guard request != nil, let first = cards.first else { return }
+          focusedItemID = first.id
+          proxy.scrollTo(first.id, anchor: nil)
+        }
+        .onKeyPress(keys: .arrows) { press in
+          guard let current = focusedItemID, let direction = press.moveDirection else { return .ignored }
+          let rows = keyboardRows
+          switch PageKeyboardTravel.next(from: current, rows: rows, direction: direction) {
+          case .some(.some(let id)):
+            focusedItemID = id
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: nil) }
+          case .some(.none):
+            focusedItemID = nil
+            keyboardExit?()
+          case .none: break
+          }
+          return .handled
+        }
+    }
+#else
+    gridScroll
+#endif
+  }
+
+#if os(macOS)
+  /// The grid as the keyboard sees it: its rows of card ids, section by section.
+  private var keyboardRows: [[Int]] {
+    let groups = sections.isEmpty ? [cards] : sections.map(\.cards)
+    let columns = max(metrics.columns, 1)
+    return groups.flatMap { group in
+      stride(from: 0, to: group.count, by: columns).map { start in
+        group[start..<min(start + columns, group.count)].map(\.id)
+      }
+    }
+  }
+#endif
+
+  private var gridScroll: some View {
     ScrollView {
       if sections.isEmpty {
         grid(of: cards)

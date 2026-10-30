@@ -50,6 +50,7 @@ struct TabsNavigationView: View {
 #if os(macOS)
   @FocusState private var detailFocused: Bool
   @State private var heroStep: HeroStepRequest?
+  @State private var keyboardEntry: PageKeyboardEntry?
 #endif
   @State private var watchlistBadgeCount = 0
   @State private var sidebarSyncedAt: Date?
@@ -354,16 +355,28 @@ struct TabsNavigationView: View {
       // and the keyboard works the page — Left / Right turn the Home hero (Sasha,
       // 2026-10-30). Taken on launch and after every pick in the sidebar.
       macSidebarDetail
-        .focusable()
+        // `.edit`: focusable whatever the system's keyboard-navigation setting; the
+        // default (`.activate`) only takes focus with Full Keyboard Access on.
+        .focusable(interactions: .edit)
         .focusEffectDisabled()
         .focused($detailFocused)
-        .onMoveCommand { direction in
-          switch direction {
-          case .left: heroStep = HeroStepRequest(delta: -1)
-          case .right: heroStep = HeroStepRequest(delta: 1)
-          default: break
+        .onKeyPress(keys: [.leftArrow, .rightArrow, .downArrow]) { press in
+          switch press.key {
+          case .leftArrow: heroStep = HeroStepRequest(delta: -1)
+          case .rightArrow: heroStep = HeroStepRequest(delta: 1)
+          // Down into the page's cards; Up from their top comes back here.
+          default:
+            // The page lets go so a card can take the keyboard.
+            detailFocused = false
+            keyboardEntry = PageKeyboardEntry()
           }
+          return .handled
         }
+        .environment(\.pageKeyboardEntry, keyboardEntry)
+        .environment(\.pageKeyboardExit, { detailFocused = true })
+        // Arrows stay in the page: Down from the page goes to its cards, never back into
+        // the sidebar list.
+        .focusSection()
         .environment(\.heroStepRequest, heroStep)
         .onAppear { detailFocused = true }
         .onChange(of: navigationState.selectedTab) {

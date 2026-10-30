@@ -302,6 +302,8 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #if !os(tvOS)
             .buttonStyle(MediaCardButtonStyle())
 #endif
+            .macKeyboardCard { open(card) }
+            .modifier(FocusKeyID(key: focusKey?(card)))
             .modifier(MediaPosterShelfFocusModifier(
               focusedCard: allowsFocus ? focusedCard : nil,
               key: focusKey?(card)
@@ -407,6 +409,15 @@ public extension MediaPosterShelf where FocusKey == Int {
 }
 
 // MARK: - Focus helpers
+
+/// The card's focus key as its scroll id, so the keyboard's card can be scrolled to.
+private struct FocusKeyID<Key: Hashable>: ViewModifier {
+  let key: Key?
+  @ViewBuilder
+  func body(content: Content) -> some View {
+    if let key { content.id(key) } else { content }
+  }
+}
 
 private struct MediaPosterShelfFocusModifier<FocusKey: Hashable>: ViewModifier {
   var focusedCard: FocusState<FocusKey?>.Binding?

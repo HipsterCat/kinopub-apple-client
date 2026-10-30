@@ -847,7 +847,8 @@ public struct MediaCardView: View {
 
   private var isPointerActive: Bool {
 #if os(macOS)
-    isHovered
+    // The keyboard's card (`macKeyboardCard`) looks the way the pointer's does.
+    isHovered || cardFocused
 #elseif os(tvOS)
     cardFocused
 #else
@@ -1599,4 +1600,39 @@ public extension EnvironmentValues {
   /// The caption title's style for the cards under it; nil is `TypeScale.cardTitle`.
   /// The title page's episodes are a step up (`TypeScale.episodeCardTitle`).
   @Entry var mediaCardTitleFont: Font? = nil
+}
+
+#if os(macOS)
+/// A card the keyboard reaches on a Mac whatever the system's keyboard-navigation
+/// setting says, as in the App Store and the TV app: arrows move between cards, Return
+/// (or Space) opens it. A `.edit` focus interaction is focusable without Full Keyboard
+/// Access; `.activate` only with it.
+private struct MacKeyboardCard: ViewModifier {
+  let onActivate: () -> Void
+
+  func body(content: Content) -> some View {
+    content
+      .focusable(interactions: .edit)
+      .onKeyPress(.return) {
+        onActivate()
+        return .handled
+      }
+      .onKeyPress(.space) {
+        onActivate()
+        return .handled
+      }
+  }
+}
+#endif
+
+public extension View {
+  /// Keyboard focus and Return for a card on a Mac (`MacKeyboardCard`); nothing elsewhere.
+  @ViewBuilder
+  func macKeyboardCard(onActivate: @escaping () -> Void) -> some View {
+#if os(macOS)
+    modifier(MacKeyboardCard(onActivate: onActivate))
+#else
+    self
+#endif
+  }
 }
