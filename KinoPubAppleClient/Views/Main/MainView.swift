@@ -641,10 +641,11 @@ private struct PageTitle: ViewModifier {
   let isBlank: Bool
 
   func body(content: Content) -> some View {
-    if isBlank {
-      content.platformNavigationTitle(String())
-    } else {
-      content.platformNavigationTitle(title)
-    }
+#if os(tvOS)
+    content
+#else
+    // One modifier either way, so the page keeps its identity when the hero arrives.
+    content.navigationTitle(isBlank ? Text(verbatim: "") : Text(title))
+#endif
   }
 }
