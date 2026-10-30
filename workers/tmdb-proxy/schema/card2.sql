@@ -165,3 +165,24 @@ CREATE TABLE c2_season (
   poster TEXT,
   PRIMARY KEY (kinopub_id, number)
 );
+
+CREATE TABLE c2_episode (
+  kinopub_id INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  number INTEGER NOT NULL,
+  name_ru TEXT,
+  name_en TEXT,
+  runtime_min INTEGER,
+  air_date TEXT,
+  still TEXT,
+  imdb_id TEXT,
+  tmdb_id INTEGER,
+  season_tmdb_id INTEGER,
+  episode_type TEXT,
+  season_finale INTEGER,
+  tmdb_value REAL,
+  tmdb_votes INTEGER,
+  imdb_value REAL,
+  imdb_votes INTEGER,
+  PRIMARY KEY (kinopub_id, season, number)
+);

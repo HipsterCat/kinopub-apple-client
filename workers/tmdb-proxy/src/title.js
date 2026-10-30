@@ -30,6 +30,7 @@
  */
 
 import { tmdbGenres } from "./genres.js";
+import { publishCard } from "./card.js";
 import { applySeasonLocale, ensureEpisodeStill, loadSeasons } from "./seasons.js";
 
 const DOC_TTL = 60 * 60 * 24 * 30;
@@ -304,21 +305,34 @@ export async function readDocument(env, id) {
 }
 
 export async function writeDocument(env, id, document) {
-  if (!env.DOCUMENTS) return false;
-  try {
-    await env.DOCUMENTS.put(`title:kinopub:${id}`, JSON.stringify(document),
-                            { expirationTtl: DOC_TTL });
-    return true;
-  } catch (error) {
-    // The daily KV write cap is a real wall. The picture for this request
-    // can still be served from the document we already built.
-    console.log(JSON.stringify({
-      kv: "put_failed",
-      id,
-      message: error?.message || String(error),
-    }));
-    return false;
+  let stored = false;
+  if (env.DOCUMENTS) {
+    try {
+      await env.DOCUMENTS.put(`title:kinopub:${id}`, JSON.stringify(document),
+                              { expirationTtl: DOC_TTL });
+      stored = true;
+    } catch (error) {
+      // The daily KV write cap is a real wall. The picture for this request
+      // can still be served from the document we already built.
+      console.log(JSON.stringify({
+        kv: "put_failed",
+        id,
+        message: error?.message || String(error),
+      }));
+    }
   }
+  if (env.CATALOG && document?.built_at) {
+    try {
+      await publishCard(env, id, document);
+    } catch (error) {
+      console.log(JSON.stringify({
+        d1: "put_failed",
+        id,
+        message: error?.message || String(error),
+      }));
+    }
+  }
+  return stored;
 }
 
 /**

@@ -1,12 +1,12 @@
 /**
- * GET /v1/card/by/kinopub/{id}
+ * GET /v2/title/by/kinopub/{id}
  *
- * The curated card from D1 (tools/metadata-ingest/data/card-2.db, uploaded by
- * upload_card2.py). Featured people, a few regular names, counts for the
- * rest, pictures, top episodes, network. The full cast stays in kv.db.
+ * The title the page reads. D1 holds the curated card, including every
+ * episode we know. A resolve on the worker writes that row itself; the
+ * upload script only catches up what was already stored.
  */
 
-const HINT = "/v1/card/by/kinopub/{id}";
+const HINT = "/v2/title/by/kinopub/{id}";
 
 export async function handleCard(url, env) {
   const id = url.pathname.split("/").pop();
@@ -15,7 +15,7 @@ export async function handleCard(url, env) {
 
   const db = env.CATALOG;
   const kinopubId = Number(id);
-  const [card, billing, roles, counts, images, episodes, networks, seasons] = await db.batch([
+  const [card, billing, roles, counts, images, episodes, rows, networks, seasons] = await db.batch([
     db.prepare("SELECT * FROM c2_card WHERE kinopub_id = ?").bind(kinopubId),
     db.prepare(
       `SELECT b.section, b.position, b.person_id, b.name_ru, b.name_en, b.character, b.job,
@@ -42,6 +42,11 @@ export async function handleCard(url, env) {
       `SELECT rank, season, number, name_ru, name_en, tmdb_id, tmdb_value, tmdb_votes,
               imdb_value, imdb_votes, season_finale
          FROM c2_top_episode WHERE kinopub_id = ? ORDER BY rank`,
+    ).bind(kinopubId),
+    db.prepare(
+      `SELECT season, number, name_ru, name_en, runtime_min, air_date, still, imdb_id,
+              tmdb_id, tmdb_value, tmdb_votes, imdb_value, imdb_votes, season_finale
+         FROM c2_episode WHERE kinopub_id = ? ORDER BY season, number`,
     ).bind(kinopubId),
     db.prepare(
       "SELECT tmdb_id, name, logo_url, origin_country FROM c2_network WHERE kinopub_id = ?",
@@ -110,13 +115,128 @@ export async function handleCard(url, env) {
     images: images.results || [],
     top_episodes: episodes.results || [],
     networks: networks.results || [],
-    seasons: seasons.results || [],
+    seasons: (seasons.results || []).map((season) => ({
+      number: season.number,
+      name: season.name,
+      episode_count: season.episodes,
+      air_date: season.air_date,
+      end_date: season.end_date,
+      poster: season.poster,
+      episodes: (rows.results || []).filter((episode) => episode.season === season.number),
+    })),
   });
+}
+
+/** After a KV write, the same title is updated in D1. A failure here does not
+ * undo the KV write. */
+export async function publishCard(env, id, document) {
+  if (!env?.CATALOG || !document?.built_at) return;
+  const db = env.CATALOG;
+  const kinopubId = Number(id);
+  const statements = [upsertCard(db, kinopubId, document)];
+  const seasons = document.seasons || [];
+  const episodeRows = seasons.flatMap((season) => (season.episodes || []).map((episode) => ({ season, episode })));
+  statements.push(db.prepare("DELETE FROM c2_season WHERE kinopub_id = ?").bind(kinopubId));
+  for (const season of seasons) statements.push(insertSeason(db, kinopubId, season));
+  if (episodeRows.length) {
+    statements.push(db.prepare("DELETE FROM c2_episode WHERE kinopub_id = ?").bind(kinopubId));
+    for (const { season, episode } of episodeRows) statements.push(insertEpisode(db, kinopubId, season, episode));
+  }
+  await runBatch(db, statements.filter(Boolean));
 }
 
 function score(value, votes) {
   if (value == null) return null;
   return { value, votes: votes ?? null };
+}
+
+function upsertCard(db, kinopubId, document) {
+  const ids = document.ids || {};
+  const idOf = (name) => ids[name]?.value ?? null;
+  const rating = (source) => (document.ratings || []).find((item) => item.source === source) || {};
+  const synopsis = (document.synopsis || []).find((item) => item.variant === "full" && item.lang === "ru");
+  const tagline = (document.synopsis || []).find((item) => item.variant === "tagline" && item.lang === "ru");
+  const tmdb = rating("tmdb");
+  return db.prepare(
+    `INSERT INTO c2_card (
+       kinopub_id, title_ru, title_original, year, status, synopsis_ru, tagline_ru,
+       imdb_id, tmdb_id, tvdb_id, kinopoisk_id, wikidata_id, myshows_id, tmdb, tmdb_votes, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(kinopub_id) DO UPDATE SET
+       title_ru = COALESCE(excluded.title_ru, c2_card.title_ru),
+       title_original = COALESCE(excluded.title_original, c2_card.title_original),
+       year = COALESCE(excluded.year, c2_card.year),
+       status = COALESCE(excluded.status, c2_card.status),
+       synopsis_ru = COALESCE(excluded.synopsis_ru, c2_card.synopsis_ru),
+       tagline_ru = COALESCE(excluded.tagline_ru, c2_card.tagline_ru),
+       imdb_id = COALESCE(excluded.imdb_id, c2_card.imdb_id),
+       tmdb_id = COALESCE(excluded.tmdb_id, c2_card.tmdb_id),
+       tvdb_id = COALESCE(excluded.tvdb_id, c2_card.tvdb_id),
+       kinopoisk_id = COALESCE(excluded.kinopoisk_id, c2_card.kinopoisk_id),
+       wikidata_id = COALESCE(excluded.wikidata_id, c2_card.wikidata_id),
+       myshows_id = COALESCE(excluded.myshows_id, c2_card.myshows_id),
+       tmdb = COALESCE(excluded.tmdb, c2_card.tmdb),
+       tmdb_votes = COALESCE(excluded.tmdb_votes, c2_card.tmdb_votes),
+       updated_at = excluded.updated_at`,
+  ).bind(
+    kinopubId,
+    document.title?.ru ?? null,
+    document.title?.original ?? null,
+    document.year ?? null,
+    document.status ?? null,
+    synopsis?.text ?? null,
+    tagline?.text ?? null,
+    idOf("imdb"), idOf("tmdb"), idOf("tvdb"), idOf("kinopoisk"), idOf("wikidata"), idOf("myshows"),
+    tmdb.value ?? null, tmdb.votes ?? null,
+    document.built_at,
+  );
+}
+
+function insertSeason(db, kinopubId, season) {
+  const poster = season.poster;
+  const posterUrl = typeof poster === "string" ? poster : poster?.ru || null;
+  return db.prepare(
+    `INSERT INTO c2_season (kinopub_id, number, name, episodes, air_date, end_date, poster)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    kinopubId, season.number, langText(season.name, "ru"),
+    season.episode_cnt ?? (season.episodes || []).length,
+    season.air_date ?? null, season.end_date ?? null, posterUrl,
+  );
+}
+
+function insertEpisode(db, kinopubId, season, episode) {
+  const tmdb = episode.tmdb || {};
+  const imdb = episode.imdb;
+  const imdbId = typeof imdb === "string" ? imdb : (typeof imdb?.value === "string" ? imdb.value : null);
+  const imdbValue = typeof imdb?.value === "number" ? imdb.value : null;
+  return db.prepare(
+    `INSERT INTO c2_episode (
+       kinopub_id, season, number, name_ru, name_en, runtime_min, air_date, still, imdb_id,
+       tmdb_id, season_tmdb_id, episode_type, season_finale, tmdb_value, tmdb_votes, imdb_value, imdb_votes
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    kinopubId, season.number, episode.number,
+    langText(episode.name, "ru"), langText(episode.name, "en"),
+    episode.runtime_min ?? null, episode.air_date ?? null,
+    episode.thumbnail || episode.still || null,
+    imdbId, episode.id ?? null, episode.season_id || season.id || null,
+    episode.episode_type ?? null, episode.season_finale ? 1 : 0,
+    tmdb.votes ? tmdb.value : null, tmdb.votes || null,
+    imdbValue, typeof imdb?.votes === "number" && imdbValue != null ? imdb.votes : null,
+  );
+}
+
+function langText(value, lang) {
+  if (!value) return null;
+  if (typeof value === "string") return lang === "ru" ? value : null;
+  return value[lang] || null;
+}
+
+async function runBatch(db, statements) {
+  for (let i = 0; i < statements.length; i += 25) {
+    await db.batch(statements.slice(i, i + 25));
+  }
 }
 
 function json(body, status = 200) {

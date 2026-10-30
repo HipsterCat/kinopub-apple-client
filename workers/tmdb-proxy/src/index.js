@@ -37,7 +37,8 @@ export default {
       return handleSeasons(request, env, ctx);
     }
 
-    if (url.pathname.startsWith("/v1/card/by/kinopub/")) {
+    if (url.pathname.startsWith("/v2/title/by/kinopub/")
+        || url.pathname.startsWith("/v1/card/by/kinopub/")) {
       return handleCard(url, env);
     }
 
@@ -65,7 +66,7 @@ export default {
 
     return json({
       error: "not_found",
-      hint: "/v1/card/by/kinopub/{id} · /v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /3/… · /t/p/… · /p/exports/…",
+      hint: "/v2/title/by/kinopub/{id} · /v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /3/… · /t/p/… · /p/exports/…",
     }, 404);
   },
 };
