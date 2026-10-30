@@ -22,6 +22,9 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if os(macOS)
+import AppKit
+#endif
 
 // MARK: - Metrics
 
@@ -43,12 +46,12 @@ public enum InfoPopupMetrics {
 #elseif os(macOS)
   public static let maxWidth: CGFloat = 620
   public static let padding: CGFloat = 28
-  public static let cornerRadius: CGFloat = 16
+  public static let cornerRadius: CGFloat = 24
   public static let titleFont: Font = .title2
   public static let subtitleFont: Font = .subheadline
   public static let bodyFont: Font = .body
   public static let captionFont: Font = .footnote
-  public static let sectionFont: Font = .headline
+  public static let sectionFont: Font = .title2.bold()
   public static let contentSpacing: CGFloat = 18
   public static let scrimOpacity: Double = 0.5
 #else
@@ -59,7 +62,7 @@ public enum InfoPopupMetrics {
   public static let subtitleFont: Font = .subheadline
   public static let bodyFont: Font = .body
   public static let captionFont: Font = .footnote
-  public static let sectionFont: Font = .headline
+  public static let sectionFont: Font = .title2.bold()
   public static let contentSpacing: CGFloat = 18
   public static let scrimOpacity: Double = 0.5
 #endif
@@ -165,8 +168,11 @@ public struct InfoPopupView<Content: View>: View {
     // The button's own width on either side keeps a long title centred and clear of it.
     .padding(.horizontal, InfoPopupMetrics.padding * 3)
     .overlay(alignment: .topTrailing) {
+      // A plain bordered capsule, as the TV app's «Готово» — not glass.
       Button(action: close) { confirmTitle ?? Text("Done") }
-        .buttonStyle(.glass)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
         .keyboardShortcut(.defaultAction)
     }
     .padding([.horizontal, .top], InfoPopupMetrics.padding * 0.6)
@@ -189,6 +195,7 @@ public struct InfoPopupView<Content: View>: View {
           scrollGeometry = geometry
         }
 #endif
+#if os(tvOS)
         // Lines fade at the edges rather than being cut by them — the padding is the fade.
         .mask {
           LinearGradient(stops: [.init(color: .clear, location: 0),
@@ -197,6 +204,7 @@ public struct InfoPopupView<Content: View>: View {
                                  .init(color: .clear, location: 1)],
                          startPoint: .top, endPoint: .bottom)
         }
+#endif
     }
 #if os(tvOS)
     // The text is the focus stop when there is no button: a modal with no focusable
@@ -248,7 +256,12 @@ public struct InfoPopupSection<Content: View>: View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing * 0.75) {
       title
         .font(InfoPopupMetrics.sectionFont)
+#if os(tvOS)
         .foregroundStyle(Color.KinoPub.subtitle)
+#else
+        // The TV app's sheet: «Информация», «Языки» in bold primary.
+        .foregroundStyle(Color.KinoPub.text)
+#endif
       content()
     }
     .padding(.top, InfoPopupMetrics.contentSpacing * 0.5)
@@ -267,13 +280,29 @@ public struct InfoPopupFact: View {
 
   public var body: some View {
     VStack(alignment: .leading, spacing: 4) {
+#if os(tvOS)
       label
         .font(InfoPopupMetrics.captionFont)
         .foregroundStyle(Color.KinoPub.subtitle)
-      Text(verbatim: value)
+      if !value.isEmpty {
+        Text(verbatim: value)
+          .font(InfoPopupMetrics.bodyFont)
+          .foregroundStyle(Color.KinoPub.text)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+#else
+      // The TV app's sheet: the row's name primary, what it says secondary («Премьера»
+      // over «2026»). A row with nothing to say is its name alone, not a name over a gap.
+      label
         .font(InfoPopupMetrics.bodyFont)
         .foregroundStyle(Color.KinoPub.text)
-        .fixedSize(horizontal: false, vertical: true)
+      if !value.isEmpty {
+        Text(verbatim: value)
+          .font(InfoPopupMetrics.bodyFont)
+          .foregroundStyle(Color.KinoPub.subtitle)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+#endif
     }
   }
 }
@@ -369,17 +398,45 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
         panel
           .presentationBackground(.clear)
       }
+#elseif os(macOS)
+    if let host {
+      // Inside a page that hosts popups: the TV app's panel, not a sheet — it belongs to
+      // the page, the page behind stays live, and a click outside closes it.
+      content
+        .onChange(of: isPresented) { _, presented in
+          if presented {
+            host.present(AnyView(hostedPanel), onClose: { isPresented = false })
+          } else {
+            host.dismiss()
+            onDismiss?()
+          }
+        }
+    } else {
+      content
+        .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
+          panel
+        }
+    }
 #else
     content
       .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
         panel
-#if os(iOS)
           .presentationDetents([.medium, .large])
           .presentationDragIndicator(.visible)
-#endif
       }
 #endif
   }
+
+#if os(macOS)
+  @Environment(\.infoPopupHost) private var host
+
+  private var hostedPanel: some View {
+    InfoPopupView(title: title, subtitle: subtitle, confirmTitle: confirmTitle,
+                  onDismiss: { isPresented = false },
+                  content: popupContent)
+      .pageColorScheme()
+  }
+#endif
 
   /// In the window's appearance, not the presenter's: the hero forces itself dark.
   private var panel: some View {
@@ -511,5 +568,106 @@ public enum InfoPopupTriggerStyle {
   .padding(40)
   .frame(maxWidth: 820, alignment: .leading)
   // .preferredColorScheme(.dark)
+}
+#endif
+
+#if os(macOS)
+// MARK: - Page-hosted panel (macOS)
+
+/// Where a page shows its info popups on a Mac: over the page, as the TV app does — a
+/// panel in the window's background colour that belongs to the page, leaves the page
+/// behind it live (it still scrolls) and closes on a click anywhere outside it or on
+/// Escape. A system sheet blocked the whole window and only «Готово» closed it (Sasha,
+/// 2026-10-30). Pages without a host keep the sheet.
+@MainActor
+@Observable
+public final class InfoPopupHost {
+  fileprivate var panel: AnyView?
+  fileprivate var onClose: (() -> Void)?
+  /// The panel's frame in the window, top-left origin, for the outside-click test.
+  fileprivate var panelFrame: CGRect = .zero
+
+  public init() {}
+
+  fileprivate func present(_ view: AnyView, onClose: @escaping () -> Void) {
+    self.onClose = onClose
+    panel = view
+  }
+
+  fileprivate func dismiss() {
+    guard panel != nil else { return }
+    panel = nil
+    let close = onClose
+    onClose = nil
+    close?()
+  }
+}
+
+public extension EnvironmentValues {
+  @Entry var infoPopupHost: InfoPopupHost? = nil
+}
+
+public extension View {
+  /// Shows this page's info popups as the TV app's panel over it (see `InfoPopupHost`).
+  func hostsInfoPopups() -> some View {
+    modifier(InfoPopupHostOverlay())
+  }
+}
+
+private struct InfoPopupHostOverlay: ViewModifier {
+  @State private var host = InfoPopupHost()
+  @State private var monitor: Any?
+
+  private var shape: RoundedRectangle {
+    RoundedRectangle(cornerRadius: InfoPopupMetrics.cornerRadius, style: .continuous)
+  }
+
+  func body(content: Content) -> some View {
+    content
+      .environment(\.infoPopupHost, host)
+      .overlay {
+        if let panel = host.panel {
+          panel
+            .background(Color(nsColor: .windowBackgroundColor), in: shape)
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(.separator, lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.3), radius: 30, y: 12)
+            .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { host.panelFrame = $0 }
+            .padding(InfoPopupMetrics.padding * 2)
+            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+        }
+      }
+      .animation(.easeOut(duration: 0.2), value: host.panel != nil)
+      .onChange(of: host.panel != nil) { _, shown in
+        shown ? startMonitoring() : stopMonitoring()
+      }
+      .onDisappear {
+        stopMonitoring()
+        host.dismiss()
+      }
+  }
+
+  /// A click outside the panel closes it and still goes where it was aimed; Escape closes
+  /// it and goes nowhere.
+  private func startMonitoring() {
+    stopMonitoring()
+    let host = host
+    monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { event in
+      if event.type == .keyDown {
+        guard event.keyCode == 53 else { return event }
+        host.dismiss()
+        return nil
+      }
+      let height = event.window?.contentView?.bounds.height ?? 0
+      let point = CGPoint(x: event.locationInWindow.x, y: height - event.locationInWindow.y)
+      if !host.panelFrame.contains(point) { host.dismiss() }
+      return event
+    }
+  }
+
+  private func stopMonitoring() {
+    if let monitor { NSEvent.removeMonitor(monitor) }
+    monitor = nil
+  }
 }
 #endif

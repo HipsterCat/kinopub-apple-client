@@ -251,6 +251,9 @@ struct MediaItemView: View {
       // the first episode/poster gets clipped. tvOS/iOS still bleed the hero edge-to-edge.
 #if os(macOS)
       .ignoresSafeArea(edges: .top)
+      // The synopsis popup as the TV app's panel over the page: the page stays live, a
+      // click outside closes it (Sasha, 2026-10-30).
+      .hostsInfoPopups()
 #else
       .ignoresSafeArea()
 #endif
