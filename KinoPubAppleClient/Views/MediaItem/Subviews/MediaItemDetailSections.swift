@@ -366,8 +366,10 @@ static let captionFont: Font = .caption
   static let spacing: CGFloat = 12
   static let tilePadding: CGFloat = 14
   static let iconSize: CGFloat = 32
-  static let valueFont: Font = .system(size: 32, weight: .semibold, design: .rounded)
-  static let valueUIFont = ScoreValueTypography.rounded(size: 32, weight: .semibold)
+  /// Regular, as the tvOS score card's number: semibold read as a headline (Sasha,
+  /// 2026-10-30, «на два порядка меньше»).
+  static let valueFont: Font = .system(size: 32, weight: .regular, design: .rounded)
+  static let valueUIFont = ScoreValueTypography.rounded(size: 32, weight: .regular)
   static let titleFont: Font = .system(size: 14, weight: .semibold)
     static let captionFont: Font = TypeScale.detailBody
 
@@ -452,6 +454,45 @@ private struct RatingTile: View {
 #endif
   }
 
+#if !os(tvOS)
+  /// The tvOS score card's content (`MediaItemTVSections.rating`): the source's card mark
+  /// and its number on one line, how many voted under them — no name, no arrow (Sasha,
+  /// 2026-10-30). A source with no score yet says so where the count would be.
+  private var tileContent: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .center, spacing: 10) {
+        MediaScoreLogo(score.logo, height: MediaItemRatingsSection.iconSize, style: .card)
+        if !score.isPlaceholder {
+          ScoreValueText(score.value == nil ? "?" : score.display,
+                         font: MediaItemRatingsSection.valueUIFont)
+            .foregroundStyle(score.drawsFaint || score.value == nil
+                             ? Color.KinoPub.subtitle : Color.KinoPub.text)
+        }
+      }
+      if let caption {
+        Text(caption)
+          .font(MediaItemRatingsSection.captionFont)
+          .foregroundStyle(Color.KinoPub.subtitle)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(MediaItemRatingsSection.tilePadding)
+  }
+
+  private var caption: String? {
+    if score.isPlaceholder { return "MediaItem_NoRatings".localized }
+    guard let votes = score.votes, votes > 0 else {
+      return score.value == nil ? "MediaItem_NotEnoughRatings".localized : nil
+    }
+    let unit: String
+    switch localizedPluralForm(votes) {
+    case 0: unit = "MediaItem_UnitRatingOne".localized
+    case 1: unit = "MediaItem_UnitRatingFew".localized
+    default: unit = "MediaItem_UnitRatingMany".localized
+    }
+    return "\(votes.formatted(.number.grouping(.automatic))) \(unit)"
+  }
+#else
   private var tileContent: some View {
     HStack(alignment: .center, spacing: 10) {
       MediaScoreLogo(score.logo, height: MediaItemRatingsSection.iconSize, style: .compact)
@@ -499,6 +540,7 @@ private struct RatingTile: View {
 //    )
 //    .animation(.easeOut(duration: 0.15), value: isHovered)
   }
+#endif
 }
 
 private struct ViewsRatingTile: View {
