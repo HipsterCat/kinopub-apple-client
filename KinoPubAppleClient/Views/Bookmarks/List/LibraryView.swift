@@ -101,15 +101,20 @@ struct LibraryView: View {
 
   // MARK: - Places
 
-  /// History, then every bookmark folder with what it holds — each opens its own page.
+  /// Folders that hold something. One is the grid below — no row, no picker; several
+  /// are one Collections row that opens them as tiles (Sasha, 2026-10-30).
+  private var folders: [Bookmark] {
+    catalog.folders.filter { $0.count != "0" }
+  }
+
   private var places: some View {
     VStack(spacing: 0) {
       placeRow(title: "History".localized, systemImage: "clock.arrow.circlepath",
                count: nil, route: .history)
-      ForEach(catalog.folders.filter { $0.count != "0" }, id: \.id) { folder in
+      if folders.count > 1 {
         Divider().padding(.leading, metrics.inset + 40)
-        placeRow(title: folder.title, systemImage: "bookmark",
-                 count: folder.count, route: .bookmark(folder))
+        placeRow(title: "BookmarkCollections".localized, systemImage: "square.stack",
+                 count: "\(folders.count)", route: .bookmarkFolders(folders))
       }
     }
   }
@@ -150,7 +155,9 @@ struct LibraryView: View {
     VStack(alignment: .leading, spacing: 6) {
       SectionHeader(title: "Library_AllBookmarks".localized, leadingInset: metrics.inset)
       HStack(spacing: 8) {
-        folderMenu
+        if folders.count > 1 {
+          folderMenu
+        }
         LibraryFiltersBar(catalog: bookmarks)
       }
       .padding(.leading, metrics.inset)
@@ -163,7 +170,7 @@ struct LibraryView: View {
     Menu {
       Picker("Library_AllBookmarks".localized, selection: $bookmarksSection) {
         Text("All").tag(LibrarySection.allBookmarks)
-        ForEach(catalog.folders, id: \.id) { folder in
+        ForEach(folders, id: \.id) { folder in
           Text(folder.title).tag(LibrarySection.folder(folder.id))
         }
       }
@@ -218,5 +225,46 @@ struct LibraryView: View {
       pushRoute: { navigationState.push($0) },
       openURL: { openURL($0) }
     )
+  }
+}
+
+/// Every bookmark folder as a tile — its name and how many titles it holds — each
+/// opening the folder. Pushed from the Library's Collections row.
+struct BookmarkFoldersView: View {
+  let folders: [Bookmark]
+  @Environment(\.dynamicTypeSize) private var typeSize
+  @State private var width: CGFloat = 390
+
+  private var metrics: ShelfMetrics { .posters(width: width, typeSize: typeSize) }
+
+  var body: some View {
+    ScrollView {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: metrics.gutter)],
+                spacing: metrics.gutter) {
+        ForEach(folders, id: \.id) { folder in
+          NavigationLink(value: Route.bookmark(folder)) {
+            VStack(alignment: .leading, spacing: 4) {
+              Spacer(minLength: 0)
+              Text(folder.title)
+                .font(.headline)
+                .foregroundStyle(Color.KinoPub.text)
+                .lineLimit(2)
+              Text(folder.count)
+                .font(.subheadline)
+                .foregroundStyle(Color.KinoPub.subtitle)
+            }
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .bottomLeading)
+            .padding()
+            .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+          }
+          .buttonStyle(MediaCardButtonStyle())
+        }
+      }
+      .padding(.horizontal, metrics.inset)
+      .padding(.vertical, 8)
+    }
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { if $0 > 0 { width = $0 } }
+    .platformNavigationTitle("BookmarkCollections".localized)
+    .background(Color.KinoPub.background)
   }
 }

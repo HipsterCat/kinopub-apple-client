@@ -12,6 +12,11 @@ public extension View {
   func platformNavigationTitle(_ title: LocalizedStringKey) -> some View {
 #if os(tvOS)
     self
+#elseif os(iOS)
+    // Inline large on every page: the large title sits in the bar, beside its buttons,
+    // not on a line of its own under them (Sasha, 2026-10-30).
+    navigationTitle(title)
+      .toolbarTitleDisplayMode(.inlineLarge)
 #else
     navigationTitle(title)
 #endif
@@ -21,6 +26,11 @@ public extension View {
   func platformNavigationTitle(_ title: String) -> some View {
 #if os(tvOS)
     self
+#elseif os(iOS)
+    // Inline large on every page: the large title sits in the bar, beside its buttons,
+    // not on a line of its own under them (Sasha, 2026-10-30).
+    navigationTitle(title)
+      .toolbarTitleDisplayMode(.inlineLarge)
 #else
     navigationTitle(title)
 #endif

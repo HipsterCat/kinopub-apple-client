@@ -104,14 +104,17 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
       icon: "arrow.up.arrow.down",
       isActive: false
     ) {
-      ForEach(MediaSortOrder.allCases) { order in
-        Button {
-          catalog.update { $0.sort = order }
-        } label: {
-          Self.checkmarkLabel(LocalizedStringKey(order.titleKey),
-                              selected: catalog.filter.sort == order)
+      // A picker: the system draws the selection (Sasha, 2026-10-30), not a checkmark
+      // glyph pasted into one button's label.
+      Picker("Sort", selection: Binding(
+        get: { catalog.filter.sort },
+        set: { order in catalog.update { $0.sort = order } }
+      )) {
+        ForEach(MediaSortOrder.allCases) { order in
+          Text(LocalizedStringKey(order.titleKey)).tag(order)
         }
       }
+      .pickerStyle(.inline)
     }
   }
 
@@ -122,14 +125,16 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
       icon: "square.grid.2x2",
       isActive: !selected.isEmpty
     ) {
-      Button {
-        catalog.update {
-          $0.contentType = nil
-          $0.contentTypes = []
+      Toggle("Any", isOn: Binding(
+        get: { selected.isEmpty },
+        set: { isOn in
+          guard isOn else { return }
+          catalog.update {
+            $0.contentType = nil
+            $0.contentTypes = []
+          }
         }
-      } label: {
-        Self.checkmarkLabel("Any", selected: selected.isEmpty)
-      }
+      ))
       ForEach(MediaType.allCases) { type in
         Toggle(isOn: Binding(
           get: { selected.contains(type) },
@@ -166,14 +171,16 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
       icon: "theatermasks",
       isActive: !selected.isEmpty
     ) {
-      Button {
-        catalog.update {
-          $0.genreID = nil
-          $0.genreIDs = []
+      Toggle("Any", isOn: Binding(
+        get: { selected.isEmpty },
+        set: { isOn in
+          guard isOn else { return }
+          catalog.update {
+            $0.genreID = nil
+            $0.genreIDs = []
+          }
         }
-      } label: {
-        Self.checkmarkLabel("Any", selected: selected.isEmpty)
-      }
+      ))
       ForEach(catalog.genres) { genre in
         Toggle(isOn: Binding(
           get: { selected.contains(genre.id) },
@@ -203,14 +210,16 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
       icon: "globe",
       isActive: !selected.isEmpty
     ) {
-      Button {
-        catalog.update {
-          $0.countryID = nil
-          $0.countryIDs = []
+      Toggle("Any", isOn: Binding(
+        get: { selected.isEmpty },
+        set: { isOn in
+          guard isOn else { return }
+          catalog.update {
+            $0.countryID = nil
+            $0.countryIDs = []
+          }
         }
-      } label: {
-        Self.checkmarkLabel("Any", selected: selected.isEmpty)
-      }
+      ))
       ForEach(catalog.countries, id: \.id) { country in
         Toggle(isOn: Binding(
           get: { selected.contains(country.id) },
@@ -236,18 +245,16 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
       icon: "calendar",
       isActive: catalog.filter.years != nil
     ) {
-      Button {
-        catalog.update { $0.years = nil }
-      } label: {
-        Self.checkmarkLabel("Any", selected: catalog.filter.years == nil)
-      }
-      ForEach(years) { range in
-        Button {
-          catalog.update { $0.years = range }
-        } label: {
-          Self.checkmarkLabel(LocalizedStringKey(range.title), selected: catalog.filter.years == range)
+      Picker("Years", selection: Binding(
+        get: { catalog.filter.years },
+        set: { range in catalog.update { $0.years = range } }
+      )) {
+        Text("Any").tag(YearRange?.none)
+        ForEach(years) { range in
+          Text(LocalizedStringKey(range.title)).tag(Optional(range))
         }
       }
+      .pickerStyle(.inline)
     }
   }
 
@@ -302,9 +309,7 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
     filterMenu(label: label, icon: icon, isActive: isActive, content: content)
   }
 
-  static func checkmarkLabel(_ title: LocalizedStringKey, selected: Bool) -> some View {
-    Label(title, systemImage: selected ? "checkmark" : "")
-  }
+
 }
 
 /// The filter capsules' metrics — a generic `LibraryFiltersBar` cannot hold static
