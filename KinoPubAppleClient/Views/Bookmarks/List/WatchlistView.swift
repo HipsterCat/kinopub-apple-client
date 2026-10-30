@@ -40,7 +40,12 @@ struct WatchlistView: View {
   private var page: some View {
     @Bindable var errorHandler = errorHandler
     return content
-        .platformNavigationTitle("Watchlist")
+        // «Новые серии» and how many — the same number as the tab's badge, so it is
+        // clear where that comes from (Sasha, 2026-10-30).
+        .platformNavigationTitle("NewEpisodesTitle".localized)
+#if !os(tvOS)
+        .navigationSubtitle(newEpisodesSubtitle)
+#endif
         .background(Color.KinoPub.background)
         .task {
           cardMenu.bind(errorHandler: errorHandler)
@@ -109,6 +114,13 @@ struct WatchlistView: View {
     if willFetch, !cards.isEmpty, let error = store.lastError(.watchlist) {
       errorHandler.setError(error)
     }
+  }
+
+  /// Episodes out and not watched across the followed serials: the badges' «+N», summed.
+  private var newEpisodesSubtitle: String {
+    let total = cards.compactMap { card in card.badge.flatMap { Int($0.filter(\.isNumber)) } }
+      .reduce(0, +)
+    return total > 0 ? String.localizedStringWithFormat("NewEpisodesCount".localized, total) : ""
   }
 
   private nonisolated static func card(for item: WatchingItem) -> MediaCard {

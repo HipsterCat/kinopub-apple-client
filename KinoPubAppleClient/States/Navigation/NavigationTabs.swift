@@ -21,6 +21,9 @@ enum NavigationTabs: Hashable {
   case watchlist
   case recentlyWatched
   case downloads
+  /// Continue Watching and Genres as sidebar destinations of their own (macOS).
+  case continueWatching
+  case genres
   case bookmarks
   /// A bookmark folder pinned as its own sidebar tab (macOS).
   case bookmark(Int)

@@ -964,28 +964,22 @@ class HomeCatalog: ObservableObject {
     repaintBannerPlay()
   }
 
-  /// Play's state for the banner titles from what the player wrote on this device —
-  /// the payload it kept and its positions, the detail page's rule (`layPositions`).
-  /// A title never played here keeps plain Play, or Replay when the shelf says it was
-  /// watched (the shelf names no episode, so neither does Replay).
+  /// The banner's Play in its short form (Sasha, 2026-10-30): «Продолжить» when anything
+  /// says the title was started and not finished — this device's own positions, or a
+  /// shelf's progress (Continue Watching, history) — and «Смотреть» otherwise. No
+  /// episode or bar: the shelf cannot name them without the details.
   private func repaintBannerPlay() {
     let entries = localProgressStore.allEntries()
     var play: [Int: MediaActionAppearance] = [:]
     for card in bannerCards {
-      guard var item = entries.first(where: { $0.item.id == card.itemID })?.item else {
-        if card.isWatched {
-          play[card.id] = MediaActionCatalog.play(for: MediaActionContext(
-            playback: .playAgain(season: nil, episode: nil), isSeries: card.isSeries))
-        }
-        continue
-      }
-      localProgressStore.layPositions(over: &item, writtenAfter: .distantPast)
-      play[card.id] = MediaActionCatalog.play(for: MediaActionContext(
-        playback: item.playbackButtonContent,
-        kind: item.presentation.kind,
-        isSeries: item.isSeries,
-        seasonCount: item.seasons?.count
-      ))
+      let local = entries.first(where: { $0.item.id == card.itemID })
+      let startedHere = local.map { !$0.finished } ?? false
+      let startedOnShelf = !card.isWatched && ((card.progress ?? 0) > 0
+        || (card.viewerState.progress?.resumeFraction ?? 0) > 0)
+      guard startedHere || startedOnShelf else { continue }
+      let title = "Continue".localized
+      play[card.id] = MediaActionAppearance(id: .play, chrome: .playPill, systemImage: "play.fill",
+                                            title: title, accessibilityLabel: title)
     }
     if bannerPlay != play { bannerPlay = play }
   }

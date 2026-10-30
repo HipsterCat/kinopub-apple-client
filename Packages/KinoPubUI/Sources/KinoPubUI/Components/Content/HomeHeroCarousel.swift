@@ -1,4 +1,5 @@
 #if !os(tvOS)
+import Foundation
 //
 //  HomeHeroCarousel.swift
 //  KinoPubUI
@@ -35,6 +36,7 @@ public struct HomeHeroCarousel: View {
   private let bookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])?
   private let isActive: Bool
   @Binding private var shownIndex: Int
+  @Environment(\.heroStepRequest) private var heroStepRequest
 
   /// One page: which title, on which lap of the three.
   struct Slot: Hashable, Sendable {
@@ -224,6 +226,10 @@ public struct HomeHeroCarousel: View {
       generation += 1
     }
     .onChange(of: isActive) { move(to: current, animated: false) }
+    // Left / Right from the keyboard while the page holds focus (Mac sidebar shell).
+    .onChange(of: heroStepRequest) { _, request in
+      if let request { step(request.delta) }
+    }
     .onChange(of: current.index) { _, index in
       if index != shownIndex { shownIndex = index }
     }
@@ -327,35 +333,22 @@ public struct HomeHeroCarousel: View {
   }
 
 #if os(macOS) || os(iOS)
-  /// Previous / next at the sides while the pointer is over a wide hero (Mac, iPad with
-  /// a pointer), as the Apple TV app has them. There is no system control for these
-  /// (none in SwiftUI or AppKit, checked in the 27.2 SDKs): glass circles of the
-  /// system's own button style.
+  /// Previous / next at the very sides while the pointer is over a wide hero (Mac, iPad
+  /// with a pointer). The Apple TV app's own arrows are private (none in SwiftUI or
+  /// AppKit, checked in the 27.2 SDKs), so these are drawn to their measures (Sasha,
+  /// 2026-10-30): `chevron.compact`, 6 pt from the edge, no safe area.
   @ViewBuilder
   private var pagingArrows: some View {
     if !isCompact, features.count > 1 {
-      HStack {
-        arrow("chevron.left", label: hero.labels.previous) { step(-1) }
+      HStack(spacing: 0) {
+        HeroPagingArrow(symbol: "chevron.compact.left", label: hero.labels.previous,
+                        isShown: isHovered) { step(-1) }
         Spacer(minLength: 0)
-        arrow("chevron.right", label: hero.labels.next) { step(1) }
+        HeroPagingArrow(symbol: "chevron.compact.right", label: hero.labels.next,
+                        isShown: isHovered) { step(1) }
       }
-      .padding(.horizontal)
-      .opacity(isHovered ? 1 : 0)
-      .animation(.easeInOut(duration: 0.2), value: isHovered)
+      .padding(.horizontal, Metrics.arrowEdgeInset)
     }
-  }
-
-  private func arrow(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.title2.weight(.semibold))
-        .frame(height: 44)
-    }
-    .buttonStyle(.glass)
-    .buttonBorderShape(.capsule)
-    .controlSize(.large)
-    .accessibilityLabel(Text(label))
-    .help(label)
   }
 #endif
 
@@ -545,6 +538,7 @@ public struct HomeHeroCarousel: View {
     /// The phone hero's height under the bars, in 16:10 stills: the still, and under it
     /// the part of the words that does not sit on the picture.
     static let compactStillsTall: CGFloat = 1.6
+    static let arrowEdgeInset: CGFloat = 6
     static let bottomInset: CGFloat = 28
     /// The dots' own band under the buttons.
     static let dotsBottom: CGFloat = 12
@@ -711,6 +705,56 @@ private struct HeroWords<Content: View>: View {
     }
   }
 }
+
+#if os(macOS) || os(iOS)
+/// One hover arrow: the glyph shows while the pointer is anywhere on the hero, in the
+/// secondary colour; over the arrow's own 28 × 52 pt box a dark material capsule comes
+/// up 2 pt around the glyph; pressed, the glyph turns primary. The box is what takes the
+/// click and the hover.
+private struct HeroPagingArrow: View {
+  let symbol: String
+  let label: String
+  let isShown: Bool
+  let action: () -> Void
+
+  @State private var isHovered = false
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: symbol)
+        .font(.system(size: 26))
+    }
+    .buttonStyle(HeroPagingArrowStyle(isHovered: isHovered))
+    .frame(width: 28, height: 52)
+    .contentShape(Rectangle())
+    .onHover { isHovered = $0 }
+    .opacity(isShown || isHovered ? 1 : 0)
+    .animation(.easeInOut(duration: 0.2), value: isShown || isHovered)
+    .accessibilityLabel(Text(label))
+    .help(label)
+  }
+}
+
+private struct HeroPagingArrowStyle: ButtonStyle {
+  let isHovered: Bool
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .foregroundStyle(configuration.isPressed ? .primary : .secondary)
+      .padding(2)
+      .background {
+        if isHovered {
+          Capsule()
+            .fill(.regularMaterial)
+            .overlay(Capsule().fill(Color(white: 0.2).opacity(0.6)))
+        }
+      }
+      .frame(width: 28, height: 52)
+      .contentShape(Rectangle())
+      .animation(.easeOut(duration: 0.15), value: isHovered)
+  }
+}
+#endif
 
 // MARK: - Paging dots
 
@@ -904,5 +948,23 @@ private struct DrawnPageDots: View {
     onPlay: { _ in },
     onDetails: { _ in }
   )
+}
+#endif
+
+#if !os(tvOS)
+/// A keyboard turn of the Home hero, from whatever holds focus in the page: each request
+/// has its own id, so the same direction twice is two turns.
+public struct HeroStepRequest: Equatable, Sendable {
+  public let id: UUID
+  public let delta: Int
+
+  public init(delta: Int) {
+    self.id = UUID()
+    self.delta = delta
+  }
+}
+
+public extension EnvironmentValues {
+  @Entry var heroStepRequest: HeroStepRequest? = nil
 }
 #endif

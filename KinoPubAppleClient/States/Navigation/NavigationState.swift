@@ -43,6 +43,8 @@ final class NavigationState {
   var recentlyWatchedRoutes: [Route] = []
   var bookmarksRoutes: [Route] = []
   var downloadsRoutes: [Route] = []
+  var continueWatchingRoutes: [Route] = []
+  var genresRoutes: [Route] = []
   /// Applied once when Search becomes active — genre / country / year from the
   /// item page land here so Search opens already filtered, titled, and labeled.
   var pendingSearch: PendingSearch?
@@ -78,6 +80,10 @@ final class NavigationState {
     case "watching": selectedTab = .watchlist
     case "tv": selectedTab = .tv
     case "settings": selectedTab = .settings
+    case "genres": selectedTab = .genres
+    case "history": selectedTab = .recentlyWatched
+    case let raw? where raw.hasPrefix("bookmark:"):
+      if let id = Int(raw.dropFirst("bookmark:".count)) { selectedTab = .bookmark(id) }
     default: break
     }
     if UserDefaults.standard.string(forKey: "KINOPUBInitialRoute") == "history" {
@@ -208,6 +214,8 @@ final class NavigationState {
     case .recentlyWatched: \.recentlyWatchedRoutes
     case .bookmarks, .bookmark: \.bookmarksRoutes
     case .downloads: \.downloadsRoutes
+    case .continueWatching: \.continueWatchingRoutes
+    case .genres: \.genresRoutes
     case .settings: nil
     }
   }
@@ -327,8 +335,18 @@ private struct MacToolbarSearchModifier: ViewModifier {
   @Environment(NavigationState.self) private var navigationState
 
   func body(content: Content) -> some View {
+    // With the sidebar, Search is a place of its own, as in the TV app: the field is on
+    // that page alone, not over every other one.
+    if FeatureFlags.macSidebarEnabled && navigationState.selectedTab != .search {
+      content
+    } else {
+      field(content)
+    }
+  }
+
+  private func field(_ content: Content) -> some View {
     @Bindable var navigationState = navigationState
-    content
+    return content
       // Probe: `.toolbar` = compact trailing field beside `.tabBarOnly` tabs (Finder/Photos).
       // `.automatic` / no placement on this shell can still stretch; `.toolbarPrincipal` is the giant center field.
       .searchable(

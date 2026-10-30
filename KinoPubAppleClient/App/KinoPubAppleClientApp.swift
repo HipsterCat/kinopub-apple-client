@@ -60,6 +60,11 @@ struct KinoPubAppleClientApp: App {
     WindowGroup {
       RootView()
         .capturesPageColorScheme()
+#if !os(tvOS)
+        // Monochrome accent for now (Sasha, 2026-10-30): black in light, white in dark —
+        // the selected tab, list glyphs, links — instead of the system blue.
+        .tint(.primary)
+#endif
         .environment(\.appContext, AppContext.shared)
         .environment(navigationState)
         .environmentObject(authState)

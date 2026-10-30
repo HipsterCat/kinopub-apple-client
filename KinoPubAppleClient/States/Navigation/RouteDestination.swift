@@ -80,6 +80,8 @@ struct RouteDestination: View {
                              errorHandler: errorHandler)
     case .watchlist:
       WatchlistView(embedded: true)
+    case .bookmarkFolders(let folders):
+      BookmarkFoldersView(folders: folders)
     case .continueWatching:
       ContinueWatchingListView.make(context: appContext,
                                     authState: authState,
