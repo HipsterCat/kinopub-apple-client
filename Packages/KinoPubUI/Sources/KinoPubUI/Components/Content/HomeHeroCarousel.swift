@@ -53,6 +53,8 @@ public struct HomeHeroCarousel: View {
   @State private var isScrolling = false
   @State private var isMenuOpen = false
   @State private var isHovered = false
+  /// A turn the code animates is on its way; the scroll may report no phase for it.
+  @State private var isTurning = false
   @Environment(\.scenePhase) private var scenePhase
 
   /// - Parameters:
@@ -140,9 +142,15 @@ public struct HomeHeroCarousel: View {
     .scrollTargetBehavior(.paging)
     .scrollPosition($scroll)
     .onScrollGeometryChange(for: CGFloat.self) { geometry in
-      geometry.contentOffset.x
-    } action: { _, offset in
-      pager.page = size.width > 0 ? offset / size.width : 0
+      let width = geometry.containerSize.width
+      return width > 0 ? geometry.contentOffset.x / width : 0
+    } action: { _, page in
+      pager.page = page
+      // At rest between two pages — a burst of window resizes outran the re-snap on
+      // the width change and left it there for good: back onto the current page.
+      if !isScrolling, !isTurning, abs(page - page.rounded()) > 0.001 {
+        DispatchQueue.main.async { snap() }
+      }
     }
     .onScrollPhaseChange { _, phase in
       isScrolling = phase != .idle
@@ -220,9 +228,11 @@ public struct HomeHeroCarousel: View {
   private func move(to slot: Slot, animated: Bool) {
     current = slot
     if animated {
+      isTurning = true
       withAnimation(.smooth(duration: 0.6)) {
         scroll.scrollTo(id: slot)
       } completion: {
+        isTurning = false
         // A turn the code makes may not report a scroll phase of its own.
         settle()
       }
@@ -251,7 +261,7 @@ public struct HomeHeroCarousel: View {
 
   /// Puts the scroll back exactly on the current page when it is not there.
   private func snap() {
-    guard !isScrolling, let at = slots.firstIndex(of: current) else { return }
+    guard !isScrolling, !isTurning, let at = slots.firstIndex(of: current) else { return }
     if abs(pager.page - CGFloat(at)) > 0.001 {
       move(to: current, animated: false)
     }
