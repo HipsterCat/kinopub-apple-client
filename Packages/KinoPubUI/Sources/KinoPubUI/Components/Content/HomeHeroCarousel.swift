@@ -1,5 +1,5 @@
-import Foundation
 #if !os(tvOS)
+import Foundation
 //
 //  HomeHeroCarousel.swift
 //  KinoPubUI
@@ -951,6 +951,7 @@ private struct DrawnPageDots: View {
 }
 #endif
 
+#if !os(tvOS)
 /// A keyboard turn of the Home hero, from whatever holds focus in the page: each request
 /// has its own id, so the same direction twice is two turns.
 public struct HeroStepRequest: Equatable, Sendable {
@@ -966,3 +967,4 @@ public struct HeroStepRequest: Equatable, Sendable {
 public extension EnvironmentValues {
   @Entry var heroStepRequest: HeroStepRequest? = nil
 }
+#endif
