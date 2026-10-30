@@ -140,6 +140,9 @@ public enum HomeHeroText {
     // 4. Длительность: сезоны если 1+, серии если 1, duration у фильма
     if let duration = card.bannerDurationText(), !duration.isEmpty {
       parts.append(duration)
+    } else if card.isSeries {
+      // A shelf payload knows no seasons or episodes: at least say it is a series.
+      parts.append(NSLocalizedString("Kind_series_One", comment: "A series, in the banner's line"))
     }
 
     return parts
