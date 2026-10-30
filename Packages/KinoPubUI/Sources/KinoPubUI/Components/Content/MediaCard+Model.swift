@@ -91,7 +91,7 @@ public extension MediaCard {
                      badge: badge, backdropURL: backdropURL,
                      hasSpecifiedWideArtwork: hasSpecifiedWideArtwork,
                      overview: overview, landscapeImageURL: landscapeImageURL,
-                     overlayLabel: overlayLabel, offeredName: offeredName, itemID: itemID, video: video, season: season,
+                     overlayLabel: overlayLabel, offeredName: offeredName, hoverStillURL: hoverStillURL, itemID: itemID, video: video, season: season,
                      seasonCount: seasonCount, mediaID: mediaID, isWatched: state.isWatched,
                      isSeries: isSeries, isInHistory: isInHistory,
                      viewerState: Self.cardState(state, isSeries: isSeries),

@@ -74,6 +74,10 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// The name of the video Play opens, for a title in several — a concert's next set. Continue
   /// Watching shows it in place of the title while the card is focused (Sasha, 2026-10-26).
   public let offeredName: String?
+  /// The still of the episode or video the card offers, when the card itself draws the
+  /// title's wide cover: shown in its place while the pointer is over the card (Sasha,
+  /// 2026-10-30).
+  public let hoverStillURL: String?
 
   /// The title this card belongs to. For an episode card this is the series id;
   /// for a normal poster it matches `id`.
@@ -300,6 +304,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               landscapeImageURL: String? = nil,
               overlayLabel: String? = nil,
               offeredName: String? = nil,
+              hoverStillURL: String? = nil,
               itemID: Int? = nil,
               video: Int? = nil,
               season: Int? = nil,
@@ -345,6 +350,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     self.landscapeImageURL = landscapeImageURL
     self.overlayLabel = overlayLabel
     self.offeredName = offeredName
+    self.hoverStillURL = hoverStillURL
     self.itemID = itemID ?? id
     self.video = video
     self.season = season
@@ -394,6 +400,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               landscapeImageURL: landscapeImageURL,
               overlayLabel: overlayLabel,
               offeredName: offeredName,
+              hoverStillURL: hoverStillURL,
               itemID: itemID,
               video: video,
               season: season,
@@ -437,6 +444,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
               landscapeImageURL: landscapeImageURL,
               overlayLabel: overlayLabel,
               offeredName: offeredName,
+              hoverStillURL: hoverStillURL,
               itemID: itemID,
               video: video,
               season: season,
@@ -486,6 +494,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     landscapeImageURL = try c.decodeIfPresent(String.self, forKey: .landscapeImageURL)
     overlayLabel = try c.decodeIfPresent(String.self, forKey: .overlayLabel)
     offeredName = try c.decodeIfPresent(String.self, forKey: .offeredName)
+    hoverStillURL = try c.decodeIfPresent(String.self, forKey: .hoverStillURL)
     itemID = try c.decodeIfPresent(Int.self, forKey: .itemID) ?? id
     video = try c.decodeIfPresent(Int.self, forKey: .video)
     season = try c.decodeIfPresent(Int.self, forKey: .season)
@@ -552,6 +561,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     try c.encodeIfPresent(landscapeImageURL, forKey: .landscapeImageURL)
     try c.encodeIfPresent(overlayLabel, forKey: .overlayLabel)
     try c.encodeIfPresent(offeredName, forKey: .offeredName)
+    try c.encodeIfPresent(hoverStillURL, forKey: .hoverStillURL)
     try c.encode(itemID, forKey: .itemID)
     try c.encodeIfPresent(video, forKey: .video)
     try c.encodeIfPresent(season, forKey: .season)
@@ -583,7 +593,7 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   private enum CodingKeys: String, CodingKey {
     case id, posterURL, title, subtitle, watchedAt, imdbRating, imdbVotes, kinopoiskRating, kinopoiskVotes
     case progress, badge, backdropURL, hasSpecifiedWideArtwork, overview
-    case landscapeImageURL, overlayLabel, offeredName, itemID, video, season, seasonCount, episodeCount, mediaID
+    case landscapeImageURL, overlayLabel, offeredName, hoverStillURL, itemID, video, season, seasonCount, episodeCount, mediaID
     case isWatched, isSeries, isInHistory, viewerState, is4K, isHDR
     case isHD, is3D, hasClosedCaptions, year, yearEnd, unwatchedEpisodes, durationSeconds
     case genres, country, primaryAction
@@ -870,6 +880,8 @@ public struct MediaCardView: View {
   }
 
   /// One caption line for landscape: "S1, E12 + 3 more", "E6 + 2 more", or either half alone.
+  static let showsMoreEpisodesCount = false
+
   private var landscapeEpisodeLine: String? {
     guard card.isLandscape else { return nil }
     let episode = card.overlayLabel.flatMap { $0.isEmpty ? nil : $0 }
@@ -879,6 +891,8 @@ public struct MediaCardView: View {
       guard let value = Int(digits), value > 0 else { return nil }
       return value
     }()
+    // «+ ещё N» is off (Sasha, 2026-10-30): the line names the episode instead.
+    guard Self.showsMoreEpisodesCount else { return episode }
     switch (episode, moreCount) {
     case (let episode?, let count?):
       return String(format: String(localized: "%@ + %d more"), episode, count)
@@ -1134,7 +1148,23 @@ public struct MediaCardView: View {
           failure: { Color.KinoPub.placeholder }
         )
       }
+      .overlay {
+        // The offered episode's own still over the title's cover while hovered, crossfaded.
+        if showsHoverStill, let url = card.hoverStillURL.flatMap(URL.init(string:)) {
+          CachedRemoteImage(url: url, contentMode: .fill)
+            .transition(.opacity)
+        }
+      }
+      .animation(.easeInOut(duration: 0.3), value: showsHoverStill)
       .clipped()
+  }
+
+  private var showsHoverStill: Bool {
+#if os(macOS)
+    card.isLandscape && isPointerActive && card.hoverStillURL?.isEmpty == false
+#else
+    false
+#endif
   }
 
   /// Progress along the bottom + time chip pinned bottom-leading (never centered).
@@ -1322,7 +1352,9 @@ public struct MediaCardView: View {
       HStack(spacing: 6) {
         MarqueeText(
           card.title,
-          font: titleFont ?? TypeScale.cardTitle,
+          // A landscape card is the title page's episode card, title and all (Sasha,
+          // 2026-10-30): Continue Watching and History use the same step-up type.
+          font: titleFont ?? (card.isLandscape ? TypeScale.episodeCardTitle : TypeScale.cardTitle),
           alignment: .center,
           fillsWidth: true,
           style: .title

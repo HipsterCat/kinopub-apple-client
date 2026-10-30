@@ -1471,15 +1471,31 @@ class HomeCatalog: ObservableObject {
           : nil)
     // The details payload when it was fetched, else the snapshot the player cached.
     let seasonCount = (detail?.seasons ?? local?.item.seasons)?.count
-    let overlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video,
-                                    seasonCount: seasonCount)
-    let newCount = item.new.flatMap { $0 > 0 ? $0 : nil }
+    // «1 серия: Поцелуй» — the episode the card offers, named when the payload names it.
+    var overlay = Self.overlayLabel(isSeries: isSeries, season: season, episode: video,
+                                    seasonCount: seasonCount, name: offered?.title)
+    // The episodes after the one offered: `new` counts the offered one too, so «+ ещё 1»
+    // showed with nothing past it (Sasha, 2026-10-30). The label itself is off for now
+    // (`MediaCardView.showsMoreEpisodesCount`).
+    let newCount = item.new.flatMap { $0 > 1 ? $0 - 1 : nil }
 
     let posters = history?.item.posters ?? local?.item.posters ?? item.posters
     let presentation = MediaPresentationProfile(type: item.type, genres: detail?.genres ?? [])
+    var title = presentation.cardTitle(localized: item.localizedTitle, original: item.originalTitle)
+    if let offeredVersion {
+      // Several videos: the title on one line, the one in progress under it.
+      title = Self.joinedConcertTitle(title)
+      overlay = offeredVersion.name
+    } else if presentation.kind == .concert, let split = Self.splitConcertTitle(title) {
+      // One video: the artist, then the show — «Peter Gabriel» / «New Blood - Live…».
+      title = split.artist
+      overlay = split.show
+    }
+    let hoverStill = offered?.thumbnail ?? offeredVersion?.thumbnail
+      ?? (isResuming ? history?.media?.thumbnail : nil)
     return MediaCard(id: item.id,
                      posterURL: item.posters.medium,
-                     title: presentation.cardTitle(localized: item.localizedTitle, original: item.originalTitle),
+                     title: title,
                      subtitle: item.originalTitle,
                      progress: episodeProgress,
                      badge: newCount.map { "+\($0)" },
@@ -1488,6 +1504,7 @@ class HomeCatalog: ObservableObject {
                      landscapeImageURL: landscapeImageURL(for: item, history: history, local: local),
                      overlayLabel: overlay,
                      offeredName: offeredVersion?.name,
+                     hoverStillURL: hoverStill.flatMap { $0.isEmpty ? nil : $0 },
                      itemID: item.id,
                      video: video,
                      season: season,
@@ -1524,12 +1541,32 @@ class HomeCatalog: ObservableObject {
   /// Says whichever episode the card is actually offering — it used to derive its own
   /// S/E from history and could disagree with the one Play would open.
   private static func overlayLabel(isSeries: Bool, season: Int?, episode: Int?,
-                                   seasonCount: Int?) -> String? {
+                                   seasonCount: Int?, name: String? = nil) -> String? {
     guard isSeries else { return nil }
     guard let episode else { return nil }
-    return EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
-                       seasonCount: seasonCount)
-      .text(for: .continueWatchingCard)
+    let text = EpisodeText(season: season.flatMap { $0 > 0 ? $0 : nil }, number: episode,
+                           name: name, seasonCount: seasonCount)
+    // With a name: «1 серия: Поцелуй». Without: the card's usual reference.
+    return text.name == nil ? text.text(for: .continueWatchingCard) : text.titled(.short)
+  }
+
+  /// A concert's card title «Artist – Show» (`MediaPresentationProfile.cardTitle`, or
+  /// kino.pub's own «Artist: Show»), split at its first separator.
+  static func splitConcertTitle(_ title: String) -> (artist: String, show: String)? {
+    for separator in [" – ", " — ", ": "] {
+      if let range = title.range(of: separator) {
+        let artist = title[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
+        let show = title[range.upperBound...].trimmingCharacters(in: .whitespaces)
+        if !artist.isEmpty, !show.isEmpty { return (artist, show) }
+      }
+    }
+    return nil
+  }
+
+  /// «Peter Gabriel: New Blood - Live…» — one line, the artist and the show.
+  static func joinedConcertTitle(_ title: String) -> String {
+    guard let split = splitConcertTitle(title) else { return title }
+    return "\(split.artist): \(split.show)"
   }
 
   // MARK: - Home sections

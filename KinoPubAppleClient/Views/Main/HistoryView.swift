@@ -211,6 +211,7 @@ struct HistoryView: View {
           backdropURL: card.backdropURL,
           overlayLabel: card.overlayLabel,
           offeredName: card.offeredName,
+          hoverStillURL: card.hoverStillURL,
           itemID: card.itemID,
           video: card.video,
           season: card.season,
@@ -454,6 +455,8 @@ struct HistoryView: View {
       watchedAt: entry.lastSeenDate,
       progress: entry.progress,
       landscapeImageURL: landscape,
+      // The episode's own still is what the pointer brings up (Sasha, 2026-10-30).
+      hoverStillURL: entry.media?.thumbnail.flatMap { $0.isEmpty ? nil : $0 },
       itemID: entry.item.id,
       video: entry.media?.number,
       season: entry.isEpisode ? entry.media?.snumber : nil,
