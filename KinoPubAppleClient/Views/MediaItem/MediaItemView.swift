@@ -285,11 +285,10 @@ struct MediaItemView: View {
       .toolbar {
         ToolbarItemGroup(placement: .primaryAction) {
 #if os(macOS)
+          // One glass group, the way Notes pairs Share with its «…»: Bookmarks and More.
+          // Everything else is an item in More.
           bookmarkToolbarMenu
-          if !itemModel.isWatched {
-            watchedToolbarControl
-          }
-#endif
+#else
           if WorkerImageAdminTokenStore.isConfigured,
              appContext.metadataService.images.isConfigured {
             Button {
@@ -300,6 +299,7 @@ struct MediaItemView: View {
             .accessibilityLabel("Worker image admin")
             .disabled(!itemModel.itemLoaded)
           }
+#endif
           overflowMenu
         }
       }
@@ -397,9 +397,9 @@ struct MediaItemView: View {
   }
 
 #if os(macOS)
-  /// Bookmarks and Mark as Watched live in the window toolbar on a Mac, not in the hero
-  /// row: a `Menu` in the row never wore the buttons' glass, hover or inactive-window
-  /// state, and the toolbar's own items have all three (Sasha, 2026-10-30).
+  /// Bookmarks lives in the window toolbar on a Mac, not in the hero row: a `Menu` in the
+  /// row never wore the buttons' glass, hover or inactive-window state, and the toolbar's
+  /// own items have all three (Sasha, 2026-10-30). Mark as Watched is in More.
   private var bookmarkToolbarMenu: some View {
     Menu {
       Section {
@@ -440,13 +440,12 @@ struct MediaItemView: View {
     }
   }
 
-  /// Icon only for now. A series keeps the hero's per-episode and per-season choices
-  /// behind the arrow; a click on the glyph marks it watched, as the hero circle did.
+  /// Mark as Watched, as items of More: the plain mark, and for a series the hero's
+  /// per-episode and per-season choices beside it.
   @ViewBuilder
-  private var watchedToolbarControl: some View {
-    let label = Label("Mark as Watched", systemImage: "checkmark")
-    if let (season, episode) = itemModel.mediaItem.primaryEpisode {
-      Menu {
+  private var watchedMenuItems: some View {
+    if !itemModel.isWatched {
+      if let (season, episode) = itemModel.mediaItem.primaryEpisode {
         Button {
           itemModel.toggleWatched()
         } label: {
@@ -469,21 +468,14 @@ struct MediaItemView: View {
         } label: {
           Label("Mark All Episodes Watched", systemImage: "checkmark.circle.fill")
         }
-      } label: {
-        label
-      } primaryAction: {
-        itemModel.toggleWatched()
+      } else {
+        Button {
+          itemModel.toggleWatched()
+        } label: {
+          Label("Mark as Watched", systemImage: "checkmark")
+        }
       }
-      .help("Mark as Watched")
-      .disabled(!itemModel.itemLoaded)
-    } else {
-      Button {
-        itemModel.toggleWatched()
-      } label: {
-        label
-      }
-      .help("Mark as Watched")
-      .disabled(!itemModel.itemLoaded)
+      Divider()
     }
   }
 #endif
@@ -493,6 +485,9 @@ struct MediaItemView: View {
   /// them. Same list the tvOS hero shows in its overflow circle.
   private var overflowMenu: some View {
     Menu {
+#if os(macOS)
+      watchedMenuItems
+#endif
       if let openWorkerImageAdmin = workerImageAdminAction {
         Button(action: openWorkerImageAdmin) {
           Label("Worker images", systemImage: "info.circle")
@@ -508,6 +503,10 @@ struct MediaItemView: View {
     } label: {
       Label("More", systemImage: "ellipsis")
     }
+#if os(macOS)
+    .menuIndicator(.hidden)
+    .help("More")
+#endif
     .disabled(!itemModel.itemLoaded)
   }
 #endif
