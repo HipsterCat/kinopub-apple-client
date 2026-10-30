@@ -476,6 +476,70 @@ test("an empty logo locale is rechecked on a later request, after six hours", ()
   assert.equal(logoRecheckDue(null, "ru"), false);
 });
 
+test("RuPaul S1E1 still is loaded from the season, not left as an empty episode list", async () => {
+  const documents = {
+    "title:kinopub:58162": {
+      pending: false,
+      kind: "show",
+      ids: { tmdb: { value: "tv/92611" }, imdb: { value: "tt9780442" } },
+      seasons: [{ number: 1, episodes: [], poster: "https://image.tmdb.org/t/p/original/season.jpg" }],
+      artwork: { logo: [], backdrop: [], poster: [] },
+    },
+  };
+  const env = {
+    TMDB_READ_TOKEN: "test",
+    DOCUMENTS: {
+      async get(key, opts) {
+        const raw = documents[key];
+        if (raw == null) return null;
+        return opts?.type === "json" ? raw : JSON.stringify(raw);
+      },
+      async put(key, value) { documents[key] = JSON.parse(value); },
+    },
+  };
+  const poster = await handleImage(
+    new Request("https://example.test/img/poster/by/kinopub/58162?s=1"),
+    env,
+    ctxSpy(),
+  );
+  assert.equal(poster.status, 302);
+  assert.match(poster.headers.get("location"), /\/und\/poster\.jpg\?s=1$/);
+
+  const original = globalThis.fetch;
+  let seasonURL = "";
+  globalThis.fetch = async (url) => {
+    seasonURL = String(url);
+    return new Response(JSON.stringify({
+      name: "Series 1",
+      episodes: [{
+        episode_number: 1,
+        name: "Episode 1",
+        still_path: "/dzT1jnR9Pg75Ur09AWtf3eKtinr.jpg",
+        runtime: 60,
+      }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await handleImage(
+      new Request("https://example.test/img/thumbnail/by/kinopub/58162?S=1&E=1&imdb=tt9780442"),
+      env,
+      ctxSpy(),
+    );
+    assert.equal(response.status, 302);
+    assert.equal(
+      response.headers.get("location"),
+      "https://example.test/img/thumbnail/by/kinopub/58162/und/thumbnail.jpg?s=1&e=1",
+    );
+    assert.match(seasonURL, /\/tv\/92611\/season\/1/);
+    assert.equal(
+      documents["title:kinopub:58162"].seasons[0].episodes[0].thumbnail,
+      "https://image.tmdb.org/t/p/original/dzT1jnR9Pg75Ur09AWtf3eKtinr.jpg",
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("query route rejects a non-numeric id and an unknown namespace", async () => {
   const badId = await handleImage(imageRequest("logo", { id: "tt123" }), kvEnv(), ctxSpy());
   assert.equal(badId.status, 400);

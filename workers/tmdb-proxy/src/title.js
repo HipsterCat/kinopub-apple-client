@@ -30,6 +30,7 @@
  */
 
 import { tmdbGenres } from "./genres.js";
+import { ensureEpisodeStill } from "./seasons.js";
 
 const DOC_TTL = 60 * 60 * 24 * 30;
 
@@ -227,6 +228,19 @@ async function handleImageQuery(request, url, env, ctx, route) {
     stored = waited.stored;
     asset = selectQueryAsset(stored, imageRequest, hints);
     if (asset) noteImage(env, ctx, "waited", imageRequest, waitedMs);
+  }
+
+  // The title payload lists seasons with no episodes. The still is a separate
+  // /tv/{id}/season/{n} read, done when this frame is actually asked for.
+  if (!asset && imageRequest.kind === "thumbnail" && stored) {
+    const filled = await ensureEpisodeStill(
+      env, stored, imageRequest.s, imageRequest.e, imageRequest.lang || "ru",
+    );
+    if (filled && filled !== stored) {
+      await writeDocument(env, id, filled);
+      stored = filled;
+      asset = selectQueryAsset(stored, imageRequest, hints);
+    }
   }
 
   if (!asset) {

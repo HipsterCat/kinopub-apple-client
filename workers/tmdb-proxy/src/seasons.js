@@ -61,6 +61,26 @@ export function parseSeasonSpec(spec) {
   return numbers;
 }
 
+/** One season, when a thumbnail or season poster is asked and the episodes were never loaded. */
+export async function ensureEpisodeStill(env, document, seasonNumber, episodeNumber, lang) {
+  if (!document || seasonNumber == null || episodeNumber == null) return document;
+  const season = findSeason(document, seasonNumber);
+  const episode = (season?.episodes || []).find((item) => Number(item.number) === episodeNumber);
+  const thumb = episode?.thumbnail || episode?.still || episode?.image;
+  if (thumb && !String(thumb).includes("staticpop.net")) return document;
+  if (season?.fetched_langs?.includes(lang) && episode) return document;
+  const tvId = tmdbTvId(document);
+  if (!tvId || !env?.TMDB_READ_TOKEN) return document;
+  let payload = null;
+  try {
+    payload = await fetchSeason(env, tvId, seasonNumber, lang);
+  } catch {
+    payload = null;
+  }
+  if (!payload) return document;
+  return mergeSeason(document, seasonNumber, lang, payload);
+}
+
 async function fillSeasons(env, document, numbers, lang) {
   const tvId = tmdbTvId(document);
   if (!tvId || !env.TMDB_READ_TOKEN) return document;
