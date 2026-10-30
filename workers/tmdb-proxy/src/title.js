@@ -642,16 +642,25 @@ function mapCredits(details) {
   for (const person of bundle.crew || []) {
     const roles = rolesOf(person).filter((role) => role.job && CREW_JOBS.has(role.job));
     if (!roles.length) continue;
-    if (person.id != null && seen.has(person.id)) continue;
+    if (person.id != null && seen.has(person.id)) {
+      const existing = credits.find((item) => item.id === person.id);
+      if (existing) existing.roles.push(...roles);
+      continue;
+    }
     const record = mapPerson(person, person.department || "crew", roles);
     credits.push(record);
     if (record.id != null) seen.add(record.id);
   }
   for (const person of details.created_by || []) {
-    if (person.id != null && seen.has(person.id)) continue;
-    credits.push(mapPerson(person, "Creator", [{
+    const role = {
       character: null, job: "Creator", credit_id: person.credit_id || null, episode_count: null,
-    }]));
+    };
+    if (person.id != null && seen.has(person.id)) {
+      const existing = credits.find((item) => item.id === person.id);
+      if (existing) existing.roles.push(role);
+      continue;
+    }
+    credits.push(mapPerson(person, "Creator", [role]));
   }
   return credits;
 }

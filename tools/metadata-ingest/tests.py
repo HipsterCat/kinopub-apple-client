@@ -1021,7 +1021,10 @@ class TestKvArchive(unittest.TestCase):
                     "artwork": {"poster": [{"source": "tmdb", "url": "https://new.jpg", "lang": "ru", "width": 1, "height": 2}]},
                     "ratings": [{"source": "tmdb", "value": 8.1, "votes": 10, "scale": 10}],
                     "synopsis": [{"source": "tmdb", "lang": "ru", "variant": "full", "text": "Полный текст"}],
-                    "credits": [{"department": "actor", "character": "роль", "ord": 0, "name_ru": "Имя", "photos": ["https://face.jpg"], "sources": ["tmdb"]}],
+                    "credits": [
+                        {"id": 42, "department": "actor", "character": "роль", "ord": 0, "popularity": 4.2, "gender": 2, "name_ru": "Имя", "name_en": "Name", "photos": ["https://face.jpg"], "sources": ["tmdb"]},
+                        {"id": 7, "department": "Directing", "job": "Director", "ord": 10, "popularity": 3.1, "name_ru": "Режиссёр", "photos": ["https://director.jpg"], "sources": ["tmdb"]},
+                    ],
                     "facts": [{"source": "kinopoisk_proxy", "text": "Факт", "spoiler": 0}],
                 },
             },
@@ -1045,7 +1048,7 @@ class TestKvArchive(unittest.TestCase):
                     "ids": {},
                     "seasons": [
                         {"number": 1, "name": "Сезон 1", "episode_cnt": 366, "poster": "https://season.jpg", "source": "tmdb", "episodes": [
-                            {"number": 1, "name": {"ru": "Серия", "en": "Episode"}, "thumbnail": "https://still.jpg", "runtime_min": 20},
+                            {"number": 1, "id": 99, "name": {"ru": "Серия", "en": "Episode"}, "thumbnail": "https://still.jpg", "runtime_min": 20, "tmdb": {"value": 8.4, "votes": 40}},
                         ]},
                         {"number": 2, "name": "Тысячелетняя кровавая война", "episode_cnt": 50, "source": "tmdb"},
                     ],
@@ -1057,7 +1060,7 @@ class TestKvArchive(unittest.TestCase):
         kv = sqlite3.connect(kv_path)
         self.assertEqual(kv.execute("SELECT missing FROM image_stat").fetchone()[0], 2)
         self.assertEqual(kv.execute("SELECT value, method FROM external_id WHERE kinopub_id = 7").fetchone(), ("movie/1", "manual"))
-        self.assertEqual(kv.execute("SELECT COUNT(*) FROM credit").fetchone()[0], 1)
+        self.assertEqual(kv.execute("SELECT COUNT(*) FROM credit").fetchone()[0], 2)
         self.assertEqual(kv.execute("SELECT url FROM credit_photo").fetchone()[0], "https://face.jpg")
         self.assertEqual(kv.execute("SELECT text FROM fact").fetchone()[0], "Факт")
         self.assertEqual(kv.execute("SELECT name_ru, name_en, still FROM episode").fetchone(), ("Серия", "Episode", "https://still.jpg"))
@@ -1083,8 +1086,24 @@ class TestKvArchive(unittest.TestCase):
         self.assertEqual(seasons[0], (1, None, 40, None))
         self.assertEqual(seasons[1], (2, "Тысячелетняя кровавая война", 50, None))
         self.assertEqual(
-            out.execute("SELECT still FROM episode WHERE kinopub_id = 9 AND number = 1").fetchone()[0],
+            out.execute("SELECT name_ru FROM top_episode WHERE kinopub_id = 9 AND rank = 1").fetchone()[0],
+            "Серия",
+        )
+        stars = [row[0] for row in out.execute(
+            "SELECT name_ru FROM billing WHERE kinopub_id = 7 AND section = 'star' ORDER BY position"
+        )]
+        self.assertEqual(stars, ["Имя"])
+        self.assertEqual(
+            out.execute("SELECT name_ru FROM billing WHERE kinopub_id = 7 AND section = 'director'").fetchone()[0],
+            "Режиссёр",
+        )
+        urls = {row[0] for row in out.execute("SELECT url FROM image WHERE kinopub_id = 7")}
+        self.assertIn("https://kept.jpg", urls)
+        self.assertIn("https://new.jpg", urls)
+        self.assertIn("https://face.jpg", urls)
+        self.assertIn(
             "https://still.jpg",
+            {row[0] for row in out.execute("SELECT url FROM image WHERE kinopub_id = 9 AND kind = 'still'")},
         )
         self.assertEqual(report["added_rows"], 1)
         self.assertEqual(report["seasons_added"], 1)

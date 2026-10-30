@@ -14,9 +14,14 @@ next to it, both gitignored:
 
 card.db is not modified. A cell that already has a value stays: tvoe's
 poster, Kinopoisk's id, a season the warehouse already counted. The archive
-fills the holes and adds myshows_id and synopsis_ru, which the first card
-had nowhere to put. A kino.pub id that the archive has and the card does
-not gets its own row.
+fills the holes and adds myshows_id, synopsis_ru, status and tagline_ru.
+
+card-2 also grows the tables the page reads. `person` is only the people
+we show. `billing` is Featured: up to three stars, one director, up to
+three writers, plus two or three names from the regular cast. `cast_count`
+is everyone else (regular, guest, producers) so the rest can be fetched
+later. `image` holds the pictures. `top_episode` is the handful worth
+surfacing. kv.db keeps the full cast.
 
 Long lists (cast, trailers, facts, every picture) stay in kv.db. That is
 the table to open when the question is "what did the worker actually store".
@@ -323,8 +328,6 @@ def write_card2(card_path: Path, kv_path: Path, out_path: Path) -> dict[str, int
     added_rows = 0
     seasons_added = 0
     season_fields = 0
-    episode_stills = 0
-    episodes_added = 0
     conflicts: list[str] = []
     season_notes: list[str] = []
 
@@ -365,10 +368,8 @@ def write_card2(card_path: Path, kv_path: Path, out_path: Path) -> dict[str, int
         season_fields += filled_fields
         if count_kept and len(season_notes) < 12:
             season_notes.append(count_kept)
-        added, stills = _merge_episodes(dst, kv, kinopub_id)
-        episodes_added += added
-        episode_stills += stills
 
+    presentation = _fill_presentation(dst, kv)
     dst.commit()
     kv.close()
     total = dst.execute("SELECT COUNT(*) FROM card").fetchone()[0]
@@ -378,8 +379,9 @@ def write_card2(card_path: Path, kv_path: Path, out_path: Path) -> dict[str, int
         "added_rows": added_rows,
         "seasons_added": seasons_added,
         "season_fields": season_fields,
-        "episodes_added": episodes_added,
-        "episode_stills": episode_stills,
+        "episodes_added": 0,
+        "episode_stills": 0,
+        **presentation,
         "conflicts": conflicts,
         "season_notes": season_notes,
         **filled,
@@ -419,8 +421,10 @@ def main() -> None:
     print(
         f"  seasons added {report['seasons_added']}"
         f"   season fields filled {report['season_fields']}"
-        f"   episodes added {report['episodes_added']}"
-        f"   stills filled {report['episode_stills']}"
+    )
+    print(
+        f"  people {report['people']}   images {report['images']}"
+        f"   featured {report['featured']}   top episodes {report['top_episodes']}"
     )
     print("  filled where the card was empty")
     for name in (
@@ -829,6 +833,503 @@ def _insert_card_row(db, kinopub_id: int, proposed: dict, built_at: str | None) 
     )
 
 
+STAR_CAP = 3
+WRITER_CAP = 3
+PREVIEW_CAP = 3
+TOP_EPISODES = 5
+# Below this, a billed actor is a bit part when the title already has a
+# recognisable face. The lead stays even when everyone is this quiet.
+POP_FLOOR = 1.0
+WRITER_JOBS = ("Writer", "Screenplay", "Story", "Teleplay", "Comic Book")
+COUNT_JOBS = (
+    "Director", "Writer", "Screenplay", "Story", "Teleplay",
+    "Producer", "Executive Producer", "Co-Producer",
+    "Creator", "Original Series Creator",
+)
+
+PRESENTATION = """
+CREATE TABLE person (
+  person_id INTEGER PRIMARY KEY,
+  name_ru TEXT,
+  name_en TEXT,
+  gender INTEGER,
+  popularity REAL,
+  known_for_department TEXT,
+  profile_url TEXT
+);
+
+CREATE TABLE image (
+  kinopub_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  lang TEXT,
+  url TEXT NOT NULL,
+  source TEXT,
+  width INTEGER,
+  height INTEGER,
+  person_id INTEGER,
+  season INTEGER,
+  episode INTEGER
+);
+CREATE UNIQUE INDEX image_key ON image (
+  kinopub_id, kind, IFNULL(lang, ''), url,
+  IFNULL(person_id, 0), IFNULL(season, -1), IFNULL(episode, -1)
+);
+
+CREATE TABLE billing (
+  kinopub_id INTEGER NOT NULL,
+  section TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  person_id INTEGER,
+  name_ru TEXT,
+  name_en TEXT,
+  character TEXT,
+  job TEXT,
+  episode_count INTEGER,
+  popularity REAL,
+  PRIMARY KEY (kinopub_id, section, position)
+);
+
+CREATE TABLE billing_role (
+  kinopub_id INTEGER NOT NULL,
+  section TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  role_ord INTEGER NOT NULL,
+  credit_id TEXT,
+  character TEXT,
+  job TEXT,
+  episode_count INTEGER,
+  PRIMARY KEY (kinopub_id, section, position, role_ord)
+);
+
+CREATE TABLE cast_count (
+  kinopub_id INTEGER NOT NULL,
+  section TEXT NOT NULL,
+  total INTEGER NOT NULL,
+  PRIMARY KEY (kinopub_id, section)
+);
+
+CREATE TABLE top_episode (
+  kinopub_id INTEGER NOT NULL,
+  rank INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  number INTEGER NOT NULL,
+  name_ru TEXT,
+  name_en TEXT,
+  tmdb_id INTEGER,
+  tmdb_value REAL,
+  tmdb_votes INTEGER,
+  imdb_value REAL,
+  imdb_votes INTEGER,
+  season_finale INTEGER,
+  PRIMARY KEY (kinopub_id, rank)
+);
+
+CREATE TABLE network (
+  kinopub_id INTEGER NOT NULL,
+  tmdb_id INTEGER NOT NULL,
+  name TEXT,
+  logo_url TEXT,
+  origin_country TEXT,
+  PRIMARY KEY (kinopub_id, tmdb_id)
+);
+"""
+
+
+def _fill_presentation(dst, kv) -> dict[str, int]:
+    """The page's cast, the pictures, and the episodes worth keeping.
+
+    Featured people are stored in full. Regular cast keeps three names and a
+    count. Guest cast and the crew we do not show are counts only, so a later
+    request can ask TMDB or Kinopoisk for the rest. kv.db still has everyone.
+    """
+    dst.executescript(PRESENTATION)
+    _add_column(dst, "card", "status", "TEXT")
+    _add_column(dst, "card", "tagline_ru", "TEXT")
+
+    for row in kv.execute("SELECT kinopub_id, status FROM document WHERE status IS NOT NULL AND status != ''"):
+        dst.execute(
+            "UPDATE card SET status = ? WHERE kinopub_id = ? AND status IS NULL",
+            (row["status"], row["kinopub_id"]),
+        )
+    for row in kv.execute(
+        """
+        SELECT kinopub_id, text FROM synopsis
+         WHERE variant = 'tagline' AND lang = 'ru' AND text IS NOT NULL AND text != ''
+        """
+    ):
+        dst.execute(
+            "UPDATE card SET tagline_ru = ? WHERE kinopub_id = ? AND tagline_ru IS NULL",
+            (row["text"], row["kinopub_id"]),
+        )
+
+    by_title: dict[int, list[dict]] = {}
+    for row in kv.execute(
+        """
+        SELECT c.kinopub_id, c.position, c.person_id, c.department, c.name_ru, c.name_en,
+               c.gender, c.popularity, c.known_for_department, c.episode_count, c.character,
+               p.profile_url
+          FROM credit c
+          LEFT JOIN person p ON p.tmdb_id = c.person_id
+         ORDER BY c.kinopub_id, c.position
+        """
+    ):
+        person = dict(row)
+        person["roles"] = []
+        by_title.setdefault(person["kinopub_id"], []).append(person)
+    for row in kv.execute(
+        "SELECT * FROM credit_role ORDER BY kinopub_id, position, role_ord"
+    ):
+        for person in by_title.get(row["kinopub_id"], []):
+            if person["position"] == row["position"]:
+                person["roles"].append(dict(row))
+                break
+
+    photo_of: dict[tuple, str] = {}
+    for row in kv.execute(
+        "SELECT kinopub_id, position, url FROM credit_photo ORDER BY photo_ord"
+    ):
+        photo_of.setdefault((row["kinopub_id"], row["position"]), row["url"])
+
+    people: dict[int, dict] = {}
+    images: list[tuple] = []
+    billing: list[tuple] = []
+    billing_roles: list[tuple] = []
+    cast_counts: list[tuple] = []
+    featured = 0
+
+    for kinopub_id, group in by_title.items():
+        chosen = _choose_billing(group)
+        featured += chosen["featured"]
+        for section, members in chosen["stored"].items():
+            for position, person in enumerate(members):
+                billing.append((
+                    kinopub_id, section, position, person["person_id"], person["name_ru"],
+                    person["name_en"], _first_character(person), _section_job(section, person),
+                    person["episode_count"], person["popularity"],
+                ))
+                roles = person["roles"] or [{
+                    "credit_id": None, "character": person["character"], "job": None,
+                    "episode_count": person["episode_count"],
+                }]
+                for role_ord, role in enumerate(roles):
+                    billing_roles.append((
+                        kinopub_id, section, position, role_ord, role.get("credit_id"),
+                        role.get("character"), role.get("job"), role.get("episode_count"),
+                    ))
+                if person["person_id"] is not None:
+                    people[person["person_id"]] = person
+                photo = person.get("profile_url") or photo_of.get((kinopub_id, person["position"]))
+                if photo:
+                    images.append((
+                        kinopub_id, "photo", None, photo, "tmdb",
+                        None, None, person["person_id"], None, None,
+                    ))
+        for section, total in chosen["counts"].items():
+            if total:
+                cast_counts.append((kinopub_id, section, total))
+
+    for row in kv.execute("SELECT * FROM artwork"):
+        images.append((
+            row["kinopub_id"], row["kind"], row["lang"], row["url"], row["source"],
+            row["width"], row["height"], None, None, None,
+        ))
+    for row in kv.execute("SELECT kinopub_id, number, poster_ru, poster_en, source FROM season"):
+        for lang, url in (("ru", row["poster_ru"]), ("en", row["poster_en"])):
+            if url:
+                images.append((row["kinopub_id"], "poster", lang, url, row["source"], None, None, None, row["number"], None))
+    known = {row[0] for row in kv.execute("SELECT kinopub_id FROM document")}
+    for row in dst.execute(
+        """
+        SELECT kinopub_id, poster_ru, poster_en, cover_ru, cover_en, backdrop, logo_ru, logo_en
+          FROM card
+        """
+    ):
+        if row["kinopub_id"] not in known:
+            continue
+        for kind, lang, url in (
+            ("poster", "ru", row["poster_ru"]), ("poster", "en", row["poster_en"]),
+            ("cover", "ru", row["cover_ru"]), ("cover", "en", row["cover_en"]),
+            ("backdrop", None, row["backdrop"]),
+            ("logo", "ru", row["logo_ru"]), ("logo", "en", row["logo_en"]),
+        ):
+            if url:
+                images.append((row["kinopub_id"], kind, lang, url, "card", None, None, None, None, None))
+
+    networks = [
+        (row["kinopub_id"], row["tmdb_id"], row["name"], row["logo_url"], row["origin_country"])
+        for row in kv.execute("SELECT * FROM network")
+    ]
+    for kinopub_id, _tmdb_id, _name, logo, _country in networks:
+        if logo:
+            images.append((kinopub_id, "network", None, logo, "tmdb", None, None, None, None, None))
+
+    top_rows, stills = _top_episodes(kv)
+    images.extend(stills)
+
+    dst.executemany(
+        """
+        INSERT INTO person (
+          person_id, name_ru, name_en, gender, popularity, known_for_department, profile_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (person["person_id"], person["name_ru"], person["name_en"], person["gender"],
+             person["popularity"], person["known_for_department"], person["profile_url"])
+            for person in people.values()
+        ],
+    )
+    dst.executemany(
+        """
+        INSERT OR IGNORE INTO image (
+          kinopub_id, kind, lang, url, source, width, height, person_id, season, episode
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        images,
+    )
+    dst.executemany(
+        """
+        INSERT INTO billing (
+          kinopub_id, section, position, person_id, name_ru, name_en, character, job,
+          episode_count, popularity
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        billing,
+    )
+    dst.executemany(
+        """
+        INSERT INTO billing_role (
+          kinopub_id, section, position, role_ord, credit_id, character, job, episode_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        billing_roles,
+    )
+    dst.executemany(
+        "INSERT INTO cast_count (kinopub_id, section, total) VALUES (?, ?, ?)",
+        cast_counts,
+    )
+    dst.executemany(
+        """
+        INSERT INTO top_episode (
+          kinopub_id, rank, season, number, name_ru, name_en, tmdb_id,
+          tmdb_value, tmdb_votes, imdb_value, imdb_votes, season_finale
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        top_rows,
+    )
+    dst.executemany(
+        """
+        INSERT INTO network (kinopub_id, tmdb_id, name, logo_url, origin_country)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        networks,
+    )
+    return {
+        "people": len(people),
+        "images": dst.execute("SELECT COUNT(*) FROM image").fetchone()[0],
+        "featured": featured,
+        "top_episodes": len(top_rows),
+    }
+
+
+def _choose_billing(people: list[dict]) -> dict:
+    actors = [person for person in people if person["department"] == "actor"]
+    actors.sort(key=lambda person: person["position"] if person["position"] is not None else 9999)
+    recognisable = [person for person in actors[:8] if not _obscure(person)]
+    stars = []
+    seen = set()
+    for person in actors:
+        if len(stars) >= STAR_CAP:
+            break
+        if _obscure(person) and recognisable:
+            continue
+        key = _person_key(person)
+        if key in seen:
+            continue
+        seen.add(key)
+        stars.append(person)
+    if not stars:
+        stars = actors[:STAR_CAP]
+
+    director_pool = _people_with_jobs(people, ("Director",))
+    if not director_pool:
+        director_pool = _people_with_jobs(people, ("Creator", "Original Series Creator"))
+    directors = director_pool[:1]
+    writer_pool = _people_with_jobs(people, WRITER_JOBS)
+    writers = writer_pool[:WRITER_CAP]
+
+    star_keys = {_person_key(person) for person in stars}
+    has_episodes = any(person["episode_count"] for person in actors)
+    if has_episodes:
+        peak = max(person["episode_count"] or 0 for person in actors)
+        line = max(3, int(peak * 0.25))
+        regular_pool = [
+            person for person in actors
+            if (person["episode_count"] or 0) >= line and _person_key(person) not in star_keys
+        ]
+        guest_pool = [
+            person for person in actors
+            if (person["episode_count"] or 0) < line and _person_key(person) not in star_keys
+        ]
+        preview = _preview(sorted(
+            regular_pool,
+            key=lambda person: (-(person["episode_count"] or 0), -(person["popularity"] or 0)),
+        ))
+    else:
+        regular_pool = [person for person in actors if _person_key(person) not in star_keys]
+        guest_pool = []
+        preview = _preview(regular_pool)
+
+    stored = {
+        section: members
+        for section, members in (
+            ("star", stars), ("director", directors), ("writer", writers), ("regular", preview),
+        )
+        if members
+    }
+    featured_keys = {
+        _person_key(person)
+        for section in ("star", "director", "writer")
+        for person in stored.get(section, [])
+    }
+    counts = {
+        "featured": len(featured_keys),
+        "star": len(stars),
+        "director": len(director_pool),
+        "writer": len(writer_pool),
+        "regular": len(regular_pool),
+        "guest": len(guest_pool),
+    }
+    for job in ("Producer", "Executive Producer", "Co-Producer"):
+        total = len(_people_with_jobs(people, (job,)))
+        if total:
+            counts[job.lower().replace(" ", "_")] = total
+    return {"stored": stored, "counts": counts, "featured": len(featured_keys)}
+
+
+def _people_with_jobs(people: list[dict], jobs: tuple[str, ...]) -> list[dict]:
+    found = []
+    seen = set()
+    ranked = {job: index for index, job in enumerate(jobs)}
+    candidates = []
+    for person in people:
+        for role in person["roles"]:
+            job = role.get("job")
+            if job in ranked:
+                candidates.append((ranked[job], person["position"] or 0, -(person["popularity"] or 0), person))
+                break
+    for _rank, _position, _pop, person in sorted(candidates, key=lambda item: item[:3]):
+        key = _person_key(person)
+        if key in seen:
+            continue
+        seen.add(key)
+        found.append(person)
+    return found
+
+
+def _top_episodes(kv) -> tuple[list[tuple], list[tuple]]:
+    scores: dict[tuple, dict] = {}
+    for row in kv.execute(
+        "SELECT kinopub_id, season, episode, source, value, votes FROM episode_rating"
+    ):
+        slot = scores.setdefault((row["kinopub_id"], row["season"], row["episode"]), {})
+        slot[row["source"]] = (row["value"], row["votes"])
+    grouped: dict[int, list] = {}
+    for row in kv.execute("SELECT * FROM episode"):
+        key = (row["kinopub_id"], row["season"], row["number"])
+        rating = scores.get(key)
+        if not rating:
+            continue
+        mark = _episode_mark(rating)
+        if mark is None:
+            continue
+        grouped.setdefault(row["kinopub_id"], []).append((mark, row, rating))
+    rows = []
+    stills = []
+    for kinopub_id, episodes in grouped.items():
+        episodes.sort(key=lambda item: item[0], reverse=True)
+        for rank, (_mark, episode, rating) in enumerate(episodes[:TOP_EPISODES], start=1):
+            tmdb = rating.get("tmdb") or (None, None)
+            imdb = rating.get("imdb") or (None, None)
+            rows.append((
+                kinopub_id, rank, episode["season"], episode["number"], episode["name_ru"],
+                episode["name_en"], episode["tmdb_id"], tmdb[0], tmdb[1], imdb[0], imdb[1],
+                episode["season_finale"],
+            ))
+            if episode["still"]:
+                stills.append((
+                    kinopub_id, "still", None, episode["still"], "tmdb", None, None, None,
+                    episode["season"], episode["number"],
+                ))
+    return rows, stills
+
+
+def _episode_mark(rating: dict) -> tuple | None:
+    imdb = rating.get("imdb")
+    tmdb = rating.get("tmdb")
+    if imdb and imdb[1] and imdb[1] >= 50:
+        return (imdb[0] or 0, imdb[1])
+    if tmdb and tmdb[1] and tmdb[1] >= 10:
+        return (tmdb[0] or 0, tmdb[1])
+    if imdb and imdb[1]:
+        return (imdb[0] or 0, imdb[1])
+    return None
+
+
+def _preview(pool: list[dict]) -> list[dict]:
+    """Two or three names under the count. Skip a bit part when a face is available."""
+    picked = []
+    for person in pool:
+        if len(picked) >= PREVIEW_CAP:
+            break
+        if _obscure(person) and any(not _obscure(other) for other in pool):
+            continue
+        picked.append(person)
+    if len(picked) < min(PREVIEW_CAP, len(pool)):
+        for person in pool:
+            if person in picked:
+                continue
+            picked.append(person)
+            if len(picked) >= PREVIEW_CAP:
+                break
+    return picked
+
+
+def _obscure(person: dict) -> bool:
+    popularity = person["popularity"]
+    return popularity is not None and popularity < POP_FLOOR
+
+
+def _person_key(person: dict):
+    if person["person_id"] is not None:
+        return ("id", person["person_id"])
+    return ("pos", person["position"], person["name_ru"])
+
+
+def _first_character(person: dict):
+    for role in person["roles"]:
+        if role.get("character"):
+            return role["character"]
+    return person["character"]
+
+
+def _section_job(section: str, person: dict):
+    if section == "director":
+        for role in person["roles"]:
+            if role.get("job") in ("Director", "Creator", "Original Series Creator"):
+                return role["job"]
+    if section == "writer":
+        for role in person["roles"]:
+            if role.get("job") in WRITER_JOBS:
+                return role["job"]
+    return None
+
+
+def _add_column(db, table: str, name: str, decl: str) -> None:
+    have = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+    if name not in have:
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
+
 def _merge_seasons(db, kv, kinopub_id: int) -> int:
     added = 0
     have = {
@@ -899,43 +1400,6 @@ def _fill_season_fields(db, kv, kinopub_id: int) -> tuple[int, str | None]:
         )
         filled += 1
     return filled, count_kept
-
-
-def _merge_episodes(db, kv, kinopub_id: int) -> tuple[int, int]:
-    added = stills = 0
-    for episode in kv.execute("SELECT * FROM episode WHERE kinopub_id = ?", (kinopub_id,)):
-        current = db.execute(
-            """
-            SELECT still FROM episode
-             WHERE kinopub_id = ? AND season = ? AND number = ?
-            """,
-            (kinopub_id, episode["season"], episode["number"]),
-        ).fetchone()
-        if current is None:
-            db.execute(
-                """
-                INSERT INTO episode (
-                  kinopub_id, season, number, name_ru, name_en, air_date, runtime_min, still
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    kinopub_id, episode["season"], episode["number"], episode["name_ru"],
-                    episode["name_en"], episode["air_date"], episode["runtime_min"],
-                    episode["still"],
-                ),
-            )
-            added += 1
-            continue
-        if _blank(current["still"]) and episode["still"]:
-            db.execute(
-                """
-                UPDATE episode SET still = ?
-                 WHERE kinopub_id = ? AND season = ? AND number = ?
-                """,
-                (episode["still"], kinopub_id, episode["season"], episode["number"]),
-            )
-            stills += 1
-    return added, stills
 
 
 def _art(rows, kind: str, lang: str | None) -> str | None:
