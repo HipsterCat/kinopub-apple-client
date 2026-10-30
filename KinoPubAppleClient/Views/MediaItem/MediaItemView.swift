@@ -777,6 +777,7 @@ struct MediaItemView: View {
                               externalMetadata: itemModel.externalMetadata,
                               likeCount: itemModel.likeCount,
                               dislikeCount: itemModel.dislikeCount,
+                              myVote: itemModel.myVote,
                               showsHeader: true)
 #if !os(tvOS)
       // Experiment: scores and opinions as one block section.

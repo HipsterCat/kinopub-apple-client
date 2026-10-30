@@ -272,6 +272,8 @@ struct MediaItemRatingsSection: View {
   /// The community thumbs — kino.pub's own rating. Shown, not averaged.
   var likeCount: Int = 0
   var dislikeCount: Int = 0
+  /// The viewer's own thumb: the kino.pub tile fills the one they cast (as on tvOS).
+  var myVote: MediaItemUserVote = .none
   /// Hidden while the hero/trailer owns the page — same chrome gate as season tabs,
   /// so "Ratings" doesn't caption the wide art peeking under the hero.
   var showsHeader: Bool = true
@@ -328,6 +330,8 @@ struct MediaItemRatingsSection: View {
               RatingTile(score: score,
                          url: score.url,
                          openURL: openURL,
+                         thumbs: score.logo == .kinopub && likeCount + dislikeCount > 0
+                           ? (likeCount, dislikeCount, myVote) : nil,
                          pageEntryFocus: aggregate == nil && index == 0 ? pageEntryFocus : nil)
             }
             if mediaItem.views > 0 {
@@ -335,7 +339,14 @@ struct MediaItemRatingsSection: View {
                               pageEntryFocus: aggregate == nil && scores.isEmpty ? pageEntryFocus : nil)
             }
           }
+#if os(tvOS)
           .padding(.horizontal, MediaItemLayout.horizontalInset)
+#else
+          // The tiles carry no padding of their own here, so the first mark starts where
+          // the section's header does (Sasha, 2026-10-30).
+          .padding(.horizontal, MediaItemLayout.horizontalInset)
+          .padding(.vertical, MediaItemRatingsSection.tilePadding)
+#endif
           .animation(.easeOut(duration: 0.35),
                      value: scores.map { "\($0.id):\($0.isPlaceholder)" }.joined(separator: "|"))
 #if os(tvOS)
@@ -363,7 +374,8 @@ struct MediaItemRatingsSection: View {
   static let titleFont: Font = TypeScale.detailBody
 static let captionFont: Font = .caption
 #else
-  static let spacing: CGFloat = 12
+  /// Between tiles: the padding they used to carry on both sides, now only between them.
+  static let spacing: CGFloat = 40
   static let tilePadding: CGFloat = 14
   static let iconSize: CGFloat = 32
   /// Regular, as the tvOS score card's number: semibold read as a headline (Sasha,
@@ -422,7 +434,9 @@ private struct AggregateRatingTile: View {
         }
       }
     }
+#if os(tvOS)
     .padding(MediaItemRatingsSection.tilePadding)
+#endif
 //    .background(
 //      Color.KinoPub.selectionBackground.opacity(0.5),
 //      in: RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -434,6 +448,8 @@ private struct RatingTile: View {
   let score: RatingSources.Score
   let url: URL?
   let openURL: OpenURLAction
+  /// kino.pub's tile: likes, dislikes and the viewer's own vote, under the number.
+  var thumbs: (up: Int, down: Int, mine: MediaItemUserVote)? = nil
   var pageEntryFocus: FocusState<MediaItemFocusTarget?>.Binding? = nil
   @State private var isHovered = false
 
@@ -459,9 +475,13 @@ private struct RatingTile: View {
   /// and its number on one line, how many voted under them — no name, no arrow (Sasha,
   /// 2026-10-30). A source with no score yet says so where the count would be.
   private var tileContent: some View {
-    VStack(alignment: .leading, spacing: 6) {
+    // Centred under the mark and the number, as on the tvOS card.
+    VStack(alignment: .center, spacing: 6) {
       HStack(alignment: .center, spacing: 10) {
         MediaScoreLogo(score.logo, height: MediaItemRatingsSection.iconSize, style: .card)
+          // A link: the mark fades a little under the pointer — this opens the source.
+          .opacity(isLink && isHovered ? 0.6 : 1)
+          .animation(.easeOut(duration: 0.15), value: isHovered)
         if !score.isPlaceholder {
           ScoreValueText(score.value == nil ? "?" : score.display,
                          font: MediaItemRatingsSection.valueUIFont)
@@ -469,14 +489,36 @@ private struct RatingTile: View {
                              ? Color.KinoPub.subtitle : Color.KinoPub.text)
         }
       }
-      if let caption {
+      if let thumbs {
+        thumbsLine(thumbs)
+      } else if let caption {
         Text(caption)
           .font(MediaItemRatingsSection.captionFont)
           .foregroundStyle(Color.KinoPub.subtitle)
           .fixedSize(horizontal: false, vertical: true)
       }
     }
-    .padding(MediaItemRatingsSection.tilePadding)
+    .contentShape(Rectangle())
+  }
+
+  /// tvOS's kino.pub line: outline thumbs in secondary until the viewer has voted; the one
+  /// they cast fills and takes its colour, its count primary.
+  private func thumbsLine(_ thumbs: (up: Int, down: Int, mine: MediaItemUserVote)) -> some View {
+    HStack(spacing: 16) {
+      thumb(up: true, count: thumbs.up, chosen: thumbs.mine == .up)
+      thumb(up: false, count: thumbs.down, chosen: thumbs.mine == .down)
+    }
+    .font(MediaItemRatingsSection.captionFont)
+  }
+
+  private func thumb(up: Bool, count: Int, chosen: Bool) -> some View {
+    HStack(spacing: 4) {
+      Image(systemName: up ? (chosen ? "hand.thumbsup.fill" : "hand.thumbsup")
+                           : (chosen ? "hand.thumbsdown.fill" : "hand.thumbsdown"))
+        .foregroundStyle(chosen ? (up ? Color.green : Color.red) : Color.KinoPub.subtitle)
+      Text(count.formatted(.number.grouping(.automatic)))
+        .foregroundStyle(chosen ? Color.KinoPub.text : Color.KinoPub.subtitle)
+    }
   }
 
   private var caption: String? {
@@ -576,7 +618,9 @@ private struct ViewsRatingTile: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+#if os(tvOS)
     .padding(MediaItemRatingsSection.tilePadding)
+#endif
   }
 }
 
