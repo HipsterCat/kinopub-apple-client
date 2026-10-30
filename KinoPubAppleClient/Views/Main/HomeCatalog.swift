@@ -966,12 +966,19 @@ class HomeCatalog: ObservableObject {
 
   /// Play's state for the banner titles from what the player wrote on this device —
   /// the payload it kept and its positions, the detail page's rule (`layPositions`).
-  /// A title never played here keeps plain Play.
+  /// A title never played here keeps plain Play, or Replay when the shelf says it was
+  /// watched (the shelf names no episode, so neither does Replay).
   private func repaintBannerPlay() {
     let entries = localProgressStore.allEntries()
     var play: [Int: MediaActionAppearance] = [:]
     for card in bannerCards {
-      guard var item = entries.first(where: { $0.item.id == card.itemID })?.item else { continue }
+      guard var item = entries.first(where: { $0.item.id == card.itemID })?.item else {
+        if card.isWatched {
+          play[card.id] = MediaActionCatalog.play(for: MediaActionContext(
+            playback: .playAgain(season: nil, episode: nil), isSeries: card.isSeries))
+        }
+        continue
+      }
       localProgressStore.layPositions(over: &item, writtenAfter: .distantPast)
       play[card.id] = MediaActionCatalog.play(for: MediaActionContext(
         playback: item.playbackButtonContent,
