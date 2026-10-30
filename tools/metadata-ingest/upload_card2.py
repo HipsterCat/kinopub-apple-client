@@ -14,6 +14,7 @@ from __future__ import annotations
 import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -153,13 +154,16 @@ def upload_episodes() -> None:
     execute_sql(EPISODE_DDL)
     rows = list(merged.values())
     print(f"episodes {len(rows)}", flush=True)
-    for start in range(0, len(rows), BATCH * 8):
-        part = rows[start:start + BATCH * 8]
-        chunk = []
-        for offset in range(0, len(part), BATCH):
-            chunk.append(insert_sql("c2_episode", EPISODE_COLUMNS, part[offset:offset + BATCH]))
+    step = 100
+    per_call = step * 12
+    for start in range(0, len(rows), per_call):
+        part = rows[start:start + per_call]
+        chunk = [
+            insert_sql("c2_episode", EPISODE_COLUMNS, part[offset:offset + step])
+            for offset in range(0, len(part), step)
+        ]
         execute_sql("\n".join(chunk))
-        print(f"  c2_episode {min(start + BATCH * 8, len(rows))}", flush=True)
+        print(f"  c2_episode {min(start + per_call, len(rows))}", flush=True)
     print(f"c2_episode {len(rows)}", flush=True)
 
 
@@ -178,16 +182,21 @@ def execute_sql(sql: str) -> None:
     path = WORKER / ".card2-batch.sql"
     path.write_text(sql)
     try:
-        proc = subprocess.run(
-            ["npx", "wrangler", "d1", "execute", DB_NAME, "--remote", "--yes", f"--file={path.name}"],
-            cwd=WORKER,
-            capture_output=True,
-            text=True,
-        )
+        last = ""
+        for attempt in range(5):
+            proc = subprocess.run(
+                ["npx", "wrangler", "d1", "execute", DB_NAME, "--remote", "--yes", f"--file={path.name}"],
+                cwd=WORKER,
+                capture_output=True,
+                text=True,
+            )
+            if proc.returncode == 0:
+                return
+            last = (proc.stderr or proc.stdout)[-800:]
+            time.sleep(2 ** attempt)
+        sys.exit(last)
     finally:
         path.unlink(missing_ok=True)
-    if proc.returncode != 0:
-        sys.exit((proc.stderr or proc.stdout)[-1500:])
 
 
 if __name__ == "__main__":
