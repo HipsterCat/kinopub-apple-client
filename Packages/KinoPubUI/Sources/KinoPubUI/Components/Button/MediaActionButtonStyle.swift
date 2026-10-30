@@ -109,10 +109,7 @@ public extension View {
       .buttonBorderShape(.capsule)
       .controlSize(MediaActionMetrics.controlSize)
 #else
-    buttonStyle(.glassProminent)
-      .buttonBorderShape(.capsule)
-      .controlSize(MediaActionMetrics.controlSize)
-     .tint(.secondary)
+    modifier(MonochromePlayTint())
 #endif
   }
 
@@ -326,6 +323,24 @@ private struct MediaActionCatalogPreviewRow: View {
 #endif
 
 #if !os(tvOS)
+#if !os(tvOS)
+/// The monochrome Play: the prominent glass in a solid colour — white on the hero's dark,
+/// black on a light page. A hierarchical tint (`.secondary`, `.primary`) is no colour of
+/// its own: the prominent glass drew it see-through, the main button came out grey under
+/// brighter secondary ones, and its hover had nothing to lift (Sasha, 2026-10-31).
+private struct MonochromePlayTint: ViewModifier {
+  @Environment(\.colorScheme) private var colorScheme
+
+  func body(content: Content) -> some View {
+    content
+      .buttonStyle(.glassProminent)
+      .buttonBorderShape(.capsule)
+      .controlSize(MediaActionMetrics.controlSize)
+      .tint(colorScheme == .dark ? Color.white : Color.black)
+  }
+}
+#endif
+
 private struct MediaActionCircleChrome: ViewModifier {
   func body(content: Content) -> some View {
     content
@@ -334,6 +349,12 @@ private struct MediaActionCircleChrome: ViewModifier {
       .menuIndicator(.hidden)
       .buttonBorderShape(.circle)
       .controlSize(MediaActionMetrics.controlSize)
+#if os(macOS)
+      // A Mac `Menu` takes no glass from `.buttonStyle(.glass)`: the Bookmarks glyph
+      // hung bare between Play and Details (Sasha, 2026-10-31). The same circle of glass
+      // drawn under it; a `Button` keeps its own.
+      .glassEffect(.regular.interactive(), in: Circle())
+#endif
   }
 }
 #endif

@@ -286,6 +286,11 @@ struct MediaItemView: View {
       .platformNavigationTitle("")
 #if os(iOS) || os(macOS)
       .toolbar {
+#if os(macOS)
+        // At the trailing edge, as the TV app's title page has its actions, not beside
+        // Back where the split view puts a primary action.
+        ToolbarSpacer(.flexible)
+#endif
         ToolbarItemGroup(placement: .primaryAction) {
 #if os(macOS)
           // One glass group, the way Notes pairs Share with its «…»: Bookmarks and More.

@@ -109,7 +109,8 @@ struct TabsNavigationView: View {
 #if !os(tvOS)
   private func restoreSelectedTab() {
 #if DEBUG
-    guard UserDefaults.standard.string(forKey: "KINOPUBInitialTab") == nil else { return }
+    guard UserDefaults.standard.string(forKey: "KINOPUBInitialTab") == nil,
+          UserDefaults.standard.string(forKey: "KINOPUBOpenItem") == nil else { return }
 #endif
 #if os(iOS)
     // iPhone opens on Home; the restored place is the sidebar's (iPad).
