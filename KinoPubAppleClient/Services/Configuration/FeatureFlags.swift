@@ -37,6 +37,7 @@ enum FeatureFlags {
   /// per-folder tabs carry browsing; when false the tab is omitted and the overview
   /// catalog is not fetched.
   static var allBookmarksEnabled: Bool { FeatureFlag.allBookmarks.isEnabled }
+  static var macSidebarEnabled: Bool { FeatureFlag.macSidebar.isEnabled }
 
   /// tvOS shelves + grids share one `TVPosterView` / `TVCardView` atom (same
   /// `ShelfMetrics` sizing), drawn by a recycling `UICollectionView` rather than a
@@ -184,6 +185,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case rewritesStreamTrackMenus
   case combinedRating
   case playerTabsPlatter
+  case macSidebar
 #if DEBUG
   case fakeSeasonsOnMovies
 #endif
@@ -208,6 +210,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: false
     case .combinedRating: false
     case .playerTabsPlatter: false
+    case .macSidebar: true
 #if DEBUG
     case .fakeSeasonsOnMovies: false
 #endif
@@ -232,6 +235,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: "Rewrite the player's track menus"
     case .combinedRating: "Combined IMDb + Kinopoisk rating"
     case .playerTabsPlatter: "Player tabs on a platter"
+    case .macSidebar: "Sidebar navigation (Mac)"
 #if DEBUG
     case .fakeSeasonsOnMovies: "Fake seasons on movies"
 #endif
@@ -256,6 +260,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: "Relabel, collapse and re-default the HLS master's audio and subtitles. Off: AVKit names them."
     case .combinedRating: "One weighted score on posters, the hero and the Rating tile."
     case .playerTabsPlatter: "Episodes and Up Next on Info's glass platter; off is the page's open still row."
+    case .macSidebar: "The Apple TV app's sidebar: Search, Home, the catalog, the Library and every bookmark folder. Off is the tab bar."
 #if DEBUG
     case .fakeSeasonsOnMovies: "A fake, unplayable season rail on movies. Layout probe."
 #endif
@@ -279,6 +284,12 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
 #else
       true
 #endif
+    case .macSidebar:
+#if os(macOS)
+      true
+#else
+      false
+#endif
     default:
       true
     }
@@ -290,7 +301,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var appliesAtLaunch: Bool {
     switch self {
     case .homeHeroCarousel, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
-         .tvUIKitSearch, .combinedRating:
+         .tvUIKitSearch, .combinedRating, .macSidebar:
       true
     default:
       false

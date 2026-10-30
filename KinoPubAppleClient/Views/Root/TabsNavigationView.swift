@@ -189,7 +189,11 @@ struct TabsNavigationView: View {
   @ViewBuilder
   private var modernTabs: some View {
 #if os(macOS)
-    macShell
+    if FeatureFlags.macSidebarEnabled {
+      macSidebarShell
+    } else {
+      macShell
+    }
 #elseif os(tvOS)
     tvTabBar
 #elseif os(iOS)
@@ -222,6 +226,106 @@ struct TabsNavigationView: View {
       if navigationState.selectedTab == .settings {
         navigationState.selectedTab = .home
       }
+    }
+  }
+#endif
+
+#if os(macOS)
+  // MARK: - Mac sidebar
+
+  /// The Apple TV app's shell (Sasha, 2026-10-30): one split view, a source-list sidebar
+  /// on the left and the selected destination beside it. `NavigationSplitView` with a
+  /// sidebar `List` is what AppKit draws there — `NSSplitView`, then an `NSOutlineView`
+  /// named «Sidebar» with a row per item — the same tree the TV app's own sidebar has.
+  ///
+  /// Search, Home and the catalog without a header; the Library's places under it; every
+  /// bookmark folder under Collections, the way the TV app lists playlists; the account
+  /// at the foot. Settings is the Settings window (⌘,). Each destination keeps its own
+  /// stack for pushes.
+  private var macSidebarShell: some View {
+    NavigationSplitView {
+      VStack(spacing: 0) {
+      List(selection: sidebarSelection) {
+        Label("Search", systemImage: "magnifyingglass").tag(NavigationTabs.search)
+        ForEach(activeBrowseTabs.filter { $0.tab != .library }) { spec in
+          Label(spec.title, systemImage: spec.systemImage).tag(spec.tab)
+        }
+
+        Section("Library") {
+          Label("NewEpisodesTitle".localized, systemImage: "bell")
+            .badge(watchlistBadgeCount)
+            .tag(NavigationTabs.watchlist)
+          Label("Continue Watching", systemImage: "play.circle")
+            .tag(NavigationTabs.continueWatching)
+          Label("History", systemImage: "clock.arrow.circlepath")
+            .tag(NavigationTabs.recentlyWatched)
+          Label("SidebarGenres".localized, systemImage: "theatermasks")
+            .tag(NavigationTabs.genres)
+        }
+
+        if !sidebarFolders.isEmpty {
+          Section("BookmarkCollections".localized) {
+            ForEach(sidebarFolders, id: \.id) { folder in
+              Label(folder.title, systemImage: "bookmark")
+                .tag(NavigationTabs.bookmark(folder.id))
+            }
+          }
+        }
+      }
+      .listStyle(.sidebar)
+        // Under the list, not over it: an inset let the last folder scroll beneath it.
+        MacSidebarAccount(userService: appContext.userService)
+      }
+      .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 320)
+    } detail: {
+      macSidebarDetail
+    }
+  }
+
+  private var sidebarSelection: Binding<NavigationTabs?> {
+    Binding(
+      get: { navigationState.selectedTab },
+      set: { tab in
+        guard let tab else { return }
+        if tab == .search {
+          navigationState.enterSearch()
+        } else {
+          navigationState.selectBrowseTab(tab)
+        }
+      }
+    )
+  }
+
+  @ViewBuilder
+  private var macSidebarDetail: some View {
+    switch navigationState.selectedTab {
+    case .search:
+      searchContent
+    case .watchlist:
+      WatchlistView()
+    case .continueWatching:
+      RouteStack(tab: .continueWatching) {
+        ContinueWatchingListView.make(context: appContext, authState: authState, errorHandler: errorHandler)
+      }
+    case .recentlyWatched:
+      RouteStack(tab: .recentlyWatched) {
+        HistoryView()
+      }
+    case .genres:
+      MacGenresView()
+    case .bookmark(let id):
+      if let folder = sidebarFolders.first(where: { $0.id == id }) {
+        RouteStack(tab: .bookmark(id)) {
+          BookmarkView(model: BookmarkModel(bookmark: folder,
+                                            itemsService: appContext.contentService,
+                                            errorHandler: errorHandler))
+        }
+        .id(id)
+      } else {
+        homeContent
+      }
+    case let tab:
+      browseContent(for: tab)
     }
   }
 #endif
@@ -271,25 +375,59 @@ struct TabsNavigationView: View {
   /// Search deliberately does **not** use `Tab(role: .search)` here — that role pins it
   /// trailing, which put the two utility tabs at the same end and read as an
   /// afterthought. iPhone keeps the role (bottom-bar HIG).
+  /// iPad: the system's adaptive sidebar (`.sidebarAdaptable`), as Apple's own iPad apps
+  /// build it (Sasha, 2026-10-30) — the top tabs, and the same Library and Collections
+  /// sections as the Mac sidebar when it is open. Compact width falls back to the tab bar.
   private var padTabBar: some View {
     TabView(selection: tabSelection) {
-      Tab(value: NavigationTabs.search) {
+      Tab("Search", systemImage: "magnifyingglass", value: NavigationTabs.search, role: .search) {
         searchContent
-      } label: {
-        glyph("magnifyingglass", label: "Search")
       }
 
-      ForEach(activeBrowseTabs) { spec in
-        browseTab(spec)
+      ForEach(activeBrowseTabs.filter { $0.tab != .library && $0.tab != .watchlist }) { spec in
+        Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
+          content(for: spec.tab)
+        }
       }
 
-      Tab(value: NavigationTabs.settings) {
+      TabSection("Library") {
+        Tab("NewEpisodesTitle".localized, systemImage: "bell", value: NavigationTabs.watchlist) {
+          WatchlistView()
+        }
+        .badge(unwatchedEpisodesCount)
+        Tab("Continue Watching", systemImage: "play.circle", value: NavigationTabs.continueWatching) {
+          RouteStack(tab: .continueWatching) {
+            ContinueWatchingListView.make(context: appContext, authState: authState, errorHandler: errorHandler)
+          }
+        }
+        Tab("History", systemImage: "clock.arrow.circlepath", value: NavigationTabs.recentlyWatched) {
+          RouteStack(tab: .recentlyWatched) { HistoryView() }
+        }
+        Tab("TabLibrary", systemImage: "rectangle.stack", value: NavigationTabs.library) {
+          libraryContent
+        }
+      }
+
+      if !sidebarFolders.isEmpty {
+        TabSection("BookmarkCollections".localized) {
+          ForEach(sidebarFolders, id: \.id) { folder in
+            Tab(folder.title, systemImage: "bookmark", value: NavigationTabs.bookmark(folder.id)) {
+              RouteStack(tab: .bookmark(folder.id)) {
+                BookmarkView(model: BookmarkModel(bookmark: folder,
+                                                  itemsService: appContext.contentService,
+                                                  errorHandler: errorHandler))
+              }
+            }
+          }
+        }
+        .defaultVisibility(.hidden, for: .tabBar)
+      }
+
+      Tab("Settings", systemImage: "gear", value: NavigationTabs.settings) {
         settingsContent
-      } label: {
-        glyph("gear", label: "Settings")
       }
     }
-    .tabViewStyle(.tabBarOnly)
+    .tabViewStyle(.sidebarAdaptable)
     // Always visible for now (2026-08-09) — the system's scroll-driven minimize was
     // reading as random fade in/out. Revisit once detail-page choreography settles.
     .tabBarMinimizeBehavior(.never)
@@ -698,3 +836,107 @@ struct TabsNavigationView_Previews: PreviewProvider {
       .environmentObject(NetworkMonitor())
   }
 }
+
+#if os(macOS)
+/// The account at the foot of the sidebar, as the TV app has it: the avatar and the name.
+/// A click opens the Settings window.
+private struct MacSidebarAccount: View {
+  let userService: UserService
+  @Environment(\.openSettings) private var openSettings
+  @State private var name: String?
+  @State private var avatarURL: URL?
+
+  var body: some View {
+    Button {
+      openSettings()
+    } label: {
+      HStack(spacing: 8) {
+        CachedRemoteImage(url: avatarURL, contentMode: .fill,
+                          placeholder: { Image(systemName: "person.crop.circle.fill").resizable() },
+                          failure: { Image(systemName: "person.crop.circle.fill").resizable() })
+          .foregroundStyle(.secondary)
+          .frame(width: 24, height: 24)
+          .clipShape(Circle())
+        Text(name ?? "")
+          .lineLimit(1)
+        Spacer(minLength: 0)
+      }
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 10)
+    .task {
+      guard let user = try? await userService.fetchUserData() else { return }
+      name = user.profile.name.flatMap { $0.isEmpty ? nil : $0 } ?? user.username
+      avatarURL = user.profile.avatar.flatMap(URL.init(string:))
+    }
+  }
+}
+
+/// Genres as the TV app has them: the list in a column of its own beside the sidebar,
+/// the selected genre's titles beside it.
+private struct MacGenresView: View {
+  @Environment(\.appContext) private var appContext
+  @EnvironmentObject private var authState: AuthState
+  @Environment(ErrorHandler.self) private var errorHandler
+  @State private var genres: [MediaGenre] = []
+  @SceneStorage("macGenreSelection") private var selection: Int?
+
+  var body: some View {
+    HStack(spacing: 0) {
+      List(selection: $selection) {
+        ForEach(genres) { genre in
+          Label(genre.title, systemImage: MacGenreSymbol.name(for: genre.title))
+            .tag(Optional(genre.id))
+        }
+      }
+      .listStyle(.sidebar)
+      .scrollContentBackground(.hidden)
+      .frame(width: 220)
+      Divider()
+      RouteStack(tab: .genres) {
+        if let selection, let genre = genres.first(where: { $0.id == selection }) {
+          FilteredShelfView.make(filter: LibraryFilter(genreID: genre.id),
+                                 title: genre.title,
+                                 context: appContext,
+                                 authState: authState,
+                                 errorHandler: errorHandler)
+            .id(genre.id)
+        } else {
+          Color.clear
+        }
+      }
+    }
+    .task {
+      guard genres.isEmpty, let all = try? await appContext.contentService.fetchGenres(for: nil).items
+      else { return }
+      var seen = Set<String>()
+      genres = all.filter { seen.insert($0.title.lowercased()).inserted }
+        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+      if selection == nil { selection = genres.first?.id }
+    }
+  }
+}
+
+/// A glyph per genre, by the words its name starts with — kino.pub sends no icons.
+enum MacGenreSymbol {
+  static func name(for title: String) -> String {
+    let lower = title.lowercased()
+    let table: [(String, String)] = [
+      ("боевик", "flame"), ("комеди", "face.smiling"), ("драм", "theatermasks"),
+      ("ужас", "eye"), ("фантаст", "sparkles"), ("фэнтези", "wand.and.stars"),
+      ("триллер", "bolt"), ("детектив", "magnifyingglass"), ("мульт", "paintbrush"),
+      ("аниме", "sparkle"), ("документ", "doc.text.image"), ("мелодрам", "heart"),
+      ("криминал", "lock"), ("приключ", "map"), ("семейн", "figure.2.and.child.holdinghands"),
+      ("воен", "shield"), ("истор", "building.columns"), ("музык", "music.note"),
+      ("мюзикл", "music.mic"), ("спорт", "sportscourt"), ("вестерн", "sun.dust"),
+      ("биограф", "person.text.rectangle"), ("детск", "teddybear"), ("короткометраж", "timer"),
+      ("реалити", "video"), ("ток-шоу", "mic"), ("новост", "newspaper"), ("эротик", "flame.fill"),
+      ("кулинар", "fork.knife"), ("путешеств", "airplane"), ("природ", "leaf"),
+      ("наук", "atom"), ("концерт", "music.quarternote.3"), ("стендап", "music.mic"),
+    ]
+    return table.first { lower.hasPrefix($0.0) || lower.contains($0.0) }?.1 ?? "film"
+  }
+}
+#endif

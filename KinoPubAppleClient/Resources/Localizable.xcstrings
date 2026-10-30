@@ -11996,6 +11996,14 @@
         "ru" : { "stringUnit" : { "state" : "translated", "value" : "Коллекции" } }
       }
     },
+    "SidebarGenres" : {
+      "comment" : "Mac sidebar row under Library: every genre, as the TV app has them.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Genres" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Жанры" } }
+      }
+    },
     "TabLibrary" : {
       "comment" : "Library browse tab label (Russian “Моё”; other “Library” strings stay “Библиотека”).",
       "extractionState" : "manual",

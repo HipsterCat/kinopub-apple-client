@@ -43,6 +43,8 @@ final class NavigationState {
   var recentlyWatchedRoutes: [Route] = []
   var bookmarksRoutes: [Route] = []
   var downloadsRoutes: [Route] = []
+  var continueWatchingRoutes: [Route] = []
+  var genresRoutes: [Route] = []
   /// Applied once when Search becomes active — genre / country / year from the
   /// item page land here so Search opens already filtered, titled, and labeled.
   var pendingSearch: PendingSearch?
@@ -78,6 +80,10 @@ final class NavigationState {
     case "watching": selectedTab = .watchlist
     case "tv": selectedTab = .tv
     case "settings": selectedTab = .settings
+    case "genres": selectedTab = .genres
+    case "history": selectedTab = .recentlyWatched
+    case let raw? where raw.hasPrefix("bookmark:"):
+      if let id = Int(raw.dropFirst("bookmark:".count)) { selectedTab = .bookmark(id) }
     default: break
     }
     if UserDefaults.standard.string(forKey: "KINOPUBInitialRoute") == "history" {
@@ -208,6 +214,8 @@ final class NavigationState {
     case .recentlyWatched: \.recentlyWatchedRoutes
     case .bookmarks, .bookmark: \.bookmarksRoutes
     case .downloads: \.downloadsRoutes
+    case .continueWatching: \.continueWatchingRoutes
+    case .genres: \.genresRoutes
     case .settings: nil
     }
   }
