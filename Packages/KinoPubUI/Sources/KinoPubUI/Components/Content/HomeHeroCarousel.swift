@@ -9,11 +9,14 @@
 //  device. Wide (iPad, Mac): the words low on the leading margin, as on the TV. Phone:
 //  one centred column over the foot of the picture.
 //
-//  A page is the whole hero — picture, words and buttons slide together under a finger,
-//  the paging dots stay put. The pages are a paging `ScrollView`, laid out three laps
-//  long so a turn past the last title runs on into the first; once a turn settles on an
-//  outer lap the view is put back on the same title of the middle one, which looks the
-//  same (`Slot`).
+//  The words and buttons are the pages of a paging `ScrollView` and slide under a
+//  finger; the pictures do not slide with them. They are one backdrop behind the pages
+//  that cross-fades from title to title with the scroll, each picture drifting a little
+//  the way the words go (`HeroBackdrop`) — the Apple TV app's hero, one continuous
+//  background rather than a strip of photos (Sasha, 2026-10-30). The pages are laid out
+//  three laps long so a turn past the last title runs on into the first; once a turn
+//  settles on an outer lap the view is put back on the same title of the middle one,
+//  which looks the same (`Slot`).
 //
 //  The picture is forced dark, like everything the Apple TV app draws over a title's
 //  picture, and ends on a hard edge: the page under it keeps the system appearance.
@@ -34,16 +37,22 @@ public struct HomeHeroCarousel: View {
   @Binding private var shownIndex: Int
 
   /// One page: which title, on which lap of the three.
-  private struct Slot: Hashable {
+  struct Slot: Hashable, Sendable {
     var lap: Int
     var index: Int
   }
 
-  @State private var position: Slot?
+  /// The page the hero rests on — the source of truth; the scroll view is told.
+  @State private var current: Slot
+  @State private var scroll: ScrollPosition
+  /// The scroll in pages, written every frame and read only by the backdrop, so a
+  /// drag repaints the pictures and nothing else.
+  @State private var pager = HeroPager()
   @State private var isPresented = false
   @State private var isVisibleInPage = true
   @State private var isScrolling = false
   @State private var isMenuOpen = false
+  @State private var isHovered = false
   @Environment(\.scenePhase) private var scenePhase
 
   /// - Parameters:
@@ -77,8 +86,25 @@ public struct HomeHeroCarousel: View {
     self.isActive = isActive
     _shownIndex = shownIndex
     let start = shownIndex.wrappedValue
-    _position = State(initialValue: Slot(lap: 0, index: hero.features.indices.contains(start) ? start : 0))
+    let slot = Slot(lap: 0, index: hero.features.indices.contains(start) ? start : 0)
+    _current = State(initialValue: slot)
+    _scroll = State(initialValue: ScrollPosition(id: slot))
   }
+
+  /// The hero's height under the bars for a page `width` wide on a `screen` tall
+  /// screen, the bars' `topBleed` above it. Wide (iPad, Mac): a 16:9 picture as long
+  /// as it leaves a fifth of the window. Phone: a 16:10 still under the bars and room
+  /// under it for the words, at most 70% of the screen (Sasha, 2026-10-30).
+  public static func height(width: CGFloat, topBleed: CGFloat, screen: CGFloat,
+                            isCompact: Bool) -> CGFloat {
+    let picture: CGFloat = isCompact
+      ? min(topBleed + stillHeight(width: width) * Metrics.compactStillsTall, screen * 0.7)
+      : min(width * 9 / 16 + topBleed, screen * 0.8)
+    return max(picture - topBleed, 0).rounded()
+  }
+
+  /// The phone's still: 16:10 of the width.
+  static func stillHeight(width: CGFloat) -> CGFloat { (width * 10 / 16).rounded() }
 
   private var features: [HomeHeroFeature] { hero.features }
 
@@ -88,7 +114,7 @@ public struct HomeHeroCarousel: View {
   }
 
   private var currentIndex: Int {
-    min(position?.index ?? 0, max(features.count - 1, 0))
+    min(current.index, max(features.count - 1, 0))
   }
 
   /// The tvOS rule: titles turn on their own only while someone can see the hero — not
@@ -111,39 +137,57 @@ public struct HomeHeroCarousel: View {
       .scrollTargetLayout()
     }
     .scrollIndicators(.hidden)
-    // The pictures run up under the bars, past the pager's own frame.
-    .scrollClipDisabled()
     .scrollTargetBehavior(.paging)
-    .scrollPosition(id: $position)
+    .scrollPosition($scroll)
+    .onScrollGeometryChange(for: CGFloat.self) { geometry in
+      geometry.contentOffset.x
+    } action: { _, offset in
+      pager.page = size.width > 0 ? offset / size.width : 0
+    }
     .onScrollPhaseChange { _, phase in
       isScrolling = phase != .idle
-      if phase == .idle { settleOnMiddleLap() }
+      if phase == .idle { settle() }
     }
     .frame(width: size.width, height: size.height)
+    // The pictures run up under the bars, past the pager's own frame.
+    .background(alignment: .bottom) {
+      HeroBackdrop(features: features, slots: slots, pager: pager,
+                   width: size.width, height: size.height + topBleed, topBleed: topBleed,
+                   isCompact: isCompact)
+        .allowsHitTesting(false)
+    }
     .overlay(alignment: .bottom) {
       if features.count > 1 {
         HomeHeroPageDots(count: features.count,
                          current: currentIndex,
                          advances: advances,
                          dwell: Self.dwell,
-                         onAdvance: { step(1) })
+                         onAdvance: { step(1) },
+                         onSelect: { go(to: $0) })
           .padding(.bottom, Metrics.dotsBottom)
       }
     }
+#if os(macOS) || os(iOS)
+    .overlay { pagingArrows }
+    .onHover { isHovered = $0 }
+#endif
     .environment(\.colorScheme, .dark)
     .onScrollVisibilityChange(threshold: 0.5) { isVisibleInPage = $0 }
-    .onAppear { isPresented = true }
+    .onAppear {
+      isPresented = true
+      snap()
+    }
     .onDisappear { isPresented = false }
-    .onChange(of: position?.index) { _, index in
-      if let index, index != shownIndex { shownIndex = index }
+    // A window resized, or a page pushed and popped, can leave the pager between two
+    // pages: the old offset in a new page width, or a turn cut off on its way.
+    .onChange(of: size.width) { move(to: current, animated: false) }
+    .onChange(of: isActive) { move(to: current, animated: false) }
+    .onChange(of: current.index) { _, index in
+      if index != shownIndex { shownIndex = index }
     }
     .onChange(of: features.count) { _, count in
       // The banner set is topped up or trimmed: keep a title that still exists.
-      if let position, position.index >= count {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) { self.position = Slot(lap: 0, index: 0) }
-      }
+      if current.index >= count { move(to: Slot(lap: 0, index: 0), animated: false) }
     }
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("kinopub.hero")
@@ -157,37 +201,66 @@ public struct HomeHeroCarousel: View {
   /// One title over: +1 forward, -1 back, both wrapping onto the next lap.
   private func step(_ delta: Int) {
     guard features.count > 1 else { return }
-    let from = position ?? Slot(lap: 0, index: 0)
-    var next = Slot(lap: from.lap, index: from.index + delta)
+    var next = Slot(lap: current.lap, index: current.index + delta)
     if next.index >= features.count {
-      next = Slot(lap: from.lap + 1, index: 0)
+      next = Slot(lap: current.lap + 1, index: 0)
     } else if next.index < 0 {
-      next = Slot(lap: from.lap - 1, index: features.count - 1)
+      next = Slot(lap: current.lap - 1, index: features.count - 1)
     }
     guard slots.contains(next) else { return }
-    withAnimation(.smooth(duration: 0.6)) {
-      position = next
-    } completion: {
-      // A turn the code makes may not report a scroll phase of its own.
-      settleOnMiddleLap()
+    move(to: next, animated: true)
+  }
+
+  /// A dot clicked: that title, on the lap the hero is on.
+  private func go(to index: Int) {
+    guard features.indices.contains(index), index != current.index else { return }
+    move(to: Slot(lap: current.lap, index: index), animated: true)
+  }
+
+  private func move(to slot: Slot, animated: Bool) {
+    current = slot
+    if animated {
+      withAnimation(.smooth(duration: 0.6)) {
+        scroll.scrollTo(id: slot)
+      } completion: {
+        // A turn the code makes may not report a scroll phase of its own.
+        settle()
+      }
+    } else {
+      var transaction = Transaction()
+      transaction.disablesAnimations = true
+      withTransaction(transaction) { scroll.scrollTo(id: slot) }
     }
   }
 
-  /// A turn that ended on an outer lap goes back to the same title in the middle one,
-  /// with nothing animated: the two pages are the same picture, so it does not show.
-  private func settleOnMiddleLap() {
-    guard let position, position.lap != 0 else { return }
-    var transaction = Transaction()
-    transaction.disablesAnimations = true
-    withTransaction(transaction) {
-      self.position = Slot(lap: 0, index: position.index)
+  /// After a drag or a turn: the page the scroll stopped on becomes the current one,
+  /// and one on an outer lap goes back to the same title in the middle one with nothing
+  /// animated — the two pages look the same, so it does not show.
+  private func settle() {
+    let pages = slots
+    if size.width > 0, !pages.isEmpty {
+      let nearest = min(max(Int(pager.page.rounded()), 0), pages.count - 1)
+      current = pages[nearest]
+    }
+    if current.lap != 0 {
+      move(to: Slot(lap: 0, index: current.index), animated: false)
+    } else {
+      snap()
+    }
+  }
+
+  /// Puts the scroll back exactly on the current page when it is not there.
+  private func snap() {
+    guard !isScrolling, let at = slots.firstIndex(of: current) else { return }
+    if abs(pager.page - CGFloat(at)) > 0.001 {
+      move(to: current, animated: false)
     }
   }
 
   // MARK: Page
 
-  /// The picture fills the frame and the bars' strip above it; the words sit in the
-  /// frame. A tap anywhere that is not a button opens the title, as in the Apple TV app.
+  /// The words over the pictures, which are the backdrop's. A tap anywhere that is not
+  /// a button opens the title, as in the Apple TV app.
   private func page(_ feature: HomeHeroFeature) -> some View {
     ZStack(alignment: isCompact ? .bottom : .bottomLeading) {
       Color.clear
@@ -198,15 +271,6 @@ public struct HomeHeroCarousel: View {
       }
     }
     .frame(width: size.width, height: size.height)
-    .background(alignment: .bottom) {
-      ZStack(alignment: .top) {
-        Color.black
-        picture(feature)
-        scrim
-      }
-      .frame(width: size.width, height: size.height + topBleed)
-      .clipped()
-    }
     .contentShape(Rectangle())
     .onTapGesture {
       guard feature.card.id > 0 else { return }
@@ -214,52 +278,38 @@ public struct HomeHeroCarousel: View {
     }
   }
 
-  /// The picture from the top of the screen. Cropped, it keeps its top — heads and
-  /// skies, not the middle. On iOS, where the hero is taller than a 16:9 still (a
-  /// phone), the still keeps its whole 16:9 frame and the system's background extension
-  /// carries it on below as mirrored, blurred glass (Sasha, 2026-10-30).
+#if os(macOS) || os(iOS)
+  /// Previous / next at the sides while the pointer is over a wide hero (Mac, iPad with
+  /// a pointer), as the Apple TV app has them. There is no system control for these
+  /// (none in SwiftUI or AppKit, checked in the 27.2 SDKs): glass circles of the
+  /// system's own button style.
   @ViewBuilder
-  private func picture(_ feature: HomeHeroFeature) -> some View {
-    let total = size.height + topBleed
-    let still = (size.width * 9 / 16).rounded()
-#if os(iOS)
-    if total > still + 1 {
-      FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
-        .frame(width: size.width, height: still)
-        .clipped()
-        .backgroundExtensionEffect()
-        .safeAreaPadding(.bottom, total - still)
-        .frame(width: size.width, height: total, alignment: .top)
-    } else {
-      croppedPicture(feature, height: total)
+  private var pagingArrows: some View {
+    if !isCompact, features.count > 1 {
+      HStack {
+        arrow("chevron.left", label: hero.labels.previous) { step(-1) }
+        Spacer(minLength: 0)
+        arrow("chevron.right", label: hero.labels.next) { step(1) }
+      }
+      .padding(.horizontal)
+      .opacity(isHovered ? 1 : 0)
+      .animation(.easeInOut(duration: 0.2), value: isHovered)
     }
-#else
-    croppedPicture(feature, height: total)
+  }
+
+  private func arrow(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Image(systemName: symbol)
+        .font(.title2.weight(.semibold))
+        .frame(height: 44)
+    }
+    .buttonStyle(.glass)
+    .buttonBorderShape(.capsule)
+    .controlSize(.large)
+    .accessibilityLabel(Text(label))
+    .help(label)
+  }
 #endif
-  }
-
-  private func croppedPicture(_ feature: HomeHeroFeature, height: CGFloat) -> some View {
-    FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
-      .frame(width: size.width, height: height, alignment: .top)
-      .clipped()
-  }
-
-  /// Wide: the tvOS hero's own legibility texture (`HeroBannerOverlay`) — the leading
-  /// edge and the foot shaded under the words. Phone: the words are centred, so the
-  /// shade is the foot alone, the way the Apple TV app's phone hero has it.
-  @ViewBuilder
-  private var scrim: some View {
-    if isCompact {
-      LinearGradient(stops: [
-        .init(color: .black.opacity(0), location: 0.38),
-        .init(color: .black.opacity(0.45), location: 0.64),
-        .init(color: .black.opacity(0.85), location: 1)
-      ], startPoint: .top, endPoint: .bottom)
-      .allowsHitTesting(false)
-    } else {
-      HeroLegibilityTexture(tone: .black)
-    }
-  }
 
   // MARK: Words
 
@@ -270,14 +320,10 @@ public struct HomeHeroCarousel: View {
       VStack(alignment: alignment, spacing: Metrics.wordSpacing) {
         mark(feature)
           .padding(.bottom, Metrics.markGap)
+        // No synopsis for now: kino.pub's plot is long and its first sentences are
+        // rarely a tagline. Back once there is a quick source of a short one (Sasha,
+        // 2026-10-30); two genres say more in the meantime.
         metaLine(card)
-        if let synopsis = card.overview.flatMap({ HomeHeroText.synopsis(of: $0) }) {
-          Text(synopsis)
-            .font(TypeScale.heroSecondary)
-            .foregroundStyle(.white.opacity(0.72))
-            .lineLimit(2)
-            .frame(maxWidth: Metrics.synopsisMaxWidth, alignment: isCompact ? .center : .leading)
-        }
       }
       .multilineTextAlignment(isCompact ? .center : .leading)
       .shadow(color: .black.opacity(0.32), radius: 7, y: 2)
@@ -307,10 +353,10 @@ public struct HomeHeroCarousel: View {
     .frame(minHeight: maxHeight, alignment: isCompact ? .bottom : .bottomLeading)
   }
 
-  /// Scores, then genre · years · country · seasons — the tvOS banner's line
+  /// Scores, then two genres · years · country · seasons — the tvOS banner's line
   /// (`HomeHeroText.metaParts`). One line: when it does not fit, the last parts go first.
   private func metaLine(_ card: MediaCard) -> some View {
-    let parts = HomeHeroText.metaParts(for: card)
+    let parts = HomeHeroText.metaParts(for: card, genres: 2)
     return ViewThatFits(in: .horizontal) {
       ForEach((0...parts.count).reversed(), id: \.self) { count in
         HStack(spacing: MediaScoresView.groupSpacing) {
@@ -445,8 +491,9 @@ public struct HomeHeroCarousel: View {
     /// Under the logo, a little more than between the lines: tvOS's 24 against 14.
     static let markGap: CGFloat = 6
     static let buttonsGap: CGFloat = 12
-    /// The title page's synopsis width on iOS / macOS (Sasha, 2026-10-29).
-    static let synopsisMaxWidth: CGFloat = 660
+    /// The phone hero's height under the bars, in 16:10 stills: the still, and under it
+    /// the part of the words that does not sit on the picture.
+    static let compactStillsTall: CGFloat = 1.6
     static let bottomInset: CGFloat = 28
     /// The dots' own band under the buttons.
     static let dotsBottom: CGFloat = 12
@@ -454,29 +501,144 @@ public struct HomeHeroCarousel: View {
   }
 }
 
+// MARK: - Backdrop
+
+/// How far the pager has scrolled, in pages (1.5 = halfway from the second page to the
+/// third). Its own object so only the backdrop, which reads it, redraws per frame.
+@Observable
+final class HeroPager {
+  var page: CGFloat = 0
+}
+
+/// Every title's picture stacked, the one under the pager opaque and the next fading in
+/// over it as the scroll goes, each drifting a fraction of the page the way the words
+/// go. All of them stay loaded (six at most), so a turn never waits for a picture.
+private struct HeroBackdrop: View {
+  let features: [HomeHeroFeature]
+  let slots: [HomeHeroCarousel.Slot]
+  let pager: HeroPager
+  let width: CGFloat
+  let height: CGFloat
+  let topBleed: CGFloat
+  let isCompact: Bool
+
+  /// How far a picture drifts against a whole page of scroll.
+  private static let drift: CGFloat = 0.2
+
+  var body: some View {
+    let position = min(max(pager.page, 0), CGFloat(max(slots.count - 1, 0)))
+    let base = Int(position.rounded(.down))
+    let fraction = position - CGFloat(base)
+    let from = slots.indices.contains(base) ? slots[base].index : 0
+    let to = slots.indices.contains(base + 1) ? slots[base + 1].index : from
+    ZStack(alignment: .top) {
+      Color.black
+      ForEach(features.indices, id: \.self) { index in
+        let opacity: CGFloat = index == from ? 1 : (index == to ? fraction : 0)
+        let shift: CGFloat = index == from ? -fraction : (index == to ? 1 - fraction : 0)
+        picture(features[index])
+          .offset(x: shift * width * Self.drift)
+          // Drawn over the outgoing one as it comes in.
+          .zIndex(index == to && to != from ? 1 : 0)
+          .opacity(opacity)
+      }
+      scrim
+    }
+    .frame(width: width, height: height)
+    .clipped()
+  }
+
+  /// The picture from the top of the screen. Cropped, it keeps its top — heads and
+  /// skies, not the middle. On a phone the 16:10 still starts under the bars and the
+  /// system's background extension carries it on above, under the status bar, and below
+  /// as mirrored, blurred glass; a blurred copy fades in toward both edges so the still
+  /// melts into the glass instead of stopping on a line (Sasha, 2026-10-30).
+  @ViewBuilder
+  private func picture(_ feature: HomeHeroFeature) -> some View {
+#if os(iOS)
+    if isCompact {
+      let still = HomeHeroCarousel.stillHeight(width: width)
+      let below = max(height - topBleed - still, 0)
+      ZStack(alignment: .top) {
+        FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
+          .frame(width: width, height: still)
+          .clipped()
+          .backgroundExtensionEffect()
+          .safeAreaPadding(.top, topBleed)
+          .safeAreaPadding(.bottom, below)
+        FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
+          .frame(width: width, height: still)
+          .blur(radius: width * 0.04, opaque: true)
+          .clipped()
+          .mask {
+            LinearGradient(stops: [
+              .init(color: .black, location: 0),
+              .init(color: .clear, location: 0.18),
+              .init(color: .clear, location: 0.62),
+              .init(color: .black, location: 1)
+            ], startPoint: .top, endPoint: .bottom)
+          }
+          .padding(.top, topBleed)
+      }
+      .frame(width: width, height: height, alignment: .top)
+    } else {
+      croppedPicture(feature)
+    }
+#else
+    croppedPicture(feature)
+#endif
+  }
+
+  private func croppedPicture(_ feature: HomeHeroFeature) -> some View {
+    FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
+      .frame(width: width, height: height, alignment: .top)
+      .clipped()
+  }
+
+  /// Wide: the tvOS hero's own legibility texture (`HeroBannerOverlay`) — the leading
+  /// edge and the foot shaded under the words. Phone: the words are centred, so the
+  /// shade is the foot alone, the way the Apple TV app's phone hero has it.
+  @ViewBuilder
+  private var scrim: some View {
+    if isCompact {
+      LinearGradient(stops: [
+        .init(color: .black.opacity(0), location: 0.38),
+        .init(color: .black.opacity(0.45), location: 0.64),
+        .init(color: .black.opacity(0.85), location: 1)
+      ], startPoint: .top, endPoint: .bottom)
+    } else {
+      HeroLegibilityTexture(tone: .black)
+    }
+  }
+}
+
 // MARK: - Paging dots
 
 /// The paging dots with the running title's progress in them, the way the Apple TV app
-/// draws them. They are also the clock: `onAdvance` when the title's time is up.
+/// draws them. They are also the clock: `onAdvance` when the title's time is up; a dot
+/// clicked or tapped is `onSelect`.
 ///
 /// iOS: the system control — `UIPageControl` with `UIPageControlTimerProgress`, what
-/// the tvOS hero uses. macOS has no page control: plain dots, the current one white,
-/// the look of a standard page indicator and nothing more (Sasha, 2026-10-30).
+/// the tvOS hero uses. macOS has no page control at all (no AppKit class, and SwiftUI's
+/// page style is unavailable there, checked in the 27.2 SDK): the same control drawn —
+/// the dots' size and spacing, the current one a capsule the title's time fills, each
+/// dot a button.
 struct HomeHeroPageDots: View {
   let count: Int
   let current: Int
   let advances: Bool
   let dwell: TimeInterval
   let onAdvance: () -> Void
+  let onSelect: (Int) -> Void
 
   var body: some View {
 #if os(iOS)
     SystemPageDots(count: count, current: current, advances: advances,
-                   dwell: dwell, onAdvance: onAdvance)
+                   dwell: dwell, onAdvance: onAdvance, onSelect: onSelect)
       .fixedSize()
 #else
     DrawnPageDots(count: count, current: current, advances: advances,
-                  dwell: dwell, onAdvance: onAdvance)
+                  dwell: dwell, onAdvance: onAdvance, onSelect: onSelect)
 #endif
   }
 }
@@ -488,15 +650,17 @@ private struct SystemPageDots: UIViewRepresentable {
   let advances: Bool
   let dwell: TimeInterval
   let onAdvance: () -> Void
+  let onSelect: (Int) -> Void
 
   func makeCoordinator() -> Coordinator { Coordinator() }
 
   func makeUIView(context: Context) -> UIPageControl {
     let control = UIPageControl()
-    control.isUserInteractionEnabled = false
     control.hidesForSinglePage = true
     control.backgroundStyle = .minimal
     control.overrideUserInterfaceStyle = .dark
+    control.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)),
+                      for: .valueChanged)
     let timer = UIPageControlTimerProgress(preferredDuration: dwell)
     // Past the last page the timer asks for the first one instead of stopping there.
     timer.resetsToInitialPageAfterEnd = true
@@ -507,6 +671,7 @@ private struct SystemPageDots: UIViewRepresentable {
 
   func updateUIView(_ control: UIPageControl, context: Context) {
     context.coordinator.onAdvance = onAdvance
+    context.coordinator.onSelect = onSelect
     guard let timer = control.progress as? UIPageControlTimerProgress else { return }
     if control.numberOfPages != count { control.numberOfPages = count }
     if control.currentPage != current {
@@ -528,6 +693,7 @@ private struct SystemPageDots: UIViewRepresentable {
 
   final class Coordinator: NSObject, UIPageControlTimerProgressDelegate {
     var onAdvance: () -> Void = {}
+    var onSelect: (Int) -> Void = { _ in }
     var advances = false
 
     /// The control would turn its own page; the carousel turns it instead, and the dots
@@ -536,6 +702,11 @@ private struct SystemPageDots: UIViewRepresentable {
                                   shouldAdvanceToPage page: Int) -> Bool {
       onAdvance()
       return false
+    }
+
+    /// A tap or scrub on the dots: the carousel goes there, and sets the dots back.
+    @objc func changed(_ control: UIPageControl) {
+      onSelect(control.currentPage)
     }
   }
 }
@@ -546,8 +717,11 @@ private struct DrawnPageDots: View {
   let advances: Bool
   let dwell: TimeInterval
   let onAdvance: () -> Void
+  let onSelect: (Int) -> Void
 
-  @ScaledMetric(relativeTo: .caption) private var dot: CGFloat = 7
+  /// UIPageControl's measures: an 8 pt dot, 8 pt apart, the running one three dots long.
+  @ScaledMetric(relativeTo: .body) private var dot: CGFloat = 8
+  @State private var progress: CGFloat = 0
 
   private struct Run: Equatable {
     let current: Int
@@ -555,21 +729,50 @@ private struct DrawnPageDots: View {
   }
 
   var body: some View {
-    HStack(spacing: dot * 1.2) {
+    HStack(spacing: 0) {
       ForEach(0..<count, id: \.self) { index in
-        Circle()
-          .fill(.white.opacity(index == current ? 1 : 0.35))
-          .frame(width: dot, height: dot)
+        Button { onSelect(index) } label: {
+          indicator(index)
+            .padding(.horizontal, dot / 2)
+            .padding(.vertical, dot)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("\(index + 1)"))
+        .accessibilityAddTraits(index == current ? .isSelected : [])
       }
     }
-    .animation(.easeInOut(duration: 0.2), value: current)
+    .animation(.easeInOut(duration: 0.25), value: current)
     .task(id: Run(current: current, advances: advances)) {
+      var reset = Transaction()
+      reset.disablesAnimations = true
+      withTransaction(reset) { progress = 0 }
       guard advances else { return }
+      withAnimation(.linear(duration: dwell)) { progress = 1 }
       try? await Task.sleep(for: .seconds(dwell))
       guard !Task.isCancelled else { return }
       onAdvance()
     }
-    .accessibilityHidden(true)
+  }
+
+  @ViewBuilder
+  private func indicator(_ index: Int) -> some View {
+    if index == current {
+      Capsule()
+        .fill(.white.opacity(advances ? 0.35 : 1))
+        .overlay(alignment: .leading) {
+          if advances {
+            Capsule()
+              .fill(.white)
+              .frame(width: max(dot, dot * 3 * progress))
+          }
+        }
+        .frame(width: dot * 3, height: dot)
+    } else {
+      Circle()
+        .fill(.white.opacity(0.35))
+        .frame(width: dot, height: dot)
+    }
   }
 }
 #endif

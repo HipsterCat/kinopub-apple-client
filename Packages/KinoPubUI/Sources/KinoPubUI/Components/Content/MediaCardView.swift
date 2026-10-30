@@ -232,17 +232,24 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
 
   /// Finds the primary meaningful genre, skipping obvious generic categories (anime, animation, cartoon).
   public func usefulGenre(language: MediaLanguage = .current) -> String? {
+    usefulGenres(limit: 1, language: language).first
+  }
+
+  /// Up to `limit` genres in kino.pub's order, the generic anime / cartoon ones skipped;
+  /// the primary genre when every one is generic.
+  public func usefulGenres(limit: Int, language: MediaLanguage = .current) -> [String] {
     let genericKeywords = ["anime", "аниме", "animation", "анимация", "мультфильм", "мультфильмы", "cartoon"]
-    for genre in genres {
+    let useful = genres.filter { genre in
       let id = genre.id.lowercased()
       let ru = genre.name.ru.lowercased()
       let en = genre.name.en.lowercased()
-      let isGeneric = genericKeywords.contains { id.contains($0) || ru.contains($0) || en.contains($0) }
-      if !isGeneric {
-        return genre.name.value(languageCode: language.rawValue)
-      }
+      return !genericKeywords.contains { id.contains($0) || ru.contains($0) || en.contains($0) }
     }
-    return primaryGenre(language: language)
+    .prefix(limit)
+    .map { $0.name.value(languageCode: language.rawValue) }
+    .filter { !$0.isEmpty }
+    if !useful.isEmpty { return Array(useful) }
+    return primaryGenre(language: language).map { [$0] } ?? []
   }
 
   /// Duration or volume line for banner:

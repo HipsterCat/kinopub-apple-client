@@ -545,6 +545,7 @@ struct MainView: View {
           details: "Hero.Details".localized,
           bookmark: "Bookmarks".localized,
           next: "Hero.Next".localized,
+          previous: "Hero.Previous".localized,
           noBookmarkFolders: "No bookmark folders yet".localized)
   }
 

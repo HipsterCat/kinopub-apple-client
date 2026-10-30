@@ -103,6 +103,14 @@ public struct MediaActionLabel: View {
   }
 }
 
+extension EnvironmentValues {
+  /// The colour a label's words were given, when it was given one (the Play pill), so
+  /// its progress bar is drawn in the same colour. A shape filled with `.primary` in a
+  /// glass button did not come out as the words' colour: the bar stayed a greyish white
+  /// over the grey pill while the words were black.
+  @Entry var mediaActionLabelColor: Color? = nil
+}
+
 #if !os(tvOS)
 /// Only the Play pill: any other label keeps the colour its button style gives it.
 /// The pill is filled with `.primary`, so its label is the other end of the scheme —
@@ -123,7 +131,10 @@ private struct PlayPillLabelColor: ViewModifier {
   func body(content: Content) -> some View {
     if isPlayPill {
       if appearsActive {
-        content.foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+        let label = colorScheme == .dark ? Color.black : Color.white
+        content
+          .foregroundStyle(label)
+          .environment(\.mediaActionLabelColor, label)
       } else {
         content.foregroundStyle(.secondary)
       }

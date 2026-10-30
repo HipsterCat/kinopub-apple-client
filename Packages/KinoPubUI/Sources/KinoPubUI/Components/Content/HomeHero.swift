@@ -70,15 +70,18 @@ public struct TVPageHero: Hashable {
     /// The Bookmark menu's heading, as on the detail page.
     public let bookmark: String
     public let next: String
+    /// The Mac / iPad hover arrow back; tvOS has no such button.
+    public let previous: String
     /// The Bookmark menu's line when there are no folders yet.
     public let noBookmarkFolders: String
 
     public init(play: String, details: String, bookmark: String, next: String,
-                noBookmarkFolders: String = "") {
+                previous: String = "", noBookmarkFolders: String = "") {
       self.play = play
       self.details = details
       self.bookmark = bookmark
       self.next = next
+      self.previous = previous
       self.noBookmarkFolders = noBookmarkFolders
     }
   }
@@ -116,13 +119,13 @@ public enum HomeHeroText {
 
   /// The metadata parts after the scores:
   /// Order: 1. Genre (useful, skipping generic anime/cartoons), 2. Year/span (2026, 2024–26), 3. Country, 4. Duration/Volume (2+ seasons / episodes / runtime).
-  public static func metaParts(for card: MediaCard) -> [String] {
+  /// `genres`: how many genres lead the line — the tvOS banner names one, the iOS / macOS
+  /// hero two (Sasha, 2026-10-30).
+  public static func metaParts(for card: MediaCard, genres: Int = 1) -> [String] {
     var parts: [String] = []
 
     // 1. Жанр (пропуская базовые/банальные: аниме, мультфильм)
-    if let genre = card.usefulGenre(), !genre.isEmpty {
-      parts.append(genre)
-    }
+    parts += card.usefulGenres(limit: genres)
 
     // 2. Год / года (2026, 2024–26)
     if let years = card.bannerYearSpan, !years.isEmpty {

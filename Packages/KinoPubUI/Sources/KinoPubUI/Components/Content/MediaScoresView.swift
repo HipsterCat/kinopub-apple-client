@@ -220,7 +220,11 @@ public struct MediaScoresView: View {
       ? scores.detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
       : scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
     let slice = limit.map { Array(items.prefix($0)) } ?? items
-    if collapsesVotesToFit {
+    // No score survives the line's filters (zeros, a lone «—»): nothing at all, so the
+    // line's stack gives it no gap — `hasDisplayableScore` can be true for such a title.
+    if slice.isEmpty {
+      EmptyView()
+    } else if collapsesVotesToFit {
       ViewThatFits(in: .horizontal) {
         scoresRow(slice, votes: .each)
         scoresRow(slice, votes: .total)

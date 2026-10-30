@@ -160,15 +160,16 @@ public struct MediaActionProgressTrack: View {
     self.progress = progress
   }
 
+  @Environment(\.mediaActionLabelColor) private var labelColor
+
   public var body: some View {
     Capsule()
-      .fill(.tertiary)
+      .fill(labelColor.map { AnyShapeStyle($0.opacity(0.25)) } ?? AnyShapeStyle(.tertiary))
       .frame(width: MediaActionMetrics.progressWidth,
              height: MediaActionMetrics.progressHeight)
       .overlay(alignment: .leading) {
         Capsule()
-          .fill(.primary)
-          .foregroundStyle(Color.KinoPub.text)
+          .fill(labelColor.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.primary))
           .frame(width: max(6, MediaActionMetrics.progressWidth * min(max(progress, 0), 1)),
                  height: MediaActionMetrics.progressHeight)
       }

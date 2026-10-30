@@ -320,15 +320,17 @@ public struct MediaRowsView: View {
 
   /// The hero takes the page's width and a share of the screen's height, the bars'
   /// strip above it included (the picture runs on under them), and the rows below peek
-  /// in under it as they do under the Apple TV app's: wide, a 16:9 picture as long as it
-  /// leaves a fifth of the window; phone, 70% of a portrait screen, as the TV app's and
-  /// Kinopoisk's phone heroes are. The returned height is the part below the bars.
+  /// in under it as they do under the Apple TV app's (`HomeHeroCarousel.height`). The
+  /// returned height is the part below the bars.
   private var heroSize: CGSize {
+#if os(tvOS)
+    CGSize(width: containerWidth, height: 0)
+#else
     let screen = containerHeight + barInsets.top + barInsets.bottom
-    let picture: CGFloat = heroIsCompact
-      ? screen * 0.7
-      : min(containerWidth * 9 / 16 + barInsets.top, screen * 0.8)
-    return CGSize(width: containerWidth, height: max(picture - barInsets.top, 0).rounded())
+    return CGSize(width: containerWidth,
+                  height: HomeHeroCarousel.height(width: containerWidth, topBleed: barInsets.top,
+                                                  screen: screen, isCompact: heroIsCompact))
+#endif
   }
 
   // MARK: - Banner
@@ -453,9 +455,12 @@ private struct HeroUnderChrome: ViewModifier {
           }
         }
         // The bar takes a colour scheme only while it has a background: a clear one
-        // while the picture is under it. Back over the rows the scheme is set back to
-        // the system's by value — `nil` left the bar dark over a light page.
-        .toolbarBackground(Color.clear, for: .navigationBar)
+        // while the picture is under it. Back over the rows it is the system's bar
+        // material again, shown as the rows scroll under it — a clear one there left
+        // pushed pages' titles appearing over nothing (Sasha, 2026-10-30) — and the
+        // scheme is set back to the system's by value: `nil` left the bar dark.
+        .toolbarBackground(heroUnderBar ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.bar),
+                           for: .navigationBar)
         .toolbarBackground(heroUnderBar ? .visible : .automatic, for: .navigationBar)
         .toolbarColorScheme(heroUnderBar ? .dark : colorScheme, for: .navigationBar)
 #else
