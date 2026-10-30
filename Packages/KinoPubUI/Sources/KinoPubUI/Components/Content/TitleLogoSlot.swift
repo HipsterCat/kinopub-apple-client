@@ -74,10 +74,8 @@ public struct TitleLogoSlot<Title: View>: View {
     Group {
       switch mark {
       case .logo:
-        logoView(
-          session.image.map { Image(platformImage: $0) }
-            ?? cached.map { Image(platformImage: $0) }
-        )
+        let decoded = session.image ?? cached
+        logoView(decoded.map { Image(platformImage: $0) }, size: decoded?.size)
       case .text:
         title()
           .frame(maxWidth: textMaxWidth ?? maxWidth, alignment: .leading)
@@ -112,17 +110,27 @@ public struct TitleLogoSlot<Title: View>: View {
     onDeliveredLanguageChange?(fromRequest ?? session.deliveredLanguage)
   }
 
+  /// As big as fits `maxWidth` × `maxHeight` at the logo's own aspect, and no bigger:
+  /// the slot is as wide as the logo is drawn, so what sits under it can match it (the
+  /// detail hero's subtitle). A `maxWidth` frame reported the whole box for a tall logo.
   @ViewBuilder
-  private func logoView(_ image: Image?) -> some View {
+  private func logoView(_ image: Image?, size: CGSize?) -> some View {
     if let image {
+      let fitted = Self.fittedSize(of: size ?? .zero, maxWidth: maxWidth, maxHeight: maxHeight)
       image
         .resizable()
         .scaledToFit()
-        .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: .topLeading)
+        .frame(maxWidth: fitted.width, maxHeight: fitted.height, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
         .transition(.opacity)
     } else {
       Color.clear
     }
+  }
+
+  private static func fittedSize(of size: CGSize, maxWidth: CGFloat, maxHeight: CGFloat) -> CGSize {
+    guard size.width > 0, size.height > 0 else { return CGSize(width: maxWidth, height: maxHeight) }
+    let scale = min(maxWidth / size.width, maxHeight / size.height)
+    return CGSize(width: size.width * scale, height: size.height * scale)
   }
 }

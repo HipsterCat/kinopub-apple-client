@@ -1070,7 +1070,9 @@ struct MediaItemHeroView: View {
   private var titleBlock: some View {
     // Same session as the Home banner: empty while a logo is expected, cached
     // logo on the first frame, lettered title only after a confirmed miss.
-    VStack(alignment: .leading, spacing: 0) {
+    // Under a logo the subtitle is no wider than the logo is drawn — a long romaji title
+    // ran across the window (Sasha, 2026-10-30). Under lettered type it keeps its width.
+    SecondLineCappedToFirst(capsWidth: resolvedTitleLogoMark == .logo) {
       TitleLogoSlot(
         resolution: TitleLogoResolution(
           url: titleLogoURL,
@@ -1910,3 +1912,31 @@ private struct MediaItemHeroPreview: View {
   MediaItemHeroPreview()
 }
 #endif
+
+/// A leading-aligned column of two: the first line at its own size, the second under it
+/// proposed no more than the first's width when `capsWidth` — the subtitle under a title
+/// logo wraps at the logo's edge.
+private struct SecondLineCappedToFirst: Layout {
+  var capsWidth: Bool
+
+  private func sizes(_ proposal: ProposedViewSize, _ subviews: Subviews) -> [CGSize] {
+    guard let first = subviews.first else { return [] }
+    let head = first.sizeThatFits(proposal)
+    let width = capsWidth ? min(proposal.width ?? head.width, head.width) : proposal.width
+    let rest = subviews.dropFirst().map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
+    return [head] + rest
+  }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let all = sizes(proposal, subviews)
+    return CGSize(width: all.map(\.width).max() ?? 0, height: all.map(\.height).reduce(0, +))
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    var y = bounds.minY
+    for (subview, size) in zip(subviews, sizes(proposal, subviews)) {
+      subview.place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(size))
+      y += size.height
+    }
+  }
+}
