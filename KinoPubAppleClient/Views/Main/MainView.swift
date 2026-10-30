@@ -60,7 +60,9 @@ struct MainView: View {
       // The navigation bar is likewise left to the system: on 26 it is already
       // Liquid Glass with the scroll-edge effect.
       rowsView
-        .platformNavigationTitle(title)
+        // Over the hero (iOS) a blank title: an empty one drew a dot, and
+        // `toolbar(removing: .title)` kept «Home» on the bar.
+        .platformNavigationTitle(showsHeroChrome ? " " : title)
 #if os(iOS)
         .modifier(HeroNavigationChrome(isActive: showsHeroChrome))
 #endif
@@ -625,9 +627,7 @@ private struct HeroNavigationChrome: ViewModifier {
     if isActive {
       content
         .toolbarTitleDisplayMode(.inlineLarge)
-        // `toolbar(removing: .title)` kept «Home» on the bar, and an empty title drew
-        // a dot; a blank one draws nothing.
-        .navigationTitle(Text(verbatim: " "))
+
     } else {
       content
     }
