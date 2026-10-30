@@ -137,17 +137,42 @@ public struct InfoPopupView<Content: View>: View {
     // A popup shown by UIKit has no sheet to pop; Menu closes it the same way.
     .onExitCommand(perform: close)
 #else
-    VStack(alignment: .leading, spacing: 0) {
+    // The TV app's info sheet on a Mac: the title and its subtitle centred at the top,
+    // «Готово» at the top trailing corner, the content scrolling under them. It was a
+    // left-aligned alert with a blue «Закрыть» under the text (Sasha, 2026-10-30).
+    VStack(spacing: 0) {
+      header
       scrollingText
-      Button(action: close) { confirmTitle ?? Text("Close") }
-        .buttonStyle(.borderedProminent)
-        .keyboardShortcut(.defaultAction)
-        .frame(maxWidth: .infinity, alignment: confirmTitle == nil ? .leading : .center)
-        .padding([.horizontal, .bottom], InfoPopupMetrics.padding)
     }
-    .frame(maxWidth: InfoPopupMetrics.maxWidth, alignment: .leading)
+    .frame(maxWidth: InfoPopupMetrics.maxWidth)
 #endif
   }
+
+#if !os(tvOS)
+  private var header: some View {
+    VStack(spacing: 2) {
+      title
+        .font(.headline)
+        .foregroundStyle(Color.KinoPub.text)
+      if let subtitle {
+        subtitle
+          .font(.subheadline)
+          .foregroundStyle(Color.KinoPub.subtitle)
+      }
+    }
+    .multilineTextAlignment(.center)
+    .frame(maxWidth: .infinity)
+    // The button's own width on either side keeps a long title centred and clear of it.
+    .padding(.horizontal, InfoPopupMetrics.padding * 3)
+    .overlay(alignment: .topTrailing) {
+      Button(action: close) { confirmTitle ?? Text("Done") }
+        .buttonStyle(.glass)
+        .keyboardShortcut(.defaultAction)
+    }
+    .padding([.horizontal, .top], InfoPopupMetrics.padding * 0.6)
+    .padding(.bottom, InfoPopupMetrics.padding * 0.4)
+  }
+#endif
 
   /// The text at its natural height when it fits, a scroll view when it does not.
   private var scrollingText: some View {
@@ -182,6 +207,7 @@ public struct InfoPopupView<Content: View>: View {
 
   private var text: some View {
     VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+#if os(tvOS)
       VStack(alignment: .leading, spacing: 8) {
         title
           .font(InfoPopupMetrics.titleFont)
@@ -192,10 +218,15 @@ public struct InfoPopupView<Content: View>: View {
             .foregroundStyle(Color.KinoPub.subtitle)
         }
       }
+#endif
       content()
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(InfoPopupMetrics.padding)
+#if !os(tvOS)
+    // The header carries the top; the text starts right under it.
+    .padding(.top, -InfoPopupMetrics.padding * 0.5)
+#endif
   }
 
   private func close() {
@@ -310,11 +341,13 @@ public extension View {
   /// tile), `.text` for running prose that sits on artwork, such as the hero synopsis.
   func expandsIntoInfoPopup<Expanded: View>(
     title: Text,
+    subtitle: Text? = nil,
     isEnabled: Bool = true,
     chrome: InfoPopupTriggerChrome = .card,
     @ViewBuilder expanded: @escaping () -> Expanded
   ) -> some View {
-    modifier(InfoPopupTrigger(title: title, isEnabled: isEnabled, chrome: chrome, expanded: expanded))
+    modifier(InfoPopupTrigger(title: title, subtitle: subtitle, isEnabled: isEnabled,
+                              chrome: chrome, expanded: expanded))
   }
 }
 
@@ -387,6 +420,7 @@ public enum InfoPopupPresenter {
 
 private struct InfoPopupTrigger<Expanded: View>: ViewModifier {
   let title: Text
+  let subtitle: Text?
   let isEnabled: Bool
   let chrome: InfoPopupTriggerChrome
   @ViewBuilder let expanded: () -> Expanded
@@ -396,7 +430,7 @@ private struct InfoPopupTrigger<Expanded: View>: ViewModifier {
   func body(content: Content) -> some View {
     if isEnabled {
       trigger(content)
-        .infoPopup(title, isPresented: $isPresented) {
+        .infoPopup(title, subtitle: subtitle, isPresented: $isPresented) {
           expanded()
         }
 #if DEBUG

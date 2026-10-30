@@ -3571,9 +3571,17 @@ struct MediaItemPlotView: View {
       }
     }
 #else
+    // The tvOS popup's content (facts line, synopsis, audio, subtitles, information) in
+    // the system sheet (Sasha, 2026-10-30).
     paragraph(showsMore: isTruncated)
-      .expandsIntoInfoPopup(title: Text(title), chrome: .text) {
-        expandedPlot
+      .expandsIntoInfoPopup(title: Text(title),
+                            subtitle: popupSubtitle.map { Text(verbatim: $0) },
+                            chrome: .text) {
+        if let summary {
+          MediaItemSynopsisPopupContent(plot: plot, summary: summary)
+        } else {
+          expandedPlot
+        }
       }
 #endif
   }

@@ -1036,7 +1036,13 @@ struct MediaItemHeroView: View {
         summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
       )
 #else
-      MediaItemPlotView(title: mediaItem.localizedTitle, plot: mediaItem.plot, focus: $focus)
+      MediaItemPlotView(
+        title: mediaItem.localizedTitle,
+        plot: mediaItem.plot,
+        focus: $focus,
+        popupSubtitle: popupOriginalTitle,
+        summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
+      )
 #endif
          VStack(alignment: .leading, spacing: Self.contentSpacing) {
               credits
