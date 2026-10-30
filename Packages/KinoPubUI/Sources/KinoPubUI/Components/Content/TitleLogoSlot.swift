@@ -18,6 +18,9 @@ public struct TitleLogoSlot<Title: View>: View {
   /// Lettered title width when it differs from the logo box (detail hero uses ~80% of
   /// the column). `nil` keeps the logo `maxWidth`.
   private let textMaxWidth: CGFloat?
+  /// Where a logo or a name narrower than the slot sits in it: leading on the detail
+  /// hero and the wide Home hero, centred in the phone's centred hero.
+  private let alignment: HorizontalAlignment
   private let onMarkChange: ((TitleLogoMark) -> Void)?
   private let onDeliveredLanguageChange: ((WorkerArtworkLanguageTag?) -> Void)?
   private let title: () -> Title
@@ -29,6 +32,7 @@ public struct TitleLogoSlot<Title: View>: View {
     maxWidth: CGFloat,
     maxHeight: CGFloat,
     textMaxWidth: CGFloat? = nil,
+    alignment: HorizontalAlignment = .leading,
     policy: TitleLogoPresentationPolicy = .whenResolved,
     onMarkChange: ((TitleLogoMark) -> Void)? = nil,
     onDeliveredLanguageChange: ((WorkerArtworkLanguageTag?) -> Void)? = nil,
@@ -38,6 +42,7 @@ public struct TitleLogoSlot<Title: View>: View {
     self.maxWidth = maxWidth
     self.maxHeight = maxHeight
     self.textMaxWidth = textMaxWidth
+    self.alignment = alignment
     self.onMarkChange = onMarkChange
     self.onDeliveredLanguageChange = onDeliveredLanguageChange
     self.title = title
@@ -50,6 +55,7 @@ public struct TitleLogoSlot<Title: View>: View {
     maxWidth: CGFloat,
     maxHeight: CGFloat,
     textMaxWidth: CGFloat? = nil,
+    alignment: HorizontalAlignment = .leading,
     policy: TitleLogoPresentationPolicy = .whenResolved,
     onMarkChange: ((TitleLogoMark) -> Void)? = nil,
     onDeliveredLanguageChange: ((WorkerArtworkLanguageTag?) -> Void)? = nil,
@@ -60,6 +66,7 @@ public struct TitleLogoSlot<Title: View>: View {
       maxWidth: maxWidth,
       maxHeight: maxHeight,
       textMaxWidth: textMaxWidth,
+      alignment: alignment,
       policy: policy,
       onMarkChange: onMarkChange,
       onDeliveredLanguageChange: onDeliveredLanguageChange,
@@ -78,11 +85,11 @@ public struct TitleLogoSlot<Title: View>: View {
         logoView(decoded.map { Image(platformImage: $0) }, size: decoded?.size)
       case .text:
         title()
-          .frame(maxWidth: textMaxWidth ?? maxWidth, alignment: .leading)
+          .frame(maxWidth: textMaxWidth ?? maxWidth, alignment: Alignment(horizontal: alignment, vertical: .center))
           .transition(.opacity)
       case .empty:
         Color.clear
-          .frame(maxWidth: maxWidth, minHeight: maxHeight, maxHeight: maxHeight, alignment: .topLeading)
+          .frame(maxWidth: maxWidth, minHeight: maxHeight, maxHeight: maxHeight, alignment: Alignment(horizontal: alignment, vertical: .top))
       }
     }
     // A logo or lettered title that arrives after the first frame fades in; one painted
@@ -120,7 +127,7 @@ public struct TitleLogoSlot<Title: View>: View {
       image
         .resizable()
         .scaledToFit()
-        .frame(maxWidth: fitted.width, maxHeight: fitted.height, alignment: .topLeading)
+        .frame(maxWidth: fitted.width, maxHeight: fitted.height, alignment: Alignment(horizontal: alignment, vertical: .top))
         .fixedSize(horizontal: false, vertical: true)
         .transition(.opacity)
     } else {

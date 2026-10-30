@@ -53,6 +53,8 @@ public struct MediaRowsView: View {
   private let onHeroPlay: ((MediaCard) -> Void)?
   private let onHeroDetails: ((MediaCard) -> Void)?
   private let heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])?
+  private let heroIsActive: Bool
+  private let heroIndex: Binding<Int>
   private let navigationLinkProvider: (MediaCard) -> any Hashable
   /// When a card's `primaryAction` is `.play`, Select/click runs this instead of navigating.
   private let onPlay: ((MediaCard) -> Void)?
@@ -100,6 +102,8 @@ public struct MediaRowsView: View {
               onHeroPlay: ((MediaCard) -> Void)? = nil,
               onHeroDetails: ((MediaCard) -> Void)? = nil,
               heroBookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])? = nil,
+              heroIsActive: Bool = true,
+              heroIndex: Binding<Int> = .constant(0),
               navigationLinkProvider: @escaping (MediaCard) -> any Hashable,
               onPlay: ((MediaCard) -> Void)? = nil,
               onRowAppear: ((MediaRow) -> Void)? = nil,
@@ -114,6 +118,8 @@ public struct MediaRowsView: View {
     self.onHeroPlay = onHeroPlay
     self.onHeroDetails = onHeroDetails
     self.heroBookmarkEntries = heroBookmarkEntries
+    self.heroIsActive = heroIsActive
+    self.heroIndex = heroIndex
     self.navigationLinkProvider = navigationLinkProvider
     self.onPlay = onPlay
     self.onRowAppear = onRowAppear
@@ -234,7 +240,9 @@ public struct MediaRowsView: View {
         isCompact: heroIsCompact,
         onPlay: { onHeroPlay?($0) },
         onDetails: { onHeroDetails?($0) },
-        bookmarkEntries: heroBookmarkEntries
+        bookmarkEntries: heroBookmarkEntries,
+        isActive: heroIsActive,
+        shownIndex: heroIndex
       )
     } else if !bannerCards.isEmpty {
       bannerSection
@@ -414,6 +422,7 @@ private struct HeroUnderChrome: ViewModifier {
   let isActive: Bool
   @Binding var heroUnderBar: Bool
   let heroHeight: CGFloat
+  @Environment(\.colorScheme) private var colorScheme
 
   func body(content: Content) -> some View {
     if isActive {
@@ -424,10 +433,15 @@ private struct HeroUnderChrome: ViewModifier {
           heroUnderBar = under
         }
 #if os(iOS)
-        .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .navigationBar)
+        // The bar takes a colour scheme only while it has a background: a clear one
+        // while the picture is under it. Back over the rows the scheme is set back to
+        // the system's by value — `nil` left the bar dark over a light page.
+        .toolbarBackground(Color.clear, for: .navigationBar)
+        .toolbarBackground(heroUnderBar ? .visible : .automatic, for: .navigationBar)
+        .toolbarColorScheme(heroUnderBar ? .dark : colorScheme, for: .navigationBar)
 #else
         .toolbarBackground(.hidden, for: .windowToolbar)
-        .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .windowToolbar)
+        .toolbarColorScheme(heroUnderBar ? .dark : colorScheme, for: .windowToolbar)
 #endif
     } else {
       content

@@ -21,6 +21,8 @@ struct MainView: View {
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
   @ObservedObject private var sectionStore = SectionVisibilityStore.shared
   @AppStorage(FeatureFlag.homeBanner.defaultsKey) private var homeBannerEnabled = true
+  /// The hero's title on screen, kept here so back from a pushed page it is the same one.
+  @State private var heroIndex = 0
 
   /// Watch Now, Movies, or Series — same `MediaRowsView` stack of SwiftUI
   /// `Section(title) { rail }` shelves. On tvOS the rail is a TVUIKit representable;
@@ -58,7 +60,12 @@ struct MainView: View {
       // The navigation bar is likewise left to the system: on 26 it is already
       // Liquid Glass with the scroll-edge effect.
       rowsView
-        .platformNavigationTitle(title)
+        .platformNavigationTitle(showsHeroChrome ? "" : title)
+#if os(iOS)
+        .modifier(HeroNavigationChrome(isActive: showsHeroChrome) {
+          navigationState.selectedTab = .settings
+        })
+#endif
 #if os(macOS)
         .macToolbarSearch()
 #endif
@@ -479,6 +486,8 @@ struct MainView: View {
         menuEntries(for: card, surface: .banner, isContinueWatching: false)
           .filter { $0.id == MediaCardContextMenus.bookmarksMenuID }
       },
+      heroIsActive: navigationState.selectedTab == tab && navigationState.path(for: tab).wrappedValue.isEmpty,
+      heroIndex: $heroIndex,
       navigationLinkProvider: { card in
         if card.opensCollection {
           Route.collection(CollectionMediaCard.routeCollection(from: card))
@@ -533,6 +542,15 @@ struct MainView: View {
           bookmark: "Bookmarks".localized,
           next: "Hero.Next".localized,
           noBookmarkFolders: "No bookmark folders yet".localized)
+  }
+
+  /// iOS: under the hero the bar has no title (Sasha, 2026-10-30).
+  private var showsHeroChrome: Bool {
+#if os(iOS)
+    rowsHero != nil
+#else
+    false
+#endif
   }
 
   /// iOS / iPadOS / macOS: the banner titles as `HomeHeroCarousel`, behind the same
@@ -596,3 +614,29 @@ struct MainView_Previews: PreviewProvider {
       .environment(navState)
   }
 }
+
+#if os(iOS)
+/// The bar over the Home hero: inline-large with no title, the picture under it, and
+/// Settings as the profile button at the trailing end, the way the Apple TV app
+/// keeps its account button there.
+private struct HeroNavigationChrome: ViewModifier {
+  let isActive: Bool
+  let openSettings: () -> Void
+
+  func body(content: Content) -> some View {
+    if isActive {
+      content
+        .toolbarTitleDisplayMode(.inlineLarge)
+        .toolbar {
+          ToolbarItem(placement: .topBarTrailing) {
+            Button(action: openSettings) {
+              Label("Settings", systemImage: "person.crop.circle")
+            }
+          }
+        }
+    } else {
+      content
+    }
+  }
+}
+#endif

@@ -30,6 +30,8 @@ public struct HomeHeroCarousel: View {
   private let onPlay: (MediaCard) -> Void
   private let onDetails: (MediaCard) -> Void
   private let bookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])?
+  private let isActive: Bool
+  @Binding private var shownIndex: Int
 
   /// One page: which title, on which lap of the three.
   private struct Slot: Hashable {
@@ -37,7 +39,7 @@ public struct HomeHeroCarousel: View {
     var index: Int
   }
 
-  @State private var position: Slot? = Slot(lap: 0, index: 0)
+  @State private var position: Slot?
   @State private var isPresented = false
   @State private var isVisibleInPage = true
   @State private var isScrolling = false
@@ -50,6 +52,10 @@ public struct HomeHeroCarousel: View {
   ///     bar or window toolbar (their safe-area inset). The words stay inside the frame.
   ///   - sideInset: the page's leading margin, so the words start where the rows do.
   ///   - isCompact: the phone's centred column instead of the leading one.
+  ///   - isActive: the page is the one on screen — its tab selected and nothing pushed
+  ///     over it. A Mac keeps the page under a pushed one alive and "appeared".
+  ///   - shownIndex: the title on screen, owned by the page, so back from a pushed page
+  ///     the hero is on the title it was left on even if this view was rebuilt.
   public init(hero: HomeHero,
               size: CGSize,
               topBleed: CGFloat = 0,
@@ -57,7 +63,9 @@ public struct HomeHeroCarousel: View {
               isCompact: Bool,
               onPlay: @escaping (MediaCard) -> Void,
               onDetails: @escaping (MediaCard) -> Void,
-              bookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])? = nil) {
+              bookmarkEntries: ((MediaCard) -> [MediaCardContextEntry])? = nil,
+              isActive: Bool = true,
+              shownIndex: Binding<Int> = .constant(0)) {
     self.hero = hero
     self.size = size
     self.topBleed = topBleed
@@ -66,6 +74,10 @@ public struct HomeHeroCarousel: View {
     self.onPlay = onPlay
     self.onDetails = onDetails
     self.bookmarkEntries = bookmarkEntries
+    self.isActive = isActive
+    _shownIndex = shownIndex
+    let start = shownIndex.wrappedValue
+    _position = State(initialValue: Slot(lap: 0, index: hero.features.indices.contains(start) ? start : 0))
   }
 
   private var features: [HomeHeroFeature] { hero.features }
@@ -84,7 +96,7 @@ public struct HomeHeroCarousel: View {
   /// finger is turning it or its Bookmarks menu is open. Not paused under the pointer:
   /// on a Mac the hero is most of the window, and the pointer is nearly always on it.
   private var advances: Bool {
-    features.count > 1 && isPresented && isVisibleInPage && scenePhase == .active
+    features.count > 1 && isActive && isPresented && isVisibleInPage && scenePhase == .active
       && !isScrolling && !isMenuOpen
   }
 
@@ -122,6 +134,9 @@ public struct HomeHeroCarousel: View {
     .onScrollVisibilityChange(threshold: 0.5) { isVisibleInPage = $0 }
     .onAppear { isPresented = true }
     .onDisappear { isPresented = false }
+    .onChange(of: position?.index) { _, index in
+      if let index, index != shownIndex { shownIndex = index }
+    }
     .onChange(of: features.count) { _, count in
       // The banner set is topped up or trimmed: keep a title that still exists.
       if let position, position.index >= count {
@@ -184,11 +199,9 @@ public struct HomeHeroCarousel: View {
     }
     .frame(width: size.width, height: size.height)
     .background(alignment: .bottom) {
-      ZStack {
+      ZStack(alignment: .top) {
         Color.black
-        FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
-          .frame(width: size.width, height: size.height + topBleed)
-          .clipped()
+        picture(feature)
         scrim
       }
       .frame(width: size.width, height: size.height + topBleed)
@@ -199,6 +212,36 @@ public struct HomeHeroCarousel: View {
       guard feature.card.id > 0 else { return }
       onDetails(feature.card)
     }
+  }
+
+  /// The picture from the top of the screen. Cropped, it keeps its top — heads and
+  /// skies, not the middle. On iOS, where the hero is taller than a 16:9 still (a
+  /// phone), the still keeps its whole 16:9 frame and the system's background extension
+  /// carries it on below as mirrored, blurred glass (Sasha, 2026-10-30).
+  @ViewBuilder
+  private func picture(_ feature: HomeHeroFeature) -> some View {
+    let total = size.height + topBleed
+    let still = (size.width * 9 / 16).rounded()
+#if os(iOS)
+    if total > still + 1 {
+      FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
+        .frame(width: size.width, height: still)
+        .clipped()
+        .backgroundExtensionEffect()
+        .safeAreaPadding(.bottom, total - still)
+        .frame(width: size.width, height: total, alignment: .top)
+    } else {
+      croppedPicture(feature, height: total)
+    }
+#else
+    croppedPicture(feature, height: total)
+#endif
+  }
+
+  private func croppedPicture(_ feature: HomeHeroFeature, height: CGFloat) -> some View {
+    FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
+      .frame(width: size.width, height: height, alignment: .top)
+      .clipped()
   }
 
   /// Wide: the tvOS hero's own legibility texture (`HeroBannerOverlay`) — the leading
@@ -252,7 +295,8 @@ public struct HomeHeroCarousel: View {
   private func mark(_ feature: HomeHeroFeature) -> some View {
     let maxWidth = (size.width * (isCompact ? 0.7 : 0.28)).rounded()
     let maxHeight = (size.width * (isCompact ? 0.26 : 0.085)).rounded()
-    return TitleLogoSlot(resolution: feature.logo, maxWidth: maxWidth, maxHeight: maxHeight) {
+    return TitleLogoSlot(resolution: feature.logo, maxWidth: maxWidth, maxHeight: maxHeight,
+                         alignment: isCompact ? .center : .leading) {
       Text(feature.card.title)
         .font(TypeScale.heroTitle)
         .foregroundStyle(.white)
@@ -416,8 +460,8 @@ public struct HomeHeroCarousel: View {
 /// draws them. They are also the clock: `onAdvance` when the title's time is up.
 ///
 /// iOS: the system control — `UIPageControl` with `UIPageControlTimerProgress`, what
-/// the tvOS hero uses. macOS has no page control, so the same shape is drawn: dots,
-/// the current one a capsule filling over the dwell.
+/// the tvOS hero uses. macOS has no page control: plain dots, the current one white,
+/// the look of a standard page indicator and nothing more (Sasha, 2026-10-30).
 struct HomeHeroPageDots: View {
   let count: Int
   let current: Int
@@ -503,7 +547,6 @@ private struct DrawnPageDots: View {
   let dwell: TimeInterval
   let onAdvance: () -> Void
 
-  @State private var progress: CGFloat = 0
   @ScaledMetric(relativeTo: .caption) private var dot: CGFloat = 7
 
   private struct Run: Equatable {
@@ -512,29 +555,16 @@ private struct DrawnPageDots: View {
   }
 
   var body: some View {
-    HStack(spacing: dot) {
+    HStack(spacing: dot * 1.2) {
       ForEach(0..<count, id: \.self) { index in
-        if index == current {
-          Capsule()
-            .fill(.white.opacity(0.35))
-            .frame(width: dot * 4, height: dot)
-            .overlay(alignment: .leading) {
-              Capsule()
-                .fill(.white)
-                .frame(width: dot * 4 * max(progress, 0.25), height: dot)
-            }
-        } else {
-          Circle()
-            .fill(.white.opacity(0.35))
-            .frame(width: dot, height: dot)
-        }
+        Circle()
+          .fill(.white.opacity(index == current ? 1 : 0.35))
+          .frame(width: dot, height: dot)
       }
     }
-    .animation(.smooth(duration: 0.3), value: current)
+    .animation(.easeInOut(duration: 0.2), value: current)
     .task(id: Run(current: current, advances: advances)) {
-      progress = 0
       guard advances else { return }
-      withAnimation(.linear(duration: dwell)) { progress = 1 }
       try? await Task.sleep(for: .seconds(dwell))
       guard !Task.isCancelled else { return }
       onAdvance()
