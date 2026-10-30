@@ -141,8 +141,11 @@ public enum HomeHeroText {
     if let duration = card.bannerDurationText(), !duration.isEmpty {
       parts.append(duration)
     } else if card.isSeries {
-      // A shelf payload knows no seasons or episodes: at least say it is a series.
-      parts.append(NSLocalizedString("Kind_series_One", comment: "A series, in the banner's line"))
+      // A shelf payload knows no seasons or episodes: at least say it is a series —
+      // first, as the Apple TV app's «Телешоу · Drama», since the line drops its last
+      // parts when it does not fit.
+      parts.insert(NSLocalizedString("Kind_series_One", comment: "A series, in the banner's line"),
+                   at: 0)
     }
 
     return parts
