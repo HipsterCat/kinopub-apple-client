@@ -615,9 +615,8 @@ struct MainView_Previews: PreviewProvider {
 }
 
 #if os(iOS)
-/// The bar over the Home hero: inline-large with its title removed (an empty title
-/// still drew a dot), the picture under it. The page keeps its title for the back
-/// button of what is pushed onto it. The Settings button is `MediaRowsView`'s, which
+/// The bar over the Home hero: inline-large with no title (Sasha, 2026-10-30), the
+/// picture under it. The Settings button is `MediaRowsView`'s, which
 /// knows when the picture is under the bar.
 private struct HeroNavigationChrome: ViewModifier {
   let isActive: Bool
@@ -626,7 +625,9 @@ private struct HeroNavigationChrome: ViewModifier {
     if isActive {
       content
         .toolbarTitleDisplayMode(.inlineLarge)
-        .toolbar(removing: .title)
+        // `toolbar(removing: .title)` kept «Home» on the bar, and an empty title drew
+        // a dot; a blank one draws nothing.
+        .navigationTitle(Text(verbatim: " "))
     } else {
       content
     }
