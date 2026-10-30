@@ -485,8 +485,8 @@ struct MainView: View {
           .filter { $0.id == MediaCardContextMenus.bookmarksMenuID }
       },
       heroIsActive: navigationState.selectedTab == tab && navigationState.path(for: tab).wrappedValue.isEmpty,
-      heroIndex: $heroIndex,
       heroProfile: (label: "Settings".localized, action: { navigationState.selectedTab = .settings }),
+      heroIndex: $heroIndex,
       navigationLinkProvider: { card in
         if card.opensCollection {
           Route.collection(CollectionMediaCard.routeCollection(from: card))
