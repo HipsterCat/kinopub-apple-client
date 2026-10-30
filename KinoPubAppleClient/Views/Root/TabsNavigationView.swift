@@ -451,6 +451,9 @@ struct TabsNavigationView: View {
     LibraryView(catalog: PersonalLibraryCatalog(itemsService: appContext.contentService,
                                                 authState: authState,
                                                 errorHandler: errorHandler),
+                bookmarks: LibrarySectionCatalog(contentService: appContext.contentService,
+                                                 authState: authState,
+                                                 errorHandler: errorHandler),
                 settings: horizontalSizeClass == .compact ? AnyView(settingsContent) : nil)
 #endif
   }

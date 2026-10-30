@@ -32,7 +32,7 @@ class PersonalLibraryCatalog: ObservableObject {
   /// The folder *list* itself (ids, titles, counts) isn't row-cached — it's one
   /// cheap call, and we need it live to know which folders even exist. Only the
   /// per-folder item fetch (the N-per-folder fanout) goes through the store.
-  private var folders: [Bookmark] = []
+  @Published private(set) var folders: [Bookmark] = []
   private var foldersFetchFailed = false
   private var foldersError: Error?
 

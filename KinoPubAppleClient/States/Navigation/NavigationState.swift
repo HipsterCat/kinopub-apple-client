@@ -67,15 +67,21 @@ final class NavigationState {
   private(set) var playerWindowRequestID: UUID?
 #endif
 
-#if os(tvOS) && DEBUG
-  /// `-KINOPUBInitialTab library|tv|settings` opens on that tab (the simulator's remote
-  /// is too unreliable to walk there for every check).
+#if DEBUG
+  /// `-KINOPUBInitialTab library|watching|tv|settings` opens on that tab (the simulator's
+  /// remote is too unreliable to walk there for every check; on iPhone the simulator does
+  /// not always take a tap on the tab bar). `-KINOPUBInitialRoute history` then pushes
+  /// History onto it.
   init() {
     switch UserDefaults.standard.string(forKey: "KINOPUBInitialTab") {
     case "library": selectedTab = .library
+    case "watching": selectedTab = .watchlist
     case "tv": selectedTab = .tv
     case "settings": selectedTab = .settings
     default: break
+    }
+    if UserDefaults.standard.string(forKey: "KINOPUBInitialRoute") == "history" {
+      libraryRoutes = [.history]
     }
   }
 #endif
