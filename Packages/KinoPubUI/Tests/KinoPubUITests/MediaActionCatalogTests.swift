@@ -380,7 +380,7 @@ final class MediaActionCatalogTests: XCTestCase {
       showsFollow: true
     ))
     XCTAssertEqual(idle.systemImage, "bell")
-    XCTAssertEqual(active.systemImage, "bell.and.waves.left.and.right.fill")
+    XCTAssertEqual(active.systemImage, "bell.fill")
   }
 
   func testLoadingFlagSurfacesOnAppearance() {

@@ -50,7 +50,7 @@ public struct MediaActionLabel: View {
     // UIKit draws a button's symbol at the large scale of its title font; SwiftUI's
     // default (medium) left the detail page's glyphs ~25% smaller than the Home hero's
     // at the same type size (measured 2026-10-25).
-    .imageScale(.large)
+    .imageScale(.medium)
 #endif
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .animation(.easeOut(duration: 0.2), value: appearance.isLoading)
@@ -64,10 +64,10 @@ public struct MediaActionLabel: View {
         MediaActionGlyphSlot {
           ZStack {
             Circle()
-              .stroke(.tertiary, lineWidth: 2)
+              .stroke(.tertiary, lineWidth: 4)
             Circle()
               .trim(from: 0, to: min(max(circular, 0), 1))
-              .stroke(.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+              .stroke(.primary, style: StrokeStyle(lineWidth: 4, lineCap: .round))
               .rotationEffect(.degrees(-90))
             Image(systemName: appearance.systemImage)
           }
@@ -276,7 +276,7 @@ public struct MediaActionButtonRow: View {
         ))
       }
     }
-    .animation(.easeOut(duration: 0.25), value: appearances.map(\.id))
+//    .animation(.easeOut(duration: 0.25), value: appearances.map(\.id))
   }
 }
 

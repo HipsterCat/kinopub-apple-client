@@ -281,7 +281,7 @@ public struct HomeHeroCarousel: View {
       }
     }
     .font(TypeScale.heroSecondary)
-    .foregroundStyle(.white.opacity(0.88))
+    .foregroundStyle(.primary.opacity(0.88))
     .lineLimit(1)
   }
 

@@ -397,7 +397,7 @@ public enum MediaActionCatalog {
       id: .follow,
       chrome: chrome,
       systemImage: following
-        ? "bell.and.waves.left.and.right.fill"
+        ? "bell.fill"
         : "bell",
       title: title,
       accessibilityLabel: MediaActionCopy.followTitle(isFollowing: following),

@@ -247,7 +247,7 @@ public struct MediaScoresView: View {
       if votes == .total, total > 0 {
         Text("(\(MediaScores.formatVotesWholeThousands(total)))")
           .font(.caption2)
-          .fontWeight(.medium)
+          .fontWeight(.regular)
           .foregroundStyle(Color.KinoPub.subtitle)
       }
     }
@@ -295,14 +295,14 @@ public struct MediaScoresView: View {
     if showsVotes, let votes = item.votesCompact {
       Text("(\(votes))")
         .font(.caption2)
-        .fontWeight(.medium)
+        .fontWeight(.regular)
         .foregroundStyle(Color.KinoPub.subtitle)
     }
   }
 
   private var usesLineMarks: Bool { detailLine || bannerLine }
 
-  private static let markSpacing: CGFloat = 6
+  private static let markSpacing: CGFloat = 3
 
   /// The synopsis-line marks. The PNGs are this tall; the view draws them at
   /// their own width.
@@ -314,10 +314,10 @@ public struct MediaScoresView: View {
   public static let imdbHeight: CGFloat = 16
   public static let kinopoiskHeight: CGFloat = 16
 #else
-  public static let groupSpacing: CGFloat = 14
-  public static let iconHeight: CGFloat = 14
-  public static let imdbHeight: CGFloat = 14
-  public static let kinopoiskHeight: CGFloat = 14
+  public static let groupSpacing: CGFloat = 12
+  public static let iconHeight: CGFloat = 12
+  public static let imdbHeight: CGFloat = 12
+  public static let kinopoiskHeight: CGFloat = 12
 #endif
 }
 

@@ -7,48 +7,109 @@ import SwiftUI
 
 /// Text styles for cards, shelves, heroes and chrome. Prefer these over `.system(size:)`.
 public enum TypeScale {
-    public static let cardTitle: Font = .subheadline.weight(.regular)
+    public static let cardTitle: Font = {
+#if os(tvOS)
+        .body
+#endif
+         #if os(iOS)
+    .subheadline
+         #endif
+         #if os(macOS)
+    .body
+         #endif
+    }()
   /// An episode's name under its still on the title page: a step above `cardTitle`
   /// (Sasha, 2026-10-30). The line under it stays `cardMeta`.
-  public static let episodeCardTitle: Font = .body
-  public static let cardSubtitle: Font = .caption
-  public static let cardMeta: Font = .caption
+  public static let episodeCardTitle: Font = {
+#if os(tvOS)
+        .body
+#endif
+         #if os(iOS)
+    .subheadline
+         #endif
+         #if os(macOS)
+    .body
+         #endif
+    }()
+  public static let cardSubtitle: Font = {
+#if os(tvOS)
+        .caption
+#endif
+         #if os(iOS)
+    .caption
+         #endif
+         #if os(macOS)
+    .subheadline
+         #endif
+    }()
+  public static let cardMeta: Font = {
+#if os(tvOS)
+        .caption
+#endif
+         #if os(iOS)
+    .caption
+         #endif
+         #if os(macOS)
+    .subheadline
+         #endif
+    }()
     /// tvOS catalog shelves: Sketch `Headers/Section Header/Dark/Secondary/1 Line`
     /// = Headline emphasized. Sasha: **semibold**, not `.headline.bold()`. Not Title 2
     /// (~57pt), not Primary / Subtitle / Eyebrow / App Icon / Pill.
     public static let rowHeader: Font = {
 #if os(tvOS)
         .headline.weight(.semibold)
-#else
-    .title2.weight(.semibold)
 #endif
+         #if os(iOS)
+    .title3.weight(.semibold)
+         #endif
+         #if os(macOS)
+    .title2.weight(.semibold)
+         #endif
     }()
      public static let rowCount: Font = {
      #if os(tvOS)
                .subheadline.weight(.semibold)
-     #else
-               .title3.weight(.medium)
+#endif
+         #if os(iOS)
+    .subheadline.weight(.semibold)
+         #endif
+         #if os(macOS)
+    .title3.weight(.semibold)
+                    
      #endif
      }()
-  public static let rowChevron: Font = .headline.weight(.bold)
+  public static let rowChevron: Font = {
+#if os(tvOS)
+        .headline.weight(.bold)
+#endif
+         #if os(iOS)
+    .subheadline.weight(.semibold)
+         #endif
+         #if os(macOS)
+    .title3.weight(.semibold)
+         #endif
+    }()
 
   public static let heroTitle: Font = {
 #if os(tvOS)
-       .title2.weight(.semibold)
+    return .title3.weight(.semibold)
 #elseif os(macOS)
-    .title.bold()
+    return .largeTitle.weight(.semibold)
 #else
-    .title2.bold()
+    return .title.weight(.bold)
 #endif
   }()
 
   public static let heroSecondary: Font = {
 #if os(tvOS)
-        .callout
+    return .callout
+#elseif os(macOS)
+    return .body
 #else
-        .subheadline
+    return .footnote
 #endif
-    }()
+  }()
     
 
   /// **The** running-text size on an item page. Everything that is prose or a
@@ -65,10 +126,14 @@ public enum TypeScale {
   /// thing you are meant to read. Levelling them meant levelling **up**.
     public static let detailBody: Font = {
 #if os(tvOS)
-        .caption
-#else
-        .body
+         .caption2
 #endif
+         #if os(iOS)
+    .callout
+         #endif
+         #if os(macOS)
+    .body
+         #endif
     }()
      public static let filterControl: Font = .subheadline.weight(.medium)
   public static let actionLabel: Font = .subheadline.weight(.medium)
@@ -84,7 +149,7 @@ public enum TypeScale {
 #if os(tvOS)
       .system(.caption, design: .rounded, weight: .semibold)
 #else
-      .system(.body, design: .rounded, weight: .bold)
+      .system(.body, design: .rounded, weight: .semibold)
 #endif
   }()
 

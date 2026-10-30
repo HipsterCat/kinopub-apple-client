@@ -37,26 +37,31 @@ public enum MediaActionMetrics {
   /// medium type. The system `.small` glass with that type measures 58 pt for a pill
   /// and 59 pt for a circle (slot 39) against the hero's 59; the regular size was 68.
   /// `.small` alone drops the type a size, hence the body style at medium weight.
-  public static let labelFont: Font? = .body.weight(.medium)
-  public static let controlSize: ControlSize = .small
+  public static let labelFont: Font? = .body.weight(.semibold)
+  public static let controlSize: ControlSize = .regular
   public static let progressWidth: CGFloat = 96
   public static let progressHeight: CGFloat = 8
   public static let contentSpacing: CGFloat = 14
   public static let rowSpacing: CGFloat = 16
   /// Fixed glyph box inside circle chrome so `bell` → `bell.and.waves…` (or a
   /// spinner) cannot widen the button and look like row spacing grew.
-  public static let circleGlyphSlot: CGFloat = 39
+  public static let circleGlyphSlot: CGFloat = 36
 #else
   public static let playPillMinWidth: CGFloat = 60
   /// None: the control size picks the type, the way a system button does. A fixed
   /// `.subheadline` here held every control at the small size whatever `controlSize`
   /// said (Sasha, 2026-10-29: «увеличить, нативно»).
-  public static let labelFont: Font? = nil
-  public static let controlSize: ControlSize = .extraLarge
+     public static let labelFont: Font? = .callout.weight(.semibold)
   public static let progressWidth: CGFloat = 40
-  public static let progressHeight: CGFloat = 3
+  public static let progressHeight: CGFloat = 6
   public static let contentSpacing: CGFloat = 6
   public static let rowSpacing: CGFloat = 12
+#if os(macOS)
+  public static let controlSize: ControlSize = .extraLarge
+     #endif
+     #if os(iOS)
+  public static let controlSize: ControlSize = .large
+     #endif
 #endif
 }
 
@@ -107,7 +112,7 @@ public extension View {
     buttonStyle(.glassProminent)
       .buttonBorderShape(.capsule)
       .controlSize(MediaActionMetrics.controlSize)
-      .tint(.primary)
+     .tint(.secondary)
 #endif
   }
 
@@ -132,6 +137,7 @@ public extension View {
       .buttonBorderShape(.circle)
       .controlSize(MediaActionMetrics.controlSize)
 #else
+  
     modifier(MediaActionCircleChrome())
 #endif
   }
@@ -162,6 +168,7 @@ public struct MediaActionProgressTrack: View {
       .overlay(alignment: .leading) {
         Capsule()
           .fill(.primary)
+          .foregroundStyle(Color.KinoPub.text)
           .frame(width: max(6, MediaActionMetrics.progressWidth * min(max(progress, 0), 1)),
                  height: MediaActionMetrics.progressHeight)
       }

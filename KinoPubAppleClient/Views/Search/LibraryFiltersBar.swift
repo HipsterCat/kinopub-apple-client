@@ -353,7 +353,7 @@ struct LibraryFilterGlassStyle: ViewModifier {
       } else if isProminent {
         content
           .buttonStyle(.glassProminent)
-          .tint(Color.KinoPub.accent)
+//          .tint(Color.KinoPub.accent)
 //          .kinoGlass(in: .capsule, tint: Color.KinoPub.accent, interactive: true)
       } else {
         content

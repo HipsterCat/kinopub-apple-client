@@ -66,7 +66,7 @@ struct SubtitleTrackPickerView: View {
         Spacer()
         if isSelected {
           Image(systemName: "checkmark")
-            .foregroundStyle(Color.KinoPub.accent)
+            .foregroundStyle(Color.KinoPub.text)
         }
       }
       .contentShape(Rectangle())

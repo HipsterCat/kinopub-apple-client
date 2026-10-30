@@ -82,7 +82,16 @@ struct SeasonTabStrip: View {
   static let verticalPadding: CGFloat = 10
   /// Each side of a pill's text, on top of the minimum width (as wide as tall): a lone digit
   /// stays about a circle, «10» and «4–7» are wider than one.
-  static let horizontalPadding: CGFloat = 24
+     #if os(tvOS)
+     static let horizontalPadding: CGFloat = 24
+     #endif
+     #if os(iOS)
+     static let horizontalPadding: CGFloat = 14
+     #endif
+     #if os(macOS)
+     static let horizontalPadding: CGFloat = 14
+     #endif
+
   /// Between the word and the first pill (Sasha, 2026-10-11).
   static let labelGap: CGFloat = 20
   /// The section headers' style («Рейтинги», «В ролях»): the strip is the episodes'
