@@ -60,7 +60,7 @@ public struct LandscapeTimeBadge: View {
               .font(.system(.caption2, weight: .bold))
       }
       Text(label)
-        .font(.caption2.weight(.medium))
+        .font(.caption2.weight(.regular))
 //        .monospacedDigit()
     }
     .foregroundStyle(isWatchedStyle ? Color.black : Color.white)

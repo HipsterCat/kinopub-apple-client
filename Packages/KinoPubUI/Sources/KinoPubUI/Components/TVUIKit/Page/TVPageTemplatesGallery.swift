@@ -204,7 +204,7 @@ public struct TVPageTemplatesGallery: View {
       .init(id: "kp", source: .kinopoisk, title: "Kinopoisk", value: "6.5", caption: "1 034 ratings"),
       .init(id: "kinopub", source: .kinopub, title: "KinoPub", value: "88%",
             thumbs: .init(up: "145", down: "19")),
-      .init(id: "tmdb", source: .tmdb, title: "TMDB", value: "6.5", caption: "25 ratings"),
+      .init(id: "tmdb", source: .tmdb, title: "TMDB", value: "65%", caption: "25 ratings"),
       // Voters but no score yet: a dash in secondary ink, and how many voted.
       .init(id: "kp-pending", source: .kinopoisk, title: "Kinopoisk", value: nil, caption: "44 ratings")
     ]

@@ -68,7 +68,7 @@ public struct Variant<Content: View>: View {
     VStack(alignment: .leading, spacing: 12) {
       content
       Text(name)
-        .font(.caption.weight(.medium))
+        .font(.caption.weight(.regular))
         .foregroundStyle(Color.KinoPub.subtitle)
     }
   }
