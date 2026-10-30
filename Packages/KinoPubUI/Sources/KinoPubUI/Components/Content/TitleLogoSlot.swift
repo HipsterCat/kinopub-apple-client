@@ -77,7 +77,11 @@ public struct TitleLogoSlot<Title: View>: View {
   public var body: some View {
     // A cached decode must paint on this frame, before `.onAppear` runs the session.
     let cached = resolution.url.flatMap { Artwork.cachedImage(for: $0) }
-    let mark: TitleLogoMark = cached != nil ? .logo : session.mark
+    let decodedLogo = session.image ?? cached
+    // A logo taller than it is wide is a vertical lockup, unreadable at the slot's
+    // height: the lettered title stands in (Sasha, 2026-10-30, Mission: Impossible).
+    let tooTall = decodedLogo.map { $0.size.height > 0 && $0.size.width / $0.size.height < Self.minimumAspect } ?? false
+    let mark: TitleLogoMark = tooTall ? .text : (cached != nil ? .logo : session.mark)
     Group {
       switch mark {
       case .logo:
@@ -134,6 +138,10 @@ public struct TitleLogoSlot<Title: View>: View {
       Color.clear
     }
   }
+
+  /// Width over height below which a logo is rejected. A near-square compact mark passes;
+  /// a vertical lockup does not.
+  static var minimumAspect: CGFloat { 0.8 }
 
   private static func fittedSize(of size: CGSize, maxWidth: CGFloat, maxHeight: CGFloat) -> CGSize {
     guard size.width > 0, size.height > 0 else { return CGSize(width: maxWidth, height: maxHeight) }

@@ -635,6 +635,11 @@ struct SeasonsRailView: View {
     }
     Task { @MainActor in
       try? await Task.sleep(for: .milliseconds(250))
+      // Again, once the lazy row has laid out the cards around the target: a jump from
+      // far away landed on an estimate and left the season's first card short of the
+      // edge (Sasha, 2026-10-30).
+      proxy.scrollTo(anchor, anchor: .leading)
+      try? await Task.sleep(for: .milliseconds(100))
       isScrollingFromTab = false
     }
   }
@@ -668,6 +673,11 @@ struct SeasonsRailView: View {
     // the page down onto the episodes, and there is nothing to reveal.
     guard target.id != entries.first?.id else {
       selectedTabID = target.tabID
+      // The opening season's schedule — its episodes' names and dates — at once, not
+      // when the rail is first scrolled (Sasha, 2026-10-30).
+      if let season = seasons.first(where: { $0.id == target.tabID }) {
+        onSeasonVisible?(season.number)
+      }
       return
     }
     selectTab(target.tabID, entryEpisodeID: target.id, proxy: proxy, animated: false)

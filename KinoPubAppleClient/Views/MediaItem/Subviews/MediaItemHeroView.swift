@@ -1126,6 +1126,8 @@ struct MediaItemHeroView: View {
 
   /// Cached logo paints before ``TitleLogoSlot`` calls ``onMarkChange`` — treat as `.logo`.
   private var resolvedTitleLogoMark: TitleLogoMark {
+    // The slot turned a cached logo down (too tall): it says so, and that wins.
+    if titleLogoMark == .text { return .text }
     if let url = titleLogoURL, Artwork.cachedImage(for: url) != nil { return .logo }
     return titleLogoMark
   }
@@ -1285,7 +1287,9 @@ struct MediaItemHeroView: View {
     if !cast.isEmpty {
          lines.append(("Starring.short".localized, cast.joined(separator: ",  ")))
     }
-    if !isSeries {
+    // One director only: two or more in the hero read as a list, not a credit (Sasha,
+    // 2026-10-30); the Credits card further down names them all.
+    if !isSeries, mediaItem.directorNames.count == 1 {
       let directors = mediaItem.directorNames.prefix(Self.creditNameLimit)
       if !directors.isEmpty {
         // The same word the Credits card and the "More by…" shelf use — the hero read
@@ -1924,11 +1928,15 @@ private struct MediaItemHeroPreview: View {
 /// logo wraps at the logo's edge.
 private struct SecondLineCappedToFirst: Layout {
   var capsWidth: Bool
+  /// Never narrower than this, however narrow the logo: a tall logo left the line a
+  /// syllable wide (Sasha, 2026-10-30: 200).
+  var minimumWidth: CGFloat = 200
 
   private func sizes(_ proposal: ProposedViewSize, _ subviews: Subviews) -> [CGSize] {
     guard let first = subviews.first else { return [] }
     let head = first.sizeThatFits(proposal)
-    let width = capsWidth ? min(proposal.width ?? head.width, head.width) : proposal.width
+    let capped = max(head.width, minimumWidth)
+    let width = capsWidth ? min(proposal.width ?? capped, capped) : proposal.width
     let rest = subviews.dropFirst().map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
     return [head] + rest
   }

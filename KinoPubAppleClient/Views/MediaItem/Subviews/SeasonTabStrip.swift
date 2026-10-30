@@ -170,7 +170,9 @@ struct SeasonPill: View {
   /// baseline at the text's size.
   private var label: Text {
     guard let symbol = tab.status.symbol else { return Text(verbatim: tab.label) }
-    return Text("\(tab.label) \(Text(Image(systemName: symbol)).font(.footnote))")
+    // Same font as the number: a smaller one sat on its own baseline, a second label
+    // (Sasha, 2026-10-30). `.imageScale(.small)` on the pill keeps it a mark, not a word.
+    return Text("\(tab.label) \(Image(systemName: symbol))")
   }
 
   /// The pointer is over it (Mac, iPad): the system fill says it can be pressed.
@@ -180,6 +182,7 @@ struct SeasonPill: View {
     PillWidth {
       label
         .font(SeasonTabStrip.font)
+        .imageScale(.small)
         .foregroundStyle(isBright ? .primary : .secondary)
         .padding(.vertical, SeasonTabStrip.verticalPadding)
         .padding(.horizontal, SeasonTabStrip.horizontalPadding)
