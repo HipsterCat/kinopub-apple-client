@@ -17,7 +17,7 @@ import Foundation
 /// number again.
 ///
 /// Two more shapes, for where the season is already said beside the episode: `titled`
-/// («S1, E2: Name» — Up Next) and `listItem` («7. Name» / «Серия 7» — a season's own list).
+/// («S1, E2: Name» — Up Next) and `listItem` («7. Name» / «7 серия» — a season's own list).
 public struct EpisodeText: Hashable, Sendable {
   /// Nil when the season goes without saying.
   public let season: Int?
@@ -56,11 +56,12 @@ public struct EpisodeText: Hashable, Sendable {
 
   /// An item of a season's own list — where the season is already said beside it (the
   /// detail page's season switch) or there is only the one: «7. Name», and with no name
-  /// «Episode 7» / «Серия 7» (user's spec, 2026-10-03).
+  /// «Episode 7» / «7 серия» — the number first, as in every other Russian reference
+  /// (user's spec, 2026-10-03; word order Sasha, 2026-10-30).
   public func listItem(language: MediaLanguage = .current) -> String {
     if let name { return "\(number). \(name)" }
     switch language {
-    case .ru: return "Серия \(number)"
+    case .ru: return "\(number) серия"
     case .en: return "Episode \(number)"
     }
   }

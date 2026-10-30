@@ -77,7 +77,7 @@ final class MediaTextTests: XCTestCase {
     let named = EpisodeText(season: 2, number: 7, name: "Rainbow")
     XCTAssertEqual(named.listItem(language: .en), "7. Rainbow")
     XCTAssertEqual(named.text(for: .episodeTile, language: .ru), "7. Rainbow")
-    XCTAssertEqual(EpisodeText(season: 2, number: 7).listItem(language: .ru), "Серия 7")
+    XCTAssertEqual(EpisodeText(season: 2, number: 7).listItem(language: .ru), "7 серия")
     XCTAssertEqual(EpisodeText(season: 2, number: 7, name: "Эпизод 7").listItem(language: .en),
                    "Episode 7", "a placeholder is no name")
   }
