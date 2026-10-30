@@ -55,6 +55,12 @@ public struct HomeHeroCarousel: View {
   @State private var isHovered = false
   /// A turn the code animates is on its way; the scroll may report no phase for it.
   @State private var isTurning = false
+  /// Bumped once a window resize settles: the pager is built afresh on the current
+  /// page. After a burst of resizes the Mac's scroll view stayed half a page off and
+  /// ignored every `scrollTo` from then on, while the dots went on turning.
+  @State private var generation = 0
+  /// The first width is the hero appearing, not a resize.
+  @State private var hasResized = false
   @Environment(\.scenePhase) private var scenePhase
 
   /// - Parameters:
@@ -138,6 +144,7 @@ public struct HomeHeroCarousel: View {
       }
       .scrollTargetLayout()
     }
+    .id(generation)
     .scrollIndicators(.hidden)
     .scrollTargetBehavior(.paging)
     .scrollPosition($scroll)
@@ -189,6 +196,17 @@ public struct HomeHeroCarousel: View {
     // A window resized, or a page pushed and popped, can leave the pager between two
     // pages: the old offset in a new page width, or a turn cut off on its way.
     .onChange(of: size.width) { move(to: current, animated: false) }
+    .task(id: size.width) {
+      try? await Task.sleep(for: .milliseconds(300))
+      guard !Task.isCancelled, generation > 0 || hasResized else {
+        hasResized = true
+        return
+      }
+      isScrolling = false
+      isTurning = false
+      scroll = ScrollPosition(id: current)
+      generation += 1
+    }
     .onChange(of: isActive) { move(to: current, animated: false) }
     .onChange(of: current.index) { _, index in
       if index != shownIndex { shownIndex = index }
