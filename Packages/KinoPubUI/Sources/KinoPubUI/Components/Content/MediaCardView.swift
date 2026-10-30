@@ -697,6 +697,7 @@ public struct MediaCardView: View {
   @AppStorage(MediaCardDisplayPreferences.showGenreKey)
   private var showGenre = MediaCardDisplayPreferences.defaultShowGenre
   @Environment(\.catalogCaptionOmittedGenreIDs) private var omittedGenreIDs
+  @Environment(\.mediaCardTitleFont) private var titleFont
   @AppStorage(MediaCardDisplayPreferences.showCountryKey)
   private var showCountry = MediaCardDisplayPreferences.defaultShowCountry
   @AppStorage(MediaCardDisplayPreferences.showBookmarkSymbolKey)
@@ -1139,10 +1140,12 @@ public struct MediaCardView: View {
 
   private func progressBar(_ progress: Double) -> some View {
     GeometryReader { geometry in
+      // On the still, so not the page's colours: `subtitle` is near black in light mode
+      // and the watched part vanished into the picture.
       ZStack(alignment: .leading) {
-          Capsule().fill(Color.gray.opacity(0.5))
+        Capsule().fill(Color.white.opacity(0.35))
         Capsule()
-              .fill(Color.KinoPub.subtitle)
+          .fill(Color.white)
           .frame(width: geometry.size.width * min(max(progress, 0), 1))
           .frame(height: 3)
       }
@@ -1288,7 +1291,7 @@ public struct MediaCardView: View {
       HStack(spacing: 6) {
         MarqueeText(
           card.title,
-          font: TypeScale.cardTitle,
+          font: titleFont ?? TypeScale.cardTitle,
           alignment: .center,
           fillsWidth: true,
           style: .title
@@ -1518,4 +1521,10 @@ private struct LandscapePlayChromeBackground: ViewModifier {
   .padding()
 //  .background(Color.black)
 //  .preferredColorScheme(.dark)
+}
+
+public extension EnvironmentValues {
+  /// The caption title's style for the cards under it; nil is `TypeScale.cardTitle`.
+  /// The title page's episodes are a step up (`TypeScale.episodeCardTitle`).
+  @Entry var mediaCardTitleFont: Font? = nil
 }

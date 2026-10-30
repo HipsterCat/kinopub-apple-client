@@ -742,6 +742,10 @@ struct MediaItemView: View {
                         },
                         seasonSchedules: itemModel.seasonSchedules,
                         externalMetadata: itemModel.externalMetadata,
+                        seriesBackdropURL: MediaItemHeroView.backdropCandidates(
+                          for: itemModel.mediaItem,
+                          preferredBackdropURL: itemModel.heroBackdropURL
+                        ).first,
                         onSeasonVisible: { seasonNumber in
                           Task { await itemModel.ensureSeasonSchedule(seasonNumber) }
                         })

@@ -8,6 +8,9 @@ import SwiftUI
 /// Text styles for cards, shelves, heroes and chrome. Prefer these over `.system(size:)`.
 public enum TypeScale {
     public static let cardTitle: Font = .subheadline.weight(.regular)
+  /// An episode's name under its still on the title page: a step above `cardTitle`
+  /// (Sasha, 2026-10-30). The line under it stays `cardMeta`.
+  public static let episodeCardTitle: Font = .body
   public static let cardSubtitle: Font = .caption
   public static let cardMeta: Font = .caption
     /// tvOS catalog shelves: Sketch `Headers/Section Header/Dark/Secondary/1 Line`

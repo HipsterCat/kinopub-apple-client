@@ -85,7 +85,9 @@ struct SeasonTabStrip: View {
   static let horizontalPadding: CGFloat = 24
   /// Between the word and the first pill (Sasha, 2026-10-11).
   static let labelGap: CGFloat = 20
-  static let font: Font = .headline.weight(.semibold)
+  /// The section headers' style («Рейтинги», «В ролях»): the strip is the episodes'
+  /// header (Sasha, 2026-10-30).
+  static let font: Font = TypeScale.rowHeader
 
   /// One season is not a choice: the word says which, and nothing is pressable.
   private var title: String {
@@ -94,24 +96,37 @@ struct SeasonTabStrip: View {
   }
 
   var body: some View {
-    ScrollView(.horizontal, showsIndicators: false) {
-      HStack(spacing: 0) {
-        Text(title)
-          .font(Self.font)
-          .foregroundStyle(.secondary)
-          .padding(.vertical, Self.verticalPadding)
-          .padding(.trailing, tabs.count > 1 ? Self.labelGap : 0)
+    ScrollViewReader { proxy in
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 0) {
+          Text(title)
+            .font(Self.font)
+            .foregroundStyle(.secondary)
+            .padding(.vertical, Self.verticalPadding)
+            .padding(.trailing, tabs.count > 1 ? Self.labelGap : 0)
 
-        if tabs.count > 1 {
-          ForEach(tabs) { tab in
-            button(for: tab)
+          if tabs.count > 1 {
+            ForEach(tabs) { tab in
+              button(for: tab)
+                .id(tab.id)
+            }
           }
         }
+        .padding(.horizontal, inset)
       }
-      .padding(.horizontal, inset)
+      // A focused pill grows past its own bounds; the scroll view would shave it.
+      .scrollClipDisabled()
+      // The selected season is always in view: the page opening on season 25 of 29, or
+      // the rail scrolled into it, brings its pill along (Sasha, 2026-10-30).
+      .onChange(of: selectedID, initial: true) { old, new in
+        guard let new, tabs.count > 1 else { return }
+        if old == nil || old == new {
+          proxy.scrollTo(new, anchor: .center)
+        } else {
+          withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(new, anchor: .center) }
+        }
+      }
     }
-    // A focused pill grows past its own bounds; the scroll view would shave it.
-    .scrollClipDisabled()
   }
 
   @ViewBuilder
@@ -149,6 +164,9 @@ struct SeasonPill: View {
     return Text("\(tab.label) \(Text(Image(systemName: symbol)).font(.footnote))")
   }
 
+  /// The pointer is over it (Mac, iPad): the system fill says it can be pressed.
+  @State private var isHovered = false
+
   var body: some View {
     PillWidth {
       label
@@ -160,9 +178,13 @@ struct SeasonPill: View {
     .background {
       if isSelected {
         Capsule().fill(Color.KinoPub.selectionBackground)
+      } else if isHovered {
+        Capsule().fill(.fill.tertiary)
       }
     }
     .contentShape(Capsule())
+    .onHover { isHovered = $0 }
+    .animation(.easeOut(duration: 0.15), value: isHovered)
   }
 }
 

@@ -52,6 +52,9 @@ struct SeasonsRailView: View {
   var seasonSchedules: [Int: [EpisodeSchedule]] = [:]
   /// Title-level metadata: drives the trailing missing/upcoming-season cards.
   var externalMetadata: TitleMetadata = TitleMetadata()
+  /// The series' own backdrop: the picture of an episode that has no still of its own
+  /// yet (announced, or not on kino.pub) instead of an empty plate (Sasha, 2026-10-30).
+  var seriesBackdropURL: URL? = nil
   /// Ask the model to fetch schedule for a season number (kino.pub season.number).
   var onSeasonVisible: ((Int) -> Void)? = nil
 
@@ -233,6 +236,11 @@ struct SeasonsRailView: View {
     metrics.cardWidth(in: railWidth)
   }
 
+  /// The title page's side margin, the one the hero and every section under it start at.
+  /// The shelf grid's own (40 pt on a Mac) put the seasons and episodes further right
+  /// than everything else on the page (Sasha, 2026-10-30).
+  private var pageInset: CGFloat { MediaItemLayout.horizontalInset }
+
   private var stillHeight: CGFloat {
     cardWidth / CardAspect.landscape.ratio
   }
@@ -287,7 +295,7 @@ struct SeasonsRailView: View {
         if showsChrome {
           SeasonTabStrip(tabs: tabs,
                          selectedID: selectedTab?.id,
-                         inset: metrics.inset,
+                         inset: pageInset,
                          onSelect: { tab in pick(tab, proxy: proxy) })
             .transition(.opacity)
         }
@@ -323,10 +331,9 @@ struct SeasonsRailView: View {
 
   // MARK: - Season tabs
 
-  /// A pill was pressed, or the remote landed on it. Only a *different* one moves the
-  /// rail: re-focusing the selected pill leaves it where it is.
+  /// A pill was pressed. The selected one too: it takes the rail back to the start of its
+  /// season (Sasha, 2026-10-30).
   private func pick(_ tab: SeasonTab, proxy: ScrollViewProxy) {
-    guard tab.id != selectedTabID else { return }
     selectTab(tab.id, proxy: proxy, animated: true)
   }
 
@@ -413,7 +420,7 @@ struct SeasonsRailView: View {
         ? (schedule?.airDate.map { .upcoming(Self.airDateLabel($0, context: .beginningOfSentence)) } ?? .unavailable)
         : base.status
       return TVUIKitMediaItem(id: entry.id,
-                              imageURL: base.imageURL,
+                              imageURL: base.imageURL ?? seriesBackdropURL,
                               caption: caption,
                               status: status,
                               timeLabel: base.timeLabel,
@@ -426,7 +433,7 @@ struct SeasonsRailView: View {
       let status: TVUIKitMediaItemStatus = MissingEpisodeAirState(airDate: schedule.airDate)
         .badgeText.map { .upcoming($0) } ?? .locked
       return TVUIKitMediaItem(id: entry.id,
-                              imageURL: schedule.still,
+                              imageURL: schedule.still ?? seriesBackdropURL,
                               // EpisodeText drops a name that is only the number («Серия 3»),
                               // the same rule as a kino.pub episode.
                               caption: EpisodeText(season: nil, number: schedule.episodeNumber,
@@ -495,10 +502,11 @@ struct SeasonsRailView: View {
       }
       .scrollTargetLayout()
       .padding(.vertical, Metrics.landscapeFocusPadding)
+      .environment(\.mediaCardTitleFont, TypeScale.episodeCardTitle)
     }
     // Content margins, not padding: `scrollTo(anchor: .leading)` would otherwise park
     // the first episode of a season under the page inset instead of beside it.
-    .contentMargins(.horizontal, metrics.inset, for: .scrollContent)
+    .contentMargins(.horizontal, pageInset, for: .scrollContent)
     .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in
       guard !isScrollingFromTab else { return }
       let visible = ids.compactMap { anchor -> RailEntry? in
@@ -518,8 +526,9 @@ struct SeasonsRailView: View {
   }
 #endif
 
-  /// A dimmed but focusable card for something that has not aired. Uses the stock
-  /// card style so the focus treatment is the platform's, not ours.
+  /// A focusable card for something that has not aired. Not dimmed: the date or the lock
+  /// on it says so, and a half-transparent card read as broken (Sasha, 2026-10-30). Uses
+  /// the stock card style so the focus treatment is the platform's, not ours.
   private func unavailableCard<Content: View>(
     message: String,
     systemImage: String = "clock",
@@ -528,7 +537,7 @@ struct SeasonsRailView: View {
     Button {
       onUnavailableSelected?(message, systemImage)
     } label: {
-      content().opacity(0.55)
+      content()
     }
     .buttonStyle(DetailTileStyle.buttonStyle)
   }
@@ -553,7 +562,7 @@ struct SeasonsRailView: View {
       ))
 
     case .playable(let season, let episode, let schedule):
-      // Announced but not out yet. Dimmed, but still a real control: on tvOS a
+      // Announced but not out yet. Still a real control: on tvOS a
       // non-focusable card is a wall — the remote cannot travel past it, so the whole
       // tail of the rail becomes unreachable. Pressing it says when it airs.
       unavailableCard(
@@ -562,6 +571,7 @@ struct SeasonsRailView: View {
         MediaCardView(card: Self.card(for: episode,
                                       in: season,
                                       schedule: schedule,
+                                      fallbackStill: seriesBackdropURL,
                                       primaryAction: .openDetail),
                       caption: .always)
       }
@@ -577,7 +587,7 @@ struct SeasonsRailView: View {
                                       title: schedule.name,
                                       episodeLabel: Self.episodeLabel(number: schedule.episodeNumber),
                                       dateLabel: state.badgeText,
-                                      stillURL: schedule.still?.absoluteString),
+                                      stillURL: (schedule.still ?? seriesBackdropURL)?.absoluteString),
                       caption: .always)
       }
 
@@ -709,13 +719,14 @@ struct SeasonsRailView: View {
   private static func card(for episode: Episode,
                            in season: Season,
                            schedule: EpisodeSchedule?,
+                           fallbackStill: URL? = nil,
                            primaryAction: MediaCardPrimaryAction = .play) -> MediaCard {
     MediaCard(episode: episode,
               in: season,
               title: displayTitle(episode: episode, schedule: schedule),
               episodeLabel: episodeLabel(number: episode.number),
               dateLabel: schedule?.airDate.map { airDateLabel($0) },
-              stillURL: stillURL(episode: episode, schedule: schedule),
+              stillURL: stillURL(episode: episode, schedule: schedule) ?? fallbackStill?.absoluteString,
               primaryAction: primaryAction)
   }
 
@@ -1012,12 +1023,20 @@ struct VersionsRailView: View {
 
   private var metrics: ShelfMetrics { .landscape(width: railWidth, typeSize: typeSize) }
   private var cardWidth: CGFloat { metrics.cardWidth(in: railWidth) }
+  /// The title page's side margin, as for the episodes (`SeasonsRailView.pageInset`).
+  private var pageInset: CGFloat {
+#if os(tvOS)
+    metrics.inset
+#else
+    MediaItemLayout.horizontalInset
+#endif
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       if showsChrome {
         SectionHeader(title: videosRailHeading(titleKey: titleKey, count: variants.count),
-                      leadingInset: metrics.inset)
+                      leadingInset: pageInset)
           .transition(.opacity)
       }
       rail
@@ -1086,7 +1105,7 @@ struct VersionsRailView: View {
       }
       .padding(.vertical, Metrics.landscapeFocusPadding)
     }
-    .contentMargins(.horizontal, metrics.inset, for: .scrollContent)
+    .contentMargins(.horizontal, pageInset, for: .scrollContent)
   }
 #endif
 }

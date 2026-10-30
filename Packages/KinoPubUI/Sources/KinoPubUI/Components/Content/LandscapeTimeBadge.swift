@@ -66,7 +66,11 @@ public struct LandscapeTimeBadge: View {
     .foregroundStyle(isWatchedStyle ? Color.black : Color.white)
     .padding(.horizontal, 4)
     .padding(.vertical, 3)
-    .background(pillFill, in: Capsule(style: .continuous))
+    // The system's thin material over the still, in a scheme of its own rather than the
+    // page's: a watched chip is the light one in both appearances, the rest dark — the
+    // watched chip turned black in light mode (Sasha, 2026-10-30).
+    .background(.thinMaterial, in: Capsule(style: .continuous))
+    .environment(\.colorScheme, isWatchedStyle ? .light : .dark)
     .accessibilityLabel(Text(accessibilityLabel))
   }
 
@@ -104,9 +108,4 @@ public struct LandscapeTimeBadge: View {
     return label
   }
 
-  private var pillFill: Color {
-    isWatchedStyle
-      ? Color.KinoPub.subtitle.opacity(0.8)
-      : Color.black.opacity(0.55)
-  }
 }
