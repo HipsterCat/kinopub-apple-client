@@ -156,6 +156,49 @@ test("a missing TMDB season is fetched for the asked language and remembered", a
   assert.deepEqual(stored.fetched_langs, ["en"]);
 });
 
+test("a fetched episode keeps its TMDB id, rating and finale badge", async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    id: 60813,
+    name: "Сезон 1",
+    overview: "о сезоне",
+    poster_path: "/season.jpg",
+    vote_average: 8.2,
+    episodes: [{
+      id: 984889,
+      episode_number: 9,
+      episode_type: "finale",
+      name: "Финал",
+      overview: "",
+      runtime: 80,
+      air_date: "2014-04-25",
+      still_path: "/final.jpg",
+      vote_average: 9.1,
+      vote_count: 12,
+    }],
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+  const env = kvEnv({
+    "title:kinopub:16164": {
+      ids: { tmdb: { value: "tv/60823" } },
+      seasons: [{ number: 1, name: { ru: "Сезон 1" }, episodes: [] }],
+    },
+  }, { TMDB_READ_TOKEN: "test-token" });
+  const response = await handleSeasons(
+    seasonsRequest("/v1/title/by/kinopub/16164/seasons/1"),
+    env,
+  );
+  assert.equal(response.status, 200);
+  const episode = (await response.json()).seasons[0].episodes[0];
+  assert.equal(episode.tmdb.value, 9.1);
+  assert.equal(episode.tmdb.votes, 12);
+  assert.equal(episode.season_finale, true);
+  const stored = env.puts.at(-1).value.seasons[0];
+  assert.equal(stored.id, 60813);
+  assert.equal(stored.episodes[0].id, 984889);
+  assert.equal(stored.episodes[0].season_id, 60813);
+  assert.deepEqual(stored.fetched_langs, ["ru"]);
+  assert.equal(stored.poster.ru, "https://image.tmdb.org/t/p/original/season.jpg");
+});
+
 test("an unwarmed title 404s without calling TMDB", async () => {
   let called = false;
   globalThis.fetch = async () => { called = true; return new Response("no", { status: 500 }); };

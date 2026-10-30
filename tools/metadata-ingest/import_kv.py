@@ -44,7 +44,8 @@ CREATE TABLE document (
   built_at        TEXT,
   logo_checked_at TEXT,
   art_rev         INTEGER,
-  expiration      INTEGER
+  expiration      INTEGER,
+  status          TEXT
 );
 
 CREATE TABLE external_id (
@@ -110,16 +111,44 @@ CREATE TABLE genre_name (
   PRIMARY KEY (kinopub_id, position)
 );
 
+CREATE TABLE person (
+  tmdb_id               INTEGER PRIMARY KEY,
+  name_ru               TEXT,
+  name_en               TEXT,
+  gender                INTEGER,
+  popularity            REAL,
+  known_for_department  TEXT,
+  adult                 INTEGER,
+  profile_url           TEXT
+);
+
 CREATE TABLE credit (
+  kinopub_id            INTEGER NOT NULL,
+  position              INTEGER NOT NULL,
+  person_id             INTEGER,
+  department            TEXT,
+  known_for_department  TEXT,
+  gender                INTEGER,
+  popularity            REAL,
+  character             TEXT,
+  episode_count         INTEGER,
+  name_ru               TEXT,
+  name_en               TEXT,
+  sources               TEXT,
+  PRIMARY KEY (kinopub_id, position)
+);
+CREATE INDEX credit_person ON credit(person_id);
+CREATE INDEX credit_popularity ON credit(kinopub_id, popularity);
+
+CREATE TABLE credit_role (
   kinopub_id    INTEGER NOT NULL,
   position      INTEGER NOT NULL,
-  department    TEXT,
+  role_ord      INTEGER NOT NULL,
+  credit_id     TEXT,
   character     TEXT,
+  job           TEXT,
   episode_count INTEGER,
-  name_ru       TEXT,
-  name_en       TEXT,
-  sources       TEXT,
-  PRIMARY KEY (kinopub_id, position)
+  PRIMARY KEY (kinopub_id, position, role_ord)
 );
 
 CREATE TABLE credit_photo (
@@ -131,16 +160,22 @@ CREATE TABLE credit_photo (
 );
 
 CREATE TABLE season (
-  kinopub_id  INTEGER NOT NULL,
-  number      INTEGER NOT NULL,
-  name        TEXT,
-  synopsis    TEXT,
-  air_date    TEXT,
-  end_date    TEXT,
-  episode_cnt INTEGER,
-  poster      TEXT,
-  source      TEXT,
+  kinopub_id    INTEGER NOT NULL,
+  number        INTEGER NOT NULL,
+  tmdb_id       INTEGER,
+  name_ru       TEXT,
+  name_en       TEXT,
+  synopsis_ru   TEXT,
+  synopsis_en   TEXT,
+  air_date      TEXT,
+  end_date      TEXT,
+  episode_cnt   INTEGER,
+  poster_ru     TEXT,
+  poster_en     TEXT,
+  source        TEXT,
   fetched_langs TEXT,
+  tmdb_rating   REAL,
+  tmdb_votes    INTEGER,
   PRIMARY KEY (kinopub_id, number)
 );
 
@@ -154,11 +189,25 @@ CREATE TABLE episode (
   overview_en  TEXT,
   runtime_min  INTEGER,
   air_date     TEXT,
-  still        TEXT,
-  imdb_id      TEXT,
-  skip_intro   INTEGER,
-  skip_credits INTEGER,
+  still          TEXT,
+  imdb_id        TEXT,
+  tmdb_id        INTEGER,
+  season_tmdb_id INTEGER,
+  episode_type   TEXT,
+  season_finale  INTEGER,
+  skip_intro     INTEGER,
+  skip_credits   INTEGER,
   PRIMARY KEY (kinopub_id, season, number)
+);
+
+CREATE TABLE episode_rating (
+  kinopub_id INTEGER NOT NULL,
+  season     INTEGER NOT NULL,
+  episode    INTEGER NOT NULL,
+  source     TEXT NOT NULL,
+  value      REAL,
+  votes      INTEGER,
+  PRIMARY KEY (kinopub_id, season, episode, source)
 );
 
 CREATE TABLE trailer (
@@ -169,9 +218,20 @@ CREATE TABLE trailer (
   kind       TEXT,
   name       TEXT,
   lang       TEXT,
-  official   INTEGER,
-  url        TEXT,
+  official     INTEGER,
+  url          TEXT,
+  published_at TEXT,
+  duration_sec INTEGER,
   PRIMARY KEY (kinopub_id, position)
+);
+
+CREATE TABLE network (
+  kinopub_id     INTEGER NOT NULL,
+  tmdb_id        INTEGER NOT NULL,
+  name           TEXT,
+  logo_url       TEXT,
+  origin_country TEXT,
+  PRIMARY KEY (kinopub_id, tmdb_id)
 );
 
 CREATE TABLE fact (
@@ -209,8 +269,8 @@ def write_kv(rows: list[dict], path: Path) -> dict[str, int]:
     db.executescript(KV_SCHEMA)
     counts = {
         "documents": 0, "ids": 0, "artwork": 0, "ratings": 0, "synopsis": 0,
-        "genres": 0, "credits": 0, "photos": 0, "seasons": 0, "episodes": 0,
-        "trailers": 0, "facts": 0,
+        "genres": 0, "credits": 0, "roles": 0, "photos": 0, "seasons": 0, "episodes": 0,
+        "episode_ratings": 0, "trailers": 0, "facts": 0, "networks": 0,
     }
     for row in rows:
         key = str(row.get("key") or "")
@@ -227,6 +287,7 @@ def write_kv(rows: list[dict], path: Path) -> dict[str, int]:
         if kinopub_id is None:
             continue
         _insert_document(db, kinopub_id, value, row.get("expiration"), counts)
+    counts["episode_ratings"] += _attach_imdb_episode_ratings(db)
     db.commit()
     db.close()
     return counts
@@ -344,7 +405,8 @@ def main() -> None:
     print(f"kv.db    {args.kv}")
     for name in (
         "documents", "ids", "artwork", "ratings", "synopsis", "genres",
-        "credits", "photos", "seasons", "episodes", "trailers", "facts",
+        "credits", "roles", "photos", "seasons", "episodes", "episode_ratings",
+        "trailers", "facts", "networks",
     ):
         print(f"  {name:<12} {counts[name]}")
 
@@ -387,8 +449,8 @@ def _insert_document(db, kinopub_id: int, doc: dict, expiration, counts: dict[st
         """
         INSERT INTO document (
           kinopub_id, version, kind, title_ru, title_original, year, pending,
-          facts_checked, built_at, logo_checked_at, art_rev, expiration
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          facts_checked, built_at, logo_checked_at, art_rev, expiration, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             kinopub_id, doc.get("version"), doc.get("kind"),
@@ -397,6 +459,7 @@ def _insert_document(db, kinopub_id: int, doc: dict, expiration, counts: dict[st
             doc.get("year"), 1 if doc.get("pending") else 0,
             _flag(doc.get("factsChecked")), doc.get("built_at"),
             doc.get("logo_checked_at"), doc.get("art_rev"), expiration,
+            _text(doc.get("status")),
         ),
     )
     counts["documents"] += 1
@@ -478,53 +541,49 @@ def _insert_document(db, kinopub_id: int, doc: dict, expiration, counts: dict[st
         )
 
     for position, person in enumerate(doc.get("credits") or []):
-        sources = person.get("sources") or []
-        source_text = ", ".join(str(item) for item in sources if item) or None
+        _insert_credit(db, kinopub_id, position, person, counts)
+
+    for network in doc.get("networks") or []:
+        tmdb_id = network.get("id")
+        if tmdb_id is None:
+            continue
         db.execute(
             """
-            INSERT INTO credit (
-              kinopub_id, position, department, character, episode_count,
-              name_ru, name_en, sources
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO network (kinopub_id, tmdb_id, name, logo_url, origin_country)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (
-                kinopub_id, position, person.get("department"),
-                person.get("character"), person.get("episode_count"),
-                person.get("name_ru"), person.get("name_en"), source_text,
+                kinopub_id, tmdb_id, network.get("name"),
+                network.get("logo") or network.get("logo_url"), network.get("origin_country"),
             ),
         )
-        counts["credits"] += 1
-        for photo_ord, url in enumerate(person.get("photos") or []):
-            url = _text(url)
-            if not url:
-                continue
-            db.execute(
-                """
-                INSERT INTO credit_photo (kinopub_id, position, photo_ord, url)
-                VALUES (?, ?, ?, ?)
-                """,
-                (kinopub_id, position, photo_ord, url),
-            )
-            counts["photos"] += 1
+        counts["networks"] += 1
 
     for season in doc.get("seasons") or []:
         number = season.get("number")
         if number is None:
             continue
+        name_ru, name_en = _localized(season.get("name"))
+        synopsis_ru, synopsis_en = _localized(season.get("synopsis") or season.get("overview"))
+        poster_ru, poster_en = _localized(season.get("poster"))
         langs = season.get("fetched_langs") or []
+        if not langs:
+            langs = [code for code, text in (("ru", name_ru or synopsis_ru or poster_ru), ("en", name_en or synopsis_en or poster_en)) if text]
+        rating_value, rating_votes = _score(season.get("tmdb"), False)
         db.execute(
             """
             INSERT OR REPLACE INTO season (
-              kinopub_id, number, name, synopsis, air_date, end_date,
-              episode_cnt, poster, source, fetched_langs
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              kinopub_id, number, tmdb_id, name_ru, name_en, synopsis_ru, synopsis_en,
+              air_date, end_date, episode_cnt, poster_ru, poster_en, source,
+              fetched_langs, tmdb_rating, tmdb_votes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                kinopub_id, number, _label(season.get("name")),
-                _text(season.get("synopsis")) or _label(season.get("overview")),
+                kinopub_id, number, season.get("id"), name_ru, name_en, synopsis_ru, synopsis_en,
                 season.get("air_date"), season.get("end_date"), season.get("episode_cnt"),
-                _text(season.get("poster")), season.get("source"),
+                poster_ru, poster_en, season.get("source"),
                 ", ".join(str(item) for item in langs if item) or None,
+                rating_value, rating_votes,
             ),
         )
         counts["seasons"] += 1
@@ -534,33 +593,47 @@ def _insert_document(db, kinopub_id: int, doc: dict, expiration, counts: dict[st
                 continue
             name_ru, name_en = _pair(episode.get("name"))
             overview_ru, overview_en = _pair(episode.get("overview"))
+            tmdb_value, tmdb_votes = _score(episode.get("tmdb"))
+            imdb_value, imdb_votes = _imdb_score(episode.get("imdb"))
             db.execute(
                 """
                 INSERT OR REPLACE INTO episode (
                   kinopub_id, season, number, name_ru, name_en, overview_ru, overview_en,
-                  runtime_min, air_date, still, imdb_id, skip_intro, skip_credits
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  runtime_min, air_date, still, imdb_id, tmdb_id, season_tmdb_id,
+                  episode_type, season_finale, skip_intro, skip_credits
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     kinopub_id, number, ep_number, name_ru, name_en, overview_ru, overview_en,
                     episode.get("runtime_min"), episode.get("air_date"),
-                    _text(episode.get("thumbnail")), _text(episode.get("imdb")),
+                    _text(episode.get("thumbnail")), _episode_imdb(episode.get("imdb")),
+                    episode.get("id"), episode.get("season_id") or season.get("id"),
+                    _text(episode.get("episode_type")),
+                    1 if episode.get("season_finale") or episode.get("episode_type") == "finale" else 0,
                     _flag(episode.get("skip_intro")), _flag(episode.get("skip_credits")),
                 ),
             )
             counts["episodes"] += 1
+            if tmdb_value is not None and tmdb_votes:
+                _put_episode_rating(db, kinopub_id, number, ep_number, "tmdb", tmdb_value, tmdb_votes)
+                counts["episode_ratings"] += 1
+            if imdb_value is not None:
+                _put_episode_rating(db, kinopub_id, number, ep_number, "imdb", imdb_value, imdb_votes)
+                counts["episode_ratings"] += 1
 
     for position, item in enumerate(doc.get("trailers") or []):
         db.execute(
             """
             INSERT INTO trailer (
-              kinopub_id, position, source, source_key, kind, name, lang, official, url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              kinopub_id, position, source, source_key, kind, name, lang, official, url,
+              published_at, duration_sec
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 kinopub_id, position, item.get("source"), item.get("source_key"),
                 item.get("kind"), item.get("name"), item.get("lang"),
                 _flag(item.get("official")), item.get("url"),
+                item.get("published_at"), item.get("duration_sec"),
             ),
         )
         counts["trailers"] += 1
@@ -571,6 +644,117 @@ def _insert_document(db, kinopub_id: int, doc: dict, expiration, counts: dict[st
             (kinopub_id, position, item.get("source"), item.get("text"), _flag(item.get("spoiler"))),
         )
         counts["facts"] += 1
+
+
+def _insert_credit(db, kinopub_id: int, position: int, person: dict, counts: dict[str, int]) -> None:
+    roles = _roles(person)
+    character = next((role["character"] for role in roles if role.get("character")), None) or _text(person.get("character"))
+    person_id = person.get("id")
+    if isinstance(person_id, str) and person_id.isdigit():
+        person_id = int(person_id)
+    if not isinstance(person_id, int):
+        person_id = None
+    profile = None
+    for url in person.get("photos") or []:
+        text = _text(url)
+        if text and "image.tmdb.org" in text:
+            profile = text
+            break
+    if person_id is not None:
+        db.execute(
+            """
+            INSERT INTO person (
+              tmdb_id, name_ru, name_en, gender, popularity, known_for_department, adult, profile_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(tmdb_id) DO UPDATE SET
+              popularity = CASE
+                WHEN excluded.popularity IS NULL THEN person.popularity
+                WHEN person.popularity IS NULL THEN excluded.popularity
+                ELSE MAX(person.popularity, excluded.popularity)
+              END,
+              name_ru = COALESCE(person.name_ru, excluded.name_ru),
+              name_en = COALESCE(person.name_en, excluded.name_en),
+              gender = COALESCE(person.gender, excluded.gender),
+              known_for_department = COALESCE(person.known_for_department, excluded.known_for_department),
+              profile_url = COALESCE(person.profile_url, excluded.profile_url)
+            """,
+            (
+                person_id, person.get("name_ru"), person.get("name_en"), person.get("gender"),
+                person.get("popularity"), person.get("known_for_department"),
+                _flag(person.get("adult")), profile,
+            ),
+        )
+    sources = person.get("sources") or []
+    source_text = ", ".join(str(item) for item in sources if item) or None
+    db.execute(
+        """
+        INSERT INTO credit (
+          kinopub_id, position, person_id, department, known_for_department, gender,
+          popularity, character, episode_count, name_ru, name_en, sources
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            kinopub_id, position, person_id, person.get("department"),
+            person.get("known_for_department"), person.get("gender"), person.get("popularity"),
+            character, person.get("episode_count"), person.get("name_ru"), person.get("name_en"),
+            source_text,
+        ),
+    )
+    counts["credits"] += 1
+    for role_ord, role in enumerate(roles):
+        db.execute(
+            """
+            INSERT INTO credit_role (
+              kinopub_id, position, role_ord, credit_id, character, job, episode_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                kinopub_id, position, role_ord, role.get("credit_id"), role.get("character"),
+                role.get("job"), role.get("episode_count"),
+            ),
+        )
+        counts["roles"] += 1
+    for photo_ord, url in enumerate(person.get("photos") or []):
+        url = _text(url)
+        if not url:
+            continue
+        db.execute(
+            "INSERT INTO credit_photo (kinopub_id, position, photo_ord, url) VALUES (?, ?, ?, ?)",
+            (kinopub_id, position, photo_ord, url),
+        )
+        counts["photos"] += 1
+
+
+def _roles(person: dict) -> list[dict]:
+    raw = person.get("roles")
+    if isinstance(raw, list) and raw:
+        return [
+            {
+                "character": item.get("character"),
+                "job": item.get("job"),
+                "credit_id": item.get("credit_id"),
+                "episode_count": item.get("episode_count"),
+            }
+            for item in raw if isinstance(item, dict)
+        ]
+    if person.get("character") or person.get("job"):
+        return [{
+            "character": person.get("character"),
+            "job": person.get("job"),
+            "credit_id": person.get("credit_id"),
+            "episode_count": person.get("episode_count"),
+        }]
+    return []
+
+
+def _put_episode_rating(db, kinopub_id, season, episode, source, value, votes) -> None:
+    db.execute(
+        """
+        INSERT OR REPLACE INTO episode_rating (kinopub_id, season, episode, source, value, votes)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (kinopub_id, season, episode, source, value, votes),
+    )
 
 
 def _card_patch(kv: sqlite3.Connection, doc: sqlite3.Row) -> dict[str, object]:
@@ -593,7 +777,8 @@ def _card_patch(kv: sqlite3.Connection, doc: sqlite3.Row) -> dict[str, object]:
     synopsis = kv.execute(
         """
         SELECT text FROM synopsis
-         WHERE kinopub_id = ? AND lang = 'ru' AND text IS NOT NULL AND text != ''
+         WHERE kinopub_id = ? AND lang = 'ru' AND variant = 'full'
+           AND text IS NOT NULL AND text != ''
          ORDER BY position LIMIT 1
         """,
         (kinopub_id,),
@@ -656,8 +841,8 @@ def _merge_seasons(db, kv, kinopub_id: int) -> int:
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                kinopub_id, season["number"], season["name"], season["episode_cnt"],
-                season["air_date"], season["end_date"], season["poster"],
+                kinopub_id, season["number"], season["name_ru"], season["episode_cnt"],
+                season["air_date"], season["end_date"], season["poster_ru"],
             ),
         )
         added += 1
@@ -691,10 +876,10 @@ def _fill_season_fields(db, kv, kinopub_id: int) -> tuple[int, str | None]:
         sets = []
         values = []
         for column, new in (
-            ("name", incoming["name"]),
+            ("name", incoming["name_ru"]),
             ("air_date", incoming["air_date"]),
             ("end_date", incoming["end_date"]),
-            ("poster", incoming["poster"]),
+            ("poster", incoming["poster_ru"]),
         ):
             if _blank(current[column]) and not _blank(new):
                 sets.append(f"{column} = ?")
@@ -764,9 +949,69 @@ def _id_slot(slot) -> tuple[str | None, float | None, str | None]:
 
 
 def _pair(value) -> tuple[str | None, str | None]:
+    return _localized(value)
+
+
+def _localized(value) -> tuple[str | None, str | None]:
     if isinstance(value, dict):
         return _text(value.get("ru")), _text(value.get("en"))
     return _text(value), None
+
+
+def _score(value, require_votes: bool = True) -> tuple[float | None, int | None]:
+    if not isinstance(value, dict):
+        return None, None
+    raw = value.get("value")
+    votes = value.get("votes")
+    if raw is None or (require_votes and not votes):
+        return None, None
+    return raw, votes
+
+
+def _imdb_score(value) -> tuple[float | None, int | None]:
+    if isinstance(value, dict) and isinstance(value.get("value"), (int, float)):
+        return _score(value)
+    return None, None
+
+
+def _episode_imdb(value) -> str | None:
+    if isinstance(value, dict):
+        raw = value.get("id") or value.get("tconst")
+        if raw is None and isinstance(value.get("value"), str):
+            raw = value.get("value")
+        return _imdb(_text(raw))
+    return _imdb(_text(value))
+
+
+def _attach_imdb_episode_ratings(db) -> int:
+    """IMDb's per-episode ratings already live in record-v2. Copy the ones
+    whose season and episode number match a row we just stored."""
+    record = DATA / "record-v2.db"
+    if not record.exists():
+        return 0
+    db.execute("ATTACH DATABASE ? AS record", (str(record),))
+    before = db.execute("SELECT COUNT(*) FROM episode_rating WHERE source = 'imdb'").fetchone()[0]
+    db.execute(
+        """
+        INSERT OR REPLACE INTO episode_rating (kinopub_id, season, episode, source, value, votes)
+        SELECT CAST(ext.value AS INTEGER), r.season, r.episode, 'imdb', r.value, r.votes
+          FROM record.rating r
+          JOIN record.title_external_id ext
+            ON ext.title_id = r.title_id AND ext.namespace = 'kinopub'
+          JOIN episode e
+            ON e.kinopub_id = CAST(ext.value AS INTEGER)
+           AND e.season = r.season
+           AND e.number = r.episode
+         WHERE r.source = 'imdb'
+           AND r.season IS NOT NULL
+           AND r.episode IS NOT NULL
+           AND r.value IS NOT NULL
+        """
+    )
+    after = db.execute("SELECT COUNT(*) FROM episode_rating WHERE source = 'imdb'").fetchone()[0]
+    db.commit()
+    db.execute("DETACH DATABASE record")
+    return after - before
 
 
 def _imdb(value: str | None) -> str | None:

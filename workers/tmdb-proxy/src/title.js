@@ -30,7 +30,7 @@
  */
 
 import { tmdbGenres } from "./genres.js";
-import { ensureEpisodeStill } from "./seasons.js";
+import { applySeasonLocale, ensureEpisodeStill, loadSeasons } from "./seasons.js";
 
 const DOC_TTL = 60 * 60 * 24 * 30;
 
@@ -123,7 +123,7 @@ export async function handleTitle(url, env, ctx) {
     // brought an id we did not have.
     const missingImdb = hints.imdb && !stored.ids?.imdb;
     const missingFacts = hints.kinopoisk && !stored.factsChecked;
-    if (missingImdb || missingFacts) {
+    if (stored.pending === true || missingImdb || missingFacts) {
       ctx.waitUntil(resolveAndStore(env, id, hints, stored));
     }
     return json(stored, 200, { "X-Cache": "hit" });
@@ -326,22 +326,110 @@ export async function writeDocument(env, id, document) {
  * latency is nobody's problem — which is exactly why the client never has to
  * choose between "fast" and "complete".
  */
+export function idValue(ids, namespace) {
+  const slot = ids?.[namespace];
+  if (!slot) return null;
+  const value = typeof slot === "string" ? slot : slot.value;
+  if (value == null || value === "") return null;
+  return String(value);
+}
+
+/** A hand-stitched `movie/123` or `tv/123`. Find-by-IMDb must not replace it. */
+export function manualTmdbTarget(document) {
+  const slot = document?.ids?.tmdb;
+  if (!slot || slot.method !== "manual") return null;
+  const match = /^(movie|tv)\/(\d+)$/.exec(String(slot.value || ""));
+  if (!match) return null;
+  return { type: match[1], id: match[2] };
+}
+
+const LINK_FIELDS = {
+  imdb: /^tt\d+$/,
+  kinopoisk: /^\d+$/,
+  myshows: /^\d+$/,
+};
+
+/**
+ * Pin external ids onto a kino.pub document. A missing document becomes a
+ * pending stub, so the next open downloads from these ids. An existing
+ * document keeps its artwork and pending flag; refresh is what rebuilds it.
+ */
+export function stitchDocument(stored, id, body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { error: "JSON object with imdb, kinopoisk, tmdb, or myshows" };
+  }
+  const linked = {};
+  const ids = { ...(stored?.ids || {}) };
+  if (!ids.kinopub) {
+    ids.kinopub = { value: String(id), confidence: 1, method: "manual" };
+  }
+  for (const [namespace, pattern] of Object.entries(LINK_FIELDS)) {
+    if (body[namespace] == null || body[namespace] === "") continue;
+    const value = String(body[namespace]).trim();
+    if (!pattern.test(value)) return { error: `${namespace} is not a valid id` };
+    ids[namespace] = { value, confidence: 1, method: "manual" };
+    linked[namespace] = value;
+  }
+  let tmdb = null;
+  if (body.tmdb != null && body.tmdb !== "") {
+    tmdb = normalizeTmdb(body.tmdb, body.kind || stored?.kind);
+    if (!tmdb) {
+      return { error: "tmdb needs tv/123, movie/123, or a number with kind show or movie" };
+    }
+    ids.tmdb = { value: tmdb, confidence: 1, method: "manual" };
+    linked.tmdb = tmdb;
+  }
+  if (!Object.keys(linked).length) return { error: "pass imdb, kinopoisk, tmdb, or myshows" };
+  const kind = stored?.kind || kindFromLink(body.kind, tmdb);
+  if (stored) return { document: { ...stored, ids, kind: stored.kind || kind }, linked };
+  const draft = draftDocument(id, { type: kind || undefined });
+  return { document: { ...draft, ids, kind, pending: true }, linked };
+}
+
+function normalizeTmdb(raw, kind) {
+  const text = String(raw).trim();
+  if (/^(movie|tv)\/\d+$/.test(text)) return text;
+  if (!/^\d+$/.test(text)) return null;
+  if (kind === "show" || kind === "series") return `tv/${text}`;
+  if (kind === "movie") return `movie/${text}`;
+  return null;
+}
+
+function kindFromLink(kind, tmdb) {
+  if (kind === "show" || kind === "series") return "show";
+  if (kind === "movie") return "movie";
+  if (String(tmdb || "").startsWith("tv/")) return "show";
+  if (String(tmdb || "").startsWith("movie/")) return "movie";
+  return null;
+}
+
+function preferredId(ids, namespace, hint) {
+  if (ids?.[namespace]?.method === "manual") return idValue(ids, namespace);
+  return hint || idValue(ids, namespace);
+}
+
 export async function resolveAndStore(env, id, hints, base, options = {}) {
   let document = base;
+  const kinopoisk = preferredId(base.ids, "kinopoisk", hints.kinopoisk);
+  const imdb = preferredId(base.ids, "imdb", hints.imdb);
+  const pinned = manualTmdbTarget(base);
 
   // No key, no quota risk — safe to run on every cold resolve that has a
   // Kinopoisk hint. Gated on `factsChecked`, not on `ids.kinopoisk`: the draft
   // already carries the hinted id (see draftDocument), so gating on its
   // presence would mean this branch never runs — the actual first bug found
   // testing this live: a title with two real facts came back with zero.
-  if (hints.kinopoisk && !base.factsChecked) {
+  if (kinopoisk && !base.factsChecked) {
     try {
-      const facts = await kinopoiskProxyFacts(hints.kinopoisk);
+      const facts = await kinopoiskProxyFacts(kinopoisk);
+      const previous = document.ids?.kinopoisk;
+      const kinopoiskSlot = previous?.method === "manual"
+        ? previous
+        : { value: String(kinopoisk), confidence: 1, method: previous?.method || "client" };
       document = {
         ...document,
         factsChecked: true,
-        ids: { ...document.ids, kinopoisk: { value: hints.kinopoisk, confidence: 1,
-                                              method: "client" } },
+        ids: { ...document.ids, kinopoisk: kinopoiskSlot },
         facts: facts?.items?.filter((item) => item.text).map((item) => ({
           source: "kinopoisk_proxy", text: item.text, spoiler: item.spoiler ? 1 : 0,
         })) || [],
@@ -353,38 +441,50 @@ export async function resolveAndStore(env, id, hints, base, options = {}) {
     }
   }
 
-  if (!hints.imdb || !env.TMDB_READ_TOKEN) {
+  if ((!imdb && !pinned) || !env.TMDB_READ_TOKEN) {
     if (document !== base) await writeDocument(env, id, document);
-    return;
+    return document !== base ? document : undefined;
   }
 
   try {
-    const found = await tmdb(env, `/3/find/${hints.imdb}`, { external_source: "imdb_id" }, options);
-    const preferTv = base.kind === "show";
-    const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
-    let match = null, mediaType = null;
-    for (const type of order) {
-      const results = found?.[`${type}_results`];
-      if (results?.length) { match = results[0]; mediaType = type; break; }
+    let mediaType = null;
+    let tmdbId = null;
+    if (pinned) {
+      mediaType = pinned.type;
+      tmdbId = pinned.id;
+    } else {
+      const found = await tmdb(env, `/3/find/${imdb}`, { external_source: "imdb_id" }, options);
+      const preferTv = base.kind === "show";
+      const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
+      for (const type of order) {
+        const results = found?.[`${type}_results`];
+        if (results?.length) {
+          mediaType = type;
+          tmdbId = String(results[0].id);
+          break;
+        }
+      }
     }
-    if (!match) {
+    if (!mediaType || !tmdbId) {
       if (document !== base) await writeDocument(env, id, document);
-      return;
+      return document !== base ? document : undefined;
     }
 
     const append = mediaType === "tv"
       ? "aggregate_credits,images,videos,external_ids,content_ratings,keywords,watch/providers"
       : "credits,images,videos,external_ids,keywords,release_dates,watch/providers";
-    const details = await tmdb(env, `/3/${mediaType}/${match.id}`, {
+    const details = await tmdb(env, `/3/${mediaType}/${tmdbId}`, {
       language: "ru-RU", append_to_response: append,
       include_image_language: "ru,en,null",
     }, options);
     if (!details) {
       if (document !== base) await writeDocument(env, id, document);
-      return;
+      return document !== base ? document : undefined;
     }
 
-    const merged = mergeTMDB(document, mediaType, match.id, details);
+    const merged = await enrichResolved(
+      env, mergeTMDB(document, mediaType, tmdbId, details), mediaType, tmdbId, options,
+    );
     await writeDocument(env, id, merged);
     return merged;
   } catch (error) {
@@ -431,11 +531,15 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
     built_at: new Date().toISOString(),
     logo_checked_at: new Date().toISOString(),
   };
-  document.ids = { ...document.ids, tmdb: { value: `${mediaType}/${tmdbId}`, confidence: 1,
-                                            method: "find:imdb" } };
+  const tmdbValue = `${mediaType}/${tmdbId}`;
+  const previousTmdb = base.ids?.tmdb;
+  const tmdbSlot = previousTmdb?.method === "manual" && String(previousTmdb.value) === tmdbValue
+    ? previousTmdb
+    : { value: tmdbValue, confidence: 1, method: "find:imdb" };
+  document.ids = { ...document.ids, tmdb: tmdbSlot };
   const external = details.external_ids || {};
   for (const [namespace, key] of [["wikidata", "wikidata_id"], ["tvdb", "tvdb_id"]]) {
-    if (external[key]) {
+    if (external[key] && document.ids[namespace]?.method !== "manual") {
       document.ids[namespace] = { value: String(external[key]), confidence: 1,
                                   method: "tmdb:external_ids" };
     }
@@ -456,20 +560,34 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
     .sort((a, b) => (b.width || 0) - (a.width || 0))
     .map((a) => ({ source: "tmdb", url: IMAGE_BASE + a.file_path, lang: a.iso_639_1 || null,
                    width: a.width, height: a.height }));
+  const previousArt = document.artwork || {};
+  const pinnedArt = (kind) => (previousArt[kind] || []).filter((item) => item?.pinned === true);
+  const unpinnedArt = (kind) => (previousArt[kind] || []).filter((item) => item?.pinned !== true);
   document.artwork = {
-    poster: capArtwork([...toAssets(images.posters), ...(document.artwork.poster || [])]),
-    backdrop: capArtwork([...toAssets(images.backdrops), ...(document.artwork.backdrop || [])]),
-    logo: capArtwork(sortLogos(toAssets(images.logos))),
+    poster: capArtwork([...pinnedArt("poster"), ...toAssets(images.posters), ...unpinnedArt("poster")]),
+    backdrop: capArtwork([...pinnedArt("backdrop"), ...toAssets(images.backdrops), ...unpinnedArt("backdrop")]),
+    logo: capArtwork([...pinnedArt("logo"), ...sortLogos(toAssets(images.logos))]),
   };
 
   if (details.vote_count) {
     document.ratings = [{ source: "tmdb", value: details.vote_average,
                           votes: details.vote_count, scale: 10 }];
   }
+  document.status = details.status || null;
+  document.networks = (details.networks || []).map((network) => ({
+    id: network.id,
+    name: network.name || null,
+    logo: network.logo_path ? IMAGE_BASE + network.logo_path : null,
+    origin_country: network.origin_country || null,
+  })).filter((network) => network.id != null);
+  const synopsis = [];
   if (details.overview) {
-    document.synopsis = [{ source: "tmdb", lang: "ru", variant: "full",
-                           text: details.overview }];
+    synopsis.push({ source: "tmdb", lang: "ru", variant: "full", text: details.overview });
   }
+  if (details.tagline) {
+    synopsis.push({ source: "tmdb", lang: "ru", variant: "tagline", text: details.tagline });
+  }
+  if (synopsis.length) document.synopsis = synopsis;
   // Ours, primary first (genres.json); the raw names ride along, as in the record.
   document.genres = tmdbGenres(details.genres);
   document.genre_sources = (details.genres || []).map((g) => ({ source: "tmdb", name: g.name }));
@@ -479,49 +597,161 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
   // this person from the identical Russian name a Kinopoisk fetch might
   // supply later, same bug fixed in fetch_tmdb.py's _credit_names(). Prefer
   // `original_name` for the English slot when it actually differs.
-  const credits = details.aggregate_credits || details.credits || {};
-  document.credits = (credits.cast || [])
-    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
-    .slice(0, 30)
-    .map((person) => {
-      const nameRu = person.name || null;
-      const nameEn = person.original_name && person.original_name !== person.name
-        ? person.original_name : null;
-      const tmdbPhoto = person.profile_path ? IMAGE_BASE + person.profile_path : null;
-      // pushbr is free (a hash of a name we already have) and, for this
-      // majority-RU/CIS-facing catalogue, usually the better default — see
-      // policies/metadata-architecture's photo precedence note. TMDB's photo
-      // still rides along as the fallback candidate.
-      const photos = [pushbrUrl(nameRu), tmdbPhoto].filter(Boolean);
-      return {
-        department: "actor",
-        character: person.roles?.[0]?.character ?? person.character ?? null,
-        ord: person.order ?? null,
-        episode_count: person.total_episode_count ?? null,
-        sources: ["tmdb"],
-        name_en: nameEn, name_ru: nameRu,
-        photos,
-      };
-    });
+  document.credits = mapCredits(details);
 
   document.trailers = (details.videos?.results || [])
     .filter((video) => video.key)
     .map((video) => ({
       source: "tmdb", source_key: video.key, kind: (video.type || "trailer").toLowerCase(),
       name: video.name, lang: video.iso_639_1, official: video.official ? 1 : 0,
+      published_at: video.published_at || null,
+      // TMDB's video object has no duration. Keep the field when a payload grows one.
+      duration_sec: Number.isFinite(video.duration) ? video.duration : null,
       url: video.site === "YouTube" ? `https://www.youtube.com/watch?v=${video.key}` : null,
     }));
 
   document.seasons = (details.seasons || [])
     .filter((season) => season.season_number != null)
     .map((season) => ({
-      number: season.season_number, name: season.name, synopsis: season.overview || null,
+      id: season.id ?? null,
+      number: season.season_number,
+      name: season.name ? { ru: season.name } : {},
+      synopsis: season.overview ? { ru: season.overview } : {},
       air_date: season.air_date, end_date: null, episode_cnt: season.episode_count,
-      poster: season.poster_path ? IMAGE_BASE + season.poster_path : null,
-      source: "tmdb", episodes: [], ratings: [],
+      poster: season.poster_path ? { ru: IMAGE_BASE + season.poster_path } : {},
+      source: "tmdb", episodes: [],
     }));
 
   return document;
+}
+
+const CREW_JOBS = new Set([
+  "Director", "Producer", "Executive Producer", "Co-Producer",
+  "Creator", "Original Series Creator", "Writer", "Screenplay", "Story",
+]);
+
+function mapCredits(details) {
+  const bundle = details.aggregate_credits || details.credits || {};
+  const seen = new Set();
+  const credits = [];
+  for (const person of capCast(bundle.cast || [])) {
+    const record = mapPerson(person, "actor", rolesOf(person));
+    credits.push(record);
+    if (record.id != null) seen.add(record.id);
+  }
+  for (const person of bundle.crew || []) {
+    const roles = rolesOf(person).filter((role) => role.job && CREW_JOBS.has(role.job));
+    if (!roles.length) continue;
+    if (person.id != null && seen.has(person.id)) continue;
+    const record = mapPerson(person, person.department || "crew", roles);
+    credits.push(record);
+    if (record.id != null) seen.add(record.id);
+  }
+  for (const person of details.created_by || []) {
+    if (person.id != null && seen.has(person.id)) continue;
+    credits.push(mapPerson(person, "Creator", [{
+      character: null, job: "Creator", credit_id: person.credit_id || null, episode_count: null,
+    }]));
+  }
+  return credits;
+}
+
+function capCast(people) {
+  if (people.length <= 120) return people;
+  const leads = people.filter((person) => (person.order ?? 999) < 15);
+  const popular = [...people].sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 80);
+  const seen = new Set();
+  const out = [];
+  for (const person of [...leads, ...popular]) {
+    const key = person.id ?? person.name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(person);
+  }
+  return out;
+}
+
+function rolesOf(person) {
+  if (Array.isArray(person.roles) && person.roles.length) {
+    return person.roles.map((role) => ({
+      character: role.character || null,
+      job: null,
+      credit_id: role.credit_id || null,
+      episode_count: role.episode_count ?? null,
+    }));
+  }
+  if (Array.isArray(person.jobs) && person.jobs.length) {
+    return person.jobs.map((job) => ({
+      character: null,
+      job: job.job || null,
+      credit_id: job.credit_id || null,
+      episode_count: job.episode_count ?? null,
+    }));
+  }
+  if (person.character || person.job) {
+    return [{
+      character: person.character || null,
+      job: person.job || null,
+      credit_id: person.credit_id || null,
+      episode_count: null,
+    }];
+  }
+  return [];
+}
+
+function mapPerson(person, department, roles) {
+  const nameRu = person.name || null;
+  const nameEn = person.original_name && person.original_name !== person.name
+    ? person.original_name : null;
+  const tmdbPhoto = person.profile_path ? IMAGE_BASE + person.profile_path : null;
+  const photos = [pushbrUrl(nameRu), tmdbPhoto].filter(Boolean);
+  const first = roles[0] || {};
+  return {
+    id: person.id ?? null,
+    department,
+    known_for_department: person.known_for_department || null,
+    gender: person.gender ?? null,
+    popularity: person.popularity ?? null,
+    adult: person.adult ? 1 : 0,
+    character: first.character || null,
+    ord: person.order ?? null,
+    episode_count: person.total_episode_count ?? null,
+    sources: ["tmdb"],
+    name_en: nameEn,
+    name_ru: nameRu,
+    photos,
+    roles,
+  };
+}
+
+async function enrichResolved(env, document, mediaType, tmdbId, options) {
+  let next = document;
+  try {
+    const english = await tmdb(env, `/3/${mediaType}/${tmdbId}`, { language: "en-US" }, options);
+    if (english) next = applyEnglishCopy(next, english);
+  } catch (_) {
+    // The Russian document is already complete enough to keep.
+  }
+  if (mediaType === "tv") {
+    try {
+      next = await loadSeasons(env, next, "ru");
+    } catch (_) {
+      // Episode ratings can be filled on the next season request.
+    }
+  }
+  return next;
+}
+
+function applyEnglishCopy(document, details) {
+  const next = applySeasonLocale(document, "en", details);
+  const synopsis = [...(next.synopsis || [])];
+  if (details.tagline && !synopsis.some((item) => item.variant === "tagline" && item.lang === "en")) {
+    synopsis.push({ source: "tmdb", lang: "en", variant: "tagline", text: details.tagline });
+  }
+  if (details.overview && !synopsis.some((item) => item.variant === "full" && item.lang === "en")) {
+    synopsis.push({ source: "tmdb", lang: "en", variant: "full", text: details.overview });
+  }
+  return { ...next, synopsis };
 }
 
 // ru first (our primary audience), then en, then textless (no title baked

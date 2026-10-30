@@ -139,6 +139,64 @@ test("stats returns the image counters", async () => {
   assert.equal(body.waited, 1);
 });
 
+test("link pins ids onto a new stub and does not download", async () => {
+  const env = memoryEnv();
+  const response = await handleAdmin(admin("/admin/kinopub/17262/link", {
+    body: {
+      kinopoisk: "471002",
+      imdb: "tt4573370",
+      tmdb: 55165,
+      kind: "show",
+    },
+  }), env);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.created, true);
+  assert.equal(body.pending, true);
+  assert.equal(body.ids.tmdb, "tv/55165");
+  const doc = env.documents["title:kinopub:17262"];
+  assert.equal(doc.ids.imdb.method, "manual");
+  assert.equal(doc.ids.kinopoisk.value, "471002");
+  assert.equal(doc.kind, "show");
+  assert.equal(doc.pending, true);
+  assert.equal(doc.built_at, undefined);
+});
+
+test("link keeps a built document and adds myshows", async () => {
+  const env = memoryEnv({
+    "title:kinopub:127783": {
+      version: 2,
+      kind: "show",
+      pending: false,
+      built_at: "2026-01-01T00:00:00.000Z",
+      title: { ru: "Подруга моей девушки", original: "彼女の友達" },
+      artwork: { poster: [{ source: "tmdb", url: "https://image.tmdb.org/t/p/original/p.jpg" }] },
+      ids: { kinopub: { value: "127783", confidence: 1, method: "client" } },
+    },
+  });
+  const response = await handleAdmin(admin("/admin/kinopub/127783/link", {
+    body: { imdb: "tt43650454", tmdb: "tv/336654", myshows: "101353" },
+  }), env);
+  assert.equal(response.status, 200);
+  const doc = env.documents["title:kinopub:127783"];
+  assert.equal(doc.pending, false);
+  assert.equal(doc.built_at, "2026-01-01T00:00:00.000Z");
+  assert.equal(doc.artwork.poster.length, 1);
+  assert.equal(doc.ids.tmdb.value, "tv/336654");
+  assert.equal(doc.ids.tmdb.method, "manual");
+  assert.equal(doc.ids.myshows.value, "101353");
+  assert.equal(doc.ids.imdb.value, "tt43650454");
+});
+
+test("link rejects a bare tmdb id with no kind", async () => {
+  const env = memoryEnv();
+  const response = await handleAdmin(admin("/admin/kinopub/1/link", {
+    body: { tmdb: "55165" },
+  }), env);
+  assert.equal(response.status, 400);
+  assert.equal(env.documents["title:kinopub:1"], undefined);
+});
+
 test("forget clears the logo", async () => {
   const env = memoryEnv({
     "title:kinopub:7": {
