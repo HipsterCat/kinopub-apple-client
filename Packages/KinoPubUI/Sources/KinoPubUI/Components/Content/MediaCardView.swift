@@ -838,8 +838,18 @@ public struct MediaCardView: View {
 #endif
   }
 
+  /// The fraction the bar draws: the same `resumeFraction` the time chip reads for «Ещё N
+  /// мин», so the two cannot disagree — a chip saying how much is left always has a bar,
+  /// a watched or untouched card has neither. It used to drop the bar for anything past
+  /// half watched: a fraction rounded to a whole number and compared with 1 (Sasha,
+  /// 2026-10-30: «12m left» with no bar).
+  private var inProgressFraction: Double? {
+    guard !card.isWatched, let progress = card.progress, progress > 0, progress < 1 else { return nil }
+    return progress
+  }
+
   private var showsProgressBarNow: Bool {
-      guard card.progress != nil ||  ((Int((card.progress ?? 0 * 100).rounded())) != 1) else { return false }
+    guard inProgressFraction != nil else { return false }
     switch progressVisibility {
     case .always: return true
     case .onFocusHover: return isPointerActive
@@ -962,7 +972,7 @@ public struct MediaCardView: View {
       if card.isLandscape {
         landscapeOverlays
           .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else if showsProgressBarNow && card.isLandscape && !card.isWatched && ((Int((card.progress ?? 0 * 1).rounded())) != 1), let progress = card.progress {
+      } else if showsProgressBarNow, card.isLandscape, let progress = inProgressFraction {
         progressBar(progress)
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
       }
@@ -1131,7 +1141,7 @@ public struct MediaCardView: View {
   @ViewBuilder
   private var landscapeOverlays: some View {
     ZStack(alignment: .bottomLeading) {
-      if showsProgressBarNow && card.isLandscape && !card.isWatched && ((Int((card.progress ?? 0 * 1).rounded())) != 1), let progress = card.progress {
+      if showsProgressBarNow, card.isLandscape, let progress = inProgressFraction {
         progressBar(progress)
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
       }
