@@ -14,6 +14,7 @@ import KinoPubUI
 import KinoPubBackend
 import KinoPubKit
 import KinoPubMetadata
+import KinoPubMedia
 
 /// Focus targets owned by the hero. One case per button — SIX of them used to share
 /// `heroOther`, which is why tvOS focus froze dead on Play: with multiple sibling
@@ -177,6 +178,10 @@ struct MediaItemView: View {
   @Environment(NavigationState.self) var navigationState
   @Environment(\.appContext) private var appContext
   @State private var showsWorkerImageAdmin = false
+#if os(macOS)
+  @State private var showsNewFolderAlert = false
+  @State private var newFolderName = ""
+#endif
   @StateObject private var itemModel: MediaItemModel
   /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
   @StateObject private var trailer: TrailerPreviewModel
@@ -279,6 +284,12 @@ struct MediaItemView: View {
 #if os(iOS) || os(macOS)
       .toolbar {
         ToolbarItemGroup(placement: .primaryAction) {
+#if os(macOS)
+          bookmarkToolbarMenu
+          if !itemModel.isWatched {
+            watchedToolbarControl
+          }
+#endif
           if WorkerImageAdminTokenStore.isConfigured,
              appContext.metadataService.images.isConfigured {
             Button {
@@ -384,6 +395,98 @@ struct MediaItemView: View {
           itemModel.itemLoaded else { return nil }
     return { showsWorkerImageAdmin = true }
   }
+
+#if os(macOS)
+  /// Bookmarks and Mark as Watched live in the window toolbar on a Mac, not in the hero
+  /// row: a `Menu` in the row never wore the buttons' glass, hover or inactive-window
+  /// state, and the toolbar's own items have all three (Sasha, 2026-10-30).
+  private var bookmarkToolbarMenu: some View {
+    Menu {
+      Section {
+        if itemModel.folders.isEmpty {
+          Text("No bookmark folders yet")
+        } else {
+          ForEach(itemModel.folders, id: \.id) { folder in
+            Toggle(isOn: Binding(
+              get: { itemModel.folderIDsContainingItem.contains(folder.id) },
+              set: { _ in itemModel.toggleFolder(folder) }
+            )) {
+              Text(folder.title)
+            }
+          }
+        }
+      } header: {
+        Text("Bookmarks")
+      }
+      Button {
+        newFolderName = ""
+        showsNewFolderAlert = true
+      } label: {
+        Label("New Folder", systemImage: "plus.circle")
+      }
+    } label: {
+      Label("Bookmarks", systemImage: itemModel.isBookmarked ? "bookmark.fill" : "bookmark")
+    }
+    .menuIndicator(.hidden)
+    .help("Bookmarks")
+    .disabled(!itemModel.itemLoaded)
+    .alert("New Folder", isPresented: $showsNewFolderAlert) {
+      TextField("Folder name", text: $newFolderName)
+      Button("Create") {
+        itemModel.createFolderAndAdd(named: newFolderName)
+        newFolderName = ""
+      }
+      Button("Cancel", role: .cancel) { newFolderName = "" }
+    }
+  }
+
+  /// Icon only for now. A series keeps the hero's per-episode and per-season choices
+  /// behind the arrow; a click on the glyph marks it watched, as the hero circle did.
+  @ViewBuilder
+  private var watchedToolbarControl: some View {
+    let label = Label("Mark as Watched", systemImage: "checkmark")
+    if let (season, episode) = itemModel.mediaItem.primaryEpisode {
+      Menu {
+        Button {
+          itemModel.toggleWatched()
+        } label: {
+          Label("\("Mark Episode Watched".localized) · \(EpisodeText(season: season.number, number: episode.number).text(for: .contextMenu))",
+                systemImage: "checkmark")
+        }
+        Button {
+          itemModel.toggleWatched(season: season)
+        } label: {
+          Label("\("Mark Season Watched".localized) · \(SeasonText(season.number).formatted(MediaSurface.contextMenu.textLength))",
+                systemImage: "checkmark.circle")
+        }
+        Button {
+          itemModel.markUnwatchedInSeason(season)
+        } label: {
+          Label("Mark Unwatched in Season", systemImage: "checkmark.circle")
+        }
+        Button {
+          itemModel.markAllEpisodesWatched()
+        } label: {
+          Label("Mark All Episodes Watched", systemImage: "checkmark.circle.fill")
+        }
+      } label: {
+        label
+      } primaryAction: {
+        itemModel.toggleWatched()
+      }
+      .help("Mark as Watched")
+      .disabled(!itemModel.itemLoaded)
+    } else {
+      Button {
+        itemModel.toggleWatched()
+      } label: {
+        label
+      }
+      .help("Mark as Watched")
+      .disabled(!itemModel.itemLoaded)
+    }
+  }
+#endif
 
 #if os(iOS) || os(macOS)
   /// The page's secondary actions, in the one place a platform with a toolbar puts

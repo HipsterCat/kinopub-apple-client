@@ -127,10 +127,10 @@ public extension View {
   /// Icon-only circle. Same glass family as the labelled pills — focus owns the
   /// lift; the glyph slot is fixed so a wider SF Symbol does not shove neighbours.
   ///
-  /// iOS / macOS: a `Menu` (Bookmarks, More) is the same circle as a `Button` — no
-  /// indicator, `.button` menu style so it wears the same glass. A capsule shape here let
-  /// the extra-large padding stretch every lone glyph into a pill, and the Mac's menu
-  /// chevron grew Bookmarks wider still (Sasha, 2026-10-29).
+  /// iOS / macOS: a `Menu` (Bookmarks) is the same circle as a `Button` — no indicator,
+  /// `.button` menu style so it wears the same glass. A capsule shape here let the
+  /// extra-large padding stretch every lone glyph into a pill (Sasha, 2026-10-29). On a
+  /// Mac, Bookmarks is a toolbar item instead (`MediaItemView`).
   func mediaActionCircleStyle() -> some View {
 #if os(tvOS)
     buttonStyle(.glass)

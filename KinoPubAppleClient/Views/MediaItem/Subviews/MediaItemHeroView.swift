@@ -1328,7 +1328,12 @@ struct MediaItemHeroView: View {
   }
 
   private var actionAppearances: [MediaActionAppearance] {
+#if os(macOS)
+    // The window toolbar carries these on a Mac (`MediaItemView`).
+    MediaActionCatalog.row(for: actionContext).filter { $0.id != .bookmark && $0.id != .markWatched }
+#else
     MediaActionCatalog.row(for: actionContext)
+#endif
   }
 
   @ViewBuilder
@@ -1478,13 +1483,11 @@ struct MediaItemHeroView: View {
       }
     } label: {
       MediaActionLabel(appearance)
-        .mediaActionMenuLabel()
     }
 #if !os(macOS)
     .menuActionDismissBehavior(.disabled)
 #endif
     .mediaActionStyle(appearance)
-    .mediaActionMenu()
     .focused($focus, equals: .bookmark)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .alert("New Folder", isPresented: $showNewFolderAlert) {
@@ -1602,10 +1605,8 @@ struct MediaItemHeroView: View {
       }
     } label: {
       MediaActionLabel(appearance)
-        .mediaActionMenuLabel()
     }
     .mediaActionStyle(appearance)
-    .mediaActionMenu()
     .focused($focus, equals: .more)
     .accessibilityLabel(Text(appearance.accessibilityLabel))
   }

@@ -348,9 +348,11 @@ private struct InfoPopupModifier<PopupContent: View>: ViewModifier {
 #endif
   }
 
+  /// In the window's appearance, not the presenter's: the hero forces itself dark.
   private var panel: some View {
     InfoPopupView(title: title, subtitle: subtitle, confirmTitle: confirmTitle,
                   content: popupContent)
+      .pageColorScheme()
   }
 }
 
@@ -397,6 +399,14 @@ private struct InfoPopupTrigger<Expanded: View>: ViewModifier {
         .infoPopup(title, isPresented: $isPresented) {
           expanded()
         }
+#if DEBUG
+        // `-KINOPUBOpenSynopsis YES`: the hero synopsis opens its popup, for screenshots.
+        .task {
+          guard chrome == .text, UserDefaults.standard.bool(forKey: "KINOPUBOpenSynopsis") else { return }
+          try? await Task.sleep(for: .seconds(2))
+          isPresented = true
+        }
+#endif
     } else {
       content
     }

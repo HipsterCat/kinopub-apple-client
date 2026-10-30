@@ -273,63 +273,7 @@ public struct MediaActionButtonRow: View {
 
 // MARK: - Chrome application
 
-#if os(macOS)
-/// A `Menu`'s label in an inactive window. The `.button` menu style gives a menu the
-/// same glass plate as a `Button`, but not a button's inactive-window treatment: its
-/// glyph stayed white while every button beside it — and the toolbar's own menu —
-/// greyed out (Sasha, 2026-10-29). `appearsActive` is the state the system dims on; it
-/// is read on the `Menu`, because inside the label (hosted apart) it is always false.
-private struct MenuWindowIsActiveKey: EnvironmentKey {
-  static let defaultValue = true
-}
-
-private extension EnvironmentValues {
-  var mediaActionMenuWindowIsActive: Bool {
-    get { self[MenuWindowIsActiveKey.self] }
-    set { self[MenuWindowIsActiveKey.self] = newValue }
-  }
-}
-
-private struct InactiveWindowMenu: ViewModifier {
-  @Environment(\.appearsActive) private var appearsActive
-
-  func body(content: Content) -> some View {
-    content.environment(\.mediaActionMenuWindowIsActive, appearsActive)
-  }
-}
-
-private struct InactiveWindowMenuLabel: ViewModifier {
-  @Environment(\.mediaActionMenuWindowIsActive) private var isActive
-
-  func body(content: Content) -> some View {
-    content.foregroundStyle(isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-  }
-}
-#endif
-
 public extension View {
-  /// For a `MediaActionLabel` that is a `Menu`'s label (pair with `mediaActionMenu()` on
-  /// the `Menu`): on a Mac it greys with its window the way a button's does. Elsewhere it
-  /// does nothing.
-  @ViewBuilder
-  func mediaActionMenuLabel() -> some View {
-#if os(macOS)
-    modifier(InactiveWindowMenuLabel())
-#else
-    self
-#endif
-  }
-
-  /// On the `Menu` whose label wears `mediaActionMenuLabel()`.
-  @ViewBuilder
-  func mediaActionMenu() -> some View {
-#if os(macOS)
-    modifier(InactiveWindowMenu())
-#else
-    self
-#endif
-  }
-
   /// Apply the catalog chrome to a `Button`, `Menu`, or `PlayerLink` label host.
   @ViewBuilder
   func mediaActionStyle(_ chrome: MediaActionChrome) -> some View {

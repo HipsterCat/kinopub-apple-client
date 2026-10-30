@@ -3650,9 +3650,8 @@ struct MediaItemPlotView: View {
   static let focusInsetH: CGFloat = 20
   static let focusInsetV: CGFloat = 12
   static let lineLimit = 8
-  /// Fills its column: the hero's written column already caps the width, and a
-  /// second, narrower ceiling here left the synopsis short of the lines beneath it.
-  static let maxWidth: CGFloat = 900
+  /// A reading measure, as on the Mac (Sasha, 2026-10-30: 820 pt on the TV).
+  static let maxWidth: CGFloat = 820
   static let moreTracking: CGFloat = 1
 #else
   /// The tvOS plate's room around the glyphs, drawn outside the paragraph's frame so

@@ -59,6 +59,7 @@ struct KinoPubAppleClientApp: App {
   var body: some Scene {
     WindowGroup {
       RootView()
+        .capturesPageColorScheme()
         .environment(\.appContext, AppContext.shared)
         .environment(navigationState)
         .environmentObject(authState)
