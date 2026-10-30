@@ -880,13 +880,7 @@ struct MediaItemView: View {
     ZStack {
       Color.KinoPub.background
 /// TODO IT MUST BE SAME IDENTICAL PICTURE - WIDE ONE. TVOS, IOS, MACOS, etc
-      CachedRemoteImage(url: URL(string: verticalCover(itemModel.mediaItem.posters.medium)), contentMode: .fill)
-        .frame(width: Self.ambientBuffer.width, height: Self.ambientBuffer.height)
-        .clipped()
-        .blur(radius: Self.ambientBlur, opaque: true)
-        .saturation(1.6)
-        .drawingGroup()
-        .scaleEffect(Self.ambientScale)
+      MediaItemPosterWash(url: URL(string: verticalCover(itemModel.mediaItem.posters.medium)))
         .opacity(0.55)
 
       Color.KinoPub.background.opacity(0.55)
@@ -923,9 +917,6 @@ struct MediaItemView: View {
     return CoverArtwork.resolve(url: url, kinopoiskID: itemModel.mediaItem.kinopoisk)
   }
 
-  private static let ambientBuffer = CGSize(width: 160, height: 90)
-  private static let ambientBlur: CGFloat = 10
-  private static let ambientScale: CGFloat = 14
 
   private static func openWatchlist(_ navigationState: NavigationState) {
 #if os(macOS)
@@ -1043,4 +1034,32 @@ struct MediaItemView_Previews: PreviewProvider {
       Preview()
     }
   }
+}
+
+/// The title's vertical poster as a wash of its colours: decoded into a tiny buffer,
+/// blurred opaque there and scaled up, so the blur costs a 160×90 pass, not a
+/// screen-sized one. Behind the page (`ambientBackground`) and under the hero's picture
+/// until it arrives — or when it never does (`MediaItemHeroView.scrollingBackdrop`).
+struct MediaItemPosterWash: View {
+  let url: URL?
+
+  var body: some View {
+    Color.clear
+      .overlay {
+        CachedRemoteImage(url: url, contentMode: .fill)
+          .frame(width: Self.buffer.width, height: Self.buffer.height)
+          .clipped()
+          .blur(radius: Self.blur, opaque: true)
+          .saturation(1.6)
+          .drawingGroup()
+          .scaleEffect(Self.scale)
+      }
+      .clipped()
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+  }
+
+  private static let buffer = CGSize(width: 160, height: 90)
+  private static let blur: CGFloat = 10
+  private static let scale: CGFloat = 14
 }

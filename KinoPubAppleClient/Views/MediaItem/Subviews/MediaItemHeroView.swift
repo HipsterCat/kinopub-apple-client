@@ -808,6 +808,15 @@ struct MediaItemHeroView: View {
 #endif
   }
 
+#if !os(tvOS)
+  /// The cover the cards draw (`medium`), so the wash comes out of the image cache.
+  private var heroWashURL: URL? {
+    _ = coverLanguage
+    guard !mediaItem.posters.medium.isEmpty else { return heroPosterURL }
+    return URL(string: CoverArtwork.resolve(url: mediaItem.posters.medium, kinopoiskID: mediaItem.kinopoisk))
+  }
+#endif
+
   private var heroPosterURL: URL? {
 #if !os(tvOS)
     _ = coverLanguage
@@ -838,6 +847,10 @@ struct MediaItemHeroView: View {
       } else if backdropCandidates.isEmpty {
         Color.KinoPub.background
       } else {
+        // The page's own blurred poster, unwashed, until the picture fades in over it —
+        // and in its place if no candidate loads. The plain page under a picture still
+        // on its way read as a grey slab (Sasha, 2026-10-30).
+        MediaItemPosterWash(url: heroWashURL)
         FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill)
           .id(localCacheEpoch)
           .onAppear {
@@ -862,7 +875,7 @@ struct MediaItemHeroView: View {
   /// Mac: the tvOS Home hero's legibility texture (`HeroBannerOverlay`: a 6% wash, the
   /// leading edge ramping in from a third of the way down, an eased bottom fade), and
   /// nothing fading the picture into the page — it ends on a clean edge. The flat
-  /// top-and-bottom bands of `BackdropScrim` read as two slabs (Sasha, 2026-10-30).
+  /// top-and-bottom bands of the old backdrop scrim read as two slabs (Sasha, 2026-10-30).
   ///
   /// Phone / iPad: barely there, the way the Apple TV app leaves its hero video alone:
   /// clear for most of the frame, a light shade under the text, and the background colour

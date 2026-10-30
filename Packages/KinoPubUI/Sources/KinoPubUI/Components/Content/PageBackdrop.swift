@@ -324,7 +324,9 @@ private struct PageBackdropLayer: View {
           .clipped()
       }
 
-      BackdropScrim()
+      // The Home hero's tuned shading, as on the Mac title page (Sasha, 2026-10-30): the
+      // flat bands that were here read as a top and a bottom slab.
+      HeroLegibilityTexture(tone: .black)
     }
     .animation(PageBackdropHost.crossfade, value: palette)
   }
