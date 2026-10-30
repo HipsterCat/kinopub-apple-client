@@ -308,7 +308,8 @@ struct TabsNavigationView: View {
       List(selection: sidebarSelection) {
         Label("Search", systemImage: "magnifyingglass").tag(NavigationTabs.search)
         ForEach(activeBrowseTabs.filter { $0.tab != .library }) { spec in
-          Label(spec.title, systemImage: spec.systemImage).tag(spec.tab)
+          // Outline glyphs, as the TV app's sidebar draws them; the tab bar's are filled.
+          Label(spec.title, systemImage: Self.outlineSymbol(spec.systemImage)).tag(spec.tab)
         }
 
         Section("Library") {
@@ -333,6 +334,9 @@ struct TabsNavigationView: View {
         }
       }
       .listStyle(.sidebar)
+      .environment(\.symbolVariants, .none)
+      // Glyphs in the label colour, not the accent: the TV app's sidebar is monochrome.
+      .listItemTint(.monochrome)
         // Under the list, not over it: an inset let the last folder scroll beneath it.
         MacSidebarAccount(userService: appContext.userService)
       }
@@ -345,6 +349,11 @@ struct TabsNavigationView: View {
     } detail: {
       macSidebarDetail
     }
+  }
+
+  /// The outline form of a tab glyph: «house.fill» → «house».
+  static func outlineSymbol(_ name: String) -> String {
+    name.hasSuffix(".fill") ? String(name.dropLast(".fill".count)) : name
   }
 
   private var sidebarSelection: Binding<NavigationTabs?> {
@@ -913,27 +922,36 @@ private struct MacSidebarAccount: View {
   @Environment(\.openSettings) private var openSettings
   @State private var name: String?
   @State private var avatarURL: URL?
+  @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 28
+  @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 60
 
   var body: some View {
-    Button {
-      openSettings()
-    } label: {
-      HStack(spacing: 8) {
-        CachedRemoteImage(url: avatarURL, contentMode: .fill,
-                          placeholder: { Image(systemName: "person.crop.circle.fill").resizable() },
-                          failure: { Image(systemName: "person.crop.circle.fill").resizable() })
-          .foregroundStyle(.secondary)
-          .frame(width: 24, height: 24)
-          .clipShape(Circle())
-        Text(name ?? "")
-          .lineLimit(1)
-        Spacer(minLength: 0)
+    // The TV app's: a 60 pt row under a hairline, a 28 pt avatar, the name in the
+    // sidebar rows' own type (measured, 2026-10-30).
+    VStack(spacing: 0) {
+      Divider()
+      Button {
+        openSettings()
+      } label: {
+        HStack(spacing: 10) {
+          CachedRemoteImage(url: avatarURL, contentMode: .fill,
+                            placeholder: { Image(systemName: "person.crop.circle.fill").resizable() },
+                            failure: { Image(systemName: "person.crop.circle.fill").resizable() })
+            .foregroundStyle(.secondary)
+            .frame(width: avatarSize, height: avatarSize)
+            .clipShape(Circle())
+          Text(name ?? "")
+            .font(.body)
+            .lineLimit(1)
+          Spacer(minLength: 0)
+        }
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
       }
-      .contentShape(Rectangle())
+      .buttonStyle(.plain)
+      .padding(.horizontal, 18)
+      .frame(height: rowHeight)
     }
-    .buttonStyle(.plain)
-    .padding(.horizontal, 16)
-    .padding(.vertical, 10)
     .task {
       guard let user = try? await userService.fetchUserData() else { return }
       name = user.profile.name.flatMap { $0.isEmpty ? nil : $0 } ?? user.username
