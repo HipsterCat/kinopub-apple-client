@@ -48,6 +48,8 @@ import OSLog
 /// `NavigationState.beginToolbarSearchIfNeeded()`, on the first non-blank character.
 @MainActor
 class LibraryCatalog: ObservableObject {
+  /// Where the results were scrolled to, for coming back to the section.
+  let scrollMemory = ScrollMemory()
 
   @Published public var items: [MediaItem] = []
   /// True while the first page is on its way. Starts `true` so Search can paint

@@ -8,6 +8,7 @@
 
 import XCTest
 import KinoPubBackend
+import KinoPubUI
 @testable import KinoPub
 
 @MainActor
@@ -43,5 +44,32 @@ final class SectionStateTests: XCTestCase {
     let again = models.model("shelves-home") { made += 1; return NSObject() }
     XCTAssertTrue(first === again)
     XCTAssertEqual(made, 1)
+  }
+
+  /// A title kept for its stack: the same model on coming back, let go when popped.
+  func testTitleModelLivesWhileOnTheStack() {
+    let cache = MediaItemModelCache()
+    var made = 0
+    let make: () -> MediaItemModel = {
+      made += 1
+      return MediaItemModel(mediaItemId: 7, itemsService: VideoContentServiceMock(),
+                            downloadManager: AppContext.shared.downloadManager,
+                            linkProvider: AppRoutesLinkProvider(),
+                            errorHandler: ErrorHandler())
+    }
+    let first = cache.model(tab: .search, itemID: 7, make: make)
+    XCTAssertTrue(first === cache.model(tab: .search, itemID: 7, make: make))
+    XCTAssertEqual(made, 1)
+    cache.keep(only: [], on: .search)
+    _ = cache.model(tab: .search, itemID: 7, make: make)
+    XCTAssertEqual(made, 2)
+  }
+
+  /// The memory a page scrolls with outlives the page itself.
+  func testScrollMemoryLivesInTheModel() {
+    let models = SectionModels()
+    let memory = models.model("search-memory") { ScrollMemory() }
+    memory.y = 840
+    XCTAssertEqual(models.model("search-memory") { ScrollMemory() }.y, 840)
   }
 }

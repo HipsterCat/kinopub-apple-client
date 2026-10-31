@@ -51,6 +51,9 @@ extension View {
       RouteDestination(route: route,
                        linkProvider: AppRoutesLinkProvider(),
                        transitionNamespace: namespace)
+        // A pushed page does not scroll with its section's memory; a title page brings
+        // its own (`MediaItemModel.scrollMemory`).
+        .environment(\.scrollMemory, nil)
     }
   }
 }

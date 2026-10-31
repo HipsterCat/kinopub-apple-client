@@ -144,12 +144,18 @@ struct RouteDestination: View {
 #endif
 
   private func detailsView(for id: Int, knownItem: MediaItem? = nil) -> some View {
-    MediaItemView(model: MediaItemModel(mediaItemId: id,
-                                        knownItem: knownItem,
-                                        itemsService: appContext.contentService,
-                                        downloadManager: appContext.downloadManager,
-                                        linkProvider: linkProvider,
-                                        errorHandler: errorHandler))
+    // One model per title on a section's stack, kept while it is on the stack: a section
+    // left and come back to rebuilds the page around the same model, loaded and
+    // scrolled where it was (Sasha, 2026-10-31).
+    let tab = navigationState.selectedTab
+    return MediaItemView(model: MediaItemModelCache.shared.model(tab: tab, itemID: id) {
+      MediaItemModel(mediaItemId: id,
+                     knownItem: knownItem,
+                     itemsService: appContext.contentService,
+                     downloadManager: appContext.downloadManager,
+                     linkProvider: linkProvider,
+                     errorHandler: errorHandler)
+    })
   }
 }
 
@@ -211,4 +217,43 @@ extension Route {
       return nil
     }
   }
+}
+
+/// The title pages' models, one per title on each section's stack. Kept while the title
+/// is on that stack; let go when it is popped (`NavigationState` tells it).
+@MainActor
+final class MediaItemModelCache {
+  static let shared = MediaItemModelCache()
+
+  private var models: [String: MediaItemModel] = [:]
+
+  func model(tab: NavigationTabs, itemID: Int, make: () -> MediaItemModel) -> MediaItemModel {
+    let key = Self.key(tab, itemID)
+    if let model = models[key] { return model }
+    let model = make()
+    models[key] = model
+    return model
+  }
+
+  /// Lets go of the titles no longer on `tab`'s stack.
+  nonisolated static func itemIDs(in routes: [Route]) -> Set<Int> {
+    Set(routes.compactMap { route -> Int? in
+      switch route {
+      case .details(let item): item.id
+      case .detailsById(let id): id
+      default: nil
+      }
+    })
+  }
+
+  func keep(only ids: Set<Int>, on tab: NavigationTabs) {
+    let prefix = "\(tab)#"
+    for key in models.keys where key.hasPrefix(prefix) {
+      if let id = Int(key.dropFirst(prefix.count)), !ids.contains(id) { models[key] = nil }
+    }
+  }
+
+  var count: Int { models.count }
+
+  private static func key(_ tab: NavigationTabs, _ id: Int) -> String { "\(tab)#\(id)" }
 }

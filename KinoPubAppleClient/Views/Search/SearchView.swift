@@ -482,6 +482,7 @@ struct SearchView: View {
 #endif
           }
           .environment(\.catalogCaptionOmittedGenreIDs, catalog.filter.captionOmittedGenreIDs)
+          .environment(\.scrollMemory, catalog.scrollMemory)
         }
       }
 #if os(macOS)

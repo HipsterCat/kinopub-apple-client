@@ -347,6 +347,9 @@ struct MediaItemView: View {
       }
 #endif
       .task {
+        // A model kept for this route (`MediaItemModelCache`) is already loaded: the page
+        // comes back as it was instead of fetching again from nothing.
+        guard !itemModel.itemLoaded else { return }
         itemModel.fetchData()
       }
       // Back from the player: the page never unmounted, so repaint the rail and the hero
@@ -625,6 +628,12 @@ struct MediaItemView: View {
       }
       .background(Color.KinoPub.background)
       .coordinateSpace(name: MediaItemLayout.scrollSpace)
+#if !os(tvOS)
+      // Where the page was, kept by its model: coming back to the section finds it
+      // there (`MediaItemModelCache`).
+      .environment(\.scrollMemory, itemModel.scrollMemory)
+      .remembersScroll()
+#endif
 #if os(tvOS)
       // A focused card's lift and a focused button's scale are drawn outside their
       // frames; the page's own edges must not cut them.

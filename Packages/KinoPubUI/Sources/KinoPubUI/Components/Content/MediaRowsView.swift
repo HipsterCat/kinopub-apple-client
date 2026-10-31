@@ -208,6 +208,9 @@ public struct MediaRowsView: View {
         .padding(.top, showsHero ? 0 : Self.pageVerticalInset)
         .padding(.bottom, Self.pageVerticalInset)
     }
+#if !os(tvOS)
+    .remembersScroll()
+#endif
 #if os(tvOS)
     .scrollClipDisabled()
 #else

@@ -453,6 +453,8 @@ class HomeCatalog: ObservableObject {
   /// card so its own kino.pub still stays the fallback behind the worker's 404.
   @Published public private(set) var bannerBackdrops: [Int: URL] = [:]
   @Published public private(set) var isLoaded: Bool = false
+  /// Where the page was scrolled to, for coming back to the section.
+  let scrollMemory = ScrollMemory()
   /// True when every shelf failed and there is nothing cached to show — the view
   /// swaps the blank screen for a retry state. Cached rows always win over this flag.
   @Published public private(set) var loadFailed: Bool = false

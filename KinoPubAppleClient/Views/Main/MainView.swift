@@ -62,6 +62,7 @@ struct MainView: View {
       // The navigation bar is likewise left to the system: on 26 it is already
       // Liquid Glass with the scroll-edge effect.
       rowsView
+        .environment(\.scrollMemory, catalog.scrollMemory)
         .modifier(PageTitle(title: title, isBlank: showsHeroChrome))
 #if os(iOS)
         .modifier(HeroNavigationChrome(isActive: showsHeroChrome,

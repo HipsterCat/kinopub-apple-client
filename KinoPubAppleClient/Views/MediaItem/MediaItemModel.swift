@@ -88,6 +88,8 @@ class MediaItemModel: ObservableObject {
   @Published public var folders: [Bookmark] = []
   @Published public var folderIDsContainingItem: Set<Int> = []
   @Published public var isWatched: Bool = false
+  /// Where the page was scrolled to, for coming back to it (`MediaItemModelCache`).
+  let scrollMemory = ScrollMemory()
   @Published public var myVote: MediaItemUserVote = .none
   /// The chooser, before a thumb is cast. kino.pub will not take it back.
   @Published var showsVoteChoice = false
