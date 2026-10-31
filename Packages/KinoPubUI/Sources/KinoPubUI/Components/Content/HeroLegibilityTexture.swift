@@ -35,7 +35,7 @@ public struct HeroLegibilityTexture: View {
     } else {
       HeroLegibilityScrim(
         tone: tone,
-        edgePeak: 0.55,
+        edgePeak: 0.85,
         edges: [.leading, .bottom],
         sideDarkeningStart: extendsLeadingFade ? 0 : 0.34
       )

@@ -656,7 +656,7 @@ struct MediaItemHeroView: View {
           }
       } else {
         Color.clear
-          .aspectRatio(16 / 9, contentMode: .fit)
+          .aspectRatio(16 / 11, contentMode: .fit)
           .frame(maxWidth: .infinity)
           .background {
             ZStack {
@@ -1829,12 +1829,12 @@ struct MediaItemHeroView: View {
 #elseif os(macOS)
   /// Preview / fallback only — live layout uses `.aspectRatio(16/9)`.
   static let heroHeight: CGFloat = 420
-  static let horizontalInset: CGFloat = 32
+  static let horizontalInset: CGFloat = 40
   static let bottomInset: CGFloat = 28
   static let contentSpacing: CGFloat = 8
   static let leadingWidth: CGFloat = 400
-  static let logoMaxWidth: CGFloat = 360
-  static let logoMaxHeight: CGFloat = 110
+  static let logoMaxWidth: CGFloat = 440
+  static let logoMaxHeight: CGFloat = 120
   static let titleFont: Font = TypeScale.heroTitle
   static let metaSpacing: CGFloat = 12
   static let actionsGap: CGFloat = 12
@@ -1930,7 +1930,7 @@ private struct SecondLineCappedToFirst: Layout {
   var capsWidth: Bool
   /// Never narrower than this, however narrow the logo: a tall logo left the line a
   /// syllable wide (Sasha, 2026-10-30: 200).
-  var minimumWidth: CGFloat = 200
+  var minimumWidth: CGFloat = 230
 
   private func sizes(_ proposal: ProposedViewSize, _ subviews: Subviews) -> [CGSize] {
     guard let first = subviews.first else { return [] }
