@@ -101,7 +101,8 @@ account) is called by the app directly. Whatever answers, it lands in the app as
 3. **Details, when they are opened** — `/v1/title/by/kinopub/{id}`: what the detail page
    shows first. Heavy, rarely-seen parts (reviews, facts, full cast, awards) are not worth
    fetching until the viewer scrolls to them or opens them — they belong in a separate,
-   lazy call, not in the first answer.
+   lazy call, not in the first answer. The page itself now reads
+   [`/v2/title`](v2-title.md), one call, not this document.
 
 ## Observations (audit 2026-10-03)
 
