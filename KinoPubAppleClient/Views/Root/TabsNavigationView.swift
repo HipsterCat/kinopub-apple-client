@@ -41,6 +41,9 @@ struct TabsNavigationView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 #endif
   @Environment(NavigationState.self) var navigationState
+#if DEBUG
+  @MainActor private static var switchPlanStarted = false
+#endif
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @EnvironmentObject var networkMonitor: NetworkMonitor
@@ -72,17 +75,24 @@ struct TabsNavigationView: View {
 #if DEBUG
       // `-KINOPUBSwitchTabs home,search,…`: one section switch every 8 s after launch, to
       // check that a section keeps what it had when you come back to it.
-      .task {
-        guard let plan = UserDefaults.standard.string(forKey: "KINOPUBSwitchTabs") else { return }
-        try? await Task.sleep(for: .seconds(16))
-        for name in plan.split(separator: ",") {
-          switch name {
-          case "home": navigationState.selectedTab = .home
-          case "search": navigationState.enterSearch()
-          case "series": navigationState.selectedTab = .series
-          default: break
+      // Unstructured and once per process: the switch itself can rebuild this view, and a
+      // `.task` would be cancelled with it after the first step.
+      .onAppear {
+        guard !Self.switchPlanStarted,
+              let plan = UserDefaults.standard.string(forKey: "KINOPUBSwitchTabs") else { return }
+        Self.switchPlanStarted = true
+        let navigationState = navigationState
+        Task { @MainActor in
+          try? await Task.sleep(for: .seconds(16))
+          for name in plan.split(separator: ",") {
+            switch name {
+            case "home": navigationState.selectedTab = .home
+            case "search": navigationState.enterSearch()
+            case "series": navigationState.selectedTab = .series
+            default: break
+            }
+            try? await Task.sleep(for: .seconds(8))
           }
-          try? await Task.sleep(for: .seconds(8))
         }
       }
 #endif

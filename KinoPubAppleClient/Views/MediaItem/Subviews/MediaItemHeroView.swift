@@ -28,6 +28,10 @@ final class TrailerPreviewModel: ObservableObject {
   /// started unconditionally, so a trailer that becomes ready after the page has been
   /// scrolled past never starts decoding in the first place.
   private var isActive = true
+  /// True while the page is off screen (another section, a page pushed over it). The
+  /// player is kept, paused, so coming back resumes it rather than starting over.
+  private var isSuspended = false
+  private var canPlay: Bool { isActive && !isSuspended }
 
   /// Plays the trailer muted behind the artwork. A repeat call for the URL already
   /// running is ignored, so a re-rendered hero doesn't restart it from the top.
@@ -73,7 +77,7 @@ final class TrailerPreviewModel: ObservableObject {
 
     guard let player else { return }
     if active {
-      if isReady { player.play() }
+      if isReady, canPlay { player.play() }
     } else {
       player.pause()
     }
@@ -83,7 +87,7 @@ final class TrailerPreviewModel: ObservableObject {
     switch status {
     case .readyToPlay:
       isReady = true
-      if isActive { player?.play() }
+      if canPlay { player?.play() }
     case .failed:
       // A trailer that won't load just leaves the artwork in place.
       teardown()
@@ -105,8 +109,20 @@ final class TrailerPreviewModel: ObservableObject {
     }
   }
 
-  /// Drops back to the artwork and forgets what was playing, so leaving the page and
-  /// coming back starts the trailer over.
+  /// The page left the screen / came back. Unlike `stop`, the trailer resumes where it
+  /// was: the page kept in its section (`MediaItemModelCache`) comes back as it was.
+  func setSuspended(_ suspended: Bool) {
+    guard isSuspended != suspended else { return }
+    isSuspended = suspended
+    guard let player else { return }
+    if suspended {
+      player.pause()
+    } else if isReady, canPlay {
+      player.play()
+    }
+  }
+
+  /// Drops back to the artwork and forgets what was playing: the real player took over.
   func stop() {
     teardown()
     startedURL = nil
@@ -328,10 +344,6 @@ struct MediaItemHeroView: View {
   /// player. Kept here so the same view that owns the preview owns its promotion.
   @State private var isTrailerFullScreen = false
 #if !os(tvOS)
-  /// What became of the backdrop candidates, keyed by them: the hero is a picture hero
-  /// once one has loaded, whether or not kino.pub sent a `wide` (the worker often has a
-  /// backdrop when it did not), and a poster hero once all have failed.
-  @State private var backdropOutcome: (key: String, loaded: Bool)?
   /// The band's size, for the corner poster and the column the title leaves it.
   @State private var heroBandSize: CGSize = .zero
 #endif
@@ -340,9 +352,23 @@ struct MediaItemHeroView: View {
   /// Actions currently showing a spinner (Mark Watched, Follow, …). Cleared when the
   /// underlying flag flips, or by the control itself once the tap returns.
   @State private var loadingActions: Set<MediaActionID> = []
+  /// What became of the backdrop candidates, keyed by them: the hero is a picture hero
+  /// once one has loaded, whether or not kino.pub sent a `wide` (the worker often has a
+  /// backdrop when it did not), and a poster hero once all have failed. Kept in `phase`
+  /// (the page's model), so a page rebuilt on coming back shows the same hero.
+  private var backdropOutcome: (key: String, loaded: Bool)? {
+    get { phase.backdropOutcome }
+    nonmutating set { phase.backdropOutcome = newValue }
+  }
   /// What the shared title slot is drawing — subtitle waits until this is not `.empty`.
-  @State private var titleLogoMark: TitleLogoMark = .empty
-  @State private var deliveredLogoLanguage: WorkerArtworkLanguageTag?
+  private var titleLogoMark: TitleLogoMark {
+    get { phase.titleLogoMark }
+    nonmutating set { phase.titleLogoMark = newValue }
+  }
+  private var deliveredLogoLanguage: WorkerArtworkLanguageTag? {
+    get { phase.deliveredLogoLanguage }
+    nonmutating set { phase.deliveredLogoLanguage = newValue }
+  }
   /// The version play control that last held focus — its runtime stays in the metadata
   /// row once focus moves on (`runtimeVersion`).
   @State private var lastFocusedVersionID: Int?
@@ -1088,7 +1114,9 @@ struct MediaItemHeroView: View {
         maxHeight: Self.logoMaxHeight,
         textMaxWidth: .infinity,
         onMarkChange: { titleLogoMark = $0 },
-        onDeliveredLanguageChange: { deliveredLogoLanguage = $0 }
+        // A slot rebuilt on coming back paints the logo from the cache and knows no
+        // served language: keep the one it said before, or the subtitle flips.
+        onDeliveredLanguageChange: { if let language = $0 { deliveredLogoLanguage = language } }
       ) {
         titlePrimaryText
       }

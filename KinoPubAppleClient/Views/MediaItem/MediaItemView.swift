@@ -167,6 +167,11 @@ enum MediaItemHeroActionAvailability {
 @Observable
 final class MediaItemHeroPhase {
   var isHeroOnScreen = true
+  /// What became of the backdrop candidates, keyed by them (`MediaItemHeroView`).
+  var backdropOutcome: (key: String, loaded: Bool)?
+  /// What the shared title slot drew, and the logo language it got.
+  var titleLogoMark: TitleLogoMark = .empty
+  var deliveredLogoLanguage: WorkerArtworkLanguageTag?
   /// How far the window's bars (toolbar, status bar) reach down over the hero. The page
   /// ignores the top safe area so the picture runs under them; the hero's title must not.
   var topChromeInset: CGFloat = 0
@@ -187,9 +192,7 @@ struct MediaItemView: View {
 #endif
   @StateObject private var itemModel: MediaItemModel
   /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
-  @StateObject private var trailer: TrailerPreviewModel
-  /// See `MediaItemHeroPhase` — iOS and macOS only in practice.
-  @State private var heroPhase = MediaItemHeroPhase()
+  private var trailer: TrailerPreviewModel { itemModel.trailer }
   /// Set by the hero's «+ ещё N»: the versions rail parks on, and focus lands on, the
   /// first version that had no pill.
   @State private var versionsEntry: Int?
@@ -205,7 +208,7 @@ struct MediaItemView: View {
 #if os(macOS)
   /// The one-player rule (`PlaybackSession`) only covers the real film/trailer player.
   /// It says nothing about this page's own *ambient* hero preview, which is a second,
-  /// independent `AVPlayer` (`TrailerPreviewModel`). Off macOS that preview stops for
+  /// independent `AVPlayer` (`TrailerPreviewModel`). Off macOS that preview pauses for
   /// free: pushing the system player onto the stack fires `onDisappear` below. macOS
   /// opens a separate window instead — this page never disappears — so without this,
   /// the hero preview keeps animating behind the new window for as long as it's open.
@@ -214,7 +217,6 @@ struct MediaItemView: View {
 
   init(model: @autoclosure @escaping () -> MediaItemModel) {
     _itemModel = StateObject(wrappedValue: model())
-    _trailer = StateObject(wrappedValue: TrailerPreviewModel())
   }
 
   var body: some View {
@@ -261,7 +263,7 @@ struct MediaItemView: View {
       // Measured on the full-window frame, which overlaps the bars by exactly this much.
       // Written into `heroPhase`, so only the hero re-reads it.
       .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.top }) { inset in
-        heroPhase.topChromeInset = inset
+        itemModel.heroPhase.topChromeInset = inset
       }
 #endif
       // Tabs stay visible over the detail page for now (2026-08-09): the hide-on-enter
@@ -281,7 +283,7 @@ struct MediaItemView: View {
 #endif
 #if os(macOS)
       .toolbarBackground(.hidden, for: .windowToolbar)
-      .toolbarColorScheme(heroPhase.showsPicture ? .dark : nil, for: .windowToolbar)
+      .toolbarColorScheme(itemModel.heroPhase.showsPicture ? .dark : nil, for: .windowToolbar)
 #endif
       .platformNavigationTitle("")
 #if os(iOS) || os(macOS)
@@ -380,8 +382,11 @@ struct MediaItemView: View {
 #endif
       // `trailer.setActive` lives on `MediaItemHeroView`'s own `onChange` — see
       // `MediaItemHeroPhase` — so this page never reads `heroPhase.isHeroOnScreen`.
+      .onAppear {
+        trailer.setSuspended(false)
+      }
       .onDisappear {
-        trailer.stop()
+        trailer.setSuspended(true)
       }
 #if os(macOS)
       .onChange(of: playbackWindowState.request?.id) { _, requestID in
@@ -566,7 +571,7 @@ struct MediaItemView: View {
           MediaItemHeroView(mediaItem: itemModel.mediaItem,
                             focus: $focus,
                             trailer: trailer,
-                            phase: heroPhase,
+                            phase: itemModel.heroPhase,
                             linkProvider: itemModel.linkProvider,
                             isWatched: itemModel.isWatched,
                             isBookmarked: itemModel.isBookmarked,
@@ -743,6 +748,7 @@ struct MediaItemView: View {
 
       if let seasons = seasonsForDisplay, !seasons.isEmpty {
         SeasonsRailView(seasons: seasons,
+                        memory: itemModel.seasonsRail,
                         linkProvider: itemModel.linkProvider,
                         seriesTitle: itemModel.mediaItem.localizedTitle,
                         showsChrome: true,

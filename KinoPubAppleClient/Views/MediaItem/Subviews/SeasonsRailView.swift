@@ -26,9 +26,22 @@ import KinoPubMedia
 ///
 /// DESIGN: season-level "clear progress" → `UserActionsService.clearHistoryForSeason`
 /// (`POST /v1/history/clear-for-season`). Episode hide/toggle-watched stay as they are.
+/// The rail's selection, held by the page's model so a page rebuilt on coming back
+/// stands on the same season (`MediaItemModelCache`).
+@Observable
+final class SeasonsRailMemory {
+  var selectedTabID: Int?
+  var seasonEntryEpisodeID: Int?
+  var didScrollToUnseen = false
+  /// The first episode showing at the rail's leading edge.
+  var leadingEntryID: Int?
+}
+
 struct SeasonsRailView: View {
 
   let seasons: [Season]
+  /// The page's `SeasonsRailMemory`; nil (previews) keeps the rail's own.
+  var memory: SeasonsRailMemory? = nil
   let linkProvider: NavigationLinkProvider
   /// Filled into every episode handed to the player, so its transport bar can show the
   /// series name rather than just the episode's own title.
@@ -71,8 +84,13 @@ struct SeasonsRailView: View {
   /// Measured rail width, so cards land on the same `ShelfMetrics` grid as every
   /// other landscape shelf (Continue Watching, History) rather than a fixed size.
   @State private var railWidth: CGFloat = SeasonsRailView.referenceWidth
+  @State private var ownMemory = SeasonsRailMemory()
+  private var rail: SeasonsRailMemory { memory ?? ownMemory }
   /// The selected `SeasonTab.id`: a `Season.id`, or the id of a trailing card.
-  @State private var selectedTabID: Int?
+  private var selectedTabID: Int? {
+    get { rail.selectedTabID }
+    nonmutating set { rail.selectedTabID = newValue }
+  }
   /// The episode `defaultFocus`/scroll should land on for the *currently selected*
   /// tab. Regressed in `38c6d07` ("Episodes and seasons rail"): the original
   /// `c1bd46f` scrolled straight to the first-unseen episode's own anchor; that commit
@@ -81,11 +99,22 @@ struct SeasonsRailView: View {
   /// *season* tab but always landed on its episode 1. Tracked separately from
   /// `selectedTabID` because manual tab clicks/switches still want "season's first
   /// episode" (unchanged), only the initial resume jump wants the specific episode.
-  @State private var seasonEntryEpisodeID: Int?
-  @State private var didScrollToUnseen = false
+  private var seasonEntryEpisodeID: Int? {
+    get { rail.seasonEntryEpisodeID }
+    nonmutating set { rail.seasonEntryEpisodeID = newValue }
+  }
+  private var didScrollToUnseen: Bool {
+    get { rail.didScrollToUnseen }
+    nonmutating set { rail.didScrollToUnseen = newValue }
+  }
   /// True while a tab-driven scroll is in flight, so a stray episode focus update
   /// doesn't yank the selected tab back mid-jump.
   @State private var isScrollingFromTab = false
+#if !os(tvOS)
+  /// The episode rail's own position — unlike the reader's proxy, moving it does not
+  /// drag the page along. Used to put a rebuilt rail back where it stood.
+  @State private var railPosition = ScrollPosition(idType: String.self)
+#endif
 
   private enum RailEntry: Identifiable {
     case playable(season: Season, episode: Episode, schedule: EpisodeSchedule?)
@@ -507,8 +536,8 @@ struct SeasonsRailView: View {
     // Content margins, not padding: `scrollTo(anchor: .leading)` would otherwise park
     // the first episode of a season under the page inset instead of beside it.
     .contentMargins(.horizontal, pageInset, for: .scrollContent)
+    .scrollPosition($railPosition, anchor: .leading)
     .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in
-      guard !isScrollingFromTab else { return }
       let visible = ids.compactMap { anchor -> RailEntry? in
         guard let entryID = Self.episodeID(from: anchor) else { return nil }
         return entries.first { $0.id == entryID }
@@ -517,7 +546,9 @@ struct SeasonsRailView: View {
         let left = entries.firstIndex { $0.id == lhs.id } ?? 0
         let right = entries.firstIndex { $0.id == rhs.id } ?? 0
         return left < right
-      }), entry.tabID != selectedTabID else { return }
+      }) else { return }
+      rail.leadingEntryID = entry.id
+      guard !isScrollingFromTab, entry.tabID != selectedTabID else { return }
       selectedTabID = entry.tabID
       if let season = seasons.first(where: { $0.id == entry.tabID }) {
         onSeasonVisible?(season.number)
@@ -664,6 +695,14 @@ struct SeasonsRailView: View {
   }
 
   private func scrollToFirstUnseen(proxy: ScrollViewProxy) async {
+#if !os(tvOS)
+    // Opened before (the page was rebuilt on coming back): stand where it stood.
+    if didScrollToUnseen {
+      guard let id = rail.leadingEntryID, entries.contains(where: { $0.id == id }) else { return }
+      railPosition.scrollTo(id: Self.episodeAnchor(id), anchor: .leading)
+      return
+    }
+#endif
     guard !didScrollToUnseen, let target = openingEntry(in: entries) else { return }
     try? await Task.sleep(for: .milliseconds(120))
     guard !Task.isCancelled else { return }

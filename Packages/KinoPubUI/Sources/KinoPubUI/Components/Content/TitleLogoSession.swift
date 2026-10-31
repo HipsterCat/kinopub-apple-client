@@ -174,6 +174,11 @@ public final class TitleLogoSession: ObservableObject {
     imageReady = true
     imageFailed = false
     republish()
+    // Answered from a cache, the load knows no stamp either: probe, as for a cache hit,
+    // or the caption under the logo guesses — and changes when the page is rebuilt.
+    if payload.deliveredLanguage == nil, let url = resolution.url {
+      refreshWorkerLanguageStamp(for: url, requestID: requestID)
+    }
   }
 
   func handleFailed() {

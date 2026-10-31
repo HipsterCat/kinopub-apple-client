@@ -90,6 +90,13 @@ class MediaItemModel: ObservableObject {
   @Published public var isWatched: Bool = false
   /// Where the page was scrolled to, for coming back to it (`MediaItemModelCache`).
   let scrollMemory = ScrollMemory()
+  /// What the hero settled on (picture or poster, logo or lettered title) and how the
+  /// page sits under the bars — kept here so coming back shows the same hero.
+  let heroPhase = MediaItemHeroPhase()
+  /// The season the rail is on, for coming back to it.
+  let seasonsRail = SeasonsRailMemory()
+  /// The hero's ambient trailer (macOS), kept with the page: coming back resumes it.
+  let trailer = TrailerPreviewModel()
   @Published public var myVote: MediaItemUserVote = .none
   /// The chooser, before a thumb is cast. kino.pub will not take it back.
   @Published var showsVoteChoice = false

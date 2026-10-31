@@ -72,4 +72,26 @@ final class SectionStateTests: XCTestCase {
     memory.y = 840
     XCTAssertEqual(models.model("search-memory") { ScrollMemory() }.y, 840)
   }
+
+  /// What a title page shows — the hero it settled on, the season it stands on — lives
+  /// in its cached model, so the page rebuilt on coming back is the same page.
+  func testTitlePageStateLivesInTheCachedModel() {
+    let cache = MediaItemModelCache()
+    let make: () -> MediaItemModel = {
+      MediaItemModel(mediaItemId: 9, itemsService: VideoContentServiceMock(),
+                     downloadManager: AppContext.shared.downloadManager,
+                     linkProvider: AppRoutesLinkProvider(),
+                     errorHandler: ErrorHandler())
+    }
+    let model = cache.model(tab: .home, itemID: 9, make: make)
+    model.heroPhase.backdropOutcome = ("a|b", true)
+    model.heroPhase.titleLogoMark = .text
+    model.seasonsRail.selectedTabID = 3
+    model.seasonsRail.leadingEntryID = 42
+    let back = cache.model(tab: .home, itemID: 9, make: make)
+    XCTAssertEqual(back.heroPhase.backdropOutcome?.key, "a|b")
+    XCTAssertEqual(back.heroPhase.titleLogoMark, .text)
+    XCTAssertEqual(back.seasonsRail.selectedTabID, 3)
+    XCTAssertEqual(back.seasonsRail.leadingEntryID, 42)
+  }
 }
