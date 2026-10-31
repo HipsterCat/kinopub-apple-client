@@ -47,6 +47,10 @@ struct TabsNavigationView: View {
   @ObservedObject private var sectionStore = SectionVisibilityStore.shared
 
   @State private var sidebarFolders: [Bookmark] = []
+  /// Each section's model, made once and kept for the whole run: a section rebuilt on
+  /// coming back to it finds its rows, its banner and its search where they were, rather
+  /// than fetching again into a new model (Sasha, 2026-10-31).
+  @State private var sectionModels = SectionModels()
 #if os(macOS)
   @FocusState private var detailFocused: Bool
   @State private var heroStep: HeroStepRequest?
@@ -65,6 +69,23 @@ struct TabsNavigationView: View {
 
   var body: some View {
     modernTabs
+#if DEBUG
+      // `-KINOPUBSwitchTabs home,search,…`: one section switch every 8 s after launch, to
+      // check that a section keeps what it had when you come back to it.
+      .task {
+        guard let plan = UserDefaults.standard.string(forKey: "KINOPUBSwitchTabs") else { return }
+        try? await Task.sleep(for: .seconds(16))
+        for name in plan.split(separator: ",") {
+          switch name {
+          case "home": navigationState.selectedTab = .home
+          case "search": navigationState.enterSearch()
+          case "series": navigationState.selectedTab = .series
+          default: break
+          }
+          try? await Task.sleep(for: .seconds(8))
+        }
+      }
+#endif
 #if !os(tvOS)
       .onAppear { restoreSelectedTab() }
       .onChange(of: navigationState.selectedTab, initial: true) { _, tab in
@@ -391,10 +412,13 @@ struct TabsNavigationView: View {
       get: { navigationState.selectedTab },
       set: { tab in
         guard let tab else { return }
+        // A plain switch: every section keeps its stack, and Search its query and
+        // results. `selectBrowseTab` empties Search on the way out — the tab bar's
+        // «leave Search» gesture, not a sidebar's (Sasha, 2026-10-31).
         if tab == .search {
           navigationState.enterSearch()
         } else {
-          navigationState.selectBrowseTab(tab)
+          navigationState.selectedTab = tab
         }
       }
     )
@@ -596,7 +620,7 @@ struct TabsNavigationView: View {
 
 #if !os(tvOS)
   private var searchContent: some View {
-    SearchView(catalog: makeSearchCatalog())
+    SearchView(catalog: sectionModels.model("search") { makeSearchCatalog() })
   }
 #endif
 
@@ -637,12 +661,14 @@ struct TabsNavigationView: View {
 
   private var catalogContent: some View {
     FilterCatalogTabView(
-      catalog: LibraryCatalog(
-        itemsService: appContext.contentService,
-        authState: authState,
-        errorHandler: errorHandler,
-        savedFilterKey: "catalog.tab.filter"
-      )
+      catalog: sectionModels.model("catalog") {
+        LibraryCatalog(
+          itemsService: appContext.contentService,
+          authState: authState,
+          errorHandler: errorHandler,
+          savedFilterKey: "catalog.tab.filter"
+        )
+      }
     )
   }
 
@@ -672,10 +698,12 @@ struct TabsNavigationView: View {
   /// `MainView` + `HomeCatalog`. Typed catalogs filter Hot / Fresh / Popular to one
   /// `MediaType`; Continue Watching stays on Watch Now only.
   private func posterShelves(tab: NavigationTabs, contentType: MediaType?) -> some View {
-    MainView(tab: tab, catalog: HomeCatalog(itemsService: appContext.contentService,
-                                            authState: authState,
-                                            errorHandler: errorHandler,
-                                            contentType: contentType))
+    MainView(tab: tab, catalog: sectionModels.model("shelves-\(tab)") {
+      HomeCatalog(itemsService: appContext.contentService,
+                  authState: authState,
+                  errorHandler: errorHandler,
+                  contentType: contentType)
+    })
   }
 
   /// macOS and tvOS run the sidebar shell; iOS still gets the shelf-rows Library until
@@ -1120,3 +1148,17 @@ private struct MacFixedSidebar: NSViewRepresentable {
   }
 }
 #endif
+
+/// The sections' long-lived models, keyed by section: made on the first visit and handed
+/// back on every later one.
+@MainActor
+final class SectionModels {
+  private var models: [String: AnyObject] = [:]
+
+  func model<Model: AnyObject>(_ key: String, make: () -> Model) -> Model {
+    if let model = models[key] as? Model { return model }
+    let model = make()
+    models[key] = model
+    return model
+  }
+}

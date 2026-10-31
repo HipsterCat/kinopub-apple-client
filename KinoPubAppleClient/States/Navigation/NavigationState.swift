@@ -76,6 +76,8 @@ final class NavigationState {
   /// History onto it.
   init() {
     switch UserDefaults.standard.string(forKey: "KINOPUBInitialTab") {
+    case "search": selectedTab = .search
+    case "series": selectedTab = .series
     case "library": selectedTab = .library
     case "watching": selectedTab = .watchlist
     case "tv": selectedTab = .tv
@@ -85,6 +87,11 @@ final class NavigationState {
     case let raw? where raw.hasPrefix("bookmark:"):
       if let id = Int(raw.dropFirst("bookmark:".count)) { selectedTab = .bookmark(id) }
     default: break
+    }
+    if let route = UserDefaults.standard.string(forKey: "KINOPUBInitialRoute"),
+       route.hasPrefix("item:"), let id = Int(route.dropFirst("item:".count)),
+       let keyPath = Self.routes(for: selectedTab) {
+      self[keyPath: keyPath] = [.detailsById(id)]
     }
     if UserDefaults.standard.string(forKey: "KINOPUBInitialRoute") == "history" {
       libraryRoutes = [.history]
@@ -248,7 +255,14 @@ final class NavigationState {
       return .constant([])
     }
     return Binding(get: { self[keyPath: keyPath] },
-                   set: { self[keyPath: keyPath] = $0 })
+                   set: { [weak self] routes in
+                     guard let self else { return }
+                     // A section's stack torn down on leaving it writes back an empty
+                     // path; that is not the viewer going back. Its titles stay for the
+                     // next visit (Sasha, 2026-10-31: a title opened in Search was gone).
+                     if routes.isEmpty, tab != self.selectedTab, !self[keyPath: keyPath].isEmpty { return }
+                     self[keyPath: keyPath] = routes
+                   })
   }
 
   /// Clears the selected tab's stack so a second click on the same tab
