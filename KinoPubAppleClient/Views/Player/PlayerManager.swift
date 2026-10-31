@@ -1758,15 +1758,24 @@ extension PlayerManager {
     Task { [weak self] in
       let identity = MediaIdentity(mediaItem: series)
       let meta = await service.metadata(for: identity)
-      guard let tmdbSeason = TMDBSeasonMatch.tmdbSeason(
-        kinoNumber: kinoNumber,
-        titleNumber: kinoSeason.titleSeasonNumber,
-        tmdbSeasons: Set(meta.seasonSummaries.map(\.seasonNumber))) else { return }
-      let schedule = await service.schedule(for: identity, season: tmdbSeason)
-      guard !schedule.isEmpty else { return }
+      var numbers = meta.seasonSummaries.map(\.seasonNumber)
+      if numbers.isEmpty,
+         let one = TMDBSeasonMatch.tmdbSeason(
+           kinoNumber: kinoNumber,
+           titleNumber: kinoSeason.titleSeasonNumber,
+           tmdbSeasons: []) {
+        numbers = [one]
+      }
+      let grid = await service.episodeGrid(for: identity, seasons: numbers)
+      guard !grid.isEmpty else { return }
+      let alignment = KinoEpisodeGrid.alignment(seasons: series.seasons ?? [], official: grid)
+      let holes = alignment.rows(for: kinoSeason.id).compactMap { row -> EpisodeSchedule? in
+        if case .hole(let episode) = row { return KinoEpisodeGrid.schedule(episode) }
+        return nil
+      }
       await MainActor.run {
         guard let self else { return }
-        self.episodesSchedule = schedule
+        self.episodesSchedule = holes
         self.rebuildContentTabs()
       }
     }

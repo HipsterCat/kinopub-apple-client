@@ -16,6 +16,18 @@ public enum PlaybackButtonContent: Equatable, Sendable {
   case play(season: Int?, episode: Int?)
   /// Fully watched. Series carry the episode Replay would reopen (usually S1E1).
   case playAgain(season: Int?, episode: Int?)
+
+  /// The same state, with the season number the chips use once a grid has been aligned.
+  public func replacingSeason(_ season: Int) -> PlaybackButtonContent {
+    switch self {
+    case .resume(let progress, _, let episode, let duration):
+      return .resume(progress: progress, season: season, episode: episode, durationSeconds: duration)
+    case .play(_, let episode):
+      return .play(season: season, episode: episode)
+    case .playAgain(_, let episode):
+      return .playAgain(season: season, episode: episode)
+    }
+  }
 }
 
 public extension MediaItem {
@@ -30,7 +42,7 @@ public extension MediaItem {
   var playbackButtonContent: PlaybackButtonContent {
     if playbackAction == .playAgain {
       if let (season, episode) = primaryEpisode {
-        return .playAgain(season: season.number, episode: episode.number)
+        return .playAgain(season: KinoPubMediaMapping.seasonNumber(season), episode: episode.number)
       }
       return .playAgain(season: nil, episode: nil)
     }
@@ -39,15 +51,16 @@ public extension MediaItem {
       guard let (season, episode) = primaryEpisode else {
         return .play(season: nil, episode: nil)
       }
+      let seasonNumber = KinoPubMediaMapping.seasonNumber(season)
       if let progress = Self.progress(watched: episode.watched,
                                       time: episode.watching.time,
                                       duration: episode.duration) {
         return .resume(progress: progress,
-                       season: season.number,
+                       season: seasonNumber,
                        episode: episode.number,
                        durationSeconds: episode.duration)
       }
-      return .play(season: season.number, episode: episode.number)
+      return .play(season: seasonNumber, episode: episode.number)
     }
 
     guard let video = videos?.first else { return .play(season: nil, episode: nil) }

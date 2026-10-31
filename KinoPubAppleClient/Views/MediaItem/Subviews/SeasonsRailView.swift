@@ -37,6 +37,48 @@ final class SeasonsRailMemory {
   var leadingEntryID: Int?
 }
 
+/// kino.pub episodes and an official grid, in the shape `EpisodeGridMatch` scores.
+enum KinoEpisodeGrid {
+
+  static func alignment(seasons: [Season], official: [EpisodeSchedule]) -> EpisodeGridMatch.Result {
+    EpisodeGridMatch.align(kino: kinoEpisodes(seasons), official: official.map(self.official))
+  }
+
+  static func kinoEpisodes(_ seasons: [Season]) -> [EpisodeGridMatch.KinoEpisode] {
+    seasons.flatMap { season in
+      season.episodes.map { episode in
+        EpisodeGridMatch.KinoEpisode(
+          blockID: season.id,
+          blockNumber: season.number,
+          titledNumber: season.titleSeasonNumber,
+          number: episode.number,
+          title: episode.title,
+          runtimeMinutes: episode.duration >= 60 ? episode.duration / 60 : nil)
+      }
+    }
+  }
+
+  static func official(_ schedule: EpisodeSchedule) -> EpisodeGridMatch.OfficialEpisode {
+    EpisodeGridMatch.OfficialEpisode(
+      source: .tmdb,
+      season: schedule.seasonNumber,
+      number: schedule.episodeNumber,
+      title: schedule.name ?? "",
+      runtimeMinutes: schedule.runtime,
+      airDate: schedule.airDate,
+      still: schedule.still)
+  }
+
+  static func schedule(_ episode: EpisodeGridMatch.OfficialEpisode) -> EpisodeSchedule {
+    EpisodeSchedule(episodeNumber: episode.number,
+                    seasonNumber: episode.season,
+                    name: episode.titles.first { !$0.isEmpty },
+                    airDate: episode.airDate,
+                    runtime: episode.runtimeMinutes,
+                    still: episode.still)
+  }
+}
+
 struct SeasonsRailView: View {
 
   let seasons: [Season]
@@ -60,9 +102,12 @@ struct SeasonsRailView: View {
   var onUnavailableSelected: ((_ message: String, _ systemImage: String) -> Void)? = nil
   var onHide: ((Episode, Season) -> Void)?
   var onToggleWatched: ((Episode, Season) -> Void)?
-  /// Full TMDB season schedules keyed by season number — used to date kino episodes
-  /// and to inject episodes that exist on TMDB but not yet on kino.pub.
+  /// Full TMDB season schedules keyed by kino.pub season number. Previews still pass
+  /// these. A loaded title passes `officialEpisodes` instead — every official season,
+  /// aligned by title and runtime rather than by the block index.
   var seasonSchedules: [Int: [EpisodeSchedule]] = [:]
+  /// Official episodes for the whole show (configured language and English).
+  var officialEpisodes: [EpisodeSchedule] = []
   /// Title-level metadata: drives the trailing missing/upcoming-season cards.
   var externalMetadata: TitleMetadata = TitleMetadata()
   /// The series' own backdrop: the picture of an episode that has no still of its own
@@ -132,8 +177,10 @@ struct SeasonsRailView: View {
       case .playable(_, let episode, _):
         return episode.id
       case .unavailable(let season, let schedule):
-        // Negative synthetic id — outside kino.pub's positive media ids.
-        return -(season.number * 1_000_000 + schedule.episodeNumber)
+        // Negative synthetic id — outside kino.pub's positive media ids. The official
+        // season is in there too: a year block can hold holes from two seasons that
+        // share an episode number.
+        return -(schedule.seasonNumber * 1_000_000 + season.number * 1_000 + schedule.episodeNumber)
       case .missingSeasons(let from, let to, _, _, _):
         return -(2_000_000_000 + from * 1_000 + to)
       case .upcomingSeason(let number, _, _):
@@ -176,25 +223,29 @@ struct SeasonsRailView: View {
     }
   }
 
+  private var gridAlignment: EpisodeGridMatch.Result {
+    let schedules = officialEpisodes.isEmpty
+      ? seasons.flatMap { seasonSchedules[$0.number] ?? [] }
+      : officialEpisodes
+    return KinoEpisodeGrid.alignment(seasons: seasons, official: schedules)
+  }
+
   private var entries: [RailEntry] {
+    let alignment = gridAlignment
     let episodeEntries = seasons.flatMap { season -> [RailEntry] in
-      let tmdb = seasonSchedules[season.number] ?? []
-      let byNumber = Dictionary(uniqueKeysWithValues: tmdb.map { ($0.episodeNumber, $0) })
-      let kinoNumbers = Set(season.episodes.map(\.number))
-
-      var result: [RailEntry] = season.episodes.map { episode in
-        .playable(season: season, episode: episode, schedule: byNumber[episode.number])
+      alignment.rows(for: season.id).compactMap { row -> RailEntry? in
+        switch row {
+        case .matched(let hit):
+          guard let episode = season.episodes.first(where: { $0.number == hit.kino.number }) else { return nil }
+          return .playable(season: season, episode: episode,
+                           schedule: KinoEpisodeGrid.schedule(hit.official))
+        case .extra(let extra):
+          guard let episode = season.episodes.first(where: { $0.number == extra.number }) else { return nil }
+          return .playable(season: season, episode: episode, schedule: nil)
+        case .hole(let official):
+          return .unavailable(season: season, schedule: KinoEpisodeGrid.schedule(official))
+        }
       }
-
-      // Episodes TMDB knows about that kino.pub hasn't uploaded yet.
-      let extras = tmdb
-        .filter { !kinoNumbers.contains($0.episodeNumber) }
-        .sorted { $0.episodeNumber < $1.episodeNumber }
-        .map { RailEntry.unavailable(season: season, schedule: $0) }
-
-      result.append(contentsOf: extras)
-      result.sort { $0.episodeNumber < $1.episodeNumber }
-      return result
     }
     return episodeEntries + trailingCards
   }
@@ -234,8 +285,10 @@ struct SeasonsRailView: View {
   private var tabs: [SeasonTab] {
     // The number, never the name: kino.pub's titles («Сезон 14», or none) are not drawn here,
     // and its re-numbering from 1 must not sit beside TMDB's numbers on the trailing tabs.
+    let alignment = gridAlignment
     let kino = seasons.map { season -> SeasonTab in
-      let number = KinoPubMediaMapping.seasonNumber(season)
+      let number = alignment.displaySeason(blockID: season.id, titledNumber: season.titleSeasonNumber)
+        ?? KinoPubMediaMapping.seasonNumber(season)
       return SeasonTab(id: season.id, first: number, last: number, status: .available)
     }
     let beyond = trailingCards.compactMap { entry -> SeasonTab? in
@@ -284,7 +337,7 @@ struct SeasonsRailView: View {
       guard case .playable(_, let episode, let schedule) = $0 else { return false }
       // Unwatched is `-1` on the payload, not `0`. Matching only zero sent a series
       // nobody had started to its last episode.
-      return !episode.isWatched && schedule?.isUpcoming != true
+      return !episode.isWatched && !Self.clocksOut(episode, schedule)
     }
     ?? entries.first { $0.isPlayable }
     ?? entries.first
@@ -423,7 +476,7 @@ struct SeasonsRailView: View {
       let inTab = entries.filter { $0.tabID == entry.tabID }
       let unseen = inTab.first {
         guard case .playable(_, let episode, let schedule) = $0 else { return false }
-        return !episode.isWatched && schedule?.isUpcoming != true
+        return !episode.isWatched && !Self.clocksOut(episode, schedule)
       }
       result[entry.tabID] = (unseen ?? entry).id
     }
@@ -445,9 +498,7 @@ struct SeasonsRailView: View {
       let caption = EpisodeText(season: nil, number: episode.number,
                                 name: Self.displayTitle(episode: episode, schedule: schedule))
         .text(for: .episodeTile)
-      let status: TVUIKitMediaItemStatus = (schedule?.isUpcoming == true)
-        ? (schedule?.airDate.map { .upcoming(Self.airDateLabel($0, context: .beginningOfSentence)) } ?? .unavailable)
-        : base.status
+      let status = Self.tileStatus(base: base.status, episode: episode, schedule: schedule)
       return TVUIKitMediaItem(id: entry.id,
                               imageURL: base.imageURL ?? seriesBackdropURL,
                               caption: caption,
@@ -499,7 +550,7 @@ struct SeasonsRailView: View {
   private func select(entryID: Int) {
     guard let entry = entries.first(where: { $0.id == entryID }) else { return }
     switch entry {
-    case .playable(let season, let episode, let schedule) where schedule?.isUpcoming != true:
+    case .playable(let season, let episode, let schedule) where !Self.clocksOut(episode, schedule):
       // `PlayerLink` is a plain `NavigationLink(value:)` off macOS, and a UIKit cell
       // cannot host one — the same environment hook the other TVUIKit rails push
       // through carries the identical route.
@@ -581,7 +632,7 @@ struct SeasonsRailView: View {
   @ViewBuilder
   private func railCard(for entry: RailEntry) -> some View {
     switch entry {
-    case .playable(let season, let episode, let schedule) where schedule?.isUpcoming != true:
+    case .playable(let season, let episode, let schedule) where !Self.clocksOut(episode, schedule):
       PlayerLink(route: linkProvider.player(for: filled(episode, in: season)),
                  item: filled(episode, in: season),
                  mode: .media) {
@@ -757,6 +808,45 @@ struct SeasonsRailView: View {
     )
   }
 
+  /// A kino.pub episode with a file or a runtime stays interactive. A future premiere
+  /// only blocks an episode the service does not have. «Премьера» is the early-drop
+  /// badge, past the lag window — Dexter's "tomorrow" is inside it.
+  private static func clocksOut(_ episode: Episode, _ schedule: EpisodeSchedule?) -> Bool {
+    guard let schedule, schedule.isUpcoming else { return false }
+    return !EpisodePlayability.onService(fileCount: episode.files.count, durationSeconds: episode.duration)
+  }
+
+  private static func premiereText(episode: Episode, schedule: EpisodeSchedule?) -> String? {
+    guard EpisodePlayability.onService(fileCount: episode.files.count, durationSeconds: episode.duration),
+          case .playable(true) = EpisodePlayability.decision(onService: true, airDate: schedule?.airDate)
+    else { return nil }
+    return NSLocalizedString("TVMediaItem_Premiere",
+                             comment: "Badge on an episode already playable, well before its published premiere")
+  }
+
+  /// A future date on a playable episode is not a caption. Lag says nothing; an early
+  /// drop says «Премьера». A date in the past still does.
+  private static func dateLabel(episode: Episode, schedule: EpisodeSchedule?) -> String? {
+    if let badge = premiereText(episode: episode, schedule: schedule) { return badge }
+    guard let date = schedule?.airDate else { return nil }
+    if Calendar.current.startOfDay(for: date) > Calendar.current.startOfDay(for: Date()) { return nil }
+    return airDateLabel(date)
+  }
+
+#if os(tvOS)
+  private static func tileStatus(base: TVUIKitMediaItemStatus,
+                                 episode: Episode,
+                                 schedule: EpisodeSchedule?) -> TVUIKitMediaItemStatus {
+    if clocksOut(episode, schedule) {
+      return schedule?.airDate.map { .upcoming(airDateLabel($0, context: .beginningOfSentence)) } ?? .unavailable
+    }
+    if case .ready = base, let badge = premiereText(episode: episode, schedule: schedule) {
+      return .premiere(badge)
+    }
+    return base
+  }
+#endif
+
   /// Episodes arrive without their season/media context, which playback needs.
   private func filled(_ episode: Episode, in season: Season) -> Episode {
     episode.seasonNumber = season.number
@@ -776,7 +866,7 @@ struct SeasonsRailView: View {
               in: season,
               title: displayTitle(episode: episode, schedule: schedule),
               episodeLabel: episodeLabel(number: episode.number),
-              dateLabel: schedule?.airDate.map { airDateLabel($0) },
+              dateLabel: Self.dateLabel(episode: episode, schedule: schedule),
               stillURL: stillURL(episode: episode, schedule: schedule) ?? fallbackStill?.absoluteString,
               primaryAction: primaryAction)
   }

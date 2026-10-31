@@ -60,12 +60,20 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
   }
 
   public func schedule(for identity: MediaIdentity, season: Int) async throws -> [EpisodeSchedule] {
+    try await schedule(for: identity, season: season, language: nil)
+  }
+
+  /// `language` nil uses the configured one (`ru-RU`). An explicit tag is a second
+  /// grid — English titles, cached apart from the first — so a kino.pub episode
+  /// named in either language can still match.
+  public func schedule(for identity: MediaIdentity, season: Int,
+                       language: String?) async throws -> [EpisodeSchedule] {
     guard isConfigured else { throw MetadataError.notConfigured }
     let (resolved, _) = await resolveID(for: identity)
     guard let resolved, resolved.type == .tv else {
       return []
     }
-    return try await fetchSeason(tmdbId: resolved.tmdbId, season: season)
+    return try await fetchSeason(tmdbId: resolved.tmdbId, season: season, language: language)
   }
 
   public func personMetadata(id: Int) async throws -> PersonMetadata? {
@@ -174,12 +182,17 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
     return (try? await client.decode(TMDBTitleDetails.self, from: entry.payload), debug)
   }
 
-  private func fetchSeason(tmdbId: Int, season: Int) async throws -> [EpisodeSchedule] {
-    let key = "tmdb/season/\(tmdbId)/\(season)"
+  private func fetchSeason(tmdbId: Int, season: Int, language: String?) async throws -> [EpisodeSchedule] {
+    let lang = language ?? configuration.language
+    // The unscoped key is the configured language, so a cache filled before the
+    // second language existed still answers the primary fetch.
+    let key = language == nil
+      ? "tmdb/season/\(tmdbId)/\(season)"
+      : "tmdb/season/\(tmdbId)/\(season)/\(lang)"
     let entry = await cache.deduped(key: key, ttl: Self.seasonTTL) { [self] in
       do {
         let url = try makeURL(path: "/3/tv/\(tmdbId)/season/\(season)", query: [
-          URLQueryItem(name: "language", value: configuration.language),
+          URLQueryItem(name: "language", value: lang),
         ])
         let data = try await client.getData(url: url)
         _ = try await client.decode(TMDBSeasonDetails.self, from: data)

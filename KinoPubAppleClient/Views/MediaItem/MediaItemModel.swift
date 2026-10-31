@@ -120,6 +120,13 @@ class MediaItemModel: ObservableObject {
 
   /// Season number → episode schedules from TMDB. Loaded on demand per season.
   @Published public var seasonSchedules: [Int: [EpisodeSchedule]] = [:]
+  /// Official episodes (configured language and English) aligned onto the kino.pub
+  /// blocks by `EpisodeGridMatch`. Empty until that grid has been fetched.
+  @Published public var officialEpisodes: [EpisodeSchedule] = []
+  /// Season chip / play-button number per `Season.id`, once the grid has a confident
+  /// season. Absent means the title's own number still stands.
+  @Published public var seasonLabels: [Int: Int] = [:]
+  private var didLoadEpisodeGrid = false
 
   private var actionsService: UserActionsService
   private var contentStore: ContentStore
@@ -481,38 +488,42 @@ class MediaItemModel: ObservableObject {
     }
   }
 
+  /// The rail still asks per tab. One grid serves every block: fetching "the" TMDB
+  /// season for a renumbered or year-titled block was how the wrong episodes landed.
   func ensureSeasonSchedule(_ kinoSeasonNumber: Int) async {
-    guard seasonSchedules[kinoSeasonNumber] == nil,
-          let identity,
-          identity.imdb != nil else {
-      Logger.metadata.debug(
-        "TMDB schedule skip s\(kinoSeasonNumber): alreadyLoaded=\(self.seasonSchedules[kinoSeasonNumber] != nil) imdb=\(self.identity?.imdb ?? "nil")"
-      )
-      return
-    }
+    Logger.metadata.debug("TMDB schedule tab s\(kinoSeasonNumber)")
+    await ensureEpisodeGrid()
+  }
 
-    guard let tmdbSeason = tmdbSeasonNumber(forKinoSeason: kinoSeasonNumber) else {
-      // No sensible TMDB counterpart (renumbered/special block) — mark loaded so we
-      // don't refetch on every tab visit, and simply show kino.pub episodes alone.
-      Logger.metadata.info(
-        "TMDB schedule skip s\(kinoSeasonNumber): no TMDB match (title=\(self.kinoSeason(for: kinoSeasonNumber)?.title ?? "nil"))"
-      )
-      seasonSchedules[kinoSeasonNumber] = []
-      return
+  func ensureEpisodeGrid() async {
+    guard !didLoadEpisodeGrid, let identity, identity.imdb != nil, externalMetadataLoaded else { return }
+    didLoadEpisodeGrid = true
+    var numbers = externalMetadata.seasonSummaries.map(\.seasonNumber)
+    if numbers.isEmpty {
+      numbers = (mediaItem.seasons ?? []).map(\.number)
     }
-
-    let kinoCount = kinoSeason(for: kinoSeasonNumber)?.episodes.count ?? 0
     Logger.metadata.info(
-      "TMDB schedule fetch kinopub=\(self.mediaItemId) imdb=\(identity.imdb ?? "?") season=\(kinoSeasonNumber)→tmdb=\(tmdbSeason) kinoEpisodes=\(kinoCount)"
+      "TMDB episode grid kinopub=\(self.mediaItemId) seasons=\(numbers.count)"
     )
-    let episodes = await metadataService.schedule(for: identity, season: tmdbSeason)
-    seasonSchedules[kinoSeasonNumber] = episodes
-    let tmdbNums = episodes.map(\.episodeNumber).sorted()
-    let kinoNums = Set(kinoSeason(for: kinoSeasonNumber)?.episodes.map(\.number) ?? [])
-    let missingOnKino = tmdbNums.filter { !kinoNums.contains($0) }
-    let upcoming = episodes.filter(\.isUpcoming).map(\.episodeNumber)
+    let episodes = await metadataService.episodeGrid(for: identity, seasons: numbers)
+    officialEpisodes = episodes
+    let alignment = KinoEpisodeGrid.alignment(seasons: mediaItem.seasons ?? [], official: episodes)
+    var labels: [Int: Int] = [:]
+    var byBlock: [Int: [EpisodeSchedule]] = [:]
+    for season in mediaItem.seasons ?? [] {
+      if let shown = alignment.displaySeason(blockID: season.id, titledNumber: season.titleSeasonNumber) {
+        labels[season.id] = shown
+      }
+      let matched = Set(alignment.hits.filter { $0.kino.blockID == season.id }.map(\.official.season))
+      guard matched.count == 1, let seasonNumber = matched.first else { continue }
+      byBlock[season.number] = alignment.official
+        .filter { $0.season == seasonNumber }
+        .map(KinoEpisodeGrid.schedule)
+    }
+    seasonLabels = labels
+    seasonSchedules = byBlock
     Logger.metadata.info(
-      "TMDB schedule result season=\(kinoSeasonNumber) tmdb=\(episodes.count) [\(tmdbNums.map(String.init).joined(separator: ","))] missingOnKino=\(missingOnKino) upcoming=\(upcoming) sampleStill=\(episodes.first?.still?.absoluteString ?? "nil")"
+      "TMDB episode grid result episodes=\(episodes.count) labels=\(labels.count)"
     )
   }
 
@@ -530,7 +541,9 @@ class MediaItemModel: ObservableObject {
   }
 
   func schedule(for episode: Episode, in season: Season) -> EpisodeSchedule? {
-    seasonSchedules[season.number]?.first(where: { $0.episodeNumber == episode.number })
+    let alignment = KinoEpisodeGrid.alignment(seasons: mediaItem.seasons ?? [], official: officialEpisodes)
+    guard let hit = alignment.hit(blockID: season.id, number: episode.number) else { return nil }
+    return KinoEpisodeGrid.schedule(hit.official)
   }
 
   /// Pictures and metadata cached for this title only. The catalog row stays.
@@ -544,6 +557,9 @@ class MediaItemModel: ObservableObject {
       tmdbID: externalMetadata.tmdbId
     )
     seasonSchedules = [:]
+    officialEpisodes = []
+    seasonLabels = [:]
+    didLoadEpisodeGrid = false
     localCacheEpoch += 1
     await loadExternalMetadata()
   }
@@ -609,9 +625,11 @@ class MediaItemModel: ObservableObject {
     )
     let meta = await metadataService.metadata(for: identity)
     externalMetadata = meta
+    externalMetadataLoaded = true
     Logger.metadata.info(
       "TMDB metadata result kinopub=\(self.mediaItemId) tmdbId=\(meta.tmdbId.map(String.init) ?? "nil") cast=\(meta.cast.count) photos=\(meta.cast.filter { $0.photo != nil }.count) logo=\(meta.titleLogoURL?.absoluteString ?? "nil") next=\(meta.nextEpisode.map { "S\($0.seasonNumber)E\($0.episodeNumber)" } ?? "nil") status=\(meta.status ?? "nil")"
     )
+    await ensureEpisodeGrid()
   }
 
   // MARK: - Actions
@@ -1271,6 +1289,10 @@ class MediaItemModel: ObservableObject {
   /// season's); until then TMDB's next-to-air episode does, when it is in that season.
   var awaitedEpisodeAirDate: Date? {
     guard let lastSeason = mediaItem.seasons?.last else { return nil }
+    if !officialEpisodes.isEmpty {
+      let alignment = KinoEpisodeGrid.alignment(seasons: mediaItem.seasons ?? [], official: officialEpisodes)
+      if let date = alignment.firstHoleAirDate(blockID: lastSeason.id) { return date }
+    }
     return Self.awaitedEpisodeAirDate(
       kinoEpisodeNumbers: lastSeason.episodes.map(\.number),
       schedule: seasonSchedules[lastSeason.number],
