@@ -251,3 +251,68 @@ final class WorkerImageAdminCatalogDecodingTests: XCTestCase {
     XCTAssertEqual(catalog.extra["de"]?.count, 1)
   }
 }
+
+final class TitleCardMappingTests: XCTestCase {
+  func testMapsCardOntoThePage() throws {
+    let data = try fixture("v2_title")
+    let card = try MetadataHTTPClient().decode(TitleCardDTO.self, from: data)
+    let proxy = URL(string: "https://kinopub-tmdb-proxy.example.workers.dev")
+    let meta = TitleCardSource.map(card, proxyBase: proxy)
+
+    XCTAssertEqual(meta.tmdbId, 30984)
+    XCTAssertEqual(meta.kinopoiskID, 4_789_626)
+    XCTAssertEqual(meta.status, "Returning Series")
+    XCTAssertEqual(meta.inProduction, true)
+    XCTAssertEqual(meta.overview, "Про войну.")
+    XCTAssertEqual(meta.tmdbRating ?? 0, 8.356, accuracy: 0.001)
+    XCTAssertEqual(meta.tmdbVotes, 2323)
+    XCTAssertEqual(meta.cast.map(\.name), ["Масакадзу Морита", "Нориаки Сугияма"])
+    XCTAssertEqual(meta.cast.first?.character, "Ichigo Kurosaki (voice)")
+    XCTAssertEqual(meta.cast.first?.episodeCount, 416)
+    XCTAssertEqual(meta.crew.map(\.name), ["Нориюки Абэ"])
+    XCTAssertEqual(meta.crew.first?.character, "Director")
+    XCTAssertEqual(meta.titleLogoLanguage, "ru")
+    XCTAssertEqual(
+      meta.titleLogoURL?.absoluteString,
+      "https://kinopub-tmdb-proxy.example.workers.dev/t/p/original/logo-ru.png"
+    )
+    XCTAssertEqual(
+      meta.artwork.poster?.absoluteString,
+      "https://kinopoiskapiunofficial.tech/images/posters/kp/4789626.jpg"
+    )
+    XCTAssertEqual(
+      meta.backdropURL?.absoluteString,
+      "https://kinopub-tmdb-proxy.example.workers.dev/t/p/original/back-plain.jpg"
+    )
+    XCTAssertEqual(meta.stills.count, 1)
+    XCTAssertEqual(meta.productionCompanies.map(\.name), ["TV Tokyo"])
+    XCTAssertEqual(meta.seasonSummaries.first?.poster?.absoluteString,
+                   "https://kinopub-tmdb-proxy.example.workers.dev/t/p/original/season-1.jpg")
+    let season = try XCTUnwrap(meta.schedule[1])
+    XCTAssertEqual(season.map(\.name), ["Кровь", "Blood", "Дальше"])
+    XCTAssertEqual(meta.nextEpisode?.episodeNumber, 2)
+    XCTAssertEqual(meta.nextEpisode?.name, "Дальше")
+    XCTAssertEqual(meta.lastEpisode?.episodeNumber, 1)
+    XCTAssertEqual(meta.numberOfSeasons, 1)
+    XCTAssertEqual(meta.numberOfEpisodes, 2)
+  }
+
+  func testProxiesOnlyTMDBImageHosts() {
+    let proxy = URL(string: "https://proxy.example")
+    XCTAssertEqual(
+      TMDBImageURL.proxied("https://image.tmdb.org/t/p/original/a.jpg", proxyBase: proxy)?.absoluteString,
+      "https://proxy.example/t/p/original/a.jpg"
+    )
+    XCTAssertEqual(
+      TMDBImageURL.proxied("https://kinopoiskapiunofficial.tech/images/posters/kp/1.jpg", proxyBase: proxy)?.host,
+      "kinopoiskapiunofficial.tech"
+    )
+  }
+
+  private func fixture(_ name: String) throws -> Data {
+    let url = try XCTUnwrap(
+      Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures")
+    )
+    return try Data(contentsOf: url)
+  }
+}

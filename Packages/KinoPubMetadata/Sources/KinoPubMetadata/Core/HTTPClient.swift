@@ -46,3 +46,11 @@ public actor MetadataHTTPClient {
     }
   }
 }
+
+public enum MetadataTiming {
+  public static func milliseconds(since start: ContinuousClock.Instant) -> Int {
+    let parts = start.duration(to: ContinuousClock().now).components
+    let ms = parts.seconds * 1000 + parts.attoseconds / 1_000_000_000_000_000
+    return Int(ms)
+  }
+}

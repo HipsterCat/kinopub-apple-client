@@ -18,33 +18,45 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
   private let client: MetadataHTTPClient
   private let cache: MetadataCache
   private let baseURL: String
+  /// The full staff list. Off on the `/v2/title` path: the card already names who to draw,
+  /// and this call is the heavy one. The current TMDB path still asks for it.
+  private let includeStaff: Bool
 
   private static let ttl: TimeInterval = 60 * 60 * 24 * 30
 
   public init(
     client: MetadataHTTPClient = MetadataHTTPClient(),
     cache: MetadataCache = MetadataCache(),
-    baseURL: String = "https://kpapp.link/kpapi/films"
+    baseURL: String = "https://kpapp.link/kpapi/films",
+    includeStaff: Bool = false
   ) {
     self.client = client
     self.cache = cache
     self.baseURL = baseURL
+    self.includeStaff = includeStaff
   }
 
   public func titleMetadata(for identity: MediaIdentity) async throws -> TitleMetadata? {
+    try await titleMetadata(for: identity, includeStaff: includeStaff)
+  }
+
+  /// `includeStaff` overrides the instance default for one call. The v2 comparison
+  /// uses the same source the page already has, with staff left off.
+  public func titleMetadata(for identity: MediaIdentity, includeStaff: Bool) async throws -> TitleMetadata? {
     guard let filmId = identity.kinopoisk, filmId > 0 else { return nil }
 
     async let factsPart = fetchFacts(filmId: filmId)
     async let imagesPart = fetchImages(filmId: filmId)
-    async let staffPart = fetchStaff(filmId: filmId)
     async let reviewsPart = fetchReviews(filmId: filmId)
 
     var meta = TitleMetadata()
     meta.attribution.insert(.kinopoiskProxy)
     meta.merge(await factsPart)
     meta.merge(await imagesPart)
-    meta.merge(await staffPart)
     meta.merge(await reviewsPart)
+    if includeStaff {
+      meta.merge(await fetchStaff(filmId: filmId))
+    }
     return meta
   }
 
@@ -202,6 +214,7 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
   ) async -> ([T]?, SourceDebugEntry) {
     let urlString = "\(baseURL)/\(filmId)/\(resource)"
     let key = "kinopoiskProxy/\(resource)/\(filmId)"
+    let started = ContinuousClock().now
     let entry = await cache.deduped(key: key, ttl: Self.ttl) { [self] in
       await getAndCache(urlString: urlString, type: ItemsEnvelope<T>.self)
     }
@@ -211,7 +224,8 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
       url: urlString,
       proxied: true,
       succeeded: entry != nil && !(entry?.isNegative ?? true),
-      responseBody: entry.map { String(data: $0.payload.prefix(8_192), encoding: .utf8) ?? "" } ?? ""
+      responseBody: entry.map { String(data: $0.payload.prefix(8_192), encoding: .utf8) ?? "" } ?? "",
+      elapsedMilliseconds: MetadataTiming.milliseconds(since: started)
     )
     guard let entry, !entry.isNegative else { return (nil, debug) }
     let decoded = try? client.decode(ItemsEnvelope<T>.self, from: entry.payload)
@@ -221,6 +235,7 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
   private func fetchStaffMembers(filmId: Int) async -> ([ProxyStaff]?, SourceDebugEntry) {
     let urlString = "\(baseURL)/\(filmId)/staff"
     let key = "kinopoiskProxy/staff/\(filmId)"
+    let started = ContinuousClock().now
     let entry = await cache.deduped(key: key, ttl: Self.ttl) { [self] in
       await getAndCache(urlString: urlString, type: [ProxyStaff].self)
     }
@@ -230,7 +245,8 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
       url: urlString,
       proxied: true,
       succeeded: entry != nil && !(entry?.isNegative ?? true),
-      responseBody: entry.map { String(data: $0.payload.prefix(8_192), encoding: .utf8) ?? "" } ?? ""
+      responseBody: entry.map { String(data: $0.payload.prefix(8_192), encoding: .utf8) ?? "" } ?? "",
+      elapsedMilliseconds: MetadataTiming.milliseconds(since: started)
     )
     guard let entry, !entry.isNegative else { return (nil, debug) }
     return (try? client.decode([ProxyStaff].self, from: entry.payload), debug)
@@ -239,6 +255,7 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
   private func fetchReviewsPage(filmId: Int) async -> (ProxyReviewsPage?, SourceDebugEntry) {
     let urlString = "\(baseURL)/\(filmId)/reviews"
     let key = "kinopoiskProxy/reviews/\(filmId)"
+    let started = ContinuousClock().now
     let entry = await cache.deduped(key: key, ttl: Self.ttl) { [self] in
       await getAndCache(urlString: urlString, type: ProxyReviewsPage.self)
     }
@@ -248,7 +265,8 @@ public final class KinopoiskProxySource: MetadataSource, @unchecked Sendable {
       url: urlString,
       proxied: true,
       succeeded: entry != nil && !(entry?.isNegative ?? true),
-      responseBody: entry.map { String(data: $0.payload.prefix(8_192), encoding: .utf8) ?? "" } ?? ""
+      responseBody: entry.map { String(data: $0.payload.prefix(8_192), encoding: .utf8) ?? "" } ?? "",
+      elapsedMilliseconds: MetadataTiming.milliseconds(since: started)
     )
     guard let entry, !entry.isNegative else { return (nil, debug) }
     return (try? client.decode(ProxyReviewsPage.self, from: entry.payload), debug)

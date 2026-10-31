@@ -3356,6 +3356,11 @@ struct MediaItemInfoColumns: View {
         Spacer()
         // Size while closed: "did this one answer with anything" is the question the
         // collapsed row has to answer on its own, or closing them helped nothing.
+        if let elapsed = entry.elapsedMilliseconds {
+          Text(verbatim: Self.elapsedLabel(elapsed))
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.secondary)
+        }
         if !isExpanded {
           Text(verbatim: Self.sizeLabel(entry.responseBody))
             .font(.system(size: 11, design: .monospaced))
@@ -3365,6 +3370,11 @@ struct MediaItemInfoColumns: View {
         badge(entry.succeeded ? "ok" : "failed", tint: entry.succeeded ? .green : .red)
       }
       .contentShape(Rectangle())
+    }
+
+    private static func elapsedLabel(_ milliseconds: Int) -> String {
+      if milliseconds < 1000 { return "\(milliseconds) ms" }
+      return String(format: "%.1f s", Double(milliseconds) / 1000)
     }
 
     private static func sizeLabel(_ raw: String) -> String {

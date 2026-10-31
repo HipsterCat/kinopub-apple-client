@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Страница тайтла, временно: в углу переключатель TMDB / v2. v2 — один запрос /v2/title вместо наших запросов к TMDB; факты и рецензии Кинопоиска остаются, список staff не запрашивается. Время каждого пути пишется на кнопке.",
         "iPhone, iPad и Mac: на Главной — большой баннер во всю ширину, как на Apple TV: логотип, оценки и строка о тайтле, начало описания, «Смотреть», закладки, «Подробнее» и «Дальше». Тайтлы сменяются сами каждые 8 секунд, листаются пальцем. Выключается тем же переключателем, что на Apple TV.",
         "iPad: приложение больше не падает при запуске сразу после установки или обновления.",
         "Фильмы и Сериалы на iPhone, iPad и Mac — те же полки, что на Главной, с кнопкой «Показать ещё секции» внизу.",
@@ -92,6 +93,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Title page, temporarily: a TMDB / v2 switch in the corner. v2 is one /v2/title request instead of our TMDB calls; Kinopoisk facts and reviews stay, the staff list is not requested. Each path's time is on its button.",
         "iPhone, iPad and Mac: Home opens on a full-width hero, as on Apple TV: the title logo, scores and facts, the start of the synopsis, Play, Bookmarks, Details and Next. Titles turn every 8 seconds, or with a swipe. The same switch as on Apple TV turns it off.",
         "iPad: the app no longer crashes at launch right after install or update.",
         "Movies and Series on iPhone, iPad and Mac are the same shelves as Home, with Show more sections at the bottom.",

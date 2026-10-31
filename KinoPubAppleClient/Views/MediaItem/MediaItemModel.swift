@@ -111,6 +111,14 @@ class MediaItemModel: ObservableObject {
   /// TMDB (and later other sources) overlay. Empty when the proxy is unset or the
   /// title has no IMDb id — the page then draws exactly as before.
   @Published public var externalMetadata: TitleMetadata = TitleMetadata()
+  /// Temporary. On: the page reads `/v2/title` and the Kinopoisk proxy without staff,
+  /// and does not call TMDB. Off: the calls the page has always made. The corner
+  /// switch on the detail page flips it. Persists so the next title opens the same way.
+  @Published public var usesTitleCard: Bool
+  /// Last measured load of each path, including the episode grid. Keyed by `usesTitleCard`.
+  @Published public var metadataPathMilliseconds: [Bool: Int] = [:]
+  private static let titleCardDefaultsKey = "kinopub.debug.usesTitleCard"
+  private var metadataLoadGeneration = 0
   /// Bumped when this title's local pictures are dropped, so the hero reloads them.
   @Published var localCacheEpoch = 0
 
@@ -135,6 +143,7 @@ class MediaItemModel: ObservableObject {
   /// payload), so the URL is built once and never swaps under the slot. The TMDB
   /// overlay's logo only when no worker is configured.
   var heroLogoURL: URL? {
+    if usesTitleCard { return externalMetadata.titleLogoURL }
     let images = metadataService.images
     guard images.isConfigured else { return externalMetadata.titleLogoURL }
     guard heroImagesReady else { return nil }
@@ -143,6 +152,7 @@ class MediaItemModel: ObservableObject {
 
   /// Same route and rule as ``heroLogoURL``, for the textless backdrop.
   var heroBackdropURL: URL? {
+    if usesTitleCard { return externalMetadata.backdropURL }
     let images = metadataService.images
     guard images.isConfigured else { return externalMetadata.backdropURL }
     guard heroImagesReady else { return nil }
@@ -151,17 +161,46 @@ class MediaItemModel: ObservableObject {
   }
 
   /// The logo lookup is over: the route answers by itself (its 404 is the miss), or
-  /// the TMDB overlay has finished.
+  /// the TMDB overlay has finished. The title card's logo is the card's own URL.
   var heroLogoResolved: Bool {
-    metadataService.images.isConfigured ? heroImagesReady : externalMetadataLoaded
+    if usesTitleCard { return externalMetadataLoaded }
+    return metadataService.images.isConfigured ? heroImagesReady : externalMetadataLoaded
   }
 
   /// Fallback caption rules from the `?lang=` query when the served stamp is not known yet.
   var heroLogoRequestKind: TitleLogoRequestKind {
+    if usesTitleCard {
+      return TitleLogoRequestKind(routeLanguage: externalMetadata.titleLogoLanguage)
+    }
     if metadataService.images.isConfigured {
       return metadataService.images.logoRequestKind
     }
     return TitleLogoRequestKind(routeLanguage: TitleImageRoute.appLanguage)
+  }
+
+  /// What the corner switch prints under the two times: how much of the page the
+  /// active path actually filled.
+  var metadataCompareSummary: String {
+    let episodes = Set(externalMetadata.schedule.flatMap { season, rows in
+      rows.map { "\(season):\($0.episodeNumber)" }
+    }).count
+    return "cast \(externalMetadata.cast.count) · eps \(episodes) · stills \(externalMetadata.stills.count)"
+  }
+
+  /// Flips the detail page between the existing metadata calls and `/v2/title`.
+  func setUsesTitleCard(_ enabled: Bool) {
+    guard usesTitleCard != enabled else { return }
+    usesTitleCard = enabled
+    UserDefaults.standard.set(enabled, forKey: Self.titleCardDefaultsKey)
+    seasonSchedules = [:]
+    externalMetadataLoaded = false
+    guard identity != nil else { return }
+    Task {
+      await loadExternalMetadata()
+      if let lastSeason = mediaItem.seasons?.last?.number {
+        await ensureSeasonSchedule(lastSeason)
+      }
+    }
   }
 
   /// Second line under lettered hero type — kino.pub's `RU / EN` split, else Kinopoisk
@@ -352,6 +391,7 @@ class MediaItemModel: ObservableObject {
     // only for episodic items is `nolinks=1` worth it (a film's link block is small, and
     // its `Video` is a struct we would have to write back through the item).
     self.excludeLinksOnFetch = FeatureFlags.seriesDetailsWithoutLinks && (knownItem?.isEpisodicType ?? false)
+    self.usesTitleCard = UserDefaults.standard.bool(forKey: Self.titleCardDefaultsKey)
     switch libraryState.userVote(itemId: mediaItemId) {
     case true: myVote = .up
     case false: myVote = .down
@@ -482,15 +522,8 @@ class MediaItemModel: ObservableObject {
   }
 
   func ensureSeasonSchedule(_ kinoSeasonNumber: Int) async {
-    guard seasonSchedules[kinoSeasonNumber] == nil,
-          let identity,
-          identity.imdb != nil else {
-      Logger.metadata.debug(
-        "TMDB schedule skip s\(kinoSeasonNumber): alreadyLoaded=\(self.seasonSchedules[kinoSeasonNumber] != nil) imdb=\(self.identity?.imdb ?? "nil")"
-      )
-      return
-    }
-
+    guard seasonSchedules[kinoSeasonNumber] == nil else { return }
+    if usesTitleCard, !externalMetadataLoaded { return }
     guard let tmdbSeason = tmdbSeasonNumber(forKinoSeason: kinoSeasonNumber) else {
       // No sensible TMDB counterpart (renumbered/special block) — mark loaded so we
       // don't refetch on every tab visit, and simply show kino.pub episodes alone.
@@ -498,6 +531,20 @@ class MediaItemModel: ObservableObject {
         "TMDB schedule skip s\(kinoSeasonNumber): no TMDB match (title=\(self.kinoSeason(for: kinoSeasonNumber)?.title ?? "nil"))"
       )
       seasonSchedules[kinoSeasonNumber] = []
+      return
+    }
+    if usesTitleCard {
+      // The card lists Russian and English as two rows of one episode. The rail
+      // keys by episode number, so the first row (Russian) is the one it draws.
+      var seen = Set<Int>()
+      seasonSchedules[kinoSeasonNumber] = (externalMetadata.schedule[tmdbSeason] ?? [])
+        .filter { seen.insert($0.episodeNumber).inserted }
+      return
+    }
+    guard let identity, identity.imdb != nil else {
+      Logger.metadata.debug(
+        "TMDB schedule skip s\(kinoSeasonNumber): imdb=\(self.identity?.imdb ?? "nil")"
+      )
       return
     }
 
@@ -595,22 +642,39 @@ class MediaItemModel: ObservableObject {
   }
 
   private func loadExternalMetadata() async {
-    defer { externalMetadataLoaded = true }
+    metadataLoadGeneration += 1
+    let generation = metadataLoadGeneration
+    let started = ContinuousClock().now
+    defer {
+      if generation == metadataLoadGeneration {
+        externalMetadataLoaded = true
+      }
+    }
     guard let identity else {
-      Logger.metadata.info("TMDB skip kinopub=\(self.mediaItemId): no identity")
+      Logger.metadata.info("metadata skip kinopub=\(self.mediaItemId): no identity")
       return
     }
-    guard let imdb = identity.imdb else {
-      Logger.metadata.info("TMDB skip kinopub=\(self.mediaItemId): no imdb id")
-      return
+    let meta: TitleMetadata
+    if usesTitleCard {
+      Logger.metadata.info("title card fetch kinopub=\(self.mediaItemId)")
+      meta = await metadataService.titleCardMetadata(for: identity)
+    } else {
+      guard let imdb = identity.imdb else {
+        Logger.metadata.info("TMDB skip kinopub=\(self.mediaItemId): no imdb id")
+        return
+      }
+      Logger.metadata.info(
+        "TMDB metadata fetch kinopub=\(self.mediaItemId) imdb=\(imdb) series=\(identity.isSeries) title=\(identity.title)"
+      )
+      meta = await metadataService.metadata(for: identity)
     }
-    Logger.metadata.info(
-      "TMDB metadata fetch kinopub=\(self.mediaItemId) imdb=\(imdb) series=\(identity.isSeries) title=\(identity.title)"
-    )
-    let meta = await metadataService.metadata(for: identity)
+    guard generation == metadataLoadGeneration else { return }
     externalMetadata = meta
+    var times = metadataPathMilliseconds
+    times[usesTitleCard] = MetadataTiming.milliseconds(since: started)
+    metadataPathMilliseconds = times
     Logger.metadata.info(
-      "TMDB metadata result kinopub=\(self.mediaItemId) tmdbId=\(meta.tmdbId.map(String.init) ?? "nil") cast=\(meta.cast.count) photos=\(meta.cast.filter { $0.photo != nil }.count) logo=\(meta.titleLogoURL?.absoluteString ?? "nil") next=\(meta.nextEpisode.map { "S\($0.seasonNumber)E\($0.episodeNumber)" } ?? "nil") status=\(meta.status ?? "nil")"
+      "metadata result path=\(self.usesTitleCard ? "v2" : "tmdb") kinopub=\(self.mediaItemId) ms=\(times[self.usesTitleCard] ?? -1) tmdbId=\(meta.tmdbId.map(String.init) ?? "nil") cast=\(meta.cast.count) photos=\(meta.cast.filter { $0.photo != nil }.count) logo=\(meta.titleLogoURL?.absoluteString ?? "nil") next=\(meta.nextEpisode.map { "S\($0.seasonNumber)E\($0.episodeNumber)" } ?? "nil") status=\(meta.status ?? "nil")"
     )
   }
 

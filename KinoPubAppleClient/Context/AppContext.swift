@@ -172,8 +172,10 @@ struct AppContext: AppContextProtocol {
     let metadataService = MetadataService(sources: [
       TMDBSource(configuration: metadataConfig),
       KinopoiskSource(keyProvider: kinopoiskKeyProvider),
-      KinopoiskProxySource()
-    ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL))
+      // Staff stays on this path. The v2 comparison calls the same source with it off.
+      KinopoiskProxySource(includeStaff: true)
+    ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL),
+      titleCard: TitleCardSource(configuration: metadataConfig))
 
 #if DEBUG && os(tvOS)
     // A fixture swaps the API for stand-ins but keeps the real stores, and the real player

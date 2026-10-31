@@ -6,6 +6,8 @@ public enum MetadataSourceID: String, Sendable, Hashable, Codable {
   case kinopoisk
   /// Keyless kpapp.link proxy (same unofficial Kinopoisk payload the community fork uses).
   case kinopoiskProxy
+  /// One `/v2/title` card from our worker, by kino.pub id.
+  case titleCard
   case introdb
 }
 

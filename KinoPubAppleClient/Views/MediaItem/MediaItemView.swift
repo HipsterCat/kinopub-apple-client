@@ -396,6 +396,19 @@ struct MediaItemView: View {
 #endif
       .handleError(state: $errorHandler.state)
       .hudToast($itemModel.hudToast)
+      .overlay(alignment: .bottomTrailing) {
+        if showsTitleCardCompare {
+          TitleCardCompareControl(model: itemModel)
+#if os(tvOS)
+            .padding(.trailing, 80)
+            .padding(.bottom, 48)
+            .focusSection()
+#else
+            .padding(.trailing, 16)
+            .padding(.bottom, 20)
+#endif
+        }
+      }
       .modifier(VoteChoicePresentation(isPresented: $itemModel.showsVoteChoice,
                                        onVote: { itemModel.vote(up: $0) }))
       .alert("MediaItem_VoteCastTitle".localized, isPresented: $itemModel.showsVoteLockedNotice) {
@@ -403,6 +416,15 @@ struct MediaItemView: View {
       } message: {
         Text("MediaItem_VoteCastBody".localized)
       }
+  }
+
+  /// Temporary comparison of the existing metadata calls and `/v2/title`. Hidden on
+  /// fixture runs so a focus walk does not land on it.
+  private var showsTitleCardCompare: Bool {
+#if DEBUG && os(tvOS)
+    if DetailFixture.isActive { return false }
+#endif
+    return itemModel.hasPaintedItem || itemModel.itemLoaded
   }
 
   private var workerImageAdminAction: (() -> Void)? {
@@ -1045,6 +1067,64 @@ private struct VoteChoiceDialog: View {
   }
 }
 #endif
+
+/// Temporary. Two paths for the same title, timed, so the page itself shows what
+/// `/v2/title` changes. Delete with the old TMDB calls once the card wins.
+private struct TitleCardCompareControl: View {
+  @ObservedObject var model: MediaItemModel
+
+  var body: some View {
+    VStack(alignment: .trailing, spacing: 6) {
+      HStack(spacing: 8) {
+        segment(title: "TMDB", enabled: false)
+        segment(title: "v2", enabled: true)
+      }
+      Text(model.externalMetadataLoaded ? model.metadataCompareSummary : "…")
+        .font(TypeScale.cardMeta)
+        .foregroundStyle(.white.opacity(0.85))
+        .monospacedDigit()
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    .accessibilityIdentifier("kinopub.debug.titleCard")
+  }
+
+  private func segment(title: String, enabled: Bool) -> some View {
+    let selected = model.usesTitleCard == enabled
+    let milliseconds = model.metadataPathMilliseconds[enabled]
+    return Button {
+      model.setUsesTitleCard(enabled)
+    } label: {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(verbatim: title)
+          .font(TypeScale.actionLabel.weight(.semibold))
+        Text(verbatim: timeLabel(milliseconds, selected: selected))
+          .font(TypeScale.cardMeta)
+          .monospacedDigit()
+      }
+      .foregroundStyle(.white)
+      .padding(.horizontal, 12)
+      .padding(.vertical, 8)
+      .background(selected ? Color.white.opacity(0.22) : Color.white.opacity(0.06),
+                  in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+#if os(tvOS)
+    .buttonStyle(.card)
+#else
+    .buttonStyle(.plain)
+#endif
+    .disabled(!model.externalMetadataLoaded)
+    .accessibilityAddTraits(selected ? .isSelected : [])
+  }
+
+  private func timeLabel(_ milliseconds: Int?, selected: Bool) -> String {
+    if selected, !model.externalMetadataLoaded { return "…" }
+    guard let milliseconds else { return "—" }
+    if milliseconds < 1000 { return "\(milliseconds) ms" }
+    return String(format: "%.1f s", Double(milliseconds) / 1000)
+  }
+}
 
 struct MediaItemView_Previews: PreviewProvider {
   struct Preview: View {
