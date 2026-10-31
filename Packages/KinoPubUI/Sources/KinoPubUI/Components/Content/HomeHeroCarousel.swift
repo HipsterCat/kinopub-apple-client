@@ -5,7 +5,8 @@ import Foundation
 //  KinoPubUI
 //
 //  The Home hero on iOS, iPadOS and macOS: the tvOS carousel (`TVPageHero.swift`) in
-//  SwiftUI — the same titles, logo, line, plot, Play / Bookmarks / Details / Next and
+//  SwiftUI — the same titles, logo, line, plot, Play and Bookmarks (Details and Next
+//  are tvOS-only: here the picture opens the title and the edge arrows page) and
 //  the same 8 s turn — laid out the way the Apple TV app lays its hero out on each
 //  device. Wide (iPad, Mac): the words low on the leading margin, as on the TV. Phone:
 //  one centred column over the foot of the picture.
@@ -426,48 +427,32 @@ public struct HomeHeroCarousel: View {
 
   // MARK: Buttons
 
-  /// Play, Bookmarks, Details, Next — tvOS's row. The phone keeps Play and Bookmarks,
-  /// as the Apple TV app's phone hero does: a swipe turns the page and a tap on the
-  /// picture opens the title. A wide row that does not fit drops Next, then Details.
-  @ViewBuilder
+  /// Play and Bookmarks. tvOS's row adds Details and Next; here, as in the Apple TV
+  /// app's phone and Mac heroes, a click on the picture opens the title and the edge
+  /// arrows (or a swipe) turn the page (Sasha, 2026-10-31).
   private func buttons(_ feature: HomeHeroFeature) -> some View {
-    if isCompact {
-      buttonRow(feature, details: false, next: false)
-    } else {
-      ViewThatFits(in: .horizontal) {
-        buttonRow(feature, details: true, next: true)
-        buttonRow(feature, details: true, next: false)
-        buttonRow(feature, details: false, next: false)
-      }
-    }
-  }
-
-  private func buttonRow(_ feature: HomeHeroFeature, details: Bool, next: Bool) -> some View {
     HStack(spacing: MediaActionMetrics.rowSpacing) {
       playButton(feature)
       if bookmarkEntries != nil {
         bookmarkMenu(feature)
-      }
-      if details {
-        MediaActionButton(detailsAppearance) { onDetails(feature.card) }
-      }
-      if next, features.count > 1 {
-        MediaActionButton(nextAppearance) { step(1) }
       }
     }
     .fixedSize()
   }
 
   /// What the detail page's Play says for this title (`MediaActionCatalog.play`, laid
-  /// over this device's positions); plain Play until its details are in.
+  /// over this device's positions); plain Play until its details are in. The quieter
+  /// glass pill, not the detail page's white one: the banner is a preview, and white
+  /// read as the loudest thing on Home (Sasha, 2026-10-31).
   private func playButton(_ feature: HomeHeroFeature) -> some View {
-    let appearance = feature.play ?? MediaActionAppearance(
+    var appearance = feature.play ?? MediaActionAppearance(
       id: .play,
-      chrome: .playPill,
+      chrome: .pill,
       systemImage: "play.fill",
       title: hero.labels.play,
       accessibilityLabel: hero.labels.play
     )
+    appearance.chrome = .pill
     return MediaActionButton(appearance) { onPlay(feature.card) }
       .accessibilityIdentifier("kinopub.hero.play")
   }
@@ -523,15 +508,7 @@ public struct HomeHeroCarousel: View {
     return ([], [])
   }
 
-  private var detailsAppearance: MediaActionAppearance {
-    MediaActionAppearance(id: .more, chrome: .pill, systemImage: "",
-                          title: hero.labels.details, accessibilityLabel: hero.labels.details)
-  }
 
-  private var nextAppearance: MediaActionAppearance {
-    MediaActionAppearance(id: .more, chrome: .circle, systemImage: "chevron.right",
-                          accessibilityLabel: hero.labels.next)
-  }
 
   // MARK: Metrics
 

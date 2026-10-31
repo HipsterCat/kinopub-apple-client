@@ -33,6 +33,7 @@ struct RouteStack<Content: View>: View {
   var body: some View {
     NavigationStack(path: navigationState.path(for: tab)) {
       content()
+        .environment(\.scrollToTopRequest, navigationState.scrollToTopRequests[tab] ?? 0)
         .appRouteDestinations(zoom: zoom ? zoomNamespace : nil)
     }
     .environment(\.zoomTransitionNamespace, zoom ? zoomNamespace : nil)

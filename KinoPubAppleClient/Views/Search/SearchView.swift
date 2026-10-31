@@ -518,20 +518,6 @@ struct SearchView: View {
           }
         }
 #endif
-#if !os(tvOS)
-        // Leave Search → previous tab. Only at Search root so NavigationStack can own
-        // system back/forward once a title is pushed. tvOS has no equivalent — you go
-        // back up to the tab bar there.
-        if navigationState.canReturnFromSearch && navigationState.searchRoutes.isEmpty {
-          ToolbarItem(placement: searchReturnPlacement) {
-            Button {
-              navigationState.returnFromSearch()
-            } label: {
-              Label(backLabel, systemImage: "chevron.backward")
-            }
-          }
-        }
-#endif
       }
       .handleError(state: $errorHandler.state)
       .task {
@@ -559,29 +545,6 @@ struct SearchView: View {
         handleSearchFieldChange(newValue)
       }
 #endif
-    }
-  }
-
-  private var searchReturnPlacement: ToolbarItemPlacement {
-#if os(macOS)
-    // Leading toolbar — same strip as system back/forward once the stack has depth.
-    .navigation
-#else
-    .topBarLeading
-#endif
-  }
-
-  private var backLabel: String {
-    guard let tab = navigationState.searchReturnTab else { return "Back".localized }
-    switch tab {
-    case .home: return "For You".localized
-    case .movies: return "Movies".localized
-    case .series: return "Series".localized
-    case .library: return "Library".localized
-    case .watchlist: return "Watchlist".localized
-    case .recentlyWatched: return "Recently Watched".localized
-    case .bookmarks, .bookmark: return "Bookmarks".localized
-    default: return "Back".localized
     }
   }
 

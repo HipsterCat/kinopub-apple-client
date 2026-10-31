@@ -69,11 +69,15 @@ struct TabsNavigationView: View {
   /// not scene storage: a Mac quit with «Close windows when quitting» on (the default)
   /// restores no scene, and the place was lost every time.
   @AppStorage("selectedNavigationTab") private var storedTab = ""
+#if os(macOS)
+  @State private var sidebarReselectGuard = SidebarReselectGuard()
+#endif
 
   var body: some View {
     modernTabs
 #if DEBUG
-      // `-KINOPUBSwitchTabs home,search,…`: one section switch every 8 s after launch, to
+      // `-KINOPUBSwitchTabs home,search,reselect,…`: one section switch (or a choice of the
+      // shown one again) every 8 s after launch, to
       // check that a section keeps what it had when you come back to it.
       // Unstructured and once per process: the switch itself can rebuild this view, and a
       // `.task` would be cancelled with it after the first step.
@@ -89,6 +93,7 @@ struct TabsNavigationView: View {
             case "home": navigationState.selectedTab = .home
             case "search": navigationState.enterSearch()
             case "series": navigationState.selectedTab = .series
+            case "reselect": navigationState.reselect(navigationState.selectedTab)
             default: break
             }
             try? await Task.sleep(for: .seconds(8))
@@ -203,15 +208,14 @@ struct TabsNavigationView: View {
 #endif
         if newValue == .search {
           if navigationState.selectedTab == .search {
-            navigationState.popToRoot(for: .search)
+            navigationState.reselect(.search)
           } else {
-            // Remember previous tab so Back can leave Search (toolbar / tab / filter jump).
             navigationState.enterSearch()
           }
           return
         }
         if newValue == navigationState.selectedTab {
-          navigationState.popToRoot(for: newValue)
+          navigationState.reselect(newValue)
         } else {
           navigationState.selectedTab = newValue // Publishing changes from within view updates is not allowed, this will cause undefined behavior.
         }
@@ -343,21 +347,27 @@ struct TabsNavigationView: View {
       VStack(spacing: 0) {
       List(selection: sidebarSelection) {
         Label("Search", systemImage: "magnifyingglass").tag(NavigationTabs.search)
+          .sidebarReselect(.search, using: sidebarReselect)
         ForEach(activeBrowseTabs.filter { $0.tab != .library }) { spec in
           // Outline glyphs, as the TV app's sidebar draws them; the tab bar's are filled.
           Label(spec.title, systemImage: Self.outlineSymbol(spec.systemImage)).tag(spec.tab)
+            .sidebarReselect(spec.tab, using: sidebarReselect)
         }
 
         Section("Library") {
           Label("NewEpisodesTitle".localized, systemImage: "bell")
             .badge(watchlistBadgeCount)
             .tag(NavigationTabs.watchlist)
+            .sidebarReselect(.watchlist, using: sidebarReselect)
           Label("Continue Watching", systemImage: "play.circle")
             .tag(NavigationTabs.continueWatching)
+            .sidebarReselect(.continueWatching, using: sidebarReselect)
           Label("History", systemImage: "clock.arrow.circlepath")
             .tag(NavigationTabs.recentlyWatched)
+            .sidebarReselect(.recentlyWatched, using: sidebarReselect)
           Label("SidebarGenres".localized, systemImage: "theatermasks")
             .tag(NavigationTabs.genres)
+            .sidebarReselect(.genres, using: sidebarReselect)
         }
 
         if !sidebarFolders.isEmpty {
@@ -365,6 +375,7 @@ struct TabsNavigationView: View {
             ForEach(sidebarFolders, id: \.id) { folder in
               Label(folder.title, systemImage: "bookmark")
                 .tag(NavigationTabs.bookmark(folder.id))
+                .sidebarReselect(.bookmark(folder.id), using: sidebarReselect)
             }
           }
         }
@@ -412,6 +423,15 @@ struct TabsNavigationView: View {
     }
   }
 
+  /// A click on the row already selected: back to its root, or up to its top. The list
+  /// does not report it (the selection does not change), so each row also sees its own
+  /// clicks — and ignores the one that just selected it.
+  private func sidebarReselect(_ tab: NavigationTabs) {
+    guard tab == navigationState.selectedTab,
+          sidebarReselectGuard.allows(at: .now) else { return }
+    navigationState.reselect(tab)
+  }
+
   /// The outline form of a tab glyph: «house.fill» → «house».
   static func outlineSymbol(_ name: String) -> String {
     name.hasSuffix(".fill") ? String(name.dropLast(".fill".count)) : name
@@ -422,6 +442,11 @@ struct TabsNavigationView: View {
       get: { navigationState.selectedTab },
       set: { tab in
         guard let tab else { return }
+        if tab == navigationState.selectedTab {
+          sidebarReselect(tab)
+          return
+        }
+        sidebarReselectGuard.pickedAt = .now
         // A plain switch: every section keeps its stack, and Search its query and
         // results. `selectBrowseTab` empties Search on the way out — the tab bar's
         // «leave Search» gesture, not a sidebar's (Sasha, 2026-10-31).
@@ -1172,3 +1197,26 @@ final class SectionModels {
     return model
   }
 }
+
+#if os(macOS)
+/// Tells a click on the selected sidebar row from the click that selected it, and one
+/// click from the same click reported twice (by the row and by the list).
+final class SidebarReselectGuard {
+  var pickedAt = Date.distantPast
+  private var reselectedAt = Date.distantPast
+  static let settle: TimeInterval = 0.35
+
+  func allows(at now: Date) -> Bool {
+    guard now.timeIntervalSince(pickedAt) > Self.settle,
+          now.timeIntervalSince(reselectedAt) > Self.settle else { return false }
+    reselectedAt = now
+    return true
+  }
+}
+
+private extension View {
+  func sidebarReselect(_ tab: NavigationTabs, using action: @escaping (NavigationTabs) -> Void) -> some View {
+    simultaneousGesture(TapGesture().onEnded { action(tab) })
+  }
+}
+#endif

@@ -94,4 +94,34 @@ final class SectionStateTests: XCTestCase {
     XCTAssertEqual(back.seasonsRail.selectedTabID, 3)
     XCTAssertEqual(back.seasonsRail.leadingEntryID, 42)
   }
+
+  /// The shown section chosen again: back to its root first, then to the top of its page.
+  func testReselectPopsThenScrollsToTop() {
+    let navigation = NavigationState()
+    navigation.selectedTab = .home
+    navigation.path(for: .home).wrappedValue = [.detailsById(1), .detailsById(2)]
+
+    navigation.reselect(.home)
+    XCTAssertTrue(navigation.mainRoutes.isEmpty)
+    XCTAssertNil(navigation.scrollToTopRequests[.home])
+
+    navigation.reselect(.home)
+    XCTAssertEqual(navigation.scrollToTopRequests[.home], 1)
+    XCTAssertEqual(navigation.selectedTab, .home)
+  }
+
+  /// Back walks the section's own stack and nothing else: at Search's root it stays in
+  /// Search, and Home's stack is untouched.
+  func testBackStaysInItsSection() {
+    let navigation = NavigationState()
+    navigation.selectedTab = .home
+    navigation.path(for: .home).wrappedValue = [.detailsById(1)]
+    navigation.enterSearch()
+    navigation.path(for: .search).wrappedValue = [.detailsById(2)]
+
+    navigation.path(for: .search).wrappedValue = []   // Back
+    XCTAssertEqual(navigation.selectedTab, .search)
+    XCTAssertTrue(navigation.searchRoutes.isEmpty)
+    XCTAssertEqual(navigation.mainRoutes.count, 1)
+  }
 }

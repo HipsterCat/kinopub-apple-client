@@ -274,6 +274,23 @@ final class NavigationState {
   func popToRoot(for tab: NavigationTabs) {
     guard let keyPath = Self.routes(for: tab) else { return }
     self[keyPath: keyPath] = [] //Publishing changes from within view updates is not allowed, this will cause undefined behavior.
+    MainActor.assumeIsolated {
+      MediaItemModelCache.shared.keep(only: [], on: tab)
+    }
+  }
+
+  /// Bumped per section when it is chosen again at its root; its page scrolls to the top
+  /// (`scrollToTopRequest`).
+  private(set) var scrollToTopRequests: [NavigationTabs: Int] = [:]
+
+  /// The shown section chosen again — its tab, its sidebar row: back to its root, and at
+  /// the root to the top of the page, as Apple's tab bars do (Sasha, 2026-10-31).
+  func reselect(_ tab: NavigationTabs) {
+    if let keyPath = Self.routes(for: tab), !self[keyPath: keyPath].isEmpty {
+      popToRoot(for: tab)
+    } else {
+      scrollToTopRequests[tab, default: 0] += 1
+    }
   }
 
   /// Appends onto the selected tab's navigation stack (context-menu Play, etc.).
