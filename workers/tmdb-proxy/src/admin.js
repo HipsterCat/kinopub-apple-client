@@ -9,6 +9,10 @@
  *   POST /admin/kinopub/{id}/pick
  *        { "logo": "https://…", "logo_lang": "en", "backdrop": "https://…" }
  *        Logo picks merge by `logo_lang` (ru / en) — one pinned file per language.
+ *   POST /admin/kinopub/{id}/link
+ *        { "imdb": "tt…", "kinopoisk": "123", "tmdb": "tv/123", "myshows": "123", "kind": "show" }
+ *        Pins ids kino.pub never sent. A bare tmdb number needs kind show or movie.
+ *        Does not download. The next open of a stub fills from these ids.
  *
  * images asks TMDB once for this title and returns the ru / en / und files.
  * The url in that list is what pick expects. pick pins that file until forget.
@@ -16,7 +20,7 @@
  * refresh asks TMDB again and stores the result on the same KV document.
  */
 
-import { imageStats, readDocument, resolveAndStore, writeDocument } from "./title.js";
+import { imageStats, readDocument, resolveAndStore, stitchDocument, writeDocument } from "./title.js";
 
 const KINDS = new Set(["logo", "backdrop", "poster"]);
 
@@ -26,13 +30,14 @@ export async function handleAdmin(request, env) {
 
   const url = new URL(request.url);
   if (url.pathname === "/admin/stats") return json({ ok: true, ...(await imageStats(env)) });
-  const match = url.pathname.match(/^\/admin\/kinopub\/(\d+)\/(forget|refresh|pick|images)$/);
+  const match = url.pathname.match(/^\/admin\/kinopub\/(\d+)\/(forget|refresh|pick|images|link)$/);
   if (!match) return json({ error: "not_found" }, 404);
   const id = match[1];
   const action = match[2];
 
   if (action === "images") return images(env, id, url);
   if (action === "pick") return pick(request, env, id);
+  if (action === "link") return link(request, env, id);
   const kind = url.searchParams.get("kind") || "logo";
   if (!KINDS.has(kind)) return json({ error: "bad_request", hint: "kind=logo|backdrop|poster" }, 400);
   if (action === "forget") return forget(env, id, kind);
@@ -183,6 +188,22 @@ function compareRank(a, b) {
     if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
   }
   return 0;
+}
+
+async function link(request, env, id) {
+  let body;
+  try { body = await request.json(); } catch { body = null; }
+  const stored = await readDocument(env, id);
+  const result = stitchDocument(stored, id, body);
+  if (result.error) return json({ error: "bad_request", hint: result.error }, 400);
+  await writeDocument(env, id, result.document);
+  return json({
+    ok: true,
+    id,
+    ids: result.linked,
+    pending: result.document.pending === true,
+    created: !stored,
+  });
 }
 
 async function pick(request, env, id) {

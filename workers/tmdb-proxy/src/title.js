@@ -119,11 +119,13 @@ export async function handleTitle(url, env, ctx) {
   const stored = await readDocument(env, id);
 
   if (stored) {
-    // Warm: answer from the store, and refresh in the background if the client
+    // Warm: answer from the store. A document that is still a stub (the
+    // manual id link, or a resolve that never finished) fills in behind
+    // this response. A finished document stays put unless the client
     // brought an id we did not have.
     const missingImdb = hints.imdb && !stored.ids?.imdb;
     const missingFacts = hints.kinopoisk && !stored.factsChecked;
-    if (missingImdb || missingFacts) {
+    if (stored.pending === true || missingImdb || missingFacts) {
       ctx.waitUntil(resolveAndStore(env, id, hints, stored));
     }
     return json(stored, 200, { "X-Cache": "hit" });
@@ -326,22 +328,117 @@ export async function writeDocument(env, id, document) {
  * latency is nobody's problem — which is exactly why the client never has to
  * choose between "fast" and "complete".
  */
+export function idValue(ids, namespace) {
+  const slot = ids?.[namespace];
+  if (!slot) return null;
+  const value = typeof slot === "string" ? slot : slot.value;
+  if (value == null || value === "") return null;
+  return String(value);
+}
+
+/** A hand-stitched `movie/123` or `tv/123`. Find-by-IMDb must not replace it. */
+export function manualTmdbTarget(document) {
+  const slot = document?.ids?.tmdb;
+  if (!slot || slot.method !== "manual") return null;
+  const match = /^(movie|tv)\/(\d+)$/.exec(String(slot.value || ""));
+  if (!match) return null;
+  return { type: match[1], id: match[2] };
+}
+
+const LINK_FIELDS = {
+  imdb: /^tt\d+$/,
+  kinopoisk: /^\d+$/,
+  myshows: /^\d+$/,
+};
+
+/**
+ * Pin external ids onto a kino.pub document. A missing document becomes a
+ * pending stub, so the next open downloads from these ids. An existing
+ * document keeps its artwork and pending flag; refresh is what rebuilds it.
+ */
+export function stitchDocument(stored, id, body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { error: "JSON object with imdb, kinopoisk, tmdb, or myshows" };
+  }
+  const linked = {};
+  const ids = { ...(stored?.ids || {}) };
+  if (!ids.kinopub) {
+    ids.kinopub = { value: String(id), confidence: 1, method: "manual" };
+  }
+
+  for (const [namespace, pattern] of Object.entries(LINK_FIELDS)) {
+    if (body[namespace] == null || body[namespace] === "") continue;
+    const value = String(body[namespace]).trim();
+    if (!pattern.test(value)) return { error: `${namespace} is not a valid id` };
+    ids[namespace] = { value, confidence: 1, method: "manual" };
+    linked[namespace] = value;
+  }
+
+  let tmdb = null;
+  if (body.tmdb != null && body.tmdb !== "") {
+    tmdb = normalizeTmdb(body.tmdb, body.kind || stored?.kind);
+    if (!tmdb) {
+      return { error: "tmdb needs tv/123, movie/123, or a number with kind show or movie" };
+    }
+    ids.tmdb = { value: tmdb, confidence: 1, method: "manual" };
+    linked.tmdb = tmdb;
+  }
+  if (!Object.keys(linked).length) {
+    return { error: "pass imdb, kinopoisk, tmdb, or myshows" };
+  }
+
+  const kind = stored?.kind || kindFromLink(body.kind, tmdb);
+  if (stored) {
+    return { document: { ...stored, ids, kind: stored.kind || kind }, linked };
+  }
+  const draft = draftDocument(id, { type: kind || undefined });
+  return { document: { ...draft, ids, kind, pending: true }, linked };
+}
+
+function normalizeTmdb(raw, kind) {
+  const text = String(raw).trim();
+  if (/^(movie|tv)\/\d+$/.test(text)) return text;
+  if (!/^\d+$/.test(text)) return null;
+  if (kind === "show" || kind === "series") return `tv/${text}`;
+  if (kind === "movie") return `movie/${text}`;
+  return null;
+}
+
+function kindFromLink(kind, tmdb) {
+  if (kind === "show" || kind === "series") return "show";
+  if (kind === "movie") return "movie";
+  if (tmdb?.startsWith("tv/")) return "show";
+  if (tmdb?.startsWith("movie/")) return "movie";
+  return null;
+}
+
+function preferredId(ids, namespace, hint) {
+  if (ids?.[namespace]?.method === "manual") return idValue(ids, namespace);
+  return hint || idValue(ids, namespace);
+}
+
 export async function resolveAndStore(env, id, hints, base, options = {}) {
   let document = base;
+  const kinopoisk = preferredId(base.ids, "kinopoisk", hints.kinopoisk);
+  const imdb = preferredId(base.ids, "imdb", hints.imdb);
+  const pinned = manualTmdbTarget(base);
 
   // No key, no quota risk — safe to run on every cold resolve that has a
   // Kinopoisk hint. Gated on `factsChecked`, not on `ids.kinopoisk`: the draft
   // already carries the hinted id (see draftDocument), so gating on its
   // presence would mean this branch never runs — the actual first bug found
   // testing this live: a title with two real facts came back with zero.
-  if (hints.kinopoisk && !base.factsChecked) {
+  if (kinopoisk && !base.factsChecked) {
     try {
-      const facts = await kinopoiskProxyFacts(hints.kinopoisk);
+      const facts = await kinopoiskProxyFacts(kinopoisk);
+      const previous = document.ids?.kinopoisk;
+      const kinopoiskSlot = previous?.method === "manual"
+        ? previous
+        : { value: String(kinopoisk), confidence: 1, method: previous?.method || "client" };
       document = {
         ...document,
         factsChecked: true,
-        ids: { ...document.ids, kinopoisk: { value: hints.kinopoisk, confidence: 1,
-                                              method: "client" } },
+        ids: { ...document.ids, kinopoisk: kinopoiskSlot },
         facts: facts?.items?.filter((item) => item.text).map((item) => ({
           source: "kinopoisk_proxy", text: item.text, spoiler: item.spoiler ? 1 : 0,
         })) || [],
@@ -353,29 +450,39 @@ export async function resolveAndStore(env, id, hints, base, options = {}) {
     }
   }
 
-  if (!hints.imdb || !env.TMDB_READ_TOKEN) {
+  if ((!imdb && !pinned) || !env.TMDB_READ_TOKEN) {
     if (document !== base) await writeDocument(env, id, document);
-    return;
+    return document !== base ? document : undefined;
   }
 
   try {
-    const found = await tmdb(env, `/3/find/${hints.imdb}`, { external_source: "imdb_id" }, options);
-    const preferTv = base.kind === "show";
-    const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
-    let match = null, mediaType = null;
-    for (const type of order) {
-      const results = found?.[`${type}_results`];
-      if (results?.length) { match = results[0]; mediaType = type; break; }
+    let mediaType = null;
+    let tmdbId = null;
+    if (pinned) {
+      mediaType = pinned.type;
+      tmdbId = pinned.id;
+    } else {
+      const found = await tmdb(env, `/3/find/${imdb}`, { external_source: "imdb_id" }, options);
+      const preferTv = base.kind === "show";
+      const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
+      for (const type of order) {
+        const results = found?.[`${type}_results`];
+        if (results?.length) {
+          mediaType = type;
+          tmdbId = String(results[0].id);
+          break;
+        }
+      }
     }
-    if (!match) {
+    if (!mediaType || !tmdbId) {
       if (document !== base) await writeDocument(env, id, document);
-      return;
+      return document !== base ? document : undefined;
     }
 
     const append = mediaType === "tv"
       ? "aggregate_credits,images,videos,external_ids,content_ratings,keywords,watch/providers"
       : "credits,images,videos,external_ids,keywords,release_dates,watch/providers";
-    const details = await tmdb(env, `/3/${mediaType}/${match.id}`, {
+    const details = await tmdb(env, `/3/${mediaType}/${tmdbId}`, {
       language: "ru-RU", append_to_response: append,
       include_image_language: "ru,en,null",
     }, options);
@@ -384,7 +491,7 @@ export async function resolveAndStore(env, id, hints, base, options = {}) {
       return;
     }
 
-    const merged = mergeTMDB(document, mediaType, match.id, details);
+    const merged = mergeTMDB(document, mediaType, tmdbId, details);
     await writeDocument(env, id, merged);
     return merged;
   } catch (error) {
@@ -431,8 +538,12 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
     built_at: new Date().toISOString(),
     logo_checked_at: new Date().toISOString(),
   };
-  document.ids = { ...document.ids, tmdb: { value: `${mediaType}/${tmdbId}`, confidence: 1,
-                                            method: "find:imdb" } };
+  const tmdbValue = `${mediaType}/${tmdbId}`;
+  const previousTmdb = base.ids?.tmdb;
+  const tmdbSlot = previousTmdb?.method === "manual" && String(previousTmdb.value) === tmdbValue
+    ? previousTmdb
+    : { value: tmdbValue, confidence: 1, method: "find:imdb" };
+  document.ids = { ...document.ids, tmdb: tmdbSlot };
   const external = details.external_ids || {};
   for (const [namespace, key] of [["wikidata", "wikidata_id"], ["tvdb", "tvdb_id"]]) {
     if (external[key]) {
