@@ -586,6 +586,7 @@ struct MediaItemView: View {
                             isInWatchlist: itemModel.isInWatchlist,
                             onToggleWatchlist: { itemModel.toggleWatchlist() },
                             awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+                            seasonLabels: itemModel.seasonLabels,
                             downloadPhase: itemModel.downloadPhase,
                             onDownload: { itemModel.startCurrentDownload() },
                             onPauseDownload: { itemModel.pauseCurrentDownload() },
@@ -764,6 +765,7 @@ struct MediaItemView: View {
                           itemModel.toggleWatched(episode: episode, season: season)
                         },
                         seasonSchedules: itemModel.seasonSchedules,
+                        officialEpisodes: itemModel.officialEpisodes,
                         externalMetadata: itemModel.externalMetadata,
                         seriesBackdropURL: MediaItemHeroView.backdropCandidates(
                           for: itemModel.mediaItem,

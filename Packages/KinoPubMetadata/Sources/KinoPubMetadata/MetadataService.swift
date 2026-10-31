@@ -66,10 +66,23 @@ public actor MetadataService {
   }
 
   public func schedule(for identity: MediaIdentity, season: Int) async -> [EpisodeSchedule] {
+    await schedule(for: identity, season: season, language: nil)
+  }
+
+  /// `language` nil is each source's own. An explicit tag is asked of TMDB only —
+  /// that is the English episode list beside the configured one.
+  public func schedule(for identity: MediaIdentity, season: Int, language: String?) async -> [EpisodeSchedule] {
     var episodes: [EpisodeSchedule] = []
     for source in sources where source.isConfigured {
       do {
-        let part = try await source.schedule(for: identity, season: season)
+        let part: [EpisodeSchedule]
+        if let language, let tmdb = source as? TMDBSource {
+          part = try await tmdb.schedule(for: identity, season: season, language: language)
+        } else if language != nil {
+          continue
+        } else {
+          part = try await source.schedule(for: identity, season: season)
+        }
         if !part.isEmpty {
           episodes = part
           break
@@ -79,6 +92,32 @@ public actor MetadataService {
       }
     }
     return episodes
+  }
+
+  /// Every season's episodes in the configured language and in English, a few at a
+  /// time. Callers align the result onto kino.pub; they do not trust one season index.
+  public func episodeGrid(for identity: MediaIdentity, seasons: [Int]) async -> [EpisodeSchedule] {
+    let jobs: [(Int, String?)] = Array(Set(seasons)).filter { $0 >= 0 }.sorted().flatMap { number in
+      [(number, nil as String?), (number, "en-US")]
+    }
+    var results: [EpisodeSchedule] = []
+    var index = 0
+    while index < jobs.count {
+      let end = min(index + 4, jobs.count)
+      let slice = Array(jobs[index..<end])
+      index = end
+      await withTaskGroup(of: [EpisodeSchedule].self) { group in
+        for job in slice {
+          group.addTask {
+            await self.schedule(for: identity, season: job.0, language: job.1)
+          }
+        }
+        for await part in group {
+          results.append(contentsOf: part)
+        }
+      }
+    }
+    return results
   }
 
   /// Person bio for the credits page. Failures are swallowed — the page keeps the

@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Серия, которая уже есть на Кинопабе, открывается даже если премьера в каталоге ещё впереди. «Премьера» — только когда файл выложили сильно заранее. Номер сезона у кнопки «Смотреть» совпадает с рядом сезонов.",
         "iPhone, iPad и Mac: на Главной — большой баннер во всю ширину, как на Apple TV: логотип, оценки и строка о тайтле, начало описания, «Смотреть», закладки, «Подробнее» и «Дальше». Тайтлы сменяются сами каждые 8 секунд, листаются пальцем. Выключается тем же переключателем, что на Apple TV.",
         "iPad: приложение больше не падает при запуске сразу после установки или обновления.",
         "Фильмы и Сериалы на iPhone, iPad и Mac — те же полки, что на Главной, с кнопкой «Показать ещё секции» внизу.",
@@ -92,6 +93,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "An episode already on KinoPub plays even when the catalog premiere is still ahead. Premiere is only for a real early drop. Play names the same season the row does.",
         "iPhone, iPad and Mac: Home opens on a full-width hero, as on Apple TV: the title logo, scores and facts, the start of the synopsis, Play, Bookmarks, Details and Next. Titles turn every 8 seconds, or with a swipe. The same switch as on Apple TV turns it off.",
         "iPad: the app no longer crashes at launch right after install or update.",
         "Movies and Series on iPhone, iPad and Mac are the same shelves as Home, with Show more sections at the bottom.",

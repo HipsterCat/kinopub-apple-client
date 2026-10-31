@@ -299,6 +299,9 @@ struct MediaItemHeroView: View {
   /// When the next episode of the season kino.pub is on comes out — ahead, or aired and
   /// not uploaded yet (`MediaItemModel.awaitedEpisodeAirDate`). Drives Follow-as-primary.
   var awaitedEpisodeAirDate: Date? = nil
+  /// `Season.id` → the number the chips show, once the episode grid has aligned.
+  /// The play button uses it so it cannot say «11 сезон» while the row has no 11.
+  var seasonLabels: [Int: Int] = [:]
   /// Download phase for the current playable; `nil` hides the control (flag off / TV).
   var downloadPhase: MediaActionDownloadPhase? = nil
   var onDownload: (() -> Void)? = nil
@@ -1380,6 +1383,14 @@ struct MediaItemHeroView: View {
     }
   }
 
+  /// The grid's season, when it has one, else the number already on the button
+  /// (the title's, which is the chip's).
+  private func relabel(_ playback: PlaybackButtonContent) -> PlaybackButtonContent {
+    guard let season = mediaItem.primaryEpisode?.season,
+          let label = seasonLabels[season.id] else { return playback }
+    return playback.replacingSeason(label)
+  }
+
   private var actionContext: MediaActionContext {
 #if os(tvOS)
     let showsMore = true
@@ -1388,7 +1399,7 @@ struct MediaItemHeroView: View {
 #endif
     let choices = mediaItem.playChoices
     // One version left of several: it is Play itself, in its own state — not a pill of one.
-    let playback = choices.count == 1 ? choices[0].playbackButtonContent : mediaItem.playbackButtonContent
+    let playback = relabel(choices.count == 1 ? choices[0].playbackButtonContent : mediaItem.playbackButtonContent)
     let promote = Self.promotesFollow(mediaItem: mediaItem,
                                       awaitedEpisodeAirDate: awaitedEpisodeAirDate,
                                       canFollow: onToggleWatchlist != nil)
