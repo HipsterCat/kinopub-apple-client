@@ -87,18 +87,61 @@ async function fillSeasons(env, document, numbers, lang) {
   const missing = numbers.filter((number) => !hasLang(document, number, lang));
   if (!missing.length) return document;
 
-  let next = document;
-  for (const number of missing) {
-    let payload = null;
+  const payloads = await mapPool(missing, 4, async (number) => {
     try {
-      payload = await fetchSeason(env, tvId, number, lang);
+      return await fetchSeason(env, tvId, number, lang);
     } catch {
-      payload = null;
+      return null;
     }
-    if (!payload) continue;
-    next = mergeSeason(next, number, lang, payload);
-  }
+  });
+  let next = document;
+  missing.forEach((number, index) => {
+    if (payloads[index]) next = mergeSeason(next, number, lang, payloads[index]);
+  });
   return next;
+}
+
+/** Every season on the document, in this language. Used when a title is resolved,
+ * so episode ratings and ids are stored instead of an empty list. */
+export async function loadSeasons(env, document, lang) {
+  const numbers = (document?.seasons || [])
+    .map((season) => season.number)
+    .filter((number) => number != null && number <= 80);
+  if (!numbers.length) return document;
+  return fillSeasons(env, document, numbers, lang);
+}
+
+/** Season name, overview and poster from a show payload in one language.
+ * Does not mark the episode list as fetched. */
+export function applySeasonLocale(document, lang, details) {
+  const byNumber = new Map((details?.seasons || []).map((season) => [season.season_number, season]));
+  const seasons = (document.seasons || []).map((season) => {
+    const incoming = byNumber.get(season.number);
+    if (!incoming) return season;
+    return {
+      ...season,
+      id: season.id || incoming.id || null,
+      name: mergeLangText(season.name, lang, clean(incoming.name)),
+      synopsis: mergeLangText(season.synopsis ?? season.overview, lang, clean(incoming.overview)),
+      poster: mergeLangPoster(season.poster, lang, incoming.poster_path),
+    };
+  });
+  return { ...document, seasons };
+}
+
+async function mapPool(items, limit, fn) {
+  const out = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      out[index] = await fn(items[index]);
+    }
+  }
+  const workers = Math.min(limit, items.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  return out;
 }
 
 function hasLang(document, number, lang) {
@@ -132,14 +175,19 @@ function mergeSeason(document, number, lang, payload) {
     (previous.episodes || []).find((item) => Number(item.number) === episode.episode_number),
     episode,
     lang,
+    payload.id || previous.id || null,
   ));
   const fetched = new Set(previous.fetched_langs || []);
   fetched.add(lang);
   const next = {
     ...previous,
+    id: payload.id || previous.id || null,
     number,
     name: mergeLangText(previous.name, lang, clean(payload.name)),
+    synopsis: mergeLangText(previous.synopsis ?? previous.overview, lang, clean(payload.overview)),
     overview: mergeLangText(previous.synopsis ?? previous.overview, lang, clean(payload.overview)),
+    poster: mergeLangPoster(previous.poster, lang, payload.poster_path),
+    tmdb: seasonRating(payload) || previous.tmdb || null,
     episodes,
     fetched_langs: [...fetched],
   };
@@ -148,19 +196,36 @@ function mergeSeason(document, number, lang, payload) {
   return { ...document, seasons };
 }
 
-function mergeEpisode(previous, episode, lang) {
+function mergeEpisode(previous, episode, lang, seasonId) {
   const still = episode.still_path ? IMAGE_BASE + episode.still_path : null;
+  const episodeType = episode.episode_type || previous?.episode_type || null;
   return {
+    id: episode.id ?? previous?.id ?? null,
+    season_id: seasonId || previous?.season_id || null,
     number: episode.episode_number,
     name: mergeLangText(previous?.name, lang, clean(episode.name)),
     overview: mergeLangText(previous?.overview, lang, clean(episode.overview)),
     runtime_min: episode.runtime ?? previous?.runtime_min ?? null,
     air_date: episode.air_date ?? previous?.air_date ?? null,
     thumbnail: still || previous?.thumbnail || null,
+    tmdb: episodeRating(episode) || previous?.tmdb || null,
     imdb: previous?.imdb ?? null,
+    episode_type: episodeType,
+    season_finale: episodeType === "finale",
     skip_intro: Boolean(previous?.skip_intro),
     skip_credits: Boolean(previous?.skip_credits),
   };
+}
+
+function episodeRating(episode) {
+  const votes = episode?.vote_count;
+  if (!votes) return null;
+  return { value: episode.vote_average, votes };
+}
+
+function seasonRating(payload) {
+  if (typeof payload?.vote_average !== "number" || payload.vote_average <= 0) return null;
+  return { value: payload.vote_average, votes: payload.vote_count ?? null };
 }
 
 function mergeLangText(existing, lang, text) {
@@ -168,6 +233,13 @@ function mergeLangText(existing, lang, text) {
   if (typeof existing === "string") base.ru = existing;
   if (text) base[lang] = text;
   return base;
+}
+
+function mergeLangPoster(existing, lang, posterPath) {
+  const base = existing && typeof existing === "object" ? { ...existing } : {};
+  if (typeof existing === "string") base.ru = existing;
+  if (posterPath) base[lang] = IMAGE_BASE + posterPath;
+  return Object.keys(base).length ? base : null;
 }
 
 function projectSeason(document, number, lang, id) {
@@ -197,6 +269,8 @@ function projectEpisode(episode, lang, id, seasonNumber) {
     air_date: episode.air_date ?? null,
     still,
     imdb: episode.imdb?.votes != null ? { value: episode.imdb.value, votes: episode.imdb.votes } : null,
+    tmdb: episode.tmdb?.votes != null ? { value: episode.tmdb.value, votes: episode.tmdb.votes } : null,
+    season_finale: episode.season_finale === true,
     skip_intro: Boolean(episode.skip_intro),
     skip_credits: Boolean(episode.skip_credits),
   };

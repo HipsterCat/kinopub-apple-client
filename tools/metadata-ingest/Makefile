@@ -21,7 +21,7 @@ PY ?= python3
 DB ?= data/record.db
 LIMIT ?=
 
-.PHONY: all import exports imdb tmdb omdb test stats rederive fresh backup backup-force docs restore clean
+.PHONY: all import exports imdb tmdb omdb test stats rederive fresh backup backup-force docs restore clean kv
 
 all: import exports imdb stats
 
@@ -85,6 +85,11 @@ restore:
 
 imdb:
 	$(PY) import_imdb_datasets.py --db $(DB)
+
+# Worker KV archive → data/kv.db, then the empty cells of card.db → data/card-2.db.
+# Local and gitignored. Not part of `make all`.
+kv:
+	$(PY) import_kv.py
 
 clean:
 	rm -f $(DB) $(DB)-wal $(DB)-shm

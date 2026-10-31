@@ -30,3 +30,9 @@ CACHE_TTL_SECONDS = "21600"
 [[kv_namespaces]]
 binding = "DOCUMENTS"
 id = "013ec59b1a454f9e9d61b89713eaceb2"
+
+# Curated card (c2_*). Local source: tools/metadata-ingest/data/card-2.db
+[[d1_databases]]
+binding = "CATALOG"
+database_name = "kinopub-catalog"
+database_id = "49b4bd2c-264c-4333-9ae6-20267282247f"

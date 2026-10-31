@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { handleImage, logoRecheckDue } from "./title.js";
+import { handleImage, logoRecheckDue, resolveAndStore } from "./title.js";
 
 const originalWaitUntil = [];
 
@@ -549,4 +549,106 @@ test("query route rejects a non-numeric id and an unknown namespace", async () =
     ctxSpy(),
   );
   assert.equal(other.status, 404);
+});
+
+test("a manual tmdb id is fetched directly and kept", async () => {
+  const calls = [];
+  const documents = {};
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    if (String(url).includes("/3/tv/55165")) {
+      return new Response(JSON.stringify({
+        id: 55165,
+        name: "Следствие вели...",
+        original_name: "Следствие вели...",
+        images: {},
+        videos: { results: [] },
+        seasons: [],
+        external_ids: {},
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response("no", { status: 404 });
+  };
+  const base = {
+    version: 2,
+    kind: "show",
+    pending: true,
+    factsChecked: true,
+    title: { ru: null, original: null },
+    ids: {
+      kinopub: { value: "17262", confidence: 1, method: "manual" },
+      imdb: { value: "tt4573370", confidence: 1, method: "manual" },
+      kinopoisk: { value: "471002", confidence: 1, method: "manual" },
+      tmdb: { value: "tv/55165", confidence: 1, method: "manual" },
+      myshows: { value: "101353", confidence: 1, method: "manual" },
+    },
+    artwork: { poster: [], backdrop: [], logo: [] },
+  };
+  const env = {
+    TMDB_READ_TOKEN: "token",
+    DOCUMENTS: {
+      async put(key, value) { documents[key] = JSON.parse(value); },
+    },
+  };
+  try {
+    const merged = await resolveAndStore(env, "17262", { imdb: "tt0000000" }, base);
+    assert.equal(merged.ids.tmdb.method, "manual");
+    assert.equal(merged.ids.tmdb.value, "tv/55165");
+    assert.equal(merged.ids.imdb.value, "tt4573370");
+    assert.equal(merged.ids.myshows.value, "101353");
+    assert.equal(merged.pending, false);
+    assert.equal(merged.title.ru, "Следствие вели...");
+    assert.ok(calls.some((url) => url.includes("/3/tv/55165")));
+    assert.equal(calls.some((url) => url.includes("/3/find/")), false);
+    assert.equal(documents["title:kinopub:17262"].ids.tmdb.method, "manual");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("without a manual tmdb id, resolve still finds by imdb", async () => {
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const href = String(url);
+    calls.push(href);
+    if (href.includes("/3/find/tt4573370")) {
+      return new Response(JSON.stringify({
+        tv_results: [{ id: 55165 }],
+        movie_results: [],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (href.includes("/3/tv/55165")) {
+      return new Response(JSON.stringify({
+        id: 55165,
+        name: "Следствие вели...",
+        images: {},
+        videos: { results: [] },
+        seasons: [],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response("no", { status: 404 });
+  };
+  const base = {
+    version: 2,
+    kind: "show",
+    pending: true,
+    factsChecked: true,
+    title: { ru: null, original: null },
+    ids: { kinopub: { value: "17262", confidence: 1, method: "client" } },
+    artwork: { poster: [], backdrop: [], logo: [] },
+  };
+  const env = {
+    TMDB_READ_TOKEN: "token",
+    DOCUMENTS: { async put() {} },
+  };
+  try {
+    const merged = await resolveAndStore(env, "17262", { imdb: "tt4573370" }, base);
+    assert.equal(merged.ids.tmdb.value, "tv/55165");
+    assert.equal(merged.ids.tmdb.method, "find:imdb");
+    assert.ok(calls.some((url) => url.includes("/3/find/tt4573370")));
+  } finally {
+    globalThis.fetch = original;
+  }
 });
