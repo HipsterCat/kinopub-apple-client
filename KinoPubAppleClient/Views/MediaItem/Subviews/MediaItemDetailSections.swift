@@ -466,7 +466,7 @@ private struct RatingTile: View {
     .modifier(OptionalPageEntryFocus(binding: pageEntryFocus))
 #else
     .onHover { isHovered = $0 }
-    .pointingHandCursorOnHover(enabled: isLink)
+//    .pointingHandCursorOnHover(enabled: isLink)
 #endif
   }
 
@@ -1217,7 +1217,7 @@ struct MediaItemPhotosSection: View {
               .buttonStyle(.borderless)
 #else
               .buttonStyle(.plain)
-              .pointingHandCursorOnHover()
+//              .pointingHandCursorOnHover()
 #endif
             }
           }
@@ -1788,7 +1788,7 @@ struct MediaItemRatingSourceRows: View {
       Button { openURL(url) } label: { content }
         .buttonStyle(.plain)
 #if !os(tvOS)
-        .pointingHandCursorOnHover()
+//        .pointingHandCursorOnHover()
 #endif
     } else {
       content
@@ -1999,7 +1999,7 @@ struct ReviewCard: View {
           .buttonStyle(.plain)
           .foregroundStyle(.secondary)
 #if !os(tvOS)
-          .pointingHandCursorOnHover()
+//          .pointingHandCursorOnHover()
 #endif
         }
       }
@@ -3468,7 +3468,7 @@ private struct SourceChipButtonStyle: ButtonStyle {
         .animation(.spring(response: 0.15, dampingFraction: 0.9), value: configuration.isPressed)
 #if !os(tvOS)
         .onHover { isHovered = $0 }
-        .pointingHandCursorOnHover()
+//        .pointingHandCursorOnHover()
 #endif
     }
   }

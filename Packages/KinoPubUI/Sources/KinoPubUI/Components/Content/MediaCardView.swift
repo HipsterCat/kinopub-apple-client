@@ -1007,13 +1007,13 @@ public struct MediaCardView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
 
-#if os(macOS)
+#if !os(tvOS)
       // Cheap pointer affordance — dim the still, keep the glass rim on top.
         // Not on a landscape card with nothing to play (an episode not out, or not on
         // kino.pub): the dim is the play affordance there (Sasha, 2026-10-30).
         Color.black.opacity(card.isLandscape && !playsOnSelect ? 0
-                            : (isHovered && !card.isWatched && dimsWatchedArtwork) ? 0.34
-                            : (isHovered && !dimsWatchedArtwork) ? 0.34 : 0)
+                            : (isHovered && !card.isWatched && dimsWatchedArtwork) ? 0.1
+                            : (isHovered && !dimsWatchedArtwork) ? 0.1 : 0)
         .allowsHitTesting(false)
 #endif
 
@@ -1057,11 +1057,11 @@ public struct MediaCardView: View {
 #else
     .clipShape(Self.artworkShape)
     .kinoGlassRim(in: Self.artworkShape)
-#if os(macOS)
+//#if os(macOS)
     .onHover { isHovered = $0 }
-    .animation(.easeOut(duration: 0.2), value: isHovered)
-    .pointingHandCursorOnHover()
-#endif
+    .animation(.easeOut(duration: 0.15), value: isHovered)
+//    .pointingHandCursorOnHover()
+//#endif
 #endif
   }
 
@@ -1436,7 +1436,7 @@ public struct LandscapePlayChromeView: View {
 
   private var diameter: CGFloat {
     switch style {
-    case .glass: return 52
+    case .glass: return 38
     case .translucent: return 52
     case .glassLarge: return 64
     }
@@ -1444,7 +1444,7 @@ public struct LandscapePlayChromeView: View {
 
   private var iconSize: CGFloat {
     switch style {
-    case .glass, .translucent: return 20
+    case .glass, .translucent: return 16
     case .glassLarge: return 24
     }
   }
