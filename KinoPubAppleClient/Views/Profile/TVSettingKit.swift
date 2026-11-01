@@ -474,8 +474,7 @@ enum TSKPageController {
       nonisolated(unsafe) let table = table
       nonisolated(unsafe) var answer = UITableViewCell.EditingStyle.none.rawValue
       MainActor.assumeIsolated {
-        // The last row stays: an empty list would mean "the system's", which is a
-        // different list — the one *Use System Languages* is for.
+        // The last row stays: an empty list means "the system's", which is a different list.
         guard let box = box(of: controller), box.isEditableRow(indexPath as IndexPath),
               box.page.editing?.delete != nil,
               table.numberOfRows(inSection: indexPath.section) > 1 else { return }

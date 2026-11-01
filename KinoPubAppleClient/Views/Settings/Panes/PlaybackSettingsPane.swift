@@ -164,11 +164,6 @@ struct PlaybackLanguageListEditor: View {
         Text(isCustom ? "The first language on the list that a title offers wins."
                       : "Following the system's languages until you change the list.")
       }
-      if isCustom {
-        Section {
-          Button("Use System Languages") { PlaybackLanguageList.reset(kind); reload() }
-        }
-      }
     }
     .formStyle(.grouped)
 #if os(iOS)

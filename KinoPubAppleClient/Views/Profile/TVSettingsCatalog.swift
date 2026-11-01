@@ -302,19 +302,11 @@ final class TVSettingsCatalog {
                description: "Settings_Tip_LanguageList".localized,
                kind: .action(pushes: false) {})
       }
-      var manage = [
+      let manage = [
         TSKRow(title: "Add Language…".localized,
                description: "Settings_Tip_LanguageList".localized,
                kind: .action(pushes: true) { [unowned self] in self.host.push(self.addLanguagePage(kind)) }),
       ]
-      if PlaybackLanguageList.isCustom(kind) {
-        manage.append(TSKRow(title: "Use System Languages".localized,
-                             description: "Settings_Tip_LanguageList".localized,
-                             kind: .action(pushes: false) { [unowned self] in
-                               PlaybackLanguageList.reset(kind)
-                               self.host.reloadPages()
-                             }))
-      }
       return [TSKSection(title: languageListTitle(kind), rows: rows), TSKSection(rows: manage)]
     }
   }
