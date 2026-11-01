@@ -150,6 +150,12 @@ enum FeatureFlags {
   /// (Sasha, 2026-10-21): the two stay side by side until one is chosen.
   static var playerTabsPlatter: Bool { FeatureFlag.playerTabsPlatter.isEnabled }
 
+  /// tvOS series page: the season row from Rivulet (full "Season N" tabs, an S2
+  /// divider, episode stills with the metadata plate). Off is the current numbered
+  /// tabs and wide cells. Select on the still plays; Select on the text opens the
+  /// info sheet.
+  static var rivuletSeasonRail: Bool { FeatureFlag.rivuletSeasonRail.isEnabled }
+
   /// **TEMPORARY DIAGNOSTIC — DELETE ME.** Synthesises a fake season of episodes onto
   /// *movies*, so the detail page's season rail renders for a title that has none.
   ///
@@ -185,6 +191,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case rewritesStreamTrackMenus
   case combinedRating
   case playerTabsPlatter
+  case rivuletSeasonRail
   case macSidebar
 #if DEBUG
   case fakeSeasonsOnMovies
@@ -210,6 +217,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: false
     case .combinedRating: false
     case .playerTabsPlatter: false
+    case .rivuletSeasonRail: true
     case .macSidebar: true
 #if DEBUG
     case .fakeSeasonsOnMovies: false
@@ -235,6 +243,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: "Rewrite the player's track menus"
     case .combinedRating: "Combined IMDb + Kinopoisk rating"
     case .playerTabsPlatter: "Player tabs on a platter"
+    case .rivuletSeasonRail: "Rivulet season rail"
     case .macSidebar: "Sidebar navigation (Mac)"
 #if DEBUG
     case .fakeSeasonsOnMovies: "Fake seasons on movies"
@@ -260,6 +269,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: "Relabel, collapse and re-default the HLS master's audio and subtitles. Off: AVKit names them."
     case .combinedRating: "One weighted score on posters, the hero and the Rating tile."
     case .playerTabsPlatter: "Episodes and Up Next on Info's glass platter; off is the page's open still row."
+    case .rivuletSeasonRail: "Season tabs, the S2 divider and the episode metadata plate. Select on the text opens the info sheet. Off is the numbered tabs."
     case .macSidebar: "The Apple TV app's sidebar: Search, Home, the catalog, the Library and every bookmark folder. Off is the tab bar."
 #if DEBUG
     case .fakeSeasonsOnMovies: "A fake, unplayable season rail on movies. Layout probe."
@@ -272,7 +282,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var isRelevantHere: Bool {
     switch self {
     case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvDetailSections, .tvOSSidecarSubtitles,
-         .playerTabsPlatter:
+         .playerTabsPlatter, .rivuletSeasonRail:
 #if os(tvOS)
       true
 #else

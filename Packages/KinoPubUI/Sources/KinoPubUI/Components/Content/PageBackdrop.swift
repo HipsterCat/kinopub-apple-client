@@ -57,6 +57,9 @@ public final class PageBackdropStage {
   public private(set) var current: PageBackdrop?
   /// The front page is in its details: its picture is faded out.
   public private(set) var showsDetails = false
+  /// Scrubbed backdrop blur for the below-fold, 0...1. Nil means the page is not
+  /// driving it, and `showsDetails` fades the picture out instead.
+  public private(set) var foldBlur: CGFloat?
   /// Whether each published backdrop's picture actually loaded. Missing while it is
   /// still being fetched.
   private var pictureLoaded: [String: Bool] = [:]
@@ -92,6 +95,15 @@ public final class PageBackdropStage {
   func setDetails(_ on: Bool, for key: String) {
     if on { inDetails.insert(key) } else { inDetails.remove(key) }
     resolve()
+  }
+
+  /// The season rail reports how far it has risen from the hero into the center.
+  /// The picture stays up and a blur is scrubbed across it. Passing nil hands the
+  /// picture back to the `showsDetails` fade.
+  public func setFoldBlur(_ value: CGFloat?) {
+    if foldBlur == nil, value == nil { return }
+    if let value, let foldBlur, abs(value - foldBlur) < 0.008 { return }
+    foldBlur = value
   }
 
   /// Keeps what the paths still hold; the rest is gone for good.
@@ -236,12 +248,16 @@ struct PageBackdropHost: View {
           .transition(.opacity)
       }
     }
-    // Details: the picture goes away and the sections sit on the system's own background,
-    // light in the light appearance and dark in the dark one. A material over the picture
-    // was tried first: over dark art and the scrim, the light one read as dirty grey
-    // (Sasha, 2026-10-11). The picture is the hero's alone.
-    .opacity(stage.showsDetails ? 0 : 1)
-    .animation(Self.details, value: stage.showsDetails)
+    // The below-fold scrubs a blur over the picture and leaves it up. Everywhere
+    // else, moving into the details fades the picture out.
+    .opacity((stage.foldBlur == nil && stage.showsDetails) ? 0 : 1)
+    .animation(stage.foldBlur == nil ? Self.details : nil, value: stage.showsDetails)
+    .overlay {
+      FoldBlurOverlay(progress: stage.foldBlur ?? 0)
+        .opacity(stage.foldBlur == nil ? 0 : 1)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
     .ignoresSafeArea()
     .allowsHitTesting(false)
     .accessibilityHidden(true)
@@ -329,6 +345,50 @@ private struct PageBackdropLayer: View {
       HeroLegibilityTexture(tone: .black)
     }
     .animation(PageBackdropHost.crossfade, value: palette)
+  }
+}
+
+/// Scrubs a blur over the backdrop. `fractionComplete` is the intensity: alpha
+/// on a blur view does not blur, it only fades an already-blurred snapshot.
+private struct FoldBlurOverlay: UIViewRepresentable {
+  var progress: CGFloat
+
+  func makeUIView(context: Context) -> FoldBlurView {
+    let view = FoldBlurView()
+    view.isUserInteractionEnabled = false
+    return view
+  }
+
+  func updateUIView(_ view: FoldBlurView, context: Context) {
+    view.setProgress(progress)
+  }
+}
+
+private final class FoldBlurView: UIVisualEffectView {
+  private var animator: UIViewPropertyAnimator?
+
+  func setProgress(_ progress: CGFloat) {
+    let shown = progress > 0.01
+    isHidden = !shown
+    guard shown else { return }
+    animatorIfNeeded().fractionComplete = min(0.999, max(0.001, progress))
+  }
+
+  private func animatorIfNeeded() -> UIViewPropertyAnimator {
+    if let animator, animator.state == .active { return animator }
+    animator?.stopAnimation(true)
+    let animator = UIViewPropertyAnimator(duration: 1, curve: .linear) { [weak self] in
+      self?.effect = UIBlurEffect(style: .regular)
+    }
+    animator.pausesOnCompletion = true
+    animator.startAnimation()
+    animator.pauseAnimation()
+    self.animator = animator
+    return animator
+  }
+
+  deinit {
+    animator?.stopAnimation(true)
   }
 }
 

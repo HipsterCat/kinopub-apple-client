@@ -189,6 +189,57 @@ final class TVDetailPageUITests: XCTestCase {
     try shoot("concert-3-setlist")
   }
 
+  /// Down from the hero lands on an episode still that is on screen, including the
+  /// second time, after Menu has returned to the hero.
+  func testSeasonRailDownKeepsFocusOnScreen() throws {
+    launch("seasonStrip")
+    try waitForFocus(on: "play", timeout: 20, "open")
+    try shoot("rail-0-hero")
+
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.4)
+    try shoot("rail-1-down")
+    let first = try requireOnScreenFocus("first down")
+    XCTAssertTrue(first.identifier.hasPrefix("kinopub.rivulet.still."),
+                  "first down: \(focusedDescription)")
+
+    XCUIRemote.shared.press(.menu)
+    Thread.sleep(forTimeInterval: 1.2)
+    try shoot("rail-2-menu")
+    XCTAssertTrue(anyHeroControlHasFocus, "menu did not return to the hero: \(focusedDescription)")
+    let play = control("play")
+    XCTAssertGreaterThan(play.frame.maxY, 80, "hero is above the screen: \(play.frame)")
+    XCTAssertLessThan(play.frame.minY, app.frame.height - 80, "hero is below the screen: \(play.frame)")
+
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.4)
+    try shoot("rail-3-down-again")
+    let second = try requireOnScreenFocus("second down")
+    XCTAssertTrue(second.identifier.hasPrefix("kinopub.rivulet.still."),
+                  "second down: \(focusedDescription)")
+  }
+
+  /// Focus must be a view the screen actually shows. An off-screen platter still
+  /// reports hasFocus, which is the dead end.
+  private func requireOnScreenFocus(_ moment: String) throws -> XCUIElement {
+    let focused = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "hasFocus == true"))
+      .allElementsBoundByIndex
+    guard let item = focused.first else {
+      try shoot("no-focus-\(moment.replacingOccurrences(of: " ", with: "-"))")
+      XCTFail("\(moment): nothing focused")
+      throw NoFocus()
+    }
+    let screen = app.frame
+    let onScreen = item.frame.minY >= -8 && item.frame.minY < screen.height - 48
+      && item.frame.maxY > 48
+    if !onScreen {
+      try shoot("offscreen-\(moment.replacingOccurrences(of: " ", with: "-"))")
+    }
+    XCTAssertTrue(onScreen, "\(moment): focus at \(item.frame) on \(screen) — \(focusedDescription)")
+    return item
+  }
+
   // MARK: - Helpers
 
   private func launch(_ fixture: String) {

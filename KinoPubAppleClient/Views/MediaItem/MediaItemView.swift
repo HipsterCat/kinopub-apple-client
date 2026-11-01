@@ -199,6 +199,10 @@ struct MediaItemView: View {
   /// Bound by the hero's controls and read by nothing in this body. `.defaultFocus`
   /// takes the binding, not the value, so hero focus moves re-render the hero alone.
   @FocusState private var focus: MediaItemFocusTarget?
+  /// Content minY in the page scroll. 0 is the hero. Menu uses it to decide
+  /// between returning there and leaving the page.
+  @State private var pageScrollMinY: CGFloat = 0
+  @Environment(\.dismiss) private var dismiss
   @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
   /// Owns folder state + context-menu wiring for the related-item rows (Similar /
   /// More from Director / More with Actor) as ONE coordinator shared across all of
@@ -651,10 +655,45 @@ struct MediaItemView: View {
 
           contentSections
         }
+        .background {
+          GeometryReader { geo in
+            Color.clear.preference(
+              key: PageScrollOffsetKey.self,
+              value: geo.frame(in: .named(MediaItemLayout.scrollSpace)).minY
+            )
+          }
+        }
 //        .padding(.bottom, MediaItemLayout.bottomPadding)
       }
       .background(Color.KinoPub.background)
       .coordinateSpace(name: MediaItemLayout.scrollSpace)
+#if os(tvOS)
+      .onReceive(NotificationCenter.default.publisher(for: .rivuletSeasonRailRequestsHero)) { _ in
+        focus = MediaItemFocusTarget.entry(promotesFollow: MediaItemHeroView.promotesFollow(
+          mediaItem: itemModel.mediaItem,
+          awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+          canFollow: true
+        ))
+        withAnimation(.easeInOut(duration: 0.45)) {
+          proxy.scrollTo(Self.heroAnchor, anchor: .top)
+        }
+      }
+      .onExitCommand {
+        if pageScrollMinY > -40 {
+          dismiss()
+        } else {
+          NotificationCenter.default.post(name: .rivuletSeasonRailPrepareForHero, object: nil)
+          focus = MediaItemFocusTarget.entry(promotesFollow: MediaItemHeroView.promotesFollow(
+            mediaItem: itemModel.mediaItem,
+            awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+            canFollow: true
+          ))
+          withAnimation(.easeInOut(duration: 0.45)) {
+            proxy.scrollTo(Self.heroAnchor, anchor: .top)
+          }
+        }
+      }
+#endif
 #if !os(tvOS)
       // Where the page was, kept by its model: coming back to the section finds it
       // there (`MediaItemModelCache`).
@@ -669,7 +708,15 @@ struct MediaItemView: View {
     }
   }
 
+  private struct PageScrollOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+      value = nextValue()
+    }
+  }
+
   private static let heroAnchor = "media-item-hero"
+
   /// «+ ещё N»: park the rail on the first version without a pill, then hand it focus —
   /// a turn later, so the rail has its entry before the engine asks for it.
   private func showMoreVersions() {
@@ -791,9 +838,11 @@ struct MediaItemView: View {
                           for: itemModel.mediaItem,
                           preferredBackdropURL: itemModel.heroBackdropURL
                         ).first,
+                        titleLogoURL: itemModel.heroLogoURL,
                         onSeasonVisible: { seasonNumber in
                           Task { await itemModel.ensureSeasonSchedule(seasonNumber) }
-                        })
+                        },
+                        onPageOffset: { pageScrollMinY = -$0 })
       }
 
 #if os(tvOS)

@@ -68,8 +68,12 @@ struct SeasonsRailView: View {
   /// The series' own backdrop: the picture of an episode that has no still of its own
   /// yet (announced, or not on kino.pub) instead of an empty plate (Sasha, 2026-10-30).
   var seriesBackdropURL: URL? = nil
+  /// The show logo drawn centered above the season tabs. Rivulet's small title logo.
+  var titleLogoURL: URL? = nil
   /// Ask the model to fetch schedule for a season number (kino.pub season.number).
   var onSeasonVisible: ((Int) -> Void)? = nil
+  /// The page scroll offset, in points. Menu uses it to decide whether to go home.
+  var onPageOffset: ((CGFloat) -> Void)? = nil
 
   @Environment(ErrorHandler.self) private var errorHandler
   @Environment(NavigationState.self) private var navigationState
@@ -79,6 +83,7 @@ struct SeasonsRailView: View {
   /// The UIKit rail can't host a `NavigationLink`, so playback is pushed through the
   /// same environment hook `MediaPosterShelf`'s TVUIKit rails use.
   @Environment(\.mediaNavigation) private var mediaNavigation
+  @Environment(\.pageBackdropStage) private var backdropStage
 #endif
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
   /// Measured rail width, so cards land on the same `ShelfMetrics` grid as every
@@ -110,6 +115,13 @@ struct SeasonsRailView: View {
   /// True while a tab-driven scroll is in flight, so a stray episode focus update
   /// doesn't yank the selected tab back mid-jump.
   @State private var isScrollingFromTab = false
+#if os(tvOS)
+  @State private var showsEpisodeInfo = false
+  @State private var episodeInfoTitle = ""
+  @State private var episodeInfoBody = ""
+  @State private var railFocus = RivuletSeasonRailFocus()
+  @State private var inspectedEpisodeID: Int?
+#endif
 #if !os(tvOS)
   /// The episode rail's own position — unlike the reader's proxy, moving it does not
   /// drag the page along. Used to put a rebuilt rail back where it stood.
@@ -308,7 +320,23 @@ struct SeasonsRailView: View {
 #if os(tvOS)
     // Tabs and episodes are one UIKit controller on tvOS: where the remote lands between
     // the hero, the tabs and the rail is the focus engine's call (`TVSeasonRail`).
-    seasonRail
+    // The Rivulet rail is the same place, with that app's tabs, divider and metadata.
+    Group {
+      if FeatureFlags.rivuletSeasonRail {
+        rivuletSeasonRail
+      } else {
+        seasonRail
+      }
+    }
+    .infoPopup(Text(episodeInfoTitle), isPresented: $showsEpisodeInfo, onDismiss: {
+      if let inspectedEpisodeID {
+        railFocus.restoreDescription(inspectedEpisodeID)
+      }
+    }) {
+      Text(episodeInfoBody)
+        .font(InfoPopupMetrics.bodyFont)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
       .task {
         cardMenu.bind(errorHandler: errorHandler)
         await cardMenu.refreshFolders()
@@ -407,6 +435,99 @@ struct SeasonsRailView: View {
         return contextEntries(for: episode, season: season)
       }
     )
+  }
+
+  /// Rivulet's season row: "Season N" tabs, an S2 divider, and the metadata plate.
+  /// Select on the still plays. Select on the text opens the info sheet.
+  private var rivuletSeasonRail: some View {
+    let content = rivuletRailContent
+    return RivuletSeasonRail(
+      tabs: content.tabs,
+      items: content.items,
+      entryByTab: Self.entryByTab(entries),
+      openingItemID: openingEntry(in: entries)?.id,
+      contentInset: TVHIGGrid.sideInset,
+      logoURL: titleLogoURL,
+      onPlay: { select(entryID: $0) },
+      onInspect: { id in
+        inspectedEpisodeID = id
+        railFocus.armReturn(to: id)
+        presentEpisodeInfo(entryID: id)
+      },
+      onTabSelected: { id in
+        if let season = seasons.first(where: { $0.id == id }) {
+          onSeasonVisible?(season.number)
+        }
+      },
+      onFoldProgress: { progress in
+        backdropStage?.setFoldBlur(progress)
+      },
+      onPageOffset: onPageOffset,
+      focus: railFocus
+    )
+  }
+
+  private var rivuletRailContent: (tabs: [RivuletRailTab], items: [RivuletRailItem]) {
+    let railTabs = tabs.map { tab in
+      let label = tab.first == tab.last
+        ? String(format: "MediaItem_SeasonSingle".localized, tab.first)
+        : String(format: "MediaItem_SeasonsRange".localized, tab.first, tab.last)
+      let divider = tab.first == tab.last ? "S\(tab.first)" : "S\(tab.first)–\(tab.last)"
+      return RivuletRailTab(id: tab.id, label: label, divider: divider)
+    }
+    let dividers = Dictionary(uniqueKeysWithValues: railTabs.map { ($0.id, $0.divider) })
+    let rating = externalMetadata.ageRating.flatMap { $0.isEmpty ? nil : $0 }
+    return (railTabs, entries.map { rivuletItem($0, divider: dividers[$0.tabID] ?? "", rating: rating) })
+  }
+
+  private func rivuletItem(_ entry: RailEntry, divider: String, rating: String?) -> RivuletRailItem {
+    switch entry {
+    case .playable(let season, let episode, let schedule):
+      let name = Self.displayTitle(episode: episode, schedule: schedule)
+      let year = schedule?.airDate.map { String(Calendar.current.component(.year, from: $0)) }
+      let duration = episode.duration >= 60 ? RuntimeText(seconds: episode.duration).text(for: .timeBadge) : nil
+      let still = Self.stillURL(episode: episode, schedule: schedule).flatMap(URL.init(string:))
+      return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider, stillURL: still,
+                             duration: duration,
+                             eyebrow: EpisodeText(season: nil, number: episode.number).formatted(.long).uppercased(),
+                             title: name.isEmpty ? EpisodeText(season: nil, number: episode.number).formatted(.long) : name,
+                             year: year, rating: rating,
+                             progress: episode.watchProgress.resumeFraction)
+    case .unavailable(_, let schedule):
+      return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider,
+                             stillURL: schedule.still ?? seriesBackdropURL, duration: nil,
+                             eyebrow: EpisodeText(season: nil, number: schedule.episodeNumber).formatted(.long).uppercased(),
+                             title: EpisodeTitle.meaningful(schedule.name) ?? EpisodeText(season: nil, number: schedule.episodeNumber).formatted(.long),
+                             year: schedule.airDate.map { String(Calendar.current.component(.year, from: $0)) },
+                             rating: rating, progress: nil)
+    case .missingSeasons(let from, let to, _, _, _):
+      return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider, stillURL: nil, duration: nil,
+                             eyebrow: "", title: String(format: "MediaItem_SeasonsRange".localized, from, to),
+                             year: nil, rating: nil, progress: nil)
+    case .upcomingSeason(let number, let date, let poster):
+      return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider, stillURL: poster, duration: nil,
+                             eyebrow: "", title: String(format: "MediaItem_SeasonSingle".localized, number),
+                             year: String(Calendar.current.component(.year, from: date)),
+                             rating: nil, progress: nil)
+    }
+  }
+
+  /// Select on the episode text. The same info sheet the page uses for a clipped synopsis.
+  private func presentEpisodeInfo(entryID: Int) {
+    guard case .playable(let season, let episode, let schedule)? = entries.first(where: { $0.id == entryID }) else {
+      select(entryID: entryID)
+      return
+    }
+    let name = Self.displayTitle(episode: episode, schedule: schedule)
+    episodeInfoTitle = name.isEmpty
+      ? EpisodeText(season: nil, number: episode.number).formatted(.long)
+      : name
+    var parts = [EpisodeText(season: season.number, number: episode.number, seasonCount: seasons.count).formatted(.long)]
+    if let overview = schedule?.overview, !overview.isEmpty {
+      parts.append(overview)
+    }
+    episodeInfoBody = parts.joined(separator: "\n\n")
+    showsEpisodeInfo = true
   }
 
   /// «Сезон» before the tabs; one season is not a choice, so its line says which.
