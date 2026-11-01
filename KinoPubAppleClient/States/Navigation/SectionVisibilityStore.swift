@@ -478,6 +478,14 @@ final class SectionVisibilityStore: ObservableObject {
     UserDefaults.standard.set(orderedTabIDs, forKey: orderedTabsKey)
   }
 
+  /// The whole order at once, by id — what an editing list hands back. Ids the stored
+  /// order did not have yet (a tab added in a later build) are written in too, so a
+  /// position on screen is a position in storage.
+  func setTabOrder(_ ids: [String]) {
+    orderedTabIDs = ids
+    UserDefaults.standard.set(ids, forKey: orderedTabsKey)
+  }
+
   func moveTab(id: String, toPosition oneBasedPosition: Int) {
     guard let currentIndex = orderedTabIDs.firstIndex(of: id) else { return }
     let targetIndex = max(0, min(orderedTabIDs.count - 1, oneBasedPosition - 1))
@@ -535,6 +543,12 @@ final class SectionVisibilityStore: ObservableObject {
   func moveHomeSections(fromOffsets source: IndexSet, toOffset destination: Int) {
     orderedHomeSectionIDs.move(fromOffsets: source, toOffset: destination)
     UserDefaults.standard.set(orderedHomeSectionIDs, forKey: orderedHomeSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func setHomeSectionOrder(_ ids: [String]) {
+    orderedHomeSectionIDs = ids
+    UserDefaults.standard.set(ids, forKey: orderedHomeSectionsKey)
     NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
   }
 
@@ -599,6 +613,12 @@ final class SectionVisibilityStore: ObservableObject {
     NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
   }
 
+  func setMovieSectionOrder(_ ids: [String]) {
+    orderedMovieSectionIDs = ids
+    UserDefaults.standard.set(ids, forKey: orderedMovieSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
   func moveMovieSection(id: String, toPosition oneBasedPosition: Int) {
     guard let currentIndex = orderedMovieSectionIDs.firstIndex(of: id) else { return }
     let targetIndex = max(0, min(orderedMovieSectionIDs.count - 1, oneBasedPosition - 1))
@@ -657,6 +677,12 @@ final class SectionVisibilityStore: ObservableObject {
   func moveSeriesSections(fromOffsets source: IndexSet, toOffset destination: Int) {
     orderedSeriesSectionIDs.move(fromOffsets: source, toOffset: destination)
     UserDefaults.standard.set(orderedSeriesSectionIDs, forKey: orderedSeriesSectionsKey)
+    NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
+  }
+
+  func setSeriesSectionOrder(_ ids: [String]) {
+    orderedSeriesSectionIDs = ids
+    UserDefaults.standard.set(ids, forKey: orderedSeriesSectionsKey)
     NotificationCenter.default.post(name: .homeSectionsConfigurationDidChange, object: nil)
   }
 

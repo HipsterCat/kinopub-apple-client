@@ -276,21 +276,34 @@ final class TVSettingsCatalog {
              .map { LanguageNames.name(for: $0) }.joined(separator: ", "))
   }
 
-  /// The list in order; Select on a language moves or removes it, the same page shape as
-  /// the tab order above.
+  /// The list in order, edited the way Settings › Apple TV Languages is: *Edit*, then the
+  /// table's own trash and ≡ on each row (`TSKEditing`); *Add Language…* under it.
   private func languageListPage(_ kind: PlaybackLanguageList.Kind) -> TSKPage {
-    TSKPage(title: languageListTitle(kind),
-            previewSymbol: kind == .audio ? "speaker.wave.2" : "captions.bubble") { [unowned self] in
-      let codes = PlaybackLanguageList.languages(kind)
-      let rows = codes.enumerated().map { index, code in
-        TSKRow(title: "\(index + 1). \(LanguageNames.name(for: code))",
+    let symbol = kind == .audio ? "speaker.wave.2" : "captions.bubble"
+    let editing = TSKEditing(
+      move: { from, to in
+        var codes = PlaybackLanguageList.languages(kind)
+        codes.insert(codes.remove(at: from), at: to)
+        PlaybackLanguageList.set(kind, codes)
+      },
+      delete: { index in
+        var codes = PlaybackLanguageList.languages(kind)
+        guard codes.indices.contains(index), codes.count > 1 else { return }
+        codes.remove(at: index)
+        PlaybackLanguageList.set(kind, codes)
+      },
+      begin: {
+        let stored = PlaybackLanguageList.stored(kind)
+        return { PlaybackLanguageList.restore(kind, stored) }
+      })
+    return TSKPage(title: languageListTitle(kind), previewSymbol: symbol, editing: editing) { [unowned self] in
+      let rows = PlaybackLanguageList.languages(kind).map { code in
+        TSKRow(title: LanguageNames.name(for: code),
                description: "Settings_Tip_LanguageList".localized,
-               kind: .action(pushes: true) { [unowned self] in
-                 self.host.push(self.languageDetailPage(code, in: kind))
-               })
+               kind: .action(pushes: false) {})
       }
       var manage = [
-        TSKRow(title: "Add Language".localized,
+        TSKRow(title: "Add Language…".localized,
                description: "Settings_Tip_LanguageList".localized,
                kind: .action(pushes: true) { [unowned self] in self.host.push(self.addLanguagePage(kind)) }),
       ]
@@ -302,46 +315,19 @@ final class TVSettingsCatalog {
                                self.host.reloadPages()
                              }))
       }
-      return [TSKSection(rows: rows), TSKSection(rows: manage)]
-    }
-  }
-
-  private func languageDetailPage(_ code: String, in kind: PlaybackLanguageList.Kind) -> TSKPage {
-    TSKPage(title: LanguageNames.name(for: code),
-            previewSymbol: kind == .audio ? "speaker.wave.2" : "captions.bubble") { [unowned self] in
-      let codes = PlaybackLanguageList.languages(kind)
-      let index = codes.firstIndex(of: code)
-      return [TSKSection(rows: [
-        TSKRow(title: "Move Up".localized,
-               kind: .action(pushes: false) { [unowned self] in
-                 PlaybackLanguageList.move(code, in: kind, by: -1)
-                 self.host.reloadPages()
-               },
-               isEnabled: (index ?? 0) > 0),
-        TSKRow(title: "Move Down".localized,
-               kind: .action(pushes: false) { [unowned self] in
-                 PlaybackLanguageList.move(code, in: kind, by: 1)
-                 self.host.reloadPages()
-               },
-               isEnabled: index.map { $0 < codes.count - 1 } ?? false),
-        TSKRow(title: "Remove".localized,
-               kind: .action(pushes: false) { [unowned self] in
-                 PlaybackLanguageList.remove(code, from: kind)
-                 self.host.reloadPages()
-               },
-               isEnabled: index != nil),
-      ])]
+      return [TSKSection(title: languageListTitle(kind), rows: rows), TSKSection(rows: manage)]
     }
   }
 
   private func addLanguagePage(_ kind: PlaybackLanguageList.Kind) -> TSKPage {
-    TSKPage(title: "Add Language".localized,
+    TSKPage(title: "Add Language…".localized,
             previewSymbol: kind == .audio ? "speaker.wave.2" : "captions.bubble") { [unowned self] in
       let rows = PlaybackLanguageList.addable(to: kind).map { code in
         TSKRow(title: LanguageNames.name(for: code),
                kind: .action(pushes: false) { [unowned self] in
                  PlaybackLanguageList.add(code, to: kind)
                  self.host.reloadPages()
+                 self.host.pop()
                })
       }
       return [TSKSection(rows: rows)]
@@ -350,20 +336,6 @@ final class TVSettingsCatalog {
 
   private func tabsSections() -> [TSKSection] {
     let store = SectionVisibilityStore.shared
-    let tabs = store.orderedBrowseTabs
-    let tabRows: [TSKRow] = tabs.enumerated().map { idx, spec in
-      let isVisible = store.isTabVisible(spec.tab)
-      let status = isVisible ? "Вкл" : "Выкл"
-      return TSKRow(
-        title: "\(idx + 1). \(spec.localizedTitle) — \(status)",
-        description: "Вкладка «\(spec.localizedTitle)». Позиция: #\(idx + 1) из \(tabs.count). Нажмите Select, чтобы включить/выключить вкладку или изменить её порядок в верхнем меню.",
-        kind: .action(pushes: true) { [unowned self] in
-          self.host.push(self.tabDetailPage(specID: spec.id))
-        },
-        previewSymbol: spec.symbol
-      )
-    }
-
     let filterRows: [TSKRow] = [
       TSKRow(
         title: "Без концертов на Главной: \(store.excludeConcertsOnHome ? "Вкл" : "Выкл")",
@@ -403,46 +375,12 @@ final class TVSettingsCatalog {
       ),
     ]
 
-    let sections = store.orderedHomeSections
-    let sectionRows: [TSKRow] = sections.enumerated().map { idx, section in
-      let isVisible = store.isHomeSectionVisible(section.id)
-      let status = isVisible ? "Вкл" : "Выкл"
-      return TSKRow(
-        title: "\(idx + 1). \(section.title) — \(status)",
-        description: "\(section.subtitle)\nСортировка: \(section.sortingDescription)\nНажмите Select, чтобы включить/выключить секцию или переместить её выше/ниже.",
-        kind: .action(pushes: true) { [unowned self] in
-          self.host.push(self.homeSectionDetailPage(sectionID: section.id))
-        },
-        previewSymbol: "rectangle.grid.1x2"
-      )
-    }
-
-    let movieSections = store.orderedMovieSections
-    let movieSectionRows: [TSKRow] = movieSections.enumerated().map { idx, section in
-      let isVisible = store.isMovieSectionVisible(section.id)
-      let status = isVisible ? "Вкл" : "Выкл"
-      return TSKRow(
-        title: "\(idx + 1). \(section.title) — \(status)",
-        description: "\(section.subtitle)\nНажмите Select, чтобы включить/выключить секцию на вкладке Фильмы или изменить её порядок.",
-        kind: .action(pushes: true) { [unowned self] in
-          self.host.push(self.movieSectionDetailPage(sectionID: section.id))
-        },
-        previewSymbol: "movieclapper"
-      )
-    }
-
-    let seriesSections = store.orderedSeriesSections
-    let seriesSectionRows: [TSKRow] = seriesSections.enumerated().map { idx, section in
-      let isVisible = store.isSeriesSectionVisible(section.id)
-      let status = isVisible ? "Вкл" : "Выкл"
-      return TSKRow(
-        title: "\(idx + 1). \(section.title) — \(status)",
-        description: "\(section.subtitle)\nНажмите Select, чтобы включить/выключить секцию на вкладке Сериалы или изменить её порядок.",
-        kind: .action(pushes: true) { [unowned self] in
-          self.host.push(self.seriesSectionDetailPage(sectionID: section.id))
-        },
-        previewSymbol: "rectangle.stack"
-      )
+    let listRows = orderedLists.map { list in
+      TSKRow(title: list.title,
+             description: list.description,
+             kind: .action(pushes: true) { [unowned self] in self.host.push(self.orderedListPage(list)) },
+             previewSymbol: list.symbol,
+             trailingValue: list.summary())
     }
 
     let resetRows: [TSKRow] = [
@@ -458,14 +396,137 @@ final class TVSettingsCatalog {
     ]
 
     return [
-      TSKSection(title: "Вкладки верхнего меню (Табы)", rows: tabRows),
+      TSKSection(title: "Порядок и видимость", rows: listRows),
       TSKSection(title: "Фильтры Главной", rows: filterRows),
       TSKSection(title: "Продолжить просмотр", rows: continueWatchingRows),
-      TSKSection(title: "Секции Главной (Watch Now)", rows: sectionRows),
-      TSKSection(title: "Секции Фильмов (Movies)", rows: movieSectionRows),
-      TSKSection(title: "Секции Сериалов и Шоу (Series)", rows: seriesSectionRows),
       TSKSection(title: "Сброс", rows: resetRows),
     ]
+  }
+
+  // MARK: Ordered lists — tabs and sections
+
+  /// A list whose order and visibility the viewer sets: the tab bar, and the sections of
+  /// Watch Now, Movies and Series. One page shape for all four (`orderedListPage`).
+  private struct OrderedList {
+    struct Item {
+      let id: String
+      let title: String
+      let description: String
+      let symbol: String?
+    }
+    let title: String
+    let description: String
+    let symbol: String
+    let items: @MainActor () -> [Item]
+    let isVisible: @MainActor (String) -> Bool
+    /// A tab that is the only one left, or one that cannot be hidden, stays.
+    let canToggle: @MainActor (String) -> Bool
+    let toggle: @MainActor (String) -> Void
+    /// The whole order, by id.
+    let setOrder: @MainActor ([String]) -> Void
+
+    @MainActor func summary() -> String {
+      let items = items()
+      return "\(items.filter { isVisible($0.id) }.count) из \(items.count)"
+    }
+  }
+
+  private var orderedLists: [OrderedList] {
+    let store = SectionVisibilityStore.shared
+    let moveHint = "Select включает и выключает. «Изменить» — порядок."
+    return [
+      OrderedList(
+        title: "Вкладки верхнего меню",
+        description: "Какие вкладки видны в верхнем меню и в каком порядке.",
+        symbol: "menubar.rectangle",
+        items: {
+          store.orderedBrowseTabs.map {
+            .init(id: $0.id, title: $0.localizedTitle,
+                  description: $0.canHide ? "Вкладка «\($0.localizedTitle)». \(moveHint)"
+                    : "Вкладка «\($0.localizedTitle)» — основная, она всегда в меню. «Изменить» — порядок.",
+                  symbol: $0.symbol)
+          }
+        },
+        isVisible: { id in
+          store.orderedBrowseTabs.first { $0.id == id }.map { store.isTabVisible($0.tab) } ?? false
+        },
+        canToggle: { id in
+          guard let spec = store.orderedBrowseTabs.first(where: { $0.id == id }) else { return false }
+          return spec.canHide && (!store.isTabVisible(spec.tab) || store.visibleBrowseTabs.count > 1)
+        },
+        toggle: { store.toggleTabVisibility(id: $0) },
+        setOrder: { store.setTabOrder($0) }),
+      OrderedList(
+        title: "Секции Главной",
+        description: "Ряды вкладки Watch Now: какие видны и в каком порядке.",
+        symbol: "rectangle.grid.1x2",
+        items: {
+          store.orderedHomeSections.map {
+            .init(id: $0.id, title: $0.title,
+                  description: "\($0.subtitle)\nСортировка: \($0.sortingDescription)\n\(moveHint)",
+                  symbol: nil)
+          }
+        },
+        isVisible: { store.isHomeSectionVisible($0) },
+        canToggle: { _ in true },
+        toggle: { store.toggleHomeSectionVisibility(id: $0) },
+        setOrder: { store.setHomeSectionOrder($0) }),
+      OrderedList(
+        title: "Секции Фильмов",
+        description: "Ряды вкладки Фильмы: какие видны и в каком порядке.",
+        symbol: "movieclapper",
+        items: {
+          store.orderedMovieSections.map {
+            .init(id: $0.id, title: $0.title, description: "\($0.subtitle)\n\(moveHint)", symbol: nil)
+          }
+        },
+        isVisible: { store.isMovieSectionVisible($0) },
+        canToggle: { _ in true },
+        toggle: { store.toggleMovieSectionVisibility(id: $0) },
+        setOrder: { store.setMovieSectionOrder($0) }),
+      OrderedList(
+        title: "Секции Сериалов",
+        description: "Ряды вкладки Сериалы: какие видны и в каком порядке.",
+        symbol: "rectangle.stack",
+        items: {
+          store.orderedSeriesSections.map {
+            .init(id: $0.id, title: $0.title, description: "\($0.subtitle)\n\(moveHint)", symbol: nil)
+          }
+        },
+        isVisible: { store.isSeriesSectionVisible($0) },
+        canToggle: { _ in true },
+        toggle: { store.toggleSeriesSectionVisibility(id: $0) },
+        setOrder: { store.setSeriesSectionOrder($0) }),
+    ]
+  }
+
+  /// Select shows or hides a row; *Edit* reorders, the way Settings › Apple TV Languages
+  /// does (`TSKEditing`, move only — a tab is hidden, never removed).
+  private func orderedListPage(_ list: OrderedList) -> TSKPage {
+    let editing = TSKEditing(
+      move: { from, to in
+        var ids = list.items().map(\.id)
+        ids.insert(ids.remove(at: from), at: to)
+        list.setOrder(ids)
+      },
+      begin: {
+        let saved = list.items().map(\.id)
+        return { list.setOrder(saved) }
+      })
+    return TSKPage(title: list.title, previewSymbol: list.symbol, editing: editing) { [unowned self] in
+      let rows = list.items().map { item in
+        TSKRow(title: item.title,
+               description: item.description,
+               kind: .action(pushes: false) { [unowned self] in
+                 guard list.canToggle(item.id) else { return }
+                 list.toggle(item.id)
+                 self.host.reloadPages()
+               },
+               previewSymbol: item.symbol,
+               trailingValue: list.isVisible(item.id) ? "Вкл" : "Выкл")
+      }
+      return [TSKSection(title: list.title, rows: rows)]
+    }
   }
 
   /// «1 неделя», «2 недели», «8 недель».
@@ -483,242 +544,6 @@ final class TVSettingsCatalog {
       word = "недель"
     }
     return "\(weeks) \(word)"
-  }
-
-  private func tabDetailPage(specID: String) -> TSKPage {
-    let spec = SectionVisibilityStore.allBrowseTabs.first { $0.id == specID }
-      ?? SectionVisibilityStore.allBrowseTabs[0]
-    return TSKPage(title: spec.localizedTitle, previewSymbol: spec.symbol) { [unowned self] in
-      let store = SectionVisibilityStore.shared
-      let ordered = store.orderedBrowseTabs
-      let idx = ordered.firstIndex(where: { $0.id == specID }) ?? 0
-      let isVisible = store.isTabVisible(spec.tab)
-      let canToggle = spec.canHide && (!isVisible || store.visibleBrowseTabs.count > 1)
-
-      let actionRows: [TSKRow] = [
-        TSKRow(
-          title: "Показывать в меню: \(isVisible ? "Вкл" : "Выкл")",
-          description: spec.canHide
-            ? "Включает или скрывает вкладку «\(spec.localizedTitle)» в главном меню навигации."
-            : "Вкладка «\(spec.localizedTitle)» является основной и всегда отображается в меню.",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.toggleTabVisibility(id: specID)
-            self.host.reloadPages()
-          },
-          isEnabled: canToggle
-        ),
-        TSKRow(
-          title: "Поднять выше (↑)",
-          description: "Переместить вкладку ближе к началу меню (текущая позиция: #\(idx + 1) из \(ordered.count)).",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveTabUp(id: specID)
-            self.host.reloadPages()
-          },
-          isEnabled: idx > 0
-        ),
-        TSKRow(
-          title: "Опустить ниже (↓)",
-          description: "Переместить вкладку ближе к концу меню (текущая позиция: #\(idx + 1) из \(ordered.count)).",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveTabDown(id: specID)
-            self.host.reloadPages()
-          },
-          isEnabled: idx < ordered.count - 1
-        ),
-      ]
-
-      let positionRows: [TSKRow] = ordered.indices.map { targetIdx in
-        let isCurrent = (targetIdx == idx)
-        return TSKRow(
-          title: isCurrent ? "Позиция #\(targetIdx + 1) (текущая)" : "Переместить на позицию #\(targetIdx + 1)",
-          description: "Поставить вкладку «\(spec.localizedTitle)» на место #\(targetIdx + 1) в верхнем меню.",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveTab(id: specID, toPosition: targetIdx + 1)
-            self.host.reloadPages()
-          },
-          isEnabled: !isCurrent
-        )
-      }
-
-      return [
-        TSKSection(title: "Управление вкладкой", rows: actionRows),
-        TSKSection(title: "Быстрый выбор позиции", rows: positionRows),
-      ]
-    }
-  }
-
-  private func homeSectionDetailPage(sectionID: String) -> TSKPage {
-    let section = SectionVisibilityStore.allHomeSections.first { $0.id == sectionID }
-      ?? SectionVisibilityStore.allHomeSections[0]
-    return TSKPage(title: section.title, previewSymbol: "rectangle.grid.1x2") { [unowned self] in
-      let store = SectionVisibilityStore.shared
-      let ordered = store.orderedHomeSections
-      let idx = ordered.firstIndex(where: { $0.id == sectionID }) ?? 0
-      let isVisible = store.isHomeSectionVisible(sectionID)
-
-      let actionRows: [TSKRow] = [
-        TSKRow(
-          title: "Показывать на Главной: \(isVisible ? "Вкл" : "Выкл")",
-          description: "\(section.subtitle)\nСортировка: \(section.sortingDescription)",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.toggleHomeSectionVisibility(id: sectionID)
-            self.host.reloadPages()
-          }
-        ),
-        TSKRow(
-          title: "Поднять выше (↑)",
-          description: "Переместить секцию выше на Главной странице (текущая позиция: #\(idx + 1) из \(ordered.count)).",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveHomeSectionUp(id: sectionID)
-            self.host.reloadPages()
-          },
-          isEnabled: idx > 0
-        ),
-        TSKRow(
-          title: "Опустить ниже (↓)",
-          description: "Переместить секцию ниже на Главной странице (текущая позиция: #\(idx + 1) из \(ordered.count)).",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveHomeSectionDown(id: sectionID)
-            self.host.reloadPages()
-          },
-          isEnabled: idx < ordered.count - 1
-        ),
-      ]
-
-      let positionRows: [TSKRow] = ordered.indices.map { targetIdx in
-        let isCurrent = (targetIdx == idx)
-        return TSKRow(
-          title: isCurrent ? "Позиция #\(targetIdx + 1) (текущая)" : "Переместить на позицию #\(targetIdx + 1)",
-          description: "Поставить секцию «\(section.title)» на место #\(targetIdx + 1) на Главной.",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveHomeSection(id: sectionID, toPosition: targetIdx + 1)
-            self.host.reloadPages()
-          },
-          isEnabled: !isCurrent
-        )
-      }
-
-      return [
-        TSKSection(title: "Управление секцией", rows: actionRows),
-        TSKSection(title: "Быстрый выбор позиции", rows: positionRows),
-      ]
-    }
-  }
-
-  private func movieSectionDetailPage(sectionID: String) -> TSKPage {
-    let section = SectionVisibilityStore.allMovieSections.first { $0.id == sectionID }
-      ?? SectionVisibilityStore.allMovieSections[0]
-    return TSKPage(title: section.title, previewSymbol: "movieclapper") { [unowned self] in
-      let store = SectionVisibilityStore.shared
-      let ordered = store.orderedMovieSections
-      let idx = ordered.firstIndex(where: { $0.id == sectionID }) ?? 0
-      let isVisible = store.isMovieSectionVisible(sectionID)
-
-      let actionRows: [TSKRow] = [
-        TSKRow(
-          title: "Показывать в Фильмах: \(isVisible ? "Вкл" : "Выкл")",
-          description: section.subtitle,
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.toggleMovieSectionVisibility(id: sectionID)
-            self.host.reloadPages()
-          }
-        ),
-        TSKRow(
-          title: "Поднять выше (↑)",
-          description: "Переместить секцию выше на вкладке Фильмы (текущая позиция: #\(idx + 1) из \(ordered.count)).",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveMovieSectionUp(id: sectionID)
-            self.host.reloadPages()
-          },
-          isEnabled: idx > 0
-        ),
-        TSKRow(
-          title: "Опустить ниже (↓)",
-          description: "Переместить секцию ниже на вкладке Фильмы (текущая позиция: #\(idx + 1) из \(ordered.count)).",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveMovieSectionDown(id: sectionID)
-            self.host.reloadPages()
-          },
-          isEnabled: idx < ordered.count - 1
-        ),
-      ]
-
-      let positionRows: [TSKRow] = ordered.indices.map { targetIdx in
-        let isCurrent = (targetIdx == idx)
-        return TSKRow(
-          title: isCurrent ? "Позиция #\(targetIdx + 1) (текущая)" : "Переместить на позицию #\(targetIdx + 1)",
-          description: "Поставить секцию «\(section.title)» на место #\(targetIdx + 1) в Фильмах.",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveMovieSection(id: sectionID, toPosition: targetIdx + 1)
-            self.host.reloadPages()
-          },
-          isEnabled: !isCurrent
-        )
-      }
-
-      return [
-        TSKSection(title: "Управление секцией", rows: actionRows),
-        TSKSection(title: "Быстрый выбор позиции", rows: positionRows),
-      ]
-    }
-  }
-
-  private func seriesSectionDetailPage(sectionID: String) -> TSKPage {
-    let section = SectionVisibilityStore.allSeriesSections.first { $0.id == sectionID }
-      ?? SectionVisibilityStore.allSeriesSections[0]
-    return TSKPage(title: section.title, previewSymbol: "rectangle.stack") { [unowned self] in
-      let store = SectionVisibilityStore.shared
-      let ordered = store.orderedSeriesSections
-      let idx = ordered.firstIndex(where: { $0.id == sectionID }) ?? 0
-      let isVisible = store.isSeriesSectionVisible(sectionID)
-
-      let actionRows: [TSKRow] = [
-        TSKRow(
-          title: "Показывать в Сериалах: \(isVisible ? "Вкл" : "Выкл")",
-          description: section.subtitle,
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.toggleSeriesSectionVisibility(id: sectionID)
-            self.host.reloadPages()
-          }
-        ),
-        TSKRow(
-          title: "Поднять выше (↑)",
-          description: "Переместить секцию выше на вкладке Сериалы (текущая позиция: #\(idx + 1) из \(ordered.count)).",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveSeriesSectionUp(id: sectionID)
-            self.host.reloadPages()
-          },
-          isEnabled: idx > 0
-        ),
-        TSKRow(
-          title: "Опустить ниже (↓)",
-          description: "Переместить секцию ниже на вкладке Сериалы (текущая позиция: #\(idx + 1) из \(ordered.count)).",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveSeriesSectionDown(id: sectionID)
-            self.host.reloadPages()
-          },
-          isEnabled: idx < ordered.count - 1
-        ),
-      ]
-
-      let positionRows: [TSKRow] = ordered.indices.map { targetIdx in
-        let isCurrent = (targetIdx == idx)
-        return TSKRow(
-          title: isCurrent ? "Позиция #\(targetIdx + 1) (текущая)" : "Переместить на позицию #\(targetIdx + 1)",
-          description: "Поставить секцию «\(section.title)» на место #\(targetIdx + 1) в Сериалах.",
-          kind: .action(pushes: false) { [unowned self] in
-            SectionVisibilityStore.shared.moveSeriesSection(id: sectionID, toPosition: targetIdx + 1)
-            self.host.reloadPages()
-          },
-          isEnabled: !isCurrent
-        )
-      }
-
-      return [
-        TSKSection(title: "Управление секцией", rows: actionRows),
-        TSKSection(title: "Быстрый выбор позиции", rows: positionRows),
-      ]
-    }
   }
 
   private func appearanceSections() -> [TSKSection] {
@@ -1417,6 +1242,28 @@ final class TVSettingsCatalog {
 #if DEBUG
   func presentForDebugging(_ lab: Lab) {
     present(lab.page)
+  }
+
+  /// `-KINOPUBSettingsLanguages audio|subtitles` pushes that list; with
+  /// `-KINOPUBSettingsEditing YES` it opens in editing.
+  func openLanguageListForDebugging(_ raw: String, editing: Bool) {
+    let kind: PlaybackLanguageList.Kind = raw == "audio" ? .audio : .subtitles
+    pushForDebugging(languageListPage(kind), editing: editing)
+  }
+
+  /// `-KINOPUBSettingsOrderedList 0…3` — tabs, then Watch Now, Movies and Series sections.
+  func openOrderedListForDebugging(_ index: Int, editing: Bool) {
+    guard orderedLists.indices.contains(index) else { return }
+    pushForDebugging(orderedListPage(orderedLists[index]), editing: editing)
+  }
+
+  private func pushForDebugging(_ page: TSKPage, editing: Bool) {
+    host.push(page)
+    guard editing else { return }
+    Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .seconds(1.5))
+      self?.host.topController?.setEditing(true, animated: true)
+    }
   }
 #endif
 
@@ -2213,6 +2060,20 @@ struct TVSettingKitSettingsView: View {
         catalog?.open(.about)
         try? await Task.sleep(for: .seconds(1))
         catalog?.presentPopup(popup)
+      }
+      if let raw = defaults.string(forKey: "KINOPUBSettingsLanguages") {
+        // `-KINOPUBSettingsLanguagesSeed en,ru,uk` starts the list from a known state.
+        if let seed = defaults.string(forKey: "KINOPUBSettingsLanguagesSeed") {
+          PlaybackLanguageList.set(raw == "audio" ? .audio : .subtitles,
+                                   seed.split(separator: ",").map(String.init))
+        }
+        try? await Task.sleep(for: .seconds(1))
+        catalog?.openLanguageListForDebugging(raw, editing: defaults.bool(forKey: "KINOPUBSettingsEditing"))
+      }
+      if defaults.object(forKey: "KINOPUBSettingsOrderedList") != nil {
+        try? await Task.sleep(for: .seconds(1))
+        catalog?.openOrderedListForDebugging(defaults.integer(forKey: "KINOPUBSettingsOrderedList"),
+                                             editing: defaults.bool(forKey: "KINOPUBSettingsEditing"))
       }
       if let raw = defaults.string(forKey: "KINOPUBSettingsLab"),
          let lab = TVSettingsCatalog.Lab(rawValue: raw) {

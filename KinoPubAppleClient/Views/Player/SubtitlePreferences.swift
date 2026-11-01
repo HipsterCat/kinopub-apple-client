@@ -161,6 +161,15 @@ enum PlaybackLanguageList {
     }
   }
 
+  /// The list exactly as stored — empty for "the system's" — so an edit can be undone.
+  static func stored(_ kind: Kind) -> [String] {
+    UserDefaults.standard.stringArray(forKey: key(kind)) ?? []
+  }
+
+  static func restore(_ kind: Kind, _ stored: [String]) {
+    if stored.isEmpty { reset(kind) } else { UserDefaults.standard.set(stored, forKey: key(kind)) }
+  }
+
   static func reset(_ kind: Kind) {
     UserDefaults.standard.removeObject(forKey: key(kind))
   }

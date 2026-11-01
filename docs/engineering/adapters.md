@@ -51,6 +51,15 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   `TVProfileSettingsView` is the fallback. Rows bind by KVC through `TSKValueStore` onto the
   existing `@AppStorage` keys and models. Full-screen tools are presented over it, each in its
   own `NavigationStack`, with the environment forwarded. Re-probe every tvOS.
+  **Editable lists** (`TSKEditing`: languages, tab and section order) are Settings › Apple TV
+  Languages' pattern — *Edit* in the bar, the table's own trash and ≡, *Cancel* / *Done* — on
+  public `UITableView` editing, since `TSKViewController` is a `UITableViewController`. Traps
+  (tvOS 27.2): the table's data source is TVSettingKit's diffable one, which answers no editing
+  call and cannot be swapped out (UIKit asserts it on every snapshot apply), so that instance
+  is moved to a runtime subclass adding can-edit / can-move / commit / move; no reload after a
+  move (it takes focus off the ≡); `primaryAction` bar items never fire, target–action does;
+  system Edit/Done/Cancel items draw as ✓/✕, so the buttons are titled. On the simulator a
+  lifted row needs two Down presses per row — Apple's own page does the same.
 
 - **`RenditionNames`** (`PlayerManager.swift`) — `AVMetadataItem.stringValue` is deprecated
   (16) for the async `load(.stringValue)`, while `AudioRenditions` reads a rendition's `NAME=`

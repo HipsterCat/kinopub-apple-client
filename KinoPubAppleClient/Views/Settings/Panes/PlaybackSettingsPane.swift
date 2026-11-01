@@ -126,7 +126,7 @@ struct PlaybackSettingsPane: View {
 }
 
 /// One ordered language list — audio or subtitles. Drag to reorder, swipe or the context
-/// menu to remove, *Add Language* for the rest of kino.pub's languages.
+/// menu to remove, *Add Language…* for the rest of kino.pub's languages.
 struct PlaybackLanguageListEditor: View {
   let kind: PlaybackLanguageList.Kind
   @State private var codes: [String] = []
@@ -155,7 +155,7 @@ struct PlaybackLanguageListEditor: View {
           PlaybackLanguageList.set(kind, codes.enumerated().filter { !offsets.contains($0.offset) }.map(\.element))
           reload()
         }
-        Menu("Add Language") {
+        Menu("Add Language…") {
           ForEach(PlaybackLanguageList.addable(to: kind), id: \.self) { code in
             Button(LanguageNames.name(for: code)) { PlaybackLanguageList.add(code, to: kind); reload() }
           }

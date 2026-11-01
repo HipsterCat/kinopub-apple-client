@@ -135,7 +135,28 @@ struct TSKPage {
   var focusedPreview: (@MainActor (_ key: String?, _ description: String?) -> UIViewController)?
   /// What the left column shows while no row has focus. Nil leaves TVSettingKit's default.
   var idlePreview: (@MainActor () -> UIViewController)?
+  /// An ordered list the viewer can edit the way Settings › Apple TV Languages does.
+  var editing: TSKEditing? = nil
   var sections: @MainActor () -> [TSKSection]
+}
+
+/// **Edit, the system's way** — Settings › General › Apple TV Languages: *Edit* in the
+/// navigation bar turns the page into the list alone, each row with the table's own delete
+/// (trash) and reorder (≡) controls; *Done* keeps the changes, *Cancel* puts the list back.
+///
+/// Public UIKit underneath: `TSKViewController` is a `UITableViewController`, so this is
+/// `editButtonItem` plus the table's editing data-source calls (Apple's
+/// `TVSettingsPreferredLanguagesViewController` uses the same, per its symbols in the tvOS
+/// 27.2 runtime). TVSettingKit implements none of them, so nothing is overridden.
+struct TSKEditing {
+  /// The section that is the list. While editing it is the page's only section.
+  var section = 0
+  /// `from` and `to` are row indices in that section.
+  var move: @MainActor (_ from: Int, _ to: Int) -> Void
+  /// Nil: rows can be moved, not deleted (a tab is hidden, never removed).
+  var delete: (@MainActor (_ index: Int) -> Void)? = nil
+  /// Editing begins; the returned closure is what *Cancel* runs to put everything back.
+  var begin: @MainActor () -> (@MainActor () -> Void)
 }
 
 // MARK: - Values
@@ -329,8 +350,33 @@ private final class TSKClosureBox: NSObject {
   init(_ run: @escaping () -> Void) { self.run = run }
 }
 
+/// Receives the page's *Edit* / *Done* / *Cancel* taps.
+@MainActor
+private final class TSKEditButtonTarget: NSObject {
+  weak var controller: UIViewController?
+
+  init(controller: UIViewController) {
+    self.controller = controller
+  }
+
+  @objc(kinoPubEdit) func edit() {
+    controller?.setEditing(true, animated: true)
+  }
+
+  @objc(kinoPubDone) func done() {
+    controller?.setEditing(false, animated: true)
+  }
+
+  @objc(kinoPubCancel) func cancel() {
+    guard let controller else { return }
+    TSKPageController.undoEditing(of: controller)
+    controller.setEditing(false, animated: true)
+  }
+}
+
 private enum TSKKeys {
   nonisolated(unsafe) static var page: UInt8 = 0
+  nonisolated(unsafe) static var editTarget: UInt8 = 0
   nonisolated(unsafe) static var previewSymbol: UInt8 = 0
   nonisolated(unsafe) static var previewKey: UInt8 = 0
 }
@@ -411,6 +457,7 @@ enum TSKPageController {
       return hasIdlePreview ? nil : inherited?(controller, defaultSel)
     }
     class_addMethod(subclass, defaultSel, imp_implementationWithBlock(defaultIndexPath), "@@:")
+    addEditingMethods(to: subclass, base: base)
     class_addMethod(subclass, NSSelectorFromString("loadSettingGroups"),
                     imp_implementationWithBlock(load), "@@:")
     class_addMethod(subclass, NSSelectorFromString("previewForItemAtIndexPath:"),
@@ -418,6 +465,164 @@ enum TSKPageController {
     objc_registerClassPair(subclass)
     return subclass
   }()
+
+  /// The table-editing half of `TSKEditing`. Each answer comes from the page's box, so a
+  /// page without `editing` behaves exactly as before: nothing editable, nothing movable.
+  private static func addEditingMethods(to subclass: AnyClass, base: AnyClass) {
+    let style: @convention(block) (NSObject, UITableView, NSIndexPath) -> Int = { controller, table, indexPath in
+      nonisolated(unsafe) let controller = controller
+      nonisolated(unsafe) let table = table
+      nonisolated(unsafe) var answer = UITableViewCell.EditingStyle.none.rawValue
+      MainActor.assumeIsolated {
+        // The last row stays: an empty list would mean "the system's", which is a
+        // different list — the one *Use System Languages* is for.
+        guard let box = box(of: controller), box.isEditableRow(indexPath as IndexPath),
+              box.page.editing?.delete != nil,
+              table.numberOfRows(inSection: indexPath.section) > 1 else { return }
+        answer = UITableViewCell.EditingStyle.delete.rawValue
+      }
+      return answer
+    }
+    let noIndent: @convention(block) (NSObject, UITableView, NSIndexPath) -> Bool = { _, _, _ in false }
+    // Moves stay inside the list.
+    let target: @convention(block) (NSObject, UITableView, NSIndexPath, NSIndexPath) -> NSIndexPath = { _, table, from, proposed in
+      nonisolated(unsafe) let table = table
+      nonisolated(unsafe) var answer = proposed
+      MainActor.assumeIsolated {
+        guard proposed.section != from.section else { return }
+        let last = max(table.numberOfRows(inSection: from.section) - 1, 0)
+        answer = NSIndexPath(row: proposed.section < from.section ? 0 : last, section: from.section)
+      }
+      return answer
+    }
+
+    let setEditingSel = #selector(UIViewController.setEditing(_:animated:))
+    typealias SetEditing = @convention(c) (AnyObject, Selector, Bool, Bool) -> Void
+    let inherited = class_getMethodImplementation(base, setEditingSel).map {
+      unsafeBitCast($0, to: SetEditing.self)
+    }
+    let setEditing: @convention(block) (UIViewController, Bool, Bool) -> Void = { controller, editing, animated in
+      nonisolated(unsafe) let controller = controller
+      MainActor.assumeIsolated {
+        guard let box = box(of: controller), let page = box.page.editing else {
+          inherited?(controller, setEditingSel, editing, animated)
+          return
+        }
+        if editing, !box.isEditing { box.undo = page.begin() }
+        if !editing { box.undo = nil }
+        box.isEditing = editing
+        adoptEditingDataSource(of: controller)
+        // The rows the list does not own leave before the table animates into editing.
+        controller.perform(NSSelectorFromString("reloadSettings"))
+        inherited?(controller, setEditingSel, editing, animated)
+        installEditButtons(on: controller, editing: editing)
+      }
+    }
+
+    class_addMethod(subclass, NSSelectorFromString("tableView:editingStyleForRowAtIndexPath:"),
+                    imp_implementationWithBlock(style), "q@:@@")
+    class_addMethod(subclass, NSSelectorFromString("tableView:shouldIndentWhileEditingRowAtIndexPath:"),
+                    imp_implementationWithBlock(noIndent), "B@:@@")
+    class_addMethod(subclass, NSSelectorFromString("tableView:targetIndexPathForMoveFromRowAtIndexPath:toProposedIndexPath:"),
+                    imp_implementationWithBlock(target), "@@:@@@")
+    class_addMethod(subclass, setEditingSel, imp_implementationWithBlock(setEditing), "v@:BB")
+  }
+
+  /// **TVSettingKit's table is fed by a diffable data source** (`TVSUITableViewDiffableDataSource`
+  /// on tvOS 27.2), which answers none of the editing data-source calls: the controls draw
+  /// and a move is never reported. It cannot be swapped for another object either — UIKit
+  /// asserts the table's data source *is* the diffable one when it applies a snapshot. So
+  /// that one instance moves to a subclass that adds the four calls (`editingDataSourceMethods`),
+  /// once its page first edits.
+  private static func adoptEditingDataSource(of controller: UIViewController) {
+    guard let table = (controller as? UITableViewController)?.tableView,
+          let dataSource = table.dataSource as? NSObject else { return }
+    let current: AnyClass = type(of: dataSource)
+    guard !NSStringFromClass(current).hasPrefix("KinoPubEditing_") else { return }
+    let key = ObjectIdentifier(current)
+    var subclass = editingDataSourceClasses[key]
+    if subclass == nil,
+       let made = objc_allocateClassPair(current, "KinoPubEditing_\(NSStringFromClass(current))", 0) {
+      for (name, block, types) in editingDataSourceMethods {
+        class_addMethod(made, NSSelectorFromString(name), imp_implementationWithBlock(block), types)
+      }
+      objc_registerClassPair(made)
+      editingDataSourceClasses[key] = made
+      subclass = made
+    }
+    if let subclass { object_setClass(dataSource, subclass) }
+  }
+
+  nonisolated(unsafe) private static var editingDataSourceClasses: [ObjectIdentifier: AnyClass] = [:]
+
+  /// Each finds its page through the table's delegate — the page controller.
+  nonisolated(unsafe) private static let editingDataSourceMethods: [(String, Any, String)] = {
+    let editable: @convention(block) (NSObject, UITableView, NSIndexPath) -> Bool = { _, table, indexPath in
+      nonisolated(unsafe) let table = table
+      let path = indexPath as IndexPath
+      nonisolated(unsafe) var answer = false
+      MainActor.assumeIsolated {
+        answer = (table.delegate as? NSObject).flatMap(box(of:))?.isEditableRow(path) ?? false
+      }
+      return answer
+    }
+    let commit: @convention(block) (NSObject, UITableView, Int, NSIndexPath) -> Void = { _, table, style, indexPath in
+      nonisolated(unsafe) let table = table
+      let path = indexPath as IndexPath
+      MainActor.assumeIsolated {
+        guard let controller = table.delegate as? NSObject,
+              style == UITableViewCell.EditingStyle.delete.rawValue,
+              let box = box(of: controller), box.isEditableRow(path),
+              let delete = box.page.editing?.delete else { return }
+        delete(path.row)
+        // The list re-read without the row, applied through the diffable source.
+        controller.perform(NSSelectorFromString("reloadSettings"))
+      }
+    }
+    let moveSel = NSSelectorFromString("tableView:moveRowAtIndexPath:toIndexPath:")
+    typealias Move = @convention(c) (AnyObject, Selector, UITableView, NSIndexPath, NSIndexPath) -> Void
+    let move: @convention(block) (NSObject, UITableView, NSIndexPath, NSIndexPath) -> Void = { dataSource, table, from, to in
+      nonisolated(unsafe) let table = table
+      // The diffable source's own move first, so its snapshot has the new order and the
+      // reload when editing ends changes nothing on screen.
+      if let superclass = class_getSuperclass(object_getClass(dataSource)),
+         let imp = class_getMethodImplementation(superclass, moveSel) {
+        unsafeBitCast(imp, to: Move.self)(dataSource, moveSel, table, from, to)
+      }
+      let source = from as IndexPath, destination = to as IndexPath
+      MainActor.assumeIsolated {
+        guard let controller = table.delegate as? NSObject,
+              let box = box(of: controller), source != destination,
+              box.isEditableRow(source), box.isEditableRow(destination) else { return }
+        // No reload here: it would take focus off the ≡ the viewer is still on.
+        // TVSettingKit's items catch up when editing ends (`setEditing:animated:` reloads).
+        box.page.editing?.move(source.row, destination.row)
+      }
+    }
+    return [
+      ("tableView:canEditRowAtIndexPath:", editable, "B@:@@"),
+      ("tableView:canMoveRowAtIndexPath:", editable, "B@:@@"),
+      ("tableView:commitEditingStyle:forRowAtIndexPath:", commit, "v@:@q@"),
+      ("tableView:moveRowAtIndexPath:toIndexPath:", move, "v@:@@@"),
+    ]
+  }()
+
+  /// *Edit*; while editing, *Cancel* beside *Done* — as words, the way Settings has them:
+  /// the system bar items (`editButtonItem`, `.cancel`) draw as ✓ and ✕ on tvOS 27. The
+  /// array runs right to left, so Done sits last.
+  private static func installEditButtons(on controller: UIViewController, editing: Bool) {
+    let target = (objc_getAssociatedObject(controller, &TSKKeys.editTarget) as? TSKEditButtonTarget)
+      ?? TSKEditButtonTarget(controller: controller)
+    objc_setAssociatedObject(controller, &TSKKeys.editTarget, target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    // Target–action: a `primaryAction` bar item never fired on the tvOS 27.2 simulator.
+    func button(_ title: String, _ action: Selector) -> UIBarButtonItem {
+      UIBarButtonItem(title: title, style: .plain, target: target, action: action)
+    }
+    controller.navigationItem.rightBarButtonItems = editing
+      ? [button("Done".localized, #selector(TSKEditButtonTarget.done)),
+         button("Cancel".localized, #selector(TSKEditButtonTarget.cancel))]
+      : [button("Edit".localized, #selector(TSKEditButtonTarget.edit))]
+  }
 
   /// A page controller for `page`. Values bind to `store`; actions run through `actions`.
   static func make(_ page: TSKPage, store: TSKValueStore, actions: TSKActionTarget) -> UIViewController? {
@@ -428,6 +633,7 @@ enum TSKPageController {
     let controller = cls.init()
     objc_setAssociatedObject(controller, &TSKKeys.page, box, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     controller.title = page.title
+    if page.editing != nil { installEditButtons(on: controller, editing: false) }
     return controller
   }
 
@@ -435,6 +641,12 @@ enum TSKPageController {
   static func reload(_ controller: UIViewController) {
     guard box(of: controller) != nil else { return }
     controller.perform(NSSelectorFromString("reloadSettings"))
+  }
+
+  /// *Cancel*: put back what `TSKEditing.begin` saved.
+  fileprivate static func undoEditing(of controller: UIViewController) {
+    box(of: controller)?.undo?()
+    box(of: controller)?.undo = nil
   }
 
   fileprivate static func box(of controller: NSObject) -> TSKPageBox? {
@@ -454,8 +666,22 @@ private final class TSKPageBox: NSObject {
     self.actions = actions
   }
 
+  /// Set by the controller's `setEditing:animated:`.
+  var isEditing = false
+  /// What *Cancel* runs, from `TSKEditing.begin`.
+  var undo: (@MainActor () -> Void)?
+
   func groups() -> [NSObject] {
-    page.sections().compactMap { TSKItemFactory.group($0, store: store, actions: actions) }
+    var sections = page.sections()
+    if isEditing, let editing = page.editing, sections.indices.contains(editing.section) {
+      sections = [sections[editing.section]]
+    }
+    return sections.compactMap { TSKItemFactory.group($0, store: store, actions: actions) }
+  }
+
+  /// Rows that take the table's editing controls: the list's, while editing.
+  func isEditableRow(_ indexPath: IndexPath) -> Bool {
+    isEditing && page.editing != nil && indexPath.section == 0
   }
 
   func preview(for indexPath: NSIndexPath?, in controller: NSObject) -> UIViewController? {
@@ -531,6 +757,12 @@ final class TSKSplitHost: NSObject {
   /// A popup (`InfoPopupPresenter`) over the split, in the presentation style it set.
   func presentPopup(_ controller: UIViewController) {
     split?.present(controller, animated: true)
+  }
+
+  var topController: UIViewController? { navigation?.topViewController }
+
+  func pop() {
+    navigation?.popViewController(animated: true)
   }
 
   func popToRoot() {

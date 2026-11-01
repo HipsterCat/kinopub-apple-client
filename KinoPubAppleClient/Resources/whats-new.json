@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Apple TV, Настройки: языки, вкладки и секции меняются как языки в Настройках самой Apple TV — «Изменить», корзина и ≡ у строки, «Отменить» или «Готово». Вкладки и секции Главной, Фильмов и Сериалов — каждые на своей странице, Select включает и выключает.",
         "Плеер: субтитры и озвучка, выбранные в серии, остаются на следующей — через «Серии», «Далее» и когда серия включилась сама. Раньше привычка сезона перебивала выбор, и субтитры выключались.",
         "Настройки › Воспроизведение: режим субтитров — «Всегда включены», «С иностранной озвучкой», «Только вручную». Языки озвучки и субтитров — списки: можно добавить язык, поменять порядок или вернуть системные. Переключатель «Английские субтитры по умолчанию» стал английским в начале списка.",
         "Страница тайтла, временно: в углу переключатель TMDB / v2. v2 — один запрос /v2/title вместо наших запросов к TMDB; факты и рецензии Кинопоиска остаются, список staff не запрашивается. Время каждого пути пишется на кнопке.",
@@ -95,6 +96,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Apple TV Settings: languages, tabs and sections are edited like Apple TV's own languages — Edit, the row's trash and ≡, Cancel or Done. Tabs and the Watch Now, Movies and Series sections each have their own page; Select shows or hides one.",
         "Player: subtitles and the dub you pick in an episode stay on for the next one — from Episodes, Up Next, or when it starts by itself. Before, the season's habit outvoted the pick and subtitles went off.",
         "Settings › Playback: a subtitle mode — Always enabled, Shown with foreign audio, Manually selected. Audio and subtitle languages are lists: add a language, reorder, or go back to the system's. \"Default English subtitles\" became English at the top of the list.",
         "Title page, temporarily: a TMDB / v2 switch in the corner. v2 is one /v2/title request instead of our TMDB calls; Kinopoisk facts and reviews stay, the staff list is not requested. Each path's time is on its button.",

@@ -585,6 +585,7 @@
         { "path": "TVDetailPageUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVDetailLayoutUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVMenuBackUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
+        { "path": "TVLanguageListEditingUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVSearchLayoutUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "TVChannelsUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
         { "path": "PlayerTabsUITests.swift", "target-membership": [ "KinoPubAppleClientUITests/compile-sources" ] },
