@@ -153,9 +153,7 @@ final class TrailerPreviewModel: ObservableObject {
 /// title it has to fill the hero and stay out of the way instead.
 struct TrailerVideoLayer {
   let player: AVPlayer
-  /// `.resizeAspectFill` behind the title so the trailer fills the hero; the
-  /// full-screen presentation asks for `.resizeAspect` so nothing is cropped away.
-    var gravity: AVLayerVideoGravity = .resizeAspect
+    var gravity: AVLayerVideoGravity = .resizeAspectFill
 }
 
 #if os(macOS)
