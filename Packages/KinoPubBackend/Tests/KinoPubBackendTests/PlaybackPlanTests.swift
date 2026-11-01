@@ -57,7 +57,7 @@ final class PlaybackPlanTests: XCTestCase {
 
   func testASubtitleTrackIsNamed() {
     let tracks = SubtitleTracks.catalog([Subtitle(lang: "en", shift: 0, embed: false, url: "https://cdn/en.srt")])
-    let withSubs = plan(TrackDecision(subtitle: tracks.first, subtitleReason: .systemDefault))
+    let withSubs = plan(TrackDecision(subtitle: tracks.first, subtitleReason: .alwaysOn))
     XCTAssertEqual(withSubs.subtitleLabel, tracks.first?.displayName)
   }
 

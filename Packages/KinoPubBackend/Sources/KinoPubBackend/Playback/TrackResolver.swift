@@ -117,12 +117,12 @@ public enum AudioSelectionReason: String, Equatable {
 }
 
 public enum SubtitleSelectionReason: String, Equatable {
+  /// The viewer's latest pick for this title.
   case remembered
-  /// The viewer watches with subtitles — the app's setting, or the system's when the app
-  /// has none of its own.
-  case systemDefault
-  /// The audio that won is in a language the viewer does not read.
-  case audioNotUnderstood
+  /// `SubtitleMode.always`.
+  case alwaysOn
+  /// `SubtitleMode.foreignAudio`, and the audio that won is in none of the audio languages.
+  case foreignAudio
   case off
   case none
 }
@@ -210,8 +210,10 @@ public enum TrackResolver {
 
       // A dub that has never been on a menu here, and that outranks a habit still under
       // the confidence floor, wins: the stopgap was never a preference, it was the only
-      // thing there when the series started.
+      // thing there when the series started. A dub the viewer picked themselves is not a
+      // stopgap, whatever its count.
       if let ladderPick,
+         hit.element.pickedAt == nil,
          hit.element.weight < TrackPreferenceLedger.confidentWeight,
          !scoped.ledger.seenAudio.contains(ladderPick.track.signature),
          isBetter(ladderPick.track, than: match, languages: languages) {
@@ -292,38 +294,45 @@ public enum TrackResolver {
 
   // MARK: - Subtitles
 
+  /// **The latest pick, else the mode.** No counting: whether a title has subtitles is not
+  /// a habit that builds up over a season, it is a setting plus whatever the viewer last
+  /// said in the player. Entries recorded as plays rather than picks are ignored here.
   private static func resolveSubtitle(chosen: AudioTrackInfo?,
                                       subtitles: [SubtitleTrack],
                                       ledgers: [ScopedLedger],
                                       settings: PlaybackLanguagePreferences,
                                       systemLanguages: [String])
   -> (SubtitleTrack?, SubtitleSelectionReason, TrackMemoryScope?) {
-    for scoped in ledgers {
-      for entry in scoped.ledger.subtitleLadder {
-        if entry.signature.isOff { return (nil, .remembered, scoped.scope) }
-        if let track = entry.signature.resolve(in: subtitles) {
-          return (track, .remembered, scoped.scope)
-        }
+    let picks = ledgers.flatMap { scoped in
+      scoped.ledger.subtitles.compactMap { entry in
+        entry.pickedAt.map { (signature: entry.signature, at: $0, scope: scoped.scope) }
+      }
+    }
+    if let latest = picks.max(by: { $0.at < $1.at }) {
+      if latest.signature.isOff { return (nil, .remembered, latest.scope) }
+      // A language this episode does not have falls through to the mode rather than to
+      // nothing: the pick was "English", not "no subtitles".
+      if let track = latest.signature.resolve(in: subtitles) {
+        return (track, .remembered, latest.scope)
       }
     }
 
     guard !subtitles.isEmpty else { return (nil, .none, nil) }
 
-    // A viewer who watches with subtitles watches everything with subtitles. This is the
-    // same question the system already asks, so an app that has not been told otherwise
-    // answers it the same way rather than inventing a second default.
-    if settings.subtitlesDefaultOn, let track = firstAvailable(in: subtitles, settings: settings, systemLanguages: systemLanguages) {
-      return (track, .systemDefault, nil)
+    switch settings.subtitleMode {
+    case .always:
+      if let track = firstAvailable(in: subtitles, settings: settings, systemLanguages: systemLanguages) {
+        return (track, .alwaysOn, nil)
+      }
+    case .foreignAudio:
+      if let chosen,
+         !settings.resolvedAudioLanguages(system: systemLanguages).contains(chosen.languageKey),
+         let track = firstAvailable(in: subtitles, settings: settings, systemLanguages: systemLanguages) {
+        return (track, .foreignAudio, nil)
+      }
+    case .manual:
+      break
     }
-
-    // And on regardless of that, when the audio that won cannot be followed.
-    if settings.subtitlesWhenAudioNotUnderstood,
-       let chosen,
-       !settings.readingLanguages(system: systemLanguages).contains(chosen.languageKey),
-       let track = firstAvailable(in: subtitles, settings: settings, systemLanguages: systemLanguages) {
-      return (track, .audioNotUnderstood, nil)
-    }
-
     return (nil, .off, nil)
   }
 

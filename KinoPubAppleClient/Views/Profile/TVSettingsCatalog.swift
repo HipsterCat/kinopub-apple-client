@@ -212,13 +212,15 @@ final class TVSettingsCatalog {
 
   private func videoAudioSections() -> [TSKSection] {
     var subtitles: [TSKRow] = [
-      TSKRow(title: "Default English subtitles".localized,
-             description: "Settings_Tip_EnglishSubtitles".localized,
-             kind: .toggle(key: "subtitlesEnglish")),
+      TSKRow(title: "Subtitle mode".localized,
+             description: "Settings_Tip_SubtitleMode".localized,
+             kind: .choice(key: "subtitleMode",
+                           values: SubtitleMode.allCases.map { $0.rawValue as NSString },
+                           label: { ($0 as? String).flatMap(SubtitleMode.init(rawValue:))?.title })),
+      languageListRow(.subtitles),
       TSKRow(title: "Prefer non-CC / non-SDH".localized,
              description: "Settings_Tip_PreferNonCC".localized,
-             kind: .toggle(key: "subtitlesNonCC"),
-             isEnabled: SubtitlePreferences.preferEnglishSubtitles),
+             kind: .toggle(key: "subtitlesNonCC")),
     ]
     // The dual-subtitle stage's rows — parked with the sidecar machinery they feed.
     if FeatureFlags.tvOSSidecarSubtitles {
@@ -254,8 +256,96 @@ final class TVSettingsCatalog {
                kind: .toggle(key: "autoPlayNextSeason"),
                isEnabled: PlaybackPreferences.autoPlayNextEpisode),
       ]),
+      TSKSection(title: "Audio".localized, rows: [languageListRow(.audio)]),
       TSKSection(title: "Subtitles".localized, rows: subtitles),
     ]
+  }
+
+  // MARK: Language lists
+
+  private func languageListTitle(_ kind: PlaybackLanguageList.Kind) -> String {
+    (kind == .audio ? "Prefer audio in" : "Prefer subtitles in").localized
+  }
+
+  private func languageListRow(_ kind: PlaybackLanguageList.Kind) -> TSKRow {
+    TSKRow(title: languageListTitle(kind),
+           description: "Settings_Tip_LanguageList".localized,
+           kind: .action(pushes: true) { [unowned self] in self.host.push(self.languageListPage(kind)) },
+           previewSymbol: kind == .audio ? "speaker.wave.2" : "captions.bubble",
+           trailingValue: PlaybackLanguageList.languages(kind).prefix(2)
+             .map { LanguageNames.name(for: $0) }.joined(separator: ", "))
+  }
+
+  /// The list in order; Select on a language moves or removes it, the same page shape as
+  /// the tab order above.
+  private func languageListPage(_ kind: PlaybackLanguageList.Kind) -> TSKPage {
+    TSKPage(title: languageListTitle(kind),
+            previewSymbol: kind == .audio ? "speaker.wave.2" : "captions.bubble") { [unowned self] in
+      let codes = PlaybackLanguageList.languages(kind)
+      let rows = codes.enumerated().map { index, code in
+        TSKRow(title: "\(index + 1). \(LanguageNames.name(for: code))",
+               description: "Settings_Tip_LanguageList".localized,
+               kind: .action(pushes: true) { [unowned self] in
+                 self.host.push(self.languageDetailPage(code, in: kind))
+               })
+      }
+      var manage = [
+        TSKRow(title: "Add Language".localized,
+               description: "Settings_Tip_LanguageList".localized,
+               kind: .action(pushes: true) { [unowned self] in self.host.push(self.addLanguagePage(kind)) }),
+      ]
+      if PlaybackLanguageList.isCustom(kind) {
+        manage.append(TSKRow(title: "Use System Languages".localized,
+                             description: "Settings_Tip_LanguageList".localized,
+                             kind: .action(pushes: false) { [unowned self] in
+                               PlaybackLanguageList.reset(kind)
+                               self.host.reloadPages()
+                             }))
+      }
+      return [TSKSection(rows: rows), TSKSection(rows: manage)]
+    }
+  }
+
+  private func languageDetailPage(_ code: String, in kind: PlaybackLanguageList.Kind) -> TSKPage {
+    TSKPage(title: LanguageNames.name(for: code),
+            previewSymbol: kind == .audio ? "speaker.wave.2" : "captions.bubble") { [unowned self] in
+      let codes = PlaybackLanguageList.languages(kind)
+      let index = codes.firstIndex(of: code)
+      return [TSKSection(rows: [
+        TSKRow(title: "Move Up".localized,
+               kind: .action(pushes: false) { [unowned self] in
+                 PlaybackLanguageList.move(code, in: kind, by: -1)
+                 self.host.reloadPages()
+               },
+               isEnabled: (index ?? 0) > 0),
+        TSKRow(title: "Move Down".localized,
+               kind: .action(pushes: false) { [unowned self] in
+                 PlaybackLanguageList.move(code, in: kind, by: 1)
+                 self.host.reloadPages()
+               },
+               isEnabled: index.map { $0 < codes.count - 1 } ?? false),
+        TSKRow(title: "Remove".localized,
+               kind: .action(pushes: false) { [unowned self] in
+                 PlaybackLanguageList.remove(code, from: kind)
+                 self.host.reloadPages()
+               },
+               isEnabled: index != nil),
+      ])]
+    }
+  }
+
+  private func addLanguagePage(_ kind: PlaybackLanguageList.Kind) -> TSKPage {
+    TSKPage(title: "Add Language".localized,
+            previewSymbol: kind == .audio ? "speaker.wave.2" : "captions.bubble") { [unowned self] in
+      let rows = PlaybackLanguageList.addable(to: kind).map { code in
+        TSKRow(title: LanguageNames.name(for: code),
+               kind: .action(pushes: false) { [unowned self] in
+                 PlaybackLanguageList.add(code, to: kind)
+                 self.host.reloadPages()
+               })
+      }
+      return [TSKSection(rows: rows)]
+    }
   }
 
   private func tabsSections() -> [TSKSection] {
@@ -1763,8 +1853,12 @@ final class TVSettingsCatalog {
     store.bindBool("continueWatchingBookmarks",
                    get: { ContinueWatchingPreferences.includesBookmarks },
                    set: { ContinueWatchingPreferences.setIncludesBookmarks($0) })
-    store.bindBool("subtitlesEnglish", get: { SubtitlePreferences.preferEnglishSubtitles },
-                   set: { defaults.set($0, forKey: SubtitlePreferences.preferEnglishKey) })
+    store.bind("subtitleMode",
+               get: { PlaybackLanguagePreferences.subtitleMode.rawValue as NSString },
+               set: { value in
+                 guard let raw = value as? String, let mode = SubtitleMode(rawValue: raw) else { return }
+                 PlaybackLanguagePreferences.setSubtitleMode(mode)
+               })
     store.bindBool("subtitlesNonCC", get: { SubtitlePreferences.preferNonCCSubtitles },
                    set: { defaults.set($0, forKey: SubtitlePreferences.preferNonCCKey) })
     store.bindBool("subtitlesDual", get: { SubtitlePreferences.dualSubtitlesEnabled },

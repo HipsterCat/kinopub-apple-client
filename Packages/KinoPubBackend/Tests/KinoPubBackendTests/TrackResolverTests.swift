@@ -167,6 +167,63 @@ final class TrackResolverTests: XCTestCase {
     XCTAssertEqual(decision.audioReason, .remembered)
   }
 
+  // MARK: - A pick in the player
+
+  /// Twenty episodes of Сыендук, then the viewer picks LostFilm in the menu: the next
+  /// episode follows the pick, not the count. Count still orders everything *below* it.
+  func testThePickLeadsOverAHeavierHabit() {
+    var ledger = establishedLedger()
+    ledger.recordAudio(lostfilmMVO.signature, at: day(40), picked: true)
+
+    XCTAssertEqual(ledger.audioLadder.map(\.signature),
+                   [lostfilmMVO.signature, syenduk.signature, kurajMVO.signature])
+    let decision = decide([syenduk, lostfilmMVO, kurajMVO], ledgers: titleScope(ledger))
+    XCTAssertEqual(decision.audio, lostfilmMVO)
+    XCTAssertEqual(decision.audioReason, .remembered)
+  }
+
+  /// The newest pick is the one that holds — going back to the old dub is a pick too.
+  func testTheLatestPickWins() {
+    var ledger = establishedLedger()
+    ledger.recordAudio(lostfilmMVO.signature, at: day(40), picked: true)
+    ledger.recordAudio(syenduk.signature, at: day(41), picked: true)
+
+    XCTAssertEqual(decide([syenduk, lostfilmMVO], ledgers: titleScope(ledger)).audio, syenduk)
+  }
+
+  /// "Off" × 9 from a season watched bare, then English turned on in episode 10.
+  func testSubtitlesTurnedOnAfterASeasonWithoutThemStayOn() {
+    var ledger = TrackPreferenceLedger()
+    ledger.recordSubtitle(.off, at: day(3), picked: true)
+    ledger.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false),
+                          at: day(4), picked: true)
+
+    let decision = decide([lostfilmMVO],
+                          subtitles: subtitleTracks(["ru", "en"]),
+                          ledgers: titleScope(ledger))
+    XCTAssertEqual(decision.subtitle?.lang, "en")
+  }
+
+  /// A dub the viewer chose themselves is not the stopgap the new-dub rule is for.
+  func testAPickedDubIsNotAStopgap() {
+    var ledger = TrackPreferenceLedger()
+    ledger.noteMenu([jaskierDVO, englishOriginal])
+    ledger.recordAudio(englishOriginal.signature, at: day(1), picked: true)
+
+    let decision = decide([mosfilmDub, jaskierDVO, englishOriginal], ledgers: titleScope(ledger))
+    XCTAssertEqual(decision.audio, englishOriginal)
+    XCTAssertEqual(decision.audioReason, .remembered)
+  }
+
+  /// A ledger stored before picks existed reads back unchanged.
+  func testALedgerStoredBeforePicksStillDecodes() throws {
+    let legacy = #"{"audio":[{"signature":{"languageKey":"ru","kindRank":2,"studio":"LostFilm"},"weight":3,"lastPlayedAt":0}],"subtitles":[{"signature":{"isCC":false},"weight":2,"lastPlayedAt":0}],"seenAudio":[]}"#
+    let ledger = try JSONDecoder().decode(TrackPreferenceLedger.self, from: Data(legacy.utf8))
+    XCTAssertEqual(ledger.audio.first?.weight, 3)
+    XCTAssertNil(ledger.audio.first?.pickedAt)
+    XCTAssertTrue(ledger.subtitles.first?.signature.isOff ?? false)
+  }
+
   // MARK: - The fresh series: choices made before anyone dubbed it properly
 
   /// Three episodes watched with the only thing available, then the show gets dubbed.
@@ -258,7 +315,7 @@ final class TrackResolverTests: XCTestCase {
     anime.recordAudio(japaneseOriginal.signature, at: day(5), weight: 12)
     anime.recordSubtitle(SubtitleChoiceSignature(languageKey: "ru", isCC: false),
                          at: day(5),
-                         weight: 12)
+                         picked: true)
 
     let ledgers = [
       ScopedLedger(scope: .title(id: 999), ledger: TrackPreferenceLedger()),
@@ -380,7 +437,7 @@ final class TrackResolverTests: XCTestCase {
     XCTAssertEqual(decision.audio, japaneseOriginal)
     XCTAssertEqual(decision.audioReason, .originalPreferred)
     XCTAssertEqual(decision.subtitle?.lang, "ru")
-    XCTAssertEqual(decision.subtitleReason, .audioNotUnderstood)
+    XCTAssertEqual(decision.subtitleReason, .foreignAudio)
   }
 
   func testAnimeWithoutTheToggleTakesTheDubLikeAnythingElse() {
@@ -403,7 +460,7 @@ final class TrackResolverTests: XCTestCase {
                           settings: settings)
     XCTAssertEqual(decision.audio, englishOriginal)
     XCTAssertEqual(decision.subtitle?.lang, "ru")
-    XCTAssertEqual(decision.subtitleReason, .audioNotUnderstood)
+    XCTAssertEqual(decision.subtitleReason, .foreignAudio)
   }
 
   func testSubtitlesStayOffWhenTheAudioIsUnderstood() {
@@ -414,7 +471,7 @@ final class TrackResolverTests: XCTestCase {
 
   func testSubtitlesTurnedOffOnceStayOff() {
     var ledger = TrackPreferenceLedger()
-    ledger.recordSubtitle(.off, at: day(3), weight: 5)
+    ledger.recordSubtitle(.off, at: day(3), picked: true)
 
     let decision = decide([japaneseOriginal],
                           subtitles: subtitleTracks(["ru"]),
@@ -428,7 +485,7 @@ final class TrackResolverTests: XCTestCase {
     var ledger = TrackPreferenceLedger()
     ledger.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false),
                           at: day(3),
-                          weight: 4)
+                          picked: true)
 
     // Next episode: different sidecar URLs, same languages.
     let decision = decide([mosfilmDub],
@@ -442,7 +499,7 @@ final class TrackResolverTests: XCTestCase {
     var ledger = TrackPreferenceLedger()
     ledger.recordSubtitle(SubtitleChoiceSignature(languageKey: "de", isCC: false),
                           at: day(3),
-                          weight: 4)
+                          picked: true)
 
     let decision = decide([mosfilmDub],
                           subtitles: subtitleTracks(["ru", "en"]),
@@ -465,7 +522,7 @@ final class TrackResolverTests: XCTestCase {
 
   private var subtitlesOn: PlaybackLanguagePreferences {
     var settings = PlaybackLanguagePreferences.default
-    settings.subtitlesDefaultOn = true
+    settings.subtitleMode = .always
     return settings
   }
 
@@ -476,7 +533,7 @@ final class TrackResolverTests: XCTestCase {
                           subtitles: subtitleTracks(["ru", "en"]),
                           settings: subtitlesOn)
     XCTAssertEqual(decision.subtitle?.lang, "ru")
-    XCTAssertEqual(decision.subtitleReason, .systemDefault)
+    XCTAssertEqual(decision.subtitleReason, .alwaysOn)
   }
 
   func testSubtitlesOffInTheSystemLeavesADubbedTitleBare() {
@@ -490,7 +547,7 @@ final class TrackResolverTests: XCTestCase {
     var ledger = TrackPreferenceLedger()
     ledger.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false),
                           at: day(4),
-                          weight: 3)
+                          picked: true)
 
     let decision = decide([mosfilmDub],
                           subtitles: subtitleTracks(["ru", "en"]),
@@ -507,7 +564,7 @@ final class TrackResolverTests: XCTestCase {
     anime.recordAudio(japaneseOriginal.signature, at: day(5), weight: 9)
     anime.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false),
                          at: day(5),
-                         weight: 9)
+                         picked: true)
 
     let ledgers = [
       ScopedLedger(scope: .title(id: 777), ledger: TrackPreferenceLedger()),
@@ -533,7 +590,7 @@ final class TrackResolverTests: XCTestCase {
                           profile: TitleTrackProfile(isAnime: true, originalLanguageKey: "ja"))
     XCTAssertEqual(decision.audio, japaneseOriginal)
     XCTAssertEqual(decision.subtitle?.lang, "ru")
-    XCTAssertEqual(decision.subtitleReason, .audioNotUnderstood)
+    XCTAssertEqual(decision.subtitleReason, .foreignAudio)
   }
 
   /// Unknown subtitles: none of them are in a language the viewer reads, but they asked
@@ -547,7 +604,7 @@ final class TrackResolverTests: XCTestCase {
                           subtitles: subtitleTracks(["pt"]),
                           settings: settings)
     XCTAssertEqual(decision.subtitle?.lang, "pt")
-    XCTAssertEqual(decision.subtitleReason, .systemDefault)
+    XCTAssertEqual(decision.subtitleReason, .alwaysOn)
   }
 
   func testNoSubtitleTracksDecidesNothingRatherThanOff() {
@@ -572,7 +629,7 @@ final class TrackResolverTests: XCTestCase {
   /// on the next episode.
   func testTurningSubtitlesOffBeatsTheSystemDefault() {
     var ledger = TrackPreferenceLedger()
-    ledger.recordSubtitle(.off, at: day(6), weight: 1)
+    ledger.recordSubtitle(.off, at: day(6), picked: true)
 
     let decision = decide([mosfilmDub],
                           subtitles: subtitleTracks(["ru"]),
@@ -586,11 +643,11 @@ final class TrackResolverTests: XCTestCase {
     var season = TrackPreferenceLedger()
     season.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false),
                           at: day(7),
-                          weight: 2)
+                          picked: true)
     var title = TrackPreferenceLedger()
     title.recordSubtitle(SubtitleChoiceSignature(languageKey: "ru", isCC: false),
                          at: day(1),
-                         weight: 8)
+                         picked: true)
 
     let ledgers = [
       ScopedLedger(scope: .season(titleID: seriesID, season: 3), ledger: season),
@@ -752,10 +809,89 @@ final class TrackResolverTests: XCTestCase {
     XCTAssertEqual(settings.resolvedSubtitleLanguages(system: []), ["ru", "en"])
   }
 
-  func testReadingLanguagesMergeBothLists() {
+  // MARK: - Subtitle mode
+
+  /// Sasha's own setup: Russian audio, English subtitles, "shown with foreign audio". An
+  /// English-only film is foreign — English is a subtitle language, not an audio one.
+  func testForeignAudioMeansNotInTheAudioLanguages() {
     var settings = PlaybackLanguagePreferences.default
     settings.audioLanguages = ["ru"]
     settings.subtitleLanguages = ["en"]
-    XCTAssertEqual(settings.readingLanguages(system: []), ["en", "ru"])
+    let english = decide([englishOriginal], subtitles: subtitleTracks(["ru", "en"]), settings: settings)
+    XCTAssertEqual(english.subtitle?.lang, "en")
+    XCTAssertEqual(english.subtitleReason, .foreignAudio)
+    let dubbed = decide([mosfilmDub], subtitles: subtitleTracks(["ru", "en"]), settings: settings)
+    XCTAssertNil(dubbed.subtitle)
+  }
+
+  func testAlwaysEnabledPutsThemOnADubToo() {
+    var settings = PlaybackLanguagePreferences.default
+    settings.subtitleMode = .always
+    settings.subtitleLanguages = ["en", "ru"]
+    let decision = decide([mosfilmDub], subtitles: subtitleTracks(["ru", "en"]), settings: settings)
+    XCTAssertEqual(decision.subtitle?.lang, "en")
+    XCTAssertEqual(decision.subtitleReason, .alwaysOn)
+  }
+
+  func testManuallySelectedNeverTurnsThemOnByItself() {
+    var settings = PlaybackLanguagePreferences.default
+    settings.subtitleMode = .manual
+    settings.audioLanguages = ["ru"]
+    let decision = decide([englishOriginal], subtitles: subtitleTracks(["ru", "en"]), settings: settings)
+    XCTAssertNil(decision.subtitle)
+    XCTAssertEqual(decision.subtitleReason, .off)
+  }
+
+  /// The pick beats the mode in both directions.
+  func testAPickOverridesTheMode() {
+    var manual = PlaybackLanguagePreferences.default
+    manual.subtitleMode = .manual
+    var picked = TrackPreferenceLedger()
+    picked.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false), at: day(1), picked: true)
+    XCTAssertEqual(decide([mosfilmDub], subtitles: subtitleTracks(["ru", "en"]),
+                          ledgers: titleScope(picked), settings: manual).subtitle?.lang, "en")
+
+    var always = PlaybackLanguagePreferences.default
+    always.subtitleMode = .always
+    var off = TrackPreferenceLedger()
+    off.recordSubtitle(.off, at: day(1), picked: true)
+    XCTAssertNil(decide([mosfilmDub], subtitles: subtitleTracks(["ru", "en"]),
+                        ledgers: titleScope(off), settings: always).subtitle)
+  }
+
+  /// Plays are not picks: a season watched without subtitles does not vote them off.
+  func testCountedPlaysDoNotDecideSubtitles() {
+    var settings = PlaybackLanguagePreferences.default
+    settings.subtitleMode = .always
+    var ledger = TrackPreferenceLedger()
+    ledger.recordSubtitle(.off, at: day(1), weight: 30)
+    let decision = decide([mosfilmDub], subtitles: subtitleTracks(["ru"]),
+                          ledgers: titleScope(ledger), settings: settings)
+    XCTAssertEqual(decision.subtitle?.lang, "ru")
+    XCTAssertEqual(decision.subtitleReason, .alwaysOn)
+  }
+
+  /// The latest pick wins across scopes, whichever scope holds it.
+  func testTheLatestSubtitlePickWinsAcrossScopes() {
+    var season = TrackPreferenceLedger()
+    season.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false), at: day(1), picked: true)
+    var title = TrackPreferenceLedger()
+    title.recordSubtitle(.off, at: day(2), picked: true)
+    let ledgers = [ScopedLedger(scope: .season(titleID: seriesID, season: 1), ledger: season),
+                   ScopedLedger(scope: .title(id: seriesID), ledger: title)]
+    XCTAssertNil(decide([mosfilmDub], subtitles: subtitleTracks(["en"]), ledgers: ledgers).subtitle)
+  }
+
+  /// A picked language this episode lacks falls through to the mode, not to "off".
+  func testAPickedLanguageThatIsMissingFallsToTheMode() {
+    var settings = PlaybackLanguagePreferences.default
+    settings.subtitleMode = .always
+    settings.subtitleLanguages = ["ru"]
+    var ledger = TrackPreferenceLedger()
+    ledger.recordSubtitle(SubtitleChoiceSignature(languageKey: "en", isCC: false), at: day(1), picked: true)
+    let decision = decide([mosfilmDub], subtitles: subtitleTracks(["ru"]),
+                          ledgers: titleScope(ledger), settings: settings)
+    XCTAssertEqual(decision.subtitle?.lang, "ru")
+    XCTAssertEqual(decision.subtitleReason, .alwaysOn)
   }
 }

@@ -45,7 +45,6 @@ private struct TVProfileSettingsHost: View {
   @AppStorage("selectedLanguage") private var selectedLanguage: String = (
     Locale.current.language.languageCode?.identifier ?? "en"
   )
-  @AppStorage(SubtitlePreferences.preferEnglishKey) private var preferEnglishSubtitles = true
   @AppStorage(SubtitlePreferences.preferNonCCKey) private var preferNonCCSubtitles = true
   @AppStorage(SubtitlePreferences.dualSubtitlesKey) private var dualSubtitlesEnabled = false
   @AppStorage(SubtitlePreferences.secondSubtitleLanguageKey) private var secondSubtitleLanguage = "ru"
@@ -101,7 +100,6 @@ private struct TVProfileSettingsHost: View {
       model: model,
       kinopoiskKeyProvider: appContext.kinopoiskKeyProvider,
       selectedLanguage: $selectedLanguage,
-      preferEnglishSubtitles: $preferEnglishSubtitles,
       preferNonCCSubtitles: $preferNonCCSubtitles,
       dualSubtitlesEnabled: $dualSubtitlesEnabled,
       secondSubtitleLanguage: $secondSubtitleLanguage,

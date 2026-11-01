@@ -37,15 +37,34 @@ final class PlayerTrackSelectionTests: XCTestCase {
   private var store: TrackPreferenceStore!
   private var preflight: PlaybackPreflight!
 
+  /// The app's language settings live in `UserDefaults.standard`, which the player reads.
+  /// Pinned for every test to Sasha's own setup — Russian audio, English subtitles, shown
+  /// with foreign audio — so nothing here depends on the simulator's languages.
+  private static let settingKeys = [PlaybackLanguagePreferences.audioLanguagesKey,
+                                    PlaybackLanguagePreferences.subtitleLanguagesKey,
+                                    PlaybackLanguagePreferences.subtitleModeKey]
+  private var savedSettings: [String: Any] = [:]
+
   override func setUpWithError() throws {
     suiteName = "PlayerTrackSelectionTests.\(UUID().uuidString)"
     defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     store = TrackPreferenceStore(defaults: defaults)
     preflight = PlaybackPreflight(preferences: store, contentService: VideoContentServiceMock())
+    // Runs the one-time migration first, so it cannot overwrite the list below.
+    _ = PlaybackLanguagePreferences.current
+    for key in Self.settingKeys {
+      savedSettings[key] = UserDefaults.standard.object(forKey: key)
+    }
+    PlaybackLanguageList.set(.audio, ["ru"])
+    PlaybackLanguageList.set(.subtitles, ["en"])
+    PlaybackLanguagePreferences.setSubtitleMode(.foreignAudio)
   }
 
   override func tearDownWithError() throws {
     defaults.removePersistentDomain(forName: suiteName)
+    for key in Self.settingKeys {
+      UserDefaults.standard.set(savedSettings[key], forKey: key)
+    }
   }
 
   private func subtitles(_ languages: [String]) -> [Subtitle] {
@@ -96,15 +115,162 @@ final class PlayerTrackSelectionTests: XCTestCase {
     let stub = item(subtitles: ["rus", "eng"])
     let english = try XCTUnwrap(SubtitleSelector.tracks(in: stub.subtitles).last)
     store.recordSubtitle(SubtitleChoiceSignature(english),
-                         in: preflight.scopes(for: stub, profile: TitleTrackProfile()))
+                         in: preflight.scopes(for: stub, profile: TitleTrackProfile()),
+                         picked: true)
     XCTAssertEqual(manager(for: stub).primaryTrack?.lang, "eng")
   }
 
   /// "Off" is a choice like any other — the next episode has to honour it.
   func testARememberedOffOpensWithoutSubtitles() {
     let stub = item(subtitles: ["rus", "eng"])
-    store.recordSubtitle(.off, in: preflight.scopes(for: stub, profile: TitleTrackProfile()))
+    PlaybackLanguagePreferences.setSubtitleMode(.always)
+    store.recordSubtitle(.off, in: preflight.scopes(for: stub, profile: TitleTrackProfile()),
+                         picked: true)
     XCTAssertNil(manager(for: stub).primaryTrack)
+  }
+
+  // MARK: - The everyday case: a pick carries to the next episode
+
+  /// Five episodes of one season watched the way they opened — LostFilm, no subtitles —
+  /// then, in episode 6, the viewer switches to the original and turns English subtitles
+  /// on, and the next episode starts (Up Next, *Episodes*, or on its own) without leaving
+  /// the player. Episode 7 has to open the way 6 was left.
+  ///
+  /// It did not: a pick counted as one play, the season had "LostFilm × 6, off × 6" against
+  /// "original × 1, English × 1", and the count won — subtitles off, dub back, every time.
+  private let lostFilm = AudioTrackInfo(lang: "rus", typeId: 2, typeTitle: "Многоголосый",
+                                        authorTitle: "LostFilm", index: 1)
+  private let kuraj = AudioTrackInfo(lang: "rus", typeId: 3, typeTitle: "Двухголосый",
+                                     authorTitle: "Кураж-Бамбей", index: 2)
+  private let original = AudioTrackInfo(lang: "eng", typeId: 6, typeTitle: "Оригинал", index: 3)
+  /// A full dub that only arrives with a later episode — the "new better dub" rule's case.
+  private let studioDub = AudioTrackInfo(lang: "rus", typeId: 4, typeTitle: "Дубляж",
+                                         authorTitle: "Пифагор", index: 4)
+
+  private func episode(_ number: Int, audio: [AudioTrackInfo]? = nil) -> StubItem {
+    StubItem(id: 1000 + number,
+             metadata: WatchingMetadata(id: 42, video: number, season: 1),
+             subtitles: subtitles(["rus", "eng"]),
+             audioTracks: audio ?? [lostFilm, kuraj, original])
+  }
+
+  /// What the tick writes for an episode watched past the Continue Watching floor the way
+  /// it opened: one play of its dub. Subtitles are not counted.
+  private func watchedAsOpened(_ item: StubItem) {
+    let player = manager(for: item)
+    let scopes = preflight.scopes(for: item, profile: TitleTrackProfile())
+    if let audio = player.plan.decision.audio {
+      store.recordAudio(AudioTrackSignature(audio), in: scopes)
+    }
+  }
+
+  /// Written as the tick would have, rather than left to the ladder. The "off" plays are
+  /// what builds used to count; they are here to show they no longer vote.
+  private func seasonWatchedWithLostFilmAndNoSubtitles() throws {
+    for number in 1...5 {
+      let scopes = preflight.scopes(for: episode(number), profile: TitleTrackProfile())
+      store.recordAudio(AudioTrackSignature(lostFilm), in: scopes)
+      store.recordSubtitle(.off, in: scopes)
+    }
+    let sixth = manager(for: episode(6))
+    XCTAssertEqual(sixth.plan.decision.audio, lostFilm, "the habit this test starts from")
+    XCTAssertNil(sixth.primaryTrack, "the habit this test starts from")
+  }
+
+  func testSubtitlesAndDubPickedInOneEpisodeAreWhatTheNextOneOpensWith() throws {
+    try seasonWatchedWithLostFilmAndNoSubtitles()
+
+    // Episode 6: past the floor the tick has already counted what it opened with…
+    watchedAsOpened(episode(6))
+    // …then the viewer picks in the system menus.
+    let sixth = manager(for: episode(6))
+    let english = try XCTUnwrap(sixth.subtitleTracks.first { $0.lang == "eng" })
+    sixth.viewerPicked(audio: AudioTrackSignature(original))
+    sixth.viewerPicked(subtitle: SubtitleChoiceSignature(english))
+
+    let seventh = manager(for: episode(7))
+    XCTAssertEqual(seventh.plan.decision.audio, original, "the dub went back to the season's habit")
+    XCTAssertEqual(seventh.primaryTrack?.lang, "eng", "subtitles went off on the next episode")
+  }
+
+  /// And it keeps holding: watching on with the pick does not let the old count take over
+  /// again on episode 8.
+  func testThePickHoldsForTheRestOfTheSeason() throws {
+    try seasonWatchedWithLostFilmAndNoSubtitles()
+    let sixth = manager(for: episode(6))
+    let english = try XCTUnwrap(sixth.subtitleTracks.first { $0.lang == "eng" })
+    sixth.viewerPicked(audio: AudioTrackSignature(original))
+    sixth.viewerPicked(subtitle: SubtitleChoiceSignature(english))
+
+    for number in 7...9 { watchedAsOpened(episode(number)) }
+    let tenth = manager(for: episode(10))
+    XCTAssertEqual(tenth.plan.decision.audio, original)
+    XCTAssertEqual(tenth.primaryTrack?.lang, "eng")
+  }
+
+  /// A dub the viewer chose is not a stopgap: a studio dub showing up on the next episode
+  /// does not take over a pick made one episode ago, however few plays it has.
+  func testAPickIsNotDisplacedByANewDubOnTheNextEpisode() throws {
+    try seasonWatchedWithLostFilmAndNoSubtitles()
+    manager(for: episode(6)).viewerPicked(audio: AudioTrackSignature(original))
+
+    let seventh = manager(for: episode(7, audio: [studioDub, lostFilm, kuraj, original]))
+    XCTAssertEqual(seventh.plan.decision.audio, original)
+  }
+
+  /// Turning subtitles back off is a pick too, and the newest pick is the one that holds.
+  func testTurningSubtitlesBackOffIsAlsoCarried() throws {
+    try seasonWatchedWithLostFilmAndNoSubtitles()
+    let sixth = manager(for: episode(6))
+    let english = try XCTUnwrap(sixth.subtitleTracks.first { $0.lang == "eng" })
+    sixth.viewerPicked(subtitle: SubtitleChoiceSignature(english))
+    manager(for: episode(7)).viewerPicked(subtitle: .off)
+
+    XCTAssertNil(manager(for: episode(8)).primaryTrack)
+  }
+
+  // MARK: - Subtitle mode, with no pick
+
+  func testShownWithForeignAudioFollowsTheDub() {
+    XCTAssertNil(manager(for: episode(1)).primaryTrack, "Russian audio is not foreign")
+    XCTAssertEqual(manager(for: episode(1, audio: [original])).primaryTrack?.lang, "eng")
+  }
+
+  func testAlwaysEnabledPutsThemOnARussianDub() {
+    PlaybackLanguagePreferences.setSubtitleMode(.always)
+    XCTAssertEqual(manager(for: episode(1)).primaryTrack?.lang, "eng")
+  }
+
+  func testManuallySelectedOpensBareEvenInTheOriginal() {
+    PlaybackLanguagePreferences.setSubtitleMode(.manual)
+    XCTAssertNil(manager(for: episode(1, audio: [original])).primaryTrack)
+  }
+
+  /// "Ukrainian first" is a list edit, not a new setting.
+  func testTheFirstListedSubtitleLanguageAnEpisodeHasWins() {
+    PlaybackLanguagePreferences.setSubtitleMode(.always)
+    PlaybackLanguageList.set(.subtitles, ["uk", "en"])
+    let item = StubItem(id: 1, metadata: WatchingMetadata(id: 42, video: 1, season: 1),
+                        subtitles: subtitles(["rus", "eng", "ukr"]), audioTracks: [lostFilm])
+    XCTAssertEqual(manager(for: item).primaryTrack?.lang, "ukr")
+  }
+
+  /// What `noteViewerPicks` treats as a pick: anything on screen that is not what the
+  /// playback opened with, or the pick already written.
+  func testWhatCountsAsAPick() {
+    typealias Pick = SubtitleChoiceSignature
+    let eng = Pick(languageKey: "eng", isCC: false)
+    let rus = Pick(languageKey: "rus", isCC: false)
+    // AVFoundation's own default, before ours replaced it: not the viewer.
+    XCTAssertNil(PlayerManager.viewerPick(current: eng, opened: nil, alreadyPicked: nil))
+    // What we opened with, still on screen: not a pick.
+    XCTAssertNil(PlayerManager.viewerPick(current: Pick.off, opened: Pick.off, alreadyPicked: nil))
+    XCTAssertEqual(PlayerManager.viewerPick(current: eng, opened: Pick.off, alreadyPicked: nil), eng)
+    // The same pick seen again (the tick after the notification): written once.
+    XCTAssertNil(PlayerManager.viewerPick(current: eng, opened: Pick.off, alreadyPicked: eng))
+    XCTAssertEqual(PlayerManager.viewerPick(current: rus, opened: Pick.off, alreadyPicked: eng), rus)
+    // Going back to what it opened with, after a pick, is a pick.
+    XCTAssertEqual(PlayerManager.viewerPick(current: Pick.off, opened: Pick.off, alreadyPicked: eng), Pick.off)
   }
 
   func testATrailerChoosesNothingAndTeachesNothing() {
