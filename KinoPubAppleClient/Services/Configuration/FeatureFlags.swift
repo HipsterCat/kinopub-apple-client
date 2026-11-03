@@ -150,6 +150,11 @@ enum FeatureFlags {
   /// (Sasha, 2026-10-21): the two stay side by side until one is chosen.
   static var playerTabsPlatter: Bool { FeatureFlag.playerTabsPlatter.isEnabled }
 
+  /// The trailer player's Info panel (tvOS). **Off**: it shows the trailer's running time,
+  /// which AVKit gives no way to hide on its own, so `playbackControlsIncludeInfoViews` is
+  /// false for trailers. On restores the panel with its *Go to Movie/Show* button.
+  static var trailerInfoPanel: Bool { FeatureFlag.trailerInfoPanel.isEnabled }
+
   /// tvOS series page: the season row from Rivulet (full "Season N" tabs, an S2
   /// divider, episode stills with the metadata plate). Off is the current numbered
   /// tabs and wide cells. Select on the still plays; Select on the text opens the
@@ -191,6 +196,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case rewritesStreamTrackMenus
   case combinedRating
   case playerTabsPlatter
+  case trailerInfoPanel
   case rivuletSeasonRail
   case macSidebar
 #if DEBUG
@@ -217,6 +223,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: false
     case .combinedRating: false
     case .playerTabsPlatter: false
+    case .trailerInfoPanel: false
     case .rivuletSeasonRail: true
     case .macSidebar: true
 #if DEBUG
@@ -243,6 +250,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: "Rewrite the player's track menus"
     case .combinedRating: "Combined IMDb + Kinopoisk rating"
     case .playerTabsPlatter: "Player tabs on a platter"
+    case .trailerInfoPanel: "Info panel on trailers"
     case .rivuletSeasonRail: "Rivulet season rail"
     case .macSidebar: "Sidebar navigation (Mac)"
 #if DEBUG
@@ -269,6 +277,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: "Relabel, collapse and re-default the HLS master's audio and subtitles. Off: AVKit names them."
     case .combinedRating: "One weighted score on posters, the hero and the Rating tile."
     case .playerTabsPlatter: "Episodes and Up Next on Info's glass platter; off is the page's open still row."
+    case .trailerInfoPanel: "The trailer player's Info panel, with the trailer's running time in it. Off: no Info on trailers."
     case .rivuletSeasonRail: "Season tabs, the S2 divider and the episode metadata plate. Select on the text opens the info sheet. Off is the numbered tabs."
     case .macSidebar: "The Apple TV app's sidebar: Search, Home, the catalog, the Library and every bookmark folder. Off is the tab bar."
 #if DEBUG
@@ -282,7 +291,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var isRelevantHere: Bool {
     switch self {
     case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvDetailSections, .tvOSSidecarSubtitles,
-         .playerTabsPlatter, .rivuletSeasonRail:
+         .playerTabsPlatter, .trailerInfoPanel, .rivuletSeasonRail:
 #if os(tvOS)
       true
 #else

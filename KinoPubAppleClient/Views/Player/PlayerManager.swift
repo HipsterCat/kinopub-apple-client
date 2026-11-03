@@ -564,9 +564,10 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   }
 
   /// Playing to the very end marks the title watched, then dismisses or auto-plays
-  /// the next episode (`PlaybackEnd`).
+  /// the next episode (`PlaybackEnd`). A trailer that ends just closes: AVKit leaves the
+  /// last frame on screen with the transport bar up otherwise (Sasha, 2026-11-03).
   private func observeEndOfPlayback(of item: AVPlayerItem) {
-    guard watchMode == .media else { return }
+    guard watchMode != .live else { return }
     if let endOfPlaybackObserver {
       NotificationCenter.default.removeObserver(endOfPlaybackObserver)
     }
@@ -580,6 +581,10 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// Mark this title finished, then tell the screen to dismiss or swap in the next
   /// episode. Movies always dismiss; a series follows Settings.
   private func handleEndOfPlayback() {
+    if watchMode == .trailer {
+      onPlaybackEnded?(.dismiss)
+      return
+    }
     guard watchMode == .media else { return }
     markFinished()
     let series = AppContext.shared.localProgressStore.snapshot(for: playItem.metadata.id)
@@ -1490,6 +1495,12 @@ extension PlayerManager {
   /// controller.
   func attach(to controller: AVPlayerViewController) {
     playerViewController = controller
+    // A trailer's Info shows its running time, which says nothing useful about the title
+    // and reads as the film's own length. AVKit has no switch for that one line, so the
+    // Info panel goes for trailers (Sasha, 2026-11-03) until there is a way to hide it;
+    // Settings > Diagnostics «Info panel on trailers» brings it back.
+    controller.playbackControlsIncludeInfoViews =
+      watchMode != .trailer || FeatureFlags.trailerInfoPanel
     configureExternalMetadata()
     if FeatureFlags.tvOSSidecarSubtitles {
       hideSystemSubtitlePicker(on: controller)
