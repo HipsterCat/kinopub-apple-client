@@ -43,8 +43,44 @@ final class SeasonsRailMemory {
 /// kino.pub episodes and an official grid, in the shape `EpisodeGridMatch` scores.
 enum KinoEpisodeGrid {
 
+  /// The rail's getters (tabs, entries, selected tab) and the page model all ask for
+  /// this on every render; a long show is ~800 × ~900 pairs. The last few answers are
+  /// kept and reused while the inputs are equal.
   static func alignment(seasons: [Season], official: [EpisodeSchedule]) -> EpisodeGridMatch.Result {
-    EpisodeGridMatch.align(kino: kinoEpisodes(seasons), official: official.map(self.official))
+    let kino = kinoEpisodes(seasons)
+    let grid = official.map(self.official)
+    return memo.result(kino: kino, official: grid) {
+      EpisodeGridMatch.align(kino: kino, official: grid)
+    }
+  }
+
+  private static let memo = AlignmentMemo()
+
+  private final class AlignmentMemo: @unchecked Sendable {
+    private struct Entry {
+      let kino: [EpisodeGridMatch.KinoEpisode]
+      let official: [EpisodeGridMatch.OfficialEpisode]
+      let result: EpisodeGridMatch.Result
+    }
+    private let lock = NSLock()
+    private var entries: [Entry] = []
+
+    func result(kino: [EpisodeGridMatch.KinoEpisode],
+                official: [EpisodeGridMatch.OfficialEpisode],
+                compute: () -> EpisodeGridMatch.Result) -> EpisodeGridMatch.Result {
+      lock.lock()
+      if let hit = entries.first(where: { $0.kino == kino && $0.official == official }) {
+        lock.unlock()
+        return hit.result
+      }
+      lock.unlock()
+      let result = compute()
+      lock.lock()
+      entries.insert(Entry(kino: kino, official: official, result: result), at: 0)
+      if entries.count > 4 { entries.removeLast() }
+      lock.unlock()
+      return result
+    }
   }
 
   static func kinoEpisodes(_ seasons: [Season]) -> [EpisodeGridMatch.KinoEpisode] {

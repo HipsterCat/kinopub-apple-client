@@ -188,4 +188,29 @@ final class EpisodeGridMatchTests: XCTestCase {
     XCTAssertNil(TMDBSeasonMatch.tmdbSeason(kinoNumber: 1, titleNumber: 2012,
                                             tmdbSeasons: [1, 2, 3]))
   }
+
+  /// A long show (15 seasons, ~860 rows in two languages) on the title page hung it:
+  /// every pair re-normalised both titles. Every kino.pub episode still finds its slot.
+  func testALongShowAlignsQuicklyAndCompletely() {
+    var kino: [EpisodeGridMatch.KinoEpisode] = []
+    var official: [EpisodeGridMatch.OfficialEpisode] = []
+    for season in 1...15 {
+      for number in 1...28 {
+        kino.append(.init(blockID: season, blockNumber: season, titledNumber: season, number: number,
+                          title: "Серия \(season) \(number) Глава", runtimeMinutes: 42))
+        official.append(.init(source: .tmdb, season: season, number: number,
+                              title: "Серия \(season) \(number) Глава", runtimeMinutes: 42))
+        official.append(.init(source: .tmdb, season: season, number: number,
+                              title: "Episode \(season) \(number) Chapter", runtimeMinutes: 42))
+      }
+    }
+    let started = Date()
+    let result = EpisodeGridMatch.align(kino: kino, official: official)
+    XCTAssertLessThan(Date().timeIntervalSince(started), 3)
+    XCTAssertEqual(result.hits.count, kino.count)
+    XCTAssertTrue(result.unmatchedKino.isEmpty)
+    XCTAssertTrue(result.hits.allSatisfy {
+      $0.kino.blockID == $0.official.season && $0.kino.number == $0.official.number
+    })
+  }
 }

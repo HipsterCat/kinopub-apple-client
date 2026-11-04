@@ -211,10 +211,20 @@ public enum EpisodeGridMatch {
   public static func align(kino: [KinoEpisode], official raw: [OfficialEpisode]) -> Result {
     let official = collapse(raw)
     let hints = seasonHints(kino: kino, official: official)
+    // Normalise every title once. Scoring every pair used to fold and split both
+    // strings again: a long show hung the title page for seconds (2026-11-04).
+    var vocabulary: [Substring: Int] = [:]
+    func prepare(_ raw: String) -> PreparedTitle? { PreparedTitle(raw, vocabulary: &vocabulary) }
+    let kinoTitles = kino.map { prepare($0.title) }
+    let officialTitles = official.map { $0.titles.compactMap(prepare) }
+
     var candidates: [(score: Int, kino: Int, official: Int)] = []
     for (kinoIndex, episode) in kino.enumerated() {
+      let title = kinoTitles[kinoIndex]
+      let hint = hints[episode.blockID]
       for (officialIndex, candidate) in official.enumerated() {
-        guard let score = score(episode, candidate, hint: hints[episode.blockID]) else { continue }
+        let titleValue = title.map { titleScore($0, officialTitles[officialIndex]) } ?? 0
+        guard let score = score(episode, candidate, title: titleValue, hint: hint) else { continue }
         candidates.append((score, kinoIndex, officialIndex))
       }
     }
@@ -225,16 +235,46 @@ public enum EpisodeGridMatch {
     }
     var usedKino = Set<Int>()
     var usedOfficial = Set<Int>()
+    var matchedKino = Set<Int>()
     var hits: [Hit] = []
     for candidate in candidates {
-      guard usedKino.insert(candidate.kino).inserted,
-            usedOfficial.insert(candidate.official).inserted else { continue }
+      // A kino.pub episode whose best slot is already taken stays an extra: it is not
+      // slid onto its next-best number. It used to drop out of the rail altogether.
+      guard usedKino.insert(candidate.kino).inserted else { continue }
+      guard usedOfficial.insert(candidate.official).inserted else { continue }
+      matchedKino.insert(candidate.kino)
       hits.append(Hit(kino: kino[candidate.kino], official: official[candidate.official]))
     }
     let unmatched = kino.enumerated().compactMap { index, episode in
-      usedKino.contains(index) ? nil : episode
+      matchedKino.contains(index) ? nil : episode
     }
     return Result(hits: hits, unmatchedKino: unmatched, official: official, seasonHint: hints)
+  }
+
+  /// A title already normalised, with its words as ids into one vocabulary.
+  struct PreparedTitle {
+    var text: String
+    var length: Int
+    var words: Set<Int>
+
+    /// Nil for a title under two characters once normalised: it identifies nothing.
+    init?(_ raw: String, vocabulary: inout [Substring: Int]) {
+      let text = EpisodeGridMatch.normalize(raw)
+      guard text.count >= 2 else { return nil }
+      var words = Set<Int>()
+      for word in text.split(separator: " ") {
+        if let id = vocabulary[word] {
+          words.insert(id)
+        } else {
+          let id = vocabulary.count
+          vocabulary[word] = id
+          words.insert(id)
+        }
+      }
+      self.text = text
+      self.length = text.count
+      self.words = words
+    }
   }
 
   // MARK: - Scoring
@@ -244,9 +284,11 @@ public enum EpisodeGridMatch {
   /// by more than a few minutes stays two candidates.
   static func collapse(_ episodes: [OfficialEpisode]) -> [OfficialEpisode] {
     var groups: [OfficialEpisode] = []
+    var bySlot: [Int: [Int]] = [:]
     let ordered = episodes.sorted { $0.source > $1.source }
     for episode in ordered {
-      if let index = groups.firstIndex(where: { sameSlot($0, episode) }) {
+      let slot = episode.season &* 100_000 &+ episode.number
+      if let index = bySlot[slot]?.first(where: { sameSlot(groups[$0], episode) }) {
         var existing = groups[index]
         for title in episode.titles where !existing.titles.contains(title) {
           existing.titles.append(title)
@@ -257,6 +299,7 @@ public enum EpisodeGridMatch {
         if episode.source > existing.source { existing.source = episode.source }
         groups[index] = existing
       } else {
+        bySlot[slot, default: []].append(groups.count)
         groups.append(episode)
       }
     }
@@ -309,7 +352,10 @@ public enum EpisodeGridMatch {
 
   /// Nil when the pair is only an index. A future air date never enters the score.
   static func score(_ kino: KinoEpisode, _ official: OfficialEpisode, hint: Int?) -> Int? {
-    let title = titleScore(kino.title, official.titles)
+    score(kino, official, title: titleScore(kino.title, official.titles), hint: hint)
+  }
+
+  static func score(_ kino: KinoEpisode, _ official: OfficialEpisode, title: Int, hint: Int?) -> Int? {
     let runtime = runtimeScore(kino.runtimeMinutes, official.runtimeMinutes)
     let hinted = hint == official.season
     let sameNumber = hinted && kino.number == official.number
@@ -325,25 +371,32 @@ public enum EpisodeGridMatch {
   }
 
   static func titleScore(_ kino: String, _ titles: [String]) -> Int {
-    let left = normalize(kino)
-    guard left.count >= 2 else { return 0 }
+    var vocabulary: [Substring: Int] = [:]
+    func prepare(_ raw: String) -> PreparedTitle? { PreparedTitle(raw, vocabulary: &vocabulary) }
+    guard let left = prepare(kino) else { return 0 }
+    return titleScore(left, titles.compactMap(prepare))
+  }
+
+  /// Exact match 100, one inside the other (8+ characters each) 85, else the share
+  /// of words the two have in common.
+  static func titleScore(_ left: PreparedTitle, _ titles: [PreparedTitle]) -> Int {
     var best = 0
-    for raw in titles {
-      let right = normalize(raw)
-      guard right.count >= 2 else { continue }
-      if left == right {
-        best = max(best, 100)
-        continue
+    for right in titles {
+      if left.text == right.text {
+        return 100
       }
-      if left.count >= 8, right.count >= 8, left.contains(right) || right.contains(left) {
+      if left.length >= 8, right.length >= 8,
+         left.text.contains(right.text) || right.text.contains(left.text) {
         best = max(best, 85)
       }
-      let a = Set(left.split(separator: " "))
-      let b = Set(right.split(separator: " "))
-      let union = a.union(b).count
-      if union > 0 {
-        best = max(best, a.intersection(b).count * 100 / union)
-      }
+      // Counted in place: `intersection` allocates a set per pair.
+      let (small, large) = left.words.count <= right.words.count
+        ? (left.words, right.words) : (right.words, left.words)
+      var shared = 0
+      for word in small where large.contains(word) { shared += 1 }
+      guard shared > 0 else { continue }
+      let union = left.words.count + right.words.count - shared
+      best = max(best, shared * 100 / union)
     }
     return best
   }
