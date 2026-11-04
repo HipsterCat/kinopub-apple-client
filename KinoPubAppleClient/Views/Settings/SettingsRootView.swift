@@ -22,6 +22,9 @@ struct SettingsRootView: View {
   @State private var avatarImage: Image?
 #if os(macOS)
   @State private var detailPath = NavigationPath()
+     @Environment(\.appearsActive) var appearsActive
+     @FocusState private var isFocused: Bool
+     @State private var searchText = ""
 #endif
 
   var body: some View {
@@ -62,8 +65,17 @@ struct SettingsRootView: View {
           }
         }
       }
-      .listStyle(.sidebar)
-      .navigationSplitViewColumnWidth(220)
+      .searchable(text: $searchText, placement: .sidebar)
+      .focused($isFocused)
+      .opacity(1.0)
+      .onAppear {
+          isFocused = true
+          if selectedCategory == nil {
+               selectedCategory = .general
+          }
+      }
+//      .listStyle(.sidebar)
+      .navigationSplitViewColumnWidth(240)
       .toolbar(removing: .sidebarToggle)
     } detail: {
       NavigationStack(path: $detailPath) {
@@ -108,8 +120,8 @@ struct SettingsRootView: View {
       }
 //      .navigationSplitViewColumnWidth(500)
     }
-    .navigationSplitViewStyle(.balanced)
-    .frame(width: 720, height: 520)
+//    .navigationSplitViewStyle(.balanced)
+//    .frame(width: 720, height: 520)
     .onChange(of: selectedCategory) { _, _ in
       detailPath = NavigationPath()
     }

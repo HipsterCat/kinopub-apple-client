@@ -862,6 +862,8 @@ class HomeCatalog: ObservableObject {
     if record?.kinopubWideSpecified == true { return true }
     if record?.entity.artwork.backdropFromSpecifiedWide == true { return true }
     if record?.kinopubWideSpecified == false { return false }
+    if card.is4K { return true }
+    if card.is4K == false { return false }
     // Record not re-ingested since `kinopubWideSpecified` shipped: keep titles that
     // already carry a wide URL on the card until the catalogue refresh lands.
     if let backdrop = card.backdropURL, !backdrop.isEmpty { return true }
