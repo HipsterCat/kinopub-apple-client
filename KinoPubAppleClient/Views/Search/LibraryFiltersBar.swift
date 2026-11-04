@@ -47,6 +47,9 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
 
   @ObservedObject var catalog: Catalog
   var chrome: LibraryFiltersBarChrome = .full
+  /// Mac: the menus as icons in the window toolbar (`LibraryFiltersToolbar`), where the
+  /// toolbar draws their glass; the chips' own glass and titles are off.
+  var iconOnly = false
 
   private var years: [YearRange] {
     YearRange.decades(upTo: Calendar.current.component(.year, from: Date()))
@@ -74,21 +77,7 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
 
   private var filterChips: some View {
     HStack(spacing: LibraryFilterMetrics.spacing) {
-      sortMenu
-      if chrome == .full {
-        typeMenu
-        genreMenu
-        countryMenu
-        yearMenu
-
-        if catalog.filter.hasActiveFilters {
-          Button {
-            catalog.clearFilters()
-          } label: {
-            Label("Clear", systemImage: "xmark")
-          }
-        }
-      }
+      menus
     }
 #if os(macOS)
     .padding(.horizontal, LibraryFilterMetrics.horizontalInset)
@@ -97,6 +86,36 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
   }
 
   // MARK: - Menus
+
+  /// The menus side by side, unwrapped: a toolbar group takes each as an item of its own.
+  @ViewBuilder
+  var menus: some View {
+    sortMenu
+    if chrome == .full {
+      typeMenu
+      genreMenu
+      countryMenu
+      yearMenu
+
+      if catalog.filter.hasActiveFilters {
+        if iconOnly {
+          Button {
+            catalog.clearFilters()
+          } label: {
+            Label("Clear", systemImage: "xmark")
+              .labelStyle(.iconOnly)
+          }
+          .help(Text("Clear"))
+        } else {
+          Button {
+            catalog.clearFilters()
+          } label: {
+            Label("Clear", systemImage: "xmark")
+          }
+        }
+      }
+    }
+  }
 
   private var sortMenu: some View {
     glassMenu(
@@ -268,14 +287,28 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
     isActive: Bool,
     @ViewBuilder content: () -> Content
   ) -> some View {
-    Menu {
-      content()
-    } label: {
-      Label(label, systemImage: icon)
-        .labelStyle(.titleAndIcon)
-        .lineLimit(1)
+    if iconOnly {
+      // The Mac toolbar's: an icon, the pick named in the tooltip; a filled glyph
+      // while it narrows the list.
+      Menu {
+        content()
+      } label: {
+        Label(label, systemImage: icon)
+          .labelStyle(.iconOnly)
+          .symbolVariant(isActive ? .fill : .none)
+      }
+      .menuIndicator(.hidden)
+      .help(Text(label))
+    } else {
+      Menu {
+        content()
+      } label: {
+        Label(label, systemImage: icon)
+          .labelStyle(.titleAndIcon)
+          .lineLimit(1)
+      }
+      .modifier(LibraryFilterGlassStyle(isProminent: isActive, useSolid: false))
     }
-    .modifier(LibraryFilterGlassStyle(isProminent: isActive, useSolid: false))
   }
 
   /// Shared Menu chrome for person credits / call sites that still use the static API.
@@ -386,5 +419,20 @@ struct LibraryFilterGlassStyle: ViewModifier {
   )
   .background(Color.KinoPub.background)
   // .preferredColorScheme(.dark)
+}
+#endif
+
+#if os(macOS)
+/// The Mac's sort and filters: menus at the trailing end of the window toolbar, as Apple
+/// Music has its sort menu, not chips over the grid (Sasha, 2026-11-04).
+struct LibraryFiltersToolbar<Catalog: FilterBarDriver>: ToolbarContent {
+  @ObservedObject var catalog: Catalog
+  var chrome: LibraryFiltersBarChrome = .full
+
+  var body: some ToolbarContent {
+    ToolbarItemGroup(placement: .primaryAction) {
+      LibraryFiltersBar(catalog: catalog, chrome: chrome, iconOnly: true).menus
+    }
+  }
 }
 #endif

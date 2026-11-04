@@ -506,16 +506,9 @@ struct SearchView: View {
 #endif
       .toolbar {
 #if os(macOS)
-        // Filters under the trailing search field (accessory), not icon menus.
-        ToolbarItem(placement: .accessoryBar(id: MacToolbarChrome.accessoryID)) {
-          if !catalog.isSearching {
-            LibraryFiltersBar(catalog: catalog)
-              .frame(maxWidth: .infinity)
-          } else {
-            Color.clear
-              .frame(height: MacToolbarChrome.accessoryMinHeight)
-              .frame(maxWidth: .infinity)
-          }
+        // Sort and filters as menus in the toolbar, as on every listing page.
+        if !catalog.isSearching {
+          LibraryFiltersToolbar(catalog: catalog)
         }
 #endif
       }

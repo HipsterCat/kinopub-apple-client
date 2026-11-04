@@ -420,6 +420,9 @@ struct TabsNavigationView: View {
             .accessibilityLabel(Text("Settings".localized))
             .help(Text("Settings".localized))
           }
+          // A page's own items (sort, filters) come after it: a capsule of their own,
+          // not one group with Settings.
+          ToolbarSpacer(.fixed)
         }
         // `.edit`: focusable whatever the system's keyboard-navigation setting; the
         // default (`.activate`) takes focus only with Full Keyboard Access on, so the
@@ -895,6 +898,8 @@ struct FilterCatalogTabView: View {
       content
         .platformNavigationTitle("Catalog")
 #if os(macOS)
+        // On the page, whatever it shows: a load in flight or failed still has its sort.
+        .toolbar { LibraryFiltersToolbar(catalog: catalog) }
         .macToolbarSearch()
 #endif
         .handleError(state: $errorHandler.state)
@@ -995,14 +1000,6 @@ struct FilterCatalogTabView: View {
 #endif
       }
       .environment(\.catalogCaptionOmittedGenreIDs, catalog.filter.captionOmittedGenreIDs)
-#if os(macOS)
-      .toolbar {
-        ToolbarItem(placement: .accessoryBar(id: MacToolbarChrome.accessoryID)) {
-          LibraryFiltersBar(catalog: catalog)
-            .frame(maxWidth: .infinity)
-        }
-      }
-#endif
     }
 #endif
   }

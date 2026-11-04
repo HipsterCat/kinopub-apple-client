@@ -24,6 +24,9 @@ struct CollectionDetailView: View {
     @Bindable var errorHandler = errorHandler
     content
       .platformNavigationTitle(model.title)
+#if os(macOS)
+      .toolbar { LibraryFiltersToolbar(catalog: model, chrome: .sort) }
+#endif
       .background(Color.KinoPub.background)
       .task {
         cardMenu.bind(errorHandler: errorHandler)
@@ -68,7 +71,9 @@ struct CollectionDetailView: View {
           )
         }
       ) {
+#if !os(macOS)
         filterBar
+#endif
       }
     }
 #endif

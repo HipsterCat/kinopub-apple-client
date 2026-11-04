@@ -49,6 +49,9 @@ struct PersonItemsView: View {
     catalogBody
     .background(Color.KinoPub.background)
     .platformNavigationTitle(person.name)
+#if os(macOS)
+    .toolbar { LibraryFiltersToolbar(catalog: catalog) }
+#endif
     .overlay {
 #if !os(tvOS)
       if catalog.loadFailed {
@@ -278,7 +281,9 @@ struct PersonItemsView: View {
       .padding(.horizontal, gridInset)
       .padding(.vertical, Self.verticalPadding)
 
+#if !os(macOS)
       LibraryFiltersBar(catalog: catalog)
+#endif
     }
   }
 #endif
