@@ -196,6 +196,7 @@ public struct HomeHeroCarousel: View {
       }
     }
     .onScrollPhaseChange { _, phase in
+      heroLog("scroll phase \(phase)")
       isScrolling = phase != .idle
       if phase == .idle { settle() }
     }
@@ -260,6 +261,9 @@ public struct HomeHeroCarousel: View {
       generation += 1
     }
     .onChange(of: isActive) { move(to: current, animated: false) }
+    .onChange(of: advances) { _, now in
+      heroLog("advances=\(now) active=\(isActive) presented=\(isPresented) visible=\(isVisibleInPage) scene=\(scenePhase == .active) scrolling=\(isScrolling) turning=\(isTurning) menu=\(isMenuOpen) key=\(isWindowKey)")
+    }
     // Left / Right from the keyboard while the page holds focus (Mac sidebar shell).
     .onChange(of: heroStepRequest) { _, request in
       if let request { step(request.delta) }
@@ -284,7 +288,10 @@ public struct HomeHeroCarousel: View {
   private func step(_ delta: Int) {
     // A turn already on its way finishes first: stepping from a `current` that has
     // moved ahead of the picture is what skipped a title.
-    guard features.count > 1, !isTurning, !isScrolling else { return }
+    guard features.count > 1, !isTurning, !isScrolling else {
+      heroLog("step(\(delta)) dropped turning=\(isTurning) scrolling=\(isScrolling)")
+      return
+    }
     var next = Slot(lap: current.lap, index: current.index + delta)
     if next.index >= features.count {
       next = Slot(lap: current.lap + 1, index: 0)
@@ -305,11 +312,13 @@ public struct HomeHeroCarousel: View {
     current = slot
     turnID += 1
     let turn = turnID
+    heroLog("move to \(slot.lap):\(slot.index) animated=\(animated) turn=\(turn)")
     if animated {
       isTurning = true
       withAnimation(.smooth(duration: 0.6)) {
         scroll.scrollTo(id: slot)
       } completion: {
+        heroLog("turn \(turn) completed (latest \(turnID))")
         guard turn == turnID else { return }
         isTurning = false
         // A turn the code makes may not report a scroll phase of its own.
@@ -1032,10 +1041,11 @@ private struct DrawnPageDots: View {
         runFor = current
         spent = 0
       }
-      guard advances else { return }
+      guard advances else { heroLog("dwell \(current) held, spent \(spent)"); return }
       let start = Date()
       let title = current
       runStart = start
+      heroLog("dwell \(current) runs \(max(dwell - spent, 0)) s")
       try? await Task.sleep(for: .seconds(max(dwell - spent, 0)))
       guard !Task.isCancelled else {
         // Only the time it actually ran counts. Counted on the next run instead, a run
@@ -1043,9 +1053,11 @@ private struct DrawnPageDots: View {
         // back with it and turned at once, a title skipped (Sasha, 2026-11-04).
         if runFor == title { spent += Date().timeIntervalSince(start) }
         if runStart == start { runStart = nil }
+        heroLog("dwell \(title) cancelled, spent \(spent)")
         return
       }
       runStart = nil
+      heroLog("dwell \(title) done, advance")
       onAdvance()
     }
   }
@@ -1165,3 +1177,11 @@ private struct WindowSheetProbe: NSViewRepresentable {
   }
 }
 #endif
+
+/// Debug trace of the hero's clock and turns (`[HomeHero]` in the console).
+@inline(__always)
+func heroLog(_ message: @autoclosure () -> String) {
+#if DEBUG
+  print("[HomeHero] \(String(format: "%.2f", Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1000))) \(message())")
+#endif
+}
