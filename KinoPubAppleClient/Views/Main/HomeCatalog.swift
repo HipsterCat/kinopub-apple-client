@@ -453,6 +453,8 @@ class HomeCatalog: ObservableObject {
   /// card so its own kino.pub still stays the fallback behind the worker's 404.
   @Published public private(set) var bannerBackdrops: [Int: URL] = [:]
   @Published public private(set) var isLoaded: Bool = false
+  /// Where the page was scrolled to, for coming back to the section.
+  let scrollMemory = ScrollMemory()
   /// True when every shelf failed and there is nothing cached to show — the view
   /// swaps the blank screen for a retry state. Cached rows always win over this flag.
   @Published public private(set) var loadFailed: Bool = false
@@ -860,6 +862,8 @@ class HomeCatalog: ObservableObject {
     if record?.kinopubWideSpecified == true { return true }
     if record?.entity.artwork.backdropFromSpecifiedWide == true { return true }
     if record?.kinopubWideSpecified == false { return false }
+    if card.is4K { return true }
+    if card.is4K == false { return false }
     // Record not re-ingested since `kinopubWideSpecified` shipped: keep titles that
     // already carry a wide URL on the card until the catalogue refresh lands.
     if let backdrop = card.backdropURL, !backdrop.isEmpty { return true }
@@ -964,28 +968,22 @@ class HomeCatalog: ObservableObject {
     repaintBannerPlay()
   }
 
-  /// Play's state for the banner titles from what the player wrote on this device —
-  /// the payload it kept and its positions, the detail page's rule (`layPositions`).
-  /// A title never played here keeps plain Play, or Replay when the shelf says it was
-  /// watched (the shelf names no episode, so neither does Replay).
+  /// The banner's Play in its short form (Sasha, 2026-10-30): «Продолжить» when anything
+  /// says the title was started and not finished — this device's own positions, or a
+  /// shelf's progress (Continue Watching, history) — and «Смотреть» otherwise. No
+  /// episode or bar: the shelf cannot name them without the details.
   private func repaintBannerPlay() {
     let entries = localProgressStore.allEntries()
     var play: [Int: MediaActionAppearance] = [:]
     for card in bannerCards {
-      guard var item = entries.first(where: { $0.item.id == card.itemID })?.item else {
-        if card.isWatched {
-          play[card.id] = MediaActionCatalog.play(for: MediaActionContext(
-            playback: .playAgain(season: nil, episode: nil), isSeries: card.isSeries))
-        }
-        continue
-      }
-      localProgressStore.layPositions(over: &item, writtenAfter: .distantPast)
-      play[card.id] = MediaActionCatalog.play(for: MediaActionContext(
-        playback: item.playbackButtonContent,
-        kind: item.presentation.kind,
-        isSeries: item.isSeries,
-        seasonCount: item.seasons?.count
-      ))
+      let local = entries.first(where: { $0.item.id == card.itemID })
+      let startedHere = local.map { !$0.finished } ?? false
+      let startedOnShelf = !card.isWatched && ((card.progress ?? 0) > 0
+        || (card.viewerState.progress?.resumeFraction ?? 0) > 0)
+      guard startedHere || startedOnShelf else { continue }
+      let title = "Continue".localized
+      play[card.id] = MediaActionAppearance(id: .play, chrome: .playPill, systemImage: "play.fill",
+                                            title: title, accessibilityLabel: title)
     }
     if bannerPlay != play { bannerPlay = play }
   }

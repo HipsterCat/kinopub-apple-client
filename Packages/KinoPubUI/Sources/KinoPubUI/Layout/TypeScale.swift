@@ -64,7 +64,7 @@ public enum TypeScale {
     .title3.weight(.semibold)
          #endif
          #if os(macOS)
-    .title2.weight(.semibold)
+    .title2.weight(.bold)
          #endif
     }()
      public static let rowCount: Font = {
@@ -75,7 +75,8 @@ public enum TypeScale {
     .subheadline.weight(.semibold)
          #endif
          #if os(macOS)
-    .title3.weight(.semibold)
+    .system(.title3, design: .rounded, weight: .medium)
+//    .title3.weight(.semibold)
                     
      #endif
      }()
@@ -87,7 +88,7 @@ public enum TypeScale {
     .subheadline.weight(.semibold)
          #endif
          #if os(macOS)
-    .title3.weight(.semibold)
+    .title3.weight(.bold)
          #endif
     }()
 

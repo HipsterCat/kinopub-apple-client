@@ -134,6 +134,7 @@ public struct TitleLogoSlot<Title: View>: View {
         .frame(maxWidth: fitted.width, maxHeight: fitted.height, alignment: Alignment(horizontal: alignment, vertical: .top))
         .fixedSize(horizontal: false, vertical: true)
         .transition(.opacity)
+        .shadow(color: .black.opacity(0.5), radius: 18, x: 0, y: 0)
     } else {
       Color.clear
     }

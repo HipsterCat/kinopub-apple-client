@@ -1,0 +1,102 @@
+{
+  "kinopub_id": 83959,
+  "type": "serial",
+  "title": { "ru": "Блич", "original": "Bleach" },
+  "year": 2022,
+  "status": "Returning Series",
+  "tagline_ru": null,
+  "synopsis_ru": "Про войну.",
+  "ids": {
+    "imdb": "tt14986406",
+    "tmdb": "tv/30984",
+    "kinopoisk": "4789626"
+  },
+  "ratings": {
+    "imdb": { "value": 9, "votes": 81608 },
+    "kinopoisk": null,
+    "tmdb": { "value": 8.356, "votes": 2323 },
+    "tvoe": null
+  },
+  "billing": {
+    "star": [
+      {
+        "person_id": 78402,
+        "name_ru": "Масакадзу Морита",
+        "name_en": "森田成一",
+        "character": "Ichigo Kurosaki (voice)",
+        "job": null,
+        "episode_count": 416,
+        "profile_url": "https://image.tmdb.org/t/p/original/face.jpg"
+      }
+    ],
+    "director": [
+      {
+        "person_id": 90048,
+        "name_ru": "Нориюки Абэ",
+        "name_en": "阿部記之",
+        "character": null,
+        "job": "Director",
+        "episode_count": 588,
+        "profile_url": "https://image.tmdb.org/t/p/original/director.jpg"
+      }
+    ],
+    "writer": [],
+    "regular": [
+      {
+        "person_id": 82056,
+        "name_ru": "Нориаки Сугияма",
+        "name_en": "杉山紀彰",
+        "character": "Uryu Ishida (voice)",
+        "episode_count": 40,
+        "profile_url": null
+      }
+    ]
+  },
+  "images": [
+    { "kind": "logo", "lang": "en", "url": "https://image.tmdb.org/t/p/original/logo-en.png", "source": "tmdb", "width": 100, "person_id": null, "season": null, "episode": null },
+    { "kind": "logo", "lang": "ru", "url": "https://image.tmdb.org/t/p/original/logo-ru.png", "source": "tmdb", "width": 200, "person_id": null, "season": null, "episode": null },
+    { "kind": "backdrop", "lang": "en", "url": "https://image.tmdb.org/t/p/original/back-en.jpg", "source": "tmdb", "width": 3840, "person_id": null, "season": null, "episode": null },
+    { "kind": "backdrop", "lang": null, "url": "https://image.tmdb.org/t/p/original/back-plain.jpg", "source": "tmdb", "width": 1000, "person_id": null, "season": null, "episode": null },
+    { "kind": "poster", "lang": "ru", "url": "https://image.tmdb.org/t/p/original/poster-ru.jpg", "source": "tmdb", "width": 500, "person_id": null, "season": null, "episode": null },
+    { "kind": "poster", "lang": "ru", "url": "https://kinopoiskapiunofficial.tech/images/posters/kp/4789626.jpg", "source": "kinopoisk", "width": null, "person_id": null, "season": null, "episode": null },
+    { "kind": "poster", "lang": "ru", "url": "https://image.tmdb.org/t/p/original/season-1.jpg", "source": "tmdb", "width": null, "person_id": null, "season": 1, "episode": null },
+    { "kind": "still", "lang": null, "url": "https://image.tmdb.org/t/p/original/still.jpg", "source": "tmdb", "width": null, "person_id": null, "season": 1, "episode": 6 },
+    { "kind": "photo", "lang": null, "url": "https://image.tmdb.org/t/p/original/face.jpg", "source": "tmdb", "width": null, "person_id": 78402, "season": null, "episode": null }
+  ],
+  "networks": [
+    { "tmdb_id": 98, "name": "TV Tokyo", "logo_url": "https://image.tmdb.org/t/p/original/net.png", "origin_country": "JP" }
+  ],
+  "seasons": [
+    {
+      "number": 1,
+      "name": "Сезон 1",
+      "episode_count": 2,
+      "air_date": "2022-10-10",
+      "end_date": "2022-12-26",
+      "poster": null,
+      "episodes": [
+        {
+          "number": 1,
+          "name_ru": "Кровь",
+          "name_en": "Blood",
+          "runtime_min": 24,
+          "air_date": "2022-10-10",
+          "still": "https://image.tmdb.org/t/p/original/e1.jpg",
+          "tmdb_value": 8.3,
+          "tmdb_votes": 3
+        },
+        {
+          "number": 2,
+          "name_ru": "Дальше",
+          "name_en": null,
+          "runtime_min": 24,
+          "air_date": "2099-01-01",
+          "still": null,
+          "tmdb_value": null,
+          "tmdb_votes": null
+        }
+      ]
+    }
+  ],
+  "top_episodes": []
+}

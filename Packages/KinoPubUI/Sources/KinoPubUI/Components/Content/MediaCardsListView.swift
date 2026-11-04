@@ -145,6 +145,10 @@ public struct MediaCardsListView: View {
 
       PaginationFooter(state: pagination, onRetry: onRetryPagination)
     }
+#if !os(tvOS)
+    .remembersScroll()
+#endif
+
     .onGeometryChange(for: CGFloat.self) { proxy in
       proxy.size.width
     } action: { width in

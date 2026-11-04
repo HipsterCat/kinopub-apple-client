@@ -491,7 +491,8 @@ final class TVPageHeroCell: UICollectionViewCell {
     buttons.alignment = .center
     buttons.spacing = 24
     buttons.translatesAutoresizingMaskIntoConstraints = false
-    [playButton, bookmarkButton, detailsButton, nextButton].forEach(buttons.addArrangedSubview)
+    // Play, Details, Bookmarks, Next (Sasha, 2026-10-31).
+    [playButton, detailsButton, bookmarkButton, nextButton].forEach(buttons.addArrangedSubview)
     contentView.addSubview(buttons)
 
     pageControl.translatesAutoresizingMaskIntoConstraints = false

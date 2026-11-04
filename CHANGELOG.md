@@ -5,6 +5,15 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Trailer player: closes at the end; no Info on trailers (2026-11-03)
+
+- The end-of-stream observer only ran for `.media`, so a trailer that finished
+  sat on its last frame. Trailers now send `.dismiss` on
+  `AVPlayerItemDidPlayToEndTime` (nothing is marked watched). Live never ends.
+- tvOS trailers set `playbackControlsIncludeInfoViews = false`: Info showed the
+  trailer's running time and AVKit has no switch for that line alone. Diagnostics
+  «Info panel on trailers» (`FeatureFlag.trailerInfoPanel`, off) brings it back.
+
 ### TestFlight: Xcode 27.2 RC uploaded and Fastlane called it a failure (2026-10-28)
 
 - From 22 Oct the `xcode-27` image selected Xcode 27.2 beta 2; App Store Connect

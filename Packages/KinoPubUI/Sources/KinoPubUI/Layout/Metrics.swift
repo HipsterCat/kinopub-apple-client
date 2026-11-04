@@ -14,7 +14,7 @@ import SwiftUI
 /// subtract a rail’s focus padding from that gap either — tighten the rail’s *top*
 /// inset instead of collapsing the chrome.
 public enum Metrics {
-  public static let cardCornerRadius: CGFloat = 14
+  public static let cardCornerRadius: CGFloat = 12
   public static let progressBarHeight: CGFloat = 6
   public static let hairline: CGFloat = 0.5
 
@@ -42,7 +42,7 @@ public enum Metrics {
 #else
   public static let cardCaptionSpacing: CGFloat = 6
   public static let rowSpacing: CGFloat = 36
-  public static let sectionHeaderSpacing: CGFloat = 18
+  public static let sectionHeaderSpacing: CGFloat = 10
   public static let focusPadding: CGFloat = 4
   /// The same as `focusPadding` off tvOS, and that is the point. It is lift room for
   /// the focus engine, which only exists on TV; giving landscape rails their own

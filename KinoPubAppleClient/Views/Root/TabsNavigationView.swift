@@ -41,21 +41,81 @@ struct TabsNavigationView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 #endif
   @Environment(NavigationState.self) var navigationState
+#if DEBUG
+  @MainActor private static var switchPlanStarted = false
+#endif
   @Environment(ErrorHandler.self) var errorHandler
   @EnvironmentObject var authState: AuthState
   @EnvironmentObject var networkMonitor: NetworkMonitor
   @ObservedObject private var sectionStore = SectionVisibilityStore.shared
 
   @State private var sidebarFolders: [Bookmark] = []
+  /// Each section's model, made once and kept for the whole run: a section rebuilt on
+  /// coming back to it finds its rows, its banner and its search where they were, rather
+  /// than fetching again into a new model (Sasha, 2026-10-31).
+  @State private var sectionModels = SectionModels()
+#if os(macOS)
+  @FocusState private var detailFocused: Bool
+  @State private var heroStep: HeroStepRequest?
+  @State private var pageScroll: PageScrollRequest?
+#endif
   @State private var watchlistBadgeCount = 0
   @State private var sidebarSyncedAt: Date?
   private static let sidebarSyncTTL: TimeInterval = 120
 #if os(macOS)
   @Environment(\.openWindow) private var openWindow
+  @Environment(\.openSettings) private var openSettings
+#endif
+
+  /// The sidebar item (Mac) / tab (iPad) the app was on, restored at launch. App storage,
+  /// not scene storage: a Mac quit with «Close windows when quitting» on (the default)
+  /// restores no scene, and the place was lost every time.
+  @AppStorage("selectedNavigationTab") private var storedTab = ""
+#if os(macOS)
+  @State private var sidebarReselectGuard = SidebarReselectGuard()
 #endif
 
   var body: some View {
     modernTabs
+#if DEBUG
+      // `-KINOPUBSwitchTabs home,search,reselect,…`: one section switch (or a choice of the
+      // shown one again) every 8 s after launch, to
+      // check that a section keeps what it had when you come back to it.
+      // Unstructured and once per process: the switch itself can rebuild this view, and a
+      // `.task` would be cancelled with it after the first step.
+      .onAppear {
+        guard !Self.switchPlanStarted,
+              let plan = UserDefaults.standard.string(forKey: "KINOPUBSwitchTabs") else { return }
+        Self.switchPlanStarted = true
+        let navigationState = navigationState
+        Task { @MainActor in
+          try? await Task.sleep(for: .seconds(16))
+          for name in plan.split(separator: ",") {
+            switch name {
+            case "home": navigationState.selectedTab = .home
+            case "search": navigationState.enterSearch()
+            case "series": navigationState.selectedTab = .series
+            case "reselect": navigationState.reselect(navigationState.selectedTab)
+            default: break
+            }
+            try? await Task.sleep(for: .seconds(8))
+          }
+        }
+      }
+#endif
+#if !os(tvOS)
+      .onAppear { restoreSelectedTab() }
+      .onChange(of: navigationState.selectedTab, initial: true) { _, tab in
+        storedTab = Self.storageKey(for: tab) ?? storedTab
+      }
+      // A remembered folder that is gone falls back to Home once the folders are known.
+      .onChange(of: sidebarFolders) { _, folders in
+        if case .bookmark(let id) = navigationState.selectedTab,
+           !folders.isEmpty, !folders.contains(where: { $0.id == id }) {
+          navigationState.selectBrowseTab(.home)
+        }
+      }
+#endif
 #if os(tvOS)
       // The one backdrop, behind the tab bar and every stack, and everything over it
       // transparent. The selected tab's path says whose picture is in front; the title's
@@ -84,6 +144,49 @@ struct TabsNavigationView: View {
       .onChange(of: networkMonitor.isOnline) { _, _ in }
   }
 
+#if !os(tvOS)
+  private func restoreSelectedTab() {
+#if DEBUG
+    guard UserDefaults.standard.string(forKey: "KINOPUBInitialTab") == nil,
+          UserDefaults.standard.string(forKey: "KINOPUBOpenItem") == nil else { return }
+#endif
+#if os(iOS)
+    // iPhone opens on Home; the restored place is the sidebar's (iPad).
+    guard horizontalSizeClass == .regular else { return }
+#endif
+    guard navigationState.selectedTab == .home, let tab = Self.tab(forStorageKey: storedTab) else { return }
+    navigationState.selectBrowseTab(tab)
+  }
+
+  /// Search and Settings are not places to come back to.
+  static func storageKey(for tab: NavigationTabs) -> String? {
+    switch tab {
+    case .search, .settings: nil
+    case .bookmark(let id): "bookmark:\(id)"
+    case .home: "home"
+    case .catalog: "catalog"
+    case .movies: "movies"
+    case .series: "series"
+    case .collections: "collections"
+    case .tv: "tv"
+    case .library: "library"
+    case .watchlist: "watchlist"
+    case .recentlyWatched: "history"
+    case .downloads: "downloads"
+    case .bookmarks: "bookmarks"
+    case .continueWatching: "continue"
+    case .genres: "genres"
+    }
+  }
+
+  static func tab(forStorageKey key: String) -> NavigationTabs? {
+    if key.hasPrefix("bookmark:"), let id = Int(key.dropFirst("bookmark:".count)) { return .bookmark(id) }
+    let all: [NavigationTabs] = [.home, .catalog, .movies, .series, .collections, .library, .watchlist,
+                                 .recentlyWatched, .continueWatching, .genres]
+    return all.first { storageKey(for: $0) == key }
+  }
+#endif
+
   private var tabSelection: Binding<NavigationTabs> {
     Binding(
       get: {
@@ -107,15 +210,14 @@ struct TabsNavigationView: View {
 #endif
         if newValue == .search {
           if navigationState.selectedTab == .search {
-            navigationState.popToRoot(for: .search)
+            navigationState.reselect(.search)
           } else {
-            // Remember previous tab so Back can leave Search (toolbar / tab / filter jump).
             navigationState.enterSearch()
           }
           return
         }
         if newValue == navigationState.selectedTab {
-          navigationState.popToRoot(for: newValue)
+          navigationState.reselect(newValue)
         } else {
           navigationState.selectedTab = newValue // Publishing changes from within view updates is not allowed, this will cause undefined behavior.
         }
@@ -189,7 +291,11 @@ struct TabsNavigationView: View {
   @ViewBuilder
   private var modernTabs: some View {
 #if os(macOS)
-    macShell
+    if FeatureFlags.macSidebarEnabled {
+      macSidebarShell
+    } else {
+      macShell
+    }
 #elseif os(tvOS)
     tvTabBar
 #elseif os(iOS)
@@ -222,6 +328,210 @@ struct TabsNavigationView: View {
       if navigationState.selectedTab == .settings {
         navigationState.selectedTab = .home
       }
+    }
+  }
+#endif
+
+#if os(macOS)
+  // MARK: - Mac sidebar
+
+  /// The Apple TV app's shell (Sasha, 2026-10-30): one split view, a source-list sidebar
+  /// on the left and the selected destination beside it. `NavigationSplitView` with a
+  /// sidebar `List` is what AppKit draws there — `NSSplitView`, then an `NSOutlineView`
+  /// named «Sidebar» with a row per item — the same tree the TV app's own sidebar has.
+  ///
+  /// Search, Home and the catalog without a header; the Library's places under it; every
+  /// bookmark folder under Collections, the way the TV app lists playlists; the account
+  /// at the foot. Settings is the Settings window (⌘,). Each destination keeps its own
+  /// stack for pushes.
+  private var macSidebarShell: some View {
+    NavigationSplitView(columnVisibility: .constant(.all)) {
+      VStack(spacing: 0) {
+      List(selection: sidebarSelection) {
+        Label("Search", systemImage: "magnifyingglass").tag(NavigationTabs.search)
+          .sidebarReselect(.search, using: sidebarReselect)
+        ForEach(activeBrowseTabs.filter { $0.tab != .library }) { spec in
+          // Outline glyphs, as the TV app's sidebar draws them; the tab bar's are filled.
+          Label(spec.title, systemImage: Self.outlineSymbol(spec.systemImage)).tag(spec.tab)
+            .sidebarReselect(spec.tab, using: sidebarReselect)
+        }
+
+        Section("Library") {
+          Label("NewEpisodesTitle".localized, systemImage: "bell")
+            .badge(watchlistBadgeCount)
+            .tag(NavigationTabs.watchlist)
+            .sidebarReselect(.watchlist, using: sidebarReselect)
+          Label("Continue Watching", systemImage: "play.circle")
+            .tag(NavigationTabs.continueWatching)
+            .sidebarReselect(.continueWatching, using: sidebarReselect)
+          Label("History", systemImage: "clock.arrow.circlepath")
+            .tag(NavigationTabs.recentlyWatched)
+            .sidebarReselect(.recentlyWatched, using: sidebarReselect)
+          Label("SidebarGenres".localized, systemImage: "square.stack.3d.down.right")
+            .tag(NavigationTabs.genres)
+            .sidebarReselect(.genres, using: sidebarReselect)
+        }
+
+        if !sidebarFolders.isEmpty {
+          Section("BookmarkCollections".localized) {
+            ForEach(sidebarFolders, id: \.id) { folder in
+              Label(folder.title, systemImage: "bookmark")
+                .tag(NavigationTabs.bookmark(folder.id))
+                .sidebarReselect(.bookmark(folder.id), using: sidebarReselect)
+            }
+          }
+        }
+      }
+      .listStyle(.sidebar)
+      .environment(\.symbolVariants, .none)
+        // Under the list, not over it: an inset let the last folder scroll beneath it.
+        MacSidebarAccount(userService: appContext.userService)
+      }
+      // The TV app's width, and fixed as its is: its divider does not move.
+      .navigationSplitViewColumnWidth(min: Self.macSidebarWidth, ideal: Self.macSidebarWidth,
+                                      max: Self.macSidebarWidth)
+      // SwiftUI's width is a preference the divider can still be dragged past, and the
+      // sidebar could be dragged shut (Sasha, 2026-10-31). The TV app's is fixed: the
+      // split view item itself is pinned.
+      .background(MacFixedSidebar(width: Self.macSidebarWidth))
+      // The TV app's sidebar is always there: no «Hide Sidebar» button in the toolbar
+      // (Sasha, 2026-10-30), and nothing collapses it.
+      .toolbar(removing: .sidebarToggle)
+    } detail: {
+      // Focus lives in the page, not the list, as in Apple's own sidebar apps: the
+      // selection then sits grey under bold type instead of the blue of a focused list,
+      // and the keyboard works the page — Left / Right turn the Home hero (Sasha,
+      // 2026-10-30). Taken on launch and after every pick in the sidebar.
+      macSidebarDetail
+        // Every page under the same window toolbar, as the TV app's: with nothing in it a
+        // page had none, and switching between pages moved everything up and down by the
+        // bar's height (Sasha, 2026-10-31). The picture of Home runs on up under it.
+        //
+        // Settings at the trailing end of it on every page, as iOS has it over Home; the
+        // account at the foot of the sidebar opens the same window.
+        .toolbar {
+          ToolbarSpacer(.flexible)
+          ToolbarItem(placement: .primaryAction) {
+            Button {
+              openSettings()
+            } label: {
+              Image(systemName: "person.crop.circle")
+            }
+            .accessibilityLabel(Text("Settings".localized))
+            .help(Text("Settings".localized))
+          }
+        }
+        // `.edit`: focusable whatever the system's keyboard-navigation setting; the
+        // default (`.activate`) takes focus only with Full Keyboard Access on, so the
+        // page never held the keyboard and the arrows did not reach it.
+        .focusable(interactions: .edit)
+        .focusEffectDisabled()
+        .focused($detailFocused)
+        // Key presses, not move commands: the scroll views inside take the arrows first.
+        .onKeyPress(keys: [.leftArrow, .rightArrow]) { press in
+          heroStep = HeroStepRequest(delta: press.key == .leftArrow ? -1 : 1)
+          return .handled
+        }
+        // The rest of a scroll view's keys, which the page's focus would otherwise eat
+        // with a beep (Sasha, 2026-11-04).
+        .onKeyPress(keys: [.upArrow, .downArrow, .pageUp, .pageDown, .home, .end, .space]) { press in
+          let kind: PageScrollRequest.Kind = switch press.key {
+          case .upArrow: .lineUp
+          case .downArrow: .lineDown
+          case .pageUp: .pageUp
+          case .home: .top
+          case .end: .bottom
+          case .space: press.modifiers.contains(.shift) ? .pageUp : .pageDown
+          default: .pageDown
+          }
+          pageScroll = PageScrollRequest(kind)
+          return .handled
+        }
+        .environment(\.heroStepRequest, heroStep)
+        .environment(\.pageScrollRequest, pageScroll)
+        // The page runs under the floating sidebar: its rows and Home hero keep clear of
+        // it by this width from the first frame, not by the system's inset, which came
+        // late and made them jump (Sasha, 2026-11-04).
+        .environment(\.pageLeadingObstruction, Self.macSidebarWidth)
+        .environment(\.macLargePageTitles, true)
+        .onAppear { detailFocused = true }
+        .onChange(of: navigationState.selectedTab) {
+          if navigationState.selectedTab != .search { detailFocused = true }
+        }
+    }
+  }
+
+  /// A click on the row already selected: back to its root, or up to its top. The list
+  /// does not report it (the selection does not change), so each row also sees its own
+  /// clicks — and ignores the one that just selected it.
+  private func sidebarReselect(_ tab: NavigationTabs) {
+    guard tab == navigationState.selectedTab,
+          sidebarReselectGuard.allows(at: .now) else { return }
+    navigationState.reselect(tab)
+  }
+
+#if os(macOS)
+  /// The TV app's sidebar column, fixed.
+  static let macSidebarWidth: CGFloat = 220
+#endif
+
+  /// The outline form of a tab glyph: «house.fill» → «house».
+  static func outlineSymbol(_ name: String) -> String {
+    name.hasSuffix(".fill") ? String(name.dropLast(".fill".count)) : name
+  }
+
+  private var sidebarSelection: Binding<NavigationTabs?> {
+    Binding(
+      get: { navigationState.selectedTab },
+      set: { tab in
+        guard let tab else { return }
+        if tab == navigationState.selectedTab {
+          sidebarReselect(tab)
+          return
+        }
+        sidebarReselectGuard.pickedAt = .now
+        // A plain switch: every section keeps its stack, and Search its query and
+        // results. `selectBrowseTab` empties Search on the way out — the tab bar's
+        // «leave Search» gesture, not a sidebar's (Sasha, 2026-10-31).
+        if tab == .search {
+          navigationState.enterSearch()
+        } else {
+          navigationState.selectedTab = tab
+        }
+      }
+    )
+  }
+
+  @ViewBuilder
+  private var macSidebarDetail: some View {
+    switch navigationState.selectedTab {
+    case .search:
+      searchContent
+    case .watchlist:
+      WatchlistView()
+    case .continueWatching:
+      RouteStack(tab: .continueWatching) {
+        ContinueWatchingListView.make(context: appContext, authState: authState, errorHandler: errorHandler)
+      }
+    case .recentlyWatched:
+      RouteStack(tab: .recentlyWatched) {
+        HistoryView()
+      }
+    case .genres:
+      MacGenresView()
+    case .bookmark(let id):
+      if let folder = sidebarFolders.first(where: { $0.id == id }) {
+        RouteStack(tab: .bookmark(id)) {
+          BookmarkView(model: BookmarkModel(bookmark: folder,
+                                            itemsService: appContext.contentService,
+                                            errorHandler: errorHandler))
+        }
+        .id(id)
+      } else {
+        homeContent
+      }
+    case let tab:
+      browseContent(for: tab)
     }
   }
 #endif
@@ -271,25 +581,62 @@ struct TabsNavigationView: View {
   /// Search deliberately does **not** use `Tab(role: .search)` here — that role pins it
   /// trailing, which put the two utility tabs at the same end and read as an
   /// afterthought. iPhone keeps the role (bottom-bar HIG).
+  /// iPad: the system's adaptive sidebar (`.sidebarAdaptable`), as Apple's own iPad apps
+  /// build it (Sasha, 2026-10-30) — the top tabs, and the same Library and Collections
+  /// sections as the Mac sidebar when it is open. Compact width falls back to the tab bar.
   private var padTabBar: some View {
     TabView(selection: tabSelection) {
-      Tab(value: NavigationTabs.search) {
+      Tab("Search", systemImage: "magnifyingglass", value: NavigationTabs.search, role: .search) {
         searchContent
-      } label: {
-        glyph("magnifyingglass", label: "Search")
       }
 
-      ForEach(activeBrowseTabs) { spec in
-        browseTab(spec)
+      ForEach(activeBrowseTabs.filter { $0.tab != .library && $0.tab != .watchlist }) { spec in
+        Tab(spec.title, systemImage: spec.systemImage, value: spec.tab) {
+          content(for: spec.tab)
+        }
       }
 
-      Tab(value: NavigationTabs.settings) {
+      TabSection("Library") {
+        Tab("NewEpisodesTitle".localized, systemImage: "bell", value: NavigationTabs.watchlist) {
+          WatchlistView()
+        }
+        .badge(unwatchedEpisodesCount)
+        Tab("Continue Watching", systemImage: "play.circle", value: NavigationTabs.continueWatching) {
+          RouteStack(tab: .continueWatching) {
+            ContinueWatchingListView.make(context: appContext, authState: authState, errorHandler: errorHandler)
+          }
+        }
+        Tab("History", systemImage: "clock.arrow.circlepath", value: NavigationTabs.recentlyWatched) {
+          RouteStack(tab: .recentlyWatched) { HistoryView() }
+        }
+        Tab("SidebarGenres".localized, systemImage: "square.stack.3d.down.right", value: NavigationTabs.genres) {
+          MacGenresView()
+        }
+        Tab("TabLibrary", systemImage: "rectangle.stack", value: NavigationTabs.library) {
+          libraryContent
+        }
+      }
+
+      if !sidebarFolders.isEmpty {
+        TabSection("BookmarkCollections".localized) {
+          ForEach(sidebarFolders, id: \.id) { folder in
+            Tab(folder.title, systemImage: "bookmark", value: NavigationTabs.bookmark(folder.id)) {
+              RouteStack(tab: .bookmark(folder.id)) {
+                BookmarkView(model: BookmarkModel(bookmark: folder,
+                                                  itemsService: appContext.contentService,
+                                                  errorHandler: errorHandler))
+              }
+            }
+          }
+        }
+        .defaultVisibility(.hidden, for: .tabBar)
+      }
+
+      Tab("Settings", systemImage: "gear", value: NavigationTabs.settings) {
         settingsContent
-      } label: {
-        glyph("gear", label: "Settings")
       }
     }
-    .tabViewStyle(.tabBarOnly)
+    .tabViewStyle(.sidebarAdaptable)
     // Always visible for now (2026-08-09) — the system's scroll-driven minimize was
     // reading as random fade in/out. Revisit once detail-page choreography settles.
     .tabBarMinimizeBehavior(.never)
@@ -351,7 +698,7 @@ struct TabsNavigationView: View {
 
 #if !os(tvOS)
   private var searchContent: some View {
-    SearchView(catalog: makeSearchCatalog())
+    SearchView(catalog: sectionModels.model("search") { makeSearchCatalog() })
   }
 #endif
 
@@ -392,12 +739,14 @@ struct TabsNavigationView: View {
 
   private var catalogContent: some View {
     FilterCatalogTabView(
-      catalog: LibraryCatalog(
-        itemsService: appContext.contentService,
-        authState: authState,
-        errorHandler: errorHandler,
-        savedFilterKey: "catalog.tab.filter"
-      )
+      catalog: sectionModels.model("catalog") {
+        LibraryCatalog(
+          itemsService: appContext.contentService,
+          authState: authState,
+          errorHandler: errorHandler,
+          savedFilterKey: "catalog.tab.filter"
+        )
+      }
     )
   }
 
@@ -427,10 +776,12 @@ struct TabsNavigationView: View {
   /// `MainView` + `HomeCatalog`. Typed catalogs filter Hot / Fresh / Popular to one
   /// `MediaType`; Continue Watching stays on Watch Now only.
   private func posterShelves(tab: NavigationTabs, contentType: MediaType?) -> some View {
-    MainView(tab: tab, catalog: HomeCatalog(itemsService: appContext.contentService,
-                                            authState: authState,
-                                            errorHandler: errorHandler,
-                                            contentType: contentType))
+    MainView(tab: tab, catalog: sectionModels.model("shelves-\(tab)") {
+      HomeCatalog(itemsService: appContext.contentService,
+                  authState: authState,
+                  errorHandler: errorHandler,
+                  contentType: contentType)
+    })
   }
 
   /// macOS and tvOS run the sidebar shell; iOS still gets the shelf-rows Library until
@@ -698,3 +1049,217 @@ struct TabsNavigationView_Previews: PreviewProvider {
       .environmentObject(NetworkMonitor())
   }
 }
+
+#if os(macOS)
+/// The account at the foot of the sidebar, as the TV app has it: the avatar and the name.
+/// A click opens the Settings window.
+private struct MacSidebarAccount: View {
+  let userService: UserService
+  @Environment(\.openSettings) private var openSettings
+  @State private var name: String?
+  @State private var avatarURL: URL?
+  @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 28
+  @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 60
+
+  var body: some View {
+    // The TV app's: a 60 pt row under a hairline, a 28 pt avatar, the name in the
+    // sidebar rows' own type (measured, 2026-10-30).
+    VStack(spacing: 0) {
+      Divider()
+      Button {
+        openSettings()
+      } label: {
+        HStack(spacing: 10) {
+          CachedRemoteImage(url: avatarURL, contentMode: .fill,
+                            placeholder: { Image(systemName: "person.crop.circle.fill").resizable() },
+                            failure: { Image(systemName: "person.crop.circle.fill").resizable() })
+            .foregroundStyle(.secondary)
+            .frame(width: avatarSize, height: avatarSize)
+            .clipShape(Circle())
+          Text(name ?? "")
+            .font(.body)
+            .lineLimit(1)
+          Spacer(minLength: 0)
+        }
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .padding(.horizontal, 18)
+      .frame(height: rowHeight)
+    }
+    .task {
+      guard let user = try? await userService.fetchUserData() else { return }
+      name = user.profile.name.flatMap { $0.isEmpty ? nil : $0 } ?? user.username
+      avatarURL = user.profile.avatar.flatMap(URL.init(string:))
+    }
+  }
+}
+
+#endif
+
+#if !os(tvOS)
+/// Genres as the TV app has them. Mac: the list in a column of its own beside the
+/// sidebar, the selected genre's titles beside it. iPad: the list, each genre pushing its
+/// titles.
+private struct MacGenresView: View {
+  @Environment(\.appContext) private var appContext
+  @EnvironmentObject private var authState: AuthState
+  @Environment(ErrorHandler.self) private var errorHandler
+  @State private var genres: [MediaGenre] = []
+  @AppStorage("genreSelection") private var selection: Int?
+
+  var body: some View {
+#if os(iOS)
+    RouteStack(tab: .genres) {
+      List(genres) { genre in
+        NavigationLink(value: Route.filteredShelf(LibraryFilter(genreID: genre.id), title: genre.title)) {
+          Label(genre.title, systemImage: MacGenreSymbol.name(for: genre.title))
+        }
+      }
+      .platformNavigationTitle("SidebarGenres".localized)
+    }
+    .task { await loadGenres() }
+#else
+    HStack(spacing: 0) {
+      List(selection: $selection) {
+        ForEach(genres) { genre in
+          Label(genre.title, systemImage: MacGenreSymbol.name(for: genre.title))
+            .tag(Optional(genre.id))
+        }
+      }
+      .listStyle(.sidebar)
+      .scrollContentBackground(.hidden)
+      .frame(width: 220)
+      Divider()
+      RouteStack(tab: .genres) {
+        if let selection, let genre = genres.first(where: { $0.id == selection }) {
+          FilteredShelfView.make(filter: LibraryFilter(genreID: genre.id),
+                                 title: genre.title,
+                                 context: appContext,
+                                 authState: authState,
+                                 errorHandler: errorHandler)
+            .id(genre.id)
+        } else {
+          Color.clear
+        }
+      }
+    }
+    .task { await loadGenres() }
+#endif
+  }
+
+  private func loadGenres() async {
+    guard genres.isEmpty, let all = try? await appContext.contentService.fetchGenres(for: nil).items
+    else { return }
+    var seen = Set<String>()
+    genres = all.filter { seen.insert($0.title.lowercased()).inserted }
+      .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    // A remembered genre that is gone falls back to the first.
+    if selection == nil || !genres.contains(where: { $0.id == selection }) {
+      selection = genres.first?.id
+    }
+  }
+}
+
+/// A glyph per genre, by the words its name starts with — kino.pub sends no icons.
+enum MacGenreSymbol {
+  static func name(for title: String) -> String {
+    let lower = title.lowercased()
+    let table: [(String, String)] = [
+      ("боевик", "flame"), ("комеди", "face.smiling"), ("драм", "theatermasks"),
+      ("ужас", "eye"), ("фантаст", "sparkles"), ("фэнтези", "wand.and.stars"),
+      ("триллер", "bolt"), ("детектив", "magnifyingglass"), ("мульт", "paintbrush"),
+      ("аниме", "sparkle"), ("документ", "doc.text.image"), ("мелодрам", "heart"),
+      ("криминал", "lock"), ("приключ", "map"), ("семейн", "figure.2.and.child.holdinghands"),
+      ("воен", "shield"), ("истор", "building.columns"), ("музык", "music.note"),
+      ("мюзикл", "music.mic"), ("спорт", "sportscourt"), ("вестерн", "sun.dust"),
+      ("биограф", "person.text.rectangle"), ("детск", "teddybear"), ("короткометраж", "timer"),
+      ("реалити", "video"), ("ток-шоу", "mic"), ("новост", "newspaper"), ("эротик", "flame.fill"),
+      ("кулинар", "fork.knife"), ("путешеств", "airplane"), ("природ", "leaf"),
+      ("наук", "atom"), ("концерт", "music.quarternote.3"), ("стендап", "music.mic"),
+    ]
+    return table.first { lower.hasPrefix($0.0) || lower.contains($0.0) }?.1 ?? "film"
+  }
+}
+#endif
+
+#if os(macOS)
+import AppKit
+
+/// Pins the sidebar column of the split view it sits in, as the TV app's is: one width,
+/// no collapsing, the divider does not move.
+private struct MacFixedSidebar: NSViewRepresentable {
+  let width: CGFloat
+
+  func makeNSView(context: Context) -> NSView { Probe(width: width) }
+  func updateNSView(_ nsView: NSView, context: Context) {}
+
+  private final class Probe: NSView {
+    let width: CGFloat
+    init(width: CGFloat) {
+      self.width = width
+      super.init(frame: .zero)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      DispatchQueue.main.async { [weak self] in self?.pin() }
+    }
+
+    private func pin() {
+      var view: NSView? = superview
+      while let current = view, !(current is NSSplitView) { view = current.superview }
+      guard let split = view as? NSSplitView,
+            let controller = split.delegate as? NSSplitViewController,
+            let sidebar = controller.splitViewItems.first else { return }
+      sidebar.canCollapse = false
+      sidebar.canCollapseFromWindowResize = false
+      sidebar.minimumThickness = width
+      sidebar.maximumThickness = width
+      sidebar.holdingPriority = .defaultHigh
+      if split.arrangedSubviews.first?.frame.width != width {
+        split.setPosition(width, ofDividerAt: 0)
+      }
+    }
+  }
+}
+#endif
+
+/// The sections' long-lived models, keyed by section: made on the first visit and handed
+/// back on every later one.
+@MainActor
+final class SectionModels {
+  private var models: [String: AnyObject] = [:]
+
+  func model<Model: AnyObject>(_ key: String, make: () -> Model) -> Model {
+    if let model = models[key] as? Model { return model }
+    let model = make()
+    models[key] = model
+    return model
+  }
+}
+
+#if os(macOS)
+/// Tells a click on the selected sidebar row from the click that selected it, and one
+/// click from the same click reported twice (by the row and by the list).
+final class SidebarReselectGuard {
+  var pickedAt = Date.distantPast
+  private var reselectedAt = Date.distantPast
+  static let settle: TimeInterval = 0.35
+
+  func allows(at now: Date) -> Bool {
+    guard now.timeIntervalSince(pickedAt) > Self.settle,
+          now.timeIntervalSince(reselectedAt) > Self.settle else { return false }
+    reselectedAt = now
+    return true
+  }
+}
+
+private extension View {
+  func sidebarReselect(_ tab: NavigationTabs, using action: @escaping (NavigationTabs) -> Void) -> some View {
+    simultaneousGesture(TapGesture().onEnded { action(tab) })
+  }
+}
+#endif

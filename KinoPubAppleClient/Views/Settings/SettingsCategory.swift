@@ -43,8 +43,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
 
   var systemImage: String {
     switch self {
-    case .general: return "gearshape.fill"
-    case .playback: return "play.rectangle.fill"
+    case .general: return "gear"
+    case .playback: return "play.fill"
     case .integrations: return "puzzlepiece.extension.fill"
     case .downloads: return "arrow.down.circle.fill"
     case .devices: return "laptopcomputer.and.iphone"
@@ -55,7 +55,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case .backups: return "externaldrive.fill.badge.icloud"
     case .network: return "network"
     case .advanced: return "wrench.and.screwdriver.fill"
-    case .about: return "info.circle.fill"
+    case .about: return "info"
     }
   }
 

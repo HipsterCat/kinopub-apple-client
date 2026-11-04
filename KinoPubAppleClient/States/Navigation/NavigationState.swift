@@ -43,6 +43,8 @@ final class NavigationState {
   var recentlyWatchedRoutes: [Route] = []
   var bookmarksRoutes: [Route] = []
   var downloadsRoutes: [Route] = []
+  var continueWatchingRoutes: [Route] = []
+  var genresRoutes: [Route] = []
   /// Applied once when Search becomes active — genre / country / year from the
   /// item page land here so Search opens already filtered, titled, and labeled.
   var pendingSearch: PendingSearch?
@@ -74,11 +76,22 @@ final class NavigationState {
   /// History onto it.
   init() {
     switch UserDefaults.standard.string(forKey: "KINOPUBInitialTab") {
+    case "search": selectedTab = .search
+    case "series": selectedTab = .series
     case "library": selectedTab = .library
     case "watching": selectedTab = .watchlist
     case "tv": selectedTab = .tv
     case "settings": selectedTab = .settings
+    case "genres": selectedTab = .genres
+    case "history": selectedTab = .recentlyWatched
+    case let raw? where raw.hasPrefix("bookmark:"):
+      if let id = Int(raw.dropFirst("bookmark:".count)) { selectedTab = .bookmark(id) }
     default: break
+    }
+    if let route = UserDefaults.standard.string(forKey: "KINOPUBInitialRoute"),
+       route.hasPrefix("item:"), let id = Int(route.dropFirst("item:".count)),
+       let keyPath = Self.routes(for: selectedTab) {
+      self[keyPath: keyPath] = [.detailsById(id)]
     }
     if UserDefaults.standard.string(forKey: "KINOPUBInitialRoute") == "history" {
       libraryRoutes = [.history]
@@ -208,6 +221,8 @@ final class NavigationState {
     case .recentlyWatched: \.recentlyWatchedRoutes
     case .bookmarks, .bookmark: \.bookmarksRoutes
     case .downloads: \.downloadsRoutes
+    case .continueWatching: \.continueWatchingRoutes
+    case .genres: \.genresRoutes
     case .settings: nil
     }
   }
@@ -240,7 +255,18 @@ final class NavigationState {
       return .constant([])
     }
     return Binding(get: { self[keyPath: keyPath] },
-                   set: { self[keyPath: keyPath] = $0 })
+                   set: { [weak self] routes in
+                     guard let self else { return }
+                     // A section's stack torn down on leaving it writes back an empty
+                     // path; that is not the viewer going back. Its titles stay for the
+                     // next visit (Sasha, 2026-10-31: a title opened in Search was gone).
+                     if routes.isEmpty, tab != self.selectedTab, !self[keyPath: keyPath].isEmpty { return }
+                     self[keyPath: keyPath] = routes
+                     let ids = MediaItemModelCache.itemIDs(in: routes)
+                     MainActor.assumeIsolated {
+                       MediaItemModelCache.shared.keep(only: ids, on: tab)
+                     }
+                   })
   }
 
   /// Clears the selected tab's stack so a second click on the same tab
@@ -248,6 +274,23 @@ final class NavigationState {
   func popToRoot(for tab: NavigationTabs) {
     guard let keyPath = Self.routes(for: tab) else { return }
     self[keyPath: keyPath] = [] //Publishing changes from within view updates is not allowed, this will cause undefined behavior.
+    MainActor.assumeIsolated {
+      MediaItemModelCache.shared.keep(only: [], on: tab)
+    }
+  }
+
+  /// Bumped per section when it is chosen again at its root; its page scrolls to the top
+  /// (`scrollToTopRequest`).
+  private(set) var scrollToTopRequests: [NavigationTabs: Int] = [:]
+
+  /// The shown section chosen again — its tab, its sidebar row: back to its root, and at
+  /// the root to the top of the page, as Apple's tab bars do (Sasha, 2026-10-31).
+  func reselect(_ tab: NavigationTabs) {
+    if let keyPath = Self.routes(for: tab), !self[keyPath: keyPath].isEmpty {
+      popToRoot(for: tab)
+    } else {
+      scrollToTopRequests[tab, default: 0] += 1
+    }
   }
 
   /// Appends onto the selected tab's navigation stack (context-menu Play, etc.).
@@ -327,8 +370,18 @@ private struct MacToolbarSearchModifier: ViewModifier {
   @Environment(NavigationState.self) private var navigationState
 
   func body(content: Content) -> some View {
+    // With the sidebar, Search is a place of its own, as in the TV app: the field is on
+    // that page alone, not over every other one.
+    if FeatureFlags.macSidebarEnabled && navigationState.selectedTab != .search {
+      content
+    } else {
+      field(content)
+    }
+  }
+
+  private func field(_ content: Content) -> some View {
     @Bindable var navigationState = navigationState
-    content
+    return content
       // Probe: `.toolbar` = compact trailing field beside `.tabBarOnly` tabs (Finder/Photos).
       // `.automatic` / no placement on this shell can still stretch; `.toolbarPrincipal` is the giant center field.
       .searchable(

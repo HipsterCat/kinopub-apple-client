@@ -205,6 +205,10 @@ public struct ContentItemsListView<Header: View>: View {
         }
       }
     }
+#if !os(tvOS)
+    .remembersScroll()
+#endif
+
     // Headers are supplied by callers; publishing the grid's own margin is what stops
     // each of them padding by a number of its own and landing off the first column.
     .environment(\.shelfGridInset, metrics.gridInset(in: containerWidth))

@@ -45,7 +45,7 @@ public struct FallbackRemoteImage: View {
           Color.clear
       }
     }
-    .task(id: urls.map(\.absoluteString).joined(separator: "|")) {
+    .task(id: listKey) {
       await load()
     }
   }
@@ -54,9 +54,18 @@ public struct FallbackRemoteImage: View {
   /// the first frame instead — fading in art that is already there reads as a flicker.
   public static let fadeIn = Animation.easeInOut(duration: 0.5)
 
+  /// The candidate that painted last time, per candidate list: a view rebuilt on coming
+  /// back to a page paints it from the memory cache on the first frame, instead of
+  /// starting over at a first candidate that failed (and briefly showing nothing).
+  @MainActor private static var winners: [String: URL] = [:]
+
+  private var listKey: String { urls.map(\.absoluteString).joined(separator: "|") }
+
   @MainActor
   private func load() async {
-    if let first = urls.first, let cached = Artwork.cachedImage(for: first) {
+    let key = listKey
+    let known = Self.winners[key] ?? urls.first
+    if let known, let cached = Artwork.cachedImage(for: known) {
       image = Image(platformImage: cached)
       loading = false
       onLoaded?()
@@ -78,6 +87,7 @@ public struct FallbackRemoteImage: View {
         let loaded = try await Artwork.image(for: url)
         // `.transition(.opacity)` only plays inside an animated change.
         withAnimation(Self.fadeIn) { image = Image(platformImage: loaded) }
+        Self.winners[key] = url
         onLoaded?()
         artLog.debug("art OK \(url.absoluteString, privacy: .public)")
         #if DEBUG

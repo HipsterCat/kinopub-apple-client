@@ -44,6 +44,8 @@ enum Route: Hashable {
   case continueWatching
   /// The followed serials in full, pushed from the Library's Watchlist row.
   case watchlist
+  /// Every bookmark folder as a tile, pushed from the Library's Collections row.
+  case bookmarkFolders([Bookmark])
   /// A detail page's Ratings and Reviews block, opened in full.
   case ratingsAndReviews(RatingsAndReviews)
 
@@ -118,6 +120,9 @@ enum Route: Hashable {
       hasher.combine(15)
     case .watchlist:
       hasher.combine(16)
+    case .bookmarkFolders(let folders):
+      hasher.combine(17)
+      hasher.combine(folders)
     }
   }
 
@@ -155,6 +160,8 @@ enum Route: Hashable {
       return a == b && atitle == btitle
     case (.watchlist, .watchlist):
       return true
+    case (.bookmarkFolders(let a), .bookmarkFolders(let b)):
+      return a == b
     case (.continueWatching, .continueWatching):
       return true
     default:

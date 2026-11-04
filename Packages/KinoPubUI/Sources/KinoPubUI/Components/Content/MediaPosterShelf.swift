@@ -42,6 +42,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.usesTVUIKitPosters) private var usesTVUIKitPosters
   @Environment(\.mediaNavigation) private var mediaNavigation
+  @Environment(\.pageLeadingObstruction) private var pageLeadingObstruction
   @State private var containerWidth: CGFloat = 1920
   /// The container's own horizontal safe-area inset. Zero on a screen that already
   /// sits inside the safe area; the overscan margin on one that ignores it (the detail
@@ -203,7 +204,14 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
 #else
     // On the first card's inset, outside the link so the margin is not part of it.
     header
-      .padding(.leading, leadingInset)
+      .padding(.leading, leadingInset + pageLeadingObstruction)
+#if os(macOS)
+      // Measured from the window edge like the rail, with the sidebar's width as our
+      // own padding: the system's sidebar inset arrives after the first frames and
+      // moved the header once it did (and counted the sidebar twice with ours).
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .ignoresSafeArea(.container, edges: .horizontal)
+#endif
 #endif
   }
 
@@ -339,10 +347,15 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
       .padding(.leading, leadingInset)
       .padding(.bottom, railFocusPadding)
 #else
-      .padding(.horizontal, metrics.inset)
+      .padding(.leading, metrics.inset + pageLeadingObstruction)
+      .padding(.trailing, metrics.inset)
       .padding(.vertical, railFocusPadding)
 #endif
     }
+#if os(macOS)
+    // The sidebar's width as our own padding, not the system's late scroll inset.
+    .ignoresSafeArea(.container, edges: .horizontal)
+#endif
 #if os(tvOS)
     .buttonStyle(.borderless)
     .scrollClipDisabled()
@@ -447,3 +460,11 @@ private struct MediaPosterShelfFocusReporter: ViewModifier {
   }
 }
 #endif
+
+public extension EnvironmentValues {
+  /// What covers the page's leading side: the Mac's floating sidebar, which the page runs
+  /// under. Set by the shell from the sidebar's own fixed width, so it is right from the
+  /// first frame — the system's safe-area inset for it came a frame or two late and the
+  /// rows jumped. Headers, rails and the Home hero keep clear of it.
+  @Entry var pageLeadingObstruction: CGFloat = 0
+}

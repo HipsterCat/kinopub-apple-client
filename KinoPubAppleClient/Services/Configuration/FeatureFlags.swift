@@ -37,6 +37,7 @@ enum FeatureFlags {
   /// per-folder tabs carry browsing; when false the tab is omitted and the overview
   /// catalog is not fetched.
   static var allBookmarksEnabled: Bool { FeatureFlag.allBookmarks.isEnabled }
+  static var macSidebarEnabled: Bool { FeatureFlag.macSidebar.isEnabled }
 
   /// tvOS shelves + grids share one `TVPosterView` / `TVCardView` atom (same
   /// `ShelfMetrics` sizing), drawn by a recycling `UICollectionView` rather than a
@@ -149,6 +150,24 @@ enum FeatureFlags {
   /// (Sasha, 2026-10-21): the two stay side by side until one is chosen.
   static var playerTabsPlatter: Bool { FeatureFlag.playerTabsPlatter.isEnabled }
 
+  /// The trailer player's Info panel (tvOS). **Off**: it shows the trailer's running time,
+  /// which AVKit gives no way to hide on its own, so `playbackControlsIncludeInfoViews` is
+  /// false for trailers. On restores the panel with its *Go to Movie/Show* button.
+  static var trailerInfoPanel: Bool { FeatureFlag.trailerInfoPanel.isEnabled }
+
+  /// tvOS series page: the season row from Rivulet (full "Season N" tabs, an S2
+  /// divider, episode stills with the metadata plate). Off is the current numbered
+  /// tabs and wide cells. Select on the still plays; Select on the text opens the
+  /// info sheet.
+  static var rivuletSeasonRail: Bool { FeatureFlag.rivuletSeasonRail.isEnabled }
+
+  /// Where the detail page's metadata comes from. **On**: one `/v2/title` call to the
+  /// worker plus the Kinopoisk proxy without staff, no TMDB. **Off**: the TMDB, Kinopoisk
+  /// and proxy calls the page has always made. Only the chosen path is requested — a
+  /// title is never fetched both ways (Sasha, 2026-11-04). The page's Debug sheet can
+  /// flip one open title to the other path to compare them; that does not change this.
+  static var titleCardMetadata: Bool { FeatureFlag.titleCardMetadata.isEnabled }
+
   /// **TEMPORARY DIAGNOSTIC — DELETE ME.** Synthesises a fake season of episodes onto
   /// *movies*, so the detail page's season rail renders for a title that has none.
   ///
@@ -184,6 +203,10 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case rewritesStreamTrackMenus
   case combinedRating
   case playerTabsPlatter
+  case trailerInfoPanel
+  case rivuletSeasonRail
+  case titleCardMetadata
+  case macSidebar
 #if DEBUG
   case fakeSeasonsOnMovies
 #endif
@@ -208,6 +231,10 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: false
     case .combinedRating: false
     case .playerTabsPlatter: false
+    case .trailerInfoPanel: false
+    case .rivuletSeasonRail: true
+    case .titleCardMetadata: false
+    case .macSidebar: true
 #if DEBUG
     case .fakeSeasonsOnMovies: false
 #endif
@@ -232,6 +259,10 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: "Rewrite the player's track menus"
     case .combinedRating: "Combined IMDb + Kinopoisk rating"
     case .playerTabsPlatter: "Player tabs on a platter"
+    case .trailerInfoPanel: "Info panel on trailers"
+    case .rivuletSeasonRail: "Rivulet season rail"
+    case .titleCardMetadata: "Title metadata from /v2/title"
+    case .macSidebar: "Sidebar navigation (Mac)"
 #if DEBUG
     case .fakeSeasonsOnMovies: "Fake seasons on movies"
 #endif
@@ -256,6 +287,10 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rewritesStreamTrackMenus: "Relabel, collapse and re-default the HLS master's audio and subtitles. Off: AVKit names them."
     case .combinedRating: "One weighted score on posters, the hero and the Rating tile."
     case .playerTabsPlatter: "Episodes and Up Next on Info's glass platter; off is the page's open still row."
+    case .trailerInfoPanel: "The trailer player's Info panel, with the trailer's running time in it. Off: no Info on trailers."
+    case .rivuletSeasonRail: "Season tabs, the S2 divider and the episode metadata plate. Select on the text opens the info sheet. Off is the numbered tabs."
+    case .titleCardMetadata: "One worker /v2/title call plus Kinopoisk instead of the TMDB calls. Only the chosen source is fetched."
+    case .macSidebar: "The Apple TV app's sidebar: Search, Home, the catalog, the Library and every bookmark folder. Off is the tab bar."
 #if DEBUG
     case .fakeSeasonsOnMovies: "A fake, unplayable season rail on movies. Layout probe."
 #endif
@@ -267,7 +302,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var isRelevantHere: Bool {
     switch self {
     case .tvUIKitPosters, .tvPageSections, .tvUIKitSearch, .tvDetailSections, .tvOSSidecarSubtitles,
-         .playerTabsPlatter:
+         .playerTabsPlatter, .trailerInfoPanel, .rivuletSeasonRail:
 #if os(tvOS)
       true
 #else
@@ -278,6 +313,12 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
       false
 #else
       true
+#endif
+    case .macSidebar:
+#if os(macOS)
+      true
+#else
+      false
 #endif
     default:
       true
@@ -290,7 +331,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var appliesAtLaunch: Bool {
     switch self {
     case .homeHeroCarousel, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
-         .tvUIKitSearch, .combinedRating:
+         .tvUIKitSearch, .combinedRating, .macSidebar:
       true
     default:
       false
@@ -327,6 +368,18 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
+  /// The detail page's corner switch (removed 2026-11-04) kept its choice under its own
+  /// key. Carried over once, so a device that had picked v2 stays on v2.
+  private static func migrateTitleCardSwitch() {
+    let legacyKey = "kinopub.debug.usesTitleCard"
+    let defaults = UserDefaults.standard
+    guard let legacy = defaults.object(forKey: legacyKey) as? Bool else { return }
+    defaults.removeObject(forKey: legacyKey)
+    if !FeatureFlag.titleCardMetadata.isOverridden {
+      FeatureFlag.titleCardMetadata.set(legacy)
+    }
+  }
+
   static func resetAll() {
     allCases.forEach { UserDefaults.standard.removeObject(forKey: $0.defaultsKey) }
   }
@@ -341,6 +394,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   /// lives inside a package to it.
   @MainActor
   static func applyAtLaunch() {
+    migrateTitleCardSwitch()
     _ = launchValues
     RatingFeature.combinedEnabled = FeatureFlag.combinedRating.isEnabled
   }

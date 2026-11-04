@@ -29,7 +29,6 @@ struct TVProfileSettingsView: View {
   @Binding var selectedLanguage: String
   /// Bumps the cover row when the choice page writes the key.
   @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguageToken = ""
-  @Binding var preferEnglishSubtitles: Bool
   @Binding var preferNonCCSubtitles: Bool
   @Binding var dualSubtitlesEnabled: Bool
   @Binding var secondSubtitleLanguage: String
@@ -306,19 +305,11 @@ struct TVProfileSettingsView: View {
 
     SettingsSection("Subtitles") {
       toggleRow(
-        title: "Default English subtitles",
-        isOn: $preferEnglishSubtitles,
-        focus: focus,
-        equals: .englishSubs
-      )
-
-      toggleRow(
         title: "Prefer non-CC / non-SDH",
         isOn: $preferNonCCSubtitles,
         focus: focus,
         equals: .nonCC
       )
-      .disabled(!preferEnglishSubtitles)
 
       // The dual-subtitle stage's rows — parked with the sidecar machinery they feed.
       if FeatureFlags.tvOSSidecarSubtitles {
@@ -1023,7 +1014,6 @@ private enum SettingsFocusItem: Hashable {
   case rememberedTracks
   case autoPlayNextEpisode
   case autoPlayNextSeason
-  case englishSubs
   case nonCC
   case dual
   case secondLang
@@ -1052,7 +1042,6 @@ private enum SettingsFocusItem: Hashable {
     case .rememberedTracks: "Settings_Tip_RememberedTracks"
     case .autoPlayNextEpisode: "Settings_Tip_AutoPlayNextEpisode"
     case .autoPlayNextSeason: "Settings_Tip_ContinueToNextSeason"
-    case .englishSubs: "Settings_Tip_EnglishSubtitles"
     case .nonCC: "Settings_Tip_PreferNonCC"
     case .dual: "Settings_Tip_DualSubtitles"
     case .secondLang: "Settings_Tip_SecondLanguage"

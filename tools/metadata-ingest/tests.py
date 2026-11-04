@@ -988,5 +988,129 @@ class TestDocumentSpeaksTheMediaModel(RecordTestCase):
         self.assertEqual(len(doc["genre_sources"]), 3)
 
 
+class TestKvArchive(unittest.TestCase):
+    """The worker archive becomes kv.db, and card-2 only fills empty cells."""
+
+    def test_filled_poster_stays_and_a_missing_title_is_added(self):
+        import build_card
+        import import_kv
+
+        tmp = tempfile.TemporaryDirectory()
+        root = Path(tmp.name)
+        card = sqlite3.connect(root / "card.db")
+        card.executescript(build_card.SCHEMA)
+        card.execute(
+            "INSERT INTO card (kinopub_id, updated_at, poster_ru) VALUES (7, 't', 'https://kept.jpg')"
+        )
+        card.execute("INSERT INTO card (kinopub_id, updated_at) VALUES (9, 't')")
+        card.execute(
+            "INSERT INTO season (kinopub_id, number, episodes) VALUES (9, 1, 40)"
+        )
+        card.commit()
+        card.close()
+
+        rows = [
+            {"key": "stats:img", "expiration": None, "value": {"missing": 2, "waited": 1, "updated_at": "t"}},
+            {
+                "key": "title:kinopub:7",
+                "expiration": 10,
+                "value": {
+                    "version": 2, "kind": "movie", "pending": False,
+                    "title": {"ru": "Другой", "original": "Other"},
+                    "ids": {"tmdb": {"value": "movie/1", "confidence": 1, "method": "manual"}},
+                    "artwork": {"poster": [{"source": "tmdb", "url": "https://new.jpg", "lang": "ru", "width": 1, "height": 2}]},
+                    "ratings": [{"source": "tmdb", "value": 8.1, "votes": 10, "scale": 10}],
+                    "synopsis": [{"source": "tmdb", "lang": "ru", "variant": "full", "text": "Полный текст"}],
+                    "credits": [
+                        {"id": 42, "department": "actor", "character": "роль", "ord": 0, "popularity": 4.2, "gender": 2, "name_ru": "Имя", "name_en": "Name", "photos": ["https://face.jpg"], "sources": ["tmdb"]},
+                        {"id": 7, "department": "Directing", "job": "Director", "ord": 10, "popularity": 3.1, "name_ru": "Режиссёр", "photos": ["https://director.jpg"], "sources": ["tmdb"]},
+                    ],
+                    "facts": [{"source": "kinopoisk_proxy", "text": "Факт", "spoiler": 0}],
+                },
+            },
+            {
+                "key": "title:kinopub:8",
+                "expiration": 11,
+                "value": {
+                    "version": 2, "kind": "show", "pending": False,
+                    "title": {"ru": "Новый", "original": "New"},
+                    "ids": {
+                        "imdb": {"value": "tt0000008", "confidence": 1, "method": "manual"},
+                        "myshows": {"value": "55", "confidence": 1, "method": "manual"},
+                    },
+                },
+            },
+            {
+                "key": "title:kinopub:9",
+                "expiration": 12,
+                "value": {
+                    "version": 2, "kind": "show", "pending": False,
+                    "ids": {},
+                    "seasons": [
+                        {"number": 1, "name": "Сезон 1", "episode_cnt": 366, "poster": "https://season.jpg", "source": "tmdb", "episodes": [
+                            {"number": 1, "id": 99, "name": {"ru": "Серия", "en": "Episode"}, "thumbnail": "https://still.jpg", "runtime_min": 20, "tmdb": {"value": 8.4, "votes": 40}},
+                        ]},
+                        {"number": 2, "name": "Тысячелетняя кровавая война", "episode_cnt": 50, "source": "tmdb"},
+                    ],
+                },
+            },
+        ]
+        kv_path = root / "kv.db"
+        import_kv.write_kv(rows, kv_path)
+        kv = sqlite3.connect(kv_path)
+        self.assertEqual(kv.execute("SELECT missing FROM image_stat").fetchone()[0], 2)
+        self.assertEqual(kv.execute("SELECT value, method FROM external_id WHERE kinopub_id = 7").fetchone(), ("movie/1", "manual"))
+        self.assertEqual(kv.execute("SELECT COUNT(*) FROM credit").fetchone()[0], 2)
+        self.assertEqual(kv.execute("SELECT url FROM credit_photo").fetchone()[0], "https://face.jpg")
+        self.assertEqual(kv.execute("SELECT text FROM fact").fetchone()[0], "Факт")
+        self.assertEqual(kv.execute("SELECT name_ru, name_en, still FROM episode").fetchone(), ("Серия", "Episode", "https://still.jpg"))
+        kv.close()
+
+        report = import_kv.write_card2(root / "card.db", kv_path, root / "card-2.db")
+        out = sqlite3.connect(root / "card-2.db")
+        out.row_factory = sqlite3.Row
+        kept = out.execute("SELECT poster_ru, tmdb_id, tmdb, synopsis_ru FROM card WHERE kinopub_id = 7").fetchone()
+        self.assertEqual(kept["poster_ru"], "https://kept.jpg")
+        self.assertEqual(kept["tmdb_id"], "movie/1")
+        self.assertEqual(kept["tmdb"], 8.1)
+        self.assertEqual(kept["synopsis_ru"], "Полный текст")
+        added = out.execute("SELECT title_ru, imdb_id, myshows_id FROM card WHERE kinopub_id = 8").fetchone()
+        self.assertEqual(added["title_ru"], "Новый")
+        self.assertEqual(added["imdb_id"], "tt0000008")
+        self.assertEqual(added["myshows_id"], "55")
+        seasons = [
+            tuple(row) for row in out.execute(
+                "SELECT number, name, episodes, poster FROM season WHERE kinopub_id = 9 ORDER BY number"
+            )
+        ]
+        self.assertEqual(seasons[0], (1, None, 40, None))
+        self.assertEqual(seasons[1], (2, "Тысячелетняя кровавая война", 50, None))
+        self.assertEqual(
+            out.execute("SELECT name_ru FROM top_episode WHERE kinopub_id = 9 AND rank = 1").fetchone()[0],
+            "Серия",
+        )
+        stars = [row[0] for row in out.execute(
+            "SELECT name_ru FROM billing WHERE kinopub_id = 7 AND section = 'star' ORDER BY position"
+        )]
+        self.assertEqual(stars, ["Имя"])
+        self.assertEqual(
+            out.execute("SELECT name_ru FROM billing WHERE kinopub_id = 7 AND section = 'director'").fetchone()[0],
+            "Режиссёр",
+        )
+        urls = {row[0] for row in out.execute("SELECT url FROM image WHERE kinopub_id = 7")}
+        self.assertIn("https://kept.jpg", urls)
+        self.assertIn("https://new.jpg", urls)
+        self.assertIn("https://face.jpg", urls)
+        self.assertIn(
+            "https://still.jpg",
+            {row[0] for row in out.execute("SELECT url FROM image WHERE kinopub_id = 9 AND kind = 'still'")},
+        )
+        self.assertEqual(report["added_rows"], 1)
+        self.assertEqual(report["seasons_added"], 1)
+        self.assertTrue(any("season 1 episodes" in line for line in report["season_notes"]))
+        out.close()
+        tmp.cleanup()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

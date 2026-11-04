@@ -29,4 +29,17 @@ public struct MediaIdentity: Hashable, Sendable {
     self.year = year
     self.isSeries = isSeries
   }
+
+  /// The same title with a Kinopoisk id the title card supplied.
+  public func withKinopoisk(_ id: Int) -> MediaIdentity {
+    MediaIdentity(
+      kinopubId: kinopubId,
+      imdb: imdb,
+      kinopoisk: id,
+      title: title,
+      originalTitle: originalTitle,
+      year: year,
+      isSeries: isSeries
+    )
+  }
 }

@@ -27,4 +27,18 @@ public enum TMDBImageURL {
     }
     return URL(string: "\(cdnBase)\(suffix)")
   }
+
+  /// A card already carries absolute image URLs. `image.tmdb.org` goes through the
+  /// worker's `/t/p/…` forwarder — the same hop portraits use — so a DNS hijack of
+  /// that host does not blank the page. Anything else (Kinopoisk, tvoe) stays as given.
+  public static func proxied(_ absolute: String?, proxyBase: URL?) -> URL? {
+    guard let absolute, !absolute.isEmpty, var url = URL(string: absolute) else { return nil }
+    guard let proxyBase, url.host == "image.tmdb.org" else { return url }
+    guard url.path.hasPrefix("/t/p/") else { return url }
+    let base = proxyBase.absoluteString.hasSuffix("/")
+      ? String(proxyBase.absoluteString.dropLast())
+      : proxyBase.absoluteString
+    url = URL(string: base + url.path + (url.query.map { "?\($0)" } ?? "")) ?? url
+    return url
+  }
 }

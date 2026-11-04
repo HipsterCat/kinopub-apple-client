@@ -28,6 +28,10 @@ final class TrailerPreviewModel: ObservableObject {
   /// started unconditionally, so a trailer that becomes ready after the page has been
   /// scrolled past never starts decoding in the first place.
   private var isActive = true
+  /// True while the page is off screen (another section, a page pushed over it). The
+  /// player is kept, paused, so coming back resumes it rather than starting over.
+  private var isSuspended = false
+  private var canPlay: Bool { isActive && !isSuspended }
 
   /// Plays the trailer muted behind the artwork. A repeat call for the URL already
   /// running is ignored, so a re-rendered hero doesn't restart it from the top.
@@ -73,7 +77,7 @@ final class TrailerPreviewModel: ObservableObject {
 
     guard let player else { return }
     if active {
-      if isReady { player.play() }
+      if isReady, canPlay { player.play() }
     } else {
       player.pause()
     }
@@ -83,7 +87,7 @@ final class TrailerPreviewModel: ObservableObject {
     switch status {
     case .readyToPlay:
       isReady = true
-      if isActive { player?.play() }
+      if canPlay { player?.play() }
     case .failed:
       // A trailer that won't load just leaves the artwork in place.
       teardown()
@@ -105,8 +109,20 @@ final class TrailerPreviewModel: ObservableObject {
     }
   }
 
-  /// Drops back to the artwork and forgets what was playing, so leaving the page and
-  /// coming back starts the trailer over.
+  /// The page left the screen / came back. Unlike `stop`, the trailer resumes where it
+  /// was: the page kept in its section (`MediaItemModelCache`) comes back as it was.
+  func setSuspended(_ suspended: Bool) {
+    guard isSuspended != suspended else { return }
+    isSuspended = suspended
+    guard let player else { return }
+    if suspended {
+      player.pause()
+    } else if isReady, canPlay {
+      player.play()
+    }
+  }
+
+  /// Drops back to the artwork and forgets what was playing: the real player took over.
   func stop() {
     teardown()
     startedURL = nil
@@ -137,9 +153,7 @@ final class TrailerPreviewModel: ObservableObject {
 /// title it has to fill the hero and stay out of the way instead.
 struct TrailerVideoLayer {
   let player: AVPlayer
-  /// `.resizeAspectFill` behind the title so the trailer fills the hero; the
-  /// full-screen presentation asks for `.resizeAspect` so nothing is cropped away.
-    var gravity: AVLayerVideoGravity = .resizeAspect
+    var gravity: AVLayerVideoGravity = .resizeAspectFill
 }
 
 #if os(macOS)
@@ -328,10 +342,6 @@ struct MediaItemHeroView: View {
   /// player. Kept here so the same view that owns the preview owns its promotion.
   @State private var isTrailerFullScreen = false
 #if !os(tvOS)
-  /// What became of the backdrop candidates, keyed by them: the hero is a picture hero
-  /// once one has loaded, whether or not kino.pub sent a `wide` (the worker often has a
-  /// backdrop when it did not), and a poster hero once all have failed.
-  @State private var backdropOutcome: (key: String, loaded: Bool)?
   /// The band's size, for the corner poster and the column the title leaves it.
   @State private var heroBandSize: CGSize = .zero
 #endif
@@ -340,9 +350,23 @@ struct MediaItemHeroView: View {
   /// Actions currently showing a spinner (Mark Watched, Follow, …). Cleared when the
   /// underlying flag flips, or by the control itself once the tap returns.
   @State private var loadingActions: Set<MediaActionID> = []
+  /// What became of the backdrop candidates, keyed by them: the hero is a picture hero
+  /// once one has loaded, whether or not kino.pub sent a `wide` (the worker often has a
+  /// backdrop when it did not), and a poster hero once all have failed. Kept in `phase`
+  /// (the page's model), so a page rebuilt on coming back shows the same hero.
+  private var backdropOutcome: (key: String, loaded: Bool)? {
+    get { phase.backdropOutcome }
+    nonmutating set { phase.backdropOutcome = newValue }
+  }
   /// What the shared title slot is drawing — subtitle waits until this is not `.empty`.
-  @State private var titleLogoMark: TitleLogoMark = .empty
-  @State private var deliveredLogoLanguage: WorkerArtworkLanguageTag?
+  private var titleLogoMark: TitleLogoMark {
+    get { phase.titleLogoMark }
+    nonmutating set { phase.titleLogoMark = newValue }
+  }
+  private var deliveredLogoLanguage: WorkerArtworkLanguageTag? {
+    get { phase.deliveredLogoLanguage }
+    nonmutating set { phase.deliveredLogoLanguage = newValue }
+  }
   /// The version play control that last held focus — its runtime stays in the metadata
   /// row once focus moves on (`runtimeVersion`).
   @State private var lastFocusedVersionID: Int?
@@ -656,7 +680,7 @@ struct MediaItemHeroView: View {
           }
       } else {
         Color.clear
-          .aspectRatio(16 / 9, contentMode: .fit)
+          .aspectRatio(16 / 11, contentMode: .fit)
           .frame(maxWidth: .infinity)
           .background {
             ZStack {
@@ -853,7 +877,7 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
     Color.KinoPub.subtitle
 #else
-    usesAdaptivePosterHero ? .secondary : Color.KinoPub.subtitle
+       usesAdaptivePosterHero ? Color.KinoPub.text.opacity(0.85) : Color.KinoPub.text.opacity(0.85)
 #endif
   }
 
@@ -1088,7 +1112,9 @@ struct MediaItemHeroView: View {
         maxHeight: Self.logoMaxHeight,
         textMaxWidth: .infinity,
         onMarkChange: { titleLogoMark = $0 },
-        onDeliveredLanguageChange: { deliveredLogoLanguage = $0 }
+        // A slot rebuilt on coming back paints the logo from the cache and knows no
+        // served language: keep the one it said before, or the subtitle flips.
+        onDeliveredLanguageChange: { if let language = $0 { deliveredLogoLanguage = language } }
       ) {
         titlePrimaryText
       }
@@ -1109,6 +1135,7 @@ struct MediaItemHeroView: View {
       .foregroundStyle(heroPrimaryForeground)
       .multilineTextAlignment(.leading)
       .fixedSize(horizontal: false, vertical: true)
+      .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 2)
   }
 
   /// Under the logo: localized vs original from the **served** worker stamp (`ru` /
@@ -1121,6 +1148,7 @@ struct MediaItemHeroView: View {
         .foregroundStyle(heroSecondaryForeground)
         .multilineTextAlignment(.leading)
         .fixedSize(horizontal: false, vertical: true)
+        .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 2)
     }
   }
 
@@ -1657,7 +1685,7 @@ struct MediaItemHeroView: View {
     let appearance = MediaActionAppearance(
       id: .more,
       chrome: .circle,
-      systemImage: "info.circle",
+      systemImage: "info",
       accessibilityLabel: MediaActionCopy.localized("Worker images"),
       isLoading: false
     )
@@ -1785,7 +1813,7 @@ struct MediaItemHeroView: View {
   // MARK: - Metrics
 
   /// Seconds of artwork before the trailer takes over.????? it must start no sooner than this interval after open - but only if the player is ready and asset can play while in hero focus
-  static let trailerLeadIn: Double = 2
+  static let trailerLeadIn: Double = 3
   /// Non-tvOS only: fade as soon as the hero has scrolled up at all. The old
   /// half-height threshold left the trailer running under the first section below.
   static let onScreenSlop: CGFloat = 150
@@ -1829,12 +1857,12 @@ struct MediaItemHeroView: View {
 #elseif os(macOS)
   /// Preview / fallback only — live layout uses `.aspectRatio(16/9)`.
   static let heroHeight: CGFloat = 420
-  static let horizontalInset: CGFloat = 32
+  static let horizontalInset: CGFloat = 40
   static let bottomInset: CGFloat = 28
   static let contentSpacing: CGFloat = 8
   static let leadingWidth: CGFloat = 400
-  static let logoMaxWidth: CGFloat = 360
-  static let logoMaxHeight: CGFloat = 110
+  static let logoMaxWidth: CGFloat = 440
+  static let logoMaxHeight: CGFloat = 120
   static let titleFont: Font = TypeScale.heroTitle
   static let metaSpacing: CGFloat = 12
   static let actionsGap: CGFloat = 12
@@ -1930,7 +1958,7 @@ private struct SecondLineCappedToFirst: Layout {
   var capsWidth: Bool
   /// Never narrower than this, however narrow the logo: a tall logo left the line a
   /// syllable wide (Sasha, 2026-10-30: 200).
-  var minimumWidth: CGFloat = 200
+  var minimumWidth: CGFloat = 230
 
   private func sizes(_ proposal: ProposedViewSize, _ subviews: Subviews) -> [CGSize] {
     guard let first = subviews.first else { return [] }

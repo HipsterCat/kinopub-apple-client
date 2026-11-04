@@ -466,7 +466,7 @@ private struct RatingTile: View {
     .modifier(OptionalPageEntryFocus(binding: pageEntryFocus))
 #else
     .onHover { isHovered = $0 }
-    .pointingHandCursorOnHover(enabled: isLink)
+//    .pointingHandCursorOnHover(enabled: isLink)
 #endif
   }
 
@@ -1114,7 +1114,7 @@ private struct MediaItemPosterShelfSkeleton: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: 6) {
       SectionHeader(title: title)
         .safeAreaPadding(.horizontal, metrics.inset)
 
@@ -1154,7 +1154,7 @@ struct MediaItemAwardsSection: View {
 
   var body: some View {
     if !awards.isEmpty {
-      VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing:6) {
         MediaItemSectionHeader("Awards")
         VStack(alignment: .leading, spacing: 8) {
           ForEach(Array(awards.enumerated()), id: \.offset) { _, award in
@@ -1203,7 +1203,7 @@ struct MediaItemPhotosSection: View {
 
   var body: some View {
     if !stills.isEmpty {
-      VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 6) {
         MediaItemSectionHeader("Photos")
         ScrollView(.horizontal, showsIndicators: false) {
           LazyHStack(alignment: .top, spacing: Self.spacing) {
@@ -1217,7 +1217,7 @@ struct MediaItemPhotosSection: View {
               .buttonStyle(.borderless)
 #else
               .buttonStyle(.plain)
-              .pointingHandCursorOnHover()
+//              .pointingHandCursorOnHover()
 #endif
             }
           }
@@ -1364,7 +1364,7 @@ struct MediaItemFactsSection: View {
 
   var body: some View {
     if !facts.isEmpty {
-      VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 6) {
         MediaItemSectionHeader("Facts")
         BlockRail(height: BlockMetrics.textCardHeight,
                   inset: MediaItemLayout.horizontalInset) {
@@ -1788,7 +1788,7 @@ struct MediaItemRatingSourceRows: View {
       Button { openURL(url) } label: { content }
         .buttonStyle(.plain)
 #if !os(tvOS)
-        .pointingHandCursorOnHover()
+//        .pointingHandCursorOnHover()
 #endif
     } else {
       content
@@ -1999,7 +1999,7 @@ struct ReviewCard: View {
           .buttonStyle(.plain)
           .foregroundStyle(.secondary)
 #if !os(tvOS)
-          .pointingHandCursorOnHover()
+//          .pointingHandCursorOnHover()
 #endif
         }
       }
@@ -2502,6 +2502,8 @@ struct MediaItemInfoColumns: View {
 
   let mediaItem: MediaItem
   var externalMetadata: TitleMetadata = TitleMetadata()
+  /// The Debug sheet's TMDB / v2 picker. Nil: the sheet shows the log alone.
+  var metadataPath: MetadataPathSwitch?
 
   /// System preferred languages plus the app's second-subtitle choice — the set the
   /// Languages column keeps expanded by default.
@@ -2922,7 +2924,8 @@ struct MediaItemInfoColumns: View {
                  attribution: externalMetadata.attribution,
                  tmdbId: externalMetadata.tmdbId,
                  isSeries: mediaItem.isSeries,
-                 debugLog: externalMetadata.debugLog)
+                 debugLog: externalMetadata.debugLog,
+                 metadataPath: metadataPath)
     }
     .padding(.horizontal, MediaItemLayout.horizontalInset)
   }
@@ -3180,6 +3183,7 @@ struct MediaItemInfoColumns: View {
     let tmdbId: Int?
     let isSeries: Bool
     var debugLog: [SourceDebugEntry] = []
+    var metadataPath: MetadataPathSwitch?
     @Environment(\.openURL) private var openURL
     @State private var showsDebugSheet = false
 
@@ -3209,7 +3213,7 @@ struct MediaItemInfoColumns: View {
       .foregroundStyle(Color.KinoPub.subtitle)
 #if !os(tvOS)
       .sheet(isPresented: $showsDebugSheet) {
-        DebugLogView(entries: debugLog)
+        DebugLogView(entries: debugLog, metadataPath: metadataPath)
       }
 #endif
     }
@@ -3260,27 +3264,17 @@ struct MediaItemInfoColumns: View {
   /// not for end users, hence the unlocalized "Debug"/verbatim labels throughout.
   private struct DebugLogView: View {
     let entries: [SourceDebugEntry]
+    var metadataPath: MetadataPathSwitch?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
       NavigationStack {
-        Group {
-          if entries.isEmpty {
-            ContentUnavailableView(
-              "No requests recorded",
-              systemImage: "questionmark.folder",
-              description: Text(verbatim: "Either no metadata source is configured for this title, or every field on it came from kino.pub alone.")
-            )
-          } else {
-            ScrollView {
-              VStack(alignment: .leading, spacing: 20) {
-                ForEach(entries) { entry in
-                  DebugEntryRow(entry: entry)
-                }
-              }
-              .padding()
-            }
+        VStack(spacing: 0) {
+          if let metadataPath {
+            MetadataPathPicker(path: metadataPath)
+              .padding([.horizontal, .top])
           }
+          log
         }
         .platformNavigationTitle("Metadata debug (\(entries.count))")
 #if !os(tvOS)
@@ -3295,6 +3289,58 @@ struct MediaItemInfoColumns: View {
         }
 #endif
       }
+    }
+
+    @ViewBuilder
+    private var log: some View {
+      if entries.isEmpty {
+        ContentUnavailableView(
+          "No requests recorded",
+          systemImage: "questionmark.folder",
+          description: Text(verbatim: "Either no metadata source is configured for this title, or every field on it came from kino.pub alone.")
+        )
+      } else {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 20) {
+            ForEach(entries) { entry in
+              DebugEntryRow(entry: entry)
+            }
+          }
+          .padding()
+        }
+      }
+    }
+  }
+
+  /// TMDB or v2 for the title this sheet was opened on — the comparison that used to sit
+  /// over the page as a corner overlay (removed 2026-11-04, Sasha: never on the page).
+  /// Flipping it reloads this title's metadata the other way; the time each path took
+  /// stays in its segment so the two can be read side by side. The lasting choice is
+  /// Settings › Diagnostics › "Title metadata from /v2/title".
+  private struct MetadataPathPicker: View {
+    let path: MetadataPathSwitch
+
+    var body: some View {
+      VStack(alignment: .leading, spacing: 6) {
+        Picker(selection: Binding(get: { path.usesTitleCard }, set: { path.select($0) })) {
+          Text(verbatim: label("TMDB", titleCard: false)).tag(false)
+          Text(verbatim: label("v2", titleCard: true)).tag(true)
+        } label: {
+          Text(verbatim: "Metadata source")
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .disabled(!path.loaded)
+        Text(verbatim: path.loaded ? path.summary : "…")
+          .font(.system(size: 11, design: .monospaced))
+          .foregroundStyle(.secondary)
+      }
+    }
+
+    private func label(_ title: String, titleCard enabled: Bool) -> String {
+      if enabled == path.usesTitleCard, !path.loaded { return "\(title) · …" }
+      guard let milliseconds = path.milliseconds[enabled] else { return title }
+      return "\(title) · \(DebugEntryRow.elapsedLabel(milliseconds))"
     }
   }
 
@@ -3356,6 +3402,11 @@ struct MediaItemInfoColumns: View {
         Spacer()
         // Size while closed: "did this one answer with anything" is the question the
         // collapsed row has to answer on its own, or closing them helped nothing.
+        if let elapsed = entry.elapsedMilliseconds {
+          Text(verbatim: Self.elapsedLabel(elapsed))
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.secondary)
+        }
         if !isExpanded {
           Text(verbatim: Self.sizeLabel(entry.responseBody))
             .font(.system(size: 11, design: .monospaced))
@@ -3365,6 +3416,11 @@ struct MediaItemInfoColumns: View {
         badge(entry.succeeded ? "ok" : "failed", tint: entry.succeeded ? .green : .red)
       }
       .contentShape(Rectangle())
+    }
+
+    fileprivate static func elapsedLabel(_ milliseconds: Int) -> String {
+      if milliseconds < 1000 { return "\(milliseconds) ms" }
+      return String(format: "%.1f s", Double(milliseconds) / 1000)
     }
 
     private static func sizeLabel(_ raw: String) -> String {
@@ -3458,7 +3514,7 @@ private struct SourceChipButtonStyle: ButtonStyle {
         .animation(.spring(response: 0.15, dampingFraction: 0.9), value: configuration.isPressed)
 #if !os(tvOS)
         .onHover { isHovered = $0 }
-        .pointingHandCursorOnHover()
+//        .pointingHandCursorOnHover()
 #endif
     }
   }
@@ -4056,3 +4112,22 @@ struct MediaItemSynopsisPopupContent: View {
         }
         
 #endif
+
+/// What the Debug sheet's metadata picker reads from the detail page's model: a snapshot
+/// taken on each render of the page, so the sheet follows the model without holding it.
+struct MetadataPathSwitch {
+  var usesTitleCard: Bool
+  var milliseconds: [Bool: Int]
+  var loaded: Bool
+  var summary: String
+  var select: @MainActor (Bool) -> Void
+
+  @MainActor
+  init(model: MediaItemModel) {
+    usesTitleCard = model.usesTitleCard
+    milliseconds = model.metadataPathMilliseconds
+    loaded = model.externalMetadataLoaded
+    summary = model.metadataCompareSummary
+    select = { [weak model] in model?.setUsesTitleCard($0) }
+  }
+}

@@ -6,6 +6,7 @@
  */
 
 import { handleAdmin } from "./admin.js";
+import { handleCard } from "./card.js";
 import { handleSeasons } from "./seasons.js";
 import { handleImage, handleTitle } from "./title.js";
 
@@ -36,6 +37,11 @@ export default {
       return handleSeasons(request, env, ctx);
     }
 
+    if (url.pathname.startsWith("/v2/title/by/kinopub/")
+        || url.pathname.startsWith("/v1/card/by/kinopub/")) {
+      return handleCard(url, env);
+    }
+
     if (url.pathname.startsWith("/v1/title/by/kinopub/")) {
       return handleTitle(url, env, ctx);
     }
@@ -60,7 +66,7 @@ export default {
 
     return json({
       error: "not_found",
-      hint: "/v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /3/… · /t/p/… · /p/exports/…",
+      hint: "/v2/title/by/kinopub/{id} · /v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /3/… · /t/p/… · /p/exports/…",
     }, 404);
   },
 };

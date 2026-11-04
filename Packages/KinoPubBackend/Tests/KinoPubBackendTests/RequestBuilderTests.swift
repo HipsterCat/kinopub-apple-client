@@ -105,7 +105,7 @@ final class BranchHostEndpointTests: XCTestCase {
     let builder = RequestBuilder(baseURL: URL(string: "https://api.service-kp.com/")!)
     let request = try XCTUnwrap(builder.build(with: ItemCollectionsRequest(itemId: 24)))
     XCTAssertEqual(request.url?.absoluteString,
-                   "https://api.ios-kp.store/api2/v1.1/items/collections/24")
+                   "https://api.srvkp.com/api2/v1.1/items/collections/24")
   }
 
   /// The override is opt-in: every other endpoint stays on the configured mirror.

@@ -167,6 +167,11 @@ enum MediaItemHeroActionAvailability {
 @Observable
 final class MediaItemHeroPhase {
   var isHeroOnScreen = true
+  /// What became of the backdrop candidates, keyed by them (`MediaItemHeroView`).
+  var backdropOutcome: (key: String, loaded: Bool)?
+  /// What the shared title slot drew, and the logo language it got.
+  var titleLogoMark: TitleLogoMark = .empty
+  var deliveredLogoLanguage: WorkerArtworkLanguageTag?
   /// How far the window's bars (toolbar, status bar) reach down over the hero. The page
   /// ignores the top safe area so the picture runs under them; the hero's title must not.
   var topChromeInset: CGFloat = 0
@@ -187,15 +192,17 @@ struct MediaItemView: View {
 #endif
   @StateObject private var itemModel: MediaItemModel
   /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
-  @StateObject private var trailer: TrailerPreviewModel
-  /// See `MediaItemHeroPhase` — iOS and macOS only in practice.
-  @State private var heroPhase = MediaItemHeroPhase()
+  private var trailer: TrailerPreviewModel { itemModel.trailer }
   /// Set by the hero's «+ ещё N»: the versions rail parks on, and focus lands on, the
   /// first version that had no pill.
   @State private var versionsEntry: Int?
   /// Bound by the hero's controls and read by nothing in this body. `.defaultFocus`
   /// takes the binding, not the value, so hero focus moves re-render the hero alone.
   @FocusState private var focus: MediaItemFocusTarget?
+  /// Content minY in the page scroll. 0 is the hero. Menu uses it to decide
+  /// between returning there and leaving the page.
+  @State private var pageScrollMinY: CGFloat = 0
+  @Environment(\.dismiss) private var dismiss
   @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguage = ""
   /// Owns folder state + context-menu wiring for the related-item rows (Similar /
   /// More from Director / More with Actor) as ONE coordinator shared across all of
@@ -205,7 +212,7 @@ struct MediaItemView: View {
 #if os(macOS)
   /// The one-player rule (`PlaybackSession`) only covers the real film/trailer player.
   /// It says nothing about this page's own *ambient* hero preview, which is a second,
-  /// independent `AVPlayer` (`TrailerPreviewModel`). Off macOS that preview stops for
+  /// independent `AVPlayer` (`TrailerPreviewModel`). Off macOS that preview pauses for
   /// free: pushing the system player onto the stack fires `onDisappear` below. macOS
   /// opens a separate window instead — this page never disappears — so without this,
   /// the hero preview keeps animating behind the new window for as long as it's open.
@@ -214,7 +221,6 @@ struct MediaItemView: View {
 
   init(model: @autoclosure @escaping () -> MediaItemModel) {
     _itemModel = StateObject(wrappedValue: model())
-    _trailer = StateObject(wrappedValue: TrailerPreviewModel())
   }
 
   var body: some View {
@@ -261,7 +267,7 @@ struct MediaItemView: View {
       // Measured on the full-window frame, which overlaps the bars by exactly this much.
       // Written into `heroPhase`, so only the hero re-reads it.
       .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.top }) { inset in
-        heroPhase.topChromeInset = inset
+        itemModel.heroPhase.topChromeInset = inset
       }
 #endif
       // Tabs stay visible over the detail page for now (2026-08-09): the hide-on-enter
@@ -281,11 +287,16 @@ struct MediaItemView: View {
 #endif
 #if os(macOS)
       .toolbarBackground(.hidden, for: .windowToolbar)
-      .toolbarColorScheme(heroPhase.showsPicture ? .dark : nil, for: .windowToolbar)
+      .toolbarColorScheme(itemModel.heroPhase.showsPicture ? .dark : nil, for: .windowToolbar)
 #endif
       .platformNavigationTitle("")
 #if os(iOS) || os(macOS)
       .toolbar {
+#if os(macOS)
+        // At the trailing edge, as the TV app's title page has its actions, not beside
+        // Back where the split view puts a primary action.
+        ToolbarSpacer(.flexible)
+#endif
         ToolbarItemGroup(placement: .primaryAction) {
 #if os(macOS)
           // One glass group, the way Notes pairs Share with its «…»: Bookmarks and More.
@@ -342,6 +353,9 @@ struct MediaItemView: View {
       }
 #endif
       .task {
+        // A model kept for this route (`MediaItemModelCache`) is already loaded: the page
+        // comes back as it was instead of fetching again from nothing.
+        guard !itemModel.itemLoaded else { return }
         itemModel.fetchData()
       }
       // Back from the player: the page never unmounted, so repaint the rail and the hero
@@ -372,8 +386,11 @@ struct MediaItemView: View {
 #endif
       // `trailer.setActive` lives on `MediaItemHeroView`'s own `onChange` — see
       // `MediaItemHeroPhase` — so this page never reads `heroPhase.isHeroOnScreen`.
+      .onAppear {
+        trailer.setSuspended(false)
+      }
       .onDisappear {
-        trailer.stop()
+        trailer.setSuspended(true)
       }
 #if os(macOS)
       .onChange(of: playbackWindowState.request?.id) { _, requestID in
@@ -558,7 +575,7 @@ struct MediaItemView: View {
           MediaItemHeroView(mediaItem: itemModel.mediaItem,
                             focus: $focus,
                             trailer: trailer,
-                            phase: heroPhase,
+                            phase: itemModel.heroPhase,
                             linkProvider: itemModel.linkProvider,
                             isWatched: itemModel.isWatched,
                             isBookmarked: itemModel.isBookmarked,
@@ -616,10 +633,51 @@ struct MediaItemView: View {
 
           contentSections
         }
+        .background {
+          GeometryReader { geo in
+            Color.clear.preference(
+              key: PageScrollOffsetKey.self,
+              value: geo.frame(in: .named(MediaItemLayout.scrollSpace)).minY
+            )
+          }
+        }
 //        .padding(.bottom, MediaItemLayout.bottomPadding)
       }
       .background(Color.KinoPub.background)
       .coordinateSpace(name: MediaItemLayout.scrollSpace)
+#if os(tvOS)
+      .onReceive(NotificationCenter.default.publisher(for: .rivuletSeasonRailRequestsHero)) { _ in
+        focus = MediaItemFocusTarget.entry(promotesFollow: MediaItemHeroView.promotesFollow(
+          mediaItem: itemModel.mediaItem,
+          awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+          canFollow: true
+        ))
+        withAnimation(.easeInOut(duration: 0.45)) {
+          proxy.scrollTo(Self.heroAnchor, anchor: .top)
+        }
+      }
+      .onExitCommand {
+        if pageScrollMinY > -40 {
+          dismiss()
+        } else {
+          NotificationCenter.default.post(name: .rivuletSeasonRailPrepareForHero, object: nil)
+          focus = MediaItemFocusTarget.entry(promotesFollow: MediaItemHeroView.promotesFollow(
+            mediaItem: itemModel.mediaItem,
+            awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+            canFollow: true
+          ))
+          withAnimation(.easeInOut(duration: 0.45)) {
+            proxy.scrollTo(Self.heroAnchor, anchor: .top)
+          }
+        }
+      }
+#endif
+#if !os(tvOS)
+      // Where the page was, kept by its model: coming back to the section finds it
+      // there (`MediaItemModelCache`).
+      .environment(\.scrollMemory, itemModel.scrollMemory)
+      .remembersScroll()
+#endif
 #if os(tvOS)
       // A focused card's lift and a focused button's scale are drawn outside their
       // frames; the page's own edges must not cut them.
@@ -628,7 +686,15 @@ struct MediaItemView: View {
     }
   }
 
+  private struct PageScrollOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+      value = nextValue()
+    }
+  }
+
   private static let heroAnchor = "media-item-hero"
+
   /// «+ ещё N»: park the rail on the first version without a pill, then hand it focus —
   /// a turn later, so the rail has its entry before the engine asks for it.
   private func showMoreVersions() {
@@ -729,6 +795,7 @@ struct MediaItemView: View {
 
       if let seasons = seasonsForDisplay, !seasons.isEmpty {
         SeasonsRailView(seasons: seasons,
+                        memory: itemModel.seasonsRail,
                         linkProvider: itemModel.linkProvider,
                         seriesTitle: itemModel.mediaItem.localizedTitle,
                         showsChrome: true,
@@ -749,9 +816,11 @@ struct MediaItemView: View {
                           for: itemModel.mediaItem,
                           preferredBackdropURL: itemModel.heroBackdropURL
                         ).first,
+                        titleLogoURL: itemModel.heroLogoURL,
                         onSeasonVisible: { seasonNumber in
                           Task { await itemModel.ensureSeasonSchedule(seasonNumber) }
-                        })
+                        },
+                        onPageOffset: { pageScrollMinY = -$0 })
       }
 
 #if os(tvOS)
@@ -829,7 +898,8 @@ struct MediaItemView: View {
                                 externalMetadata: itemModel.externalMetadata)
 #endif
       MediaItemInfoColumns(mediaItem: itemModel.mediaItem,
-                           externalMetadata: itemModel.externalMetadata)
+                           externalMetadata: itemModel.externalMetadata,
+                           metadataPath: MetadataPathSwitch(model: itemModel))
         .detailFocusSection()
     }
   }

@@ -87,7 +87,7 @@ struct CollectionsView: View {
       label
     }
     .buttonStyle(.plain)
-    .pointingHandCursorOnHover()
+//    .pointingHandCursorOnHover()
 #endif
   }
 

@@ -293,6 +293,8 @@ public struct SourceDebugEntry: Sendable, Hashable, Identifiable {
   public let proxied: Bool
   public let succeeded: Bool
   public let responseBody: String
+  /// Wall time of this call, including a cache hit. Nil on entries recorded before timing.
+  public let elapsedMilliseconds: Int?
 
   public init(
     source: MetadataSourceID,
@@ -300,7 +302,8 @@ public struct SourceDebugEntry: Sendable, Hashable, Identifiable {
     url: String,
     proxied: Bool,
     succeeded: Bool,
-    responseBody: String
+    responseBody: String,
+    elapsedMilliseconds: Int? = nil
   ) {
     self.source = source
     self.endpoint = endpoint
@@ -308,6 +311,7 @@ public struct SourceDebugEntry: Sendable, Hashable, Identifiable {
     self.proxied = proxied
     self.succeeded = succeeded
     self.responseBody = responseBody
+    self.elapsedMilliseconds = elapsedMilliseconds
   }
 }
 
@@ -352,6 +356,9 @@ public struct TitleMetadata: Sendable {
   public var revenue: Int?
   public var productionCompanies: [ProductionCompany] = []
   public var tmdbId: Int?
+  /// Kinopoisk film id the title card carried, when the page still needs the proxy
+  /// and the kino.pub item did not have one.
+  public var kinopoiskID: Int?
   /// TMDB's own audience score (0…10) and its vote count. A third rating source
   /// beside kino.pub's IMDb and Kinopoisk numbers — **not** folded into the aggregate
   /// `Rating`, which stays the two sources it has always weighed.
@@ -361,6 +368,9 @@ public struct TitleMetadata: Sendable {
   /// The language this source's text was asked in — TMDB's `MetadataConfiguration.language`.
   /// Nil where the source did not say; on a merged overlay, the first source's.
   public var language: String?
+  /// Language of the logo this overlay chose (`ru`, `en`), when the file itself said.
+  /// The hero's second line reads it the way it reads the worker image route's stamp.
+  public var titleLogoLanguage: String?
   /// What a source states about the title **in our model** — Kinopoisk's details.
   /// Concatenated by `merge`, never gap-filled: each stays its own source's statement, so
   /// nothing it said is lost to whichever source answered first.
@@ -417,10 +427,12 @@ public struct TitleMetadata: Sendable {
     if revenue == nil { revenue = other.revenue }
     if productionCompanies.isEmpty { productionCompanies = other.productionCompanies }
     if tmdbId == nil { tmdbId = other.tmdbId }
+    if kinopoiskID == nil { kinopoiskID = other.kinopoiskID }
     if tmdbRating == nil { tmdbRating = other.tmdbRating }
     if tmdbVotes == nil { tmdbVotes = other.tmdbVotes }
     attribution.formUnion(other.attribution)
     if language == nil { language = other.language }
+    if titleLogoLanguage == nil { titleLogoLanguage = other.titleLogoLanguage }
     fragments.append(contentsOf: other.fragments)
     parts.merge(other.parts) { mine, _ in mine }
     debugLog.append(contentsOf: other.debugLog)

@@ -23,7 +23,7 @@ struct SeasonTab: Identifiable, Equatable {
     var symbol: String? {
       switch self {
       case .available: nil
-      case .soon: "clock.fill"
+      case .soon: "calendar"
       case .unavailable: "lock.fill"
       }
     }
@@ -79,21 +79,39 @@ struct SeasonTabStrip: View {
   let onSelect: (SeasonTab) -> Void
 
   /// Headline text plus this above and below is a pill's height — and the line's.
+     #if os(tvOS)
   static let verticalPadding: CGFloat = 10
+     #endif
+#if os(iOS)
+     static let verticalPadding: CGFloat = 6
+
+#endif
+#if os(macOS)
+     static let verticalPadding: CGFloat = 6
+
+     #endif
   /// Each side of a pill's text, on top of the minimum width (as wide as tall): a lone digit
   /// stays about a circle, «10» and «4–7» are wider than one.
      #if os(tvOS)
      static let horizontalPadding: CGFloat = 24
      #endif
      #if os(iOS)
-     static let horizontalPadding: CGFloat = 14
+     static let horizontalPadding: CGFloat = 12
      #endif
      #if os(macOS)
-     static let horizontalPadding: CGFloat = 14
+     static let horizontalPadding: CGFloat = 10
      #endif
 
   /// Between the word and the first pill (Sasha, 2026-10-11).
-  static let labelGap: CGFloat = 20
+          #if os(tvOS)
+     static let labelGap: CGFloat = 10
+     #endif
+     #if os(iOS)
+     static let labelGap: CGFloat = 8
+     #endif
+     #if os(macOS)
+     static let labelGap: CGFloat = 6
+     #endif
   /// The section headers' style («Рейтинги», «В ролях»): the strip is the episodes'
   /// header (Sasha, 2026-10-30).
   static let font: Font = TypeScale.rowHeader
@@ -182,14 +200,15 @@ struct SeasonPill: View {
     PillWidth {
       label
         .font(SeasonTabStrip.font)
-        .imageScale(.small)
-        .foregroundStyle(isBright ? .primary : .secondary)
+        .imageScale(.medium)
+        .foregroundStyle(isBright ? .primary : .tertiary)
+//        .imageScale(.medium)
         .padding(.vertical, SeasonTabStrip.verticalPadding)
         .padding(.horizontal, SeasonTabStrip.horizontalPadding)
     }
     .background {
       if isSelected {
-        Capsule().fill(Color.KinoPub.selectionBackground)
+           Capsule().fill(.fill.secondary)
       } else if isHovered {
         Capsule().fill(.fill.tertiary)
       }

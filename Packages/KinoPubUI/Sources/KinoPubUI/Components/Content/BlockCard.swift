@@ -92,7 +92,7 @@ public struct BlockCard<Content: View>: View {
 #else
       .buttonStyle(BlockCardPressStyle())
       .onHover { isHovered = $0 }
-      .pointingHandCursorOnHover()
+//      .pointingHandCursorOnHover()
 #endif
   }
 
