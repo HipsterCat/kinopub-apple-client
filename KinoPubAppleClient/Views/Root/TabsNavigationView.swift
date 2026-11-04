@@ -415,7 +415,7 @@ struct TabsNavigationView: View {
             Button {
               openSettings()
             } label: {
-              Image(systemName: "person.crop.circle")
+              Image(systemName: "gear")
             }
             .accessibilityLabel(Text("Settings".localized))
             .help(Text("Settings".localized))

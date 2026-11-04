@@ -642,11 +642,15 @@ private struct ViewsRatingTile: View {
   /// same fixed line, «Просмотры» under them as a score's voters are (Sasha, 2026-11-04).
   private var content: some View {
     VStack(alignment: .center, spacing: 6) {
-      HStack(alignment: .center, spacing: 10) {
-        Image(systemName: "eye")
-          .font(Font(MediaItemRatingsSection.valueUIFont))
-          .foregroundStyle(Color.KinoPub.subtitle)
+      HStack(alignment: .center, spacing: 5) {
+//        Image(systemName: "eye.fill")
+           Image(systemName: "eyes")
+                .font(Font(ScoreValueTypography.rounded(size: 28, weight: .regular)))
+
+//          .font(Font(ScoreValueTypography.rounded(size: 24, weight: .regular)))
+          .foregroundStyle(.secondary)
           .accessibilityHidden(true)
+          
         ScoreValueText(formattedViewCount(views), font: MediaItemRatingsSection.valueUIFont)
           .foregroundStyle(Color.KinoPub.text)
           .accessibilityLabel(views.formatted(.number.grouping(.automatic)))

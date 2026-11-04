@@ -4809,24 +4809,6 @@
         }
       }
     },
-    "Kind_animeSeries_One" : {
-      "comment" : "An anime series, in the Home hero's line",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Anime series"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Аниме-сериал"
-          }
-        }
-      }
-    },
     "Kind_anime_One" : {
       "comment" : "Catalog kind, singular: one title's kind on its page",
       "extractionState" : "manual",
@@ -4841,6 +4823,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Аниме"
+          }
+        }
+      }
+    },
+    "Kind_animeSeries_One" : {
+      "comment" : "An anime series, in the Home hero's line",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anime series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аниме-сериал"
           }
         }
       }
@@ -8037,6 +8037,24 @@
         }
       }
     },
+    "MediaItem_TrailersAndVideos" : {
+      "comment" : "Header of the title page rail of trailers, teasers and other videos (kino.pub trailer + TMDB/YouTube)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trailers & Videos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Трейлеры и видео"
+          }
+        }
+      }
+    },
     "MediaItem_Type" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8514,42 +8532,6 @@
         }
       }
     },
-    "MediaItem_TrailersAndVideos" : {
-      "comment" : "Header of the title page rail of trailers, teasers and other videos (kino.pub trailer + TMDB/YouTube)",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trailers & Videos"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Трейлеры и видео"
-          }
-        }
-      }
-    },
-    "MediaItem_YouTubeUnavailable" : {
-      "comment" : "Toast when a trailer on YouTube cannot be opened (no YouTube app)",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Install YouTube to watch this video"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Установите YouTube, чтобы посмотреть это видео"
-          }
-        }
-      }
-    },
     "MediaItem_Versions" : {
       "comment" : "Header of the rail listing the versions of one film (24/48 fps, director's cut)",
       "localizations" : {
@@ -8642,13 +8624,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Views"
+            "value" : "views"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Просмотры"
+            "state" : "needs_review",
+            "value" : "просмотров"
           }
         }
       }
@@ -8821,6 +8803,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "с %@ по %@"
+          }
+        }
+      }
+    },
+    "MediaItem_YouTubeUnavailable" : {
+      "comment" : "Toast when a trailer on YouTube cannot be opened (no YouTube app)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install YouTube to watch this video"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установите YouTube, чтобы посмотреть это видео"
           }
         }
       }
