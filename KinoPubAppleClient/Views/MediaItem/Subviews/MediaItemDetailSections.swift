@@ -90,6 +90,28 @@ func mediaItemAdvisories(_ mediaItem: MediaItem) -> [String] {
   return result
 }
 
+/// How many times a title was watched on kino.pub, short enough for a score's line:
+/// 999 · 9,999 · 99,999 · 100K · 100.5K · 1.56M (Sasha, 2026-11-04). Up to 99,999 the count
+/// is printed whole; past it the system's compact notation takes over, in the viewer's
+/// locale (`100,5 тыс.` in Russian), with one decimal for thousands and two for millions.
+func formattedViewCount(_ views: Int) -> String {
+  switch views {
+  case ..<100_000:
+    return views.formatted(.number.grouping(.automatic))
+  // 999,950 and up would round to "1,000K"; it reads as millions from there.
+  case ..<999_950:
+    return views.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)))
+  default:
+    return views.formatted(.number.notation(.compactName).precision(.fractionLength(0...2)))
+  }
+}
+
+/// The title's page on the kino.pub website (its `kino.watch` mirror, as the Debug sheet's
+/// source chip has always opened).
+func kinopubWebURL(_ mediaItem: MediaItem) -> URL? {
+  URL(string: "https://kino.watch/item/view/\(mediaItem.id)")
+}
+
 // MARK: - Ratings
 
 extension MediaScores {
@@ -192,7 +214,7 @@ enum RatingSources {
             logo: .kinopub,
             value: bundle.kinopubScore,
             votes: bundle.kinopubVotes,
-            url: nil,
+            url: kinopubURL(mediaItem),
             known: true)
     ]
       .compactMap { $0 }
@@ -237,7 +259,10 @@ enum RatingSources {
   private static func imdbURL(_ mediaItem: MediaItem) -> URL? { nil }
   private static func kinopoiskURL(_ mediaItem: MediaItem) -> URL? { nil }
   private static func tmdbURL(_ mediaItem: MediaItem, metadata: TitleMetadata) -> URL? { nil }
+  private static func kinopubURL(_ mediaItem: MediaItem) -> URL? { nil }
 #else
+  private static func kinopubURL(_ mediaItem: MediaItem) -> URL? { kinopubWebURL(mediaItem) }
+
   private static func imdbURL(_ mediaItem: MediaItem) -> URL? {
     guard let id = mediaItem.imdb, id > 0 else { return nil }
     return URL(string: "https://www.imdb.com/title/tt\(String(format: "%07d", id))/")
@@ -372,7 +397,7 @@ struct MediaItemRatingsSection: View {
   static let valueFont: Font = .system(size: 48, weight: .bold, design: .rounded)
   static let valueUIFont = ScoreValueTypography.rounded(size: 48, weight: .bold)
   static let titleFont: Font = TypeScale.detailBody
-static let captionFont: Font = .caption
+  static let captionFont: Font = .caption
 #else
   /// Between tiles: the padding they used to carry on both sides, now only between them.
   static let spacing: CGFloat = 40
@@ -383,11 +408,21 @@ static let captionFont: Font = .caption
   static let valueFont: Font = .system(size: 32, weight: .regular, design: .rounded)
   static let valueUIFont = ScoreValueTypography.rounded(size: 32, weight: .regular)
   static let titleFont: Font = .system(size: 14, weight: .semibold)
-    static let captionFont: Font = TypeScale.detailBody
-
+  /// Vote counts and source notes — the page's one running-text size.
+  static let captionFont: Font = TypeScale.detailBody
 #endif
 
-  /// Vote counts and source notes — the page's one running-text size.
+  /// The mark-and-number line of every tile, the same height whether a number is on it
+  /// or not: the number's line, or the mark if that is taller. A tile without a number
+  /// («Оценок нет») used to be as tall as its mark alone, so its caption rode higher than
+  /// its neighbours' and the row jumped when the number arrived (Sasha, 2026-11-04).
+  static let lineHeight: CGFloat = {
+    let font = valueUIFont
+    return max(ceil(font.ascender - font.descender + font.leading), iconSize)
+  }()
+
+  /// A link tile under the pointer: the whole tile fades a little, mark and caption alike.
+  static let hoverOpacity: Double = 0.6
 }
 
 private struct AggregateRatingTile: View {
@@ -479,9 +514,6 @@ private struct RatingTile: View {
     VStack(alignment: .center, spacing: 6) {
       HStack(alignment: .center, spacing: 10) {
         MediaScoreLogo(score.logo, height: MediaItemRatingsSection.iconSize, style: .card)
-          // A link: the mark fades a little under the pointer — this opens the source.
-          .opacity(isLink && isHovered ? 0.6 : 1)
-          .animation(.easeOut(duration: 0.15), value: isHovered)
         if !score.isPlaceholder {
           ScoreValueText(score.value == nil ? "?" : score.display,
                          font: MediaItemRatingsSection.valueUIFont)
@@ -489,6 +521,7 @@ private struct RatingTile: View {
                              ? Color.KinoPub.subtitle : Color.KinoPub.text)
         }
       }
+      .frame(height: MediaItemRatingsSection.lineHeight)
       if let thumbs {
         thumbsLine(thumbs)
       } else if let caption {
@@ -498,7 +531,11 @@ private struct RatingTile: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+    // The whole tile is the link: it fades under the pointer and takes the click,
+    // caption included — this opens the source.
     .contentShape(Rectangle())
+    .opacity(isLink && isHovered ? MediaItemRatingsSection.hoverOpacity : 1)
+    .animation(.easeOut(duration: 0.15), value: isHovered)
   }
 
   /// tvOS's kino.pub line: outline thumbs in secondary until the viewer has voted; the one
@@ -601,22 +638,23 @@ private struct ViewsRatingTile: View {
 #endif
   }
 
+  /// A score tile's shape: an eye where the mark would be and the count beside it, on the
+  /// same fixed line, «Просмотры» under them as a score's voters are (Sasha, 2026-11-04).
   private var content: some View {
-    HStack(alignment: .center, spacing: 10) {
-      Text(views.formatted(.number.grouping(.automatic)))
-        .font(MediaItemRatingsSection.valueFont)
-        // .monospacedDigit()
-        .foregroundStyle(Color.KinoPub.subtitle)
-
-      VStack(alignment: .leading, spacing: 2) {
-        Text("MediaItem_Views")
-          .font(MediaItemRatingsSection.titleFont)
-          .foregroundStyle(Color.KinoPub.text)
-        Text("MediaItem_ViewsInternal")
-          .font(MediaItemRatingsSection.captionFont)
+    VStack(alignment: .center, spacing: 6) {
+      HStack(alignment: .center, spacing: 10) {
+        Image(systemName: "eye")
+          .font(Font(MediaItemRatingsSection.valueUIFont))
           .foregroundStyle(Color.KinoPub.subtitle)
-          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityHidden(true)
+        ScoreValueText(formattedViewCount(views), font: MediaItemRatingsSection.valueUIFont)
+          .foregroundStyle(Color.KinoPub.text)
+          .accessibilityLabel(views.formatted(.number.grouping(.automatic)))
       }
+      .frame(height: MediaItemRatingsSection.lineHeight)
+      Text("MediaItem_Views")
+        .font(MediaItemRatingsSection.captionFont)
+        .foregroundStyle(Color.KinoPub.subtitle)
     }
 #if os(tvOS)
     .padding(MediaItemRatingsSection.tilePadding)
@@ -3231,7 +3269,7 @@ struct MediaItemInfoColumns: View {
     }
 
     private var kinopubURL: URL {
-      URL(string: "https://kino.watch/item/view/\(mediaItem.id)")!
+      kinopubWebURL(mediaItem)!
     }
 
     private var tmdbURL: URL {
