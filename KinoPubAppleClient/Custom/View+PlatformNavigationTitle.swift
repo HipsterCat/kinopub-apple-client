@@ -94,6 +94,9 @@ extension EnvironmentValues {
   /// Pages under the main window's sidebar draw `MacLargePageTitle`; elsewhere (the
   /// Settings window) the title is the toolbar's alone.
   @Entry var macLargePageTitles = false
+  /// Off where the page is a column beside another (Genres): the toolbar's title sits at
+  /// the window's leading edge, over the other column, not over the page it names.
+  @Entry var macLargePageTitleInToolbar = true
 }
 
 /// The scroll distance the large title has travelled, read by the header alone: the page
@@ -108,6 +111,7 @@ private struct MacLargePageTitle: ViewModifier {
   let title: Text
   let isBlank: Bool
   @Environment(\.macLargePageTitles) private var enabled
+  @Environment(\.macLargePageTitleInToolbar) private var showsInToolbar
   @State private var travel = MacLargeTitleTravel()
   @State private var isScrolledAway = false
 
@@ -122,6 +126,9 @@ private struct MacLargePageTitle: ViewModifier {
     // so the scrolled toolbar stood twice its height.
     content
       .contentMargins(.top, isActive ? travel.height : 0, for: .scrollContent)
+      // Over the whole page, not whatever the page's root is: an empty state's centred
+      // box took the title into itself, cut short.
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
       .overlay(alignment: .top) {
         if isActive {
           MacLargeTitleHeader(title: title, travel: travel)
@@ -135,7 +142,8 @@ private struct MacLargePageTitle: ViewModifier {
         let away = travel.height > 0 && travelled >= travel.height
         if away != isScrolledAway { isScrolledAway = away }
       }
-      .navigationTitle(isBlank || (isActive && !isScrolledAway) ? Text(verbatim: "") : title)
+      .navigationTitle(isBlank || (isActive && (!isScrolledAway || !showsInToolbar))
+                       ? Text(verbatim: "") : title)
   }
 }
 

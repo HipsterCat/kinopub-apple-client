@@ -1104,6 +1104,9 @@ private struct MacGenresView: View {
   @Environment(ErrorHandler.self) private var errorHandler
   @State private var genres: [MediaGenre] = []
   @AppStorage("genreSelection") private var selection: Int?
+#if os(macOS)
+  @FocusState private var gridFocused: Bool
+#endif
 
   var body: some View {
 #if os(iOS)
@@ -1140,7 +1143,15 @@ private struct MacGenresView: View {
           Color.clear
         }
       }
+      // Its title stays on the page: the toolbar's would sit over the genre list.
+      .environment(\.macLargePageTitleInToolbar, false)
+      // Focus goes to the titles after a pick, as the sidebar hands it to the page: the
+      // pick then stays grey under bold type, not the blue of a focused list.
+      .focusable(interactions: .edit)
+      .focusEffectDisabled()
+      .focused($gridFocused)
     }
+    .onChange(of: selection) { gridFocused = true }
     .task { await loadGenres() }
 #endif
   }
