@@ -142,6 +142,10 @@ private struct MacLargePageTitle: ViewModifier {
         let away = travel.height > 0 && travelled >= travel.height
         if away != isScrolledAway { isScrolledAway = away }
       }
+      // The page runs up under the toolbar, as the TV app's: no toolbar backing of its
+      // own (it showed as a strip over the page, and came and went under the pointer);
+      // the system's scroll-edge effect still backs the toolbar once rows go under it.
+      .toolbarBackgroundVisibility(enabled ? .hidden : .automatic, for: .windowToolbar)
       .navigationTitle(isBlank || (isActive && (!isScrolledAway || !showsInToolbar))
                        ? Text(verbatim: "") : title)
   }
