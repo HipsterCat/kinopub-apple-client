@@ -26,6 +26,9 @@ import Foundation
 
 import KinoPubMetadata
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 public struct HomeHeroCarousel: View {
   private let hero: HomeHero
@@ -69,9 +72,10 @@ public struct HomeHeroCarousel: View {
   @State private var generation = 0
   @Environment(\.scenePhase) private var scenePhase
 #if os(macOS)
-  /// Not `.key` while a sheet is over the window (What's New) or another window has the
-  /// keyboard: the hero holds still under it, as on the TV (Sasha, 2026-11-04).
-  @Environment(\.controlActiveState) private var controlActiveState
+  /// A sheet over the window (What's New): the hero holds still under it, as on the TV
+  /// (Sasha, 2026-11-04). Only a sheet — a window merely not key, behind another app or
+  /// beside another window, is still seen and keeps turning.
+  @State private var hasSheet = false
 #endif
 
   /// - Parameters:
@@ -161,7 +165,7 @@ public struct HomeHeroCarousel: View {
 
   private var isWindowKey: Bool {
 #if os(macOS)
-    controlActiveState == .key
+    !hasSheet
 #else
     true
 #endif
@@ -246,6 +250,9 @@ public struct HomeHeroCarousel: View {
     .onHover { isHovered = $0 }
 #endif
     .environment(\.colorScheme, .dark)
+#if os(macOS)
+    .background(WindowSheetProbe(hasSheet: $hasSheet))
+#endif
     .onScrollVisibilityChange(threshold: 0.5) { isVisibleInPage = $0 }
     .onAppear {
       isPresented = true
@@ -1100,5 +1107,51 @@ public struct HeroStepRequest: Equatable, Sendable {
 
 public extension EnvironmentValues {
   @Entry var heroStepRequest: HeroStepRequest? = nil
+}
+#endif
+
+#if os(macOS)
+/// Whether a sheet hangs over this view's window. SwiftUI has no environment value for it
+/// (`controlActiveState` / `appearsActive` also go off for a window that is merely not key),
+/// so the window's own sheet notifications say it.
+private struct WindowSheetProbe: NSViewRepresentable {
+  @Binding var hasSheet: Bool
+
+  func makeNSView(context: Context) -> Probe {
+    let probe = Probe()
+    probe.onChange = { hasSheet = $0 }
+    return probe
+  }
+
+  func updateNSView(_ probe: Probe, context: Context) {
+    probe.onChange = { hasSheet = $0 }
+  }
+
+  final class Probe: NSView {
+    var onChange: ((Bool) -> Void)?
+    nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      observers.forEach(NotificationCenter.default.removeObserver)
+      observers = []
+      guard let window else { return }
+      let center = NotificationCenter.default
+      observers.append(center.addObserver(forName: NSWindow.willBeginSheetNotification,
+                                          object: window, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.onChange?(true) }
+      })
+      observers.append(center.addObserver(forName: NSWindow.didEndSheetNotification,
+                                          object: window, queue: .main) { [weak self, weak window] _ in
+        MainActor.assumeIsolated { self?.onChange?(window?.attachedSheet != nil) }
+      })
+      let current = window.attachedSheet != nil
+      DispatchQueue.main.async { [weak self] in self?.onChange?(current) }
+    }
+
+    deinit {
+      observers.forEach(NotificationCenter.default.removeObserver)
+    }
+  }
 }
 #endif
