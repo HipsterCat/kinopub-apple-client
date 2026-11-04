@@ -4773,6 +4773,24 @@
         }
       }
     },
+    "Kind_animatedSeries_One" : {
+      "comment" : "An animated series, in the Home hero's line",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Animated series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мультсериал"
+          }
+        }
+      }
+    },
     "Kind_anime" : {
       "comment" : "Catalog kind, plural: filters and section titles",
       "extractionState" : "manual",
@@ -4787,6 +4805,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Аниме"
+          }
+        }
+      }
+    },
+    "Kind_animeSeries_One" : {
+      "comment" : "An anime series, in the Home hero's line",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anime series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аниме-сериал"
           }
         }
       }

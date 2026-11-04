@@ -144,7 +144,7 @@ public enum HomeHeroText {
       // A shelf payload knows no seasons or episodes: at least say it is a series —
       // first, as the Apple TV app's «Телешоу · Drama», since the line drops its last
       // parts when it does not fit.
-      parts.insert(NSLocalizedString("Kind_series_One", comment: "A series, in the banner's line"),
+      parts.insert(NSLocalizedString(card.seriesKindKey, comment: "A series, in the banner's line"),
                    at: 0)
     }
 

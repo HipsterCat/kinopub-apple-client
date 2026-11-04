@@ -237,6 +237,21 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
 
   /// Up to `limit` genres in kino.pub's order, the generic anime / cartoon ones skipped;
   /// the primary genre when every one is generic.
+  /// The word for a series: «Мультсериал» or «Аниме-сериал» when its genres say so, as
+  /// kino.pub's own rows name them, else «Сериал» (Sasha, 2026-11-04). The genre it stands
+  /// for is already left out of `usefulGenres`, so the line never says it twice.
+  public var seriesKindKey: String {
+    func has(_ keys: [String]) -> Bool {
+      genres.contains { genre in
+        let names = [genre.id, genre.name.ru, genre.name.en].map { $0.lowercased() }
+        return keys.contains { key in names.contains { $0.contains(key) } }
+      }
+    }
+    if has(["anime", "аниме"]) { return "Kind_animeSeries_One" }
+    if has(["animation", "анимация", "мультфильм", "cartoon"]) { return "Kind_animatedSeries_One" }
+    return "Kind_series_One"
+  }
+
   public func usefulGenres(limit: Int, language: MediaLanguage = .current) -> [String] {
     let genericKeywords = ["anime", "аниме", "animation", "анимация", "мультфильм", "мультфильмы", "cartoon"]
     let useful = genres.filter { genre in
