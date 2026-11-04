@@ -142,13 +142,12 @@ private struct MacLargePageTitle: ViewModifier {
 private struct MacLargeTitleHeader: View {
   let title: Text
   let travel: MacLargeTitleTravel
-  @Environment(\.pageLeadingObstruction) private var leadingObstruction
   @Environment(\.dynamicTypeSize) private var typeSize
   @State private var width: CGFloat = 0
 
-  /// The rows' own margin, from the window edge past the sidebar, as the shelves measure it.
+  /// The rows' own margin, as the shelves measure it.
   private var inset: CGFloat {
-    ShelfMetrics.posters(width: max(width - leadingObstruction, 1), typeSize: typeSize).inset
+    ShelfMetrics.posters(width: max(width, 1), typeSize: typeSize).inset
   }
 
   var body: some View {
@@ -156,7 +155,7 @@ private struct MacLargeTitleHeader: View {
       .font(.largeTitle.bold())
       .lineLimit(1)
       .accessibilityAddTraits(.isHeader)
-      .padding(.leading, leadingObstruction + inset)
+      .padding(.leading, inset)
       .padding(.trailing, inset)
       .padding(.bottom, 8)
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -169,7 +168,6 @@ private struct MacLargeTitleHeader: View {
       .offset(y: -travel.offset)
       .clipped()
       .allowsHitTesting(false)
-      .ignoresSafeArea(.container, edges: .horizontal)
   }
 }
 #endif

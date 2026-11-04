@@ -449,10 +449,6 @@ struct TabsNavigationView: View {
         }
         .environment(\.heroStepRequest, heroStep)
         .environment(\.pageScrollRequest, pageScroll)
-        // The page runs under the floating sidebar: its rows and Home hero keep clear of
-        // it by this width from the first frame, not by the system's inset, which came
-        // late and made them jump (Sasha, 2026-11-04).
-        .environment(\.pageLeadingObstruction, Self.macSidebarWidth)
         .environment(\.macLargePageTitles, true)
         .onAppear { detailFocused = true }
         .onChange(of: navigationState.selectedTab) {
@@ -1205,6 +1201,10 @@ private struct MacFixedSidebar: NSViewRepresentable {
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
+      // At once when the split view is already there, so the page beside the sidebar
+      // is laid out at its final width from the first frame; again on the next turn in
+      // case the controller was not set up yet.
+      pin()
       DispatchQueue.main.async { [weak self] in self?.pin() }
     }
 
