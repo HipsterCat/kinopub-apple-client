@@ -146,20 +146,11 @@ public struct TitleLogoSlot<Title: View>: View {
   /// a vertical lockup does not.
   static var minimumAspect: CGFloat { 0.8 }
 
-  /// How far past its own pixels a logo may be drawn: a small TMDB logo blown up 2–3×
-  /// to fill the slot read soft (Sasha, 2026-11-04). A quarter over is not seen.
-  static var maximumUpscale: CGFloat { 1.25 }
 
   private static func fittedSize(of size: CGSize, pixelWidth: CGFloat?, maxWidth: CGFloat,
                                  maxHeight: CGFloat, displayScale: CGFloat) -> CGSize {
-    guard size.width > 0, size.height > 0 else { return CGSize(width: maxWidth, height: maxHeight) }
-    var scale = min(maxWidth / size.width, maxHeight / size.height)
-    if let pixelWidth, pixelWidth > 0, displayScale > 0 {
-      // The logo's own width in points on this screen, a little over at most.
-      let native = pixelWidth / displayScale * maximumUpscale
-      scale = min(scale, native / size.width)
-    }
-    return CGSize(width: size.width * scale, height: size.height * scale)
+    TitleLogoFit.size(of: size, pixelWidth: pixelWidth, maxWidth: maxWidth,
+                      maxHeight: maxHeight, displayScale: displayScale)
   }
 
   /// The decoded logo's width in pixels, not points: what the worker actually sent (the
@@ -252,5 +243,25 @@ public struct SecondLineCappedToFirst: Layout {
       subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
       y += size.height
     }
+  }
+}
+
+/// How big a title logo is drawn: as big as fits the box at its own aspect, and never
+/// much past its own pixels — a small TMDB logo blown up 2–3× to fill the slot read soft
+/// (Sasha, 2026-11-04). The SwiftUI slot and tvOS's UIKit hero both size by it.
+public enum TitleLogoFit {
+  /// A quarter over its own pixels is not seen; more is.
+  public static let maximumUpscale: CGFloat = 1.25
+
+  public static func size(of size: CGSize, pixelWidth: CGFloat?, maxWidth: CGFloat,
+                          maxHeight: CGFloat, displayScale: CGFloat) -> CGSize {
+    guard size.width > 0, size.height > 0 else { return CGSize(width: maxWidth, height: maxHeight) }
+    var scale = min(maxWidth / size.width, maxHeight / size.height)
+    if let pixelWidth, pixelWidth > 0, displayScale > 0 {
+      // The logo's own width in points on this screen, a little over at most.
+      let native = pixelWidth / displayScale * maximumUpscale
+      scale = min(scale, native / size.width)
+    }
+    return CGSize(width: size.width * scale, height: size.height * scale)
   }
 }

@@ -117,6 +117,19 @@ public enum HomeHeroText {
     return result.isEmpty ? text : result
   }
 
+  /// What the Home hero says, on every platform — tvOS's UIKit hero and the SwiftUI
+  /// one on iOS / iPadOS / macOS read these, so a change here changes both (Sasha,
+  /// 2026-11-04).
+  public enum Rules {
+    /// Genres leading the meta line.
+    public static let genres = 2
+    /// Vote counts after each score: «IMDb 8.4 (104)».
+    public static let showsVotes = true
+    /// kino.pub's plot is long and its first sentences are rarely a tagline: off until
+    /// there is a quick source of a short one (Sasha, 2026-10-30).
+    public static let showsSynopsis = false
+  }
+
   /// The metadata parts after the scores:
   /// Order: 1. Genre (useful, skipping generic anime/cartoons), 2. Year/span (2026, 2024–26), 3. Country, 4. Duration/Volume (2+ seasons / episodes / runtime).
   /// `genres`: how many genres lead the line — the tvOS banner names one, the iOS / macOS

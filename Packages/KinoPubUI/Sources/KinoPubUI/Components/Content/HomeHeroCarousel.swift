@@ -443,12 +443,12 @@ public struct HomeHeroCarousel: View {
   /// Scores, then two genres · years · country · seasons — the tvOS banner's line
   /// (`HomeHeroText.metaParts`). One line: when it does not fit, the last parts go first.
   private func metaLine(_ card: MediaCard) -> some View {
-    let parts = HomeHeroText.metaParts(for: card, genres: 2)
+    let parts = HomeHeroText.metaParts(for: card, genres: HomeHeroText.Rules.genres)
     return ViewThatFits(in: .horizontal) {
       ForEach((0...parts.count).reversed(), id: \.self) { count in
         HStack(spacing: MediaScoresView.groupSpacing) {
           if card.scores.hasDisplayableScore {
-            MediaScoresView(card.scores, showsVotes: true, bannerLine: true)
+            MediaScoresView(card.scores, showsVotes: HomeHeroText.Rules.showsVotes, bannerLine: true)
           }
           ForEach(parts.prefix(count), id: \.self) { part in
             Text(part)

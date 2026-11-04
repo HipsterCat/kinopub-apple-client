@@ -415,6 +415,10 @@ final class TVPageHeroCell: UICollectionViewCell {
   private var markHeight: NSLayoutConstraint!
 
   private let logoSession = TitleLogoSession()
+  /// The other name under the logo or the lettered title, by the title page's rule
+  /// (`TitleLogoCaption`), no wider than the logo is drawn.
+  private let caption = UILabel()
+  private var captionWidth: NSLayoutConstraint!
   private var renderedID: Int?
   private var focusFailObserver: NSObjectProtocol?
   private var focusUpdateObserver: NSObjectProtocol?
@@ -428,6 +432,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     chrome.vibranceEnabled = false
     chrome.scoreIconHeight = MediaScoresView.lineIconHeight
     chrome.scoreMark = .line
+    chrome.showsRatingVotes = HomeHeroText.Rules.showsVotes
     return chrome
   }()
 
@@ -459,13 +464,21 @@ final class TVPageHeroCell: UICollectionViewCell {
     meta.alignment = .center
     meta.spacing = MediaScoresView.groupSpacing
 
+    caption.font = UIFont.preferredFont(forTextStyle: .caption1)
+    caption.adjustsFontForContentSizeCategory = true
+    caption.textColor = UIColor(white: 1, alpha: 0.72)
+    caption.numberOfLines = 2
+    caption.lineBreakMode = .byTruncatingTail
+    caption.isHidden = true
+    caption.accessibilityIdentifier = "kinopub.heroCaption"
+
     overview.font = UIFont.preferredFont(forTextStyle: .caption1)
     overview.adjustsFontForContentSizeCategory = true
     overview.textColor = UIColor(white: 1, alpha: 0.72)
     overview.numberOfLines = 2
     overview.lineBreakMode = .byTruncatingTail
 
-    for label in [titleLabel, overview, meta] as [UIView] {
+    for label in [titleLabel, caption, overview, meta] as [UIView] {
       label.layer.shadowColor = UIColor.black.cgColor
       label.layer.shadowOpacity = 0.32
       label.layer.shadowRadius = 7
@@ -481,7 +494,9 @@ final class TVPageHeroCell: UICollectionViewCell {
     words.spacing = 14
     words.translatesAutoresizingMaskIntoConstraints = false
     words.addArrangedSubview(mark)
-    words.setCustomSpacing(24, after: mark)
+    words.setCustomSpacing(12, after: mark)
+    words.addArrangedSubview(caption)
+    words.setCustomSpacing(24, after: caption)
     words.addArrangedSubview(meta)
     words.addArrangedSubview(overview)
     contentView.addSubview(words)
@@ -518,7 +533,9 @@ final class TVPageHeroCell: UICollectionViewCell {
     logoWidth = logo.widthAnchor.constraint(equalToConstant: 0)
     logoHeight = logo.heightAnchor.constraint(equalToConstant: 0)
     markHeight = mark.heightAnchor.constraint(equalToConstant: 0)
+    captionWidth = caption.widthAnchor.constraint(lessThanOrEqualToConstant: 600)
     NSLayoutConstraint.activate([
+      captionWidth,
       leading,
       wordsWidth,
       trailingRoom,
@@ -699,10 +716,12 @@ final class TVPageHeroCell: UICollectionViewCell {
       paintLogo()
     }
     logoSession.setResolution(feature.logo)
-    TVPageBannerCell.fillMeta(meta, card: card, parts: TVPageBannerCell.metaParts(for: card),
+    TVPageBannerCell.fillMeta(meta, card: card,
+                              parts: HomeHeroText.metaParts(for: card, genres: HomeHeroText.Rules.genres),
                               chrome: Self.metaChrome)
     meta.isHidden = meta.arrangedSubviews.isEmpty
-    let synopsis = card.overview.flatMap { TVPageBannerCell.smartSynopsis(of: $0) }
+    let synopsis = HomeHeroText.Rules.showsSynopsis
+      ? card.overview.flatMap { TVPageBannerCell.smartSynopsis(of: $0) } : nil
     overview.setUnhyphenated(synopsis)
     overview.isHidden = synopsis?.isEmpty ?? true
     bookmarkButton.isHidden = bookmarkEntries == nil
@@ -736,6 +755,7 @@ final class TVPageHeroCell: UICollectionViewCell {
       self.logo.isHidden = image == nil
       self.titleLabel.isHidden = !isText
       self.sizeLogo()
+      self.paintCaption(mark: image != nil ? .logo : (isText ? .text : .empty))
     }
     guard appears, window != nil, !UIAccessibility.isReduceMotionEnabled else {
       paint()
@@ -757,15 +777,27 @@ final class TVPageHeroCell: UICollectionViewCell {
       logoHeight.constant = 0
       return
     }
-    let aspect = image.size.width / image.size.height
-    var height = maxHeight
-    var logoW = height * aspect
-    if logoW > maxWidth {
-      logoW = maxWidth
-      height = logoW / aspect
+    let fitted = TitleLogoFit.size(of: image.size, pixelWidth: image.size.width * image.scale,
+                                   maxWidth: maxWidth, maxHeight: maxHeight,
+                                   displayScale: traitCollection.displayScale)
+    logoWidth.constant = fitted.width.rounded()
+    logoHeight.constant = fitted.height.rounded()
+  }
+
+  /// The line under the mark: what the title page's hero says under the same mark.
+  private func paintCaption(mark shown: TitleLogoMark) {
+    guard let card = carousel?.current?.card else {
+      caption.isHidden = true
+      return
     }
-    logoWidth.constant = logoW.rounded()
-    logoHeight.constant = height.rounded()
+    let line = TitleLogoCaption.line(mark: shown, deliveredLanguage: logoSession.deliveredLanguage,
+                                     logoURL: carousel?.current?.logoURL, localized: card.title,
+                                     original: card.subtitle ?? card.title)
+    caption.text = line
+    caption.isHidden = line?.isEmpty ?? true
+    // Under a logo it wraps at the logo's edge (230 pt at least, as on the title page);
+    // under the name, at the words' column.
+    captionWidth.constant = shown == .logo ? max(logoWidth.constant, 230) : wordsWidth.constant
   }
 
   // MARK: Buttons
