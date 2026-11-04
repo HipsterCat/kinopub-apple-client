@@ -289,7 +289,6 @@ struct MediaItemView: View {
 //      .toolbarColorScheme(.dark, for: .navigationBar)
 #endif
 #if os(macOS)
-      .toolbarBackground(.hidden, for: .windowToolbar)
       // No title over the hero — it spells the name out itself; once the hero has gone
       // under the toolbar, the toolbar takes the name (and the original one under it).
       .modifier(MacTitlePageToolbar(phase: itemModel.heroPhase,
@@ -1207,6 +1206,9 @@ private struct MacTitlePageToolbar: ViewModifier {
       // it: over the picture the toolbar floats bare.
       .scrollEdgeEffectStyle(.soft, for: .top)
       .scrollEdgeEffectHidden(!past, for: .top)
+      // A hidden toolbar background took the scroll edge with it: hidden over the
+      // picture only, the system's own once the rows are under the toolbar.
+      .toolbarBackgroundVisibility(past ? .automatic : .hidden, for: .windowToolbar)
   }
 }
 #endif

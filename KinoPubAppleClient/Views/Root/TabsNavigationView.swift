@@ -450,6 +450,27 @@ struct TabsNavigationView: View {
           pageScroll = PageScrollRequest(kind)
           return .handled
         }
+#if DEBUG
+        // Checks of a scrolled page without the pointer or focus: the shell posts
+        // `KINOPUBDebugPageScroll`, object `<pid>:<kind>` (lineDown, pageDown, bottom, top…)
+        // — the pid, so another running copy of the app does not scroll with it.
+        .onReceive(DistributedNotificationCenter.default()
+          .publisher(for: Notification.Name("KINOPUBDebugPageScroll"))) { note in
+          let parts = (note.object as? String)?.split(separator: ":").map(String.init) ?? []
+          guard parts.count == 2,
+                parts[0] == String(ProcessInfo.processInfo.processIdentifier) else { return }
+          let kind: PageScrollRequest.Kind? = switch parts[1] {
+          case "lineUp": .lineUp
+          case "lineDown": .lineDown
+          case "pageUp": .pageUp
+          case "pageDown": .pageDown
+          case "top": .top
+          case "bottom": .bottom
+          default: nil
+          }
+          if let kind { pageScroll = PageScrollRequest(kind) }
+        }
+#endif
         .environment(\.heroStepRequest, heroStep)
         .environment(\.pageScrollRequest, pageScroll)
         .environment(\.macLargePageTitles, MacLargePageTitleSwitch.isOn)

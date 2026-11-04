@@ -78,6 +78,18 @@ private struct RememberedScroll: ViewModifier {
         memory?.y = max(geometry.contentOffset.y + geometry.contentInsets.top, 0)
       }
 #endif
+#if DEBUG
+      // `-KINOPUBDebugScrollY <points>`: every page opens scrolled that far, for checks of
+      // a scrolled page (toolbar title, scroll edge) without a pointer over the window.
+      .task {
+        let y = UserDefaults.standard.double(forKey: "KINOPUBDebugScrollY")
+        guard y > 0 else { return }
+        for _ in 0..<12 {
+          try? await Task.sleep(for: .milliseconds(500))
+          position.scrollTo(y: y)
+        }
+      }
+#endif
       .task {
         // Once the lazy content has laid out down to where the page was.
         guard let memory, memory.y > 1 else { return }

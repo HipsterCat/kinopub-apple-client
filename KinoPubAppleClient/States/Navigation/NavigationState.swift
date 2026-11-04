@@ -93,6 +93,12 @@ final class NavigationState {
        let keyPath = Self.routes(for: selectedTab) {
       self[keyPath: keyPath] = [.detailsById(id)]
     }
+    // `collection:<id>` — a collection page (title as the API gives it once loaded).
+    if let route = UserDefaults.standard.string(forKey: "KINOPUBInitialRoute"),
+       route.hasPrefix("collection:"), let id = Int(route.dropFirst("collection:".count)),
+       let keyPath = Self.routes(for: selectedTab) {
+      self[keyPath: keyPath] = [.collection(Collection(id: id, title: ""))]
+    }
     if UserDefaults.standard.string(forKey: "KINOPUBInitialRoute") == "history" {
       libraryRoutes = [.history]
     }
