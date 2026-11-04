@@ -321,8 +321,14 @@ public struct HomeHeroCarousel: View {
         heroLog("turn \(turn) completed (latest \(turnID))")
         guard turn == turnID else { return }
         isTurning = false
-        // A turn the code makes may not report a scroll phase of its own.
-        settle()
+        // The turn knows where it goes: `current` is already the target. Not read back
+        // from the scroll position — the completion comes ~0.1 s in, before the pages
+        // have moved (more so while the window is dragged or the screen throttled), and
+        // the rounded position then sent the hero back a title and the clock with it
+        // (trace 2026-11-04). Only a page on an outer lap is put back in the middle one.
+        if current.lap != 0 {
+          move(to: Slot(lap: 0, index: current.index), animated: false)
+        }
       }
     } else {
       isTurning = false
