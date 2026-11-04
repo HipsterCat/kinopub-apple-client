@@ -64,6 +64,7 @@ struct TabsNavigationView: View {
   private static let sidebarSyncTTL: TimeInterval = 120
 #if os(macOS)
   @Environment(\.openWindow) private var openWindow
+  @Environment(\.openSettings) private var openSettings
 #endif
 
   /// The sidebar item (Mac) / tab (iPad) the app was on, restored at launch. App storage,
@@ -405,7 +406,21 @@ struct TabsNavigationView: View {
         // Every page under the same window toolbar, as the TV app's: with nothing in it a
         // page had none, and switching between pages moved everything up and down by the
         // bar's height (Sasha, 2026-10-31). The picture of Home runs on up under it.
-        .toolbar { ToolbarSpacer(.flexible) }
+        //
+        // Settings at the trailing end of it on every page, as iOS has it over Home; the
+        // account at the foot of the sidebar opens the same window.
+        .toolbar {
+          ToolbarSpacer(.flexible)
+          ToolbarItem(placement: .primaryAction) {
+            Button {
+              openSettings()
+            } label: {
+              Image(systemName: "person.crop.circle")
+            }
+            .accessibilityLabel(Text("Settings".localized))
+            .help(Text("Settings".localized))
+          }
+        }
         // `.edit`: focusable whatever the system's keyboard-navigation setting; the
         // default (`.activate`) takes focus only with Full Keyboard Access on, so the
         // page never held the keyboard and the arrows did not reach it.

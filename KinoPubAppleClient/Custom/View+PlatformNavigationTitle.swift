@@ -12,27 +12,31 @@ public extension View {
   func platformNavigationTitle(_ title: LocalizedStringKey) -> some View {
 #if os(tvOS)
     self
-#elseif os(iOS)
+#else
     // Inline large on every page: the large title sits in the bar, beside its buttons,
-    // not on a line of its own under them (Sasha, 2026-10-30).
+    // not on a line of its own under them (Sasha, 2026-10-30). On the Mac the same mode
+    // is the TV app's: a big title in the window toolbar beside Back, shrinking to the
+    // ordinary toolbar title as the page scrolls (Sasha, 2026-11-04).
     navigationTitle(title)
       .toolbarTitleDisplayMode(.inlineLarge)
-#else
-    navigationTitle(title)
 #endif
   }
 
+  /// Disfavoured, so a literal (`"Recently Watched"`) takes the localized overload above:
+  /// it took this one and showed the English key verbatim. Runtime strings (a folder's
+  /// name) still land here.
+  @_disfavoredOverload
   @ViewBuilder
   func platformNavigationTitle(_ title: String) -> some View {
 #if os(tvOS)
     self
-#elseif os(iOS)
+#else
     // Inline large on every page: the large title sits in the bar, beside its buttons,
-    // not on a line of its own under them (Sasha, 2026-10-30).
+    // not on a line of its own under them (Sasha, 2026-10-30). On the Mac the same mode
+    // is the TV app's: a big title in the window toolbar beside Back, shrinking to the
+    // ordinary toolbar title as the page scrolls (Sasha, 2026-11-04).
     navigationTitle(title)
       .toolbarTitleDisplayMode(.inlineLarge)
-#else
-    navigationTitle(title)
 #endif
   }
 

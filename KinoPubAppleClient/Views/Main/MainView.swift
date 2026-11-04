@@ -63,7 +63,7 @@ struct MainView: View {
       // Liquid Glass with the scroll-edge effect.
       rowsView
         .environment(\.scrollMemory, catalog.scrollMemory)
-        .modifier(PageTitle(title: title, isBlank: showsHeroChrome))
+        .modifier(PageTitle(title: title, isBlank: titleIsBlank))
 #if os(iOS)
         .modifier(HeroNavigationChrome(isActive: showsHeroChrome,
                                        isPushedOverHero: rowsHero != nil && isPushed))
@@ -561,6 +561,17 @@ struct MainView: View {
 #endif
   }
 
+  /// No title over the hero, on iOS and the Mac alike: the picture runs up under the bar.
+  /// On the Mac Home is always a sidebar root — and `isPresented` reads true at the root of
+  /// the split view's detail column, so it cannot tell.
+  private var titleIsBlank: Bool {
+#if os(macOS)
+    rowsHero != nil
+#else
+    showsHeroChrome
+#endif
+  }
+
   /// iOS / iPadOS / macOS: the banner titles as `HomeHeroCarousel`, behind the same
   /// switch as tvOS's hero; nil leaves the banner shelf in its place.
   private var rowsHero: HomeHero? {
@@ -661,6 +672,10 @@ private struct PageTitle: ViewModifier {
 #else
     // One modifier either way, so the page keeps its identity when the hero arrives.
     content.navigationTitle(isBlank ? Text(verbatim: "") : Text(title))
+#if os(macOS)
+      // The TV app's: large in the window toolbar, inline once the page scrolls.
+      .toolbarTitleDisplayMode(.inlineLarge)
+#endif
 #endif
   }
 }
