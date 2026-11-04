@@ -1193,7 +1193,12 @@ private struct WindowSheetProbe: NSViewRepresentable {
 
     /// A sheet over the window, or the window not visible at all.
     static func isHeld(_ window: NSWindow) -> Bool {
-      window.attachedSheet != nil || !window.occlusionState.contains(.visible)
+      if window.attachedSheet != nil { return true }
+#if DEBUG
+      // Test runs from a shell start behind other windows: `-KINOPUBHeroIgnoreOcclusion YES`.
+      if UserDefaults.standard.bool(forKey: "KINOPUBHeroIgnoreOcclusion") { return false }
+#endif
+      return !window.occlusionState.contains(.visible)
     }
 
     deinit {
