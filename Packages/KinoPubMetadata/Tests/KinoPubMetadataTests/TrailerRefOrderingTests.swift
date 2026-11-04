@@ -35,6 +35,6 @@ final class TrailerRefOrderingTests: XCTestCase {
     let ref = video("abc", lang: "en")
     XCTAssertEqual(ref.webURL?.absoluteString, "https://www.youtube.com/watch?v=abc")
     XCTAssertEqual(ref.appURL?.absoluteString, "youtube://watch/abc")
-    XCTAssertEqual(ref.thumbnailURL?.absoluteString, "https://i.ytimg.com/vi/abc/maxresdefault.jpg")
+    XCTAssertEqual(ref.thumbnailURL?.absoluteString, "https://i.ytimg.com/vi/abc/hqdefault.jpg")
   }
 }

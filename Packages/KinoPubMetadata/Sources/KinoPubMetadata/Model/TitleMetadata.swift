@@ -302,11 +302,13 @@ public struct TrailerRef: Sendable, Hashable {
     return URL(string: "youtube://watch/\(key)")
   }
 
-  /// YouTube's 16:9 still for the video (1280 wide). Every HD upload has one, and the
-  /// official trailers TMDB lists are HD.
+  /// YouTube's still for the video. `hqdefault` (480×360) is the one every upload has;
+  /// `maxresdefault` 404s for some (measured 2026-11-04: Inception's Russian trailer
+  /// RlKr_lO45Nc), which left an empty tile. It is 4:3 with the 16:9 picture letterboxed
+  /// inside, so a centre-crop fill onto a 16:9 tile shows exactly the picture.
   public var thumbnailURL: URL? {
     guard isYouTube else { return nil }
-    return URL(string: "https://i.ytimg.com/vi/\(key)/maxresdefault.jpg")
+    return URL(string: "https://i.ytimg.com/vi/\(key)/hqdefault.jpg")
   }
 
   /// The title page's videos rail: YouTube only (that is where a press goes), in the app's
