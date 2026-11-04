@@ -86,7 +86,7 @@ final class SectionVisibilityStore: ObservableObject {
       BrowseTabSpec(id: "home", tab: .home, titleKey: "Home",
                     localizedTitle: "Home".localized, systemImage: "house.fill", defaultVisible: true),
       BrowseTabSpec(id: "library", tab: .library, titleKey: "TabLibrary",
-                    localizedTitle: "TabLibrary".localized, systemImage: "rectangle.stack.badge.person.crop", defaultVisible: true),
+                    localizedTitle: "TabLibrary".localized, systemImage: "rectangle.stack", defaultVisible: true),
       BrowseTabSpec(id: "series", tab: .series, titleKey: "Series",
                     localizedTitle: "Series".localized, systemImage: "tv", defaultVisible: true),
       BrowseTabSpec(id: "movies", tab: .movies, titleKey: "Movies",

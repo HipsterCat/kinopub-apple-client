@@ -772,28 +772,21 @@ struct MediaItemView: View {
 #endif
   }
 
+  /// TMDB's videos for the rail: the app's language, English, the original — in that order.
+  private var titlePageVideos: [TrailerRef] {
+    TrailerRef.forTitlePage(itemModel.externalMetadata.trailers,
+                            appLanguage: Bundle.main.preferredLocalizations.first ?? "ru",
+                            originalLanguage: itemModel.externalMetadata.originalLanguage)
+  }
+
+  private var trailerEntriesEmpty: Bool {
+    !itemModel.itemLoaded
+      || TrailersRailView.entries(item: itemModel.mediaItem, videos: titlePageVideos).isEmpty
+  }
+
   @ViewBuilder
   private var contentSections: some View {
     VStack(alignment: .leading, spacing: contentSpacing) {
-      // Versions of one film sit where a series' episodes would: directly under the hero,
-      // because "what can I play right now" is the cheapest thing to reach on a remote.
-      // Empty for everything with one video, which is almost every film.
-      if !itemModel.mediaItem.playbackVariants.isEmpty {
-        VersionsRailView(variants: itemModel.mediaItem.playbackVariants,
-                         linkProvider: itemModel.linkProvider,
-                         stillURL: itemModel.mediaItem.posters.wideURL ?? verticalCover(itemModel.mediaItem.posters.medium),
-                         showsChrome: true,
-                         titleKey: itemModel.mediaItem.presentation.videosRailTitleKey,
-                         entryVariantID: versionsEntry)
-#if os(tvOS)
-          // A UIKit rail is no SwiftUI focus target cell by cell, but the rail as a whole
-          // can be one: focusing it hands focus to UIKit, which lands on `entryVariantID`
-          // (the shape `TVSidebarSandbox` settled). A `UIFocusSystem` request from here is
-          // refused — "ineligible environment" — while a hero control holds focus.
-          .focused($focus, equals: .versionsRail)
-#endif
-      }
-
       if let seasons = seasonsForDisplay, !seasons.isEmpty {
         SeasonsRailView(seasons: seasons,
                         memory: itemModel.seasonsRail,
@@ -823,6 +816,39 @@ struct MediaItemView: View {
                           Task { await itemModel.ensureSeasonSchedule(seasonNumber) }
                         },
                         onPageOffset: { pageScrollMinY = -$0 })
+      }
+
+      // Versions of one film sit under the episodes (Sasha, 2026-11-04: seasons/episodes,
+      // versions, trailers and videos, ratings), so for a film they are the first row under
+      // the hero — "what can I play right now" is the cheapest thing to reach on a remote.
+      // Empty for everything with one video, which is almost every film.
+      if !itemModel.mediaItem.playbackVariants.isEmpty {
+        VersionsRailView(variants: itemModel.mediaItem.playbackVariants,
+                         linkProvider: itemModel.linkProvider,
+                         stillURL: itemModel.mediaItem.posters.wideURL ?? verticalCover(itemModel.mediaItem.posters.medium),
+                         showsChrome: true,
+                         titleKey: itemModel.mediaItem.presentation.videosRailTitleKey,
+                         entryVariantID: versionsEntry)
+#if os(tvOS)
+          // A UIKit rail is no SwiftUI focus target cell by cell, but the rail as a whole
+          // can be one: focusing it hands focus to UIKit, which lands on `entryVariantID`
+          // (the shape `TVSidebarSandbox` settled). A `UIFocusSystem` request from here is
+          // refused — "ineligible environment" — while a hero control holds focus.
+          .focused($focus, equals: .versionsRail)
+#endif
+      }
+
+      // Trailers, teasers and the rest: kino.pub's trailer, then TMDB's videos on YouTube.
+      if !trailerEntriesEmpty {
+        TrailersRailView(item: itemModel.mediaItem,
+                         videos: titlePageVideos,
+                         linkProvider: itemModel.linkProvider,
+                         stillURL: itemModel.mediaItem.posters.wideURL ?? verticalCover(itemModel.mediaItem.posters.medium),
+                         showsChrome: true,
+                         onOpenFailed: {
+                           itemModel.hudToast = HudToast(systemImage: "play.rectangle",
+                                                         title: "MediaItem_YouTubeUnavailable".localized)
+                         })
       }
 
 #if os(tvOS)

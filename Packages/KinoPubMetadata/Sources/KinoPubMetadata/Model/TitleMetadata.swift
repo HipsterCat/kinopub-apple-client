@@ -268,16 +268,77 @@ public struct ReviewsSummary: Sendable, Hashable {
 public struct TrailerRef: Sendable, Hashable {
   public let site: String
   public let key: String
+  /// TMDB's video type: Trailer, Teaser, Clip, Featurette, Behind the Scenes, Bloopers,
+  /// Opening Credits.
   public let type: String
   public let official: Bool
   public let language: String?
+  /// The uploader's title of the video, in its own language.
+  public let name: String?
+  public let publishedAt: Date?
 
-  public init(site: String, key: String, type: String, official: Bool, language: String?) {
+  public init(site: String, key: String, type: String, official: Bool, language: String?,
+              name: String? = nil, publishedAt: Date? = nil) {
     self.site = site
     self.key = key
     self.type = type
     self.official = official
     self.language = language
+    self.name = name
+    self.publishedAt = publishedAt
+  }
+
+  public var isYouTube: Bool { site.caseInsensitiveCompare("YouTube") == .orderedSame }
+
+  /// The video's page — on iOS a universal link into the YouTube app, on a Mac the browser.
+  public var webURL: URL? {
+    guard isYouTube else { return nil }
+    return URL(string: "https://www.youtube.com/watch?v=\(key)")
+  }
+
+  /// The YouTube app's own scheme, for tvOS, where there is no browser to hand a web link to.
+  public var appURL: URL? {
+    guard isYouTube else { return nil }
+    return URL(string: "youtube://watch/\(key)")
+  }
+
+  /// YouTube's still for the video. `hqdefault` (480×360) is the one every upload has;
+  /// `maxresdefault` 404s for some (measured 2026-11-04: Inception's Russian trailer
+  /// RlKr_lO45Nc), which left an empty tile. It is 4:3 with the 16:9 picture letterboxed
+  /// inside, so a centre-crop fill onto a 16:9 tile shows exactly the picture.
+  public var thumbnailURL: URL? {
+    guard isYouTube else { return nil }
+    return URL(string: "https://i.ytimg.com/vi/\(key)/hqdefault.jpg")
+  }
+
+  /// The title page's videos rail: YouTube only (that is where a press goes), in the app's
+  /// language, English and the title's original language — no others (Sasha, 2026-11-04).
+  /// Ordered by that language preference, then trailers before teasers before the rest,
+  /// official before fan uploads, newest first. Duplicated keys are dropped.
+  public static func forTitlePage(_ videos: [TrailerRef],
+                                  appLanguage: String,
+                                  originalLanguage: String?) -> [TrailerRef] {
+    let languages = [appLanguage, "en", originalLanguage].compactMap { $0?.lowercased() }
+    func languageRank(_ video: TrailerRef) -> Int? {
+      guard let language = video.language?.lowercased() else { return nil }
+      return languages.firstIndex(of: language)
+    }
+    var seen = Set<String>()
+    let kept = videos.filter { video in
+      video.isYouTube && languageRank(video) != nil && seen.insert(video.key).inserted
+    }
+    return kept.sorted { lhs, rhs in
+      let l = (languageRank(lhs) ?? .max, typeRank(lhs.type), lhs.official ? 0 : 1)
+      let r = (languageRank(rhs) ?? .max, typeRank(rhs.type), rhs.official ? 0 : 1)
+      if l != r { return l < r }
+      return (lhs.publishedAt ?? .distantPast) > (rhs.publishedAt ?? .distantPast)
+    }
+  }
+
+  private static func typeRank(_ type: String) -> Int {
+    let order = ["trailer", "teaser", "clip", "featurette", "behind the scenes",
+                 "opening credits", "bloopers"]
+    return order.firstIndex(of: type.lowercased()) ?? order.count
   }
 }
 
@@ -349,6 +410,8 @@ public struct TitleMetadata: Sendable {
   public var genres: [Genre] = []
   public var keywords: [String] = []
   public var trailers: [TrailerRef] = []
+  /// ISO 639-1 of the original production, when the source says.
+  public var originalLanguage: String?
   public var tagline: String?
   public var homepage: URL?
   /// Movie-only; both nil for series (TMDB doesn't report box office for TV).
@@ -421,6 +484,7 @@ public struct TitleMetadata: Sendable {
     if genres.isEmpty { genres = other.genres }
     if keywords.isEmpty { keywords = other.keywords }
     if trailers.isEmpty { trailers = other.trailers }
+    if originalLanguage == nil { originalLanguage = other.originalLanguage }
     if tagline == nil { tagline = other.tagline }
     if homepage == nil { homepage = other.homepage }
     if budget == nil { budget = other.budget }

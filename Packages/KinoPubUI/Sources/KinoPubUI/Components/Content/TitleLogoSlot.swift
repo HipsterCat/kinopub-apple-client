@@ -26,6 +26,7 @@ public struct TitleLogoSlot<Title: View>: View {
   private let title: () -> Title
 
   @StateObject private var session: TitleLogoSession
+  @Environment(\.displayScale) private var displayScale
 
   public init(
     resolution: TitleLogoResolution,
@@ -127,7 +128,8 @@ public struct TitleLogoSlot<Title: View>: View {
   @ViewBuilder
   private func logoView(_ image: Image?, size: CGSize?) -> some View {
     if let image {
-      let fitted = Self.fittedSize(of: size ?? .zero, maxWidth: maxWidth, maxHeight: maxHeight)
+      let fitted = Self.fittedSize(of: size ?? .zero, pixelWidth: pixelWidth(of: image, size: size),
+                                   maxWidth: maxWidth, maxHeight: maxHeight, displayScale: displayScale)
       image
         .resizable()
         .scaledToFit()
@@ -144,9 +146,111 @@ public struct TitleLogoSlot<Title: View>: View {
   /// a vertical lockup does not.
   static var minimumAspect: CGFloat { 0.8 }
 
-  private static func fittedSize(of size: CGSize, maxWidth: CGFloat, maxHeight: CGFloat) -> CGSize {
+  /// How far past its own pixels a logo may be drawn: a small TMDB logo blown up 2–3×
+  /// to fill the slot read soft (Sasha, 2026-11-04). A quarter over is not seen.
+  static var maximumUpscale: CGFloat { 1.25 }
+
+  private static func fittedSize(of size: CGSize, pixelWidth: CGFloat?, maxWidth: CGFloat,
+                                 maxHeight: CGFloat, displayScale: CGFloat) -> CGSize {
     guard size.width > 0, size.height > 0 else { return CGSize(width: maxWidth, height: maxHeight) }
-    let scale = min(maxWidth / size.width, maxHeight / size.height)
+    var scale = min(maxWidth / size.width, maxHeight / size.height)
+    if let pixelWidth, pixelWidth > 0, displayScale > 0 {
+      // The logo's own width in points on this screen, a little over at most.
+      let native = pixelWidth / displayScale * maximumUpscale
+      scale = min(scale, native / size.width)
+    }
     return CGSize(width: size.width * scale, height: size.height * scale)
+  }
+
+  /// The decoded logo's width in pixels, not points: what the worker actually sent (the
+  /// request asks for a width; TMDB's original can be far smaller).
+  private func pixelWidth(of image: Image, size: CGSize?) -> CGFloat? {
+    let cached = resolution.url.flatMap { Artwork.cachedImage(for: $0) }
+    guard let decoded = session.image ?? cached else { return nil }
+#if os(macOS)
+    if let rep = decoded.representations.first, rep.pixelsWide > 0 { return CGFloat(rep.pixelsWide) }
+    return decoded.size.width
+#else
+    return decoded.size.width * decoded.scale
+#endif
+  }
+}
+
+/// The line under the title slot: the other name, by what the slot shows — under a logo,
+/// whichever name the logo's served language leaves out; under lettered type, the original
+/// when it differs. Shared by the title page's hero and the Home hero, so both say the
+/// same (Sasha, 2026-11-04).
+public enum TitleLogoCaption {
+  /// What the slot is drawing: a cached logo paints before the slot reports its mark.
+  public static func resolvedMark(_ reported: TitleLogoMark, logoURL: URL?) -> TitleLogoMark {
+    // The slot turned a cached logo down (too tall): it says so, and that wins.
+    if reported == .text { return .text }
+    if let url = logoURL, Artwork.cachedImage(for: url) != nil { return .logo }
+    return reported
+  }
+
+  public static func line(mark: TitleLogoMark,
+                          deliveredLanguage: WorkerArtworkLanguageTag?,
+                          logoURL: URL?,
+                          localized: String,
+                          original: String,
+                          partner: String? = nil) -> String? {
+    switch mark {
+    case .empty:
+      return nil
+    case .logo:
+      let stamp = deliveredLanguage ?? logoURL.flatMap { Artwork.workerLanguage(on: $0) }
+      let kind = stamp.map(TitleLogoRequestKind.init(deliveredLanguage:))
+        ?? (TitleImageRoute.appLanguage == "en" ? .english : .russianPreferred)
+      return kind.supplementaryUnderLogo(localized: localized, original: original, partner: partner)
+    case .text:
+      guard let partner else {
+        guard !original.isEmpty, original != localized else { return nil }
+        return original
+      }
+      guard partner != localized else { return nil }
+      return partner
+    }
+  }
+}
+
+/// A column of two: the first line at its own size, the second under it proposed no more
+/// than the first's width when `capsWidth` — the subtitle under a title logo wraps at the
+/// logo's edge.
+public struct SecondLineCappedToFirst: Layout {
+  public var capsWidth: Bool
+  /// Never narrower than this, however narrow the logo: a tall logo left the line a
+  /// syllable wide (Sasha, 2026-10-30: 200).
+  public var minimumWidth: CGFloat
+  /// Leading on the title page and the wide Home hero, centred in the phone's hero.
+  public var alignment: HorizontalAlignment
+
+  public init(capsWidth: Bool, minimumWidth: CGFloat = 230, alignment: HorizontalAlignment = .leading) {
+    self.capsWidth = capsWidth
+    self.minimumWidth = minimumWidth
+    self.alignment = alignment
+  }
+
+  private func sizes(_ proposal: ProposedViewSize, _ subviews: Subviews) -> [CGSize] {
+    guard let first = subviews.first else { return [] }
+    let head = first.sizeThatFits(proposal)
+    let capped = max(head.width, minimumWidth)
+    let width = capsWidth ? min(proposal.width ?? capped, capped) : proposal.width
+    let rest = subviews.dropFirst().map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
+    return [head] + rest
+  }
+
+  public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let all = sizes(proposal, subviews)
+    return CGSize(width: all.map(\.width).max() ?? 0, height: all.map(\.height).reduce(0, +))
+  }
+
+  public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    var y = bounds.minY
+    for (subview, size) in zip(subviews, sizes(proposal, subviews)) {
+      let x = alignment == .center ? bounds.midX - size.width / 2 : bounds.minX
+      subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+      y += size.height
+    }
   }
 }

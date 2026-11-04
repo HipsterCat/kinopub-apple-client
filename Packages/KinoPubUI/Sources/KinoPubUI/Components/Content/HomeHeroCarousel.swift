@@ -24,6 +24,7 @@ import Foundation
 //  picture, and ends on a hard edge: the page under it keeps the system appearance.
 //
 
+import KinoPubMetadata
 import SwiftUI
 
 public struct HomeHeroCarousel: View {
@@ -416,17 +417,12 @@ public struct HomeHeroCarousel: View {
   private func mark(_ feature: HomeHeroFeature) -> some View {
     let maxWidth = (pictureWidth * (isCompact ? 0.7 : 0.4)).rounded()
     let maxHeight = (pictureWidth * (isCompact ? 0.26 : 0.085)).rounded()
-    return TitleLogoSlot(resolution: feature.logo, maxWidth: maxWidth, maxHeight: maxHeight,
-                         alignment: isCompact ? .center : .leading) {
-         // TODO: TEXT MUST BE WIDER THAN IMAGE SLOT
-      Text(feature.card.title)
-        .font(TypeScale.heroTitle)
-        .foregroundStyle(.white)
-        .lineLimit(2)
-        .multilineTextAlignment(isCompact ? .center : .leading)
-    }
-    .id(feature.card.id)
-    .frame(minHeight: maxHeight, alignment: isCompact ? .bottom : .bottomLeading)
+    // Lettered names get more room than a logo: two lines of the hero's type in a logo's
+    // width broke short names (Sasha's TODO, 2026-11-04).
+    let textMaxWidth = (pictureWidth * (isCompact ? 0.9 : 0.5)).rounded()
+    return HeroTitleMark(feature: feature, maxWidth: maxWidth, maxHeight: maxHeight,
+                         textMaxWidth: textMaxWidth, isCompact: isCompact)
+      .id(feature.card.id)
   }
 
   /// Scores, then two genres · years · country · seasons — the tvOS banner's line
@@ -766,6 +762,57 @@ private struct HeroPagingArrowStyle: ButtonStyle {
 
 // MARK: - Paging dots
 
+/// The title logo, or the name after a confirmed miss, and the other name under it — the
+/// title page hero's line, by the same rule (`TitleLogoCaption`), under a logo no wider
+/// than the logo is drawn (Sasha, 2026-11-04). The banner knows no partner title from
+/// enrichment: it makes no details request, so only kino.pub's own two names count.
+private struct HeroTitleMark: View {
+  let feature: HomeHeroFeature
+  let maxWidth: CGFloat
+  let maxHeight: CGFloat
+  let textMaxWidth: CGFloat
+  let isCompact: Bool
+
+  @State private var reportedMark: TitleLogoMark = .empty
+  @State private var deliveredLanguage: WorkerArtworkLanguageTag?
+
+  private var card: MediaCard { feature.card }
+  private var mark: TitleLogoMark {
+    TitleLogoCaption.resolvedMark(reportedMark, logoURL: feature.logoURL)
+  }
+  private var caption: String? {
+    TitleLogoCaption.line(mark: mark, deliveredLanguage: deliveredLanguage,
+                          logoURL: feature.logoURL, localized: card.title,
+                          original: card.subtitle ?? card.title)
+  }
+
+  var body: some View {
+    let alignment: HorizontalAlignment = isCompact ? .center : .leading
+    SecondLineCappedToFirst(capsWidth: mark == .logo, alignment: alignment) {
+      TitleLogoSlot(resolution: feature.logo, maxWidth: maxWidth, maxHeight: maxHeight,
+                    textMaxWidth: textMaxWidth, alignment: alignment,
+                    onMarkChange: { reportedMark = $0 },
+                    onDeliveredLanguageChange: { if let language = $0 { deliveredLanguage = language } }) {
+        Text(card.title)
+          .font(TypeScale.heroTitle)
+          .foregroundStyle(.white)
+          .lineLimit(2)
+          .multilineTextAlignment(isCompact ? .center : .leading)
+      }
+      .frame(minHeight: maxHeight, alignment: isCompact ? .bottom : .bottomLeading)
+      if let caption {
+        Text(caption)
+          .font(TypeScale.heroSecondary)
+          .foregroundStyle(.white.opacity(0.7))
+          .lineLimit(2)
+          .multilineTextAlignment(isCompact ? .center : .leading)
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(.top, mark == .logo ? 12 : 6)
+      }
+    }
+  }
+}
+
 /// The paging dots with the running title's progress in them, the way the Apple TV app
 /// draws them. They are also the clock: `onAdvance` when the title's time is up; a dot
 /// clicked or tapped is `onSelect`.
@@ -863,6 +910,12 @@ private struct SystemPageDots: UIViewRepresentable {
   }
 }
 #else
+/// The Mac's page dots, drawn: macOS has no page control (`.page` styles are unavailable,
+/// no NSPageControl in the 27.2 SDK). Built as UIPageControl and Plozz's dots behave:
+/// one capsule per dot that stretches into the running one in a single animation (no
+/// swap of shapes, which jumped), a row of fixed width, the running one filling as it
+/// dwells, a tap or a scrub along the row picks a page, and a plate behind the row while
+/// the pointer is over it (Sasha, 2026-11-04).
 private struct DrawnPageDots: View {
   let count: Int
   let current: Int
@@ -874,27 +927,60 @@ private struct DrawnPageDots: View {
   /// UIPageControl's measures: an 8 pt dot, 8 pt apart, the running one three dots long.
   @ScaledMetric(relativeTo: .body) private var dot: CGFloat = 8
   @State private var progress: CGFloat = 0
+  @State private var isHovered = false
+  @State private var scrubbed: Int?
 
   private struct Run: Equatable {
     let current: Int
     let advances: Bool
   }
 
+  private var running: CGFloat { dot * 3 }
+  private var gap: CGFloat { dot }
+
   var body: some View {
-    HStack(spacing: 0) {
+    HStack(spacing: gap) {
       ForEach(0..<count, id: \.self) { index in
-        Button { onSelect(index) } label: {
-          indicator(index)
-            .padding(.horizontal, dot / 2)
-            .padding(.vertical, dot)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("\(index + 1)"))
-        .accessibilityAddTraits(index == current ? .isSelected : [])
+        let active = index == current
+        Capsule()
+          .fill(.white.opacity(active && !advances ? 1 : 0.35))
+          .overlay(alignment: .leading) {
+            Capsule()
+              .fill(.white)
+              .frame(width: active && advances ? max(dot, running * progress) : 0)
+              .opacity(active && advances ? 1 : 0)
+          }
+          .frame(width: active ? running : dot, height: dot)
       }
     }
-    .animation(.easeInOut(duration: 0.25), value: current)
+    .padding(.horizontal, dot)
+    .padding(.vertical, dot)
+    .background {
+      Capsule()
+        .fill(.white.opacity(0.14))
+        .opacity(isHovered ? 1 : 0)
+    }
+    .contentShape(Capsule())
+    .animation(.smooth(duration: 0.3), value: current)
+    .animation(.easeOut(duration: 0.2), value: isHovered)
+    .onHover { isHovered = $0 }
+    .gesture(
+      DragGesture(minimumDistance: 0)
+        .onChanged { value in pick(at: value.location.x) }
+        .onEnded { value in
+          pick(at: value.location.x)
+          scrubbed = nil
+        }
+    )
+    .accessibilityElement()
+    .accessibilityLabel(Text("\(current + 1) / \(count)"))
+    .accessibilityAdjustableAction { direction in
+      switch direction {
+      case .increment: onSelect((current + 1) % count)
+      case .decrement: onSelect((current - 1 + count) % count)
+      @unknown default: break
+      }
+    }
     .task(id: Run(current: current, advances: advances)) {
       var reset = Transaction()
       reset.disablesAnimations = true
@@ -907,24 +993,18 @@ private struct DrawnPageDots: View {
     }
   }
 
-  @ViewBuilder
-  private func indicator(_ index: Int) -> some View {
-    if index == current {
-      Capsule()
-        .fill(.white.opacity(advances ? 0.35 : 1))
-        .overlay(alignment: .leading) {
-          if advances {
-            Capsule()
-              .fill(.white)
-              .frame(width: max(dot, dot * 3 * progress))
-          }
-        }
-        .frame(width: dot * 3, height: dot)
-    } else {
-      Circle()
-        .fill(.white.opacity(0.35))
-        .frame(width: dot, height: dot)
+  /// The dot under `x`, in the row's own layout (the running one is wider).
+  private func pick(at x: CGFloat) {
+    var edge = dot
+    var index = count - 1
+    for i in 0..<count {
+      edge += (i == current ? running : dot) + gap / 2
+      if x < edge { index = i; break }
+      edge += gap / 2
     }
+    guard index != scrubbed else { return }
+    scrubbed = index
+    if index != current { onSelect(index) }
   }
 }
 #endif

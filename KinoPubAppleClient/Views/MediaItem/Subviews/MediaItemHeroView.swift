@@ -1157,10 +1157,7 @@ struct MediaItemHeroView: View {
 
   /// Cached logo paints before ``TitleLogoSlot`` calls ``onMarkChange`` — treat as `.logo`.
   private var resolvedTitleLogoMark: TitleLogoMark {
-    // The slot turned a cached logo down (too tall): it says so, and that wins.
-    if titleLogoMark == .text { return .text }
-    if let url = titleLogoURL, Artwork.cachedImage(for: url) != nil { return .logo }
-    return titleLogoMark
+    TitleLogoCaption.resolvedMark(titleLogoMark, logoURL: titleLogoURL)
   }
 
   /// Gap above the subtitle: looser under a wordmark than under lettered type.
@@ -1174,26 +1171,12 @@ struct MediaItemHeroView: View {
   }
 
   private var supplementaryUnderTitle: String? {
-    switch resolvedTitleLogoMark {
-    case .empty:
-      return nil
-    case .logo:
-      let stamp = deliveredLogoLanguage ?? titleLogoURL.flatMap { Artwork.workerLanguage(on: $0) }
-      let kind = stamp.map(TitleLogoRequestKind.init(deliveredLanguage:))
-        ?? (TitleImageRoute.appLanguage == "en" ? .english : .russianPreferred)
-      return kind.supplementaryUnderLogo(
-        localized: mediaItem.localizedTitle,
-        original: mediaItem.originalTitle,
-        partner: titlePartnerLine
-      )
-    case .text:
-      guard let partner = titlePartnerLine else {
-        guard mediaItem.originalTitle != mediaItem.localizedTitle else { return nil }
-        return mediaItem.originalTitle
-      }
-      guard partner != mediaItem.localizedTitle else { return nil }
-      return partner
-    }
+    TitleLogoCaption.line(mark: resolvedTitleLogoMark,
+                          deliveredLanguage: deliveredLogoLanguage,
+                          logoURL: titleLogoURL,
+                          localized: mediaItem.localizedTitle,
+                          original: mediaItem.originalTitle,
+                          partner: titlePartnerLine)
   }
 
   /// The other name, under the synopsis popup's title — whatever the hero's own subtitle
@@ -1962,34 +1945,3 @@ private struct MediaItemHeroPreview: View {
 }
 #endif
 
-/// A leading-aligned column of two: the first line at its own size, the second under it
-/// proposed no more than the first's width when `capsWidth` — the subtitle under a title
-/// logo wraps at the logo's edge.
-private struct SecondLineCappedToFirst: Layout {
-  var capsWidth: Bool
-  /// Never narrower than this, however narrow the logo: a tall logo left the line a
-  /// syllable wide (Sasha, 2026-10-30: 200).
-  var minimumWidth: CGFloat = 230
-
-  private func sizes(_ proposal: ProposedViewSize, _ subviews: Subviews) -> [CGSize] {
-    guard let first = subviews.first else { return [] }
-    let head = first.sizeThatFits(proposal)
-    let capped = max(head.width, minimumWidth)
-    let width = capsWidth ? min(proposal.width ?? capped, capped) : proposal.width
-    let rest = subviews.dropFirst().map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
-    return [head] + rest
-  }
-
-  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-    let all = sizes(proposal, subviews)
-    return CGSize(width: all.map(\.width).max() ?? 0, height: all.map(\.height).reduce(0, +))
-  }
-
-  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-    var y = bounds.minY
-    for (subview, size) in zip(subviews, sizes(proposal, subviews)) {
-      subview.place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(size))
-      y += size.height
-    }
-  }
-}

@@ -8,6 +8,9 @@ import KinoPubUI
 import KinoPubBackend
 import KinoPubMetadata
 import KinoPubMedia
+#if os(tvOS)
+import UIKit
+#endif
 
 /// Season tabs over one continuous horizontal rail of every episode in the series —
 /// S1E1 through the finale — the way the Apple TV app presents a show. Tabs scroll the
@@ -1382,6 +1385,166 @@ struct VersionsRailView: View {
                      mode: .media) {
             MediaCardView(card: MediaCard(variant: variant, stillURL: stillURL),
                           caption: .always)
+          }
+          .frame(width: cardWidth)
+          .buttonStyle(MediaCardButtonStyle())
+        }
+      }
+      .padding(.vertical, Metrics.landscapeFocusPadding)
+    }
+    .contentMargins(.horizontal, pageInset, for: .scrollContent)
+  }
+#endif
+}
+
+/// The title's trailers, teasers and other videos, as the same landscape rail the versions
+/// and a single season's episodes use (Sasha, 2026-11-04). First kino.pub's own trailer,
+/// played in our player; then TMDB's videos, which open YouTube — in the app's language,
+/// English and the original language, nothing else (`TrailerRef.forTitlePage`).
+struct TrailersRailView: View {
+
+  let item: MediaItem
+  let videos: [TrailerRef]
+  let linkProvider: NavigationLinkProvider
+  /// The title's own wide artwork, for kino.pub's trailer, which has no still of its own.
+  var stillURL: String? = nil
+  /// False while the hero owns the page, as for the versions.
+  var showsChrome: Bool = true
+  /// A YouTube video the system had nothing to open with (no YouTube app on the Apple TV).
+  var onOpenFailed: () -> Void = {}
+
+  @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.openURL) private var openURL
+#if os(tvOS)
+  @Environment(\.mediaNavigation) private var mediaNavigation
+#endif
+  @State private var railWidth: CGFloat = SeasonsRailView.referenceWidth
+
+  /// One card of the rail: kino.pub's trailer, or a video somewhere else.
+  enum Entry: Identifiable {
+    case kinopub
+    case external(TrailerRef)
+
+    var id: String {
+      switch self {
+      case .kinopub: return "kinopub"
+      case .external(let video): return video.key
+      }
+    }
+  }
+
+  /// Everything the rail would show — empty means no rail.
+  static func entries(item: MediaItem, videos: [TrailerRef]) -> [Entry] {
+    (item.trailerURL != nil ? [.kinopub] : []) + videos.map { .external($0) }
+  }
+
+  private var entries: [Entry] { Self.entries(item: item, videos: videos) }
+
+  private var metrics: ShelfMetrics { .landscape(width: railWidth, typeSize: typeSize) }
+  private var cardWidth: CGFloat { metrics.cardWidth(in: railWidth) }
+  private var pageInset: CGFloat {
+#if os(tvOS)
+    metrics.inset
+#else
+    MediaItemLayout.horizontalInset
+#endif
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if showsChrome {
+        SectionHeader(title: "MediaItem_TrailersAndVideos".localized, leadingInset: pageInset)
+          .transition(.opacity)
+      }
+      rail
+    }
+    .animation(.easeOut(duration: 0.25), value: showsChrome)
+    .onGeometryChange(for: CGFloat.self) { proxy in
+      proxy.size.width
+    } action: { width in
+      if width > 0 { railWidth = width }
+    }
+  }
+
+  private func caption(for entry: Entry) -> String {
+    switch entry {
+    case .kinopub:
+      return "Trailer".localized
+    case .external(let video):
+      if let name = video.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+        return name
+      }
+      return video.type
+    }
+  }
+
+  private func imageURL(for entry: Entry) -> URL? {
+    switch entry {
+    case .kinopub: return stillURL.flatMap(URL.init(string:))
+    case .external(let video): return video.thumbnailURL
+    }
+  }
+
+  /// YouTube: on tvOS its app (there is no browser), elsewhere the web link, which iOS
+  /// hands to the YouTube app when it is installed.
+  ///
+  /// Not `openURL(_:completion:)`: on a Mac LaunchServices calls that completion on its own
+  /// queue, and the closure, formed on the main actor, trapped there
+  /// (`_dispatch_assert_queue_fail`, Sasha 2026-11-04). UIKit's completion runs on main.
+  private func open(_ video: TrailerRef) {
+#if os(tvOS)
+    guard let url = video.appURL else { return }
+    UIApplication.shared.open(url, options: [:]) { accepted in
+      if !accepted { onOpenFailed() }
+    }
+#else
+    guard let url = video.webURL else { return }
+    openURL(url)
+#endif
+  }
+
+#if os(tvOS)
+  private var rail: some View {
+    let entries = entries
+    return TVUIKitMediaItemRail(
+      items: entries.enumerated().map { index, entry in
+        TVUIKitMediaItem(id: index, imageURL: imageURL(for: entry), caption: caption(for: entry))
+      },
+      contentInset: metrics.inset,
+      columns: MainView.stillColumns,
+      onSelect: { index in
+        guard entries.indices.contains(index) else { return }
+        switch entries[index] {
+        case .kinopub: mediaNavigation?(linkProvider.trailerPlayer(for: item))
+        case .external(let video): open(video)
+        }
+      }
+    )
+  }
+#else
+  private var rail: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      LazyHStack(alignment: .top, spacing: metrics.gutter) {
+        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+          let card = MediaCard(id: index,
+                               posterURL: imageURL(for: entry)?.absoluteString ?? "",
+                               title: caption(for: entry),
+                               landscapeImageURL: imageURL(for: entry)?.absoluteString ?? "",
+                               primaryAction: .play)
+          Group {
+            switch entry {
+            case .kinopub:
+              PlayerLink(route: linkProvider.trailerPlayer(for: item), item: item, mode: .trailer) {
+                MediaCardView(card: card, caption: .always)
+              }
+            case .external(let video):
+              Button { open(video) } label: {
+                MediaCardView(card: card, caption: .always)
+              }
+#if os(macOS)
+              .help(video.webURL?.absoluteString ?? "")
+#endif
+            }
           }
           .frame(width: cardWidth)
           .buttonStyle(MediaCardButtonStyle())

@@ -4773,6 +4773,24 @@
         }
       }
     },
+    "Kind_animatedSeries_One" : {
+      "comment" : "An animated series, in the Home hero's line",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Animated series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мультсериал"
+          }
+        }
+      }
+    },
     "Kind_anime" : {
       "comment" : "Catalog kind, plural: filters and section titles",
       "extractionState" : "manual",
@@ -4787,6 +4805,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Аниме"
+          }
+        }
+      }
+    },
+    "Kind_animeSeries_One" : {
+      "comment" : "An anime series, in the Home hero's line",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anime series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аниме-сериал"
           }
         }
       }
@@ -4949,6 +4985,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Без документалок"
+          }
+        }
+      }
+    },
+    "Kind_documentarySeries_One" : {
+      "comment" : "A documentary series, in the Home hero's line",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documentary series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документальный сериал"
           }
         }
       }
@@ -8456,6 +8510,42 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Добавлено на Кинопаб"
+          }
+        }
+      }
+    },
+    "MediaItem_TrailersAndVideos" : {
+      "comment" : "Header of the title page rail of trailers, teasers and other videos (kino.pub trailer + TMDB/YouTube)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trailers & Videos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Трейлеры и видео"
+          }
+        }
+      }
+    },
+    "MediaItem_YouTubeUnavailable" : {
+      "comment" : "Toast when a trailer on YouTube cannot be opened (no YouTube app)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install YouTube to watch this video"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установите YouTube, чтобы посмотреть это видео"
           }
         }
       }
