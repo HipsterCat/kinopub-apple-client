@@ -125,7 +125,10 @@ public enum HomeHeroText {
     var parts: [String] = []
 
     // 1. Жанр (пропуская базовые/банальные: аниме, мультфильм)
-    parts += card.usefulGenres(limit: genres)
+    let saysSeriesKind = card.isSeries && card.bannerDurationText()?.isEmpty != false
+    parts += card.usefulGenres(limit: genres,
+                               omittingDocumentary: saysSeriesKind
+                                 && card.seriesKindKey == "Kind_documentarySeries_One")
 
     // 2. Год / года (2026, 2024–26)
     if let years = card.bannerYearSpan, !years.isEmpty {

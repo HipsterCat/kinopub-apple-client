@@ -4989,6 +4989,24 @@
         }
       }
     },
+    "Kind_documentarySeries_One" : {
+      "comment" : "A documentary series, in the Home hero's line",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documentary series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документальный сериал"
+          }
+        }
+      }
+    },
     "Kind_movies" : {
       "comment" : "Catalog kind, plural: filters and section titles",
       "extractionState" : "manual",

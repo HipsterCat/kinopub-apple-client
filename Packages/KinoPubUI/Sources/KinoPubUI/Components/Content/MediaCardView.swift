@@ -249,7 +249,25 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
     }
     if has(["anime", "аниме"]) { return "Kind_animeSeries_One" }
     if has(["animation", "анимация", "мультфильм", "cartoon"]) { return "Kind_animatedSeries_One" }
+    if has(Self.documentaryKeywords) { return "Kind_documentarySeries_One" }
     return "Kind_series_One"
+  }
+
+  static let documentaryKeywords = ["documentary", "документальн"]
+
+  /// `usefulGenres` for a line that already says «Документальный сериал»: without the
+  /// documentary genre, which it would only repeat.
+  public func usefulGenres(limit: Int, omittingDocumentary: Bool,
+                           language: MediaLanguage = .current) -> [String] {
+    guard omittingDocumentary else { return usefulGenres(limit: limit, language: language) }
+    let documentary = Set(genres.filter { genre in
+      let names = [genre.id, genre.name.ru, genre.name.en].map { $0.lowercased() }
+      return Self.documentaryKeywords.contains { key in names.contains { $0.contains(key) } }
+    }.map { $0.name.value(languageCode: language.rawValue) })
+    return usefulGenres(limit: limit + documentary.count, language: language)
+      .filter { !documentary.contains($0) }
+      .prefix(limit)
+      .map { $0 }
   }
 
   public func usefulGenres(limit: Int, language: MediaLanguage = .current) -> [String] {
