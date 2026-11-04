@@ -106,7 +106,7 @@ struct SettingsRootView: View {
             }
           }
       }
-      .navigationSplitViewColumnWidth(500)
+//      .navigationSplitViewColumnWidth(500)
     }
     .navigationSplitViewStyle(.balanced)
     .frame(width: 720, height: 520)

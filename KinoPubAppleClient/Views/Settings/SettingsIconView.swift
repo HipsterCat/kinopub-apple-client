@@ -9,12 +9,13 @@ import SwiftUI
 struct SettingsIconView: View {
   let systemImage: String
   let color: Color
-  var size: CGFloat = 23
+  var size: CGFloat = 26
 
   var body: some View {
     Image(systemName: systemImage)
-      .font(.system(size: size * 0.52, weight: .semibold))
-      .foregroundStyle(.primary)
+     .font(.system(size: 11, weight: .medium))
+      .foregroundStyle(.white)
+//      .preferredColorScheme(.dark)
       .frame(width: size, height: size)
       .background(color.gradient, in: RoundedRectangle(cornerRadius: size * 0.26, style: .continuous))
   }
