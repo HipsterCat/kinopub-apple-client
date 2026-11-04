@@ -111,7 +111,7 @@ public struct HomeHeroCarousel: View {
 
   /// The hero's height under the bars for a page `width` wide on a `screen` tall
   /// screen, the bars' `topBleed` above it. Mac: the picture, toolbar strip included,
-  /// is always 16:9 of the window's width, whatever the window's height (Sasha,
+  /// is always 16:9 of its own width (the window's, less the sidebar), whatever the window's height (Sasha,
   /// 2026-10-30). iPad: a 16:9 picture as long as it leaves a fifth of the screen.
   /// Phone: a 16:10 still under the bars and room under it for the words, at most 70%
   /// of the screen.
@@ -131,6 +131,9 @@ public struct HomeHeroCarousel: View {
   static func stillHeight(width: CGFloat) -> CGFloat { (width * 10 / 16).rounded() }
 
   private var features: [HomeHeroFeature] { hero.features }
+
+  /// The picture's width: the hero's, less what covers its leading side.
+  private var pictureWidth: CGFloat { max(size.width - leadingObstruction, 1) }
 
   private var slots: [Slot] {
     let laps = features.count > 1 ? [-1, 0, 1] : [0]
@@ -191,13 +194,17 @@ public struct HomeHeroCarousel: View {
     // The pictures run up under the bars, past the pager's own frame.
     // The scrim is its own layer over the pictures, never redrawn by a turn.
     .background(alignment: .bottom) {
+      // From the sidebar's edge, never under it: the Mac's sidebar is opaque enough that
+      // a picture under it read as a broken extension (Sasha, 2026-11-04).
       ZStack {
         HeroBackdrop(features: features, slots: slots, pager: pager,
-                     width: size.width, height: size.height + topBleed, topBleed: topBleed,
+                     width: pictureWidth, height: size.height + topBleed, topBleed: topBleed,
                      isCompact: isCompact)
         HeroScrim(isCompact: isCompact)
       }
-      .frame(width: size.width, height: size.height + topBleed)
+      .frame(width: pictureWidth, height: size.height + topBleed)
+      .clipped()
+      .frame(width: size.width, height: size.height + topBleed, alignment: .trailing)
       .allowsHitTesting(false)
     }
     .overlay(alignment: isCompact ? .bottom : .bottomLeading) {
@@ -407,8 +414,8 @@ public struct HomeHeroCarousel: View {
   /// the name in its place after a confirmed miss. Its slot keeps its height while the
   /// logo loads, so the words under it do not jump.
   private func mark(_ feature: HomeHeroFeature) -> some View {
-    let maxWidth = (size.width * (isCompact ? 0.7 : 0.28)).rounded()
-    let maxHeight = (size.width * (isCompact ? 0.26 : 0.085)).rounded()
+    let maxWidth = (pictureWidth * (isCompact ? 0.7 : 0.28)).rounded()
+    let maxHeight = (pictureWidth * (isCompact ? 0.26 : 0.085)).rounded()
     return TitleLogoSlot(resolution: feature.logo, maxWidth: maxWidth, maxHeight: maxHeight,
                          alignment: isCompact ? .center : .leading) {
       Text(feature.card.title)

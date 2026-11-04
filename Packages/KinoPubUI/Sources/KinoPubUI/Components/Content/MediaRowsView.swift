@@ -341,13 +341,17 @@ public struct MediaRowsView: View {
     let screen = containerHeight + barInsets.top + barInsets.bottom
 #if os(macOS)
     // The whole window, under the sidebar too: the proxy's size leaves out the sidebar's
-    // safe-area inset, and the hero ignores it (it pads its words past the sidebar itself).
+    // safe-area inset, and the hero ignores it (it starts its picture and words past the
+    // sidebar itself, so the late inset moves nothing).
     let width = containerWidth + barInsets.leading + barInsets.trailing
+    // The picture itself starts at the sidebar's edge: 16:9 of what is seen.
+    let pictureWidth = max(width - pageLeadingObstruction, 1)
 #else
     let width = containerWidth
+    let pictureWidth = width
 #endif
     return CGSize(width: width,
-                  height: HomeHeroCarousel.height(width: width, topBleed: barInsets.top,
+                  height: HomeHeroCarousel.height(width: pictureWidth, topBleed: barInsets.top,
                                                   screen: screen, isCompact: heroIsCompact))
 #endif
   }
