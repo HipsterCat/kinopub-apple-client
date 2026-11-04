@@ -1010,6 +1010,8 @@ private struct DrawnPageDots: View {
       }
     }
     .task(id: Run(current: current, advances: advances)) {
+      // Lets the run this one replaces count its time first.
+      await Task.yield()
       runStart = nil
       // A new title starts its dwell over.
       if runFor != current {
@@ -1018,14 +1020,15 @@ private struct DrawnPageDots: View {
       }
       guard advances else { return }
       let start = Date()
+      let title = current
       runStart = start
       try? await Task.sleep(for: .seconds(max(dwell - spent, 0)))
       guard !Task.isCancelled else {
         // Only the time it actually ran counts. Counted on the next run instead, a run
         // whose dots went away (a resize, the window dragged) brought all the time away
         // back with it and turned at once, a title skipped (Sasha, 2026-11-04).
-        spent += Date().timeIntervalSince(start)
-        runStart = nil
+        if runFor == title { spent += Date().timeIntervalSince(start) }
+        if runStart == start { runStart = nil }
         return
       }
       runStart = nil
