@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import KinoPubUI
+#endif
 
 public extension View {
   /// On tvOS the tab bar already says where you are, and a large title below it just
@@ -18,10 +21,14 @@ public extension View {
     navigationTitle(title)
       .toolbarTitleDisplayMode(.inlineLarge)
 #else
-    navigationTitle(title)
+    macPageTitle(Text(title))
 #endif
   }
 
+  /// Disfavoured, so a literal (`"Recently Watched"`) takes the localized overload above:
+  /// it took this one and showed the English key verbatim. Runtime strings (a folder's
+  /// name) still land here.
+  @_disfavoredOverload
   @ViewBuilder
   func platformNavigationTitle(_ title: String) -> some View {
 #if os(tvOS)
@@ -32,11 +39,21 @@ public extension View {
     navigationTitle(title)
       .toolbarTitleDisplayMode(.inlineLarge)
 #else
-    navigationTitle(title)
+    macPageTitle(Text(title), isBlank: title.isEmpty)
 #endif
   }
 
 #if os(macOS)
+  /// The Apple TV app's page title: large, under Back, as the page's first line; it
+  /// scrolls away with the page and the window toolbar takes the ordinary title once it
+  /// has gone under it. macOS has no system large title (`.large` is unavailable there
+  /// and `.inlineLarge` draws the inline one), so this is the one piece we draw.
+  /// Off outside the main window's pages (the Settings window keeps its plain title),
+  /// and blank over the Home hero.
+  func macPageTitle(_ title: Text, isBlank: Bool = false) -> some View {
+    modifier(MacLargePageTitle(title: title, isBlank: isBlank))
+  }
+
   /// Keeps the window toolbar the same height on every sidebar destination by
   /// reserving the accessory strip (Search fills it with filters). Back/forward
   /// stay system-owned — only appear when the stack can actually go.
@@ -68,6 +85,91 @@ private struct MacStableToolbarChromeModifier: ViewModifier {
         }
       }
     }
+  }
+}
+#endif
+
+#if os(macOS)
+extension EnvironmentValues {
+  /// Pages under the main window's sidebar draw `MacLargePageTitle`; elsewhere (the
+  /// Settings window) the title is the toolbar's alone.
+  @Entry var macLargePageTitles = false
+}
+
+/// The scroll distance the large title has travelled, read by the header alone: the page
+/// around it re-renders only when the toolbar title flips.
+@Observable
+private final class MacLargeTitleTravel {
+  var offset: CGFloat = 0
+  var height: CGFloat = 0
+}
+
+private struct MacLargePageTitle: ViewModifier {
+  let title: Text
+  let isBlank: Bool
+  @Environment(\.macLargePageTitles) private var enabled
+  @State private var travel = MacLargeTitleTravel()
+  @State private var isScrolledAway = false
+
+  private var isActive: Bool { enabled && !isBlank }
+
+  func body(content: Content) -> some View {
+    // One structure whatever the state, so the page keeps its identity when the
+    // Home hero arrives and blanks the title.
+    //
+    // Room for it as the scroll content's top margin, the title over that room: a
+    // `safeAreaInset` drew the toolbar's scroll-edge blur over the title's band as well,
+    // so the scrolled toolbar stood twice its height.
+    content
+      .contentMargins(.top, isActive ? travel.height : 0, for: .scrollContent)
+      .overlay(alignment: .top) {
+        if isActive {
+          MacLargeTitleHeader(title: title, travel: travel)
+        }
+      }
+      .onScrollGeometryChange(for: CGFloat.self) { geometry in
+        // Clamped to the header's height: past it nothing changes and nothing re-renders.
+        min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), travel.height)
+      } action: { _, travelled in
+        travel.offset = travelled
+        let away = travel.height > 0 && travelled >= travel.height
+        if away != isScrolledAway { isScrolledAway = away }
+      }
+      .navigationTitle(isBlank || (isActive && !isScrolledAway) ? Text(verbatim: "") : title)
+  }
+}
+
+private struct MacLargeTitleHeader: View {
+  let title: Text
+  let travel: MacLargeTitleTravel
+  @Environment(\.pageLeadingObstruction) private var leadingObstruction
+  @Environment(\.dynamicTypeSize) private var typeSize
+  @State private var width: CGFloat = 0
+
+  /// The rows' own margin, from the window edge past the sidebar, as the shelves measure it.
+  private var inset: CGFloat {
+    ShelfMetrics.posters(width: max(width - leadingObstruction, 1), typeSize: typeSize).inset
+  }
+
+  var body: some View {
+    title
+      .font(.largeTitle.bold())
+      .lineLimit(1)
+      .accessibilityAddTraits(.isHeader)
+      .padding(.leading, leadingObstruction + inset)
+      .padding(.trailing, inset)
+      .padding(.bottom, 8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+        width = size.width
+        travel.height = size.height
+      }
+      // Moves with the page and is cut at the toolbar's edge, where the toolbar's own
+      // title takes over.
+      .offset(y: -travel.offset)
+      .clipped()
+      .allowsHitTesting(false)
+      .ignoresSafeArea(.container, edges: .horizontal)
   }
 }
 #endif

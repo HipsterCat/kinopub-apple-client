@@ -134,11 +134,17 @@ public struct AudioLedgerEntry: Codable, Equatable {
   /// two episodes of a stopgap must never outrank a season of the real preference.
   public var weight: Int
   public var lastPlayedAt: Date
+  /// When the viewer last chose this one **themselves**, in the player's menu. The latest
+  /// pick leads its scope whatever the weights say (`TrackPreferenceLedger.audioLadder`).
+  /// Optional so ledgers stored before it decode unchanged.
+  public var pickedAt: Date?
 
-  public init(signature: AudioTrackSignature, weight: Int = 1, lastPlayedAt: Date = Date()) {
+  public init(signature: AudioTrackSignature, weight: Int = 1, lastPlayedAt: Date = Date(),
+              pickedAt: Date? = nil) {
     self.signature = signature
     self.weight = weight
     self.lastPlayedAt = lastPlayedAt
+    self.pickedAt = pickedAt
   }
 }
 
@@ -146,11 +152,48 @@ public struct SubtitleLedgerEntry: Codable, Equatable {
   public var signature: SubtitleChoiceSignature
   public var weight: Int
   public var lastPlayedAt: Date
+  /// See `AudioLedgerEntry.pickedAt`.
+  public var pickedAt: Date?
 
-  public init(signature: SubtitleChoiceSignature, weight: Int = 1, lastPlayedAt: Date = Date()) {
+  public init(signature: SubtitleChoiceSignature, weight: Int = 1, lastPlayedAt: Date = Date(),
+              pickedAt: Date? = nil) {
     self.signature = signature
     self.weight = weight
     self.lastPlayedAt = lastPlayedAt
+    self.pickedAt = pickedAt
+  }
+}
+
+/// What both kinds of ledger entry share, so one ordering serves both ladders.
+protocol RankedLedgerEntry {
+  var weight: Int { get }
+  var lastPlayedAt: Date { get }
+  var pickedAt: Date? { get }
+}
+
+extension AudioLedgerEntry: RankedLedgerEntry {}
+extension SubtitleLedgerEntry: RankedLedgerEntry {}
+
+extension Array where Element: RankedLedgerEntry {
+  /// **The viewer's latest own pick first, then the rest by count, then recency.**
+  ///
+  /// Count alone made a pick in the player worthless: a season watched without subtitles is
+  /// "off" × 9, turning them on in episode 10 is "eng" × 1, and episode 11 opened without
+  /// them again — the same for a dub. A pick is the one input that says what the viewer
+  /// wants *now*, so the next episode follows it until they pick something else. Below the
+  /// pick, count before recency still keeps one stray automatic play from displacing a
+  /// season.
+  func ranked() -> [Element] {
+    let byCount = sorted { lhs, rhs in
+      if lhs.weight != rhs.weight { return lhs.weight > rhs.weight }
+      return lhs.lastPlayedAt > rhs.lastPlayedAt
+    }
+    guard let latestPick = byCount.indices
+      .filter({ byCount[$0].pickedAt != nil })
+      .max(by: { byCount[$0].pickedAt! < byCount[$1].pickedAt! }) else { return byCount }
+    var ranked = byCount
+    let leader = ranked.remove(at: latestPick)
+    return [leader] + ranked
   }
 }
 
@@ -183,21 +226,11 @@ public struct TrackPreferenceLedger: Codable, Equatable {
 
   // MARK: Reading
 
-  /// Strongest first: weight, then most recently played. Count before recency, so one
-  /// stray pick cannot displace a preference built over a season.
-  public var audioLadder: [AudioLedgerEntry] {
-    audio.sorted { lhs, rhs in
-      if lhs.weight != rhs.weight { return lhs.weight > rhs.weight }
-      return lhs.lastPlayedAt > rhs.lastPlayedAt
-    }
-  }
+  /// Strongest first: the viewer's latest own pick, then weight, then most recently played
+  /// (`ranked()`).
+  public var audioLadder: [AudioLedgerEntry] { audio.ranked() }
 
-  public var subtitleLadder: [SubtitleLedgerEntry] {
-    subtitles.sorted { lhs, rhs in
-      if lhs.weight != rhs.weight { return lhs.weight > rhs.weight }
-      return lhs.lastPlayedAt > rhs.lastPlayedAt
-    }
-  }
+  public var subtitleLadder: [SubtitleLedgerEntry] { subtitles.ranked() }
 
   // MARK: Writing
 
@@ -207,31 +240,51 @@ public struct TrackPreferenceLedger: Codable, Equatable {
     for track in tracks { seenAudio.insert(track.signature) }
   }
 
+  /// `picked`: the viewer chose this in the player's menu, as opposed to watching what the
+  /// episode opened with. A pick leads the scope from now on (`audioLadder`).
   public mutating func recordAudio(_ signature: AudioTrackSignature,
                                    at date: Date = Date(),
-                                   weight: Int = 1) {
+                                   weight: Int = 1,
+                                   picked: Bool = false) {
     seenAudio.insert(signature)
     if let index = audio.firstIndex(where: { $0.signature == signature }) {
       audio[index].weight += weight
       audio[index].lastPlayedAt = date
+      if picked { audio[index].pickedAt = date }
     } else {
-      audio.append(AudioLedgerEntry(signature: signature, weight: weight, lastPlayedAt: date))
+      audio.append(AudioLedgerEntry(signature: signature, weight: weight, lastPlayedAt: date,
+                                    pickedAt: picked ? date : nil))
     }
   }
 
   public mutating func recordSubtitle(_ signature: SubtitleChoiceSignature,
                                       at date: Date = Date(),
-                                      weight: Int = 1) {
+                                      weight: Int = 1,
+                                      picked: Bool = false) {
     if let index = subtitles.firstIndex(where: { $0.signature == signature }) {
       subtitles[index].weight += weight
       subtitles[index].lastPlayedAt = date
+      if picked { subtitles[index].pickedAt = date }
     } else {
-      subtitles.append(SubtitleLedgerEntry(signature: signature, weight: weight, lastPlayedAt: date))
+      subtitles.append(SubtitleLedgerEntry(signature: signature, weight: weight, lastPlayedAt: date,
+                                           pickedAt: picked ? date : nil))
     }
   }
 }
 
 // MARK: - Settings
+
+/// **Whether a title opens with subtitles** — Plex's three answers, because they are the
+/// ones a viewer actually means (Sasha, 2026-11-01). A pick in the player overrides it for
+/// that title until the next pick (`TrackResolver`).
+public enum SubtitleMode: String, CaseIterable, Codable {
+  /// Every title, in the first preferred subtitle language it offers.
+  case always
+  /// Only when the audio that plays is in none of the preferred **audio** languages.
+  case foreignAudio
+  /// Never by themselves.
+  case manual
+}
 
 /// The app-level half of the ladder. Everything here is a user setting; nothing here is
 /// per title.
@@ -245,14 +298,9 @@ public struct PlaybackLanguagePreferences: Equatable {
   /// subtitles. `nil` = no floor. Original (5) and unknown (6) kinds are never filtered
   /// by it — the floor is about dub quality, and an original track is not a dub.
   public var minimumDubKind: Int?
-  /// Subtitles are on by default. **Mirrors the system's own captions setting**
-  /// (Accessibility → Subtitles & Captioning) until the app has one of its own: that is
-  /// where the viewer already answered this question, and it is built for it.
-  public var subtitlesDefaultOn: Bool
-  /// Subtitles come on when the audio that won is in a language the viewer does not read,
-  /// even when the default above is off. Anime in Japanese, or a film that only ever had
-  /// an English track.
-  public var subtitlesWhenAudioNotUnderstood: Bool
+  /// When subtitles come on without being picked. The app's own setting; until it is set,
+  /// the system's captions setting answers (`.alwaysOn` there is `.always` here).
+  public var subtitleMode: SubtitleMode
   /// On an anime, original audio plus subtitles wins even when a dub exists.
   public var animePrefersOriginalAudio: Bool
   public var preferNonCCSubtitles: Bool
@@ -260,15 +308,13 @@ public struct PlaybackLanguagePreferences: Equatable {
   public init(audioLanguages: [String] = [],
               subtitleLanguages: [String] = [],
               minimumDubKind: Int? = nil,
-              subtitlesDefaultOn: Bool = false,
-              subtitlesWhenAudioNotUnderstood: Bool = true,
+              subtitleMode: SubtitleMode = .foreignAudio,
               animePrefersOriginalAudio: Bool = false,
               preferNonCCSubtitles: Bool = true) {
     self.audioLanguages = audioLanguages
     self.subtitleLanguages = subtitleLanguages
     self.minimumDubKind = minimumDubKind
-    self.subtitlesDefaultOn = subtitlesDefaultOn
-    self.subtitlesWhenAudioNotUnderstood = subtitlesWhenAudioNotUnderstood
+    self.subtitleMode = subtitleMode
     self.animePrefersOriginalAudio = animePrefersOriginalAudio
     self.preferNonCCSubtitles = preferNonCCSubtitles
   }
@@ -285,12 +331,6 @@ public struct PlaybackLanguagePreferences: Equatable {
     let explicit = subtitleLanguages.filter { !$0.isEmpty }
     guard explicit.isEmpty else { return uniqueKeys(explicit) }
     return resolvedAudioLanguages(system: system)
-  }
-
-  /// Languages the viewer can follow — spoken or read. Audio in none of these is what
-  /// turns subtitles on.
-  public func readingLanguages(system: [String]) -> [String] {
-    uniqueKeys(resolvedSubtitleLanguages(system: system) + resolvedAudioLanguages(system: system))
   }
 
   private func uniqueKeys(_ codes: [String]) -> [String] {

@@ -153,9 +153,7 @@ final class TrailerPreviewModel: ObservableObject {
 /// title it has to fill the hero and stay out of the way instead.
 struct TrailerVideoLayer {
   let player: AVPlayer
-  /// `.resizeAspectFill` behind the title so the trailer fills the hero; the
-  /// full-screen presentation asks for `.resizeAspect` so nothing is cropped away.
-    var gravity: AVLayerVideoGravity = .resizeAspect
+    var gravity: AVLayerVideoGravity = .resizeAspectFill
 }
 
 #if os(macOS)
@@ -882,7 +880,7 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
     Color.KinoPub.subtitle
 #else
-    usesAdaptivePosterHero ? .secondary : Color.KinoPub.subtitle
+       usesAdaptivePosterHero ? Color.KinoPub.text.opacity(0.85) : Color.KinoPub.text.opacity(0.85)
 #endif
   }
 
@@ -1140,6 +1138,7 @@ struct MediaItemHeroView: View {
       .foregroundStyle(heroPrimaryForeground)
       .multilineTextAlignment(.leading)
       .fixedSize(horizontal: false, vertical: true)
+      .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 2)
   }
 
   /// Under the logo: localized vs original from the **served** worker stamp (`ru` /
@@ -1152,6 +1151,7 @@ struct MediaItemHeroView: View {
         .foregroundStyle(heroSecondaryForeground)
         .multilineTextAlignment(.leading)
         .fixedSize(horizontal: false, vertical: true)
+        .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 2)
     }
   }
 
@@ -1696,7 +1696,7 @@ struct MediaItemHeroView: View {
     let appearance = MediaActionAppearance(
       id: .more,
       chrome: .circle,
-      systemImage: "info.circle",
+      systemImage: "info",
       accessibilityLabel: MediaActionCopy.localized("Worker images"),
       isLoading: false
     )
@@ -1824,7 +1824,7 @@ struct MediaItemHeroView: View {
   // MARK: - Metrics
 
   /// Seconds of artwork before the trailer takes over.????? it must start no sooner than this interval after open - but only if the player is ready and asset can play while in hero focus
-  static let trailerLeadIn: Double = 2
+  static let trailerLeadIn: Double = 3
   /// Non-tvOS only: fade as soon as the hero has scrolled up at all. The old
   /// half-height threshold left the trailer running under the first section below.
   static let onScreenSlop: CGFloat = 150

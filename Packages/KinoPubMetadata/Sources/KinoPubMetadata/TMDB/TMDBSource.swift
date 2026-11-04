@@ -104,7 +104,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
           URLQueryItem(name: "language", value: configuration.language),
         ])
         let data = try await client.getData(url: url)
-        let response = try await client.decode(TMDBFindResponse.self, from: data)
+        let response = try client.decode(TMDBFindResponse.self, from: data)
         guard let match = response.match(preferSeries: identity.isSeries) else {
           return MetadataCache.Entry(payload: Data(), isNegative: true)
         }
@@ -164,7 +164,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
         ])
         let data = try await client.getData(url: url)
         // Validate before caching.
-        _ = try await client.decode(TMDBTitleDetails.self, from: data)
+        _ = try client.decode(TMDBTitleDetails.self, from: data)
         return MetadataCache.Entry(payload: data)
       } catch {
         return nil
@@ -179,7 +179,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
     let debug = SourceDebugEntry(source: .tmdb, endpoint: "details", url: debugURL, proxied: isConfigured,
                                  succeeded: !entry.isNegative, responseBody: debugBody)
     guard !entry.isNegative else { return (nil, debug) }
-    return (try? await client.decode(TMDBTitleDetails.self, from: entry.payload), debug)
+    return (try? client.decode(TMDBTitleDetails.self, from: entry.payload), debug)
   }
 
   private func fetchSeason(tmdbId: Int, season: Int, language: String?) async throws -> [EpisodeSchedule] {
@@ -195,14 +195,14 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
           URLQueryItem(name: "language", value: lang),
         ])
         let data = try await client.getData(url: url)
-        _ = try await client.decode(TMDBSeasonDetails.self, from: data)
+        _ = try client.decode(TMDBSeasonDetails.self, from: data)
         return MetadataCache.Entry(payload: data)
       } catch {
         return nil
       }
     }
     guard let entry else { return [] }
-    let details = try await client.decode(TMDBSeasonDetails.self, from: entry.payload)
+    let details = try client.decode(TMDBSeasonDetails.self, from: entry.payload)
     let seasonNumber = details.seasonNumber ?? season
     return (details.episodes ?? []).compactMap { ep in
       guard let number = ep.episodeNumber else { return nil }
@@ -228,7 +228,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
           URLQueryItem(name: "language", value: configuration.language),
         ])
         let data = try await client.getData(url: url)
-        _ = try await client.decode(TMDBPersonDetails.self, from: data)
+        _ = try client.decode(TMDBPersonDetails.self, from: data)
         return MetadataCache.Entry(payload: data)
       } catch MetadataError.httpStatus(404) {
         return MetadataCache.Entry(payload: Data(), isNegative: true)
@@ -237,7 +237,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
       }
     }
     guard let entry, !entry.isNegative else { throw MetadataError.notFound }
-    return try await client.decode(TMDBPersonDetails.self, from: entry.payload)
+    return try client.decode(TMDBPersonDetails.self, from: entry.payload)
   }
 
   // MARK: - Mapping

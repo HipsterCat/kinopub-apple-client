@@ -24,7 +24,7 @@ public struct ItemCollectionsRequest: Endpoint {
 
   /// The branch the PWA uses. Not configurable: it is not a mirror of our host, it is
   /// the only host that answers this path.
-  public static let branchURL = URL(string: "https://api.ios-kp.store/api2/v1.1/")!
+  public static let branchURL = URL(string: "https://api.srvkp.com/api2/v1.1/")!
 
   public var baseURLOverride: URL? { Self.branchURL }
 

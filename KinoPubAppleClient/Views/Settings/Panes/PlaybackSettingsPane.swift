@@ -10,7 +10,8 @@ import KinoPubBackend
 struct PlaybackSettingsPane: View {
   @Environment(\.appContext) private var appContext
 
-  @AppStorage(SubtitlePreferences.preferEnglishKey) private var preferEnglishSubtitles = true
+  @AppStorage(PlaybackLanguagePreferences.subtitleModeKey)
+  private var subtitleModeRaw = PlaybackLanguagePreferences.subtitleMode.rawValue
   @AppStorage(SubtitlePreferences.preferNonCCKey) private var preferNonCCSubtitles = true
   @AppStorage(SubtitlePreferences.dualSubtitlesKey) private var dualSubtitlesEnabled = false
   @AppStorage(SubtitlePreferences.secondSubtitleLanguageKey) private var secondSubtitleLanguage = "ru"
@@ -64,7 +65,11 @@ struct PlaybackSettingsPane: View {
 
   private var audioSection: some View {
     Section {
-      LabeledContent("Preferred audio", value: languageList(settings.resolvedAudioLanguages(system: Locale.preferredLanguages)))
+      NavigationLink {
+        PlaybackLanguageListEditor(kind: .audio)
+      } label: {
+        LabeledContent("Prefer audio in", value: languageList(settings.resolvedAudioLanguages(system: Locale.preferredLanguages)))
+      }
 
       Picker("Lowest acceptable dub", selection: $minimumDubKind) {
         Text("Any").tag(PlaybackLanguagePreferences.noDubFloor)
@@ -78,15 +83,23 @@ struct PlaybackSettingsPane: View {
     } header: {
       Text("Audio")
     } footer: {
-      Text("Below the lowest acceptable dub, the original is played with subtitles instead. Preferred languages follow the system until an app setting overrides them.")
+      Text("Below the lowest acceptable dub, the original is played with subtitles instead. Languages follow the system until you change the list.")
     }
   }
 
   private var subtitleSection: some View {
     Section {
-      LabeledContent("Subtitles by default",
-                     value: PlaybackLanguagePreferences.systemWantsCaptions ? "On" : "Off")
-      Toggle("Default English subtitles", isOn: $preferEnglishSubtitles)
+      Picker("Subtitle mode", selection: $subtitleModeRaw) {
+        ForEach(SubtitleMode.allCases, id: \.self) { mode in
+          Text(mode.title).tag(mode.rawValue)
+        }
+      }
+      .pickerStyle(.menu)
+      NavigationLink {
+        PlaybackLanguageListEditor(kind: .subtitles)
+      } label: {
+        LabeledContent("Prefer subtitles in", value: languageList(settings.resolvedSubtitleLanguages(system: Locale.preferredLanguages)))
+      }
       Toggle("Prefer non-CC / non-SDH", isOn: $preferNonCCSubtitles)
       // The dual-subtitle stage's rows — parked with the sidecar machinery they feed.
       if FeatureFlags.tvOSSidecarSubtitles {
@@ -102,13 +115,67 @@ struct PlaybackSettingsPane: View {
     } header: {
       Text("Subtitles")
     } footer: {
-      Text("Whether subtitles appear by default follows Settings › Accessibility › Subtitles & Captioning. They also come on whenever the audio is in a language you do not read.")
+      Text("Settings_Tip_SubtitleMode")
     }
   }
 
   private func languageList(_ codes: [String]) -> String {
     let names = codes.prefix(3).map { LanguageNames.name(for: $0) }
     return names.isEmpty ? "—" : names.joined(separator: ", ")
+  }
+}
+
+/// One ordered language list — audio or subtitles. Drag to reorder, swipe or the context
+/// menu to remove, *Add Language…* for the rest of kino.pub's languages.
+struct PlaybackLanguageListEditor: View {
+  let kind: PlaybackLanguageList.Kind
+  @State private var codes: [String] = []
+  @State private var isCustom = false
+
+  var body: some View {
+    Form {
+      Section {
+        ForEach(codes, id: \.self) { code in
+          Text(LanguageNames.name(for: code))
+            .contextMenu {
+              Button("Move Up") { PlaybackLanguageList.move(code, in: kind, by: -1); reload() }
+                .disabled(code == codes.first)
+              Button("Move Down") { PlaybackLanguageList.move(code, in: kind, by: 1); reload() }
+                .disabled(code == codes.last)
+              Button("Remove", role: .destructive) { PlaybackLanguageList.remove(code, from: kind); reload() }
+            }
+        }
+        .onMove { from, to in
+          var list = codes
+          list.move(fromOffsets: from, toOffset: to)
+          PlaybackLanguageList.set(kind, list)
+          reload()
+        }
+        .onDelete { offsets in
+          PlaybackLanguageList.set(kind, codes.enumerated().filter { !offsets.contains($0.offset) }.map(\.element))
+          reload()
+        }
+        Menu("Add Language…") {
+          ForEach(PlaybackLanguageList.addable(to: kind), id: \.self) { code in
+            Button(LanguageNames.name(for: code)) { PlaybackLanguageList.add(code, to: kind); reload() }
+          }
+        }
+      } footer: {
+        Text(isCustom ? "The first language on the list that a title offers wins."
+                      : "Following the system's languages until you change the list.")
+      }
+    }
+    .formStyle(.grouped)
+#if os(iOS)
+    .toolbar { EditButton() }
+#endif
+    .navigationTitle(kind == .audio ? "Prefer audio in" : "Prefer subtitles in")
+    .onAppear(perform: reload)
+  }
+
+  private func reload() {
+    codes = PlaybackLanguageList.languages(kind)
+    isCustom = PlaybackLanguageList.isCustom(kind)
   }
 }
 #endif

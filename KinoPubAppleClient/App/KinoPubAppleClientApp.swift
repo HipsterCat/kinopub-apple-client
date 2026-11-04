@@ -114,8 +114,9 @@ struct KinoPubAppleClientApp: App {
 #if os(macOS)
     .windowResizability(.contentSize)
     .defaultSize(width: WindowSize.macosDefault.width, height: WindowSize.macosDefault.height)
-    // Unified toolbar — system back/forward + trailing search own the chrome with the tab bar.
-    .windowToolbarStyle(.unified(showsTitle: false))
+    // Unified toolbar with the page's title in it, as the TV app's: large beside Back,
+    // inline once the page scrolls (`toolbarTitleDisplayMode(.inlineLarge)` per page).
+    .windowToolbarStyle(.unified(showsTitle: true))
     // "New Window" was the File menu's only item, so removing it drops the whole
     // File menu — expected for now. A second library window would duplicate
     // NavigationState, AuthState, etc. per-scene in ways the app doesn't support.

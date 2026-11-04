@@ -43,8 +43,15 @@ next episode.
 how many times a picker was opened. *"Ему похуй, что я одну-две серии так глянул, а 99 других в
 нормальной озвучке"* — two episodes of a stopgap must never outrank a season.
 
-**prd** — An explicit pick in the player counts immediately, as one play. The next episode follows
-it without waiting for the count to build.
+**prd** — **A pick in the player is what the next episode opens with.** It is written the moment it
+is made — in the system Audio / Subtitles menu as much as in our own — and the scope's latest pick
+leads its ladder whatever the counts say, until the viewer picks something else. Counting it as one
+play was not enough: a season watched bare is "off" × 9 against "English" × 1, and episode 11 opened
+without subtitles again (Sasha, 2026-11-01: *"на второй серии того же сериала … субтитры выключаются
+и озвучка меняется"*). Below the pick, entries still rank by count, then recency.
+
+**prd** — A pick is anything on screen that is not what the episode opened with. Picking the
+opening track back after another pick is a pick too.
 
 **prd** — Each scope also records **every dub it has ever seen on a menu**. That is what makes a
 newly-arrived dub distinguishable from one the viewer has been ignoring all along.
@@ -66,6 +73,8 @@ weight is under `TrackPreferenceLedger.confidentWeight` (3), the new dub wins. T
 "watched the first three episodes before anyone dubbed it properly, came back to five more seasons"
 case: the stopgap was never a preference, it was the only thing there.
 
+**prd** — A dub the viewer picked is never that stopgap, whatever its weight.
+
 **prd** — Above that weight the habit wins and the new dub just sits in the menu. A viewer who chose
 one studio for ninety-nine episodes does not want a fresh dub from someone else taking over.
 
@@ -79,37 +88,43 @@ shipped default should be multi-voice is the owner's call.
 
 ## Subtitles
 
-**prd** — **Subtitles are the same mechanism as audio, not a lesser one.** Same scope chain, same
-ledger, same weights. Whether a title opens with them is a localization question exactly like which
-dub it opens with.
+**prd** — **Subtitles are a setting plus the last pick — no counting** (Sasha, 2026-11-01). Whether a
+title has subtitles is not a habit that builds over a season; the dub is. The ledger's subtitle
+entries are read only where they are picks.
 
-**prd** — With no history, **the app mirrors the system**: Settings → Accessibility → Subtitles &
-Captioning, read through `MediaAccessibility`. `.alwaysOn` means on; `.automatic` — the stock value —
-means "let the content decide", which is the rule below. The viewer already answered this question
-once, in the place built for it; answering it again with our own default is how an app ends up
-disagreeing with the rest of the system about the same preference. System caption languages seed the
-subtitle language order the same way.
+**prd** — The setting is Plex's **Subtitle mode**, because its three answers are the ones a viewer
+means:
 
-**prd** — On top of that, subtitles come on when **the audio that won is in a language the viewer
-does not read**, whatever the default says. Reading languages are the preferred subtitle languages
-plus the preferred audio languages. One rule, and it covers the anime watched in Japanese and the
-film that only ever had an English track.
+| Mode | Subtitles come on |
+| --- | --- |
+| Always enabled | on every title, in the first listed subtitle language it offers |
+| Shown with foreign audio | when the audio that plays is in **none of the audio languages** |
+| Manually selected | never by themselves |
 
-**prd** — When subtitles were asked for and none of them are in a language the viewer reads, a track
-they cannot read still beats nothing. Unknown subtitles are a real category.
+Until the app's mode is set, the system's captions setting answers it: Accessibility › Subtitles &
+Captioning *Always On* is *Always enabled*, anything else *Shown with foreign audio*.
 
-**prd** — **"Off" is a remembered choice** like any other. A viewer whose system has captions on and
-who turns them off here means it, and the next episode has to honour it.
+**prd** — **A pick in the player wins over the mode for that title until the next pick** — the latest
+one across the episode, season, title and anime scopes. "Off" is a pick like any language. A picked
+language the episode does not have falls through to the mode, not to off.
 
-**prd** — Nothing is written when there was nothing to choose. An item that offered no subtitle
-track teaches the scope nothing, and recording "off" from a menu that only ever said "Off" would
-turn subtitles off for the whole series.
+**prd** — Nothing is written when there was nothing to choose: an item with no subtitle track teaches
+nothing.
 
-**prd** — A subtitle track is remembered as language + CC-ness, with the same scopes and the same
-weights as audio. Forced tracks are never a default: they carry signage and alien dialogue only.
+**prd** — When subtitles are on and none of them are in a listed language, a track the viewer cannot
+read still beats nothing. Forced tracks are never a default: they carry signage and alien dialogue
+only.
 
 **prd** — Dual subtitles stay where they are (`SubtitlePreferences`, tvOS). They are a deliberate
 extra line, not part of what a title opens with.
+
+## Languages
+
+**prd** — Two ordered lists, **audio** and **subtitles**, edited in Settings: add a language
+(Ukrainian, say), move it up or down, remove it, or go back to the system's. Until the first change a
+list is the system's — preferred languages for audio, caption languages (else the audio list) for
+subtitles. The old *Default English subtitles* toggle was written into the subtitle list once, as
+English first, where it can now be seen and reordered.
 
 ## Anime
 

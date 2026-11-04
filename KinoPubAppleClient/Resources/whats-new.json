@@ -5,6 +5,10 @@
       "date": "2026-10-10",
       "ru": [
         "Серия, которая уже есть на Кинопабе, открывается даже если премьера в каталоге ещё впереди. «Премьера» — только когда файл выложили сильно заранее. Номер сезона у кнопки «Смотреть» совпадает с рядом сезонов.",
+        "Apple TV, Настройки: языки, вкладки и секции меняются как языки в Настройках самой Apple TV — «Изменить», корзина и ≡ у строки, «Отменить» или «Готово». Вкладки и секции Главной, Фильмов и Сериалов — каждые на своей странице, Select включает и выключает.",
+        "Плеер: субтитры и озвучка, выбранные в серии, остаются на следующей — через «Серии», «Далее» и когда серия включилась сама. Раньше привычка сезона перебивала выбор, и субтитры выключались.",
+        "Настройки › Воспроизведение: режим субтитров — «Всегда включены», «С иностранной озвучкой», «Только вручную». Языки озвучки и субтитров — списки: можно добавить язык или поменять порядок. Переключатель «Английские субтитры по умолчанию» стал английским в начале списка.",
+        "Страница тайтла: источник метаданных выбирается в Настройках › Диагностика («Title metadata from /v2/title»), запрашивается только он. v2 — один запрос /v2/title вместо наших запросов к TMDB; факты и рецензии Кинопоиска остаются, список staff не запрашивается. Сравнить два пути на одном тайтле можно в окне Debug внизу страницы (iPhone, iPad, Mac).",
         "iPhone, iPad и Mac: на Главной — большой баннер во всю ширину, как на Apple TV: логотип, оценки и строка о тайтле, начало описания, «Смотреть», закладки, «Подробнее» и «Дальше». Тайтлы сменяются сами каждые 8 секунд, листаются пальцем. Выключается тем же переключателем, что на Apple TV.",
         "iPad: приложение больше не падает при запуске сразу после установки или обновления.",
         "Фильмы и Сериалы на iPhone, iPad и Mac — те же полки, что на Главной, с кнопкой «Показать ещё секции» внизу.",
@@ -94,6 +98,10 @@
       ],
       "en": [
         "An episode already on KinoPub plays even when the catalog premiere is still ahead. Premiere is only for a real early drop. Play names the same season the row does.",
+        "Apple TV Settings: languages, tabs and sections are edited like Apple TV's own languages — Edit, the row's trash and ≡, Cancel or Done. Tabs and the Watch Now, Movies and Series sections each have their own page; Select shows or hides one.",
+        "Player: subtitles and the dub you pick in an episode stay on for the next one — from Episodes, Up Next, or when it starts by itself. Before, the season's habit outvoted the pick and subtitles went off.",
+        "Settings › Playback: a subtitle mode — Always enabled, Shown with foreign audio, Manually selected. Audio and subtitle languages are lists: add a language or reorder. \"Default English subtitles\" became English at the top of the list.",
+        "Title page: the metadata source is chosen in Settings › Diagnostics (\"Title metadata from /v2/title\"), and only that one is requested. v2 is one /v2/title request instead of our TMDB calls; Kinopoisk facts and reviews stay, the staff list is not requested. The Debug sheet at the bottom of the page compares the two on one title (iPhone, iPad, Mac).",
         "iPhone, iPad and Mac: Home opens on a full-width hero, as on Apple TV: the title logo, scores and facts, the start of the synopsis, Play, Bookmarks, Details and Next. Titles turn every 8 seconds, or with a swipe. The same switch as on Apple TV turns it off.",
         "iPad: the app no longer crashes at launch right after install or update.",
         "Movies and Series on iPhone, iPad and Mac are the same shelves as Home, with Show more sections at the bottom.",

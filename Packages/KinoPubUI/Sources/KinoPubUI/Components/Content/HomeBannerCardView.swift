@@ -40,7 +40,10 @@ public struct HomeBannerCardView: View {
   }
 
   private func content(in size: CGSize) -> some View {
-    let posterHeight = min(size.height * 0.5, size.height - Self.contentPadding * 2)
+    // The reader's first pass can be zero tall: less the padding that went negative and
+    // SwiftUI logged «Invalid frame dimension» for the poster.
+    let room = min(size.height * 0.5, size.height - Self.contentPadding * 2)
+    let posterHeight = room.isFinite ? max(room, 0) : 0
 
     return ZStack(alignment: .bottomLeading) {
       backdrop(size: size)

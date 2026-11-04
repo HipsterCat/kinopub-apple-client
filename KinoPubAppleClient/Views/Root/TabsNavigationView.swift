@@ -57,12 +57,14 @@ struct TabsNavigationView: View {
 #if os(macOS)
   @FocusState private var detailFocused: Bool
   @State private var heroStep: HeroStepRequest?
+  @State private var pageScroll: PageScrollRequest?
 #endif
   @State private var watchlistBadgeCount = 0
   @State private var sidebarSyncedAt: Date?
   private static let sidebarSyncTTL: TimeInterval = 120
 #if os(macOS)
   @Environment(\.openWindow) private var openWindow
+  @Environment(\.openSettings) private var openSettings
 #endif
 
   /// The sidebar item (Mac) / tab (iPad) the app was on, restored at launch. App storage,
@@ -365,7 +367,7 @@ struct TabsNavigationView: View {
           Label("History", systemImage: "clock.arrow.circlepath")
             .tag(NavigationTabs.recentlyWatched)
             .sidebarReselect(.recentlyWatched, using: sidebarReselect)
-          Label("SidebarGenres".localized, systemImage: "theatermasks")
+          Label("SidebarGenres".localized, systemImage: "square.stack.3d.down.right")
             .tag(NavigationTabs.genres)
             .sidebarReselect(.genres, using: sidebarReselect)
         }
@@ -386,11 +388,12 @@ struct TabsNavigationView: View {
         MacSidebarAccount(userService: appContext.userService)
       }
       // The TV app's width, and fixed as its is: its divider does not move.
-      .navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 220)
+      .navigationSplitViewColumnWidth(min: Self.macSidebarWidth, ideal: Self.macSidebarWidth,
+                                      max: Self.macSidebarWidth)
       // SwiftUI's width is a preference the divider can still be dragged past, and the
       // sidebar could be dragged shut (Sasha, 2026-10-31). The TV app's is fixed: the
       // split view item itself is pinned.
-      .background(MacFixedSidebar(width: 220))
+      .background(MacFixedSidebar(width: Self.macSidebarWidth))
       // The TV app's sidebar is always there: no «Hide Sidebar» button in the toolbar
       // (Sasha, 2026-10-30), and nothing collapses it.
       .toolbar(removing: .sidebarToggle)
@@ -403,7 +406,21 @@ struct TabsNavigationView: View {
         // Every page under the same window toolbar, as the TV app's: with nothing in it a
         // page had none, and switching between pages moved everything up and down by the
         // bar's height (Sasha, 2026-10-31). The picture of Home runs on up under it.
-        .toolbar { ToolbarSpacer(.flexible) }
+        //
+        // Settings at the trailing end of it on every page, as iOS has it over Home; the
+        // account at the foot of the sidebar opens the same window.
+        .toolbar {
+          ToolbarSpacer(.flexible)
+          ToolbarItem(placement: .primaryAction) {
+            Button {
+              openSettings()
+            } label: {
+              Image(systemName: "person.crop.circle")
+            }
+            .accessibilityLabel(Text("Settings".localized))
+            .help(Text("Settings".localized))
+          }
+        }
         // `.edit`: focusable whatever the system's keyboard-navigation setting; the
         // default (`.activate`) takes focus only with Full Keyboard Access on, so the
         // page never held the keyboard and the arrows did not reach it.
@@ -415,7 +432,28 @@ struct TabsNavigationView: View {
           heroStep = HeroStepRequest(delta: press.key == .leftArrow ? -1 : 1)
           return .handled
         }
+        // The rest of a scroll view's keys, which the page's focus would otherwise eat
+        // with a beep (Sasha, 2026-11-04).
+        .onKeyPress(keys: [.upArrow, .downArrow, .pageUp, .pageDown, .home, .end, .space]) { press in
+          let kind: PageScrollRequest.Kind = switch press.key {
+          case .upArrow: .lineUp
+          case .downArrow: .lineDown
+          case .pageUp: .pageUp
+          case .home: .top
+          case .end: .bottom
+          case .space: press.modifiers.contains(.shift) ? .pageUp : .pageDown
+          default: .pageDown
+          }
+          pageScroll = PageScrollRequest(kind)
+          return .handled
+        }
         .environment(\.heroStepRequest, heroStep)
+        .environment(\.pageScrollRequest, pageScroll)
+        // The page runs under the floating sidebar: its rows and Home hero keep clear of
+        // it by this width from the first frame, not by the system's inset, which came
+        // late and made them jump (Sasha, 2026-11-04).
+        .environment(\.pageLeadingObstruction, Self.macSidebarWidth)
+        .environment(\.macLargePageTitles, true)
         .onAppear { detailFocused = true }
         .onChange(of: navigationState.selectedTab) {
           if navigationState.selectedTab != .search { detailFocused = true }
@@ -431,6 +469,11 @@ struct TabsNavigationView: View {
           sidebarReselectGuard.allows(at: .now) else { return }
     navigationState.reselect(tab)
   }
+
+#if os(macOS)
+  /// The TV app's sidebar column, fixed.
+  static let macSidebarWidth: CGFloat = 220
+#endif
 
   /// The outline form of a tab glyph: «house.fill» → «house».
   static func outlineSymbol(_ name: String) -> String {
@@ -566,7 +609,7 @@ struct TabsNavigationView: View {
         Tab("History", systemImage: "clock.arrow.circlepath", value: NavigationTabs.recentlyWatched) {
           RouteStack(tab: .recentlyWatched) { HistoryView() }
         }
-        Tab("SidebarGenres".localized, systemImage: "theatermasks", value: NavigationTabs.genres) {
+        Tab("SidebarGenres".localized, systemImage: "square.stack.3d.down.right", value: NavigationTabs.genres) {
           MacGenresView()
         }
         Tab("TabLibrary", systemImage: "rectangle.stack", value: NavigationTabs.library) {

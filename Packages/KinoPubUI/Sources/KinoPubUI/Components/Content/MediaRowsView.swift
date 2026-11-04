@@ -88,6 +88,8 @@ public struct MediaRowsView: View {
 
   @FocusState private var focusedCard: CardKey?
   @Environment(\.dynamicTypeSize) private var typeSize
+  /// Mac: the floating sidebar over the page's leading side (`pageLeadingObstruction`).
+  @Environment(\.pageLeadingObstruction) private var pageLeadingObstruction
   @State private var containerWidth: CGFloat = 1920
   @State private var containerHeight: CGFloat = 0
   /// The bars' insets over the page: the hero's picture runs on under the top one.
@@ -245,6 +247,7 @@ public struct MediaRowsView: View {
         size: heroSize,
         topBleed: barInsets.top,
         sideInset: ShelfMetrics.posters(width: containerWidth, typeSize: typeSize).inset,
+        leadingObstruction: pageLeadingObstruction,
         isCompact: heroIsCompact,
         onPlay: { onHeroPlay?($0) },
         onDetails: { onHeroDetails?($0) },
@@ -252,6 +255,11 @@ public struct MediaRowsView: View {
         isActive: heroIsActive,
         shownIndex: heroIndex
       )
+#if os(macOS)
+      // From the window edge, under the sidebar: the hero places its words, arrows and
+      // dots past `pageLeadingObstruction` itself, so the late system inset never moves it.
+      .ignoresSafeArea(.container, edges: .horizontal)
+#endif
       // The picture is under the bar while its foot is below the bar's.
       .onGeometryChange(for: Bool.self) { proxy in
         proxy.frame(in: .global).maxY > barInsets.top + 1
@@ -304,6 +312,7 @@ public struct MediaRowsView: View {
 
   // MARK: - Hero
 
+
   private var showsHero: Bool {
 #if os(tvOS)
     false
@@ -330,8 +339,19 @@ public struct MediaRowsView: View {
     CGSize(width: containerWidth, height: 0)
 #else
     let screen = containerHeight + barInsets.top + barInsets.bottom
-    return CGSize(width: containerWidth,
-                  height: HomeHeroCarousel.height(width: containerWidth, topBleed: barInsets.top,
+#if os(macOS)
+    // The whole window, under the sidebar too: the proxy's size leaves out the sidebar's
+    // safe-area inset, and the hero ignores it (it starts its picture and words past the
+    // sidebar itself, so the late inset moves nothing).
+    let width = containerWidth + barInsets.leading + barInsets.trailing
+    // The picture itself starts at the sidebar's edge: 16:9 of what is seen.
+    let pictureWidth = max(width - pageLeadingObstruction, 1)
+#else
+    let width = containerWidth
+    let pictureWidth = width
+#endif
+    return CGSize(width: width,
+                  height: HomeHeroCarousel.height(width: pictureWidth, topBleed: barInsets.top,
                                                   screen: screen, isCompact: heroIsCompact))
 #endif
   }

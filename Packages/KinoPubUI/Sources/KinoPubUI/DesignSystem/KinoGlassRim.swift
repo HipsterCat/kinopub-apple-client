@@ -25,7 +25,7 @@ private struct KinoGlassRimModifier<S: InsettableShape>: ViewModifier {
       shape
         .strokeBorder(
           LinearGradient(
-            colors: [rim.opacity(0.15), rim.opacity(0.4)],
+            colors: [rim.opacity(0.14), rim.opacity(0.22)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
           ),

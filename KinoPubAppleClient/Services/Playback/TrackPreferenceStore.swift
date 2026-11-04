@@ -90,19 +90,22 @@ final class TrackPreferenceStore: @unchecked Sendable {
     mutate(chain) { $0.noteMenu(tracks) }
   }
 
-  /// One play, worth one unit of weight in every scope that applies. The player calls
-  /// this **once per playback session** — on an explicit pick, or once the episode has
-  /// been watched far enough to count, whichever happens first.
+  /// One play, worth one unit of weight in every scope that applies — once the episode has
+  /// been watched far enough to count. `picked` is the viewer choosing it in the player's
+  /// menu: recorded the moment it happens, and from then on what every scope opens with
+  /// until they pick something else.
   func recordAudio(_ signature: AudioTrackSignature,
                    in chain: [TrackMemoryScope],
+                   picked: Bool = false,
                    at date: Date = Date()) {
-    mutate(chain) { $0.recordAudio(signature, at: date) }
+    mutate(chain) { $0.recordAudio(signature, at: date, picked: picked) }
   }
 
   func recordSubtitle(_ signature: SubtitleChoiceSignature,
                       in chain: [TrackMemoryScope],
+                      picked: Bool = false,
                       at date: Date = Date()) {
-    mutate(chain) { $0.recordSubtitle(signature, at: date) }
+    mutate(chain) { $0.recordSubtitle(signature, at: date, picked: picked) }
   }
 
   func forget(scope: TrackMemoryScope) {
@@ -171,7 +174,8 @@ final class TrackPreferenceStore: @unchecked Sendable {
         continue
       }
       var ledger = TrackPreferenceLedger()
-      ledger.recordSubtitle(signature, at: migratedAt)
+      // They were made in the old picker, so they are picks.
+      ledger.recordSubtitle(signature, at: migratedAt, picked: true)
       ledgers[scope.storageKey] = ledger
     }
 

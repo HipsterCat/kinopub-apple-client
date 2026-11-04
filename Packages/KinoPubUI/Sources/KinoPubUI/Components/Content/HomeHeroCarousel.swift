@@ -31,6 +31,7 @@ public struct HomeHeroCarousel: View {
   private let size: CGSize
   private let topBleed: CGFloat
   private let sideInset: CGFloat
+  private let leadingObstruction: CGFloat
   private let isCompact: Bool
   private let onPlay: (MediaCard) -> Void
   private let onDetails: (MediaCard) -> Void
@@ -58,12 +59,13 @@ public struct HomeHeroCarousel: View {
   @State private var isHovered = false
   /// A turn the code animates is on its way; the scroll may report no phase for it.
   @State private var isTurning = false
-  /// Bumped once a window resize settles: the pager is built afresh on the current
-  /// page. After a burst of resizes the Mac's scroll view stayed half a page off and
-  /// ignored every `scrollTo` from then on, while the dots went on turning.
+  /// Which code turn is the latest: an older one's completion, cut off by a resize or a
+  /// newer turn, must not settle the pager back on the page it was leaving.
+  @State private var turnID = 0
+  /// Bumped when a window resize settles with the pager still off its page: it is built
+  /// afresh on the current page. After a burst of resizes the Mac's scroll view stayed
+  /// half a page off and ignored every `scrollTo`, while the dots went on turning.
   @State private var generation = 0
-  /// The first width is the hero appearing, not a resize.
-  @State private var hasResized = false
   @Environment(\.scenePhase) private var scenePhase
 
   /// - Parameters:
@@ -71,6 +73,9 @@ public struct HomeHeroCarousel: View {
   ///   - topBleed: how far the picture runs on above the frame, under the navigation
   ///     bar or window toolbar (their safe-area inset). The words stay inside the frame.
   ///   - sideInset: the page's leading margin, so the words start where the rows do.
+  ///   - leadingObstruction: what covers the hero's leading side — the Mac's floating
+  ///     sidebar, which the page runs under. The picture runs on under it; the words,
+  ///     arrows and dots keep clear of it.
   ///   - isCompact: the phone's centred column instead of the leading one.
   ///   - isActive: the page is the one on screen — its tab selected and nothing pushed
   ///     over it. A Mac keeps the page under a pushed one alive and "appeared".
@@ -80,6 +85,7 @@ public struct HomeHeroCarousel: View {
               size: CGSize,
               topBleed: CGFloat = 0,
               sideInset: CGFloat,
+              leadingObstruction: CGFloat = 0,
               isCompact: Bool,
               onPlay: @escaping (MediaCard) -> Void,
               onDetails: @escaping (MediaCard) -> Void,
@@ -90,6 +96,7 @@ public struct HomeHeroCarousel: View {
     self.size = size
     self.topBleed = topBleed
     self.sideInset = sideInset
+    self.leadingObstruction = leadingObstruction
     self.isCompact = isCompact
     self.onPlay = onPlay
     self.onDetails = onDetails
@@ -104,7 +111,7 @@ public struct HomeHeroCarousel: View {
 
   /// The hero's height under the bars for a page `width` wide on a `screen` tall
   /// screen, the bars' `topBleed` above it. Mac: the picture, toolbar strip included,
-  /// is always 16:9 of the window's width, whatever the window's height (Sasha,
+  /// is always 16:9 of its own width (the window's, less the sidebar), whatever the window's height (Sasha,
   /// 2026-10-30). iPad: a 16:9 picture as long as it leaves a fifth of the screen.
   /// Phone: a 16:10 still under the bars and room under it for the words, at most 70%
   /// of the screen.
@@ -124,6 +131,9 @@ public struct HomeHeroCarousel: View {
   static func stillHeight(width: CGFloat) -> CGFloat { (width * 10 / 16).rounded() }
 
   private var features: [HomeHeroFeature] { hero.features }
+
+  /// The picture's width: the hero's, less what covers its leading side.
+  private var pictureWidth: CGFloat { max(size.width - leadingObstruction, 1) }
 
   private var slots: [Slot] {
     let laps = features.count > 1 ? [-1, 0, 1] : [0]
@@ -153,6 +163,10 @@ public struct HomeHeroCarousel: View {
       .scrollTargetLayout()
     }
     .id(generation)
+    // The pages span the whole hero, under the Mac's sidebar too: no safe-area content
+    // inset, which arrived late (the sidebar pins its width after the first frame) and
+    // moved the pages part-way through a turn.
+    .ignoresSafeArea(.container, edges: .horizontal)
     .scrollIndicators(.hidden)
     .scrollTargetBehavior(.paging)
     .scrollPosition($scroll)
@@ -180,13 +194,17 @@ public struct HomeHeroCarousel: View {
     // The pictures run up under the bars, past the pager's own frame.
     // The scrim is its own layer over the pictures, never redrawn by a turn.
     .background(alignment: .bottom) {
+      // From the sidebar's edge, never under it: the Mac's sidebar is opaque enough that
+      // a picture under it read as a broken extension (Sasha, 2026-11-04).
       ZStack {
         HeroBackdrop(features: features, slots: slots, pager: pager,
-                     width: size.width, height: size.height + topBleed, topBleed: topBleed,
+                     width: pictureWidth, height: size.height + topBleed, topBleed: topBleed,
                      isCompact: isCompact)
         HeroScrim(isCompact: isCompact)
       }
-      .frame(width: size.width, height: size.height + topBleed)
+      .frame(width: pictureWidth, height: size.height + topBleed)
+      .clipped()
+      .frame(width: size.width, height: size.height + topBleed, alignment: .trailing)
       .allowsHitTesting(false)
     }
     .overlay(alignment: isCompact ? .bottom : .bottomLeading) {
@@ -204,6 +222,7 @@ public struct HomeHeroCarousel: View {
                          onAdvance: { step(1) },
                          onSelect: { go(to: $0) })
           .padding(.bottom, Metrics.dotsBottom)
+          .padding(.leading, leadingObstruction)
       }
     }
 #if os(macOS) || os(iOS)
@@ -222,10 +241,10 @@ public struct HomeHeroCarousel: View {
     .onChange(of: size.width) { move(to: current, animated: false) }
     .task(id: size.width) {
       try? await Task.sleep(for: .milliseconds(300))
-      guard !Task.isCancelled, generation > 0 || hasResized else {
-        hasResized = true
-        return
-      }
+      guard !Task.isCancelled else { return }
+      // Built afresh only when the scroll view stayed off its page after the re-snap
+      // (a burst of resizes did that): a rebuild reloads every picture.
+      guard abs(pager.page - pager.page.rounded()) > 0.001 else { return }
       isScrolling = false
       isTurning = false
       scroll = ScrollPosition(id: current)
@@ -273,16 +292,20 @@ public struct HomeHeroCarousel: View {
 
   private func move(to slot: Slot, animated: Bool) {
     current = slot
+    turnID += 1
+    let turn = turnID
     if animated {
       isTurning = true
       withAnimation(.smooth(duration: 0.6)) {
         scroll.scrollTo(id: slot)
       } completion: {
+        guard turn == turnID else { return }
         isTurning = false
         // A turn the code makes may not report a scroll phase of its own.
         settle()
       }
     } else {
+      isTurning = false
       var transaction = Transaction()
       transaction.disablesAnimations = true
       withTransaction(transaction) { scroll.scrollTo(id: slot) }
@@ -333,7 +356,8 @@ public struct HomeHeroCarousel: View {
   private func wordsBlock(_ feature: HomeHeroFeature) -> some View {
     if feature.card.id > 0 {
       words(feature)
-        .padding(.horizontal, sideInset)
+        .padding(.leading, leadingObstruction + sideInset)
+        .padding(.trailing, sideInset)
         .padding(.bottom, features.count > 1 ? Metrics.dotsReserve : Metrics.bottomInset)
     }
   }
@@ -353,7 +377,8 @@ public struct HomeHeroCarousel: View {
         HeroPagingArrow(symbol: "chevron.compact.right", label: hero.labels.next,
                         isShown: isHovered) { step(1) }
       }
-      .padding(.horizontal, Metrics.arrowEdgeInset)
+      .padding(.leading, leadingObstruction + Metrics.arrowEdgeInset)
+      .padding(.trailing, Metrics.arrowEdgeInset)
     }
   }
 #endif
@@ -389,10 +414,11 @@ public struct HomeHeroCarousel: View {
   /// the name in its place after a confirmed miss. Its slot keeps its height while the
   /// logo loads, so the words under it do not jump.
   private func mark(_ feature: HomeHeroFeature) -> some View {
-    let maxWidth = (size.width * (isCompact ? 0.7 : 0.28)).rounded()
-    let maxHeight = (size.width * (isCompact ? 0.26 : 0.085)).rounded()
+    let maxWidth = (pictureWidth * (isCompact ? 0.7 : 0.4)).rounded()
+    let maxHeight = (pictureWidth * (isCompact ? 0.26 : 0.085)).rounded()
     return TitleLogoSlot(resolution: feature.logo, maxWidth: maxWidth, maxHeight: maxHeight,
                          alignment: isCompact ? .center : .leading) {
+         // TODO: TEXT MUST BE WIDER THAN IMAGE SLOT
       Text(feature.card.title)
         .font(TypeScale.heroTitle)
         .foregroundStyle(.white)
@@ -411,7 +437,7 @@ public struct HomeHeroCarousel: View {
       ForEach((0...parts.count).reversed(), id: \.self) { count in
         HStack(spacing: MediaScoresView.groupSpacing) {
           if card.scores.hasDisplayableScore {
-            MediaScoresView(card.scores, showsVotes: false, bannerLine: true)
+            MediaScoresView(card.scores, showsVotes: true, bannerLine: true)
           }
           ForEach(parts.prefix(count), id: \.self) { part in
             Text(part)
@@ -421,8 +447,8 @@ public struct HomeHeroCarousel: View {
       }
     }
     .font(TypeScale.heroSecondary)
-    .foregroundStyle(.primary.opacity(0.88))
-    .lineLimit(1)
+    .foregroundStyle(.primary.opacity(0.85))
+    .lineLimit(2)
   }
 
   // MARK: Buttons
