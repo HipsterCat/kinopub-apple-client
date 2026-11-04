@@ -339,8 +339,15 @@ public struct MediaRowsView: View {
     CGSize(width: containerWidth, height: 0)
 #else
     let screen = containerHeight + barInsets.top + barInsets.bottom
-    return CGSize(width: containerWidth,
-                  height: HomeHeroCarousel.height(width: containerWidth, topBleed: barInsets.top,
+#if os(macOS)
+    // The whole window, under the sidebar too: the proxy's size leaves out the sidebar's
+    // safe-area inset, and the hero ignores it (it pads its words past the sidebar itself).
+    let width = containerWidth + barInsets.leading + barInsets.trailing
+#else
+    let width = containerWidth
+#endif
+    return CGSize(width: width,
+                  height: HomeHeroCarousel.height(width: width, topBleed: barInsets.top,
                                                   screen: screen, isCompact: heroIsCompact))
 #endif
   }
