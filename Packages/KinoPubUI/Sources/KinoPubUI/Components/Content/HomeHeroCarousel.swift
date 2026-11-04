@@ -58,6 +58,11 @@ public struct HomeHeroCarousel: View {
   @State private var isPresented = false
   @State private var isVisibleInPage = true
   @State private var isScrolling = false
+  /// A finger (or trackpad) on the pager: tracking, interacting or decelerating. A turn
+  /// the code makes scrolls in the `.animating` phase, which may never report `.idle`
+  /// when the window is not drawn (a locked screen held the hero for good, trace
+  /// 2026-11-04), so only a hand on it holds the clock and the next step.
+  @State private var isDragging = false
   @State private var isMenuOpen = false
   @State private var isHovered = false
   /// A turn the code animates is on its way; the scroll may report no phase for it.
@@ -74,7 +79,7 @@ public struct HomeHeroCarousel: View {
   /// A sheet over the window (What's New): the hero holds still under it, as on the TV
   /// (Sasha, 2026-11-04). Only a sheet — a window merely not key, behind another app or
   /// beside another window, is still seen and keeps turning.
-  @State private var hasSheet = false
+  @State private var isWindowHeld = false
 #endif
 
   /// - Parameters:
@@ -151,12 +156,12 @@ public struct HomeHeroCarousel: View {
   /// on a Mac the hero is most of the window, and the pointer is nearly always on it.
   private var advances: Bool {
     features.count > 1 && isActive && isPresented && isVisibleInPage && scenePhase == .active
-      && !isScrolling && !isTurning && !isMenuOpen && isWindowKey
+      && !isDragging && !isTurning && !isMenuOpen && isWindowKey
   }
 
   private var isWindowKey: Bool {
 #if os(macOS)
-    !hasSheet
+    !isWindowHeld
 #else
     true
 #endif
@@ -198,6 +203,7 @@ public struct HomeHeroCarousel: View {
     .onScrollPhaseChange { _, phase in
       heroLog("scroll phase \(phase)")
       isScrolling = phase != .idle
+      isDragging = phase != .idle && phase != .animating
       if phase == .idle { settle() }
     }
     .frame(width: size.width, height: size.height)
@@ -238,7 +244,7 @@ public struct HomeHeroCarousel: View {
 #endif
     .environment(\.colorScheme, .dark)
 #if os(macOS)
-    .background(WindowSheetProbe(hasSheet: $hasSheet))
+    .background(WindowSheetProbe(isWindowHeld: $isWindowHeld))
 #endif
     .onScrollVisibilityChange(threshold: 0.5) { isVisibleInPage = $0 }
     .onAppear {
@@ -256,13 +262,14 @@ public struct HomeHeroCarousel: View {
       // (a burst of resizes did that): a rebuild reloads every picture.
       guard abs(pager.page - pager.page.rounded()) > 0.001 else { return }
       isScrolling = false
+      isDragging = false
       isTurning = false
       scroll = ScrollPosition(id: current)
       generation += 1
     }
     .onChange(of: isActive) { move(to: current, animated: false) }
     .onChange(of: advances) { _, now in
-      heroLog("advances=\(now) active=\(isActive) presented=\(isPresented) visible=\(isVisibleInPage) scene=\(scenePhase == .active) scrolling=\(isScrolling) turning=\(isTurning) menu=\(isMenuOpen) key=\(isWindowKey)")
+      heroLog("advances=\(now) active=\(isActive) presented=\(isPresented) visible=\(isVisibleInPage) scene=\(scenePhase == .active) dragging=\(isDragging) turning=\(isTurning) menu=\(isMenuOpen) key=\(isWindowKey)")
     }
     // Left / Right from the keyboard while the page holds focus (Mac sidebar shell).
     .onChange(of: heroStepRequest) { _, request in
@@ -288,8 +295,8 @@ public struct HomeHeroCarousel: View {
   private func step(_ delta: Int) {
     // A turn already on its way finishes first: stepping from a `current` that has
     // moved ahead of the picture is what skipped a title.
-    guard features.count > 1, !isTurning, !isScrolling else {
-      heroLog("step(\(delta)) dropped turning=\(isTurning) scrolling=\(isScrolling)")
+    guard features.count > 1, !isTurning, !isDragging else {
+      heroLog("step(\(delta)) dropped turning=\(isTurning) dragging=\(isDragging)")
       return
     }
     var next = Slot(lap: current.lap, index: current.index + delta)
@@ -1143,16 +1150,16 @@ public extension EnvironmentValues {
 /// (`controlActiveState` / `appearsActive` also go off for a window that is merely not key),
 /// so the window's own sheet notifications say it.
 private struct WindowSheetProbe: NSViewRepresentable {
-  @Binding var hasSheet: Bool
+  @Binding var isWindowHeld: Bool
 
   func makeNSView(context: Context) -> Probe {
     let probe = Probe()
-    probe.onChange = { hasSheet = $0 }
+    probe.onChange = { isWindowHeld = $0 }
     return probe
   }
 
   func updateNSView(_ probe: Probe, context: Context) {
-    probe.onChange = { hasSheet = $0 }
+    probe.onChange = { isWindowHeld = $0 }
   }
 
   final class Probe: NSView {
@@ -1171,10 +1178,21 @@ private struct WindowSheetProbe: NSViewRepresentable {
       })
       observers.append(center.addObserver(forName: NSWindow.didEndSheetNotification,
                                           object: window, queue: .main) { [weak self, weak window] _ in
-        MainActor.assumeIsolated { self?.onChange?(window?.attachedSheet != nil) }
+        MainActor.assumeIsolated { self?.onChange?(window.map(Self.isHeld) ?? false) }
       })
-      let current = window.attachedSheet != nil
+      // Not on screen: minimised, hidden, covered, on another Space, the screen locked.
+      // An undrawn window cannot finish a turn's scroll, so it does not start one.
+      observers.append(center.addObserver(forName: NSWindow.didChangeOcclusionStateNotification,
+                                          object: window, queue: .main) { [weak self, weak window] _ in
+        MainActor.assumeIsolated { self?.onChange?(window.map(Self.isHeld) ?? false) }
+      })
+      let current = Self.isHeld(window)
       DispatchQueue.main.async { [weak self] in self?.onChange?(current) }
+    }
+
+    /// A sheet over the window, or the window not visible at all.
+    static func isHeld(_ window: NSWindow) -> Bool {
+      window.attachedSheet != nil || !window.occlusionState.contains(.visible)
     }
 
     deinit {
