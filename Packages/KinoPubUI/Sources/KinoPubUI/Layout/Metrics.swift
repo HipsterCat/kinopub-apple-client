@@ -14,7 +14,7 @@ import SwiftUI
 /// subtract a rail’s focus padding from that gap either — tighten the rail’s *top*
 /// inset instead of collapsing the chrome.
 public enum Metrics {
-  public static let cardCornerRadius: CGFloat = 14
+  public static let cardCornerRadius: CGFloat = 12
   public static let progressBarHeight: CGFloat = 6
   public static let hairline: CGFloat = 0.5
 

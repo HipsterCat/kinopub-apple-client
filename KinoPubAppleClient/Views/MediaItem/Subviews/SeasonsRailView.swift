@@ -1110,7 +1110,7 @@ private struct MissingSeasonsCard: View {
       if let subtitle {
         Text(subtitle)
           .font(TypeScale.cardMeta)
-          .foregroundStyle(Color.secondary)
+          .foregroundStyle(Color.KinoPub.subtitle)
           .multilineTextAlignment(.center)
       }
     }
@@ -1119,7 +1119,7 @@ private struct MissingSeasonsCard: View {
     .frame(height: stillHeight)
     .background(
       RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous)
-        .fill(Color.secondary.opacity(0.18))
+        .fill(.tertiary)
     )
   }
 }
