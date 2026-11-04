@@ -8,6 +8,9 @@ import KinoPubUI
 import KinoPubBackend
 import KinoPubMetadata
 import KinoPubMedia
+#if os(tvOS)
+import UIKit
+#endif
 
 /// Season tabs over one continuous horizontal rail of every episode in the series —
 /// S1E1 through the finale — the way the Apple TV app presents a show. Tabs scroll the
@@ -1394,16 +1397,20 @@ struct TrailersRailView: View {
 
   /// YouTube: on tvOS its app (there is no browser), elsewhere the web link, which iOS
   /// hands to the YouTube app when it is installed.
+  ///
+  /// Not `openURL(_:completion:)`: on a Mac LaunchServices calls that completion on its own
+  /// queue, and the closure, formed on the main actor, trapped there
+  /// (`_dispatch_assert_queue_fail`, Sasha 2026-11-04). UIKit's completion runs on main.
   private func open(_ video: TrailerRef) {
 #if os(tvOS)
-    let url = video.appURL
-#else
-    let url = video.webURL
-#endif
-    guard let url else { return }
-    openURL(url) { accepted in
+    guard let url = video.appURL else { return }
+    UIApplication.shared.open(url, options: [:]) { accepted in
       if !accepted { onOpenFailed() }
     }
+#else
+    guard let url = video.webURL else { return }
+    openURL(url)
+#endif
   }
 
 #if os(tvOS)
