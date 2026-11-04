@@ -414,10 +414,11 @@ public struct HomeHeroCarousel: View {
   /// the name in its place after a confirmed miss. Its slot keeps its height while the
   /// logo loads, so the words under it do not jump.
   private func mark(_ feature: HomeHeroFeature) -> some View {
-    let maxWidth = (pictureWidth * (isCompact ? 0.7 : 0.28)).rounded()
+    let maxWidth = (pictureWidth * (isCompact ? 0.7 : 0.4)).rounded()
     let maxHeight = (pictureWidth * (isCompact ? 0.26 : 0.085)).rounded()
     return TitleLogoSlot(resolution: feature.logo, maxWidth: maxWidth, maxHeight: maxHeight,
                          alignment: isCompact ? .center : .leading) {
+         // TODO: TEXT MUST BE WIDER THAN IMAGE SLOT
       Text(feature.card.title)
         .font(TypeScale.heroTitle)
         .foregroundStyle(.white)
@@ -436,7 +437,7 @@ public struct HomeHeroCarousel: View {
       ForEach((0...parts.count).reversed(), id: \.self) { count in
         HStack(spacing: MediaScoresView.groupSpacing) {
           if card.scores.hasDisplayableScore {
-            MediaScoresView(card.scores, showsVotes: false, bannerLine: true)
+            MediaScoresView(card.scores, showsVotes: true, bannerLine: true)
           }
           ForEach(parts.prefix(count), id: \.self) { part in
             Text(part)
@@ -446,8 +447,8 @@ public struct HomeHeroCarousel: View {
       }
     }
     .font(TypeScale.heroSecondary)
-    .foregroundStyle(.primary.opacity(0.88))
-    .lineLimit(1)
+    .foregroundStyle(.primary.opacity(0.85))
+    .lineLimit(2)
   }
 
   // MARK: Buttons

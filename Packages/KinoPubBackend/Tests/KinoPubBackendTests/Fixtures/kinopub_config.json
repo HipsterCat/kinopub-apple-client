@@ -401,7 +401,7 @@
       "docu": [
         {
           "id": 93,
-          "title": "IT технологии"
+          "title": "Айти"
         },
         {
           "id": 90,
@@ -425,7 +425,7 @@
         },
         {
           "id": 52,
-          "title": "Все обо всем"
+          "title": "Всё обо всём"
         },
         {
           "id": 81,
@@ -485,7 +485,7 @@
         },
         {
           "id": 58,
-          "title": "Мир животных"
+          "title": "Животные"
         },
         {
           "id": 104,
@@ -501,7 +501,7 @@
         },
         {
           "id": 76,
-          "title": "Обучающее видео"
+          "title": "Обучающее"
         },
         {
           "id": 85,
@@ -513,7 +513,7 @@
         },
         {
           "id": 56,
-          "title": "Оружие / Война"
+          "title": "Оружие и война"
         },
         {
           "id": 88,
@@ -617,123 +617,123 @@
       "music": [
         {
           "id": 30,
-          "title": "Alternative"
+          "title": "Альтернатива"
         },
         {
           "id": 31,
-          "title": "Blues"
+          "title": "Блюз"
         },
         {
           "id": 102,
-          "title": "Chillout"
+          "title": "Чиллаут"
         },
         {
           "id": 32,
-          "title": "Classical"
+          "title": "Классическая"
         },
         {
           "id": 33,
-          "title": "Country"
+          "title": "Кантри"
         },
         {
           "id": 34,
-          "title": "Dance"
+          "title": "Танцевальная"
         },
         {
           "id": 103,
-          "title": "Downtempo"
+          "title": "Даунтемпо"
         },
         {
           "id": 35,
-          "title": "Easy Listening"
+          "title": "Лёгкая"
         },
         {
           "id": 36,
-          "title": "Electronic"
+          "title": "Электронная"
         },
         {
           "id": 118,
-          "title": "Folk"
+          "title": "Фолк"
         },
         {
           "id": 37,
-          "title": "Hip-Hop/Rap"
+          "title": "Рэп, хип-хоп"
         },
         {
           "id": 99,
-          "title": "House"
+          "title": "Хаус"
         },
         {
           "id": 119,
-          "title": "Indie"
+          "title": "Инди"
         },
         {
           "id": 38,
-          "title": "Industrial"
+          "title": "Индастриал"
         },
         {
           "id": 39,
-          "title": "Instrumental"
+          "title": "Инструментал"
         },
         {
           "id": 40,
-          "title": "Jazz"
+          "title": "Джазз"
         },
         {
           "id": 117,
-          "title": "K-pop"
+          "title": "К-Поп"
         },
         {
           "id": 41,
-          "title": "Latin"
+          "title": "Латин"
         },
         {
           "id": 50,
-          "title": "Metal"
+          "title": "Метал"
         },
         {
           "id": 42,
-          "title": "New Age"
+          "title": "Нью Эйдж"
         },
         {
           "id": 43,
-          "title": "Opera"
+          "title": "Опера"
         },
         {
           "id": 44,
-          "title": "Pop"
+          "title": "Поп"
         },
         {
           "id": 120,
-          "title": "Progressive"
+          "title": "Прогрессив"
         },
         {
           "id": 45,
-          "title": "R&B/Soul"
+          "title": "R&B / Соул"
         },
         {
           "id": 46,
-          "title": "Reggae"
+          "title": "Рэгги"
         },
         {
           "id": 47,
-          "title": "Rock"
+          "title": "Рок"
         },
         {
           "id": 100,
-          "title": "Trance"
+          "title": "Транс"
         },
         {
           "id": 121,
-          "title": "Trip-Hop"
+          "title": "Трип-Хоп"
         },
         {
           "id": 48,
-          "title": "Vocal"
+          "title": "Вокал"
         },
         {
           "id": 49,
-          "title": "World"
+          "title": "Мир"
         },
         {
           "id": 109,

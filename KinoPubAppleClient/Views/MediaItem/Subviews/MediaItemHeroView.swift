@@ -1685,7 +1685,7 @@ struct MediaItemHeroView: View {
     let appearance = MediaActionAppearance(
       id: .more,
       chrome: .circle,
-      systemImage: "info.circle",
+      systemImage: "info",
       accessibilityLabel: MediaActionCopy.localized("Worker images"),
       isLoading: false
     )
@@ -1813,7 +1813,7 @@ struct MediaItemHeroView: View {
   // MARK: - Metrics
 
   /// Seconds of artwork before the trailer takes over.????? it must start no sooner than this interval after open - but only if the player is ready and asset can play while in hero focus
-  static let trailerLeadIn: Double = 2
+  static let trailerLeadIn: Double = 3
   /// Non-tvOS only: fade as soon as the hero has scrolled up at all. The old
   /// half-height threshold left the trailer running under the first section below.
   static let onScreenSlop: CGFloat = 150
