@@ -877,7 +877,7 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
     Color.KinoPub.subtitle
 #else
-    usesAdaptivePosterHero ? .secondary : Color.KinoPub.subtitle
+       usesAdaptivePosterHero ? Color.KinoPub.text.opacity(0.85) : Color.KinoPub.text.opacity(0.85)
 #endif
   }
 
@@ -1135,6 +1135,7 @@ struct MediaItemHeroView: View {
       .foregroundStyle(heroPrimaryForeground)
       .multilineTextAlignment(.leading)
       .fixedSize(horizontal: false, vertical: true)
+      .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 2)
   }
 
   /// Under the logo: localized vs original from the **served** worker stamp (`ru` /
@@ -1147,6 +1148,7 @@ struct MediaItemHeroView: View {
         .foregroundStyle(heroSecondaryForeground)
         .multilineTextAlignment(.leading)
         .fixedSize(horizontal: false, vertical: true)
+        .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 2)
     }
   }
 

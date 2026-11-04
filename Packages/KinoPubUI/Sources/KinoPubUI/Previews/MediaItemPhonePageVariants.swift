@@ -170,10 +170,10 @@ private struct PhonePlayPill: View {
           .font(MediaActionMetrics.labelFont)
           .lineLimit(1)
       }
-      .foregroundStyle(.black)
+//      .foregroundStyle(.black)
       .frame(maxWidth: .infinity)
 //      .frame(height: MediaActionMetrics.buttonHeight)
-      .background(Capsule(style: .continuous).fill(.white))
+      .background(Capsule(style: .continuous))
     }
     .buttonStyle(.plain)
   }
