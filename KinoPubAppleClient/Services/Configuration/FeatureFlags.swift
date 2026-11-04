@@ -161,6 +161,13 @@ enum FeatureFlags {
   /// info sheet.
   static var rivuletSeasonRail: Bool { FeatureFlag.rivuletSeasonRail.isEnabled }
 
+  /// Where the detail page's metadata comes from. **On**: one `/v2/title` call to the
+  /// worker plus the Kinopoisk proxy without staff, no TMDB. **Off**: the TMDB, Kinopoisk
+  /// and proxy calls the page has always made. Only the chosen path is requested — a
+  /// title is never fetched both ways (Sasha, 2026-11-04). The page's Debug sheet can
+  /// flip one open title to the other path to compare them; that does not change this.
+  static var titleCardMetadata: Bool { FeatureFlag.titleCardMetadata.isEnabled }
+
   /// **TEMPORARY DIAGNOSTIC — DELETE ME.** Synthesises a fake season of episodes onto
   /// *movies*, so the detail page's season rail renders for a title that has none.
   ///
@@ -198,6 +205,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case playerTabsPlatter
   case trailerInfoPanel
   case rivuletSeasonRail
+  case titleCardMetadata
   case macSidebar
 #if DEBUG
   case fakeSeasonsOnMovies
@@ -225,6 +233,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .playerTabsPlatter: false
     case .trailerInfoPanel: false
     case .rivuletSeasonRail: true
+    case .titleCardMetadata: false
     case .macSidebar: true
 #if DEBUG
     case .fakeSeasonsOnMovies: false
@@ -252,6 +261,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .playerTabsPlatter: "Player tabs on a platter"
     case .trailerInfoPanel: "Info panel on trailers"
     case .rivuletSeasonRail: "Rivulet season rail"
+    case .titleCardMetadata: "Title metadata from /v2/title"
     case .macSidebar: "Sidebar navigation (Mac)"
 #if DEBUG
     case .fakeSeasonsOnMovies: "Fake seasons on movies"
@@ -279,6 +289,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .playerTabsPlatter: "Episodes and Up Next on Info's glass platter; off is the page's open still row."
     case .trailerInfoPanel: "The trailer player's Info panel, with the trailer's running time in it. Off: no Info on trailers."
     case .rivuletSeasonRail: "Season tabs, the S2 divider and the episode metadata plate. Select on the text opens the info sheet. Off is the numbered tabs."
+    case .titleCardMetadata: "One worker /v2/title call plus Kinopoisk instead of the TMDB calls. Only the chosen source is fetched."
     case .macSidebar: "The Apple TV app's sidebar: Search, Home, the catalog, the Library and every bookmark folder. Off is the tab bar."
 #if DEBUG
     case .fakeSeasonsOnMovies: "A fake, unplayable season rail on movies. Layout probe."
@@ -357,6 +368,18 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
+  /// The detail page's corner switch (removed 2026-11-04) kept its choice under its own
+  /// key. Carried over once, so a device that had picked v2 stays on v2.
+  private static func migrateTitleCardSwitch() {
+    let legacyKey = "kinopub.debug.usesTitleCard"
+    let defaults = UserDefaults.standard
+    guard let legacy = defaults.object(forKey: legacyKey) as? Bool else { return }
+    defaults.removeObject(forKey: legacyKey)
+    if !FeatureFlag.titleCardMetadata.isOverridden {
+      FeatureFlag.titleCardMetadata.set(legacy)
+    }
+  }
+
   static func resetAll() {
     allCases.forEach { UserDefaults.standard.removeObject(forKey: $0.defaultsKey) }
   }
@@ -371,6 +394,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   /// lives inside a package to it.
   @MainActor
   static func applyAtLaunch() {
+    migrateTitleCardSwitch()
     _ = launchValues
     RatingFeature.combinedEnabled = FeatureFlag.combinedRating.isEnabled
   }

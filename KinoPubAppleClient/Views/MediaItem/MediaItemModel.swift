@@ -111,13 +111,13 @@ class MediaItemModel: ObservableObject {
   /// TMDB (and later other sources) overlay. Empty when the proxy is unset or the
   /// title has no IMDb id — the page then draws exactly as before.
   @Published public var externalMetadata: TitleMetadata = TitleMetadata()
-  /// Temporary. On: the page reads `/v2/title` and the Kinopoisk proxy without staff,
-  /// and does not call TMDB. Off: the calls the page has always made. The corner
-  /// switch on the detail page flips it. Persists so the next title opens the same way.
+  /// On: the page reads `/v2/title` and the Kinopoisk proxy without staff, and does not
+  /// call TMDB. Off: the calls the page has always made. Starts from
+  /// `FeatureFlags.titleCardMetadata` (Settings › Diagnostics); the Debug sheet can flip
+  /// it for this page only, to compare the two on one title.
   @Published public var usesTitleCard: Bool
   /// Last measured load of each path, including the episode grid. Keyed by `usesTitleCard`.
   @Published public var metadataPathMilliseconds: [Bool: Int] = [:]
-  private static let titleCardDefaultsKey = "kinopub.debug.usesTitleCard"
   private var metadataLoadGeneration = 0
   /// Bumped when this title's local pictures are dropped, so the hero reloads them.
   @Published var localCacheEpoch = 0
@@ -178,7 +178,7 @@ class MediaItemModel: ObservableObject {
     return TitleLogoRequestKind(routeLanguage: TitleImageRoute.appLanguage)
   }
 
-  /// What the corner switch prints under the two times: how much of the page the
+  /// What the Debug sheet prints under the path picker: how much of the page the
   /// active path actually filled.
   var metadataCompareSummary: String {
     let episodes = Set(externalMetadata.schedule.flatMap { season, rows in
@@ -187,11 +187,11 @@ class MediaItemModel: ObservableObject {
     return "cast \(externalMetadata.cast.count) · eps \(episodes) · stills \(externalMetadata.stills.count)"
   }
 
-  /// Flips the detail page between the existing metadata calls and `/v2/title`.
+  /// Flips this page between the existing metadata calls and `/v2/title`, for the
+  /// Debug sheet's comparison. Not saved: the setting is the flag in Diagnostics.
   func setUsesTitleCard(_ enabled: Bool) {
     guard usesTitleCard != enabled else { return }
     usesTitleCard = enabled
-    UserDefaults.standard.set(enabled, forKey: Self.titleCardDefaultsKey)
     seasonSchedules = [:]
     externalMetadataLoaded = false
     guard identity != nil else { return }
@@ -391,7 +391,7 @@ class MediaItemModel: ObservableObject {
     // only for episodic items is `nolinks=1` worth it (a film's link block is small, and
     // its `Video` is a struct we would have to write back through the item).
     self.excludeLinksOnFetch = FeatureFlags.seriesDetailsWithoutLinks && (knownItem?.isEpisodicType ?? false)
-    self.usesTitleCard = UserDefaults.standard.bool(forKey: Self.titleCardDefaultsKey)
+    self.usesTitleCard = FeatureFlags.titleCardMetadata
     switch libraryState.userVote(itemId: mediaItemId) {
     case true: myVote = .up
     case false: myVote = .down
