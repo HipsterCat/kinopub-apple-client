@@ -255,6 +255,11 @@ public struct MediaRowsView: View {
         isActive: heroIsActive,
         shownIndex: heroIndex
       )
+#if os(macOS)
+      // From the window edge, under the sidebar: the hero places its words, arrows and
+      // dots past `pageLeadingObstruction` itself, so the late system inset never moves it.
+      .ignoresSafeArea(.container, edges: .horizontal)
+#endif
       // The picture is under the bar while its foot is below the bar's.
       .onGeometryChange(for: Bool.self) { proxy in
         proxy.frame(in: .global).maxY > barInsets.top + 1

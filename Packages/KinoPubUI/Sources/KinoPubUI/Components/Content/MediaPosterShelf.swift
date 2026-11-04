@@ -202,10 +202,16 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     .frame(width: max(containerWidth, 1), alignment: .leading)
     .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
 #else
-    // On the first card's inset, outside the link so the margin is not part of it —
-    // and clear of the Mac's sidebar, as the rail's cards are by their scroll inset.
+    // On the first card's inset, outside the link so the margin is not part of it.
     header
       .padding(.leading, leadingInset + pageLeadingObstruction)
+#if os(macOS)
+      // Measured from the window edge like the rail, with the sidebar's width as our
+      // own padding: the system's sidebar inset arrives after the first frames and
+      // moved the header once it did (and counted the sidebar twice with ours).
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .ignoresSafeArea(.container, edges: .horizontal)
+#endif
 #endif
   }
 
