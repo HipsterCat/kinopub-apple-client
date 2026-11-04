@@ -172,9 +172,10 @@ public struct HomeHeroCarousel: View {
       .scrollTargetLayout()
     }
     .id(generation)
-    // No safe-area content inset: one that arrived late (the Mac sidebar pins its width
-    // after the first frame) moved the pages part-way through a turn.
-    .ignoresSafeArea(.container, edges: .horizontal)
+    // In the hero's own frame, not past it: since the page sits beside the Mac's sidebar,
+    // ignoring the safe area widened the scroll view by the sidebar under it — pages
+    // narrower than the scroll, turns that skipped a title, and a click on the hero that
+    // opened its neighbour (Sasha, 2026-11-04).
     .scrollIndicators(.hidden)
     .scrollTargetBehavior(.paging)
     .scrollPosition($scroll)
@@ -1009,18 +1010,25 @@ private struct DrawnPageDots: View {
       }
     }
     .task(id: Run(current: current, advances: advances)) {
-      // The run that just ended counts; a new title starts its dwell over.
-      if let start = runStart { spent += Date().timeIntervalSince(start) }
       runStart = nil
+      // A new title starts its dwell over.
       if runFor != current {
         runFor = current
         spent = 0
       }
       guard advances else { return }
-      let left = max(dwell - spent, 0)
-      runStart = Date()
-      try? await Task.sleep(for: .seconds(left))
-      guard !Task.isCancelled else { return }
+      let start = Date()
+      runStart = start
+      try? await Task.sleep(for: .seconds(max(dwell - spent, 0)))
+      guard !Task.isCancelled else {
+        // Only the time it actually ran counts. Counted on the next run instead, a run
+        // whose dots went away (a resize, the window dragged) brought all the time away
+        // back with it and turned at once, a title skipped (Sasha, 2026-11-04).
+        spent += Date().timeIntervalSince(start)
+        runStart = nil
+        return
+      }
+      runStart = nil
       onAdvance()
     }
   }
