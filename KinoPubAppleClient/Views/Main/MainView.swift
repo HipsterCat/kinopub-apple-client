@@ -671,10 +671,11 @@ private struct PageTitle: ViewModifier {
     content
 #else
     // One modifier either way, so the page keeps its identity when the hero arrives.
-    content.navigationTitle(isBlank ? Text(verbatim: "") : Text(title))
 #if os(macOS)
-      // The TV app's: large in the window toolbar, inline once the page scrolls.
-      .toolbarTitleDisplayMode(.inlineLarge)
+    // The TV app's large page title; none over the hero.
+    content.macPageTitle(Text(title), isBlank: isBlank)
+#else
+    content.navigationTitle(isBlank ? Text(verbatim: "") : Text(title))
 #endif
 #endif
   }

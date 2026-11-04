@@ -453,6 +453,7 @@ struct TabsNavigationView: View {
         // it by this width from the first frame, not by the system's inset, which came
         // late and made them jump (Sasha, 2026-11-04).
         .environment(\.pageLeadingObstruction, Self.macSidebarWidth)
+        .environment(\.macLargePageTitles, true)
         .onAppear { detailFocused = true }
         .onChange(of: navigationState.selectedTab) {
           if navigationState.selectedTab != .search { detailFocused = true }
