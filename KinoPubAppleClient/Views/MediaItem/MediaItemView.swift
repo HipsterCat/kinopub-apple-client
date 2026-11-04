@@ -1203,6 +1203,10 @@ private struct MacTitlePageToolbar: ViewModifier {
       .toolbarColorScheme(phase.showsPicture && !past ? .dark : colorScheme, for: .windowToolbar)
       .navigationTitle(past ? title : "")
       .navigationSubtitle(past ? subtitle : "")
+      // The system's soft edge under the toolbar arrives with the title and leaves with
+      // it: over the picture the toolbar floats bare.
+      .scrollEdgeEffectStyle(.soft, for: .top)
+      .scrollEdgeEffectHidden(!past, for: .top)
   }
 }
 #endif

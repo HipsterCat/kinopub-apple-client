@@ -90,6 +90,13 @@ private struct MacStableToolbarChromeModifier: ViewModifier {
 #endif
 
 #if os(macOS)
+/// The Mac's large page title, switched off for now (Sasha, 2026-11-04): every page has the
+/// ordinary filled window toolbar with its title in it, to see how that reads before the
+/// large title is tuned. `true` brings `MacLargePageTitle` back as it was.
+enum MacLargePageTitleSwitch {
+  static let isOn = false
+}
+
 extension EnvironmentValues {
   /// Pages under the main window's sidebar draw `MacLargePageTitle`; elsewhere (the
   /// Settings window) the title is the toolbar's alone.
@@ -146,8 +153,12 @@ private struct MacLargePageTitle: ViewModifier {
       // own (it showed as a strip over the page, and came and went under the pointer);
       // the system's scroll-edge effect still backs the toolbar once rows go under it.
       .toolbarBackgroundVisibility(enabled ? .hidden : .automatic, for: .windowToolbar)
-      .navigationTitle(isBlank || (isActive && (!isScrolledAway || !showsInToolbar))
+      // Switched off, the toolbar names every page — Home and a person's page too.
+      .navigationTitle(enabled && (isBlank || (isActive && (!isScrolledAway || !showsInToolbar)))
                        ? Text(verbatim: "") : title)
+      // On, the soft edge comes in with the toolbar's title and goes with it.
+      .scrollEdgeEffectStyle(.soft, for: .top)
+      .scrollEdgeEffectHidden(enabled && isActive && !isScrolledAway, for: .top)
   }
 }
 

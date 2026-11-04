@@ -452,7 +452,7 @@ struct TabsNavigationView: View {
         }
         .environment(\.heroStepRequest, heroStep)
         .environment(\.pageScrollRequest, pageScroll)
-        .environment(\.macLargePageTitles, true)
+        .environment(\.macLargePageTitles, MacLargePageTitleSwitch.isOn)
         .onAppear { detailFocused = true }
         .onChange(of: navigationState.selectedTab) {
           if navigationState.selectedTab != .search { detailFocused = true }
