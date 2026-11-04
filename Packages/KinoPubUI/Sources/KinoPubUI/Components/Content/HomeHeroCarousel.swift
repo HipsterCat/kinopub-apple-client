@@ -68,6 +68,11 @@ public struct HomeHeroCarousel: View {
   /// half a page off and ignored every `scrollTo`, while the dots went on turning.
   @State private var generation = 0
   @Environment(\.scenePhase) private var scenePhase
+#if os(macOS)
+  /// Not `.key` while a sheet is over the window (What's New) or another window has the
+  /// keyboard: the hero holds still under it, as on the TV (Sasha, 2026-11-04).
+  @Environment(\.controlActiveState) private var controlActiveState
+#endif
 
   /// - Parameters:
   ///   - size: the hero's frame — the page's width, and the height the page gives it.
@@ -151,7 +156,15 @@ public struct HomeHeroCarousel: View {
   /// on a Mac the hero is most of the window, and the pointer is nearly always on it.
   private var advances: Bool {
     features.count > 1 && isActive && isPresented && isVisibleInPage && scenePhase == .active
-      && !isScrolling && !isMenuOpen
+      && !isScrolling && !isMenuOpen && isWindowKey
+  }
+
+  private var isWindowKey: Bool {
+#if os(macOS)
+    controlActiveState == .key
+#else
+    true
+#endif
   }
 
   public var body: some View {
@@ -218,6 +231,8 @@ public struct HomeHeroCarousel: View {
       if features.count > 1 {
         HomeHeroPageDots(count: features.count,
                          current: currentIndex,
+                         pager: pager,
+                         slots: slots,
                          advances: advances,
                          dwell: Self.dwell,
                          onAdvance: { step(1) },
@@ -824,19 +839,32 @@ private struct HeroTitleMark: View {
 /// dot a button.
 struct HomeHeroPageDots: View {
   let count: Int
+  /// The title the hero rests on: its dwell runs, and a new one starts it over.
   let current: Int
+  /// Read here only, so a drag redraws the dots and nothing else around them.
+  let pager: HeroPager
+  let slots: [HomeHeroCarousel.Slot]
   let advances: Bool
   let dwell: TimeInterval
   let onAdvance: () -> Void
   let onSelect: (Int) -> Void
 
+  /// The title under the scroll right now: the dot moves when the picture has, half-way
+  /// through a turn, not when the scroll comes to rest (it lagged the banner, Sasha,
+  /// 2026-11-04).
+  private var shown: Int {
+    guard !slots.isEmpty else { return current }
+    let page = min(max(Int(pager.page.rounded()), 0), slots.count - 1)
+    return slots[page].index
+  }
+
   var body: some View {
 #if os(iOS)
-    SystemPageDots(count: count, current: current, advances: advances,
+    SystemPageDots(count: count, current: current, shown: shown, advances: advances,
                    dwell: dwell, onAdvance: onAdvance, onSelect: onSelect)
       .fixedSize()
 #else
-    DrawnPageDots(count: count, current: current, advances: advances,
+    DrawnPageDots(count: count, current: current, shown: shown, advances: advances,
                   dwell: dwell, onAdvance: onAdvance, onSelect: onSelect)
 #endif
   }
@@ -846,6 +874,7 @@ struct HomeHeroPageDots: View {
 private struct SystemPageDots: UIViewRepresentable {
   let count: Int
   let current: Int
+  let shown: Int
   let advances: Bool
   let dwell: TimeInterval
   let onAdvance: () -> Void
@@ -873,20 +902,16 @@ private struct SystemPageDots: UIViewRepresentable {
     context.coordinator.onSelect = onSelect
     guard let timer = control.progress as? UIPageControlTimerProgress else { return }
     if control.numberOfPages != count { control.numberOfPages = count }
-    if control.currentPage != current {
-      control.currentPage = current
+    if control.currentPage != shown { control.currentPage = shown }
+    if context.coordinator.current != current {
+      context.coordinator.current = current
       // A new title gets its whole dwell, whoever turned the page.
       timer.currentProgress = 0
     }
     if advances != context.coordinator.advances {
       context.coordinator.advances = advances
-      if advances {
-        // Back in view, the title on it starts over, as on the TV.
-        timer.currentProgress = 0
-        timer.resumeTimer()
-      } else {
-        timer.pauseTimer()
-      }
+      // Held, not restarted: a drag let go before the turn goes on from where it was.
+      if advances { timer.resumeTimer() } else { timer.pauseTimer() }
     }
   }
 
@@ -894,6 +919,7 @@ private struct SystemPageDots: UIViewRepresentable {
     var onAdvance: () -> Void = {}
     var onSelect: (Int) -> Void = { _ in }
     var advances = false
+    var current = -1
 
     /// The control would turn its own page; the carousel turns it instead, and the dots
     /// follow the carousel.
@@ -919,6 +945,7 @@ private struct SystemPageDots: UIViewRepresentable {
 private struct DrawnPageDots: View {
   let count: Int
   let current: Int
+  let shown: Int
   let advances: Bool
   let dwell: TimeInterval
   let onAdvance: () -> Void
@@ -926,7 +953,12 @@ private struct DrawnPageDots: View {
 
   /// UIPageControl's measures: an 8 pt dot, 8 pt apart, the running one three dots long.
   @ScaledMetric(relativeTo: .body) private var dot: CGFloat = 8
-  @State private var progress: CGFloat = 0
+  /// The dwell spent on `runFor` before the run going now, and when that run began
+  /// (`nil` while held). A hold keeps the fill where it was — a drag let go before the
+  /// turn, a sheet over the window — instead of starting it over or filling it whole.
+  @State private var spent: TimeInterval = 0
+  @State private var runStart: Date?
+  @State private var runFor = -1
   @State private var isHovered = false
   @State private var scrubbed: Int?
 
@@ -939,18 +971,21 @@ private struct DrawnPageDots: View {
   private var gap: CGFloat { dot }
 
   var body: some View {
-    HStack(spacing: gap) {
-      ForEach(0..<count, id: \.self) { index in
-        let active = index == current
-        Capsule()
-          .fill(.white.opacity(active && !advances ? 1 : 0.35))
-          .overlay(alignment: .leading) {
-            Capsule()
-              .fill(.white)
-              .frame(width: active && advances ? max(dot, running * progress) : 0)
-              .opacity(active && advances ? 1 : 0)
-          }
-          .frame(width: active ? running : dot, height: dot)
+    TimelineView(.animation(paused: runStart == nil)) { context in
+      let progress = fill(at: context.date)
+      HStack(spacing: gap) {
+        ForEach(0..<count, id: \.self) { index in
+          let active = index == shown
+          Capsule()
+            .fill(.white.opacity(0.35))
+            .overlay(alignment: .leading) {
+              Capsule()
+                .fill(.white)
+                .frame(width: active ? max(dot, running * (shown == current ? progress : 0)) : 0)
+                .opacity(active ? 1 : 0)
+            }
+            .frame(width: active ? running : dot, height: dot)
+        }
       }
     }
     .padding(.horizontal, dot)
@@ -961,7 +996,7 @@ private struct DrawnPageDots: View {
         .opacity(isHovered ? 1 : 0)
     }
     .contentShape(Capsule())
-    .animation(.smooth(duration: 0.3), value: current)
+    .animation(.smooth(duration: 0.3), value: shown)
     .animation(.easeOut(duration: 0.2), value: isHovered)
     .onHover { isHovered = $0 }
     .gesture(
@@ -973,7 +1008,7 @@ private struct DrawnPageDots: View {
         }
     )
     .accessibilityElement()
-    .accessibilityLabel(Text("\(current + 1) / \(count)"))
+    .accessibilityLabel(Text("\(shown + 1) / \(count)"))
     .accessibilityAdjustableAction { direction in
       switch direction {
       case .increment: onSelect((current + 1) % count)
@@ -982,15 +1017,26 @@ private struct DrawnPageDots: View {
       }
     }
     .task(id: Run(current: current, advances: advances)) {
-      var reset = Transaction()
-      reset.disablesAnimations = true
-      withTransaction(reset) { progress = 0 }
+      // The run that just ended counts; a new title starts its dwell over.
+      if let start = runStart { spent += Date().timeIntervalSince(start) }
+      runStart = nil
+      if runFor != current {
+        runFor = current
+        spent = 0
+      }
       guard advances else { return }
-      withAnimation(.linear(duration: dwell)) { progress = 1 }
-      try? await Task.sleep(for: .seconds(dwell))
+      let left = max(dwell - spent, 0)
+      runStart = Date()
+      try? await Task.sleep(for: .seconds(left))
       guard !Task.isCancelled else { return }
       onAdvance()
     }
+  }
+
+  private func fill(at date: Date) -> CGFloat {
+    guard dwell > 0 else { return 0 }
+    let now = runStart.map { spent + date.timeIntervalSince($0) } ?? spent
+    return CGFloat(min(max(now / dwell, 0), 1))
   }
 
   /// The dot under `x`, in the row's own layout (the running one is wider).
@@ -998,13 +1044,13 @@ private struct DrawnPageDots: View {
     var edge = dot
     var index = count - 1
     for i in 0..<count {
-      edge += (i == current ? running : dot) + gap / 2
+      edge += (i == shown ? running : dot) + gap / 2
       if x < edge { index = i; break }
       edge += gap / 2
     }
     guard index != scrubbed else { return }
     scrubbed = index
-    if index != current { onSelect(index) }
+    if index != shown { onSelect(index) }
   }
 }
 #endif
