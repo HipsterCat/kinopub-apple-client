@@ -77,8 +77,9 @@ public struct HomeHeroCarousel: View {
   @Environment(\.scenePhase) private var scenePhase
 #if os(macOS)
   /// A sheet over the window (What's New): the hero holds still under it, as on the TV
-  /// (Sasha, 2026-11-04). Only a sheet — a window merely not key, behind another app or
-  /// beside another window, is still seen and keeps turning.
+  /// (Sasha, 2026-11-04). Also a window not on screen at all (minimised, another Space,
+  /// the screen locked). A window merely not key, behind another app or beside another
+  /// window, is still seen and keeps turning.
   @State private var isWindowHeld = false
 #endif
 
