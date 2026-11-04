@@ -80,9 +80,13 @@ struct TMDBTitleDetails: Codable, Sendable {
   /// handful of votes still reports an average, so the count travels with it.
   let voteAverage: Double?
   let voteCount: Int?
+  /// ISO 639-1 of the original production («ko», «ja»): the third language the title's
+  /// videos are asked in, after the app's and English.
+  let originalLanguage: String?
 
   enum CodingKeys: String, CodingKey {
     case id, overview, tagline, homepage, status, genres, budget, revenue, networks
+    case originalLanguage = "original_language"
     case credits, images, videos, keywords
     case inProduction = "in_production"
     case productionCompanies = "production_companies"
@@ -269,10 +273,14 @@ struct TMDBVideo: Codable, Sendable {
   let type: String?
   let official: Bool?
   let iso6391: String?
+  /// The uploader's own title — «Official Trailer», «Тизер-трейлер».
+  let name: String?
+  let publishedAt: String?
 
   enum CodingKeys: String, CodingKey {
-    case key, site, type, official
+    case key, site, type, official, name
     case iso6391 = "iso_639_1"
+    case publishedAt = "published_at"
   }
 }
 

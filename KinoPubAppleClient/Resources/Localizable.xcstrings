@@ -8460,6 +8460,42 @@
         }
       }
     },
+    "MediaItem_TrailersAndVideos" : {
+      "comment" : "Header of the title page rail of trailers, teasers and other videos (kino.pub trailer + TMDB/YouTube)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trailers & Videos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Трейлеры и видео"
+          }
+        }
+      }
+    },
+    "MediaItem_YouTubeUnavailable" : {
+      "comment" : "Toast when a trailer on YouTube cannot be opened (no YouTube app)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install YouTube to watch this video"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установите YouTube, чтобы посмотреть это видео"
+          }
+        }
+      }
+    },
     "MediaItem_Versions" : {
       "comment" : "Header of the rail listing the versions of one film (24/48 fps, director's cut)",
       "localizations" : {

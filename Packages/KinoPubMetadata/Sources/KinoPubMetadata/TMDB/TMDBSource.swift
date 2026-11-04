@@ -44,6 +44,16 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
     }
     var meta = mapDetails(details, type: resolved.type, tmdbId: resolved.tmdbId)
     meta.debugLog = [findDebug, detailsDebug]
+    // The details carry the videos in the app's language and English. A title made in a
+    // third language gets its own videos in one more call — Korean teasers are often the
+    // only ones a Korean series has.
+    if let original = details.originalLanguage?.lowercased(), !original.isEmpty,
+       !videoLanguages.contains(original) {
+      let (extra, videosDebug) = await fetchVideos(id: resolved.tmdbId, type: resolved.type,
+                                                   language: original)
+      meta.trailers += extra.compactMap(Self.trailer(from:))
+      meta.debugLog.append(videosDebug)
+    }
     return meta
   }
 
@@ -138,7 +148,9 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
   // MARK: - Details
 
   private func fetchDetails(id: Int, type: TMDBMediaType) async -> (TMDBTitleDetails?, SourceDebugEntry) {
-    let key = "tmdb/details/\(type.rawValue)/\(id)"
+    // `videos-` in the key: entries from before the videos were asked in more than one
+    // language would otherwise serve the Russian ones alone for a month.
+    let key = "tmdb/details/videos-\(videoLanguages.joined(separator: "-"))/\(type.rawValue)/\(id)"
     let path = "/3/\(type.rawValue)/\(id)"
     let entry = await cache.deduped(key: key, ttl: Self.detailsTTL) { [self] in
       do {
@@ -153,6 +165,8 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
           URLQueryItem(name: "language", value: configuration.language),
           URLQueryItem(name: "append_to_response", value: append),
           URLQueryItem(name: "include_image_language", value: "ru,en,null"),
+          // Without it TMDB lists only the videos in `language`.
+          URLQueryItem(name: "include_video_language", value: videoLanguages.joined(separator: ",")),
         ])
         let data = try await client.getData(url: url)
         // Validate before caching.
@@ -172,6 +186,54 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
                                  succeeded: !entry.isNegative, responseBody: debugBody)
     guard !entry.isNegative else { return (nil, debug) }
     return (try? client.decode(TMDBTitleDetails.self, from: entry.payload), debug)
+  }
+
+  /// The app's language and English: what every title's videos are asked in.
+  private var videoLanguages: [String] {
+    let app = configuration.language.split(separator: "-").first.map { String($0).lowercased() } ?? "ru"
+    return app == "en" ? ["en"] : [app, "en"]
+  }
+
+  /// One language's videos of a title (`/videos`), for the original language the details
+  /// were not asked in.
+  private func fetchVideos(id: Int, type: TMDBMediaType, language: String) async -> ([TMDBVideo], SourceDebugEntry) {
+    let key = "tmdb/videos/\(type.rawValue)/\(id)/\(language)"
+    let path = "/3/\(type.rawValue)/\(id)/videos"
+    let query = [URLQueryItem(name: "language", value: language),
+                 URLQueryItem(name: "include_video_language", value: language)]
+    let entry = await cache.deduped(key: key, ttl: Self.detailsTTL) { [self] in
+      do {
+        let data = try await client.getData(url: try makeURL(path: path, query: query))
+        _ = try client.decode(TMDBVideos.self, from: data)
+        return MetadataCache.Entry(payload: data)
+      } catch {
+        return nil
+      }
+    }
+    let debugURL = (try? makeURL(path: path, query: query)).map(\.absoluteString) ?? path
+    guard let entry, !entry.isNegative,
+          let videos = try? client.decode(TMDBVideos.self, from: entry.payload) else {
+      return ([], SourceDebugEntry(source: .tmdb, endpoint: "videos", url: debugURL, proxied: isConfigured,
+                                   succeeded: false, responseBody: "No response — not configured or network error."))
+    }
+    let body = String(data: entry.payload, encoding: .utf8) ?? ""
+    return (videos.results ?? [], SourceDebugEntry(source: .tmdb, endpoint: "videos", url: debugURL,
+                                                   proxied: isConfigured, succeeded: true, responseBody: body))
+  }
+
+  private static func trailer(from video: TMDBVideo) -> TrailerRef? {
+    guard let key = video.key, let site = video.site, let type = video.type else { return nil }
+    return TrailerRef(site: site, key: key, type: type, official: video.official ?? false,
+                      language: video.iso6391, name: video.name,
+                      publishedAt: video.publishedAt.flatMap(Self.parseTimestamp))
+  }
+
+  private static func parseTimestamp(_ raw: String) -> Date? {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = formatter.date(from: raw) { return date }
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: raw)
   }
 
   private func fetchSeason(tmdbId: Int, season: Int) async throws -> [EpisodeSchedule] {
@@ -296,16 +358,8 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
       )
     }
 
-    meta.trailers = (details.videos?.results ?? []).compactMap { video in
-      guard let key = video.key, let site = video.site, let type = video.type else { return nil }
-      return TrailerRef(
-        site: site,
-        key: key,
-        type: type,
-        official: video.official ?? false,
-        language: video.iso6391
-      )
-    }
+    meta.trailers = (details.videos?.results ?? []).compactMap(Self.trailer(from:))
+    meta.originalLanguage = details.originalLanguage
 
     meta.ageRating = Self.pickAgeRating(
       releaseDates: details.releaseDates,
