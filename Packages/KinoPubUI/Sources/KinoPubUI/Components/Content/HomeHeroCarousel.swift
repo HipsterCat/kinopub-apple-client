@@ -31,6 +31,7 @@ public struct HomeHeroCarousel: View {
   private let size: CGSize
   private let topBleed: CGFloat
   private let sideInset: CGFloat
+  private let leadingObstruction: CGFloat
   private let isCompact: Bool
   private let onPlay: (MediaCard) -> Void
   private let onDetails: (MediaCard) -> Void
@@ -58,12 +59,10 @@ public struct HomeHeroCarousel: View {
   @State private var isHovered = false
   /// A turn the code animates is on its way; the scroll may report no phase for it.
   @State private var isTurning = false
-  /// Bumped once a window resize settles: the pager is built afresh on the current
-  /// page. After a burst of resizes the Mac's scroll view stayed half a page off and
-  /// ignored every `scrollTo` from then on, while the dots went on turning.
+  /// Bumped when a window resize settles with the pager still off its page: it is built
+  /// afresh on the current page. After a burst of resizes the Mac's scroll view stayed
+  /// half a page off and ignored every `scrollTo`, while the dots went on turning.
   @State private var generation = 0
-  /// The first width is the hero appearing, not a resize.
-  @State private var hasResized = false
   @Environment(\.scenePhase) private var scenePhase
 
   /// - Parameters:
@@ -71,6 +70,9 @@ public struct HomeHeroCarousel: View {
   ///   - topBleed: how far the picture runs on above the frame, under the navigation
   ///     bar or window toolbar (their safe-area inset). The words stay inside the frame.
   ///   - sideInset: the page's leading margin, so the words start where the rows do.
+  ///   - leadingObstruction: what covers the hero's leading side — the Mac's floating
+  ///     sidebar, which the page runs under. The picture runs on under it; the words,
+  ///     arrows and dots keep clear of it.
   ///   - isCompact: the phone's centred column instead of the leading one.
   ///   - isActive: the page is the one on screen — its tab selected and nothing pushed
   ///     over it. A Mac keeps the page under a pushed one alive and "appeared".
@@ -80,6 +82,7 @@ public struct HomeHeroCarousel: View {
               size: CGSize,
               topBleed: CGFloat = 0,
               sideInset: CGFloat,
+              leadingObstruction: CGFloat = 0,
               isCompact: Bool,
               onPlay: @escaping (MediaCard) -> Void,
               onDetails: @escaping (MediaCard) -> Void,
@@ -90,6 +93,7 @@ public struct HomeHeroCarousel: View {
     self.size = size
     self.topBleed = topBleed
     self.sideInset = sideInset
+    self.leadingObstruction = leadingObstruction
     self.isCompact = isCompact
     self.onPlay = onPlay
     self.onDetails = onDetails
@@ -153,6 +157,10 @@ public struct HomeHeroCarousel: View {
       .scrollTargetLayout()
     }
     .id(generation)
+    // The pages span the whole hero, under the Mac's sidebar too: no safe-area content
+    // inset, which arrived late (the sidebar pins its width after the first frame) and
+    // moved the pages part-way through a turn.
+    .ignoresSafeArea(.container, edges: .horizontal)
     .scrollIndicators(.hidden)
     .scrollTargetBehavior(.paging)
     .scrollPosition($scroll)
@@ -204,6 +212,7 @@ public struct HomeHeroCarousel: View {
                          onAdvance: { step(1) },
                          onSelect: { go(to: $0) })
           .padding(.bottom, Metrics.dotsBottom)
+          .padding(.leading, leadingObstruction)
       }
     }
 #if os(macOS) || os(iOS)
@@ -222,10 +231,10 @@ public struct HomeHeroCarousel: View {
     .onChange(of: size.width) { move(to: current, animated: false) }
     .task(id: size.width) {
       try? await Task.sleep(for: .milliseconds(300))
-      guard !Task.isCancelled, generation > 0 || hasResized else {
-        hasResized = true
-        return
-      }
+      guard !Task.isCancelled else { return }
+      // Built afresh only when the scroll view stayed off its page after the re-snap
+      // (a burst of resizes did that): a rebuild reloads every picture.
+      guard abs(pager.page - pager.page.rounded()) > 0.001 else { return }
       isScrolling = false
       isTurning = false
       scroll = ScrollPosition(id: current)
@@ -333,7 +342,8 @@ public struct HomeHeroCarousel: View {
   private func wordsBlock(_ feature: HomeHeroFeature) -> some View {
     if feature.card.id > 0 {
       words(feature)
-        .padding(.horizontal, sideInset)
+        .padding(.leading, leadingObstruction + sideInset)
+        .padding(.trailing, sideInset)
         .padding(.bottom, features.count > 1 ? Metrics.dotsReserve : Metrics.bottomInset)
     }
   }
@@ -353,7 +363,8 @@ public struct HomeHeroCarousel: View {
         HeroPagingArrow(symbol: "chevron.compact.right", label: hero.labels.next,
                         isShown: isHovered) { step(1) }
       }
-      .padding(.horizontal, Metrics.arrowEdgeInset)
+      .padding(.leading, leadingObstruction + Metrics.arrowEdgeInset)
+      .padding(.trailing, Metrics.arrowEdgeInset)
     }
   }
 #endif

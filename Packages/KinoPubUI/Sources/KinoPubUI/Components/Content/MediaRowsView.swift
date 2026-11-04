@@ -205,6 +205,7 @@ public struct MediaRowsView: View {
   private var verticalScroll: some View {
     ScrollView(.vertical) {
       stack
+        .environment(\.pageLeadingObstruction, pageLeadingObstruction)
         .padding(.top, showsHero ? 0 : Self.pageVerticalInset)
         .padding(.bottom, Self.pageVerticalInset)
     }
@@ -245,6 +246,7 @@ public struct MediaRowsView: View {
         size: heroSize,
         topBleed: barInsets.top,
         sideInset: ShelfMetrics.posters(width: containerWidth, typeSize: typeSize).inset,
+        leadingObstruction: pageLeadingObstruction,
         isCompact: heroIsCompact,
         onPlay: { onHeroPlay?($0) },
         onDetails: { onHeroDetails?($0) },
@@ -303,6 +305,17 @@ public struct MediaRowsView: View {
 #endif
 
   // MARK: - Hero
+
+  /// Mac: the floating sidebar over the page's leading side (the page runs under it).
+  /// Horizontal rails get it as their scroll inset; the hero and the shelf headers,
+  /// which are not scroll views, are told it.
+  private var pageLeadingObstruction: CGFloat {
+#if os(macOS)
+    barInsets.leading
+#else
+    0
+#endif
+  }
 
   private var showsHero: Bool {
 #if os(tvOS)

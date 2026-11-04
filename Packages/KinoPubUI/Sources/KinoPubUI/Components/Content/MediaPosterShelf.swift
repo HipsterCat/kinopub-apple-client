@@ -42,6 +42,7 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.usesTVUIKitPosters) private var usesTVUIKitPosters
   @Environment(\.mediaNavigation) private var mediaNavigation
+  @Environment(\.pageLeadingObstruction) private var pageLeadingObstruction
   @State private var containerWidth: CGFloat = 1920
   /// The container's own horizontal safe-area inset. Zero on a screen that already
   /// sits inside the safe area; the overscan margin on one that ignores it (the detail
@@ -201,9 +202,10 @@ public struct MediaPosterShelf<FocusKey: Hashable>: View {
     .frame(width: max(containerWidth, 1), alignment: .leading)
     .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
 #else
-    // On the first card's inset, outside the link so the margin is not part of it.
+    // On the first card's inset, outside the link so the margin is not part of it —
+    // and clear of the Mac's sidebar, as the rail's cards are by their scroll inset.
     header
-      .padding(.leading, leadingInset)
+      .padding(.leading, leadingInset + pageLeadingObstruction)
 #endif
   }
 
@@ -447,3 +449,9 @@ private struct MediaPosterShelfFocusReporter: ViewModifier {
   }
 }
 #endif
+
+extension EnvironmentValues {
+  /// What covers the page's leading side: the Mac's floating sidebar, which the page runs
+  /// under. Views that are not scroll views (shelf headers) keep clear of it.
+  @Entry var pageLeadingObstruction: CGFloat = 0
+}
