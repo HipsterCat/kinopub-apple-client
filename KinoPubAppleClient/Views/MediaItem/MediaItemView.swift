@@ -845,7 +845,7 @@ struct MediaItemView: View {
                          showsChrome: true,
                          onOpenFailed: {
                            itemModel.hudToast = HudToast(systemImage: "play.rectangle",
-                                                         title: "MediaItem_YouTubeUnavailable".localized)
+                                                         title: "MediaItem_YouTubeUnavailable".localized) // TODO REPLACE TO PROPER SHEET
                          })
       }
 
