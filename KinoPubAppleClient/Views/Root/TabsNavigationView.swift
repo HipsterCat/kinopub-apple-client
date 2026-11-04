@@ -57,6 +57,7 @@ struct TabsNavigationView: View {
 #if os(macOS)
   @FocusState private var detailFocused: Bool
   @State private var heroStep: HeroStepRequest?
+  @State private var pageScroll: PageScrollRequest?
 #endif
   @State private var watchlistBadgeCount = 0
   @State private var sidebarSyncedAt: Date?
@@ -416,7 +417,23 @@ struct TabsNavigationView: View {
           heroStep = HeroStepRequest(delta: press.key == .leftArrow ? -1 : 1)
           return .handled
         }
+        // The rest of a scroll view's keys, which the page's focus would otherwise eat
+        // with a beep (Sasha, 2026-11-04).
+        .onKeyPress(keys: [.upArrow, .downArrow, .pageUp, .pageDown, .home, .end, .space]) { press in
+          let kind: PageScrollRequest.Kind = switch press.key {
+          case .upArrow: .lineUp
+          case .downArrow: .lineDown
+          case .pageUp: .pageUp
+          case .home: .top
+          case .end: .bottom
+          case .space: press.modifiers.contains(.shift) ? .pageUp : .pageDown
+          default: .pageDown
+          }
+          pageScroll = PageScrollRequest(kind)
+          return .handled
+        }
         .environment(\.heroStepRequest, heroStep)
+        .environment(\.pageScrollRequest, pageScroll)
         // The page runs under the floating sidebar: its rows and Home hero keep clear of
         // it by this width from the first frame, not by the system's inset, which came
         // late and made them jump (Sasha, 2026-11-04).
