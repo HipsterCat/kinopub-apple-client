@@ -40,10 +40,13 @@ private struct RememberedScroll: ViewModifier {
   func body(content: Content) -> some View {
     content
       .scrollPosition($position)
-      .onScrollGeometryChange(for: CGFloat.self) { geometry in
-        geometry.contentOffset.y + geometry.contentInsets.top
-      } action: { _, y in
-        memory?.y = max(y, 0)
+      // Read when a scroll comes to rest, not on every frame: a per-frame geometry
+      // reader in the page's scroll logged «OnScrollGeometryChange tried to update
+      // multiple times per frame» while the lazy rows laid out (Sasha, 2026-11-04).
+      .onScrollPhaseChange { _, phase, context in
+        guard phase == .idle else { return }
+        let geometry = context.geometry
+        memory?.y = max(geometry.contentOffset.y + geometry.contentInsets.top, 0)
       }
       .task {
         // Once the lazy content has laid out down to where the page was.
