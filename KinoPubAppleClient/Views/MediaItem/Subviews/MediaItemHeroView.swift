@@ -648,6 +648,9 @@ struct MediaItemHeroView: View {
       heroCanvas
         .frame(maxWidth: .infinity)
         .background(visibilityProbe)
+#if os(macOS)
+        .background(toolbarCrossingProbe)
+#endif
 #endif
     }
   }
@@ -789,6 +792,20 @@ struct MediaItemHeroView: View {
       Color.clear
         .onChange(of: frame.minY >= -Self.onScreenSlop) { _, onScreen in
           phase.isHeroOnScreen = onScreen
+        }
+    }
+  }
+#endif
+
+#if os(macOS)
+  /// Mac: whether the hero's bottom edge has gone up under the window toolbar. One write
+  /// per crossing, read by the title page's toolbar alone.
+  private var toolbarCrossingProbe: some View {
+    GeometryReader { proxy in
+      let past = proxy.frame(in: .named(MediaItemLayout.scrollSpace)).maxY <= phase.topChromeInset
+      Color.clear
+        .onChange(of: past, initial: true) { _, past in
+          if phase.isHeroPastToolbar != past { phase.isHeroPastToolbar = past }
         }
     }
   }

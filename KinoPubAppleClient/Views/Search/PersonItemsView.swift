@@ -48,9 +48,12 @@ struct PersonItemsView: View {
   var body: some View {
     catalogBody
     .background(Color.KinoPub.background)
-    .platformNavigationTitle(person.name)
 #if os(macOS)
+    // The header spells the name out in large type already: no second large title.
+    .macPageTitle(Text(person.name), isBlank: true)
     .toolbar { LibraryFiltersToolbar(catalog: catalog) }
+#else
+    .platformNavigationTitle(person.name)
 #endif
     .overlay {
 #if !os(tvOS)

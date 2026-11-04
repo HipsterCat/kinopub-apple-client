@@ -178,6 +178,9 @@ final class MediaItemHeroPhase {
   /// The hero has a picture behind its chrome (it loaded), so the toolbar over it goes
   /// dark. Written by the hero once per change.
   var showsPicture = false
+  /// Mac: the hero has gone up under the window toolbar, which then names the title,
+  /// as Apple Music's artist page does. Written by the hero once per crossing.
+  var isHeroPastToolbar = false
 }
 
 struct MediaItemView: View {
@@ -287,9 +290,14 @@ struct MediaItemView: View {
 #endif
 #if os(macOS)
       .toolbarBackground(.hidden, for: .windowToolbar)
-      .toolbarColorScheme(itemModel.heroPhase.showsPicture ? .dark : nil, for: .windowToolbar)
-#endif
+      // No title over the hero — it spells the name out itself; once the hero has gone
+      // under the toolbar, the toolbar takes the name (and the original one under it).
+      .modifier(MacTitlePageToolbar(phase: itemModel.heroPhase,
+                                    title: itemModel.mediaItem.localizedTitle,
+                                    subtitle: macToolbarSubtitle))
+#else
       .platformNavigationTitle("")
+#endif
 #if os(iOS) || os(macOS)
       .toolbar {
 #if os(macOS)
@@ -1169,3 +1177,32 @@ struct MediaItemPosterWash: View {
   private static let blur: CGFloat = 10
   private static let scale: CGFloat = 14
 }
+
+#if os(macOS)
+extension MediaItemView {
+  /// The original name under the toolbar title when it is not the same words.
+  fileprivate var macToolbarSubtitle: String {
+    let item = itemModel.mediaItem
+    return item.originalTitle != item.localizedTitle ? item.originalTitle : ""
+  }
+}
+
+/// The title page's toolbar: dark over the picture, nameless while the hero is on screen,
+/// the system's own once the hero has gone under it. Reads the phase itself, so only
+/// this modifier — not the page — re-runs when the hero crosses.
+private struct MacTitlePageToolbar: ViewModifier {
+  let phase: MediaItemHeroPhase
+  let title: String
+  let subtitle: String
+  @Environment(\.colorScheme) private var colorScheme
+
+  func body(content: Content) -> some View {
+    let past = phase.isHeroPastToolbar
+    content
+      // By value, not `nil`: back over the page the toolbar takes the page's scheme.
+      .toolbarColorScheme(phase.showsPicture && !past ? .dark : colorScheme, for: .windowToolbar)
+      .navigationTitle(past ? title : "")
+      .navigationSubtitle(past ? subtitle : "")
+  }
+}
+#endif
