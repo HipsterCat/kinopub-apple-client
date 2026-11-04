@@ -296,7 +296,7 @@ struct UILabFloatingFilterBar: View {
 
         secondaryMenu(
           title: filters.genre ?? "Genre",
-          icon: "theatermasks",
+          icon: "square.stack.3d.down.right",
           isActive: filters.genre != nil
         ) {
           Button("Any") { filters.genre = nil }
@@ -407,7 +407,7 @@ struct UILabToolbarFilterMenus: ToolbarContent {
 
       compactMenu(
         title: filters.genre ?? "Genre",
-        icon: "theatermasks",
+        icon: "square.stack.3d.down.right",
         isActive: filters.genre != nil
       ) {
         Button("Any") { filters.genre = nil }

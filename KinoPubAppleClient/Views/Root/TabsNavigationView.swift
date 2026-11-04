@@ -367,7 +367,7 @@ struct TabsNavigationView: View {
           Label("History", systemImage: "clock.arrow.circlepath")
             .tag(NavigationTabs.recentlyWatched)
             .sidebarReselect(.recentlyWatched, using: sidebarReselect)
-          Label("SidebarGenres".localized, systemImage: "theatermasks")
+          Label("SidebarGenres".localized, systemImage: "square.stack.3d.down.right")
             .tag(NavigationTabs.genres)
             .sidebarReselect(.genres, using: sidebarReselect)
         }
@@ -609,7 +609,7 @@ struct TabsNavigationView: View {
         Tab("History", systemImage: "clock.arrow.circlepath", value: NavigationTabs.recentlyWatched) {
           RouteStack(tab: .recentlyWatched) { HistoryView() }
         }
-        Tab("SidebarGenres".localized, systemImage: "theatermasks", value: NavigationTabs.genres) {
+        Tab("SidebarGenres".localized, systemImage: "square.stack.3d.down.right", value: NavigationTabs.genres) {
           MacGenresView()
         }
         Tab("TabLibrary", systemImage: "rectangle.stack", value: NavigationTabs.library) {

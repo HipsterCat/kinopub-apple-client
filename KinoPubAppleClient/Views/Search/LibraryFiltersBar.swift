@@ -168,7 +168,7 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
       : nil
     return glassMenu(
       label: single.map { LocalizedStringKey($0.title) } ?? "Genre",
-      icon: "theatermasks",
+      icon: "square.stack.3d.down.right",
       isActive: !selected.isEmpty
     ) {
       Toggle("Any", isOn: Binding(
