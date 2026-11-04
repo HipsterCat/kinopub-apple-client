@@ -386,11 +386,12 @@ struct TabsNavigationView: View {
         MacSidebarAccount(userService: appContext.userService)
       }
       // The TV app's width, and fixed as its is: its divider does not move.
-      .navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 220)
+      .navigationSplitViewColumnWidth(min: Self.macSidebarWidth, ideal: Self.macSidebarWidth,
+                                      max: Self.macSidebarWidth)
       // SwiftUI's width is a preference the divider can still be dragged past, and the
       // sidebar could be dragged shut (Sasha, 2026-10-31). The TV app's is fixed: the
       // split view item itself is pinned.
-      .background(MacFixedSidebar(width: 220))
+      .background(MacFixedSidebar(width: Self.macSidebarWidth))
       // The TV app's sidebar is always there: no «Hide Sidebar» button in the toolbar
       // (Sasha, 2026-10-30), and nothing collapses it.
       .toolbar(removing: .sidebarToggle)
@@ -416,6 +417,10 @@ struct TabsNavigationView: View {
           return .handled
         }
         .environment(\.heroStepRequest, heroStep)
+        // The page runs under the floating sidebar: its rows and Home hero keep clear of
+        // it by this width from the first frame, not by the system's inset, which came
+        // late and made them jump (Sasha, 2026-11-04).
+        .environment(\.pageLeadingObstruction, Self.macSidebarWidth)
         .onAppear { detailFocused = true }
         .onChange(of: navigationState.selectedTab) {
           if navigationState.selectedTab != .search { detailFocused = true }
@@ -431,6 +436,11 @@ struct TabsNavigationView: View {
           sidebarReselectGuard.allows(at: .now) else { return }
     navigationState.reselect(tab)
   }
+
+#if os(macOS)
+  /// The TV app's sidebar column, fixed.
+  static let macSidebarWidth: CGFloat = 220
+#endif
 
   /// The outline form of a tab glyph: «house.fill» → «house».
   static func outlineSymbol(_ name: String) -> String {

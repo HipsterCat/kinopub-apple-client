@@ -671,7 +671,7 @@ public struct MediaCardView: View {
   }
 
   @Environment(\.isFocused) private var cardFocused
-#if os(macOS)
+#if !os(tvOS)
   @State private var isHovered = false
 #endif
 

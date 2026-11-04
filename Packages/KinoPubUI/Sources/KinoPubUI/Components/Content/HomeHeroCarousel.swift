@@ -59,6 +59,9 @@ public struct HomeHeroCarousel: View {
   @State private var isHovered = false
   /// A turn the code animates is on its way; the scroll may report no phase for it.
   @State private var isTurning = false
+  /// Which code turn is the latest: an older one's completion, cut off by a resize or a
+  /// newer turn, must not settle the pager back on the page it was leaving.
+  @State private var turnID = 0
   /// Bumped when a window resize settles with the pager still off its page: it is built
   /// afresh on the current page. After a burst of resizes the Mac's scroll view stayed
   /// half a page off and ignored every `scrollTo`, while the dots went on turning.
@@ -282,16 +285,20 @@ public struct HomeHeroCarousel: View {
 
   private func move(to slot: Slot, animated: Bool) {
     current = slot
+    turnID += 1
+    let turn = turnID
     if animated {
       isTurning = true
       withAnimation(.smooth(duration: 0.6)) {
         scroll.scrollTo(id: slot)
       } completion: {
+        guard turn == turnID else { return }
         isTurning = false
         // A turn the code makes may not report a scroll phase of its own.
         settle()
       }
     } else {
+      isTurning = false
       var transaction = Transaction()
       transaction.disablesAnimations = true
       withTransaction(transaction) { scroll.scrollTo(id: slot) }
