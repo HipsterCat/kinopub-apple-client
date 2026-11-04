@@ -200,7 +200,7 @@ public final class TitleLogoSession: ObservableObject {
     }
   }
 
-  private func startLoad(url: URL, requestID id: Int, resetTimeout: Bool) {
+  private func startLoad(url: URL, requestID id: Int, resetTimeout: Bool, retries: Int = 1) {
     loadTask?.cancel()
     startedAt = Date()
     imageFailed = false
@@ -245,6 +245,16 @@ public final class TitleLogoSession: ObservableObject {
             self.handleTimeout()
           case .cancelled:
             group.cancelAll()
+            // The load was cancelled from outside while this slot still wants it (a
+            // shared download given up by another slot of the same title). Returning here
+            // left the slot empty for good: no logo, no name, the timeout gone with the
+            // group (Home hero, Ted Lasso, 2026-11-04). Ask again, once; then the name.
+            guard !Task.isCancelled else { return }
+            if retries > 0 {
+              self.startLoad(url: url, requestID: id, resetTimeout: false, retries: retries - 1)
+            } else {
+              self.handleFailed()
+            }
             return
           }
         }
