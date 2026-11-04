@@ -29,6 +29,8 @@ enum PlaybackMediaContext {
       let kinoSeason: Int
       let titleSeason: Int?
       let number: Int
+      let title: String
+      let runtimeMinutes: Int?
     }
 
     let title: MediaItem
@@ -58,7 +60,9 @@ enum PlaybackMediaContext {
       if let kinoSeason = season?.number ?? episode.seasonNumber {
         key = Enrichment.EpisodeKey(kinoSeason: kinoSeason,
                                     titleSeason: season?.titleSeasonNumber,
-                                    number: episode.number)
+                                    number: episode.number,
+                                    title: episode.title,
+                                    runtimeMinutes: episode.duration >= 60 ? episode.duration / 60 : nil)
       }
     }
     let isEpisodeDownload = (item as? DownloadMeta)?.episode != nil
@@ -82,19 +86,29 @@ enum PlaybackMediaContext {
       draft.item += titleFragments
     }
 
-    guard let episode = enrichment.episode,
-          let tmdbSeason = TMDBSeasonMatch.tmdbSeason(
-            kinoNumber: episode.kinoSeason,
-            titleNumber: episode.titleSeason,
-            tmdbSeasons: Set(meta.seasonSummaries.map(\.seasonNumber)))
-    else { return draft }
-
-    if let season = meta.seasonFragment(number: tmdbSeason) {
+    guard let episode = enrichment.episode else { return draft }
+    let tmdbSeasons = Set(meta.seasonSummaries.map(\.seasonNumber))
+    let tmdbSeason = TMDBSeasonMatch.tmdbSeason(
+      kinoNumber: episode.kinoSeason,
+      titleNumber: episode.titleSeason,
+      tmdbSeasons: tmdbSeasons)
+    if let tmdbSeason, let season = meta.seasonFragment(number: tmdbSeason) {
       draft.season.append(season)
     }
-    let schedule = await service.schedule(for: identity, season: tmdbSeason)
-    if let match = schedule.first(where: { $0.episodeNumber == episode.number }) {
-      draft.item.append(match.mediaFragment)
+    let numbers = tmdbSeasons.isEmpty ? [tmdbSeason].compactMap { $0 } : Array(tmdbSeasons)
+    let schedule = await service.episodeGrid(for: identity, seasons: numbers)
+    let kino = EpisodeGridMatch.KinoEpisode(
+      blockID: episode.kinoSeason,
+      blockNumber: episode.kinoSeason,
+      titledNumber: episode.titleSeason,
+      number: episode.number,
+      title: episode.title,
+      runtimeMinutes: episode.runtimeMinutes)
+    let alignment = EpisodeGridMatch.align(
+      kino: [kino],
+      official: schedule.map(KinoEpisodeGrid.official))
+    if let hit = alignment.hits.first {
+      draft.item.append(KinoEpisodeGrid.schedule(hit.official).mediaFragment)
     }
     return draft
   }

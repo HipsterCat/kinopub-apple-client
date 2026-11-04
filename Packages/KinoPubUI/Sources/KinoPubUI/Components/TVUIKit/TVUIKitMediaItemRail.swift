@@ -63,10 +63,13 @@ public enum TVUIKitMediaItemStatus: Equatable {
   /// "not out yet", the lock "out, but not here" (Sasha, 2026-10-04). One still ahead
   /// of its air date is `.upcoming`, not this.
   case locked
+  /// On kino.pub well before the published premiere. Still a playable tile: the string
+  /// is the badge («Премьера»), and the runtime stays in the corner.
+  case premiere(String)
 
   var glyph: String? {
     switch self {
-    case .ready, .inProgress, .watched, .unavailable, .upcoming, .locked: nil
+    case .ready, .inProgress, .watched, .unavailable, .upcoming, .locked, .premiere: nil
     }
   }
 
@@ -80,7 +83,7 @@ public enum TVUIKitMediaItemStatus: Equatable {
   /// along", so a tile in progress shows that instead.
   var showsRuntime: Bool {
     switch self {
-    case .ready, .watched, .unavailable, .upcoming: true
+    case .ready, .watched, .unavailable, .upcoming, .premiere: true
     // The bar says it; a locked one has nothing to play and no runtime on the item.
     case .inProgress, .locked: false
     }
@@ -95,6 +98,7 @@ public enum TVUIKitMediaItemStatus: Equatable {
     switch self {
     case .watched: String(localized: "TVMediaItem_Watched")
     case .upcoming(let dateText): dateText
+    case .premiere(let text): text
     case .ready, .inProgress, .unavailable, .locked: nil
     }
   }
@@ -106,7 +110,7 @@ public enum TVUIKitMediaItemStatus: Equatable {
     switch self {
     case .watched: "checkmark"
     case .locked: "lock.fill"
-    case .ready, .inProgress, .unavailable, .upcoming: nil
+    case .ready, .inProgress, .unavailable, .upcoming, .premiere: nil
     }
   }
 

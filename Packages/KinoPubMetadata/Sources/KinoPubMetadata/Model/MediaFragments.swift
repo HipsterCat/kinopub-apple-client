@@ -84,6 +84,10 @@ public extension EpisodeSchedule {
 public enum TMDBSeasonMatch {
   public static func tmdbSeason(kinoNumber: Int, titleNumber: Int?,
                                 tmdbSeasons: Set<Int>) -> Int? {
+    // A year in the title (17262's «2012») is the chip, not TMDB's season 2012,
+    // and it must not fall through to the block index — that fetched decade-old
+    // season 1 for a year that merged several seasons.
+    if let titleNumber, EpisodeGridMatch.isYear(titleNumber) { return nil }
     if let titleNumber, tmdbSeasons.contains(titleNumber) { return titleNumber }
     if tmdbSeasons.isEmpty || tmdbSeasons.contains(kinoNumber) { return kinoNumber }
     return nil

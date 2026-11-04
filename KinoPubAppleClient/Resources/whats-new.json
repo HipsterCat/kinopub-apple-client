@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Серия, которая уже есть на Кинопабе, открывается даже если премьера в каталоге ещё впереди. «Премьера» — только когда файл выложили сильно заранее. Номер сезона у кнопки «Смотреть» совпадает с рядом сезонов.",
         "Apple TV, Настройки: языки, вкладки и секции меняются как языки в Настройках самой Apple TV — «Изменить», корзина и ≡ у строки, «Отменить» или «Готово». Вкладки и секции Главной, Фильмов и Сериалов — каждые на своей странице, Select включает и выключает.",
         "Плеер: субтитры и озвучка, выбранные в серии, остаются на следующей — через «Серии», «Далее» и когда серия включилась сама. Раньше привычка сезона перебивала выбор, и субтитры выключались.",
         "Настройки › Воспроизведение: режим субтитров — «Всегда включены», «С иностранной озвучкой», «Только вручную». Языки озвучки и субтитров — списки: можно добавить язык или поменять порядок. Переключатель «Английские субтитры по умолчанию» стал английским в начале списка.",
@@ -96,6 +97,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "An episode already on KinoPub plays even when the catalog premiere is still ahead. Premiere is only for a real early drop. Play names the same season the row does.",
         "Apple TV Settings: languages, tabs and sections are edited like Apple TV's own languages — Edit, the row's trash and ≡, Cancel or Done. Tabs and the Watch Now, Movies and Series sections each have their own page; Select shows or hides one.",
         "Player: subtitles and the dub you pick in an episode stay on for the next one — from Episodes, Up Next, or when it starts by itself. Before, the season's habit outvoted the pick and subtitles went off.",
         "Settings › Playback: a subtitle mode — Always enabled, Shown with foreign audio, Manually selected. Audio and subtitle languages are lists: add a language or reorder. \"Default English subtitles\" became English at the top of the list.",

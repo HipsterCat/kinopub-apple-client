@@ -22,9 +22,9 @@ final class PlaybackButtonContentTests: XCTestCase {
             files: [])
   }
 
-  private func season(_ number: Int, episodes: [Episode]) -> Season {
+  private func season(_ number: Int, title: String? = nil, episodes: [Episode]) -> Season {
     Season(id: number,
-           title: "S\(number)",
+           title: title ?? "S\(number)",
            number: number,
            watching: SeasonWatching(status: 0),
            episodes: episodes)
@@ -99,6 +99,16 @@ final class PlaybackButtonContentTests: XCTestCase {
   func testFullyWatchedSeriesOffersPlayAgain() {
     let seasons = [season(1, episodes: [episode(number: 1, watched: 1), episode(number: 2, watched: 1)])]
     XCTAssertEqual(item(seasons: seasons).playbackButtonContent, .playAgain(season: 1, episode: 1))
+  }
+
+  /// The play label and the season chips share one number. A block kino.pub numbered
+  /// 11 but titled «Сезон 8» says 8. A year title stays the year.
+  func testPlayUsesTheSeasonInTheTitle() {
+    let renamed = season(11, title: "Сезон 8", episodes: [episode(number: 2, watched: 0)])
+    XCTAssertEqual(item(seasons: [renamed]).playbackButtonContent, .play(season: 8, episode: 2))
+
+    let year = season(1, title: "2012", episodes: [episode(number: 2, watched: 0)])
+    XCTAssertEqual(item(seasons: [year]).playbackButtonContent, .play(season: 2012, episode: 2))
   }
 
   func testPrimaryEpisodeSkipsWatchedOnes() {
