@@ -151,7 +151,7 @@ public struct HomeHeroCarousel: View {
   /// on a Mac the hero is most of the window, and the pointer is nearly always on it.
   private var advances: Bool {
     features.count > 1 && isActive && isPresented && isVisibleInPage && scenePhase == .active
-      && !isScrolling && !isMenuOpen && isWindowKey
+      && !isScrolling && !isTurning && !isMenuOpen && isWindowKey
   }
 
   private var isWindowKey: Bool {
@@ -282,7 +282,9 @@ public struct HomeHeroCarousel: View {
 
   /// One title over: +1 forward, -1 back, both wrapping onto the next lap.
   private func step(_ delta: Int) {
-    guard features.count > 1 else { return }
+    // A turn already on its way finishes first: stepping from a `current` that has
+    // moved ahead of the picture is what skipped a title.
+    guard features.count > 1, !isTurning, !isScrolling else { return }
     var next = Slot(lap: current.lap, index: current.index + delta)
     if next.index >= features.count {
       next = Slot(lap: current.lap + 1, index: 0)
@@ -337,6 +339,15 @@ public struct HomeHeroCarousel: View {
     }
   }
 
+  /// The title the picture shows now: the page nearest the scroll position.
+  private var visibleFeature: HomeHeroFeature? {
+    let pages = slots
+    guard !pages.isEmpty else { return nil }
+    let at = min(max(Int(pager.page.rounded()), 0), pages.count - 1)
+    let index = pages[at].index
+    return features.indices.contains(index) ? features[index] : nil
+  }
+
   /// Puts the scroll back exactly on the current page when it is not there.
   private func snap() {
     guard !isScrolling, !isTurning, let at = slots.firstIndex(of: current) else { return }
@@ -355,8 +366,11 @@ public struct HomeHeroCarousel: View {
       .frame(width: size.width, height: size.height)
       .contentShape(Rectangle())
       .onTapGesture {
-        guard feature.card.id > 0 else { return }
-        onDetails(feature.card)
+        // The title on screen, not the page that took the tap: while a turn or a drag
+        // is under way the two differ, and the click must open what the viewer sees.
+        let shown = visibleFeature ?? feature
+        guard shown.card.id > 0 else { return }
+        onDetails(shown.card)
       }
   }
 
