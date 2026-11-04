@@ -206,7 +206,16 @@ public struct MediaItem: Codable, Hashable, @unchecked Sendable {
     voice = try c.decodeIfPresent(String.self, forKey: .voice)
     duration = try c.decode(Duration.self, forKey: .duration)
     langs = try c.decodeIfPresent(Int.self, forKey: .langs) ?? 0
-    quality = try c.decodeIfPresent(Int.self, forKey: .quality) ?? 0
+    // `/v1/items?sort=-created` has sent `"quality": false` (2026-11-04) where it means a
+    // number (the top quality); a whole page failed to decode over it. A flag says no
+    // number, so it reads as none — as a missing field does; a numeric string counts.
+    if let number = try? c.decodeIfPresent(Int.self, forKey: .quality) {
+      quality = number
+    } else if let text = try? c.decodeIfPresent(String.self, forKey: .quality), let number = Int(text) {
+      quality = number
+    } else {
+      quality = 0
+    }
     plot = try c.decodeIfPresent(String.self, forKey: .plot) ?? ""
     imdb = try c.decodeIfPresent(Int.self, forKey: .imdb)
     imdbRating = try c.decodeIfPresent(Double.self, forKey: .imdbRating)

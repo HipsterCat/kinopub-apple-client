@@ -59,4 +59,19 @@ final class MediaItemDecodingTests: XCTestCase {
     XCTAssertEqual(item.comments, 0)
     XCTAssertTrue(item.uploadedSameDayAsUpdated)
   }
+
+  /// `quality` has come as a flag in a catalog page; the item still decodes.
+  func testQualityAsBoolOrStringStillDecodes() throws {
+    func decode(_ quality: String) throws -> MediaItem {
+      let json = """
+      {"id": 2, "type": "movie", "title": "A", "duration": {"average": 1, "total": 1},
+       "quality": \(quality), "posters": {"small": "", "medium": "", "big": "", "wide": ""}}
+      """.data(using: .utf8)!
+      return try JSONDecoder().decode(MediaItem.self, from: json)
+    }
+    XCTAssertEqual(try decode("false").quality, 0)
+    XCTAssertEqual(try decode("true").quality, 0)
+    XCTAssertEqual(try decode("\"1080\"").quality, 1080)
+    XCTAssertEqual(try decode("720").quality, 720)
+  }
 }
