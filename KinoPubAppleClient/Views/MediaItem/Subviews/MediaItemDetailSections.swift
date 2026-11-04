@@ -780,6 +780,7 @@ struct MediaItemCastSection: View {
 #if os(tvOS)
         monogramRail
 #else
+//           monogramRail
         portraitRail
 #endif
       }
@@ -3623,8 +3624,8 @@ enum MediaItemLayout {
   /// tuned for one.
   static let heroFraction: CGFloat = 1
 #elseif os(macOS)
-  static let horizontalInset: CGFloat = 32
-  static let sectionSpacing: CGFloat = 28
+  static let horizontalInset: CGFloat = 40
+  static let sectionSpacing: CGFloat = 30
   static let bottomPadding: CGFloat = sectionSpacing
 #else
   static let horizontalInset: CGFloat = 20
@@ -3841,19 +3842,19 @@ struct MediaItemPlotView: View {
   /// negative padding on the button, so it does not move the lines around it.
   static let focusInsetH: CGFloat = 20
   static let focusInsetV: CGFloat = 12
-  static let lineLimit = 8
+  static let lineLimit = 5
   /// A reading measure, as on the Mac (Sasha, 2026-10-30: 820 pt on the TV).
-  static let maxWidth: CGFloat = 820
+  static let maxWidth: CGFloat = 880
   static let moreTracking: CGFloat = 1
 #else
   /// The tvOS plate's room around the glyphs, drawn outside the paragraph's frame so
   /// the hover plate moves nothing.
   static let focusInsetH: CGFloat = 10
   static let focusInsetV: CGFloat = 6
-  static let lineLimit = 4
+  static let lineLimit = 5
   /// A reading measure, not the window: on a wide Mac window the synopsis ran the
   /// full width of the page (Sasha, 2026-10-29: 660 pt).
-  static let maxWidth: CGFloat = 660
+  static let maxWidth: CGFloat = 650
   static let moreTracking: CGFloat = 0.8
 #endif
 
@@ -3923,14 +3924,16 @@ private struct PlotHoverPlate: ViewModifier {
   func body(content: Content) -> some View {
     content
       .background {
-        RoundedRectangle(cornerRadius: MediaItemPlotView.focusInsetH, style: .continuous)
-          .fill(.fill.tertiary)
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+          .fill(.thinMaterial)
           .padding(.horizontal, -MediaItemPlotView.focusInsetH)
-          .padding(.vertical, -MediaItemPlotView.focusInsetV)
+          .padding(.top, -MediaItemPlotView.focusInsetV)
+          .padding(.bottom, -MediaItemPlotView.focusInsetV-2)
           .opacity(isHovered ? 1 : 0)
+//          .padding(.bottom, 2)
       }
       .onHover { isHovered = $0 }
-      .animation(.easeOut(duration: 0.2), value: isHovered)
+      .animation(.easeOut(duration: 0.15), value: isHovered)
   }
 }
 #endif
@@ -3938,7 +3941,7 @@ private struct PlotHoverPlate: ViewModifier {
 /// What the synopsis popup summarises besides the text itself.
 struct MediaItemSynopsisSummary {
   var mediaItem: MediaItem
-  /// TMDB's answer: certification, air dates, status. Empty until it lands.
+  /// TMDB's answer: certification, air dates, s tatus. Empty until it lands.
   var metadata: TitleMetadata = TitleMetadata()
 }
 
@@ -4126,11 +4129,11 @@ struct MediaItemSynopsisPopupContent: View {
             HStack(spacing: 16) {
                  MediaScoresView(imdb: 8.1, kinopoisk: 8.3)
 
-                Text("2023,  South Korea")
+                Text("2023, South Korea")
                       .foregroundStyle(.secondary)
                                 // (countK) after score
                 //      Text("2h 51m")
-                Text("Comedy,  Drama")
+                Text("Comedy, drama")
                       .foregroundStyle(.secondary)
 
                 
