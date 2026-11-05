@@ -170,6 +170,18 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBSlowDetails <seconds>`: the stand-in API takes that long to answer a title's
+  /// details, as a real connection does — so a title opened from a card shows what it
+  /// paints before the details call answers. A fixture otherwise answers at once.
+  public static var slowDetails: TimeInterval? {
+#if DEBUG
+    UserDefaults.standard.object(forKey: "KINOPUBSlowDetails") == nil
+      ? nil : UserDefaults.standard.double(forKey: "KINOPUBSlowDetails")
+#else
+    nil
+#endif
+  }
+
   /// `-KINOPUBFixtureWatchOutAfter <seconds>`: that long after launch the Library fixture's
   /// stand-in API reports the third followed series caught up and the Library refetches, as
   /// it does back from the player — the series leaves Subscriptions under the remote.

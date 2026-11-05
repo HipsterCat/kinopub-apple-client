@@ -22,8 +22,19 @@ enum ArtworkPixelWidth {
   /// Full-screen textless backdrop: the screen's native width.
   static var backdrop: Int { screen }
 
-  /// Title logo: the banner and hero draw it at no more than half the screen.
-  static var logo: Int { screen / 2 }
+  /// Title logo: the widest place it is drawn is the tvOS title page's hero, 680 pt of a
+  /// 1920 pt screen (`MediaItemHeroView.logoMaxWidth`); the banner draws it narrower
+  /// (28 %). So a little over a third of the screen's pixels, not half: 1360 px on an
+  /// Apple TV 4K instead of 1920, 680 on a 1080p one (Sasha, 2026-11-05).
+  /// iPhone, iPad and Mac keep half the screen: an iPhone's hero logo (360 pt at 3x) is
+  /// wider than a third of its long side.
+  static var logo: Int {
+#if os(tvOS)
+    Int((Double(screen) * 680 / 1920).rounded(.up))
+#else
+    screen / 2
+#endif
+  }
 
   /// Native pixels across the longer side — Apple TV 4K reports 3840, not the 1920 pt
   /// UI buffer; an iPhone in portrait still reports its long side, since a banner

@@ -256,7 +256,10 @@ struct MediaItemView: View {
 #endif
         }
       }
+#if !os(tvOS)
+      // tvOS: no fade when the details arrive — the page is already on screen.
       .animation(.easeInOut(duration: 0.3), value: itemModel.itemLoaded)
+#endif
       .animation(.easeInOut(duration: 0.3), value: itemModel.loadFailed)
       // Top only: on macOS, ignoring horizontal safe area draws under the sidebar and
       // the first episode/poster gets clipped. tvOS/iOS still bleed the hero edge-to-edge.
@@ -526,9 +529,22 @@ struct MediaItemView: View {
   }
 #endif
 
+  /// tvOS draws the page from the card's copy of the title at once — the banner or the
+  /// poster it was opened from already has the title, the plot, the logo and the
+  /// backdrop at the same URLs — and fills in what only the details call knows (seasons,
+  /// the episode on Play, the trailer) in place. It used to wait for that call behind a
+  /// loader and then fade the whole page in (Sasha, 2026-11-05).
+  private var paintsPage: Bool {
+#if os(tvOS)
+    itemModel.itemLoaded || itemModel.hasPaintedItem
+#else
+    itemModel.itemLoaded
+#endif
+  }
+
   @ViewBuilder
   private var details: some View {
-    if itemModel.itemLoaded {
+    if paintsPage {
       scrollDetails
         // `.userInitiated`: the default `.automatic` is only a hint, and tvOS otherwise
         // takes the topmost focusable element. The hero also names the same control in

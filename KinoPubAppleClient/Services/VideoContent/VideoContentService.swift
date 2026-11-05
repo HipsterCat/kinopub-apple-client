@@ -119,6 +119,10 @@ struct VideoContentServiceMock: VideoContentService {
   }
 
   func fetchDetails(for id: String, excludeLinks: Bool) async throws -> SingleItemData<MediaItem> {
+    // A real connection takes a while; `-KINOPUBSlowDetails` says how long.
+    if let delay = DebugLaunch.slowDetails {
+      try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+    }
     if let itemID = Int(id), let item = details?(itemID) {
       return SingleItemData.mock(data: item)
     }

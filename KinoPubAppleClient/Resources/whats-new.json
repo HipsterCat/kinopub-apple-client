@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Apple TV: страница тайтла открывается сразу, без загрузки и медленного проявления — с того, что уже было на карточке или баннере, а остальное дорисовывается на месте. Кнопки под описанием больше не мигают и не прыгают при открытии и закрытии. Логотип грузится в том размере, в каком рисуется.",
         "Каталог, Поиск, фильмография и подборки: в тулбаре переключатель «Постеры / Горизонтальные» — сетка постеров или широкие карточки, как в «Продолжить». На Mac у сортировки и фильтров видны названия (текущая сортировка, «Фильтры»), в узком окне — только значки.",
         "Apple TV, страница сериала: фокус снова проходит вниз до конца страницы — мимо «Похожих», с прокруткой. Вверх из сезонов страница возвращается к кнопке «Смотреть». В Настройках › Диагностика — «Показывать, куда пойдёт фокус»: рамки, куда ведёт каждая стрелка пульта, и где тупик.",
         "Серия, которая уже есть на Кинопабе, открывается даже если премьера в каталоге ещё впереди. «Премьера» — только когда файл выложили сильно заранее. Номер сезона у кнопки «Смотреть» совпадает с рядом сезонов.",
@@ -99,6 +100,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Apple TV: a title page opens at once, with no loader and no slow fade — from what the card or banner already had, with the rest filled in place. The buttons under the plot no longer flicker or jump as the page opens and closes. The logo is downloaded at the size it is drawn.",
         "Catalog, Search, a person's credits and collections: a Posters / Landscape switch in the toolbar shows posters or wide cards, like Continue Watching. On the Mac, Sort and Filters show their names (the current sort, «Filters») and fold to icons in a narrow window.",
         "Apple TV, series page: focus goes all the way down the page again, past Similar, and the page scrolls with it. Up from the seasons brings the page back to Play. Settings › Diagnostics › Show where focus goes marks where each arrow on the remote leads, and where it leads nowhere.",
         "An episode already on KinoPub plays even when the catalog premiere is still ahead. Premiere is only for a real early drop. Play names the same season the row does.",

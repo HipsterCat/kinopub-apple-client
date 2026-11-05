@@ -359,6 +359,36 @@ final class TVDetailLayoutUITests: XCTestCase {
   /// and opening another title crossfades it to that title's while the page changes over it.
   /// Back, it crossfades home again. Shots mid-way and settled, both ways.
   /// Under the real tab bar: the backdrop sits behind the tab view, not inside a tab.
+  /// A title opened from a card is on screen at once — hero, buttons and picture — while
+  /// its details call is still out (`-KINOPUBSlowDetails 4`), and its buttons are still
+  /// where they were once the call answers. It used to sit behind a loader and fade in.
+  func testATitleOpenedFromACardPaintsBeforeItsDetails() throws {
+    launch("film", extra: ["-KINOPUBFixtureInTabs", "YES", "-KINOPUBSlowDetails", "4"])
+    XCTAssertTrue(app.buttons["kinopub.hero.play"].waitForExistence(timeout: 20), "the first title never painted")
+    Thread.sleep(forTimeInterval: 4.5)
+    XCTAssertTrue(seek(.down, until: "kinopub.poster.9902", limit: 6), focusedDescription)
+    Thread.sleep(forTimeInterval: 1.2)
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 0.6)
+    try shoot("paint-00-opening")
+    Thread.sleep(forTimeInterval: 0.9)
+    try shoot("paint-01-before-details")
+    let play = app.buttons["kinopub.hero.play"]
+    XCTAssertTrue(play.exists, "no Play while the details call is out")
+    let early = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH 'kinopub.hero.'"))
+      .allElementsBoundByIndex.map { "\($0.identifier)@\(Int($0.frame.minX))" }
+    Thread.sleep(forTimeInterval: 3.5)
+    try shoot("paint-02-after-details")
+    let late = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH 'kinopub.hero.'"))
+      .allElementsBoundByIndex.map { "\($0.identifier)@\(Int($0.frame.minX))" }
+    print("hero before details: \(early)\nhero after details: \(late)")
+    XCUIRemote.shared.press(.menu)
+    Thread.sleep(forTimeInterval: 0.3)
+    try shoot("paint-03-closing")
+  }
+
   func testTheBackdropCrossfadesBetweenTitles() throws {
     launch("film", extra: ["-KINOPUBFixtureInTabs", "YES"])
     try waitForHeroFocus()

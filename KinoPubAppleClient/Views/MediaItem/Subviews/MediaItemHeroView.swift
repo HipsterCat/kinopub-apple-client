@@ -1342,10 +1342,17 @@ struct MediaItemHeroView: View {
       ForEach(actionAppearances) { appearance in
         actionControl(for: appearance)
           .accessibilityIdentifier("kinopub.hero.\(appearance.id.rawValue)")
+#if os(tvOS)
+          // The row does not animate on tvOS at all — not as the page opens or closes,
+          // not when the details call adds a button. Scaling glass in from 85 % was the
+          // flicker and blur on every visit (Sasha, 2026-11-05).
+          .transition(.identity)
+#else
           .transition(.asymmetric(
             insertion: .scale(scale: 0.85).combined(with: .opacity),
             removal: .scale(scale: 0.85).combined(with: .opacity)
           ))
+#endif
       }
     }
 #if os(tvOS)
@@ -1366,7 +1373,9 @@ struct MediaItemHeroView: View {
 #endif
     // Animate only membership changes (Mark Watched appearing/disappearing) — not
     // glyph swaps inside a stable id, which used to look like the gaps grew.
+#if !os(tvOS)
     .animation(.easeOut(duration: 0.25), value: actionAppearances.map(\.id))
+#endif
     .onChange(of: isWatched) { _, _ in
       loadingActions.remove(.markWatched)
     }

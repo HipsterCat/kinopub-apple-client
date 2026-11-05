@@ -374,8 +374,9 @@ class MediaItemModel: ObservableObject {
   }
 
   /// - Parameter knownItem: the listing's copy of the item, where the caller has one.
-  ///   Only the artwork is used from it — the page waits for the full details before
-  ///   drawing anything else, so a stale title or missing seasons can't leak through.
+  ///   On tvOS the page draws its hero from it at once and fills in what only the
+  ///   details call knows (seasons, the episode on Play) in place; iOS and macOS still
+  ///   take only the artwork from it and wait for the details (`MediaItemView.paintsPage`).
   init(mediaItemId: Int,
        knownItem: MediaItem? = nil,
        itemsService: VideoContentService,
