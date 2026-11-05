@@ -447,6 +447,7 @@
                     { "path": "MediaItemTVPage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemHeroView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "TitleImagePickerSheet.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "TitleIDsSheet.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                   ],
                 },
                 { "path": "MediaItemView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },

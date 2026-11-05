@@ -189,6 +189,8 @@ struct MediaItemView: View {
   @Environment(\.appContext) private var appContext
   /// The Change Images sheet, while open.
   @State private var imagePickerTarget: TitleImagePickerTarget?
+  /// The Title IDs form, while open.
+  @State private var idsTarget: TitleImagePickerTarget?
 #if os(macOS)
   @State private var showsNewFolderAlert = false
   @State private var newFolderName = ""
@@ -320,12 +322,21 @@ struct MediaItemView: View {
                               onSaved: { await itemModel.resetLocalCache() },
                               initialKind: TitleImagePickerSheet.launchKind ?? .logo)
       }
+      .sheet(item: $idsTarget) { target in
+        TitleIDsSheet(target: target,
+                      images: appContext.metadataService.images,
+                      onSaved: { await itemModel.resetLocalCache() })
+      }
 #if DEBUG
-      // `-KINOPUBOpenItem <id> -KINOPUBOpenImagePicker logo|backdrop`: screenshots of the
-      // Change Images sheet with the live worker catalog.
+      // `-KINOPUBOpenItem <id> -KINOPUBOpenImagePicker logo|backdrop|ids`: screenshots of
+      // the Change Images sheet with the live worker catalog, or of the Title IDs form.
       .onChange(of: itemModel.itemLoaded, initial: true) { _, loaded in
-        guard loaded, TitleImagePickerSheet.launchKind != nil, imagePickerTarget == nil else { return }
-        imageAdminActions?.onChangeImages()
+        guard loaded, imagePickerTarget == nil, idsTarget == nil else { return }
+        if UserDefaults.standard.string(forKey: "KINOPUBOpenImagePicker") == "ids" {
+          imageAdminActions?.onEditIDs()
+        } else if TitleImagePickerSheet.launchKind != nil {
+          imageAdminActions?.onChangeImages()
+        }
       }
 #endif
       .task {
@@ -396,6 +407,7 @@ struct MediaItemView: View {
       kinopoisk: item.kinopoisk,
       images: appContext.metadataService.images,
       onChangeImages: { imagePickerTarget = target },
+      onEditIDs: { idsTarget = target },
       onArtworkChanged: { await itemModel.resetLocalCache() },
       report: { itemModel.hudToast = $0 }
     )

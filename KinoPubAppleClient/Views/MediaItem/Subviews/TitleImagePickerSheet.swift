@@ -96,36 +96,8 @@ struct TitleImagePickerSheet: View {
       .animation(.default, value: model.phase(for: kind))
       .navigationTitle(target.title)
       .sheetInlineNavigationTitle()
-#if os(iOS)
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          closeButton
-        }
-        ToolbarItem(placement: .sheetTrailing) {
-          saveButton
-            .buttonStyle(.glassProminent)
-        }
-      }
-#elseif os(macOS)
-      // The sheet's own bottom bar showed one toolbar button only — the first
-      // `.confirmationAction` item; `.cancellationAction` never appeared (macOS 27.2,
-      // 2026-11-05, with or without a role or a group). So Close and Save are the
-      // Mac dialog's push buttons, in a bar of their own.
-      .safeAreaInset(edge: .bottom, spacing: 0) {
-        VStack(spacing: 0) {
-          Divider()
-          HStack(spacing: 12) {
-            Spacer()
-            closeButton
-              .keyboardShortcut(.cancelAction)
-            saveButton
-              .keyboardShortcut(.defaultAction)
-          }
-          .controlSize(.large)
-          .padding(16)
-        }
-        .background(.bar)
-      }
+#if !os(tvOS)
+      .sheetCloseAndSave(close: { closeButton }, save: { saveButton })
 #endif
     }
     .task(id: kind) { await model.load(kind) }
@@ -799,6 +771,8 @@ struct TitleImageAdminActions {
   let kinopoisk: Int?
   let images: TitleImageRoute
   let onChangeImages: () -> Void
+  /// The Title IDs form.
+  let onEditIDs: () -> Void
   /// After the worker changed what it serves: drop the device's copies and reload.
   let onArtworkChanged: () async -> Void
   let report: (HudToast) -> Void
@@ -808,11 +782,12 @@ struct TitleImageAdminActions {
                    kinopoisk: Int?,
                    images: TitleImageRoute,
                    onChangeImages: @escaping () -> Void,
+                   onEditIDs: @escaping () -> Void,
                    onArtworkChanged: @escaping () async -> Void,
                    report: @escaping (HudToast) -> Void) -> TitleImageAdminActions? {
     guard WorkerImageAdminTokenStore.isConfigured, images.isConfigured else { return nil }
     return TitleImageAdminActions(target: target, kinopoisk: kinopoisk, images: images,
-                                  onChangeImages: onChangeImages,
+                                  onChangeImages: onChangeImages, onEditIDs: onEditIDs,
                                   onArtworkChanged: onArtworkChanged, report: report)
   }
 
@@ -878,6 +853,9 @@ struct TitleImageAdminMenuItems: View {
   var body: some View {
     Button(action: actions.onChangeImages) {
       Label("Change Images", systemImage: "photo.on.rectangle")
+    }
+    Button(action: actions.onEditIDs) {
+      Label("Title IDs", systemImage: "number")
     }
     Menu {
       Button { actions.refresh(.logo) } label: {

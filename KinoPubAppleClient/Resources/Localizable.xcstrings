@@ -14314,6 +14314,86 @@
           }
         }
       }
+    },
+    "Title IDs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title IDs"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Идентификаторы"
+          }
+        }
+      }
+    },
+    "Set by hand" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set by hand"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задан вручную"
+          }
+        }
+      }
+    },
+    "A changed IMDb or TMDB id downloads the title again; its logo pins are dropped. An empty field keeps the stored id." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A changed IMDb or TMDB id downloads the title again; its logo pins are dropped. An empty field keeps the stored id."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новый IMDb или TMDB скачивает тайтл заново, закреплённые логотипы сбрасываются. Пустое поле оставляет сохранённый айди."
+          }
+        }
+      }
+    },
+    "Series Kind" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Series"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сериал"
+          }
+        }
+      }
+    },
+    "Movie Kind" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Movie"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фильм"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

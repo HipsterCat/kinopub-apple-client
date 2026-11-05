@@ -119,6 +119,25 @@ private struct WorkerImageAdminJSONKey: CodingKey {
   }
 }
 
+/// A title's external ids as the worker stores them (`GET /v1/title/by/kinopub/{id}`).
+public struct WorkerTitleIDs: Sendable, Equatable {
+  public struct Entry: Sendable, Equatable {
+    public let value: String
+    /// `manual` when an admin pinned it; otherwise how the worker found it.
+    public let method: String?
+  }
+
+  /// imdb, tmdb (`tv/123` / `movie/123`), kinopoisk, myshows, … keyed by namespace.
+  public let ids: [String: Entry]
+  /// `show` / `movie`, when known.
+  public let kind: String?
+
+  public init(ids: [String: Entry], kind: String?) {
+    self.ids = ids
+    self.kind = kind
+  }
+}
+
 public struct WorkerImageAdminActionResponse: Sendable, Codable {
   public let ok: Bool?
   public let id: String?
@@ -204,6 +223,41 @@ public struct WorkerImageAdminClient: Sendable {
     if let height, height > 0 { body["\(kind.rawValue)_height"] = height }
     let data = try JSONSerialization.data(withJSONObject: body)
     return try await post(path: "admin/kinopub/\(kinopubID)/pick", body: data)
+  }
+
+  /// What the worker stores for the title now. A public read, no token needed.
+  public func titleIDs(kinopubID: Int) async throws -> WorkerTitleIDs {
+    var request = URLRequest(url: baseURL.appendingPathComponent("v1/title/by/kinopub/\(kinopubID)"))
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    let activity = NetworkActivity.begin(request)
+    defer { NetworkActivity.end(activity) }
+    let (data, response) = try await session.data(for: request)
+    guard let http = response as? HTTPURLResponse else { throw WorkerImageAdminError.transport }
+    guard (200...299).contains(http.statusCode) else { throw WorkerImageAdminError.http(http.statusCode) }
+    let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+    var entries: [String: WorkerTitleIDs.Entry] = [:]
+    for (namespace, raw) in object["ids"] as? [String: Any] ?? [:] {
+      guard let fields = raw as? [String: Any] else { continue }
+      let value: String
+      switch fields["value"] {
+      case let string as String: value = string
+      case let number as NSNumber: value = number.stringValue
+      default: continue
+      }
+      entries[namespace] = .init(value: value, method: fields["method"] as? String)
+    }
+    return WorkerTitleIDs(ids: entries, kind: object["kind"] as? String)
+  }
+
+  /// `POST /admin/kinopub/{id}/link`: pins the given ids (empty ones are left as they
+  /// are). `tmdb` takes `tv/123`, `movie/123`, or a number with `kind` show / movie.
+  public func link(kinopubID: Int, ids: [String: String], kind: String?) async throws
+    -> WorkerImageAdminActionResponse {
+    var body: [String: String] = ids.filter { !$0.value.isEmpty }
+    if let kind { body["kind"] = kind }
+    let data = try JSONSerialization.data(withJSONObject: body)
+    return try await post(path: "admin/kinopub/\(kinopubID)/link", body: data)
   }
 
   public func imageStats() async throws -> [String: Int] {
