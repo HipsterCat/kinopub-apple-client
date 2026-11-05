@@ -569,11 +569,14 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
   // kino.pub fallback the draft carried is appended last, so it only survives
   // the cap if TMDB left a language slot empty.
   const images = details.images || {};
+  // Most votes first (TMDB's own pick is usually right), size only breaks ties.
   const toAssets = (list) => (list || [])
     .filter((a) => a.file_path)
-    .sort((a, b) => (b.width || 0) - (a.width || 0))
+    .sort((a, b) => compareKey(voteRank(a.vote_average, a.vote_count, a.width),
+                               voteRank(b.vote_average, b.vote_count, b.width)))
     .map((a) => ({ source: "tmdb", url: IMAGE_BASE + a.file_path, lang: a.iso_639_1 || null,
-                   width: a.width, height: a.height }));
+                   width: a.width, height: a.height,
+                   vote: a.vote_average ?? null, votes: a.vote_count ?? null }));
   const previousArt = document.artwork || {};
   const pinnedArt = (kind) => (previousArt[kind] || []).filter((item) => item?.pinned === true);
   const unpinnedArt = (kind) => (previousArt[kind] || []).filter((item) => item?.pinned !== true);
@@ -849,12 +852,19 @@ function fileExt(raw) {
   return "jpg";
 }
 
-// PNG before SVG. Among rasters, the taller file wins, then the narrower one.
-// A short wide PNG is the black wordmark; the taller smaller one is the white.
+// PNG before SVG, then most votes. Size only breaks ties: among rasters the
+// taller file wins, then the narrower one (a short wide PNG is the black wordmark;
+// the taller smaller one is the white).
 function logoRank(asset) {
   const ext = extensionOf(asset?.url);
   const raster = ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "webp";
-  return [raster ? 0 : 1, -(asset?.height || 0), asset?.width || 0];
+  return [raster ? 0 : 1, -(asset?.vote || 0), -(asset?.votes || 0),
+          -(asset?.height || 0), asset?.width || 0];
+}
+
+/** Most votes, then most voters, then the wider file. */
+function voteRank(vote, votes, width) {
+  return [-(vote || 0), -(votes || 0), -(width || 0)];
 }
 
 function sortLogos(assets) {
@@ -1136,6 +1146,8 @@ function normalizeAsset(asset) {
     lang: asset.lang ?? null,
     width: asset.width ?? null,
     height: asset.height ?? null,
+    vote: asset.vote ?? null,
+    votes: asset.votes ?? null,
     pinned: asset.pinned === true,
   };
 }
@@ -1166,7 +1178,7 @@ function bestAsset(assets, kind, lang, { strict = false } = {}) {
     if (strict && (asset.lang ?? null) !== lang) continue;
     const sizeKey = kind === "logo"
       ? logoRank(asset)
-      : [-(asset.width || 0)];
+      : voteRank(asset.vote, asset.votes, asset.width);
     const key = [
       langRank(asset.lang ?? null, lang),
       sourceRank(kind, asset.source),

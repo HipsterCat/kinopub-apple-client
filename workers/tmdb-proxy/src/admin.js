@@ -7,8 +7,11 @@
  *   POST /admin/stats
  *   POST /admin/kinopub/{id}/images?kind=logo|backdrop|poster&imdb=tt…
  *   POST /admin/kinopub/{id}/pick
- *        { "logo": "https://…", "logo_lang": "en", "backdrop": "https://…" }
- *        Logo picks merge by `logo_lang` (ru / en) — one pinned file per language.
+ *        { "logo": "https://…", "logo_lang": "en", "logo_width": 1200, "logo_height": 400,
+ *          "backdrop": "https://…" }
+ *        A logo or poster pick replaces every file of its language (`logo_lang`, none =
+ *        textless), pinned or not; a backdrop pick replaces all backdrops. The pin is
+ *        also written to D1 c2_image. Any https URL is accepted, not only TMDB's.
  *   POST /admin/kinopub/{id}/link
  *        { "imdb": "tt…", "kinopoisk": "123", "tmdb": "tv/123", "myshows": "123", "kind": "show" }
  *        Pins ids kino.pub never sent. A bare tmdb number needs kind show or movie.
@@ -62,6 +65,7 @@ async function forget(env, id, kind) {
   artwork[kind] = [];
   const next = { ...stored, artwork, art_rev: (stored.art_rev || 0) + 1, pending: true };
   await writeDocument(env, id, next);
+  await forgetImageRows(env, id, kind);
   return json({ ok: true, id, kind, art_rev: next.art_rev });
 }
 
@@ -174,13 +178,16 @@ function presentFile(file, lang) {
     width: file.width ?? null,
     height: file.height ?? null,
     vote: file.vote_average ?? null,
+    votes: file.vote_count ?? null,
   };
 }
 
+// Most votes first — the same order title.js uses for its automatic choice. Logos
+// keep PNG before SVG; size only breaks ties.
 function rankOf(kind, item) {
-  if (kind !== "logo") return [-(item.width || 0)];
+  if (kind !== "logo") return [-(item.vote || 0), -(item.votes || 0), -(item.width || 0)];
   const raster = item.from === "png" || item.from === "jpg" || item.from === "jpeg" || item.from === "webp";
-  return [raster ? 0 : 1, -(item.height || 0), item.width || 0];
+  return [raster ? 0 : 1, -(item.vote || 0), -(item.votes || 0), -(item.height || 0), item.width || 0];
 }
 
 function compareRank(a, b) {
@@ -216,6 +223,7 @@ async function pick(request, env, id) {
   };
   const artwork = { ...(stored.artwork || {}) };
   const picked = {};
+  const pins = [];
   for (const kind of KINDS) {
     const raw = body[kind];
     if (raw == null || raw === "") continue;
@@ -227,25 +235,64 @@ async function pick(request, env, id) {
       url: safe,
       lang,
       pinned: true,
-      width: null,
-      height: null,
+      width: positiveInt(body[`${kind}_width`]),
+      height: positiveInt(body[`${kind}_height`]),
     };
-    if (kind === "logo") {
-      const prev = Array.isArray(artwork.logo) ? artwork.logo : [];
-      artwork.logo = prev.filter((item) => {
-        if (item?.pinned !== true) return true;
-        return languageTag(item.lang) !== languageTag(lang);
-      });
-      artwork.logo.push(pin);
+    if (kind === "backdrop") {
+      artwork.backdrop = [pin];
     } else {
-      artwork[kind] = [pin];
+      // One file per language: the pick drops the language's automatic file too, so
+      // the worker never holds two and a later refresh keeps the pin (title.js).
+      const prev = Array.isArray(artwork[kind]) ? artwork[kind] : [];
+      artwork[kind] = [...prev.filter((item) => languageTag(item?.lang) !== lang), pin];
     }
+    pins.push([kind, pin]);
     picked[kind] = safe;
   }
   if (!Object.keys(picked).length) return json({ error: "bad_request", hint: "pass logo, backdrop, or poster" }, 400);
   const next = { ...stored, artwork, art_rev: (stored.art_rev || 0) + 1, pending: false };
   await writeDocument(env, id, next);
+  for (const [kind, pin] of pins) await storeImageRow(env, id, kind, pin);
   return json({ ok: true, id, art_rev: next.art_rev, picked });
+}
+
+function positiveInt(raw) {
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+// D1 c2_image is what /v2/title lists. The title-level rows of a kind (no person,
+// season or episode) follow KV: a pick replaces its language's rows, forget drops
+// them. A D1 failure does not undo the KV write.
+const TITLE_ROW = "person_id IS NULL AND season IS NULL AND episode IS NULL";
+
+async function storeImageRow(env, id, kind, pin) {
+  if (!env?.CATALOG) return;
+  const db = env.CATALOG;
+  const kinopubId = Number(id);
+  try {
+    const clear = kind === "backdrop"
+      ? db.prepare(`DELETE FROM c2_image WHERE kinopub_id = ? AND kind = ? AND ${TITLE_ROW}`)
+        .bind(kinopubId, kind)
+      : db.prepare(`DELETE FROM c2_image WHERE kinopub_id = ? AND kind = ? AND lang IS ? AND ${TITLE_ROW}`)
+        .bind(kinopubId, kind, pin.lang);
+    const insert = db.prepare(
+      "INSERT INTO c2_image (kinopub_id, kind, lang, url, source, width, height) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).bind(kinopubId, kind, pin.lang, pin.url, pin.source, pin.width, pin.height);
+    await db.batch([clear, insert]);
+  } catch (error) {
+    console.warn("c2_image pick", id, kind, error?.message || error);
+  }
+}
+
+async function forgetImageRows(env, id, kind) {
+  if (!env?.CATALOG) return;
+  try {
+    await env.CATALOG.prepare(`DELETE FROM c2_image WHERE kinopub_id = ? AND kind = ? AND ${TITLE_ROW}`)
+      .bind(Number(id), kind).run();
+  } catch (error) {
+    console.warn("c2_image forget", id, kind, error?.message || error);
+  }
 }
 
 function languageTag(raw) {

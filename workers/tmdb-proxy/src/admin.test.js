@@ -209,3 +209,103 @@ test("forget clears the logo", async () => {
   assert.equal(env.documents["title:kinopub:7"].artwork.logo.length, 0);
   assert.equal(env.documents["title:kinopub:7"].art_rev, 1);
 });
+
+function memoryCatalog() {
+  const rows = [];
+  const run = (sql, args) => {
+    if (sql.startsWith("DELETE")) {
+      const [id, kind, lang] = args;
+      const byLang = sql.includes("lang IS ?");
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const row = rows[i];
+        if (row.kinopub_id === id && row.kind === kind && (!byLang || row.lang === lang)
+            && row.person_id == null && row.season == null && row.episode == null) rows.splice(i, 1);
+      }
+    } else {
+      const [kinopub_id, kind, lang, url, source, width, height] = args;
+      rows.push({ kinopub_id, kind, lang, url, source, width, height });
+    }
+  };
+  return {
+    rows,
+    prepare(sql) {
+      return {
+        bind(...args) {
+          return { run: async () => run(sql, args), sql, args };
+        },
+      };
+    },
+    async batch(statements) {
+      for (const statement of statements) run(statement.sql, statement.args);
+    },
+  };
+}
+
+test("a logo pick replaces every file of its language, pinned or not", async () => {
+  const env = memoryEnv({
+    "title:kinopub:7": {
+      pending: false,
+      artwork: {
+        logo: [
+          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/auto-ru.png", lang: "ru" },
+          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/auto-en.png", lang: "en" },
+        ],
+      },
+    },
+  });
+  const response = await handleAdmin(admin("/admin/kinopub/7/pick", {
+    body: { logo: "https://image.tmdb.org/t/p/original/mine.png", logo_lang: "ru",
+            logo_width: 1200, logo_height: 400 },
+  }), env);
+  assert.equal(response.status, 200);
+  const logos = env.documents["title:kinopub:7"].artwork.logo;
+  assert.deepEqual(logos.map((item) => item.url).sort(), [
+    "https://image.tmdb.org/t/p/original/auto-en.png",
+    "https://image.tmdb.org/t/p/original/mine.png",
+  ]);
+  const mine = logos.find((item) => item.pinned);
+  assert.equal(mine.width, 1200);
+  assert.equal(mine.height, 400);
+});
+
+test("a pick is written to c2_image and forget clears it", async () => {
+  const env = memoryEnv({ "title:kinopub:7": { pending: false, artwork: { logo: [] } } });
+  env.CATALOG = memoryCatalog();
+  env.CATALOG.rows.push(
+    { kinopub_id: 7, kind: "logo", lang: "ru", url: "https://old/ru.png" },
+    { kinopub_id: 7, kind: "logo", lang: "en", url: "https://old/en.png" },
+    { kinopub_id: 7, kind: "logo", lang: null, url: "https://old/season.png", season: 1 },
+  );
+  await handleAdmin(admin("/admin/kinopub/7/pick", {
+    body: { logo: "https://image.tmdb.org/t/p/original/mine.png", logo_lang: "ru" },
+  }), env);
+  assert.deepEqual(env.CATALOG.rows.map((row) => row.url).sort(), [
+    "https://image.tmdb.org/t/p/original/mine.png",
+    "https://old/en.png",
+    "https://old/season.png",
+  ]);
+  await handleAdmin(admin("/admin/kinopub/7/forget?kind=logo"), env);
+  assert.deepEqual(env.CATALOG.rows.map((row) => row.url), ["https://old/season.png"]);
+});
+
+test("images lists the most-voted file first and marks it the pick", async () => {
+  const env = memoryEnv({
+    "title:kinopub:7": { kind: "movie", ids: { tmdb: { value: "movie/550" } } },
+  });
+  env.TMDB_READ_TOKEN = "t";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    backdrops: [
+      { file_path: "/big.jpg", iso_639_1: null, width: 3840, height: 2160, vote_average: 1.2 },
+      { file_path: "/liked.jpg", iso_639_1: null, width: 1920, height: 1080, vote_average: 5.6 },
+    ],
+  }), { status: 200 });
+  try {
+    const response = await handleAdmin(admin("/admin/kinopub/7/images?kind=backdrop"), env);
+    const body = await response.json();
+    assert.equal(body.und[0].url, "https://image.tmdb.org/t/p/original/liked.jpg");
+    assert.equal(body.und[0].pick, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
