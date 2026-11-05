@@ -1,4 +1,4 @@
-#if !os(tvOS)
+
 import Foundation
 //
 //  HomeHeroCarousel.swift
@@ -28,7 +28,7 @@ import KinoPubMetadata
 import SwiftUI
 #if os(macOS)
 import AppKit
-#endif
+
 
 public struct HomeHeroCarousel: View {
   private let hero: HomeHero
@@ -1208,10 +1208,12 @@ private struct WindowSheetProbe: NSViewRepresentable {
 }
 #endif
 
+
 /// Debug trace of the hero's clock and turns (`[HomeHero]` in the console).
 @inline(__always)
 func heroLog(_ message: @autoclosure () -> String) {
 #if DEBUG
-  print("[HomeHero] \(String(format: "%.2f", Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1000))) \(message())")
+  print("[HomeHero] \(String(format: "%.2f", Foundation.Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1000))) \(message())")
 #endif
 }
+
