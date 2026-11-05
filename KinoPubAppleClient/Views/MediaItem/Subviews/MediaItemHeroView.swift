@@ -339,7 +339,8 @@ struct MediaItemHeroView: View {
   /// Warm `BookmarkFoldersStore` once so a cold install is not an empty bookmark menu.
   var ensureBookmarkFoldersLoaded: (() async -> Void)? = nil
   /// TMDB proxy `/admin` panel — circle before ⋯ when a token is configured.
-  var onWorkerImageAdmin: (() -> Void)? = nil
+  /// Change Images and the worker's maintenance actions, in More; `nil` for a viewer.
+  var imageAdmin: TitleImageAdminActions? = nil
 
   /// tvOS only: the Up gesture lifts the muted inline preview into a real full-screen
   /// player. Kept here so the same view that owns the preview owns its promotion.
@@ -1339,16 +1340,12 @@ struct MediaItemHeroView: View {
   private var actions: some View {
     MediaActionRow {
       ForEach(actionAppearances) { appearance in
-        if appearance.id == .more, onWorkerImageAdmin != nil {
-          workerImageAdminControl()
-        } else {
-          actionControl(for: appearance)
-            .accessibilityIdentifier("kinopub.hero.\(appearance.id.rawValue)")
-            .transition(.asymmetric(
-              insertion: .scale(scale: 0.85).combined(with: .opacity),
-              removal: .scale(scale: 0.85).combined(with: .opacity)
-            ))
-        }
+        actionControl(for: appearance)
+          .accessibilityIdentifier("kinopub.hero.\(appearance.id.rawValue)")
+          .transition(.asymmetric(
+            insertion: .scale(scale: 0.85).combined(with: .opacity),
+            removal: .scale(scale: 0.85).combined(with: .opacity)
+          ))
       }
     }
 #if os(tvOS)
@@ -1692,22 +1689,6 @@ struct MediaItemHeroView: View {
     loadingActions.insert(.markWatched)
   }
 
-  private func workerImageAdminControl() -> some View {
-    let appearance = MediaActionAppearance(
-      id: .more,
-      chrome: .circle,
-      systemImage: "info",
-      accessibilityLabel: MediaActionCopy.localized("Worker images"),
-      isLoading: false
-    )
-    return MediaActionButton(appearance) {
-      onWorkerImageAdmin?()
-    }
-#if os(tvOS)
-    .focused($focus, equals: .workerImageAdmin)
-#endif
-  }
-
   @ViewBuilder
   private func moreControl(_ appearance: MediaActionAppearance) -> some View {
     Menu {
@@ -1722,6 +1703,10 @@ struct MediaItemHeroView: View {
         Button(role: .destructive, action: onDeleteDownload) {
           Label("Delete Download", systemImage: "trash")
         }
+      }
+      if let imageAdmin {
+        Divider()
+        TitleImageAdminMenuItems(actions: imageAdmin)
       }
     } label: {
       MediaActionLabel(appearance)

@@ -33,6 +33,8 @@ enum MediaCardContextMenus {
     onCreateBookmarkFolder: (() -> Void)? = nil,
     onToggleWatched: (() -> Void)? = nil,
     onHide: (() -> Void)? = nil,
+    /// Admin only: the Change Images sheet for this title.
+    onChangeImages: (() -> Void)? = nil,
     onOpenImageURL: ((URL) -> Void)? = nil,
     /// DEBUG menu rows — when empty, falls back to the card's painted artwork URL.
     debugImageURLs: [URL] = []
@@ -173,6 +175,18 @@ enum MediaCardContextMenus {
       markGroup()
     }
 
+    // MARK: Admin
+    if let onChangeImages {
+      appendDivider()
+      entries.append(.action(MediaCardContextAction(
+        id: "change-images",
+        title: String(localized: "Change Images"),
+        systemImage: "photo.on.rectangle",
+        handler: onChangeImages
+      )))
+      markGroup()
+    }
+
     // MARK: Debug
 #if DEBUG
     var debugURLs = debugImageURLs
@@ -264,6 +278,7 @@ enum MediaCardContextMenus {
       onHide: isContinueWatchingStyle
         ? { menu.hideFromContinueWatching(card) }
         : nil,
+      onChangeImages: menu.canChangeImages ? { menu.changeImages(card) } : nil,
       onOpenImageURL: openURL
     )
   }

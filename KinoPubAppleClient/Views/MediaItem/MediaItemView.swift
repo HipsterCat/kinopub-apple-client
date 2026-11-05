@@ -36,7 +36,6 @@ enum MediaItemFocusTarget: Hashable {
   case watched
   case trailer
   case more
-  case workerImageAdmin
   case download
   case shuffle
   case plot
@@ -45,7 +44,7 @@ enum MediaItemFocusTarget: Hashable {
   var isActionControl: Bool {
     switch self {
     case .play, .playAlternate, .playThird, .moreVersions, .watchlist, .bookmark, .watched,
-         .trailer, .more, .workerImageAdmin, .download, .shuffle:
+         .trailer, .more, .download, .shuffle:
       return true
     case .plot, .versionsRail:
       return false
@@ -57,7 +56,7 @@ enum MediaItemFocusTarget: Hashable {
     switch self {
     case .play, .playAlternate, .playThird, .shuffle, .trailer:
       return true
-    case .moreVersions, .versionsRail, .watchlist, .bookmark, .watched, .more, .workerImageAdmin,
+    case .moreVersions, .versionsRail, .watchlist, .bookmark, .watched, .more,
          .download, .plot:
       return false
     }
@@ -188,7 +187,8 @@ struct MediaItemView: View {
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(NavigationState.self) var navigationState
   @Environment(\.appContext) private var appContext
-  @State private var showsWorkerImageAdmin = false
+  /// The Change Images sheet, while open.
+  @State private var imagePickerTarget: TitleImagePickerTarget?
 #if os(macOS)
   @State private var showsNewFolderAlert = false
   @State private var newFolderName = ""
@@ -309,54 +309,23 @@ struct MediaItemView: View {
           // One glass group, the way Notes pairs Share with its «…»: Bookmarks and More.
           // Everything else is an item in More.
           bookmarkToolbarMenu
-#else
-          if WorkerImageAdminTokenStore.isConfigured,
-             appContext.metadataService.images.isConfigured {
-            Button {
-              showsWorkerImageAdmin = true
-            } label: {
-              Image(systemName: "info.circle")
-            }
-            .accessibilityLabel("Worker image admin")
-            .disabled(!itemModel.itemLoaded)
-          }
 #endif
           overflowMenu
         }
       }
 #endif
-#if os(tvOS)
-      .fullScreenCover(isPresented: $showsWorkerImageAdmin) {
-        MediaItemWorkerAdminView(
-          item: itemModel.mediaItem,
-          images: appContext.metadataService.images,
-          overlayTMDBId: itemModel.externalMetadata.tmdbId,
-          logoPartnerLine: itemModel.heroTitlePartnerLine,
-          onArtworkChanged: {
-            Task { await itemModel.resetLocalCache() }
-          },
-          onResetLocalCache: { await itemModel.resetLocalCache() }
-        )
+      .sheet(item: $imagePickerTarget) { target in
+        TitleImagePickerSheet(target: target,
+                              images: appContext.metadataService.images,
+                              onSaved: { await itemModel.resetLocalCache() },
+                              initialKind: TitleImagePickerSheet.launchKind ?? .logo)
       }
-#else
-      .sheet(isPresented: $showsWorkerImageAdmin) {
-        MediaItemWorkerAdminView(
-          item: itemModel.mediaItem,
-          images: appContext.metadataService.images,
-          overlayTMDBId: itemModel.externalMetadata.tmdbId,
-          logoPartnerLine: itemModel.heroTitlePartnerLine,
-          onArtworkChanged: {
-            Task { await itemModel.resetLocalCache() }
-          },
-          onResetLocalCache: { await itemModel.resetLocalCache() }
-        )
-#if os(iOS)
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-#endif
-#if os(macOS)
-        .frame(minWidth: 920, minHeight: 640)
-#endif
+#if DEBUG
+      // `-KINOPUBOpenItem <id> -KINOPUBOpenImagePicker logo|backdrop`: screenshots of the
+      // Change Images sheet with the live worker catalog.
+      .onChange(of: itemModel.itemLoaded, initial: true) { _, loaded in
+        guard loaded, TitleImagePickerSheet.launchKind != nil, imagePickerTarget == nil else { return }
+        imageAdminActions?.onChangeImages()
       }
 #endif
       .task {
@@ -416,11 +385,20 @@ struct MediaItemView: View {
       }
   }
 
-  private var workerImageAdminAction: (() -> Void)? {
-    guard WorkerImageAdminTokenStore.isConfigured,
-          appContext.metadataService.images.isConfigured,
-          itemModel.itemLoaded else { return nil }
-    return { showsWorkerImageAdmin = true }
+  /// Change Images and the worker's maintenance actions, for an admin with a token.
+  private var imageAdminActions: TitleImageAdminActions? {
+    guard itemModel.itemLoaded else { return nil }
+    let item = itemModel.mediaItem
+    let target = TitleImagePickerTarget(kinopubID: item.id, imdb: item.imdb,
+                                        title: item.localizedTitle)
+    return TitleImageAdminActions.make(
+      target: target,
+      kinopoisk: item.kinopoisk,
+      images: appContext.metadataService.images,
+      onChangeImages: { imagePickerTarget = target },
+      onArtworkChanged: { await itemModel.resetLocalCache() },
+      report: { itemModel.hudToast = $0 }
+    )
   }
 
 #if os(macOS)
@@ -515,10 +493,8 @@ struct MediaItemView: View {
 #if os(macOS)
       watchedMenuItems
 #endif
-      if let openWorkerImageAdmin = workerImageAdminAction {
-        Button(action: openWorkerImageAdmin) {
-          Label("Worker images", systemImage: "info.circle")
-        }
+      if let imageAdminActions {
+        TitleImageAdminMenuItems(actions: imageAdminActions)
         Divider()
       }
       MediaItemOverflowMenu(isSeries: itemModel.mediaItem.isSeries,
@@ -624,7 +600,7 @@ struct MediaItemView: View {
                             ensureBookmarkFoldersLoaded: {
                               await itemModel.ensureBookmarkFoldersLoaded()
                             },
-                            onWorkerImageAdmin: workerImageAdminAction)
+                            imageAdmin: imageAdminActions)
             .id(Self.heroAnchor)
 #if os(tvOS)
             // Screen height minus a peek strip: the slice of the first section showing

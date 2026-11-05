@@ -21,6 +21,8 @@ final class MediaCardMenuCoordinator: ObservableObject {
   @Published var newFolderName: String = ""
   /// What a bookmark toggle says, the same HUD the detail page shows.
   @Published var hudToast: HudToast?
+  /// The Change Images sheet a card's menu asked for (admin only).
+  @Published var imagePickerTarget: TitleImagePickerTarget?
 
   private let contentService: VideoContentService
   private let actionsService: UserActionsService
@@ -117,6 +119,16 @@ final class MediaCardMenuCoordinator: ObservableObject {
   }
 
   // MARK: - Actions
+
+  /// Change Images is there only with a worker admin token.
+  var canChangeImages: Bool {
+    WorkerImageAdminTokenStore.isConfigured && AppContext.shared.metadataService.images.isConfigured
+  }
+
+  func changeImages(_ card: MediaCard) {
+    imagePickerTarget = TitleImagePickerTarget(kinopubID: card.itemID, imdb: card.imdbID,
+                                               title: card.title)
+  }
 
   func play(_ card: MediaCard, push: @escaping (Route) -> Void) {
     Task {
