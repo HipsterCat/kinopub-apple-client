@@ -1198,8 +1198,9 @@ private struct MacTitlePageToolbar: ViewModifier {
   func body(content: Content) -> some View {
     let past = phase.isHeroPastToolbar
     content
-      // By value, not `nil`: back over the page the toolbar takes the page's scheme.
-      .toolbarColorScheme(phase.showsPicture && !past ? .dark : colorScheme, for: .windowToolbar)
+      // `nil` off the picture: a scheme by value backs the toolbar across the whole
+      // window, over the sidebar too.
+      .toolbarColorScheme(phase.showsPicture && !past ? .dark : nil, for: .windowToolbar)
       .navigationTitle(past ? title : "")
       .navigationSubtitle(past ? subtitle : "")
       // The system's soft edge under the toolbar arrives with the title and leaves with

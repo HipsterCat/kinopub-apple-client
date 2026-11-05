@@ -27,6 +27,9 @@ public struct ContentItemsListView<Header: View>: View {
   private let pagination: PaginationState
   private let onRetryPagination: (() -> Void)?
   private let header: Header
+  /// A line under the last row (a collection's count). Shown with room to spare below it,
+  /// so the end of a list reads as an end, not a cut.
+  private let footer: Text?
 
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.usesTVUIKitPosters) private var usesTVUIKitPosters
@@ -76,6 +79,7 @@ public struct ContentItemsListView<Header: View>: View {
               emptyMessage: LocalizedStringKey? = nil,
               pagination: PaginationState = .idle,
               onRetryPagination: (() -> Void)? = nil,
+              footer: Text? = nil,
               @ViewBuilder header: () -> Header) {
     self._items = items
     self.onLoadMoreContent = onLoadMoreContent
@@ -86,6 +90,7 @@ public struct ContentItemsListView<Header: View>: View {
     self.pagination = pagination
     self.onRetryPagination = onRetryPagination
     self.header = header()
+    self.footer = footer
   }
 
   public var body: some View {
@@ -202,6 +207,15 @@ public struct ContentItemsListView<Header: View>: View {
           .padding(.vertical, Metrics.focusPadding)
 
           PaginationFooter(state: pagination, onRetry: onRetryPagination)
+
+          if let footer, !items.isEmpty {
+            footer
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .frame(maxWidth: .infinity)
+              .padding(.top, metrics.gutter)
+              .padding(.bottom, Metrics.listFooterBottomSpace)
+          }
         }
       }
     }

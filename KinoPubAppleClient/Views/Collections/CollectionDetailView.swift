@@ -69,7 +69,9 @@ struct CollectionDetailView: View {
             pushRoute: { navigationState.push($0) },
             openURL: { openURL($0) }
           )
-        }
+        },
+        // The whole collection arrives in one page, so the count is its size.
+        footer: Text("Collection.TitleCount \(model.items.count)")
       ) {
 #if !os(macOS)
         filterBar

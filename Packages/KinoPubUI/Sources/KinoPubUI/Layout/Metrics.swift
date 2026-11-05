@@ -17,6 +17,8 @@ public enum Metrics {
   public static let cardCornerRadius: CGFloat = 12
   public static let progressBarHeight: CGFloat = 6
   public static let hairline: CGFloat = 0.5
+  /// Room under a list's closing line (a collection's count): the end reads as an end.
+  public static let listFooterBottomSpace: CGFloat = 48
 
 #if os(tvOS)
   public static let cardCaptionSpacing: CGFloat = 20

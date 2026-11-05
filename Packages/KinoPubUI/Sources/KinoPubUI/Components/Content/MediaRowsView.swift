@@ -473,7 +473,9 @@ private struct HeroUnderChrome: ViewModifier {
         // Bare over the picture only; once rows are under it, the system's toolbar with
         // its divider, as on every other page (the hero pages alone never had it).
         .toolbarBackgroundVisibility(heroUnderBar ? .hidden : .automatic, for: .windowToolbar)
-        .toolbarColorScheme(heroUnderBar ? .dark : colorScheme, for: .windowToolbar)
+        // `nil` off the picture, not the page's scheme by value: a scheme set on the window
+        // toolbar backs it across the whole window, over the sidebar too.
+        .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .windowToolbar)
 #endif
     } else {
       content

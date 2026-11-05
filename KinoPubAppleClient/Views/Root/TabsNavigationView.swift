@@ -471,6 +471,10 @@ struct TabsNavigationView: View {
           if let kind { pageScroll = PageScrollRequest(kind) }
         }
 #endif
+        // The toolbar's strip drags the window whatever the page has scrolled under it:
+        // cards and rails there took the mouse, and the window would not move (Sasha,
+        // 2026-11-05). Under the toolbar's own items, which keep their clicks.
+        .overlay(alignment: .top) { MacToolbarDragStrip() }
         .environment(\.heroStepRequest, heroStep)
         .environment(\.pageScrollRequest, pageScroll)
         .environment(\.macLargePageTitles, MacLargePageTitleSwitch.isOn)
@@ -1110,6 +1114,31 @@ private struct MacSidebarAccount: View {
   }
 }
 
+#endif
+
+#if os(macOS)
+/// A strip as tall as the window toolbar that moves the window, the way the titlebar
+/// does over a page that scrolls under it.
+private struct MacToolbarDragStrip: View {
+  @State private var height: CGFloat = 0
+
+  var body: some View {
+    Color.clear
+      .frame(maxWidth: .infinity)
+      .frame(height: height)
+      .contentShape(Rectangle())
+      .gesture(WindowDragGesture())
+      .allowsWindowActivationEvents(true)
+      .accessibilityHidden(true)
+      .ignoresSafeArea(edges: .top)
+      .background {
+        // The toolbar's height: the top safe area this column has.
+        Color.clear.onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: {
+          height = $0
+        }
+      }
+  }
+}
 #endif
 
 #if !os(tvOS)
