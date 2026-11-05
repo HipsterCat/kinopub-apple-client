@@ -337,7 +337,12 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
         content()
       } label: {
         Label(label, systemImage: icon)
+#if os(tvOS)
+          // `toolbarLabelStyle` is iOS / macOS only (below); tvOS has no listing toolbar.
+          .labelStyle(.iconOnly)
+#else
           .toolbarLabelStyle(showsTitle: showsToolbarTitle)
+#endif
           .symbolVariant(isActive ? .fill : .none)
       }
       .menuIndicator(.hidden)
