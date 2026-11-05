@@ -181,13 +181,29 @@ public struct WorkerImageAdminClient: Sendable {
 
   public func pickLogo(kinopubID: Int, url: String, language: WorkerArtworkLanguageTag?) async throws
     -> WorkerImageAdminActionResponse {
-    var body: [String: String] = ["logo": url]
-    if let language, language != .und { body["logo_lang"] = language.rawValue }
-    return try await pick(kinopubID: kinopubID, body: body)
+    try await pick(kinopubID: kinopubID, kind: .logo, url: url, language: language)
   }
 
   public func pickBackdrop(kinopubID: Int, url: String) async throws -> WorkerImageAdminActionResponse {
-    try await pick(kinopubID: kinopubID, body: ["backdrop": url])
+    try await pick(kinopubID: kinopubID, kind: .backdrop, url: url, language: nil)
+  }
+
+  /// Pins `url` for one kind. A logo or poster replaces every file of its language
+  /// (`nil` / `.und` = textless), a backdrop all backdrops; the worker also writes the
+  /// pin to D1 `c2_image`. Any https URL is accepted. `width` / `height` are stored
+  /// with the pin when known.
+  public func pick(kinopubID: Int,
+                   kind: WorkerImageAdminKind,
+                   url: String,
+                   language: WorkerArtworkLanguageTag?,
+                   width: Int? = nil,
+                   height: Int? = nil) async throws -> WorkerImageAdminActionResponse {
+    var body: [String: Any] = [kind.rawValue: url]
+    if let language, language != .und { body["\(kind.rawValue)_lang"] = language.rawValue }
+    if let width, width > 0 { body["\(kind.rawValue)_width"] = width }
+    if let height, height > 0 { body["\(kind.rawValue)_height"] = height }
+    let data = try JSONSerialization.data(withJSONObject: body)
+    return try await post(path: "admin/kinopub/\(kinopubID)/pick", body: data)
   }
 
   public func imageStats() async throws -> [String: Int] {
@@ -198,11 +214,6 @@ public struct WorkerImageAdminClient: Sendable {
     if let missing = envelope.missing { counts["missing"] = missing }
     if let waited = envelope.waited { counts["waited"] = waited }
     return counts
-  }
-
-  private func pick(kinopubID: Int, body: [String: String]) async throws -> WorkerImageAdminActionResponse {
-    let data = try JSONEncoder().encode(body)
-    return try await post(path: "admin/kinopub/\(kinopubID)/pick", body: data)
   }
 
   private func post(

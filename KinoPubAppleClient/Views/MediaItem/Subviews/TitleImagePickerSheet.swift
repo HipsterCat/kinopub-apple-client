@@ -36,6 +36,8 @@ struct TitleImagePickerSheet: View {
   @Environment(\.dismiss) private var dismiss
   @State private var model: TitleImagePickerModel
   @State private var kind: WorkerImageAdminKind = .logo
+  @State private var showsLinkEntry = false
+  @State private var linkText = ""
 
   init(target: TitleImagePickerTarget,
        images: TitleImageRoute,
@@ -60,12 +62,25 @@ struct TitleImagePickerSheet: View {
 #if os(tvOS)
           tvHeader
 #endif
-          Picker("Image Kind", selection: $kind) {
-            Text("Logo").tag(WorkerImageAdminKind.logo)
-            Text("Backdrop").tag(WorkerImageAdminKind.backdrop)
+          HStack(spacing: 12) {
+            Picker("Image Kind", selection: $kind) {
+              Text("Logo").tag(WorkerImageAdminKind.logo)
+              Text("Backdrop").tag(WorkerImageAdminKind.backdrop)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+#if !os(tvOS)
+            .fixedSize()
+#endif
+            Spacer(minLength: 0)
+            Button {
+              linkText = ""
+              showsLinkEntry = true
+            } label: {
+              Label("Image Link", systemImage: "link")
+            }
+            .disabled(model.isSaving)
           }
-          .pickerStyle(.segmented)
-          .labelsHidden()
 
           content
             .frame(maxWidth: .infinity)
@@ -114,6 +129,26 @@ struct TitleImagePickerSheet: View {
 #endif
     }
     .task(id: kind) { await model.load(kind) }
+    .alert(kind == .logo ? "Logo by Link" : "Backdrop by Link", isPresented: $showsLinkEntry) {
+      TextField("https://image.tmdb.org/t/p/original/…", text: $linkText)
+#if os(iOS)
+        .keyboardType(.URL)
+        .textInputAutocapitalization(.never)
+#endif
+        .autocorrectionDisabled()
+      if kind == .logo {
+        ForEach(model.languageOrder(for: .logo), id: \.self) { language in
+          Button(language.pickerTitle) { pinLink(language: language) }
+        }
+      } else {
+        Button("Pin") { pinLink(language: .und) }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text(kind == .logo
+           ? "Replaces the logo of the language you choose."
+           : "Replaces the title's backdrop.")
+    }
 #if os(iOS)
     .presentationDragIndicator(.visible)
 #endif
@@ -128,6 +163,16 @@ struct TitleImagePickerSheet: View {
 #else
     nil
 #endif
+  }
+
+  private func pinLink(language: WorkerArtworkLanguageTag) {
+    let link = linkText
+    let kind = kind
+    Task {
+      if await model.pinLink(link, kind: kind, language: language) {
+        await onSaved()
+      }
+    }
   }
 
   private var closeButton: some View {
@@ -565,8 +610,8 @@ final class TitleImagePickerModel {
     }
   }
 
-  /// Forget, then pin: the worker's `pick` keeps a kind's unpinned files beside a new
-  /// pin, so the kind is cleared first and only the selection is written back.
+  /// Pins the selection. Each pick replaces every file of its language in the worker
+  /// (a backdrop pick all backdrops), so nothing automatic stays beside a pin.
   func save() async -> Bool {
     guard let client else { return false }
     isSaving = true
@@ -576,14 +621,14 @@ final class TitleImagePickerModel {
       for kind in [WorkerImageAdminKind.logo, .backdrop] {
         let selected = selection[kind] ?? [:]
         guard !selected.isEmpty, selected != (pinned[kind] ?? [:]) else { continue }
-        _ = try await client.forget(kinopubID: target.kinopubID, kind: kind)
         for language in languageOrder(for: kind) {
-          guard let url = selected[language] else { continue }
-          if kind == .logo {
-            _ = try await client.pickLogo(kinopubID: target.kinopubID, url: url, language: language)
-          } else {
-            _ = try await client.pickBackdrop(kinopubID: target.kinopubID, url: url)
+          guard let url = selected[language], url != pinned[kind]?[language] else { continue }
+          let file = catalogs[kind].flatMap { catalog in
+            languageOrder(for: kind).lazy.flatMap { catalog.bucket($0) }.first { $0.url == url }
           }
+          _ = try await client.pick(kinopubID: target.kinopubID, kind: kind, url: url,
+                                    language: kind == .logo ? language : nil,
+                                    width: file?.width, height: file?.height)
         }
         pinned[kind] = selected
       }
@@ -593,6 +638,45 @@ final class TitleImagePickerModel {
       saveError = error.localizedDescription
       return false
     }
+  }
+
+  /// Pins a file by its address, for when TMDB's list has nothing usable. An
+  /// image.tmdb.org address is stored at its original size whatever size it names.
+  func pinLink(_ raw: String, kind: WorkerImageAdminKind, language: WorkerArtworkLanguageTag) async -> Bool {
+    guard let client else { return false }
+    guard let url = Self.normalizedLink(raw) else {
+      saveError = String(localized: "Paste an https link to an image.")
+      return false
+    }
+    isSaving = true
+    saveError = nil
+    defer { isSaving = false }
+    do {
+      _ = try await client.pick(kinopubID: target.kinopubID, kind: kind, url: url,
+                                language: kind == .logo ? language : nil)
+      Artwork.clearCaches()
+      await load(kind, force: true)
+      return true
+    } catch {
+      saveError = error.localizedDescription
+      return false
+    }
+  }
+
+  static func normalizedLink(_ raw: String) -> String? {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard var components = URLComponents(string: trimmed),
+          components.scheme?.lowercased() == "https",
+          let host = components.host, !host.isEmpty else { return nil }
+    if host.lowercased() == "image.tmdb.org" {
+      // /t/p/w500/abc.png → /t/p/original/abc.png
+      var parts = components.path.split(separator: "/", omittingEmptySubsequences: false)
+      if parts.count >= 5, parts[1] == "t", parts[2] == "p" {
+        parts[3] = "original"
+        components.path = parts.joined(separator: "/")
+      }
+    }
+    return components.url?.absoluteString
   }
 
   private func apply(_ catalog: WorkerImageAdminCatalog, kind: WorkerImageAdminKind) {
