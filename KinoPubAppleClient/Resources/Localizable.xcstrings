@@ -8805,6 +8805,24 @@
         }
       }
     },
+    "MediaItem_VideoSourceKinopub" : {
+      "comment" : "Second line under kino.pub's own trailer in the title page videos rail (the other cards say YouTube)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kino.pub"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кинопаб"
+          }
+        }
+      }
+    },
     "MediaItem_Versions" : {
       "comment" : "Header of the rail listing the versions of one film (24/48 fps, director's cut)",
       "localizations" : {

@@ -111,6 +111,11 @@ class MediaItemModel: ObservableObject {
   /// TMDB (and later other sources) overlay. Empty when the proxy is unset or the
   /// title has no IMDb id — the page then draws exactly as before.
   @Published public var externalMetadata: TitleMetadata = TitleMetadata()
+
+  /// The title page's YouTube videos: `TrailerRef.forTitlePage`'s languages and order,
+  /// without the removed ones (`YouTubeThumbnailProbe`). Empty until they are checked, so
+  /// a rail never shows a card it is about to drop.
+  @Published public private(set) var titlePageVideos: [TrailerRef] = []
   /// On: the page reads `/v2/title` and the Kinopoisk proxy without staff, and does not
   /// call TMDB. Off: the calls the page has always made. Starts from
   /// `FeatureFlags.titleCardMetadata` (Settings › Diagnostics); the Debug sheet can flip
@@ -691,6 +696,7 @@ class MediaItemModel: ObservableObject {
     }
     guard generation == metadataLoadGeneration else { return }
     externalMetadata = meta
+    Task { [weak self] in await self?.checkTitlePageVideos(meta, generation: generation) }
     externalMetadataLoaded = true
     var times = metadataPathMilliseconds
     times[usesTitleCard] = MetadataTiming.milliseconds(since: started)
@@ -699,6 +705,15 @@ class MediaItemModel: ObservableObject {
       "metadata result path=\(self.usesTitleCard ? "v2" : "tmdb") kinopub=\(self.mediaItemId) ms=\(times[self.usesTitleCard] ?? -1) tmdbId=\(meta.tmdbId.map(String.init) ?? "nil") cast=\(meta.cast.count) photos=\(meta.cast.filter { $0.photo != nil }.count) logo=\(meta.titleLogoURL?.absoluteString ?? "nil") next=\(meta.nextEpisode.map { "S\($0.seasonNumber)E\($0.episodeNumber)" } ?? "nil") status=\(meta.status ?? "nil")"
     )
     await ensureEpisodeGrid()
+  }
+
+  private func checkTitlePageVideos(_ meta: TitleMetadata, generation: Int) async {
+    let ordered = TrailerRef.forTitlePage(meta.trailers,
+                                          appLanguage: Bundle.main.preferredLocalizations.first ?? "ru",
+                                          originalLanguage: meta.originalLanguage)
+    let available = ordered.isEmpty ? [] : await YouTubeThumbnailProbe.available(ordered)
+    guard generation == metadataLoadGeneration, available != titlePageVideos else { return }
+    titlePageVideos = available
   }
 
   // MARK: - Actions

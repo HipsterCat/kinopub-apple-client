@@ -148,6 +148,9 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   /// What the player has on screen — the player's Season tab marks it: the still dimmed,
   /// a ring around the tile at rest, the caption in the primary colour, no progress bar.
   public let isNowPlaying: Bool
+  /// Drawn in the middle of the still while the tile has focus — the hover Play of the
+  /// Mac and iPad cards, or YouTube's button on a video that opens YouTube. Nil: nothing.
+  public let focusGlyph: LandscapePlayGlyph?
 
   public enum ArtworkFit: Equatable, Sendable {
     /// Centre-cropped to the tile — stills, backdrops, covers.
@@ -170,7 +173,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               badgeText: String? = nil,
               badgeIsLive: Bool = false,
               artworkFit: ArtworkFit = .fill,
-              isNowPlaying: Bool = false) {
+              isNowPlaying: Bool = false,
+              focusGlyph: LandscapePlayGlyph? = nil) {
     self.id = id
     self.imageURL = imageURL
     self.tint = tint
@@ -185,6 +189,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.badgeIsLive = badgeIsLive
     self.artworkFit = artworkFit
     self.isNowPlaying = isNowPlaying
+    self.focusGlyph = focusGlyph
   }
 
   /// A coloured tile with a glyph and nothing else — genres, categories, anything with
@@ -954,6 +959,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
 
     overlay.apply(status: item.status, timeLabel: item.timeLabel, isNowPlaying: item.isNowPlaying,
                   showsTime: !overlayOnFocus || state.isFocused)
+    overlay.applyFocusGlyph(item.focusGlyph, focused: state.isFocused)
     config.overlayView = overlay
 
     contentConfiguration = config
@@ -1123,6 +1129,20 @@ final class TVUIKitMediaItemOverlayView: UIView {
   private var progressFillWidth: NSLayoutConstraint!
   /// Over the whole still of the episode the player has on screen.
   private let nowPlayingDim = UIView()
+  /// The focused tile's centre Play: a glass circle with the glyph, or YouTube's button.
+  private let centerGlass: UIVisualEffectView = {
+    let effect: UIVisualEffect
+    if #available(tvOS 26.0, *) { effect = UIGlassEffect() } else { effect = UIBlurEffect(style: .regular) }
+    let view = UIVisualEffectView(effect: effect)
+    view.clipsToBounds = true
+    view.layer.cornerCurve = .circular
+    return view
+  }()
+  private let centerGlassGlyph = UIImageView(image: UIImage(systemName: "play.fill"))
+  private let centerYouTube = UIImageView(image: UIImage(named: "youtube-play", in: .module, with: nil))
+  /// Glass circle diameter as a share of the still's height — the Mac card's 38 pt on a
+  /// ~170 pt still.
+  private static let centerGlassFraction: CGFloat = 0.24
 
   /// Keeps the corner chrome clear of the bar along the very bottom edge.
   private static let cornerInset: CGFloat = 32
@@ -1151,6 +1171,19 @@ final class TVUIKitMediaItemOverlayView: UIView {
 //    scrim.backgroundColor = UIColor.red.withAlphaComponent(0)
 //    scrim.isHidden = true
 //    addSubview(scrim)
+
+    centerGlass.alpha = 0
+    centerGlassGlyph.tintColor = .label
+    centerGlassGlyph.contentMode = .scaleAspectFit
+    centerGlass.contentView.addSubview(centerGlassGlyph)
+    addSubview(centerGlass)
+    centerYouTube.alpha = 0
+    centerYouTube.contentMode = .scaleAspectFit
+    centerYouTube.layer.shadowColor = UIColor.black.cgColor
+    centerYouTube.layer.shadowOpacity = 0.3
+    centerYouTube.layer.shadowRadius = 8
+    centerYouTube.layer.shadowOffset = CGSize(width: 0, height: 2)
+    addSubview(centerYouTube)
 
     nowPlayingDim.translatesAutoresizingMaskIntoConstraints = false
     nowPlayingDim.backgroundColor = UIColor.black.withAlphaComponent(0.45)
@@ -1275,6 +1308,29 @@ final class TVUIKitMediaItemOverlayView: UIView {
                                  width: bounds.width,
                                  height: bounds.height * Self.gradientHeightFraction)
     CATransaction.commit()
+    let diameter = (bounds.height * Self.centerGlassFraction).rounded()
+    let center = CGPoint(x: bounds.midX, y: bounds.midY)
+    centerGlass.bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
+    centerGlass.center = center
+    centerGlass.layer.cornerRadius = diameter / 2
+    let glyph = diameter * 0.42
+    // The triangle's optical centre sits right of its box's.
+    centerGlassGlyph.frame = CGRect(x: (diameter - glyph) / 2 + diameter * 0.04, y: (diameter - glyph) / 2,
+                                    width: glyph, height: glyph)
+    let youTubeWidth = diameter * 1.4
+    centerYouTube.bounds = CGRect(x: 0, y: 0, width: youTubeWidth, height: youTubeWidth * 20 / 28.57)
+    centerYouTube.center = center
+  }
+
+  /// The centre Play, shown while focused, faded as the focus moves.
+  func applyFocusGlyph(_ glyph: LandscapePlayGlyph?, focused: Bool) {
+    let glass: CGFloat = focused && glyph == .play ? 1 : 0
+    let youTube: CGFloat = focused && glyph == .youtube ? 1 : 0
+    guard centerGlass.alpha != glass || centerYouTube.alpha != youTube else { return }
+    UIView.animate(withDuration: 0.2) {
+      self.centerGlass.alpha = glass
+      self.centerYouTube.alpha = youTube
+    }
   }
 
   /// - Parameter showsTime: false keeps the runtime and the bar out (an unfocused tile in the

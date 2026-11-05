@@ -1514,6 +1514,17 @@ struct TrailersRailView: View {
     }
   }
 
+  /// Before the title of a video that opens outside the app (Sasha, 2026-11-05).
+  static let leavesAppSymbol = "arrow.up.right"
+
+  /// «Кинопаб» / «YouTube» — where the video plays, as the card's second line.
+  private func source(of entry: Entry) -> String {
+    switch entry {
+    case .kinopub: return "MediaItem_VideoSourceKinopub".localized
+    case .external: return "YouTube"
+    }
+  }
+
   private func imageURL(for entry: Entry) -> URL? {
     switch entry {
     case .kinopub: return stillURL.flatMap(URL.init(string:))
@@ -1544,7 +1555,16 @@ struct TrailersRailView: View {
     let entries = entries
     return TVUIKitMediaItemRail(
       items: entries.enumerated().map { index, entry in
-        TVUIKitMediaItem(id: index, imageURL: imageURL(for: entry), caption: caption(for: entry))
+        switch entry {
+        case .kinopub:
+          TVUIKitMediaItem(id: index, imageURL: imageURL(for: entry), caption: caption(for: entry),
+                           focusGlyph: .play)
+        case .external:
+          // A caption is a plain string here, so the arrow is the character, not the symbol.
+          // No second line: the rail is one caption line tall, as every still rail.
+          TVUIKitMediaItem(id: index, imageURL: imageURL(for: entry),
+                           caption: "↗\u{FE0E} " + caption(for: entry), focusGlyph: .youtube)
+        }
       },
       contentInset: metrics.inset,
       columns: MainView.stillColumns,
@@ -1566,6 +1586,8 @@ struct TrailersRailView: View {
                                posterURL: imageURL(for: entry)?.absoluteString ?? "",
                                title: caption(for: entry),
                                landscapeImageURL: imageURL(for: entry)?.absoluteString ?? "",
+                               // The line under the title: where the video plays.
+                               overlayLabel: source(of: entry),
                                primaryAction: .play)
           Group {
             switch entry {
@@ -1574,12 +1596,11 @@ struct TrailersRailView: View {
                 MediaCardView(card: card, caption: .always)
               }
             case .external(let video):
+              // No `.help` with the link: a URL tooltip over the still read as debris.
               Button { open(video) } label: {
-                MediaCardView(card: card, caption: .always)
+                MediaCardView(card: card, caption: .always, playGlyph: .youtube,
+                              titleSymbol: Self.leavesAppSymbol)
               }
-#if os(macOS)
-              .help(video.webURL?.absoluteString ?? "")
-#endif
             }
           }
           .frame(width: cardWidth)

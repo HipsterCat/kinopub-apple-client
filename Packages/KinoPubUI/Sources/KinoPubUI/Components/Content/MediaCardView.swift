@@ -692,15 +692,24 @@ public struct MediaCardView: View {
   private let playChromeStyle: LandscapePlayChromeStyle
   /// When true, play chrome stays visible (previews / VariantGallery).
   private let forcePlayChrome: Bool
+  /// What the play chrome is: our glass Play, or YouTube's own button for a card that
+  /// opens YouTube (the title page's videos).
+  private let playGlyph: LandscapePlayGlyph
+  /// An SF Symbol before the title — `arrow.up.right` on a card that leaves the app.
+  private let titleSymbol: String?
 
   public init(card: MediaCard,
               caption: MediaCardCaption = .always,
               playChromeStyle: LandscapePlayChromeStyle = .glass,
-              forcePlayChrome: Bool = false) {
+              forcePlayChrome: Bool = false,
+              playGlyph: LandscapePlayGlyph = .play,
+              titleSymbol: String? = nil) {
     self.card = card
     self.caption = caption
     self.playChromeStyle = playChromeStyle
     self.forcePlayChrome = forcePlayChrome
+    self.playGlyph = playGlyph
+    self.titleSymbol = titleSymbol
   }
 
   @Environment(\.isFocused) private var cardFocused
@@ -1051,7 +1060,7 @@ public struct MediaCardView: View {
 #endif
 
       if showsPlayChrome {
-        LandscapePlayChromeView(style: playChromeStyle)
+        LandscapePlayChromeView(style: playChromeStyle, glyph: playGlyph)
           .transition(.opacity.combined(with: .scale(scale: 0.92)))
           .allowsHitTesting(false)
       }
@@ -1390,6 +1399,14 @@ public struct MediaCardView: View {
     HStack(spacing: 0) {
       Spacer(minLength: 0)
       HStack(spacing: 6) {
+        if let titleSymbol {
+          Image(systemName: titleSymbol)
+            .font((titleFont ?? (card.isLandscape ? TypeScale.episodeCardTitle : TypeScale.cardTitle))
+              .weight(.semibold))
+            .imageScale(.small)
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+        }
         MarqueeText(
           card.title,
           // A landscape card is the title page's episode card, title and all (Sasha,
@@ -1458,13 +1475,23 @@ public enum LandscapePlayChromeStyle: String, CaseIterable, Sendable {
   case glassLarge
 }
 
+/// What sits in the middle of a play-primary still on hover / focus.
+public enum LandscapePlayGlyph: Sendable {
+  /// Our Play in its glass circle.
+  case play
+  /// YouTube's own red play button (`youtube-play`), for a card that opens YouTube.
+  case youtube
+}
+
 /// Decorative play glyph in the middle of a landscape still. Not a Button — the
 /// parent card / link owns the action.
 public struct LandscapePlayChromeView: View {
   public let style: LandscapePlayChromeStyle
+  public let glyph: LandscapePlayGlyph
 
-  public init(style: LandscapePlayChromeStyle = .glass) {
+  public init(style: LandscapePlayChromeStyle = .glass, glyph: LandscapePlayGlyph = .play) {
     self.style = style
+    self.glyph = glyph
   }
 
   private var diameter: CGFloat {
@@ -1483,6 +1510,21 @@ public struct LandscapePlayChromeView: View {
   }
 
   public var body: some View {
+    switch glyph {
+    case .play: glassPlay
+    case .youtube:
+      // YouTube's button stands on its own — no glass under it. As wide as the glass
+      // circle is tall, at the asset's own 10:7.
+      Image("youtube-play", bundle: .module)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(width: diameter * 1.4)
+        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+        .accessibilityHidden(true)
+    }
+  }
+
+  private var glassPlay: some View {
     Image(systemName: "play.fill")
       .font(.system(size: iconSize, weight: .semibold))
       .foregroundStyle(.primary)

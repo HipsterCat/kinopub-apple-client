@@ -783,12 +783,9 @@ struct MediaItemView: View {
 #endif
   }
 
-  /// TMDB's videos for the rail: the app's language, English, the original — in that order.
-  private var titlePageVideos: [TrailerRef] {
-    TrailerRef.forTitlePage(itemModel.externalMetadata.trailers,
-                            appLanguage: Bundle.main.preferredLocalizations.first ?? "ru",
-                            originalLanguage: itemModel.externalMetadata.originalLanguage)
-  }
+  /// TMDB's videos for the rail: the app's language, English, the original — in that
+  /// order, the removed ones dropped (`MediaItemModel.titlePageVideos`).
+  private var titlePageVideos: [TrailerRef] { itemModel.titlePageVideos }
 
   private var trailerEntriesEmpty: Bool {
     !itemModel.itemLoaded
