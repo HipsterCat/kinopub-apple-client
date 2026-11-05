@@ -17,6 +17,9 @@ struct RootView: View {
   @Environment(NavigationState.self) var navigationState
   /// Off unless switched on in Settings › Advanced › Diagnostics.
   @AppStorage(DiagnosticsSettings.activityOverlayKey) private var showsActivityOverlay = false
+#if os(tvOS)
+  @AppStorage(DiagnosticsSettings.focusOverlayKey) private var showsFocusOverlay = false
+#endif
 #if os(macOS)
   @Environment(\.openWindow) private var openWindow
 #endif
@@ -32,6 +35,9 @@ struct RootView: View {
     // the window chrome does not jump from a title-less auth layout into the library.
     rootContent
       .networkActivityOverlay(isEnabled: showsActivityOverlay)
+#if os(tvOS)
+      .focusDebugOverlay(isEnabled: showsFocusOverlay)
+#endif
       .task {
         await authState.check()
       }

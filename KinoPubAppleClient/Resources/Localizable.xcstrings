@@ -11837,6 +11837,23 @@
         }
       }
     },
+    "Settings_Tip_FocusOverlay" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marks where each arrow on the remote moves focus from the focused item. An arrow that goes nowhere is listed as a dead end."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывает, куда перейдёт фокус по каждой стрелке пульта. Стрелка, которая никуда не ведёт, помечена как тупик."
+          }
+        }
+      }
+    },
     "Settings_Tip_HomeBanner" : {
       "comment" : "tvOS Settings tip for the Home banner feature toggle.",
       "extractionState" : "manual",
@@ -12136,6 +12153,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Показывать текущие запросы"
+          }
+        }
+      }
+    },
+    "Show where focus goes" : {
+      "comment" : "Diagnostics toggle: the focus overlay on tvOS.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать, куда пойдёт фокус"
           }
         }
       }

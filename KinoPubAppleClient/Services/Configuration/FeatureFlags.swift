@@ -418,4 +418,9 @@ enum DiagnosticsSettings {
   /// Streams the network log to the Pulse app on a Mac. Off by default — turning it on
   /// is what asks for local-network permission, and that prompt is the user's to spend.
   static let remoteLoggingKey = "diagnostics.remoteLogging"
+
+  /// tvOS: marks where each arrow press would move focus, and names the arrows that go
+  /// nowhere (`FocusDebugOverlay`, borrowed from silo-apple). `-KINOPUBFocusDebug YES`
+  /// turns it on without Settings.
+  static let focusOverlayKey = "diagnostics.focusOverlay"
 }

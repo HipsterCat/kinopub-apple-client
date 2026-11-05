@@ -602,6 +602,9 @@ final class TVSettingsCatalog {
       TSKRow(title: "Show in-flight requests".localized,
              description: "Settings_Tip_ActivityOverlay".localized,
              kind: .toggle(key: "activityOverlay")),
+      TSKRow(title: "Show where focus goes".localized,
+             description: "Settings_Tip_FocusOverlay".localized,
+             kind: .toggle(key: "focusOverlay")),
       TSKRow(title: "Worker admin token".localized,
              description: "Settings_Tip_WorkerAdminToken".localized,
              kind: .action(pushes: false) { [unowned self] in self.presentWorkerAdminTokenEntry() }),
@@ -1712,6 +1715,8 @@ final class TVSettingsCatalog {
                    })
     store.bindBool("activityOverlay", get: { defaults.bool(forKey: DiagnosticsSettings.activityOverlayKey) },
                    set: { defaults.set($0, forKey: DiagnosticsSettings.activityOverlayKey) })
+    store.bindBool("focusOverlay", get: { defaults.bool(forKey: DiagnosticsSettings.focusOverlayKey) },
+                   set: { defaults.set($0, forKey: DiagnosticsSettings.focusOverlayKey) })
 
     bindDevice("device4K", \.support4k)
     bindDevice("deviceHEVC", \.supportHevc)
