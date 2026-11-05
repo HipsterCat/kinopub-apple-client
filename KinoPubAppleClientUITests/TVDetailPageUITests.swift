@@ -219,6 +219,52 @@ final class TVDetailPageUITests: XCTestCase {
                   "second down: \(focusedDescription)")
   }
 
+  /// Down from the episodes reaches the shelves under them and keeps going to the
+  /// bottom of the page, every stop on screen, and Up comes all the way back. The dead
+  /// end of 2026-11-05: past the episodes the page stopped scrolling at Similar, and
+  /// focus walked on below the screen. Shots carry the focus overlay
+  /// (`-KINOPUBFocusDebug`).
+  func testSeasonRailDownReachesTheBottomOfThePage() throws {
+    try walkToTheBottomAndBack("awaiting", leavesRail: true)
+  }
+
+  /// The same walk with no season rail on the page — the control for the one above.
+  func testFilmDownReachesTheBottomOfThePage() throws {
+    try walkToTheBottomAndBack("film", leavesRail: false)
+  }
+
+  private func walkToTheBottomAndBack(_ fixture: String, leavesRail: Bool) throws {
+    launch(fixture, extra: ["-KINOPUBFocusDebug", "YES"])
+    try waitForFocus(on: "play", timeout: 20, "open")
+
+    var previous = ""
+    var stops = 0
+    for step in 1...14 {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 1.2)
+      try shoot("\(fixture)-down-\(step)")
+      let item = try requireOnScreenFocus("\(fixture) down \(step)")
+      if item.identifier == previous { break }
+      previous = item.identifier
+      stops += 1
+    }
+    if leavesRail {
+      XCTAssertFalse(previous.hasPrefix("kinopub.rivulet."), "Down never left the season rail")
+    }
+    XCTAssertGreaterThan(stops, 2, "Down stopped after \(stops) moves: \(focusedDescription)")
+
+    for step in 1...(stops + 2) {
+      XCUIRemote.shared.press(.up)
+      Thread.sleep(forTimeInterval: 1.0)
+      _ = try requireOnScreenFocus("\(fixture) up \(step)")
+    }
+    try shoot("\(fixture)-back-up")
+    let onHero = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier CONTAINS 'hero.' AND hasFocus == true"))
+      .firstMatch.exists
+    XCTAssertTrue(onHero, "Up never got back to the hero: \(focusedDescription)")
+  }
+
   /// Focus must be a view the screen actually shows. An off-screen platter still
   /// reports hasFocus, which is the dead end.
   private func requireOnScreenFocus(_ moment: String) throws -> XCUIElement {
@@ -242,8 +288,9 @@ final class TVDetailPageUITests: XCTestCase {
 
   // MARK: - Helpers
 
-  private func launch(_ fixture: String) {
+  private func launch(_ fixture: String, extra: [String] = []) {
     app = XCUIApplication()
+    app.launchArguments += extra
     app.launchArguments += ["-ui-testing",
                             "-KINOPUBDetailFixture", fixture,
                             "-KINOPUBForceColorScheme", "dark",

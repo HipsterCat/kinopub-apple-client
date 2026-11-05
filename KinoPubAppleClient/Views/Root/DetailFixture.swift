@@ -484,7 +484,9 @@ enum DetailFixture: String, CaseIterable, Identifiable {
           ?? DetailFixture.similarItems().first { $0.id == id }
       },
       similar: { id in
-        [.film, .filmCrew].contains(DetailFixture.allCases.first { $0.itemID == id })
+        // `.awaiting` too: a season rail with a shelf under it, where Down from the
+        // episodes has to reach the posters (the dead end of 2026-11-05).
+        [.film, .filmCrew, .awaiting].contains(DetailFixture.allCases.first { $0.itemID == id })
           || DetailFixture.similarItems().contains { $0.id == id }
           ? DetailFixture.similarItems() : nil
       },

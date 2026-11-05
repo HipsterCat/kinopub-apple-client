@@ -592,7 +592,10 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
     let y = scroll.contentOffset.y
     // A downward jump is the focus engine taking the model offset straight to
     // the end. Put it back and play the slide ourselves.
-    if scrollLink == nil, tracksOffset, y > settledY + 30 {
+    // Not once focus has gone on to a section under the block: the page's scroll is the
+    // engine's again, and replaying each of its jumps as a slide cut every move short —
+    // the page stopped at Similar while focus walked on below the screen (2026-11-05).
+    if scrollLink == nil, tracksOffset, y > settledY + 30, !focusIsBelowBlock() {
       let target = clampedOffset(y, in: scroll)
       scroll.setContentOffset(CGPoint(x: scroll.contentOffset.x, y: settledY), animated: false)
       animatePage(to: target, completion: nil)
@@ -608,6 +611,15 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
     let travel = RivuletSeasonRailMetrics.logoHeight + RivuletSeasonRailMetrics.logoToTabs
     logoView.transform = CGAffineTransform(translationX: 0, y: (1 - progress) * travel)
     onFoldProgress?(progress)
+  }
+
+  /// The focused view is a section under this block (ratings, cast, Similar …).
+  private func focusIsBelowBlock() -> Bool {
+    guard let scroll = pageScroll,
+          let focused = UIFocusSystem.focusSystem(for: view)?.focusedItem as? UIView,
+          !focused.isDescendant(of: view) else { return false }
+    let ours = view.convert(view.bounds, to: scroll)
+    return focused.convert(focused.bounds, to: scroll).minY >= ours.maxY - 1
   }
 
   private func clampedOffset(_ y: CGFloat, in scroll: UIScrollView) -> CGFloat {
@@ -771,7 +783,17 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
         guard let self, self.zone == .outside else { return }
         self.releaseEpisodePlatter(with: UIFocusAnimationCoordinator())
       }
-      revealContent(below: context.nextFocusedView)
+      if context.focusHeading.contains(.up) {
+        // Up out of the block is the hero, the top of the page. The engine's own scroll
+        // was switched off for this move, so Play took focus 500 pt above the screen
+        // (2026-11-05). Slide back the way Menu does.
+        releaseHold()
+        if let scroll = pageScroll {
+          animatePage(to: clampedOffset(-scroll.adjustedContentInset.top, in: scroll), completion: nil)
+        }
+      } else {
+        revealContent(below: context.nextFocusedView)
+      }
     } else {
       holdPageScroll()
       centerBlock()
