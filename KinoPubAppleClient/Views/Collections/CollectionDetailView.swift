@@ -24,8 +24,9 @@ struct CollectionDetailView: View {
     @Bindable var errorHandler = errorHandler
     content
       .platformNavigationTitle(model.title)
-#if os(macOS)
+#if !os(tvOS)
       .toolbar { LibraryFiltersToolbar(catalog: model, chrome: .sort) }
+      .catalogGridChrome()
 #endif
       .background(Color.KinoPub.background)
       .task {

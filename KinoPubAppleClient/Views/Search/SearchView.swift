@@ -504,14 +504,15 @@ struct SearchView: View {
       }
       .platformNavigationTitle(navigationTitleText)
 #endif
+#if !os(tvOS)
+      // The grid / wide switch, and on the Mac sort and filters as menus, as on every
+      // listing page; a text search keeps only the switch — the picks do not apply.
       .toolbar {
-#if os(macOS)
-        // Sort and filters as menus in the toolbar, as on every listing page.
-        if !catalog.isSearching {
-          LibraryFiltersToolbar(catalog: catalog)
-        }
-#endif
+        LibraryFiltersToolbar(catalog: catalog,
+                              chrome: catalog.isSearching ? .layoutOnly : .full)
       }
+      .catalogGridChrome()
+#endif
       .handleError(state: $errorHandler.state)
       .task {
         cardMenu.bind(errorHandler: errorHandler)

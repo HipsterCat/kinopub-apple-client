@@ -70,13 +70,14 @@ final class NavigationState {
 #endif
 
 #if DEBUG
-  /// `-KINOPUBInitialTab library|watching|tv|settings` opens on that tab (the simulator's
+  /// `-KINOPUBInitialTab catalog|library|watching|tv|settings` opens on that tab (the simulator's
   /// remote is too unreliable to walk there for every check; on iPhone the simulator does
   /// not always take a tap on the tab bar). `-KINOPUBInitialRoute history` then pushes
   /// History onto it.
   init() {
     switch UserDefaults.standard.string(forKey: "KINOPUBInitialTab") {
     case "search": selectedTab = .search
+    case "catalog": selectedTab = .catalog
     case "series": selectedTab = .series
     case "library": selectedTab = .library
     case "watching": selectedTab = .watchlist

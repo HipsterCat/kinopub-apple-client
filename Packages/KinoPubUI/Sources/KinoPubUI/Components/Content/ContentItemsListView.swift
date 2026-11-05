@@ -34,6 +34,8 @@ public struct ContentItemsListView<Header: View>: View {
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.usesTVUIKitPosters) private var usesTVUIKitPosters
   @Environment(\.mediaNavigation) private var mediaNavigation
+  /// Posters or wide cells, where the page offers the switch (`MediaGridLayout`).
+  @Environment(\.mediaGridLayout) private var gridLayout
   @State private var containerWidth: CGFloat = 1920
 
 #if os(tvOS)
@@ -48,7 +50,9 @@ public struct ContentItemsListView<Header: View>: View {
 #endif
 
   private var metrics: ShelfMetrics {
-    .posters(width: containerWidth, typeSize: dynamicTypeSize)
+    gridLayout == .wide
+      ? .landscape(width: containerWidth, typeSize: dynamicTypeSize)
+      : .posters(width: containerWidth, typeSize: dynamicTypeSize)
   }
 
   private var gridColumns: [GridItem] {
@@ -185,7 +189,8 @@ public struct ContentItemsListView<Header: View>: View {
             } else {
               ForEach(items, id: \.id) { item in
                 NavigationLink(value: navigationLinkProvider(item)) {
-                  MediaCardView(card: MediaCard(item), caption: Self.cardCaption)
+                  MediaCardView(card: MediaCard.card(for: item, in: gridLayout),
+                                caption: Self.cardCaption)
                     .onAppear {
                       onLoadMoreContent(item)
                     }
@@ -243,7 +248,7 @@ public struct ContentItemsListView<Header: View>: View {
   private var placeholderCard: some View {
     VStack(alignment: .leading, spacing: Metrics.cardCaptionSpacing) {
       Color.KinoPub.placeholder
-        .aspectRatio(CardAspect.poster.ratio, contentMode: .fit)
+        .aspectRatio((gridLayout == .wide ? CardAspect.landscape : .poster).ratio, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous))
 

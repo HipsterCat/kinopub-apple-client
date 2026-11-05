@@ -926,9 +926,12 @@ struct FilterCatalogTabView: View {
     RouteStack(tab: .catalog, zoom: true) {
       content
         .platformNavigationTitle("Catalog")
-#if os(macOS)
+#if !os(tvOS)
         // On the page, whatever it shows: a load in flight or failed still has its sort.
         .toolbar { LibraryFiltersToolbar(catalog: catalog) }
+        .catalogGridChrome()
+#endif
+#if os(macOS)
         .macToolbarSearch()
 #endif
         .handleError(state: $errorHandler.state)
