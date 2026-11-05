@@ -102,7 +102,31 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
   }
 
   /// Sort alone: the toolbar keeps it in one place, trailing, apart from the filters.
-  var sort: some View { sortMenu }
+  /// Named in the Mac toolbar it is a pop-up button — the current order and the system's
+  /// up/down chevrons, as the SF Symbols app's font and weight selects (Sasha,
+  /// 2026-11-05); without room, the glyph menu.
+  @ViewBuilder
+  var sort: some View {
+    if iconOnly && showsToolbarTitle {
+      sortPicker
+        .pickerStyle(.menu)
+        .fixedSize()
+        .help(Text("Sort"))
+    } else {
+      sortMenu
+    }
+  }
+
+  private var sortPicker: some View {
+    Picker("Sort", selection: Binding(
+      get: { catalog.filter.sort },
+      set: { order in catalog.update { $0.sort = order } }
+    )) {
+      ForEach(MediaSortOrder.allCases) { order in
+        Text(LocalizedStringKey(order.titleKey)).tag(order)
+      }
+    }
+  }
 
   /// Whether a filter narrows the list now.
   var hasActiveFilters: Bool { catalog.filter.hasActiveFilters }
@@ -143,15 +167,8 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
     ) {
       // A picker: the system draws the selection (Sasha, 2026-10-30), not a checkmark
       // glyph pasted into one button's label.
-      Picker("Sort", selection: Binding(
-        get: { catalog.filter.sort },
-        set: { order in catalog.update { $0.sort = order } }
-      )) {
-        ForEach(MediaSortOrder.allCases) { order in
-          Text(LocalizedStringKey(order.titleKey)).tag(order)
-        }
-      }
-      .pickerStyle(.inline)
+      sortPicker
+        .pickerStyle(.inline)
     }
   }
 
