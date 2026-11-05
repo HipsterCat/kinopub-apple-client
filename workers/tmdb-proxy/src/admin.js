@@ -23,7 +23,9 @@
  * refresh asks TMDB again and stores the result on the same KV document.
  */
 
-import { imageStats, readDocument, resolveAndStore, stitchDocument, writeDocument } from "./title.js";
+import {
+  artworkFromTmdb, imageStats, readDocument, resolveAndStore, stitchDocument, writeDocument,
+} from "./title.js";
 
 const KINDS = new Set(["logo", "backdrop", "poster"]);
 
@@ -99,6 +101,11 @@ async function images(env, id, url) {
   const payload = await tmdbGet(env, `/3/${located.type}/${located.tmdbId}/images`);
   if (!payload) return json({ error: "bad_gateway", hint: "TMDB images did not answer" }, 502);
   const field = kind === "logo" ? "logos" : kind === "poster" ? "posters" : "backdrops";
+  // The list is fresh from TMDB, so the stored automatic choice follows it now: a
+  // file uploaded to TMDB a minute ago is served without a refresh. Pins stay.
+  const storedArt = stored
+    ? await adoptTmdbFiles(env, id, stored, kind, payload[field])
+    : [];
   const grouped = {};
   for (const file of payload[field] || []) {
     const bucket = langBucket(file.iso_639_1);
@@ -121,7 +128,7 @@ async function images(env, id, url) {
     ru: grouped.ru || [],
     en: grouped.en || [],
     und: grouped.und || [],
-    stored: (stored?.artwork?.[kind] || []).map((item) => ({
+    stored: storedArt.map((item) => ({
       url: item.url, lang: item.lang ?? null, pinned: item.pinned === true,
       width: item.width ?? null, height: item.height ?? null,
     })),
@@ -131,6 +138,16 @@ async function images(env, id, url) {
     body[key] = list;
   }
   return json(body);
+}
+
+async function adoptTmdbFiles(env, id, stored, kind, files) {
+  const current = stored.artwork?.[kind] || [];
+  const next = artworkFromTmdb(stored.artwork, kind, files);
+  const sameURLs = (a, b) => a.length === b.length && a.every((item, i) => item?.url === b[i]?.url);
+  if (sameURLs(current, next)) return current;
+  const artwork = { ...(stored.artwork || {}), [kind]: next };
+  await writeDocument(env, id, { ...stored, artwork, art_rev: (stored.art_rev || 0) + 1 });
+  return next;
 }
 
 async function locateTmdb(env, stored, imdb) {

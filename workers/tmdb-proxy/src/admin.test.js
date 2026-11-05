@@ -309,3 +309,41 @@ test("images lists the most-voted file first and marks it the pick", async () =>
     globalThis.fetch = originalFetch;
   }
 });
+
+test("images adopts TMDB's fresh list as the stored automatic choice, keeping pins", async () => {
+  const env = memoryEnv({
+    "title:kinopub:7": {
+      kind: "movie",
+      art_rev: 3,
+      ids: { tmdb: { value: "movie/550" } },
+      artwork: {
+        logo: [
+          { source: "admin", url: "https://image.tmdb.org/t/p/original/pinned-ru.png", lang: "ru", pinned: true },
+          { source: "tmdb", url: "https://image.tmdb.org/t/p/original/stale-en.png", lang: "en" },
+        ],
+      },
+    },
+  });
+  env.TMDB_READ_TOKEN = "t";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    logos: [
+      { file_path: "/fresh-en.png", iso_639_1: "en", width: 800, height: 300, vote_average: 5.3 },
+      { file_path: "/old-en.png", iso_639_1: "en", width: 1600, height: 600, vote_average: 0 },
+      { file_path: "/tmdb-ru.png", iso_639_1: "ru", width: 800, height: 300, vote_average: 9 },
+    ],
+  }), { status: 200 });
+  try {
+    const response = await handleAdmin(admin("/admin/kinopub/7/images?kind=logo"), env);
+    const body = await response.json();
+    const doc = env.documents["title:kinopub:7"];
+    assert.deepEqual(doc.artwork.logo.map((item) => item.url), [
+      "https://image.tmdb.org/t/p/original/pinned-ru.png",
+      "https://image.tmdb.org/t/p/original/fresh-en.png",
+    ]);
+    assert.equal(doc.art_rev, 4);
+    assert.deepEqual(body.stored.map((item) => item.url), doc.artwork.logo.map((item) => item.url));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

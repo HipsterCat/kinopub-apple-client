@@ -569,21 +569,11 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
   // kino.pub fallback the draft carried is appended last, so it only survives
   // the cap if TMDB left a language slot empty.
   const images = details.images || {};
-  // Most votes first (TMDB's own pick is usually right), size only breaks ties.
-  const toAssets = (list) => (list || [])
-    .filter((a) => a.file_path)
-    .sort((a, b) => compareKey(voteRank(a.vote_average, a.vote_count, a.width),
-                               voteRank(b.vote_average, b.vote_count, b.width)))
-    .map((a) => ({ source: "tmdb", url: IMAGE_BASE + a.file_path, lang: a.iso_639_1 || null,
-                   width: a.width, height: a.height,
-                   vote: a.vote_average ?? null, votes: a.vote_count ?? null }));
   const previousArt = document.artwork || {};
-  const pinnedArt = (kind) => (previousArt[kind] || []).filter((item) => item?.pinned === true);
-  const unpinnedArt = (kind) => (previousArt[kind] || []).filter((item) => item?.pinned !== true);
   document.artwork = {
-    poster: capArtwork([...pinnedArt("poster"), ...toAssets(images.posters), ...unpinnedArt("poster")]),
-    backdrop: capArtwork([...pinnedArt("backdrop"), ...toAssets(images.backdrops), ...unpinnedArt("backdrop")]),
-    logo: capArtwork([...pinnedArt("logo"), ...sortLogos(toAssets(images.logos))]),
+    poster: artworkFromTmdb(previousArt, "poster", images.posters),
+    backdrop: artworkFromTmdb(previousArt, "backdrop", images.backdrops),
+    logo: artworkFromTmdb(previousArt, "logo", images.logos),
   };
 
   if (details.vote_count) {
@@ -860,6 +850,29 @@ function logoRank(asset) {
   const raster = ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "webp";
   return [raster ? 0 : 1, -(asset?.vote || 0), -(asset?.votes || 0),
           -(asset?.height || 0), asset?.width || 0];
+}
+
+/** TMDB image files as stored assets, most votes first (TMDB's own pick is
+ * usually right); size only breaks ties. */
+function tmdbAssets(list) {
+  return (list || [])
+    .filter((a) => a.file_path)
+    .sort((a, b) => compareKey(voteRank(a.vote_average, a.vote_count, a.width),
+                               voteRank(b.vote_average, b.vote_count, b.width)))
+    .map((a) => ({ source: "tmdb", url: IMAGE_BASE + a.file_path, lang: a.iso_639_1 || null,
+                   width: a.width, height: a.height,
+                   vote: a.vote_average ?? null, votes: a.vote_count ?? null }));
+}
+
+/** One kind's stored list rebuilt from a TMDB file list: pins first, then TMDB's
+ * files, one per language (capArtwork). Posters and backdrops keep earlier unpinned
+ * files (other sources) after TMDB's. */
+export function artworkFromTmdb(previousArt, kind, tmdbFiles) {
+  const previous = previousArt?.[kind] || [];
+  const pinned = previous.filter((item) => item?.pinned === true);
+  const unpinned = previous.filter((item) => item?.pinned !== true);
+  if (kind === "logo") return capArtwork([...pinned, ...sortLogos(tmdbAssets(tmdbFiles))]);
+  return capArtwork([...pinned, ...tmdbAssets(tmdbFiles), ...unpinned]);
 }
 
 /** Most votes, then most voters, then the wider file. */
