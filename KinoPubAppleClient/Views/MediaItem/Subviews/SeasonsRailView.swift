@@ -1519,14 +1519,15 @@ struct TrailersRailView: View {
       return "Trailer".localized
     case .external(let video):
       if let name = video.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
-        return name
+        return Self.leavesAppPrefix + name
       }
-      return video.type
+      return Self.leavesAppPrefix + video.type
     }
   }
 
-  /// Before the title of a video that opens outside the app (Sasha, 2026-11-05).
-  static let leavesAppSymbol = "arrow.up.right"
+  /// Written into the title of a video that opens outside the app, the way an episode's
+  /// number is written into its title (Sasha, 2026-11-05).
+  static let leavesAppPrefix = "↗\u{FE0E} "
 
   /// «Кинопаб» / «YouTube» — where the video plays, as the card's second line.
   private func source(of entry: Entry) -> String {
@@ -1571,10 +1572,9 @@ struct TrailersRailView: View {
           TVUIKitMediaItem(id: index, imageURL: imageURL(for: entry), caption: caption(for: entry),
                            focusGlyph: .play)
         case .external:
-          // A caption is a plain string here, so the arrow is the character, not the symbol.
           // No second line: the rail is one caption line tall, as every still rail.
           TVUIKitMediaItem(id: index, imageURL: imageURL(for: entry),
-                           caption: "↗\u{FE0E} " + caption(for: entry), focusGlyph: .youtube)
+                           caption: caption(for: entry), focusGlyph: .youtube)
         }
       },
       contentInset: metrics.inset,
@@ -1609,8 +1609,7 @@ struct TrailersRailView: View {
             case .external(let video):
               // No `.help` with the link: a URL tooltip over the still read as debris.
               Button { open(video) } label: {
-                MediaCardView(card: card, caption: .always, playGlyph: .youtube,
-                              titleSymbol: Self.leavesAppSymbol)
+                MediaCardView(card: card, caption: .always, playGlyph: .youtube)
               }
             }
           }

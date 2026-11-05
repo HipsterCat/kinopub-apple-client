@@ -695,21 +695,17 @@ public struct MediaCardView: View {
   /// What the play chrome is: our glass Play, or YouTube's own button for a card that
   /// opens YouTube (the title page's videos).
   private let playGlyph: LandscapePlayGlyph
-  /// An SF Symbol before the title — `arrow.up.right` on a card that leaves the app.
-  private let titleSymbol: String?
 
   public init(card: MediaCard,
               caption: MediaCardCaption = .always,
               playChromeStyle: LandscapePlayChromeStyle = .glass,
               forcePlayChrome: Bool = false,
-              playGlyph: LandscapePlayGlyph = .play,
-              titleSymbol: String? = nil) {
+              playGlyph: LandscapePlayGlyph = .play) {
     self.card = card
     self.caption = caption
     self.playChromeStyle = playChromeStyle
     self.forcePlayChrome = forcePlayChrome
     self.playGlyph = playGlyph
-    self.titleSymbol = titleSymbol
   }
 
   @Environment(\.isFocused) private var cardFocused
@@ -1399,14 +1395,6 @@ public struct MediaCardView: View {
     HStack(spacing: 0) {
       Spacer(minLength: 0)
       HStack(spacing: 6) {
-        if let titleSymbol {
-          Image(systemName: titleSymbol)
-            .font((titleFont ?? (card.isLandscape ? TypeScale.episodeCardTitle : TypeScale.cardTitle))
-              .weight(.semibold))
-            .imageScale(.small)
-            .foregroundStyle(.secondary)
-            .accessibilityHidden(true)
-        }
         MarqueeText(
           card.title,
           // A landscape card is the title page's episode card, title and all (Sasha,
