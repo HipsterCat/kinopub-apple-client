@@ -9098,6 +9098,42 @@
         }
       }
     },
+    "MediaItem_YouTubeMissingTitle" : {
+      "comment" : "Alert title when a YouTube trailer cannot open (no YouTube app)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube Is Not Installed"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube не установлен"
+          }
+        }
+      }
+    },
+    "MediaItem_YouTubeOpenAppStore" : {
+      "comment" : "Alert button opening YouTube in the App Store",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open App Store"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть App Store"
+          }
+        }
+      }
+    },
     "MediaItem_YouTubeUnavailable" : {
       "comment" : "Toast when a trailer on YouTube cannot be opened (no YouTube app)",
       "extractionState" : "manual",
@@ -9105,13 +9141,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Install YouTube to watch this video"
+            "value" : "This video plays in the YouTube app. Install it from the App Store."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Установите YouTube, чтобы посмотреть это видео"
+            "value" : "Это видео открывается в приложении YouTube. Установите его из App Store."
           }
         }
       }

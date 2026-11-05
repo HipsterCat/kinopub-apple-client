@@ -1446,8 +1446,6 @@ struct TrailersRailView: View {
   var stillURL: String? = nil
   /// False while the hero owns the page, as for the versions.
   var showsChrome: Bool = true
-  /// A YouTube video the system had nothing to open with (no YouTube app on the Apple TV).
-  var onOpenFailed: () -> Void = {}
 
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.openURL) private var openURL
@@ -1455,6 +1453,13 @@ struct TrailersRailView: View {
   @Environment(\.mediaNavigation) private var mediaNavigation
 #endif
   @State private var railWidth: CGFloat = SeasonsRailView.referenceWidth
+  /// A YouTube video the system had nothing to open with (no YouTube app on the Apple TV):
+  /// a system alert, not a toast — a toast was unreadable, gone too fast and offered
+  /// nothing to press (Sasha, 2026-11-05).
+  @State private var showsYouTubeMissing = false
+
+  /// YouTube in the App Store (`itms-apps` opens the App Store app on tvOS and iOS).
+  private static let youTubeStoreURL = URL(string: "itms-apps://apps.apple.com/app/id544007664")!
 
   /// One card of the rail: kino.pub's trailer, or a video somewhere else.
   enum Entry: Identifiable {
@@ -1500,6 +1505,12 @@ struct TrailersRailView: View {
     } action: { width in
       if width > 0 { railWidth = width }
     }
+    .alert("MediaItem_YouTubeMissingTitle", isPresented: $showsYouTubeMissing) {
+      Button("MediaItem_YouTubeOpenAppStore") { openURL(Self.youTubeStoreURL) }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("MediaItem_YouTubeUnavailable")
+    }
   }
 
   private func caption(for entry: Entry) -> String {
@@ -1542,7 +1553,7 @@ struct TrailersRailView: View {
 #if os(tvOS)
     guard let url = video.appURL else { return }
     UIApplication.shared.open(url, options: [:]) { accepted in
-      if !accepted { onOpenFailed() }
+      if !accepted { showsYouTubeMissing = true }
     }
 #else
     guard let url = video.webURL else { return }

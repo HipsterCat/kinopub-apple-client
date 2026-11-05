@@ -852,11 +852,7 @@ struct MediaItemView: View {
                          videos: titlePageVideos,
                          linkProvider: itemModel.linkProvider,
                          stillURL: itemModel.mediaItem.posters.wideURL ?? verticalCover(itemModel.mediaItem.posters.medium),
-                         showsChrome: true,
-                         onOpenFailed: {
-                           itemModel.hudToast = HudToast(systemImage: "play.rectangle",
-                                                         title: "MediaItem_YouTubeUnavailable".localized) // TODO REPLACE TO PROPER SHEET
-                         })
+                         showsChrome: true)
       }
 
 #if os(tvOS)
