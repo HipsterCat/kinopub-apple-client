@@ -55,6 +55,14 @@ extension View {
         // A pushed page does not scroll with its section's memory; a title page brings
         // its own (`MediaItemModel.scrollMemory`).
         .environment(\.scrollMemory, nil)
+#if os(tvOS)
+        // On every page too: a stack opened straight onto a title never shows its root.
+        .tvNavigationZoom()
+#endif
     }
+#if os(tvOS)
+    // tvOS's own scale in/out instead of the stack's crossfade (`TVNavigationZoom`).
+    .tvNavigationZoom()
+#endif
   }
 }

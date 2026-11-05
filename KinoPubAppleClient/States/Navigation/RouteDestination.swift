@@ -165,7 +165,9 @@ private struct ZoomDestinationModifier: ViewModifier {
   let namespace: Namespace.ID?
 
   func body(content: Content) -> some View {
-#if os(iOS) || os(tvOS)
+    // Not tvOS: the zoom has no effect there (Apple's docs), and a preferred transition
+    // on the pushed page would stand in front of `TVNavigationZoom`.
+#if os(iOS)
     if let namespace, let sourceID = route.zoomSourceID {
       content.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
     } else {

@@ -389,6 +389,33 @@ final class TVDetailLayoutUITests: XCTestCase {
     try shoot("paint-03-closing")
   }
 
+  /// From a tab's root to a title and back: the tab bar leaves upward and comes back down,
+  /// and both moves are the tvOS scale in/out (`TVNavigationZoom`). Shots are the check;
+  /// the motion itself needs a recording.
+  func testOpeningATitleFromATabRoot() throws {
+    let system = ProcessInfo.processInfo.environment["KINOPUB_SYSTEM_TRANSITION"] == "1"
+    launch("list", extra: ["-KINOPUBFixtureInTabs", "YES"]
+           + (system ? ["-KINOPUBSystemNavigationTransition", "YES"] : []))
+    let film = app.buttons["kinopub.fixture.film"]
+    XCTAssertTrue(film.waitForExistence(timeout: 20), "no fixture list")
+    Thread.sleep(forTimeInterval: 1.5)
+    XCTAssertTrue(seek(.down, until: "kinopub.fixture.film", limit: 12), focusedDescription)
+    Thread.sleep(forTimeInterval: 1.0)
+    try shoot("tabroot-00-list")
+    XCUIRemote.shared.press(.select)
+    Thread.sleep(forTimeInterval: 0.2)
+    try shoot("tabroot-01-opening")
+    XCTAssertTrue(app.buttons["kinopub.hero.play"].waitForExistence(timeout: 10), "the title never opened")
+    Thread.sleep(forTimeInterval: 2.0)
+    try shoot("tabroot-02-title")
+    XCUIRemote.shared.press(.menu)
+    Thread.sleep(forTimeInterval: 0.2)
+    try shoot("tabroot-03-closing")
+    Thread.sleep(forTimeInterval: 2.0)
+    try shoot("tabroot-04-list")
+    XCTAssertTrue(film.exists, "Menu did not return to the list")
+  }
+
   func testTheBackdropCrossfadesBetweenTitles() throws {
     launch("film", extra: ["-KINOPUBFixtureInTabs", "YES"])
     try waitForHeroFocus()

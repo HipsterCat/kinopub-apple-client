@@ -43,6 +43,16 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   for it). Re-probe on the next SDK.
   Checked by `TVSearchLayoutUITests` (`-KINOPUBSearchFixture -ForceGridKeyboard YES`).
 
+- **`TVNavigationZoom.swift`** (tvOS push and pop) — tvOS has no public page transition but
+  the crossfade: `UIViewController.Transition.zoom` and `.navigationTransition(.zoom)` have no
+  effect there (Apple's docs; probed push and present on 27.2). The scale in/out of TVML apps is
+  TVMLKit's private `_TVNavigationZoomAnimator`, a plain `UIViewControllerAnimatedTransitioning`.
+  SwiftUI's tvOS stack pushes with `animated: false`, so every move swaps the pages at once and
+  the animator is driven from a snapshot of the page left, through a proxy in front of SwiftUI's
+  navigation delegate (it also hides UIKit's private `animatorForOperation:` question, which
+  SwiftUI answers first). The tab bar's hide and show are drawn as a slide up and back down
+  alongside (`TabBarSlide`); SwiftUI still decides when it is hidden. No class, or
+  `-KINOPUBSystemNavigationTransition YES`: the system crossfade. Re-probe on the next SDK.
 - **`TVSettingKit.swift`** (tvOS Settings) — Settings runs on Apple's private `TVSettingKit`
   (`_TSKSplitViewController`, `TSKViewController`, `TSKSettingItem`, `TSKPreviewViewController`):
   the still preview column, the list-only slide-and-crossfade on push, Apple's cells and value
