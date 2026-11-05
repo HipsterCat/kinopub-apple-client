@@ -38,6 +38,9 @@ enum FeatureFlags {
   /// catalog is not fetched.
   static var allBookmarksEnabled: Bool { FeatureFlag.allBookmarks.isEnabled }
   static var macSidebarEnabled: Bool { FeatureFlag.macSidebar.isEnabled }
+  /// Mac: the search field in the toolbar and sort / filters as a row of icon menus — the
+  /// layout before the field moved to the sidebar (Sasha, 2026-11-05).
+  static var macLegacySearchChrome: Bool { FeatureFlag.macLegacySearchChrome.isEnabled }
 
   /// tvOS shelves + grids share one `TVPosterView` / `TVCardView` atom (same
   /// `ShelfMetrics` sizing), drawn by a recycling `UICollectionView` rather than a
@@ -207,6 +210,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case rivuletSeasonRail
   case titleCardMetadata
   case macSidebar
+  case macLegacySearchChrome
 #if DEBUG
   case fakeSeasonsOnMovies
 #endif
@@ -235,6 +239,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rivuletSeasonRail: true
     case .titleCardMetadata: false
     case .macSidebar: true
+    case .macLegacySearchChrome: false
 #if DEBUG
     case .fakeSeasonsOnMovies: false
 #endif
@@ -263,6 +268,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rivuletSeasonRail: "Rivulet season rail"
     case .titleCardMetadata: "Title metadata from /v2/title"
     case .macSidebar: "Sidebar navigation (Mac)"
+    case .macLegacySearchChrome: "Toolbar search field and icon filters (Mac)"
 #if DEBUG
     case .fakeSeasonsOnMovies: "Fake seasons on movies"
 #endif
@@ -291,6 +297,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .rivuletSeasonRail: "Season tabs, the S2 divider and the episode metadata plate. Select on the text opens the info sheet. Off is the numbered tabs."
     case .titleCardMetadata: "One worker /v2/title call plus Kinopoisk instead of the TMDB calls. Only the chosen source is fetched."
     case .macSidebar: "The Apple TV app's sidebar: Search, Home, the catalog, the Library and every bookmark folder. Off is the tab bar."
+    case .macLegacySearchChrome: "The search field in the toolbar on the Search page, and sort / type / genre / country / years as a row of icon menus. Off: the field at the top of the sidebar, one Filters menu and Sort on its own."
 #if DEBUG
     case .fakeSeasonsOnMovies: "A fake, unplayable season rail on movies. Layout probe."
 #endif
@@ -314,7 +321,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
 #else
       true
 #endif
-    case .macSidebar:
+    case .macSidebar, .macLegacySearchChrome:
 #if os(macOS)
       true
 #else
@@ -331,7 +338,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   var appliesAtLaunch: Bool {
     switch self {
     case .homeHeroCarousel, .downloads, .allBookmarks, .tvUIKitPosters, .tvPageSections,
-         .tvUIKitSearch, .combinedRating, .macSidebar:
+         .tvUIKitSearch, .combinedRating, .macSidebar, .macLegacySearchChrome:
       true
     default:
       false

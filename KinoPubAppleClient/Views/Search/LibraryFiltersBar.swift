@@ -50,6 +50,8 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
   /// Mac: the menus as icons in the window toolbar (`LibraryFiltersToolbar`), where the
   /// toolbar draws their glass; the chips' own glass and titles are off.
   var iconOnly = false
+  /// Mac: the menus as submenus of one Filters menu, the system's look inside a menu.
+  var asSubmenu = false
 
   private var years: [YearRange] {
     YearRange.decades(upTo: Calendar.current.component(.year, from: Date()))
@@ -91,6 +93,17 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
   @ViewBuilder
   var menus: some View {
     sortMenu
+    filterMenus
+  }
+
+  /// Sort alone: the toolbar keeps it in one place, trailing, apart from the filters.
+  var sort: some View { sortMenu }
+
+  /// Whether a filter narrows the list now.
+  var hasActiveFilters: Bool { catalog.filter.hasActiveFilters }
+
+  @ViewBuilder
+  var filterMenus: some View {
     if chrome == .full {
       typeMenu
       genreMenu
@@ -287,7 +300,15 @@ struct LibraryFiltersBar<Catalog: FilterBarDriver>: View {
     isActive: Bool,
     @ViewBuilder content: () -> Content
   ) -> some View {
-    if iconOnly {
+    if asSubmenu {
+      // Inside the toolbar's Filters menu: a submenu named for what it narrows, the pick
+      // checked inside (`LibraryFiltersToolbar`).
+      Menu {
+        content()
+      } label: {
+        Label(label, systemImage: icon)
+      }
+    } else if iconOnly {
       // The Mac toolbar's: an icon, the pick named in the tooltip; a filled glyph
       // while it narrows the list.
       Menu {
@@ -430,8 +451,30 @@ struct LibraryFiltersToolbar<Catalog: FilterBarDriver>: ToolbarContent {
   var chrome: LibraryFiltersBarChrome = .full
 
   var body: some ToolbarContent {
-    ToolbarItemGroup(placement: .primaryAction) {
-      LibraryFiltersBar(catalog: catalog, chrome: chrome, iconOnly: true).menus
+    if FeatureFlags.macLegacySearchChrome {
+      ToolbarItemGroup(placement: .primaryAction) {
+        LibraryFiltersBar(catalog: catalog, chrome: chrome, iconOnly: true).menus
+      }
+    } else {
+      // Photos' and Music's: one Filters menu with a submenu per filter, checkmarks
+      // inside; Sort its own menu after it — always last, so it never changes place.
+      if chrome == .full {
+        ToolbarItem(placement: .primaryAction) {
+          let bar = LibraryFiltersBar(catalog: catalog, chrome: chrome, asSubmenu: true)
+          Menu {
+            bar.filterMenus
+          } label: {
+            Label("Filters", systemImage: "line.3.horizontal.decrease")
+              .symbolVariant(bar.hasActiveFilters ? .circle.fill : .none)
+          }
+          .menuIndicator(.hidden)
+          .help(Text("Filters"))
+        }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+      }
+      ToolbarItem(placement: .primaryAction) {
+        LibraryFiltersBar(catalog: catalog, chrome: chrome, iconOnly: true).sort
+      }
     }
   }
 }

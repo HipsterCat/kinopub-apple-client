@@ -348,8 +348,11 @@ struct TabsNavigationView: View {
     NavigationSplitView(columnVisibility: .constant(.all)) {
       VStack(spacing: 0) {
       List(selection: sidebarSelection) {
-        Label("Search", systemImage: "magnifyingglass").tag(NavigationTabs.search)
-          .sidebarReselect(.search, using: sidebarReselect)
+        // The field at the top of the sidebar is Search's way in, without the legacy chrome.
+        if FeatureFlags.macLegacySearchChrome {
+          Label("Search", systemImage: "magnifyingglass").tag(NavigationTabs.search)
+            .sidebarReselect(.search, using: sidebarReselect)
+        }
         ForEach(activeBrowseTabs.filter { $0.tab != .library }) { spec in
           // Outline glyphs, as the TV app's sidebar draws them; the tab bar's are filled.
           Label(spec.title, systemImage: Self.outlineSymbol(spec.systemImage)).tag(spec.tab)
@@ -397,6 +400,7 @@ struct TabsNavigationView: View {
       // The TV app's sidebar is always there: no «Hide Sidebar» button in the toolbar
       // (Sasha, 2026-10-30), and nothing collapses it.
       .toolbar(removing: .sidebarToggle)
+      .modifier(MacSidebarSearchIfOn())
     } detail: {
       // Focus lives in the page, not the list, as in Apple's own sidebar apps: the
       // selection then sits grey under bold type instead of the blue of a focused list,
@@ -1117,6 +1121,17 @@ private struct MacSidebarAccount: View {
 #endif
 
 #if os(macOS)
+/// The search field at the sidebar's top, unless the legacy chrome is on.
+private struct MacSidebarSearchIfOn: ViewModifier {
+  func body(content: Content) -> some View {
+    if FeatureFlags.macLegacySearchChrome {
+      content
+    } else {
+      content.macSidebarSearch()
+    }
+  }
+}
+
 /// A strip as tall as the window toolbar that moves the window, the way the titlebar
 /// does over a page that scrolls under it.
 private struct MacToolbarDragStrip: View {

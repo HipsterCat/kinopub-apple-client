@@ -378,7 +378,10 @@ private struct MacToolbarSearchModifier: ViewModifier {
   func body(content: Content) -> some View {
     // With the sidebar, Search is a place of its own, as in the TV app: the field is on
     // that page alone, not over every other one.
-    if FeatureFlags.macSidebarEnabled && navigationState.selectedTab != .search {
+    // The field at the top of the sidebar instead (`macSidebarSearch`), Settings-style.
+    if FeatureFlags.macSidebarEnabled && !FeatureFlags.macLegacySearchChrome {
+      content
+    } else if FeatureFlags.macSidebarEnabled && navigationState.selectedTab != .search {
       content
     } else {
       field(content)
@@ -386,13 +389,33 @@ private struct MacToolbarSearchModifier: ViewModifier {
   }
 
   private func field(_ content: Content) -> some View {
+    content.modifier(MacSearchField(inSidebar: false))
+  }
+}
+
+extension View {
+  /// The Mac's search field at the top of the sidebar, as System Settings and Infuse have
+  /// it: focusing it opens the Search page, typing searches there.
+  func macSidebarSearch() -> some View {
+    modifier(MacSearchField(inSidebar: true))
+  }
+}
+
+/// The one search field, wherever it sits: its suggestions, recents, and what typing and
+/// Return do.
+private struct MacSearchField: ViewModifier {
+  let inSidebar: Bool
+  @Environment(NavigationState.self) private var navigationState
+  @FocusState private var isFocused: Bool
+
+  func body(content: Content) -> some View {
     @Bindable var navigationState = navigationState
     return content
       // Probe: `.toolbar` = compact trailing field beside `.tabBarOnly` tabs (Finder/Photos).
       // `.automatic` / no placement on this shell can still stretch; `.toolbarPrincipal` is the giant center field.
       .searchable(
         text: $navigationState.macSearchFieldText,
-        placement: .toolbar,
+        placement: inSidebar ? .sidebar : .toolbar,
         prompt: "Search"
       ) {
         // A field that has just been focused has something to offer even on a first
@@ -422,6 +445,11 @@ private struct MacToolbarSearchModifier: ViewModifier {
       }
       .onSubmit(of: .search) {
         navigationState.submitToolbarSearch()
+      }
+      // In the sidebar the field is the way to Search: a click into it opens the page.
+      .searchFocused($isFocused)
+      .onChange(of: isFocused) { _, focused in
+        if focused, inSidebar { navigationState.enterSearch() }
       }
   }
 }
