@@ -196,8 +196,44 @@ struct TitleImagePickerSheet: View {
               .font(.footnote)
               .foregroundStyle(.red)
           }
+          let current = model.currentImages(for: kind)
+          if !current.isEmpty {
+            currentSection(current)
+          }
           ForEach(sections) { section in
             languageSection(section)
+          }
+        }
+      }
+    }
+  }
+
+  /// What the worker has for this title now: a pin, or its own automatic choice.
+  private func currentSection(_ images: [TitleImagePickerCurrent]) -> some View {
+    VStack(alignment: .leading, spacing: TitleImagePickerMetrics.headerSpacing) {
+      Text("On the Title Now")
+        .font(.headline)
+      LazyVGrid(
+        columns: [GridItem(
+          .adaptive(minimum: TitleImagePickerMetrics.minTileWidth(kind),
+                    maximum: TitleImagePickerMetrics.maxTileWidth(kind)),
+          spacing: TitleImagePickerMetrics.gridSpacing
+        )],
+        alignment: .leading,
+        spacing: TitleImagePickerMetrics.gridSpacing
+      ) {
+        ForEach(images) { image in
+          TitleImageTile(kind: image.kind, previewURL: image.previewURL, isSelected: false) {
+            HStack(spacing: 6) {
+              Text(verbatim: image.language.pickerTitle)
+              Text(verbatim: "·")
+              if image.isPinned {
+                Label("Pinned", systemImage: "pin.fill")
+                  .labelStyle(TitleImageCaptionLabelStyle())
+              } else {
+                Text("Automatic")
+              }
+            }
           }
         }
       }
@@ -248,7 +284,21 @@ private struct TitleImageGrid: View {
         Button {
           onSelect(file)
         } label: {
-          TitleImageTile(kind: kind, file: file, isSelected: file.url == selectedURL)
+          TitleImageTile(kind: kind, previewURL: file.previewURL(kind: kind),
+                         isSelected: file.url == selectedURL) {
+            HStack(spacing: 8) {
+              Label {
+                Text(file.voteLabel)
+              } icon: {
+                Image(systemName: "star.fill")
+              }
+              .labelStyle(TitleImageCaptionLabelStyle())
+              Text(verbatim: file.sizeLabel)
+              if file.isVector {
+                Text(verbatim: "SVG")
+              }
+            }
+          }
         }
 #if os(tvOS)
         .buttonStyle(.card)
@@ -261,10 +311,11 @@ private struct TitleImageGrid: View {
   }
 }
 
-private struct TitleImageTile: View {
+private struct TitleImageTile<Caption: View>: View {
   let kind: WorkerImageAdminKind
-  let file: WorkerImageAdminCandidate
+  let previewURL: URL?
   let isSelected: Bool
+  @ViewBuilder let caption: () -> Caption
 
   private var shape: RoundedRectangle {
     RoundedRectangle(cornerRadius: TitleImagePickerMetrics.cornerRadius, style: .continuous)
@@ -283,7 +334,7 @@ private struct TitleImageTile: View {
             // on dark here as well.
             Color(white: 0.16)
               .overlay {
-                CachedRemoteImage(url: file.previewURL(kind: kind), contentMode: .fit) {
+                CachedRemoteImage(url: previewURL, contentMode: .fit) {
                   ProgressView()
                 } failure: {
                   Image(systemName: "photo").foregroundStyle(.secondary)
@@ -291,7 +342,7 @@ private struct TitleImageTile: View {
                 .padding(TitleImagePickerMetrics.logoInset)
               }
           } else {
-            CachedRemoteImage(url: file.previewURL(kind: kind), contentMode: .fill) {
+            CachedRemoteImage(url: previewURL, contentMode: .fill) {
               Color.secondary.opacity(0.15)
             } failure: {
               Color.secondary.opacity(0.15)
@@ -332,18 +383,7 @@ private struct TitleImageTile: View {
         }
         .animation(.snappy(duration: 0.2), value: isSelected)
 
-      HStack(spacing: 8) {
-        Label {
-          Text(file.voteLabel)
-        } icon: {
-          Image(systemName: "star.fill")
-        }
-        .labelStyle(TitleImageCaptionLabelStyle())
-        Text(verbatim: file.sizeLabel)
-        if file.isVector {
-          Text(verbatim: "SVG")
-        }
-      }
+      caption()
       .font(.caption)
       .monospacedDigit()
       .foregroundStyle(.secondary)
@@ -393,6 +433,21 @@ private enum TitleImagePickerMetrics {
 
 // MARK: - Model
 
+/// A file the worker stores for the title and serves for one language.
+struct TitleImagePickerCurrent: Identifiable {
+  let kind: WorkerImageAdminKind
+  let language: WorkerArtworkLanguageTag
+  let url: String
+  let isPinned: Bool
+
+  var id: String { "\(kind.rawValue)-\(language.rawValue)" }
+
+  var previewURL: URL? {
+    let width = kind == .logo ? "w500" : "w780"
+    return URL(string: url.replacingOccurrences(of: "/t/p/original/", with: "/t/p/\(width)/"))
+  }
+}
+
 struct TitleImagePickerSection: Identifiable {
   let kind: WorkerImageAdminKind
   let language: WorkerArtworkLanguageTag
@@ -420,6 +475,8 @@ final class TitleImagePickerModel {
   private var selection: [WorkerImageAdminKind: [WorkerArtworkLanguageTag: String]] = [:]
   /// What the worker has pinned, as the catalog reported it.
   private var pinned: [WorkerImageAdminKind: [WorkerArtworkLanguageTag: String]] = [:]
+  /// What the worker serves now, per language: a pin, else its stored automatic file.
+  private var current: [WorkerImageAdminKind: [TitleImagePickerCurrent]] = [:]
 
   private(set) var isSaving = false
   private(set) var saveError: String?
@@ -453,6 +510,10 @@ final class TitleImagePickerModel {
     case .logo: userLanguage == .en ? [.en, .ru, .und] : [.ru, .en, .und]
     default: [.und, .en, .ru]
     }
+  }
+
+  func currentImages(for kind: WorkerImageAdminKind) -> [TitleImagePickerCurrent] {
+    current[kind] ?? []
   }
 
   func sections(for kind: WorkerImageAdminKind) -> [TitleImagePickerSection] {
@@ -537,22 +598,51 @@ final class TitleImagePickerModel {
   private func apply(_ catalog: WorkerImageAdminCatalog, kind: WorkerImageAdminKind) {
     catalogs[kind] = catalog
     let order = languageOrder(for: kind)
-    // Where each pinned file sits in the TMDB list, by its url.
-    var bucketOf: [String: WorkerArtworkLanguageTag] = [:]
+    // TMDB files by file name: the worker may hold a file as .png that TMDB lists as .svg.
+    var fileFor: [String: (language: WorkerArtworkLanguageTag, url: String)] = [:]
     for language in order {
-      for file in catalog.bucket(language) { bucketOf[file.url] = language }
+      for file in catalog.bucket(language) {
+        fileFor[Self.fileKey(file.url)] = (language, file.url)
+      }
     }
+    let stored = (catalog.stored ?? []).filter { !Self.isKinopubArt($0.url) }
+    func tag(_ lang: String?) -> WorkerArtworkLanguageTag? {
+      guard let lang else { return .und }
+      return WorkerArtworkLanguageTag(rawValue: lang)
+    }
+
+    // What the worker serves: per language a pin, else the first stored file — its list
+    // keeps pins first, then its own ranking. Backdrops: the one pin, else a textless one.
+    var now: [TitleImagePickerCurrent] = []
+    if kind == .logo {
+      for language in order {
+        let mine = stored.filter { tag($0.lang) == language }
+        if let asset = mine.first(where: { $0.pinned == true }) ?? mine.first {
+          now.append(TitleImagePickerCurrent(kind: kind, language: language, url: asset.url,
+                                             isPinned: asset.pinned == true))
+        }
+      }
+    } else if let asset = stored.first(where: { $0.pinned == true })
+                ?? stored.first(where: { $0.lang == nil }) {
+      now.append(TitleImagePickerCurrent(kind: kind, language: tag(asset.lang) ?? .und,
+                                         url: asset.url, isPinned: asset.pinned == true))
+    }
+    current[kind] = now
+
+    // Pins and the served files, as TMDB files in the grid.
     var pins: [WorkerArtworkLanguageTag: String] = [:]
-    for stored in catalog.stored ?? [] where stored.pinned == true {
-      guard let language = bucketOf[stored.url] else { continue }
-      pins[language] = stored.url
-    }
-    if kind != .logo, let first = order.first(where: { pins[$0] != nil }) {
-      pins = [first: pins[first]!]
+    var served: [WorkerArtworkLanguageTag: String] = [:]
+    for item in now {
+      guard let match = fileFor[Self.fileKey(item.url)] else { continue }
+      let language = kind == .logo ? item.language : match.language
+      if item.isPinned { pins[language] = match.url }
+      served[language] = match.url
     }
     pinned[kind] = pins
 
-    var chosen = pins
+    // Start on what is on the title now; a language with nothing stored starts on its
+    // most-voted file.
+    var chosen = served
     if kind == .logo {
       for language in order where chosen[language] == nil {
         chosen[language] = Self.ranked(catalog.bucket(language)).first?.url
@@ -563,6 +653,17 @@ final class TitleImagePickerModel {
     }
     selection[kind] = chosen
     phases[kind] = .loaded
+  }
+
+  /// `…/t/p/original/abc.svg` and `…/abc.png` are one TMDB file.
+  static func fileKey(_ url: String) -> String {
+    let name = URL(string: url)?.lastPathComponent ?? url
+    return (name as NSString).deletingPathExtension
+  }
+
+  private static func isKinopubArt(_ url: String) -> Bool {
+    guard let host = URL(string: url)?.host?.lowercased() else { return false }
+    return host.contains("kinopub") || host.contains("kino.pub") || host.contains("staticpop")
   }
 
   /// Most votes first (usually the right one), then the larger file.
