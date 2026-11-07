@@ -1,4 +1,4 @@
-
+#if !os(tvOS)
 import Foundation
 //
 //  HomeHeroCarousel.swift
@@ -28,7 +28,7 @@ import KinoPubMetadata
 import SwiftUI
 #if os(macOS)
 import AppKit
-
+#endif
 
 public struct HomeHeroCarousel: View {
   private let hero: HomeHero
