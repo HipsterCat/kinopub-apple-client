@@ -89,6 +89,14 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// Set once a stream failed through the master rewrite; this session plays the plain
   /// URL from then on (`fallBackWithoutMasterRewrite`).
   private var bypassesMasterRewrite = false
+  /// When a stream that was already playing last died and was reloaded without asking
+  /// (`recoverAfterMidStreamFailure`). One reload per window, so a stream that keeps dying
+  /// ends in the alert instead of a reload loop.
+  private var lastSilentRecovery: Date?
+  private static let silentRecoveryWindow: TimeInterval = 120
+  /// Where the stream stood when it died, for the reload to open at. More exact than the
+  /// local store's ten-second tick, and there for modes the store does not cover.
+  private var recoveryResumeTime: TimeInterval?
   private var statusObservation: NSKeyValueObservation?
   private var seekObservation: NSKeyValueObservation?
   private var playbackFailureObserver: NSObjectProtocol?
@@ -339,6 +347,10 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
                episode: playItem.metadata.video)?
         .position
     }
+    if watchMode != .live, let recovery = recoveryResumeTime {
+      pendingResumeTime = recovery
+    }
+    recoveryResumeTime = nil
     observePlaybackState(of: item)
     observeEndOfPlayback(of: item)
     observeMediaSelection(of: item)
@@ -407,7 +419,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     playbackState = .preparing
     statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
       DispatchQueue.main.async {
-        guard let self else { return }
+        // A change queued by an item that has since been torn down (a reload already
+        // replaced it) says nothing about what is playing now.
+        guard let self, item === self.player.currentItem else { return }
         switch item.status {
         case .readyToPlay:
           self.prepareWatchdog?.cancel()
@@ -427,9 +441,11 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
           Task { await self.fetchWatchMark() }
         case .failed:
           self.prepareWatchdog?.cancel()
-          let reason = item.error?.localizedDescription ?? "item failed"
-          if MainActor.assumeIsolated({ self.fallBackWithoutMasterRewrite(reason: reason) }) { return }
-          self.playbackState = .failed(Self.failureMessage(for: item))
+          let error = item.error
+          let message = Self.failureMessage(for: item)
+          MainActor.assumeIsolated {
+            self.handleStreamFailure(error: error, message: message)
+          }
         default:
           break
         }
@@ -438,9 +454,54 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     playbackFailureObserver = NotificationCenter.default.addObserver(
       forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main
     ) { [weak self] note in
+      // Same rule as the status change above: a torn-down item's failure is not news.
+      guard let self, (note.object as AnyObject?) === self.player.currentItem else { return }
       let error = note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
-      self?.playbackState = .failed(error?.localizedDescription ?? "Couldn't Load".localized)
+      let message = error?.localizedDescription ?? "Couldn't Load".localized
+      MainActor.assumeIsolated {
+        self.handleStreamFailure(error: error, message: message)
+      }
     }
+  }
+
+  /// Every way a stream dies ends here: a silent reload of a stream that was already
+  /// playing, a retry without the master rewrite, and only then the alert. The cause goes
+  /// to the log by domain and code — the alert's text alone never named it.
+  @MainActor
+  private func handleStreamFailure(error: Error?, message: String) {
+    let ns = error as NSError?
+    let event = player.currentItem?.errorLog()?.events.last
+    let cause = "\(ns?.domain ?? "-")/\(ns?.code ?? 0)"
+    let logged = "\(event?.errorDomain ?? "-")/\(event?.errorStatusCode ?? 0)"
+    let host = event?.uri.flatMap { URL(string: $0)?.host } ?? "-"
+    let comment = event?.errorComment ?? ""
+    let state = String(describing: playbackState)
+    Logger.app.error(
+      "stream failed item=\(self.playItem.id) state=\(state, privacy: .public) error=\(cause, privacy: .public) log=\(logged, privacy: .public) host=\(host, privacy: .public) \(comment, privacy: .public)"
+    )
+    // A stream that played for a while did not die of the rewrite: reload it as it was
+    // first, and keep the dub names. The rewrite fallback is for what never got going.
+    if recoverAfterMidStreamFailure() { return }
+    if fallBackWithoutMasterRewrite(reason: ns?.localizedDescription ?? "item failed") { return }
+    playbackState = .failed(message)
+  }
+
+  /// A stream that already played and then died gets reloaded once at the same position,
+  /// without the alert. The case it is for (Sasha, 2026-11-07): a film paused for hours
+  /// while the app sat in the background fails on Play, and the alert's "Try Again" — the
+  /// same reload — plays it on fine. A stream that fails while still preparing is not
+  /// retried here: a fresh load that cannot open is a real failure, and the viewer is told.
+  @MainActor
+  private func recoverAfterMidStreamFailure() -> Bool {
+    guard playbackState == .ready else { return false }
+    if let last = lastSilentRecovery,
+       Date().timeIntervalSince(last) < Self.silentRecoveryWindow { return false }
+    lastSilentRecovery = Date()
+    let position = player.currentTime().seconds
+    Logger.app.info("stream failed mid-play; reloading at \(position.isFinite ? Int(position) : -1)s")
+    if position.isFinite, position > 0 { recoveryResumeTime = position }
+    retryAfterFailure()
+    return true
   }
 
   private static func failureMessage(for item: AVPlayerItem) -> String {
