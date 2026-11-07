@@ -108,6 +108,11 @@ Captioning *Always On* is *Always enabled*, anything else *Shown with foreign au
 one across the episode, season, title and anime scopes. "Off" is a pick like any language. A picked
 language the episode does not have falls through to the mode, not to off.
 
+**prd** — **The menu is the master's.** What the subtitles are decided from is the list of
+renditions the system player offers, not the API's subtitle list, which can be short or empty for
+an episode whose stream has English in it (troubleshooting.md). The API's list only answers
+before the stream is open — a card, a Play button.
+
 **prd** — Nothing is written when there was nothing to choose: an item with no subtitle track teaches
 nothing.
 

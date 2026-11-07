@@ -255,22 +255,31 @@ final class PlayerTrackSelectionTests: XCTestCase {
     XCTAssertEqual(manager(for: item).primaryTrack?.lang, "ukr")
   }
 
-  /// What `noteViewerPicks` treats as a pick: anything on screen that is not what the
-  /// playback opened with, or the pick already written.
+  /// What `noteViewerPicks` treats as a pick (`PickWatch`).
   func testWhatCountsAsAPick() {
     typealias Pick = SubtitleChoiceSignature
     let eng = Pick(languageKey: "eng", isCC: false)
     let rus = Pick(languageKey: "rus", isCC: false)
-    // AVFoundation's own default, before ours replaced it: not the viewer.
-    XCTAssertNil(PlayerManager.viewerPick(current: eng, opened: nil, alreadyPicked: nil))
-    // What we opened with, still on screen: not a pick.
-    XCTAssertNil(PlayerManager.viewerPick(current: Pick.off, opened: Pick.off, alreadyPicked: nil))
-    XCTAssertEqual(PlayerManager.viewerPick(current: eng, opened: Pick.off, alreadyPicked: nil), eng)
-    // The same pick seen again (the tick after the notification): written once.
-    XCTAssertNil(PlayerManager.viewerPick(current: eng, opened: Pick.off, alreadyPicked: eng))
-    XCTAssertEqual(PlayerManager.viewerPick(current: rus, opened: Pick.off, alreadyPicked: eng), rus)
-    // Going back to what it opened with, after a pick, is a pick.
-    XCTAssertEqual(PlayerManager.viewerPick(current: Pick.off, opened: Pick.off, alreadyPicked: eng), Pick.off)
+    var watch = PickWatch<Pick>()
+    watch.request(eng)
+    // The Mac's blip while English was being applied (2026-11-07): not the viewer.
+    XCTAssertNil(watch.observe(Pick.off))
+    XCTAssertNil(watch.observe(eng), "what was asked for, now on screen: settled, not a pick")
+    XCTAssertEqual(watch.observe(Pick.off), Pick.off, "after that, Off is the viewer's")
+    XCTAssertNil(watch.observe(Pick.off), "the same pick seen again is written once")
+    XCTAssertEqual(watch.observe(rus), rus)
+    XCTAssertEqual(watch.observe(eng), eng, "back to what it opened with is a pick too")
+  }
+
+  /// A selection the system never shows as asked settles on the first tick, as the baseline.
+  func testATickSettlesWhateverIsShowing() {
+    typealias Pick = SubtitleChoiceSignature
+    let eng = Pick(languageKey: "eng", isCC: false)
+    var watch = PickWatch<Pick>()
+    watch.request(eng)
+    XCTAssertNil(watch.observe(Pick.off, settling: true))
+    XCTAssertNil(watch.observe(Pick.off))
+    XCTAssertEqual(watch.observe(eng), eng)
   }
 
   func testATrailerChoosesNothingAndTeachesNothing() {

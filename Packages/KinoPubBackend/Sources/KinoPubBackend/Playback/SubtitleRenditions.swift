@@ -36,6 +36,34 @@ public protocol SubtitleRendition {
 /// descriptions of the same file fetched in the same breath, not across time.
 public enum SubtitleRenditions {
 
+  /// **What the master actually offers, as tracks** — the menu the system player shows.
+  ///
+  /// The API's subtitle list is not that menu. Measured 2026-11-01 on item 128098: the
+  /// details call lists `[eng, ai]` for S1E1 (the master has two English renditions and
+  /// the AI one) and **nothing** for S1E2–E4, whose masters carry one or two English
+  /// renditions each; `/v1/items/media-links` has them all. Decided from the API's list,
+  /// those episodes opened without subtitles whatever the mode, a pick in the menu was
+  /// never written down ("nothing to choose from"), and when the list held only some
+  /// other language, *Always* fell through to it — Romanian over an English the master
+  /// had. Once the player has the group, this is what it decides from.
+  ///
+  /// One track per rendition, in group order, so `renditionIndex` maps each straight back.
+  /// No sidecar URL: the system player renders the rendition itself.
+  public static func catalog<R: SubtitleRendition>(_ renditions: [R]) -> [SubtitleTrack] {
+    var seenPerLanguage: [String: Int] = [:]
+    return renditions.enumerated().map { index, rendition in
+      let key = SubtitleTracks.languageKey(rendition.renditionLanguageCode)
+      let ordinal = seenPerLanguage[key, default: 0]
+      seenPerLanguage[key] = ordinal + 1
+      return SubtitleTrack(index: index,
+                           subtitle: Subtitle(lang: rendition.renditionLanguageCode, shift: 0,
+                                              embed: true, url: ""),
+                           isCC: rendition.isCaptioningRendition,
+                           isForced: rendition.isForcedRendition,
+                           ordinal: ordinal)
+    }
+  }
+
   /// The rendition carrying `track`, or `nil` when this master offers nothing of its
   /// language — in which case the honest answer is no subtitles rather than a wrong line.
   public static func rendition<R: SubtitleRendition>(for track: SubtitleTrack,

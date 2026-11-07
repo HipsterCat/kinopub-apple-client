@@ -8,6 +8,8 @@
 import SwiftUI
 import KinoPubKit
 import KinoPubUI
+import KinoPubLogging
+import OSLog
 
 enum WindowSize {
   static let macos = CGSize(width: 960, height: 580)
@@ -90,6 +92,27 @@ struct KinoPubAppleClientApp: App {
           else { return }
           navigationState.selectBrowseTab(.home)
           navigationState.mainRoutes = [.detailsById(id)]
+        }
+        // `-KINOPUBPlayEpisode <item>:<season>:<episode>`: straight into the player on one
+        // episode, the way a Continue Watching card resolves it — for checking what the
+        // player decides (the `tracks ·` log lines) without walking there.
+        .task(id: authState.userState) {
+          guard authState.userState == .authorized,
+                let raw = UserDefaults.standard.string(forKey: "KINOPUBPlayEpisode") else { return }
+          let parts = raw.split(separator: ":").compactMap { Int($0) }
+          guard parts.count == 3 else { return }
+          do {
+            let item = try await AppContext.shared.contentService.fetchDetails(for: "\(parts[0])").item
+            item.seasons?.forEach { $0.mediaId = item.id }
+            AppContext.shared.localProgressStore.cacheItem(item)
+            guard let season = item.seasons?.first(where: { $0.number == parts[1] }),
+                  let episode = season.episodes.first(where: { $0.number == parts[2] }) else { return }
+            episode.seasonNumber = season.number
+            episode.mediaId = item.id
+            navigationState.push(.player(episode, token: UUID()))
+          } catch {
+            Logger.app.error("KINOPUBPlayEpisode: \(error)")
+          }
         }
 #endif
         // Register a readable device identity + advertise HEVC/4K/HDR at activation, so

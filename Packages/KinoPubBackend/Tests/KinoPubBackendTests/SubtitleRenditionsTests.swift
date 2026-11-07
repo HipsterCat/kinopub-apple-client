@@ -161,4 +161,63 @@ final class SubtitleRenditionsTests: XCTestCase {
                                           among: [Rendition(renditionLanguageCode: "ru")],
                                           in: catalog))
   }
+
+  // MARK: - The master is the menu
+
+  private var alwaysEnglishThenRussian: PlaybackLanguagePreferences {
+    var settings = PlaybackLanguagePreferences.default
+    settings.subtitleMode = .always
+    settings.audioLanguages = ["ru", "en"]
+    settings.subtitleLanguages = ["en", "ru"]
+    return settings
+  }
+
+  private func decide(_ renditions: [Rendition],
+                      settings: PlaybackLanguagePreferences) -> Int? {
+    let catalog = SubtitleRenditions.catalog(renditions)
+    let decision = TrackResolver.resolve(audio: [AudioTrackInfo(lang: "rus", typeId: 2)],
+                                         subtitles: catalog,
+                                         settings: settings,
+                                         systemLanguages: ["ru", "en"])
+    return decision.subtitle.flatMap {
+      SubtitleRenditions.renditionIndex(for: $0, among: catalog, in: renditions)
+    }
+  }
+
+  /// Купертино S1E2 (item 128098, measured 2026-11-01): the details call lists no
+  /// subtitles, the master has one English rendition. Always enabled shows it.
+  func testAnEpisodeTheAPIListsNoSubtitlesForStillOpensWithTheMastersEnglish() {
+    XCTAssertEqual(decide([Rendition(renditionLanguageCode: "en")], settings: alwaysEnglishThenRussian), 0)
+  }
+
+  /// S1E1: the master has ENG #01, ENG #02 and the machine-translated AI track; English
+  /// wins, the first of the two.
+  func testTwoEnglishRenditionsAndTheAITrackOpenWithTheFirstEnglish() {
+    let renditions = [Rendition(renditionLanguageCode: "en"),
+                      Rendition(renditionLanguageCode: "en"),
+                      Rendition(renditionLanguageCode: "ai")]
+    XCTAssertEqual(decide(renditions, settings: alwaysEnglishThenRussian), 0)
+  }
+
+  /// "Romanian on the next episode": decided from a short list that had only Romanian,
+  /// *Always* fell through to it. From the master, English is there and wins.
+  func testEnglishInTheMasterBeatsAnotherLanguageTheListHappenedToHave() {
+    let renditions = [Rendition(renditionLanguageCode: "ro"), Rendition(renditionLanguageCode: "en")]
+    XCTAssertEqual(decide(renditions, settings: alwaysEnglishThenRussian), 1)
+  }
+
+  /// One track per rendition, kinds carried over, so a pick reads back exactly.
+  func testTheCatalogPairsEveryRenditionWithItself() {
+    let renditions = [Rendition(renditionLanguageCode: "en"),
+                      Rendition(renditionLanguageCode: "en", isCaptioningRendition: true),
+                      Rendition(renditionLanguageCode: "ru", isForcedRendition: true),
+                      Rendition(renditionLanguageCode: "en")]
+    let catalog = SubtitleRenditions.catalog(renditions)
+    XCTAssertEqual(catalog.map(\.isCC), [false, true, false, false])
+    XCTAssertEqual(catalog.map(\.isForced), [false, false, true, false])
+    for index in renditions.indices {
+      XCTAssertEqual(SubtitleRenditions.renditionIndex(for: catalog[index], among: catalog, in: renditions), index)
+      XCTAssertEqual(SubtitleRenditions.track(forRenditionAt: index, among: renditions, in: catalog), catalog[index])
+    }
+  }
 }

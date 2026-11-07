@@ -120,14 +120,10 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   private var recordedAudioSignature: AudioTrackSignature?
   /// Set once this session's subtitle choice has been written down.
   private var recordedSubtitleSignature: SubtitleChoiceSignature?
-  /// What this playback opened with, as it reached the system player. The line a pick of
-  /// the viewer's own is told apart by (`noteViewerPicks`): anything else on screen later
-  /// is something they chose.
-  private var openedAudioSignature: AudioTrackSignature?
-  private var openedSubtitleSignature: SubtitleChoiceSignature?
-  /// The viewer's latest own pick in this playback, so one pick is written once.
-  private var pickedAudioSignature: AudioTrackSignature?
-  private var pickedSubtitleSignature: SubtitleChoiceSignature?
+  /// What this playback asked the system player for, and the viewer's picks since — the
+  /// line a pick of their own is told apart by (`noteViewerPicks`, `PickWatch`).
+  private var audioPicks = PickWatch<AudioTrackSignature>()
+  private var subtitlePicks = PickWatch<SubtitleChoiceSignature>()
   /// `AVPlayerItemMediaSelectionDidChange` for the item playing: a pick in the system
   /// Audio / Subtitles menu is written down the moment it is made, not on the next tick —
   /// switching episodes seconds after a pick used to lose it.
@@ -278,7 +274,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       // recorded as one and not as a play. Subtitles have no plays to count — they are
       // the mode plus the latest pick (docs/product/playback-tracks.md).
       DispatchQueue.main.async {
-        self?.noteViewerPicks()
+        // Ten seconds into a playing stream the selection has settled whatever the system
+        // reported on the way there.
+        self?.noteViewerPicks(settling: true)
         self?.persistAudioSelectionIfNeeded(at: time)
       }
     })
@@ -929,6 +927,11 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// API answers 404 to — and would silently write onto a different title if that
   /// number happened to be a real item id.
   private var canReportWatching: Bool {
+#if DEBUG
+    // `-KINOPUBNoWatchReports YES`: a probe run on the real account leaves no progress,
+    // local or on the server (`-KINOPUBPlayEpisode`).
+    if UserDefaults.standard.bool(forKey: "KINOPUBNoWatchReports") { return false }
+#endif
     guard playItem.metadata.isResolved else {
       Logger.app.error(
         "watching skipped: unresolved item id for video=\(self.playItem.metadata.video ?? -1) season=\(self.playItem.metadata.season ?? -1)"
@@ -1271,7 +1274,7 @@ extension PlayerManager {
         if let chosen {
           item.select(chosen, in: group)
         }
-        self.openedAudioSignature = self.currentAudioSignature
+        self.audioPicks.request(chosen.flatMap { self.audioSignature(for: $0, in: group) })
         self.logAudioMenu(group, chosen: chosen, decision: refreshed.decision)
       }
 #if os(tvOS)
@@ -1350,6 +1353,19 @@ extension PlayerManager {
       item.select(nil, in: group)
       return
     }
+    // The master's renditions are the menu, not the API's list, which can be short or
+    // empty (`SubtitleRenditions.catalog`). Decided again from them — with the audio menu
+    // the dub was chosen from, when it is known already.
+    let fromMaster = SubtitleRenditions.catalog(group.options)
+    if !fromMaster.isEmpty {
+      if fromMaster.count != subtitleTracks.count {
+        Logger.app.info(
+          "tracks · subtitles item=\(self.playItem.id) api=\(self.subtitleTracks.count) master=\(fromMaster.count) — deciding from the master"
+        )
+      }
+      subtitleTracks = fromMaster
+      primaryTrack = refreshPlan(audioMenu: audibleGroup.map { audioMenu(from: $0) }).decision.subtitle
+    }
     let index = primaryTrack.flatMap {
       SubtitleRenditions.renditionIndex(for: $0, among: subtitleTracks, in: group.options)
     }
@@ -1357,7 +1373,9 @@ extension PlayerManager {
       Logger.app.debug("No rendition for the decided subtitle track; opening without subtitles")
     }
     item.select(index.map { group.options[$0] }, in: group)
-    openedSubtitleSignature = currentSubtitleSignature
+    subtitlePicks.request(index.flatMap {
+      SubtitleRenditions.track(forRenditionAt: $0, among: group.options, in: subtitleTracks)
+    }.map(SubtitleChoiceSignature.init) ?? .off)
     logSubtitleMenu(group, chosenIndex: index)
   }
 
@@ -1391,7 +1409,7 @@ extension PlayerManager {
   private func logSubtitleMenu(_ group: AVMediaSelectionGroup, chosenIndex: Int?) {
     let picked = chosenIndex.map { "#\($0)" } ?? "none"
     Logger.app.info(
-      "tracks · subtitles item=\(self.playItem.id) api=\(self.subtitleTracks.count) options=\(group.options.count) picked=\(picked, privacy: .public) decided=\(self.primaryTrack?.displayName ?? "off", privacy: .public)"
+      "tracks · subtitles item=\(self.playItem.id) options=\(group.options.count) picked=\(picked, privacy: .public) decided=\(self.primaryTrack?.displayName ?? "off", privacy: .public) reason=\(self.plan.decision.subtitleReason.rawValue, privacy: .public) mode=\(PlaybackLanguagePreferences.subtitleMode.rawValue, privacy: .public)"
     )
     for (index, option) in group.options.enumerated() {
       Logger.app.info(
@@ -1439,28 +1457,14 @@ extension PlayerManager {
   ///
   /// Called from the selection-change notification, from the tick as a fallback, and on
   /// tear-down, so a pick made seconds before *Episodes* or Up Next still counts.
-  func noteViewerPicks() {
+  func noteViewerPicks(settling: Bool = false) {
     guard watchMode == .media else { return }
-    if let pick = Self.viewerPick(current: currentAudioSignature,
-                                  opened: openedAudioSignature,
-                                  alreadyPicked: pickedAudioSignature) {
+    if let pick = audioPicks.observe(currentAudioSignature, settling: settling) {
       viewerPicked(audio: pick)
     }
-    if let pick = Self.viewerPick(current: currentSubtitleSignature,
-                                  opened: openedSubtitleSignature,
-                                  alreadyPicked: pickedSubtitleSignature) {
+    if let pick = subtitlePicks.observe(currentSubtitleSignature, settling: settling) {
       viewerPicked(subtitle: pick)
     }
-  }
-
-  /// `current` is a pick when it differs from the last thing that was on screen on purpose —
-  /// the latest pick, else what the playback opened with. Before the opening selection is
-  /// known nothing is a pick: that is AVFoundation's own default, still being replaced.
-  static func viewerPick<Signature: Equatable>(current: Signature?,
-                                               opened: Signature?,
-                                               alreadyPicked: Signature?) -> Signature? {
-    guard let current, let opened else { return nil }
-    return current == (alreadyPicked ?? opened) ? nil : current
   }
 
   /// Written to every scope at once, and it also stands for this playback's one play, so
@@ -1468,7 +1472,7 @@ extension PlayerManager {
   func viewerPicked(audio signature: AudioTrackSignature) {
     let scopes = trackScopes
     guard !scopes.isEmpty else { return }
-    pickedAudioSignature = signature
+    audioPicks.picked(signature)
     recordedAudioSignature = signature
     trackPreferences.recordAudio(signature, in: scopes, picked: true)
     Logger.app.info("tracks · picked audio item=\(self.playItem.id) \(signature.displayLabel, privacy: .public)")
@@ -1477,7 +1481,7 @@ extension PlayerManager {
   func viewerPicked(subtitle signature: SubtitleChoiceSignature) {
     let scopes = trackScopes
     guard !scopes.isEmpty else { return }
-    pickedSubtitleSignature = signature
+    subtitlePicks.picked(signature)
     recordedSubtitleSignature = signature
     trackPreferences.recordSubtitle(signature, in: scopes, picked: true)
     Logger.app.info("tracks · picked subtitles item=\(self.playItem.id) \(signature.displayLabel, privacy: .public)")
@@ -2208,5 +2212,45 @@ extension AVMediaSelectionOption: SubtitleRendition {
   public var isCaptioningRendition: Bool {
     hasMediaCharacteristic(.transcribesSpokenDialogForAccessibility)
       || hasMediaCharacteristic(.describesMusicAndSoundForAccessibility)
+  }
+}
+
+/// **Which selection changes are the viewer's** — one per kind (dub, subtitles).
+///
+/// The player records what it *asked for* (`request`), not what the item reports right
+/// after: on the Mac (2026-11-07, Купертино S1E2) the item reported "no subtitles" for a
+/// moment while the English it had been told to select was being applied, and that blip
+/// was written down as the viewer turning subtitles off — a pick that, landing last, would
+/// have kept the title bare for good. So nothing counts as a pick until the selection has
+/// settled: the item shows what was asked for, or the stream has played a tick
+/// (`settling`), whatever it shows then becoming the baseline.
+struct PickWatch<Signature: Equatable> {
+  private(set) var requested: Signature?
+  private(set) var isSettled = false
+  private(set) var latestPick: Signature?
+
+  /// A new stream, or a new decision for this one.
+  mutating func request(_ signature: Signature?) {
+    requested = signature
+    isSettled = false
+  }
+
+  mutating func picked(_ signature: Signature) {
+    latestPick = signature
+  }
+
+  /// What the item shows now. Returns a pick to write down, once, or nil.
+  mutating func observe(_ current: Signature?, settling: Bool = false) -> Signature? {
+    guard let current else { return nil }
+    guard isSettled else {
+      if current == requested || settling {
+        isSettled = true
+        requested = current
+      }
+      return nil
+    }
+    guard current != (latestPick ?? requested) else { return nil }
+    latestPick = current
+    return current
   }
 }
