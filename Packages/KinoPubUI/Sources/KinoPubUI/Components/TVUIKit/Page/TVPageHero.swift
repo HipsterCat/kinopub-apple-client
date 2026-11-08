@@ -719,12 +719,12 @@ final class TVPageHeroCell: UICollectionViewCell {
     TVPageBannerCell.fillMeta(meta, card: card,
                               parts: HomeHeroText.metaParts(for: card, genres: HomeHeroText.Rules.genres),
                               chrome: Self.metaChrome)
-    meta.isHidden = meta.arrangedSubviews.isEmpty
+    meta.setHiddenOnce(meta.arrangedSubviews.isEmpty)
     let synopsis = HomeHeroText.Rules.showsSynopsis
       ? card.overview.flatMap { TVPageBannerCell.smartSynopsis(of: $0) } : nil
     overview.setUnhyphenated(synopsis)
-    overview.isHidden = synopsis?.isEmpty ?? true
-    bookmarkButton.isHidden = bookmarkEntries == nil
+    overview.setHiddenOnce(synopsis?.isEmpty ?? true)
+    bookmarkButton.setHiddenOnce(bookmarkEntries == nil)
     applyPlay(feature.play)
     let bookmarkGlyph = feature.isBookmarked ? "bookmark.fill" : "bookmark"
     if bookmarkGlyph != paintedBookmarkGlyph {
@@ -752,8 +752,8 @@ final class TVPageHeroCell: UICollectionViewCell {
     let appears = (image != nil || isText) && (logo.image !== image || titleLabel.isHidden == isText)
     let paint = {
       self.logo.image = image
-      self.logo.isHidden = image == nil
-      self.titleLabel.isHidden = !isText
+      self.logo.setHiddenOnce(image == nil)
+      self.titleLabel.setHiddenOnce(!isText)
       self.sizeLogo()
       self.paintCaption(mark: image != nil ? .logo : (isText ? .text : .empty))
     }
@@ -787,14 +787,14 @@ final class TVPageHeroCell: UICollectionViewCell {
   /// The line under the mark: what the title page's hero says under the same mark.
   private func paintCaption(mark shown: TitleLogoMark) {
     guard let card = carousel?.current?.card else {
-      caption.isHidden = true
+      caption.setHiddenOnce(true)
       return
     }
     let line = TitleLogoCaption.line(mark: shown, deliveredLanguage: logoSession.deliveredLanguage,
                                      logoURL: carousel?.current?.logoURL, localized: card.title,
                                      original: card.subtitle ?? card.title)
     caption.text = line
-    caption.isHidden = line?.isEmpty ?? true
+    caption.setHiddenOnce(line?.isEmpty ?? true)
     // Under a logo it wraps at the logo's edge (230 pt at least, as on the title page);
     // under the name, at the words' column.
     captionWidth.constant = shown == .logo ? max(logoWidth.constant, 230) : wordsWidth.constant
@@ -982,7 +982,7 @@ final class TVPageHeroCell: UICollectionViewCell {
     detailsButton.configuration?.title = labels.details
     bookmarkButton.accessibilityLabel = labels.bookmark
     nextButton.accessibilityLabel = labels.next
-    nextButton.isHidden = (carousel?.features.count ?? 0) < 2
+    nextButton.setHiddenOnce((carousel?.features.count ?? 0) < 2)
   }
 
   /// Left / Right past the ends of the button row turns the page and keeps the button:
@@ -1108,6 +1108,16 @@ private final class TVPageHeroWipeMask: UIView {
     gradient.locations = leadsFromTrailing
       ? [0, NSNumber(value: Double(share)), 1]
       : [0, NSNumber(value: Double(1 - share)), 1]
+  }
+}
+
+private extension UIView {
+  /// `isHidden` written only when it changes. A stack view counts every `isHidden = true`
+  /// made inside an animation block, and one `false` then no longer shows the view: the
+  /// caption under the logo stayed hidden from the second page turn on (Sasha,
+  /// 2026-11-08) — page turns repaint inside `UIView.transition`.
+  func setHiddenOnce(_ hidden: Bool) {
+    if isHidden != hidden { isHidden = hidden }
   }
 }
 #endif
