@@ -90,6 +90,44 @@ public struct MediaPresentationProfile: Equatable, Sendable {
   /// starring to speak of — nobody stars in a stand-up set.
   public var showsHeroCastLine: Bool { kind == .fiction }
 
+  /// The hero's director / creator line. Fiction and animation only: a documentary's,
+  /// a concert's or a stand-up set's director is a name nobody picks the title by, and the
+  /// Credits card further down names them anyway (Sasha, 2026-11-08).
+  public var showsHeroAuthorLine: Bool { kind == .fiction || kind == .animation }
+
+  /// The label in front of `count` credited makers: «Режиссёр» / «Режиссёры»,
+  /// «Создатель» / «Создатели». One person is never captioned in the plural.
+  public func authorLabelKey(count: Int) -> String {
+    switch authorRole {
+    case .creator: return count == 1 ? "MediaItem_CreatorRole" : "MediaItem_Creators"
+    default: return count == 1 ? "Director" : "MediaItem_Directors"
+    }
+  }
+
+  /// What the title is, as one word at the head of the title page's facts: «Сериал»,
+  /// «Аниме-сериал», «Мультфильм», «Документальный фильм»… The Home hero words a series the
+  /// same way from its card (`MediaCard.seriesKindKey`).
+  public func kindTitleKey(isSeries: Bool) -> String {
+    if isSeries {
+      if isAnime { return "Kind_animeSeries_One" }
+      switch kind {
+      case .animation: return "Kind_animatedSeries_One"
+      case .documentary: return "Kind_documentarySeries_One"
+      case .show: return "Kind_tvShows_One"
+      default: return "Kind_series_One"
+      }
+    }
+    if isAnime { return "Kind_anime_One" }
+    switch kind {
+    case .animation: return "Kind_cartoons_One"
+    case .documentary: return "Kind_documentaryFilm_One"
+    case .concert: return "Kind_concerts_One"
+    case .standup: return "Kind_standup_One"
+    case .show: return "Kind_tvShows_One"
+    case .fiction: return "Kind_movies_One"
+    }
+  }
+
   /// The Credits row naming whoever made it.
   public var authorCaptionKey: String {
     authorRole == .creator ? "MediaItem_Creators" : "Director"

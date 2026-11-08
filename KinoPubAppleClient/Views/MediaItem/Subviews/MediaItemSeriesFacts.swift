@@ -10,6 +10,7 @@
 import Foundation
 import KinoPubBackend
 import KinoPubMetadata
+import KinoPubMedia
 
 enum SeriesFacts {
 
@@ -87,5 +88,102 @@ enum SeriesFacts {
     default: key = "MediaItem_UnitSeasonMany"
     }
     return key.localized
+  }
+}
+
+/// The one written badge the title page leads its facts with (`TitleStatusBadge`): what is
+/// new about this title right now. The first rule that holds wins; nil draws nothing.
+///
+/// Sasha's list (2026-11-08): «Новый сезон», «Новые серии», «Новая серия через 5 дней»,
+/// «Последний сезон», «Недавно на Кинопабе», «Новинка», «Премьера», «Все серии». Each is
+/// read from what kino.pub and TMDB already sent the page — no request of its own.
+enum TitleStatus: Equatable {
+  case newEpisode(inDays: Int)
+  case premiere
+  case finalSeason
+  case allEpisodes
+  case newSeason
+  case newEpisodes
+  case newRelease
+  case recentlyAdded
+
+  /// - Parameter awaitedEpisodeAirDate: the next episode of the season kino.pub is on
+  ///   (`MediaItemModel.awaitedEpisodeAirDate`).
+  static func resolve(_ item: MediaItem, _ metadata: TitleMetadata,
+                      awaitedEpisodeAirDate: Date?, now: Date = Date(),
+                      calendar: Calendar = .current) -> TitleStatus? {
+    func days(since date: Date?) -> Int? {
+      guard let date else { return nil }
+      return calendar.dateComponents([.day], from: calendar.startOfDay(for: date),
+                                     to: calendar.startOfDay(for: now)).day
+    }
+    let addedDaysAgo = item.createdAt > 0
+      ? days(since: Date(timeIntervalSince1970: TimeInterval(item.createdAt))) : nil
+    let updatedDaysAgo = item.updatedAt > 0
+      ? days(since: Date(timeIntervalSince1970: TimeInterval(item.updatedAt))) : nil
+
+    if item.isSeries {
+      if let ahead = days(since: awaitedEpisodeAirDate).map({ -$0 }), (0...Rules.awaitedDays).contains(ahead) {
+        return .newEpisode(inDays: ahead)
+      }
+      if let premiered = days(since: metadata.firstAirDate), (0...Rules.premiereDays).contains(premiered) {
+        return .premiere
+      }
+      let seasons = item.seasons?.count ?? 0
+      if SeriesFacts.isFinished(item, metadata),
+         let ended = days(since: metadata.lastAirDate), (0...Rules.endedDays).contains(ended) {
+        return seasons > 1 ? .finalSeason : .allEpisodes
+      }
+      let lastSeasonStart = metadata.seasonSummaries
+        .filter { $0.seasonNumber > 0 }
+        .max { $0.seasonNumber < $1.seasonNumber }?.airDate
+      if seasons > 1, let started = days(since: lastSeasonStart), (0...Rules.newSeasonDays).contains(started) {
+        return .newSeason
+      }
+      if !SeriesFacts.isFinished(item, metadata),
+         let updated = updatedDaysAgo, (0...Rules.newEpisodesDays).contains(updated) {
+        return .newEpisodes
+      }
+      return nil
+    }
+
+    if let released = days(since: metadata.releaseDate) {
+      if (0...Rules.premiereDays).contains(released) { return .premiere }
+      if (0...Rules.newReleaseDays).contains(released) { return .newRelease }
+    }
+    if let added = addedDaysAgo, (0...Rules.recentlyAddedDays).contains(added) {
+      return .recentlyAdded
+    }
+    return nil
+  }
+
+  var text: String {
+    switch self {
+    case .newEpisode(let days):
+      let formatter = RelativeDateTimeFormatter()
+      formatter.dateTimeStyle = .named
+      formatter.unitsStyle = .full
+      formatter.locale = Locale(identifier: MediaLanguage.current.rawValue)
+      let when = formatter.localizedString(from: DateComponents(day: days))
+      return String(format: "TitleStatus_NewEpisodeWhen".localized, when)
+    case .premiere: return "TitleStatus_Premiere".localized
+    case .finalSeason: return "TitleStatus_FinalSeason".localized
+    case .allEpisodes: return "TitleStatus_AllEpisodes".localized
+    case .newSeason: return "TitleStatus_NewSeason".localized
+    case .newEpisodes: return "TitleStatus_NewEpisodes".localized
+    case .newRelease: return "TitleStatus_NewRelease".localized
+    case .recentlyAdded: return "TitleStatus_RecentlyAdded".localized
+    }
+  }
+
+  /// How fresh "new" is, in days. One place, so the badge is tuned here.
+  enum Rules {
+    static let awaitedDays = 30
+    static let premiereDays = 14
+    static let endedDays = 60
+    static let newSeasonDays = 45
+    static let newEpisodesDays = 7
+    static let newReleaseDays = 120
+    static let recentlyAddedDays = 14
   }
 }

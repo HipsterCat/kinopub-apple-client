@@ -40,6 +40,13 @@ KinoPubMedia), which holds kino.pub's whole id list; a name only decides for an 
 - Everyone not shown as a face is a **Credits** card in the information table, beside the qualities
   and the languages: an author row always, plus the cast for the kinds that get no faces.
 
+**prd — The hero's people (Sasha, 2026-11-08).** A column on the right of the title page hero,
+bottom-aligned with the buttons, one line per role: «В ролях …» (fiction only), then «Режиссёр …» /
+«Создатели …» on a new line. One person takes the singular label. `documentary` / `concert` /
+`standup` / `show` name no director or creator in the hero — nobody picks those by it; the Credits
+card has them. The column is there on tvOS, and on iPad / Mac once the hero is wider than a synopsis
+measure plus half of one; narrower it goes inline under the synopsis, and a phone has none.
+
 **prd — Author.** kino.pub files a series' creators in the same `director` field.
 
 - `serial` / `docuserial` / `tvshow` / `documovie` credit **creators**; everything else a

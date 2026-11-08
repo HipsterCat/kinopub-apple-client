@@ -601,6 +601,7 @@ struct MediaItemView: View {
                             isInWatchlist: itemModel.isInWatchlist,
                             onToggleWatchlist: { itemModel.toggleWatchlist() },
                             awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+                            primaryEpisodeSchedule: itemModel.primaryEpisodeSchedule,
                             seasonLabels: itemModel.seasonLabels,
                             downloadPhase: itemModel.downloadPhase,
                             onDownload: { itemModel.startCurrentDownload() },

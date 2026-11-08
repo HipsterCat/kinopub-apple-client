@@ -622,52 +622,63 @@ enum AboutFormat {
 
 /// Left-aligned wrapping row. SwiftUI has no flow container: `HStack` runs off the
 /// edge and `LazyVGrid` forces one column width that "CC" and "Dolby Digital" cannot
-/// share.
+/// share. Pieces wrap whole — the title page's facts line uses it so «Триллер, драма,
+/// спорт» moves down as one block instead of breaking between genres (Sasha, 2026-11-08).
+/// Pieces in a row are centred on the row, so a taller capsule sits level with text.
 struct AboutFlowLayout: Layout {
   var spacing: CGFloat
+  /// Between rows; `spacing` when nil.
+  var lineSpacing: CGFloat? = nil
+
+  private struct Row {
+    var items: [(index: Int, size: CGSize)] = []
+    var width: CGFloat = 0
+    var height: CGFloat = 0
+  }
+
+  private func rows(maxWidth: CGFloat, subviews: Subviews) -> [Row] {
+    var rows: [Row] = []
+    var row = Row()
+    for (index, subview) in subviews.enumerated() {
+      var size = subview.sizeThatFits(.unspecified)
+      // A piece wider than the line gets the line, and wraps or truncates inside it.
+      if size.width > maxWidth {
+        size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+        size.width = min(size.width, maxWidth)
+      }
+      if !row.items.isEmpty, row.width + spacing + size.width > maxWidth {
+        rows.append(row)
+        row = Row()
+      }
+      row.width += row.items.isEmpty ? size.width : spacing + size.width
+      row.height = max(row.height, size.height)
+      row.items.append((index, size))
+    }
+    if !row.items.isEmpty { rows.append(row) }
+    return rows
+  }
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
     let maxWidth = proposal.width ?? .infinity
-    var rowWidth: CGFloat = 0
-    var rowHeight: CGFloat = 0
-    var totalHeight: CGFloat = 0
-    var widest: CGFloat = 0
-
-    for subview in subviews {
-      let size = subview.sizeThatFits(.unspecified)
-      if rowWidth > 0, rowWidth + spacing + size.width > maxWidth {
-        widest = max(widest, rowWidth)
-        totalHeight += rowHeight + spacing
-        rowWidth = size.width
-        rowHeight = size.height
-      } else {
-        rowWidth += rowWidth > 0 ? spacing + size.width : size.width
-        rowHeight = max(rowHeight, size.height)
-      }
-    }
-    widest = max(widest, rowWidth)
-    totalHeight += rowHeight
-    return CGSize(width: min(widest, maxWidth), height: totalHeight)
+    let all = rows(maxWidth: maxWidth, subviews: subviews)
+    let height = all.map(\.height).reduce(0, +) + (lineSpacing ?? spacing) * CGFloat(max(all.count - 1, 0))
+    let widest = all.map(\.width).max() ?? 0
+    return CGSize(width: min(widest, maxWidth), height: height)
   }
 
   func placeSubviews(in bounds: CGRect,
                      proposal: ProposedViewSize,
                      subviews: Subviews,
                      cache: inout ()) {
-    var x = bounds.minX
     var y = bounds.minY
-    var rowHeight: CGFloat = 0
-
-    for subview in subviews {
-      let size = subview.sizeThatFits(.unspecified)
-      if x > bounds.minX, x + size.width > bounds.maxX {
-        x = bounds.minX
-        y += rowHeight + spacing
-        rowHeight = 0
+    for row in rows(maxWidth: bounds.width, subviews: subviews) {
+      var x = bounds.minX
+      for item in row.items {
+        subviews[item.index].place(at: CGPoint(x: x, y: y + row.height / 2), anchor: .leading,
+                                   proposal: ProposedViewSize(item.size))
+        x += item.size.width + spacing
       }
-      subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-      x += size.width + spacing
-      rowHeight = max(rowHeight, size.height)
+      y += row.height + (lineSpacing ?? spacing)
     }
   }
 }

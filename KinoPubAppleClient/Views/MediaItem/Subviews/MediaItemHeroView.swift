@@ -297,6 +297,8 @@ struct MediaItemHeroView: View {
   /// When the next episode of the season kino.pub is on comes out — ahead, or aired and
   /// not uploaded yet (`MediaItemModel.awaitedEpisodeAirDate`). Drives Follow-as-primary.
   var awaitedEpisodeAirDate: Date? = nil
+  /// TMDB's name and overview of the episode Play opens (`MediaItemModel.primaryEpisodeSchedule`).
+  var primaryEpisodeSchedule: EpisodeSchedule? = nil
   /// `Season.id` → the number the chips show, once the episode grid has aligned.
   /// The play button uses it so it cannot say «11 сезон» while the row has no 11.
   var seasonLabels: [Int: Int] = [:]
@@ -1033,8 +1035,22 @@ struct MediaItemHeroView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 
+  /// The written column and the buttons under it, with the people in a column of their
+  /// own on the right once the hero is wide enough for one (Sasha, 2026-11-08) — bottom
+  /// aligned with the buttons, as the Apple TV app sets «В главных ролях».
   @ViewBuilder
   private var heroBottomBlock: some View {
+    HStack(alignment: .bottom, spacing: Self.columnGutter) {
+      leadingBottomColumn
+      if showsCreditsColumn {
+        creditsBlock
+          .frame(width: creditsColumnWidth, alignment: .leading)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var leadingBottomColumn: some View {
 #if os(iOS)
     VStack(alignment: .leading, spacing: Self.contentSpacing) {
       detailColumn
@@ -1049,50 +1065,41 @@ struct MediaItemHeroView: View {
 #endif
   }
 
-  /// Logo / title, then the action stack — left column on wide layouts. The metadata
-  /// row moved across to head the written column, the way the reference layout has it.
-  private var leadingColumn: some View {
-       VStack(alignment: .leading) {
-      // Shadowed on its own, with the actions left out of it: the buttons carry their
-      // own material, and a drop shadow under one that scales on focus is an extra
-      // offscreen pass on every frame of the animation.
-      titleBlock
-            Spacer()
-//        .heroTextShadow()
-
-      // Actions sit with the title so Up from Play is a dead end → fullscreen trailer.
-      // Everything written is the sibling column (or below on phone), not above the row.
-//        .padding(.top, 80)
-    }
-  }
-
-  /// Synopsis first, then who made it, then the facts. What someone is deciding on is
-  /// what the film is about — year, genres and the score are what they check after,
-  /// so they sit at the foot of the column rather than heading it.
+  /// What it is, how it scores, what it is about, what it plays in (Sasha, 2026-11-08):
+  /// «[Новый сезон] 2025–26 сериал  3 сезона, окончен  Триллер, драма, спорт  США  18+»,
+  /// then «IMDb 6.8 (1.9K)  КП 6.8 (139)  TMDB 67% (44)», the synopsis, and
+  /// «[4K]  Дубляж  Рус, англ». The people follow inline only when there is no room for
+  /// their column and the screen is not a phone's.
   private var detailColumn: some View {
-       VStack(alignment: .leading, spacing: Self.contentSpacing*1.75) {
+    VStack(alignment: .leading, spacing: Self.contentSpacing) {
+      factsLine
+      scoresLine
 #if os(tvOS)
       MediaItemPlotView(
         title: mediaItem.localizedTitle,
-        plot: mediaItem.plot,
+        plot: synopsis.plot,
+        lead: synopsis.lead,
         focus: $focus,
         allowsFocus: actionEntryClaimed,
         popupSubtitle: popupOriginalTitle,
         summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
       )
+      .padding(.vertical, Self.contentSpacing / 2)
 #else
       MediaItemPlotView(
         title: mediaItem.localizedTitle,
-        plot: mediaItem.plot,
+        plot: synopsis.plot,
+        lead: synopsis.lead,
         focus: $focus,
         popupSubtitle: popupOriginalTitle,
         summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
       )
+      .padding(.vertical, Self.contentSpacing / 2)
 #endif
-         VStack(alignment: .leading, spacing: Self.contentSpacing) {
-              credits
-              metadata
-         }
+      playbackLine
+      if showsCreditsInline {
+        creditsBlock
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
 #if os(tvOS)
@@ -1213,121 +1220,261 @@ struct MediaItemHeroView: View {
                                  tmdbVotes: externalMetadata.tmdbVotes)
   }
 
-  private var metadata: some View {
-    HStack(spacing: Self.metaSpacing) {
-         if FeatureFlags.combinedRatingEnabled {
-           if let rating = lineScores.aggregate {
-             RatingBadgeView(rating: rating)
-               MediaScoresView(lineScores, deduplicateAgainstAggregate: true, detailLine: true)
+  // MARK: - Facts, scores, playback, people
 
-           }
-         } else {
-           // No aggregate: each score keeps its own logo rather than becoming one number.
-           MediaScoresView(lineScores, detailLine: true)
-         }
-         if !genreCountryLine.isEmpty {
-           Text(genreCountryLine)
-             .foregroundStyle(heroSecondaryForeground)
-         }
-         let releaseLine = self.releaseLine
-         if !releaseLine.isEmpty {
-           Text(releaseLine)
-             .lineLimit(1)
-         }
-         
-
-
-
-      // Certification only when it was asked for — see `MediaItemDisplayPreferences`.
-      let badges = MediaCapabilityBadges.from(item: mediaItem,
-                                              ageRating: showsAgeRatingBadge ? ageRating : nil)
-      if !badges.isEmpty {
-        MediaCapabilityBadgesView(badges: badges, mode: .detail)
-      }
-    }
-    .font(Self.secondaryFont)
-    .foregroundStyle(heroMetaForeground)
-  }
-
-  /// Under the synopsis: what kind of thing it is and where it is from, then who is
-  /// in it. Labels greyed, names picked out. The phone has no room for a cast list
-  /// over the artwork — the detail sections below carry the full one anyway.
+  /// The status capsule, then the facts in blocks that wrap whole — never a genre list
+  /// broken across two lines.
   @ViewBuilder
-  private var credits: some View {
-    if !genreCountryLine.isEmpty || showsCreditNames {
-      HStack(alignment: .bottom, spacing: Self.creditLineSpacing) {
-        if showsCreditNames {
-          ForEach(creditLines, id: \.role) { line in
-            Text(creditLine(line))
-          }
+  private var factsLine: some View {
+    let status = titleStatus
+    let blocks = factBlocks
+    if status != nil || !blocks.isEmpty {
+      AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2) {
+        if let status {
+          TitleStatusBadge(status.text)
+        }
+        ForEach(blocks, id: \.self) { block in
+          Text(verbatim: block)
+            .lineLimit(1)
         }
       }
       .font(Self.secondaryFont)
-      .multilineTextAlignment(.leading)
-      .frame(maxWidth: .infinity, alignment: .leading)
-//      .fixedSize(horizontal: false, vertical: true)
+      .foregroundStyle(heroMetaForeground)
     }
   }
 
-  /// Cast and director are wide-layout only.
-  private var showsCreditNames: Bool {
-#if os(iOS)
+  private var titleStatus: TitleStatus? {
+    TitleStatus.resolve(mediaItem, externalMetadata, awaitedEpisodeAirDate: awaitedEpisodeAirDate)
+  }
+
+  /// «2025–26 аниме-сериал», «3 сезона, окончен», «Триллер, драма, спорт», «США», «18+».
+  /// A film: «2026 мультфильм», «2ч 53м», genres, country. The kind is the Home hero's
+  /// vocabulary (`MediaPresentationProfile.kindTitleKey`), and the genre it already says
+  /// (anime, animation, documentary) is not repeated after it.
+  private var factBlocks: [String] {
+    let card = MediaCard(mediaItem)
+    let profile = mediaItem.presentation
+    var blocks: [String] = []
+
+    let kindKey = profile.kindTitleKey(isSeries: isSeries)
+    // A plain film says nothing about being a film: the runtime says it.
+    let kind = kindKey == "Kind_movies_One" ? nil : kindKey.localized
+    let years = isSeries ? card.bannerYearSpan : (mediaItem.year > 0 ? String(mediaItem.year) : nil)
+    let head = [years, kind.map { years == nil ? $0 : $0.lowercased() }].compactMap { $0 }
+    if !head.isEmpty { blocks.append(head.joined(separator: " ")) }
+
+    if isSeries {
+      let seasons = mediaItem.seasons ?? []
+      let episodes = seasons.reduce(0) { $0 + $1.episodes.count }
+      var volume: [String] = []
+      if seasons.count > 1, let text = SeasonCountText(seasons.count)?.formatted() {
+        volume.append(text)
+      } else if let text = EpisodesLeftText(episodes)?.formatted() {
+        volume.append(text)
+      }
+      if SeriesFacts.isFinished(mediaItem, externalMetadata) {
+        volume.append("MediaItem_StatusEndedShort".localized)
+      }
+      if !volume.isEmpty { blocks.append(volume.joined(separator: ", ")) }
+    } else if let runtime = filmRuntimeText {
+      blocks.append(runtime)
+    }
+
+    let genres = card.usefulGenres(limit: Self.genreLimit,
+                                   omittingDocumentary: profile.kind == .documentary)
+    if let first = genres.first {
+      let rest = genres.dropFirst().map { $0.lowercased() }
+      blocks.append(([first] + rest).joined(separator: ", "))
+    }
+    if let country = mediaItem.countryNames.first, !country.isEmpty {
+      blocks.append(country)
+    }
+    // Certification only when it was asked for — see `MediaItemDisplayPreferences`.
+    if showsAgeRatingBadge, let ageRating, !ageRating.isEmpty {
+      blocks.append(ageRating)
+    }
+    return blocks
+  }
+
+  /// How long what Play offers runs — the version in focus, else the last one that was,
+  /// else the first not yet watched (Sasha, 2026-10-25); the film's own runtime otherwise.
+  private var filmRuntimeText: String? {
+    if let version = runtimeVersion, version.duration > 0 {
+      return RuntimeText(seconds: version.duration).text(for: .detailRuntime)
+    }
+    return mediaItem.mediaEntity.runtime.flatMap { RuntimeText(seconds: $0).text(for: .detailRuntime) }
+  }
+
+  @ViewBuilder
+  private var scoresLine: some View {
+    if lineScores.hasDisplayableScore {
+      HStack(spacing: Self.metaSpacing) {
+        if FeatureFlags.combinedRatingEnabled, let rating = lineScores.aggregate {
+          RatingBadgeView(rating: rating)
+          MediaScoresView(lineScores, deduplicateAgainstAggregate: true, detailLine: true)
+        } else {
+          // No aggregate: each score keeps its own logo rather than becoming one number.
+          MediaScoresView(lineScores, detailLine: true)
+        }
+      }
+      .font(Self.secondaryFont)
+      .foregroundStyle(heroMetaForeground)
+    }
+  }
+
+  /// What the synopsis says. A series the viewer is into but has not finished speaks of
+  /// the episode Play opens, the way the Apple TV app does: «3 серия: Название.» in bold,
+  /// then that episode's overview — the series' own plot when TMDB has none (Sasha,
+  /// 2026-11-08).
+  private var synopsis: (lead: String?, plot: String) {
+    guard isSeries, isSeriesUnderWay, let (_, episode) = mediaItem.primaryEpisode else {
+      return (nil, mediaItem.plot)
+    }
+    let name = EpisodeTitle.meaningful(primaryEpisodeSchedule?.name)
+      ?? EpisodeTitle.meaningful(episode.title)
+    var lead = name.map { String(format: "MediaItem_EpisodeLead".localized, episode.number, $0) }
+      ?? String(format: "MediaItem_EpisodeLeadNumber".localized, episode.number)
+    if let last = lead.last, !".!?…".contains(last) { lead += "." }
+    let overview = primaryEpisodeSchedule?.overview?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return (lead, overview.flatMap { $0.isEmpty ? nil : $0 } ?? mediaItem.plot)
+  }
+
+  /// Started — an episode watched or one in progress — and not finished.
+  private var isSeriesUnderWay: Bool {
+    guard mediaItem.playbackAction != .playAgain else { return false }
+    if case .resume = mediaItem.playbackButtonContent { return true }
+    return (mediaItem.seasons ?? []).contains { season in
+      season.episodes.contains { $0.watched > 0 || $0.watching.time > 0 }
+    }
+  }
+
+  /// «[4K]  Дубляж  Рус, англ»: the drawn quality badges, the best voicing in the viewer's
+  /// language, the subtitle languages.
+  @ViewBuilder
+  private var playbackLine: some View {
+    let badges = MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
+    let voice = voicingTitle
+    let subtitles = subtitleLanguagesShort
+    if !badges.isEmpty || voice != nil || subtitles != nil {
+      HStack(spacing: Self.metaSpacing) {
+        if !badges.isEmpty {
+          MediaBadgeImages(badges)
+        }
+        if let voice {
+          HStack(spacing: Self.glyphSpacing) {
+            Image(systemName: Self.voicingSymbol)
+            Text(verbatim: voice)
+          }
+        }
+        if let subtitles {
+          HStack(spacing: Self.glyphSpacing) {
+            Image(systemName: Self.subtitlesSymbol)
+            Text(verbatim: subtitles)
+          }
+        }
+      }
+      .lineLimit(1)
+      .font(Self.secondaryFont)
+      .foregroundStyle(heroMetaForeground)
+    }
+  }
+
+  /// The best voicing among the tracks in the viewer's first language — «Дубляж»,
+  /// «Многоголосый»… — by the player's own ladder. Nil when only the original is in it.
+  private var voicingTitle: String? {
+    guard let language = mediaItemPreferredLanguages().first.map(SubtitleTracks.languageKey) else { return nil }
+    let best = mediaItem.detailAudioTracks
+      .filter { SubtitleTracks.languageKey($0.lang) == language && !$0.isAudioDescription }
+      .compactMap { $0.typeId.flatMap(VoiceType.init(rawValue:)) }
+      .filter { $0 != .original && $0 != .undetermined }
+      .min { $0.preferenceRank < $1.preferenceRank }
+    return best?.titleKey.localized
+  }
+
+  /// «Рус, англ»: the subtitle languages, preferred first, shortened; three at most.
+  private var subtitleLanguagesShort: String? {
+    let groups = mediaItem.subtitleLanguageGroups(preferredLanguages: mediaItemPreferredLanguages())
+    guard !groups.isEmpty else { return nil }
+    let names = groups.prefix(Self.subtitleLanguageLimit).enumerated().map { index, group in
+      let short = LanguageShortName.short(key: group.key, fallback: group.name)
+      return index == 0 ? short.prefix(1).uppercased() + short.dropFirst() : short.lowercased()
+    }
+    let more = groups.count > Self.subtitleLanguageLimit ? "…" : ""
+    return names.joined(separator: ", ") + more
+  }
+
+  /// The column on the right: present on the TV; elsewhere once the hero leaves room for
+  /// it beside a full synopsis measure. Never on a phone.
+  private var showsCreditsColumn: Bool {
+    guard !creditLines.isEmpty else { return false }
+#if os(tvOS)
+    return true
+#else
+    let available = heroBandSize.width - 2 * Self.contentHorizontalInset
+    return available >= MediaItemPlotView.maxWidth + Self.columnGutter + creditsColumnWidth
+#endif
+  }
+
+  /// No room for the column: the people go under the playback line — on a Mac window or
+  /// an iPad too narrow for the column, never on a phone.
+  private var showsCreditsInline: Bool {
+#if os(tvOS)
     false
 #else
-       !creditLines.isEmpty // and not anime, animation, documentary, tvshow
+    !creditLines.isEmpty && !showsCreditsColumn && !phoneHeroGrows && heroBandSize.width > 0
 #endif
+  }
+
+  /// Half the synopsis measure, as the Apple TV app's column is beside its text.
+  private var creditsColumnWidth: CGFloat {
+    MediaItemPlotView.maxWidth * Self.creditsColumnRatio
+  }
+
+  /// One line per role, each wrapping on its own: «В ролях Мэтт Дэймон, Том Холланд,
+  /// Энн Хэтэуэй», then «Режиссёр Кристофер Нолан» on a new line (Sasha, 2026-11-08).
+  private var creditsBlock: some View {
+    VStack(alignment: .leading, spacing: Self.creditLineSpacing) {
+      ForEach(creditLines, id: \.role) { line in
+        Text(creditLine(line))
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .font(Self.secondaryFont)
+    .multilineTextAlignment(.leading)
   }
 
   /// One run of attributed text rather than two concatenated `Text`s: the styling
   /// overloads that return `Text` are either iOS 17 or deprecated, and the label has
   /// to flow into the names on the same line anyway.
   private func creditLine(_ line: (role: String, names: String)) -> AttributedString {
-    var label = AttributedString(line.role.localized + "  ")
+    var label = AttributedString(line.role.localized + " ")
     label.foregroundColor = heroSecondaryForeground
 
     var names = AttributedString(line.names)
     names.foregroundColor = heroPrimaryForeground
-    names.font = Self.secondaryFont.weight(.regular)
 
     return label + names
   }
 
-  /// Genres and country carry no labels — the words say what they are, and a "Genre:"
-  /// in front of them is the kind of form-field caption the Apple TV app never shows.
-  /// Genres lead, because that is what someone is deciding on.
-  private var genreCountryLine: String {
-    var parts: [String] = []
-    let genres = mediaItem.genreNames.prefix(Self.genreLimit)
-    if !genres.isEmpty { parts.append(genres.joined(separator: "  ")) }
-//    let countries = mediaItem.countryNames.prefix(Self.countryLimit)
-//    if !countries.isEmpty { parts.append(countries.joined(separator: "  ")) }
-    return parts.joined(separator: "  ")
-  }
-
-  /// A handful of leads and whoever directed it — the whole cast is what the section
-  /// further down the page is for. A series has no one director to name, so it gets
-  /// the cast alone.
+  /// A handful of leads, then whoever directed or created it, each on its own line.
   ///
-  /// Nobody stars in a stand-up set, a concert or a documentary, so those name no
-  /// leads here at all — their people are a Credits card in the information table.
-  /// `MediaPresentationProfile` owns which is which.
+  /// Nobody stars in a stand-up set, a concert or a documentary, and their director is
+  /// not who one picks them by: those name nobody here — their people are a Credits card
+  /// in the information table. `MediaPresentationProfile` owns which is which. One person
+  /// is «Режиссёр» / «Создатель», never the plural.
   private var creditLines: [(role: String, names: String)] {
     var lines: [(String, String)] = []
-    let cast: [String] = mediaItem.presentation.showsHeroCastLine
+    let profile = mediaItem.presentation
+    let cast: [String] = profile.showsHeroCastLine
       ? Array(mediaItem.castMembers.prefix(Self.creditNameLimit))
       : []
     if !cast.isEmpty {
-         lines.append(("Starring.short".localized, cast.joined(separator: ",  ")))
+      lines.append(("Starring.short", cast.joined(separator: ", ")))
     }
-    // One director only: two or more in the hero read as a list, not a credit (Sasha,
-    // 2026-10-30); the Credits card further down names them all.
-    if !isSeries, mediaItem.directorNames.count == 1 {
-      let directors = mediaItem.directorNames.prefix(Self.creditNameLimit)
-      if !directors.isEmpty {
-        // The same word the Credits card and the "More by…" shelf use — the hero read
-        // "Director" over a title whose shelf below it said "More by This Creator".
-        lines.append((mediaItem.presentation.authorCaptionKey,
-                      directors.joined(separator: ", ")))
+    if profile.showsHeroAuthorLine {
+      let makers = Array(mediaItem.directorNames.prefix(Self.authorNameLimit))
+      if !makers.isEmpty {
+        lines.append((profile.authorLabelKey(count: makers.count), makers.joined(separator: ", ")))
       }
     }
     return lines
@@ -1784,27 +1931,6 @@ struct MediaItemHeroView: View {
     return choices.first { !$0.isWatched } ?? choices.first
   }
 
-  /// The year and how long what Play offers runs — not an average over the title (Sasha,
-  /// 2026-10-25). Several versions: «2024   1ч 26м», `runtimeVersion`'s runtime. A series:
-  /// «2024   2 сезона   42м», the episode the main button plays.
-  private var releaseLine: String {
-    let entity = mediaItem.mediaEntity
-    if isSeries {
-      var parts = TitleMetaLine(entity).releaseParts()
-      if let (_, episode) = mediaItem.primaryEpisode, episode.duration > 0,
-         let runtime = RuntimeText(seconds: episode.duration).text(for: .detailRuntime) {
-        parts.append(runtime)
-      }
-      return parts.joined(separator: "   ")
-    }
-    guard let version = runtimeVersion, version.duration > 0,
-          let runtime = RuntimeText(seconds: version.duration).text(for: .detailRuntime) else {
-      return TitleMetaLine(entity).releaseParts().joined(separator: "   ")
-    }
-    let year = entity.release.map { [String($0.year)] } ?? []
-    return (year + [runtime]).joined(separator: "   ")
-  }
-
   /// For a series, play the first episode that still has something left; the rail
   /// below is there for picking any other one.
   private var playTarget: any PlayableItem {
@@ -1823,14 +1949,33 @@ struct MediaItemHeroView: View {
   /// half-height threshold left the trailer running under the first section below.
   static let onScreenSlop: CGFloat = 150
 
-  /// Leads and directors named in the corner, before the list turns into a paragraph.
+  /// Leads named in the hero, before the list turns into a paragraph.
   static let creditNameLimit = 3
+  /// Directors / creators named in the hero; the Credits card names them all.
+  static let authorNameLimit = 2
 
-  /// Genres shown above the names; kino.pub happily returns six.
-  static let genreLimit = 2
+  /// Genres in the facts line, one block; kino.pub happily returns six.
+  static let genreLimit = 3
 
-  /// Co-productions run long — two is enough to say where a title is from.
-  static let countryLimit = 1
+  /// Subtitle languages named in the playback line before «…».
+  static let subtitleLanguageLimit = 3
+
+  /// The people's column, as a share of the synopsis measure beside it.
+  static let creditsColumnRatio: CGFloat = 0.5
+
+  /// Glyph before the voicing and before the subtitle languages in the playback line.
+  static let voicingSymbol = "waveform"
+  static let subtitlesSymbol = "captions.bubble"
+  static let glyphSpacing: CGFloat = 6
+
+  /// The content's side inset, as `contentBody` pads it.
+  static var contentHorizontalInset: CGFloat {
+#if os(iOS)
+    horizontalInset
+#else
+    bottomInset
+#endif
+  }
 
   /// Everything under the title is one size — real body text, not a caption — and it
   /// is the same size the ratings captions and the information table use further down
@@ -1956,3 +2101,22 @@ private struct MediaItemHeroPreview: View {
 }
 #endif
 
+/// A language as two-to-four letters for a line that names several: «рус», «англ». The
+/// viewer's language picks the table; anything not in it keeps its full name.
+enum LanguageShortName {
+  static func short(key: String, fallback: String) -> String {
+    let table = MediaLanguage.current == .ru ? russian : english
+    return table[key] ?? fallback
+  }
+
+  private static let russian: [String: String] = [
+    "ru": "рус", "en": "англ", "uk": "укр", "ja": "яп", "ko": "кор", "zh": "кит",
+    "de": "нем", "fr": "фр", "es": "исп", "it": "ит", "pt": "порт", "pl": "пол",
+    "tr": "тур", "kk": "каз", "be": "бел", "uz": "узб", "he": "иврит", "ar": "араб",
+  ]
+  private static let english: [String: String] = [
+    "ru": "Rus", "en": "Eng", "uk": "Ukr", "ja": "Jpn", "ko": "Kor", "zh": "Chi",
+    "de": "Ger", "fr": "Fre", "es": "Spa", "it": "Ita", "pt": "Por", "pl": "Pol",
+    "tr": "Tur", "kk": "Kaz", "be": "Bel", "uz": "Uzb", "he": "Heb", "ar": "Ara",
+  ]
+}

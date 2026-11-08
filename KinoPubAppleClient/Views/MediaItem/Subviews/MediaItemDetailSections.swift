@@ -3664,6 +3664,9 @@ struct MediaItemPlotView: View {
 
   let title: String
   let plot: String
+  /// Set in bold in front of the plot: «3 серия: Название.» once a series is under way —
+  /// the plot is then that episode's (Sasha, 2026-11-08).
+  var lead: String? = nil
   /// Shared with the other hero controls so focusing the plot does not count as
   /// leaving the hero (and killing the trailer).
   @FocusState.Binding var focus: MediaItemFocusTarget?
@@ -3702,7 +3705,8 @@ struct MediaItemPlotView: View {
       // Measured outside the button. The unclamped copy used to live in the label,
       // and the tvOS focus effect snapshots that label — the full text is much
       // taller than the six lines on screen, so the focus shape was a tall slab.
-      // .background { plotMeasurement }
+      // It sat commented out, so «More» never showed anywhere (2026-11-08).
+      .background(alignment: .topLeading) { plotMeasurement }
       .onPreferenceChange(PlotClampedHeightKey.self) { clampedHeight = $0 }
       .onPreferenceChange(PlotFullHeightKey.self) { fullHeight = $0 }
   }
@@ -3728,7 +3732,7 @@ struct MediaItemPlotView: View {
         Button {
           isPresented = true
         } label: {
-          PlotParagraphLabel(plot: plot, showsMore: isTruncated)
+          PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated)
         }
         .focused($focus, equals: .plot)
         .buttonStyle(.borderless)
@@ -3738,7 +3742,7 @@ struct MediaItemPlotView: View {
         .infoPopup(Text(title), subtitle: popupSubtitle.map { Text(verbatim: $0) },
                    isPresented: $isPresented) {
           if let summary {
-            MediaItemSynopsisPopupContent(plot: plot, summary: summary)
+            MediaItemSynopsisPopupContent(plot: popupPlot, summary: summary)
           } else {
             expandedPlot
           }
@@ -3749,7 +3753,7 @@ struct MediaItemPlotView: View {
       } else {
         // Identical paint to the button label, not in the focus chain — Play owns
         // entry until an action has claimed focus (then this swaps to the Button).
-        PlotParagraphLabel(plot: plot, showsMore: isTruncated)
+        PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated)
           .padding(.horizontal, -Self.focusInsetH)
           .padding(.vertical, -Self.focusInsetV)
           .accessibilityIdentifier("hero.plot")
@@ -3758,12 +3762,13 @@ struct MediaItemPlotView: View {
 #else
     // The tvOS popup's content (facts line, synopsis, audio, subtitles, information) in
     // the system sheet (Sasha, 2026-10-30).
-    paragraph(showsMore: isTruncated)
+    PlotParagraph(text: paragraphText, isTruncated: isTruncated)
+      .modifier(PlotHoverPlate())
       .expandsIntoInfoPopup(title: Text(title),
                             subtitle: popupSubtitle.map { Text(verbatim: $0) },
                             chrome: .text) {
         if let summary {
-          MediaItemSynopsisPopupContent(plot: plot, summary: summary)
+          MediaItemSynopsisPopupContent(plot: popupPlot, summary: summary)
         } else {
           expandedPlot
         }
@@ -3772,37 +3777,33 @@ struct MediaItemPlotView: View {
   }
 
   private var expandedPlot: some View {
-    Text(plot)
+    Text(popupPlot)
       .font(InfoPopupMetrics.bodyFont)
       .foregroundStyle(Color.KinoPub.subtitle)
       .multilineTextAlignment(.leading)
   }
 
-#if !os(tvOS)
-  private func paragraph(showsMore: Bool) -> some View {
-    HStack(alignment: .lastTextBaseline, spacing: 14) {
-      Text(plot)
-        .font(Self.font)
-        .foregroundStyle(Color.KinoPub.text)
-        .lineLimit(Self.lineLimit)
-        .multilineTextAlignment(.leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-
-      if showsMore {
-        Text("More")
-          .font(Self.moreFont.weight(.semibold))
-          .textCase(.uppercase)
-          .accessibilityHidden(true)
-      }
-    }
-    .modifier(PlotHoverPlate())
+  /// The lead in semibold, then the plot — one run of text, so the lead flows into the
+  /// plot on the same line and the clamp counts both.
+  private var paragraphText: AttributedString {
+    var body = AttributedString(plot)
+    guard let lead, !lead.isEmpty else { return body }
+    var bold = AttributedString(lead + " ")
+    bold.inlinePresentationIntent = .stronglyEmphasized
+    body = bold + body
+    return body
   }
-#endif
+
+  /// The popup's text: the same words, plain.
+  private var popupPlot: String {
+    guard let lead, !lead.isEmpty else { return plot }
+    return lead + " " + plot
+  }
 
   /// Clamped and unclamped heights, proposed the synopsis width. Hidden, and not
   /// part of the button label, so neither one changes what focus snapshots.
   private var plotMeasurement: some View {
-    Text(plot)
+    Text(paragraphText)
       .font(Self.font)
       .lineLimit(Self.lineLimit)
       .multilineTextAlignment(.leading)
@@ -3813,8 +3814,8 @@ struct MediaItemPlotView: View {
           Color.clear.preference(key: PlotClampedHeightKey.self, value: geometry.size.height)
         }
       }
-      .background {
-        Text(plot)
+      .background(alignment: .topLeading) {
+        Text(paragraphText)
           .font(Self.font)
           .multilineTextAlignment(.leading)
           .fixedSize(horizontal: false, vertical: true)
@@ -3829,13 +3830,13 @@ struct MediaItemPlotView: View {
   }
      
 
-  /// A step below the paragraph, so it reads as a hint rather than as a fourth line.
-  static let moreOpacity: Double = 0.65
+  /// Room between the last word and the hint when the paragraph ends short of the clamp.
+  static let moreGap: CGFloat = 10
 
   /// System text styles rather than hand-picked point sizes: the synopsis sits next
   /// to real tvOS controls and has to be on the same scale they are. The label is a
   /// step below the paragraph.
-     static let moreFont: Font = TypeScale.detailBody
+  static let moreFont: Font = TypeScale.detailBody.weight(.semibold)
 
 #if os(tvOS)
   /// Room between the glyphs and a focused shape's corner radius. Cancelled by the
@@ -3845,7 +3846,8 @@ struct MediaItemPlotView: View {
   static let lineLimit = 5
   /// A reading measure, as on the Mac (Sasha, 2026-10-30: 820 pt on the TV).
   static let maxWidth: CGFloat = 880
-  static let moreTracking: CGFloat = 1
+  static let moreInsetH: CGFloat = 14
+  static let moreInsetV: CGFloat = 2
 #else
   /// The tvOS plate's room around the glyphs, drawn outside the paragraph's frame so
   /// the hover plate moves nothing.
@@ -3855,11 +3857,103 @@ struct MediaItemPlotView: View {
   /// A reading measure, not the window: on a wide Mac window the synopsis ran the
   /// full width of the page (Sasha, 2026-10-29: 660 pt).
   static let maxWidth: CGFloat = 650
-  static let moreTracking: CGFloat = 0.8
+  static let moreInsetH: CGFloat = 8
+  static let moreInsetV: CGFloat = 1
 #endif
 
   /// Same size as the metadata line above it and the information table below it.
   static let font: Font = TypeScale.detailBody
+}
+
+/// The clamped synopsis with the «ЕЩЁ» hint at its end, as the Apple TV app draws it: a
+/// light capsule at the end of the last line, the words before it fading out rather than
+/// cut by an ellipsis (Sasha, 2026-11-08). Always there — the synopsis always opens the
+/// full text — but only a clipped paragraph fades: a short one ends, then the hint.
+///
+/// The fade is Plozz's (`ExpandableOverviewText`, `InlineOverviewTailMask`): a mask over
+/// the last line only, solid up to the hint, a gradient as long as the hint is tall,
+/// then clear under the hint. Its sizes come from the hint's measured size, not points.
+struct PlotParagraph: View {
+  let text: AttributedString
+  let isTruncated: Bool
+
+  @State private var moreSize: CGSize = .zero
+
+  var body: some View {
+    if isTruncated {
+      paragraph
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .mask {
+          PlotTailMask(clearWidth: moreSize.width, fadeWidth: moreSize.height * 2,
+                       lineCount: MediaItemPlotView.lineLimit)
+        }
+        .overlay(alignment: .bottomTrailing) {
+          SynopsisMoreHint()
+            .onGeometryChange(for: CGSize.self, of: \.size) { moreSize = $0 }
+        }
+    } else {
+      // Ends where the words end; the hint follows the last line.
+      HStack(alignment: .lastTextBaseline, spacing: MediaItemPlotView.moreGap) {
+        paragraph
+          .fixedSize(horizontal: false, vertical: true)
+        SynopsisMoreHint()
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private var paragraph: some View {
+    Text(text)
+      .font(MediaItemPlotView.font)
+      .foregroundStyle(Color.KinoPub.text)
+      .lineLimit(MediaItemPlotView.lineLimit)
+      .multilineTextAlignment(.leading)
+  }
+}
+
+/// «ЕЩЁ» in a light capsule — the label's colour at 20 % behind it, so it reads on the
+/// forced-dark hero over a picture and on the system background alike.
+struct SynopsisMoreHint: View {
+  @Environment(\.colorSchemeContrast) private var contrast
+
+  var body: some View {
+    Text("Synopsis_More")
+      .font(MediaItemPlotView.moreFont)
+      .textCase(.uppercase)
+      .foregroundStyle(Color.KinoPub.text)
+      .lineLimit(1)
+      .fixedSize()
+      .padding(.horizontal, MediaItemPlotView.moreInsetH)
+      .padding(.vertical, MediaItemPlotView.moreInsetV)
+      .background(Capsule().fill(Color.KinoPub.text.opacity(contrast == .increased ? 0.35 : 0.2)))
+      .accessibilityHidden(true)
+  }
+}
+
+/// White where text stays, clear where it goes: every line but the last whole; on the
+/// last, solid, then a fade `fadeWidth` long, then clear for `clearWidth` at the end.
+private struct PlotTailMask: View {
+  let clearWidth: CGFloat
+  let fadeWidth: CGFloat
+  let lineCount: Int
+
+  var body: some View {
+    GeometryReader { geometry in
+      let lineHeight = geometry.size.height / CGFloat(max(lineCount, 1))
+      VStack(spacing: 0) {
+        Rectangle().fill(.white)
+          .frame(height: max(0, geometry.size.height - lineHeight))
+        HStack(spacing: 0) {
+          Rectangle().fill(.white)
+          LinearGradient(colors: [.white, .clear], startPoint: .leading, endPoint: .trailing)
+            .frame(width: min(fadeWidth, geometry.size.width))
+          Color.clear
+            .frame(width: min(clearWidth, geometry.size.width))
+        }
+        .frame(height: lineHeight)
+      }
+    }
+  }
 }
 
 #if os(tvOS)
@@ -3869,28 +3963,13 @@ struct MediaItemPlotView: View {
 /// `isFocused` is read here, inside the label, because outside the button (after
 /// `.buttonStyle`) the environment stays false.
 private struct PlotParagraphLabel: View {
-  let plot: String
-  let showsMore: Bool
+  let text: AttributedString
+  let isTruncated: Bool
 
   @Environment(\.isFocused) private var isFocused
 
   var body: some View {
-    HStack(alignment: .lastTextBaseline, spacing: 14) {
-      Text(plot)
-        .font(MediaItemPlotView.font)
-        .foregroundStyle(Color.KinoPub.text)
-        .lineLimit(MediaItemPlotView.lineLimit)
-        .multilineTextAlignment(.leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-
-      if showsMore {
-        Text("More")
-          .font(MediaItemPlotView.moreFont.weight(.semibold))
-          .foregroundStyle(Color.KinoPub.subtitle)
-          .textCase(.uppercase)
-          .accessibilityHidden(true)
-      }
-    }
+    PlotParagraph(text: text, isTruncated: isTruncated)
     .padding(.horizontal, MediaItemPlotView.focusInsetH)
     .padding(.vertical, MediaItemPlotView.focusInsetV)
     .background {
