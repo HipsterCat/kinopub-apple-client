@@ -3667,6 +3667,9 @@ struct MediaItemPlotView: View {
   /// Set in bold in front of the plot: «3 серия: Название.» once a series is under way —
   /// the plot is then that episode's (Sasha, 2026-11-08).
   var lead: String? = nil
+  /// The whole text, no clamp: the poster hero has the room and nothing to fade over
+  /// (Sasha, 2026-11-08).
+  var expandsFully: Bool = false
   /// Shared with the other hero controls so focusing the plot does not count as
   /// leaving the hero (and killing the trailer).
   @FocusState.Binding var focus: MediaItemFocusTarget?
@@ -3689,6 +3692,11 @@ struct MediaItemPlotView: View {
   @State private var fullHeight: CGFloat = 0
   @State private var clampedHeight: CGFloat = 0
   @State private var isPresented = false
+  /// The clamped copy's layout and measure — where its lines end, which the hint and
+  /// the plate follow (`PlotLines`).
+  @State private var textLayout: Text.Layout?
+  @State private var measuredWidth: CGFloat = 0
+  private var lines: PlotLines? { PlotLines(textLayout, availableWidth: measuredWidth) }
 
   /// The full copy needs more room than the clamped three lines leave it. A point of
   /// slack absorbs sub-pixel rounding so a paragraph that exactly fills the clamp is
@@ -3696,7 +3704,8 @@ struct MediaItemPlotView: View {
   /// lands this reads false — the page opens without a "More" that then vanishes,
   /// rather than the other way round.
   private var isTruncated: Bool {
-    fullHeight > 0 && clampedHeight > 0 && fullHeight > clampedHeight + 1
+    guard !expandsFully else { return false }
+    return fullHeight > 0 && clampedHeight > 0 && fullHeight > clampedHeight + 1
   }
 
   var body: some View {
@@ -3732,7 +3741,7 @@ struct MediaItemPlotView: View {
         Button {
           isPresented = true
         } label: {
-          PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated)
+          PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated, lines: lines, lineLimit: lineLimit)
         }
         .focused($focus, equals: .plot)
         .buttonStyle(.borderless)
@@ -3753,7 +3762,7 @@ struct MediaItemPlotView: View {
       } else {
         // Identical paint to the button label, not in the focus chain — Play owns
         // entry until an action has claimed focus (then this swaps to the Button).
-        PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated)
+        PlotParagraphLabel(text: paragraphText, isTruncated: isTruncated, lines: lines, lineLimit: lineLimit)
           .padding(.horizontal, -Self.focusInsetH)
           .padding(.vertical, -Self.focusInsetV)
           .accessibilityIdentifier("hero.plot")
@@ -3762,7 +3771,7 @@ struct MediaItemPlotView: View {
 #else
     // The tvOS popup's content (facts line, synopsis, audio, subtitles, information) in
     // the system sheet (Sasha, 2026-10-30).
-    PlotParagraph(text: paragraphText, isTruncated: isTruncated)
+    PlotParagraph(text: paragraphText, isTruncated: isTruncated, lines: lines, lineLimit: lineLimit)
       .modifier(PlotHoverPlate())
       .expandsIntoInfoPopup(title: Text(title),
                             subtitle: popupSubtitle.map { Text(verbatim: $0) },
@@ -3802,13 +3811,23 @@ struct MediaItemPlotView: View {
 
   /// Clamped and unclamped heights, proposed the synopsis width. Hidden, and not
   /// part of the button label, so neither one changes what focus snapshots.
+  private var lineLimit: Int? { expandsFully ? nil : Self.lineLimit }
+
   private var plotMeasurement: some View {
     Text(paragraphText)
       .font(Self.font)
-      .lineLimit(Self.lineLimit)
+      .lineLimit(lineLimit)
       .multilineTextAlignment(.leading)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .hidden()
+      // The clamped copy's own lines, at the full measure: the visible paragraph may be
+      // narrower (it hugs its widest line), this one never is.
+      .onGeometryChange(for: CGFloat.self, of: \.size.width) { measuredWidth = $0 }
+      .onPreferenceChange(Text.LayoutKey.self) { layouts in
+        textLayout = layouts.first?.layout
+      }
+      .opacity(0)
+      .accessibilityHidden(true)
+      .allowsHitTesting(false)
       .background {
         GeometryReader { geometry in
           Color.clear.preference(key: PlotClampedHeightKey.self, value: geometry.size.height)
@@ -3828,6 +3847,7 @@ struct MediaItemPlotView: View {
           }
       }
   }
+
      
 
   /// Room between the last word and the hint when the paragraph ends short of the clamp.
@@ -3876,38 +3896,103 @@ struct MediaItemPlotView: View {
 struct PlotParagraph: View {
   let text: AttributedString
   let isTruncated: Bool
+  let lines: PlotLines?
+  let lineLimit: Int?
 
-  @State private var moreSize: CGSize = .zero
+  @State private var hintSize: CGSize = .zero
 
   var body: some View {
-    if isTruncated {
+    if let lines, hintSize != .zero {
+      let place = HintPlacement(lines: lines, hint: hintSize, isTruncated: isTruncated,
+                                gap: MediaItemPlotView.moreGap)
       paragraph
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: place.textWidth, alignment: .leading)
         .mask {
-          PlotTailMask(clearWidth: moreSize.width, fadeWidth: moreSize.height * 2,
-                       lineCount: MediaItemPlotView.lineLimit)
+          if isTruncated {
+            PlotTailMask(clearWidth: hintSize.width, fadeWidth: hintSize.height * 2,
+                         lineHeight: lines.lastLineHeight)
+          } else {
+            Rectangle()
+          }
         }
-        .overlay(alignment: .bottomTrailing) {
-          SynopsisMoreHint()
-            .onGeometryChange(for: CGSize.self, of: \.size) { moreSize = $0 }
+        .padding(.bottom, place.extraBottom)
+        .frame(width: place.width, alignment: .leading)
+        .overlay(alignment: .topLeading) {
+          hint.offset(x: place.origin.x, y: place.origin.y)
         }
     } else {
-      // Ends where the words end; the hint follows the last line.
-      HStack(alignment: .lastTextBaseline, spacing: MediaItemPlotView.moreGap) {
-        paragraph
-          .fixedSize(horizontal: false, vertical: true)
-        SynopsisMoreHint()
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      // First pass, before the lines are known: the text alone, the hint measured unseen.
+      paragraph
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .topLeading) { hint.opacity(0) }
     }
+  }
+
+  private var hint: some View {
+    SynopsisMoreHint()
+      .onGeometryChange(for: CGSize.self, of: \.size) { hintSize = $0 }
   }
 
   private var paragraph: some View {
     Text(text)
       .font(MediaItemPlotView.font)
       .foregroundStyle(Color.KinoPub.text)
-      .lineLimit(MediaItemPlotView.lineLimit)
+      .lineLimit(lineLimit)
       .multilineTextAlignment(.leading)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+}
+
+/// The lines of the clamped synopsis, from its `Text.Layout`.
+struct PlotLines: Equatable {
+  /// The measure the text was laid out in.
+  var availableWidth: CGFloat
+  /// The longest line — the paragraph and its plate are this wide, not the measure.
+  var widest: CGFloat
+  var lastLineEnd: CGFloat
+  var lastLineMidY: CGFloat
+  var lastLineHeight: CGFloat
+  var height: CGFloat
+
+  init?(_ layout: Text.Layout?, availableWidth: CGFloat) {
+    guard let layout, let last = layout.last, availableWidth > 0 else { return nil }
+    let rects = layout.map(\.typographicBounds.rect)
+    self.availableWidth = availableWidth
+    widest = min(availableWidth, (rects.map(\.maxX).max() ?? 0).rounded(.up))
+    lastLineEnd = last.typographicBounds.rect.maxX
+    lastLineMidY = last.typographicBounds.rect.midY
+    lastLineHeight = last.typographicBounds.rect.height
+    height = rects.map(\.maxY).max() ?? 0
+  }
+}
+
+/// Where «ЕЩЁ» goes. Clipped text: at the end of the full last line, the words fading
+/// under it. Text that ends short: right after the last word, centred on that line —
+/// or, when the line has no room left, on a line of its own under it.
+private struct HintPlacement {
+  var origin: CGPoint
+  var textWidth: CGFloat
+  var width: CGFloat
+  var extraBottom: CGFloat = 0
+
+  init(lines: PlotLines, hint: CGSize, isTruncated: Bool, gap: CGFloat) {
+    let midY = lines.lastLineMidY - hint.height / 2
+    if isTruncated {
+      textWidth = lines.availableWidth
+      width = lines.availableWidth
+      origin = CGPoint(x: width - hint.width, y: midY)
+      return
+    }
+    textWidth = lines.widest
+    let end = lines.lastLineEnd + gap
+    if end + hint.width <= lines.availableWidth {
+      width = max(lines.widest, end + hint.width)
+      origin = CGPoint(x: end, y: midY)
+    } else {
+      width = lines.widest
+      origin = CGPoint(x: 0, y: lines.height + gap)
+      extraBottom = hint.height + gap
+    }
   }
 }
 
@@ -3935,11 +4020,10 @@ struct SynopsisMoreHint: View {
 private struct PlotTailMask: View {
   let clearWidth: CGFloat
   let fadeWidth: CGFloat
-  let lineCount: Int
+  let lineHeight: CGFloat
 
   var body: some View {
     GeometryReader { geometry in
-      let lineHeight = geometry.size.height / CGFloat(max(lineCount, 1))
       VStack(spacing: 0) {
         Rectangle().fill(.white)
           .frame(height: max(0, geometry.size.height - lineHeight))
@@ -3965,11 +4049,13 @@ private struct PlotTailMask: View {
 private struct PlotParagraphLabel: View {
   let text: AttributedString
   let isTruncated: Bool
+  let lines: PlotLines?
+  let lineLimit: Int?
 
   @Environment(\.isFocused) private var isFocused
 
   var body: some View {
-    PlotParagraph(text: text, isTruncated: isTruncated)
+    PlotParagraph(text: text, isTruncated: isTruncated, lines: lines, lineLimit: lineLimit)
     .padding(.horizontal, MediaItemPlotView.focusInsetH)
     .padding(.vertical, MediaItemPlotView.focusInsetV)
     .background {

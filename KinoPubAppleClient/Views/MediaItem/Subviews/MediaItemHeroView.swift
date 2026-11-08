@@ -411,10 +411,6 @@ struct MediaItemHeroView: View {
     return onPicture ? .dark : systemColorScheme
   }
 #endif
-  /// Opt-in, off by default. Read as `@AppStorage` so flipping it in Settings redraws
-  /// the metadata row without leaving the page.
-  @AppStorage(MediaItemDisplayPreferences.showAgeRatingBadgeKey)
-  private var showsAgeRatingBadge = false
   private var isSeries: Bool {
     !(mediaItem.seasons?.isEmpty ?? true)
   }
@@ -430,7 +426,7 @@ struct MediaItemHeroView: View {
     platformBody
 #if !os(tvOS)
       // The window toolbar goes dark over a picture too — the page reads it from here.
-      .onChange(of: showsPicture, initial: true) { _, picture in
+      .onChange(of: hasArtBackdrop, initial: true) { _, picture in
         phase.showsPicture = picture
       }
 #endif
@@ -672,6 +668,14 @@ struct MediaItemHeroView: View {
 #endif
   }
 
+  /// The band at its aspect, whatever the words grew it to — the poster's size and
+  /// column are measured against this, so a taller band does not grow the poster.
+  private var heroBaseBandSize: CGSize {
+    CGSize(width: heroBandSize.width, height: heroBandSize.width / Self.bandAspect)
+  }
+
+  static let bandAspect: CGFloat = 16 / 11
+
   /// 16:9 band — backdrop or clear fill, portrait poster top-trailing, chrome at the bottom.
   private var heroCanvas: some View {
     Group {
@@ -688,36 +692,36 @@ struct MediaItemHeroView: View {
             }
           }
       } else {
-        Color.clear
-          .aspectRatio(16 / 11, contentMode: .fit)
-          .frame(maxWidth: .infinity)
-          .background {
-            ZStack {
-              scrollingBackdrop
-              if !usesAdaptivePosterHero {
-                scrollingScrim
-              }
+        // At least the band's aspect, taller when the words need it — the poster hero
+        // shows its whole synopsis, and nothing may run off the top (Sasha, 2026-11-08).
+        HeroBandLayout(aspect: Self.bandAspect) {
+          // The picture runs under the toolbar; the title starts below it.
+          content
+            .padding(.top, phase.topChromeInset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity)
+        .onGeometryChange(for: CGSize.self, of: \.size) { heroBandSize = $0 }
+        .background(alignment: .topTrailing) {
+          // Top-trailing, below the toolbar, in the band's upper half: it was centred
+          // and filled the band, over the synopsis (Sasha, 2026-10-30).
+          if showsCornerPoster, let url = heroPosterURL {
+            cornerPosterImage(url: url, bandSize: heroBaseBandSize)
+              .padding(.top, phase.topChromeInset + Self.horizontalInset)
+              .padding(.trailing, Self.horizontalInset)
+              .transition(.opacity)
+          }
+        }
+        .background {
+          ZStack {
+            scrollingBackdrop
+            if !usesAdaptivePosterHero {
+              scrollingScrim
             }
           }
-          .onGeometryChange(for: CGSize.self, of: \.size) { heroBandSize = $0 }
-          .overlay(alignment: .topTrailing) {
-            // Top-trailing, below the toolbar, in the band's upper half: it was centred
-            // and filled the band, over the synopsis (Sasha, 2026-10-30).
-            if showsCornerPoster, let url = heroPosterURL {
-              cornerPosterImage(url: url, bandSize: heroBandSize)
-                .padding(.top, phase.topChromeInset + Self.horizontalInset)
-                .padding(.trailing, Self.horizontalInset)
-                .transition(.opacity)
-            }
-          }
-          .overlay {
-            // The picture runs under the toolbar; the title starts below it.
-            content
-              .padding(.top, phase.topChromeInset)
-              .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-          }
-          .clipped()
-          .animation(Self.heroStateChange, value: showsPicture)
+        }
+        .clipped()
+        .animation(Self.heroStateChange, value: showsPicture)
       }
     }
   }
@@ -751,6 +755,8 @@ struct MediaItemHeroView: View {
   }
 
   static let posterAccentBandShare: CGFloat = 0.5
+  /// Black over the blurred poster behind a poster hero, so the light chrome reads.
+  static let posterWashDim: Double = 0.35
 #endif
 
 #if os(tvOS)
@@ -869,9 +875,17 @@ struct MediaItemHeroView: View {
 #if !os(tvOS)
   @Environment(\.colorScheme) private var systemColorScheme
 
-  /// No kino.pub `wide` — system labels and a page plate, not cinema chrome over a still.
+  /// No picture and no poster to wash the band with — system labels on the page plate.
+  /// A poster-only title keeps the blurred poster it opened on as its background, dimmed,
+  /// with the same dark chrome a picture gets (Sasha, 2026-11-08): the plain plate under
+  /// a corner poster read as a grey slab, and the toolbar went white on white over it.
   private var usesAdaptivePosterHero: Bool {
-    needsPosterAccent
+    !hasArtBackdrop
+  }
+
+  /// A picture, or the blurred poster standing in for one.
+  private var hasArtBackdrop: Bool {
+    showsPicture || heroWashURL != nil
   }
 
   private var heroChromeColorScheme: ColorScheme {
@@ -884,7 +898,7 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
     Self.trailingPosterWidth + Self.horizontalInset
 #else
-    Self.posterAccentSize(in: heroBandSize).width + Self.horizontalInset
+    Self.posterAccentSize(in: heroBaseBandSize).width + Self.horizontalInset
 #endif
   }
 
@@ -947,8 +961,8 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var scrollingBackdrop: some View {
     ZStack {
+      MediaItemPosterWash(url: heroWashURL)
       if !backdropCandidates.isEmpty {
-        MediaItemPosterWash(url: heroWashURL)
         FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill,
                             onLoaded: { noteBackdrop(loaded: true) },
                             onFailed: { noteBackdrop(loaded: false) })
@@ -960,8 +974,11 @@ struct MediaItemHeroView: View {
 #endif
           }
       }
+      // Poster hero: the wash, dimmed under the dark chrome; no poster at all: the plate.
+      Color.black
+        .opacity(!showsPicture && heroWashURL != nil ? Self.posterWashDim : 0)
       Color.KinoPub.posterHeroPlate
-        .opacity(showsPicture ? 0 : 1)
+        .opacity(usesAdaptivePosterHero ? 1 : 0)
 
       if let player = trailer.player, trailer.isReady {
         TrailerVideoLayer(player: player)
@@ -1046,6 +1063,15 @@ struct MediaItemHeroView: View {
         creditsBlock
           .frame(width: creditsColumnWidth, alignment: .leading)
       }
+#if !os(tvOS)
+      // The corner poster's column stays clear all the way down: the whole synopsis ran
+      // under it (Sasha, 2026-11-08).
+      if showsCornerPoster, !phoneHeroGrows {
+        Color.clear
+          .frame(width: max(0, posterColumnWidth - Self.columnGutter))
+          .accessibilityHidden(true)
+      }
+#endif
     }
   }
 
@@ -1090,6 +1116,7 @@ struct MediaItemHeroView: View {
         title: mediaItem.localizedTitle,
         plot: synopsis.plot,
         lead: synopsis.lead,
+        expandsFully: showsCornerPoster,
         focus: $focus,
         popupSubtitle: popupOriginalTitle,
         summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
@@ -1163,7 +1190,17 @@ struct MediaItemHeroView: View {
       .foregroundStyle(heroPrimaryForeground)
       .multilineTextAlignment(.leading)
       .fixedSize(horizontal: false, vertical: true)
-      .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 2)
+      .shadow(color: .black.opacity(titleShadowOpacity), radius: 12, x: 0, y: 2)
+  }
+
+  /// A shadow lifts the title off a picture; over the poster hero's wash it only smudged
+  /// (Sasha, 2026-11-08).
+  private var titleShadowOpacity: Double {
+#if os(tvOS)
+    0.5
+#else
+    showsPicture ? 0.5 : 0
+#endif
   }
 
   /// Under the logo: localized vs original from the **served** worker stamp (`ru` /
@@ -1176,7 +1213,7 @@ struct MediaItemHeroView: View {
         .foregroundStyle(heroSecondaryForeground)
         .multilineTextAlignment(.leading)
         .fixedSize(horizontal: false, vertical: true)
-        .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 2)
+        .shadow(color: .black.opacity(titleShadowOpacity), radius: 8, x: 0, y: 2)
     }
   }
 
@@ -1260,8 +1297,10 @@ struct MediaItemHeroView: View {
     // A plain film says nothing about being a film: the runtime says it.
     let kind = kindKey == "Kind_movies_One" ? nil : kindKey.localized
     let years = isSeries ? card.bannerYearSpan : (mediaItem.year > 0 ? String(mediaItem.year) : nil)
-    let head = [years, kind.map { years == nil ? $0 : $0.lowercased() }].compactMap { $0 }
-    if !head.isEmpty { blocks.append(head.joined(separator: " ")) }
+    // «2011  Документальный фильм»: the kind keeps its capital, two spaces from the year
+    // (Sasha, 2026-11-08).
+    let head = [years, kind].compactMap { $0 }
+    if !head.isEmpty { blocks.append(head.joined(separator: "  ")) }
 
     if isSeries {
       let seasons = mediaItem.seasons ?? []
@@ -1276,8 +1315,6 @@ struct MediaItemHeroView: View {
         volume.append("MediaItem_StatusEndedShort".localized)
       }
       if !volume.isEmpty { blocks.append(volume.joined(separator: ", ")) }
-    } else if let runtime = filmRuntimeText {
-      blocks.append(runtime)
     }
 
     let genres = card.usefulGenres(limit: Self.genreLimit,
@@ -1289,16 +1326,21 @@ struct MediaItemHeroView: View {
     if let country = mediaItem.countryNames.first, !country.isEmpty {
       blocks.append(country)
     }
-    // Certification only when it was asked for — see `MediaItemDisplayPreferences`.
-    if showsAgeRatingBadge, let ageRating, !ageRating.isEmpty {
+    // Always: the «show age rating» preference is the poster's, not this line's (Sasha,
+    // 2026-11-08).
+    if let ageRating, !ageRating.isEmpty {
       blocks.append(ageRating)
     }
     return blocks
   }
 
-  /// How long what Play offers runs — the version in focus, else the last one that was,
+  /// How long what Play offers runs — the episode it opens; for a film the version in focus, else the last one that was,
   /// else the first not yet watched (Sasha, 2026-10-25); the film's own runtime otherwise.
-  private var filmRuntimeText: String? {
+  private var runtimeText: String? {
+    if isSeries {
+      guard let (_, episode) = mediaItem.primaryEpisode, episode.duration > 0 else { return nil }
+      return RuntimeText(seconds: episode.duration).text(for: .detailRuntime)
+    }
     if let version = runtimeVersion, version.duration > 0 {
       return RuntimeText(seconds: version.duration).text(for: .detailRuntime)
     }
@@ -1348,22 +1390,27 @@ struct MediaItemHeroView: View {
     }
   }
 
-  /// «[4K]  Дубляж  Рус, англ»: the drawn quality badges, the best voicing in the viewer's
-  /// language, the subtitle languages.
+  /// «2ч 47м  [4K]  Русский, дубляж + ещё 5  Английский  Русский, Английский»: how long
+  /// what Play opens runs, the drawn quality badges, then the sound and the subtitles in
+  /// the viewer's own languages only (Sasha, 2026-11-08).
   @ViewBuilder
   private var playbackLine: some View {
+    let runtime = runtimeText
     let badges = MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
-    let voice = voicingTitle
-    let subtitles = subtitleLanguagesShort
-    if !badges.isEmpty || voice != nil || subtitles != nil {
-      HStack(spacing: Self.metaSpacing) {
+    let audio = audioSummary
+    let subtitles = subtitleSummary
+    if runtime != nil || !badges.isEmpty || audio != nil || subtitles != nil {
+      AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2) {
+        if let runtime {
+          Text(verbatim: runtime)
+        }
         if !badges.isEmpty {
           MediaBadgeImages(badges)
         }
-        if let voice {
+        if let audio {
           HStack(spacing: Self.glyphSpacing) {
             Image(systemName: Self.voicingSymbol)
-            Text(verbatim: voice)
+            Text(verbatim: audio)
           }
         }
         if let subtitles {
@@ -1379,28 +1426,54 @@ struct MediaItemHeroView: View {
     }
   }
 
-  /// The best voicing among the tracks in the viewer's first language — «Дубляж»,
-  /// «Многоголосый»… — by the player's own ladder. Nil when only the original is in it.
-  private var voicingTitle: String? {
-    guard let language = mediaItemPreferredLanguages().first.map(SubtitleTracks.languageKey) else { return nil }
-    let best = mediaItem.detailAudioTracks
-      .filter { SubtitleTracks.languageKey($0.lang) == language && !$0.isAudioDescription }
-      .compactMap { $0.typeId.flatMap(VoiceType.init(rawValue:)) }
-      .filter { $0 != .original && $0 != .undetermined }
-      .min { $0.preferenceRank < $1.preferenceRank }
-    return best?.titleKey.localized
+  /// Each of the viewer's languages the title has, in their order: the language, its
+  /// best voicing by the player's ladder (kino.pub's own word for it), and how many more
+  /// tracks there are in it — «Русский, дубляж + ещё 5  Английский». The original says
+  /// no voicing. Other languages are left out; nil when none of the viewer's is there.
+  private var audioSummary: String? {
+    let tracks = mediaItem.detailAudioTracks.filter { !$0.isAudioDescription }
+    let parts = viewerLanguages.compactMap { key -> String? in
+      let inLanguage = tracks.filter { SubtitleTracks.languageKey($0.lang) == key }
+      guard let name = languageName(key), !inLanguage.isEmpty else { return nil }
+      var text = name
+      let best = inLanguage.min { rank($0) < rank($1) }
+      if let best, let voice = best.typeId.flatMap(VoiceType.init(rawValue:)),
+         voice != .original, voice != .undetermined,
+         let title = best.typeTitle?.trimmingCharacters(in: .whitespaces), !title.isEmpty {
+        text += ", " + title.lowercased()
+      }
+      if inLanguage.count > 1 {
+        text += " " + String(format: "MediaItem_PlusMoreCount".localized, inLanguage.count - 1)
+      }
+      return text
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: "  ")
   }
 
-  /// «Рус, англ»: the subtitle languages, preferred first, shortened; three at most.
-  private var subtitleLanguagesShort: String? {
-    let groups = mediaItem.subtitleLanguageGroups(preferredLanguages: mediaItemPreferredLanguages())
-    guard !groups.isEmpty else { return nil }
-    let names = groups.prefix(Self.subtitleLanguageLimit).enumerated().map { index, group in
-      let short = LanguageShortName.short(key: group.key, fallback: group.name)
-      return index == 0 ? short.prefix(1).uppercased() + short.dropFirst() : short.lowercased()
-    }
-    let more = groups.count > Self.subtitleLanguageLimit ? "…" : ""
-    return names.joined(separator: ", ") + more
+  /// The viewer's languages among the subtitles: «Русский, Английский».
+  private var subtitleSummary: String? {
+    let keys = Set(mediaItem.subtitleLanguageGroups(preferredLanguages: mediaItemPreferredLanguages()).map(\.key))
+    let names = viewerLanguages.filter(keys.contains).compactMap(languageName)
+    return names.isEmpty ? nil : names.joined(separator: ", ")
+  }
+
+  /// The viewer's languages, as audio and subtitle keys, first-preferred first.
+  private var viewerLanguages: [String] {
+    var seen = Set<String>()
+    return mediaItemPreferredLanguages()
+      .map(SubtitleTracks.languageKey)
+      .filter { seen.insert($0).inserted }
+  }
+
+  private func languageName(_ key: String) -> String? {
+    let groups = mediaItem.audioLanguageGroups(preferredLanguages: mediaItemPreferredLanguages())
+      + mediaItem.subtitleLanguageGroups(preferredLanguages: mediaItemPreferredLanguages())
+    guard let name = groups.first(where: { $0.key == key })?.name, !name.isEmpty else { return nil }
+    return name.prefix(1).uppercased() + name.dropFirst()
+  }
+
+  private func rank(_ track: AudioTrackInfo) -> Int {
+    track.typeId.flatMap(VoiceType.init(rawValue:))?.preferenceRank ?? AudioTracks.kindRankUnknown
   }
 
   /// The column on the right: present on the TV; elsewhere once the hero leaves room for
@@ -1410,6 +1483,8 @@ struct MediaItemHeroView: View {
 #if os(tvOS)
     return true
 #else
+    // The poster has the right side; the people go under the synopsis.
+    guard !showsCornerPoster else { return false }
     let available = heroBandSize.width - 2 * Self.contentHorizontalInset
     return available >= MediaItemPlotView.maxWidth + Self.columnGutter + creditsColumnWidth
 #endif
@@ -1957,9 +2032,6 @@ struct MediaItemHeroView: View {
   /// Genres in the facts line, one block; kino.pub happily returns six.
   static let genreLimit = 3
 
-  /// Subtitle languages named in the playback line before «…».
-  static let subtitleLanguageLimit = 3
-
   /// The people's column, as a share of the synopsis measure beside it.
   static let creditsColumnRatio: CGFloat = 0.5
 
@@ -2101,22 +2173,21 @@ private struct MediaItemHeroPreview: View {
 }
 #endif
 
-/// A language as two-to-four letters for a line that names several: «рус», «англ». The
-/// viewer's language picks the table; anything not in it keeps its full name.
-enum LanguageShortName {
-  static func short(key: String, fallback: String) -> String {
-    let table = MediaLanguage.current == .ru ? russian : english
-    return table[key] ?? fallback
+/// The hero band: as tall as `aspect` makes it at its width, taller when the content needs
+/// more — and the content is offered the band's full height, so its spacer still pushes
+/// the synopsis and buttons to the bottom.
+private struct HeroBandLayout: Layout {
+  var aspect: CGFloat
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let width = proposal.width ?? subviews.first?.sizeThatFits(.unspecified).width ?? 0
+    let natural = subviews.first?.sizeThatFits(ProposedViewSize(width: width, height: nil)).height ?? 0
+    return CGSize(width: width, height: max(natural, width / aspect))
   }
 
-  private static let russian: [String: String] = [
-    "ru": "рус", "en": "англ", "uk": "укр", "ja": "яп", "ko": "кор", "zh": "кит",
-    "de": "нем", "fr": "фр", "es": "исп", "it": "ит", "pt": "порт", "pl": "пол",
-    "tr": "тур", "kk": "каз", "be": "бел", "uz": "узб", "he": "иврит", "ar": "араб",
-  ]
-  private static let english: [String: String] = [
-    "ru": "Rus", "en": "Eng", "uk": "Ukr", "ja": "Jpn", "ko": "Kor", "zh": "Chi",
-    "de": "Ger", "fr": "Fre", "es": "Spa", "it": "Ita", "pt": "Por", "pl": "Pol",
-    "tr": "Tur", "kk": "Kaz", "be": "Bel", "uz": "Uzb", "he": "Heb", "ar": "Ara",
-  ]
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    for subview in subviews {
+      subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+    }
+  }
 }

@@ -37,17 +37,16 @@ public struct TitleStatusBadge: View {
       .fixedSize()
   }
 
-  private static let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+  /// Fully rounded (Sasha, 2026-11-08).
+  private static let shape = Capsule(style: .continuous)
 
 #if os(tvOS)
-  static let horizontalPadding: CGFloat = 12
+  static let horizontalPadding: CGFloat = 16
   static let verticalPadding: CGFloat = 4
-  static let cornerRadius: CGFloat = 10
   static let strokeWidth: CGFloat = 2
 #else
-  static let horizontalPadding: CGFloat = 7
+  static let horizontalPadding: CGFloat = 9
   static let verticalPadding: CGFloat = 2
-  static let cornerRadius: CGFloat = 6
   static let strokeWidth: CGFloat = 1
 #endif
 }
