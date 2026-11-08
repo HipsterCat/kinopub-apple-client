@@ -54,7 +54,7 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
       recordDevSession("refresh ok, new", newToken)
       accessTokenService.set(token: newToken)
     } catch {
-      recordDevSession("refresh failed: \(error)", token)
+      recordDevSession("refresh failed: \(Self.describeRefreshFailure(error))", token)
       // If another device rotated the refresh token while our request was in flight (or
       // iCloud Keychain finished syncing right after we started), adopt the newer
       // Keychain token instead of treating the 400 as a dead session.
@@ -75,10 +75,35 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
         accessTokenService.set(token: shared)
         return
       }
+      // Only kino.pub's own rejection of the refresh token ends the session. A 502 or a
+      // timeout is not one: AuthState keeps the session and retries.
+      let rejected = (error as? APIClientError)?.isFatalAuthError == true
+      if rejected,
+         let shared = DevSessionMirror.load(), shared.refreshToken == token.refreshToken {
+        // The shared file holds the very token kino.pub just refused, so it is dead for
+        // every debug build. Kept, it re-seeded the Keychain the moment logout cleared
+        // it, and each content 401 refreshed with it again — an endless 401 loop on the
+        // title page instead of the activation screen (2026-11-08).
+        DevSessionMirror.delete(reason: "refresh token rejected by kino.pub")
+      }
 #endif
-      recordDevSession("refresh failed for good: session is over", token)
+      if (error as? APIClientError)?.isFatalAuthError == true {
+        recordDevSession("refresh failed for good: session is over", token)
+      } else {
+        recordDevSession("refresh failed, transient: session kept", token)
+      }
       throw error
     }
+  }
+
+  /// The refresh error with kino.pub's OAuth code, not `BackendError error 1`.
+  private static func describeRefreshFailure(_ error: Error) -> String {
+    guard let apiError = error as? APIClientError else { return "\(error)" }
+    if case .networkError(let inner) = apiError, let backend = inner as? BackendError {
+      let status = backend.status > 0 ? "HTTP \(backend.status) " : ""
+      return "\(status)\(backend.errorCode.rawValue)\(backend.errorDescription.map { " (\($0))" } ?? "")"
+    }
+    return apiError.description
   }
 
   /// Debug builds only: a line in the shared dev-session log (`DevSessionMirror.record`).
