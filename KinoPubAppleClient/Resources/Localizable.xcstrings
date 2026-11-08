@@ -1303,13 +1303,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You are now signed in to KinoPub."
+            "value" : "You are now signed in to Kinopub."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Вход в аккаунт KinoPub выполнен."
+            "value" : "Вход в аккаунт Кинопаб выполнен."
           }
         }
       }
@@ -1354,12 +1354,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Activate KinoPub at %1$@ with code: %2$@"
+            "value" : "Activate Kinopub at %1$@ with code: %2$@"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Активируйте устройство на %1$@, код: %2$@"
           }
         }
@@ -2238,12 +2238,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KinoPub"
+            "value" : "Kinopub"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кинопаб"
           }
         }
@@ -6020,12 +6020,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KinoPub is built with these open-source libraries."
+            "value" : "Kinopub is built with these open-source libraries."
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кинопаб собран с этими библиотеками с открытым кодом."
           }
         }
@@ -7470,13 +7470,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not on KinoPub yet"
+            "value" : "Not on Kinopub yet"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ещё нет на KinoPub"
+            "value" : "Ещё нет на Кинопабе"
           }
         }
       }
@@ -7488,12 +7488,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not on KinoPub"
+            "value" : "Not on Kinopub"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Нет на Кинопабе"
           }
         }
@@ -8805,24 +8805,6 @@
         }
       }
     },
-    "MediaItem_VideoSourceKinopub" : {
-      "comment" : "Second line under kino.pub's own trailer in the title page videos rail (the other cards say YouTube)",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kino.pub"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кинопаб"
-          }
-        }
-      }
-    },
     "MediaItem_Versions" : {
       "comment" : "Header of the rail listing the versions of one film (24/48 fps, director's cut)",
       "localizations" : {
@@ -8888,6 +8870,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Видео"
+          }
+        }
+      }
+    },
+    "MediaItem_VideoSourceKinopub" : {
+      "comment" : "Second line under kino.pub's own trailer in the title page videos rail (the other cards say YouTube)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kino.pub"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кинопаб"
           }
         }
       }
@@ -12642,7 +12642,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KinoPoisk Rating"
+            "value" : "Kinopoisk Rating"
           }
         },
         "ru" : {
@@ -12659,7 +12659,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KinoPub Rating"
+            "value" : "Kinopub Rating"
           }
         },
         "ru" : {
