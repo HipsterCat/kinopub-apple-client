@@ -64,7 +64,6 @@ struct TabsNavigationView: View {
   private static let sidebarSyncTTL: TimeInterval = 120
 #if os(macOS)
   @Environment(\.openWindow) private var openWindow
-  @Environment(\.openSettings) private var openSettings
 #endif
 
   /// The sidebar item (Mac) / tab (iPad) the app was on, restored at launch. App storage,
@@ -407,6 +406,9 @@ struct TabsNavigationView: View {
       // and the keyboard works the page — Left / Right turn the Home hero (Sasha,
       // 2026-10-30). Taken on launch and after every pick in the sidebar.
       macSidebarDetail
+        // From the page too: a sidebar collapsed in an earlier session is hidden, and its
+        // own probe may never come back into a window to open it again.
+        .background(MacFixedSidebar(width: Self.macSidebarWidth))
         // Every page under the same window toolbar, as the TV app's: with nothing in it a
         // page had none, and switching between pages moved everything up and down by the
         // bar's height (Sasha, 2026-10-31). The picture of Home runs on up under it.
@@ -417,7 +419,10 @@ struct TabsNavigationView: View {
           ToolbarSpacer(.flexible)
           ToolbarItem(placement: .primaryAction) {
             Button {
-              openSettings()
+              // The app's Settings is a `Window`, not a `Settings` scene: `openSettings`
+              // failed with «No Settings scene is defined» (Sasha, 2026-11-08). The same
+              // window ⌘, and the app menu open.
+              openWindow(id: SettingsWindow.id)
             } label: {
               Image(systemName: "gear")
             }
@@ -1080,7 +1085,7 @@ struct TabsNavigationView_Previews: PreviewProvider {
 /// A click opens the Settings window.
 private struct MacSidebarAccount: View {
   let userService: UserService
-  @Environment(\.openSettings) private var openSettings
+  @Environment(\.openWindow) private var openWindow
   @State private var name: String?
   @State private var avatarURL: URL?
   @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 28
@@ -1092,7 +1097,7 @@ private struct MacSidebarAccount: View {
     VStack(spacing: 0) {
       Divider()
       Button {
-        openSettings()
+        openWindow(id: SettingsWindow.id)
       } label: {
         HStack(spacing: 10) {
           CachedRemoteImage(url: avatarURL, contentMode: .fill,
@@ -1260,8 +1265,14 @@ enum MacGenreSymbol {
 import AppKit
 
 /// Pins the sidebar column of the split view it sits in, as the TV app's is: one width,
-/// no collapsing, the divider does not move.
-private struct MacFixedSidebar: NSViewRepresentable {
+/// no collapsing, the divider does not move. Used by the main window and the Settings
+/// window; `SidebarCollapseLock` keeps every sidebar from collapsing at all.
+///
+/// Runs each time the window comes up, so a sidebar dragged shut or to another width
+/// in an earlier session (Sasha's Settings window, 2026-11-08: dragged to zero and no way
+/// back) is open at its width again on the next open. Put it on the detail column too:
+/// a collapsed sidebar's own content may not come back to run it.
+struct MacFixedSidebar: NSViewRepresentable {
   let width: CGFloat
 
   func makeNSView(context: Context) -> NSView { Probe(width: width) }
@@ -1277,6 +1288,7 @@ private struct MacFixedSidebar: NSViewRepresentable {
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
+      guard window != nil else { return }
       // At once when the split view is already there, so the page beside the sidebar
       // is laid out at its final width from the first frame; again on the next turn in
       // case the controller was not set up yet.
@@ -1295,6 +1307,7 @@ private struct MacFixedSidebar: NSViewRepresentable {
       sidebar.minimumThickness = width
       sidebar.maximumThickness = width
       sidebar.holdingPriority = .defaultHigh
+      if sidebar.isCollapsed { sidebar.isCollapsed = false }
       if split.arrangedSubviews.first?.frame.width != width {
         split.setPosition(width, ofDividerAt: 0)
       }

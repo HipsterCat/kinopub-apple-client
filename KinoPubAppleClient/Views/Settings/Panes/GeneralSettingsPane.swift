@@ -27,26 +27,17 @@ struct GeneralSettingsPane: View {
 #if os(macOS)
   private var macBody: some View {
     @Bindable var windowSettings = windowSettings
-    return VStack(spacing: 0) {
-      Form {
-        accountAndLanguageSections
-        Section("Window") {
-          Toggle("AlwaysOnTop", isOn: $windowSettings.alwaysOnTop)
-        }
+    // The account and Logout are the profile row's page (`AccountSettingsPane`).
+    return Form {
+      Section {
+        LabeledContent("App version", value: Bundle.main.appVersionLong)
       }
-      .formStyle(.grouped)
-
-      // macOS Control Center–style pill — not a Form row.
-      HStack {
-        Button("Logout…") {
-          showLogoutAlert = true
-        }
-        .buttonStyle(.bordered)
-        Spacer(minLength: 0)
+      languageSection
+      Section("Window") {
+        Toggle("AlwaysOnTop", isOn: $windowSettings.alwaysOnTop)
       }
-      .padding(.horizontal, 20)
-      .padding(.bottom, 16)
     }
+    .formStyle(.grouped)
   }
 #endif
 
@@ -71,7 +62,10 @@ struct GeneralSettingsPane: View {
       LabeledContent("Registration Date", value: model.userData.registrationDateFormatted)
       LabeledContent("App version", value: Bundle.main.appVersionLong)
     }
+    languageSection
+  }
 
+  private var languageSection: some View {
     Section("Language") {
       Picker("Select Language", selection: $selectedLanguage) {
         ForEach(model.availableLanguages.keys.sorted(), id: \.self) { key in
@@ -82,6 +76,39 @@ struct GeneralSettingsPane: View {
       .onChange(of: selectedLanguage) { _, newLanguage in
         model.changeLanguage(to: newLanguage)
       }
+    }
+  }
+}
+#endif
+
+#if os(macOS)
+/// The page of the profile row at the top of the Settings sidebar: who is signed in, and
+/// Logout — as System Settings' account row opens the account's page.
+struct AccountSettingsPane: View {
+  let model: ProfileModel
+  @Binding var showLogoutAlert: Bool
+
+  var body: some View {
+    VStack(spacing: 0) {
+      Form {
+        Section {
+          LabeledContent("User Name", value: model.userData.username)
+          LabeledContent("User Subscription", value: "\(model.userData.subscription.days) \("days".localized)")
+          LabeledContent("Registration Date", value: model.userData.registrationDateFormatted)
+        }
+      }
+      .formStyle(.grouped)
+
+      // macOS Control Center–style pill — not a Form row.
+      HStack {
+        Button("Logout…") {
+          showLogoutAlert = true
+        }
+        .buttonStyle(.bordered)
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, 20)
+      .padding(.bottom, 16)
     }
   }
 }

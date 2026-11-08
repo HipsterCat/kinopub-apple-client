@@ -52,6 +52,9 @@ struct KinoPubAppleClientApp: App {
       MainActor.assumeIsolated { NetworkDiagnostics.setRemoteLoggingEnabled(true) }
     }
     HLSAudioLabeler.removeLegacyTemporaryFiles()
+#if os(macOS)
+    MainActor.assumeIsolated { SidebarCollapseLock.install() }
+#endif
 #if os(tvOS) && DEBUG
     // One observer under both SwiftUI and UIKit — see `FocusLog.startGlobalTrace`.
     MainActor.assumeIsolated { FocusLog.startGlobalTrace() }

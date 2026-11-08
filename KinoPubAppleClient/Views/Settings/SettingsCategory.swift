@@ -7,6 +7,9 @@ import SwiftUI
 
 /// Shared settings catalog for macOS (sidebar) and iOS (list). tvOS keeps its own chrome.
 enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
+  /// macOS: the profile row at the top of the sidebar, a row like any other, as the
+  /// account is in System Settings. Never listed with the categories below it.
+  case account
   case general
   case playback
   case integrations
@@ -25,6 +28,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
 
   var titleKey: LocalizedStringKey {
     switch self {
+    case .account: return "Account"
     case .general: return "General"
     case .playback: return "Playback"
     case .integrations: return "Integrations"
@@ -43,6 +47,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
 
   var systemImage: String {
     switch self {
+    case .account: return "person.crop.circle.fill"
     case .general: return "gear"
     case .playback: return "play.fill"
     case .integrations: return "puzzlepiece.extension.fill"
@@ -62,7 +67,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
   /// Fill for the rounded Settings icon tile (Apple-style colored squares).
   var iconColor: Color {
     switch self {
-    case .general:
+    case .account, .general:
       return Color(red: 0.56, green: 0.56, blue: 0.58)
     case .playback:
       return Color(red: 0.20, green: 0.48, blue: 0.96)
@@ -94,6 +99,12 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
   /// Whether this row appears in the catalog on the current platform / flags.
   var isAvailable: Bool {
     switch self {
+    case .account:
+#if os(macOS)
+      return true
+#else
+      return false
+#endif
     case .downloads:
 #if os(tvOS)
       return false
@@ -120,5 +131,10 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
 
   static var availableCategories: [SettingsCategory] {
     allCases.filter(\.isAvailable)
+  }
+
+  /// The rows under the profile row: everything available but the account itself.
+  static var listedCategories: [SettingsCategory] {
+    availableCategories.filter { $0 != .account }
   }
 }

@@ -39,22 +39,19 @@ struct SettingsRootView: View {
   private var macSplit: some View {
     NavigationSplitView {
       List(selection: $selectedCategory) {
+        // A selectable row, as System Settings' account is: a `.plain` button sat on
+        // the list without a selection of its own (Sasha, 2026-11-08).
         Section {
-          Button {
-            selectedCategory = .general
-            detailPath = NavigationPath()
-          } label: {
-            SettingsSidebarProfileView(
-              name: profileName,
-              subtitle: profileSubtitle,
-              avatarImage: avatarImage
-            )
-          }
-          .buttonStyle(.plain)
+          SettingsSidebarProfileView(
+            name: profileName,
+            subtitle: profileSubtitle,
+            avatarImage: avatarImage
+          )
+          .tag(SettingsCategory.account)
         }
 
         Section {
-          ForEach(SettingsCategory.availableCategories) { category in
+          ForEach(SettingsCategory.listedCategories) { category in
             Label {
               Text(category.titleKey)
                 .lineLimit(1)
@@ -75,7 +72,10 @@ struct SettingsRootView: View {
           }
       }
 //      .listStyle(.sidebar)
-      .navigationSplitViewColumnWidth(240)
+      .navigationSplitViewColumnWidth(Self.macSidebarWidth)
+      // System Settings' sidebar does not move; ours was dragged to zero and stayed
+      // there (Sasha, 2026-11-08). Pinned, and opened again each time the window opens.
+      .background(MacFixedSidebar(width: Self.macSidebarWidth))
       .toolbar(removing: .sidebarToggle)
     } detail: {
       NavigationStack(path: $detailPath) {
@@ -118,6 +118,7 @@ struct SettingsRootView: View {
             }
           }
       }
+      .background(MacFixedSidebar(width: Self.macSidebarWidth))
 //      .navigationSplitViewColumnWidth(500)
     }
 //    .navigationSplitViewStyle(.balanced)
@@ -145,6 +146,8 @@ struct SettingsRootView: View {
       )
     }
   }
+
+  private static let macSidebarWidth: CGFloat = 240
 
   @ViewBuilder
   private var macDetailRoot: some View {
@@ -257,6 +260,12 @@ struct SettingsRootView: View {
   @ViewBuilder
   private func pane(for category: SettingsCategory) -> some View {
     switch category {
+    case .account:
+#if os(macOS)
+      AccountSettingsPane(model: model, showLogoutAlert: $showLogoutAlert)
+#else
+      GeneralSettingsPane(model: model, showLogoutAlert: $showLogoutAlert)
+#endif
     case .general:
       GeneralSettingsPane(model: model, showLogoutAlert: $showLogoutAlert)
     case .playback:
