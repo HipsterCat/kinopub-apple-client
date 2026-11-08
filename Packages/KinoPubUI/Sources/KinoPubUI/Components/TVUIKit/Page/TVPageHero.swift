@@ -707,8 +707,12 @@ final class TVPageHeroCell: UICollectionViewCell {
     }
   }
 
+  /// The title the words are painted for; the caption reads it, not the carousel.
+  private var shownFeature: TVPageFeature?
+
   private func fill(_ feature: TVPageFeature, newTitle: Bool) {
     let card = feature.card
+    shownFeature = feature
     titleLabel.text = card.title
     if newTitle {
       logoSession.reset()
@@ -786,15 +790,19 @@ final class TVPageHeroCell: UICollectionViewCell {
 
   /// The line under the mark: what the title page's hero says under the same mark.
   private func paintCaption(mark shown: TitleLogoMark) {
-    guard let card = carousel?.current?.card else {
+    guard let feature = shownFeature else {
       caption.setHiddenOnce(true)
       return
     }
+    let card = feature.card
     let line = TitleLogoCaption.line(mark: shown, deliveredLanguage: logoSession.deliveredLanguage,
-                                     logoURL: carousel?.current?.logoURL, localized: card.title,
+                                     logoURL: feature.logoURL, localized: card.title,
                                      original: card.subtitle ?? card.title)
     caption.text = line
     caption.setHiddenOnce(line?.isEmpty ?? true)
+#if DEBUG
+    print("[HomeHero] caption id=\(card.id) mark=\(shown) line=\(line ?? "nil") hidden=\(caption.isHidden)")
+#endif
     // Under a logo it wraps at the logo's edge (230 pt at least, as on the title page);
     // under the name, at the words' column.
     captionWidth.constant = shown == .logo ? max(logoWidth.constant, 230) : wordsWidth.constant
