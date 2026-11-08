@@ -333,6 +333,9 @@ final class ListedItemCache: @unchecked Sendable {
   /// Writes the listings of the titles the rows show (`ContentStore.save`), off the main
   /// thread.
   func persist(keeping refs: Set<MediaRef>) {
+    // Without this the first save of a warm session wrote only what it had fetched so
+    // far over the whole file.
+    restoreIfNeeded()
     lock.lock()
     let kept = items.values.filter { refs.contains($0.titleRef) }
     lock.unlock()
