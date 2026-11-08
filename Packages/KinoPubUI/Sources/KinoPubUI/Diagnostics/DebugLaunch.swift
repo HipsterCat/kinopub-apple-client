@@ -182,6 +182,22 @@ public enum DebugLaunch {
 #endif
   }
 
+  /// `-KINOPUBFailDetails <status>[:<id>]`: a title's details call fails with that HTTP
+  /// status (`502`), for every title or only for `<id>` (`502:9902`) — the live API and
+  /// the stand-in alike, to see the page's failure state without waiting for kino.pub
+  /// to fall over.
+  public static func failDetails(for id: String) -> Int? {
+#if DEBUG
+    guard let raw = UserDefaults.standard.string(forKey: "KINOPUBFailDetails") else { return nil }
+    let parts = raw.split(separator: ":").map(String.init)
+    guard let status = parts.first.flatMap(Int.init) else { return nil }
+    if parts.count > 1, parts[1] != id { return nil }
+    return status
+#else
+    nil
+#endif
+  }
+
   /// `-KINOPUBFixtureWatchOutAfter <seconds>`: that long after launch the Library fixture's
   /// stand-in API reports the third followed series caught up and the Library refetches, as
   /// it does back from the player — the series leaves Subscriptions under the remote.

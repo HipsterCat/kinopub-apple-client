@@ -123,6 +123,9 @@ struct VideoContentServiceMock: VideoContentService {
     if let delay = DebugLaunch.slowDetails {
       try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
     }
+    if let status = DebugLaunch.failDetails(for: id) {
+      throw APIClientError.httpStatus(status, data: nil)
+    }
     if let itemID = Int(id), let item = details?(itemID) {
       return SingleItemData.mock(data: item)
     }

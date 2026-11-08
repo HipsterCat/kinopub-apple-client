@@ -34,9 +34,10 @@ class MediaItemModel: ObservableObject {
   
   @Published public var mediaItem: MediaItem = MediaItem.mock()
   @Published public var itemLoaded: Bool = false
-  /// True after `fetchDetails` fails **with nothing painted** — cold open shows
-  /// `UnavailableView`. When a card snapshot (or a prior fetch) is already on
-  /// screen, failure stays a toast; do not replace the page.
+  /// True after `fetchDetails` fails. The page says so where the details would have
+  /// been: under a hero painted from the card (`hasPaintedItem`), or over the whole
+  /// page when there is nothing to paint — never only as a toast, which left an empty
+  /// page with a message that was gone in a moment (Sasha, 2026-11-08).
   @Published public var loadFailed: Bool = false
   /// The failure behind `loadFailed`, so the retry state can say what actually went wrong.
   @Published public var loadError: Error?
@@ -379,9 +380,8 @@ class MediaItemModel: ObservableObject {
   }
 
   /// - Parameter knownItem: the listing's copy of the item, where the caller has one.
-  ///   On tvOS the page draws its hero from it at once and fills in what only the
-  ///   details call knows (seasons, the episode on Play) in place; iOS and macOS still
-  ///   take only the artwork from it and wait for the details (`MediaItemView.paintsPage`).
+  ///   The page draws its hero from it at once and fills in what only the details call
+  ///   knows (seasons, the episode on Play) in place (`MediaItemView.paintsPage`).
   init(mediaItemId: Int,
        knownItem: MediaItem? = nil,
        itemsService: VideoContentService,
@@ -513,16 +513,8 @@ class MediaItemModel: ObservableObject {
       } catch {
         Logger.app.error("Failed to load item \(self.mediaItemId): \(error)")
         loadError = error
-        if hasPaintedItem {
-          // Keep the cached / already-loaded page. A toast is enough — the API
-          // client retries after token refresh; forcing Try Again over the hero
-          // was the mid-session failure mode that felt broken.
-          loadFailed = false
-          hudToast = HudToast(systemImage: "wifi.exclamationmark",
-                              title: "Couldn't Load".localized)
-        } else {
-          loadFailed = true
-        }
+        // The card's hero stays; the view puts the failure under it, not over it.
+        loadFailed = true
         externalMetadataLoaded = true
         moreFromDirectorLoaded = true
         moreWithActorLoaded = true

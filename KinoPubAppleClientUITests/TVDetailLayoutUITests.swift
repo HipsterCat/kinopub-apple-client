@@ -389,6 +389,28 @@ final class TVDetailLayoutUITests: XCTestCase {
     try shoot("paint-03-closing")
   }
 
+  /// A title whose details call fails (`-KINOPUBFailDetails 502:9902`) still paints from
+  /// the card it was opened from, and says what went wrong where the details would be,
+  /// with Try Again in reach of the remote. It used to be an empty page and a toast.
+  func testATitleWhoseDetailsFailKeepsItsHeroAndOffersRetry() throws {
+    launch("film", extra: ["-KINOPUBFixtureInTabs", "YES", "-KINOPUBFailDetails", "502:9902"])
+    XCTAssertTrue(app.buttons["kinopub.hero.play"].waitForExistence(timeout: 20), "the first title never painted")
+    Thread.sleep(forTimeInterval: 1.5)
+    XCTAssertTrue(seek(.down, until: "kinopub.poster.9902", limit: 6), focusedDescription)
+    Thread.sleep(forTimeInterval: 1.2)
+    XCUIRemote.shared.press(.select)
+    let retry = app.buttons["kinopub.unavailable.retry"]
+    XCTAssertTrue(retry.waitForExistence(timeout: 10), "no Try Again after the details failed")
+    XCTAssertTrue(app.buttons["kinopub.hero.play"].exists, "the card's hero is gone")
+    XCTAssertGreaterThan(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'HTTP 502'")).count, 0,
+                         "the error kind is not shown")
+    Thread.sleep(forTimeInterval: 1.0)
+    try shoot("fail-00-hero")
+    XCTAssertTrue(seek(.down, until: "kinopub.unavailable.retry", limit: 4), focusedDescription)
+    Thread.sleep(forTimeInterval: 0.8)
+    try shoot("fail-01-retry")
+  }
+
   /// From a tab's root to a title and back: the tab bar leaves upward and comes back down,
   /// and both moves are the tvOS scale in/out (`TVNavigationZoom`). Shots are the check;
   /// the motion itself needs a recording.

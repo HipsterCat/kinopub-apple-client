@@ -7,6 +7,7 @@
 
 import Foundation
 import KinoPubBackend
+import KinoPubUI
 
 final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
 
@@ -41,6 +42,9 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
   }
 
   func fetchDetails(for id: String, excludeLinks: Bool) async throws -> SingleItemData<MediaItem> {
+    if let status = DebugLaunch.failDetails(for: id) {
+      throw APIClientError.httpStatus(status, data: nil)
+    }
     let request = ItemDetailsRequest(id: id, excludeLinks: excludeLinks)
     let response = try await apiClient.performRequest(with: request,
                                                       decodingType: SingleItemData<MediaItem>.self)

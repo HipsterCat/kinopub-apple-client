@@ -61,13 +61,9 @@ struct WatchlistView: View {
     if cards.isEmpty && !isLoaded {
       LoadingIndicatorView()
     } else if cards.isEmpty && loadFailed {
-      UnavailableView(title: "Couldn't Load",
-                      systemImage: "wifi.exclamationmark",
-                      message: loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
-                      retryTitle: "Try Again",
-                      onRetry: {
+      UnavailableView(loadError: loadError) {
         Task { await load(force: true) }
-      })
+      }
     } else if cards.isEmpty {
       UnavailableView(title: "No Results", systemImage: "text.append")
     } else {

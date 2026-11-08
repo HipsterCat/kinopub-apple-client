@@ -238,18 +238,12 @@ struct MediaItemView: View {
       .pageBackdrop(tvBackdrop)
 #endif
       .overlay {
-        // Full-page error only on a true cold miss — never over a card snapshot /
-        // already-loaded item. Soft refresh failures use `hudToast` instead.
-        if itemModel.loadFailed && !itemModel.hasPaintedItem {
-          UnavailableView(
-            title: "Couldn't Load",
-            systemImage: "wifi.exclamationmark",
-            message: itemModel.loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
-            retryTitle: "Try Again",
-            onRetry: {
-              itemModel.fetchData()
-            }
-          )
+        // Full-page error only when there is nothing to paint. Under a hero drawn from
+        // the card the failure sits where the details would be (`detailsFailure`).
+        if itemModel.loadFailed && !paintsPage {
+          UnavailableView(loadError: itemModel.loadError) {
+            itemModel.fetchData()
+          }
         } else if !itemModel.itemLoaded && !itemModel.hasPaintedItem {
 #if !os(tvOS)
           LoadingIndicatorView(delay: .milliseconds(700))
@@ -529,17 +523,14 @@ struct MediaItemView: View {
   }
 #endif
 
-  /// tvOS draws the page from the card's copy of the title at once — the banner or the
+  /// The page draws from the card's copy of the title at once — the banner or the
   /// poster it was opened from already has the title, the plot, the logo and the
   /// backdrop at the same URLs — and fills in what only the details call knows (seasons,
   /// the episode on Play, the trailer) in place. It used to wait for that call behind a
-  /// loader and then fade the whole page in (Sasha, 2026-11-05).
+  /// loader and then fade the whole page in (tvOS, Sasha 2026-11-05). iOS and macOS
+  /// waited until 2026-11-08, and a failed details call left them an empty page.
   private var paintsPage: Bool {
-#if os(tvOS)
     itemModel.itemLoaded || itemModel.hasPaintedItem
-#else
-    itemModel.itemLoaded
-#endif
   }
 
   @ViewBuilder
@@ -644,6 +635,10 @@ struct MediaItemView: View {
             .focusSection()
 #endif
 
+          if itemModel.loadFailed {
+            detailsFailure
+          }
+
           contentSections
         }
         .background {
@@ -697,6 +692,19 @@ struct MediaItemView: View {
       .scrollClipDisabled()
 #endif
     }
+  }
+
+  /// The details call failed under a hero painted from the card: what went wrong and
+  /// Try Again, where the seasons and the rest would be. Its own focus section, so the
+  /// remote can always reach Try Again from the hero.
+  private var detailsFailure: some View {
+    UnavailableView(loadError: itemModel.loadError) {
+      itemModel.fetchData()
+    }
+    .frame(maxWidth: .infinity)
+#if os(tvOS)
+    .focusSection()
+#endif
   }
 
   private struct PageScrollOffsetKey: PreferenceKey {

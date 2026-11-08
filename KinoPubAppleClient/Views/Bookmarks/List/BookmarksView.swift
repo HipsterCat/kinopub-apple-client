@@ -46,13 +46,9 @@ struct BookmarksView: View {
     if catalog.rows.isEmpty && !catalog.isLoaded {
       LoadingIndicatorView()
     } else if catalog.rows.isEmpty && catalog.loadFailed {
-      UnavailableView(title: "Couldn't Load",
-                      systemImage: "wifi.exclamationmark",
-                      message: catalog.loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
-                      retryTitle: "Try Again",
-                      onRetry: {
+      UnavailableView(loadError: catalog.loadError) {
         Task { await catalog.refresh() }
-      })
+      }
     } else if catalog.rows.isEmpty {
       UnavailableView(title: "No Bookmarks", systemImage: "bookmark")
     } else {

@@ -82,13 +82,9 @@ struct CatalogView: View {
     if catalog.items.isEmpty && catalog.isLoading {
       LoadingIndicatorView()
     } else if catalog.items.isEmpty && catalog.loadFailed {
-      UnavailableView(title: "Couldn't Load",
-                      systemImage: "wifi.exclamationmark",
-                      message: catalog.loadError?.userFacingMessage ?? "Check your connection and try again.".localized,
-                      retryTitle: "Try Again",
-                      onRetry: {
+      UnavailableView(loadError: catalog.loadError) {
         catalog.refresh()
-      })
+      }
     } else {
       grid
     }
