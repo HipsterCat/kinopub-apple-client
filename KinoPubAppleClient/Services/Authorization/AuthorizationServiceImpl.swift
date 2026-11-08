@@ -78,7 +78,12 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
       // Only kino.pub's own rejection of the refresh token ends the session. A 502 or a
       // timeout is not one: AuthState keeps the session and retries.
       let rejected = (error as? APIClientError)?.isFatalAuthError == true
-      if rejected,
+      // UI-test and fixture runs leave the file alone: they are not the session's owner,
+      // and a run against a dead session must not decide for every other build.
+      let arguments = ProcessInfo.processInfo.arguments
+      let isTestRun = arguments.contains("-ui-testing")
+        || arguments.contains { $0.hasPrefix("-KINOPUB") && $0.hasSuffix("Fixture") }
+      if rejected, !isTestRun,
          let shared = DevSessionMirror.load(), shared.refreshToken == token.refreshToken {
         // The shared file holds the very token kino.pub just refused, so it is dead for
         // every debug build. Kept, it re-seeded the Keychain the moment logout cleared
