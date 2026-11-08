@@ -112,7 +112,7 @@ final class MultiVersionItemTests: XCTestCase {
   }
 
   /// A single-video film has nothing to choose between, so no rail and no behaviour
-  /// change: `playbackVariants` is empty and the runtime still comes from `total`.
+  /// change: `playbackVariants` is empty (its runtime is `average`, which equals `total`).
   func testSingleVideoFilmHasNoVariants() throws {
     let item = MediaItem.mock()
     XCTAssertTrue(item.playbackVariants.isEmpty)

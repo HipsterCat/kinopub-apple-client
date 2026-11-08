@@ -240,6 +240,21 @@ final class KinoPubMediaMappingTests: XCTestCase {
     XCTAssertEqual(film.mediaFragment.entity.runtime, 8634)
   }
 
+  /// The same film as a listing (banner, shelves) carries no videos to tell the versions
+  /// apart: still one version's runtime, not the sum (Sasha, 2026-11-08).
+  func testAMultiVersionFilmInAListingRunsForOneVersion() throws {
+    let url = try XCTUnwrap(Bundle.module.url(forResource: "item_124447_multi", withExtension: "json",
+                                              subdirectory: "Fixtures"))
+    var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    var item = try XCTUnwrap(json["item"] as? [String: Any])
+    item.removeValue(forKey: "videos")
+    json["item"] = item
+    let listed = try JSONDecoder().decode(SingleItemData<MediaItem>.self,
+                                          from: JSONSerialization.data(withJSONObject: json)).item
+    XCTAssertTrue(listed.playbackVariants.isEmpty)
+    XCTAssertEqual(listed.mediaFragment.entity.runtime, 8634)
+  }
+
   // MARK: - Seasons and episodes
 
   /// kino.pub numbers some shows' blocks from 1 while naming them "Сезон 14"; our model
