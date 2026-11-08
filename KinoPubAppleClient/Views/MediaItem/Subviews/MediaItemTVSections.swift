@@ -740,7 +740,7 @@ enum MediaItemTVSections {
     if item.isEpisodicType {
       seconds = Int(item.duration.average)
     } else {
-      seconds = Int(item.playbackVariants.isEmpty ? item.duration.total : item.duration.average)
+      seconds = Int(item.duration.average > 0 ? item.duration.average : item.duration.total)
     }
     if let runtime = RuntimeText(seconds: seconds).formatted(.long) {
       card("runtime", pair("runtime", (item.isEpisodicType ? "MediaItem_EpisodeRuntime" : "MediaItem_Runtime").localized,

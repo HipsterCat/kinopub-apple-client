@@ -1100,29 +1100,33 @@ struct MediaItemHeroView: View {
     VStack(alignment: .leading, spacing: Self.contentSpacing) {
       factsLine
       scoresLine
+      // No overview at all: no paragraph, so no lone «ЕЩЁ» capsule taking focus
+      // (2026-11-08). The popup's facts stay reachable from More.
+      if hasSynopsis {
 #if os(tvOS)
-      MediaItemPlotView(
-        title: mediaItem.localizedTitle,
-        plot: synopsis.plot,
-        lead: synopsis.lead,
-        focus: $focus,
-        allowsFocus: actionEntryClaimed,
-        popupSubtitle: popupOriginalTitle,
-        summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
-      )
-      .padding(.vertical, Self.contentSpacing / 2)
+        MediaItemPlotView(
+          title: mediaItem.localizedTitle,
+          plot: synopsis.plot,
+          lead: synopsis.lead,
+          focus: $focus,
+          allowsFocus: actionEntryClaimed,
+          popupSubtitle: popupOriginalTitle,
+          summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
+        )
+        .padding(.vertical, Self.contentSpacing / 2)
 #else
-      MediaItemPlotView(
-        title: mediaItem.localizedTitle,
-        plot: synopsis.plot,
-        lead: synopsis.lead,
-        expandsFully: showsCornerPoster,
-        focus: $focus,
-        popupSubtitle: popupOriginalTitle,
-        summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
-      )
-      .padding(.vertical, Self.contentSpacing / 2)
+        MediaItemPlotView(
+          title: mediaItem.localizedTitle,
+          plot: synopsis.plot,
+          lead: synopsis.lead,
+          expandsFully: showsCornerPoster,
+          focus: $focus,
+          popupSubtitle: popupOriginalTitle,
+          summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
+        )
+        .padding(.vertical, Self.contentSpacing / 2)
 #endif
+      }
       playbackLine
       if showsCreditsInline {
         creditsBlock
@@ -1379,6 +1383,11 @@ struct MediaItemHeroView: View {
     if let last = lead.last, !".!?…".contains(last) { lead += "." }
     let overview = primaryEpisodeSchedule?.overview?.trimmingCharacters(in: .whitespacesAndNewlines)
     return (lead, overview.flatMap { $0.isEmpty ? nil : $0 } ?? mediaItem.plot)
+  }
+
+  private var hasSynopsis: Bool {
+    let synopsis = self.synopsis
+    return !synopsis.plot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || synopsis.lead != nil
   }
 
   /// Started — an episode watched or one in progress — and not finished.

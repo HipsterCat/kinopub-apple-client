@@ -180,8 +180,10 @@ public extension MediaItem {
         entity.seasonCount = count
       }
       if mapping.kind == .movie {
-        // `total` sums every version of a multi-version film; `average` is the film.
-        let seconds = playbackVariants.isEmpty ? duration.total : duration.average
+        // `total` sums every version of a multi-version film; `average` is the film. A
+        // listing has no versions to tell, so `average` whenever there is one: the banner
+        // showed «5ч 13м» for a film of two 2.5-hour versions (Sasha, 2026-11-08).
+        let seconds = duration.average > 0 ? duration.average : duration.total
         entity.runtime = seconds > 0 ? seconds : nil
       }
       entity.scores = [
