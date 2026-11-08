@@ -774,7 +774,7 @@ private struct HeroPagingArrow: View {
         .font(.system(size: 26))
     }
     .buttonStyle(HeroPagingArrowStyle(isHovered: isHovered))
-    .frame(width: 28, height: 52)
+    .frame(width: 32, height: 52)
     .contentShape(Rectangle())
     .onHover { isHovered = $0 }
     .opacity(isShown || isHovered ? 1 : 0)
@@ -790,15 +790,15 @@ private struct HeroPagingArrowStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
       .foregroundStyle(configuration.isPressed ? .primary : .secondary)
-      .padding(2)
+      .padding(3)
       .background {
         if isHovered {
           Capsule()
-            .fill(.regularMaterial)
-            .overlay(Capsule().fill(Color(white: 0.2).opacity(0.6)))
+            .fill(.thinMaterial)
+            .overlay(Capsule().fill(Color(white: 0.1).opacity(0.5)))
         }
       }
-      .frame(width: 28, height: 52)
+      .frame(width: 32, height: 52)
       .contentShape(Rectangle())
       .animation(.easeOut(duration: 0.15), value: isHovered)
   }
