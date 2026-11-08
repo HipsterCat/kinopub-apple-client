@@ -181,7 +181,7 @@ enum TitleStatus: Equatable {
     static let awaitedDays = 30
     static let premiereDays = 14
     static let endedDays = 60
-    static let newSeasonDays = 45
+    static let newSeasonDays = 21
     static let newEpisodesDays = 7
     static let newReleaseDays = 120
     static let recentlyAddedDays = 14
