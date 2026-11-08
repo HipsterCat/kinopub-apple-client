@@ -149,10 +149,13 @@ struct RouteDestination: View {
     // scrolled where it was (Sasha, 2026-10-31).
     let tab = navigationState.selectedTab
     return MediaItemView(model: MediaItemModelCache.shared.model(tab: tab, itemID: id) {
-      // Opened by id (search, bookmarks, Go to Title): this session's copy of the
-      // title, where there is one, paints the page while the details load.
+      // Opened by id (Home, search, bookmarks, Go to Title): the fullest copy of the
+      // title this session already has paints the page while the details load — the
+      // last details payload, else the listing the card was drawn from.
       MediaItemModel(mediaItemId: id,
-                     knownItem: knownItem ?? appContext.localProgressStore.snapshot(for: id),
+                     knownItem: knownItem
+                       ?? appContext.localProgressStore.snapshot(for: id)
+                       ?? ListedItemCache.shared.item(id: id),
                      itemsService: appContext.contentService,
                      downloadManager: appContext.downloadManager,
                      linkProvider: linkProvider,

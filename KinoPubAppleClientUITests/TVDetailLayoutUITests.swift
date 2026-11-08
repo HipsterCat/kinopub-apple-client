@@ -389,11 +389,11 @@ final class TVDetailLayoutUITests: XCTestCase {
     try shoot("paint-03-closing")
   }
 
-  /// A title whose details call fails (`-KINOPUBFailDetails 502:9902`) still paints from
+  /// A title whose details call fails (`-KINOPUBFailDetails 502:9902003`, the Similar poster the remote lands on) still paints from
   /// the card it was opened from, and says what went wrong where the details would be,
   /// with Try Again in reach of the remote. It used to be an empty page and a toast.
   func testATitleWhoseDetailsFailKeepsItsHeroAndOffersRetry() throws {
-    launch("film", extra: ["-KINOPUBFixtureInTabs", "YES", "-KINOPUBFailDetails", "502:9902"])
+    launch("film", extra: ["-KINOPUBFixtureInTabs", "YES", "-KINOPUBFailDetails", "502:9902003"])
     XCTAssertTrue(app.buttons["kinopub.hero.play"].waitForExistence(timeout: 20), "the first title never painted")
     Thread.sleep(forTimeInterval: 1.5)
     XCTAssertTrue(seek(.down, until: "kinopub.poster.9902", limit: 6), focusedDescription)
@@ -405,10 +405,13 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertGreaterThan(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'HTTP 502'")).count, 0,
                          "the error kind is not shown")
     Thread.sleep(forTimeInterval: 1.0)
-    try shoot("fail-00-hero")
-    XCTAssertTrue(seek(.down, until: "kinopub.unavailable.retry", limit: 4), focusedDescription)
+    XCTAssertTrue(focusedDescription.contains("kinopub.unavailable.retry"),
+                  "Try Again does not have focus: \(focusedDescription)")
+    try shoot("fail-00-retry")
+    XCUIRemote.shared.press(.up)
     Thread.sleep(forTimeInterval: 0.8)
-    try shoot("fail-01-retry")
+    XCTAssertTrue(focusedDescription.contains("kinopub.hero."), "Up from Try Again did not reach the hero: \(focusedDescription)")
+    try shoot("fail-01-hero")
   }
 
   /// From a tab's root to a title and back: the tab bar leaves upward and comes back down,

@@ -21,6 +21,7 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
     let request = ShortcutItemsRequest(shortcut: shortcut, contentType: contentType, page: page, perPage: perPage)
     let response = try await apiClient.performRequest(with: request,
                                                       decodingType: PaginatedData<MediaItem>.self)
+    ListedItemCache.shared.remember(response.items)
     return response
   }
 
@@ -34,6 +35,7 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
     if let filter, filter.hasClientSideFacets {
       response.items = response.items.filter { filter.clientSideMatches($0) }
     }
+    ListedItemCache.shared.remember(response.items)
     return response
   }
 
@@ -60,6 +62,7 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
     let request = SimilarItemsRequest(id: id)
     let response = try await apiClient.performRequest(with: request,
                                                       decodingType: ArrayData<MediaItem>.self)
+    ListedItemCache.shared.remember(response.items)
     return response
   }
 
@@ -72,8 +75,10 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
   
   func fetchBookmarkItems(id: String, page: Int?, perPage: Int?) async throws -> BookmarkFolderItemsData {
     let request = BookmarkItemsRequest(id: id, page: page, perPage: perPage)
-    return try await apiClient.performRequest(with: request,
-                                              decodingType: BookmarkFolderItemsData.self)
+    let response = try await apiClient.performRequest(with: request,
+                                                      decodingType: BookmarkFolderItemsData.self)
+    ListedItemCache.shared.remember(response.items)
+    return response
   }
 
   func fetchWatchingMovies() async throws -> ArrayData<WatchingItem> {
@@ -106,6 +111,7 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
     if filter.hasClientSideFacets {
       response.items = response.items.filter { filter.clientSideMatches($0) }
     }
+    ListedItemCache.shared.remember(response.items)
     return response
   }
 
@@ -142,4 +148,38 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
     return response.channels
   }
 
+}
+
+/// The listing copy of every title the app has been handed this session — catalogue
+/// shelves, search, Similar, bookmarks — by id, so a title opened from a card that only
+/// carries its id (`Route.detailsById`) still paints its page at once from what the card
+/// showed (`RouteDestination.detailsView`). In memory, bounded; the oldest half goes when
+/// it fills.
+final class ListedItemCache: @unchecked Sendable {
+  static let shared = ListedItemCache()
+
+  private let lock = NSLock()
+  private var items: [Int: MediaItem] = [:]
+  private var order: [Int] = []
+  private let capacity = 2_000
+
+  func remember(_ listed: [MediaItem]) {
+    guard !listed.isEmpty else { return }
+    lock.lock(); defer { lock.unlock() }
+    for item in listed {
+      if items.updateValue(item, forKey: item.id) == nil {
+        order.append(item.id)
+      }
+    }
+    if order.count > capacity {
+      let dropped = order.prefix(order.count - capacity / 2)
+      dropped.forEach { items[$0] = nil }
+      order.removeFirst(dropped.count)
+    }
+  }
+
+  func item(id: Int) -> MediaItem? {
+    lock.lock(); defer { lock.unlock() }
+    return items[id]
+  }
 }
