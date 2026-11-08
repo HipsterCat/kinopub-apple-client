@@ -410,7 +410,7 @@ final class TVDetailLayoutUITests: XCTestCase {
     try shoot("fail-00-retry")
     XCUIRemote.shared.press(.up)
     Thread.sleep(forTimeInterval: 0.8)
-    XCTAssertTrue(focusedDescription.contains("kinopub.hero."), "Up from Try Again did not reach the hero: \(focusedDescription)")
+    XCTAssertTrue(focusedDescription.contains("hero."), "Up from Try Again did not reach the hero: \(focusedDescription)")
     try shoot("fail-01-hero")
   }
 

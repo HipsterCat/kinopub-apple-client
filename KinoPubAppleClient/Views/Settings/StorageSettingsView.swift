@@ -144,6 +144,7 @@ final class StorageSettingsModel: ObservableObject {
   func clearRowSnapshots() {
     rowSnapshotStore.clear()
     recordDisk.clear()
+    ListedItemCache.shared.clear()
     rowSnapshotBytes = 0
     recordBytes = 0
     rowCount = 0

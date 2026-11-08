@@ -150,36 +150,3 @@ final class VideoContentServiceImpl: VideoContentService, @unchecked Sendable {
 
 }
 
-/// The listing copy of every title the app has been handed this session — catalogue
-/// shelves, search, Similar, bookmarks — by id, so a title opened from a card that only
-/// carries its id (`Route.detailsById`) still paints its page at once from what the card
-/// showed (`RouteDestination.detailsView`). In memory, bounded; the oldest half goes when
-/// it fills.
-final class ListedItemCache: @unchecked Sendable {
-  static let shared = ListedItemCache()
-
-  private let lock = NSLock()
-  private var items: [Int: MediaItem] = [:]
-  private var order: [Int] = []
-  private let capacity = 2_000
-
-  func remember(_ listed: [MediaItem]) {
-    guard !listed.isEmpty else { return }
-    lock.lock(); defer { lock.unlock() }
-    for item in listed {
-      if items.updateValue(item, forKey: item.id) == nil {
-        order.append(item.id)
-      }
-    }
-    if order.count > capacity {
-      let dropped = order.prefix(order.count - capacity / 2)
-      dropped.forEach { items[$0] = nil }
-      order.removeFirst(dropped.count)
-    }
-  }
-
-  func item(id: Int) -> MediaItem? {
-    lock.lock(); defer { lock.unlock() }
-    return items[id]
-  }
-}

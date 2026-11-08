@@ -226,7 +226,9 @@ final class ContentStore {
   private func entries(_ items: [RowItem]) -> [RowEntry] {
     items.map { item in
       switch item {
-      case .title(let title): return .title(records.ingest(title))
+      case .title(let title):
+        ListedItemCache.shared.remember([title])
+        return .title(records.ingest(title))
       case .card(let card): return .card(card)
       }
     }
@@ -241,6 +243,7 @@ final class ContentStore {
       return nil
     }
     records.keepOnly(Set(refs))
+    ListedItemCache.shared.persist(keeping: Set(refs))
   }
 
   // MARK: - Invalidation
@@ -283,4 +286,81 @@ extension Notification.Name {
   /// Posted when a `.watch` row is invalidated (mark watched, hide, pull-to-refresh).
   /// Home refetches Continue Watching; painting from the cached snapshot is not enough.
   static let contentStoreDidInvalidateWatch = Notification.Name("KinoPub.contentStoreDidInvalidateWatch")
+}
+
+/// The listing copy of every title the app has been handed — catalogue shelves, search,
+/// Similar, bookmarks — by id, so a title opened from a card that only carries its id
+/// (`Route.detailsById`) still paints its page at once from what the card showed
+/// (`RouteDestination.detailsView`). In memory and bounded (the oldest half goes when it
+/// fills). The titles `ContentStore`'s rows show are also kept on disk beside them: a warm
+/// launch paints Home from those rows without asking the API, so nothing else would
+/// bring their listing back.
+final class ListedItemCache: @unchecked Sendable {
+  static let shared = ListedItemCache()
+
+  private let lock = NSLock()
+  private var items: [Int: MediaItem] = [:]
+  private var order: [Int] = []
+  private let capacity = 2_000
+  private let fileURL: URL = {
+    let dir = RowSnapshotStore.defaultDirectory
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir.appendingPathComponent("listed-items-v1.json")
+  }()
+  private var restored = false
+
+  func remember(_ listed: [MediaItem]) {
+    guard !listed.isEmpty else { return }
+    lock.lock(); defer { lock.unlock() }
+    for item in listed {
+      if items.updateValue(item, forKey: item.id) == nil {
+        order.append(item.id)
+      }
+    }
+    if order.count > capacity {
+      let dropped = order.prefix(order.count - capacity / 2)
+      dropped.forEach { items[$0] = nil }
+      order.removeFirst(dropped.count)
+    }
+  }
+
+  func item(id: Int) -> MediaItem? {
+    restoreIfNeeded()
+    lock.lock(); defer { lock.unlock() }
+    return items[id]
+  }
+
+  /// Writes the listings of the titles the rows show (`ContentStore.save`), off the main
+  /// thread.
+  func persist(keeping refs: Set<MediaRef>) {
+    lock.lock()
+    let kept = items.values.filter { refs.contains($0.titleRef) }
+    lock.unlock()
+    let url = fileURL
+    Task.detached(priority: .utility) {
+      guard let data = try? JSONEncoder().encode(kept) else { return }
+      try? data.write(to: url, options: [.atomic])
+    }
+  }
+
+  /// The rows' listings from the last session, read the first time one is asked for. A
+  /// listing fetched since then wins.
+  private func restoreIfNeeded() {
+    lock.lock()
+    guard !restored else { lock.unlock(); return }
+    restored = true
+    lock.unlock()
+    guard let data = try? Data(contentsOf: fileURL),
+          let saved = try? JSONDecoder().decode([MediaItem].self, from: data) else { return }
+    lock.lock(); defer { lock.unlock() }
+    for item in saved where items[item.id] == nil {
+      items[item.id] = item
+      order.insert(item.id, at: 0)
+    }
+  }
+
+  func clear() {
+    lock.lock(); items = [:]; order = []; lock.unlock()
+    try? FileManager.default.removeItem(at: fileURL)
+  }
 }
