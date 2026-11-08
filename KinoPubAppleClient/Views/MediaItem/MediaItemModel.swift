@@ -1385,6 +1385,14 @@ class MediaItemModel: ObservableObject {
     )
   }
 
+  /// TMDB's word on the episode Play would open — its name and overview lead the hero's
+  /// synopsis once the viewer is into the series (Sasha, 2026-11-08). Nil until the
+  /// grid has aligned with TMDB's episodes, or for a film.
+  var primaryEpisodeSchedule: EpisodeSchedule? {
+    guard let (season, episode) = mediaItem.primaryEpisode else { return nil }
+    return schedule(for: episode, in: season)
+  }
+
   /// `awaitedEpisodeAirDate` without the model around it.
   static func awaitedEpisodeAirDate(kinoEpisodeNumbers: [Int],
                                     schedule: [EpisodeSchedule]?,

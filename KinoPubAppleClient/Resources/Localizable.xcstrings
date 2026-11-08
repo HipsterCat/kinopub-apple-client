@@ -14484,6 +14484,258 @@
     },
     "Что не смотрели, не обновлялось и не добавлялось в закладки столько недель, в ряд не попадает. Закладки — по дате добавления, не больше четырёх." : {
 
+    },
+    "TitleStatus_NewEpisodeWhen" : {
+      "comment" : "Title page status capsule; the argument is a relative day: 'in 5 days', 'tomorrow'",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New episode %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новая серия %@"
+          }
+        }
+      }
+    },
+    "TitleStatus_Premiere" : {
+      "comment" : "Title page status capsule",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Premiere"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Премьера"
+          }
+        }
+      }
+    },
+    "TitleStatus_FinalSeason" : {
+      "comment" : "Title page status capsule",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final Season"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последний сезон"
+          }
+        }
+      }
+    },
+    "TitleStatus_AllEpisodes" : {
+      "comment" : "Title page status capsule: a series that just finished airing",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Episodes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все серии"
+          }
+        }
+      }
+    },
+    "TitleStatus_NewSeason" : {
+      "comment" : "Title page status capsule",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Season"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новый сезон"
+          }
+        }
+      }
+    },
+    "TitleStatus_NewEpisodes" : {
+      "comment" : "Title page status capsule",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Episodes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новые серии"
+          }
+        }
+      }
+    },
+    "TitleStatus_NewRelease" : {
+      "comment" : "Title page status capsule: a recent release",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новинка"
+          }
+        }
+      }
+    },
+    "TitleStatus_RecentlyAdded" : {
+      "comment" : "Title page status capsule: an older title kino.pub added recently",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently on kino.pub"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недавно на Кинопабе"
+          }
+        }
+      }
+    },
+    "Kind_documentaryFilm_One" : {
+      "comment" : "A documentary film, in the title page's facts line",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documentary"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документальный фильм"
+          }
+        }
+      }
+    },
+    "MediaItem_Directors" : {
+      "comment" : "Label before several directors' names",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Directors"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Режиссёры"
+          }
+        }
+      }
+    },
+    "MediaItem_StatusEndedShort" : {
+      "comment" : "After the season count in the title page's facts line: '3 seasons, ended'",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ended"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "окончен"
+          }
+        }
+      }
+    },
+    "Synopsis_More" : {
+      "comment" : "Hint capsule at the end of a clipped synopsis, drawn uppercase",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё"
+          }
+        }
+      }
+    },
+    "MediaItem_EpisodeLead" : {
+      "comment" : "Bold lead of the hero synopsis: episode number and name",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Episode %1$lld: %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld серия: %2$@"
+          }
+        }
+      }
+    },
+    "MediaItem_EpisodeLeadNumber" : {
+      "comment" : "Bold lead of the hero synopsis when the episode has no name",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Episode %lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld серия"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

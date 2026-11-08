@@ -15,6 +15,10 @@ public struct MediaCapabilityBadges: Hashable, Sendable {
   public var isHD: Bool
   public var isHDR: Bool
   public var is3D: Bool
+  /// Under 720p — `SD`, drawn only where the quality is a badge rather than a word.
+  public var isSD: Bool
+  /// A described-video track (`AudioTracks.looksLikeAudioDescription`).
+  public var hasAudioDescription: Bool
   public var ageRating: String?
   public var hasClosedCaptions: Bool
   public var languages: [String]
@@ -25,6 +29,8 @@ public struct MediaCapabilityBadges: Hashable, Sendable {
     isHD: Bool = false,
     isHDR: Bool = false,
     is3D: Bool = false,
+    isSD: Bool = false,
+    hasAudioDescription: Bool = false,
     ageRating: String? = nil,
     hasClosedCaptions: Bool = false,
     languages: [String] = [],
@@ -34,6 +40,8 @@ public struct MediaCapabilityBadges: Hashable, Sendable {
     self.isHD = isHD
     self.isHDR = isHDR
     self.is3D = is3D
+    self.isSD = isSD
+    self.hasAudioDescription = hasAudioDescription
     self.ageRating = ageRating
     self.hasClosedCaptions = hasClosedCaptions
     self.languages = languages
@@ -71,6 +79,18 @@ public struct MediaCapabilityBadges: Hashable, Sendable {
     detailChips.isEmpty
   }
 
+  /// The drawn badges of `KinoPubUI`'s `Media.xcassets/badges`, by asset name, for the
+  /// title page: one quality mark (4K, else HD, else SD), then 3D and AD. The words they
+  /// replace were typed capsules (Sasha, 2026-11-08). The certification is not a badge
+  /// here — it is a word in the facts line.
+  public var detailBadgeAssets: [String] {
+    var names: [String] = []
+    if is4K { names.append("4K") } else if isHD { names.append("HD") } else if isSD { names.append("SD") }
+    if is3D { names.append("3D") }
+    if hasAudioDescription { names.append("AD") }
+    return names
+  }
+
   /// Builds from the catalogue item. `videoRange` is the HLS `VIDEO-RANGE` when a
   /// playlist has been probed (`PQ` / `HLG` ⇒ HDR). Do not pass device capabilities.
   public static func from(
@@ -86,6 +106,8 @@ public struct MediaCapabilityBadges: Hashable, Sendable {
     let range = videoRange?.uppercased() ?? ""
     let isHDR = range == "PQ" || range == "HLG" || range.contains("HDR")
     let is3D = item.is3D
+    let isSD = !is4K && !isHD && qualityHint > 0
+    let hasAD = item.detailAudioTracks.contains(where: \.isAudioDescription)
     let hasCC = closedCaptions ?? item.subtitles.contains { subtitle in
       let lang = subtitle.lang.lowercased()
       return lang.contains("cc") || lang.contains("sdh")
@@ -97,6 +119,8 @@ public struct MediaCapabilityBadges: Hashable, Sendable {
       isHD: isHD,
 //      isHDR: isHDR,
       is3D: is3D,
+      isSD: isSD,
+      hasAudioDescription: hasAD,
       ageRating: ageRating,
 //      hasClosedCaptions: hasCC,
 //      languages: [],
