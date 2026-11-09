@@ -18,7 +18,10 @@ public enum MetadataSourceID: String, Sendable, Hashable, Codable {
   case kinopoiskProxy
   /// One `/v2/title` card from our worker, by kino.pub id.
   case titleCard
+  /// TheIntroDB (theintrodb.org): skip times, read without a key.
   case introdb
+  /// SkipDB (skipdb.tv): open skip times (ODbL), read without a key.
+  case skipDB
 }
 
 public enum MetadataError: Error, Sendable, Equatable {

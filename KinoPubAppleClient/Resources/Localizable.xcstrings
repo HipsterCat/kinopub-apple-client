@@ -18177,6 +18177,227 @@
           }
         }
       }
+    },
+    "Integration_SkipDB_About" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SkipDB is an open, community-made database of the parts people skip: opening titles, recaps, end credits and previews. The player offers to skip them where SkipDB knows the episode."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SkipDB — открытая база, которую собирают зрители: где в серии заставка, пересказ прошлых серий, титры и анонс. Плеер предлагает пропустить их там, где SkipDB знает серию."
+          }
+        }
+      }
+    },
+    "Integration_TheIntroDB_About" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TheIntroDB marks opening titles, recaps, end credits and previews in series and films. The player asks it for what SkipDB does not know."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TheIntroDB размечает заставки, пересказы, титры и анонсы в сериалах и фильмах. Плеер спрашивает его о том, чего не знает SkipDB."
+          }
+        }
+      }
+    },
+    "Integration_SkipTimes_Help" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to connect: both read without an account or a key, by the title's IMDb id."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключать ничего не нужно: оба читаются без аккаунта и ключа, по IMDb id тайтла."
+          }
+        }
+      }
+    },
+    "Integration_SkipTimes_DataToggle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Buttons in the Player"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кнопки пропуска в плеере"
+          }
+        }
+      }
+    },
+    "Integration_SkipTimes_DataFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "During an intro, a recap or the credits the player shows a button to skip it. Only the title's IMDb id, the episode and its runtime are sent."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Во время заставки, пересказа или титров плеер показывает кнопку, чтобы их пропустить. Отправляются только IMDb id тайтла, номер серии и её длительность."
+          }
+        }
+      }
+    },
+    "Integration_SkipDB_Attribution" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip times from SkipDB (skipdb.tv), available under the Open Database License (ODbL 1.0)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тайминги пропуска из SkipDB (skipdb.tv), доступны по лицензии Open Database License (ODbL 1.0)."
+          }
+        }
+      }
+    },
+    "Integration_Provides_SkipIntro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Intro"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропуск заставки"
+          }
+        }
+      }
+    },
+    "Integration_Provides_SkipRecap" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Recap"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропуск пересказа"
+          }
+        }
+      }
+    },
+    "Integration_Provides_SkipCredits" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Credits"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропуск титров"
+          }
+        }
+      }
+    },
+    "Player_SkipIntro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Intro"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропустить заставку"
+          }
+        }
+      }
+    },
+    "Player_SkipRecap" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Recap"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропустить пересказ"
+          }
+        }
+      }
+    },
+    "Player_SkipCredits" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Credits"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропустить титры"
+          }
+        }
+      }
+    },
+    "Player_SkipPreview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Preview"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропустить анонс"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

@@ -232,6 +232,36 @@ public actor MetadataService {
     return result
   }
 
+  /// What to skip in one episode (or a film: season and episode nil), every skip-times
+  /// source asked at once. The first source in `sources` that knows a kind wins it (SkipDB
+  /// before TheIntroDB), the next ones fill the kinds it lacks. Nil when nobody knows any.
+  public func skipSegments(for identity: MediaIdentity, season: Int?, episode: Int?,
+                           durationMs: Int?) async -> SkipSegments? {
+    let configured = sources.filter(\.isConfigured)
+    let answers = await withTaskGroup(of: (Int, SkipSegments?).self) { group in
+      for (index, source) in configured.enumerated() {
+        group.addTask {
+          do {
+            return (index, try await source.segments(for: identity, season: season,
+                                                     episode: episode, durationMs: durationMs))
+          } catch {
+            return (index, nil)
+          }
+        }
+      }
+      var found: [Int: SkipSegments] = [:]
+      for await (index, segments) in group {
+        if let segments { found[index] = segments }
+      }
+      return found
+    }
+    var result = SkipSegments()
+    for index in answers.keys.sorted() {
+      result = result.filling(from: answers[index])
+    }
+    return result.isEmpty ? nil : result
+  }
+
   /// TMDB's posters for one season, to look through (the season card's «Change Image»).
   public func seasonPosters(for identity: MediaIdentity, season: Int) async -> [URL] {
     guard let tmdb = sources.compactMap({ $0 as? TMDBSource }).first else { return [] }

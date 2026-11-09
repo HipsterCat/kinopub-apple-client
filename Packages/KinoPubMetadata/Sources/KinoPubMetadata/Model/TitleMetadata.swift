@@ -155,24 +155,78 @@ public struct Award: Sendable, Hashable {
   }
 }
 
+/// Where the parts of an episode (or a film) that people skip lie: the opening titles,
+/// the "previously on", the end credits, the next-episode preview. Times are in the
+/// stream's own milliseconds, already fitted to its runtime where the source can do that
+/// (SkipDB's `duration`, TheIntroDB's `duration_ms`).
 public struct SkipSegments: Sendable, Hashable {
+  public enum Kind: String, Sendable, Hashable, CaseIterable {
+    case intro, recap, credits, preview
+  }
+
   public struct Segment: Sendable, Hashable {
     public let startMs: Int
-    public let endMs: Int
-    public init(startMs: Int, endMs: Int) {
+    /// Nil: to the end of the stream.
+    public let endMs: Int?
+    public let source: MetadataSourceID
+
+    public init(startMs: Int, endMs: Int?, source: MetadataSourceID) {
       self.startMs = startMs
       self.endMs = endMs
+      self.source = source
+    }
+
+    /// A segment with an end, at least a second long.
+    var isUsable: Bool {
+      guard startMs >= 0 else { return false }
+      guard let endMs else { return true }
+      return endMs - startMs >= 1000
     }
   }
 
   public var intro: Segment?
   public var recap: Segment?
-  public var outro: Segment?
+  public var credits: Segment?
+  public var preview: Segment?
 
-  public init(intro: Segment? = nil, recap: Segment? = nil, outro: Segment? = nil) {
+  public init(intro: Segment? = nil, recap: Segment? = nil,
+              credits: Segment? = nil, preview: Segment? = nil) {
     self.intro = intro
     self.recap = recap
-    self.outro = outro
+    self.credits = credits
+    self.preview = preview
+  }
+
+  public subscript(kind: Kind) -> Segment? {
+    get {
+      switch kind {
+      case .intro: intro
+      case .recap: recap
+      case .credits: credits
+      case .preview: preview
+      }
+    }
+    set {
+      let value = newValue?.isUsable == true ? newValue : nil
+      switch kind {
+      case .intro: intro = value
+      case .recap: recap = value
+      case .credits: credits = value
+      case .preview: preview = value
+      }
+    }
+  }
+
+  public var isEmpty: Bool { Kind.allCases.allSatisfy { self[$0] == nil } }
+
+  /// Fills the kinds this one lacks from `other`; what this one has stays.
+  public func filling(from other: SkipSegments?) -> SkipSegments {
+    guard let other else { return self }
+    var result = self
+    for kind in Kind.allCases where result[kind] == nil {
+      result[kind] = other[kind]
+    }
+    return result
   }
 }
 

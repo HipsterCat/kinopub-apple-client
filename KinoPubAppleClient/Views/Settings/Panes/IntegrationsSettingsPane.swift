@@ -29,10 +29,13 @@ struct IntegrationsSettingsPane: View {
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
   @AppStorage(MyShowsMetadataAccess.enabledDefaultsKey) private var myShowsData = true
+  @AppStorage(SkipTimesMetadataAccess.skipDBDefaultsKey) private var skipDBData = true
+  @AppStorage(SkipTimesMetadataAccess.theIntroDBDefaultsKey) private var theIntroDBData = true
 
   var body: some View {
     let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, omdbValidated, omdbEnabled,
-             traktUsername, plexUsername, traktData, doubanData, wikidataData, myShowsData)
+             traktUsername, plexUsername, traktData, doubanData, wikidataData, myShowsData,
+         skipDBData, theIntroDBData)
     Form {
       Section {
         ForEach(Integration.available) { integration in
@@ -104,6 +107,8 @@ struct IntegrationDetailView: View {
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
   @AppStorage(MyShowsMetadataAccess.enabledDefaultsKey) private var myShowsData = true
+  @AppStorage(SkipTimesMetadataAccess.skipDBDefaultsKey) private var skipDBData = true
+  @AppStorage(SkipTimesMetadataAccess.theIntroDBDefaultsKey) private var theIntroDBData = true
   @ScaledMetric(relativeTo: .title) private var iconSize: CGFloat = 64
 
   init(integration: Integration) {
@@ -123,7 +128,8 @@ struct IntegrationDetailView: View {
   }
 
   private var status: Integration.Status {
-    _ = (keyValidated, keyEnabled, traktUsername, plexUsername, traktData, doubanData, wikidataData, myShowsData)
+    _ = (keyValidated, keyEnabled, traktUsername, plexUsername, traktData, doubanData, wikidataData, myShowsData,
+         skipDBData, theIntroDBData)
     return integration.status
   }
 
@@ -234,6 +240,8 @@ struct IntegrationDetailView: View {
     case .douban: $doubanData
     case .wikidata: $wikidataData
     case .myShows: $myShowsData
+    case .skipDB: $skipDBData
+    case .theIntroDB: $theIntroDBData
     default: $traktData
     }
   }

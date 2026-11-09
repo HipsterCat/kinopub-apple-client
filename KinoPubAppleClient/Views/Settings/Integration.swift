@@ -22,6 +22,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   case douban
   case myShows
   case wikidata
+  case skipDB
+  case theIntroDB
   case simkl
   case anilist
   case myAnimeList
@@ -43,7 +45,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// links are settled; their pages say they are coming.
   var isSupported: Bool {
     switch self {
-    case .kinopoisk, .tmdb, .trakt, .plex, .omdb, .douban, .myShows, .wikidata: true
+    case .kinopoisk, .tmdb, .trakt, .plex, .omdb, .douban, .myShows, .wikidata, .skipDB, .theIntroDB: true
     case .simkl, .anilist, .myAnimeList: false
     }
   }
@@ -52,7 +54,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// data: the app's Client ID is enough, no sign-in (Sasha, 2026-11-09).
   var worksByDefault: Bool {
     switch self {
-    case .kinopoisk, .tmdb, .douban, .myShows, .wikidata: true
+    case .kinopoisk, .tmdb, .douban, .myShows, .wikidata, .skipDB, .theIntroDB: true
     case .trakt: TraktAccount.clientID != nil
     default: false
     }
@@ -69,6 +71,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: DoubanMetadataAccess.enabledDefaultsKey
     case .wikidata: WikidataMetadataAccess.enabledDefaultsKey
     case .myShows: MyShowsMetadataAccess.enabledDefaultsKey
+    case .skipDB: SkipTimesMetadataAccess.skipDBDefaultsKey
+    case .theIntroDB: SkipTimesMetadataAccess.theIntroDBDefaultsKey
     default: nil
     }
   }
@@ -78,6 +82,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: "Integration_Douban_DataToggle"
     case .wikidata: "Integration_Wikidata_DataToggle"
     case .myShows: "Integration_MyShows_DataToggle"
+    case .skipDB, .theIntroDB: "Integration_SkipTimes_DataToggle"
     default: "Integration_Trakt_DataToggle"
     }
   }
@@ -87,6 +92,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: "Integration_Douban_DataFooter"
     case .wikidata: "Integration_Wikidata_DataFooter"
     case .myShows: "Integration_MyShows_DataFooter"
+    case .skipDB, .theIntroDB: "Integration_SkipTimes_DataFooter"
     default: "Integration_Trakt_DataFooter"
     }
   }
@@ -127,7 +133,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .kinopoisk, .tmdb, .omdb: .apiKey
     case .trakt, .plex, .simkl, .anilist, .myAnimeList: .account
-    case .douban, .myShows, .wikidata: .builtIn
+    case .douban, .myShows, .wikidata, .skipDB, .theIntroDB: .builtIn
     }
   }
 
@@ -141,6 +147,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: "Douban"
     case .myShows: "MyShows"
     case .wikidata: "Wikidata"
+    case .skipDB: "SkipDB"
+    case .theIntroDB: "TheIntroDB"
     case .simkl: "Simkl"
     case .anilist: "AniList"
     case .myAnimeList: "MyAnimeList"
@@ -158,6 +166,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: "Integration_Douban_About".localized
     case .myShows: "Integration_MyShows_About".localized
     case .wikidata: "Integration_Wikidata_About".localized
+    case .skipDB: "Integration_SkipDB_About".localized
+    case .theIntroDB: "Integration_TheIntroDB_About".localized
     case .simkl: "Integration_Simkl_About".localized
     case .anilist: "Integration_AniList_About".localized
     case .myAnimeList: "Integration_MyAnimeList_About".localized
@@ -175,6 +185,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: "Integration_Douban_Help".localized
     case .myShows: "Integration_MyShows_Help".localized
     case .wikidata: "Integration_Wikidata_Help".localized
+    case .skipDB, .theIntroDB: "Integration_SkipTimes_Help".localized
     case .simkl, .anilist, .myAnimeList: "Integration_Account_Help".localized
     }
   }
@@ -190,6 +201,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: URL(string: "https://movie.douban.com")!
     case .myShows: URL(string: "https://myshows.me")!
     case .wikidata: URL(string: "https://www.wikidata.org")!
+    case .skipDB: URL(string: "https://skipdb.tv")!
+    case .theIntroDB: URL(string: "https://theintrodb.org")!
     case .simkl: URL(string: "https://simkl.com")!
     case .anilist: URL(string: "https://anilist.co")!
     case .myAnimeList: URL(string: "https://myanimelist.net")!
@@ -226,6 +239,9 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
       // Required by Trakt's API terms wherever its data is shown.
       [Note(title: "Attribution".localized,
             text: "This product uses Trakt but is not endorsed or certified by Trakt.".localized)]
+    case .skipDB:
+      // ODbL 1.0 asks for attribution wherever the data is used.
+      [Note(title: "Attribution".localized, text: "Integration_SkipDB_Attribution".localized)]
     default:
       []
     }
@@ -247,7 +263,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .simkl: "simkl"
     case .anilist: "anilist"
     case .myAnimeList: "myanimelist"
-    case .omdb: nil
+    case .omdb, .skipDB, .theIntroDB: nil
     }
   }
 
@@ -268,6 +284,9 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   var symbol: String {
     switch self {
     case .omdb: "star.fill"
+    // Sasha's picks, 2026-11-09.
+    case .skipDB: "chevron.forward.dotted.chevron.forward"
+    case .theIntroDB: "text.line.first.and.arrowtriangle.forward"
     default: "puzzlepiece.extension.fill"
     }
   }
@@ -314,6 +333,10 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .wikidata:
       return [Provided(titleKey: "Integration_Provides_Links", symbol: "link", color: .blue), boxOffice,
               Provided(titleKey: "Integration_Provides_Budget", symbol: "banknote.fill", color: .green), awards]
+    case .skipDB, .theIntroDB:
+      return [Provided(titleKey: "Integration_Provides_SkipIntro", symbol: "forward.end.fill", color: .indigo),
+              Provided(titleKey: "Integration_Provides_SkipRecap", symbol: "arrow.counterclockwise", color: .gray),
+              Provided(titleKey: "Integration_Provides_SkipCredits", symbol: "text.line.last.and.arrowtriangle.forward", color: .purple)]
     case .simkl, .anilist, .myAnimeList:
       return []
     }
@@ -329,6 +352,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .douban: Color(red: 0.0, green: 0.71, blue: 0.11)
     case .myShows: Color(red: 0.90, green: 0.14, blue: 0.23)
     case .wikidata: Color(red: 0.2, green: 0.4, blue: 0.6)
+    case .skipDB: Color(red: 0.36, green: 0.30, blue: 0.85)
+    case .theIntroDB: Color(red: 0.12, green: 0.55, blue: 0.75)
     case .simkl: Color(red: 0.10, green: 0.10, blue: 0.12)
     case .anilist: Color(red: 0.01, green: 0.66, blue: 1.00)
     case .myAnimeList: Color(red: 0.18, green: 0.32, blue: 0.64)

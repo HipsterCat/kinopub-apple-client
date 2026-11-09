@@ -1957,6 +1957,18 @@ final class TVSettingsCatalog {
                      UserDefaults.standard.set(isOn, forKey: WikidataMetadataAccess.enabledDefaultsKey)
                      self.host.reloadPages()
                    })
+    store.bindBool("skipDBData",
+                   get: { SkipTimesMetadataAccess.isEnabled(SkipTimesMetadataAccess.skipDBDefaultsKey) },
+                   set: { [unowned self] isOn in
+                     UserDefaults.standard.set(isOn, forKey: SkipTimesMetadataAccess.skipDBDefaultsKey)
+                     self.host.reloadPages()
+                   })
+    store.bindBool("theIntroDBData",
+                   get: { SkipTimesMetadataAccess.isEnabled(SkipTimesMetadataAccess.theIntroDBDefaultsKey) },
+                   set: { [unowned self] isOn in
+                     UserDefaults.standard.set(isOn, forKey: SkipTimesMetadataAccess.theIntroDBDefaultsKey)
+                     self.host.reloadPages()
+                   })
     store.bindBool("myShowsData",
                    get: { MyShowsMetadataAccess.isEnabled },
                    set: { [unowned self] isOn in
