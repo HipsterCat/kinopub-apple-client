@@ -117,6 +117,19 @@ final class TVSettingsCatalog {
         idlePreview: { [unowned self] in self.appPreview() },
         sections: { [unowned self] in self.aboutSections() }
       )
+    case .dataSources:
+      // Each source's icon on the left, as Internet Accounts shows them.
+      return TSKPage(
+        title: category.title,
+        focusedPreview: { [unowned self] key, description in
+          guard let integration = key.flatMap(Integration.init(rawValue:)) else {
+            return TSKPreview.make(contentView: TSKPreview.symbolView(category.symbol),
+                                   description: TSKPreview.description(description)) ?? UIViewController()
+          }
+          return self.integrationPreview(integration, description: description)
+        },
+        sections: { [unowned self] in self.sections(for: category) }
+      )
     default:
       return TSKPage(title: category.title, previewSymbol: category.symbol) { [unowned self] in
         self.sections(for: category)
@@ -560,32 +573,185 @@ final class TVSettingsCatalog {
     ])]
   }
 
+  /// Settings › Integrations — the same catalog as the Mac and iOS pane (`Integration`).
   private func dataSourcesSections() -> [TSKSection] {
-    var sources = [
-      // The TMDB attribution the API terms ask for rides on the TMDB row.
-      TSKRow(title: "TMDB",
-             description: "Settings_Tip_DataSources".localized + "\n\n"
-               + "This product uses the TMDB API but is not endorsed or certified by TMDB.".localized,
-             kind: .info(value: "themoviedb.org")),
-      TSKRow(title: "Kinopoisk",
-             description: "Facts, stills, reviews and some cast details come from a third-party Kinopoisk data proxy (kpapp.link), not an official Kinopoisk product.".localized,
-             kind: .info(value: "kpapp.link")),
-    ]
-    if KinopoiskKeyValidation.isValidated {
-      sources.append(TSKRow(
-        title: "Kinopoisk Unofficial API".localized,
-        description: "Awards and richer metadata also use your own Kinopoisk Unofficial API key (kinopoiskapiunofficial.tech).".localized,
-        kind: .info(value: "kinopoiskapiunofficial.tech")
-      ))
+    func row(_ integration: Integration) -> TSKRow {
+      TSKRow(title: integration.name,
+             description: integration.summary,
+             kind: .action(pushes: true) { [unowned self] in self.open(integration) },
+             previewKey: integration.rawValue,
+             trailingValue: integration.isSupported ? integration.status.title : nil)
     }
     return [
-      TSKSection(title: "Kinopoisk", rows: [
-        TSKRow(title: "API key".localized,
-               description: kinopoisk.statusText.localized,
-               kind: .text(key: "kinopoiskKey")),
-      ]),
-      TSKSection(title: "Sources".localized, rows: sources),
+      TSKSection(rows: Integration.supported.map(row)),
+      TSKSection(title: "Coming soon".localized, rows: Integration.upcoming.map(row)),
     ]
+  }
+
+  private func open(_ integration: Integration) {
+    host.push(TSKPage(
+      title: integration.name,
+      focusedPreview: { [unowned self] _, description in
+        self.integrationPreview(integration, description: description)
+      },
+      idlePreview: { [unowned self] in
+        self.integrationPreview(integration, description: integration.about)
+      },
+      sections: { [unowned self] in self.integrationSections(integration) }
+    ))
+  }
+
+  private func integrationSections(_ integration: Integration) -> [TSKSection] {
+    let status = integration.status
+    let isConnected = status == .connected || status == .off
+    var statusValue = status.title
+    if integration == .kinopoisk {
+      switch kinopoisk.validationState {
+      case .checking: statusValue = "Checking…".localized
+      case .validButQuotaExceeded where status == .connected:
+        statusValue = "Connected · today's quota is used up".localized
+      default: break
+      }
+    }
+
+    var about = [TSKRow(title: "Status".localized, description: integration.about,
+                        kind: .info(value: statusValue))]
+    about += integration.notes.map { note in
+      TSKRow(title: note.title, description: note.text, kind: .info(value: note.value))
+    }
+    var sections = [TSKSection(rows: about)]
+
+    if integration == .kinopoisk, isConnected {
+      sections.append(TSKSection(rows: [
+        TSKRow(title: "Use on title pages".localized,
+               description: "Integration_Kinopoisk_Toggle".localized,
+               kind: .toggle(key: "kinopoiskEnabled")),
+      ]))
+    }
+
+    var actions: [TSKRow] = []
+    switch integration.connection {
+    case .builtIn:
+      break
+    case .apiKey, .account:
+      if isConnected {
+        actions.append(TSKRow(title: "Change Key…".localized,
+                              description: integration.connectHelp,
+                              kind: .action(pushes: false) { [unowned self] in
+                                self.presentKeyAlert(for: integration)
+                              }))
+        actions.append(TSKRow(title: "Disconnect…".localized,
+                              description: "Integration_Disconnect_Message".localized,
+                              kind: .action(pushes: false) { [unowned self] in
+                                self.confirmDisconnect(integration)
+                              }))
+      } else {
+        actions.append(TSKRow(title: (integration.connection == .account ? "Sign In…" : "Connect…").localized,
+                              description: integration.connectHelp,
+                              kind: .action(pushes: false) { [unowned self] in
+                                self.presentKeyAlert(for: integration)
+                              },
+                              isEnabled: integration.isSupported && kinopoisk.validationState != .checking))
+      }
+    }
+    // The "?" of the other platforms: a link cannot be opened here, so the address is
+    // written out for the phone.
+    var help = integration.connectHelp
+    if let keyURL = integration.keyURL {
+      help += "\n\n" + keyURL.absoluteString
+    }
+    actions.append(TSKRow(title: "Website".localized, description: help,
+                          kind: .info(value: integration.host)))
+    sections.append(TSKSection(rows: actions))
+    return sections
+  }
+
+  /// The key alert: a field, what the key is for, and Verify as the confirming action.
+  /// A key that fails brings the alert back with the reason and the key still in it.
+  private func presentKeyAlert(for integration: Integration, draft: String = "", failure: String? = nil) {
+    guard integration == .kinopoisk else { return }
+    let alert = UIAlertController(
+      title: String(format: "Connect %@".localized, integration.name),
+      message: failure ?? "Integration_Kinopoisk_KeyPrompt".localized,
+      preferredStyle: .alert
+    )
+    alert.addTextField { field in
+      field.placeholder = "API key".localized
+      field.text = draft
+      field.isSecureTextEntry = true
+      field.autocorrectionType = .no
+      field.autocapitalizationType = .none
+    }
+    alert.addAction(UIAlertAction(title: "Cancel".localized, style: .cancel))
+    let verify = UIAlertAction(title: "Verify".localized, style: .default) { [weak self, weak alert] _ in
+      let key = alert?.textFields?.first?.text ?? ""
+      Task { @MainActor in
+        guard let self, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        self.host.reloadPages()
+        await self.kinopoisk.check(key: key)
+        self.host.reloadPages()
+        if let failure = self.kinopoisk.failureText {
+          self.presentKeyAlert(for: integration, draft: key, failure: failure)
+        }
+      }
+    }
+    alert.addAction(verify)
+    alert.preferredAction = verify
+    host.presentPopup(alert)
+  }
+
+  private func confirmDisconnect(_ integration: Integration) {
+    let alert = UIAlertController(
+      title: String(format: "Disconnect %@?".localized, integration.name),
+      message: "Integration_Disconnect_Message".localized,
+      preferredStyle: .alert
+    )
+    alert.addAction(UIAlertAction(title: "Disconnect".localized, style: .destructive) { [weak self] _ in
+      self?.kinopoisk.disconnect()
+      self?.host.reloadPages()
+    })
+    alert.addAction(UIAlertAction(title: "Cancel".localized, style: .cancel))
+    host.presentPopup(alert)
+  }
+
+  /// The source's logo — or its short name on the brand colour — over the description.
+  private func integrationPreview(_ integration: Integration, description: String?) -> UIViewController {
+    let side: CGFloat = 240
+    let plate = UIView()
+    plate.layer.cornerRadius = side * 0.225
+    plate.layer.cornerCurve = .continuous
+    plate.clipsToBounds = true
+    plate.translatesAutoresizingMaskIntoConstraints = false
+    let content: UIView
+    if let logo = UIImage(named: integration.logoAssetName) {
+      let image = UIImageView(image: logo)
+      image.contentMode = .scaleAspectFill
+      content = image
+    } else {
+      plate.backgroundColor = UIColor(integration.brandColor)
+      let label = UILabel()
+      label.text = integration.monogram
+      label.textColor = .white
+      label.textAlignment = .center
+      label.adjustsFontSizeToFitWidth = true
+      label.minimumScaleFactor = 0.3
+      let base = UIFont.systemFont(ofSize: side * 0.36, weight: .heavy)
+      label.font = base.fontDescriptor.withDesign(.rounded).map { UIFont(descriptor: $0, size: 0) } ?? base
+      content = label
+    }
+    content.translatesAutoresizingMaskIntoConstraints = false
+    plate.addSubview(content)
+    let inset: CGFloat = content is UILabel ? side * 0.1 : 0
+    NSLayoutConstraint.activate([
+      plate.widthAnchor.constraint(equalToConstant: side),
+      plate.heightAnchor.constraint(equalToConstant: side),
+      content.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: inset),
+      content.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -inset),
+      content.topAnchor.constraint(equalTo: plate.topAnchor),
+      content.bottomAnchor.constraint(equalTo: plate.bottomAnchor),
+    ])
+    return TSKPreview.make(contentView: plate, description: TSKPreview.description(description))
+      ?? UIViewController()
   }
 
   private func advancedSections() -> [TSKSection] {
@@ -1725,15 +1891,12 @@ final class TVSettingsCatalog {
     bindDeviceChoice("deviceStreamType", \.streamingType)
     bindDeviceChoice("deviceServerLocation", \.serverLocation)
 
-    store.bind("kinopoiskKey",
-               get: { [unowned self] in self.kinopoisk.keyText as NSString },
-               set: { [unowned self] value in
-                 self.kinopoisk.keyText = value as? String ?? ""
-                 Task {
-                   await self.kinopoisk.validate()
-                   self.host.reloadPages()
-                 }
-               })
+    store.bindBool("kinopoiskEnabled",
+                   get: { KinopoiskKeyValidation.isEnabled },
+                   set: { [unowned self] isOn in
+                     KinopoiskKeyValidation.isEnabled = isOn
+                     self.host.reloadPages()
+                   })
     for flag in FeatureFlag.allCases {
       store.bindBool(Self.flagKey(flag), get: { flag.storedValue }, set: { flag.set($0) })
     }
@@ -1876,7 +2039,7 @@ extension TVSettingsCatalog {
       case .videoAudio: "Video & audio".localized
       case .tabs: "Вкладки и Главная"
       case .appearance: "Appearance".localized
-      case .dataSources: "Data sources".localized
+      case .dataSources: "Integrations".localized
       case .advanced: "Advanced".localized
       case .experiments: "Feature flags".localized
       case .developer: "For developers".localized
@@ -1892,7 +2055,7 @@ extension TVSettingsCatalog {
       case .videoAudio: "play.rectangle"
       case .tabs: "square.grid.2x2"
       case .appearance: "paintbrush"
-      case .dataSources: "square.stack.3d.up"
+      case .dataSources: "puzzlepiece.extension"
       case .advanced: "gearshape.2"
       case .experiments: "flask"
       case .developer: "hammer"
@@ -1908,7 +2071,7 @@ extension TVSettingsCatalog {
       case .videoAudio: "Settings_Tip_VideoAudio".localized
       case .tabs: "Настройка видимости и порядка вкладок верхнего меню (Каталог, Подборки, Фильмы, Сериалы, ТВ) и секций Главной страницы."
       case .appearance: "Settings_Tip_Appearance".localized
-      case .dataSources: "Settings_Tip_DataSourcesCategory".localized
+      case .dataSources: "Settings_Tip_Integrations".localized
       case .advanced: "Settings_Tip_Advanced".localized
       case .experiments: "Settings_Tip_Experiments".localized
       case .developer: "Settings_Tip_Developer".localized

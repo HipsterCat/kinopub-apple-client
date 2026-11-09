@@ -17,11 +17,11 @@ import AppKit
 struct SettingsRootView: View {
   @Environment(\.appContext) private var appContext
   @Bindable var model: ProfileModel
-  @State private var selectedCategory: SettingsCategory? = .general
   @State private var showLogoutAlert = false
   @State private var avatarImage: Image?
 #if os(macOS)
-  @State private var detailPath = NavigationPath()
+  /// Back / Forward across panes and pushed pages (`SettingsMacChrome.swift`).
+  @State private var history = SettingsHistory(SettingsLocation(category: .general))
      @Environment(\.appearsActive) var appearsActive
      @FocusState private var isFocused: Bool
      @State private var searchText = ""
@@ -38,7 +38,7 @@ struct SettingsRootView: View {
 #if os(macOS)
   private var macSplit: some View {
     NavigationSplitView {
-      List(selection: $selectedCategory) {
+      List(selection: categorySelection) {
         // A selectable row, as System Settings' account is: a `.plain` button sat on
         // the list without a selection of its own (Sasha, 2026-11-08).
         Section {
@@ -67,9 +67,6 @@ struct SettingsRootView: View {
       .opacity(1.0)
       .onAppear {
           isFocused = true
-          if selectedCategory == nil {
-               selectedCategory = .general
-          }
       }
 //      .listStyle(.sidebar)
       .navigationSplitViewColumnWidth(Self.macSidebarWidth)
@@ -78,7 +75,7 @@ struct SettingsRootView: View {
       .background(MacFixedSidebar(width: Self.macSidebarWidth))
       .toolbar(removing: .sidebarToggle)
     } detail: {
-      NavigationStack(path: $detailPath) {
+      NavigationStack(path: detailPath) {
         macDetailRoot
           .navigationDestination(for: SettingsDetailRoute.self) { route in
             switch route {
@@ -97,6 +94,12 @@ struct SettingsRootView: View {
             case .featureFlags:
               FeatureFlagsView()
                 .settingsMacChrome(title: "Feature flags", isRoot: false)
+            case .integration(let integration):
+              IntegrationDetailView(integration: integration, keyProvider: appContext.kinopoiskKeyProvider)
+                .settingsMacChrome(title: LocalizedStringKey(integration.name), isRoot: false)
+            case .languageList(let kind):
+              PlaybackLanguageListEditor(kind: kind)
+                .settingsMacChrome(title: kind == .audio ? "Prefer audio in" : "Prefer subtitles in", isRoot: false)
 #if DEBUG
             case .streamSurvey:
               StreamSurveyView()
@@ -123,14 +126,12 @@ struct SettingsRootView: View {
     }
 //    .navigationSplitViewStyle(.balanced)
 //    .frame(width: 720, height: 520)
-    .onChange(of: selectedCategory) { _, _ in
-      detailPath = NavigationPath()
-    }
+    .environment(history)
     .task {
       model.fetch()
       await loadAvatar()
-      if selectedCategory == nil || selectedCategory?.isAvailable == false {
-        selectedCategory = SettingsCategory.availableCategories.first
+      if !history.current.category.isAvailable, let first = SettingsCategory.availableCategories.first {
+        history.replace(with: SettingsLocation(category: first))
       }
     }
     .alert("Are you sure?", isPresented: $showLogoutAlert) {
@@ -149,14 +150,30 @@ struct SettingsRootView: View {
 
   private static let macSidebarWidth: CGFloat = 240
 
+  /// Picking a pane in the sidebar is a step in the window's history, opening the pane's
+  /// root as System Settings does.
+  private var categorySelection: Binding<SettingsCategory?> {
+    Binding(
+      get: { history.current.category },
+      set: { category in
+        guard let category, category != history.current.category else { return }
+        history.visit(SettingsLocation(category: category))
+      }
+    )
+  }
+
+  private var detailPath: Binding<[SettingsDetailRoute]> {
+    Binding(
+      get: { history.current.path },
+      set: { history.stackDidChange(to: $0) }
+    )
+  }
+
   @ViewBuilder
   private var macDetailRoot: some View {
-    if let selectedCategory {
-      pane(for: selectedCategory)
-        .settingsMacChrome(title: selectedCategory.titleKey, isRoot: true)
-    } else {
-      ContentUnavailableView("Settings", systemImage: "gear")
-    }
+    let category = history.current.category
+    pane(for: category)
+      .settingsMacChrome(title: category.titleKey, isRoot: true)
   }
 #endif
 
@@ -210,6 +227,11 @@ struct SettingsRootView: View {
               .navigationTitle("Network log")
           case .featureFlags:
             FeatureFlagsView()
+          case .integration(let integration):
+            IntegrationDetailView(integration: integration, keyProvider: appContext.kinopoiskKeyProvider)
+              .navigationTitle(integration.name)
+          case .languageList(let kind):
+            PlaybackLanguageListEditor(kind: kind)
 #if DEBUG
           case .streamSurvey:
             StreamSurveyView()
@@ -271,7 +293,7 @@ struct SettingsRootView: View {
     case .playback:
       PlaybackSettingsPane()
     case .integrations:
-      IntegrationsSettingsPane(keyProvider: appContext.kinopoiskKeyProvider)
+      IntegrationsSettingsPane()
     case .downloads:
       DownloadsSettingsPane()
     case .devices:

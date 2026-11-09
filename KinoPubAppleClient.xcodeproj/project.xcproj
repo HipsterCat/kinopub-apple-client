@@ -289,6 +289,7 @@
                 { "path": "SettingsSidebarProfileView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SettingsMacChrome.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SettingsDetailRoute.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "Integration.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 {
                   "kind": "group",
                   "path": "Panes",
@@ -486,7 +487,6 @@
                 { "path": "TVSettingsCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "DataSourcesAttributionView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "KinopoiskKeySettingsModel.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
-                { "path": "KinopoiskSettingsSection.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",

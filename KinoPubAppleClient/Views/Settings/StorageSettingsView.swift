@@ -443,10 +443,15 @@ struct StorageSettingsView: View {
     if let onOpenNetworkLog {
       Button("Open network log", action: onOpenNetworkLog)
     } else {
+#if os(tvOS)
       NavigationLink("Open network log") {
         NetworkConsoleView()
           .navigationTitle("Network log")
       }
+#else
+      // A route, so the Mac Settings window's Back / Forward know the page.
+      NavigationLink("Open network log", value: SettingsDetailRoute.networkLog)
+#endif
     }
   }
 

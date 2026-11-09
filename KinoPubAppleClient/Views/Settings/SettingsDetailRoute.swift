@@ -17,6 +17,10 @@ enum SettingsDetailRoute: Hashable {
   /// Every `FeatureFlag`, switchable — in TestFlight builds too, which is where a flag
   /// gets judged on a real screen.
   case featureFlags
+  /// Settings › Integrations › one source.
+  case integration(Integration)
+  /// Playback › the ordered audio or subtitle languages.
+  case languageList(PlaybackLanguageList.Kind)
 #if DEBUG
   case streamSurvey
   /// Opens the in-process UI lab (iOS). macOS uses `openWindow` instead.

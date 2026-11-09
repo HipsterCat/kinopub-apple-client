@@ -43,8 +43,16 @@ final class KinopoiskKeySettingsModel: ObservableObject {
   }
 
   func validate() async {
-    let trimmed = keyText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
+    await check(key: keyText)
+  }
+
+  /// Saves `key` and asks Kinopoisk Unofficial whether it works. The Integrations
+  /// page calls this from its key alert; the field there is its own draft.
+  @discardableResult
+  func check(key: String) async -> ValidationState {
+    let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return validationState }
+    keyText = trimmed
     validationState = .checking
     keyProvider.save(key: trimmed)
     do {
@@ -59,6 +67,22 @@ final class KinopoiskKeySettingsModel: ObservableObject {
       validationState = .invalid
     } catch {
       validationState = .networkError
+    }
+    return validationState
+  }
+
+  /// Forgets the key: Keychain and the validated flag.
+  func disconnect() {
+    keyProvider.removeKey()
+    keyText = ""
+    validationState = .idle
+  }
+
+  /// Why the key alert comes back after Verify, or nil when the key was kept.
+  var failureText: String? {
+    switch validationState {
+    case .invalid, .networkError: statusText
+    default: nil
     }
   }
 

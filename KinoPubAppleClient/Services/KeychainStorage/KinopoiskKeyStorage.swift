@@ -18,11 +18,19 @@ extension Key where Value == String {
 /// Not a secret — just "has the currently stored key passed a validation call."
 /// Plain UserDefaults, cleared whenever the key text changes.
 enum KinopoiskKeyValidation {
-  private static let defaultsKey = "kinopoiskAPIKeyValidated"
+  static let defaultsKey = "kinopoiskAPIKeyValidated"
+  /// Settings › Integrations › Kinopoisk's switch: a connected key the viewer turned off
+  /// stays stored but is not used. On until switched off.
+  static let enabledKey = "kinopoiskAPIKeyEnabled"
 
   static var isValidated: Bool {
     get { UserDefaults.standard.bool(forKey: defaultsKey) }
     set { UserDefaults.standard.set(newValue, forKey: defaultsKey) }
+  }
+
+  static var isEnabled: Bool {
+    get { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true }
+    set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
   }
 }
 
@@ -40,7 +48,7 @@ final class KinopoiskKeyProvider: KinopoiskKeyProviding, @unchecked Sendable {
   }
 
   func currentAPIKey() -> String? {
-    guard KinopoiskKeyValidation.isValidated else { return nil }
+    guard KinopoiskKeyValidation.isValidated, KinopoiskKeyValidation.isEnabled else { return nil }
     let key: String? = storage.object(for: .kinopoiskAPIKey)
     return (key?.isEmpty ?? true) ? nil : key
   }
@@ -56,5 +64,12 @@ final class KinopoiskKeyProvider: KinopoiskKeyProviding, @unchecked Sendable {
 
   func markValidated() {
     KinopoiskKeyValidation.isValidated = true
+    KinopoiskKeyValidation.isEnabled = true
+  }
+
+  /// Settings' "Disconnect": the key leaves the Keychain.
+  func removeKey() {
+    storage.setObject(nil as String?, for: .kinopoiskAPIKey)
+    KinopoiskKeyValidation.isValidated = false
   }
 }

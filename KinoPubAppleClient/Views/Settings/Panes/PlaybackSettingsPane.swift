@@ -65,9 +65,7 @@ struct PlaybackSettingsPane: View {
 
   private var audioSection: some View {
     Section {
-      NavigationLink {
-        PlaybackLanguageListEditor(kind: .audio)
-      } label: {
+      NavigationLink(value: SettingsDetailRoute.languageList(.audio)) {
         LabeledContent("Prefer audio in", value: languageList(settings.resolvedAudioLanguages(system: Locale.preferredLanguages)))
       }
 
@@ -95,9 +93,7 @@ struct PlaybackSettingsPane: View {
         }
       }
       .pickerStyle(.menu)
-      NavigationLink {
-        PlaybackLanguageListEditor(kind: .subtitles)
-      } label: {
+      NavigationLink(value: SettingsDetailRoute.languageList(.subtitles)) {
         LabeledContent("Prefer subtitles in", value: languageList(settings.resolvedSubtitleLanguages(system: Locale.preferredLanguages)))
       }
       Toggle("Prefer non-CC / non-SDH", isOn: $preferNonCCSubtitles)
