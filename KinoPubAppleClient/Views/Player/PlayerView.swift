@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import AVKit
+import Combine
 import KinoPubBackend
 import KinoPubUI
 import KinoPubLogging
@@ -55,6 +56,11 @@ struct PlayerView: View {
       if FeatureFlags.tvOSSidecarSubtitles {
         subtitleLayers
       }
+#endif
+#if os(macOS)
+      // AVPlayerView has no place for a skip button; tvOS uses AVKit's own, iOS adds one
+      // over the presented player (`SystemVideoPlayer`).
+      SkipButtonOverlay(offer: playerManager.skipOffer) { playerManager.performSkip() }
 #endif
     }
     .ignoresSafeArea(.all)
@@ -469,6 +475,7 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
     host.playerController.allowsPictureInPicturePlayback = true
     host.playerController.speeds = AVPlaybackSpeed.systemDefaultSpeeds
     context.coordinator.installEndHandler(on: manager)
+    context.coordinator.observeSkip(on: manager)
     // Live Text over a paused frame: the floating text-recognition button and the
     // VisionKit overlay it summons are not part of watching a film.
     host.playerController.allowsVideoFrameAnalysis = false
@@ -536,8 +543,62 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
         actionsService: context.actionsService
       )
       installEndHandler(on: next)
+      observeSkip(on: next)
       host?.playerController.player = next.player
       Task { await next.preparePlayback() }
+    }
+
+    // MARK: Skip
+
+    private var skipCancellable: AnyCancellable?
+    private weak var skipManager: PlayerManager?
+    private var skipButton: UIButton?
+
+    /// The skip button over the presented player. AVKit on iOS has no `contextualActions`,
+    /// so it is ours: a capsule in the lower trailing corner, above the transport bar, on
+    /// the player's own view so it stays on top of the controls (Sasha, 2026-11-09).
+    func observeSkip(on manager: PlayerManager) {
+      skipManager = manager
+      skipCancellable = manager.$skipOffer
+        .receive(on: RunLoop.main)
+        .sink { [weak self] offer in
+          MainActor.assumeIsolated { self?.showSkip(offer) }
+        }
+    }
+
+    private func showSkip(_ offer: PlaybackSkip.Offer?) {
+      guard let view = host?.playerController.view else { return }
+      let button = skipButton ?? makeSkipButton(in: view)
+      if let offer {
+        button.configuration?.title = PlaybackSkip.title(for: offer.kind)
+      }
+      UIView.animate(withDuration: 0.2) {
+        button.alpha = offer == nil ? 0 : 1
+      }
+      button.isUserInteractionEnabled = offer != nil
+    }
+
+    private func makeSkipButton(in view: UIView) -> UIButton {
+      var configuration = UIButton.Configuration.gray()
+      configuration.cornerStyle = .capsule
+      configuration.image = UIImage(systemName: "forward.end.fill")
+      configuration.imagePadding = 8
+      configuration.baseForegroundColor = .white
+      configuration.background.visualEffect = UIBlurEffect(style: .systemThinMaterialDark)
+      configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18)
+      let button = UIButton(configuration: configuration, primaryAction: UIAction { [weak self] _ in
+        self?.skipManager?.performSkip()
+      })
+      button.accessibilityIdentifier = "player.skip"
+      button.alpha = 0
+      button.translatesAutoresizingMaskIntoConstraints = false
+      view.addSubview(button)
+      NSLayoutConstraint.activate([
+        button.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+        button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -88),
+      ])
+      skipButton = button
+      return button
     }
 
     /// Leaving happens once, however many times the host reports it.

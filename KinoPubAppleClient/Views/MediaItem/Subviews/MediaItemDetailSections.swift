@@ -2780,9 +2780,16 @@ struct MediaItemBadgeCardsSection: View {
     return badges
   }
 
+  /// What the player will offer to skip; nil while it is being asked.
+  var skipPreview: SkipSegmentsPreview? = nil
+
+  /// The skip times card, while a skip-times source is on and the title has an IMDb id.
+  private var showsSkipSegments: Bool { SkipSegmentsPreview.isAvailable(for: mediaItem) }
+
   var body: some View {
     if ageRating != nil || !advisories.isEmpty || !audioGroups.isEmpty
-      || !subtitleGroups.isEmpty || !videoBadges.isEmpty || externalMetadata.commonSense != nil {
+      || !subtitleGroups.isEmpty || !videoBadges.isEmpty || externalMetadata.commonSense != nil
+      || showsSkipSegments {
       BlockRail(height: BlockMetrics.textCardHeight,
                 inset: MediaItemLayout.horizontalInset) {
         if ageRating != nil || !advisories.isEmpty {
@@ -2800,6 +2807,56 @@ struct MediaItemBadgeCardsSection: View {
         if !videoBadges.isEmpty {
           VideoCard(badges: videoBadges,
                    qualityLines: mediaItem.videoTechLines)
+        }
+        if showsSkipSegments {
+          SkipSegmentsCard(preview: skipPreview)
+        }
+      }
+    }
+  }
+}
+
+/// What the player will offer to skip (`SkipSegmentsPreview`), as a card of the badge
+/// rail. Nil preview: still asking.
+private struct SkipSegmentsCard: View {
+  let preview: SkipSegmentsPreview?
+
+  var body: some View {
+    BlockCard(width: BlockMetrics.textCardWidth, fillsHeight: true) {
+      VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text("MediaItem_SkipSegments")
+            .font(TypeScale.detailBody.weight(.semibold))
+            .foregroundStyle(Color.KinoPub.text)
+          Text(verbatim: preview?.subtitle ?? SkipSegmentsPreview.sources(nil))
+            .font(TypeScale.detailBody)
+            .foregroundStyle(Color.KinoPub.subtitle)
+            .lineLimit(1)
+        }
+        if let preview {
+          if preview.rows.isEmpty {
+            Text("MediaItem_SkipSegmentsNone")
+              .font(TypeScale.detailBody)
+              .foregroundStyle(Color.KinoPub.subtitle)
+          } else {
+            VStack(alignment: .leading, spacing: 6) {
+              ForEach(preview.rows, id: \.kind) { row in
+                HStack {
+                  Text(verbatim: SkipSegmentsPreview.title(for: row.kind))
+                    .foregroundStyle(Color.KinoPub.subtitle)
+                  Spacer(minLength: 8)
+                  Text(verbatim: row.length)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.KinoPub.text)
+                }
+                .font(TypeScale.detailBody)
+                .accessibilityElement(children: .combine)
+              }
+            }
+          }
+        } else {
+          ProgressView()
+            .controlSize(.small)
         }
       }
     }

@@ -133,6 +133,9 @@ class MediaItemModel: ObservableObject {
   /// True once `loadExternalMetadata` finishes or is skipped. Cast photos wait on
   /// this before falling back to the pushbr CDN so URLs don't swap mid-paint.
   @Published public var externalMetadataLoaded: Bool = false
+  /// What the player will offer to skip on this title (`SkipSegmentsPreview`); nil while
+  /// it is being asked or when no skip-times source is on.
+  @Published var skipPreview: SkipSegmentsPreview?
 
   /// Season number → episode schedules from TMDB. Loaded on demand per season.
   @Published public var seasonSchedules: [Int: [EpisodeSchedule]] = [:]
@@ -719,6 +722,11 @@ class MediaItemModel: ObservableObject {
       "metadata result path=\(self.usesTitleCard ? "v2" : "tmdb") kinopub=\(self.mediaItemId) ms=\(times[self.usesTitleCard] ?? -1) tmdbId=\(meta.tmdbId.map(String.init) ?? "nil") cast=\(meta.cast.count) photos=\(meta.cast.filter { $0.photo != nil }.count) logo=\(meta.titleLogoURL?.absoluteString ?? "nil") next=\(meta.nextEpisode.map { "S\($0.seasonNumber)E\($0.episodeNumber)" } ?? "nil") status=\(meta.status ?? "nil")"
     )
     await ensureEpisodeGrid()
+    // After the grid: the skip times ask in the official numbering, from the same cached calls.
+    let item = mediaItem
+    let preview = await SkipSegmentsPreview.load(for: item, service: metadataService)
+    guard generation == metadataLoadGeneration else { return }
+    skipPreview = preview
   }
 
   private func checkTitlePageVideos(_ meta: TitleMetadata, generation: Int) async {

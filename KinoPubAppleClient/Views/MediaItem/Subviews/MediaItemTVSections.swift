@@ -56,6 +56,8 @@ enum MediaItemTVSections {
     /// Ratings and Reviews led by the viewers' and critics' cards; off is the row of score tiles
     /// (`FeatureFlags.ratingsSummaryCards`).
     var ratingsSummaryCards = FeatureFlags.ratingsSummaryCards
+    /// What the player will offer to skip (`SkipSegmentsPreview`); nil while it is asked.
+    var skipPreview: SkipSegmentsPreview?
   }
 
   /// Ids the page uses to say what a selection was. Strings, because a `TVPageItem` is.
@@ -801,6 +803,29 @@ enum MediaItemTVSections {
       card("advisories", advisories.enumerated().map { index, advisory in
         .init(id: "advisory.\(index)", text: advisory, leading: .symbol("exclamationmark.triangle"), style: .detail)
       })
+    }
+
+    // What the player will offer to skip, while skip times are tried out (Sasha, 2026-11-09).
+    if SkipSegmentsPreview.isAvailable(for: item) {
+      let preview = input.skipPreview
+      var rows: [TVPageInfoCard.Spec.Row] = [
+        .init(id: "skip.caption", text: "MediaItem_SkipSegments".localized, style: .caption),
+        .init(id: "skip.sources", text: preview?.subtitle ?? SkipSegmentsPreview.sources(nil), style: .detail),
+      ]
+      if let preview {
+        if preview.rows.isEmpty {
+          rows.append(.init(id: "skip.none", text: "MediaItem_SkipSegmentsNone".localized, style: .value))
+        } else {
+          rows += preview.rows.map { row in
+            .init(id: "skip.\(row.kind.rawValue)", text: SkipSegmentsPreview.title(for: row.kind),
+                  secondary: row.length, style: .value)
+          }
+        }
+      } else {
+        rows.append(.init(id: "skip.loading", text: "Loading…".localized, style: .value))
+      }
+      specs.append(TVPageInfoCard.Spec(id: "skip", title: "MediaItem_SkipSegments".localized, showsHeader: false,
+                                       rows: rows))
     }
     return specs
   }

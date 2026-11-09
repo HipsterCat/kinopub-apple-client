@@ -964,7 +964,8 @@ struct MediaItemView: View {
       // the room. `InfoFooter` (Uploaded / Last Update / source credit), inside
       // `MediaItemInfoColumns`, is untouched.
       MediaItemBadgeCardsSection(mediaItem: itemModel.mediaItem,
-                                externalMetadata: itemModel.externalMetadata)
+                                externalMetadata: itemModel.externalMetadata,
+                                skipPreview: itemModel.skipPreview)
 #endif
       MediaItemInfoColumns(mediaItem: itemModel.mediaItem,
                            externalMetadata: itemModel.externalMetadata,

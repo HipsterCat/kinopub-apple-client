@@ -73,7 +73,16 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   private var rateObservation: NSKeyValueObservation?
   private var actionsService: UserActionsService
   /// Only for resolving missing stream links — see `resolveStreamLinksIfNeeded`.
-  private let contentService: VideoContentService
+  let contentService: VideoContentService
+  /// Skip times of the stream playing (`PlaybackSkip.swift`), the clock that watches
+  /// them, and the skip on offer now: AVKit's button on tvOS, ours on iOS and the Mac.
+  var skipSegments: SkipSegments?
+  var skipDurationSeconds: Double = 0
+  var skipSegmentsTask: Task<Void, Never>?
+  var skipObserverToken: Any?
+  @Published var skipOffer: PlaybackSkip.Offer?
+  /// The skip just taken, until the clock has passed it.
+  var skippedOffer: PlaybackSkip.Offer?
   /// What the info panel is enriched from, beyond kino.pub — see `PlaybackMediaContext`.
   private let metadataService: MetadataService
   private var cues: [SubtitleCue] = []
@@ -165,13 +174,6 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// The system player screen we drive on tvOS. Held weakly: AVKit owns it, we only
   /// reach in to hang metadata and the transport-bar menus off it.
   private(set) weak var playerViewController: AVPlayerViewController?
-  /// Skip times of the stream playing (`PlaybackSkip.swift`), the clock that watches
-  /// them, and the button AVKit shows now.
-  var skipSegments: SkipSegments?
-  var skipDurationSeconds: Double = 0
-  var skipSegmentsTask: Task<Void, Never>?
-  var skipObserverToken: Any?
-  var skipOffer: PlaybackSkip.Offer?
   /// The episode the system Up Next panel offers, resolved when the stream was
   /// prepared. The player controller's delegate reads it when the panel is accepted —
   /// the proposal object itself is AVKit's and carries none of our model.
@@ -438,6 +440,8 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
           // frame it renders.
           self.applyPendingSeekIfPossible()
           self.player.play()
+          // Runtime known now: the skip-times sources fit their times to it.
+          self.loadSkipSegments(on: item)
 #if os(tvOS)
           // The second thing the custom tabs wait for (`rebuildContentTabs`).
           self.rebuildContentTabs()
@@ -575,9 +579,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     metadataEnrichmentTask?.cancel()
     metadataEnrichmentTask = nil
 #endif
-#if os(tvOS)
     clearSkipSegments()
-#endif
     if let cueObserverToken {
       player.removeTimeObserver(cueObserverToken)
       self.cueObserverToken = nil
@@ -1233,12 +1235,6 @@ extension PlayerManager {
         }
       }
       guard let enrichment else { return }
-#if os(tvOS)
-      await MainActor.run {
-        guard self.player.currentItem === item else { return }
-        self.loadSkipSegments(enrichment: enrichment, on: item)
-      }
-#endif
       let enriched = await PlaybackMediaContext.enrich(draft, with: enrichment,
                                                        service: self.metadataService)
       guard !Task.isCancelled else { return }

@@ -51,7 +51,8 @@ struct MediaItemTVPage: View {
           relatedRows: model.relatedRows,
           authorGroup: model.authorGroup,
           castGroup: model.castGroup,
-          revealedFacts: revealedFacts)
+          revealedFacts: revealedFacts,
+          skipPreview: model.skipPreview)
   }
 
   var body: some View {
