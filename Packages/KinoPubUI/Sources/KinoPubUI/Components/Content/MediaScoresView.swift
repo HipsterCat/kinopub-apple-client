@@ -10,7 +10,7 @@ import SwiftUI
 /// the detail score tiles.
 public struct MediaScoreLogo: View {
 
-  public enum Source: String, Sendable {
+  public enum Source: String, Sendable, Codable {
     case imdb
     case kinopoisk
     case tmdb
@@ -130,7 +130,20 @@ public struct MediaScoreLogo: View {
   public var body: some View {
     let image = Image(assetName, bundle: .module)
       .renderingMode(style == .template ? .template : .original)
-    if style == .line {
+    if style == .line, source.extraAssetName != nil {
+      // The relayed sources have no 32 pt line PNGs: their vector card marks, at the
+      // line's height (on iOS / macOS the row sizes them to the score's line height).
+#if os(tvOS)
+      image
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(height: Self.lineMarkHeight)
+#else
+      image
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+#endif
+    } else if style == .line {
 #if os(tvOS)
       // Already 32 pt tall. `fixedSize` keeps each file's width; the row must not
       // stretch them into one box.
@@ -150,6 +163,10 @@ public struct MediaScoreLogo: View {
         .fixedSize(horizontal: true, vertical: false)
     }
   }
+
+  /// The 32 pt line PNGs carry some air around the drawing; a bare vector mark at that
+  /// height looks a size larger.
+  private static let lineMarkHeight: CGFloat = 26
 
   private var assetName: String {
     switch style {

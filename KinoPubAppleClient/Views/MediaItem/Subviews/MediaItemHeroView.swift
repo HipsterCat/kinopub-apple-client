@@ -1307,6 +1307,7 @@ struct MediaItemHeroView: View {
   private var lineScores: MediaScores {
     MediaScores(mediaItem).adding(tmdb: externalMetadata.tmdbRating,
                                  tmdbVotes: externalMetadata.tmdbVotes)
+      .adding(extras: RatingSources.lineExtras(externalMetadata))
   }
 
   // MARK: - Facts, scores, playback, people
