@@ -42,10 +42,17 @@ KinoPubMedia), which holds kino.pub's whole id list; a name only decides for an 
 
 **prd — The hero's people (Sasha, 2026-11-08).** A column on the right of the title page hero,
 bottom-aligned with the buttons, one line per role: «В ролях …» (fiction only), then «Режиссёр …» /
-«Создатели …» on a new line. One person takes the singular label. `documentary` / `concert` /
-`standup` / `show` name no director or creator in the hero — nobody picks those by it; the Credits
-card has them. The column is there on tvOS, and on iPad / Mac once the hero is wider than a synopsis
-measure plus half of one; narrower it goes inline under the synopsis, and a phone has none.
+«Создатели …» on a new line. One person takes the singular label. `documentary` / `animation` /
+`concert` / `standup` / `show` name no director or creator in the hero — nobody picks those by it;
+the Credits card has them (cartoons dropped 2026-11-09). The column is there on tvOS, iPad and Mac
+and never moves under the synopsis: when the window narrows, the synopsis and the column both get
+narrower (2026-11-09). A phone has none.
+
+**prd — The hero's facts line (Sasha, 2026-11-08, 2026-11-09).** No genre that restates the kind
+in front of it (`MediaPresentationProfile.kindGenreIDs`: Концерт, Стендап, ТВ-шоу, Развлекательные).
+A series airing says «с 2006» / «2006–»; its status follows the season count whatever it is, TMDB's
+first (kino.pub's «finished» is not trusted). The status capsule sits above the line for now
+(Diagnostics «Status badge inside the facts line» puts it back in it).
 
 **prd — Author.** kino.pub files a series' creators in the same `director` field.
 

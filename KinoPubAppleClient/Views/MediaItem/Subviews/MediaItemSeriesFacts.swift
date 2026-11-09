@@ -23,6 +23,41 @@ enum SeriesFacts {
     }
   }
 
+  /// The hero's word for where the series stands, after its season count: «окончен»,
+  /// «отменён», «продолжается», «в производстве»… TMDB's status for every title whenever
+  /// it has one — kino.pub's flag is not to be trusted (Sasha, 2026-11-09) — and kino.pub
+  /// only to say a series it marks finished is. Nil when nobody knows.
+  static func shortStatusKey(_ item: MediaItem, _ metadata: TitleMetadata) -> String? {
+    switch metadata.status?.lowercased() {
+    case "ended": return "MediaItem_StatusEndedShort"
+    case "canceled": return "MediaItem_StatusCanceledShort"
+    case "returning series": return "MediaItem_StatusReturningShort"
+    case "in production": return "MediaItem_StatusInProductionShort"
+    case "planned": return "MediaItem_StatusPlannedShort"
+    case "pilot": return "MediaItem_StatusPilotShort"
+    default: return item.finished ? "MediaItem_StatusEndedShort" : nil
+    }
+  }
+
+  /// The hero's years: «2019–26» once it has ended, «с 2006» / «2006–» while it airs
+  /// (Sasha, 2026-11-09). TMDB's air dates first, kino.pub's year and last-episode year
+  /// (`fallbackSpan`) when it has none.
+  static func heroYears(_ item: MediaItem, _ metadata: TitleMetadata, fallbackSpan: String?) -> String? {
+    let calendar = Calendar.current
+    let start = metadata.firstAirDate.map { calendar.component(.year, from: $0) }
+      ?? (item.year > 0 ? item.year : nil)
+    guard let start else { return fallbackSpan }
+    guard isFinished(item, metadata) else {
+      return String(format: "MediaItem_YearsOngoing".localized, "\(start)")
+    }
+    guard let last = metadata.lastAirDate else { return fallbackSpan ?? "\(start)" }
+    let end = calendar.component(.year, from: last)
+    guard end > start else { return "\(start)" }
+    return start / 100 == end / 100
+      ? "\(start)–\(String(format: "%02d", end % 100))"
+      : "\(start)–\(end)"
+  }
+
   /// The localization key of the status line. Nil for anything that is not a series — by its
   /// payload (it has seasons) or by its type, which a listing card has before the details land.
   static func statusKey(_ item: MediaItem, _ metadata: TitleMetadata) -> String? {
@@ -143,6 +178,11 @@ enum TitleStatus: Equatable {
       if !SeriesFacts.isFinished(item, metadata),
          let updated = updatedDaysAgo, (0...Rules.newEpisodesDays).contains(updated) {
         return .newEpisodes
+      }
+      // A series new to the catalogue says so too, for the same two weeks a film does
+      // (Sasha, 2026-11-09).
+      if let added = addedDaysAgo, (0...Rules.recentlyAddedDays).contains(added) {
+        return .recentlyAdded
       }
       return nil
     }

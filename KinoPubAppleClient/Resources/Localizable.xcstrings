@@ -8297,6 +8297,24 @@
         }
       }
     },
+    "MediaItem_StatusCanceledShort" : {
+      "comment" : "Title hero facts line, after the season count: the series was canceled.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "canceled"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "отменён"
+          }
+        }
+      }
+    },
     "MediaItem_StatusEnded" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8328,6 +8346,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "окончен"
+          }
+        }
+      }
+    },
+    "MediaItem_StatusInProductionShort" : {
+      "comment" : "Title hero facts line, after the season count: TMDB says the series is in production.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in production"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "в производстве"
+          }
+        }
+      }
+    },
+    "MediaItem_StatusReturningShort" : {
+      "comment" : "Title hero facts line, after the season count: TMDB says the series is returning.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "returning"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "продолжается"
+          }
+        }
+      }
+    },
+    "MediaItem_StatusPlannedShort" : {
+      "comment" : "Title hero facts line, after the season count: TMDB says the series is planned.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "planned"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "запланирован"
+          }
+        }
+      }
+    },
+    "MediaItem_StatusPilotShort" : {
+      "comment" : "Title hero facts line, after the season count: TMDB says only a pilot exists.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pilot"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "пилот"
           }
         }
       }
@@ -9322,6 +9412,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "с %@ по %@"
+          }
+        }
+      }
+    },
+    "MediaItem_YearsOngoing" : {
+      "comment" : "Title hero facts line: a series still airing, from its first year. «с 2006» / «2006–».",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@–"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "с %@"
           }
         }
       }

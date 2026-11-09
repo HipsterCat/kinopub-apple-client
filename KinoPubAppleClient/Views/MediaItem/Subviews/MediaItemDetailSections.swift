@@ -3709,15 +3709,22 @@ struct MediaItemPlotView: View {
   }
 
   var body: some View {
-    content
-      .frame(maxWidth: Self.maxWidth, alignment: .leading)
-      // Measured outside the button. The unclamped copy used to live in the label,
-      // and the tvOS focus effect snapshots that label — the full text is much
-      // taller than the six lines on screen, so the focus shape was a tall slab.
-      // It sat commented out, so «More» never showed anywhere (2026-11-08).
-      .background(alignment: .topLeading) { plotMeasurement }
-      .onPreferenceChange(PlotClampedHeightKey.self) { clampedHeight = $0 }
-      .onPreferenceChange(PlotFullHeightKey.self) { fullHeight = $0 }
+    // The measuring copy is a sibling that always takes the whole measure, not a
+    // background of the paragraph: the paragraph hugs its widest line, so measured
+    // behind it the copy rewrapped at that narrower width, the lines it reported were
+    // not the lines on screen («ЕЩЁ» rode the line above the last), and a width set
+    // once never grew or shrank again with the window (Sasha, 2026-11-09).
+    //
+    // Measured outside the button. The unclamped copy used to live in the label,
+    // and the tvOS focus effect snapshots that label — the full text is much
+    // taller than the six lines on screen, so the focus shape was a tall slab.
+    ZStack(alignment: .topLeading) {
+      plotMeasurement
+      content
+    }
+    .frame(maxWidth: Self.maxWidth, alignment: .leading)
+    .onPreferenceChange(PlotClampedHeightKey.self) { clampedHeight = $0 }
+    .onPreferenceChange(PlotFullHeightKey.self) { fullHeight = $0 }
   }
 
   /// Always the control, on every platform — the synopsis is the canonical "there is
