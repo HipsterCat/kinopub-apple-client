@@ -60,14 +60,14 @@ struct IntegrationsSettingsPane: View {
   }
 }
 
-/// Icon and name; the state on the trailing edge for sources that work.
+/// Icon and name; the state on the trailing edge for sources that work. The icon is the
+/// Settings sidebar's size, as System Settings' own lists are (Sasha, 2026-11-09).
 private struct IntegrationRowLabel: View {
   let integration: Integration
-  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 32
 
   var body: some View {
-    HStack(spacing: 12) {
-      IntegrationIconView(integration: integration, size: iconSize)
+    HStack(spacing: 10) {
+      IntegrationIconView(integration: integration)
       Text(verbatim: integration.name)
       Spacer(minLength: 8)
       if integration.status.isShownInList {
@@ -104,7 +104,7 @@ struct IntegrationDetailView: View {
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
   @AppStorage(MyShowsMetadataAccess.enabledDefaultsKey) private var myShowsData = true
-  @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 44
+  @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 64
 
   init(integration: Integration) {
     self.integration = integration
@@ -129,17 +129,30 @@ struct IntegrationDetailView: View {
 
   var body: some View {
     Form {
-      // The description continues the header's group, secondary, as a second row.
+      // The header card of a System Settings pane: the mark large and centred, the name,
+      // what the source is, Learn More (Sasha, 2026-11-09). No mark, no picture.
       Section {
         header
-        Text(verbatim: integration.about)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
         ForEach(integration.notes, id: \.self) { note in
           Text(verbatim: note.text)
             .font(.callout)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      // What the source brings, a small mark or symbol each; the connect buttons under it.
+      Section {
+        ForEach(integration.provides, id: \.self) { item in
+          Label {
+            Text(LocalizedStringKey(item.titleKey))
+          } icon: {
+            IntegrationProvidedIcon(item: item)
+          }
+        }
+      } header: {
+        if !integration.provides.isEmpty {
+          Text("Integration_Provides")
         }
       } footer: {
         if integration != .tmdb, !integration.hasDataSwitch, !hasKey || isAccount {
@@ -236,27 +249,39 @@ struct IntegrationDetailView: View {
   // MARK: Header
 
   private var header: some View {
-    HStack(spacing: 12) {
-      IntegrationIconView(integration: integration, size: iconSize)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(verbatim: integration.name)
-          .font(.headline)
-        HStack(spacing: 6) {
-          if keyModel.validationState == .checking {
-            ProgressView()
-              .controlSize(.small)
-            Text("Checking…")
-          } else {
-            Text(verbatim: statusLine)
-          }
-        }
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
+    VStack(spacing: 8) {
+      if integration.markImage != nil {
+        IntegrationIconView(integration: integration, size: iconSize)
+          .padding(.bottom, 4)
       }
-      Spacer(minLength: 8)
-      Button("Learn More…") { openURL(integration.website) }
-        .help(integration.website.absoluteString)
+      Text(verbatim: integration.name)
+        .font(.title2.weight(.bold))
+      Text(verbatim: integration.about)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      HStack(spacing: 6) {
+        if keyModel.validationState == .checking {
+          ProgressView()
+            .controlSize(.small)
+          Text("Checking…")
+        } else {
+          Text(verbatim: statusLine)
+        }
+        Text(verbatim: "·")
+        Button("Learn More…") { openURL(integration.website) }
+#if os(macOS)
+          .buttonStyle(.link)
+#else
+          .buttonStyle(.borderless)
+#endif
+          .help(integration.website.absoluteString)
+      }
+      .font(.callout)
+      .foregroundStyle(.secondary)
     }
+    .multilineTextAlignment(.center)
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, 12)
   }
 
   private var statusLine: String {

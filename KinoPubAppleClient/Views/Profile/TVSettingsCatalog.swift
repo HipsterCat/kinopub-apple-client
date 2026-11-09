@@ -632,6 +632,13 @@ final class TVSettingsCatalog {
       TSKRow(title: note.title, description: note.text, kind: .info(value: note.value))
     }
     var sections = [TSKSection(rows: about)]
+    let provided = integration.provides.map { item in
+      TSKRow(title: item.titleKey.localized, description: integration.about, kind: .info(value: ""),
+             isFocusable: false)
+    }
+    if !provided.isEmpty {
+      sections.append(TSKSection(title: "Integration_Provides".localized, rows: provided))
+    }
 
     if integration == .tmdb {
       sections.append(TSKSection(rows: [
@@ -776,42 +783,21 @@ final class TVSettingsCatalog {
     host.presentPopup(alert)
   }
 
-  /// The source's logo — or its short name on the brand colour — over the description.
+  /// The source's logo over the description; a source with no mark of its own shows the
+  /// description alone (Sasha, 2026-11-09).
   private func integrationPreview(_ integration: Integration, description: String?) -> UIViewController {
     let side: CGFloat = 240
-    let plate = UIView()
-    plate.layer.cornerRadius = side * 0.225
-    plate.layer.cornerCurve = .continuous
-    plate.clipsToBounds = true
-    plate.translatesAutoresizingMaskIntoConstraints = false
-    let content: UIView
+    var plate: UIView?
     if let logo = integration.markName.flatMap(ProviderMark.uiImage(named:)) {
       let image = UIImageView(image: logo)
       image.contentMode = .scaleAspectFit
-      content = image
-    } else {
-      plate.backgroundColor = UIColor(integration.brandColor)
-      let label = UILabel()
-      label.text = integration.monogram
-      label.textColor = .white
-      label.textAlignment = .center
-      label.adjustsFontSizeToFitWidth = true
-      label.minimumScaleFactor = 0.3
-      let base = UIFont.systemFont(ofSize: side * 0.36, weight: .heavy)
-      label.font = base.fontDescriptor.withDesign(.rounded).map { UIFont(descriptor: $0, size: 0) } ?? base
-      content = label
+      image.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        image.widthAnchor.constraint(equalToConstant: side),
+        image.heightAnchor.constraint(equalToConstant: side),
+      ])
+      plate = image
     }
-    content.translatesAutoresizingMaskIntoConstraints = false
-    plate.addSubview(content)
-    let inset: CGFloat = content is UILabel ? side * 0.1 : 0
-    NSLayoutConstraint.activate([
-      plate.widthAnchor.constraint(equalToConstant: side),
-      plate.heightAnchor.constraint(equalToConstant: side),
-      content.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: inset),
-      content.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -inset),
-      content.topAnchor.constraint(equalTo: plate.topAnchor),
-      content.bottomAnchor.constraint(equalTo: plate.bottomAnchor),
-    ])
     return TSKPreview.make(contentView: plate, description: TSKPreview.description(description))
       ?? UIViewController()
   }

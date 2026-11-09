@@ -13,7 +13,7 @@ struct SettingsIconView: View {
 
   var body: some View {
     Image(systemName: systemImage)
-     .font(.system(size: 11, weight: .medium))
+      .font(.system(size: size * 0.42, weight: .medium))
       .foregroundStyle(.white)
 //      .preferredColorScheme(.dark)
       .frame(width: size, height: size)

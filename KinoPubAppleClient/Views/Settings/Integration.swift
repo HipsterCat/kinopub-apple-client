@@ -263,19 +263,59 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
 
   var markImage: Image? { markName.flatMap(ProviderMark.image(named:)) }
 
-  var monogram: String {
+  /// A source with no mark of its own is drawn as Settings draws its panes: a symbol on
+  /// the brand colour (Sasha, 2026-11-09). Never an invented logo or acronym.
+  var symbol: String {
     switch self {
-    case .kinopoisk: "КП"
-    case .tmdb: "TMDB"
-    case .omdb: "OMDb"
-    case .trakt: "trakt"
-    case .plex: "PLEX"
-    case .douban: "豆"
-    case .myShows: "MS"
-    case .wikidata: "WD"
-    case .simkl: "S"
-    case .anilist: "AL"
-    case .myAnimeList: "MAL"
+    case .omdb: "star.fill"
+    default: "puzzlepiece.extension.fill"
+    }
+  }
+
+  /// What the source brings to the title page, one row each on its page, with the mark
+  /// of the score it relays or a symbol for the rest.
+  struct Provided: Hashable {
+    let titleKey: String
+    var mark: String?
+    var symbol: String = "circle.fill"
+    var color: Color = .gray
+  }
+
+  var provides: [Provided] {
+    let imdb = Provided(titleKey: "Integration_Provides_IMDb", mark: "imdb_big_color")
+    let tomatoes = Provided(titleKey: "Integration_Provides_RottenTomatoes", mark: "rotten_tomatoes_critics_big_color")
+    let metacritic = Provided(titleKey: "Integration_Provides_Metacritic", mark: "metascore_green")
+    let reviews = Provided(titleKey: "Integration_Provides_Reviews", symbol: "text.bubble.fill", color: .blue)
+    let boxOffice = Provided(titleKey: "Integration_Provides_BoxOffice", symbol: "dollarsign", color: .green)
+    let awards = Provided(titleKey: "Integration_Provides_Awards", symbol: "trophy.fill", color: .orange)
+    let audience = Provided(titleKey: "Integration_Provides_Audience", symbol: "person.2.fill", color: .teal)
+    switch self {
+    case .kinopoisk:
+      return [Provided(titleKey: "Integration_Provides_Kinopoisk", mark: "kinopoisk_big_colorful"), imdb, reviews]
+    case .tmdb:
+      return [Provided(titleKey: "Integration_Provides_TMDB", mark: "tmdb_big_color"),
+              Provided(titleKey: "Integration_Provides_Images", symbol: "photo.fill", color: .indigo),
+              Provided(titleKey: "Integration_Provides_Episodes", symbol: "list.bullet", color: .purple)]
+    case .omdb:
+      return [tomatoes, metacritic, imdb, boxOffice, awards]
+    case .trakt:
+      return [Provided(titleKey: "Integration_Provides_Trakt", mark: "trakt"), tomatoes, metacritic,
+              Provided(titleKey: "Integration_Provides_Letterboxd", mark: "letterboxd"),
+              Provided(titleKey: "Integration_Provides_MyAnimeList", mark: "myanimelist"), reviews]
+    case .plex:
+      return [Provided(titleKey: "Integration_Provides_CommonSense", symbol: "figure.and.child.holdinghands", color: .green),
+              Provided(titleKey: "Integration_Provides_ContentRating", symbol: "checkmark.shield.fill", color: .gray),
+              imdb, tomatoes]
+    case .douban:
+      return [Provided(titleKey: "Integration_Provides_Douban", mark: "douban"),
+              Provided(titleKey: "Integration_Provides_Distribution", symbol: "chart.bar.fill", color: .green), audience]
+    case .myShows:
+      return [Provided(titleKey: "Integration_Provides_MyShows", mark: "myshows_tv"), audience, imdb]
+    case .wikidata:
+      return [Provided(titleKey: "Integration_Provides_Links", symbol: "link", color: .blue), boxOffice,
+              Provided(titleKey: "Integration_Provides_Budget", symbol: "banknote.fill", color: .green), awards]
+    case .simkl, .anilist, .myAnimeList:
+      return []
     }
   }
 
@@ -349,7 +389,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
 /// The source's logo in a rounded square, or its short name on the brand colour.
 struct IntegrationIconView: View {
   let integration: Integration
-  var size: CGFloat = 28
+  var size: CGFloat = 26
 
   var body: some View {
     if let mark = integration.markImage {
@@ -360,16 +400,25 @@ struct IntegrationIconView: View {
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     } else {
-      let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-      Text(verbatim: integration.monogram)
-        .font(.system(size: size * 0.36, weight: .heavy, design: .rounded))
-        .lineLimit(1)
-        .minimumScaleFactor(0.4)
-        .foregroundStyle(.white)
-        .padding(size * 0.1)
-        .frame(width: size, height: size)
-        .background(integration.brandColor.gradient, in: shape)
+      SettingsIconView(systemImage: integration.symbol, color: integration.brandColor, size: size)
         .accessibilityHidden(true)
+    }
+  }
+}
+
+/// One row of what a source brings: its mark, or a symbol tile, at the sidebar's size.
+struct IntegrationProvidedIcon: View {
+  let item: Integration.Provided
+  var size: CGFloat = 26
+
+  var body: some View {
+    if let mark = item.mark.flatMap(ProviderMark.image(named:)) {
+      mark
+        .resizable()
+        .scaledToFit()
+        .frame(width: size, height: size)
+    } else {
+      SettingsIconView(systemImage: item.symbol, color: item.color, size: size)
     }
   }
 }

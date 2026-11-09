@@ -86,11 +86,29 @@ struct GeneralSettingsPane: View {
 /// Logout — as System Settings' account row opens the account's page.
 struct AccountSettingsPane: View {
   let model: ProfileModel
+  let name: String
+  let subtitle: String
+  let avatarImage: Image?
   @Binding var showLogoutAlert: Bool
 
   var body: some View {
     VStack(spacing: 0) {
       Form {
+        // System Settings' Apple Account page: the picture large and centred, the name,
+        // then what the account is (Sasha, 2026-11-09).
+        Section {
+          VStack(spacing: 6) {
+            SettingsSidebarProfileView.Avatar(name: name, image: avatarImage)
+              .frame(width: 96, height: 96)
+              .padding(.bottom, 6)
+            Text(verbatim: name)
+              .font(.title2.weight(.bold))
+            Text(verbatim: subtitle)
+              .foregroundStyle(.secondary)
+          }
+          .frame(maxWidth: .infinity)
+          .padding(.vertical, 12)
+        }
         Section {
           LabeledContent("User Name", value: model.userData.username)
           LabeledContent("User Subscription", value: "\(model.userData.subscription.days) \("days".localized)")

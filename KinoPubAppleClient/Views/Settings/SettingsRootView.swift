@@ -284,7 +284,8 @@ struct SettingsRootView: View {
     switch category {
     case .account:
 #if os(macOS)
-      AccountSettingsPane(model: model, showLogoutAlert: $showLogoutAlert)
+      AccountSettingsPane(model: model, name: profileName, subtitle: profileSubtitle,
+                          avatarImage: avatarImage, showLogoutAlert: $showLogoutAlert)
 #else
       GeneralSettingsPane(model: model, showLogoutAlert: $showLogoutAlert)
 #endif
