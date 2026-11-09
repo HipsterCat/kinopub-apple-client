@@ -17650,6 +17650,23 @@
           }
         }
       }
+    },
+    "MediaItem_StatusAiringShort" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "on air"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "в эфире"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

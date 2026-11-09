@@ -1363,8 +1363,8 @@ struct MediaItemHeroView: View {
     TitleStatus.resolve(mediaItem, externalMetadata, awaitedEpisodeAirDate: awaitedEpisodeAirDate)
   }
 
-  /// «2025–26 аниме-сериал», «3 сезона, окончен», «Триллер, драма, спорт», «США», «18+».
-  /// A film: «2026 мультфильм», «2ч 53м», genres, country. The kind is the Home hero's
+  /// «Аниме-сериал 2025–26 окончен», «3 сезона», «Триллер, драма, спорт», «США», «18+».
+  /// A film: «Мультфильм 2026», «2ч 53м», genres, country. The kind is the Home hero's
   /// vocabulary (`MediaPresentationProfile.kindTitleKey`), and the genre it already says
   /// (anime, animation, documentary) is not repeated after it.
   private var factBlocks: [String] {
@@ -1378,25 +1378,21 @@ struct MediaItemHeroView: View {
     let years = isSeries
       ? SeriesFacts.heroYears(mediaItem, externalMetadata, fallbackSpan: card.bannerYearSpan)
       : (mediaItem.year > 0 ? String(mediaItem.year) : nil)
-    // «2011  Документальный фильм»: the kind keeps its capital, two spaces from the year
-    // (Sasha, 2026-11-08).
-    let head = [years, kind].compactMap { $0 }
-    if !head.isEmpty { blocks.append(head.joined(separator: "  ")) }
+    // «Сериал с 2013 в эфире», «Документальный фильм 2011»: the kind first with its
+    // capital, then the years, then where the series stands, whatever anyone knows of it
+    // (Sasha, 2026-11-09).
+    let status = isSeries ? SeriesFacts.shortStatusKey(mediaItem, externalMetadata, airing: true)?.localized : nil
+    let head = [kind, years, status].compactMap { $0 }
+    if !head.isEmpty { blocks.append(head.joined(separator: " ")) }
 
     if isSeries {
       let seasons = mediaItem.seasons ?? []
       let episodes = seasons.reduce(0) { $0 + $1.episodes.count }
-      var volume: [String] = []
       if seasons.count > 1, let text = SeasonCountText(seasons.count)?.formatted() {
-        volume.append(text)
+        blocks.append(text)
       } else if let text = EpisodesLeftText(episodes)?.formatted() {
-        volume.append(text)
+        blocks.append(text)
       }
-      // Whatever the status is, when anyone knows it (Sasha, 2026-11-09).
-      if let status = SeriesFacts.shortStatusKey(mediaItem, externalMetadata) {
-        volume.append(status.localized)
-      }
-      if !volume.isEmpty { blocks.append(volume.joined(separator: ", ")) }
     }
 
     // Not the genre the kind already says: «Концерт  …, концерт», «ТВ-шоу  Развлекательные».
@@ -1429,35 +1425,53 @@ struct MediaItemHeroView: View {
     return mediaItem.mediaEntity.runtime.flatMap { RuntimeText(seconds: $0).formatted(Self.runtimeLength) }
   }
 
+  /// The scores and kino.pub's views on one line. When the whole of it does not fit, it
+  /// gives way in steps instead of squeezing (Sasha, 2026-11-09): the vote counts go
+  /// first, then the views, then the sources with under a tenth of the votes and the
+  /// Popcornmeter, then the smallest of what is left. Tomatometer and Metascore stay
+  /// at the end throughout.
   @ViewBuilder
   private var scoresLine: some View {
-    let views = mediaItem.views
-    if lineScores.hasDisplayableScore || views > 0 {
-      HStack(spacing: Self.metaSpacing) {
-        if lineScores.hasDisplayableScore {
-          if FeatureFlags.combinedRatingEnabled, let rating = lineScores.aggregate {
-            RatingBadgeView(rating: rating)
-            MediaScoresView(lineScores, deduplicateAgainstAggregate: true, detailLine: true)
-          } else {
-            // No aggregate: each score keeps its own logo rather than becoming one number.
-            MediaScoresView(lineScores, detailLine: true)
-          }
-        }
-        // kino.pub's own count, last (Sasha, 2026-11-09): the eyes of the ratings
-        // section's views tile.
-        if views > 0 {
-          HStack(spacing: Self.glyphSpacing) {
-            Image(systemName: Self.viewsSymbol)
-            Text(verbatim: formattedViewCount(views))
-          }
-          .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
+    if lineScores.hasDisplayableScore || mediaItem.views > 0 {
+      ViewThatFits(in: .horizontal) {
+        scoresRow(votes: true, views: true)
+        scoresRow(votes: false, views: true)
+        scoresRow(votes: false, views: false)
+        ForEach([0, 4, 3, 2, 1], id: \.self) { limit in
+          scoresRow(votes: false, views: false, compactLimit: limit)
         }
       }
       .font(Self.secondaryFont)
       .foregroundStyle(heroMetaForeground)
     }
+  }
+
+  private func scoresRow(votes: Bool, views showsViews: Bool, compactLimit: Int? = nil) -> some View {
+    let views = mediaItem.views
+    return HStack(spacing: Self.metaSpacing) {
+      if lineScores.hasDisplayableScore {
+        if FeatureFlags.combinedRatingEnabled, let rating = lineScores.aggregate {
+          RatingBadgeView(rating: rating)
+          MediaScoresView(lineScores, showsVotes: votes, deduplicateAgainstAggregate: true, detailLine: true,
+                          compactLimit: compactLimit)
+        } else {
+          // No aggregate: each score keeps its own logo rather than becoming one number.
+          MediaScoresView(lineScores, showsVotes: votes, detailLine: true, compactLimit: compactLimit)
+        }
+      }
+      // kino.pub's own count, last (Sasha, 2026-11-09): the eyes of the ratings
+      // section's views tile.
+      if showsViews, views > 0 {
+        HStack(spacing: Self.glyphSpacing) {
+          Image(systemName: Self.viewsSymbol)
+          Text(verbatim: formattedViewCount(views))
+        }
+        .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
+      }
+    }
+    .fixedSize()
   }
 
   /// What the synopsis says. A series the viewer is into but has not finished speaks of

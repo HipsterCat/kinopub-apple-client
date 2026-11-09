@@ -406,6 +406,23 @@ public extension MediaScores {
       .map(\.element)
   }
 
+  /// The title page's line when the whole of it does not fit (Sasha, 2026-11-09): the
+  /// sources with at least a tenth of all the votes on the line, biggest first, at most
+  /// `limit` of them, then the critics' scores that have no vote count (Tomatometer,
+  /// Metascore), always at the end. Everything else goes: the small audiences, a "?",
+  /// the Popcornmeter.
+  func compactDetailLine(deduplicateAgainstAggregate: Bool = false, limit: Int? = nil) -> [MediaScoreItem] {
+    let line = detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    let voted = line.filter { $0.hasKnownScore && ($0.votes ?? 0) > 0 }
+    let total = voted.reduce(0) { $0 + ($1.votes ?? 0) }
+    let major = voted.filter { Double($0.votes ?? 0) >= Double(total) * Self.compactShare }
+    let critics = line.filter { $0.hasKnownScore && ($0.votes ?? 0) == 0 && $0.source.isCriticsScore }
+    return Array(major.prefix(limit ?? major.count)) + critics
+  }
+
+  /// The share of the line's votes a source needs to stay on a compact line.
+  static let compactShare = 0.10
+
   /// Ordered rating items for Hero row (shows all available ranked sources).
   var heroScores: [MediaScoreItem] {
     heroScores(deduplicateAgainstAggregate: false)
@@ -467,6 +484,17 @@ public extension MediaScores {
 }
 
 extension MediaScoreLogo.Source {
+  /// Rotten Tomatoes' critics and Metacritic: published scores with no audience count.
+  var isCriticsScore: Bool {
+    switch self {
+    case .rottenTomatoesCertified, .rottenTomatoesFresh, .rottenTomatoesRotten,
+         .metacritic, .metacriticFavorable, .metacriticUnfavorable:
+      return true
+    default:
+      return false
+    }
+  }
+
   /// What a person reads. TMDB's own site and kino.pub's thumbs are a percentage;
   /// the stored score stays 0…10 so it can be averaged with IMDb and Kinopoisk.
   public func formattedScore(_ score: Double) -> String {

@@ -27,11 +27,13 @@ enum SeriesFacts {
   /// «отменён», «продолжается», «в производстве»… TMDB's status for every title whenever
   /// it has one — kino.pub's flag is not to be trusted (Sasha, 2026-11-09) — and kino.pub
   /// only to say a series it marks finished is. Nil when nobody knows.
-  static func shortStatusKey(_ item: MediaItem, _ metadata: TitleMetadata) -> String? {
+  /// `airing` says a returning series is «в эфире», as it reads after «с 2013» in the
+  /// hero (Sasha, 2026-11-09); without it, «продолжается».
+  static func shortStatusKey(_ item: MediaItem, _ metadata: TitleMetadata, airing: Bool = false) -> String? {
     switch metadata.status?.lowercased() {
     case "ended": return "MediaItem_StatusEndedShort"
     case "canceled": return "MediaItem_StatusCanceledShort"
-    case "returning series": return "MediaItem_StatusReturningShort"
+    case "returning series": return airing ? "MediaItem_StatusAiringShort" : "MediaItem_StatusReturningShort"
     case "in production": return "MediaItem_StatusInProductionShort"
     case "planned": return "MediaItem_StatusPlannedShort"
     case "pilot": return "MediaItem_StatusPilotShort"

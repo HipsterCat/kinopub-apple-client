@@ -54,7 +54,7 @@ public struct MediaScoreLogo: View {
       case .letterboxd: return "letterboxd"
       case .myAnimeList: return "myanimelist"
       case .douban: return "douban"
-      case .myShows: return "MyShows"
+      case .myShows: return "myshows_tv"
       }
     }
 
@@ -239,6 +239,9 @@ public struct MediaScoresView: View {
   /// otherwise the logos and scores plus one combined count; scores alone if that
   /// still does not fit.
   public var collapsesVotesToFit: Bool
+  /// The title page's line, trimmed to its biggest audiences and the critics
+  /// (`compactDetailLine`): nil is the whole line; 0 keeps every major source.
+  public var compactLimit: Int?
 
   public init(
     _ scores: MediaScores,
@@ -247,9 +250,11 @@ public struct MediaScoresView: View {
     deduplicateAgainstAggregate: Bool = false,
     detailLine: Bool = false,
     bannerLine: Bool = false,
-    collapsesVotesToFit: Bool = false
+    collapsesVotesToFit: Bool = false,
+    compactLimit: Int? = nil
   ) {
     self.scores = scores
+    self.compactLimit = compactLimit
     self.limit = limit
     self.showsVotes = showsVotes
     self.deduplicateAgainstAggregate = deduplicateAgainstAggregate
@@ -277,11 +282,17 @@ public struct MediaScoresView: View {
   }
 
   public var body: some View {
-    let items = bannerLine
-      ? scores.bannerScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
-      : detailLine
-      ? scores.detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
-      : scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    let items: [MediaScoreItem]
+    if bannerLine {
+      items = scores.bannerScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    } else if detailLine, let compactLimit {
+      items = scores.compactDetailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate,
+                                       limit: compactLimit > 0 ? compactLimit : nil)
+    } else if detailLine {
+      items = scores.detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    } else {
+      items = scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    }
     let slice = limit.map { Array(items.prefix($0)) } ?? items
     // No score survives the line's filters (zeros, a lone «—»): nothing at all, so the
     // line's stack gives it no gap — `hasDisplayableScore` can be true for such a title.
