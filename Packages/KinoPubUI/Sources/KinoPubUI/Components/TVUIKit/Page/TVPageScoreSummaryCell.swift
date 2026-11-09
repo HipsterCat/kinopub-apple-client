@@ -3,72 +3,120 @@
 //  TVPageScoreSummaryCell.swift
 //  KinoPubUI
 //
-//  The viewers' and the critics' card on the tvOS page: the same `ScoreSummaryCardContent` the
-//  pointer platforms draw, hosted inside the page's `TVCardView` with `UIHostingConfiguration`.
-//  The platter, its lift and its white fill stay the card view's; the hosted view only hears when
-//  the platter turned white, to turn its ink dark — as every other info card's labels do.
+//  The viewers' and the critics' card on the tvOS page. Borderless, like the specification
+//  columns (`TVPageSpecCell`): a quiet fill at rest, a shade lighter on focus, never the white
+//  inverted platter of a `TVCardView` (Sasha, 2026-11-09).
+//
+//  What it draws is `ScoreSummaryCardContent`, the pointer platforms' own view, **as a still**
+//  (`ImageRenderer`), rendered on the next turn of the run loop. Hosting it live
+//  (`UIHostingConfiguration`) crashed at launch: the embedded page measures itself from inside
+//  SwiftUI's update (`TVEmbeddedPage.sizeThatFits` → `contentHeight(forWidth:)` →
+//  `layoutIfNeeded`), the hosted cell then updated a second view graph mid-update, and
+//  AttributeGraph aborted (`AG::precondition_failure`, measured on tvOS 27.2, 2026-11-09).
 //
 
 import SwiftUI
 import UIKit
 
 @MainActor
-final class TVPageScoreSummaryCell: TVPageInfoCardCell {
-  private let body = TVPageScoreSummaryContent()
+final class TVPageScoreSummaryCell: UICollectionViewCell {
+  private let highlight = UIView()
+  private let imageView = UIImageView()
+  private var summary: ScoreSummary?
+  private var looksFocused = false
+  private var renderedKey: String?
+  private var renderScheduled = false
+
+  /// The padding and what the rows need (`ScoreSummaryMetrics.cardHeight`).
+  static func height(for summary: ScoreSummary) -> CGFloat {
+    ScoreSummaryMetrics.cardHeight(for: summary)
+  }
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    install(body)
+    clipsToBounds = false
+    highlight.backgroundColor = TVPagePlatter.restingFill
+    highlight.layer.cornerRadius = ScoreSummaryMetrics.cornerRadius
+    highlight.layer.cornerCurve = .continuous
+    imageView.contentMode = .topLeft
+    for view in [highlight, imageView] {
+      view.frame = contentView.bounds
+      view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      contentView.addSubview(view)
+    }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func configure(_ summary: ScoreSummary) {
-    body.configure(summary)
     accessibilityIdentifier = "kinopub.summary.\(summary.kind.rawValue)"
     accessibilityLabel = summary.accessibilityLabel
-  }
-}
-
-@MainActor
-final class TVPageScoreSummaryContent: TVPageCardContent {
-  private var summary: ScoreSummary?
-  private var looksFocused = false
-  private var host: (UIView & UIContentView)?
-
-  /// The padding and what the rows need (`ScoreSummaryMetrics.contentHeight`).
-  static func height(for summary: ScoreSummary) -> CGFloat {
-    ceil(padding * 2 + ScoreSummaryMetrics.contentHeight(for: summary))
-  }
-
-  func configure(_ summary: ScoreSummary) {
+    accessibilityTraits = .button
     guard summary != self.summary else { return }
     self.summary = summary
-    render()
+    scheduleRender()
   }
 
-  override func applyFocusLook(_ focused: Bool) {
+  override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+    super.didUpdateFocus(in: context, with: coordinator)
+    let focused = context.nextFocusedView === self
     guard focused != looksFocused else { return }
     looksFocused = focused
-    render()
+    coordinator.addCoordinatedAnimations({ [weak self] in
+      self?.highlight.backgroundColor = focused
+        ? UIColor.white.withAlphaComponent(0.16) : TVPagePlatter.restingFill
+    })
+    scheduleRender()
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    if renderKey != renderedKey { scheduleRender() }
+  }
+
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    looksFocused = false
+    highlight.backgroundColor = TVPagePlatter.restingFill
+  }
+
+  private var renderKey: String? {
+    guard let summary, bounds.width > 1, bounds.height > 1 else { return nil }
+    return "\(summary.hashValue)|\(bounds.size)|\(looksFocused)|\(traitCollection.userInterfaceStyle.rawValue)"
+  }
+
+  /// Never inside a layout pass: SwiftUI may be mid-update (see the file's header).
+  private func scheduleRender() {
+    guard !renderScheduled else { return }
+    renderScheduled = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.renderScheduled = false
+      self.render()
+    }
   }
 
   private func render() {
-    guard let summary else { return }
-    let configuration = UIHostingConfiguration {
-      ScoreSummaryCardContent(summary: summary, focused: looksFocused)
-    }
-    .margins(.all, Self.padding)
-    if let host {
-      host.configuration = configuration
+    guard let summary, let key = renderKey, key != renderedKey else { return }
+    let size = bounds.size
+    let padding = ScoreSummaryMetrics.padding
+    let content = ScoreSummaryCardContent(summary: summary, highlighted: looksFocused,
+                                          showsChevron: true, animatesIn: false)
+      .frame(width: size.width - padding * 2, height: size.height - padding * 2, alignment: .topLeading)
+      .padding(padding)
+      .environment(\.colorScheme, traitCollection.userInterfaceStyle == .light ? .light : .dark)
+    let renderer = ImageRenderer(content: content)
+    renderer.scale = traitCollection.displayScale
+    renderer.proposedSize = ProposedViewSize(size)
+    guard let image = renderer.uiImage else { return }
+    let first = renderedKey == nil
+    renderedKey = key
+    if first {
+      imageView.alpha = 0
+      imageView.image = image
+      UIView.animate(withDuration: 0.3) { self.imageView.alpha = 1 }
     } else {
-      let view = configuration.makeContentView()
-      view.isUserInteractionEnabled = false
-      view.backgroundColor = .clear
-      view.frame = bounds
-      view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-      addSubview(view)
-      host = view
+      imageView.image = image
     }
   }
 }

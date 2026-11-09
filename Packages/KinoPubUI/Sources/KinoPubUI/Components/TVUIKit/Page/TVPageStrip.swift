@@ -84,6 +84,10 @@ struct TVPageStripPlan {
       // Borderless: nothing lifts, so an item of the table needs no room around it.
       let size = CGSize(width: width, height: infoHeight ?? TVPageSpecContent.height(for: spec, cardWidth: width))
       return Metrics(art: size, insets: .zero, envelope: size)
+    case .info(.scoreSummary(let summary)):
+      // Borderless, as the table's columns: nothing lifts, so it needs no room around it.
+      let size = CGSize(width: width, height: infoHeight ?? TVPageScoreSummaryCell.height(for: summary))
+      return Metrics(art: size, insets: .zero, envelope: size)
     case .info(let card):
       return Metrics(TVPageCellMetrics.cardRecipe(artWidth: card.width(inColumn: width),
                                                   height: infoHeight ?? card.height(forWidth: width)))
@@ -301,7 +305,7 @@ extension TVPageInfoCard {
     case .rating, .reviews: return TVPageRatingContent.height
     case .review, .fact, .gallery: return TVPageLayout.infoCardHeight
     case .track: return TVPageTrackContent.height
-    case .scoreSummary(let summary): return TVPageScoreSummaryContent.height(for: summary)
+    case .scoreSummary(let summary): return TVPageScoreSummaryCell.height(for: summary)
     }
   }
 }

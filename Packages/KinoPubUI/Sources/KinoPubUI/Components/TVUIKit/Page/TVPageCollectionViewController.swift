@@ -687,7 +687,6 @@ public final class TVPageCollectionViewController: UIViewController {
     let scoreSummary = UICollectionView.CellRegistration<TVPageScoreSummaryCell, TVPageItemID> {
       [weak self] cell, indexPath, id in
       guard let self, case .info(.scoreSummary(let summary))? = self.itemsByID[id] else { return }
-      cell.apply(recipe: self.infoRecipe(at: indexPath, cell: cell))
       cell.configure(summary)
     }
     let track = UICollectionView.CellRegistration<TVPageTrackCell, TVPageItemID> {

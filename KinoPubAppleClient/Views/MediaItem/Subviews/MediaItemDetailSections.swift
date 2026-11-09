@@ -492,7 +492,7 @@ extension RatingSources {
                        value: score.display,
                        scale: score.value == nil ? nil : scale(of: score.logo),
                        faint: score.drawsFaint,
-                       detail: score.votes.flatMap { $0 > 0 ? votesLine($0) : nil } ?? score.label,
+                       detail: score.votesGrouped,
                        share: share(score.votes))
     }
     guard let limit = rowLimit, scores.count > limit, limit > 1 else { return scores.map(row) }
@@ -507,7 +507,7 @@ extension RatingSources {
                                   value: mean.map { String(format: "%.1f", $0) } ?? "?",
                                   scale: mean == nil ? nil : "/ 10",
                                   faint: tail.allSatisfy(\.drawsFaint),
-                                  detail: votes > 0 ? votesLine(votes) : nil,
+                                  detail: votes > 0 ? votes.formatted(.number.grouping(.automatic)) : nil,
                                   share: share(votes))
     return head + [folded]
   }
@@ -2007,7 +2007,8 @@ struct MediaItemRatingsAndReviewsSection: View {
             summaryCard(summary)
           }
           ForEach(visible) { review in
-            ReviewCard(review: review, destination: link(.critics))
+            ReviewCard(review: review, destination: link(.critics),
+                       width: ScoreSummaryMetrics.reviewWidth, tinted: true, growsText: true)
           }
         }
       }
@@ -2016,13 +2017,8 @@ struct MediaItemRatingsAndReviewsSection: View {
 
   private func summaryCard(_ summary: ScoreSummary) -> some View {
     let tab: RatingsTab = summary.kind == .viewers ? .viewers : .critics
-    let destination = link(tab)
-    return BlockCard(destination.map { BlockCardKind.link(value: $0) } ?? BlockCardKind.flat,
-                     width: Self.summaryCardWidth,
-                     fillsHeight: true) {
-      ScoreSummaryCardContent(summary: summary, showsChevron: destination != nil)
-    }
-    .mediaZoomSource(id: RatingsAndReviews.zoomSourceID(item: mediaItem.id, tab: tab))
+    return ScoreSummaryCard(summary: summary, destination: link(tab))
+      .mediaZoomSource(id: RatingsAndReviews.zoomSourceID(item: mediaItem.id, tab: tab))
   }
 
   private func link(_ tab: RatingsTab) -> (any Hashable)? {
@@ -2032,18 +2028,8 @@ struct MediaItemRatingsAndReviewsSection: View {
   /// As tall as the taller summary card, and never shorter than a review: the reviews
   /// stretch to it, the App Store's row.
   private func railHeight(_ cards: [ScoreSummary]) -> CGFloat {
-    let tallest = cards.map { ScoreSummaryMetrics.contentHeight(for: $0) }.max() ?? 0
-    return max(BlockMetrics.textCardHeight, ceil(tallest + BlockMetrics.padding * 2))
-  }
-
-  /// A review card's width, a little more on iPhone and iPad, where the running text is
-  /// larger against the card: the number, the mark, the name and the bar on one line.
-  static var summaryCardWidth: CGFloat {
-#if os(iOS)
-    BlockMetrics.textCardWidth + 30
-#else
-    BlockMetrics.textCardWidth
-#endif
+    let tallest = cards.map { ScoreSummaryMetrics.cardHeight(for: $0) }.max() ?? 0
+    return max(BlockMetrics.textCardHeight, tallest)
   }
 
   // MARK: The combined card (Diagnostics: off)
@@ -2475,6 +2461,13 @@ struct ReviewCard: View {
   var destination: (any Hashable)? = nil
   /// The title's page at the source, for "read the rest where it was written".
   var sourceURL: URL? = nil
+  /// The compact card's width in its rail.
+  var width: CGFloat = BlockMetrics.textCardWidth
+  /// The compact card wears how the review was meant: greenish, grey, reddish (Sasha,
+  /// 2026-11-09).
+  var tinted: Bool = false
+  /// A short review's text grows to fill the card instead of leaving it half empty.
+  var growsText: Bool = false
 
   @Environment(\.openURL) private var openURL
 
@@ -2486,7 +2479,7 @@ struct ReviewCard: View {
   var body: some View {
     switch mode {
     case .compact:
-      BlockCard(kind, width: BlockMetrics.textCardWidth, fillsHeight: true) {
+      BlockCard(kind, width: width, fillsHeight: true, tint: tinted ? review.toneTint : nil) {
         compactBody
       }
 #if os(tvOS)
@@ -2511,8 +2504,22 @@ struct ReviewCard: View {
       // Fills whatever is left between the headline and the footer, and ellipsises on
       // the last line that fits — a fixed line count either stopped short of the
       // bottom or got clipped mid-glyph, differently at every Dynamic Type size.
-      FillingText(collapsedBody, font: TypeScale.detailBody)
-        .foregroundStyle(Color.KinoPub.text)
+      Group {
+        if growsText {
+          // The largest size at which the whole text fits; a long review falls back to the
+          // running size, cut at the last line that fits.
+          ViewThatFits(in: .vertical) {
+            grown(Self.grownFonts[0])
+            grown(Self.grownFonts[1])
+            grown(Self.grownFonts[2])
+            FillingText(collapsedBody, font: TypeScale.detailBody)
+          }
+          .frame(maxHeight: .infinity, alignment: .topLeading)
+        } else {
+          FillingText(collapsedBody, font: TypeScale.detailBody)
+        }
+      }
+      .foregroundStyle(Color.KinoPub.text)
 
       // One size for the whole card. The footer used to be `.caption`, which made the
       // card read as three different documents stacked.
@@ -2539,6 +2546,24 @@ struct ReviewCard: View {
       .fixedSize(horizontal: false, vertical: true)
     }
   }
+
+  private func grown(_ font: Font) -> some View {
+    Text(collapsedBody)
+      .font(font)
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  /// Steps up from the running text, largest first.
+  private static let grownFonts: [Font] = {
+#if os(macOS)
+    [.title2, .title3, .body]
+#elseif os(tvOS)
+    [.callout, .caption1, .caption2]
+#else
+    [.title3, .body, .callout]
+#endif
+  }()
 
   // MARK: Expanded
 
@@ -2655,6 +2680,16 @@ extension Review {
   /// The one place colour is allowed on these cards. Sentiment is the only field a
   /// reader scans rather than reads, and green/red is the convention it already has —
   /// everything else on the card stays material and hierarchical styles.
+  /// The compact card's wash: green for a positive review, red for a negative one, none
+  /// (the card's grey) for the rest.
+  var toneTint: Color? {
+    switch sentiment?.uppercased() {
+    case "POSITIVE": return .green
+    case "NEGATIVE": return .red
+    default: return nil
+    }
+  }
+
   var sentimentColor: Color {
     switch sentiment?.uppercased() {
     case "POSITIVE": return .green

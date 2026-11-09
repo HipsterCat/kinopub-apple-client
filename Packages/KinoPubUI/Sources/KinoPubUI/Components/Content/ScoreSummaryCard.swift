@@ -43,7 +43,8 @@ public struct ScoreSummary: Hashable, Sendable {
     public let scale: String?
     /// Five voters or fewer, or no published score.
     public let faint: Bool
-    /// How many stand behind it, in words — what the row says under the pointer.
+    /// How many stand behind it, the bare number — what the row says under the pointer in
+    /// place of the bar (Sasha, 2026-11-09: no «оценок»).
     public let detail: String?
     /// The row's turnout against the largest one, 0…1. Nil draws no bar: Rotten Tomatoes
     /// and Metacritic publish no count.
@@ -135,9 +136,29 @@ public enum ScoreSummaryTint {
 
 // MARK: - Metrics
 
-/// The card's geometry, in one place, derived from the running text's line so it follows
-/// Dynamic Type and the platform — nothing here is a point size picked for one screen.
+/// The card's geometry, in one place. The card's frame is Sasha's (2026-11-09): 320 wide,
+/// 18 inside, corners of 16, the number's column 66, the columns 10 apart. The heights are
+/// derived from the running text's line, so they follow Dynamic Type, and a rail or a
+/// collection layout can size the card before it draws.
 public enum ScoreSummaryMetrics {
+#if os(tvOS)
+  /// tvOS takes the width its column gives it.
+  public static let cardWidth: CGFloat = 560
+  public static let padding: CGFloat = 32
+  public static let cornerRadius: CGFloat = 28
+  public static let valueColumn: CGFloat = 116
+  public static let columnSpacing: CGFloat = 18
+  public static let reviewWidth: CGFloat = 460
+#else
+  public static let cardWidth: CGFloat = 320
+  public static let padding: CGFloat = 18
+  public static let cornerRadius: CGFloat = 16
+  public static let valueColumn: CGFloat = 66
+  public static let columnSpacing: CGFloat = 10
+  /// A review beside the cards: 260 wide, as tall as the row.
+  public static let reviewWidth: CGFloat = 260
+#endif
+
   /// The detail page's running text (`TypeScale.detailBody`) as a platform font, so the
   /// height the layout is told and the height the rows draw are one number.
   public static var bodyFont: ScoreFont {
@@ -159,21 +180,18 @@ public enum ScoreSummaryMetrics {
 #endif
   }
 
-  public static var rowSpacing: CGFloat { (line * 0.5).rounded() }
+  public static var rowSpacing: CGFloat { (line * 0.6).rounded() }
   /// The arc's box: about four and a half lines, the size of the title and the subtitle twice.
   public static var gauge: CGFloat { (line * 4.6).rounded() }
   /// Between the arc and the first row.
   public static var headerGap: CGFloat { (line * 1.1).rounded() }
   /// Above and below the rule between the sources and the tones.
   public static var dividerGap: CGFloat { (line * 0.8).rounded() }
-  /// The number's column: wide enough for «8.3 / 10» and «100%».
-  public static var valueColumn: CGFloat { (line * 3.7).rounded() }
-  /// The bars' column, on the trailing side.
-  public static var barColumn: CGFloat { (line * 4.5).rounded() }
+  /// The source marks: the hero's own (`MediaScoreLogo.Style.line`) at the row's height.
   public static var markHeight: CGFloat { (line * 0.95).rounded() }
 
-  /// How tall the card's content is with `rows` sources and `tones` tones — the platter's
-  /// padding not included.
+  /// How tall the card's content is with `rows` sources and `tones` tones — the padding not
+  /// included.
   public static func contentHeight(rows: Int, tones: Int) -> CGFloat {
     var height = gauge + headerGap + stack(rows)
     if tones > 0 { height += dividerGap * 2 + 1 + stack(tones) }
@@ -184,6 +202,11 @@ public enum ScoreSummaryMetrics {
     contentHeight(rows: summary.rows.count, tones: summary.tones.count)
   }
 
+  /// The whole card, padding included.
+  public static func cardHeight(for summary: ScoreSummary) -> CGFloat {
+    ceil(contentHeight(for: summary) + padding * 2)
+  }
+
   private static func stack(_ count: Int) -> CGFloat {
     guard count > 0 else { return 0 }
     return line * CGFloat(count) + rowSpacing * CGFloat(count - 1)
@@ -192,22 +215,24 @@ public enum ScoreSummaryMetrics {
 
 // MARK: - Arc
 
-/// A gauge open at the bottom, as watchOS draws its circular one: the whole scale in the
-/// score's colour, faint past the score, a dot where the score is, the number in the middle and
-/// «/ 100» in the gap. SwiftUI's `Gauge` is not on tvOS, so the arc is drawn here; on the
-/// pointer platforms it is the style of a real `Gauge`, which is what VoiceOver reads.
+/// A gauge open at the bottom, as watchOS draws its circular one: the whole arc in the score's
+/// colour, a dot in the text's colour where the score is — set in a hole cut out of the arc,
+/// not ringed — the number in the middle and «/ 100» in the gap. SwiftUI's `Gauge` is not on
+/// tvOS, so the arc is drawn here; on the pointer platforms it is the style of a real `Gauge`,
+/// which is what VoiceOver reads.
 public struct ScoreGauge: View {
   let score: Int?
   let diameter: CGFloat
-  var focused: Bool = false
 
-  @State private var progress: Double = 0
+  @State private var progress: Double
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  public init(score: Int?, diameter: CGFloat, focused: Bool = false) {
+  /// - Parameter animatesIn: the dot travels to the score and the number counts up once on
+  ///   screen. Off draws it settled (a still render, tvOS).
+  public init(score: Int?, diameter: CGFloat, animatesIn: Bool = true) {
     self.score = score
     self.diameter = diameter
-    self.focused = focused
+    _progress = State(initialValue: animatesIn ? 0 : 1)
   }
 
   public var body: some View {
@@ -228,32 +253,43 @@ public struct ScoreGauge: View {
   private var fraction: Double { Double(min(max(score ?? 0, 0), 100)) / 100 }
 
   private var face: some View {
-    let shown = fraction * progress
     let radius = (diameter - lineWidth) / 2
-    let angle = Angle.degrees(ScoreArc.start + ScoreArc.sweep * shown)
+    let angle = Angle.degrees(ScoreArc.start + ScoreArc.sweep * fraction * progress)
+    let offset = CGSize(width: radius * CGFloat(cos(angle.radians)),
+                        height: radius * CGFloat(sin(angle.radians)))
+    let dot = lineWidth * 0.95
     return ZStack {
-      ScoreArc(fraction: 1)
-        .stroke(tint.opacity(score == nil ? 0.25 : 0.3),
-                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+      // One colour all the way round; the dot says where the score is.
+      ZStack {
+        ScoreArc()
+          .stroke(score == nil ? tint.opacity(0.3) : tint,
+                  style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+        if score != nil {
+          // The hole the dot sits in: the page shows through it, whatever the page is.
+          Circle()
+            .frame(width: dot + lineWidth * 0.7, height: dot + lineWidth * 0.7)
+            .offset(offset)
+            .blendMode(.destinationOut)
+        }
+      }
+      .compositingGroup()
       if score != nil {
-        ScoreArc(fraction: shown)
-          .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
         Circle()
-          .fill(focused ? Color.black.opacity(0.55) : Color.white.opacity(0.92))
-          .frame(width: lineWidth * 0.9, height: lineWidth * 0.9)
-          .offset(x: radius * CGFloat(cos(angle.radians)), y: radius * CGFloat(sin(angle.radians)))
+          .fill(Color.primary)
+          .frame(width: dot, height: dot)
+          .offset(offset)
       }
       Text(verbatim: score.map { "\(Int((Double($0) * progress).rounded()))" } ?? "—")
         .font(.system(size: diameter * 0.38, weight: .semibold, design: .rounded))
         .monospacedDigit()
         .contentTransition(.numericText(value: Double(score ?? 0) * progress))
-        .foregroundStyle(focused ? Color.black : Color.primary)
+        .foregroundStyle(Color.primary)
         .minimumScaleFactor(0.6)
         .lineLimit(1)
         .padding(.horizontal, lineWidth * 1.5)
       Text(verbatim: "/ 100")
         .font(.system(size: diameter * 0.13, weight: .medium))
-        .foregroundStyle(focused ? Color.black.opacity(0.6) : Color.secondary)
+        .foregroundStyle(Color.secondary)
         .offset(y: diameter * 0.39)
     }
     .padding(lineWidth / 2)
@@ -262,7 +298,6 @@ public struct ScoreGauge: View {
     .onChange(of: score) { reveal() }
   }
 
-  /// The arc fills to the score and the number counts up to it once the card is on screen.
   private func reveal() {
     guard progress < 1 else { return }
     if reduceMotion {
@@ -287,56 +322,100 @@ private struct ScoreArcGaugeStyle<Face: View>: GaugeStyle {
 }
 #endif
 
-/// 270° of a circle, open at the bottom, from bottom-left clockwise to bottom-right.
+/// 270° of a circle, open at the bottom, from bottom-left clockwise over the top to
+/// bottom-right.
 private struct ScoreArc: Shape {
   static let start: Double = 135
   static let sweep: Double = 270
 
-  var fraction: Double
-
-  var animatableData: Double {
-    get { fraction }
-    set { fraction = newValue }
-  }
-
   func path(in rect: CGRect) -> Path {
     var path = Path()
-    guard fraction > 0 else { return path }
-    let radius = min(rect.width, rect.height) / 2
     path.addArc(center: CGPoint(x: rect.midX, y: rect.midY),
-                radius: radius,
+                radius: min(rect.width, rect.height) / 2,
                 startAngle: .degrees(Self.start),
-                endAngle: .degrees(Self.start + Self.sweep * min(fraction, 1)),
+                endAngle: .degrees(Self.start + Self.sweep),
                 clockwise: false)
     return path
   }
 }
 
+// MARK: - Card
+
+/// The card on the pointer platforms: borderless — the page's material at rest, a shade
+/// lighter under the pointer, nothing inverted (Sasha, 2026-11-09) — and, when it leads
+/// somewhere, a navigation link whose chevron shows only while the card is hovered.
+public struct ScoreSummaryCard: View {
+  let summary: ScoreSummary
+  let destination: (any Hashable)?
+
+  @State private var hovered = false
+
+  public init(summary: ScoreSummary, destination: (any Hashable)? = nil) {
+    self.summary = summary
+    self.destination = destination
+  }
+
+  private typealias M = ScoreSummaryMetrics
+  private var shape: RoundedRectangle {
+    RoundedRectangle(cornerRadius: M.cornerRadius, style: .continuous)
+  }
+
+  public var body: some View {
+    if let destination {
+      NavigationLink(value: destination) { surface }
+        .buttonStyle(.plain)
+    } else {
+      surface
+    }
+  }
+
+  private var surface: some View {
+    ScoreSummaryCardContent(summary: summary, highlighted: hovered, showsChevron: destination != nil)
+      .padding(M.padding)
+      .frame(width: M.cardWidth)
+      .frame(maxHeight: .infinity, alignment: .top)
+      .background {
+        ZStack {
+          shape.fill(.regularMaterial)
+          shape.fill(Color.primary.opacity(hovered ? 0.06 : 0))
+        }
+      }
+      .contentShape(shape)
+#if !os(tvOS)
+      .onHover { inside in
+        withAnimation(.easeOut(duration: 0.15)) { hovered = inside }
+      }
+#endif
+  }
+}
+
 // MARK: - Card content
 
-/// The card's insides — no platter, no padding. `BlockCard` or `TVCardView` is the platter.
+/// The card's insides — no platter, no padding: `ScoreSummaryCard` on the pointer platforms,
+/// a still of it in `TVPageScoreSummaryCell` on tvOS.
 public struct ScoreSummaryCardContent: View {
   let summary: ScoreSummary
-  /// tvOS: the platter turned white, so the ink turns dark.
-  var focused: Bool
-  /// A chevron in the corner says the card opens something (the pointer platforms).
+  /// Hovered or focused: the chevron shows.
+  var highlighted: Bool
+  /// The card leads somewhere.
   var showsChevron: Bool
+  var animatesIn: Bool
 
   @State private var hoveredRow: String?
-  @State private var barsShown = false
+  @State private var barsShown: Bool
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  public init(summary: ScoreSummary, focused: Bool = false, showsChevron: Bool = false) {
+  public init(summary: ScoreSummary, highlighted: Bool = false, showsChevron: Bool = false,
+              animatesIn: Bool = true) {
     self.summary = summary
-    self.focused = focused
+    self.highlighted = highlighted
     self.showsChevron = showsChevron
+    self.animatesIn = animatesIn
+    _barsShown = State(initialValue: !animatesIn)
   }
 
   private typealias M = ScoreSummaryMetrics
   private var bodyFont: Font { Font(M.bodyFont) }
-  private var ink: Color { focused ? .black : Color.KinoPub.text }
-  private var secondaryInk: Color { focused ? Color.black.opacity(0.6) : .secondary }
-  private var tertiaryInk: Color { focused ? Color.black.opacity(0.4) : Color.secondary.opacity(0.7) }
   private var tint: Color { ScoreSummaryTint.color(for: summary.score) }
 
   public var body: some View {
@@ -350,7 +429,7 @@ public struct ScoreSummaryCardContent: View {
       }
       if !summary.tones.isEmpty {
         Rectangle()
-          .fill(focused ? Color.black.opacity(0.12) : Color.primary.opacity(0.12))
+          .fill(Color.primary.opacity(0.12))
           .frame(height: 1)
           .padding(.vertical, M.dividerGap)
         VStack(alignment: .leading, spacing: M.rowSpacing) {
@@ -364,6 +443,7 @@ public struct ScoreSummaryCardContent: View {
     .font(bodyFont)
     .lineLimit(1)
     .onAppear {
+      guard !barsShown else { return }
       if reduceMotion { barsShown = true } else {
         withAnimation(.easeOut(duration: 0.7).delay(0.25)) { barsShown = true }
       }
@@ -375,22 +455,24 @@ public struct ScoreSummaryCardContent: View {
   // MARK: Header
 
   private var header: some View {
-    HStack(alignment: .center, spacing: M.line * 0.9) {
-      ScoreGauge(score: summary.score, diameter: M.gauge, focused: focused)
+    HStack(alignment: .center, spacing: M.columnSpacing * 1.4) {
+      ScoreGauge(score: summary.score, diameter: M.gauge, animatesIn: animatesIn)
       VStack(alignment: .leading, spacing: 2) {
         Text(verbatim: summary.title)
           .font(Self.titleFont)
-          .foregroundStyle(ink)
+          .foregroundStyle(Color.primary)
         if let subtitle = summary.subtitle {
           Text(verbatim: subtitle)
-            .foregroundStyle(secondaryInk)
+            .foregroundStyle(Color.secondary)
         }
       }
       Spacer(minLength: 0)
       if showsChevron {
+        // The section header's own chevron, shown while the card is hovered or focused.
         Image(systemName: "chevron.forward")
-          .font(Self.titleFont)
-          .foregroundStyle(secondaryInk)
+          .font(TypeScale.rowChevron)
+          .foregroundStyle(.secondary)
+          .opacity(highlighted ? 0.7 : 0)
           .frame(maxHeight: .infinity, alignment: .top)
       }
     }
@@ -409,50 +491,54 @@ public struct ScoreSummaryCardContent: View {
 
   // MARK: Rows
 
+  /// Three columns, 10 apart: the number (fixed), the mark and the name (as wide as they
+  /// are), the bar (the rest) — or, under the pointer, the bare count in its place.
   private func sourceRow(_ row: ScoreSummary.Row) -> some View {
-    let hovered = hoveredRow == row.id && row.detail != nil
-    return HStack(spacing: M.line * 0.5) {
+    let hovered = hoveredRow == row.id
+    return HStack(spacing: M.columnSpacing) {
       HStack(alignment: .firstTextBaseline, spacing: 0) {
         ScoreValueText(row.value, font: M.bodyFont)
-          .foregroundStyle(hovered ? tint : (row.faint ? secondaryInk : ink))
+          .foregroundStyle(hovered ? tint : (row.faint ? Color.secondary : Color.primary))
         if let scale = row.scale {
           Text(verbatim: " \(scale)")
-            .foregroundStyle(tertiaryInk)
+            .foregroundStyle(.tertiary)
         }
       }
       .frame(width: M.valueColumn, alignment: .leading)
 
-      marks(row.marks)
-
-      if let name = row.name {
-        Text(verbatim: name)
-          .foregroundStyle(secondaryInk)
-          .layoutPriority(1)
+      HStack(spacing: M.columnSpacing * 0.6) {
+        marks(row.marks)
+        if let name = row.name {
+          Text(verbatim: name)
+            .foregroundStyle(hovered ? Color.primary : Color.secondary)
+        }
       }
-
-      Spacer(minLength: M.line * 0.5)
+      .fixedSize()
 
       Group {
         if hovered, let detail = row.detail {
           Text(verbatim: detail)
-            .foregroundStyle(secondaryInk)
+            .foregroundStyle(Color.primary)
             .transition(.opacity)
         } else if let share = row.share {
           bar(share)
             .transition(.opacity)
+        } else {
+          Color.clear
         }
       }
-      .frame(width: M.barColumn, alignment: .leading)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .frame(height: M.line)
     .background {
       if hovered {
-        RoundedRectangle(cornerRadius: M.line * 0.5, style: .continuous)
+        RoundedRectangle(cornerRadius: M.line * 0.45, style: .continuous)
           .fill(.fill.secondary)
-          .padding(.horizontal, -M.line * 0.5)
+          .padding(.horizontal, -M.columnSpacing)
           .padding(.vertical, -M.rowSpacing * 0.5)
       }
     }
+    .contentShape(Rectangle())
 #if !os(tvOS)
     .onHover { inside in
       withAnimation(.easeOut(duration: 0.15)) {
@@ -462,17 +548,21 @@ public struct ScoreSummaryCardContent: View {
 #endif
   }
 
-  /// One mark, or a folded row's marks side by side — at most four, then «+N».
+  /// One mark, or a folded row's marks side by side — at most four, then «+N». The hero's
+  /// marks (`.line`), so a source looks the same in both places.
   @ViewBuilder
   private func marks(_ marks: [MediaScoreLogo.Source]) -> some View {
     let shown = marks.prefix(4)
     HStack(spacing: M.markHeight * 0.2) {
       ForEach(Array(shown.enumerated()), id: \.offset) { _, mark in
-        MediaScoreLogo(mark, height: M.markHeight, style: .compact)
+        MediaScoreLogo(mark, height: M.markHeight, style: .line)
+#if !os(tvOS)
+          .frame(height: M.markHeight)
+#endif
       }
       if marks.count > shown.count {
         Text(verbatim: "+\(marks.count - shown.count)")
-          .foregroundStyle(secondaryInk)
+          .foregroundStyle(Color.secondary)
       }
     }
     .fixedSize()
@@ -481,7 +571,7 @@ public struct ScoreSummaryCardContent: View {
   private func bar(_ share: Double) -> some View {
     GeometryReader { proxy in
       Capsule()
-        .fill(focused ? Color.black.opacity(0.35) : Color.primary.opacity(0.35))
+        .fill(Color.primary.opacity(0.35))
         .frame(width: max(proxy.size.width * share * (barsShown ? 1 : 0), barsShown ? 6 : 0),
                height: max((M.line * 0.18).rounded(), 3))
         .frame(maxHeight: .infinity, alignment: .center)
@@ -491,17 +581,19 @@ public struct ScoreSummaryCardContent: View {
   // MARK: Tones
 
   private func toneRow(_ tone: ScoreSummary.Tone) -> some View {
-    HStack(spacing: M.line * 0.5) {
+    HStack(spacing: M.columnSpacing) {
       Text(verbatim: tone.count)
-        .foregroundStyle(ink)
+        .foregroundStyle(Color.primary)
         .frame(width: M.valueColumn, alignment: .leading)
-      Text(verbatim: tone.title)
-        .foregroundStyle(secondaryInk)
-      Text(verbatim: tone.percent)
-        .foregroundStyle(ink)
-      Spacer(minLength: M.line * 0.5)
+      HStack(spacing: M.columnSpacing * 0.6) {
+        Text(verbatim: tone.title)
+          .foregroundStyle(Color.secondary)
+        Text(verbatim: tone.percent)
+          .foregroundStyle(Color.primary)
+      }
+      .fixedSize()
       bar(tone.share)
-        .frame(width: M.barColumn)
+        .frame(maxWidth: .infinity)
     }
     .frame(height: M.line)
   }
@@ -513,10 +605,10 @@ public struct ScoreSummaryCardContent: View {
   let viewers = ScoreSummary(
     kind: .viewers, title: "Зрители", subtitle: "2 224 оценки", score: 77,
     rows: [
-      .init(id: "kp", marks: [.kinopoisk], name: "Кинопоиск", value: "7.5", scale: "/ 10", detail: "1 024 оценки", share: 1),
-      .init(id: "imdb", marks: [.imdb], name: "IMDb", value: "8.3", scale: "/ 10", detail: "640 оценок", share: 0.6),
-      .init(id: "tmdb", marks: [.tmdb], name: "TMDB", value: "74%", detail: "846 оценок", share: 0.8),
-      .init(id: "trakt", marks: [.trakt], name: "Trakt", value: "70%", detail: "300 оценок", share: 0.3),
+      .init(id: "kp", marks: [.kinopoisk], name: "Кинопоиск", value: "7.5", scale: "/ 10", detail: "1 024", share: 1),
+      .init(id: "imdb", marks: [.imdb], name: "IMDb", value: "8.3", scale: "/ 10", detail: "640", share: 0.6),
+      .init(id: "tmdb", marks: [.tmdb], name: "TMDB", value: "74%", detail: "846", share: 0.8),
+      .init(id: "trakt", marks: [.trakt], name: "Trakt", value: "70%", detail: "300", share: 0.3),
       .init(id: "pop", marks: [.rottenTomatoesAudienceUpright], name: "Popcornmeter", value: "78%"),
       .init(id: "more", marks: [.letterboxd, .myShows, .douban, .kinopub], name: nil, value: "7.4", scale: "/ 10", share: 0.1)
     ])
@@ -533,10 +625,8 @@ public struct ScoreSummaryCardContent: View {
     ])
   return HStack(alignment: .top, spacing: 16) {
     ForEach([viewers, critics], id: \.kind) { summary in
-      BlockCard(.interactive(action: {}), width: 360,
-                height: ScoreSummaryMetrics.contentHeight(for: summary) + BlockMetrics.padding * 2) {
-        ScoreSummaryCardContent(summary: summary, showsChevron: true)
-      }
+      ScoreSummaryCard(summary: summary)
+        .frame(height: ScoreSummaryMetrics.cardHeight(for: critics))
     }
   }
   .padding()

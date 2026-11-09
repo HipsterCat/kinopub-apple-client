@@ -52,6 +52,8 @@ public struct BlockCard<Content: View>: View {
   private let height: CGFloat?
   /// Fill the height a rail hands down, rather than the card's natural one.
   private let fillsHeight: Bool
+  /// A wash over the material — a review's tone. Nil is the plain card.
+  private let tint: Color?
   private let content: Content
 
   @State private var isHovered = false
@@ -61,12 +63,14 @@ public struct BlockCard<Content: View>: View {
     width: CGFloat? = nil,
     height: CGFloat? = nil,
     fillsHeight: Bool = false,
+    tint: Color? = nil,
     @ViewBuilder content: () -> Content
   ) {
     self.kind = kind
     self.width = width
     self.height = height
     self.fillsHeight = fillsHeight
+    self.tint = tint
     self.content = content()
   }
 
@@ -109,7 +113,14 @@ public struct BlockCard<Content: View>: View {
       .padding(BlockMetrics.padding)
       .frame(width: width, height: height, alignment: .topLeading)
       .frame(maxHeight: fillsHeight ? .infinity : nil)
-      .background(fill, in: BlockMetrics.shape)
+      .background {
+        ZStack {
+          BlockMetrics.shape.fill(fill)
+          if let tint {
+            BlockMetrics.shape.fill(tint.opacity(0.14))
+          }
+        }
+      }
       .contentShape(BlockMetrics.shape)
   }
 

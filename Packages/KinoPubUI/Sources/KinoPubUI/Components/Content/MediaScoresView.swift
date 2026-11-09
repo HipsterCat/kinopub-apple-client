@@ -82,12 +82,20 @@ public struct MediaScoreLogo: View {
     }
 
     /// Colour marks for the synopsis line, exported at 32 pt. Width is the file's.
+    ///
+    /// Rotten Tomatoes is always the tomato and always the popcorn here: at a line's height
+    /// the certified, rotten, spilled and verified marks cannot be told apart (Sasha,
+    /// 2026-11-09). The states stay on the big cards.
     fileprivate var lineAssetName: String {
       switch self {
       case .imdb: return "imdb_small_color"
       case .kinopoisk: return "kp_small_colorful"
       case .tmdb: return "tmdb_small_color"
       case .kinopub: return "kinopub_small"
+      case .rottenTomatoesCertified, .rottenTomatoesFresh, .rottenTomatoesRotten:
+        return "rotten_tomatoes_critics_big_color"
+      case .rottenTomatoesAudienceVerified, .rottenTomatoesAudienceUpright, .rottenTomatoesAudienceSpilled:
+        return "rotten_tomatoes_audience_positive_big_color"
       default: return colorAssetName
       }
     }

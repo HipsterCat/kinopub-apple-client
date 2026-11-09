@@ -740,6 +740,7 @@ final class TVPageReviewsContent: TVPageCardContent {
 @MainActor
 final class TVPageReviewCell: TVPageInfoCardCell {
   private let body = TVPageReviewContent()
+  private var tone: TVPageInfoCard.Review.Tone = .neutral
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -748,7 +749,19 @@ final class TVPageReviewCell: TVPageInfoCardCell {
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+  /// At rest the card wears how the review was meant: greenish, grey, reddish (Sasha,
+  /// 2026-11-09). On focus it is the system's white platter like every card.
+  override var restingFill: UIColor {
+    switch tone {
+    case .positive: return UIColor.systemGreen.withAlphaComponent(0.18)
+    case .negative: return UIColor.systemRed.withAlphaComponent(0.18)
+    case .neutral: return TVPagePlatter.restingFill
+    }
+  }
+
   func configure(_ review: TVPageInfoCard.Review) {
+    tone = review.tone
+    if !isFocused { cardView.contentView.backgroundColor = restingFill }
     body.configure(review)
     accessibilityIdentifier = "kinopub.review.\(review.id)"
     accessibilityLabel = [review.headline, review.body].joined(separator: ". ")
