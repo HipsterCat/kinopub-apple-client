@@ -232,6 +232,12 @@ public actor MetadataService {
     return result
   }
 
+  /// TMDB's posters for one season, to look through (the season card's «Change Image»).
+  public func seasonPosters(for identity: MediaIdentity, season: Int) async -> [URL] {
+    guard let tmdb = sources.compactMap({ $0 as? TMDBSource }).first else { return [] }
+    return await tmdb.seasonPosters(for: identity, season: season)
+  }
+
   public func schedule(for identity: MediaIdentity, season: Int) async -> [EpisodeSchedule] {
     await schedule(for: identity, season: season, language: nil)
   }

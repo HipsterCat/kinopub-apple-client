@@ -257,6 +257,42 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
     return formatter.date(from: raw)
   }
 
+  /// Every poster TMDB has for one season, the app's language first, then English, then
+  /// textless, the most-voted first within each (`/3/tv/{id}/season/{n}/images`). For
+  /// looking through, not for choosing what the rail shows.
+  public func seasonPosters(for identity: MediaIdentity, season: Int) async -> [URL] {
+    guard isConfigured else { return [] }
+    let (resolved, _) = await resolveID(for: identity)
+    guard let resolved, resolved.type == .tv else { return [] }
+    let tmdbId = resolved.tmdbId
+    let language = String(configuration.language.prefix(2))
+    let key = "tmdb/season-images/\(tmdbId)/\(season)"
+    let entry = await cache.deduped(key: key, ttl: Self.seasonTTL) { [self] in
+      do {
+        let url = try makeURL(path: "/3/tv/\(tmdbId)/season/\(season)/images", query: [
+          URLQueryItem(name: "include_image_language", value: "\(language),en,null"),
+        ])
+        let data = try await fetch(url)
+        _ = try client.decode(TMDBImages.self, from: data)
+        return MetadataCache.Entry(payload: data)
+      } catch {
+        return nil
+      }
+    }
+    guard let entry, let images = try? client.decode(TMDBImages.self, from: entry.payload) else { return [] }
+    let order: [String?] = [language, "en", nil]
+    func rank(_ entry: TMDBImageEntry) -> Int {
+      order.firstIndex { $0 == (entry.iso6391?.isEmpty == false ? entry.iso6391 : nil) } ?? order.count
+    }
+    return images.posters
+      .filter { !($0.filePath ?? "").isEmpty }
+      .sorted { lhs, rhs in
+        let (l, r) = (rank(lhs), rank(rhs))
+        return l != r ? l < r : (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
+      }
+      .compactMap { imageURL(path: $0.filePath, size: .posterW780) }
+  }
+
   private func fetchSeason(tmdbId: Int, season: Int, language: String?) async throws -> [EpisodeSchedule] {
     let lang = language ?? configuration.language
     // The unscoped key is the configured language, so a cache filled before the
@@ -337,6 +373,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
     meta.tmdbId = tmdbId
     meta.status = details.status
     meta.inProduction = details.inProduction
+    meta.seriesType = details.type
     meta.keywords = details.keywords?.all.compactMap(\.name) ?? []
     meta.tagline = details.tagline?.isEmpty == false ? details.tagline : nil
     meta.overview = details.overview?.isEmpty == false ? details.overview : nil

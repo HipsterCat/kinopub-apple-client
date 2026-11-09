@@ -545,6 +545,12 @@ class MediaItemModel: ObservableObject {
     }
   }
 
+  /// TMDB's posters for a season, to look through from the season card's menu.
+  func seasonPosters(_ seasonNumber: Int) async -> [URL] {
+    guard let identity else { return [] }
+    return await metadataService.seasonPosters(for: identity, season: seasonNumber)
+  }
+
   /// The rail still asks per tab. One grid serves every block: fetching "the" TMDB
   /// season for a renumbered or year-titled block was how the wrong episodes landed.
   func ensureSeasonSchedule(_ kinoSeasonNumber: Int) async {

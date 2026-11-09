@@ -41,6 +41,8 @@ final class SeasonsRailMemory {
   /// The first card showing at the leading edge, season cards included (iOS / macOS):
   /// a page rebuilt on coming back stands on the same card, not on the episode after it.
   var leadingAnchor: String?
+  /// Seasons folded down to their card: a click on it, or «Свернуть серии» (iOS / macOS).
+  var collapsedSeasonIDs: Set<Int> = []
 }
 
 /// kino.pub episodes and an official grid, in the shape `EpisodeGridMatch` scores.
@@ -160,6 +162,15 @@ struct SeasonsRailView: View {
   /// A season's poster at a pixel width: the worker's `/img/poster/by/kinopub/{id}?s=`.
   /// Nil (no worker) falls back to TMDB's season poster. iOS / macOS season cards.
   var seasonPosterURL: ((_ seasonNumber: Int, _ pixelWidth: Int) -> URL?)? = nil
+  /// The season menu (a season card, a season tab), iOS / macOS: watched for all of it, or
+  /// none of it when it is all watched already.
+  var onToggleSeasonWatched: ((Season) -> Void)? = nil
+  /// Download the season; offered only with `FeatureFlags.downloadsEnabled`.
+  var onDownloadSeason: ((Season) -> Void)? = nil
+  /// Every TMDB poster of a season (its number on TMDB), for «Изменить изображение».
+  var seasonPosters: ((_ seasonNumber: Int) async -> [URL])? = nil
+  /// The series' IMDb number, for the season's page there in «Открыть в».
+  var imdbID: Int? = nil
   /// Ask the model to fetch schedule for a season number (kino.pub season.number).
   var onSeasonVisible: ((Int) -> Void)? = nil
   /// The page scroll offset, in points. Menu uses it to decide whether to go home.
@@ -217,6 +228,10 @@ struct SeasonsRailView: View {
   /// The episode rail's own position — unlike the reader's proxy, moving it does not
   /// drag the page along. Used to put a rebuilt rail back where it stood.
   @State private var railPosition = ScrollPosition(idType: String.self)
+  /// The season whose «Подробности» are up.
+  @State private var seasonDetails: SeasonCardInfo?
+  /// The season whose TMDB posters are being looked through.
+  @State private var browsingSeason: SeasonCardInfo?
 #endif
 
   private enum RailEntry: Identifiable {
@@ -452,7 +467,10 @@ struct SeasonsRailView: View {
           SeasonTabStrip(tabs: tabs,
                          selectedID: selectedTab?.id,
                          inset: pageInset,
-                         onSelect: { tab in pick(tab, proxy: proxy) })
+                         title: stripTitle,
+                         count: stripCount,
+                         onSelect: { tab in pick(tab, proxy: proxy) },
+                         tabMenu: { tab in tabMenu(tab) })
             .transition(.opacity)
         }
 
@@ -481,6 +499,19 @@ struct SeasonsRailView: View {
         await cardMenu.refreshFolders()
       }
       .mediaCardNewFolderAlert(cardMenu)
+      .infoPopup(Text(verbatim: seasonDetails?.title ?? ""),
+                 subtitle: seasonDetails.flatMap(Self.detailsSubtitle).map { Text(verbatim: $0) },
+                 isPresented: Binding(get: { seasonDetails != nil },
+                                      set: { if !$0 { seasonDetails = nil } })) {
+        Text(verbatim: seasonDetails?.overview ?? "")
+          .font(InfoPopupMetrics.bodyFont)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .sheet(item: $browsingSeason) { info in
+        SeasonImageBrowserSheet(title: info.title) {
+          await seasonPosters?(info.number) ?? []
+        }
+      }
     }
 #endif
   }
@@ -493,12 +524,122 @@ struct SeasonsRailView: View {
     selectTab(tab.id, proxy: proxy, animated: true)
   }
 
+#if !os(tvOS)
+  /// The line's word. Several seasons: «Сезон» before the tabs. One: «1 сезон»; «Все серии»
+  /// for a miniseries or a show that has ended, where «1 сезон» promises a second; the
+  /// season's own name when TMDB gives it one (Sasha, 2026-11-09).
+  private var stripTitle: String {
+    guard tabs.count == 1, let only = tabs.first else { return "Season".localized }
+    let summary = externalMetadata.seasonSummaries.first { $0.seasonNumber == only.first }
+    let numbered = String(format: "MediaItem_SeasonSingle".localized, only.first)
+    let name = Self.seasonName(summary?.name, number: only.first)
+    if name != numbered { return name }
+    if Self.isOneStory(externalMetadata) { return "TitleStatus_AllEpisodes".localized }
+    return SeasonText(only.first).formatted(.long)
+  }
+
+  /// TMDB says the show is told once: a miniseries, or one that has ended or was cancelled.
+  static func isOneStory(_ metadata: TitleMetadata) -> Bool {
+    if metadata.seriesType?.caseInsensitiveCompare("Miniseries") == .orderedSame { return true }
+    return ["Ended", "Canceled", "Cancelled"].contains { metadata.status?.caseInsensitiveCompare($0) == .orderedSame }
+  }
+
+  /// One season: how many episodes it has, beside the word as every section header has its
+  /// count. Several seasons: the tabs are the line.
+  private var stripCount: String? {
+    guard tabs.count == 1 else { return nil }
+    let count = entries.filter { $0.season != nil }.count
+    return count > 0 ? "\(count)" : nil
+  }
+
+  /// A season tab's menu: the season card's own. Only seasons kino.pub has get one.
+  @ViewBuilder
+  private func tabMenu(_ tab: SeasonTab) -> some View {
+    if tab.status == .available, let season = seasons.first(where: { $0.id == tab.id }) {
+      seasonMenu(season: season, number: tab.first)
+    }
+  }
+
+  /// What a season card and a season tab offer (Sasha, 2026-11-09): its description, folding
+  /// its episodes, watched, download, a look through its posters, and its pages elsewhere.
+  @ViewBuilder
+  private func seasonMenu(season: Season, number: Int) -> some View {
+    let info = { [self] in
+      let inSeason = entries.filter { $0.season?.id == season.id }
+      return seasonCardInfo(seasonID: season.id, number: number, entries: inSeason,
+                            posterWidth: seasonCardWidth)
+    }
+    if externalMetadata.seasonSummaries.contains(where: {
+      $0.seasonNumber == number && !($0.overview ?? "").isEmpty
+    }) {
+      Button { seasonDetails = info() } label: {
+        Label("Season Details", systemImage: "info.circle")
+      }
+    }
+    if seasons.count > 1 {
+      let collapsed = rail.collapsedSeasonIDs.contains(season.id)
+      Button { toggleCollapsed(season.id) } label: {
+        collapsed
+          ? Label("Expand Episodes", systemImage: "rectangle.expand.vertical")
+          : Label("Collapse Episodes", systemImage: "rectangle.compress.vertical")
+      }
+    }
+    if let onToggleSeasonWatched {
+      let allWatched = !season.episodes.isEmpty && season.episodes.allSatisfy(\.isWatched)
+      Button { onToggleSeasonWatched(season) } label: {
+        allWatched
+          ? Label("Mark Season Unwatched", systemImage: "eye.slash")
+          : Label("Mark Season Watched", systemImage: "eye")
+      }
+    }
+    if FeatureFlags.downloadsEnabled, let onDownloadSeason {
+      Button { onDownloadSeason(season) } label: {
+        Label("Download Season", systemImage: "arrow.down.circle")
+      }
+    }
+    if seasonPosters != nil {
+      Button { browsingSeason = info() } label: {
+        Label("Change Image", systemImage: "photo.on.rectangle")
+      }
+    }
+    let links = SeasonLinks.links(season: number, metadata: externalMetadata, imdbID: imdbID)
+    if !links.isEmpty {
+      Menu {
+        ForEach(links) { link in
+          Button(link.name) { openURL(link.url) }
+        }
+      } label: {
+        Label("Open In", systemImage: "arrow.up.forward.app")
+      }
+    }
+  }
+
+  /// Folds a season down to its card, or opens it again, keeping the card where it stands.
+  private func toggleCollapsed(_ seasonID: Int) {
+    withAnimation(.snappy(duration: 0.3)) {
+      if rail.collapsedSeasonIDs.remove(seasonID) == nil {
+        rail.collapsedSeasonIDs.insert(seasonID)
+      }
+    }
+  }
+
+  /// «10 серий · 2020–2021» under the season's name in «Подробности».
+  static func detailsSubtitle(_ info: SeasonCardInfo) -> String? {
+    let parts = [info.episodes, info.years].compactMap { $0 }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  }
+#endif
+
   // MARK: - Season cards
 
   /// What a season's card says: its poster, its name, how many episodes and which years.
-  struct SeasonCardInfo: Equatable {
+  struct SeasonCardInfo: Equatable, Identifiable {
     let seasonID: Int
+    /// The season's number as the tabs show it (TMDB's when the grid matched).
+    let number: Int
     let title: String
+    /// TMDB's description of the season, for «Подробности».
+    let overview: String?
     /// «10 серий»: a chip on the poster, where the episode cards carry their runtime.
     let episodes: String?
     /// «10 эп.», where «10 серий» does not fit the chip (tvOS).
@@ -508,6 +649,10 @@ struct SeasonsRailView: View {
     let posterURL: URL?
     /// TMDB's season poster, for when the worker has none (it answers 404).
     let fallbackPosterURL: URL?
+
+    var id: Int { seasonID }
+    /// «2 сезон»: what the plate of a season not in view says first.
+    var numberTitle: String { SeasonText(number).formatted(.long) }
   }
 
   /// - Parameter posterWidth: the card's width in points, for the worker's `w`.
@@ -521,7 +666,10 @@ struct SeasonsRailView: View {
     let pixels = Int((posterWidth * displayScale / 100).rounded(.up)) * 100
     let worker = seasonPosterURL?(number, pixels)
     return SeasonCardInfo(seasonID: seasonID,
+                          number: number,
                           title: title,
+                          overview: summary?.overview?.trimmingCharacters(in: .whitespacesAndNewlines)
+                            .flatMap { $0.isEmpty ? nil : $0 },
                           episodes: EpisodesLeftText(entries.count)?.formatted(),
                           episodesShort: entries.isEmpty ? nil
                             : "\(entries.count) \("MediaItem_EpisodesShort".localized)",
@@ -541,7 +689,9 @@ struct SeasonsRailView: View {
       .split { !$0.isLetter && !$0.isNumber }
       .filter { !$0.allSatisfy(\.isNumber) }
       .map(String.init)
-    let numbering: Set<String> = ["сезон", "season", "staffel", "saison", "temporada", "stagione"]
+    // TMDB names a miniseries' one season «Miniseries» / «Limited Series»: a kind, not a name.
+    let numbering: Set<String> = ["сезон", "season", "staffel", "saison", "temporada", "stagione",
+                                  "miniseries", "limited", "series", "мини", "сериал"]
     return words.allSatisfy(numbering.contains) ? fallback : name
   }
 
@@ -861,10 +1011,19 @@ struct SeasonsRailView: View {
         cells.append(.season(seasonCardInfo(seasonID: season.id, number: number, entries: inSeason,
                                             posterWidth: seasonCardWidth)))
       }
+      if let season = entry.season, rail.collapsedSeasonIDs.contains(season.id) { continue }
       cells.append(.entry(entry))
     }
     return cells
   }
+
+  /// The season whose tab is selected, when there are seasons to tell apart: the others,
+  /// cards and episodes, stand at half opacity (Sasha, 2026-11-09).
+  private var activeTabID: Int? {
+    seasons.count > 1 ? selectedTab?.id : nil
+  }
+
+  static let inactiveSeasonOpacity: Double = 0.5
 
   /// The season card is as tall as an episode's still and a poster's 2:3 across.
   private var seasonCardWidth: CGFloat {
@@ -881,14 +1040,28 @@ struct SeasonsRailView: View {
         ForEach(cells) { cell in
           switch cell {
           case .season(let info):
+            let isActive = info.seasonID == activeTabID
             SeasonRailCard(info: info, posterHeight: stillHeight,
-                           cornerRadius: Self.seasonCardCornerRadius(stillRadius: Metrics.cardCornerRadius))
+                           cornerRadius: Self.seasonCardCornerRadius(stillRadius: Metrics.cardCornerRadius),
+                           isActive: isActive,
+                           isCollapsed: rail.collapsedSeasonIDs.contains(info.seasonID),
+                           onToggle: { toggleCollapsed(info.seasonID) })
+              .contextMenu {
+                if let season = seasons.first(where: { $0.id == info.seasonID }) {
+                  seasonMenu(season: season, number: info.number)
+                }
+              }
               .frame(width: seasonCardWidth)
+              .opacity(isActive ? 1 : Self.inactiveSeasonOpacity)
+              .animation(.easeOut(duration: 0.2), value: isActive)
               .id(cell.anchor)
           case .entry(let entry):
+            let isActive = activeTabID == nil || entry.tabID == activeTabID
             railCard(for: entry)
               .frame(width: cardWidth)
               .buttonStyle(MediaCardButtonStyle())
+              .opacity(isActive ? 1 : Self.inactiveSeasonOpacity)
+              .animation(.easeOut(duration: 0.2), value: isActive)
               .id(cell.anchor)
           }
         }
@@ -1026,7 +1199,9 @@ struct SeasonsRailView: View {
     var anchor = Self.episodeAnchor(target.id)
 #if !os(tvOS)
     // The season itself was picked: its card opens the run, so it goes to the edge.
-    if target.id == first.id, seasons.count > 1, seasons.contains(where: { $0.id == tabID }) {
+    // A folded season has only its card.
+    if seasons.count > 1, seasons.contains(where: { $0.id == tabID }),
+       target.id == first.id || rail.collapsedSeasonIDs.contains(tabID) {
       anchor = Self.seasonAnchor(tabID)
     }
 #endif
@@ -1482,63 +1657,70 @@ private struct UpcomingSeasonCard: View {
 }
 
 #if !os(tvOS)
-/// The card in front of a season's episodes: its poster as tall as an episode's still,
-/// the episode count in the chip where an episode has its runtime, then the same two
-/// caption lines an episode card has — the name, then the years. Inert: the episodes
-/// beside it are what plays.
+/// The card in front of a season's episodes: its poster as tall as an episode's still, and
+/// no words on it (Sasha, 2026-11-09). A click folds the season's episodes down to the card
+/// or opens them again; its menu is the season's (`SeasonsRailView.seasonMenu`).
+///
+/// A season whose tab is not the selected one is a plate instead — «2 сезон», «14 серий»,
+/// «2021» at its foot — and its poster is not asked for until the season comes up.
 private struct SeasonRailCard: View {
   let info: SeasonsRailView.SeasonCardInfo
   /// Artwork height of the neighbouring episode cards, so the poster lines up with them.
   let posterHeight: CGFloat
   let cornerRadius: CGFloat
+  let isActive: Bool
+  let isCollapsed: Bool
+  let onToggle: () -> Void
 
   private var shape: RoundedRectangle {
     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
   }
 
   var body: some View {
-    VStack(alignment: .center, spacing: Metrics.cardCaptionSpacing) {
-      poster
-        .frame(maxWidth: .infinity)
-        .frame(height: posterHeight)
-        .clipShape(shape)
-        .kinoGlassRim(in: shape)
-        .overlay(alignment: .bottomLeading) {
-          if let episodes = info.episodes {
-            // The episode time chip's look: the system's thin material, dark, on the art.
-            Text(episodes)
-              .font(.caption2)
-              .lineLimit(1)
-              .fixedSize()
-              .foregroundStyle(.white)
-              .padding(.horizontal, 4)
-              .padding(.vertical, 3)
-              .background(.thinMaterial, in: Capsule(style: .continuous))
-              .environment(\.colorScheme, .dark)
-              .padding(6)
-          }
-        }
-
-      VStack(alignment: .center, spacing: 4) {
-        Text(info.title)
-          .font(TypeScale.episodeCardTitle)
-          .foregroundStyle(Color.KinoPub.text)
-          .lineLimit(1)
-          .truncationMode(.tail)
-          .frame(maxWidth: .infinity)
-
-        if let years = info.years {
-          Text(years)
-            .font(TypeScale.cardMeta)
-            .foregroundStyle(Color.KinoPub.subtitle)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity)
+    Button(action: onToggle) {
+      ZStack {
+        if isActive {
+          poster
+        } else {
+          plate
         }
       }
+      .frame(maxWidth: .infinity)
+      .frame(height: posterHeight)
+      .clipShape(shape)
+      .kinoGlassRim(in: shape)
+      .contentShape(shape)
     }
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(Text([info.title, info.episodes, info.years].compactMap { $0 }.joined(separator: ", ")))
-    .accessibilityAddTraits(.isHeader)
+    .buttonStyle(MediaCardButtonStyle())
+    .accessibilityLabel(Text(verbatim: [info.title, info.episodes, info.years]
+      .compactMap { $0 }.joined(separator: ", ")))
+    .accessibilityHint(isCollapsed ? Text("Expand Episodes") : Text("Collapse Episodes"))
+  }
+
+  /// A season not in view: what it is, in the card's own place.
+  private var plate: some View {
+    shape
+      .fill(.fill.tertiary)
+      .overlay(alignment: .bottomLeading) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(info.numberTitle)
+            .font(TypeScale.episodeCardTitle)
+            .foregroundStyle(.primary)
+          if let episodes = info.episodes {
+            Text(episodes)
+              .font(TypeScale.cardMeta)
+              .foregroundStyle(.secondary)
+          }
+          if let years = info.years {
+            Text(years)
+              .font(TypeScale.cardMeta)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .padding(8)
+      }
   }
 
   /// The worker's season poster; TMDB's when the worker has none.
@@ -1556,6 +1738,41 @@ private struct SeasonRailCard: View {
         )
       }
     )
+  }
+}
+
+/// A season's pages elsewhere, for «Открыть в»: straight to the season where the site has
+/// a page for one (TMDB, IMDb, Trakt), else the series' page.
+enum SeasonLinks {
+  struct Link: Identifiable, Equatable {
+    let name: String
+    let url: URL
+    var id: String { name }
+  }
+
+  static func links(season number: Int, metadata: TitleMetadata, imdbID: Int?) -> [Link] {
+    var links: [Link] = []
+    func add(_ name: String, _ string: String?) {
+      guard let string, let url = URL(string: string),
+            !links.contains(where: { $0.name == name }) else { return }
+      links.append(Link(name: name, url: url))
+    }
+    if let tmdb = metadata.tmdbId {
+      add("TMDB", "https://www.themoviedb.org/tv/\(tmdb)/season/\(number)")
+    }
+    if let imdbID, imdbID > 0 {
+      add("IMDb", "https://www.imdb.com/title/tt\(String(format: "%07d", imdbID))/episodes/?season=\(number)")
+    }
+    if let trakt = metadata.traktURL {
+      add(ExternalLink.Site.trakt.name, trakt.appendingPathComponent("seasons/\(number)").absoluteString)
+    }
+    if let kinopoisk = metadata.kinopoiskID {
+      add(ExternalLink.Site.kinopoisk.name, "https://www.kinopoisk.ru/series/\(kinopoisk)/episodes/")
+    }
+    for link in metadata.externalLinks {
+      add(link.site.name, link.url.absoluteString)
+    }
+    return links
   }
 }
 #endif

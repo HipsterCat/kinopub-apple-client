@@ -49,6 +49,8 @@ struct TMDBTitleDetails: Codable, Sendable {
   let homepage: String?
   let status: String?
   let inProduction: Bool?
+  /// TV-only: «Scripted», «Miniseries», «Documentary», «Reality»…
+  let type: String?
   let genres: [TMDBNamed]?
   /// Movie-only.
   let budget: Int?
@@ -85,7 +87,7 @@ struct TMDBTitleDetails: Codable, Sendable {
   let originalLanguage: String?
 
   enum CodingKeys: String, CodingKey {
-    case id, overview, tagline, homepage, status, genres, budget, revenue, networks
+    case id, overview, tagline, homepage, status, genres, budget, revenue, networks, type
     case originalLanguage = "original_language"
     case credits, images, videos, keywords
     case inProduction = "in_production"

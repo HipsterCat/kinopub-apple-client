@@ -842,6 +842,16 @@ struct MediaItemView: View {
                           images.url(.poster, kinopubID: item.id, imdb: item.imdb,
                                      width: pixels, season: season)
                         },
+                        onToggleSeasonWatched: { season in
+                          itemModel.toggleWatched(season: season)
+                        },
+                        onDownloadSeason: { season in
+                          itemModel.downloadSeason(season)
+                        },
+                        seasonPosters: { [itemModel] number in
+                          await itemModel.seasonPosters(number)
+                        },
+                        imdbID: itemModel.mediaItem.imdb,
                         onSeasonVisible: { seasonNumber in
                           Task { await itemModel.ensureSeasonSchedule(seasonNumber) }
                         },

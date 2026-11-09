@@ -332,14 +332,13 @@ private struct TitleImageTile<Caption: View>: View {
   let kind: WorkerImageAdminKind
   let previewURL: URL?
   let isSelected: Bool
+  /// The box the picture fills or fits; a season's poster is 2:3.
+  var boxAspectRatio: CGFloat = 16 / 9
   @ViewBuilder let caption: () -> Caption
 
   private var shape: RoundedRectangle {
     RoundedRectangle(cornerRadius: TitleImagePickerMetrics.cornerRadius, style: .continuous)
   }
-
-  /// Logos keep their own proportions inside a 16:9 box; backdrops are 16:9 already.
-  private var boxAspectRatio: CGFloat { 16 / 9 }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
@@ -443,10 +442,108 @@ private enum TitleImagePickerMetrics {
   static func minTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { kind == .logo ? 150 : 200 }
   static func maxTileWidth(_ kind: WorkerImageAdminKind) -> CGFloat { kind == .logo ? 260 : 320 }
 #endif
+  /// A season poster's tile in `SeasonImageBrowserSheet`.
+  static let minPosterWidth: CGFloat = 120
+  static let maxPosterWidth: CGFloat = 180
   static let selectionRingGap: CGFloat = 3.5
   static let selectionRingWidth: CGFloat = 3
   static let badgeOffset: CGFloat = 6
 }
+
+// MARK: - Season posters
+
+#if !os(tvOS)
+/// «Изменить изображение» on a season card: every TMDB poster of the season in the picker's
+/// grid, to look through and pick from. Nothing is saved yet — the worker keeps no season
+/// pick (Sasha, 2026-11-09: «пока что без сохранить»).
+struct SeasonImageBrowserSheet: View {
+  let title: String
+  let load: () async -> [URL]
+
+  @Environment(\.dismiss) private var dismiss
+  @State private var posters: [URL]?
+  @State private var selected: URL?
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        content
+          .frame(maxWidth: .infinity)
+          .padding(.horizontal, TitleImagePickerMetrics.horizontalPadding)
+#if os(macOS)
+          .padding(.vertical, 16)
+#endif
+          .frame(maxWidth: TitleImagePickerMetrics.maxContentWidth)
+          .frame(maxWidth: .infinity)
+      }
+      .navigationTitle(Text("Season Images"))
+      .navigationSubtitleIfAvailable(title)
+      .sheetInlineNavigationTitle()
+      .sheetCloseAndSave(close: {
+        Button { dismiss() } label: { SheetCloseLabel() }
+      }, save: { EmptyView() })
+    }
+    .task {
+      let found = await load()
+      posters = found
+      if selected == nil { selected = found.first }
+    }
+#if os(iOS)
+    .presentationDragIndicator(.visible)
+#endif
+    .presentationSizing(.page)
+    .macSheetFrame(width: 900, height: 680)
+  }
+
+  @ViewBuilder
+  private var content: some View {
+    if let posters {
+      if posters.isEmpty {
+        ContentUnavailableView("No Images",
+                               systemImage: "photo.on.rectangle",
+                               description: Text("TMDB has no posters for this season."))
+      } else {
+        LazyVGrid(
+          columns: [GridItem(.adaptive(minimum: TitleImagePickerMetrics.minPosterWidth,
+                                       maximum: TitleImagePickerMetrics.maxPosterWidth),
+                             spacing: TitleImagePickerMetrics.gridSpacing)],
+          alignment: .leading,
+          spacing: TitleImagePickerMetrics.gridSpacing
+        ) {
+          ForEach(posters, id: \.self) { url in
+            Button {
+              selected = url
+            } label: {
+              TitleImageTile(kind: .backdrop, previewURL: url, isSelected: url == selected,
+                             boxAspectRatio: CardAspect.poster.ratio) {
+                EmptyView()
+              }
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(url == selected ? .isSelected : [])
+          }
+        }
+      }
+    } else {
+      ProgressView()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+  }
+}
+
+private extension View {
+  /// The season's name under «Изображения сезона» on a Mac; iOS keeps the bar's one line.
+  @ViewBuilder
+  func navigationSubtitleIfAvailable(_ subtitle: String) -> some View {
+#if os(macOS)
+    navigationSubtitle(subtitle)
+#else
+    self
+#endif
+  }
+}
+#endif
 
 // MARK: - Model
 

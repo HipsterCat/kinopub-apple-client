@@ -669,6 +669,8 @@ public struct TitleMetadata: Sendable {
   public var lastEpisode: EpisodeRef?
   public var status: String?
   public var inProduction: Bool?
+  /// TMDB's kind of series: «Miniseries» is one story told once, never a «1 сезон».
+  public var seriesType: String?
   /// TV: every season incl. specials (season 0), with counts and air dates.
   public var seasonSummaries: [SeasonSummary] = []
   /// TV totals as the source reports them (specials not included).
@@ -779,6 +781,7 @@ public struct TitleMetadata: Sendable {
     if lastEpisode == nil { lastEpisode = other.lastEpisode }
     if status == nil { status = other.status }
     if inProduction == nil { inProduction = other.inProduction }
+    if seriesType == nil { seriesType = other.seriesType }
     if seasonSummaries.isEmpty { seasonSummaries = other.seasonSummaries }
     if numberOfSeasons == nil { numberOfSeasons = other.numberOfSeasons }
     if numberOfEpisodes == nil { numberOfEpisodes = other.numberOfEpisodes }

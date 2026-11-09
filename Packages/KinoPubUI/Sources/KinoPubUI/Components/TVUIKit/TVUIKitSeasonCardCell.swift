@@ -12,6 +12,7 @@
 //
 
 import UIKit
+import TVUIKit
 
 @MainActor
 final class TVUIKitSeasonCardCell: UICollectionViewCell {

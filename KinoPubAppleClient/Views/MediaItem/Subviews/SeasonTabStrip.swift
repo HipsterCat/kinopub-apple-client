@@ -68,15 +68,48 @@ struct SeasonTab: Identifiable, Equatable {
 /// (a lone digit is about a circle, «10» and «4–7» are wider). Seasons that are not on
 /// kino.pub take the secondary colour and a glyph after the number: a filled clock for those
 /// still to come, a lock for those it lacks. The selected pill is the filled one.
-struct SeasonTabStrip: View {
+///
+/// The word is primary, a section header's (Sasha, 2026-11-09); with one season it is the
+/// owner's (`title`: «1 сезон», «Все серии», the season's name) and carries the episode
+/// count in the section headers' capsule. At rest the selected pill sits on the quaternary
+/// fill and the others are secondary; while the line is engaged — under the pointer, a pill
+/// focused, or a pill just pressed — the ones that can be picked turn primary and the
+/// selected fill steps up to tertiary. A season pill's long press / right click is
+/// `tabMenu`.
+struct SeasonTabStrip<TabMenu: View>: View {
 
   let tabs: [SeasonTab]
   let selectedID: Int?
   /// Leading and trailing margin: the rail's, so the word starts where the first card does.
   let inset: CGFloat
+  /// The word; nil keeps «Сезон» / «Сезон N».
+  var title: String? = nil
+  /// The section headers' count after the word (one season's episodes).
+  var count: String? = nil
   /// A pill was pressed. Told even when it is already selected; the owner decides whether
   /// that moves anything.
   let onSelect: (SeasonTab) -> Void
+  /// A pill's context menu.
+  let tabMenu: (SeasonTab) -> TabMenu
+
+  init(tabs: [SeasonTab], selectedID: Int?, inset: CGFloat,
+       title: String? = nil, count: String? = nil,
+       onSelect: @escaping (SeasonTab) -> Void,
+       @ViewBuilder tabMenu: @escaping (SeasonTab) -> TabMenu) {
+    self.tabs = tabs
+    self.selectedID = selectedID
+    self.inset = inset
+    self.title = title
+    self.count = count
+    self.onSelect = onSelect
+    self.tabMenu = tabMenu
+  }
+
+  /// The pointer is over the line (Mac, iPad).
+  @State private var isHovered = false
+  /// A pill was just pressed: the line answers as engaged for a moment on touch too.
+  @State private var pressedAt: Date?
+  @State private var isRecentlyPressed = false
 
   /// Headline text plus this above and below is a pill's height — and the line's.
      #if os(tvOS)
@@ -117,20 +150,33 @@ struct SeasonTabStrip: View {
   static let font: Font = TypeScale.rowHeader
 
   /// One season is not a choice: the word says which, and nothing is pressable.
-  private var title: String {
+  private var word: String {
+    if let title { return title }
     guard tabs.count == 1, let only = tabs.first else { return "Season".localized }
     return String(format: "MediaItem_SeasonSingle".localized, only.first)
   }
+
+  private var isEngaged: Bool { isHovered || isRecentlyPressed }
 
   var body: some View {
     ScrollViewReader { proxy in
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 0) {
-          Text(title)
+          Text(word)
             .font(Self.font)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.primary)
             .padding(.vertical, Self.verticalPadding)
-            .padding(.trailing, tabs.count > 1 ? Self.labelGap : 0)
+            .padding(.trailing, tabs.count > 1 || count != nil ? Self.labelGap : 0)
+
+          if let count, tabs.count <= 1 {
+            // `SectionHeader`'s count.
+            Text(count)
+              .font(TypeScale.rowCount)
+              .foregroundStyle(.secondary)
+              .padding(.horizontal, 7)
+              .padding(.vertical, 1)
+              .background { Capsule().fill(.fill.secondary) }
+          }
 
           if tabs.count > 1 {
             ForEach(tabs) { tab in
@@ -140,6 +186,8 @@ struct SeasonTabStrip: View {
           }
         }
         .padding(.horizontal, inset)
+        .onHover { isHovered = $0 }
+        .animation(.easeOut(duration: 0.15), value: isEngaged)
       }
       // A focused pill grows past its own bounds; the scroll view would shave it.
       .scrollClipDisabled()
@@ -161,12 +209,35 @@ struct SeasonTabStrip: View {
     let isSelected = tab.id == selectedID
     Button {
       onSelect(tab)
+      markPressed()
     } label: {
-      SeasonPill(tab: tab, isSelected: isSelected)
+      SeasonPill(tab: tab, isSelected: isSelected, isEngaged: isEngaged)
     }
     .buttonStyle(.plain)
+    .contextMenu { tabMenu(tab) }
     .accessibilityLabel(tab.spokenLabel)
     .accessibilityAddTraits(isSelected ? .isSelected : [])
+  }
+
+  /// Engaged for a moment after a press, so a tap on a phone shows the pressed line too —
+  /// a pointer keeps it engaged on its own while it is over the line.
+  private func markPressed() {
+    let now = Date()
+    pressedAt = now
+    isRecentlyPressed = true
+    Task { @MainActor in
+      try? await Task.sleep(for: .seconds(1.5))
+      if pressedAt == now { isRecentlyPressed = false }
+    }
+  }
+}
+
+extension SeasonTabStrip where TabMenu == EmptyView {
+  init(tabs: [SeasonTab], selectedID: Int?, inset: CGFloat,
+       title: String? = nil, count: String? = nil,
+       onSelect: @escaping (SeasonTab) -> Void) {
+    self.init(tabs: tabs, selectedID: selectedID, inset: inset, title: title, count: count,
+              onSelect: onSelect, tabMenu: { _ in EmptyView() })
   }
 }
 
@@ -179,9 +250,16 @@ struct SeasonPill: View {
 
   let tab: SeasonTab
   let isSelected: Bool
+  /// The line is under the pointer, focused or just pressed.
+  var isEngaged: Bool = false
 
-  private var isBright: Bool {
-    tab.status == .available
+  @Environment(\.isFocused) private var isFocused
+
+  /// Primary when it is the selected one or the line is engaged; a season kino.pub lacks
+  /// stays tertiary — the glyph says the rest.
+  private var textStyle: HierarchicalShapeStyle {
+    guard tab.status == .available else { return .tertiary }
+    return isSelected || isEngaged || isFocused || isHovered ? .primary : .secondary
   }
 
   /// The glyph is a character of the text, not an `Image` view, so it sits on the text's
@@ -201,16 +279,15 @@ struct SeasonPill: View {
       label
         .font(SeasonTabStrip.font)
         .imageScale(.medium)
-        .foregroundStyle(isBright ? .primary : .tertiary)
-//        .imageScale(.medium)
+        .foregroundStyle(textStyle)
         .padding(.vertical, SeasonTabStrip.verticalPadding)
         .padding(.horizontal, SeasonTabStrip.horizontalPadding)
     }
     .background {
       if isSelected {
-           Capsule().fill(.fill.secondary)
-      } else if isHovered {
-        Capsule().fill(.fill.tertiary)
+        Capsule().fill(isEngaged || isFocused ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.fill.quaternary))
+      } else if isHovered || isFocused {
+        Capsule().fill(.fill.quaternary)
       }
     }
     .contentShape(Capsule())
