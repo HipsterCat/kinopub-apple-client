@@ -24,10 +24,9 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
 
   var id: String { rawValue }
 
-  /// How the source is connected.
+  /// How the viewer connects their own access. Kinopoisk and TMDB work without it, by
+  /// default; a key of one's own lifts the limits and opens more (Sasha, 2026-11-09).
   enum Connection: Hashable {
-    /// Always on, through KinoPub's own server — nothing to enter.
-    case builtIn
     /// The viewer's own API key, entered in an alert and checked before it is kept.
     case apiKey
     /// Signing in to an account (OAuth / device code). None is implemented yet.
@@ -43,13 +42,23 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     }
   }
 
-  static var supported: [Integration] { allCases.filter(\.isSupported) }
-  static var upcoming: [Integration] { allCases.filter { !$0.isSupported } }
+  /// «Доступно»: what works now, and anything the viewer has connected.
+  static var available: [Integration] { allCases.filter { $0.isSupported || $0.keyProvider?.isConnected == true } }
+  /// «Дополнительно»: listed ahead, not connectable yet — the rows are disabled.
+  static var additional: [Integration] { allCases.filter { !available.contains($0) } }
+
+  /// The viewer's own key, for the sources that take one.
+  var keyProvider: IntegrationKeyProvider? {
+    switch self {
+    case .kinopoisk: .kinopoisk
+    case .tmdb: .tmdb
+    default: nil
+    }
+  }
 
   var connection: Connection {
     switch self {
-    case .tmdb: .builtIn
-    case .kinopoisk, .omdb: .apiKey
+    case .kinopoisk, .tmdb, .omdb: .apiKey
     case .trakt, .simkl, .anilist, .myAnimeList: .account
     }
   }
@@ -57,25 +66,12 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   var name: String {
     switch self {
     case .kinopoisk: "Kinopoisk".localized
-    case .tmdb: "TMDB"
+    case .tmdb: "The Movie Database"
     case .omdb: "OMDb"
     case .trakt: "Trakt"
     case .simkl: "Simkl"
     case .anilist: "AniList"
     case .myAnimeList: "MyAnimeList"
-    }
-  }
-
-  /// One line under the name in the list: what the source gives.
-  var summary: String {
-    switch self {
-    case .kinopoisk: "Integration_Kinopoisk_Summary".localized
-    case .tmdb: "Integration_TMDB_Summary".localized
-    case .omdb: "Integration_OMDb_Summary".localized
-    case .trakt: "Integration_Trakt_Summary".localized
-    case .simkl: "Integration_Simkl_Summary".localized
-    case .anilist: "Integration_AniList_Summary".localized
-    case .myAnimeList: "Integration_MyAnimeList_Summary".localized
     }
   }
 
@@ -97,7 +93,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .kinopoisk: "Integration_Kinopoisk_KeyHelp".localized
     case .omdb: "Integration_OMDb_KeyHelp".localized
-    case .tmdb: "Integration_TMDB_About".localized
+    case .tmdb: "Integration_TMDB_KeyHelp".localized
     case .trakt, .simkl, .anilist, .myAnimeList: "Integration_Account_Help".localized
     }
   }
@@ -120,6 +116,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .kinopoisk: URL(string: "https://kinopoiskapiunofficial.tech/signup")!
     case .omdb: URL(string: "https://www.omdbapi.com/apikey.aspx")!
+    case .tmdb: URL(string: "https://www.themoviedb.org/settings/api")!
     default: nil
     }
   }
@@ -137,8 +134,6 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
 
   var notes: [Note] {
     switch self {
-    case .kinopoisk:
-      [Note(title: "Without a key".localized, text: "Integration_Kinopoisk_ProxyNote".localized, value: "kpapp.link")]
     case .tmdb:
       [Note(title: "Attribution".localized,
             text: "This product uses the TMDB API but is not endorsed or certified by TMDB.".localized)]
@@ -193,19 +188,16 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
 
   /// What the list and the page say about the source right now.
   enum Status: Equatable {
-    case builtIn
-    case notConnected
-    case connected
-    /// Connected, switched off by the viewer.
-    case off
+    /// Working without anything from the viewer.
+    case byDefault
+    /// The viewer's own key is connected and switched on.
+    case apiKey
     case comingSoon
 
     var title: String {
       switch self {
-      case .builtIn: "Built in".localized
-      case .notConnected: "Not connected".localized
-      case .connected: "Connected".localized
-      case .off: "Off".localized
+      case .byDefault: "By default".localized
+      case .apiKey: "Integration_Status_APIKey".localized
       case .comingSoon: "Coming soon".localized
       }
     }
@@ -214,15 +206,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// Read from storage each time; nothing caches it.
   var status: Status {
     guard isSupported else { return .comingSoon }
-    switch self {
-    case .tmdb:
-      return .builtIn
-    case .kinopoisk:
-      guard KinopoiskKeyValidation.isValidated else { return .notConnected }
-      return KinopoiskKeyValidation.isEnabled ? .connected : .off
-    default:
-      return .comingSoon
-    }
+    guard let keyProvider, keyProvider.isConnected, keyProvider.isEnabled else { return .byDefault }
+    return .apiKey
   }
 }
 

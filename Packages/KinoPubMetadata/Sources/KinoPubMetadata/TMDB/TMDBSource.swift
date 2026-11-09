@@ -1,14 +1,25 @@
 import Foundation
 import KinoPubMedia
 
-/// TMDB implementation of `MetadataSource`. Talks to the Cloudflare Worker proxy;
-/// never holds an API key.
+/// The viewer's own TMDB key, read fresh on every request (Settings can change it while
+/// the app runs). Nil means "go through the worker proxy".
+public protocol TMDBDirectAccessProviding: Sendable {
+  func directAPIKey() -> String?
+}
+
+/// TMDB implementation of `MetadataSource`. Talks to the Cloudflare Worker proxy, which
+/// holds KinoPub's key — or, while the viewer has their own key switched on, to
+/// api.themoviedb.org directly with it. The worker mirrors TMDB's `/3/…` paths, so only
+/// the host and the credential change.
 public final class TMDBSource: MetadataSource, @unchecked Sendable {
   public let id: MetadataSourceID = .tmdb
 
-  public var isConfigured: Bool { configuration.isConfigured }
+  public var isConfigured: Bool { configuration.isConfigured || directKey != nil }
+
+  public static let directBaseURL = URL(string: "https://api.themoviedb.org")!
 
   private let configuration: MetadataConfiguration
+  private let directAccess: TMDBDirectAccessProviding?
   private let client: MetadataHTTPClient
   private let cache: MetadataCache
 
@@ -19,9 +30,11 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
   public init(
     configuration: MetadataConfiguration,
     client: MetadataHTTPClient = MetadataHTTPClient(),
-    cache: MetadataCache = MetadataCache()
+    cache: MetadataCache = MetadataCache(),
+    directAccess: TMDBDirectAccessProviding? = nil
   ) {
     self.configuration = configuration
+    self.directAccess = directAccess
     self.client = client
     self.cache = cache
   }
@@ -113,7 +126,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
           URLQueryItem(name: "external_source", value: "imdb_id"),
           URLQueryItem(name: "language", value: configuration.language),
         ])
-        let data = try await client.getData(url: url)
+        let data = try await fetch(url)
         let response = try client.decode(TMDBFindResponse.self, from: data)
         guard let match = response.match(preferSeries: identity.isSeries) else {
           return MetadataCache.Entry(payload: Data(), isNegative: true)
@@ -176,7 +189,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
           // Without it TMDB lists only the videos in `language`.
           URLQueryItem(name: "include_video_language", value: videoLanguages.joined(separator: ",")),
         ])
-        let data = try await client.getData(url: url)
+        let data = try await fetch(url)
         // Validate before caching.
         _ = try client.decode(TMDBTitleDetails.self, from: data)
         return MetadataCache.Entry(payload: data)
@@ -211,7 +224,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
                  URLQueryItem(name: "include_video_language", value: language)]
     let entry = await cache.deduped(key: key, ttl: Self.detailsTTL) { [self] in
       do {
-        let data = try await client.getData(url: try makeURL(path: path, query: query))
+        let data = try await fetch(try makeURL(path: path, query: query))
         _ = try client.decode(TMDBVideos.self, from: data)
         return MetadataCache.Entry(payload: data)
       } catch {
@@ -256,7 +269,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
         let url = try makeURL(path: "/3/tv/\(tmdbId)/season/\(season)", query: [
           URLQueryItem(name: "language", value: lang),
         ])
-        let data = try await client.getData(url: url)
+        let data = try await fetch(url)
         _ = try client.decode(TMDBSeasonDetails.self, from: data)
         return MetadataCache.Entry(payload: data)
       } catch {
@@ -289,7 +302,7 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
         let url = try makeURL(path: "/3/person/\(id)", query: [
           URLQueryItem(name: "language", value: configuration.language),
         ])
-        let data = try await client.getData(url: url)
+        let data = try await fetch(url)
         _ = try client.decode(TMDBPersonDetails.self, from: data)
         return MetadataCache.Entry(payload: data)
       } catch MetadataError.httpStatus(404) {
@@ -448,7 +461,8 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
   }
 
   private func imageURL(path: String?, size: TMDBImageSize) -> URL? {
-    TMDBImageURL.url(path: path, size: size, proxyBase: configuration.proxyBaseURL)
+    TMDBImageURL.url(path: path, size: size,
+                     proxyBase: directKey == nil ? configuration.proxyBaseURL : nil)
   }
 
   private static func pickAgeRating(
@@ -481,8 +495,30 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
 
   // MARK: - URL
 
+  private var directKey: String? {
+    guard let key = directAccess?.directAPIKey(), !key.isEmpty else { return nil }
+    return key
+  }
+
+  /// A v4 read access token is a JWT and goes in the header; a v3 key is a query item.
+  private static func isBearerToken(_ key: String) -> Bool { key.hasPrefix("eyJ") }
+
+  private func fetch(_ url: URL) async throws -> Data {
+    if let key = directKey, Self.isBearerToken(key) {
+      return try await client.getData(url: url, headers: ["Authorization": "Bearer \(key)"])
+    }
+    return try await client.getData(url: url)
+  }
+
   private func makeURL(path: String, query: [URLQueryItem]) throws -> URL {
-    guard let base = configuration.proxyBaseURL else { throw MetadataError.notConfigured }
+    var query = query
+    let direct = directKey
+    if let direct, !Self.isBearerToken(direct) {
+      query.append(URLQueryItem(name: "api_key", value: direct))
+    }
+    guard let base = direct != nil ? Self.directBaseURL : configuration.proxyBaseURL else {
+      throw MetadataError.notConfigured
+    }
     let baseString = base.absoluteString.hasSuffix("/")
       ? String(base.absoluteString.dropLast())
       : base.absoluteString

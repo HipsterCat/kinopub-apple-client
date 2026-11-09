@@ -4,7 +4,7 @@
 //
 //  tvOS Settings content as TVSettingKit pages (`TVSettingKit.swift`): the categories,
 //  their rows, and the bindings from each row to where the value already lives —
-//  `@AppStorage` keys, `DeviceSettingsPaneModel`, `KinopoiskKeySettingsModel`,
+//  `@AppStorage` keys, `DeviceSettingsPaneModel`, `IntegrationKeySettingsModel`,
 //  `FeatureFlag`. Nothing here is stored twice.
 //
 //  Every row is a focus stop, read-only ones included: TVSettingKit makes them so, and
@@ -28,7 +28,8 @@ final class TVSettingsCatalog {
   private var storageCharts: [String: StorageChartController] = [:]
   private var storagePreviewControllers: [String: UIViewController] = [:]
   private var storageOpening = false
-  private let kinopoisk: KinopoiskKeySettingsModel
+  private let kinopoisk: IntegrationKeySettingsModel
+  private let tmdbKey = IntegrationKeySettingsModel(keyProvider: .tmdb, integration: .tmdb)
   private let deviceService: DeviceService
   private let errorHandler: ErrorHandler
   private let onLogout: () -> Void
@@ -64,14 +65,14 @@ final class TVSettingsCatalog {
   private var cachedBannerPreviewController: UIViewController?
 
   init(model: ProfileModel,
-       kinopoiskKeyProvider: KinopoiskKeyProvider,
+       kinopoiskKeyProvider: IntegrationKeyProvider,
        deviceService: DeviceService,
        errorHandler: ErrorHandler,
        onLogout: @escaping () -> Void,
        onLanguageChange: @escaping (String) -> Void,
        hosting: @escaping (AnyView) -> UIViewController) {
     self.model = model
-    self.kinopoisk = KinopoiskKeySettingsModel(keyProvider: kinopoiskKeyProvider)
+    self.kinopoisk = IntegrationKeySettingsModel(keyProvider: kinopoiskKeyProvider)
     self.deviceService = deviceService
     self.errorHandler = errorHandler
     self.onLogout = onLogout
@@ -577,14 +578,16 @@ final class TVSettingsCatalog {
   private func dataSourcesSections() -> [TSKSection] {
     func row(_ integration: Integration) -> TSKRow {
       TSKRow(title: integration.name,
-             description: integration.summary,
+             description: integration.about,
              kind: .action(pushes: true) { [unowned self] in self.open(integration) },
+             // «Дополнительно» rows are there, disabled: nothing to open yet.
+             isEnabled: integration.isSupported,
              previewKey: integration.rawValue,
              trailingValue: integration.isSupported ? integration.status.title : nil)
     }
     return [
-      TSKSection(rows: Integration.supported.map(row)),
-      TSKSection(title: "Coming soon".localized, rows: Integration.upcoming.map(row)),
+      TSKSection(title: "Available".localized, rows: Integration.available.map(row)),
+      TSKSection(title: "Integrations_Section_Additional".localized, rows: Integration.additional.map(row)),
     ]
   }
 
@@ -601,17 +604,24 @@ final class TVSettingsCatalog {
     ))
   }
 
+  /// The key model of a source that takes one.
+  private func keyModel(for integration: Integration) -> IntegrationKeySettingsModel? {
+    switch integration {
+    case .kinopoisk: kinopoisk
+    case .tmdb: tmdbKey
+    default: nil
+    }
+  }
+
   private func integrationSections(_ integration: Integration) -> [TSKSection] {
-    let status = integration.status
-    let isConnected = status == .connected || status == .off
-    var statusValue = status.title
-    if integration == .kinopoisk {
-      switch kinopoisk.validationState {
-      case .checking: statusValue = "Checking…".localized
-      case .validButQuotaExceeded where status == .connected:
-        statusValue = "Connected · today's quota is used up".localized
-      default: break
-      }
+    let model = keyModel(for: integration)
+    let hasKey = integration.keyProvider?.isConnected == true
+    var statusValue = integration.status.title
+    switch model?.validationState {
+    case .checking: statusValue = "Checking…".localized
+    case .validButQuotaExceeded where integration.status == .apiKey:
+      statusValue = "Integration_Status_APIKey_Quota".localized
+    default: break
     }
 
     var about = [TSKRow(title: "Status".localized, description: integration.about,
@@ -621,38 +631,40 @@ final class TVSettingsCatalog {
     }
     var sections = [TSKSection(rows: about)]
 
-    if integration == .kinopoisk, isConnected {
+    if integration == .tmdb {
       sections.append(TSKSection(rows: [
-        TSKRow(title: "Use on title pages".localized,
-               description: "Integration_Kinopoisk_Toggle".localized,
-               kind: .toggle(key: "kinopoiskEnabled")),
+        TSKRow(title: "KinoPub proxy".localized,
+               description: (hasKey ? "Integration_TMDB_ProxyFooter" : "Integration_TMDB_ProxyFooter_NoKey").localized,
+               kind: .toggle(key: "tmdbProxy"),
+               isEnabled: hasKey),
+      ]))
+    } else if hasKey {
+      sections.append(TSKSection(rows: [
+        TSKRow(title: "Integration_Status_APIKey".localized,
+               description: "Integration_KeyToggle_Footer".localized,
+               kind: .toggle(key: "\(integration.rawValue)KeyEnabled")),
       ]))
     }
 
     var actions: [TSKRow] = []
-    switch integration.connection {
-    case .builtIn:
-      break
-    case .apiKey, .account:
-      if isConnected {
-        actions.append(TSKRow(title: "Change Key…".localized,
-                              description: integration.connectHelp,
-                              kind: .action(pushes: false) { [unowned self] in
-                                self.presentKeyAlert(for: integration)
-                              }))
-        actions.append(TSKRow(title: "Disconnect…".localized,
-                              description: "Integration_Disconnect_Message".localized,
-                              kind: .action(pushes: false) { [unowned self] in
-                                self.confirmDisconnect(integration)
-                              }))
-      } else {
-        actions.append(TSKRow(title: (integration.connection == .account ? "Sign In…" : "Connect…").localized,
-                              description: integration.connectHelp,
-                              kind: .action(pushes: false) { [unowned self] in
-                                self.presentKeyAlert(for: integration)
-                              },
-                              isEnabled: integration.isSupported && kinopoisk.validationState != .checking))
-      }
+    if hasKey {
+      actions.append(TSKRow(title: "Change Key…".localized,
+                            description: integration.connectHelp,
+                            kind: .action(pushes: false) { [unowned self] in
+                              self.presentKeyAlert(for: integration)
+                            }))
+      actions.append(TSKRow(title: "Disconnect…".localized,
+                            description: "Integration_Disconnect_Message".localized,
+                            kind: .action(pushes: false) { [unowned self] in
+                              self.confirmDisconnect(integration)
+                            }))
+    } else {
+      actions.append(TSKRow(title: (integration.connection == .account ? "Sign In…" : "Add Key…").localized,
+                            description: integration.connectHelp,
+                            kind: .action(pushes: false) { [unowned self] in
+                              self.presentKeyAlert(for: integration)
+                            },
+                            isEnabled: model != nil && model?.validationState != .checking))
     }
     // The "?" of the other platforms: a link cannot be opened here, so the address is
     // written out for the phone.
@@ -669,10 +681,11 @@ final class TVSettingsCatalog {
   /// The key alert: a field, what the key is for, and Verify as the confirming action.
   /// A key that fails brings the alert back with the reason and the key still in it.
   private func presentKeyAlert(for integration: Integration, draft: String = "", failure: String? = nil) {
-    guard integration == .kinopoisk else { return }
+    guard let model = keyModel(for: integration) else { return }
+    let prompt = integration == .tmdb ? "Integration_TMDB_KeyPrompt" : "Integration_Kinopoisk_KeyPrompt"
     let alert = UIAlertController(
       title: String(format: "Connect %@".localized, integration.name),
-      message: failure ?? "Integration_Kinopoisk_KeyPrompt".localized,
+      message: failure ?? prompt.localized,
       preferredStyle: .alert
     )
     alert.addTextField { field in
@@ -688,9 +701,9 @@ final class TVSettingsCatalog {
       Task { @MainActor in
         guard let self, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         self.host.reloadPages()
-        await self.kinopoisk.check(key: key)
+        await model.check(key: key)
         self.host.reloadPages()
-        if let failure = self.kinopoisk.failureText {
+        if let failure = model.failureText {
           self.presentKeyAlert(for: integration, draft: key, failure: failure)
         }
       }
@@ -707,7 +720,7 @@ final class TVSettingsCatalog {
       preferredStyle: .alert
     )
     alert.addAction(UIAlertAction(title: "Disconnect".localized, style: .destructive) { [weak self] _ in
-      self?.kinopoisk.disconnect()
+      self?.keyModel(for: integration)?.disconnect()
       self?.host.reloadPages()
     })
     alert.addAction(UIAlertAction(title: "Cancel".localized, style: .cancel))
@@ -1891,10 +1904,17 @@ final class TVSettingsCatalog {
     bindDeviceChoice("deviceStreamType", \.streamingType)
     bindDeviceChoice("deviceServerLocation", \.serverLocation)
 
-    store.bindBool("kinopoiskEnabled",
-                   get: { KinopoiskKeyValidation.isEnabled },
+    store.bindBool("kinopoiskKeyEnabled",
+                   get: { IntegrationKeyProvider.kinopoisk.isEnabled },
                    set: { [unowned self] isOn in
-                     KinopoiskKeyValidation.isEnabled = isOn
+                     IntegrationKeyProvider.kinopoisk.isEnabled = isOn
+                     self.host.reloadPages()
+                   })
+    // On is the default path; off asks TMDB directly with the viewer's own key.
+    store.bindBool("tmdbProxy",
+                   get: { !(IntegrationKeyProvider.tmdb.isConnected && IntegrationKeyProvider.tmdb.isEnabled) },
+                   set: { [unowned self] isOn in
+                     IntegrationKeyProvider.tmdb.isEnabled = !isOn
                      self.host.reloadPages()
                    })
     for flag in FeatureFlag.allCases {
@@ -2133,7 +2153,7 @@ private extension UIFont {
 /// tvOS Settings when TVSettingKit is present. `TVProfileSettingsView` is the fallback.
 struct TVSettingKitSettingsView: View {
   let model: ProfileModel
-  let kinopoiskKeyProvider: KinopoiskKeyProvider
+  let kinopoiskKeyProvider: IntegrationKeyProvider
   var onLogout: () -> Void
   var onLanguageChange: (String) -> Void
 

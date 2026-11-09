@@ -34,7 +34,7 @@ protocol ContentStoreProvider {
 }
 
 protocol KinopoiskKeyProviderProvider {
-  var kinopoiskKeyProvider: KinopoiskKeyProvider { get }
+  var kinopoiskKeyProvider: IntegrationKeyProvider { get }
 }
 
 protocol AppContextProtocol: AuthorizationServiceProvider
@@ -76,7 +76,7 @@ struct AppContext: AppContextProtocol {
   var hlsDownloadManager: HLSAssetDownloadManager
   var actionsService: UserActionsService
   var metadataService: MetadataService
-  var kinopoiskKeyProvider: KinopoiskKeyProvider
+  var kinopoiskKeyProvider: IntegrationKeyProvider
   var contentStore: ContentStore
   var collectionsService: CollectionsService
   var deviceService: DeviceService
@@ -168,9 +168,9 @@ struct AppContext: AppContextProtocol {
     let metadataConfig = MetadataConfiguration(
       proxyBaseURL: configuration.tmdbProxyBaseURL.flatMap(URL.init(string:))
     )
-    let kinopoiskKeyProvider = KinopoiskKeyProvider()
+    let kinopoiskKeyProvider = IntegrationKeyProvider.kinopoisk
     let metadataService = MetadataService(sources: [
-      TMDBSource(configuration: metadataConfig),
+      TMDBSource(configuration: metadataConfig, directAccess: IntegrationKeyProvider.tmdb),
       KinopoiskSource(keyProvider: kinopoiskKeyProvider),
       // Staff stays on this path. The v2 comparison calls the same source with it off.
       KinopoiskProxySource(includeStaff: true)

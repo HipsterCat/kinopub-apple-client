@@ -25,7 +25,7 @@ import KinoPubUI
 struct TVProfileSettingsView: View {
 
   let model: ProfileModel
-  let kinopoiskKeyProvider: KinopoiskKeyProvider
+  let kinopoiskKeyProvider: IntegrationKeyProvider
   @Binding var selectedLanguage: String
   /// Bumps the cover row when the choice page writes the key.
   @AppStorage(CoverArtworkPreferences.languageKey) private var coverLanguageToken = ""
@@ -1475,11 +1475,11 @@ private struct TVFeatureFlagsPage: View {
 /// key via Siri Remote is inherently clunky — an accepted compromise for now,
 /// same spirit as this app's other "unverified on real remote" callouts.
 private struct TVKinopoiskKeyView: View {
-  @StateObject private var model: KinopoiskKeySettingsModel
+  @StateObject private var model: IntegrationKeySettingsModel
   @FocusState private var isFieldFocused: Bool
 
-  init(keyProvider: KinopoiskKeyProvider) {
-    _model = StateObject(wrappedValue: KinopoiskKeySettingsModel(keyProvider: keyProvider))
+  init(keyProvider: IntegrationKeyProvider) {
+    _model = StateObject(wrappedValue: IntegrationKeySettingsModel(keyProvider: keyProvider))
   }
 
   var body: some View {

@@ -1,17 +1,17 @@
 //
-//  KinopoiskKeySettingsModel.swift
+//  IntegrationKeySettingsModel.swift
 //  KinoPubAppleClient
 //
 
 import Foundation
 import KinoPubMetadata
 
-/// Drives the "enter your Kinopoisk Unofficial API key" flow shared by the
-/// iOS/macOS Settings form and the tvOS push destination. Saving and validating
+/// Drives the "enter your own API key" flow of Settings › Integrations (Kinopoisk
+/// Unofficial, TMDB) on every platform. Saving and validating
 /// happen together, on the explicit "Validate" action — typing alone doesn't
 /// touch Keychain on every keystroke.
 @MainActor
-final class KinopoiskKeySettingsModel: ObservableObject {
+final class IntegrationKeySettingsModel: ObservableObject {
   enum ValidationState: Equatable {
     case idle
     case checking
@@ -24,18 +24,33 @@ final class KinopoiskKeySettingsModel: ObservableObject {
   @Published var keyText: String
   @Published private(set) var validationState: ValidationState
 
-  private let keyProvider: KinopoiskKeyProvider
+  let integration: Integration
+  private let keyProvider: IntegrationKeyProvider
   private let client = MetadataHTTPClient()
 
-  /// A permanently-stable kinopoisk id (The Shawshank Redemption) — cheap,
-  /// content-agnostic call just to check the key itself.
-  private static let validationURL = URL(string: "https://kinopoiskapiunofficial.tech/api/v2.2/films/326")!
-
-  init(keyProvider: KinopoiskKeyProvider) {
+  init(keyProvider: IntegrationKeyProvider = .kinopoisk, integration: Integration = .kinopoisk) {
+    self.integration = integration
     self.keyProvider = keyProvider
     let existing = keyProvider.rawKey() ?? ""
     self.keyText = existing
-    self.validationState = (!existing.isEmpty && KinopoiskKeyValidation.isValidated) ? .valid : .idle
+    self.validationState = (!existing.isEmpty && keyProvider.isValidated) ? .valid : .idle
+  }
+
+  /// One cheap, content-agnostic call that only a working key answers.
+  private static func validationRequest(for integration: Integration, key: String) -> (URL, [String: String]) {
+    switch integration {
+    case .tmdb:
+      // A v4 read access token is a JWT and goes in the header; a v3 key is a query item.
+      if key.hasPrefix("eyJ") {
+        return (URL(string: "https://api.themoviedb.org/3/configuration")!, ["Authorization": "Bearer \(key)"])
+      }
+      var components = URLComponents(string: "https://api.themoviedb.org/3/configuration")!
+      components.queryItems = [URLQueryItem(name: "api_key", value: key)]
+      return (components.url!, [:])
+    default:
+      // A permanently-stable kinopoisk id (The Shawshank Redemption).
+      return (URL(string: "https://kinopoiskapiunofficial.tech/api/v2.2/films/326")!, ["X-API-KEY": key])
+    }
   }
 
   var isValidateEnabled: Bool {
@@ -56,10 +71,11 @@ final class KinopoiskKeySettingsModel: ObservableObject {
     validationState = .checking
     keyProvider.save(key: trimmed)
     do {
-      _ = try await client.getData(url: Self.validationURL, headers: ["X-API-KEY": trimmed])
+      let (url, headers) = Self.validationRequest(for: integration, key: trimmed)
+      _ = try await client.getData(url: url, headers: headers)
       keyProvider.markValidated()
       validationState = .valid
-    } catch MetadataError.httpStatus(402) {
+    } catch MetadataError.httpStatus(402) where integration == .kinopoisk {
       // Real key, today's free-tier quota is just used up.
       keyProvider.markValidated()
       validationState = .validButQuotaExceeded
@@ -81,7 +97,7 @@ final class KinopoiskKeySettingsModel: ObservableObject {
   /// Why the key alert comes back after Verify, or nil when the key was kept.
   var failureText: String? {
     switch validationState {
-    case .invalid, .networkError: statusText
+    case .invalid, .networkError: statusText.localized
     default: nil
     }
   }
@@ -99,7 +115,7 @@ final class KinopoiskKeySettingsModel: ObservableObject {
     case .invalid:
       return "That key was rejected — check it and try again."
     case .networkError:
-      return "Couldn't reach Kinopoisk right now — try again."
+      return String(format: "Couldn't reach %@ right now — try again.".localized, integration.name)
     }
   }
 }

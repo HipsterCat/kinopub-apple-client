@@ -3,9 +3,12 @@
 //  KinoPubAppleClient
 //
 //  Settings › Integrations on macOS, iOS and iPadOS, laid out like macOS Internet
-//  Accounts: one row per source with its icon and state, each opening a page to connect,
-//  switch off or read about it. The catalog is `Integration`; tvOS draws the same one
-//  through TVSettingKit (`TVSettingsCatalog.integrationsSections`).
+//  Accounts: one row per source with its icon and state, each opening a page to add
+//  one's own key, switch it off or read about the source. The catalog is `Integration`;
+//  tvOS draws the same one through TVSettingKit (`TVSettingsCatalog.dataSourcesSections`).
+//
+//  Rows carry no subtitle: in Internet Accounts the subtitle lists what is switched on
+//  inside an account, and nothing here can be switched per item yet (Sasha, 2026-11-09).
 //
 
 import SwiftUI
@@ -13,36 +16,42 @@ import SwiftUI
 #if !os(tvOS)
 struct IntegrationsSettingsPane: View {
   // The rows' states are read from these; observing them redraws the list when a page
-  // connects or switches a source off.
-  @AppStorage(KinopoiskKeyValidation.defaultsKey) private var kinopoiskValidated = false
-  @AppStorage(KinopoiskKeyValidation.enabledKey) private var kinopoiskEnabled = true
+  // adds a key or switches it off.
+  @AppStorage(IntegrationKeyProvider.kinopoisk.validatedDefaultsKey) private var kinopoiskValidated = false
+  @AppStorage(IntegrationKeyProvider.kinopoisk.enabledDefaultsKey) private var kinopoiskEnabled = true
+  @AppStorage(IntegrationKeyProvider.tmdb.validatedDefaultsKey) private var tmdbValidated = false
+  @AppStorage(IntegrationKeyProvider.tmdb.enabledDefaultsKey) private var tmdbEnabled = true
 
   var body: some View {
-    let _ = (kinopoiskValidated, kinopoiskEnabled)
+    let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled)
     Form {
       Section {
-        ForEach(Integration.supported) { row($0) }
-      } footer: {
-        Text("Integrations_Footer")
+        ForEach(Integration.available) { integration in
+          NavigationLink(value: SettingsDetailRoute.integration(integration)) {
+            IntegrationRowLabel(integration: integration)
+          }
+        }
+      } header: {
+        Text("Available")
       }
 
       Section {
-        ForEach(Integration.upcoming) { row($0) }
+        ForEach(Integration.additional) { integration in
+          // Nothing to open yet: the row is there, disabled.
+          NavigationLink(value: SettingsDetailRoute.integration(integration)) {
+            IntegrationRowLabel(integration: integration)
+          }
+          .disabled(true)
+        }
       } header: {
-        Text("Coming soon")
+        Text("Integrations_Section_Additional")
       }
     }
     .formStyle(.grouped)
   }
-
-  private func row(_ integration: Integration) -> some View {
-    NavigationLink(value: SettingsDetailRoute.integration(integration)) {
-      IntegrationRowLabel(integration: integration)
-    }
-  }
 }
 
-/// Icon, name, what the source gives; its state on the trailing edge.
+/// Icon and name; the state on the trailing edge for sources that work.
 private struct IntegrationRowLabel: View {
   let integration: Integration
   @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 32
@@ -50,13 +59,7 @@ private struct IntegrationRowLabel: View {
   var body: some View {
     HStack(spacing: 12) {
       IntegrationIconView(integration: integration, size: iconSize)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(verbatim: integration.name)
-        Text(verbatim: integration.summary)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
-      }
+      Text(verbatim: integration.name)
       Spacer(minLength: 8)
       if integration.isSupported {
         Text(verbatim: integration.status.title)
@@ -67,13 +70,14 @@ private struct IntegrationRowLabel: View {
   }
 }
 
-/// One source's page: who it is, what it gives, and connecting it.
+/// One source's page: who it is, the viewer's own key and its switch.
 struct IntegrationDetailView: View {
   let integration: Integration
 
-  @StateObject private var kinopoisk: KinopoiskKeySettingsModel
-  @AppStorage(KinopoiskKeyValidation.defaultsKey) private var kinopoiskValidated = false
-  @AppStorage(KinopoiskKeyValidation.enabledKey) private var kinopoiskEnabled = true
+  @StateObject private var keyModel: IntegrationKeySettingsModel
+  @AppStorage private var keyValidated: Bool
+  /// Kinopoisk: use the key. TMDB: ask TMDB directly with it (the proxy switch's inverse).
+  @AppStorage private var keyEnabled: Bool
   @Environment(\.openURL) private var openURL
 
   @State private var isEnteringKey = false
@@ -84,47 +88,59 @@ struct IntegrationDetailView: View {
   @State private var isConfirmingDisconnect = false
   @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 44
 
-  init(integration: Integration, keyProvider: KinopoiskKeyProvider) {
+  init(integration: Integration) {
     self.integration = integration
-    _kinopoisk = StateObject(wrappedValue: KinopoiskKeySettingsModel(keyProvider: keyProvider))
+    let provider = integration.keyProvider ?? .kinopoisk
+    _keyModel = StateObject(wrappedValue: IntegrationKeySettingsModel(keyProvider: provider, integration: integration))
+    _keyValidated = AppStorage(wrappedValue: false, provider.validatedDefaultsKey)
+    _keyEnabled = AppStorage(wrappedValue: true, provider.enabledDefaultsKey)
   }
 
+  private var hasKey: Bool { integration.keyProvider != nil && keyValidated }
+
   private var status: Integration.Status {
-    _ = (kinopoiskValidated, kinopoiskEnabled)
+    _ = (keyValidated, keyEnabled)
     return integration.status
   }
 
-  private var isConnected: Bool { status == .connected || status == .off }
-
   var body: some View {
     Form {
+      // The description continues the header's group, secondary, as a second row.
       Section {
         header
-      }
-
-      Section {
         Text(verbatim: integration.about)
+          .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         ForEach(integration.notes, id: \.self) { note in
-          VStack(alignment: .leading, spacing: 2) {
-            Text(verbatim: note.title)
-            Text(verbatim: note.text)
-              .font(.callout)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-          }
+          Text(verbatim: note.text)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
       } footer: {
-        if !isConnected {
+        if integration != .tmdb, !hasKey {
           actions
         }
       }
 
-      if integration == .kinopoisk, isConnected {
+      if integration == .tmdb {
         Section {
-          Toggle("Use on title pages", isOn: $kinopoiskEnabled)
+          Toggle("KinoPub proxy", isOn: proxyBinding)
+            .disabled(!hasKey)
         } footer: {
-          actions
+          VStack(alignment: .leading, spacing: 8) {
+            Text(hasKey ? "Integration_TMDB_ProxyFooter" : "Integration_TMDB_ProxyFooter_NoKey")
+            actions
+          }
+        }
+      } else if hasKey {
+        Section {
+          Toggle("Integration_Status_APIKey", isOn: $keyEnabled)
+        } footer: {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Integration_KeyToggle_Footer")
+            actions
+          }
         }
       }
     }
@@ -149,11 +165,19 @@ struct IntegrationDetailView: View {
       isPresented: $isConfirmingDisconnect
     ) {
       Button("Disconnect", role: .destructive) {
-        kinopoisk.disconnect()
+        keyModel.disconnect()
       }
     } message: {
       Text("Integration_Disconnect_Message")
     }
+  }
+
+  /// The TMDB proxy switch: on is the default path; off asks TMDB with the viewer's key.
+  private var proxyBinding: Binding<Bool> {
+    Binding(
+      get: { !hasKey || !keyEnabled },
+      set: { keyEnabled = !$0 }
+    )
   }
 
   // MARK: Header
@@ -165,7 +189,7 @@ struct IntegrationDetailView: View {
         Text(verbatim: integration.name)
           .font(.headline)
         HStack(spacing: 6) {
-          if kinopoisk.validationState == .checking, integration == .kinopoisk {
+          if keyModel.validationState == .checking {
             ProgressView()
               .controlSize(.small)
             Text("Checking…")
@@ -183,9 +207,8 @@ struct IntegrationDetailView: View {
   }
 
   private var statusLine: String {
-    if integration == .kinopoisk, status == .connected,
-       kinopoisk.validationState == .validButQuotaExceeded {
-      return "Connected · today's quota is used up".localized
+    if status == .apiKey, keyModel.validationState == .validButQuotaExceeded {
+      return "Integration_Status_APIKey_Quota".localized
     }
     return status.title
   }
@@ -195,17 +218,12 @@ struct IntegrationDetailView: View {
   /// Under the last group, as Internet Accounts puts Delete Account… and its "?".
   private var actions: some View {
     HStack {
-      switch integration.connection {
-      case .builtIn:
-        EmptyView()
-      case .apiKey, .account:
-        if isConnected {
-          Button("Change Key…") { beginKeyEntry() }
-          Button("Disconnect…") { isConfirmingDisconnect = true }
-        } else {
-          Button(integration.connection == .account ? "Sign In…" : "Connect…") { beginKeyEntry() }
-            .disabled(!integration.isSupported || kinopoisk.validationState == .checking)
-        }
+      if hasKey {
+        Button("Change Key…") { beginKeyEntry() }
+        Button("Disconnect…") { isConfirmingDisconnect = true }
+      } else {
+        Button(integration.connection == .account ? "Sign In…" : "Add Key…") { beginKeyEntry() }
+          .disabled(!integration.isSupported || keyModel.validationState == .checking)
       }
       Spacer()
       helpButton
@@ -252,6 +270,7 @@ struct IntegrationDetailView: View {
   private var keyPrompt: String {
     switch integration {
     case .kinopoisk: "Integration_Kinopoisk_KeyPrompt".localized
+    case .tmdb: "Integration_TMDB_KeyPrompt".localized
     default: integration.connectHelp
     }
   }
@@ -263,9 +282,9 @@ struct IntegrationDetailView: View {
   }
 
   private func verify() async {
-    guard integration == .kinopoisk else { return }
-    await kinopoisk.check(key: keyDraft)
-    if let failure = kinopoisk.failureText {
+    guard integration.keyProvider != nil else { return }
+    await keyModel.check(key: keyDraft)
+    if let failure = keyModel.failureText {
       // Back to the alert, the key still in the field, with why it failed.
       keyFailure = failure
       isEnteringKey = true

@@ -1778,23 +1778,6 @@
         }
       }
     },
-    "Built in" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Built in"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Встроено"
-          }
-        }
-      }
-    },
     "Bundles" : {
       "comment" : "Browse tab for kino.pub collections (not localized as “Bundles” in Russian).",
       "extractionState" : "manual",
@@ -2528,57 +2511,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Подключить %@"
-          }
-        }
-      }
-    },
-    "Connect…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connect…"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Подключить…"
-          }
-        }
-      }
-    },
-    "Connected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connected"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Подключено"
-          }
-        }
-      }
-    },
-    "Connected · today's quota is used up" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connected · today's quota is used up"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Подключено · дневной лимит исчерпан"
           }
         }
       }
@@ -5321,23 +5253,6 @@
         }
       }
     },
-    "Integration_AniList_Summary" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Anime list and episode progress"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Список аниме и прогресс по сериям"
-          }
-        }
-      }
-    },
     "Integration_Disconnect_Message" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5361,13 +5276,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kinopoisk Unofficial API (kinopoiskapiunofficial.tech) is a third-party service, not an official Kinopoisk product. With your own free key, title pages get awards, a stills gallery, facts and Russian character names. The key goes only to that service and stays in this device's Keychain."
+            "value" : "Works by default: facts, stills, reviews and some cast details come from a third-party Kinopoisk data proxy (kpapp.link). Your own free Kinopoisk Unofficial API key (kinopoiskapiunofficial.tech, not an official Kinopoisk product) adds awards and richer metadata, with higher limits."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kinopoisk Unofficial API (kinopoiskapiunofficial.tech) — сторонний сервис, а не официальный продукт Кинопоиска. С вашим собственным бесплатным ключом на страницах тайтлов появляются награды, галерея кадров, факты и русские имена персонажей. Ключ уходит только этому сервису и хранится в связке ключей устройства."
+            "value" : "Работает по умолчанию: факты, кадры, рецензии и часть данных об актёрах приходят из стороннего прокси данных Кинопоиска (kpapp.link). Собственный бесплатный ключ Kinopoisk Unofficial API (kinopoiskapiunofficial.tech, не официальный продукт Кинопоиска) добавляет награды и больше данных, с бо́льшими лимитами."
           }
         }
       }
@@ -5406,57 +5321,6 @@
         }
       }
     },
-    "Integration_Kinopoisk_ProxyNote" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Facts, stills, reviews and some cast details come even without a key, from a third-party Kinopoisk data proxy (kpapp.link)."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Факты, кадры, рецензии и часть данных об актёрах приходят и без ключа — из стороннего прокси данных Кинопоиска (kpapp.link)."
-          }
-        }
-      }
-    },
-    "Integration_Kinopoisk_Summary" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Awards, stills, facts and character names"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Награды, кадры, факты и имена персонажей"
-          }
-        }
-      }
-    },
-    "Integration_Kinopoisk_Toggle" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Off keeps the key but stops using it on title pages."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Если выключить, ключ останется, но на страницах тайтлов использоваться не будет."
-          }
-        }
-      }
-    },
     "Integration_MyAnimeList_About" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5470,23 +5334,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "MyAnimeList — крупнейшая база и список аниме. После входа прогресс и оценки в MyAnimeList будут следовать за тем, что вы смотрите здесь."
-          }
-        }
-      }
-    },
-    "Integration_MyAnimeList_Summary" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Anime list, scores and progress"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Список аниме, оценки и прогресс"
           }
         }
       }
@@ -5525,23 +5372,6 @@
         }
       }
     },
-    "Integration_OMDb_Summary" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "IMDb, Rotten Tomatoes and Metacritic ratings"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Рейтинги IMDb, Rotten Tomatoes и Metacritic"
-          }
-        }
-      }
-    },
     "Integration_Simkl_About" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5559,53 +5389,19 @@
         }
       }
     },
-    "Integration_Simkl_Summary" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Watch history for films, series and anime"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "История фильмов, сериалов и аниме"
-          }
-        }
-      }
-    },
     "Integration_TMDB_About" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The Movie Database supplies title logos and backdrops, cast photos and biographies, episode names and air dates. It comes through KinoPub's own server, so there is nothing to sign in to."
+            "value" : "Works by default through KinoPub's server: title logos and backdrops, cast photos and biographies, episode names and air dates. With your own key TMDB is asked directly, with your own limits, and often faster."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The Movie Database даёт логотипы и фоны тайтлов, фото и биографии актёров, названия и даты выхода серий. Данные идут через собственный сервер KinoPub, входить никуда не нужно."
-          }
-        }
-      }
-    },
-    "Integration_TMDB_Summary" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Logos, backdrops, cast photos and episode dates"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Логотипы, фоны, фото актёров и даты серий"
+            "value" : "Работает по умолчанию через сервер KinoPub: логотипы и фоны тайтлов, фото и биографии актёров, названия и даты выхода серий. Со своим ключом запросы идут в TMDB напрямую, со своими лимитами и часто быстрее."
           }
         }
       }
@@ -5627,23 +5423,6 @@
         }
       }
     },
-    "Integration_Trakt_Summary" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Watch history, watchlist and ratings sync"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Синхронизация истории, списка «Буду смотреть» и оценок"
-          }
-        }
-      }
-    },
     "Integrations" : {
       "comment" : "Display name for the Integrations settings category.",
       "isCommentAutoGenerated" : true,
@@ -5652,23 +5431,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Интеграции"
-          }
-        }
-      }
-    },
-    "Integrations_Footer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sources the app reads beyond kino.pub. Open one to connect it, switch it off or see what it gives."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Источники данных помимо kino.pub. Откройте источник, чтобы подключить, отключить или узнать, что он даёт."
           }
         }
       }
@@ -10964,23 +10726,6 @@
         }
       }
     },
-    "Not connected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not connected"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Не подключено"
-          }
-        }
-      }
-    },
     "Not Found" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15269,23 +15014,6 @@
         }
       }
     },
-    "Use on title pages" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use on title pages"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Использовать на страницах тайтлов"
-          }
-        }
-      }
-    },
     "Use proxy" : {
       "comment" : "A toggle to enable or disable the use of a proxy server.",
       "isCommentAutoGenerated" : true
@@ -15744,23 +15472,6 @@
         }
       }
     },
-    "Without a key" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Without a key"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Без ключа"
-          }
-        }
-      }
-    },
     "Worker admin token" : {
 
     },
@@ -16000,6 +15711,227 @@
     },
     "Что не смотрели, не обновлялось и не добавлялось в закладки столько недель, в ряд не попадает. Закладки — по дате добавления, не больше четырёх." : {
 
+    },
+    "Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Available"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступно"
+          }
+        }
+      }
+    },
+    "Integrations_Section_Additional" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дополнительно"
+          }
+        }
+      }
+    },
+    "By default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By default"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По умолчанию"
+          }
+        }
+      }
+    },
+    "Integration_Status_APIKey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ключ API"
+          }
+        }
+      }
+    },
+    "Integration_Status_APIKey_Quota" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key · today's quota is used up"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ключ API · дневной лимит исчерпан"
+          }
+        }
+      }
+    },
+    "Add Key…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Key…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить ключ…"
+          }
+        }
+      }
+    },
+    "KinoPub proxy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KinoPub proxy"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прокси KinoPub"
+          }
+        }
+      }
+    },
+    "Integration_TMDB_ProxyFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On, TMDB is asked through KinoPub's server and your key is not used. Turn it on if TMDB does not open directly on your network."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Когда включено, запросы к TMDB идут через сервер KinoPub, а ваш ключ не используется. Включите, если TMDB напрямую не открывается в вашей сети."
+          }
+        }
+      }
+    },
+    "Integration_TMDB_ProxyFooter_NoKey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By default TMDB is asked through KinoPub's server. Going direct needs your own key."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По умолчанию запросы к TMDB идут через сервер KinoPub. Напрямую — только со своим ключом."
+          }
+        }
+      }
+    },
+    "Integration_KeyToggle_Footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off keeps the key and goes back to the default source."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если выключить, ключ останется, а данные снова пойдут из источника по умолчанию."
+          }
+        }
+      }
+    },
+    "Integration_TMDB_KeyPrompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste your TMDB API key or read access token. It is checked before it is saved and stays in this device's Keychain."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вставьте API-ключ TMDB или токен доступа на чтение. Перед сохранением он будет проверен; хранится в связке ключей устройства."
+          }
+        }
+      }
+    },
+    "Integration_TMDB_KeyHelp" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign up at themoviedb.org, then request a free key in Settings › API. Either the API key or the read access token works. With your own key TMDB is asked directly, with your own limits."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зарегистрируйтесь на themoviedb.org и запросите бесплатный ключ в «Настройки › API». Подойдёт и API-ключ, и токен доступа на чтение. Со своим ключом запросы идут в TMDB напрямую, со своими лимитами."
+          }
+        }
+      }
+    },
+    "Couldn't reach %@ right now — try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't reach %@ right now — try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось связаться с %@ — попробуйте ещё раз."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

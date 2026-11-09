@@ -95,7 +95,7 @@ struct SettingsRootView: View {
               FeatureFlagsView()
                 .settingsMacChrome(title: "Feature flags", isRoot: false)
             case .integration(let integration):
-              IntegrationDetailView(integration: integration, keyProvider: appContext.kinopoiskKeyProvider)
+              IntegrationDetailView(integration: integration)
                 .settingsMacChrome(title: LocalizedStringKey(integration.name), isRoot: false)
             case .languageList(let kind):
               PlaybackLanguageListEditor(kind: kind)
@@ -228,7 +228,7 @@ struct SettingsRootView: View {
           case .featureFlags:
             FeatureFlagsView()
           case .integration(let integration):
-            IntegrationDetailView(integration: integration, keyProvider: appContext.kinopoiskKeyProvider)
+            IntegrationDetailView(integration: integration)
               .navigationTitle(integration.name)
           case .languageList(let kind):
             PlaybackLanguageListEditor(kind: kind)
