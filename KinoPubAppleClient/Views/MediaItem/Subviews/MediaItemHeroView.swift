@@ -1402,13 +1402,16 @@ struct MediaItemHeroView: View {
                                    omittingDocumentary: profile.kind == .documentary)
       .filter { !restated.contains($0) }
       .prefix(Self.genreLimit)
+    let place = mediaItem.countryNames.first.flatMap { $0.isEmpty ? nil : $0 }
+    // A concert is told apart by where it was played, not by its genres — the artist's
+    // are the same on every live record — so the place goes first (Sasha, 2026-11-09).
+    let placeLeads = profile.kind == .concert
+    if placeLeads, let place { blocks.append(place) }
     if let first = genres.first {
       let rest = genres.dropFirst().map { $0.lowercased() }
       blocks.append(([first] + rest).joined(separator: ", "))
     }
-    if let country = mediaItem.countryNames.first, !country.isEmpty {
-      blocks.append(country)
-    }
+    if !placeLeads, let place { blocks.append(place) }
     return blocks
   }
 
