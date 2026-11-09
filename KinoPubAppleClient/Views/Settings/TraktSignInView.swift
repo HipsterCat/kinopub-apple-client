@@ -33,7 +33,9 @@ struct TraktSignInView: View {
         account.cancelSignIn()
         dismiss()
       }
+#if !os(tvOS)
       .keyboardShortcut(.cancelAction)
+#endif
     }
     .multilineTextAlignment(.center)
     .padding(32)
@@ -63,7 +65,9 @@ struct TraktSignInView: View {
           .fixedSize(horizontal: false, vertical: true)
         Text(verbatim: code)
           .font(.system(.largeTitle, design: .monospaced).weight(.bold))
+#if !os(tvOS)
           .textSelection(.enabled)
+#endif
           .accessibilityLabel(code.map(String.init).joined(separator: " "))
 #if !os(tvOS)
         Button(String(format: "Open %@".localized, displayHost(url))) {
