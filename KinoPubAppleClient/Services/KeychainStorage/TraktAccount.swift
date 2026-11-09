@@ -57,6 +57,18 @@ struct WikidataMetadataAccess: WikidataAccessProviding {
   var isWikidataEnabled: Bool { Self.isEnabled }
 }
 
+/// MyShows' score and audience for series (`MyShowsSource`), while the viewer keeps it on
+/// in Settings › Integrations › MyShows. On by default; its public API needs no account.
+struct MyShowsMetadataAccess: MyShowsAccessProviding {
+  static let enabledDefaultsKey = "myShowsMetadataEnabled"
+
+  static var isEnabled: Bool {
+    UserDefaults.standard.object(forKey: enabledDefaultsKey) as? Bool ?? true
+  }
+
+  var isMyShowsEnabled: Bool { Self.isEnabled }
+}
+
 struct TraktToken: Codable, Sendable {
   var accessToken: String
   var refreshToken: String

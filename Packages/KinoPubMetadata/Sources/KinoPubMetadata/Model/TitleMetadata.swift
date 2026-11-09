@@ -276,6 +276,8 @@ public struct ExternalRating: Sendable, Hashable, Identifiable {
     case myAnimeList
     /// 0…10, with votes, through our worker.
     case douban
+    /// 0…5, with votes. Series only.
+    case myShows
   }
 
   public var id: Kind { kind }
@@ -300,7 +302,7 @@ public struct ExternalRating: Sendable, Hashable, Identifiable {
   public var score10: Double {
     switch kind {
     case .rottenTomatoes, .rottenTomatoesAudience, .metacritic: value / 10
-    case .letterboxd: value * 2
+    case .letterboxd, .myShows: value * 2
     case .trakt, .myAnimeList, .douban: value
     }
   }
@@ -316,11 +318,22 @@ public struct ExternalRating: Sendable, Hashable, Identifiable {
   }
 }
 
+/// How many people follow a series on MyShows: watching it now, and ever added it.
+public struct MyShowsStats: Sendable, Hashable {
+  public let watching: Int
+  public let watchingTotal: Int
+
+  public init(watching: Int, watchingTotal: Int) {
+    self.watching = watching
+    self.watchingTotal = watchingTotal
+  }
+}
+
 /// The title's page on another site, as Wikidata lists it.
 public struct ExternalLink: Sendable, Hashable, Identifiable {
   public enum Site: String, Sendable, Hashable, CaseIterable {
     case wikipedia, kinopoisk, douban, letterboxd, metacritic, rottenTomatoes, trakt, tvdb
-    case myAnimeList, aniDB, aniList, kitsu, wikidata
+    case myAnimeList, aniDB, aniList, kitsu, myShows, wikidata
 
     /// As the site writes its own name.
     public var name: String {
@@ -337,6 +350,7 @@ public struct ExternalLink: Sendable, Hashable, Identifiable {
       case .aniDB: "AniDB"
       case .aniList: "AniList"
       case .kitsu: "Kitsu"
+      case .myShows: "MyShows"
       case .wikidata: "Wikidata"
       }
     }
@@ -651,6 +665,7 @@ public struct TitleMetadata: Sendable {
   public var externalLinks: [ExternalLink] = []
   public var boxOfficeWorldwideUSD: Int?
   public var awardCounts: AwardCounts?
+  public var myShowsStats: MyShowsStats?
   /// IMDb's score and vote count as Trakt last read them. Fresher than kino.pub's own
   /// copy when it has more votes (Sasha, 2026-11-09).
   public var relayedIMDbRating: Double?
@@ -740,6 +755,7 @@ public struct TitleMetadata: Sendable {
     }
     if boxOfficeWorldwideUSD == nil { boxOfficeWorldwideUSD = other.boxOfficeWorldwideUSD }
     if awardCounts == nil { awardCounts = other.awardCounts }
+    if myShowsStats == nil { myShowsStats = other.myShowsStats }
     // Trakt and OMDb both relay IMDb; the copy with more votes is the fresher one.
     if let votes = other.relayedIMDbVotes, other.relayedIMDbRating != nil, votes > (relayedIMDbVotes ?? 0) {
       relayedIMDbRating = other.relayedIMDbRating

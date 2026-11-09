@@ -9,6 +9,8 @@ public enum MetadataSourceID: String, Sendable, Hashable, Codable {
   case douban
   /// Wikidata's public API: ids on other sites, box office, Wikipedia.
   case wikidata
+  /// MyShows.me's public JSON-RPC API. Series only.
+  case myShows
   case kinopoisk
   /// Keyless kpapp.link proxy (same unofficial Kinopoisk payload the community fork uses).
   case kinopoiskProxy

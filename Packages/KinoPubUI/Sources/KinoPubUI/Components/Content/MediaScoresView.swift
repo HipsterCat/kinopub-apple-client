@@ -34,6 +34,8 @@ public struct MediaScoreLogo: View {
     case myAnimeList
     /// Douban, through our worker.
     case douban
+    /// MyShows.me, series only.
+    case myShows
 
     /// Sasha's full-colour marks for the sources that have no small set.
     fileprivate var extraAssetName: String? {
@@ -52,6 +54,7 @@ public struct MediaScoreLogo: View {
       case .letterboxd: return "letterboxd"
       case .myAnimeList: return "myanimelist"
       case .douban: return "douban"
+      case .myShows: return "myshows"
       }
     }
 

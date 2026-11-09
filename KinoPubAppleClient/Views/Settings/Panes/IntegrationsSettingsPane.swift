@@ -27,10 +27,11 @@ struct IntegrationsSettingsPane: View {
   @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
+  @AppStorage(MyShowsMetadataAccess.enabledDefaultsKey) private var myShowsData = true
 
   var body: some View {
     let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, omdbValidated, omdbEnabled,
-             traktUsername, traktData, doubanData, wikidataData)
+             traktUsername, traktData, doubanData, wikidataData, myShowsData)
     Form {
       Section {
         ForEach(Integration.available) { integration in
@@ -100,6 +101,7 @@ struct IntegrationDetailView: View {
   /// Douban's scores on the title page; nothing to connect.
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
+  @AppStorage(MyShowsMetadataAccess.enabledDefaultsKey) private var myShowsData = true
   @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 44
 
   init(integration: Integration) {
@@ -116,7 +118,7 @@ struct IntegrationDetailView: View {
   private var isConnected: Bool { isAccount ? traktUsername != nil : hasKey }
 
   private var status: Integration.Status {
-    _ = (keyValidated, keyEnabled, traktUsername, traktData, doubanData, wikidataData)
+    _ = (keyValidated, keyEnabled, traktUsername, traktData, doubanData, wikidataData, myShowsData)
     return integration.status
   }
 
@@ -213,6 +215,7 @@ struct IntegrationDetailView: View {
     switch integration {
     case .douban: $doubanData
     case .wikidata: $wikidataData
+    case .myShows: $myShowsData
     default: $traktData
     }
   }
