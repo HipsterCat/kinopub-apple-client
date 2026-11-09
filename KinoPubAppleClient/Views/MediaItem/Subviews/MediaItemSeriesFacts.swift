@@ -158,23 +158,33 @@ enum TitleStatus: Equatable {
       ? days(since: Date(timeIntervalSince1970: TimeInterval(item.updatedAt))) : nil
 
     if item.isSeries {
-      if let ahead = days(since: awaitedEpisodeAirDate).map({ -$0 }), (0...Rules.awaitedDays).contains(ahead) {
-        return .newEpisode(inDays: ahead)
-      }
-      if let premiered = days(since: metadata.firstAirDate), (0...Rules.premiereDays).contains(premiered) {
-        return .premiere
-      }
       let seasons = item.seasons?.count ?? 0
+      let lastSeasonStart = metadata.seasonSummaries
+        .filter { $0.seasonNumber > 0 }
+        .max { $0.seasonNumber < $1.seasonNumber }?.airDate
+      let isNewSeason = seasons > 1
+        && days(since: lastSeasonStart).map { (0...Rules.newSeasonDays).contains($0) } == true
+      let premiered = days(since: metadata.firstAirDate).map { (0...Rules.premiereDays).contains($0) } == true
+      // The next episode's date matters to someone already into the latest season. To
+      // anyone who has not started it — or the series — the news is the new season or
+      // the premiere (Sasha, 2026-11-09).
+      if hasStartedLatestSeason(item) {
+        if let ahead = days(since: awaitedEpisodeAirDate).map({ -$0 }), (0...Rules.awaitedDays).contains(ahead) {
+          return .newEpisode(inDays: ahead)
+        }
+      } else {
+        if premiered { return .premiere }
+        if isNewSeason { return .newSeason }
+        if let ahead = days(since: awaitedEpisodeAirDate).map({ -$0 }), (0...Rules.awaitedDays).contains(ahead) {
+          return .newEpisode(inDays: ahead)
+        }
+      }
+      if premiered { return .premiere }
       if SeriesFacts.isFinished(item, metadata),
          let ended = days(since: metadata.lastAirDate), (0...Rules.endedDays).contains(ended) {
         return seasons > 1 ? .finalSeason : .allEpisodes
       }
-      let lastSeasonStart = metadata.seasonSummaries
-        .filter { $0.seasonNumber > 0 }
-        .max { $0.seasonNumber < $1.seasonNumber }?.airDate
-      if seasons > 1, let started = days(since: lastSeasonStart), (0...Rules.newSeasonDays).contains(started) {
-        return .newSeason
-      }
+      if isNewSeason { return .newSeason }
       if !SeriesFacts.isFinished(item, metadata),
          let updated = updatedDaysAgo, (0...Rules.newEpisodesDays).contains(updated) {
         return .newEpisodes
@@ -195,6 +205,12 @@ enum TitleStatus: Equatable {
       return .recentlyAdded
     }
     return nil
+  }
+
+  /// Any episode of the series' last season watched or in progress.
+  private static func hasStartedLatestSeason(_ item: MediaItem) -> Bool {
+    guard let latest = item.seasons?.max(by: { $0.number < $1.number }) else { return false }
+    return latest.episodes.contains { $0.watched > 0 || $0.watching.time > 0 }
   }
 
   var text: String {
