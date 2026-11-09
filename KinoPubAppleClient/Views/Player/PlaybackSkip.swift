@@ -111,7 +111,7 @@ struct SkipSegmentsPreview: Equatable {
   static func rows(_ segments: SkipSegments?, durationSeconds: Double) -> [Row] {
     guard let segments else { return [] }
     let order: [SkipSegments.Kind] = [.recap, .intro, .credits, .preview]
-    return order.compactMap { kind in
+    return order.compactMap { kind -> Row? in
       guard let segment = segments[kind] else { return nil }
       let end = segment.endMs.map { Double($0) / 1000 } ?? durationSeconds
       let seconds = Int((end - Double(segment.startMs) / 1000).rounded())
