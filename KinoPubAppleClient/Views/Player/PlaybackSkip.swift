@@ -116,7 +116,7 @@ struct SkipSegmentsPreview: Equatable {
       let end = segment.endMs.map { Double($0) / 1000 } ?? durationSeconds
       let seconds = Int((end - Double(segment.startMs) / 1000).rounded())
       guard seconds > 0 else { return nil }
-      return Row(kind: kind, length: Duration.seconds(seconds).formatted(.time(pattern: .minuteSecond)))
+      return Row(kind: kind, length: Swift.Duration.seconds(seconds).formatted(.time(pattern: .minuteSecond)))
     }
   }
 
