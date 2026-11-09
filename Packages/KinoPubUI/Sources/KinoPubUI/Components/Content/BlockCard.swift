@@ -115,9 +115,12 @@ public struct BlockCard<Content: View>: View {
       .frame(maxHeight: fillsHeight ? .infinity : nil)
       .background {
         ZStack {
-          BlockMetrics.shape.fill(fill)
+          // A tinted card keeps its material and deepens only its wash: the material's own
+          // hover swap under green or red read as a muddy, barely visible change (Sasha,
+          // 2026-11-09).
+          BlockMetrics.shape.fill(tint == nil ? fill : .regularMaterial)
           if let tint {
-            BlockMetrics.shape.fill(tint.opacity(0.14))
+            BlockMetrics.shape.fill(tint.opacity(isHovered ? 0.20 : 0.15))
           }
         }
       }

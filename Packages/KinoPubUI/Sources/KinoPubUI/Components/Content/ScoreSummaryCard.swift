@@ -267,7 +267,7 @@ public struct ScoreGauge: View {
         if score != nil {
           // The hole the dot sits in: the page shows through it, whatever the page is.
           Circle()
-            .frame(width: dot + lineWidth * 0.7, height: dot + lineWidth * 0.7)
+            .frame(width: dot + lineWidth * 1.4, height: dot + lineWidth * 1.4)
             .offset(offset)
             .blendMode(.destinationOut)
         }
@@ -422,17 +422,13 @@ public struct ScoreSummaryCardContent: View {
     VStack(alignment: .leading, spacing: 0) {
       header
         .padding(.bottom, M.headerGap)
-      VStack(alignment: .leading, spacing: M.rowSpacing) {
-        ForEach(summary.rows) { row in
-          sourceRow(row)
-        }
-      }
+      sourcesGrid
       if !summary.tones.isEmpty {
         Rectangle()
           .fill(Color.primary.opacity(0.12))
           .frame(height: 1)
           .padding(.vertical, M.dividerGap)
-        VStack(alignment: .leading, spacing: M.rowSpacing) {
+        Grid(alignment: .leading, horizontalSpacing: M.columnSpacing, verticalSpacing: M.rowSpacing) {
           ForEach(summary.tones) { tone in
             toneRow(tone)
           }
@@ -470,13 +466,23 @@ public struct ScoreSummaryCardContent: View {
       if showsChevron {
         // The section header's own chevron, shown while the card is hovered or focused.
         Image(systemName: "chevron.forward")
-          .font(TypeScale.rowChevron)
+          .font(Self.chevronFont)
           .foregroundStyle(.secondary)
           .opacity(highlighted ? 0.7 : 0)
           .frame(maxHeight: .infinity, alignment: .top)
       }
     }
     .frame(height: M.gauge)
+  }
+
+  /// The section header's chevron; on tvOS the header's is far too big for a card, so the
+  /// card's running text, bold.
+  private static var chevronFont: Font {
+#if os(tvOS)
+    .caption2.weight(.bold)
+#else
+    TypeScale.rowChevron
+#endif
   }
 
   private static var titleFont: Font {
@@ -491,11 +497,49 @@ public struct ScoreSummaryCardContent: View {
 
   // MARK: Rows
 
-  /// Three columns, 10 apart: the number (fixed), the mark and the name (as wide as they
-  /// are), the bar (the rest) — or, under the pointer, the bare count in its place.
+  /// Three columns, 10 apart: the number (fixed), the marks and names (one width for the
+  /// column — its widest label's, Sasha 2026-11-09), the bar (the rest) — or, under the
+  /// pointer, the bare count in its place. A `Grid`, so the columns are columns.
+  private var sourcesGrid: some View {
+    let pitch = M.line + M.rowSpacing
+    return ZStack(alignment: .topLeading) {
+      if let index = summary.rows.firstIndex(where: { $0.id == hoveredRow }) {
+        RoundedRectangle(cornerRadius: M.line * 0.45, style: .continuous)
+          .fill(.fill.secondary)
+          .frame(maxWidth: .infinity)
+          .frame(height: pitch)
+          .padding(.horizontal, -M.columnSpacing)
+          .offset(y: CGFloat(index) * pitch - M.rowSpacing / 2)
+      }
+      Grid(alignment: .leading, horizontalSpacing: M.columnSpacing, verticalSpacing: M.rowSpacing) {
+        ForEach(summary.rows) { row in
+          sourceRow(row)
+        }
+      }
+#if !os(tvOS)
+      // The rows' hover areas, over the grid's gaps too, so the pointer never falls between
+      // two cells of one row.
+      VStack(spacing: 0) {
+        ForEach(summary.rows) { row in
+          Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: pitch)
+            .contentShape(Rectangle())
+            .onHover { inside in
+              withAnimation(.easeOut(duration: 0.15)) {
+                if inside { hoveredRow = row.id } else if hoveredRow == row.id { hoveredRow = nil }
+              }
+            }
+        }
+      }
+      .offset(y: -M.rowSpacing / 2)
+#endif
+    }
+  }
+
   private func sourceRow(_ row: ScoreSummary.Row) -> some View {
     let hovered = hoveredRow == row.id
-    return HStack(spacing: M.columnSpacing) {
+    return GridRow {
       HStack(alignment: .firstTextBaseline, spacing: 0) {
         ScoreValueText(row.value, font: M.bodyFont)
           .foregroundStyle(hovered ? tint : (row.faint ? Color.secondary : Color.primary))
@@ -504,7 +548,7 @@ public struct ScoreSummaryCardContent: View {
             .foregroundStyle(.tertiary)
         }
       }
-      .frame(width: M.valueColumn, alignment: .leading)
+      .frame(width: M.valueColumn, height: M.line, alignment: .leading)
 
       HStack(spacing: M.columnSpacing * 0.6) {
         marks(row.marks)
@@ -514,6 +558,7 @@ public struct ScoreSummaryCardContent: View {
         }
       }
       .fixedSize()
+      .frame(height: M.line)
 
       Group {
         if hovered, let detail = row.detail {
@@ -528,24 +573,8 @@ public struct ScoreSummaryCardContent: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(height: M.line)
     }
-    .frame(height: M.line)
-    .background {
-      if hovered {
-        RoundedRectangle(cornerRadius: M.line * 0.45, style: .continuous)
-          .fill(.fill.secondary)
-          .padding(.horizontal, -M.columnSpacing)
-          .padding(.vertical, -M.rowSpacing * 0.5)
-      }
-    }
-    .contentShape(Rectangle())
-#if !os(tvOS)
-    .onHover { inside in
-      withAnimation(.easeOut(duration: 0.15)) {
-        if inside { hoveredRow = row.id } else if hoveredRow == row.id { hoveredRow = nil }
-      }
-    }
-#endif
   }
 
   /// One mark, or a folded row's marks side by side — at most four, then «+N». The hero's
@@ -581,10 +610,10 @@ public struct ScoreSummaryCardContent: View {
   // MARK: Tones
 
   private func toneRow(_ tone: ScoreSummary.Tone) -> some View {
-    HStack(spacing: M.columnSpacing) {
+    GridRow {
       Text(verbatim: tone.count)
         .foregroundStyle(Color.primary)
-        .frame(width: M.valueColumn, alignment: .leading)
+        .frame(width: M.valueColumn, height: M.line, alignment: .leading)
       HStack(spacing: M.columnSpacing * 0.6) {
         Text(verbatim: tone.title)
           .foregroundStyle(Color.secondary)
@@ -592,10 +621,11 @@ public struct ScoreSummaryCardContent: View {
           .foregroundStyle(Color.primary)
       }
       .fixedSize()
+      .frame(height: M.line)
       bar(tone.share)
         .frame(maxWidth: .infinity)
+        .frame(height: M.line)
     }
-    .frame(height: M.line)
   }
 }
 

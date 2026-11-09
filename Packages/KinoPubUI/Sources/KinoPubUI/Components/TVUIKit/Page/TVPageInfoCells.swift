@@ -753,8 +753,8 @@ final class TVPageReviewCell: TVPageInfoCardCell {
   /// 2026-11-09). On focus it is the system's white platter like every card.
   override var restingFill: UIColor {
     switch tone {
-    case .positive: return UIColor.systemGreen.withAlphaComponent(0.18)
-    case .negative: return UIColor.systemRed.withAlphaComponent(0.18)
+    case .positive: return UIColor.systemGreen.withAlphaComponent(0.15)
+    case .negative: return UIColor.systemRed.withAlphaComponent(0.15)
     case .neutral: return TVPagePlatter.restingFill
     }
   }
