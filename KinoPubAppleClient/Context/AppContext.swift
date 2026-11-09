@@ -180,7 +180,9 @@ struct AppContext: AppContextProtocol {
       // After Trakt, which outranks it where both answer.
       OMDbSource(keys: IntegrationKeyProvider.omdb),
       // Douban's score, star breakdown and genre ranks, signed and cached by our worker.
-      DoubanSource(configuration: metadataConfig, access: DoubanMetadataAccess())
+      DoubanSource(configuration: metadataConfig, access: DoubanMetadataAccess()),
+      // Last: ids on other sites, Wikipedia, box office — only what the others left empty.
+      WikidataSource(access: WikidataMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru")
     ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL),
       titleCard: TitleCardSource(configuration: metadataConfig))
 

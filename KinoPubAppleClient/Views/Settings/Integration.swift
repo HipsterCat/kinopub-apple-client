@@ -19,6 +19,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   case omdb
   case trakt
   case douban
+  case wikidata
   case simkl
   case anilist
   case myAnimeList
@@ -40,7 +41,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// links are settled; their pages say they are coming.
   var isSupported: Bool {
     switch self {
-    case .kinopoisk, .tmdb, .trakt, .omdb, .douban: true
+    case .kinopoisk, .tmdb, .trakt, .omdb, .douban, .wikidata: true
     case .simkl, .anilist, .myAnimeList: false
     }
   }
@@ -49,7 +50,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// data: the app's Client ID is enough, no sign-in (Sasha, 2026-11-09).
   var worksByDefault: Bool {
     switch self {
-    case .kinopoisk, .tmdb, .douban: true
+    case .kinopoisk, .tmdb, .douban, .wikidata: true
     case .trakt: TraktAccount.clientID != nil
     default: false
     }
@@ -57,23 +58,38 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
 
   /// A source that feeds the title page without anything from the viewer, and can be
   /// switched off: Trakt's ratings and reviews.
-  var hasDataSwitch: Bool { (self == .trakt || self == .douban) && worksByDefault }
+  var hasDataSwitch: Bool { dataSwitchDefaultsKey != nil && worksByDefault }
 
   /// UserDefaults behind that switch.
   var dataSwitchDefaultsKey: String? {
     switch self {
     case .trakt: TraktMetadataAccess.enabledDefaultsKey
     case .douban: DoubanMetadataAccess.enabledDefaultsKey
+    case .wikidata: WikidataMetadataAccess.enabledDefaultsKey
     default: nil
     }
   }
 
   var dataToggleTitle: String {
-    self == .douban ? "Integration_Douban_DataToggle" : "Integration_Trakt_DataToggle"
+    switch self {
+    case .douban: "Integration_Douban_DataToggle"
+    case .wikidata: "Integration_Wikidata_DataToggle"
+    default: "Integration_Trakt_DataToggle"
+    }
   }
 
   var dataToggleFooter: String {
-    self == .douban ? "Integration_Douban_DataFooter" : "Integration_Trakt_DataFooter"
+    switch self {
+    case .douban: "Integration_Douban_DataFooter"
+    case .wikidata: "Integration_Wikidata_DataFooter"
+    default: "Integration_Trakt_DataFooter"
+    }
+  }
+
+  /// The switch's state, read from storage.
+  var isDataSwitchOn: Bool {
+    guard let key = dataSwitchDefaultsKey else { return false }
+    return UserDefaults.standard.object(forKey: key) as? Bool ?? true
   }
 
   /// The viewer's own key or account is connected.
@@ -102,7 +118,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .kinopoisk, .tmdb, .omdb: .apiKey
     case .trakt, .simkl, .anilist, .myAnimeList: .account
-    case .douban: .builtIn
+    case .douban, .wikidata: .builtIn
     }
   }
 
@@ -113,6 +129,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: "OMDb"
     case .trakt: "Trakt"
     case .douban: "Douban"
+    case .wikidata: "Wikidata"
     case .simkl: "Simkl"
     case .anilist: "AniList"
     case .myAnimeList: "MyAnimeList"
@@ -127,6 +144,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: "Integration_OMDb_About".localized
     case .trakt: "Integration_Trakt_About".localized
     case .douban: "Integration_Douban_About".localized
+    case .wikidata: "Integration_Wikidata_About".localized
     case .simkl: "Integration_Simkl_About".localized
     case .anilist: "Integration_AniList_About".localized
     case .myAnimeList: "Integration_MyAnimeList_About".localized
@@ -141,6 +159,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb: "Integration_TMDB_KeyHelp".localized
     case .trakt: "Integration_Trakt_SignInHelp".localized
     case .douban: "Integration_Douban_Help".localized
+    case .wikidata: "Integration_Wikidata_Help".localized
     case .simkl, .anilist, .myAnimeList: "Integration_Account_Help".localized
     }
   }
@@ -153,6 +172,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: URL(string: "https://www.omdbapi.com")!
     case .trakt: URL(string: "https://trakt.tv")!
     case .douban: URL(string: "https://movie.douban.com")!
+    case .wikidata: URL(string: "https://www.wikidata.org")!
     case .simkl: URL(string: "https://simkl.com")!
     case .anilist: URL(string: "https://anilist.co")!
     case .myAnimeList: URL(string: "https://myanimelist.net")!
@@ -204,6 +224,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb: "tmdb_big_color"
     case .trakt: "trakt"
     case .douban: "douban"
+    case .wikidata: "wikidata"
     case .simkl: "simkl"
     case .anilist: "anilist"
     case .myAnimeList: "myanimelist"
@@ -220,6 +241,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: "OMDb"
     case .trakt: "trakt"
     case .douban: "豆"
+    case .wikidata: "WD"
     case .simkl: "S"
     case .anilist: "AL"
     case .myAnimeList: "MAL"
@@ -233,6 +255,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: Color(red: 0.80, green: 0.62, blue: 0.10)
     case .trakt: Color(red: 0.93, green: 0.11, blue: 0.14)
     case .douban: Color(red: 0.0, green: 0.71, blue: 0.11)
+    case .wikidata: Color(red: 0.2, green: 0.4, blue: 0.6)
     case .simkl: Color(red: 0.10, green: 0.10, blue: 0.12)
     case .anilist: Color(red: 0.01, green: 0.66, blue: 1.00)
     case .myAnimeList: Color(red: 0.18, green: 0.32, blue: 0.64)
@@ -278,7 +301,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
       if let name = TraktAccount.storedUsername { return .account(name) }
       return worksByDefault && TraktMetadataAccess.isEnabled ? .byDefault : .notConnected
     }
-    if self == .douban { return DoubanMetadataAccess.isEnabled ? .byDefault : .notConnected }
+    if connection == .builtIn { return isDataSwitchOn ? .byDefault : .notConnected }
     // OMDb has no default path: without the viewer's key it is not connected.
     guard let keyProvider, keyProvider.isConnected, keyProvider.isEnabled else {
       return worksByDefault ? .byDefault : .notConnected

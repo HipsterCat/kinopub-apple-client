@@ -644,7 +644,7 @@ final class TVSettingsCatalog {
       sections.append(TSKSection(rows: [
         TSKRow(title: integration.dataToggleTitle.localized,
                description: integration.dataToggleFooter.localized,
-               kind: .toggle(key: integration == .douban ? "doubanData" : "traktData")),
+               kind: .toggle(key: "\(integration.rawValue)Data")),
       ]))
     } else if hasKey {
       sections.append(TSKSection(rows: [
@@ -1963,6 +1963,12 @@ final class TVSettingsCatalog {
                    get: { IntegrationKeyProvider.omdb.isEnabled },
                    set: { [unowned self] isOn in
                      IntegrationKeyProvider.omdb.isEnabled = isOn
+                     self.host.reloadPages()
+                   })
+    store.bindBool("wikidataData",
+                   get: { WikidataMetadataAccess.isEnabled },
+                   set: { [unowned self] isOn in
+                     UserDefaults.standard.set(isOn, forKey: WikidataMetadataAccess.enabledDefaultsKey)
                      self.host.reloadPages()
                    })
     store.bindBool("doubanData",

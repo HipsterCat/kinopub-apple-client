@@ -7,6 +7,8 @@ public enum MetadataSourceID: String, Sendable, Hashable, Codable {
   case omdb
   /// Douban, through our worker's signed Frodo route.
   case douban
+  /// Wikidata's public API: ids on other sites, box office, Wikipedia.
+  case wikidata
   case kinopoisk
   /// Keyless kpapp.link proxy (same unofficial Kinopoisk payload the community fork uses).
   case kinopoiskProxy

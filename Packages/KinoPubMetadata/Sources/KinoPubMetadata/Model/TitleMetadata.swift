@@ -316,6 +316,53 @@ public struct ExternalRating: Sendable, Hashable, Identifiable {
   }
 }
 
+/// The title's page on another site, as Wikidata lists it.
+public struct ExternalLink: Sendable, Hashable, Identifiable {
+  public enum Site: String, Sendable, Hashable, CaseIterable {
+    case wikipedia, kinopoisk, douban, letterboxd, metacritic, rottenTomatoes, trakt, tvdb
+    case myAnimeList, aniDB, aniList, kitsu, wikidata
+
+    /// As the site writes its own name.
+    public var name: String {
+      switch self {
+      case .wikipedia: "Wikipedia"
+      case .kinopoisk: "Кинопоиск"
+      case .douban: "Douban"
+      case .letterboxd: "Letterboxd"
+      case .metacritic: "Metacritic"
+      case .rottenTomatoes: "Rotten Tomatoes"
+      case .trakt: "Trakt"
+      case .tvdb: "TheTVDB"
+      case .myAnimeList: "MyAnimeList"
+      case .aniDB: "AniDB"
+      case .aniList: "AniList"
+      case .kitsu: "Kitsu"
+      case .wikidata: "Wikidata"
+      }
+    }
+  }
+
+  public var id: Site { site }
+  public let site: Site
+  public let url: URL
+
+  public init(site: Site, url: URL) {
+    self.site = site
+    self.url = url
+  }
+}
+
+/// How many awards and nominations a title has, as Wikidata counts its statements.
+public struct AwardCounts: Sendable, Hashable {
+  public let wins: Int
+  public let nominations: Int
+
+  public init(wins: Int, nominations: Int) {
+    self.wins = wins
+    self.nominations = nominations
+  }
+}
+
 /// Douban's side of a title, numbers only: how its votes fall over five stars, what its
 /// users did with it, and where it ranks in its genres ("better than 99% of crime films").
 public struct DoubanStats: Sendable, Hashable {
@@ -599,6 +646,11 @@ public struct TitleMetadata: Sendable {
   public var audienceStats: AudienceStats?
   public var reviewInsights: ReviewInsights?
   public var doubanStats: DoubanStats?
+  /// Wikidata: the item, the title's pages elsewhere, worldwide box office, award counts.
+  public var wikidataID: String?
+  public var externalLinks: [ExternalLink] = []
+  public var boxOfficeWorldwideUSD: Int?
+  public var awardCounts: AwardCounts?
   /// IMDb's score and vote count as Trakt last read them. Fresher than kino.pub's own
   /// copy when it has more votes (Sasha, 2026-11-09).
   public var relayedIMDbRating: Double?
@@ -682,6 +734,12 @@ public struct TitleMetadata: Sendable {
     if audienceStats == nil { audienceStats = other.audienceStats }
     if reviewInsights == nil { reviewInsights = other.reviewInsights }
     if doubanStats == nil { doubanStats = other.doubanStats }
+    if wikidataID == nil { wikidataID = other.wikidataID }
+    for link in other.externalLinks where !externalLinks.contains(where: { $0.site == link.site }) {
+      externalLinks.append(link)
+    }
+    if boxOfficeWorldwideUSD == nil { boxOfficeWorldwideUSD = other.boxOfficeWorldwideUSD }
+    if awardCounts == nil { awardCounts = other.awardCounts }
     // Trakt and OMDb both relay IMDb; the copy with more votes is the fresher one.
     if let votes = other.relayedIMDbVotes, other.relayedIMDbRating != nil, votes > (relayedIMDbVotes ?? 0) {
       relayedIMDbRating = other.relayedIMDbRating

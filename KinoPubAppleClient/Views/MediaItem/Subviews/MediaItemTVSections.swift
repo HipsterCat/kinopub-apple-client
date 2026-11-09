@@ -827,7 +827,13 @@ enum MediaItemTVSections {
     if let boxOffice = input.metadata.boxOfficeUSD {
       card("box-office", "MediaItem_BoxOffice".localized, MediaItemBoxOffice.text(boxOffice))
     }
-    if let awards = input.metadata.awardsSummary {
+    if let worldwide = input.metadata.boxOfficeWorldwideUSD {
+      card("box-office-world", "MediaItem_BoxOfficeWorldwide".localized, MediaItemBoxOffice.text(worldwide))
+    }
+    if let budget = input.metadata.budget {
+      card("budget", "MediaItem_Budget".localized, MediaItemBoxOffice.text(budget))
+    }
+    if let awards = input.metadata.awardsSummary ?? input.metadata.awardCounts.flatMap(MediaItemBoxOffice.awardsLine) {
       card("awards-summary", "Awards".localized, awards)
     }
 

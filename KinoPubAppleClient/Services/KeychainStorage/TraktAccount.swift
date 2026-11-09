@@ -45,6 +45,18 @@ struct DoubanMetadataAccess: DoubanAccessProviding {
   var isDoubanEnabled: Bool { Self.isEnabled }
 }
 
+/// Wikidata's ids, links, box office and award counts (`WikidataSource`), while the
+/// viewer keeps it on in Settings › Integrations › Wikidata. On by default.
+struct WikidataMetadataAccess: WikidataAccessProviding {
+  static let enabledDefaultsKey = "wikidataMetadataEnabled"
+
+  static var isEnabled: Bool {
+    UserDefaults.standard.object(forKey: enabledDefaultsKey) as? Bool ?? true
+  }
+
+  var isWikidataEnabled: Bool { Self.isEnabled }
+}
+
 struct TraktToken: Codable, Sendable {
   var accessToken: String
   var refreshToken: String

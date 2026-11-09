@@ -17191,6 +17191,142 @@
           }
         }
       }
+    },
+    "Integration_Wikidata_About" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wikidata, the open knowledge base behind Wikipedia, links each title to its pages on other sites (Kinopoisk, Douban, Letterboxd, Metacritic, Rotten Tomatoes, Trakt, TheTVDB, MyAnimeList, AniDB…) and to Wikipedia, and fills in the worldwide box office, budget and award counts other sources lack. Open data, nothing to connect."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wikidata, открытая база знаний, на которой стоит Википедия, связывает каждый тайтл с его страницами на других сайтах (Кинопоиск, Douban, Letterboxd, Metacritic, Rotten Tomatoes, Trakt, TheTVDB, MyAnimeList, AniDB…) и с Википедией. Ещё она добавляет мировые сборы, бюджет и число наград, если их нет у других источников. Данные открытые, подключать ничего не нужно."
+          }
+        }
+      }
+    },
+    "Integration_Wikidata_Help" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titles are found by their IMDb id. Answers are kept on the device for a week."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тайтл находится по IMDb id. Ответы хранятся на устройстве неделю."
+          }
+        }
+      }
+    },
+    "Integration_Wikidata_DataToggle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Links and facts"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ссылки и факты"
+          }
+        }
+      }
+    },
+    "Integration_Wikidata_DataFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Links to other sites under the title's Information, and box office, budget and award counts where other sources have none."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ссылки на другие сайты под «Информацией», а ещё сборы, бюджет и число наград, если их нет у других источников."
+          }
+        }
+      }
+    },
+    "MediaItem_BoxOfficeWorldwide" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Box office (worldwide)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборы в мире"
+          }
+        }
+      }
+    },
+    "MediaItem_Budget" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Budget"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бюджет"
+          }
+        }
+      }
+    },
+    "MediaItem_AwardWins" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Awards: %d"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "наград: %d"
+          }
+        }
+      }
+    },
+    "MediaItem_AwardNominations" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nominations: %d"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "номинаций: %d"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

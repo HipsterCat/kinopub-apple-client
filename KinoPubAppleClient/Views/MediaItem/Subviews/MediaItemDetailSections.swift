@@ -139,6 +139,14 @@ enum MediaItemBoxOffice {
   static func text(_ dollars: Int) -> String {
     dollars.formatted(.currency(code: "USD").precision(.fractionLength(0)))
   }
+
+  /// «Наград: 2 · номинаций: 7», from Wikidata's counts.
+  static func awardsLine(_ counts: AwardCounts) -> String? {
+    var parts: [String] = []
+    if counts.wins > 0 { parts.append(String(format: "MediaItem_AwardWins".localized, counts.wins)) }
+    if counts.nominations > 0 { parts.append(String(format: "MediaItem_AwardNominations".localized, counts.nominations)) }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  }
 }
 
 enum RatingSources {
@@ -2895,7 +2903,19 @@ struct MediaItemInfoColumns: View {
                                   caption: "MediaItem_BoxOffice",
                                   values: [InfoValue(id: "box-office", title: MediaItemBoxOffice.text(boxOffice))]))
     }
-    if let awards = externalMetadata.awardsSummary {
+    // Wikidata: worldwide box office beside OMDb's US figure, and the award counts when
+    // OMDb's line is not there.
+    if let worldwide = externalMetadata.boxOfficeWorldwideUSD {
+      sections.append(InfoSection(id: "box-office-world",
+                                  caption: "MediaItem_BoxOfficeWorldwide",
+                                  values: [InfoValue(id: "box-office-world", title: MediaItemBoxOffice.text(worldwide))]))
+    }
+    if let budget = externalMetadata.budget {
+      sections.append(InfoSection(id: "budget",
+                                  caption: "MediaItem_Budget",
+                                  values: [InfoValue(id: "budget", title: MediaItemBoxOffice.text(budget))]))
+    }
+    if let awards = externalMetadata.awardsSummary ?? externalMetadata.awardCounts.flatMap(MediaItemBoxOffice.awardsLine) {
       sections.append(InfoSection(id: "awards-summary",
                                   caption: "Awards",
                                   values: [InfoValue(id: "awards-summary", title: awards)]))
@@ -3221,7 +3241,8 @@ struct MediaItemInfoColumns: View {
                  tmdbId: externalMetadata.tmdbId,
                  isSeries: mediaItem.isSeries,
                  debugLog: externalMetadata.debugLog,
-                 metadataPath: metadataPath)
+                 metadataPath: metadataPath,
+                 links: externalMetadata.externalLinks)
     }
     .padding(.horizontal, MediaItemLayout.horizontalInset)
   }
@@ -3480,10 +3501,29 @@ struct MediaItemInfoColumns: View {
     let isSeries: Bool
     var debugLog: [SourceDebugEntry] = []
     var metadataPath: MetadataPathSwitch?
+    /// The title on other sites, from Wikidata. Not on tvOS: there is no browser.
+    var links: [ExternalLink] = []
     @Environment(\.openURL) private var openURL
     @State private var showsDebugSheet = false
 
     var body: some View {
+      VStack(alignment: .leading, spacing: 10) {
+        credits
+#if !os(tvOS)
+        if !links.isEmpty {
+          AboutFlowLayout(spacing: 10) {
+            ForEach(links) { link in
+              sourceButton(title: link.site.name, url: link.url)
+            }
+          }
+          .font(MediaItemInfoColumns.captionFont)
+          .foregroundStyle(Color.KinoPub.subtitle)
+        }
+#endif
+      }
+    }
+
+    private var credits: some View {
       HStack(alignment: .center, spacing: 10) {
         creditText(label: "MediaItem_Uploaded",
                    value: MediaItemInfoColumns.date(mediaItem.createdAt))

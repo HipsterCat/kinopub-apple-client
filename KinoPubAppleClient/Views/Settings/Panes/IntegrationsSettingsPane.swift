@@ -26,10 +26,11 @@ struct IntegrationsSettingsPane: View {
   @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
   @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
+  @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
 
   var body: some View {
     let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, omdbValidated, omdbEnabled,
-             traktUsername, traktData, doubanData)
+             traktUsername, traktData, doubanData, wikidataData)
     Form {
       Section {
         ForEach(Integration.available) { integration in
@@ -98,6 +99,7 @@ struct IntegrationDetailView: View {
   @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
   /// Douban's scores on the title page; nothing to connect.
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
+  @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
   @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 44
 
   init(integration: Integration) {
@@ -114,7 +116,7 @@ struct IntegrationDetailView: View {
   private var isConnected: Bool { isAccount ? traktUsername != nil : hasKey }
 
   private var status: Integration.Status {
-    _ = (keyValidated, keyEnabled, traktUsername, traktData, doubanData)
+    _ = (keyValidated, keyEnabled, traktUsername, traktData, doubanData, wikidataData)
     return integration.status
   }
 
@@ -141,7 +143,7 @@ struct IntegrationDetailView: View {
       if integration.hasDataSwitch {
         Section {
           Toggle(LocalizedStringKey(integration.dataToggleTitle),
-                 isOn: integration == .douban ? $doubanData : $traktData)
+                 isOn: dataSwitch)
         } footer: {
           VStack(alignment: .leading, spacing: 8) {
             Text(LocalizedStringKey(integration.dataToggleFooter))
@@ -203,6 +205,15 @@ struct IntegrationDetailView: View {
     }
     .sheet(isPresented: $isSigningIn) {
       TraktSignInView()
+    }
+  }
+
+  /// The page's own data switch: Trakt's, Douban's or Wikidata's.
+  private var dataSwitch: Binding<Bool> {
+    switch integration {
+    case .douban: $doubanData
+    case .wikidata: $wikidataData
+    default: $traktData
     }
   }
 
