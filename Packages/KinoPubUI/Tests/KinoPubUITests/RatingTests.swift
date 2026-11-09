@@ -93,6 +93,15 @@ final class RatingTests: XCTestCase {
     XCTAssertEqual(ranked.last?.source, .kinopub)
   }
 
+  func testDetailLineSortsRelayedScoresInByVotes() {
+    let scores = MediaScores(imdb: 7.7, imdbVotes: 3_203, tmdb: 7.2, tmdbVotes: 70)
+      .adding(extras: [.init(source: .trakt, score: 7.9, votes: 685),
+                       .init(source: .metacritic, score: 77),
+                       .init(source: .rottenTomatoesFresh, score: 94)])
+    XCTAssertEqual(scores.detailLine().map(\.source),
+                   [.imdb, .trakt, .tmdb, .metacritic, .rottenTomatoesFresh])
+  }
+
   func testKinopubThumbsDoNotMoveTheAggregate() {
     let without = MediaScores(imdb: 8.0, imdbVotes: 1000)
     let withThumbs = MediaScores(imdb: 8.0, imdbVotes: 1000, kinopubLikes: 10, kinopubDislikes: 0)

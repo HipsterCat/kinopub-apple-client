@@ -230,6 +230,9 @@ enum RatingSources {
       .sorted { lhs, rhs in
         if lhs.element.logo == .kinopub { return false }
         if rhs.element.logo == .kinopub { return true }
+        // «Оценок нет» goes after every source that has a score, even one with no vote
+        // count: a score we cannot weigh still says more than none (Sasha, 2026-11-09).
+        if lhs.element.isPlaceholder != rhs.element.isPlaceholder { return rhs.element.isPlaceholder }
         let l = lhs.element.votes ?? 0, r = rhs.element.votes ?? 0
         return l != r ? l > r : lhs.offset < rhs.offset
       }

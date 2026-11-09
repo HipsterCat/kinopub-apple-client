@@ -393,9 +393,17 @@ public extension MediaScores {
     if deduplicateAgainstAggregate && items.filter(\.hasKnownScore).count == 1 {
       items = items.map { $0.hasKnownScore ? $0.withoutScore() : $0 }
     }
-    // Then what Trakt relays, in its own order (Trakt, Metacritic, Rotten Tomatoes…).
-    // Not in the aggregate, so never deduplicated against it.
-    return items + extras.map { MediaScoreItem(source: $0.source, score: $0.score, votes: $0.votes) }
+    // Then what Trakt relays, sorted in with the rest by votes, as the score tiles are:
+    // Trakt's 685 sits between IMDb's 3 203 and TMDB's 70. Scores with no vote count
+    // (Rotten Tomatoes, Metacritic) follow the voted ones in their own order. Not in
+    // the aggregate, so never deduplicated against it.
+    let relayed = extras.map { MediaScoreItem(source: $0.source, score: $0.score, votes: $0.votes) }
+    return (items + relayed).enumerated()
+      .sorted { lhs, rhs in
+        let l = lhs.element.votes ?? 0, r = rhs.element.votes ?? 0
+        return l != r ? l > r : lhs.offset < rhs.offset
+      }
+      .map(\.element)
   }
 
   /// Ordered rating items for Hero row (shows all available ranked sources).
