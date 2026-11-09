@@ -15,6 +15,7 @@ import KinoPubBackend
 import KinoPubLogging
 import KinoPubMedia
 import KinoPubMetadata
+import OSLog
 
 /// Which skip to offer at a moment of the stream. Pure, so the rule is tested apart.
 enum PlaybackSkip {
@@ -106,8 +107,11 @@ extension PlayerManager {
     let fallbackSeconds = Double((playItem as? Episode)?.duration ?? 0)
     let service = AppContext.shared.metadataService
     skipSegmentsTask = Task { [weak self] in
-      let loaded = (try? await item.asset.load(.duration))?.seconds ?? 0
-      let duration = loaded.isFinite && loaded > 0 ? loaded : fallbackSeconds
+      // The item's own runtime once it is ready (the enrichment answers after that as a
+      // rule); kino.pub's figure before. Read here, not loaded from the asset: the asset is
+      // not Sendable.
+      let current = item.duration.seconds
+      let duration = current.isFinite && current > 0 ? current : fallbackSeconds
       let segments = await PlaybackMediaContext.skipSegments(for: enrichment, durationSeconds: duration,
                                                              service: service)
       guard !Task.isCancelled, let segments else { return }
