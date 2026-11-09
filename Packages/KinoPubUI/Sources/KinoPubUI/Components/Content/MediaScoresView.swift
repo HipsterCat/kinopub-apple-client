@@ -133,20 +133,6 @@ public struct MediaScoreLogo: View {
   /// **Height is fixed, width follows the artwork.** A logo row lines up on the
   /// baseline of the marks, not on a grid of equal squares — boxing every one into
   /// `height × height` letterboxed the wide wordmarks down to nothing.
-  private var items: [MediaScoreItem] {
-    if bannerLine {
-      return scores.bannerScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
-    }
-    if detailLine, let compactLimit {
-      return scores.compactDetailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate,
-                                      limit: compactLimit > 0 ? compactLimit : nil)
-    }
-    if detailLine {
-      return scores.detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
-    }
-    return scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
-  }
-
   public var body: some View {
     let image = Image(assetName, bundle: .module)
       .renderingMode(style == .template ? .template : .original)
@@ -293,6 +279,20 @@ public struct MediaScoresView: View {
       kinopoisk: kinopoisk,
       kinopoiskVotes: kinopoiskVotes
     ), limit: limit, showsVotes: showsVotes, deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+  }
+
+  private var items: [MediaScoreItem] {
+    if bannerLine {
+      return scores.bannerScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    }
+    if detailLine, let compactLimit {
+      return scores.compactDetailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate,
+                                      limit: compactLimit > 0 ? compactLimit : nil)
+    }
+    if detailLine {
+      return scores.detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    }
+    return scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
   }
 
   public var body: some View {
