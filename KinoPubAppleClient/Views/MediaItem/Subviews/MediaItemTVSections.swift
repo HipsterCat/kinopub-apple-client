@@ -816,8 +816,8 @@ enum MediaItemTVSections {
         if preview.rows.isEmpty {
           rows.append(.init(id: "skip.none", text: "MediaItem_SkipSegmentsNone".localized, style: .value))
         } else {
-          rows += preview.rows.map { row in
-            .init(id: "skip.\(row.kind.rawValue)", text: SkipSegmentsPreview.title(for: row.kind),
+          rows += preview.rows.map { row -> TVPageInfoCard.Spec.Row in
+            TVPageInfoCard.Spec.Row(id: "skip.\(row.kind.rawValue)", text: SkipSegmentsPreview.title(for: row.kind),
                   secondary: row.length, style: .value)
           }
         }
