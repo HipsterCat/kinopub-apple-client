@@ -97,17 +97,19 @@ struct AccountSettingsPane: View {
         // System Settings' Apple Account page: the picture large and centred, the name,
         // then what the account is (Sasha, 2026-11-09).
         Section {
-          VStack(spacing: 6) {
+          VStack(spacing: 5) {
             SettingsSidebarProfileView.Avatar(name: name, image: avatarImage)
               .frame(width: 96, height: 96)
-              .padding(.bottom, 6)
+              .padding(.bottom, 4)
             Text(verbatim: name)
-              .font(.title2.weight(.bold))
+              .font(.title.weight(.bold))
             Text(verbatim: subtitle)
+              .font(.callout)
               .foregroundStyle(.secondary)
           }
           .frame(maxWidth: .infinity)
-          .padding(.vertical, 12)
+          .padding(.top, 8)
+          .padding(.bottom, 10)
         }
         Section {
           LabeledContent("User Name", value: model.userData.username)

@@ -104,7 +104,7 @@ struct IntegrationDetailView: View {
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
   @AppStorage(MyShowsMetadataAccess.enabledDefaultsKey) private var myShowsData = true
-  @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 64
+  @ScaledMetric(relativeTo: .title) private var iconSize: CGFloat = 64
 
   init(integration: Integration) {
     self.integration = integration
@@ -249,14 +249,17 @@ struct IntegrationDetailView: View {
   // MARK: Header
 
   private var header: some View {
-    VStack(spacing: 8) {
+    // Metrics of System Settings' own pane headers: 64 pt icon, spacing 5, bold title,
+    // callout description with 2.5 line spacing, 8 above and 10 below.
+    VStack(spacing: 5) {
       if integration.markImage != nil {
         IntegrationIconView(integration: integration, size: iconSize)
-          .padding(.bottom, 4)
       }
       Text(verbatim: integration.name)
-        .font(.title2.weight(.bold))
+        .font(.title.weight(.bold))
       Text(verbatim: integration.about)
+        .font(.callout)
+        .lineSpacing(2.5)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
       HStack(spacing: 6) {
@@ -281,7 +284,8 @@ struct IntegrationDetailView: View {
     }
     .multilineTextAlignment(.center)
     .frame(maxWidth: .infinity)
-    .padding(.vertical, 12)
+    .padding(.top, 8)
+    .padding(.bottom, 10)
   }
 
   private var statusLine: String {
