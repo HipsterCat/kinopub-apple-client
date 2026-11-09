@@ -38,6 +38,9 @@ final class SeasonsRailMemory {
   var didScrollToUnseen = false
   /// The first episode showing at the rail's leading edge.
   var leadingEntryID: Int?
+  /// The first card showing at the leading edge, season cards included (iOS / macOS):
+  /// a page rebuilt on coming back stands on the same card, not on the episode after it.
+  var leadingAnchor: String?
 }
 
 /// kino.pub episodes and an official grid, in the shape `EpisodeGridMatch` scores.
@@ -154,6 +157,9 @@ struct SeasonsRailView: View {
   var seriesBackdropURL: URL? = nil
   /// The show logo drawn centered above the season tabs. Rivulet's small title logo.
   var titleLogoURL: URL? = nil
+  /// A season's poster at a pixel width: the worker's `/img/poster/by/kinopub/{id}?s=`.
+  /// Nil (no worker) falls back to TMDB's season poster. iOS / macOS season cards.
+  var seasonPosterURL: ((_ seasonNumber: Int, _ pixelWidth: Int) -> URL?)? = nil
   /// Ask the model to fetch schedule for a season number (kino.pub season.number).
   var onSeasonVisible: ((Int) -> Void)? = nil
   /// The page scroll offset, in points. Menu uses it to decide whether to go home.
@@ -163,6 +169,7 @@ struct SeasonsRailView: View {
   @Environment(NavigationState.self) private var navigationState
   @Environment(\.openURL) private var openURL
   @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.displayScale) private var displayScale
 #if os(tvOS)
   /// The UIKit rail can't host a `NavigationLink`, so playback is pushed through the
   /// same environment hook `MediaPosterShelf`'s TVUIKit rails use.
@@ -728,16 +735,106 @@ struct SeasonsRailView: View {
   }
 
 #else
+  /// One cell of the iOS / macOS rail: an episode (or trailing card), or the season's own
+  /// card that opens its run of episodes.
+  private enum RailCell: Identifiable {
+    case season(SeasonCardInfo)
+    case entry(RailEntry)
+
+    var anchor: String {
+      switch self {
+      case .season(let info): return SeasonsRailView.seasonAnchor(info.seasonID)
+      case .entry(let entry): return SeasonsRailView.episodeAnchor(entry.id)
+      }
+    }
+
+    var id: String { anchor }
+  }
+
+  /// What a season's card says: its poster, its name, how many episodes and which years.
+  struct SeasonCardInfo: Equatable {
+    let seasonID: Int
+    let title: String
+    let meta: [String]
+    let posterURL: URL?
+  }
+
+  /// The rail with a portrait season card in front of each season's episodes — only for a
+  /// show with more than one season (Sasha, 2026-11-09). The episode cards keep their
+  /// width: the card is extra, so the trailers rail below still lines up with them.
+  private func railCells(_ entries: [RailEntry]) -> [RailCell] {
+    guard seasons.count > 1 else { return entries.map(RailCell.entry) }
+    let numbers = Dictionary(tabs.map { ($0.id, $0.first) }, uniquingKeysWith: { first, _ in first })
+    var cells: [RailCell] = []
+    var opened = Set<Int>()
+    for entry in entries {
+      if let season = entry.season, opened.insert(season.id).inserted {
+        let number = numbers[season.id] ?? KinoPubMediaMapping.seasonNumber(season)
+        let inSeason = entries.filter { $0.season?.id == season.id }
+        cells.append(.season(seasonCardInfo(seasonID: season.id, number: number, entries: inSeason)))
+      }
+      cells.append(.entry(entry))
+    }
+    return cells
+  }
+
+  /// The season card is as tall as an episode's still and a poster's 2:3 across.
+  private var seasonCardWidth: CGFloat {
+    (stillHeight * CardAspect.poster.ratio).rounded()
+  }
+
+  private func seasonCardInfo(seasonID: Int, number: Int, entries: [RailEntry]) -> SeasonCardInfo {
+    let summary = externalMetadata.seasonSummaries.first { $0.seasonNumber == number }
+    let title = Self.seasonName(summary?.name, number: number)
+    let dates = entries.compactMap { $0.schedule?.airDate }
+    var meta: [String] = []
+    if let episodes = EpisodesLeftText(entries.count)?.formatted() {
+      meta.append(episodes)
+    }
+    if let years = Self.yearsText(first: dates.min() ?? summary?.airDate, last: dates.max()) {
+      meta.append(years)
+    }
+    // A width that follows the window would ask the worker for a new file on every
+    // resize: rounded up to whole hundreds of pixels.
+    let pixels = Int((seasonCardWidth * displayScale / 100).rounded(.up)) * 100
+    let poster = seasonPosterURL?(number, pixels) ?? summary?.poster
+    return SeasonCardInfo(seasonID: seasonID, title: title, meta: meta, posterURL: poster)
+  }
+
+  /// TMDB's name for the season when it is one («Книга первая: Вода»); «Сезон N» when it is
+  /// only the number spelled out, or there is none.
+  static func seasonName(_ name: String?, number: Int) -> String {
+    let fallback = String(format: "MediaItem_SeasonSingle".localized, number)
+    guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
+      return fallback
+    }
+    let words = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+      .split { !$0.isLetter && !$0.isNumber }
+      .filter { !$0.allSatisfy(\.isNumber) }
+      .map(String.init)
+    let numbering: Set<String> = ["сезон", "season", "staffel", "saison", "temporada", "stagione"]
+    return words.allSatisfy(numbering.contains) ? fallback : name
+  }
+
   private var episodeRail: some View {
-    ScrollView(.horizontal, showsIndicators: false) {
+    let entries = entries
+    let cells = railCells(entries)
+    return ScrollView(.horizontal, showsIndicators: false) {
       // Same lazy landscape strip as `MediaPosterShelf`: width from `ShelfMetrics`,
       // vertical room for the focus lift, nothing bespoke about the cards.
       LazyHStack(alignment: .top, spacing: metrics.gutter) {
-        ForEach(entries) { entry in
-          railCard(for: entry)
-            .frame(width: cardWidth)
-            .buttonStyle(MediaCardButtonStyle())
-            .id(Self.episodeAnchor(entry.id))
+        ForEach(cells) { cell in
+          switch cell {
+          case .season(let info):
+            SeasonRailCard(info: info, posterHeight: stillHeight)
+              .frame(width: seasonCardWidth)
+              .id(cell.anchor)
+          case .entry(let entry):
+            railCard(for: entry)
+              .frame(width: cardWidth)
+              .buttonStyle(MediaCardButtonStyle())
+              .id(cell.anchor)
+          }
         }
       }
       .scrollTargetLayout()
@@ -749,16 +846,20 @@ struct SeasonsRailView: View {
     .contentMargins(.horizontal, pageInset, for: .scrollContent)
     .scrollPosition($railPosition, anchor: .leading)
     .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in
-      let visible = ids.compactMap { anchor -> RailEntry? in
-        guard let entryID = Self.episodeID(from: anchor) else { return nil }
-        return entries.first { $0.id == entryID }
+      // A season card stands for its season's first entry.
+      let visible = ids.compactMap { anchor -> (anchor: String, index: Int, entry: RailEntry)? in
+        guard let index = cells.firstIndex(where: { $0.anchor == anchor }) else { return nil }
+        let entry: RailEntry?
+        switch cells[index] {
+        case .entry(let own): entry = own
+        case .season(let info): entry = entries.first { $0.season?.id == info.seasonID }
+        }
+        return entry.map { (anchor, index, $0) }
       }
-      guard let entry = visible.min(by: { lhs, rhs in
-        let left = entries.firstIndex { $0.id == lhs.id } ?? 0
-        let right = entries.firstIndex { $0.id == rhs.id } ?? 0
-        return left < right
-      }) else { return }
+      guard let leading = visible.min(by: { $0.index < $1.index }) else { return }
+      let entry = leading.entry
       rail.leadingEntryID = entry.id
+      rail.leadingAnchor = leading.anchor
       guard !isScrollingFromTab, entry.tabID != selectedTabID else { return }
       selectedTabID = entry.tabID
       if let season = seasons.first(where: { $0.id == entry.tabID }) {
@@ -866,7 +967,13 @@ struct SeasonsRailView: View {
     if let season = seasons.first(where: { $0.id == tabID }) {
       onSeasonVisible?(season.number)
     }
-    let anchor = Self.episodeAnchor(target.id)
+    var anchor = Self.episodeAnchor(target.id)
+#if !os(tvOS)
+    // The season itself was picked: its card opens the run, so it goes to the edge.
+    if target.id == first.id, seasons.count > 1, seasons.contains(where: { $0.id == tabID }) {
+      anchor = Self.seasonAnchor(tabID)
+    }
+#endif
     isScrollingFromTab = true
     if animated {
       withAnimation(.easeOut(duration: 0.2)) {
@@ -910,7 +1017,7 @@ struct SeasonsRailView: View {
     // Opened before (the page was rebuilt on coming back): stand where it stood.
     if didScrollToUnseen {
       guard let id = rail.leadingEntryID, entries.contains(where: { $0.id == id }) else { return }
-      railPosition.scrollTo(id: Self.episodeAnchor(id), anchor: .leading)
+      railPosition.scrollTo(id: rail.leadingAnchor ?? Self.episodeAnchor(id), anchor: .leading)
       return
     }
 #endif
@@ -1098,6 +1205,17 @@ struct SeasonsRailView: View {
   }
 
   private static func episodeAnchor(_ id: Int) -> String { "episode-\(id)" }
+  private static func seasonAnchor(_ seasonID: Int) -> String { "season-\(seasonID)" }
+
+  /// «2020», or «2020–2021» for a run over the new year. Season cards and the missing-
+  /// seasons card say years the same way.
+  static func yearsText(first: Date?, last: Date?) -> String? {
+    guard let first else { return nil }
+    let calendar = Calendar.current
+    let firstYear = calendar.component(.year, from: first)
+    let lastYear = last.map { calendar.component(.year, from: $0) } ?? firstYear
+    return lastYear > firstYear ? "\(firstYear)–\(lastYear)" : String(firstYear)
+  }
 
   /// Between the season line and the rail. The air there used to measure 11 pt on tvOS (2 here,
   /// the rest the rail's own top inset); Sasha asked for twice that (2026-10-11), so 22.
@@ -1216,10 +1334,7 @@ private struct MissingSeasonsCard: View {
   let stillHeight: CGFloat
 
   private var yearsText: String? {
-    guard let firstAir else { return nil }
-    let firstYear = Calendar.current.component(.year, from: firstAir)
-    let lastYear = lastAir.map { Calendar.current.component(.year, from: $0) }
-    return lastYear != nil && lastYear != firstYear ? "\(firstYear)–\(lastYear!)" : "\(firstYear)"
+    SeasonsRailView.yearsText(first: firstAir, last: lastAir)
   }
 
   private var subtitle: String? {
@@ -1309,6 +1424,65 @@ private struct UpcomingSeasonCard: View {
     .frame(maxWidth: .infinity, alignment: .top)
   }
 }
+
+#if !os(tvOS)
+/// The card in front of a season's episodes: its poster as tall as an episode's still,
+/// then the same two caption lines an episode card has — the name, then «10 серий · 2020».
+/// Inert: the episodes beside it are what plays.
+private struct SeasonRailCard: View {
+  let info: SeasonsRailView.SeasonCardInfo
+  /// Artwork height of the neighbouring episode cards, so the poster lines up with them.
+  let posterHeight: CGFloat
+
+  private static var shape: RoundedRectangle {
+    RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous)
+  }
+
+  var body: some View {
+    VStack(alignment: .center, spacing: Metrics.cardCaptionSpacing) {
+      CachedRemoteImage(
+        url: info.posterURL,
+        contentMode: .fill,
+        placeholder: { Color.KinoPub.placeholder },
+        failure: { Color.KinoPub.placeholder }
+      )
+      .frame(maxWidth: .infinity)
+      .frame(height: posterHeight)
+      .clipShape(Self.shape)
+      .kinoGlassRim(in: Self.shape)
+
+      VStack(alignment: .center, spacing: 4) {
+        Text(info.title)
+          .font(TypeScale.episodeCardTitle)
+          .foregroundStyle(Color.KinoPub.text)
+          .lineLimit(1)
+          .truncationMode(.tail)
+          .frame(maxWidth: .infinity)
+
+        // The card is a poster's width: the whole line where it fits, else as much of it
+        // as does, piece by piece, never an ellipsis through a number.
+        if !info.meta.isEmpty {
+          ViewThatFits(in: .horizontal) {
+            metaLine(info.meta.joined(separator: " · "))
+            if let first = info.meta.first { metaLine(first) }
+            if info.meta.count > 1, let last = info.meta.last { metaLine(last) }
+          }
+          .frame(maxWidth: .infinity)
+        }
+      }
+    }
+    .accessibilityElement(children: .combine)
+  }
+
+  private func metaLine(_ text: String) -> some View {
+    Text(text)
+      .font(TypeScale.cardMeta)
+      .foregroundStyle(Color.KinoPub.subtitle)
+      .lineLimit(1)
+      .fixedSize()
+  }
+}
+#endif
 
 /// The versions of one film — 24 / 48 fps, colour / black-and-white, director's cut —
 /// as the same landscape rail the episodes use.

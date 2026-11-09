@@ -837,6 +837,11 @@ struct MediaItemView: View {
                           preferredBackdropURL: itemModel.heroBackdropURL
                         ).first,
                         titleLogoURL: itemModel.heroLogoURL,
+                        seasonPosterURL: { [images = appContext.metadataService.images,
+                                            item = itemModel.mediaItem] season, pixels in
+                          images.url(.poster, kinopubID: item.id, imdb: item.imdb,
+                                     width: pixels, season: season)
+                        },
                         onSeasonVisible: { seasonNumber in
                           Task { await itemModel.ensureSeasonSchedule(seasonNumber) }
                         },
