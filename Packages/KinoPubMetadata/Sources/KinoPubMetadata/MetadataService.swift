@@ -42,11 +42,13 @@ public actor MetadataService {
     async let omdbPart = fetchOMDb(identity: identity)
     async let doubanPart = fetchDouban(identity: identity)
     async let wikidataPart = fetchWikidata(identity: identity)
+    async let myShowsPart = fetchMyShows(identity: identity)
     if let kinopoisk = identity.kinopoisk, kinopoisk > 0 {
       async let cardPart = fetchTitleCard(titleCard, identity: identity)
       async let proxyPart = fetchProxy(proxy, identity: identity)
       return mergeTitleCard(await cardPart, proxy: await proxyPart, trakt: await traktPart, omdb: await omdbPart,
-                            douban: await doubanPart, wikidata: await wikidataPart)
+                            douban: await doubanPart,
+                          myShows: await myShowsPart, wikidata: await wikidataPart)
     }
     let cardPart = await fetchTitleCard(titleCard, identity: identity)
     let asking: MediaIdentity
@@ -57,7 +59,8 @@ public actor MetadataService {
     }
     let proxyPart = await fetchProxy(proxy, identity: asking)
     return mergeTitleCard(cardPart, proxy: proxyPart, trakt: await traktPart, omdb: await omdbPart,
-                          douban: await doubanPart, wikidata: await wikidataPart)
+                          douban: await doubanPart,
+                          myShows: await myShowsPart, wikidata: await wikidataPart)
   }
 
   private func fetchTrakt(identity: MediaIdentity) async -> TitleMetadata? {
@@ -101,6 +104,17 @@ public actor MetadataService {
     }
   }
 
+  private func fetchMyShows(identity: MediaIdentity) async -> TitleMetadata? {
+    guard identity.isSeries,
+          let myShows = sources.compactMap({ $0 as? MyShowsSource }).first, myShows.isConfigured else { return nil }
+    do {
+      return try await myShows.titleMetadata(for: identity)
+    } catch {
+      Logger.metadata.error("MyShows failed: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
   private func fetchTitleCard(_ source: TitleCardSource, identity: MediaIdentity) async -> TitleMetadata? {
     do {
       return try await source.titleMetadata(for: identity)
@@ -122,7 +136,8 @@ public actor MetadataService {
 
   private func mergeTitleCard(_ card: TitleMetadata?, proxy: TitleMetadata?,
                               trakt: TitleMetadata? = nil, omdb: TitleMetadata? = nil,
-                              douban: TitleMetadata? = nil, wikidata: TitleMetadata? = nil) -> TitleMetadata {
+                              douban: TitleMetadata? = nil, myShows: TitleMetadata? = nil,
+                              wikidata: TitleMetadata? = nil) -> TitleMetadata {
     var result = TitleMetadata()
     if let card {
       result.merge(card)
@@ -143,6 +158,10 @@ public actor MetadataService {
     if let douban {
       result.merge(douban)
       result.parts[.douban] = douban
+    }
+    if let myShows {
+      result.merge(myShows)
+      result.parts[.myShows] = myShows
     }
     // Last: it only fills what the sources above left empty.
     if let wikidata {

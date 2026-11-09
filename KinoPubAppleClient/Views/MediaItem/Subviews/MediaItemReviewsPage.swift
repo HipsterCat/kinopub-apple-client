@@ -50,6 +50,9 @@ struct MediaItemRatingsAndReviewsPage: View {
         if let douban = payload.externalRatings.first(where: { $0.kind == .douban }) {
           DoubanStatsCard(score: douban, stats: payload.doubanStats)
         }
+        if let myShows = payload.externalRatings.first(where: { $0.kind == .myShows }) {
+          MyShowsStatsCard(score: myShows, stats: payload.myShowsStats)
+        }
         if let stats = payload.audienceStats {
           AudienceStatsCard(stats: stats,
                             afterCredits: payload.hasAfterCreditsScene == true,
@@ -248,6 +251,50 @@ struct RatingDistributionCard<Footer: View>: View {
 extension RatingDistributionCard where Footer == EmptyView {
   init(title: LocalizedStringKey, score: String, votes: Int?, buckets: [Double], tint: Color) {
     self.init(title: title, score: score, votes: votes, buckets: buckets, tint: tint) { EmptyView() }
+  }
+}
+
+/// MyShows' side of a series: its five-star score and how many people follow it. MyShows
+/// publishes no breakdown of its votes, so the card has no bars (Sasha, 2026-11-09).
+struct MyShowsStatsCard: View {
+  let score: ExternalRating
+  let stats: MyShowsStats?
+
+  private var counts: [(symbol: String, title: LocalizedStringKey, value: Int)] {
+    guard let stats else { return [] }
+    let list: [(String, LocalizedStringKey, Int)] = [
+      ("play.circle", "MediaItem_MyShowsWatching", stats.watching),
+      ("person.2", "MediaItem_MyShowsWatchingTotal", stats.watchingTotal),
+    ]
+    return list.filter { $0.2 > 0 }.map { (symbol: $0.0, title: $0.1, value: $0.2) }
+  }
+
+  var body: some View {
+    RatingDistributionCard(title: "MediaItem_MyShowsRatingTitle",
+                           score: String(format: "%.1f", score.value),
+                           votes: score.votes,
+                           buckets: [],
+                           tint: .red) {
+      if !counts.isEmpty {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 12, alignment: .leading)],
+                  alignment: .leading, spacing: 12) {
+          ForEach(counts, id: \.symbol) { tile in
+            VStack(alignment: .leading, spacing: 4) {
+              Image(systemName: tile.symbol)
+                .foregroundStyle(.secondary)
+              Text(tile.title)
+                .foregroundStyle(.secondary)
+              Text(verbatim: tile.value.formatted(.number.notation(.compactName)))
+                .font(TypeScale.detailBody.weight(.semibold))
+                .foregroundStyle(Color.KinoPub.text)
+            }
+            .font(TypeScale.detailBody)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+          }
+        }
+      }
+    }
   }
 }
 

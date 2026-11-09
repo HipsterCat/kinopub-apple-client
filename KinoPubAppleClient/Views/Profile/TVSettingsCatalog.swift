@@ -1971,6 +1971,12 @@ final class TVSettingsCatalog {
                      UserDefaults.standard.set(isOn, forKey: WikidataMetadataAccess.enabledDefaultsKey)
                      self.host.reloadPages()
                    })
+    store.bindBool("myShowsData",
+                   get: { MyShowsMetadataAccess.isEnabled },
+                   set: { [unowned self] isOn in
+                     UserDefaults.standard.set(isOn, forKey: MyShowsMetadataAccess.enabledDefaultsKey)
+                     self.host.reloadPages()
+                   })
     store.bindBool("doubanData",
                    get: { DoubanMetadataAccess.isEnabled },
                    set: { [unowned self] isOn in

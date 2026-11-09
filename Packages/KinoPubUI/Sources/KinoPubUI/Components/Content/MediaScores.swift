@@ -257,7 +257,7 @@ public struct MediaScoreItem: Identifiable, Hashable, Sendable {
   public var drawsFaint: Bool {
     if score == nil { return true }
     switch source {
-    case .tmdb, .kinopub, .trakt, .letterboxd, .myAnimeList, .douban:
+    case .tmdb, .kinopub, .trakt, .letterboxd, .myAnimeList, .douban, .myShows:
       return (votes ?? 0) <= Self.faintVoteCeiling
     default:
       return false
@@ -478,8 +478,8 @@ extension MediaScoreLogo.Source {
     case .metacritic, .metacriticFavorable, .metacriticUnfavorable:
       // Metacritic's own 0…100, no percent sign.
       return "\(Int((score * 10).rounded()))"
-    case .letterboxd:
-      // Letterboxd's five stars.
+    case .letterboxd, .myShows:
+      // Letterboxd's and MyShows' five stars.
       return String(format: "%.1f", score / 2)
     case .imdb, .kinopoisk, .myAnimeList, .douban:
       return String(format: "%.1f", score)

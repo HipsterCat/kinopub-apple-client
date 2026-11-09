@@ -187,7 +187,7 @@ enum RatingSources {
     var drawsFaint: Bool {
       if value == nil { return true }
       switch logo {
-      case .tmdb, .kinopub, .trakt, .letterboxd, .myAnimeList, .douban:
+      case .tmdb, .kinopub, .trakt, .letterboxd, .myAnimeList, .douban, .myShows:
         return (votes ?? 0) <= MediaScoreItem.faintVoteCeiling
       default:
         return false
@@ -259,7 +259,7 @@ enum RatingSources {
   /// so these never stand as placeholders.
   private static func relayed(_ ratings: [ExternalRating]) -> [Score] {
     let order: [ExternalRating.Kind] = [.trakt, .douban, .metacritic, .rottenTomatoes, .rottenTomatoesAudience,
-                                        .letterboxd, .myAnimeList]
+                                        .letterboxd, .myAnimeList, .myShows]
     let sorted = ratings.sorted {
       (order.firstIndex(of: $0.kind) ?? order.count) < (order.firstIndex(of: $1.kind) ?? order.count)
     }
@@ -294,6 +294,8 @@ enum RatingSources {
         logo = .myAnimeList; name = "MyAnimeList"
       case .douban:
         logo = .douban; name = "Douban"
+      case .myShows:
+        logo = .myShows; name = "MyShows"
       }
       var tile = score(id: name, logo: logo, value: rating.score10, votes: rating.votes,
                        url: relayedURL(rating), known: false)

@@ -17327,6 +17327,125 @@
           }
         }
       }
+    },
+    "Integration_MyShows_About" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MyShows.me is a series tracker popular in Russia. For series, the app reads its public API: the MyShows score, how many people are watching, and fresh IMDb numbers. MyShows has no films. Nothing to connect."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MyShows.me — трекер сериалов, популярный в России. Для сериалов приложение читает его открытый API: оценку MyShows, сколько людей смотрят и свежие цифры IMDb. Фильмов в MyShows нет. Подключать ничего не нужно."
+          }
+        }
+      }
+    },
+    "Integration_MyShows_Help" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MyShows answers without an account. Shows are found by their Kinopoisk or IMDb id; answers are kept on the device for a day."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MyShows отвечает без аккаунта. Сериал находится по id Кинопоиска или IMDb, ответы хранятся на устройстве сутки."
+          }
+        }
+      }
+    },
+    "Integration_MyShows_DataToggle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ratings"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценки"
+          }
+        }
+      }
+    },
+    "Integration_MyShows_DataFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the MyShows score and audience on series pages."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывает оценку MyShows и число зрителей на страницах сериалов."
+          }
+        }
+      }
+    },
+    "MediaItem_MyShowsRatingTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MyShows rating"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценка MyShows"
+          }
+        }
+      }
+    },
+    "MediaItem_MyShowsWatching" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watching"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смотрят"
+          }
+        }
+      }
+    },
+    "MediaItem_MyShowsWatchingTotal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавили"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

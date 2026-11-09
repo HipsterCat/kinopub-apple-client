@@ -19,6 +19,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   case omdb
   case trakt
   case douban
+  case myShows
   case wikidata
   case simkl
   case anilist
@@ -41,7 +42,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// links are settled; their pages say they are coming.
   var isSupported: Bool {
     switch self {
-    case .kinopoisk, .tmdb, .trakt, .omdb, .douban, .wikidata: true
+    case .kinopoisk, .tmdb, .trakt, .omdb, .douban, .myShows, .wikidata: true
     case .simkl, .anilist, .myAnimeList: false
     }
   }
@@ -50,7 +51,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// data: the app's Client ID is enough, no sign-in (Sasha, 2026-11-09).
   var worksByDefault: Bool {
     switch self {
-    case .kinopoisk, .tmdb, .douban, .wikidata: true
+    case .kinopoisk, .tmdb, .douban, .myShows, .wikidata: true
     case .trakt: TraktAccount.clientID != nil
     default: false
     }
@@ -66,6 +67,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .trakt: TraktMetadataAccess.enabledDefaultsKey
     case .douban: DoubanMetadataAccess.enabledDefaultsKey
     case .wikidata: WikidataMetadataAccess.enabledDefaultsKey
+    case .myShows: MyShowsMetadataAccess.enabledDefaultsKey
     default: nil
     }
   }
@@ -74,6 +76,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .douban: "Integration_Douban_DataToggle"
     case .wikidata: "Integration_Wikidata_DataToggle"
+    case .myShows: "Integration_MyShows_DataToggle"
     default: "Integration_Trakt_DataToggle"
     }
   }
@@ -82,6 +85,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .douban: "Integration_Douban_DataFooter"
     case .wikidata: "Integration_Wikidata_DataFooter"
+    case .myShows: "Integration_MyShows_DataFooter"
     default: "Integration_Trakt_DataFooter"
     }
   }
@@ -118,7 +122,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .kinopoisk, .tmdb, .omdb: .apiKey
     case .trakt, .simkl, .anilist, .myAnimeList: .account
-    case .douban, .wikidata: .builtIn
+    case .douban, .myShows, .wikidata: .builtIn
     }
   }
 
@@ -129,6 +133,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: "OMDb"
     case .trakt: "Trakt"
     case .douban: "Douban"
+    case .myShows: "MyShows"
     case .wikidata: "Wikidata"
     case .simkl: "Simkl"
     case .anilist: "AniList"
@@ -144,6 +149,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: "Integration_OMDb_About".localized
     case .trakt: "Integration_Trakt_About".localized
     case .douban: "Integration_Douban_About".localized
+    case .myShows: "Integration_MyShows_About".localized
     case .wikidata: "Integration_Wikidata_About".localized
     case .simkl: "Integration_Simkl_About".localized
     case .anilist: "Integration_AniList_About".localized
@@ -159,6 +165,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb: "Integration_TMDB_KeyHelp".localized
     case .trakt: "Integration_Trakt_SignInHelp".localized
     case .douban: "Integration_Douban_Help".localized
+    case .myShows: "Integration_MyShows_Help".localized
     case .wikidata: "Integration_Wikidata_Help".localized
     case .simkl, .anilist, .myAnimeList: "Integration_Account_Help".localized
     }
@@ -172,6 +179,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: URL(string: "https://www.omdbapi.com")!
     case .trakt: URL(string: "https://trakt.tv")!
     case .douban: URL(string: "https://movie.douban.com")!
+    case .myShows: URL(string: "https://myshows.me")!
     case .wikidata: URL(string: "https://www.wikidata.org")!
     case .simkl: URL(string: "https://simkl.com")!
     case .anilist: URL(string: "https://anilist.co")!
@@ -224,6 +232,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb: "tmdb_big_color"
     case .trakt: "trakt"
     case .douban: "douban"
+    case .myShows: "myshows"
     case .wikidata: "wikidata"
     case .simkl: "simkl"
     case .anilist: "anilist"
@@ -241,6 +250,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: "OMDb"
     case .trakt: "trakt"
     case .douban: "豆"
+    case .myShows: "MS"
     case .wikidata: "WD"
     case .simkl: "S"
     case .anilist: "AL"
@@ -255,6 +265,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: Color(red: 0.80, green: 0.62, blue: 0.10)
     case .trakt: Color(red: 0.93, green: 0.11, blue: 0.14)
     case .douban: Color(red: 0.0, green: 0.71, blue: 0.11)
+    case .myShows: Color(red: 0.90, green: 0.14, blue: 0.23)
     case .wikidata: Color(red: 0.2, green: 0.4, blue: 0.6)
     case .simkl: Color(red: 0.10, green: 0.10, blue: 0.12)
     case .anilist: Color(red: 0.01, green: 0.66, blue: 1.00)
