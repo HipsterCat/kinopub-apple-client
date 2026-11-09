@@ -1293,6 +1293,8 @@ struct SetlistTrack: Identifiable, Hashable {
   let number: String
   let title: String
   let subtitle: String?
+  /// Where the song starts, from a timecode the uploader typed before its name.
+  let startTime: TimeInterval?
 
   static func tracks(of mediaItem: MediaItem) -> [SetlistTrack] {
     guard mediaItem.presentation.showsSetlist else { return [] }
@@ -1301,8 +1303,19 @@ struct SetlistTrack: Identifiable, Hashable {
       return SetlistTrack(id: index,
                           number: "\(index + 1).",
                           title: lines?.title ?? "MediaItem_UntitledTrack".localized,
-                          subtitle: lines?.subtitle)
+                          subtitle: lines?.subtitle,
+                          startTime: song.startTime)
     }
+  }
+
+  /// The songs that are chapters of the video: every one with a start time, when there are
+  /// at least two and they run forward. Hand-typed times that go backwards are not a
+  /// table of contents anyone can trust, so then there are none.
+  static func chapters(of mediaItem: MediaItem) -> [SetlistTrack] {
+    let timed = tracks(of: mediaItem).filter { $0.startTime != nil }
+    guard timed.count >= 2,
+          zip(timed, timed.dropFirst()).allSatisfy({ $0.startTime! < $1.startTime! }) else { return [] }
+    return timed
   }
 }
 

@@ -1885,10 +1885,40 @@ extension PlayerManager {
     // So the tabs wait for both: the first stamp (`releaseContentTabs`) and `readyToPlay`
     // (`observePlaybackState`). Until then the strip is not there at all.
     guard hasStampedInfo, player.currentItem?.status == .readyToPlay else { return }
+    applySetlistChapters()
     ensureSeriesForEpisodesTab()
     let episodes = MainActor.assumeIsolated { makeEpisodesTab() }
     let upNext = makeUpNextTab()
     controller.customInfoViewControllers = [episodes, upNext].compactMap { $0 }
+  }
+
+  /// A concert's timecoded setlist as the player's own Chapters
+  /// (`AVPlayerItem.navigationMarkerGroups`, tvOS only): one marker per song, from its
+  /// start to the next song's, the last one to the end of the video. Set once, when the
+  /// item is ready and its duration is known.
+  private func applySetlistChapters() {
+    guard watchMode == .media, let item = player.currentItem,
+          item.navigationMarkerGroups.isEmpty,
+          let title = titleContext else { return }
+    let chapters = SetlistTrack.chapters(of: title)
+    let end = item.duration.seconds
+    guard !chapters.isEmpty, end.isFinite, end > 0 else { return }
+    let starts = chapters.map { $0.startTime! }
+    let markers = chapters.enumerated().compactMap { index, track -> AVTimedMetadataGroup? in
+      let start = starts[index]
+      let next = index + 1 < starts.count ? starts[index + 1] : end
+      guard start < end, next > start else { return nil }
+      let name = AVMutableMetadataItem()
+      name.identifier = .commonIdentifierTitle
+      name.value = track.title as NSString
+      name.extendedLanguageTag = "und"
+      let range = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600),
+                              end: CMTime(seconds: min(next, end), preferredTimescale: 600))
+      return AVTimedMetadataGroup(items: [name], timeRange: range)
+    }
+    guard !markers.isEmpty else { return }
+    item.navigationMarkerGroups = [AVNavigationMarkersGroup(title: nil, timedNavigationMarkers: markers)]
+    Logger.app.info("Setlist chapters: \(markers.count) on item \(self.playItem.id)")
   }
 
   /// The first stamp of the item's facts — or the news that there are none — lets the

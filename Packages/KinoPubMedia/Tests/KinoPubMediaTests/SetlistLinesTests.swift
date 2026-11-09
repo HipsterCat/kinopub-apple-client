@@ -47,4 +47,12 @@ final class SetlistLinesTests: XCTestCase {
   func testUnnamedSongHasNoLines() {
     XCTAssertNil(SetlistEntry(title: "N/A").lines)
   }
+
+  func testTimecodeIsTheStartTime() {
+    XCTAssertEqual(SetlistEntry(title: "(07:14) Roche").startTime, 434)
+    XCTAssertEqual(SetlistEntry(title: "[1:02:03] La Ritournelle").startTime, 3723)
+    XCTAssertEqual(SetlistEntry(title: "07:14 - Roche").startTime, 434)
+    XCTAssertNil(SetlistEntry(title: "Autobahn - Part One").startTime)
+    XCTAssertNil(SetlistEntry(title: "N/A").startTime)
+  }
 }
