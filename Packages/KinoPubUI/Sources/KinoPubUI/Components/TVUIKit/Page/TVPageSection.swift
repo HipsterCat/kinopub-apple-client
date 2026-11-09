@@ -369,7 +369,7 @@ public enum TVPageItem: Hashable {
 /// new identity and is reloaded, not reconfigured into a different cell class.
 public enum TVPageRegistration: Hashable, Sendable {
   case poster, still, person, chip, card, banner, hero, masthead, groupTitle
-  case rating, reviews, review, fact, gallery, spec, track
+  case rating, reviews, review, fact, gallery, spec, track, scoreSummary
 }
 
 /// Diffable identity of one item on one page: the same title in Up Next and in Hot
@@ -628,11 +628,12 @@ public struct TVPageSection: Identifiable, Hashable {
   /// Crew" over Director | Starring. The groups' own titles are the row's titles unless a
   /// group says it is a subheading (`TVPageGroup.isSubheading`), which is how a heading
   /// above sets them smaller.
-  public static func strip(id: String, title: String? = nil, groups: [TVPageGroup]) -> TVPageSection {
+  public static func strip(id: String, title: String? = nil, count: String? = nil,
+                           groups: [TVPageGroup]) -> TVPageSection {
     let items = groups.flatMap { group -> [TVPageItem] in
       (group.title.map { [TVPageItem.groupTitle(id: group.id, text: $0)] } ?? []) + group.items
     }
-    return TVPageSection(id: id, title: title, kind: .strip, flow: .rail, columns: 0,
+    return TVPageSection(id: id, title: title, count: count, kind: .strip, flow: .rail, columns: 0,
                          caption: .always, groups: groups, items: items)
   }
 

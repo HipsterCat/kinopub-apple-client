@@ -220,6 +220,10 @@ extension Route {
       return "media-\(id)"
     case .person(let person):
       return "person-\(person.id)"
+    case .ratingsAndReviews(let payload):
+      // The viewers' and critics' cards zoom into their tab; the section's title has no
+      // card to grow out of.
+      return payload.tab == .all ? nil : RatingsAndReviews.zoomSourceID(item: payload.item.id, tab: payload.tab)
     default:
       return nil
     }

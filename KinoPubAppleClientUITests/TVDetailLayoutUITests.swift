@@ -95,11 +95,15 @@ final class TVDetailLayoutUITests: XCTestCase {
     try shoot("select-vote")
     XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1.5)
 
-    // The count of reviews: Select opens the page where they are read, and one of them reads whole.
-    XCTAssertTrue(seek(.right, until: "kinopub.reviews", limit: 8), focusedDescription)
+    // The critics' card: Select opens the page on the critics and the reviews, and one of them
+    // reads whole. The viewers' card beside it is shot on the way.
+    XCTAssertTrue(seek(.left, until: "kinopub.summary.viewers", limit: 4), focusedDescription)
+    try shoot("summary-viewers-focused")
+    XCTAssertTrue(seek(.right, until: "kinopub.summary.critics", limit: 2), focusedDescription)
     XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 2.0)
     XCTAssertTrue(app.collectionViews["kinopub.page.reviews"].waitForExistence(timeout: 10), "no page of reviews")
     try shoot("select-reviews-page")
+    XCTAssertTrue(seek(.down, until: "kinopub.review.", limit: 4), focusedDescription)
     XCUIRemote.shared.press(.select); Thread.sleep(forTimeInterval: 1.0)
     try shoot("select-review")
     XCUIRemote.shared.press(.menu); Thread.sleep(forTimeInterval: 1.5)   // closes the review

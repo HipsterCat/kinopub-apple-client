@@ -301,6 +301,7 @@ extension TVPageInfoCard {
     case .rating, .reviews: return TVPageRatingContent.height
     case .review, .fact, .gallery: return TVPageLayout.infoCardHeight
     case .track: return TVPageTrackContent.height
+    case .scoreSummary(let summary): return TVPageScoreSummaryContent.height(for: summary)
     }
   }
 }

@@ -684,6 +684,12 @@ public final class TVPageCollectionViewController: UIViewController {
       guard let self, case .info(.spec(let spec))? = self.itemsByID[id] else { return }
       cell.configure(spec)
     }
+    let scoreSummary = UICollectionView.CellRegistration<TVPageScoreSummaryCell, TVPageItemID> {
+      [weak self] cell, indexPath, id in
+      guard let self, case .info(.scoreSummary(let summary))? = self.itemsByID[id] else { return }
+      cell.apply(recipe: self.infoRecipe(at: indexPath, cell: cell))
+      cell.configure(summary)
+    }
     let track = UICollectionView.CellRegistration<TVPageTrackCell, TVPageItemID> {
       [weak self] cell, indexPath, id in
       guard let self, case .info(.track(let track))? = self.itemsByID[id] else { return }
@@ -743,6 +749,8 @@ public final class TVPageCollectionViewController: UIViewController {
         return collectionView.dequeueConfiguredReusableCell(using: spec, for: indexPath, item: id)
       case .track:
         return collectionView.dequeueConfiguredReusableCell(using: track, for: indexPath, item: id)
+      case .scoreSummary:
+        return collectionView.dequeueConfiguredReusableCell(using: scoreSummary, for: indexPath, item: id)
       }
     }
     let loadingFooter = UICollectionView.SupplementaryRegistration<TVPageLoadingFooterView>(

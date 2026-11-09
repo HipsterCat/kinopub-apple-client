@@ -197,11 +197,16 @@ struct RatingsAndReviews: Hashable {
   let hasDuringCreditsScene: Bool?
   let likeCount: Int
   let dislikeCount: Int
+  /// Which side the page opens on: the section's title opens all of it, the viewers' and
+  /// critics' cards their own (Sasha, 2026-11-09).
+  var tab: RatingsTab = .all
 
   init(item: MediaItem,
        metadata: TitleMetadata,
        likeCount: Int,
-       dislikeCount: Int) {
+       dislikeCount: Int,
+       tab: RatingsTab = .all) {
+    self.tab = tab
     self.item = item
     self.reviews = metadata.reviews
     self.summary = metadata.reviewsSummary
@@ -220,6 +225,11 @@ struct RatingsAndReviews: Hashable {
     self.hasDuringCreditsScene = metadata.hasDuringCreditsScene
     self.likeCount = likeCount
     self.dislikeCount = dislikeCount
+  }
+
+  /// The zoom source a summary card marks and its tab's page grows out of (iPhone, iPad).
+  static func zoomSourceID(item: Int, tab: RatingsTab) -> String {
+    "ratings-\(item)-\(tab.rawValue)"
   }
 
   /// The slice of `TitleMetadata` the ratings card and review cards read, rebuilt on
@@ -242,6 +252,21 @@ struct RatingsAndReviews: Hashable {
     meta.hasAfterCreditsScene = hasAfterCreditsScene
     meta.hasDuringCreditsScene = hasDuringCreditsScene
     return meta
+  }
+}
+
+/// The Ratings and Reviews page's tabs.
+enum RatingsTab: String, CaseIterable, Hashable, Identifiable {
+  case all, viewers, critics
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .all: "All".localized
+    case .viewers: "MediaItem_SummaryViewers".localized
+    case .critics: "MediaItem_SummaryCritics".localized
+    }
   }
 }
 

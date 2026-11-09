@@ -17,6 +17,40 @@
         }
       }
     },
+    "MediaItem_SummaryCritics" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Critics"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Критики"
+          }
+        }
+      }
+    },
+    "MediaItem_SummaryViewers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Viewers"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зрители"
+          }
+        }
+      }
+    },
     "\n\n" : {
 
     },

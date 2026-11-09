@@ -25,9 +25,131 @@ import KinoPubMetadata
 struct MediaItemRatingsAndReviewsPage: View {
   let payload: RatingsAndReviews
 
+  /// Opens where the card that led here says — the viewers', the critics' — or on all of it.
+  @State private var tab: RatingsTab
+
+  init(payload: RatingsAndReviews) {
+    self.payload = payload
+    _tab = State(initialValue: payload.tab)
+  }
+
   private var reviews: [Review] { payload.reviews }
 
   var body: some View {
+    if FeatureFlags.ratingsSummaryCards {
+      tabbedBody
+    } else {
+      legacyBody
+    }
+  }
+
+  // MARK: Tabs
+
+  private var summaries: RatingSources.Summaries {
+    RatingSources.summaries(for: payload.item,
+                            metadata: payload.metadata,
+                            likeCount: payload.likeCount,
+                            dislikeCount: payload.dislikeCount,
+                            rowLimit: nil)
+  }
+
+  private var tabbedBody: some View {
+    let summaries = summaries
+    return ScrollView {
+      VStack(alignment: .leading, spacing: BlockMetrics.spacing) {
+        Picker(selection: $tab.animation(.snappy)) {
+          ForEach(RatingsTab.allCases) { tab in
+            Text(verbatim: tab.title).tag(tab)
+          }
+        } label: {
+          EmptyView()
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(maxWidth: 420)
+        .frame(maxWidth: .infinity)
+
+        // One block per side; a tab shows its own, All shows both. Switch cases come and go
+        // with the tab, crossfading and sliding a little, so the change reads as a filter.
+        if tab != .critics {
+          viewersBlock(summaries.viewers)
+            .transition(.opacity.combined(with: .move(edge: .leading)))
+        }
+        if tab != .viewers {
+          criticsBlock(summaries.critics)
+            .transition(.opacity.combined(with: .move(edge: .trailing)))
+        }
+      }
+      .padding(.horizontal, MediaItemLayout.horizontalInset)
+      .padding(.vertical, MediaItemLayout.sectionSpacing)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .platformNavigationTitle(payload.item.localizedTitle)
+    .background(Color.KinoPub.background.ignoresSafeArea())
+  }
+
+  /// The card's head without its rows: here the sources are rows of their own, named and
+  /// linked (`MediaItemRatingSourceRows`). The critics keep their tones.
+  private func header(_ summary: ScoreSummary) -> some View {
+    BlockCard {
+      ScoreSummaryCardContent(summary: ScoreSummary(kind: summary.kind, title: summary.title,
+                                                    subtitle: summary.subtitle, score: summary.score,
+                                                    rows: [], tones: summary.tones))
+    }
+  }
+
+  @ViewBuilder
+  private func viewersBlock(_ summary: ScoreSummary?) -> some View {
+    VStack(alignment: .leading, spacing: BlockMetrics.spacing) {
+      if let summary { header(summary) }
+      let audience = scores.filter { !RatingSources.isCritic($0.logo) }
+      if !audience.isEmpty {
+        MediaItemRatingSourceRows(scores: audience)
+      }
+      if let trakt = traktScore, !payload.traktDistribution.isEmpty {
+        TraktDistributionCard(score: trakt, distribution: payload.traktDistribution)
+      }
+      if let douban = payload.externalRatings.first(where: { $0.kind == .douban }) {
+        DoubanStatsCard(score: douban, stats: payload.doubanStats)
+      }
+      if let myShows = payload.externalRatings.first(where: { $0.kind == .myShows }) {
+        MyShowsStatsCard(score: myShows, stats: payload.myShowsStats)
+      }
+      if let stats = payload.audienceStats {
+        AudienceStatsCard(stats: stats,
+                          afterCredits: payload.hasAfterCreditsScene == true,
+                          duringCredits: payload.hasDuringCreditsScene == true)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func criticsBlock(_ summary: ScoreSummary?) -> some View {
+    VStack(alignment: .leading, spacing: BlockMetrics.spacing) {
+      if let summary { header(summary) }
+      let critics = scores.filter { RatingSources.isCritic($0.logo) }
+      if !critics.isEmpty {
+        MediaItemRatingSourceRows(scores: critics)
+      }
+      if let insights = payload.reviewInsights, !insights.isEmpty {
+        ReviewInsightsCard(insights: insights)
+      }
+      if reviews.isEmpty {
+        emptyNote
+      } else {
+        LazyVStack(alignment: .leading, spacing: BlockMetrics.spacing) {
+          ForEach(reviews) { review in
+            ReviewCard(review: review, mode: .expanded,
+                       sourceURL: review.isFromTrakt ? review.traktCommentURL : kinopoiskReviewsURL)
+          }
+        }
+      }
+    }
+  }
+
+  // MARK: The combined card (Diagnostics: off)
+
+  private var legacyBody: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: BlockMetrics.spacing) {
         // The aggregate without its chip row: on a page there is width for the

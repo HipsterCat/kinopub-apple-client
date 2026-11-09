@@ -121,12 +121,13 @@ struct MediaItemTVPage: View {
 
     case .reviews:
       // The reviews' own words are read on a page of their own, and this card is the way in.
-      mediaNavigation?(model.linkProvider.ratingsAndReviews(
-        RatingsAndReviews(item: model.mediaItem, metadata: model.externalMetadata,
-                          likeCount: model.likeCount, dislikeCount: model.dislikeCount)))
+      openRatingsAndReviews(.all)
+
+    case .scoreSummary(let summary):
+      openRatingsAndReviews(summary.kind == .viewers ? .viewers : .critics)
 
     case .review:
-      break
+      openRatingsAndReviews(.critics)
 
     case .fact(let fact):
       if fact.isHidden {
@@ -146,6 +147,12 @@ struct MediaItemTVPage: View {
       // Nothing to open yet: a song's link out comes with a source for it.
       break
     }
+  }
+
+  private func openRatingsAndReviews(_ tab: RatingsTab) {
+    mediaNavigation?(model.linkProvider.ratingsAndReviews(
+      RatingsAndReviews(item: model.mediaItem, metadata: model.externalMetadata,
+                        likeCount: model.likeCount, dislikeCount: model.dislikeCount, tab: tab)))
   }
 
   // MARK: - Popup

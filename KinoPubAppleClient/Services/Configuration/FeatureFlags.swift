@@ -147,6 +147,12 @@ enum FeatureFlags {
   /// `RatingFeature.combinedEnabled` once at launch (`FeatureFlag.applyAtLaunch()`).
   static var combinedRatingEnabled: Bool { FeatureFlag.combinedRating.isEnabled }
 
+  /// Ratings and Reviews led by two cards, «Зрители» and «Критики», each a score out of 100
+  /// on an arc (Sasha, 2026-11-09), on every platform. Off is the card it replaced: the
+  /// combined score over a table of sources (pointer platforms) and the row of score tiles
+  /// ending in the reviews' count (tvOS).
+  static var ratingsSummaryCards: Bool { FeatureFlag.ratingsSummaryCards.isEnabled }
+
   /// tvOS player, Episodes and Up Next tabs: on, the tiles sit on a glass platter matched to
   /// Info's (`PlayerRailTab.Style.platter`); off, they are the title page's still row —
   /// four columns, the page gutter, no platter, Apple's way (`.open`). An experiment
@@ -210,6 +216,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case tvOSSidecarSubtitles
   case rewritesStreamTrackMenus
   case combinedRating
+  case ratingsSummaryCards
   case playerTabsPlatter
   case trailerInfoPanel
   case rivuletSeasonRail
@@ -240,6 +247,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvOSSidecarSubtitles: false
     case .rewritesStreamTrackMenus: false
     case .combinedRating: false
+    case .ratingsSummaryCards: true
     case .playerTabsPlatter: false
     case .trailerInfoPanel: false
     case .rivuletSeasonRail: true
@@ -270,6 +278,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvOSSidecarSubtitles: "Sidecar SRT subtitles (dual)"
     case .rewritesStreamTrackMenus: "Rewrite the player's track menus"
     case .combinedRating: "Combined IMDb + Kinopoisk rating"
+    case .ratingsSummaryCards: "Viewers and Critics cards"
     case .playerTabsPlatter: "Player tabs on a platter"
     case .trailerInfoPanel: "Info panel on trailers"
     case .rivuletSeasonRail: "Rivulet season rail"
@@ -300,6 +309,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .tvOSSidecarSubtitles: "Our transport-bar Subtitles menu and cue overlay instead of the system's."
     case .rewritesStreamTrackMenus: "Relabel, collapse and re-default the HLS master's audio and subtitles. Off: AVKit names them."
     case .combinedRating: "One weighted score on posters, the hero and the Rating tile."
+    case .ratingsSummaryCards: "Ratings and Reviews opens with a Viewers and a Critics card, each a score out of 100 on an arc. Off: the combined score over a source table (iOS, Mac), the score tiles (TV)."
     case .playerTabsPlatter: "Episodes and Up Next on Info's glass platter; off is the page's open still row."
     case .trailerInfoPanel: "The trailer player's Info panel, with the trailer's running time in it. Off: no Info on trailers."
     case .rivuletSeasonRail: "Season tabs, the S2 divider and the episode metadata plate. Select on the text opens the info sheet. Off is the numbered tabs."

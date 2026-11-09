@@ -58,6 +58,8 @@ final class MediaItemTVSectionsTests: XCTestCase {
                                           authorGroup: authorGroup,
                                           castGroup: castGroup,
                                           preferredLanguages: ["ru"])
+    // The tile row's tests; the viewers' and critics' cards have their own below.
+    input.ratingsSummaryCards = false
     configure(&input)
     return input
   }
@@ -909,6 +911,59 @@ final class MediaItemTVSectionsTests: XCTestCase {
     let block = TVPageSpecContent.blockPadding * 2 + TVPageStripPlan.stackGap
     let item = TVPageSpecContent.itemVerticalPadding * 2 + TVPageStripPlan.stackGap
     XCTAssertEqual(item * 2, block, accuracy: 0.5, "text to text, bottom of one card to the top of the next")
+  }
+
+  // MARK: - Viewers and critics
+
+  /// Ratings and Reviews leads with the viewers' and the critics' cards, kino.pub's own score
+  /// (the vote) after them, then the reviews themselves, one row (Sasha, 2026-11-09).
+  func testRatingsAndReviewsLeadWithViewersAndCritics() throws {
+    let sections = MediaItemTVSections.make(input { $0.ratingsSummaryCards = true })
+    let ratings = try XCTUnwrap(sections.first { $0.id == "ratings" })
+    XCTAssertEqual(ratings.title, "MediaItem_RatingsAndReviews".localized)
+    XCTAssertEqual(groupIDs(ratings), ["ratings-and-reviews"])
+    let items = ratings.groups[0].items
+    guard case .info(.scoreSummary(let viewers)) = items[0] else { return XCTFail("viewers first") }
+    XCTAssertEqual(viewers.kind, .viewers)
+    XCTAssertLessThanOrEqual(viewers.rows.count, ScoreSummary.rowLimit)
+    XCTAssertNotNil(viewers.score)
+    guard case .info(.scoreSummary(let critics)) = items[1] else { return XCTFail("critics second") }
+    XCTAssertEqual(critics.kind, .critics)
+    XCTAssertEqual(critics.tones.map(\.mood), [.positive, .neutral, .negative], "11 reviews: 7, 3, 1")
+    guard case .info(.rating(let vote)) = items[2] else { return XCTFail("kino.pub's score third") }
+    XCTAssertEqual(vote.id, MediaItemTVSections.ID.kinoPubScore)
+    XCTAssertTrue(items.dropFirst(3).allSatisfy { if case .info(.review) = $0 { return true } else { return false } })
+    XCTAssertNotNil(ratings.count, "every vote and review beside the title")
+  }
+
+  /// The summary does not depend on the combined rating's switch: the arc always has a score.
+  func testSummaryScoreIsOutOfAHundredAndColouredByIt() throws {
+    let summaries = RatingSources.summaries(for: fixture.makeItem(), metadata: fixture.metadata,
+                                            likeCount: 145, dislikeCount: 19)
+    let score = try XCTUnwrap(summaries.viewers?.score)
+    XCTAssertTrue((0...100).contains(score))
+    XCTAssertGreaterThan(summaries.total, 0)
+  }
+
+  /// More sources than rows: the sixth row folds the rest into one row of their marks.
+  func testLongSourceListsFoldIntoOneRow() {
+    var metadata = fixture.metadata
+    metadata.externalRatings = [
+      ExternalRating(kind: .trakt, value: 7.1, votes: 300),
+      ExternalRating(kind: .rottenTomatoesAudience, value: 80),
+      ExternalRating(kind: .letterboxd, value: 3.6, votes: 120),
+      ExternalRating(kind: .douban, value: 7.9, votes: 4000),
+      ExternalRating(kind: .myShows, value: 4.1, votes: 90)
+    ]
+    let summaries = RatingSources.summaries(for: fixture.makeItem(), metadata: metadata,
+                                            likeCount: 145, dislikeCount: 19)
+    let rows = summaries.viewers?.rows ?? []
+    XCTAssertEqual(rows.count, ScoreSummary.rowLimit)
+    XCTAssertEqual(rows.last?.id, "folded")
+    XCTAssertGreaterThan(rows.last?.marks.count ?? 0, 1)
+    let all = RatingSources.summaries(for: fixture.makeItem(), metadata: metadata,
+                                      likeCount: 145, dislikeCount: 19, rowLimit: nil)
+    XCTAssertGreaterThan(all.viewers?.rows.count ?? 0, ScoreSummary.rowLimit, "the page lists every source")
   }
 }
 #endif

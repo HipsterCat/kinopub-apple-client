@@ -53,6 +53,9 @@ enum MediaItemTVSections {
     /// Off on the page, where the languages the viewer reads stay open and the rest fold
     /// into "N more"; on in the popup a column opens, which lists them all.
     var showsEveryLanguage = false
+    /// Ratings and Reviews led by the viewers' and critics' cards; off is the row of score tiles
+    /// (`FeatureFlags.ratingsSummaryCards`).
+    var ratingsSummaryCards = FeatureFlags.ratingsSummaryCards
   }
 
   /// Ids the page uses to say what a selection was. Strings, because a `TVPageItem` is.
@@ -104,6 +107,41 @@ enum MediaItemTVSections {
   /// there are and how they were meant (Sasha, 2026-10-11). The reviews' own words are not on this
   /// page any more: that card opens a page of their own.
   static func ratings(_ input: Input) -> [TVPageSection] {
+    input.ratingsSummaryCards ? ratingsAndReviews(input) : scoreTiles(input)
+  }
+
+  /// Ratings and Reviews as on the other platforms (Sasha, 2026-11-09): the viewers' card, the
+  /// critics' card, kino.pub's own score — the card the viewer votes with, as before — then the
+  /// first reviews: one row, one height, the count of every vote and review beside the title.
+  /// Select on a summary card opens the reviews page on its side; on a review, on the critics'.
+  static func ratingsAndReviews(_ input: Input) -> [TVPageSection] {
+    let summaries = RatingSources.summaries(for: input.mediaItem,
+                                            metadata: input.metadata,
+                                            likeCount: input.likeCount,
+                                            dislikeCount: input.dislikeCount)
+    var items: [TVPageItem] = [summaries.viewers, summaries.critics]
+      .compactMap { $0 }
+      .map { .info(.scoreSummary($0)) }
+    let kinoPub = RatingSources.scores(for: input.mediaItem, metadata: input.metadata,
+                                       likeCount: input.likeCount, dislikeCount: input.dislikeCount)
+      .first { $0.logo == .kinopub }
+    if let kinoPub { items.append(.info(.rating(rating(kinoPub, input)))) }
+    items += input.metadata.reviews.prefix(reviewLimit).enumerated().map {
+      .info(.review(review($1, index: $0)))
+    }
+    guard !items.isEmpty else { return [] }
+    return [.strip(id: "ratings",
+                   title: "MediaItem_RatingsAndReviews".localized,
+                   count: summaries.total > 0 ? summaries.total.formatted(.number.grouping(.automatic)) : nil,
+                   groups: [TVPageGroup(id: "ratings-and-reviews", title: nil, columns: 3, items: items)])]
+  }
+
+  /// As many reviews as the rail on the pointer platforms carries.
+  static let reviewLimit = 10
+
+  /// The row of score tiles ending in the reviews' count — the variant behind Diagnostics'
+  /// «Viewers and Critics cards» switch.
+  static func scoreTiles(_ input: Input) -> [TVPageSection] {
     let scores = RatingSources.scores(for: input.mediaItem,
                                       metadata: input.metadata,
                                       likeCount: input.likeCount,

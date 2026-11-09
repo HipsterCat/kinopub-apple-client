@@ -923,7 +923,8 @@ struct MediaItemView: View {
                                         summary: itemModel.externalMetadata.reviewsSummary,
                                         likeCount: itemModel.likeCount,
                                         dislikeCount: itemModel.dislikeCount,
-                                        destination: ratingsAndReviewsDestination)
+                                        destination: ratingsAndReviewsDestination,
+                                        tabDestination: { ratingsAndReviewsDestination(tab: $0) })
 #endif
       MediaItemCommunityVoteSection(likeCount: itemModel.likeCount,
                                     dislikeCount: itemModel.dislikeCount,
@@ -984,11 +985,16 @@ struct MediaItemView: View {
   /// and that has to be true before the reviews arrive as well as after — a chevron
   /// that appears halfway through enrichment is a control the user watched grow.
   private var ratingsAndReviewsDestination: any Hashable {
+    ratingsAndReviewsDestination(tab: .all)
+  }
+
+  private func ratingsAndReviewsDestination(tab: RatingsTab) -> any Hashable {
     itemModel.linkProvider.ratingsAndReviews(
       RatingsAndReviews(item: itemModel.mediaItem,
                         metadata: itemModel.externalMetadata,
                         likeCount: itemModel.likeCount,
-                        dislikeCount: itemModel.dislikeCount)
+                        dislikeCount: itemModel.dislikeCount,
+                        tab: tab)
     )
   }
 

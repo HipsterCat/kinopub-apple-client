@@ -25,6 +25,8 @@ public enum TVPageInfoCard: Hashable {
   case gallery(Gallery)
   case spec(Spec)
   case track(Track)
+  /// The viewers' or the critics' card that leads Ratings and Reviews (`ScoreSummary`).
+  case scoreSummary(ScoreSummary)
 
   public var id: String {
     switch self {
@@ -35,6 +37,7 @@ public enum TVPageInfoCard: Hashable {
     case .gallery(let gallery): return "gallery.\(gallery.id)"
     case .spec(let spec): return "spec.\(spec.id)"
     case .track(let track): return "track.\(track.id)"
+    case .scoreSummary(let summary): return "summary.\(summary.kind.rawValue)"
     }
   }
 
@@ -47,6 +50,7 @@ public enum TVPageInfoCard: Hashable {
     case .gallery: return .gallery
     case .spec: return .spec
     case .track: return .track
+    case .scoreSummary: return .scoreSummary
     }
   }
 

@@ -374,6 +374,205 @@ enum RatingSources {
 #endif
 }
 
+// MARK: - Viewers and critics
+
+/// The two cards that lead Ratings and Reviews (Sasha, 2026-11-09): the audiences' scores and
+/// the critics', each with a score out of 100 of its own. **Not the combined rating**: that
+/// switch decides the poster plaque and the hero pill; these cards always summarise.
+extension RatingSources {
+
+  struct Summaries {
+    var viewers: ScoreSummary?
+    var critics: ScoreSummary?
+    /// Every vote behind the viewers' card plus every review: the count beside the
+    /// section's title.
+    var total: Int
+  }
+
+  /// Rotten Tomatoes' critics and Metacritic: the critics' card. Every other source is an
+  /// audience, Rotten Tomatoes' own audience included.
+  static func isCritic(_ logo: MediaScoreLogo.Source) -> Bool {
+    switch logo {
+    case .rottenTomatoesCertified, .rottenTomatoesFresh, .rottenTomatoesRotten,
+         .metacriticFavorable, .metacritic, .metacriticUnfavorable:
+      return true
+    default:
+      return false
+    }
+  }
+
+  /// What the number is out of, when it is not a percentage.
+  static func scale(of logo: MediaScoreLogo.Source) -> String? {
+    switch logo {
+    case .imdb, .kinopoisk, .myAnimeList, .douban: return "/ 10"
+    case .letterboxd, .myShows: return "/ 5"
+    case .metacritic, .metacriticFavorable, .metacriticUnfavorable: return "/ 100"
+    default: return nil
+    }
+  }
+
+  /// Both cards. `rowLimit` folds a long list's tail into one row of marks (the rail); nil
+  /// lists every source (the page).
+  static func summaries(for mediaItem: MediaItem,
+                        metadata: TitleMetadata,
+                        likeCount: Int = 0,
+                        dislikeCount: Int = 0,
+                        rowLimit: Int? = ScoreSummary.rowLimit) -> Summaries {
+    let all = scores(for: mediaItem, metadata: metadata, likeCount: likeCount, dislikeCount: dislikeCount)
+      .filter { !$0.isPlaceholder }
+    let audience = all.filter { !isCritic($0.logo) }
+    let critics = all.filter { isCritic($0.logo) && $0.value != nil }
+    let tally = ReviewTally(metadata: metadata)
+
+    let viewers = viewersSummary(audience, rowLimit: rowLimit)
+    let critic = criticsSummary(critics, tally: tally, rowLimit: rowLimit)
+    let votes = audience.reduce(0) { $0 + ($1.votes ?? 0) }
+    return Summaries(viewers: viewers, critics: critic, total: votes + tally.total)
+  }
+
+  /// How heavily a source counts towards its card's score: the order of magnitude of its
+  /// turnout, so 90 000 IMDb votes outweigh 600 on TMDB without drowning them, and a score
+  /// with no count (Rotten Tomatoes' audience) still counts once.
+  private static func weight(_ score: Score) -> Double {
+    guard let votes = score.votes, votes > 0 else { return 1 }
+    return log10(Double(votes) + 10)
+  }
+
+  private static func weightedMean(_ scores: [Score]) -> Double? {
+    let rated = scores.filter { $0.value != nil }
+    let total = rated.reduce(0) { $0 + weight($1) }
+    guard total > 0 else { return nil }
+    return rated.reduce(0) { $0 + ($1.value ?? 0) * weight($1) } / total
+  }
+
+  private static func viewersSummary(_ audience: [Score], rowLimit: Int?) -> ScoreSummary? {
+    guard !audience.isEmpty else { return nil }
+    // kino.pub's thumbs are listed, not averaged: a thumb is not a score (`scores(for:)`).
+    let mean = weightedMean(audience.filter { $0.logo != .kinopub })
+    let votes = audience.reduce(0) { $0 + ($1.votes ?? 0) }
+    let peak = audience.compactMap(\.votes).max() ?? 0
+    return ScoreSummary(kind: .viewers,
+                        title: "MediaItem_SummaryViewers".localized,
+                        subtitle: votes > 0 ? votesLine(votes) : nil,
+                        score: mean.map { Int(($0 * 10).rounded()) },
+                        rows: rows(audience, peak: peak, rowLimit: rowLimit))
+  }
+
+  private static func criticsSummary(_ critics: [Score], tally: ReviewTally, rowLimit: Int?) -> ScoreSummary? {
+    guard !critics.isEmpty || tally.total > 0 else { return nil }
+    // Each critics' score counts once, and so do the reviews, by how they were meant: until
+    // Rotten Tomatoes and Metacritic come with their counts, the reviews and comments we hold
+    // (Kinopoisk, Trakt) are the rest of the critics' voice (Sasha, 2026-11-09).
+    var parts = critics.compactMap { $0.value.map { $0 * 10 } }
+    if let share = tally.favourableShare { parts.append(share * 100) }
+    let score = parts.isEmpty ? nil : Int((parts.reduce(0, +) / Double(parts.count)).rounded())
+    return ScoreSummary(kind: .critics,
+                        title: "MediaItem_SummaryCritics".localized,
+                        subtitle: tally.total > 0
+                          ? "\(tally.total.formatted(.number.grouping(.automatic))) \(localizedReviewsUnit(tally.total))"
+                          : nil,
+                        score: score,
+                        rows: rows(critics, peak: 0, rowLimit: rowLimit),
+                        tones: tally.tones)
+  }
+
+  private static func votesLine(_ votes: Int) -> String {
+    "\(votes.formatted(.number.grouping(.automatic))) \(TraktDistributionCard.unit(votes))"
+  }
+
+  private static func rows(_ scores: [Score], peak: Int, rowLimit: Int?) -> [ScoreSummary.Row] {
+    func share(_ votes: Int?) -> Double? {
+      guard let votes, votes > 0, peak > 0 else { return nil }
+      return min(Double(votes) / Double(peak), 1)
+    }
+    func row(_ score: Score) -> ScoreSummary.Row {
+      ScoreSummary.Row(id: score.id,
+                       marks: [score.logo],
+                       name: displayName(score),
+                       value: score.display,
+                       scale: score.value == nil ? nil : scale(of: score.logo),
+                       faint: score.drawsFaint,
+                       detail: score.votes.flatMap { $0 > 0 ? votesLine($0) : nil } ?? score.label,
+                       share: share(score.votes))
+    }
+    guard let limit = rowLimit, scores.count > limit, limit > 1 else { return scores.map(row) }
+    // The sixth row and the rest: one row of their marks, their weighted mean, their votes.
+    let head = scores.prefix(limit - 1).map(row)
+    let tail = Array(scores.dropFirst(limit - 1))
+    let votes = tail.reduce(0) { $0 + ($1.votes ?? 0) }
+    let mean = weightedMean(tail)
+    let folded = ScoreSummary.Row(id: "folded",
+                                  marks: tail.map(\.logo),
+                                  name: nil,
+                                  value: mean.map { String(format: "%.1f", $0) } ?? "?",
+                                  scale: mean == nil ? nil : "/ 10",
+                                  faint: tail.allSatisfy(\.drawsFaint),
+                                  detail: votes > 0 ? votesLine(votes) : nil,
+                                  share: share(votes))
+    return head + [folded]
+  }
+
+  /// Rotten Tomatoes' critics row says Rotten Tomatoes; the rest are the source's own name.
+  private static func displayName(_ score: Score) -> String {
+    switch score.logo {
+    case .rottenTomatoesCertified, .rottenTomatoesFresh, .rottenTomatoesRotten: "Rotten Tomatoes"
+    default: score.id
+    }
+  }
+}
+
+/// How many reviews there are and how they were meant: the source's summary when it sent one,
+/// otherwise what the reviews we hold say. One reading for the critics' card, the page and the
+/// tvOS row.
+struct ReviewTally {
+  let total: Int
+  let positive: Int
+  let neutral: Int
+  let negative: Int
+
+  init(metadata: TitleMetadata) {
+    if let summary = metadata.reviewsSummary, !summary.isEmpty {
+      total = summary.total > 0 ? summary.total : metadata.reviews.count
+      positive = summary.positive
+      neutral = summary.neutral
+      negative = summary.negative
+    } else {
+      let held = metadata.reviews.map { $0.sentiment?.uppercased() }
+      total = held.count
+      positive = held.filter { $0 == "POSITIVE" }.count
+      negative = held.filter { $0 == "NEGATIVE" }.count
+      neutral = held.count - positive - negative
+    }
+  }
+
+  /// The favourable share, a mixed review counting half. Nil with nothing counted.
+  var favourableShare: Double? {
+    let counted = positive + neutral + negative
+    guard counted > 0 else { return nil }
+    return (Double(positive) + Double(neutral) / 2) / Double(counted)
+  }
+
+  var tones: [ScoreSummary.Tone] {
+    let counted = positive + neutral + negative
+    guard counted > 0 else { return [] }
+    let peak = max(positive, neutral, negative)
+    let list: [(ScoreSummary.Tone.Mood, String, Int)] = [
+      (.positive, "MediaItem_ReviewsPositive", positive),
+      (.neutral, "MediaItem_ReviewsNeutral", neutral),
+      (.negative, "MediaItem_ReviewsNegative", negative)
+    ]
+    return list.filter { $0.2 > 0 }
+      .sorted { $0.2 > $1.2 }
+      .map { mood, key, count in
+        ScoreSummary.Tone(mood: mood,
+                          title: key.localized,
+                          count: count.formatted(.number.grouping(.automatic)),
+                          percent: (Double(count) / Double(counted)).formatted(.percent.precision(.fractionLength(0))),
+                          share: Double(count) / Double(peak))
+      }
+  }
+}
+
 /// Score tiles: our aggregate first, then one per source, then internal views.
 /// Pointer platforms open the source page when a real URL exists; aggregate and
 /// views tiles are display-only.
@@ -1754,6 +1953,9 @@ struct MediaItemRatingsAndReviewsSection: View {
   /// The section's page. Every card in the rail opens it too, so the whole block has
   /// exactly one destination.
   var destination: (any Hashable)? = nil
+  /// The same page opened on one tab: the viewers' card opens the viewers, the critics' card
+  /// and the reviews the critics. Nil falls back to `destination`.
+  var tabDestination: ((RatingsTab) -> any Hashable)? = nil
   @Environment(\.openURL) private var openURL
 
   private var reviews: [Review] { externalMetadata.reviews }
@@ -1773,6 +1975,81 @@ struct MediaItemRatingsAndReviewsSection: View {
   }
 
   var body: some View {
+    if FeatureFlags.ratingsSummaryCards {
+      summaryBody
+    } else {
+      legacyBody
+    }
+  }
+
+  // MARK: Viewers and critics
+
+  private var summaries: RatingSources.Summaries {
+    RatingSources.summaries(for: mediaItem,
+                            metadata: externalMetadata,
+                            likeCount: likeCount,
+                            dislikeCount: dislikeCount)
+  }
+
+  @ViewBuilder
+  private var summaryBody: some View {
+    let summaries = summaries
+    let cards = [summaries.viewers, summaries.critics].compactMap { $0 }
+    if !cards.isEmpty || !visible.isEmpty {
+      VStack(alignment: .leading, spacing: 12) {
+        // The count is every vote and every review behind the block (Sasha, 2026-11-09).
+        MediaItemSectionHeader("MediaItem_RatingsAndReviews",
+                               count: summaries.total > 0
+                                 ? summaries.total.formatted(.number.grouping(.automatic)) : nil,
+                               destination: link(.all))
+        BlockRail(height: railHeight(cards), inset: MediaItemLayout.horizontalInset) {
+          ForEach(cards, id: \.kind) { summary in
+            summaryCard(summary)
+          }
+          ForEach(visible) { review in
+            ReviewCard(review: review, destination: link(.critics))
+          }
+        }
+      }
+    }
+  }
+
+  private func summaryCard(_ summary: ScoreSummary) -> some View {
+    let tab: RatingsTab = summary.kind == .viewers ? .viewers : .critics
+    let destination = link(tab)
+    return BlockCard(destination.map { BlockCardKind.link(value: $0) } ?? BlockCardKind.flat,
+                     width: Self.summaryCardWidth,
+                     fillsHeight: true) {
+      ScoreSummaryCardContent(summary: summary, showsChevron: destination != nil)
+    }
+    .mediaZoomSource(id: RatingsAndReviews.zoomSourceID(item: mediaItem.id, tab: tab))
+  }
+
+  private func link(_ tab: RatingsTab) -> (any Hashable)? {
+    tabDestination?(tab) ?? destination
+  }
+
+  /// As tall as the taller summary card, and never shorter than a review: the reviews
+  /// stretch to it, the App Store's row.
+  private func railHeight(_ cards: [ScoreSummary]) -> CGFloat {
+    let tallest = cards.map { ScoreSummaryMetrics.contentHeight(for: $0) }.max() ?? 0
+    return max(BlockMetrics.textCardHeight, ceil(tallest + BlockMetrics.padding * 2))
+  }
+
+  /// A review card's width, a little more on iPhone and iPad, where the running text is
+  /// larger against the card: the number, the mark, the name and the bar on one line.
+  static var summaryCardWidth: CGFloat {
+#if os(iOS)
+    BlockMetrics.textCardWidth + 30
+#else
+    BlockMetrics.textCardWidth
+#endif
+  }
+
+  // MARK: The combined card (Diagnostics: off)
+
+  @ViewBuilder
+  private var legacyBody: some View {
     if hasRatings || !visible.isEmpty {
       VStack(alignment: .leading, spacing: 12) {
         // **One title, one destination, always.** The header used to read "Ratings"
