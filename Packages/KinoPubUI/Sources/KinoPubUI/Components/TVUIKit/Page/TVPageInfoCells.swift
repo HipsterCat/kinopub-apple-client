@@ -286,8 +286,6 @@ final class TVPageRatingContent: TVPageCardContent {
   private let captionLabel = UILabel()
   private let thumbsLabel = UILabel()
   private var thumbs: TVPageInfoCard.Rating.Thumbs?
-  private var caption: String?
-  private var focusedCaption: String?
   private var hasValue = true
   private var hidesNumber = false
   private var faint = false
@@ -375,8 +373,6 @@ final class TVPageRatingContent: TVPageCardContent {
     } else {
       valueLabel.attributedText = ScoreValueTypography.nsAttributed(rating.value ?? Self.noValue, font: Self.valueFont)
     }
-    caption = rating.caption
-    focusedCaption = rating.focusedCaption
     captionLabel.text = rating.caption
     captionLabel.isHidden = rating.thumbs != nil || rating.caption == nil
     let nextMark = rating.thumbs?.mark ?? .none
@@ -450,9 +446,6 @@ final class TVPageRatingContent: TVPageCardContent {
     nameLabel.textColor = Self.ink(focused: focused)
     valueLabel.textColor = (hasValue && !faint) ? Self.ink(focused: focused) : Self.secondaryInk(focused: focused)
     captionLabel.textColor = Self.secondaryInk(focused: focused)
-    if let focusedCaption {
-      captionLabel.text = focused ? focusedCaption : caption
-    }
     thumbsLabel.textColor = Self.secondaryInk(focused: focused)
     renderThumbs()
   }

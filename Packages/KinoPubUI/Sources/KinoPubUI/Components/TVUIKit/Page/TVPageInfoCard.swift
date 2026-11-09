@@ -72,9 +72,6 @@ public enum TVPageInfoCard: Hashable {
     /// number would be, and `caption` still says how many voted.
     public let value: String?
     public let caption: String?
-    /// What `caption` turns into while the card has focus: «Критики» becomes
-    /// «Rotten Tomatoes». Nil keeps `caption`.
-    public let focusedCaption: String?
     /// kino.pub's own score is thumbs, and shows how many of each.
     public let thumbs: Thumbs?
     /// Five voters or fewer, or no published score. The number is secondary ink.
@@ -101,9 +98,8 @@ public enum TVPageInfoCard: Hashable {
 
     public init(id: String, source: MediaScoreLogo.Source?, title: String,
                 value: String?, caption: String? = nil, thumbs: Thumbs? = nil,
-                faint: Bool = false, hidesNumber: Bool = false, focusedCaption: String? = nil) {
+                faint: Bool = false, hidesNumber: Bool = false) {
       self.id = id
-      self.focusedCaption = focusedCaption
       self.source = source
       self.title = title
       self.value = value

@@ -44,6 +44,24 @@ final class TraktSourceTests: XCTestCase {
     XCTAssertEqual(letterboxd.score10, 8.24, accuracy: 0.001)
   }
 
+  func testDistributionAndRelayedIMDb() throws {
+    let dto = try JSONDecoder().decode(TraktRatingsDTO.self, from: Data(movieRatings.utf8))
+    XCTAssertEqual(TraktSource.distribution(from: dto), [1: 143, 10: 8567])
+    XCTAssertEqual(dto.imdb?.votes, 269113)
+  }
+
+  func testStatsAndSentimentsDecode() throws {
+    let stats = #"{"watchers": 94800, "plays": 105100, "collectors": 20000, "comments": 120, "lists": 34900, "votes": 32556, "favorited": 1100, "recommended": 900}"#
+    let decoded = try JSONDecoder().decode(TraktStatsDTO.self, from: Data(stats.utf8))
+    XCTAssertEqual(decoded.lists, 34900)
+    XCTAssertEqual(decoded.favorited, 1100)
+    let sentiments = #"{"good": [{"sentiment": "Strong performances", "comment_ids": [1]}], "bad": [{"sentiment": "Predictable plot"}], "analyzed_at": "2025-03-01T12:00:00.000Z", "comment_count": 42}"#
+    let insights = try JSONDecoder().decode(TraktSentimentsDTO.self, from: Data(sentiments.utf8))
+    XCTAssertEqual(insights.good?.map(\.sentiment), ["Strong performances"])
+    XCTAssertEqual(insights.commentCount, 42)
+    XCTAssertNotNil(insights.analyzedAt.flatMap(TraktSource.parseDate))
+  }
+
   func testPlainRatingsCarryTraktsScoreAtTheTopLevel() throws {
     let plain = #"{"rating": 8.11, "votes": 15928, "distribution": {"1": 122}}"#
     let dto = try JSONDecoder().decode(TraktRatingsDTO.self, from: Data(plain.utf8))

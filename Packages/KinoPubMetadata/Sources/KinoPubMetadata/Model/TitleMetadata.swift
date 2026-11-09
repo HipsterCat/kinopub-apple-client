@@ -314,6 +314,49 @@ public struct ExternalRating: Sendable, Hashable, Identifiable {
   }
 }
 
+/// How many people did what with a title, as Trakt counts its own users (`/stats`).
+public struct AudienceStats: Sendable, Hashable {
+  public let watchers: Int
+  public let plays: Int
+  public let collectors: Int
+  public let comments: Int
+  public let lists: Int
+  public let votes: Int
+  public let favorited: Int?
+  public let recommended: Int?
+
+  public init(watchers: Int, plays: Int, collectors: Int, comments: Int, lists: Int, votes: Int,
+              favorited: Int? = nil, recommended: Int? = nil) {
+    self.watchers = watchers
+    self.plays = plays
+    self.collectors = collectors
+    self.comments = comments
+    self.lists = lists
+    self.votes = votes
+    self.favorited = favorited
+    self.recommended = recommended
+  }
+}
+
+/// What a title's reviews praise and fault, summed up by the source (Trakt's
+/// `/sentiments`, written in English). Each point is a short phrase.
+public struct ReviewInsights: Sendable, Hashable {
+  public let good: [String]
+  public let bad: [String]
+  /// How many comments the summary was drawn from.
+  public let commentCount: Int
+  public let analyzedAt: Date?
+
+  public init(good: [String], bad: [String], commentCount: Int, analyzedAt: Date? = nil) {
+    self.good = good
+    self.bad = bad
+    self.commentCount = commentCount
+    self.analyzedAt = analyzedAt
+  }
+
+  public var isEmpty: Bool { good.isEmpty && bad.isEmpty }
+}
+
 /// How many reviews a title has, as the source counts them.
 ///
 /// `total` is **not** `reviews.count`: the proxy pages its reviews and we carry the
@@ -505,6 +548,17 @@ public struct TitleMetadata: Sendable {
   public var externalRatings: [ExternalRating] = []
   /// The title's page on Trakt, when Trakt knows it.
   public var traktURL: URL?
+  /// How Trakt's votes fall, score 1…10 → votes.
+  public var traktDistribution: [Int: Int] = [:]
+  public var audienceStats: AudienceStats?
+  public var reviewInsights: ReviewInsights?
+  /// IMDb's score and vote count as Trakt last read them. Fresher than kino.pub's own
+  /// copy when it has more votes (Sasha, 2026-11-09).
+  public var relayedIMDbRating: Double?
+  public var relayedIMDbVotes: Int?
+  /// A scene after (or during) the credits, as Trakt's users mark it.
+  public var hasAfterCreditsScene: Bool?
+  public var hasDuringCreditsScene: Bool?
   public var attribution: Set<MetadataSourceID> = []
   /// The language this source's text was asked in — TMDB's `MetadataConfiguration.language`.
   /// Nil where the source did not say; on a merged overlay, the first source's.
@@ -575,6 +629,13 @@ public struct TitleMetadata: Sendable {
       externalRatings.append(rating)
     }
     if traktURL == nil { traktURL = other.traktURL }
+    if traktDistribution.isEmpty { traktDistribution = other.traktDistribution }
+    if audienceStats == nil { audienceStats = other.audienceStats }
+    if reviewInsights == nil { reviewInsights = other.reviewInsights }
+    if relayedIMDbRating == nil { relayedIMDbRating = other.relayedIMDbRating }
+    if relayedIMDbVotes == nil { relayedIMDbVotes = other.relayedIMDbVotes }
+    if hasAfterCreditsScene == nil { hasAfterCreditsScene = other.hasAfterCreditsScene }
+    if hasDuringCreditsScene == nil { hasDuringCreditsScene = other.hasDuringCreditsScene }
     attribution.formUnion(other.attribution)
     if language == nil { language = other.language }
     if titleLogoLanguage == nil { titleLogoLanguage = other.titleLogoLanguage }

@@ -146,6 +146,15 @@ public struct MediaScores: Hashable, Codable, Sendable {
     )
   }
 
+  /// IMDb's score from another reader of it (Trakt) when that copy has more votes —
+  /// more votes is the newer reading (Sasha, 2026-11-09). Otherwise unchanged.
+  public func preferringIMDb(_ rating: Double?, votes: Int?) -> MediaScores {
+    guard let rating, rating > 0, let votes, votes > (imdbVotes ?? 0) else { return self }
+    return MediaScores(imdb: rating, imdbVotes: votes, kinopoisk: kinopoisk, kinopoiskVotes: kinopoiskVotes,
+                       tmdb: tmdb, tmdbVotes: tmdbVotes, kinopubLikes: kinopubLikes,
+                       kinopubDislikes: kinopubDislikes, extras: extras)
+  }
+
   /// The same scores with the relayed ones after them.
   public func adding(extras: [Extra]) -> MediaScores {
     MediaScores(imdb: imdb, imdbVotes: imdbVotes, kinopoisk: kinopoisk, kinopoiskVotes: kinopoiskVotes,

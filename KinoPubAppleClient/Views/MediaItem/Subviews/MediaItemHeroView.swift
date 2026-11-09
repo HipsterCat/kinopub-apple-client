@@ -1305,8 +1305,10 @@ struct MediaItemHeroView: View {
   /// chips. IMDb, Kinopoisk, TMDB — the ratings block's sources except kino.pub,
   /// whose thumbs are not a rating. Kinopoisk with voters and no number is "?".
   private var lineScores: MediaScores {
-    MediaScores(mediaItem).adding(tmdb: externalMetadata.tmdbRating,
-                                 tmdbVotes: externalMetadata.tmdbVotes)
+    MediaScores(mediaItem)
+      .preferringIMDb(externalMetadata.relayedIMDbRating, votes: externalMetadata.relayedIMDbVotes)
+      .adding(tmdb: externalMetadata.tmdbRating,
+              tmdbVotes: externalMetadata.tmdbVotes)
       .adding(extras: RatingSources.lineExtras(externalMetadata))
   }
 

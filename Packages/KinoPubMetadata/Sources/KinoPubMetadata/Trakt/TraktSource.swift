@@ -33,6 +33,8 @@ public final class TraktSource: MetadataSource, @unchecked Sendable {
   private static let summaryTTL: TimeInterval = 60 * 60 * 24 * 30
   private static let ratingsTTL: TimeInterval = 60 * 60 * 24
   private static let commentsTTL: TimeInterval = 60 * 60 * 24
+  /// Trakt re-reads a title's comments for the summary now and then, not daily.
+  private static let sentimentsTTL: TimeInterval = 60 * 60 * 24 * 7
   /// What a title page shows; the rest stays on Trakt.
   static let reviewLimit = 20
 
@@ -61,8 +63,9 @@ public final class TraktSource: MetadataSource, @unchecked Sendable {
     let kind = identity.isSeries ? "shows" : "movies"
     let headers = Self.headers(clientID: clientID)
 
-    async let summaryCall = fetch(path: "/\(kind)/\(imdb)", query: [],
-                                  key: "trakt/summary/\(kind)/\(imdb)", ttl: Self.summaryTTL,
+    async let summaryCall = fetch(path: "/\(kind)/\(imdb)",
+                                  query: [URLQueryItem(name: "extended", value: "full")],
+                                  key: "trakt/summary-full/\(kind)/\(imdb)", ttl: Self.summaryTTL,
                                   headers: headers, endpoint: "summary")
     async let ratingsCall = fetch(path: "/\(kind)/\(imdb)/ratings",
                                   query: [URLQueryItem(name: "extended", value: "all")],
@@ -72,15 +75,43 @@ public final class TraktSource: MetadataSource, @unchecked Sendable {
                                    query: [URLQueryItem(name: "limit", value: "50")],
                                    key: "trakt/comments/likes/\(kind)/\(imdb)", ttl: Self.commentsTTL,
                                    headers: headers, endpoint: "comments")
+    async let statsCall = fetch(path: "/\(kind)/\(imdb)/stats", query: [],
+                                key: "trakt/stats/\(kind)/\(imdb)", ttl: Self.ratingsTTL,
+                                headers: headers, endpoint: "stats")
+    async let sentimentsCall = fetch(path: "/\(kind)/\(imdb)/sentiments", query: [],
+                                     key: "trakt/sentiments/\(kind)/\(imdb)", ttl: Self.sentimentsTTL,
+                                     headers: headers, endpoint: "sentiments")
     let (summary, ratings, comments) = await (summaryCall, ratingsCall, commentsCall)
-    meta.debugLog = [summary.debug, ratings.debug, comments.debug]
+    let (stats, sentiments) = await (statsCall, sentimentsCall)
+    meta.debugLog = [summary.debug, ratings.debug, comments.debug, stats.debug, sentiments.debug]
 
-    if let data = summary.data, let dto = try? client.decode(TraktSummaryDTO.self, from: data),
-       let slug = dto.ids?.slug, !slug.isEmpty {
-      meta.traktURL = Self.webBaseURL.appending(path: "\(kind)/\(slug)")
+    if let data = summary.data, let dto = try? client.decode(TraktSummaryDTO.self, from: data) {
+      if let slug = dto.ids?.slug, !slug.isEmpty {
+        meta.traktURL = Self.webBaseURL.appending(path: "\(kind)/\(slug)")
+      }
+      meta.hasAfterCreditsScene = dto.afterCredits
+      meta.hasDuringCreditsScene = dto.duringCredits
     }
     if let data = ratings.data, let dto = try? client.decode(TraktRatingsDTO.self, from: data) {
       meta.externalRatings = Self.ratings(from: dto, traktURL: meta.traktURL)
+      meta.traktDistribution = Self.distribution(from: dto)
+      if let imdb = dto.imdb, let rating = imdb.rating, rating > 0, (imdb.votes ?? 0) > 0 {
+        meta.relayedIMDbRating = rating
+        meta.relayedIMDbVotes = imdb.votes
+      }
+    }
+    if let data = stats.data, let dto = try? client.decode(TraktStatsDTO.self, from: data) {
+      meta.audienceStats = AudienceStats(watchers: dto.watchers ?? 0, plays: dto.plays ?? 0,
+                                         collectors: dto.collectors ?? 0, comments: dto.comments ?? 0,
+                                         lists: dto.lists ?? 0, votes: dto.votes ?? 0,
+                                         favorited: dto.favorited, recommended: dto.recommended)
+    }
+    if let data = sentiments.data, let dto = try? client.decode(TraktSentimentsDTO.self, from: data) {
+      let insights = ReviewInsights(good: dto.good?.map(\.sentiment) ?? [],
+                                    bad: dto.bad?.map(\.sentiment) ?? [],
+                                    commentCount: dto.commentCount ?? 0,
+                                    analyzedAt: dto.analyzedAt.flatMap(Self.parseDate))
+      meta.reviewInsights = insights.isEmpty ? nil : insights
     }
     if let data = comments.data, let dto = try? client.decode([TraktCommentDTO].self, from: data) {
       meta.reviews = Self.reviews(from: dto, preferredLanguage: language)
@@ -117,6 +148,18 @@ public final class TraktSource: MetadataSource, @unchecked Sendable {
       list.append(ExternalRating(kind: .myAnimeList, value: value, votes: mal.votes, url: url(mal.link)))
     }
     return list
+  }
+
+  /// Votes per score, 1…10. `extended=all` nests it under `trakt`; the plain response
+  /// has it at the top level. Trakt sends the counts as numbers that may be floats.
+  static func distribution(from dto: TraktRatingsDTO) -> [Int: Int] {
+    let raw = dto.trakt?.distribution ?? dto.distribution ?? [:]
+    var result: [Int: Int] = [:]
+    for (key, value) in raw {
+      guard let score = Int(key), (1...10).contains(score) else { continue }
+      result[score] = Int(value.rounded())
+    }
+    return result
   }
 
   /// Trakt's comments, most liked first, as reviews. Spoilers are left out — the whole
@@ -165,7 +208,7 @@ public final class TraktSource: MetadataSource, @unchecked Sendable {
     }
   }
 
-  private static func parseDate(_ raw: String) -> Date? {
+  static func parseDate(_ raw: String) -> Date? {
     let fractional = ISO8601DateFormatter()
     fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     if let date = fractional.date(from: raw) { return date }
@@ -230,12 +273,48 @@ struct TraktSummaryDTO: Decodable {
     let slug: String?
   }
   let ids: IDs?
+  let afterCredits: Bool?
+  let duringCredits: Bool?
+
+  enum CodingKeys: String, CodingKey {
+    case ids
+    case afterCredits = "after_credits"
+    case duringCredits = "during_credits"
+  }
+}
+
+struct TraktStatsDTO: Decodable {
+  let watchers: Int?
+  let plays: Int?
+  let collectors: Int?
+  let comments: Int?
+  let lists: Int?
+  let votes: Int?
+  let favorited: Int?
+  let recommended: Int?
+}
+
+struct TraktSentimentsDTO: Decodable {
+  struct Point: Decodable {
+    let sentiment: String
+  }
+  let good: [Point]?
+  let bad: [Point]?
+  let analyzedAt: String?
+  let commentCount: Int?
+
+  enum CodingKeys: String, CodingKey {
+    case good, bad
+    case analyzedAt = "analyzed_at"
+    case commentCount = "comment_count"
+  }
 }
 
 struct TraktRatingsDTO: Decodable {
   struct Own: Decodable {
     let rating: Double?
     let votes: Int?
+    var distribution: [String: Double]? = nil
   }
   struct External: Decodable {
     let rating: Double?
@@ -260,7 +339,9 @@ struct TraktRatingsDTO: Decodable {
   /// the top level.
   let rating: Double?
   let votes: Int?
+  let distribution: [String: Double]?
   let trakt: Own?
+  let imdb: External?
   let metascore: External?
   let rottenTomatoes: RottenTomatoes?
   let letterboxd: External?
@@ -269,7 +350,7 @@ struct TraktRatingsDTO: Decodable {
   var ownFallback: Own? { rating == nil && votes == nil ? nil : Own(rating: rating, votes: votes) }
 
   enum CodingKeys: String, CodingKey {
-    case rating, votes, trakt, metascore, letterboxd, mal
+    case rating, votes, distribution, trakt, imdb, metascore, letterboxd, mal
     case rottenTomatoes = "rotten_tomatoes"
   }
 }

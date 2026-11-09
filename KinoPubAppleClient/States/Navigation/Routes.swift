@@ -185,6 +185,14 @@ struct RatingsAndReviews: Hashable {
   /// Trakt, Rotten Tomatoes, Metacritic, Letterboxd, MyAnimeList.
   let externalRatings: [ExternalRating]
   let tmdbID: Int?
+  /// Trakt: how its votes fall, what its users do, what its reviews praise and fault.
+  let traktDistribution: [Int: Int]
+  let audienceStats: AudienceStats?
+  let reviewInsights: ReviewInsights?
+  let relayedIMDbRating: Double?
+  let relayedIMDbVotes: Int?
+  let hasAfterCreditsScene: Bool?
+  let hasDuringCreditsScene: Bool?
   let likeCount: Int
   let dislikeCount: Int
 
@@ -199,6 +207,13 @@ struct RatingsAndReviews: Hashable {
     self.tmdbVotes = metadata.tmdbVotes
     self.externalRatings = metadata.externalRatings
     self.tmdbID = metadata.tmdbId
+    self.traktDistribution = metadata.traktDistribution
+    self.audienceStats = metadata.audienceStats
+    self.reviewInsights = metadata.reviewInsights
+    self.relayedIMDbRating = metadata.relayedIMDbRating
+    self.relayedIMDbVotes = metadata.relayedIMDbVotes
+    self.hasAfterCreditsScene = metadata.hasAfterCreditsScene
+    self.hasDuringCreditsScene = metadata.hasDuringCreditsScene
     self.likeCount = likeCount
     self.dislikeCount = dislikeCount
   }
@@ -213,6 +228,13 @@ struct RatingsAndReviews: Hashable {
     meta.tmdbVotes = tmdbVotes
     meta.externalRatings = externalRatings
     meta.tmdbId = tmdbID
+    meta.traktDistribution = traktDistribution
+    meta.audienceStats = audienceStats
+    meta.reviewInsights = reviewInsights
+    meta.relayedIMDbRating = relayedIMDbRating
+    meta.relayedIMDbVotes = relayedIMDbVotes
+    meta.hasAfterCreditsScene = hasAfterCreditsScene
+    meta.hasDuringCreditsScene = hasDuringCreditsScene
     return meta
   }
 }

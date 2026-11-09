@@ -42,6 +42,19 @@ struct MediaItemRatingsAndReviewsPage: View {
         if !scores.isEmpty {
           MediaItemRatingSourceRows(scores: scores)
         }
+        // Trakt's side of the title: how its votes fall, what its users do with it, and
+        // what its reviews praise and fault (Sasha, 2026-11-09).
+        if let trakt = traktScore, !payload.traktDistribution.isEmpty {
+          TraktDistributionCard(score: trakt, distribution: payload.traktDistribution)
+        }
+        if let stats = payload.audienceStats {
+          AudienceStatsCard(stats: stats,
+                            afterCredits: payload.hasAfterCreditsScene == true,
+                            duringCredits: payload.hasDuringCreditsScene == true)
+        }
+        if let insights = payload.reviewInsights, !insights.isEmpty {
+          ReviewInsightsCard(insights: insights)
+        }
         if let summary = payload.summary, !summary.isEmpty, !reviews.isEmpty {
           ReviewsSummaryCard(summary: summary, width: nil)
         }
@@ -60,6 +73,10 @@ struct MediaItemRatingsAndReviewsPage: View {
     }
     .platformNavigationTitle(payload.item.localizedTitle)
     .background(Color.KinoPub.background.ignoresSafeArea())
+  }
+
+  private var traktScore: ExternalRating? {
+    payload.externalRatings.first { $0.kind == .trakt }
   }
 
   private var reviewCount: Int {
@@ -128,4 +145,176 @@ struct MediaItemRatingsAndReviewsPage: View {
     )
   }
   // .preferredColorScheme(.dark)
+}
+
+// MARK: - Trakt
+
+/// Trakt's score over how its votes fall, ten scores folded into five bars as Trakt's own
+/// app draws them (1–2, 3–4 … 9–10), the tallest bar brightest.
+struct TraktDistributionCard: View {
+  let score: ExternalRating
+  let distribution: [Int: Int]
+
+  private var buckets: [(label: String, votes: Int)] {
+    (0..<5).map { index in
+      let low = index * 2 + 1
+      return ("\(index + 1)", (distribution[low] ?? 0) + (distribution[low + 1] ?? 0))
+    }
+  }
+
+  var body: some View {
+    let peak = max(buckets.map(\.votes).max() ?? 0, 1)
+    BlockCard {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("MediaItem_TraktRatingTitle")
+          .font(TypeScale.detailBody.weight(.semibold))
+          .foregroundStyle(.secondary)
+        HStack(alignment: .bottom, spacing: 24) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: "\(Int((score.value * 10).rounded()))%")
+              .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+              .foregroundStyle(Color.KinoPub.text)
+            if let votes = score.votes, votes > 0 {
+              Text(verbatim: "\(votes.formatted(.number.grouping(.automatic))) \(Self.unit(votes))")
+                .font(TypeScale.detailBody)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .fixedSize()
+          HStack(alignment: .bottom, spacing: 10) {
+            ForEach(buckets, id: \.label) { bucket in
+              VStack(spacing: 6) {
+                GeometryReader { proxy in
+                  let share = CGFloat(bucket.votes) / CGFloat(peak)
+                  ZStack(alignment: .bottom) {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                      .fill(Color.primary.opacity(0.08))
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                      .fill(Color.purple.opacity(bucket.votes == peak ? 0.9 : 0.55))
+                      .frame(height: max(proxy.size.height * share, bucket.votes > 0 ? 6 : 0))
+                  }
+                }
+                .frame(height: 72)
+                Text(verbatim: bucket.label)
+                  .font(TypeScale.detailBody)
+                  .foregroundStyle(.secondary)
+              }
+              .frame(maxWidth: 56)
+              .accessibilityElement(children: .ignore)
+              .accessibilityLabel(Text(verbatim: "\(bucket.label): \(bucket.votes)"))
+            }
+          }
+          .frame(maxWidth: .infinity)
+        }
+      }
+    }
+  }
+
+  static func unit(_ votes: Int) -> String {
+    switch localizedPluralForm(votes) {
+    case 0: "MediaItem_UnitRatingOne".localized
+    case 1: "MediaItem_UnitRatingFew".localized
+    default: "MediaItem_UnitRatingMany".localized
+    }
+  }
+}
+
+/// What Trakt's users did with the title: played it, watched it, listed it, loved it.
+/// And whether there is something after the credits, which Trakt's users mark.
+struct AudienceStatsCard: View {
+  let stats: AudienceStats
+  var afterCredits = false
+  var duringCredits = false
+
+  private var tiles: [(symbol: String, title: LocalizedStringKey, value: Int)] {
+    var list: [(String, LocalizedStringKey, Int)] = [
+      ("play", "MediaItem_StatPlays", stats.plays),
+      ("person.2", "MediaItem_StatWatchers", stats.watchers),
+      ("list.bullet", "MediaItem_StatLists", stats.lists),
+    ]
+    if let favorited = stats.favorited { list.append(("heart", "MediaItem_StatFavorited", favorited)) }
+    if let recommended = stats.recommended {
+      list.append(("hand.thumbsup", "MediaItem_StatRecommended", recommended))
+    }
+    return list.filter { $0.2 > 0 }.map { (symbol: $0.0, title: $0.1, value: $0.2) }
+  }
+
+  var body: some View {
+    BlockCard {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("MediaItem_TraktStatsTitle")
+          .font(TypeScale.detailBody.weight(.semibold))
+          .foregroundStyle(.secondary)
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 12, alignment: .leading)],
+                  alignment: .leading, spacing: 12) {
+          ForEach(tiles, id: \.symbol) { tile in
+            VStack(alignment: .leading, spacing: 4) {
+              Image(systemName: tile.symbol)
+                .foregroundStyle(.secondary)
+              Text(tile.title)
+                .foregroundStyle(.secondary)
+              Text(verbatim: tile.value.formatted(.number.notation(.compactName)))
+                .font(TypeScale.detailBody.weight(.semibold))
+                .foregroundStyle(Color.KinoPub.text)
+            }
+            .font(TypeScale.detailBody)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+          }
+        }
+        if afterCredits || duringCredits {
+          Label(afterCredits ? LocalizedStringKey("MediaItem_AfterCreditsScene")
+                             : LocalizedStringKey("MediaItem_DuringCreditsScene"),
+                systemImage: "sparkles")
+            .font(TypeScale.detailBody)
+            .foregroundStyle(Color.KinoPub.text)
+        }
+      }
+    }
+  }
+}
+
+/// What a title's reviews praise and fault, as Trakt sums them up. Its phrases are
+/// English; they are shown as written, with where they come from.
+struct ReviewInsightsCard: View {
+  let insights: ReviewInsights
+
+  var body: some View {
+    BlockCard {
+      VStack(alignment: .leading, spacing: 14) {
+        Text("MediaItem_ReviewInsightsTitle")
+          .font(TypeScale.detailBody.weight(.semibold))
+          .foregroundStyle(.secondary)
+        group("MediaItem_ReviewInsightsGood", symbol: "plus.circle.fill", tint: .green, points: insights.good)
+        group("MediaItem_ReviewInsightsBad", symbol: "minus.circle.fill", tint: .red, points: insights.bad)
+        if insights.commentCount > 0 {
+          Text(String(format: "MediaItem_ReviewInsightsSource".localized, insights.commentCount))
+            .font(TypeScale.detailBody)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  @ViewBuilder
+  private func group(_ title: LocalizedStringKey, symbol: String, tint: Color, points: [String]) -> some View {
+    if !points.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Text(title)
+          .font(TypeScale.detailBody.weight(.semibold))
+          .foregroundStyle(Color.KinoPub.text)
+        ForEach(points, id: \.self) { point in
+          Label {
+            Text(verbatim: point)
+              .foregroundStyle(Color.KinoPub.text)
+              .fixedSize(horizontal: false, vertical: true)
+          } icon: {
+            Image(systemName: symbol).foregroundStyle(tint)
+          }
+          .font(TypeScale.detailBody)
+        }
+      }
+    }
+  }
 }
