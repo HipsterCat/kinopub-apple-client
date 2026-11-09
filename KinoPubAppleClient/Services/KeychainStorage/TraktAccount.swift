@@ -33,6 +33,18 @@ struct TraktMetadataAccess: TraktAccessProviding {
   }
 }
 
+/// Douban's scores through our worker (`DoubanSource`), while the viewer keeps «Оценки»
+/// on in Settings › Integrations › Douban. On by default; nothing to connect.
+struct DoubanMetadataAccess: DoubanAccessProviding {
+  static let enabledDefaultsKey = "doubanMetadataEnabled"
+
+  static var isEnabled: Bool {
+    UserDefaults.standard.object(forKey: enabledDefaultsKey) as? Bool ?? true
+  }
+
+  var isDoubanEnabled: Bool { Self.isEnabled }
+}
+
 struct TraktToken: Codable, Sendable {
   var accessToken: String
   var refreshToken: String

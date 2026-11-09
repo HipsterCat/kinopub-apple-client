@@ -40,10 +40,12 @@ public actor MetadataService {
     // Trakt asks by IMDb id, which the kino.pub item already has: it runs beside both.
     async let traktPart = fetchTrakt(identity: identity)
     async let omdbPart = fetchOMDb(identity: identity)
+    async let doubanPart = fetchDouban(identity: identity)
     if let kinopoisk = identity.kinopoisk, kinopoisk > 0 {
       async let cardPart = fetchTitleCard(titleCard, identity: identity)
       async let proxyPart = fetchProxy(proxy, identity: identity)
-      return mergeTitleCard(await cardPart, proxy: await proxyPart, trakt: await traktPart, omdb: await omdbPart)
+      return mergeTitleCard(await cardPart, proxy: await proxyPart, trakt: await traktPart, omdb: await omdbPart,
+                            douban: await doubanPart)
     }
     let cardPart = await fetchTitleCard(titleCard, identity: identity)
     let asking: MediaIdentity
@@ -53,7 +55,8 @@ public actor MetadataService {
       asking = identity
     }
     let proxyPart = await fetchProxy(proxy, identity: asking)
-    return mergeTitleCard(cardPart, proxy: proxyPart, trakt: await traktPart, omdb: await omdbPart)
+    return mergeTitleCard(cardPart, proxy: proxyPart, trakt: await traktPart, omdb: await omdbPart,
+                          douban: await doubanPart)
   }
 
   private func fetchTrakt(identity: MediaIdentity) async -> TitleMetadata? {
@@ -73,6 +76,16 @@ public actor MetadataService {
       return try await omdb.titleMetadata(for: identity)
     } catch {
       Logger.metadata.error("OMDb failed: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
+  private func fetchDouban(identity: MediaIdentity) async -> TitleMetadata? {
+    guard let douban = sources.compactMap({ $0 as? DoubanSource }).first, douban.isConfigured else { return nil }
+    do {
+      return try await douban.titleMetadata(for: identity)
+    } catch {
+      Logger.metadata.error("Douban failed: \(error.localizedDescription)")
       return nil
     }
   }
@@ -97,7 +110,8 @@ public actor MetadataService {
   }
 
   private func mergeTitleCard(_ card: TitleMetadata?, proxy: TitleMetadata?,
-                              trakt: TitleMetadata? = nil, omdb: TitleMetadata? = nil) -> TitleMetadata {
+                              trakt: TitleMetadata? = nil, omdb: TitleMetadata? = nil,
+                              douban: TitleMetadata? = nil) -> TitleMetadata {
     var result = TitleMetadata()
     if let card {
       result.merge(card)
@@ -114,6 +128,10 @@ public actor MetadataService {
     if let omdb {
       result.merge(omdb)
       result.parts[.omdb] = omdb
+    }
+    if let douban {
+      result.merge(douban)
+      result.parts[.douban] = douban
     }
     return result
   }

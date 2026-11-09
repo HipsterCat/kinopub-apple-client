@@ -274,6 +274,8 @@ public struct ExternalRating: Sendable, Hashable, Identifiable {
     case letterboxd
     /// 0…10, with votes. Anime only.
     case myAnimeList
+    /// 0…10, with votes, through our worker.
+    case douban
   }
 
   public var id: Kind { kind }
@@ -299,7 +301,7 @@ public struct ExternalRating: Sendable, Hashable, Identifiable {
     switch kind {
     case .rottenTomatoes, .rottenTomatoesAudience, .metacritic: value / 10
     case .letterboxd: value * 2
-    case .trakt, .myAnimeList: value
+    case .trakt, .myAnimeList, .douban: value
     }
   }
 
@@ -311,6 +313,45 @@ public struct ExternalRating: Sendable, Hashable, Identifiable {
     case "rotten", "spilled": false
     default: value >= 60
     }
+  }
+}
+
+/// Douban's side of a title, numbers only: how its votes fall over five stars, what its
+/// users did with it, and where it ranks in its genres ("better than 99% of crime films").
+public struct DoubanStats: Sendable, Hashable {
+  public struct Rank: Sendable, Hashable {
+    /// English slug: `crime`, `drama`, `sci-fi`…
+    public let genre: String
+    /// 0…1.
+    public let betterThan: Double
+
+    public init(genre: String, betterThan: Double) {
+      self.genre = genre
+      self.betterThan = betterThan
+    }
+  }
+
+  /// Shares of 1★…5★, summing to 1; empty when Douban did not say.
+  public let shares: [Double]
+  public let watched: Int?
+  public let wantToWatch: Int?
+  public let watching: Int?
+  public let ranks: [Rank]
+  /// Ranks read "of series" rather than "of films".
+  public let isSeries: Bool
+
+  public init(shares: [Double], watched: Int?, wantToWatch: Int?, watching: Int?, ranks: [Rank],
+              isSeries: Bool = false) {
+    self.shares = shares
+    self.watched = watched
+    self.wantToWatch = wantToWatch
+    self.watching = watching
+    self.ranks = ranks
+    self.isSeries = isSeries
+  }
+
+  public var isEmpty: Bool {
+    shares.isEmpty && (watched ?? 0) == 0 && (wantToWatch ?? 0) == 0 && ranks.isEmpty
   }
 }
 
@@ -557,6 +598,7 @@ public struct TitleMetadata: Sendable {
   public var traktDistribution: [Int: Int] = [:]
   public var audienceStats: AudienceStats?
   public var reviewInsights: ReviewInsights?
+  public var doubanStats: DoubanStats?
   /// IMDb's score and vote count as Trakt last read them. Fresher than kino.pub's own
   /// copy when it has more votes (Sasha, 2026-11-09).
   public var relayedIMDbRating: Double?
@@ -639,6 +681,7 @@ public struct TitleMetadata: Sendable {
     if traktDistribution.isEmpty { traktDistribution = other.traktDistribution }
     if audienceStats == nil { audienceStats = other.audienceStats }
     if reviewInsights == nil { reviewInsights = other.reviewInsights }
+    if doubanStats == nil { doubanStats = other.doubanStats }
     // Trakt and OMDb both relay IMDb; the copy with more votes is the fresher one.
     if let votes = other.relayedIMDbVotes, other.relayedIMDbRating != nil, votes > (relayedIMDbVotes ?? 0) {
       relayedIMDbRating = other.relayedIMDbRating

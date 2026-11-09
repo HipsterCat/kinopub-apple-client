@@ -25,10 +25,11 @@ struct IntegrationsSettingsPane: View {
   @AppStorage(IntegrationKeyProvider.omdb.enabledDefaultsKey) private var omdbEnabled = true
   @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
   @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
+  @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
 
   var body: some View {
     let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, omdbValidated, omdbEnabled,
-             traktUsername, traktData)
+             traktUsername, traktData, doubanData)
     Form {
       Section {
         ForEach(Integration.available) { integration in
@@ -95,6 +96,8 @@ struct IntegrationDetailView: View {
   @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
   /// Trakt's ratings and reviews on the title page; no sign-in needed.
   @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
+  /// Douban's scores on the title page; nothing to connect.
+  @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 44
 
   init(integration: Integration) {
@@ -111,7 +114,7 @@ struct IntegrationDetailView: View {
   private var isConnected: Bool { isAccount ? traktUsername != nil : hasKey }
 
   private var status: Integration.Status {
-    _ = (keyValidated, keyEnabled, traktUsername, traktData)
+    _ = (keyValidated, keyEnabled, traktUsername, traktData, doubanData)
     return integration.status
   }
 
@@ -137,10 +140,11 @@ struct IntegrationDetailView: View {
 
       if integration.hasDataSwitch {
         Section {
-          Toggle("Integration_Trakt_DataToggle", isOn: $traktData)
+          Toggle(LocalizedStringKey(integration.dataToggleTitle),
+                 isOn: integration == .douban ? $doubanData : $traktData)
         } footer: {
           VStack(alignment: .leading, spacing: 8) {
-            Text("Integration_Trakt_DataFooter")
+            Text(LocalizedStringKey(integration.dataToggleFooter))
             actions
           }
         }
@@ -248,7 +252,9 @@ struct IntegrationDetailView: View {
   /// Under the last group, as Internet Accounts puts Delete Account… and its "?".
   private var actions: some View {
     HStack {
-      if isAccount {
+      if integration.connection == .builtIn {
+        // Nothing to connect: the switch above is the whole page.
+      } else if isAccount {
         if isConnected {
           Button("Sign Out…") { isConfirmingDisconnect = true }
         } else {
