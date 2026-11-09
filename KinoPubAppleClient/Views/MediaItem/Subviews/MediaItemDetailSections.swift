@@ -1308,14 +1308,45 @@ struct SetlistTrack: Identifiable, Hashable {
     }
   }
 
-  /// The songs that are chapters of the video: every one with a start time, when there are
-  /// at least two and they run forward. Hand-typed times that go backwards are not a
-  /// table of contents anyone can trust, so then there are none.
-  static func chapters(of mediaItem: MediaItem) -> [SetlistTrack] {
+  /// The songs that are chapters of one of the concert's videos (`number`, 1-based).
+  /// kino.pub writes one setlist for the whole title, and a concert of several videos
+  /// starts its times again at zero for each («(00:00) Overture - Version One», then
+  /// «(00:00) … - Version Two»), so the timed songs are cut where the time goes back and
+  /// the n-th run is the n-th video's. Runs that do not come out one per video are a slip
+  /// in hand-typed times, and then there are no chapters at all.
+  static func chapters(of mediaItem: MediaItem, video number: Int) -> [SetlistTrack] {
     let timed = tracks(of: mediaItem).filter { $0.startTime != nil }
-    guard timed.count >= 2,
-          zip(timed, timed.dropFirst()).allSatisfy({ $0.startTime! < $1.startTime! }) else { return [] }
-    return timed
+    var runs: [[SetlistTrack]] = []
+    for track in timed {
+      if let last = runs.last?.last, track.startTime! > last.startTime! {
+        runs[runs.count - 1].append(track)
+      } else {
+        runs.append([track])
+      }
+    }
+    let videos = max(mediaItem.videos?.count ?? 1, 1)
+    guard runs.count == videos || (runs.count == 1 && number == 1),
+          runs.indices.contains(number - 1) else { return [] }
+    let run = runs[number - 1]
+    return run.count >= 2 ? run : []
+  }
+}
+
+/// A frame of a kino.pub video at any moment: a video's `thumbnail` is
+/// `…/thumb/<a>/<bb>/<hash>/<time in ms>/<width>.jpg`, and the CDN answers any time and any
+/// width with that moment's frame (measured 2026-11-09: 61 000 and 61 500 differ, 1280 gives
+/// 1280×721). kpapp builds its history stills the same way. Nil for any other shape.
+enum KinoPubFrame {
+  static func url(thumbnail: String, at seconds: TimeInterval, width: Int) -> URL? {
+    guard var components = URLComponents(string: thumbnail) else { return nil }
+    var parts = components.path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+    guard parts.count >= 3, parts.contains("thumb"),
+          Int(parts[parts.count - 2]) != nil,
+          parts[parts.count - 1].hasSuffix(".jpg") else { return nil }
+    parts[parts.count - 2] = String(Int((seconds * 1000).rounded()))
+    parts[parts.count - 1] = "\(width).jpg"
+    components.path = parts.joined(separator: "/")
+    return components.url
   }
 }
 

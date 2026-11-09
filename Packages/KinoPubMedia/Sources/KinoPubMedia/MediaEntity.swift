@@ -200,6 +200,10 @@ public struct SetlistEntry: Hashable, Codable, Sendable {
       let rest = String(match.output.2).trimmingCharacters(in: .whitespaces)
       if !rest.isEmpty { return (rest, String(match.output.1)) }
     }
+    if let match = title.firstMatch(of: Self.timecodeLast) {
+      let rest = String(match.output.1).trimmingCharacters(in: .whitespaces)
+      if !rest.isEmpty { return (rest, String(match.output.2)) }
+    }
     for dash in [" - ", " – ", " — "] {
       if let range = title.range(of: dash) {
         let head = title[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
@@ -210,17 +214,32 @@ public struct SetlistEntry: Hashable, Codable, Sendable {
     return (title, artists)
   }
 
-  /// Where the song starts in the video, when the uploader wrote it before the name
-  /// («(07:14) Roche» → 434 s). Nil for every other shape — kino.pub has no field for it.
+  /// Where the song starts in its video, when the uploader wrote it — before the name
+  /// («(07:14) Roche» → 434 s, the usual shape) or after it («Was ich liebe (00:01:25)»).
+  /// Nil for every other shape: kino.pub has no field for it. Measured 2026-11-09 on 286
+  /// concerts: 50 timecoded, every song or none; a concert of several videos starts again
+  /// at zero for each.
   public var startTime: TimeInterval? {
-    guard let title, let match = title.firstMatch(of: Self.timecodeFirst) else { return nil }
-    let parts = match.output.1.split(separator: ":").compactMap { Double($0) }
-    return parts.reduce(0) { $0 * 60 + $1 }
+    guard let title else { return nil }
+    let stamp: Substring
+    if let match = title.firstMatch(of: Self.timecodeFirst) {
+      stamp = match.output.1
+    } else if let match = title.firstMatch(of: Self.timecodeLast) {
+      stamp = match.output.2
+    } else {
+      return nil
+    }
+    return stamp.split(separator: ":").compactMap { Double($0) }.reduce(0) { $0 * 60 + $1 }
   }
 
   /// «(07:14) Roche», «[1:02:03] Roche», «07:14 - Roche».
   nonisolated(unsafe) private static let timecodeFirst = try! Regex<(Substring, Substring, Substring)>(
     #"^[\(\[]?(\d{1,2}:\d{2}(?::\d{2})?)[\)\]]?\s*(?:[-–—]\s*)?(.+)$"#
+  )
+
+  /// «Was ich liebe (00:01:25)» — Rammstein's Moscow, the one shape with the time last.
+  nonisolated(unsafe) private static let timecodeLast = try! Regex<(Substring, Substring, Substring)>(
+    #"^(.+?)\s*[\(\[](\d{1,2}:\d{2}(?::\d{2})?)[\)\]]$"#
   )
 }
 

@@ -1893,32 +1893,66 @@ extension PlayerManager {
   }
 
   /// A concert's timecoded setlist as the player's own Chapters
-  /// (`AVPlayerItem.navigationMarkerGroups`, tvOS only): one marker per song, from its
-  /// start to the next song's, the last one to the end of the video. Set once, when the
-  /// item is ready and its duration is known.
+  /// (`AVPlayerItem.navigationMarkerGroups`, tvOS only): one marker per song of the video
+  /// playing, from its start to the next song's, the last one to the end. Set once, when
+  /// the item is ready and its duration is known — first with names, then again with each
+  /// song's own frame from kino.pub's CDN (`KinoPubFrame`) once those arrive.
   private func applySetlistChapters() {
     guard watchMode == .media, let item = player.currentItem,
           item.navigationMarkerGroups.isEmpty,
           let title = titleContext else { return }
-    let chapters = SetlistTrack.chapters(of: title)
+    let number = playItem.metadata.video ?? 1
+    let chapters = SetlistTrack.chapters(of: title, video: number)
     let end = item.duration.seconds
     guard !chapters.isEmpty, end.isFinite, end > 0 else { return }
-    let starts = chapters.map { $0.startTime! }
-    let markers = chapters.enumerated().compactMap { index, track -> AVTimedMetadataGroup? in
-      let start = starts[index]
-      let next = index + 1 < starts.count ? starts[index + 1] : end
-      guard start < end, next > start else { return nil }
-      let name = AVMutableMetadataItem()
-      name.identifier = .commonIdentifierTitle
-      name.value = track.title as NSString
-      name.extendedLanguageTag = "und"
-      let range = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600),
-                              end: CMTime(seconds: min(next, end), preferredTimescale: 600))
-      return AVTimedMetadataGroup(items: [name], timeRange: range)
+    let ranges: [CMTimeRange] = chapters.indices.compactMap { index in
+      let start = chapters[index].startTime!
+      let next = index + 1 < chapters.count ? chapters[index + 1].startTime! : end
+      guard start < end else { return nil }
+      return CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600),
+                         end: CMTime(seconds: min(next, end), preferredTimescale: 600))
     }
-    guard !markers.isEmpty else { return }
-    item.navigationMarkerGroups = [AVNavigationMarkersGroup(title: nil, timedNavigationMarkers: markers)]
-    Logger.app.info("Setlist chapters: \(markers.count) on item \(self.playItem.id)")
+    let songs = Array(chapters.prefix(ranges.count))
+    guard !songs.isEmpty else { return }
+
+    func markers(_ artwork: [Int: Data]) -> [AVNavigationMarkersGroup] {
+      let groups = zip(songs, ranges).map { song, range in
+        let name = AVMutableMetadataItem()
+        name.identifier = .commonIdentifierTitle
+        name.value = song.title as NSString
+        name.extendedLanguageTag = "und"
+        let items: [AVMetadataItem] = [name] + (artwork[song.id].map { [PlayerInfo.artworkItem($0)] } ?? [])
+        return AVTimedMetadataGroup(items: items, timeRange: range)
+      }
+      return [AVNavigationMarkersGroup(title: nil, timedNavigationMarkers: groups)]
+    }
+    item.navigationMarkerGroups = markers([:])
+    Logger.app.info("Setlist chapters: \(songs.count) on item \(self.playItem.id) video \(number)")
+
+    guard let thumbnail = title.videos?.first(where: { $0.number == number })?.thumbnail
+            ?? title.videos?.first?.thumbnail else { return }
+    // As wide in pixels as a tile of the player's own four-across rails on this screen.
+    guard let screen = playerViewController?.view.window?.screen else { return }
+    let width = Int(screen.bounds.width * screen.scale / CGFloat(PlayerRailTab.openColumns))
+    // A few seconds in, past a cut or a fade-in at the song's very start.
+    let frames = zip(songs, ranges).compactMap { song, range -> (Int, URL)? in
+      let at = min(range.start.seconds + 5, (range.start.seconds + range.end.seconds) / 2)
+      return KinoPubFrame.url(thumbnail: thumbnail, at: at, width: width).map { (song.id, $0) }
+    }
+    Task { [weak self] in
+      var artwork: [Int: Data] = [:]
+      await withTaskGroup(of: (Int, Data?).self) { group in
+        for (id, url) in frames {
+          group.addTask { (id, try? await URLSession.shared.data(from: url).0) }
+        }
+        for await (id, data) in group where data?.isEmpty == false { artwork[id] = data }
+      }
+      guard !artwork.isEmpty else { return }
+      await MainActor.run {
+        guard let self, self.player.currentItem === item else { return }
+        item.navigationMarkerGroups = markers(artwork)
+      }
+    }
   }
 
   /// The first stamp of the item's facts — or the news that there are none — lets the

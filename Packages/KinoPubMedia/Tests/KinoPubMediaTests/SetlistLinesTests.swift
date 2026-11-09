@@ -55,4 +55,12 @@ final class SetlistLinesTests: XCTestCase {
     XCTAssertNil(SetlistEntry(title: "Autobahn - Part One").startTime)
     XCTAssertNil(SetlistEntry(title: "N/A").startTime)
   }
+
+  func testTimecodeLastIsTheStartTimeToo() {
+    let song = SetlistEntry(title: "Was ich liebe (00:01:25)")
+    XCTAssertEqual(song.startTime, 85)
+    XCTAssertEqual(song.lines?.title, "Was ich liebe")
+    XCTAssertEqual(song.lines?.subtitle, "00:01:25")
+    XCTAssertNil(SetlistEntry(title: "Cold Heart (with Elton John)").startTime)
+  }
 }
