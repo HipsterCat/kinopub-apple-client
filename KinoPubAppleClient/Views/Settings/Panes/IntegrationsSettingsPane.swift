@@ -21,11 +21,14 @@ struct IntegrationsSettingsPane: View {
   @AppStorage(IntegrationKeyProvider.kinopoisk.enabledDefaultsKey) private var kinopoiskEnabled = true
   @AppStorage(IntegrationKeyProvider.tmdb.validatedDefaultsKey) private var tmdbValidated = false
   @AppStorage(IntegrationKeyProvider.tmdb.enabledDefaultsKey) private var tmdbEnabled = true
+  @AppStorage(IntegrationKeyProvider.omdb.validatedDefaultsKey) private var omdbValidated = false
+  @AppStorage(IntegrationKeyProvider.omdb.enabledDefaultsKey) private var omdbEnabled = true
   @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
   @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
 
   var body: some View {
-    let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, traktUsername, traktData)
+    let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, omdbValidated, omdbEnabled,
+             traktUsername, traktData)
     Form {
       Section {
         ForEach(Integration.available) { integration in
@@ -305,6 +308,7 @@ struct IntegrationDetailView: View {
     switch integration {
     case .kinopoisk: "Integration_Kinopoisk_KeyPrompt".localized
     case .tmdb: "Integration_TMDB_KeyPrompt".localized
+    case .omdb: "Integration_OMDb_KeyPrompt".localized
     default: integration.connectHelp
     }
   }

@@ -534,6 +534,11 @@ public struct TitleMetadata: Sendable {
   /// Movie-only; both nil for series (TMDB doesn't report box office for TV).
   public var budget: Int?
   public var revenue: Int?
+  /// US domestic box office in dollars, as OMDb reports it. Films only.
+  public var boxOfficeUSD: Int?
+  /// OMDb's one line about awards: "Won 4 Oscars. 157 wins & 220 nominations total".
+  /// English, as OMDb writes it.
+  public var awardsSummary: String?
   public var productionCompanies: [ProductionCompany] = []
   public var tmdbId: Int?
   /// Kinopoisk film id the title card carried, when the page still needs the proxy
@@ -620,6 +625,8 @@ public struct TitleMetadata: Sendable {
     if homepage == nil { homepage = other.homepage }
     if budget == nil { budget = other.budget }
     if revenue == nil { revenue = other.revenue }
+    if boxOfficeUSD == nil { boxOfficeUSD = other.boxOfficeUSD }
+    if awardsSummary == nil { awardsSummary = other.awardsSummary }
     if productionCompanies.isEmpty { productionCompanies = other.productionCompanies }
     if tmdbId == nil { tmdbId = other.tmdbId }
     if kinopoiskID == nil { kinopoiskID = other.kinopoiskID }
@@ -632,8 +639,11 @@ public struct TitleMetadata: Sendable {
     if traktDistribution.isEmpty { traktDistribution = other.traktDistribution }
     if audienceStats == nil { audienceStats = other.audienceStats }
     if reviewInsights == nil { reviewInsights = other.reviewInsights }
-    if relayedIMDbRating == nil { relayedIMDbRating = other.relayedIMDbRating }
-    if relayedIMDbVotes == nil { relayedIMDbVotes = other.relayedIMDbVotes }
+    // Trakt and OMDb both relay IMDb; the copy with more votes is the fresher one.
+    if let votes = other.relayedIMDbVotes, other.relayedIMDbRating != nil, votes > (relayedIMDbVotes ?? 0) {
+      relayedIMDbRating = other.relayedIMDbRating
+      relayedIMDbVotes = votes
+    }
     if hasAfterCreditsScene == nil { hasAfterCreditsScene = other.hasAfterCreditsScene }
     if hasDuringCreditsScene == nil { hasDuringCreditsScene = other.hasDuringCreditsScene }
     attribution.formUnion(other.attribution)

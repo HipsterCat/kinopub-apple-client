@@ -823,6 +823,14 @@ enum MediaItemTVSections {
            unbreakable(countries))
     }
 
+    // OMDb, with the viewer's own key.
+    if let boxOffice = input.metadata.boxOfficeUSD {
+      card("box-office", "MediaItem_BoxOffice".localized, MediaItemBoxOffice.text(boxOffice))
+    }
+    if let awards = input.metadata.awardsSummary {
+      card("awards-summary", "Awards".localized, awards)
+    }
+
     return specs
   }
 }

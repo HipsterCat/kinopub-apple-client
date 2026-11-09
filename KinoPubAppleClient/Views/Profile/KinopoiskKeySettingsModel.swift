@@ -7,7 +7,7 @@ import Foundation
 import KinoPubMetadata
 
 /// Drives the "enter your own API key" flow of Settings › Integrations (Kinopoisk
-/// Unofficial, TMDB) on every platform. Saving and validating
+/// Unofficial, TMDB, OMDb) on every platform. Saving and validating
 /// happen together, on the explicit "Validate" action — typing alone doesn't
 /// touch Keychain on every keystroke.
 @MainActor
@@ -47,6 +47,9 @@ final class IntegrationKeySettingsModel: ObservableObject {
       var components = URLComponents(string: "https://api.themoviedb.org/3/configuration")!
       components.queryItems = [URLQueryItem(name: "api_key", value: key)]
       return (components.url!, [:])
+    case .omdb:
+      // The Shawshank Redemption again. A bad key answers 401 "Invalid API key!".
+      return (OMDbSource.requestURL(imdb: "tt0111161", key: key)!, [:])
     default:
       // A permanently-stable kinopoisk id (The Shawshank Redemption).
       return (URL(string: "https://kinopoiskapiunofficial.tech/api/v2.2/films/326")!, ["X-API-KEY": key])

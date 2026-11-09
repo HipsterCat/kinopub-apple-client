@@ -30,6 +30,7 @@ final class TVSettingsCatalog {
   private var storageOpening = false
   private let kinopoisk: IntegrationKeySettingsModel
   private let tmdbKey = IntegrationKeySettingsModel(keyProvider: .tmdb, integration: .tmdb)
+  private let omdbKey = IntegrationKeySettingsModel(keyProvider: .omdb, integration: .omdb)
   private let deviceService: DeviceService
   private let errorHandler: ErrorHandler
   private let onLogout: () -> Void
@@ -609,6 +610,7 @@ final class TVSettingsCatalog {
     switch integration {
     case .kinopoisk: kinopoisk
     case .tmdb: tmdbKey
+    case .omdb: omdbKey
     default: nil
     }
   }
@@ -703,7 +705,11 @@ final class TVSettingsCatalog {
   /// A key that fails brings the alert back with the reason and the key still in it.
   private func presentKeyAlert(for integration: Integration, draft: String = "", failure: String? = nil) {
     guard let model = keyModel(for: integration) else { return }
-    let prompt = integration == .tmdb ? "Integration_TMDB_KeyPrompt" : "Integration_Kinopoisk_KeyPrompt"
+    let prompt = switch integration {
+    case .tmdb: "Integration_TMDB_KeyPrompt"
+    case .omdb: "Integration_OMDb_KeyPrompt"
+    default: "Integration_Kinopoisk_KeyPrompt"
+    }
     let alert = UIAlertController(
       title: String(format: "Connect %@".localized, integration.name),
       message: failure ?? prompt.localized,
@@ -1949,6 +1955,12 @@ final class TVSettingsCatalog {
                    get: { IntegrationKeyProvider.kinopoisk.isEnabled },
                    set: { [unowned self] isOn in
                      IntegrationKeyProvider.kinopoisk.isEnabled = isOn
+                     self.host.reloadPages()
+                   })
+    store.bindBool("omdbKeyEnabled",
+                   get: { IntegrationKeyProvider.omdb.isEnabled },
+                   set: { [unowned self] isOn in
+                     IntegrationKeyProvider.omdb.isEnabled = isOn
                      self.host.reloadPages()
                    })
     store.bindBool("traktData",

@@ -5344,13 +5344,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The Open Movie Database will add IMDb, Rotten Tomatoes and Metacritic ratings to title pages. It asks for your own free API key."
+            "value" : "The Open Movie Database adds the US box office and the awards line to title pages, and the IMDb, Rotten Tomatoes and Metacritic scores Trakt does not have. Where both have a score, Trakt's is shown. It asks for your own free API key."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The Open Movie Database добавит на страницы тайтлов рейтинги IMDb, Rotten Tomatoes и Metacritic. Понадобится ваш собственный бесплатный API-ключ."
+            "value" : "The Open Movie Database добавит на страницы тайтлов сборы в США и строку о наградах, а ещё оценки IMDb, Rotten Tomatoes и Metacritic, которых нет у Trakt. Если оценка есть у обоих, показывается оценка Trakt. Понадобится ваш собственный бесплатный API-ключ."
           }
         }
       }
@@ -16508,6 +16508,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сводка Trakt по %lld комментариям."
+          }
+        }
+      }
+    },
+    "Integration_OMDb_KeyPrompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste your OMDb API key, activated from the link in OMDb's email. It is checked before it is saved and stays in this device's Keychain."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вставьте API-ключ OMDb, активированный по ссылке из письма OMDb. Перед сохранением он будет проверен; хранится в связке ключей устройства."
+          }
+        }
+      }
+    },
+    "MediaItem_BoxOffice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Box office (US)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборы в США"
           }
         }
       }

@@ -134,6 +134,13 @@ extension MediaScores {
 /// What counts as a rating source, in one place: the tvOS tile row and the
 /// pointer-platform ratings card are two renderings of the same list, and "a source
 /// earns a tile" is a rule neither of them gets to hold privately.
+/// Box office in dollars, whole, in the viewer's number format.
+enum MediaItemBoxOffice {
+  static func text(_ dollars: Int) -> String {
+    dollars.formatted(.currency(code: "USD").precision(.fractionLength(0)))
+  }
+}
+
 enum RatingSources {
 
   struct Score: Identifiable {
@@ -2879,6 +2886,18 @@ struct MediaItemInfoColumns: View {
       flagValues.append(InfoValue(id: "poor", title: "MediaItem_PoorQuality".localized))
     }
     sections.append(contentsOf: volumeSections)
+
+    // OMDb, with the viewer's own key: US box office and its one line about awards.
+    if let boxOffice = externalMetadata.boxOfficeUSD {
+      sections.append(InfoSection(id: "box-office",
+                                  caption: "MediaItem_BoxOffice",
+                                  values: [InfoValue(id: "box-office", title: MediaItemBoxOffice.text(boxOffice))]))
+    }
+    if let awards = externalMetadata.awardsSummary {
+      sections.append(InfoSection(id: "awards-summary",
+                                  caption: "Awards",
+                                  values: [InfoValue(id: "awards-summary", title: awards)]))
+    }
 
     if !flagValues.isEmpty {
       sections.append(InfoSection(id: "flags",

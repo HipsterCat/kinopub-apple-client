@@ -37,8 +37,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// links are settled; their pages say they are coming.
   var isSupported: Bool {
     switch self {
-    case .kinopoisk, .tmdb, .trakt: true
-    case .omdb, .simkl, .anilist, .myAnimeList: false
+    case .kinopoisk, .tmdb, .trakt, .omdb: true
+    case .simkl, .anilist, .myAnimeList: false
     }
   }
 
@@ -73,6 +73,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .kinopoisk: .kinopoisk
     case .tmdb: .tmdb
+    case .omdb: .omdb
     default: nil
     }
   }
@@ -249,7 +250,10 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
       if let name = TraktAccount.storedUsername { return .account(name) }
       return worksByDefault && TraktMetadataAccess.isEnabled ? .byDefault : .notConnected
     }
-    guard let keyProvider, keyProvider.isConnected, keyProvider.isEnabled else { return .byDefault }
+    // OMDb has no default path: without the viewer's key it is not connected.
+    guard let keyProvider, keyProvider.isConnected, keyProvider.isEnabled else {
+      return worksByDefault ? .byDefault : .notConnected
+    }
     return .apiKey
   }
 }

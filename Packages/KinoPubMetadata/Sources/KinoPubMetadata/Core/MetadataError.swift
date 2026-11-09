@@ -3,6 +3,8 @@ import Foundation
 public enum MetadataSourceID: String, Sendable, Hashable, Codable {
   case tmdb
   case trakt
+  /// omdbapi.com with the viewer's own key.
+  case omdb
   case kinopoisk
   /// Keyless kpapp.link proxy (same unofficial Kinopoisk payload the community fork uses).
   case kinopoiskProxy

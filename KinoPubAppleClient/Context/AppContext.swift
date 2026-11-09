@@ -175,7 +175,10 @@ struct AppContext: AppContextProtocol {
       // Staff stays on this path. The v2 comparison calls the same source with it off.
       KinopoiskProxySource(includeStaff: true),
       // Ratings it relays (Rotten Tomatoes, Metacritic, Letterboxd…) and its reviews.
-      TraktSource(access: TraktMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru")
+      TraktSource(access: TraktMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru"),
+      // The viewer's own OMDb key: box office, awards, and the scores Trakt did not have.
+      // After Trakt, which outranks it where both answer.
+      OMDbSource(keys: IntegrationKeyProvider.omdb)
     ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL),
       titleCard: TitleCardSource(configuration: metadataConfig))
 

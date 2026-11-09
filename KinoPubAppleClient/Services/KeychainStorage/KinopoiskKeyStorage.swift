@@ -2,7 +2,7 @@
 //  KinopoiskKeyStorage.swift
 //  KinoPubAppleClient
 //
-//  The viewer's own API keys for Settings › Integrations (Kinopoisk Unofficial, TMDB).
+//  The viewer's own API keys for Settings › Integrations (Kinopoisk Unofficial, TMDB, OMDb).
 //
 
 import Foundation
@@ -46,6 +46,13 @@ final class IntegrationKeyProvider: @unchecked Sendable {
     service: "com.soda.kinopub.tmdb",
     validatedDefaultsKey: "tmdbAPIKeyValidated",
     enabledDefaultsKey: "tmdbAPIKeyEnabled"
+  )
+
+  /// The viewer's own OMDb key: OMDb works with nothing else.
+  static let omdb = IntegrationKeyProvider(
+    service: "com.soda.kinopub.omdb",
+    validatedDefaultsKey: "omdbAPIKeyValidated",
+    enabledDefaultsKey: "omdbAPIKeyEnabled"
   )
 
   var isValidated: Bool {
@@ -100,6 +107,11 @@ extension IntegrationKeyProvider: KinopoiskKeyProviding {
 /// `TMDBSource` goes to api.themoviedb.org itself while this returns a key.
 extension IntegrationKeyProvider: TMDBDirectAccessProviding {
   func directAPIKey() -> String? { activeKey() }
+}
+
+/// `OMDbSource` is configured while this returns a key.
+extension IntegrationKeyProvider: OMDbKeyProviding {
+  func omdbAPIKey() -> String? { activeKey() }
 }
 
 /// Kept for the screens that only ever meant Kinopoisk's flags.
