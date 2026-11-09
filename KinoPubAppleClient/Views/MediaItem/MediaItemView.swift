@@ -168,6 +168,8 @@ final class MediaItemHeroPhase {
   var isHeroOnScreen = true
   /// What became of the backdrop candidates, keyed by them (`MediaItemHeroView`).
   var backdropOutcome: (key: String, loaded: Bool)?
+  /// What became of the blurred poster behind a poster hero, keyed by its URL.
+  var washOutcome: (key: String, loaded: Bool)?
   /// What the shared title slot drew, and the logo language it got.
   var titleLogoMark: TitleLogoMark = .empty
   var deliveredLogoLanguage: WorkerArtworkLanguageTag?
@@ -1171,11 +1173,18 @@ struct MediaItemView_Previews: PreviewProvider {
 /// until it arrives — or when it never does (`MediaItemHeroView.scrollingBackdrop`).
 struct MediaItemPosterWash: View {
   let url: URL?
+  /// Whether the poster drew: the hero dims it and darkens its chrome only once it has —
+  /// a dim over a poster still loading, or one that failed, was a flat grey band with
+  /// white text on the light page (2026-11-09).
+  var onOutcome: ((Bool) -> Void)? = nil
 
   var body: some View {
     Color.clear
       .overlay {
-        CachedRemoteImage(url: url, contentMode: .fill)
+        // Paints from the memory cache on the first frame, as `CachedRemoteImage` did.
+        FallbackRemoteImage(urls: url.map { [$0] } ?? [], contentMode: .fill,
+                            onLoaded: { onOutcome?(true) },
+                            onFailed: { onOutcome?(false) })
           .frame(width: Self.buffer.width, height: Self.buffer.height)
           .clipped()
           .blur(radius: Self.blur, opaque: true)

@@ -890,9 +890,25 @@ struct MediaItemHeroView: View {
     !hasArtBackdrop
   }
 
-  /// A picture, or the blurred poster standing in for one.
+  /// A picture, or the blurred poster standing in for one — once it has drawn, not
+  /// merely because there is a URL for it.
   private var hasArtBackdrop: Bool {
-    showsPicture || heroWashURL != nil
+    showsPicture || showsWash
+  }
+
+  /// The blurred poster drew. Kept in the phase, so a page rebuilt on coming back
+  /// starts from what it already knew.
+  private var showsWash: Bool {
+    guard let heroWashURL, let outcome = phase.washOutcome else { return false }
+    return outcome.key == heroWashURL.absoluteString && outcome.loaded
+  }
+
+  private func noteWash(loaded: Bool) {
+    guard let key = heroWashURL?.absoluteString else { return }
+    if let outcome = phase.washOutcome, outcome.key == key, outcome.loaded == loaded { return }
+    withAnimation(Self.heroStateChange) {
+      phase.washOutcome = (key, loaded)
+    }
   }
 
   private var heroChromeColorScheme: ColorScheme {
@@ -968,7 +984,7 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var scrollingBackdrop: some View {
     ZStack {
-      MediaItemPosterWash(url: heroWashURL)
+      MediaItemPosterWash(url: heroWashURL, onOutcome: noteWash(loaded:))
       if !backdropCandidates.isEmpty {
         FallbackRemoteImage(urls: backdropCandidates, contentMode: .fill,
                             onLoaded: { noteBackdrop(loaded: true) },
@@ -983,7 +999,7 @@ struct MediaItemHeroView: View {
       }
       // Poster hero: the wash, dimmed under the dark chrome; no poster at all: the plate.
       Color.black
-        .opacity(!showsPicture && heroWashURL != nil ? Self.posterWashDim : 0)
+        .opacity(!showsPicture && showsWash ? Self.posterWashDim : 0)
       Color.KinoPub.posterHeroPlate
         .opacity(usesAdaptivePosterHero ? 1 : 0)
 
