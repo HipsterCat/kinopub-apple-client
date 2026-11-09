@@ -20,11 +20,16 @@ public struct MediaScoreLogo: View {
     // Relayed by Trakt (`ExternalRating`): the score cards only. Rotten Tomatoes wears a
     // different mark on each side of its verdict, so each side is its own source here.
     case trakt
+    case rottenTomatoesCertified
     case rottenTomatoesFresh
     case rottenTomatoesRotten
+    case rottenTomatoesAudienceVerified
     case rottenTomatoesAudienceUpright
     case rottenTomatoesAudienceSpilled
+    /// Metacritic's three colours: green, yellow, red.
+    case metacriticFavorable
     case metacritic
+    case metacriticUnfavorable
     case letterboxd
     case myAnimeList
 
@@ -33,11 +38,15 @@ public struct MediaScoreLogo: View {
       switch self {
       case .imdb, .kinopoisk, .tmdb, .kinopub: return nil
       case .trakt: return "trakt"
+      case .rottenTomatoesCertified: return "rotten_tomatoes_critics_certified_fresh"
+      case .rottenTomatoesAudienceVerified: return "rotten_tomatoes_audience_verified_hot"
+      case .metacriticFavorable: return "metascore_green"
+      case .metacriticUnfavorable: return "metascore_red"
       case .rottenTomatoesFresh: return "rotten_tomatoes_critics_big_color"
       case .rottenTomatoesRotten: return "rotten_tomatoes_critics_rotten_big_color"
       case .rottenTomatoesAudienceUpright: return "rotten_tomatoes_audience_positive_big_color"
       case .rottenTomatoesAudienceSpilled: return "rotten_tomatoes_audience_negative_big_color"
-      case .metacritic: return "metascore"
+      case .metacritic: return "metascore_yellow"
       case .letterboxd: return "letterboxd"
       case .myAnimeList: return "myanimelist"
       }

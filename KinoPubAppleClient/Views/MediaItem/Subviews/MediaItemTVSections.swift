@@ -181,11 +181,15 @@ enum MediaItemTVSections {
                      mark: mark)
     } else if let votes = score.votes, votes > 0 {
       caption = "\(votes.formatted(.number.grouping(.automatic))) \(ratingsUnit(votes))"
+    } else if score.value != nil, let label = score.label {
+      // «Критики» / «Зрители» / «Metacritic»; with focus Rotten Tomatoes says its name.
+      caption = label
     }
     // Voters but no score yet ("not enough ratings"): no number, and the card says how many voted.
     return TVPageInfoCard.Rating(id: score.id, source: score.logo, title: score.id,
                                  value: score.value == nil ? nil : score.display,
-                                 caption: caption, thumbs: thumbs, faint: score.drawsFaint)
+                                 caption: caption, thumbs: thumbs, faint: score.drawsFaint,
+                                 focusedCaption: caption == score.label ? score.focusLabel : nil)
   }
 
   private static func ratingsUnit(_ count: Int) -> String {

@@ -426,10 +426,10 @@ extension MediaScoreLogo.Source {
   public func formattedScore(_ score: Double) -> String {
     switch self {
     case .tmdb, .kinopub, .trakt,
-         .rottenTomatoesFresh, .rottenTomatoesRotten,
-         .rottenTomatoesAudienceUpright, .rottenTomatoesAudienceSpilled:
+         .rottenTomatoesCertified, .rottenTomatoesFresh, .rottenTomatoesRotten,
+         .rottenTomatoesAudienceVerified, .rottenTomatoesAudienceUpright, .rottenTomatoesAudienceSpilled:
       return "\(Int((score * 10).rounded()))%"
-    case .metacritic:
+    case .metacritic, .metacriticFavorable, .metacriticUnfavorable:
       // Metacritic's own 0…100, no percent sign.
       return "\(Int((score * 10).rounded()))"
     case .letterboxd:

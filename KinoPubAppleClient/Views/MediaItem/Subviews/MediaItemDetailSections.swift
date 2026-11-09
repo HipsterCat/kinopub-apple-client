@@ -157,6 +157,11 @@ enum RatingSources {
     /// The source's own page. Nil on tvOS — there is no browser to hand it to — and
     /// nil for any source we hold no id for.
     let url: URL?
+    /// Under a score with no vote count (Rotten Tomatoes, Metacritic): what it is —
+    /// «Критики», «Зрители», «Metacritic».
+    var label: String?
+    /// What `label` becomes under the pointer or with focus: «Rotten Tomatoes».
+    var focusLabel: String?
     /// The source is known — an id, or kino.pub itself — and nobody has rated it yet.
     /// The card is the mark and «No ratings», so a vote still has somewhere to land.
     var isPlaceholder = false
@@ -217,38 +222,66 @@ enum RatingSources {
             url: kinopubURL(mediaItem),
             known: true)
     ]
+    // Ties keep the written order — the sources without a vote count (Metacritic, then
+    // Rotten Tomatoes' critics and audience) stay side by side (Sasha, 2026-11-09).
     return (own.compactMap { $0 } + relayed(metadata.externalRatings))
+      .enumerated()
       .sorted { lhs, rhs in
-        if lhs.logo == .kinopub { return false }
-        if rhs.logo == .kinopub { return true }
-        return (lhs.votes ?? 0) > (rhs.votes ?? 0)
+        if lhs.element.logo == .kinopub { return false }
+        if rhs.element.logo == .kinopub { return true }
+        let l = lhs.element.votes ?? 0, r = rhs.element.votes ?? 0
+        return l != r ? l > r : lhs.offset < rhs.offset
       }
+      .map(\.element)
   }
 
   /// What Trakt relays — its own score, Rotten Tomatoes, Metacritic, Letterboxd,
   /// MyAnimeList. Only published scores: Trakt drops the empty ones before they get here,
   /// so these never stand as placeholders.
   private static func relayed(_ ratings: [ExternalRating]) -> [Score] {
-    ratings.compactMap { rating in
+    let order: [ExternalRating.Kind] = [.trakt, .metacritic, .rottenTomatoes, .rottenTomatoesAudience,
+                                        .letterboxd, .myAnimeList]
+    let sorted = ratings.sorted {
+      (order.firstIndex(of: $0.kind) ?? order.count) < (order.firstIndex(of: $1.kind) ?? order.count)
+    }
+    return sorted.compactMap { rating in
       let logo: MediaScoreLogo.Source
       let name: String
+      var label: String?
+      var focusLabel: String?
+      // The marks' states by the number alone — a guess until we see what Trakt's
+      // `state` really carries (Sasha, 2026-11-09): Rotten Tomatoes ≥ 90 certified /
+      // verified, ≥ 40 fresh / upright, below that rotten / spilled; Metascore above 60
+      // green, above 30 yellow, else red.
       switch rating.kind {
       case .trakt:
         logo = .trakt; name = "Trakt"
       case .rottenTomatoes:
-        logo = rating.isPositive ? .rottenTomatoesFresh : .rottenTomatoesRotten; name = "Tomatometer"
+        logo = rating.value >= 90 ? .rottenTomatoesCertified
+          : rating.value >= 40 ? .rottenTomatoesFresh : .rottenTomatoesRotten
+        name = "Tomatometer"
+        label = "MediaItem_RatingCritics".localized
+        focusLabel = "Rotten Tomatoes"
       case .rottenTomatoesAudience:
-        logo = rating.isPositive ? .rottenTomatoesAudienceUpright : .rottenTomatoesAudienceSpilled
+        logo = rating.value >= 90 ? .rottenTomatoesAudienceVerified
+          : rating.value >= 40 ? .rottenTomatoesAudienceUpright : .rottenTomatoesAudienceSpilled
         name = "Popcornmeter"
+        label = "MediaItem_RatingAudience".localized
+        focusLabel = "Rotten Tomatoes"
       case .metacritic:
-        logo = .metacritic; name = "Metacritic"
+        logo = rating.value > 60 ? .metacriticFavorable : rating.value > 30 ? .metacritic : .metacriticUnfavorable
+        name = "Metacritic"
+        label = "Metacritic"
       case .letterboxd:
         logo = .letterboxd; name = "Letterboxd"
       case .myAnimeList:
         logo = .myAnimeList; name = "MyAnimeList"
       }
-      return score(id: name, logo: logo, value: rating.score10, votes: rating.votes,
-                   url: relayedURL(rating), known: false)
+      var tile = score(id: name, logo: logo, value: rating.score10, votes: rating.votes,
+                       url: relayedURL(rating), known: false)
+      tile?.label = label
+      tile?.focusLabel = focusLabel
+      return tile
     }
   }
 
@@ -594,6 +627,10 @@ private struct RatingTile: View {
   private var caption: String? {
     if score.isPlaceholder { return "MediaItem_NoRatings".localized }
     guard let votes = score.votes, votes > 0 else {
+      if score.value != nil, let label = score.label {
+        // «Критики» turns into «Rotten Tomatoes» under the pointer.
+        return isHovered ? (score.focusLabel ?? label) : label
+      }
       return score.value == nil ? "MediaItem_NotEnoughRatings".localized : nil
     }
     let unit: String
