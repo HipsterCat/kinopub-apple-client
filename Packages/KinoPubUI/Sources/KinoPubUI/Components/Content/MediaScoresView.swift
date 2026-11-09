@@ -133,6 +133,20 @@ public struct MediaScoreLogo: View {
   /// **Height is fixed, width follows the artwork.** A logo row lines up on the
   /// baseline of the marks, not on a grid of equal squares — boxing every one into
   /// `height × height` letterboxed the wide wordmarks down to nothing.
+  private var items: [MediaScoreItem] {
+    if bannerLine {
+      return scores.bannerScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    }
+    if detailLine, let compactLimit {
+      return scores.compactDetailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate,
+                                      limit: compactLimit > 0 ? compactLimit : nil)
+    }
+    if detailLine {
+      return scores.detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    }
+    return scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+  }
+
   public var body: some View {
     let image = Image(assetName, bundle: .module)
       .renderingMode(style == .template ? .template : .original)
@@ -282,17 +296,6 @@ public struct MediaScoresView: View {
   }
 
   public var body: some View {
-    let items: [MediaScoreItem]
-    if bannerLine {
-      items = scores.bannerScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
-    } else if detailLine, let compactLimit {
-      items = scores.compactDetailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate,
-                                       limit: compactLimit > 0 ? compactLimit : nil)
-    } else if detailLine {
-      items = scores.detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
-    } else {
-      items = scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
-    }
     let slice = limit.map { Array(items.prefix($0)) } ?? items
     // No score survives the line's filters (zeros, a lone «—»): nothing at all, so the
     // line's stack gives it no gap — `hasDisplayableScore` can be true for such a title.

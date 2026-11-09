@@ -102,6 +102,23 @@ final class RatingTests: XCTestCase {
                    [.imdb, .trakt, .tmdb, .metacritic, .rottenTomatoesFresh])
   }
 
+  /// Rick and Morty on a narrow window (Sasha, 2026-11-09): the sources with a tenth of
+  /// the votes stay, the critics stay at the end, the Popcornmeter and the rest go.
+  func testCompactDetailLineKeepsTheBigAudiencesAndTheCritics() {
+    let scores = MediaScores(imdb: 9.0, imdbVotes: 718_000, kinopoisk: 8.8, kinopoiskVotes: 1_000_000,
+                             tmdb: 8.7, tmdbVotes: 11_000)
+      .adding(extras: [.init(source: .douban, score: 9.7, votes: 251_000),
+                       .init(source: .myShows, score: 9.4, votes: 71_000),
+                       .init(source: .trakt, score: 8.7, votes: 29_000),
+                       .init(source: .metacriticFavorable, score: 8.4),
+                       .init(source: .rottenTomatoesCertified, score: 9.1),
+                       .init(source: .rottenTomatoesAudienceUpright, score: 8.3)])
+    XCTAssertEqual(scores.compactDetailLine().map(\.source),
+                   [.kinopoisk, .imdb, .douban, .metacriticFavorable, .rottenTomatoesCertified])
+    XCTAssertEqual(scores.compactDetailLine(limit: 2).map(\.source),
+                   [.kinopoisk, .imdb, .metacriticFavorable, .rottenTomatoesCertified])
+  }
+
   func testKinopubThumbsDoNotMoveTheAggregate() {
     let without = MediaScores(imdb: 8.0, imdbVotes: 1000)
     let withThumbs = MediaScores(imdb: 8.0, imdbVotes: 1000, kinopubLikes: 10, kinopubDislikes: 0)
