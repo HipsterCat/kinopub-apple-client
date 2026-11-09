@@ -1,16 +1,11 @@
-//
-//  WindowSettings.swift
-//  KinoPubAppleClient
-//
-//  Created by Kirill Kunst on 28.10.2023.
-//
-
 import Foundation
 import SwiftUI
+import AppKit
 
 #if os(macOS)
 
 /// A class that manages the window settings, including the "always on top" feature.
+@MainActor
 @Observable
 class WindowSettings {
     var alwaysOnTop = UserDefaults.standard.bool(forKey: "alwaysOnTop") {
@@ -34,3 +29,4 @@ class WindowSettings {
     }
 }
 #endif
+
