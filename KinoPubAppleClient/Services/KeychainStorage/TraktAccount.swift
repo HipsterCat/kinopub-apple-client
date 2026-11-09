@@ -81,16 +81,10 @@ extension Key where Value == TraktToken {
 
 @Observable
 @MainActor
-final class TraktAccount {
+final class TraktAccount: AccountSigningIn {
   static let shared = TraktAccount()
 
-  enum SignIn: Equatable {
-    case idle
-    case requestingCode
-    /// Waiting for the viewer to enter `code` at `url` on another device.
-    case awaitingUser(code: String, url: URL, expiresAt: Date)
-    case failed(String)
-  }
+  typealias SignIn = AccountSignIn
 
   private(set) var signIn: SignIn = .idle
   private(set) var username: String? = TraktAccount.storedUsername

@@ -138,6 +138,7 @@
                 { "path": "KeychainStorage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "KeychainStorageImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "KinopoiskKeyStorage.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlexAccount.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "TraktAccount.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {

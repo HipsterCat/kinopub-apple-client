@@ -24,6 +24,7 @@ struct IntegrationsSettingsPane: View {
   @AppStorage(IntegrationKeyProvider.omdb.validatedDefaultsKey) private var omdbValidated = false
   @AppStorage(IntegrationKeyProvider.omdb.enabledDefaultsKey) private var omdbEnabled = true
   @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
+  @AppStorage(PlexAccount.usernameDefaultsKey) private var plexUsername: String?
   @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
   @AppStorage(DoubanMetadataAccess.enabledDefaultsKey) private var doubanData = true
   @AppStorage(WikidataMetadataAccess.enabledDefaultsKey) private var wikidataData = true
@@ -31,7 +32,7 @@ struct IntegrationsSettingsPane: View {
 
   var body: some View {
     let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, omdbValidated, omdbEnabled,
-             traktUsername, traktData, doubanData, wikidataData, myShowsData)
+             traktUsername, plexUsername, traktData, doubanData, wikidataData, myShowsData)
     Form {
       Section {
         ForEach(Integration.available) { integration in
@@ -96,6 +97,7 @@ struct IntegrationDetailView: View {
   @State private var isConfirmingDisconnect = false
   @State private var isSigningIn = false
   @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
+  @AppStorage(PlexAccount.usernameDefaultsKey) private var plexUsername: String?
   /// Trakt's ratings and reviews on the title page; no sign-in needed.
   @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
   /// Douban's scores on the title page; nothing to connect.
@@ -115,10 +117,13 @@ struct IntegrationDetailView: View {
   private var hasKey: Bool { integration.keyProvider != nil && keyValidated }
   private var isAccount: Bool { integration.connection == .account }
   /// A key added, or an account signed in to.
-  private var isConnected: Bool { isAccount ? traktUsername != nil : hasKey }
+  private var isConnected: Bool {
+    guard isAccount else { return hasKey }
+    return integration == .plex ? plexUsername != nil : traktUsername != nil
+  }
 
   private var status: Integration.Status {
-    _ = (keyValidated, keyEnabled, traktUsername, traktData, doubanData, wikidataData, myShowsData)
+    _ = (keyValidated, keyEnabled, traktUsername, plexUsername, traktData, doubanData, wikidataData, myShowsData)
     return integration.status
   }
 
@@ -195,7 +200,7 @@ struct IntegrationDetailView: View {
     ) {
       if isAccount {
         Button("Sign Out", role: .destructive) {
-          TraktAccount.shared.signOut()
+          integration.account?.signOut()
         }
       } else {
         Button("Disconnect", role: .destructive) {
@@ -206,7 +211,7 @@ struct IntegrationDetailView: View {
       Text(isAccount ? "Integration_SignOut_Message" : "Integration_Disconnect_Message")
     }
     .sheet(isPresented: $isSigningIn) {
-      TraktSignInView()
+      AccountSignInView(integration: integration)
     }
   }
 

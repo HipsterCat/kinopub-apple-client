@@ -11,6 +11,8 @@ public enum MetadataSourceID: String, Sendable, Hashable, Codable {
   case wikidata
   /// MyShows.me's public JSON-RPC API. Series only.
   case myShows
+  /// Plex's cloud catalogue (Discover), with the viewer's Plex account.
+  case plex
   case kinopoisk
   /// Keyless kpapp.link proxy (same unofficial Kinopoisk payload the community fork uses).
   case kinopoiskProxy

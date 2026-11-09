@@ -668,7 +668,7 @@ final class TVSettingsCatalog {
         actions.append(TSKRow(title: "Sign In…".localized,
                               description: integration.connectHelp,
                               kind: .action(pushes: false) { [unowned self] in
-                                self.presentTraktSignIn()
+                                self.presentSignIn(integration)
                               },
                               isEnabled: integration.isSupported))
       }
@@ -742,9 +742,9 @@ final class TVSettingsCatalog {
     host.presentPopup(alert)
   }
 
-  /// The device-code page over Settings; it closes itself once Trakt confirms.
-  private func presentTraktSignIn() {
-    present(TraktSignInView()
+  /// The code sign-in page over Settings; it closes itself once the service confirms.
+  private func presentSignIn(_ integration: Integration) {
+    present(AccountSignInView(integration: integration)
       .onDisappear { [weak self] in self?.host.reloadPages() }, inStack: false)
   }
 
@@ -755,7 +755,7 @@ final class TVSettingsCatalog {
       preferredStyle: .alert
     )
     alert.addAction(UIAlertAction(title: "Sign Out".localized, style: .destructive) { [weak self] _ in
-      TraktAccount.shared.signOut()
+      integration.account?.signOut()
       self?.host.reloadPages()
     })
     alert.addAction(UIAlertAction(title: "Cancel".localized, style: .cancel))

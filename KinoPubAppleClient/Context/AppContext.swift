@@ -183,6 +183,7 @@ struct AppContext: AppContextProtocol {
       DoubanSource(configuration: metadataConfig, access: DoubanMetadataAccess()),
       // Last: ids on other sites, Wikipedia, box office — only what the others left empty.
       MyShowsSource(access: MyShowsMetadataAccess()),
+      PlexSource(access: PlexMetadataAccess()),
       WikidataSource(access: WikidataMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru")
     ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL),
       titleCard: TitleCardSource(configuration: metadataConfig))

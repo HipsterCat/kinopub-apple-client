@@ -2426,12 +2426,15 @@ struct MediaItemBadgeCardsSection: View {
 
   var body: some View {
     if ageRating != nil || !advisories.isEmpty || !audioGroups.isEmpty
-      || !subtitleGroups.isEmpty || !videoBadges.isEmpty {
+      || !subtitleGroups.isEmpty || !videoBadges.isEmpty || externalMetadata.commonSense != nil {
       BlockRail(height: BlockMetrics.textCardHeight,
                 inset: MediaItemLayout.horizontalInset) {
         if ageRating != nil || !advisories.isEmpty {
           ParentalAdvisoryCard(ageRating: ageRating,
                                advisories: advisories)
+        }
+        if let commonSense = externalMetadata.commonSense {
+          CommonSenseCard(review: commonSense)
         }
         if !audioGroups.isEmpty || !subtitleGroups.isEmpty {
           LanguagesCard(audioGroups: audioGroups,
@@ -2629,6 +2632,116 @@ private struct ParentalAdvisoryCard: View {
         }
       }
     }
+  }
+}
+
+// MARK: Common Sense card
+
+/// Common Sense Media's review for parents, through Plex: the age it recommends and its
+/// one-line verdict on the card; what parents need to know, each topic's 0…5 and the
+/// talking points in the popup. Common Sense writes in English and the text stays as
+/// written (Sasha, 2026-11-09).
+private struct CommonSenseCard: View {
+  let review: CommonSenseMedia
+
+  var body: some View {
+    BlockCard(width: BlockMetrics.textCardWidth, fillsHeight: true) {
+      VStack(alignment: .leading, spacing: 10) {
+        Text(verbatim: "Common Sense Media")
+          .font(TypeScale.detailBody.weight(.semibold))
+          .foregroundStyle(Color.KinoPub.subtitle)
+        if let age = review.age {
+          Text(String(format: "MediaItem_CommonSenseAge".localized, age))
+            .font(.system(.title2, design: .rounded, weight: .medium))
+            .foregroundStyle(Color.KinoPub.subtitle)
+        }
+        if let line = review.oneLiner {
+          FillingText(line, font: TypeScale.detailBody)
+            .foregroundStyle(Color.KinoPub.text)
+        }
+      }
+    }
+    .expandsIntoInfoPopup(title: Text(verbatim: "Common Sense Media")) {
+      VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+        if let age = review.age {
+          Text(String(format: "MediaItem_CommonSenseAge".localized, age))
+            .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+            .foregroundStyle(Color.KinoPub.subtitle)
+        }
+        ages
+        if let line = review.oneLiner {
+          Text(verbatim: line)
+            .font(InfoPopupMetrics.bodyFont.weight(.semibold))
+            .foregroundStyle(Color.KinoPub.subtitle)
+        }
+        if let text = review.parentsNeedToKnow {
+          section("MediaItem_CommonSenseParents", text)
+        }
+        if !review.topics.isEmpty {
+          VStack(alignment: .leading, spacing: 12) {
+            ForEach(review.topics, id: \.label) { topic in
+              VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                  Text(verbatim: topic.label)
+                    .font(InfoPopupMetrics.bodyFont.weight(.semibold))
+                  Spacer(minLength: 8)
+                  level(topic)
+                }
+                if let text = topic.text {
+                  Text(verbatim: text)
+                    .font(InfoPopupMetrics.bodyFont)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .accessibilityElement(children: .combine)
+            }
+          }
+        }
+        if let text = review.anyGood {
+          section("MediaItem_CommonSenseAnyGood", text)
+        }
+        if !review.talkingPoints.isEmpty {
+          section("MediaItem_CommonSenseTalk", review.talkingPoints.map { "• " + $0 }.joined(separator: "\n"))
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var ages: some View {
+    let parts = [review.parentsAge.map { String(format: "MediaItem_CommonSenseParentsAge".localized, $0) },
+                 review.kidsAge.map { String(format: "MediaItem_CommonSenseKidsAge".localized, $0) }]
+      .compactMap { $0 }
+    if !parts.isEmpty {
+      Text(verbatim: parts.joined(separator: " · "))
+        .font(InfoPopupMetrics.bodyFont)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  private func section(_ title: LocalizedStringKey, _ text: String) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(title)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      Text(verbatim: text)
+        .font(InfoPopupMetrics.bodyFont)
+        .foregroundStyle(Color.KinoPub.subtitle)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  /// Five dots, filled to the topic's 0…5.
+  private func level(_ topic: CommonSenseMedia.Topic) -> some View {
+    HStack(spacing: 3) {
+      ForEach(0..<5, id: \.self) { index in
+        Circle()
+          .fill(Double(index) < topic.rating.rounded() ? Color.KinoPub.subtitle : Color.primary.opacity(0.15))
+          .frame(width: 7, height: 7)
+      }
+    }
+    .accessibilityLabel(Text(verbatim: "\(Int(topic.rating.rounded())) / 5"))
   }
 }
 

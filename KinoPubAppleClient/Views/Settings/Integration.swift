@@ -18,6 +18,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   case tmdb
   case omdb
   case trakt
+  case plex
   case douban
   case myShows
   case wikidata
@@ -42,7 +43,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// links are settled; their pages say they are coming.
   var isSupported: Bool {
     switch self {
-    case .kinopoisk, .tmdb, .trakt, .omdb, .douban, .myShows, .wikidata: true
+    case .kinopoisk, .tmdb, .trakt, .plex, .omdb, .douban, .myShows, .wikidata: true
     case .simkl, .anilist, .myAnimeList: false
     }
   }
@@ -99,7 +100,11 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// The viewer's own key or account is connected.
   var isConnected: Bool {
     if let keyProvider { return keyProvider.isConnected }
-    return self == .trakt && TraktAccount.storedUsername != nil
+    switch self {
+    case .trakt: return TraktAccount.storedUsername != nil
+    case .plex: return PlexAccount.storedUsername != nil
+    default: return false
+    }
   }
 
   /// «Доступно»: what works by default, and whatever the viewer has connected — a source
@@ -121,7 +126,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   var connection: Connection {
     switch self {
     case .kinopoisk, .tmdb, .omdb: .apiKey
-    case .trakt, .simkl, .anilist, .myAnimeList: .account
+    case .trakt, .plex, .simkl, .anilist, .myAnimeList: .account
     case .douban, .myShows, .wikidata: .builtIn
     }
   }
@@ -132,6 +137,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb: "The Movie Database"
     case .omdb: "OMDb"
     case .trakt: "Trakt"
+    case .plex: "Plex"
     case .douban: "Douban"
     case .myShows: "MyShows"
     case .wikidata: "Wikidata"
@@ -148,6 +154,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb: "Integration_TMDB_About".localized
     case .omdb: "Integration_OMDb_About".localized
     case .trakt: "Integration_Trakt_About".localized
+    case .plex: "Integration_Plex_About".localized
     case .douban: "Integration_Douban_About".localized
     case .myShows: "Integration_MyShows_About".localized
     case .wikidata: "Integration_Wikidata_About".localized
@@ -164,6 +171,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .omdb: "Integration_OMDb_KeyHelp".localized
     case .tmdb: "Integration_TMDB_KeyHelp".localized
     case .trakt: "Integration_Trakt_SignInHelp".localized
+    case .plex: "Integration_Plex_SignInHelp".localized
     case .douban: "Integration_Douban_Help".localized
     case .myShows: "Integration_MyShows_Help".localized
     case .wikidata: "Integration_Wikidata_Help".localized
@@ -178,6 +186,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb: URL(string: "https://www.themoviedb.org")!
     case .omdb: URL(string: "https://www.omdbapi.com")!
     case .trakt: URL(string: "https://trakt.tv")!
+    case .plex: URL(string: "https://www.plex.tv")!
     case .douban: URL(string: "https://movie.douban.com")!
     case .myShows: URL(string: "https://myshows.me")!
     case .wikidata: URL(string: "https://www.wikidata.org")!
@@ -231,6 +240,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .kinopoisk: "kinopoisk_big_colorful"
     case .tmdb: "tmdb_big_color"
     case .trakt: "trakt"
+    case .plex: "plex"
     case .douban: "douban"
     case .myShows: "myshows"
     case .wikidata: "wikidata"
@@ -238,6 +248,16 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .anilist: "anilist"
     case .myAnimeList: "myanimelist"
     case .omdb: nil
+    }
+  }
+
+  /// The account behind a code sign-in.
+  @MainActor
+  var account: (any AccountSigningIn)? {
+    switch self {
+    case .trakt: TraktAccount.shared
+    case .plex: PlexAccount.shared
+    default: nil
     }
   }
 
@@ -249,6 +269,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb: "TMDB"
     case .omdb: "OMDb"
     case .trakt: "trakt"
+    case .plex: "PLEX"
     case .douban: "豆"
     case .myShows: "MS"
     case .wikidata: "WD"
@@ -264,6 +285,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb: Color(red: 0.05, green: 0.15, blue: 0.25)
     case .omdb: Color(red: 0.80, green: 0.62, blue: 0.10)
     case .trakt: Color(red: 0.93, green: 0.11, blue: 0.14)
+    case .plex: Color(red: 0.90, green: 0.63, blue: 0.05)
     case .douban: Color(red: 0.0, green: 0.71, blue: 0.11)
     case .myShows: Color(red: 0.90, green: 0.14, blue: 0.23)
     case .wikidata: Color(red: 0.2, green: 0.4, blue: 0.6)
@@ -311,6 +333,9 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     if self == .trakt {
       if let name = TraktAccount.storedUsername { return .account(name) }
       return worksByDefault && TraktMetadataAccess.isEnabled ? .byDefault : .notConnected
+    }
+    if self == .plex {
+      return PlexAccount.storedUsername.map(Status.account) ?? .notConnected
     }
     if connection == .builtIn { return isDataSwitchOn ? .byDefault : .notConnected }
     // OMDb has no default path: without the viewer's key it is not connected.
