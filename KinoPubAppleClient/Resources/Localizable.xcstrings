@@ -15844,6 +15844,7 @@
     },
     "Disconnect…" : {
       "extractionState" : "manual",
+      "generatesSymbol" : false,
       "localizations" : {
         "en" : {
           "stringUnit" : {
