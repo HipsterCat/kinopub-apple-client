@@ -1188,6 +1188,142 @@ private struct MediaItemPosterShelfSkeleton: View {
   }
 }
 
+// MARK: - Setlist
+
+/// One song of a concert's setlist as the title page reads it, on every platform: its place in
+/// the order, its name, and the line under it (`SetlistEntry.lines` — a time, a part, the
+/// artists). tvOS draws these as cards (`MediaItemTVSections.setlist`), iOS and macOS as
+/// `MediaItemSetlistSection`. Empty for everything but a concert.
+struct SetlistTrack: Identifiable, Hashable {
+  let id: Int
+  /// «1.» — quiet, before the name.
+  let number: String
+  let title: String
+  let subtitle: String?
+
+  static func tracks(of mediaItem: MediaItem) -> [SetlistTrack] {
+    guard mediaItem.presentation.showsSetlist else { return [] }
+    return mediaItem.mediaEntity.setlist.enumerated().map { index, song in
+      let lines = song.lines
+      return SetlistTrack(id: index,
+                          number: "\(index + 1).",
+                          title: lines?.title ?? "MediaItem_UntitledTrack".localized,
+                          subtitle: lines?.subtitle)
+    }
+  }
+}
+
+#if !os(tvOS)
+/// A concert's songs, right under its videos, as Music's Top Songs shelf: columns of
+/// `rowsPerColumn` rows, numbered down each column, paging sideways. A column is two of the
+/// page's poster columns wide (`ShelfMetrics.posters`), so the shelf sits on the same grid as
+/// the poster shelves below it; on a phone's three poster columns it is the whole width but a
+/// peek of the next. Rows are text only — Select does nothing on tvOS either, until there is
+/// a source for album art and a link to the song.
+struct MediaItemSetlistSection: View {
+  let tracks: [SetlistTrack]
+
+  @Environment(\.dynamicTypeSize) private var typeSize
+  @State private var containerWidth: CGFloat = 0
+
+  /// Music's Top Songs and the tvOS setlist's four across.
+  static let rowsPerColumn = 4
+
+  private var metrics: ShelfMetrics { .posters(width: containerWidth, typeSize: typeSize) }
+
+  /// `containerRelativeFrame`'s count and span for one column: two poster columns, or on a
+  /// phone (fewer than four) all but a sixth, so the next column shows at the edge.
+  private var frame: (count: Int, span: Int) {
+    let columns = metrics.columns
+    return columns >= 4 ? (columns, 2) : (columns * 2, columns * 2 - 1)
+  }
+
+  private var columns: [ArraySlice<SetlistTrack>] {
+    let rows = Self.rowsPerColumn
+    return stride(from: 0, to: tracks.count, by: rows).map {
+      tracks[$0..<min($0 + rows, tracks.count)]
+    }
+  }
+
+  var body: some View {
+    if !tracks.isEmpty {
+      // Every row keeps the second line when any song has one, so the columns stay one grid.
+      let reservesSubtitle = tracks.contains { $0.subtitle != nil }
+      let widestNumber = tracks.last?.number ?? ""
+      VStack(alignment: .leading, spacing: 6) {
+        MediaItemSectionHeader("MediaItem_Setlist")
+        ScrollView(.horizontal, showsIndicators: false) {
+          LazyHStack(alignment: .top, spacing: metrics.gutter) {
+            ForEach(columns, id: \.startIndex) { column in
+              VStack(alignment: .leading, spacing: 0) {
+                ForEach(column) { track in
+                  SetlistRow(track: track,
+                             widestNumber: widestNumber,
+                             reservesSubtitle: reservesSubtitle,
+                             showsDivider: track.id != column.last?.id)
+                }
+              }
+              .containerRelativeFrame(.horizontal,
+                                      count: frame.count,
+                                      span: frame.span,
+                                      spacing: metrics.gutter)
+            }
+          }
+          .scrollTargetLayout()
+          .safeAreaPadding(.horizontal, MediaItemLayout.horizontalInset)
+        }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .scrollTargetBehavior(.viewAligned)
+      }
+      .onGeometryChange(for: CGFloat.self) { proxy in
+        proxy.size.width
+      } action: { width in
+        if width > 0 { containerWidth = width }
+      }
+    }
+  }
+}
+
+/// «1.  Distance / 07:14» — the number quiet in a column as wide as the longest one, so the
+/// names line up; the name on one line, the line under it on one, and a hairline under the
+/// text as in Music's track lists.
+private struct SetlistRow: View {
+  let track: SetlistTrack
+  let widestNumber: String
+  let reservesSubtitle: Bool
+  let showsDivider: Bool
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 12) {
+      Text(widestNumber)
+        .hidden()
+        .overlay(alignment: .trailing) {
+          Text(track.number).foregroundStyle(.secondary)
+        }
+        .monospacedDigit()
+        .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(track.title)
+            .foregroundStyle(Color.KinoPub.text)
+          if reservesSubtitle {
+            Text(track.subtitle ?? " ")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+        Divider().opacity(showsDivider ? 1 : 0)
+      }
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel([track.number, track.title, track.subtitle].compactMap { $0 }.joined(separator: " "))
+  }
+}
+#endif
+
 // MARK: - Awards
 
 /// From Kinopoisk Unofficial, when the user has their own key configured — hidden

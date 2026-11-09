@@ -887,6 +887,10 @@ struct MediaItemView: View {
   @ViewBuilder
   private var infoSections: some View {
     VStack(alignment: .leading, spacing: MediaItemLayout.sectionSpacing) {
+#if !os(tvOS)
+      // A concert's songs, first under its videos, as on tvOS (`MediaItemTVSections.make`).
+      MediaItemSetlistSection(tracks: SetlistTrack.tracks(of: itemModel.mediaItem))
+#endif
       // The shipped ratings row, on every platform. It is the validated one; the
       // block experiment below runs beside it, not instead of it.
       MediaItemRatingsSection(mediaItem: itemModel.mediaItem,

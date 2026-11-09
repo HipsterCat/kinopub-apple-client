@@ -84,15 +84,10 @@ enum MediaItemTVSections {
   /// everything without a setlist, which is everything but a concert. Select does nothing yet;
   /// the cards are where the album art and a link to the song go once there is a source.
   static func setlist(_ input: Input) -> [TVPageSection] {
-    guard input.mediaItem.presentation.showsSetlist else { return [] }
-    let songs = input.mediaItem.mediaEntity.setlist
-    guard !songs.isEmpty else { return [] }
-    let tracks = songs.enumerated().map { index, song in
-      let lines = song.lines
-      return TVPageInfoCard.Track(id: "\(index)", number: "\(index + 1).",
-                                  title: lines?.title ?? "MediaItem_UntitledTrack".localized,
-                                  subtitle: lines?.subtitle)
+    let tracks = SetlistTrack.tracks(of: input.mediaItem).map {
+      TVPageInfoCard.Track(id: "\($0.id)", number: $0.number, title: $0.title, subtitle: $0.subtitle)
     }
+    guard !tracks.isEmpty else { return [] }
     let columns = setlistColumns
     let groups = (0..<min(columns, tracks.count)).map { column in
       TVPageGroup(id: "setlist-\(column)", title: nil, columns: columns, stacked: true,
