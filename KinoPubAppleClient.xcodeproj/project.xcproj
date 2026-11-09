@@ -138,6 +138,7 @@
                 { "path": "KeychainStorage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "KeychainStorageImpl.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "KinopoiskKeyStorage.swift", "index": true, "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TraktAccount.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",
@@ -290,6 +291,7 @@
                 { "path": "SettingsMacChrome.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SettingsDetailRoute.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "Integration.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "TraktSignInView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 {
                   "kind": "group",
                   "path": "Panes",

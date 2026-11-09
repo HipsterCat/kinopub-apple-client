@@ -5412,13 +5412,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trakt keeps your watch history, watchlist and ratings in one account across apps and devices. Once signed in, what you watch here will sync with Trakt."
+            "value" : "Trakt keeps your watch history, watchlist and ratings in one account across apps and devices. Sign in to link your account; syncing what you watch here comes next."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trakt хранит историю просмотров, список «Буду смотреть» и оценки в одном аккаунте для всех приложений и устройств. После входа просмотренное здесь будет синхронизироваться с Trakt."
+            "value" : "Trakt хранит историю просмотров, список «Буду смотреть» и оценки в одном аккаунте для всех приложений и устройств. Войдите, чтобы привязать аккаунт; синхронизация просмотренного здесь — следующий шаг."
           }
         }
       }
@@ -14625,7 +14625,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Повторить"
+            "value" : "Попробовать снова"
           }
         }
       }
@@ -15929,6 +15929,278 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось связаться с %@ — попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "Not connected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not connected"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не подключено"
+          }
+        }
+      }
+    },
+    "Sign Out…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выйти…"
+          }
+        }
+      }
+    },
+    "Sign Out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выйти"
+          }
+        }
+      }
+    },
+    "Sign out of %@?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign out of %@?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выйти из %@?"
+          }
+        }
+      }
+    },
+    "Integration_SignOut_Message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The account is forgotten on this device."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунт будет забыт на этом устройстве."
+          }
+        }
+      }
+    },
+    "Integration_Trakt_SignInHelp" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign In shows a code. Open trakt.tv/activate on your phone or computer, sign in to Trakt and enter the code. Your password never reaches this app."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Войти» покажет код. Откройте trakt.tv/activate на телефоне или компьютере, войдите в Trakt и введите код. Пароль в приложение не попадает."
+          }
+        }
+      }
+    },
+    "Trakt_SignIn_Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to Trakt"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вход в Trakt"
+          }
+        }
+      }
+    },
+    "Trakt_SignIn_Instructions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On your phone or computer, open %@ and enter this code:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На телефоне или компьютере откройте %@ и введите этот код:"
+          }
+        }
+      }
+    },
+    "Trakt_SignIn_CodeCopied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The code is copied when the page opens."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Код скопируется, когда откроется страница."
+          }
+        }
+      }
+    },
+    "Trakt_SignIn_Waiting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for Trakt…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ждём подтверждения от Trakt…"
+          }
+        }
+      }
+    },
+    "Open %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть %@"
+          }
+        }
+      }
+    },
+    "Trakt_Error_NoClientID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This build has no Trakt Client ID."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этой сборке нет Client ID для Trakt."
+          }
+        }
+      }
+    },
+    "Trakt_Error_HTTP" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trakt answered with error %lld. Try again later."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trakt ответил ошибкой %lld. Попробуйте позже."
+          }
+        }
+      }
+    },
+    "Trakt_Error_Denied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-in was declined on Trakt."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вход отклонён на Trakt."
+          }
+        }
+      }
+    },
+    "Trakt_Error_CodeExpired" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The code has expired. Get a new one."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Срок действия кода истёк. Получите новый."
+          }
+        }
+      }
+    },
+    "Trakt_Error_Network" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't reach Trakt — check the connection and try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось связаться с Trakt — проверьте подключение и попробуйте ещё раз."
           }
         }
       }

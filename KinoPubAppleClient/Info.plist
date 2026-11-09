@@ -27,6 +27,8 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>TraktClientID</key>
+	<string>NcFQSj5-a_WcWoNmNDGyIfgQrIH4TRRWE-cG4ay21bE</string>
 	<key>TMDBProxyBaseURL</key>
 	<string>https://kinopub-tmdb-proxy.traneblow1nd.workers.dev</string>
 </dict>

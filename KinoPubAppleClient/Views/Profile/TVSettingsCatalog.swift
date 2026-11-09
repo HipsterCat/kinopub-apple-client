@@ -583,7 +583,7 @@ final class TVSettingsCatalog {
              // «Дополнительно» rows are there, disabled: nothing to open yet.
              isEnabled: integration.isSupported,
              previewKey: integration.rawValue,
-             trailingValue: integration.isSupported ? integration.status.title : nil)
+             trailingValue: integration.status.isShownInList ? integration.status.title : nil)
     }
     return [
       TSKSection(title: "Available".localized, rows: Integration.available.map(row)),
@@ -647,7 +647,22 @@ final class TVSettingsCatalog {
     }
 
     var actions: [TSKRow] = []
-    if hasKey {
+    if integration.connection == .account {
+      if integration.isConnected {
+        actions.append(TSKRow(title: "Sign Out…".localized,
+                              description: "Integration_SignOut_Message".localized,
+                              kind: .action(pushes: false) { [unowned self] in
+                                self.confirmSignOut(integration)
+                              }))
+      } else {
+        actions.append(TSKRow(title: "Sign In…".localized,
+                              description: integration.connectHelp,
+                              kind: .action(pushes: false) { [unowned self] in
+                                self.presentTraktSignIn()
+                              },
+                              isEnabled: integration.isSupported))
+      }
+    } else if hasKey {
       actions.append(TSKRow(title: "Change Key…".localized,
                             description: integration.connectHelp,
                             kind: .action(pushes: false) { [unowned self] in
@@ -710,6 +725,26 @@ final class TVSettingsCatalog {
     }
     alert.addAction(verify)
     alert.preferredAction = verify
+    host.presentPopup(alert)
+  }
+
+  /// The device-code page over Settings; it closes itself once Trakt confirms.
+  private func presentTraktSignIn() {
+    present(TraktSignInView()
+      .onDisappear { [weak self] in self?.host.reloadPages() }, inStack: false)
+  }
+
+  private func confirmSignOut(_ integration: Integration) {
+    let alert = UIAlertController(
+      title: String(format: "Sign out of %@?".localized, integration.name),
+      message: "Integration_SignOut_Message".localized,
+      preferredStyle: .alert
+    )
+    alert.addAction(UIAlertAction(title: "Sign Out".localized, style: .destructive) { [weak self] _ in
+      TraktAccount.shared.signOut()
+      self?.host.reloadPages()
+    })
+    alert.addAction(UIAlertAction(title: "Cancel".localized, style: .cancel))
     host.presentPopup(alert)
   }
 

@@ -37,14 +37,24 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// links are settled; their pages say they are coming.
   var isSupported: Bool {
     switch self {
-    case .kinopoisk, .tmdb: true
-    case .omdb, .trakt, .simkl, .anilist, .myAnimeList: false
+    case .kinopoisk, .tmdb, .trakt: true
+    case .omdb, .simkl, .anilist, .myAnimeList: false
     }
   }
 
-  /// «Доступно»: what works now, and anything the viewer has connected.
-  static var available: [Integration] { allCases.filter { $0.isSupported || $0.keyProvider?.isConnected == true } }
-  /// «Дополнительно»: listed ahead, not connectable yet — the rows are disabled.
+  /// Works without anything from the viewer.
+  var worksByDefault: Bool { self == .kinopoisk || self == .tmdb }
+
+  /// The viewer's own key or account is connected.
+  var isConnected: Bool {
+    if let keyProvider { return keyProvider.isConnected }
+    return self == .trakt && TraktAccount.storedUsername != nil
+  }
+
+  /// «Доступно»: what works by default, and whatever the viewer has connected — a source
+  /// moves here once connected (Sasha, 2026-11-09).
+  static var available: [Integration] { allCases.filter { $0.worksByDefault || $0.isConnected } }
+  /// «Дополнительно»: the rest. Rows of sources that cannot be connected yet are disabled.
   static var additional: [Integration] { allCases.filter { !available.contains($0) } }
 
   /// The viewer's own key, for the sources that take one.
@@ -94,7 +104,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .kinopoisk: "Integration_Kinopoisk_KeyHelp".localized
     case .omdb: "Integration_OMDb_KeyHelp".localized
     case .tmdb: "Integration_TMDB_KeyHelp".localized
-    case .trakt, .simkl, .anilist, .myAnimeList: "Integration_Account_Help".localized
+    case .trakt: "Integration_Trakt_SignInHelp".localized
+    case .simkl, .anilist, .myAnimeList: "Integration_Account_Help".localized
     }
   }
 
@@ -192,13 +203,26 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case byDefault
     /// The viewer's own key is connected and switched on.
     case apiKey
+    /// Signed in to an account, by its name.
+    case account(String)
+    case notConnected
     case comingSoon
 
     var title: String {
       switch self {
       case .byDefault: "By default".localized
       case .apiKey: "Integration_Status_APIKey".localized
+      case .account(let name): name
+      case .notConnected: "Not connected".localized
       case .comingSoon: "Coming soon".localized
+      }
+    }
+
+    /// Shown on the list row's trailing edge. A source not connected says nothing there.
+    var isShownInList: Bool {
+      switch self {
+      case .byDefault, .apiKey, .account: true
+      case .notConnected, .comingSoon: false
       }
     }
   }
@@ -206,6 +230,9 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   /// Read from storage each time; nothing caches it.
   var status: Status {
     guard isSupported else { return .comingSoon }
+    if self == .trakt {
+      return TraktAccount.storedUsername.map(Status.account) ?? .notConnected
+    }
     guard let keyProvider, keyProvider.isConnected, keyProvider.isEnabled else { return .byDefault }
     return .apiKey
   }

@@ -21,9 +21,10 @@ struct IntegrationsSettingsPane: View {
   @AppStorage(IntegrationKeyProvider.kinopoisk.enabledDefaultsKey) private var kinopoiskEnabled = true
   @AppStorage(IntegrationKeyProvider.tmdb.validatedDefaultsKey) private var tmdbValidated = false
   @AppStorage(IntegrationKeyProvider.tmdb.enabledDefaultsKey) private var tmdbEnabled = true
+  @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
 
   var body: some View {
-    let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled)
+    let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, traktUsername)
     Form {
       Section {
         ForEach(Integration.available) { integration in
@@ -37,11 +38,11 @@ struct IntegrationsSettingsPane: View {
 
       Section {
         ForEach(Integration.additional) { integration in
-          // Nothing to open yet: the row is there, disabled.
+          // A source that cannot be connected yet: the row is there, disabled.
           NavigationLink(value: SettingsDetailRoute.integration(integration)) {
             IntegrationRowLabel(integration: integration)
           }
-          .disabled(true)
+          .disabled(!integration.isSupported)
         }
       } header: {
         Text("Integrations_Section_Additional")
@@ -61,7 +62,7 @@ private struct IntegrationRowLabel: View {
       IntegrationIconView(integration: integration, size: iconSize)
       Text(verbatim: integration.name)
       Spacer(minLength: 8)
-      if integration.isSupported {
+      if integration.status.isShownInList {
         Text(verbatim: integration.status.title)
           .foregroundStyle(.secondary)
       }
@@ -86,6 +87,8 @@ struct IntegrationDetailView: View {
   @State private var keyFailure: String?
   @State private var isShowingHelp = false
   @State private var isConfirmingDisconnect = false
+  @State private var isSigningIn = false
+  @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
   @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 44
 
   init(integration: Integration) {
@@ -97,9 +100,12 @@ struct IntegrationDetailView: View {
   }
 
   private var hasKey: Bool { integration.keyProvider != nil && keyValidated }
+  private var isAccount: Bool { integration.connection == .account }
+  /// A key added, or an account signed in to.
+  private var isConnected: Bool { isAccount ? traktUsername != nil : hasKey }
 
   private var status: Integration.Status {
-    _ = (keyValidated, keyEnabled)
+    _ = (keyValidated, keyEnabled, traktUsername)
     return integration.status
   }
 
@@ -118,7 +124,7 @@ struct IntegrationDetailView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
       } footer: {
-        if integration != .tmdb, !hasKey {
+        if integration != .tmdb, !hasKey || isAccount {
           actions
         }
       }
@@ -133,7 +139,7 @@ struct IntegrationDetailView: View {
             actions
           }
         }
-      } else if hasKey {
+      } else if hasKey, !isAccount {
         Section {
           Toggle("Integration_Status_APIKey", isOn: $keyEnabled)
         } footer: {
@@ -161,14 +167,23 @@ struct IntegrationDetailView: View {
       Text(verbatim: keyFailure ?? keyPrompt)
     }
     .confirmationDialog(
-      String(format: "Disconnect %@?".localized, integration.name),
+      String(format: (isAccount ? "Sign out of %@?" : "Disconnect %@?").localized, integration.name),
       isPresented: $isConfirmingDisconnect
     ) {
-      Button("Disconnect", role: .destructive) {
-        keyModel.disconnect()
+      if isAccount {
+        Button("Sign Out", role: .destructive) {
+          TraktAccount.shared.signOut()
+        }
+      } else {
+        Button("Disconnect", role: .destructive) {
+          keyModel.disconnect()
+        }
       }
     } message: {
-      Text("Integration_Disconnect_Message")
+      Text(isAccount ? "Integration_SignOut_Message" : "Integration_Disconnect_Message")
+    }
+    .sheet(isPresented: $isSigningIn) {
+      TraktSignInView()
     }
   }
 
@@ -218,11 +233,18 @@ struct IntegrationDetailView: View {
   /// Under the last group, as Internet Accounts puts Delete Account… and its "?".
   private var actions: some View {
     HStack {
-      if hasKey {
+      if isAccount {
+        if isConnected {
+          Button("Sign Out…") { isConfirmingDisconnect = true }
+        } else {
+          Button("Sign In…") { isSigningIn = true }
+            .disabled(!integration.isSupported)
+        }
+      } else if hasKey {
         Button("Change Key…") { beginKeyEntry() }
         Button("Disconnect…") { isConfirmingDisconnect = true }
       } else {
-        Button(integration.connection == .account ? "Sign In…" : "Add Key…") { beginKeyEntry() }
+        Button("Add Key…") { beginKeyEntry() }
           .disabled(!integration.isSupported || keyModel.validationState == .checking)
       }
       Spacer()
