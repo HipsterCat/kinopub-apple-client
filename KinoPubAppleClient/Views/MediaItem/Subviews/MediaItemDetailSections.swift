@@ -2559,7 +2559,7 @@ struct ReviewCard: View {
 #if os(macOS)
     [.title2, .title3, .body]
 #elseif os(tvOS)
-    [.callout, .caption1, .caption2]
+    [.callout, .caption, .caption2]
 #else
     [.title3, .body, .callout]
 #endif
