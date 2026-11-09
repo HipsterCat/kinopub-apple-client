@@ -1,8 +1,8 @@
 import Foundation
 import SwiftUI
-import AppKit
 
 #if os(macOS)
+import AppKit
 
 /// A class that manages the window settings, including the "always on top" feature.
 @MainActor
