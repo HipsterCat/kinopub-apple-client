@@ -1,0 +1,15 @@
+{
+  "images" : [
+    {
+      "filename" : "rotten_tomatoes_critics_certified_big_color.svg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "preserves-vector-representation" : true
+  }
+}
