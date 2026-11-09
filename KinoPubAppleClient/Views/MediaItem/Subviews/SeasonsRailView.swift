@@ -493,6 +493,64 @@ struct SeasonsRailView: View {
     selectTab(tab.id, proxy: proxy, animated: true)
   }
 
+  // MARK: - Season cards
+
+  /// What a season's card says: its poster, its name, how many episodes and which years.
+  struct SeasonCardInfo: Equatable {
+    let seasonID: Int
+    let title: String
+    /// «10 серий»: a chip on the poster, where the episode cards carry their runtime.
+    let episodes: String?
+    /// «10 эп.», where «10 серий» does not fit the chip (tvOS).
+    let episodesShort: String?
+    /// «2020» / «2020–2021»: the line under the name.
+    let years: String?
+    let posterURL: URL?
+    /// TMDB's season poster, for when the worker has none (it answers 404).
+    let fallbackPosterURL: URL?
+  }
+
+  /// - Parameter posterWidth: the card's width in points, for the worker's `w`.
+  private func seasonCardInfo(seasonID: Int, number: Int, entries: [RailEntry],
+                              posterWidth: CGFloat) -> SeasonCardInfo {
+    let summary = externalMetadata.seasonSummaries.first { $0.seasonNumber == number }
+    let title = Self.seasonName(summary?.name, number: number)
+    let dates = entries.compactMap { $0.schedule?.airDate }
+    // A width that follows the window would ask the worker for a new file on every
+    // resize: rounded up to whole hundreds of pixels.
+    let pixels = Int((posterWidth * displayScale / 100).rounded(.up)) * 100
+    let worker = seasonPosterURL?(number, pixels)
+    return SeasonCardInfo(seasonID: seasonID,
+                          title: title,
+                          episodes: EpisodesLeftText(entries.count)?.formatted(),
+                          episodesShort: entries.isEmpty ? nil
+                            : "\(entries.count) \("MediaItem_EpisodesShort".localized)",
+                          years: Self.yearsText(first: dates.min() ?? summary?.airDate, last: dates.max()),
+                          posterURL: worker ?? summary?.poster,
+                          fallbackPosterURL: worker == nil ? nil : summary?.poster)
+  }
+
+  /// TMDB's name for the season when it is one («Книга первая: Вода»); «Сезон N» when it is
+  /// only the number spelled out, or there is none.
+  static func seasonName(_ name: String?, number: Int) -> String {
+    let fallback = String(format: "MediaItem_SeasonSingle".localized, number)
+    guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
+      return fallback
+    }
+    let words = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+      .split { !$0.isLetter && !$0.isNumber }
+      .filter { !$0.allSatisfy(\.isNumber) }
+      .map(String.init)
+    let numbering: Set<String> = ["сезон", "season", "staffel", "saison", "temporada", "stagione"]
+    return words.allSatisfy(numbering.contains) ? fallback : name
+  }
+
+  /// The season card's corners: as round as an episode still's would be at the card's
+  /// width — the still's radius was too much on the narrow poster (Sasha, 2026-11-09).
+  static func seasonCardCornerRadius(stillRadius: CGFloat) -> CGFloat {
+    stillRadius * CardAspect.poster.ratio / CardAspect.landscape.ratio
+  }
+
   // MARK: - Episode rail
 
 #if os(tvOS)
@@ -507,14 +565,15 @@ struct SeasonsRailView: View {
   private var seasonRail: some View {
     let entries = entries
     let tabs = tabs
+    let rail = tvRailItems(entries, tabs: tabs)
     return TVSeasonRail(
       title: seasonTitle(tabs: tabs),
       tabs: tabs.map { tab in
         TVSeasonTab(id: tab.id, label: tab.label, symbol: tab.status.symbol,
                     isAvailable: tab.status == .available, accessibilityLabel: tab.spokenLabel)
       },
-      items: entries.map(railItem(for:)),
-      tabOfItem: Dictionary(entries.map { ($0.id, $0.tabID) }, uniquingKeysWith: { first, _ in first }),
+      items: rail.items,
+      tabOfItem: rail.tabOfItem,
       entryByTab: Self.entryByTab(entries),
       openingItemID: openingEntry(in: entries)?.id,
       contentInset: TVHIGGrid.sideInset,
@@ -535,6 +594,42 @@ struct SeasonsRailView: View {
       }
     )
   }
+
+  /// The episodes in media-item terms, with a season's portrait card in front of each
+  /// season's run when the show has more than one (Sasha, 2026-11-09). The card sits under
+  /// its season's tab, so it steps back with the season and picking the tab shows it.
+  private func tvRailItems(_ entries: [RailEntry],
+                           tabs: [SeasonTab]) -> (items: [TVUIKitMediaItem], tabOfItem: [Int: Int]) {
+    var items: [TVUIKitMediaItem] = []
+    var tabOfItem: [Int: Int] = [:]
+    let numbers = Dictionary(tabs.map { ($0.id, $0.first) }, uniquingKeysWith: { first, _ in first })
+    // Home's still row at the page's width: the card is as tall as a still, 2:3 across.
+    let still = TVHIGGrid.resolve(columns: MainView.stillColumns,
+                                  contentWidth: railWidth - TVHIGGrid.sideInset * 2).cardWidth
+    let posterWidth = still / CardAspect.landscape.ratio * CardAspect.poster.ratio
+    var opened = Set<Int>()
+    for entry in entries {
+      if seasons.count > 1, let season = entry.season, opened.insert(season.id).inserted {
+        let number = numbers[season.id] ?? KinoPubMediaMapping.seasonNumber(season)
+        let info = seasonCardInfo(seasonID: season.id, number: number,
+                                  entries: entries.filter { $0.season?.id == season.id },
+                                  posterWidth: posterWidth)
+        let id = Self.seasonCardItemID(season.id)
+        items.append(TVUIKitMediaItem(id: id, seasonCard: .init(
+          posterURL: info.posterURL,
+          fallbackPosterURL: info.fallbackPosterURL,
+          captions: [info.years.map { "\(info.title) · \($0)" }, info.title].compactMap { $0 },
+          chips: [info.episodes, info.episodesShort].compactMap { $0 })))
+        tabOfItem[id] = season.id
+      }
+      items.append(railItem(for: entry))
+      if tabOfItem[entry.id] == nil { tabOfItem[entry.id] = entry.tabID }
+    }
+    return (items, tabOfItem)
+  }
+
+  /// Below every rail entry's id (`RailEntry.id`), so a card never shares one.
+  private static func seasonCardItemID(_ seasonID: Int) -> Int { -(3_000_000_000 + seasonID) }
 
   /// Rivulet's season row: "Season N" tabs, an S2 divider, and the metadata plate.
   /// Select on the still plays. Select on the text opens the info sheet.
@@ -751,19 +846,6 @@ struct SeasonsRailView: View {
     var id: String { anchor }
   }
 
-  /// What a season's card says: its poster, its name, how many episodes and which years.
-  struct SeasonCardInfo: Equatable {
-    let seasonID: Int
-    let title: String
-    /// «10 серий»: a chip on the poster, where the episode cards carry their runtime.
-    let episodes: String?
-    /// «2020» / «2020–2021»: the line under the name.
-    let years: String?
-    let posterURL: URL?
-    /// TMDB's season poster, for when the worker has none (it answers 404).
-    let fallbackPosterURL: URL?
-  }
-
   /// The rail with a portrait season card in front of each season's episodes — only for a
   /// show with more than one season (Sasha, 2026-11-09). The episode cards keep their
   /// width: the card is extra, so the trailers rail below still lines up with them.
@@ -776,7 +858,8 @@ struct SeasonsRailView: View {
       if let season = entry.season, opened.insert(season.id).inserted {
         let number = numbers[season.id] ?? KinoPubMediaMapping.seasonNumber(season)
         let inSeason = entries.filter { $0.season?.id == season.id }
-        cells.append(.season(seasonCardInfo(seasonID: season.id, number: number, entries: inSeason)))
+        cells.append(.season(seasonCardInfo(seasonID: season.id, number: number, entries: inSeason,
+                                            posterWidth: seasonCardWidth)))
       }
       cells.append(.entry(entry))
     }
@@ -786,37 +869,6 @@ struct SeasonsRailView: View {
   /// The season card is as tall as an episode's still and a poster's 2:3 across.
   private var seasonCardWidth: CGFloat {
     (stillHeight * CardAspect.poster.ratio).rounded()
-  }
-
-  private func seasonCardInfo(seasonID: Int, number: Int, entries: [RailEntry]) -> SeasonCardInfo {
-    let summary = externalMetadata.seasonSummaries.first { $0.seasonNumber == number }
-    let title = Self.seasonName(summary?.name, number: number)
-    let dates = entries.compactMap { $0.schedule?.airDate }
-    // A width that follows the window would ask the worker for a new file on every
-    // resize: rounded up to whole hundreds of pixels.
-    let pixels = Int((seasonCardWidth * displayScale / 100).rounded(.up)) * 100
-    let worker = seasonPosterURL?(number, pixels)
-    return SeasonCardInfo(seasonID: seasonID,
-                          title: title,
-                          episodes: EpisodesLeftText(entries.count)?.formatted(),
-                          years: Self.yearsText(first: dates.min() ?? summary?.airDate, last: dates.max()),
-                          posterURL: worker ?? summary?.poster,
-                          fallbackPosterURL: worker == nil ? nil : summary?.poster)
-  }
-
-  /// TMDB's name for the season when it is one («Книга первая: Вода»); «Сезон N» when it is
-  /// only the number spelled out, or there is none.
-  static func seasonName(_ name: String?, number: Int) -> String {
-    let fallback = String(format: "MediaItem_SeasonSingle".localized, number)
-    guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
-      return fallback
-    }
-    let words = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-      .split { !$0.isLetter && !$0.isNumber }
-      .filter { !$0.allSatisfy(\.isNumber) }
-      .map(String.init)
-    let numbering: Set<String> = ["сезон", "season", "staffel", "saison", "temporada", "stagione"]
-    return words.allSatisfy(numbering.contains) ? fallback : name
   }
 
   private var episodeRail: some View {
@@ -829,7 +881,8 @@ struct SeasonsRailView: View {
         ForEach(cells) { cell in
           switch cell {
           case .season(let info):
-            SeasonRailCard(info: info, posterHeight: stillHeight)
+            SeasonRailCard(info: info, posterHeight: stillHeight,
+                           cornerRadius: Self.seasonCardCornerRadius(stillRadius: Metrics.cardCornerRadius))
               .frame(width: seasonCardWidth)
               .id(cell.anchor)
           case .entry(let entry):
@@ -1437,9 +1490,10 @@ private struct SeasonRailCard: View {
   let info: SeasonsRailView.SeasonCardInfo
   /// Artwork height of the neighbouring episode cards, so the poster lines up with them.
   let posterHeight: CGFloat
+  let cornerRadius: CGFloat
 
-  private static var shape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous)
+  private var shape: RoundedRectangle {
+    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
   }
 
   var body: some View {
@@ -1447,8 +1501,8 @@ private struct SeasonRailCard: View {
       poster
         .frame(maxWidth: .infinity)
         .frame(height: posterHeight)
-        .clipShape(Self.shape)
-        .kinoGlassRim(in: Self.shape)
+        .clipShape(shape)
+        .kinoGlassRim(in: shape)
         .overlay(alignment: .bottomLeading) {
           if let episodes = info.episodes {
             // The episode time chip's look: the system's thin material, dark, on the art.

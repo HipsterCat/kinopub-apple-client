@@ -151,6 +151,28 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   /// Drawn in the middle of the still while the tile has focus — the hover Play of the
   /// Mac and iPad cards, or YouTube's button on a video that opens YouTube. Nil: nothing.
   public let focusGlyph: LandscapePlayGlyph?
+  /// Set, the item is a season's portrait card in front of its episodes instead of a
+  /// still: a poster as tall as the stills, never focusable (`TVUIKitSeasonCardCell`).
+  public let seasonCard: SeasonCard?
+
+  /// A season's card on the episode rail. Each line comes as a list of candidates, longest
+  /// first: the card is a poster's width, so the cell draws the first that fits.
+  public struct SeasonCard: Equatable {
+    public let posterURL: URL?
+    /// Tried when `posterURL` does not load (the worker has no poster for the season).
+    public let fallbackPosterURL: URL?
+    /// The line under the poster: «Сезон 1 · 2020», then «Сезон 1».
+    public let captions: [String]
+    /// The chip on the poster: «10 серий», then «10 эп.».
+    public let chips: [String]
+
+    public init(posterURL: URL?, fallbackPosterURL: URL?, captions: [String], chips: [String]) {
+      self.posterURL = posterURL
+      self.fallbackPosterURL = fallbackPosterURL
+      self.captions = captions
+      self.chips = chips
+    }
+  }
 
   public enum ArtworkFit: Equatable, Sendable {
     /// Centre-cropped to the tile — stills, backdrops, covers.
@@ -174,7 +196,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               badgeIsLive: Bool = false,
               artworkFit: ArtworkFit = .fill,
               isNowPlaying: Bool = false,
-              focusGlyph: LandscapePlayGlyph? = nil) {
+              focusGlyph: LandscapePlayGlyph? = nil,
+              seasonCard: SeasonCard? = nil) {
     self.id = id
     self.imageURL = imageURL
     self.tint = tint
@@ -190,6 +213,13 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.artworkFit = artworkFit
     self.isNowPlaying = isNowPlaying
     self.focusGlyph = focusGlyph
+    self.seasonCard = seasonCard
+  }
+
+  /// A season's card, by its own id.
+  public init(id: Int, seasonCard: SeasonCard) {
+    self.init(id: id, imageURL: seasonCard.posterURL, caption: seasonCard.captions.first,
+              status: .unavailable, seasonCard: seasonCard)
   }
 
   /// A coloured tile with a glyph and nothing else — genres, categories, anything with
@@ -548,9 +578,17 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     } else if let columns {
       // A still row is its own horizontal scroll (`TVPageLayout.stillRun`), so the offset
       // we set is the one that shows.
-      layout = UICollectionViewCompositionalLayout(sectionProvider: { _, environment in
-        TVPageLayout.stillRun(columns: columns, caption: caption,
-                              containerWidth: environment.container.contentSize.width, sideInset: inset)
+      layout = UICollectionViewCompositionalLayout(sectionProvider: { [weak self] _, environment in
+        let width = environment.container.contentSize.width
+        // Season cards are narrower than the stills: the run is laid out item by item.
+        // The stills keep their size, so they still line up with the rows under them.
+        if let self, self.items.contains(where: { $0.seasonCard != nil }) {
+          return Self.mixedStillRun(seasonCards: self.items.map { $0.seasonCard != nil },
+                                    columns: columns, caption: caption,
+                                    containerWidth: width, sideInset: inset)
+        }
+        return TVPageLayout.stillRun(columns: columns, caption: caption,
+                                     containerWidth: width, sideInset: inset)
       }, configuration: TVPageLayout.stillRunConfiguration())
     } else {
       layout = UICollectionViewCompositionalLayout { _, environment in
@@ -574,8 +612,41 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     view.delegate = self
     view.prefetchDataSource = self
     view.register(TVUIKitMediaItemCell.self, forCellWithReuseIdentifier: TVUIKitMediaItemCell.reuseID)
+    view.register(TVUIKitSeasonCardCell.self, forCellWithReuseIdentifier: TVUIKitSeasonCardCell.reuseID)
     return view
   }()
+
+  /// `TVPageLayout.stillRun`'s row — same still size, gutter and insets — with a season
+  /// card as tall as a still and a poster's 2:3 across wherever `seasonCards` says.
+  static func mixedStillRun(seasonCards: [Bool],
+                            columns: Int,
+                            caption: TVPageCaption,
+                            containerWidth: CGFloat,
+                            sideInset: CGFloat) -> NSCollectionLayoutSection {
+    let base = TVPageLayout.stillRun(columns: columns, caption: caption,
+                                     containerWidth: containerWidth, sideInset: sideInset)
+    let art = TVHIGGrid.resolve(columns: columns,
+                                contentWidth: max(containerWidth - sideInset * 2, 1)).cardWidth
+    let still = TVPageCellMetrics.recipe(kind: .still, artWidth: art, caption: caption).itemSize
+    let posterWidth = (still.height * CardAspect.poster.ratio).rounded()
+    let spacing = base.interGroupSpacing
+    var frames: [CGRect] = []
+    frames.reserveCapacity(seasonCards.count)
+    var x: CGFloat = 0
+    for isCard in seasonCards {
+      let width = isCard ? posterWidth : still.width
+      frames.append(CGRect(x: x, y: 0, width: width, height: still.height))
+      x += width + spacing
+    }
+    let group = NSCollectionLayoutGroup.custom(
+      layoutSize: NSCollectionLayoutSize(widthDimension: .absolute(max(x - spacing, 1)),
+                                         heightDimension: .absolute(still.height))
+    ) { _ in frames.map { NSCollectionLayoutGroupCustomItem(frame: $0) } }
+    let section = NSCollectionLayoutSection(group: group)
+    section.contentInsets = base.contentInsets
+    section.orthogonalScrollingBehavior = .none
+    return section
+  }
 
   init(contentInset: CGFloat, columns: Int? = nil, caption: TVPageCaption = .always,
        overlayOnFocus: Bool = false, tileRun: TVUIKitMediaItemRail.TileRun? = nil) {
@@ -687,7 +758,9 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   func refreshItemAlpha(animated: Bool) {
     let apply = { [self] in
       for path in collectionView.indexPathsForVisibleItems where items.indices.contains(path.item) {
-        (collectionView.cellForItem(at: path) as? TVUIKitMediaItemCell)?.tileAlpha = alpha(at: path.item)
+        let cell = collectionView.cellForItem(at: path)
+        (cell as? TVUIKitMediaItemCell)?.tileAlpha = alpha(at: path.item)
+        (cell as? TVUIKitSeasonCardCell)?.tileAlpha = alpha(at: path.item)
       }
     }
     if animated {
@@ -787,6 +860,13 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
 
   public func collectionView(_ collectionView: UICollectionView,
                              cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+    if let card = items[indexPath.item].seasonCard {
+      let cell = collectionView.dequeueReusableCell(withReuseIdentifier: TVUIKitSeasonCardCell.reuseID,
+                                                    for: indexPath) as! TVUIKitSeasonCardCell
+      cell.configure(card, id: items[indexPath.item].id)
+      cell.tileAlpha = alpha(at: indexPath.item)
+      return cell
+    }
     let cell = collectionView.dequeueReusableCell(
       withReuseIdentifier: TVUIKitMediaItemCell.reuseID,
       for: indexPath
@@ -800,7 +880,7 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
   }
 
   public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-    guard items.indices.contains(indexPath.item) else { return }
+    guard items.indices.contains(indexPath.item), items[indexPath.item].seasonCard == nil else { return }
     onSelect?(items[indexPath.item].id)
   }
 
@@ -817,6 +897,8 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
                              canFocusItemAt indexPath: IndexPath) -> Bool {
     guard allowsFocus else { return false }
     guard items.indices.contains(indexPath.item) else { return true }
+    // A season card is a heading for the episodes after it, not a stop.
+    if items[indexPath.item].seasonCard != nil { return false }
     let id = items[indexPath.item].id
     // `canFocusItem` is the season rail's, which keeps its own entry; the rest of the
     // rails with an entry keep it here.
@@ -1011,7 +1093,7 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   private static let ringGap: CGFloat = 6
   /// `wideCell()`'s still corners, measured off tvOS 27.2 shots (2026-10-21), at rest and
   /// focused. TVUIKit exposes no radius (see `nowPlayingRing`).
-  private static let stillCornerRadius: CGFloat = 12
+  static let stillCornerRadius: CGFloat = 12
   private static let focusedStillCornerRadius: CGFloat = 12
 
   override func didUpdateFocus(in context: UIFocusUpdateContext,

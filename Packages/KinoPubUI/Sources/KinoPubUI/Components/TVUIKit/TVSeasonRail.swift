@@ -276,7 +276,7 @@ public final class TVSeasonRailController: UIViewController {
     // second one followed, so no tab was selected (2026-10-11).
     paintSelectedTab()
     if !hasHadFocus, let openingItemID {
-      rail.align(to: openingItemID, animated: false)
+      rail.align(to: alignmentTarget(for: openingItemID), animated: false)
     }
   }
 
@@ -329,7 +329,7 @@ public final class TVSeasonRailController: UIViewController {
     selectedTabID = tabOfItem[opening] ?? tabs.first?.id
     applyTabSelection()
     if isViewLoaded {
-      rail.align(to: opening, animated: animated)
+      rail.align(to: alignmentTarget(for: opening), animated: animated)
     }
   }
 
@@ -375,9 +375,19 @@ public final class TVSeasonRailController: UIViewController {
     FocusLog.seasonTab(tab.label, entryItem: entry, animated: true)
     if let entry {
       rail.preferredItemID = entry
-      rail.align(to: entry, animated: true)
+      rail.align(to: alignmentTarget(for: entry), animated: true)
     }
     onTabSelected?(tab.id)
+  }
+
+  /// What goes to the page margin when the rail stands on `id`: the season's card when
+  /// `id` is the first episode after it, so the season is seen to start there; else `id`.
+  /// Focus still lands on the episode — the card is never a stop.
+  private func alignmentTarget(for id: Int) -> Int {
+    guard let index = items.firstIndex(where: { $0.id == id }), index > 0 else { return id }
+    let before = items[index - 1]
+    guard before.seasonCard != nil, tabOfItem[before.id] == tabOfItem[id] else { return id }
+    return before.id
   }
 
   private func alpha(ofItem id: Int) -> CGFloat {
