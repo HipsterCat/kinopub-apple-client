@@ -285,6 +285,13 @@ enum RatingSources {
     }
   }
 
+  /// The same relayed scores for the synopsis line: mark (with its state) and number.
+  static func lineExtras(_ metadata: TitleMetadata) -> [MediaScores.Extra] {
+    relayed(metadata.externalRatings).compactMap { score in
+      score.value.map { MediaScores.Extra(source: score.logo, score: $0, votes: score.votes) }
+    }
+  }
+
 #if os(tvOS)
   private static func relayedURL(_ rating: ExternalRating) -> URL? { nil }
 #else

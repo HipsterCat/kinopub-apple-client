@@ -67,6 +67,21 @@ public struct RatingInput: Hashable, Sendable {
 /// cannot be changed, so a misclick is not a rating.
 public struct MediaScores: Hashable, Codable, Sendable {
 
+  /// A score only the title page has, relayed by Trakt: Trakt's own, Metacritic,
+  /// Rotten Tomatoes, Letterboxd, MyAnimeList. Drawn after IMDb, Kinopoisk and TMDB on
+  /// the synopsis line, never averaged. `score` is 0…10; the mark carries the state.
+  public struct Extra: Hashable, Codable, Sendable {
+    public let source: MediaScoreLogo.Source
+    public let score: Double
+    public let votes: Int?
+
+    public init(source: MediaScoreLogo.Source, score: Double, votes: Int? = nil) {
+      self.source = source
+      self.score = score
+      self.votes = votes
+    }
+  }
+
   public let imdb: Double?
   public let imdbVotes: Int?
   public let kinopoisk: Double?
@@ -76,6 +91,8 @@ public struct MediaScores: Hashable, Codable, Sendable {
   /// kino.pub publishes no score, only thumbs.
   public let kinopubLikes: Int?
   public let kinopubDislikes: Int?
+  /// In the order they are drawn.
+  public let extras: [Extra]
 
   public static let empty = MediaScores()
 
@@ -87,8 +104,10 @@ public struct MediaScores: Hashable, Codable, Sendable {
     tmdb: Double? = nil,
     tmdbVotes: Int? = nil,
     kinopubLikes: Int? = nil,
-    kinopubDislikes: Int? = nil
+    kinopubDislikes: Int? = nil,
+    extras: [Extra] = []
   ) {
+    self.extras = extras
     self.imdb = imdb
     self.imdbVotes = imdbVotes
     self.kinopoisk = kinopoisk
@@ -122,8 +141,16 @@ public struct MediaScores: Hashable, Codable, Sendable {
       tmdb: tmdb ?? self.tmdb,
       tmdbVotes: tmdbVotes ?? self.tmdbVotes,
       kinopubLikes: kinopubLikes ?? self.kinopubLikes,
-      kinopubDislikes: kinopubDislikes ?? self.kinopubDislikes
+      kinopubDislikes: kinopubDislikes ?? self.kinopubDislikes,
+      extras: extras
     )
+  }
+
+  /// The same scores with the relayed ones after them.
+  public func adding(extras: [Extra]) -> MediaScores {
+    MediaScores(imdb: imdb, imdbVotes: imdbVotes, kinopoisk: kinopoisk, kinopoiskVotes: kinopoiskVotes,
+                tmdb: tmdb, tmdbVotes: tmdbVotes, kinopubLikes: kinopubLikes,
+                kinopubDislikes: kinopubDislikes, extras: self.extras + extras)
   }
 
   /// The API sends 0 for "not rated".
@@ -146,7 +173,7 @@ public struct MediaScores: Hashable, Codable, Sendable {
   }
 
   public var hasDisplayableScore: Bool {
-    imdbScore != nil || kinopoiskScore != nil || tmdbScore != nil || kinopubScore != nil
+    imdbScore != nil || kinopoiskScore != nil || tmdbScore != nil || kinopubScore != nil || !extras.isEmpty
   }
 
   /// What the aggregate weighs. kino.pub is absent on purpose.
@@ -357,7 +384,9 @@ public extension MediaScores {
     if deduplicateAgainstAggregate && items.filter(\.hasKnownScore).count == 1 {
       items = items.map { $0.hasKnownScore ? $0.withoutScore() : $0 }
     }
-    return items
+    // Then what Trakt relays, in its own order (Trakt, Metacritic, Rotten Tomatoes…).
+    // Not in the aggregate, so never deduplicated against it.
+    return items + extras.map { MediaScoreItem(source: $0.source, score: $0.score, votes: $0.votes) }
   }
 
   /// Ordered rating items for Hero row (shows all available ranked sources).
