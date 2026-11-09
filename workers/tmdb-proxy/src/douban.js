@@ -23,6 +23,7 @@ const USER_AGENT =
 const FOUND_TTL = 60 * 60 * 24;
 const MISS_TTL = 60 * 60 * 24 * 7;
 const HINT = "/v1/douban/by/imdb/{tt…}";
+const UPSTREAM_TIMEOUT_MS = 8000;
 
 /** Douban's genre names (片 film / 剧 series dropped) → English slugs. */
 const GENRES = {
@@ -123,8 +124,11 @@ async function frodo(env, path, params) {
     _ts: ts,
     _sig: await signature(env.DOUBAN_API_SECRET, "GET", path, ts),
   });
+  // Frodo sometimes sits on a cold request for over 30 s. Give up after 8: the app has
+  // a page to draw, and the next viewer's request tries again.
   const response = await fetch(`${ORIGIN}${path}?${query}`, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`frodo ${response.status}`);
   return response.json();
