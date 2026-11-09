@@ -755,8 +755,13 @@ struct SeasonsRailView: View {
   struct SeasonCardInfo: Equatable {
     let seasonID: Int
     let title: String
-    let meta: [String]
+    /// «10 серий»: a chip on the poster, where the episode cards carry their runtime.
+    let episodes: String?
+    /// «2020» / «2020–2021»: the line under the name.
+    let years: String?
     let posterURL: URL?
+    /// TMDB's season poster, for when the worker has none (it answers 404).
+    let fallbackPosterURL: URL?
   }
 
   /// The rail with a portrait season card in front of each season's episodes — only for a
@@ -787,18 +792,16 @@ struct SeasonsRailView: View {
     let summary = externalMetadata.seasonSummaries.first { $0.seasonNumber == number }
     let title = Self.seasonName(summary?.name, number: number)
     let dates = entries.compactMap { $0.schedule?.airDate }
-    var meta: [String] = []
-    if let episodes = EpisodesLeftText(entries.count)?.formatted() {
-      meta.append(episodes)
-    }
-    if let years = Self.yearsText(first: dates.min() ?? summary?.airDate, last: dates.max()) {
-      meta.append(years)
-    }
     // A width that follows the window would ask the worker for a new file on every
     // resize: rounded up to whole hundreds of pixels.
     let pixels = Int((seasonCardWidth * displayScale / 100).rounded(.up)) * 100
-    let poster = seasonPosterURL?(number, pixels) ?? summary?.poster
-    return SeasonCardInfo(seasonID: seasonID, title: title, meta: meta, posterURL: poster)
+    let worker = seasonPosterURL?(number, pixels)
+    return SeasonCardInfo(seasonID: seasonID,
+                          title: title,
+                          episodes: EpisodesLeftText(entries.count)?.formatted(),
+                          years: Self.yearsText(first: dates.min() ?? summary?.airDate, last: dates.max()),
+                          posterURL: worker ?? summary?.poster,
+                          fallbackPosterURL: worker == nil ? nil : summary?.poster)
   }
 
   /// TMDB's name for the season when it is one («Книга первая: Вода»); «Сезон N» when it is
@@ -1204,8 +1207,8 @@ struct SeasonsRailView: View {
                             to: calendar.startOfDay(for: date)).day ?? 0
   }
 
-  private static func episodeAnchor(_ id: Int) -> String { "episode-\(id)" }
-  private static func seasonAnchor(_ seasonID: Int) -> String { "season-\(seasonID)" }
+  private nonisolated static func episodeAnchor(_ id: Int) -> String { "episode-\(id)" }
+  private nonisolated static func seasonAnchor(_ seasonID: Int) -> String { "season-\(seasonID)" }
 
   /// «2020», or «2020–2021» for a run over the new year. Season cards and the missing-
   /// seasons card say years the same way.
@@ -1427,8 +1430,9 @@ private struct UpcomingSeasonCard: View {
 
 #if !os(tvOS)
 /// The card in front of a season's episodes: its poster as tall as an episode's still,
-/// then the same two caption lines an episode card has — the name, then «10 серий · 2020».
-/// Inert: the episodes beside it are what plays.
+/// the episode count in the chip where an episode has its runtime, then the same two
+/// caption lines an episode card has — the name, then the years. Inert: the episodes
+/// beside it are what plays.
 private struct SeasonRailCard: View {
   let info: SeasonsRailView.SeasonCardInfo
   /// Artwork height of the neighbouring episode cards, so the poster lines up with them.
@@ -1440,16 +1444,26 @@ private struct SeasonRailCard: View {
 
   var body: some View {
     VStack(alignment: .center, spacing: Metrics.cardCaptionSpacing) {
-      CachedRemoteImage(
-        url: info.posterURL,
-        contentMode: .fill,
-        placeholder: { Color.KinoPub.placeholder },
-        failure: { Color.KinoPub.placeholder }
-      )
-      .frame(maxWidth: .infinity)
-      .frame(height: posterHeight)
-      .clipShape(Self.shape)
-      .kinoGlassRim(in: Self.shape)
+      poster
+        .frame(maxWidth: .infinity)
+        .frame(height: posterHeight)
+        .clipShape(Self.shape)
+        .kinoGlassRim(in: Self.shape)
+        .overlay(alignment: .bottomLeading) {
+          if let episodes = info.episodes {
+            // The episode time chip's look: the system's thin material, dark, on the art.
+            Text(episodes)
+              .font(.caption2)
+              .lineLimit(1)
+              .fixedSize()
+              .foregroundStyle(.white)
+              .padding(.horizontal, 4)
+              .padding(.vertical, 3)
+              .background(.thinMaterial, in: Capsule(style: .continuous))
+              .environment(\.colorScheme, .dark)
+              .padding(6)
+          }
+        }
 
       VStack(alignment: .center, spacing: 4) {
         Text(info.title)
@@ -1459,27 +1473,35 @@ private struct SeasonRailCard: View {
           .truncationMode(.tail)
           .frame(maxWidth: .infinity)
 
-        // The card is a poster's width: the whole line where it fits, else as much of it
-        // as does, piece by piece, never an ellipsis through a number.
-        if !info.meta.isEmpty {
-          ViewThatFits(in: .horizontal) {
-            metaLine(info.meta.joined(separator: " · "))
-            if let first = info.meta.first { metaLine(first) }
-            if info.meta.count > 1, let last = info.meta.last { metaLine(last) }
-          }
-          .frame(maxWidth: .infinity)
+        if let years = info.years {
+          Text(years)
+            .font(TypeScale.cardMeta)
+            .foregroundStyle(Color.KinoPub.subtitle)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity)
         }
       }
     }
-    .accessibilityElement(children: .combine)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(Text([info.title, info.episodes, info.years].compactMap { $0 }.joined(separator: ", ")))
+    .accessibilityAddTraits(.isHeader)
   }
 
-  private func metaLine(_ text: String) -> some View {
-    Text(text)
-      .font(TypeScale.cardMeta)
-      .foregroundStyle(Color.KinoPub.subtitle)
-      .lineLimit(1)
-      .fixedSize()
+  /// The worker's season poster; TMDB's when the worker has none.
+  private var poster: some View {
+    CachedRemoteImage(
+      url: info.posterURL,
+      contentMode: .fill,
+      placeholder: { Color.KinoPub.placeholder },
+      failure: {
+        CachedRemoteImage(
+          url: info.fallbackPosterURL,
+          contentMode: .fill,
+          placeholder: { Color.KinoPub.placeholder },
+          failure: { Color.KinoPub.placeholder }
+        )
+      }
+    )
   }
 }
 #endif
