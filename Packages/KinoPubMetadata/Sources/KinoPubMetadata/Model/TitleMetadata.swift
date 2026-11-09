@@ -199,7 +199,8 @@ public struct Fact: Sendable, Hashable, Identifiable {
   }
 }
 
-/// A Kinopoisk user review (via keyed unofficial API or the keyless kpapp.link proxy).
+/// A user review: Kinopoisk's (keyed unofficial API or the keyless kpapp.link proxy) or a
+/// Trakt comment (`source == .trakt`).
 public struct Review: Sendable, Hashable, Identifiable {
   public var id: String { "\(author)-\(title)-\(date ?? "")" }
   public let author: String
@@ -221,6 +222,10 @@ public struct Review: Sendable, Hashable, Identifiable {
   /// review yet — it is here because the payload carries it and the expanded card is
   /// where a permalink would go.
   public let sourceId: Int?
+  /// Where it was written. Nil is Kinopoisk (either path), which predates the field.
+  public let source: MetadataSourceID?
+  /// ISO 639-1 of the text, when the source says (Trakt does; Kinopoisk is Russian).
+  public let language: String?
 
   public init(
     author: String,
@@ -231,7 +236,9 @@ public struct Review: Sendable, Hashable, Identifiable {
     postedAt: Date? = nil,
     helpfulVotes: Int = 0,
     unhelpfulVotes: Int = 0,
-    sourceId: Int? = nil
+    sourceId: Int? = nil,
+    source: MetadataSourceID? = nil,
+    language: String? = nil
   ) {
     self.author = author
     self.title = title
@@ -242,6 +249,68 @@ public struct Review: Sendable, Hashable, Identifiable {
     self.helpfulVotes = helpfulVotes
     self.unhelpfulVotes = unhelpfulVotes
     self.sourceId = sourceId
+    self.source = source
+    self.language = language
+  }
+
+  public var isFromTrakt: Bool { source == .trakt }
+}
+
+/// A score another catalogue publishes, relayed by Trakt's `/ratings?extended=all`:
+/// Trakt's own, Rotten Tomatoes (critics and audience), Metacritic, Letterboxd and
+/// MyAnimeList. Kept on each source's own scale; `score10` is the 0…10 the page sorts by.
+/// Not part of the aggregate `Rating`, which stays IMDb, Kinopoisk and TMDB.
+public struct ExternalRating: Sendable, Hashable, Identifiable {
+  public enum Kind: String, Sendable, Hashable, CaseIterable {
+    /// 0…10, with votes.
+    case trakt
+    /// Tomatometer, 0…100 %.
+    case rottenTomatoes
+    /// Popcornmeter, 0…100 %.
+    case rottenTomatoesAudience
+    /// Metascore, 0…100.
+    case metacritic
+    /// 0…5, with votes. Films only.
+    case letterboxd
+    /// 0…10, with votes. Anime only.
+    case myAnimeList
+  }
+
+  public var id: Kind { kind }
+  public let kind: Kind
+  public let value: Double
+  public let votes: Int?
+  /// Rotten Tomatoes' verdict as it states it: `fresh`, `rotten`, `certified` for critics,
+  /// `upright` / `spilled` for the audience. Nil elsewhere, or when Trakt did not say.
+  public let state: String?
+  /// The score's page at the source.
+  public let url: URL?
+
+  public init(kind: Kind, value: Double, votes: Int? = nil, state: String? = nil, url: URL? = nil) {
+    self.kind = kind
+    self.value = value
+    self.votes = votes
+    self.state = state
+    self.url = url
+  }
+
+  /// The same number on 0…10.
+  public var score10: Double {
+    switch kind {
+    case .rottenTomatoes, .rottenTomatoesAudience, .metacritic: value / 10
+    case .letterboxd: value * 2
+    case .trakt, .myAnimeList: value
+    }
+  }
+
+  /// Fresh / upright. Rotten Tomatoes draws a different mark for each side; without a
+  /// stated verdict its own threshold (60 %) decides.
+  public var isPositive: Bool {
+    switch state?.lowercased() {
+    case "fresh", "certified", "certified_fresh", "upright": true
+    case "rotten", "spilled": false
+    default: value >= 60
+    }
   }
 }
 
@@ -263,6 +332,11 @@ public struct ReviewsSummary: Sendable, Hashable {
   }
 
   public var isEmpty: Bool { total <= 0 && positive <= 0 && negative <= 0 && neutral <= 0 }
+
+  public func adding(_ other: ReviewsSummary) -> ReviewsSummary {
+    ReviewsSummary(total: total + other.total, positive: positive + other.positive,
+                   negative: negative + other.negative, neutral: neutral + other.neutral)
+  }
 }
 
 public struct TrailerRef: Sendable, Hashable {
@@ -427,6 +501,10 @@ public struct TitleMetadata: Sendable {
   /// `Rating`, which stays the two sources it has always weighed.
   public var tmdbRating: Double?
   public var tmdbVotes: Int?
+  /// Trakt, Rotten Tomatoes, Metacritic, Letterboxd, MyAnimeList — one per kind.
+  public var externalRatings: [ExternalRating] = []
+  /// The title's page on Trakt, when Trakt knows it.
+  public var traktURL: URL?
   public var attribution: Set<MetadataSourceID> = []
   /// The language this source's text was asked in — TMDB's `MetadataConfiguration.language`.
   /// Nil where the source did not say; on a merged overlay, the first source's.
@@ -467,8 +545,7 @@ public struct TitleMetadata: Sendable {
     if awards.isEmpty { awards = other.awards }
     if stills.isEmpty { stills = other.stills }
     if facts.isEmpty { facts = other.facts }
-    if reviews.isEmpty { reviews = other.reviews }
-    if reviewsSummary == nil { reviewsSummary = other.reviewsSummary }
+    mergeReviews(other)
     if nextEpisode == nil { nextEpisode = other.nextEpisode }
     if lastEpisode == nil { lastEpisode = other.lastEpisode }
     if status == nil { status = other.status }
@@ -494,12 +571,50 @@ public struct TitleMetadata: Sendable {
     if kinopoiskID == nil { kinopoiskID = other.kinopoiskID }
     if tmdbRating == nil { tmdbRating = other.tmdbRating }
     if tmdbVotes == nil { tmdbVotes = other.tmdbVotes }
+    for rating in other.externalRatings where !externalRatings.contains(where: { $0.kind == rating.kind }) {
+      externalRatings.append(rating)
+    }
+    if traktURL == nil { traktURL = other.traktURL }
     attribution.formUnion(other.attribution)
     if language == nil { language = other.language }
     if titleLogoLanguage == nil { titleLogoLanguage = other.titleLogoLanguage }
     fragments.append(contentsOf: other.fragments)
     parts.merge(other.parts) { mine, _ in mine }
     debugLog.append(contentsOf: other.debugLog)
+  }
+
+  /// Kinopoisk's reviews gap-fill each other (keyed API and proxy carry the same ones);
+  /// Trakt's are other people's words, so they follow Kinopoisk's instead of being
+  /// dropped, and the counts take them in.
+  private mutating func mergeReviews(_ other: TitleMetadata) {
+    let incomingTrakt = other.reviews.filter(\.isFromTrakt)
+    let incomingOther = other.reviews.filter { !$0.isFromTrakt }
+    let hadTrakt = reviews.contains(where: \.isFromTrakt)
+    let traktSummary = Self.summary(of: reviews.filter(\.isFromTrakt))
+    if !reviews.contains(where: { !$0.isFromTrakt }), !incomingOther.isEmpty {
+      reviews.insert(contentsOf: incomingOther, at: 0)
+      // The summary so far was Trakt's alone; Kinopoisk's own counts replace it, and
+      // the Trakt reviews already held are added back below.
+      if let summary = other.reviewsSummary {
+        reviewsSummary = hadTrakt ? summary.adding(traktSummary) : summary
+      }
+    } else if reviewsSummary == nil, !hadTrakt {
+      reviewsSummary = other.reviewsSummary
+    }
+    if !hadTrakt, !incomingTrakt.isEmpty {
+      reviews.append(contentsOf: incomingTrakt)
+      if let summary = reviewsSummary {
+        reviewsSummary = summary.adding(Self.summary(of: incomingTrakt))
+      }
+    }
+  }
+
+  private static func summary(of reviews: [Review]) -> ReviewsSummary {
+    let tones = reviews.map { $0.sentiment?.uppercased() }
+    let positive = tones.filter { $0 == "POSITIVE" }.count
+    let negative = tones.filter { $0 == "NEGATIVE" }.count
+    return ReviewsSummary(total: reviews.count, positive: positive, negative: negative,
+                          neutral: reviews.count - positive - negative)
   }
 
   /// Prefer existing name order; fill photo/character from overlay by normalized name.

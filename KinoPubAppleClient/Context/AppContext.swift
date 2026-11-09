@@ -173,7 +173,9 @@ struct AppContext: AppContextProtocol {
       TMDBSource(configuration: metadataConfig, directAccess: IntegrationKeyProvider.tmdb),
       KinopoiskSource(keyProvider: kinopoiskKeyProvider),
       // Staff stays on this path. The v2 comparison calls the same source with it off.
-      KinopoiskProxySource(includeStaff: true)
+      KinopoiskProxySource(includeStaff: true),
+      // Ratings it relays (Rotten Tomatoes, Metacritic, Letterboxd…) and its reviews.
+      TraktSource(access: TraktMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru")
     ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL),
       titleCard: TitleCardSource(configuration: metadataConfig))
 

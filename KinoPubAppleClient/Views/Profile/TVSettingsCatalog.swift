@@ -638,6 +638,12 @@ final class TVSettingsCatalog {
                kind: .toggle(key: "tmdbProxy"),
                isEnabled: hasKey),
       ]))
+    } else if integration.hasDataSwitch {
+      sections.append(TSKSection(rows: [
+        TSKRow(title: "Integration_Trakt_DataToggle".localized,
+               description: "Integration_Trakt_DataFooter".localized,
+               kind: .toggle(key: "traktData")),
+      ]))
     } else if hasKey {
       sections.append(TSKSection(rows: [
         TSKRow(title: "Integration_Status_APIKey".localized,
@@ -1943,6 +1949,12 @@ final class TVSettingsCatalog {
                    get: { IntegrationKeyProvider.kinopoisk.isEnabled },
                    set: { [unowned self] isOn in
                      IntegrationKeyProvider.kinopoisk.isEnabled = isOn
+                     self.host.reloadPages()
+                   })
+    store.bindBool("traktData",
+                   get: { TraktMetadataAccess.isEnabled },
+                   set: { [unowned self] isOn in
+                     UserDefaults.standard.set(isOn, forKey: TraktMetadataAccess.enabledDefaultsKey)
                      self.host.reloadPages()
                    })
     // On is the default path; off asks TMDB directly with the viewer's own key.

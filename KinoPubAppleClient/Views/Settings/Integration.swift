@@ -42,8 +42,19 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     }
   }
 
-  /// Works without anything from the viewer.
-  var worksByDefault: Bool { self == .kinopoisk || self == .tmdb }
+  /// Works without anything from the viewer. Trakt's ratings and reviews are public
+  /// data: the app's Client ID is enough, no sign-in (Sasha, 2026-11-09).
+  var worksByDefault: Bool {
+    switch self {
+    case .kinopoisk, .tmdb: true
+    case .trakt: TraktAccount.clientID != nil
+    default: false
+    }
+  }
+
+  /// A source that feeds the title page without anything from the viewer, and can be
+  /// switched off: Trakt's ratings and reviews.
+  var hasDataSwitch: Bool { self == .trakt && worksByDefault }
 
   /// The viewer's own key or account is connected.
   var isConnected: Bool {
@@ -148,6 +159,10 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .tmdb:
       [Note(title: "Attribution".localized,
             text: "This product uses the TMDB API but is not endorsed or certified by TMDB.".localized)]
+    case .trakt:
+      // Required by Trakt's API terms wherever its data is shown.
+      [Note(title: "Attribution".localized,
+            text: "This product uses Trakt but is not endorsed or certified by Trakt.".localized)]
     default:
       []
     }
@@ -231,7 +246,8 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
   var status: Status {
     guard isSupported else { return .comingSoon }
     if self == .trakt {
-      return TraktAccount.storedUsername.map(Status.account) ?? .notConnected
+      if let name = TraktAccount.storedUsername { return .account(name) }
+      return worksByDefault && TraktMetadataAccess.isEnabled ? .byDefault : .notConnected
     }
     guard let keyProvider, keyProvider.isConnected, keyProvider.isEnabled else { return .byDefault }
     return .apiKey

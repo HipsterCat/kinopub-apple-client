@@ -221,9 +221,9 @@ public struct MediaScoreItem: Identifiable, Hashable, Sendable {
   public var drawsFaint: Bool {
     if score == nil { return true }
     switch source {
-    case .tmdb, .kinopub:
+    case .tmdb, .kinopub, .trakt, .letterboxd, .myAnimeList:
       return (votes ?? 0) <= Self.faintVoteCeiling
-    case .imdb, .kinopoisk:
+    default:
       return false
     }
   }
@@ -425,9 +425,17 @@ extension MediaScoreLogo.Source {
   /// the stored score stays 0…10 so it can be averaged with IMDb and Kinopoisk.
   public func formattedScore(_ score: Double) -> String {
     switch self {
-    case .tmdb, .kinopub:
+    case .tmdb, .kinopub, .trakt,
+         .rottenTomatoesFresh, .rottenTomatoesRotten,
+         .rottenTomatoesAudienceUpright, .rottenTomatoesAudienceSpilled:
       return "\(Int((score * 10).rounded()))%"
-    case .imdb, .kinopoisk:
+    case .metacritic:
+      // Metacritic's own 0…100, no percent sign.
+      return "\(Int((score * 10).rounded()))"
+    case .letterboxd:
+      // Letterboxd's five stars.
+      return String(format: "%.1f", score / 2)
+    case .imdb, .kinopoisk, .myAnimeList:
       return String(format: "%.1f", score)
     }
   }

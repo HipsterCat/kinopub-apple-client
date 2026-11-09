@@ -22,9 +22,10 @@ struct IntegrationsSettingsPane: View {
   @AppStorage(IntegrationKeyProvider.tmdb.validatedDefaultsKey) private var tmdbValidated = false
   @AppStorage(IntegrationKeyProvider.tmdb.enabledDefaultsKey) private var tmdbEnabled = true
   @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
+  @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
 
   var body: some View {
-    let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, traktUsername)
+    let _ = (kinopoiskValidated, kinopoiskEnabled, tmdbValidated, tmdbEnabled, traktUsername, traktData)
     Form {
       Section {
         ForEach(Integration.available) { integration in
@@ -89,6 +90,8 @@ struct IntegrationDetailView: View {
   @State private var isConfirmingDisconnect = false
   @State private var isSigningIn = false
   @AppStorage(TraktAccount.usernameDefaultsKey) private var traktUsername: String?
+  /// Trakt's ratings and reviews on the title page; no sign-in needed.
+  @AppStorage(TraktMetadataAccess.enabledDefaultsKey) private var traktData = true
   @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 44
 
   init(integration: Integration) {
@@ -105,7 +108,7 @@ struct IntegrationDetailView: View {
   private var isConnected: Bool { isAccount ? traktUsername != nil : hasKey }
 
   private var status: Integration.Status {
-    _ = (keyValidated, keyEnabled, traktUsername)
+    _ = (keyValidated, keyEnabled, traktUsername, traktData)
     return integration.status
   }
 
@@ -124,12 +127,21 @@ struct IntegrationDetailView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
       } footer: {
-        if integration != .tmdb, !hasKey || isAccount {
+        if integration != .tmdb, !integration.hasDataSwitch, !hasKey || isAccount {
           actions
         }
       }
 
-      if integration == .tmdb {
+      if integration.hasDataSwitch {
+        Section {
+          Toggle("Integration_Trakt_DataToggle", isOn: $traktData)
+        } footer: {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Integration_Trakt_DataFooter")
+            actions
+          }
+        }
+      } else if integration == .tmdb {
         Section {
           Toggle("KinoPub proxy", isOn: proxyBinding)
             .disabled(!hasKey)

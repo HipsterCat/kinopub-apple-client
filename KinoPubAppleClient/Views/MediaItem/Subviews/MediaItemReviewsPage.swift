@@ -49,7 +49,8 @@ struct MediaItemRatingsAndReviewsPage: View {
           emptyNote
         } else {
           ForEach(reviews) { review in
-            ReviewCard(review: review, mode: .expanded, sourceURL: kinopoiskReviewsURL)
+            ReviewCard(review: review, mode: .expanded,
+                       sourceURL: review.isFromTrakt ? review.traktCommentURL : kinopoiskReviewsURL)
           }
         }
       }

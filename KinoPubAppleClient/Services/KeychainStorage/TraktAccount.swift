@@ -12,10 +12,26 @@
 //  can sign in until Trakt grants a production one.
 //
 //  Sync (scrobbling, history, watchlist) builds on `validAccessToken()`; it is not here yet.
+//  Trakt's public data (ratings, reviews) needs no sign-in: `TraktMetadataAccess`.
 //
 
 import Foundation
 import Observation
+import KinoPubMetadata
+
+/// Trakt as a metadata source (`TraktSource`): the Client ID while the viewer keeps
+/// «Оценки и отзывы» on in Settings › Integrations › Trakt. On by default.
+struct TraktMetadataAccess: TraktAccessProviding {
+  static let enabledDefaultsKey = "traktMetadataEnabled"
+
+  static var isEnabled: Bool {
+    UserDefaults.standard.object(forKey: enabledDefaultsKey) as? Bool ?? true
+  }
+
+  func traktClientID() -> String? {
+    Self.isEnabled ? TraktAccount.clientID : nil
+  }
+}
 
 struct TraktToken: Codable, Sendable {
   var accessToken: String

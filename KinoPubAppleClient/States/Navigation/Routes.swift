@@ -182,6 +182,9 @@ struct RatingsAndReviews: Hashable {
   let summary: ReviewsSummary?
   let tmdbRating: Double?
   let tmdbVotes: Int?
+  /// Trakt, Rotten Tomatoes, Metacritic, Letterboxd, MyAnimeList.
+  let externalRatings: [ExternalRating]
+  let tmdbID: Int?
   let likeCount: Int
   let dislikeCount: Int
 
@@ -194,6 +197,8 @@ struct RatingsAndReviews: Hashable {
     self.summary = metadata.reviewsSummary
     self.tmdbRating = metadata.tmdbRating
     self.tmdbVotes = metadata.tmdbVotes
+    self.externalRatings = metadata.externalRatings
+    self.tmdbID = metadata.tmdbId
     self.likeCount = likeCount
     self.dislikeCount = dislikeCount
   }
@@ -206,6 +211,8 @@ struct RatingsAndReviews: Hashable {
     meta.reviewsSummary = summary
     meta.tmdbRating = tmdbRating
     meta.tmdbVotes = tmdbVotes
+    meta.externalRatings = externalRatings
+    meta.tmdbId = tmdbID
     return meta
   }
 }

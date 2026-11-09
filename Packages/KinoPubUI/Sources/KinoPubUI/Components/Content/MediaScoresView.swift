@@ -17,13 +17,39 @@ public struct MediaScoreLogo: View {
     /// Us. A rating source like any other now that the community thumbs feed the
     /// aggregate, so it wears a logo in the same row rather than a thumbs glyph.
     case kinopub
+    // Relayed by Trakt (`ExternalRating`): the score cards only. Rotten Tomatoes wears a
+    // different mark on each side of its verdict, so each side is its own source here.
+    case trakt
+    case rottenTomatoesFresh
+    case rottenTomatoesRotten
+    case rottenTomatoesAudienceUpright
+    case rottenTomatoesAudienceSpilled
+    case metacritic
+    case letterboxd
+    case myAnimeList
+
+    /// Sasha's full-colour marks for the sources that have no small set.
+    fileprivate var extraAssetName: String? {
+      switch self {
+      case .imdb, .kinopoisk, .tmdb, .kinopub: return nil
+      case .trakt: return "trakt"
+      case .rottenTomatoesFresh: return "rotten_tomatoes_critics_big_color"
+      case .rottenTomatoesRotten: return "rotten_tomatoes_critics_rotten_big_color"
+      case .rottenTomatoesAudienceUpright: return "rotten_tomatoes_audience_positive_big_color"
+      case .rottenTomatoesAudienceSpilled: return "rotten_tomatoes_audience_negative_big_color"
+      case .metacritic: return "metascore"
+      case .letterboxd: return "letterboxd"
+      case .myAnimeList: return "myanimelist"
+      }
+    }
 
     fileprivate var colorAssetName: String {
+      if let extraAssetName { return extraAssetName }
       switch self {
       case .imdb: return "imdb_big_color"
       case .kinopoisk: return "kinopoisk_big_colorful"
       case .tmdb: return "tmdb_big_color"
-      case .kinopub: return "kinopub_big_color"
+      default: return "kinopub_big_color"
       }
     }
 
@@ -36,6 +62,7 @@ public struct MediaScoreLogo: View {
       case .kinopoisk: return "kinopoisk_small"
       case .tmdb: return "tmdb_small"
       case .kinopub: return "kinopub_small"
+      default: return colorAssetName
       }
     }
 
@@ -46,6 +73,7 @@ public struct MediaScoreLogo: View {
       case .kinopoisk: return "kp_small_colorful"
       case .tmdb: return "tmdb_small_color"
       case .kinopub: return "kinopub_small"
+      default: return colorAssetName
       }
     }
 
@@ -57,6 +85,7 @@ public struct MediaScoreLogo: View {
       case .kinopoisk: return "kinopoisk_big_colorful"
       case .tmdb: return "tmdb_big_color"
       case .kinopub: return "kinopub_big_color"
+      default: return colorAssetName
       }
     }
   }
@@ -121,6 +150,7 @@ public struct MediaScoreLogo: View {
       case .kinopoisk: return "kinopoisk"
       case .tmdb: return "tmdb"
       case .kinopub: return "kinopub_small"
+      default: return source.colorAssetName
       }
     case .color: return source.colorAssetName
     case .compact: return source.compactAssetName
@@ -145,6 +175,7 @@ public extension MediaScoreLogo.Source {
       case .kinopoisk: name = "kinopoisk"
       case .tmdb: name = "tmdb"
       case .kinopub: name = "kinopub_small"
+      default: name = colorAssetName
       }
     case .color: name = colorAssetName
     case .compact: name = compactAssetName

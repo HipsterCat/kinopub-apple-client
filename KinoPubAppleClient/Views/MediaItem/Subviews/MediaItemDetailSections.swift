@@ -166,9 +166,9 @@ enum RatingSources {
     var drawsFaint: Bool {
       if value == nil { return true }
       switch logo {
-      case .tmdb, .kinopub:
+      case .tmdb, .kinopub, .trakt, .letterboxd, .myAnimeList:
         return (votes ?? 0) <= MediaScoreItem.faintVoteCeiling
-      case .imdb, .kinopoisk:
+      default:
         return false
       }
     }
@@ -188,7 +188,7 @@ enum RatingSources {
                                     metadata: metadata,
                                     likeCount: likeCount,
                                     dislikeCount: dislikeCount)
-    return [
+    let own: [Score?] = [
       score(id: "IMDb",
             logo: .imdb,
             value: bundle.imdbScore,
@@ -217,13 +217,46 @@ enum RatingSources {
             url: kinopubURL(mediaItem),
             known: true)
     ]
-      .compactMap { $0 }
+    return (own.compactMap { $0 } + relayed(metadata.externalRatings))
       .sorted { lhs, rhs in
         if lhs.logo == .kinopub { return false }
         if rhs.logo == .kinopub { return true }
         return (lhs.votes ?? 0) > (rhs.votes ?? 0)
       }
   }
+
+  /// What Trakt relays — its own score, Rotten Tomatoes, Metacritic, Letterboxd,
+  /// MyAnimeList. Only published scores: Trakt drops the empty ones before they get here,
+  /// so these never stand as placeholders.
+  private static func relayed(_ ratings: [ExternalRating]) -> [Score] {
+    ratings.compactMap { rating in
+      let logo: MediaScoreLogo.Source
+      let name: String
+      switch rating.kind {
+      case .trakt:
+        logo = .trakt; name = "Trakt"
+      case .rottenTomatoes:
+        logo = rating.isPositive ? .rottenTomatoesFresh : .rottenTomatoesRotten; name = "Tomatometer"
+      case .rottenTomatoesAudience:
+        logo = rating.isPositive ? .rottenTomatoesAudienceUpright : .rottenTomatoesAudienceSpilled
+        name = "Popcornmeter"
+      case .metacritic:
+        logo = .metacritic; name = "Metacritic"
+      case .letterboxd:
+        logo = .letterboxd; name = "Letterboxd"
+      case .myAnimeList:
+        logo = .myAnimeList; name = "MyAnimeList"
+      }
+      return score(id: name, logo: logo, value: rating.score10, votes: rating.votes,
+                   url: relayedURL(rating), known: false)
+    }
+  }
+
+#if os(tvOS)
+  private static func relayedURL(_ rating: ExternalRating) -> URL? { nil }
+#else
+  private static func relayedURL(_ rating: ExternalRating) -> URL? { rating.url }
+#endif
 
   /// A source earns a tile once it has a score, voters, or a page we already know.
   /// Votes without a score is Kinopoisk's "недостаточно оценок" state — a "?" and how
@@ -2109,6 +2142,12 @@ struct ReviewCard: View {
             .foregroundStyle(review.sentimentColor)
         }
         Spacer(minLength: 8)
+        // Trakt's comments sit beside Kinopoisk's reviews; the card says whose it is.
+        if review.isFromTrakt {
+          Text(verbatim: "Trakt")
+            .font(TypeScale.detailBody)
+            .foregroundStyle(.secondary)
+        }
         if let date = review.displayDate {
           Text(date)
             .font(TypeScale.detailBody)
@@ -2161,7 +2200,13 @@ struct ReviewCard: View {
         Spacer(minLength: 8)
         // The source's own tallies, not controls: nothing here posts a vote back to
         // Kinopoisk, and a button that only looks like one is worse than a number.
-        if review.helpfulVotes > 0 || review.unhelpfulVotes > 0 {
+        if review.isFromTrakt {
+          // Trakt counts likes only.
+          if review.helpfulVotes > 0 {
+            Label(review.helpfulVotes.formatted(.number.grouping(.automatic)), systemImage: "heart")
+              .foregroundStyle(.secondary)
+          }
+        } else if review.helpfulVotes > 0 || review.unhelpfulVotes > 0 {
           Label(review.helpfulVotes.formatted(.number.grouping(.automatic)),
                 systemImage: "hand.thumbsup")
             .foregroundStyle(.secondary)
@@ -2173,7 +2218,11 @@ struct ReviewCard: View {
           Button {
             openURL(sourceURL)
           } label: {
-            Label("MediaItem_ReviewSourceKinopoisk", systemImage: "arrow.up.right")
+            if review.isFromTrakt {
+              Label { Text(verbatim: "Trakt") } icon: { Image(systemName: "arrow.up.right") }
+            } else {
+              Label("MediaItem_ReviewSourceKinopoisk", systemImage: "arrow.up.right")
+            }
           }
           .buttonStyle(.plain)
           .foregroundStyle(.secondary)
@@ -2205,6 +2254,12 @@ struct ReviewCard: View {
 }
 
 extension Review {
+  /// The comment itself on Trakt.
+  var traktCommentURL: URL? {
+    guard isFromTrakt, let sourceId else { return nil }
+    return URL(string: "https://trakt.tv/comments/\(sourceId)")
+  }
+
   /// `POSITIVE` / `NEGATIVE` / `NEUTRAL`, localized. Nil for anything else the source
   /// starts sending.
   var sentimentTitle: String? {

@@ -5412,13 +5412,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trakt keeps your watch history, watchlist and ratings in one account across apps and devices. Sign in to link your account; syncing what you watch here comes next."
+            "value" : "Trakt adds its own score, ratings from Rotten Tomatoes, Metacritic, Letterboxd and MyAnimeList, and its users' reviews to the title page. Sign in to link your account; syncing what you watch here comes next."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trakt хранит историю просмотров, список «Буду смотреть» и оценки в одном аккаунте для всех приложений и устройств. Войдите, чтобы привязать аккаунт; синхронизация просмотренного здесь — следующий шаг."
+            "value" : "Trakt добавляет на страницу тайтла свою оценку, рейтинги Rotten Tomatoes, Metacritic, Letterboxd и MyAnimeList и отзывы своих пользователей. Войдите, чтобы привязать аккаунт; синхронизация просмотренного здесь — следующий шаг."
           }
         }
       }
@@ -16202,6 +16202,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось связаться с Trakt — проверьте подключение и попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "Integration_Trakt_DataToggle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ratings and Reviews"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценки и отзывы"
+          }
+        }
+      }
+    },
+    "Integration_Trakt_DataFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the title page: Trakt's score, Rotten Tomatoes, Metacritic, Letterboxd and MyAnimeList, and reviews from Trakt. No sign-in needed."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На странице тайтла: оценка Trakt, Rotten Tomatoes, Metacritic, Letterboxd и MyAnimeList, а также отзывы с Trakt. Входить не нужно."
+          }
+        }
+      }
+    },
+    "This product uses Trakt but is not endorsed or certified by Trakt." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This product uses Trakt but is not endorsed or certified by Trakt."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот продукт использует Trakt, но не одобрен и не сертифицирован Trakt."
           }
         }
       }

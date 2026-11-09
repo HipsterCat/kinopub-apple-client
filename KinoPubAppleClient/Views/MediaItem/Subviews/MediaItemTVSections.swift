@@ -203,6 +203,8 @@ enum MediaItemTVSections {
     case "NEGATIVE": tone = .negative
     default: tone = .neutral
     }
+    let footer = [shortDate(of: review), review.isFromTrakt ? "Trakt" : nil]
+      .compactMap { $0 }.joined(separator: " · ")
     return TVPageInfoCard.Review(
       id: "\(index)",
       // Roughly half of a title's reviews carry no headline, so the author stands in.
@@ -210,7 +212,8 @@ enum MediaItemTVSections {
       body: review.body,
       sentiment: review.sentimentTitle,
       tone: tone,
-      date: shortDate(of: review)
+      // Trakt's comments sit among Kinopoisk's reviews; the card says whose it is.
+      date: footer.isEmpty ? nil : footer
     )
   }
 

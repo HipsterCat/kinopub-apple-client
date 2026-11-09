@@ -37,10 +37,12 @@ public actor MetadataService {
       return missing
     }
     let proxy = sources.compactMap { $0 as? KinopoiskProxySource }.first
+    // Trakt asks by IMDb id, which the kino.pub item already has: it runs beside both.
+    async let traktPart = fetchTrakt(identity: identity)
     if let kinopoisk = identity.kinopoisk, kinopoisk > 0 {
       async let cardPart = fetchTitleCard(titleCard, identity: identity)
       async let proxyPart = fetchProxy(proxy, identity: identity)
-      return mergeTitleCard(await cardPart, proxy: await proxyPart)
+      return mergeTitleCard(await cardPart, proxy: await proxyPart, trakt: await traktPart)
     }
     let cardPart = await fetchTitleCard(titleCard, identity: identity)
     let asking: MediaIdentity
@@ -50,7 +52,17 @@ public actor MetadataService {
       asking = identity
     }
     let proxyPart = await fetchProxy(proxy, identity: asking)
-    return mergeTitleCard(cardPart, proxy: proxyPart)
+    return mergeTitleCard(cardPart, proxy: proxyPart, trakt: await traktPart)
+  }
+
+  private func fetchTrakt(identity: MediaIdentity) async -> TitleMetadata? {
+    guard let trakt = sources.compactMap({ $0 as? TraktSource }).first, trakt.isConfigured else { return nil }
+    do {
+      return try await trakt.titleMetadata(for: identity)
+    } catch {
+      Logger.metadata.error("Trakt failed: \(error.localizedDescription)")
+      return nil
+    }
   }
 
   private func fetchTitleCard(_ source: TitleCardSource, identity: MediaIdentity) async -> TitleMetadata? {
@@ -72,7 +84,8 @@ public actor MetadataService {
     }
   }
 
-  private func mergeTitleCard(_ card: TitleMetadata?, proxy: TitleMetadata?) -> TitleMetadata {
+  private func mergeTitleCard(_ card: TitleMetadata?, proxy: TitleMetadata?,
+                              trakt: TitleMetadata? = nil) -> TitleMetadata {
     var result = TitleMetadata()
     if let card {
       result.merge(card)
@@ -81,6 +94,10 @@ public actor MetadataService {
     if let proxy {
       result.merge(proxy)
       result.parts[.kinopoiskProxy] = proxy
+    }
+    if let trakt {
+      result.merge(trakt)
+      result.parts[.trakt] = trakt
     }
     return result
   }
