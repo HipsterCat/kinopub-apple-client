@@ -2,9 +2,10 @@
 //  TraktSignInView.swift
 //  KinoPubAppleClient
 //
-//  Signing in to Trakt with a device code, on every platform: the code is shown here
-//  and entered at trakt.tv/activate on a phone or computer. The sheet closes itself
-//  once Trakt confirms. A sheet on macOS / iOS, presented over Settings on tvOS.
+//  Signing in to an account with a code, on every platform: the code is shown here and
+//  entered on the service's site on a phone or computer (trakt.tv/activate, plex.tv/link).
+//  The sheet closes itself once the service confirms. A sheet on macOS / iOS, presented
+//  over Settings on tvOS.
 //
 
 import SwiftUI
@@ -14,16 +15,42 @@ import UIKit
 import AppKit
 #endif
 
-struct TraktSignInView: View {
+/// Where a code sign-in stands: shared by Trakt's device code and Plex's PIN.
+enum AccountSignIn: Equatable {
+  case idle
+  case requestingCode
+  /// Waiting for the viewer to enter `code` at `url` on another device.
+  case awaitingUser(code: String, url: URL, expiresAt: Date)
+  case failed(String)
+}
+
+/// An account the app signs in to with a code entered elsewhere.
+@MainActor
+protocol AccountSigningIn: AnyObject, Observable {
+  var signIn: AccountSignIn { get }
+  var isSignedIn: Bool { get }
+  func startSignIn()
+  func cancelSignIn()
+  func signOut()
+}
+
+struct AccountSignInView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.openURL) private var openURL
   @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 64
-  private let account = TraktAccount.shared
+  let integration: Integration
+  private let account: any AccountSigningIn
+
+  init(integration: Integration) {
+    self.integration = integration
+    self.account = integration.account ?? TraktAccount.shared
+  }
 
   var body: some View {
     VStack(spacing: 20) {
-      IntegrationIconView(integration: .trakt, size: iconSize)
-      Text("Trakt_SignIn_Title")
+      IntegrationIconView(integration: integration, size: iconSize)
+      Text(verbatim: integration == .trakt ? "Trakt_SignIn_Title".localized
+           : String(format: "Account_SignIn_Title".localized, integration.name))
         .font(.title2.weight(.bold))
 
       content
@@ -83,7 +110,8 @@ struct TraktSignInView: View {
         HStack(spacing: 8) {
           ProgressView()
             .controlSize(.small)
-          Text("Trakt_SignIn_Waiting")
+          Text(verbatim: integration == .trakt ? "Trakt_SignIn_Waiting".localized
+               : String(format: "Account_SignIn_Waiting".localized, integration.name))
         }
         .font(.callout)
         .foregroundStyle(.secondary)
@@ -99,7 +127,7 @@ struct TraktSignInView: View {
   }
 
   private func displayHost(_ url: URL) -> String {
-    let host = url.host()?.replacingOccurrences(of: "www.", with: "") ?? "trakt.tv"
+    let host = url.host()?.replacingOccurrences(of: "www.", with: "") ?? integration.host
     let path = url.path()
     return path.isEmpty || path == "/" ? host : host + path
   }

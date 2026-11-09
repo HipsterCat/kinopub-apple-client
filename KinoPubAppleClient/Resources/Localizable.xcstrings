@@ -17446,6 +17446,210 @@
           }
         }
       }
+    },
+    "Integration_Plex_About" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With your Plex account, the app reads Plex's online catalogue: the Common Sense Media review for parents (recommended age, what is in the title and how much), the US content rating, and the IMDb and Rotten Tomatoes figures Plex carries. A free account is enough; no Plex server is needed."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "С аккаунтом Plex приложение читает онлайн-каталог Plex: обзор Common Sense Media для родителей (рекомендованный возраст, что есть в тайтле и сколько), американский возрастной рейтинг и цифры IMDb и Rotten Tomatoes, которые есть у Plex. Хватит бесплатного аккаунта, свой сервер Plex не нужен."
+          }
+        }
+      }
+    },
+    "Integration_Plex_SignInHelp" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign In shows a code. Open plex.tv/link on your phone or computer, sign in to Plex and enter the code. Your password never reaches this app. Some Common Sense details may need Plex Pass."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Войти» покажет код. Откройте plex.tv/link на телефоне или компьютере, войдите в Plex и введите код. Пароль в приложение не попадает. Часть сведений Common Sense может требовать Plex Pass."
+          }
+        }
+      }
+    },
+    "Account_SignIn_Title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вход в %@"
+          }
+        }
+      }
+    },
+    "Account_SignIn_Waiting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for %@…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ждём подтверждения от %@…"
+          }
+        }
+      }
+    },
+    "Account_Error_HTTP" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ answered with error %2$lld. Try again later."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ответил ошибкой %2$lld. Попробуйте позже."
+          }
+        }
+      }
+    },
+    "Account_Error_Network" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't reach %@. Check the connection and try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось связаться с %@. Проверьте подключение и попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "MediaItem_CommonSenseAge" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld+"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld+"
+          }
+        }
+      }
+    },
+    "MediaItem_CommonSenseParents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What parents need to know"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Что нужно знать родителям"
+          }
+        }
+      }
+    },
+    "MediaItem_CommonSenseAnyGood" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Is it any good?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стоит ли смотреть?"
+          }
+        }
+      }
+    },
+    "MediaItem_CommonSenseTalk" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Talk with your kids about"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Что обсудить с детьми"
+          }
+        }
+      }
+    },
+    "MediaItem_CommonSenseParentsAge" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parents say %lld+"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Родители: %lld+"
+          }
+        }
+      }
+    },
+    "MediaItem_CommonSenseKidsAge" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kids say %lld+"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дети: %lld+"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

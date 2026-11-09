@@ -329,11 +329,68 @@ public struct MyShowsStats: Sendable, Hashable {
   }
 }
 
+/// Common Sense Media's review for parents, as Plex relays it: the age it recommends,
+/// a one-line verdict, and how much of each topic (violence, language, …) is in it.
+/// English, as Common Sense writes it.
+public struct CommonSenseMedia: Sendable, Hashable {
+  public struct Topic: Sendable, Hashable {
+    public let label: String
+    /// 0…5: how much of it there is. A positive topic (role models, messages) reads
+    /// the other way: more is better.
+    public let rating: Double
+    public let isPositive: Bool
+    public let text: String?
+
+    public init(label: String, rating: Double, isPositive: Bool, text: String?) {
+      self.label = label
+      self.rating = rating
+      self.isPositive = isPositive
+      self.text = text
+    }
+  }
+
+  /// Common Sense's own age ("11+"), its star rating 0…5, and what its parents' and
+  /// kids' reviews say.
+  public let age: Int?
+  public let stars: Double?
+  public let parentsAge: Int?
+  public let kidsAge: Int?
+  public let oneLiner: String?
+  public let parentsNeedToKnow: String?
+  public let anyGood: String?
+  public let topics: [Topic]
+  public let talkingPoints: [String]
+
+  public init(age: Int?, stars: Double?, parentsAge: Int?, kidsAge: Int?, oneLiner: String?,
+              parentsNeedToKnow: String?, anyGood: String?, topics: [Topic], talkingPoints: [String]) {
+    self.age = age
+    self.stars = stars
+    self.parentsAge = parentsAge
+    self.kidsAge = kidsAge
+    self.oneLiner = oneLiner
+    self.parentsNeedToKnow = parentsNeedToKnow
+    self.anyGood = anyGood
+    self.topics = topics
+    self.talkingPoints = talkingPoints
+  }
+
+  public var isEmpty: Bool {
+    age == nil && oneLiner == nil && parentsNeedToKnow == nil && topics.isEmpty
+  }
+
+  /// The fuller of two: the item's short block (age + one-liner) or the full entry.
+  func richer(than other: CommonSenseMedia?) -> CommonSenseMedia {
+    guard let other else { return self }
+    return topics.count + (parentsNeedToKnow == nil ? 0 : 1) >= other.topics.count + (other.parentsNeedToKnow == nil ? 0 : 1)
+      ? self : other
+  }
+}
+
 /// The title's page on another site, as Wikidata lists it.
 public struct ExternalLink: Sendable, Hashable, Identifiable {
   public enum Site: String, Sendable, Hashable, CaseIterable {
     case wikipedia, kinopoisk, douban, letterboxd, metacritic, rottenTomatoes, trakt, tvdb
-    case myAnimeList, aniDB, aniList, kitsu, myShows, wikidata
+    case myAnimeList, aniDB, aniList, kitsu, myShows, plex, wikidata
 
     /// As the site writes its own name.
     public var name: String {
@@ -351,6 +408,7 @@ public struct ExternalLink: Sendable, Hashable, Identifiable {
       case .aniList: "AniList"
       case .kitsu: "Kitsu"
       case .myShows: "MyShows"
+      case .plex: "Plex"
       case .wikidata: "Wikidata"
       }
     }
@@ -666,6 +724,9 @@ public struct TitleMetadata: Sendable {
   public var boxOfficeWorldwideUSD: Int?
   public var awardCounts: AwardCounts?
   public var myShowsStats: MyShowsStats?
+  /// Plex's id for the title (24 hex characters) and Common Sense Media through Plex.
+  public var plexID: String?
+  public var commonSense: CommonSenseMedia?
   /// IMDb's score and vote count as Trakt last read them. Fresher than kino.pub's own
   /// copy when it has more votes (Sasha, 2026-11-09).
   public var relayedIMDbRating: Double?
@@ -756,6 +817,8 @@ public struct TitleMetadata: Sendable {
     if boxOfficeWorldwideUSD == nil { boxOfficeWorldwideUSD = other.boxOfficeWorldwideUSD }
     if awardCounts == nil { awardCounts = other.awardCounts }
     if myShowsStats == nil { myShowsStats = other.myShowsStats }
+    if plexID == nil { plexID = other.plexID }
+    if let incoming = other.commonSense { commonSense = incoming.richer(than: commonSense) }
     // Trakt and OMDb both relay IMDb; the copy with more votes is the fresher one.
     if let votes = other.relayedIMDbVotes, other.relayedIMDbRating != nil, votes > (relayedIMDbVotes ?? 0) {
       relayedIMDbRating = other.relayedIMDbRating
