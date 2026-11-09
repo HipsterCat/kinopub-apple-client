@@ -58,6 +58,47 @@ struct SeasonTab: Identifiable, Equatable {
 }
 
 #if !os(tvOS)
+/// `SeasonTabStrip`'s measures, outside it: a generic type holds no static stored properties.
+enum SeasonTabMetrics {
+  /// Headline text plus this above and below is a pill's height — and the line's.
+     #if os(tvOS)
+  static let verticalPadding: CGFloat = 10
+     #endif
+#if os(iOS)
+     static let verticalPadding: CGFloat = 6
+
+#endif
+#if os(macOS)
+     static let verticalPadding: CGFloat = 6
+
+     #endif
+  /// Each side of a pill's text, on top of the minimum width (as wide as tall): a lone digit
+  /// stays about a circle, «10» and «4–7» are wider than one.
+     #if os(tvOS)
+     static let horizontalPadding: CGFloat = 24
+     #endif
+     #if os(iOS)
+     static let horizontalPadding: CGFloat = 12
+     #endif
+     #if os(macOS)
+     static let horizontalPadding: CGFloat = 10
+     #endif
+
+  /// Between the word and the first pill (Sasha, 2026-10-11).
+          #if os(tvOS)
+     static let labelGap: CGFloat = 10
+     #endif
+     #if os(iOS)
+     static let labelGap: CGFloat = 8
+     #endif
+     #if os(macOS)
+     static let labelGap: CGFloat = 6
+     #endif
+  /// The section headers' style («Рейтинги», «В ролях»): the strip is the episodes'
+  /// header (Sasha, 2026-10-30).
+  static let font: Font = TypeScale.rowHeader
+}
+
 /// The line above the episode rail on iOS and macOS (tvOS draws `TVSeasonRail`): the word
 /// «Сезон» (always secondary), 20 pt of air, and a pill per stop with none between them.
 ///
@@ -111,43 +152,6 @@ struct SeasonTabStrip<TabMenu: View>: View {
   @State private var pressedAt: Date?
   @State private var isRecentlyPressed = false
 
-  /// Headline text plus this above and below is a pill's height — and the line's.
-     #if os(tvOS)
-  static let verticalPadding: CGFloat = 10
-     #endif
-#if os(iOS)
-     static let verticalPadding: CGFloat = 6
-
-#endif
-#if os(macOS)
-     static let verticalPadding: CGFloat = 6
-
-     #endif
-  /// Each side of a pill's text, on top of the minimum width (as wide as tall): a lone digit
-  /// stays about a circle, «10» and «4–7» are wider than one.
-     #if os(tvOS)
-     static let horizontalPadding: CGFloat = 24
-     #endif
-     #if os(iOS)
-     static let horizontalPadding: CGFloat = 12
-     #endif
-     #if os(macOS)
-     static let horizontalPadding: CGFloat = 10
-     #endif
-
-  /// Between the word and the first pill (Sasha, 2026-10-11).
-          #if os(tvOS)
-     static let labelGap: CGFloat = 10
-     #endif
-     #if os(iOS)
-     static let labelGap: CGFloat = 8
-     #endif
-     #if os(macOS)
-     static let labelGap: CGFloat = 6
-     #endif
-  /// The section headers' style («Рейтинги», «В ролях»): the strip is the episodes'
-  /// header (Sasha, 2026-10-30).
-  static let font: Font = TypeScale.rowHeader
 
   /// One season is not a choice: the word says which, and nothing is pressable.
   private var word: String {
@@ -163,10 +167,10 @@ struct SeasonTabStrip<TabMenu: View>: View {
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 0) {
           Text(word)
-            .font(Self.font)
+            .font(SeasonTabMetrics.font)
             .foregroundStyle(.primary)
-            .padding(.vertical, Self.verticalPadding)
-            .padding(.trailing, tabs.count > 1 || count != nil ? Self.labelGap : 0)
+            .padding(.vertical, SeasonTabMetrics.verticalPadding)
+            .padding(.trailing, tabs.count > 1 || count != nil ? SeasonTabMetrics.labelGap : 0)
 
           if let count, tabs.count <= 1 {
             // `SectionHeader`'s count.
@@ -277,11 +281,11 @@ struct SeasonPill: View {
   var body: some View {
     PillWidth {
       label
-        .font(SeasonTabStrip.font)
+        .font(SeasonTabMetrics.font)
         .imageScale(.medium)
         .foregroundStyle(textStyle)
-        .padding(.vertical, SeasonTabStrip.verticalPadding)
-        .padding(.horizontal, SeasonTabStrip.horizontalPadding)
+        .padding(.vertical, SeasonTabMetrics.verticalPadding)
+        .padding(.horizontal, SeasonTabMetrics.horizontalPadding)
     }
     .background {
       if isSelected {

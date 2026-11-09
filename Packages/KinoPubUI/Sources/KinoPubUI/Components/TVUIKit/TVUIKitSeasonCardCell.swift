@@ -124,13 +124,9 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
     candidates.first { ($0 as NSString).size(withAttributes: [.font: font]).width <= width }
   }
 
-  private static var alignment: NSTextAlignment {
-    switch captionText.alignment {
-    case .center: .center
-    case .justified: .justified
-    default: .natural
-    }
-  }
+  /// Centred, as the wide cell centres its caption under the still (its text properties
+  /// carry no alignment to read).
+  private static let alignment: NSTextAlignment = .center
 
   private func loadPoster(_ card: TVUIKitMediaItem.SeasonCard) {
     imageTask?.cancel()

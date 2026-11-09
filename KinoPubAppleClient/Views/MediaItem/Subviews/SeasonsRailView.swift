@@ -668,7 +668,7 @@ struct SeasonsRailView: View {
     return SeasonCardInfo(seasonID: seasonID,
                           number: number,
                           title: title,
-                          overview: summary?.overview?.trimmingCharacters(in: .whitespacesAndNewlines)
+                          overview: (summary?.overview?.trimmingCharacters(in: .whitespacesAndNewlines))
                             .flatMap { $0.isEmpty ? nil : $0 },
                           episodes: EpisodesLeftText(entries.count)?.formatted(),
                           episodesShort: entries.isEmpty ? nil
