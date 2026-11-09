@@ -69,6 +69,25 @@ struct MyShowsMetadataAccess: MyShowsAccessProviding {
   var isMyShowsEnabled: Bool { Self.isEnabled }
 }
 
+/// SkipDB's and TheIntroDB's skip times in the player, each while the viewer keeps it on
+/// in Settings › Integrations. On by default; both read without a key.
+struct SkipTimesMetadataAccess: SkipTimesAccessProviding {
+  static let skipDBDefaultsKey = "skipDBMetadataEnabled"
+  static let theIntroDBDefaultsKey = "theIntroDBMetadataEnabled"
+
+  static func isEnabled(_ key: String) -> Bool {
+    UserDefaults.standard.object(forKey: key) as? Bool ?? true
+  }
+
+  func isEnabled(_ source: MetadataSourceID) -> Bool {
+    switch source {
+    case .skipDB: Self.isEnabled(Self.skipDBDefaultsKey)
+    case .introdb: Self.isEnabled(Self.theIntroDBDefaultsKey)
+    default: false
+    }
+  }
+}
+
 struct TraktToken: Codable, Sendable {
   var accessToken: String
   var refreshToken: String

@@ -67,8 +67,8 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   let player = AVPlayer()
   private var playerTimeObserver: PlayerTimeObserver?
   private var cueObserverToken: Any?
-  private var playItem: any PlayableItem
-  private var watchMode: WatchMode
+  private(set) var playItem: any PlayableItem
+  private(set) var watchMode: WatchMode
   private var downloadedFilesDatabase: DownloadedFilesDatabase<DownloadMeta>
   private var rateObservation: NSKeyValueObservation?
   private var actionsService: UserActionsService
@@ -164,7 +164,14 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
 #if os(tvOS)
   /// The system player screen we drive on tvOS. Held weakly: AVKit owns it, we only
   /// reach in to hang metadata and the transport-bar menus off it.
-  private weak var playerViewController: AVPlayerViewController?
+  private(set) weak var playerViewController: AVPlayerViewController?
+  /// Skip times of the stream playing (`PlaybackSkip.swift`), the clock that watches
+  /// them, and the button AVKit shows now.
+  var skipSegments: SkipSegments?
+  var skipDurationSeconds: Double = 0
+  var skipSegmentsTask: Task<Void, Never>?
+  var skipObserverToken: Any?
+  var skipOffer: PlaybackSkip.Offer?
   /// The episode the system Up Next panel offers, resolved when the stream was
   /// prepared. The player controller's delegate reads it when the panel is accepted —
   /// the proposal object itself is AVKit's and carries none of our model.
@@ -567,6 +574,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
 #if os(iOS) || os(tvOS)
     metadataEnrichmentTask?.cancel()
     metadataEnrichmentTask = nil
+#endif
+#if os(tvOS)
+    clearSkipSegments()
 #endif
     if let cueObserverToken {
       player.removeTimeObserver(cueObserverToken)
@@ -1223,6 +1233,12 @@ extension PlayerManager {
         }
       }
       guard let enrichment else { return }
+#if os(tvOS)
+      await MainActor.run {
+        guard self.player.currentItem === item else { return }
+        self.loadSkipSegments(enrichment: enrichment, on: item)
+      }
+#endif
       let enriched = await PlaybackMediaContext.enrich(draft, with: enrichment,
                                                        service: self.metadataService)
       guard !Task.isCancelled else { return }

@@ -184,7 +184,10 @@ struct AppContext: AppContextProtocol {
       // Last: ids on other sites, Wikipedia, box office — only what the others left empty.
       MyShowsSource(access: MyShowsMetadataAccess()),
       PlexSource(access: PlexMetadataAccess()),
-      WikidataSource(access: WikidataMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru")
+      WikidataSource(access: WikidataMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru"),
+      // Skip times for the player: SkipDB's open data first, TheIntroDB fills the rest.
+      SkipDBSource(access: SkipTimesMetadataAccess()),
+      TheIntroDBSource(access: SkipTimesMetadataAccess())
     ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL),
       titleCard: TitleCardSource(configuration: metadataConfig))
 
