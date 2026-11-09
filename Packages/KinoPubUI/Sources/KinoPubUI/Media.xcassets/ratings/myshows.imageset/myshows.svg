@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <!-- Stand-in mark until Sasha adds MyShows' own: their initials on a plain tile. -->
-  <rect width="64" height="64" rx="14" fill="#E5243B"/>
-  <text x="32" y="42" font-family="Helvetica, Arial, sans-serif" font-size="28" font-weight="700" fill="#FFFFFF" text-anchor="middle">MS</text>
-</svg>

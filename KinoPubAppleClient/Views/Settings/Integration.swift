@@ -242,7 +242,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
     case .trakt: "trakt"
     case .plex: "plex"
     case .douban: "douban"
-    case .myShows: "myshows"
+    case .myShows: "MyShows"
     case .wikidata: "wikidata"
     case .simkl: "simkl"
     case .anilist: "anilist"

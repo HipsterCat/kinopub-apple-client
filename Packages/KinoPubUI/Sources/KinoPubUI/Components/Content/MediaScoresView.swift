@@ -54,7 +54,7 @@ public struct MediaScoreLogo: View {
       case .letterboxd: return "letterboxd"
       case .myAnimeList: return "myanimelist"
       case .douban: return "douban"
-      case .myShows: return "myshows"
+      case .myShows: return "MyShows"
       }
     }
 
