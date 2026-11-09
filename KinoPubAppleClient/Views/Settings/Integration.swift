@@ -10,11 +10,7 @@
 //
 
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
+import KinoPubUI
 
 /// An outside source of metadata or sync. Brand names stay as their owners write them.
 enum Integration: String, CaseIterable, Identifiable, Hashable {
@@ -153,17 +149,21 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
 
   // MARK: Icon
 
-  /// `Integration-<id>` in the asset catalog. Until a logo is there the icon is the
-  /// brand colour with the source's short name on it.
-  var logoAssetName: String { "Integration-\(rawValue)" }
-
-  var hasLogo: Bool {
-#if canImport(UIKit)
-    UIImage(named: logoAssetName) != nil
-#elseif canImport(AppKit)
-    NSImage(named: logoAssetName) != nil
-#endif
+  /// The service's mark in KinoPubUI's `ratings/` catalog (Sasha's set, 2026-11-09).
+  /// Nil draws the brand colour with the short name on it.
+  var markName: String? {
+    switch self {
+    case .kinopoisk: "kinopoisk_big_colorful"
+    case .tmdb: "tmdb_big_color"
+    case .trakt: "trakt"
+    case .simkl: "simkl"
+    case .anilist: "anilist"
+    case .myAnimeList: "myanimelist"
+    case .omdb: nil
+    }
   }
+
+  var markImage: Image? { markName.flatMap(ProviderMark.image(named:)) }
 
   var monogram: String {
     switch self {
@@ -232,26 +232,24 @@ struct IntegrationIconView: View {
   var size: CGFloat = 28
 
   var body: some View {
-    let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-    Group {
-      if integration.hasLogo {
-        Image(integration.logoAssetName)
-          .resizable()
-          .scaledToFill()
-      } else {
-        Text(verbatim: integration.monogram)
-          .font(.system(size: size * 0.36, weight: .heavy, design: .rounded))
-          .lineLimit(1)
-          .minimumScaleFactor(0.4)
-          .foregroundStyle(.white)
-          .padding(size * 0.1)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .background(integration.brandColor.gradient)
-      }
+    if let mark = integration.markImage {
+      // The marks carry their own shape (disc, rounded square); drawn as they are.
+      mark
+        .resizable()
+        .scaledToFit()
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    } else {
+      let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+      Text(verbatim: integration.monogram)
+        .font(.system(size: size * 0.36, weight: .heavy, design: .rounded))
+        .lineLimit(1)
+        .minimumScaleFactor(0.4)
+        .foregroundStyle(.white)
+        .padding(size * 0.1)
+        .frame(width: size, height: size)
+        .background(integration.brandColor.gradient, in: shape)
+        .accessibilityHidden(true)
     }
-    .frame(width: size, height: size)
-    .clipShape(shape)
-    .overlay(shape.strokeBorder(.separator, lineWidth: 0.5))
-    .accessibilityHidden(true)
   }
 }

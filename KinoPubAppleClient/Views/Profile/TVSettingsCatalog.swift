@@ -723,9 +723,9 @@ final class TVSettingsCatalog {
     plate.clipsToBounds = true
     plate.translatesAutoresizingMaskIntoConstraints = false
     let content: UIView
-    if let logo = UIImage(named: integration.logoAssetName) {
+    if let logo = integration.markName.flatMap(ProviderMark.uiImage(named:)) {
       let image = UIImageView(image: logo)
-      image.contentMode = .scaleAspectFill
+      image.contentMode = .scaleAspectFit
       content = image
     } else {
       plate.backgroundColor = UIColor(integration.brandColor)
