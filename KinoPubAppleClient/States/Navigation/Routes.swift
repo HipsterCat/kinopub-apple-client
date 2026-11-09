@@ -189,6 +189,7 @@ struct RatingsAndReviews: Hashable {
   let traktDistribution: [Int: Int]
   let audienceStats: AudienceStats?
   let reviewInsights: ReviewInsights?
+  let doubanStats: DoubanStats?
   let relayedIMDbRating: Double?
   let relayedIMDbVotes: Int?
   let hasAfterCreditsScene: Bool?
@@ -210,6 +211,7 @@ struct RatingsAndReviews: Hashable {
     self.traktDistribution = metadata.traktDistribution
     self.audienceStats = metadata.audienceStats
     self.reviewInsights = metadata.reviewInsights
+    self.doubanStats = metadata.doubanStats
     self.relayedIMDbRating = metadata.relayedIMDbRating
     self.relayedIMDbVotes = metadata.relayedIMDbVotes
     self.hasAfterCreditsScene = metadata.hasAfterCreditsScene
@@ -231,6 +233,7 @@ struct RatingsAndReviews: Hashable {
     meta.traktDistribution = traktDistribution
     meta.audienceStats = audienceStats
     meta.reviewInsights = reviewInsights
+    meta.doubanStats = doubanStats
     meta.relayedIMDbRating = relayedIMDbRating
     meta.relayedIMDbVotes = relayedIMDbVotes
     meta.hasAfterCreditsScene = hasAfterCreditsScene

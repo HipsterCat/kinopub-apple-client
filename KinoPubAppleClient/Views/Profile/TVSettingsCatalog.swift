@@ -642,9 +642,9 @@ final class TVSettingsCatalog {
       ]))
     } else if integration.hasDataSwitch {
       sections.append(TSKSection(rows: [
-        TSKRow(title: "Integration_Trakt_DataToggle".localized,
-               description: "Integration_Trakt_DataFooter".localized,
-               kind: .toggle(key: "traktData")),
+        TSKRow(title: integration.dataToggleTitle.localized,
+               description: integration.dataToggleFooter.localized,
+               kind: .toggle(key: integration == .douban ? "doubanData" : "traktData")),
       ]))
     } else if hasKey {
       sections.append(TSKSection(rows: [
@@ -655,7 +655,9 @@ final class TVSettingsCatalog {
     }
 
     var actions: [TSKRow] = []
-    if integration.connection == .account {
+    if integration.connection == .builtIn {
+      // Nothing to connect: the switch above is the whole page.
+    } else if integration.connection == .account {
       if integration.isConnected {
         actions.append(TSKRow(title: "Sign Out…".localized,
                               description: "Integration_SignOut_Message".localized,
@@ -1961,6 +1963,12 @@ final class TVSettingsCatalog {
                    get: { IntegrationKeyProvider.omdb.isEnabled },
                    set: { [unowned self] isOn in
                      IntegrationKeyProvider.omdb.isEnabled = isOn
+                     self.host.reloadPages()
+                   })
+    store.bindBool("doubanData",
+                   get: { DoubanMetadataAccess.isEnabled },
+                   set: { [unowned self] isOn in
+                     UserDefaults.standard.set(isOn, forKey: DoubanMetadataAccess.enabledDefaultsKey)
                      self.host.reloadPages()
                    })
     store.bindBool("traktData",

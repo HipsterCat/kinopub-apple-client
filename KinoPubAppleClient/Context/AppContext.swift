@@ -178,7 +178,9 @@ struct AppContext: AppContextProtocol {
       TraktSource(access: TraktMetadataAccess(), language: Bundle.main.preferredLocalizations.first ?? "ru"),
       // The viewer's own OMDb key: box office, awards, and the scores Trakt did not have.
       // After Trakt, which outranks it where both answer.
-      OMDbSource(keys: IntegrationKeyProvider.omdb)
+      OMDbSource(keys: IntegrationKeyProvider.omdb),
+      // Douban's score, star breakdown and genre ranks, signed and cached by our worker.
+      DoubanSource(configuration: metadataConfig, access: DoubanMetadataAccess())
     ], images: TitleImageRoute(baseURL: metadataConfig.proxyBaseURL),
       titleCard: TitleCardSource(configuration: metadataConfig))
 

@@ -7,6 +7,7 @@
 
 import { handleAdmin } from "./admin.js";
 import { handleCard } from "./card.js";
+import { handleDouban } from "./douban.js";
 import { handleSeasons } from "./seasons.js";
 import { handleImage, handleTitle } from "./title.js";
 
@@ -46,6 +47,10 @@ export default {
       return handleTitle(url, env, ctx);
     }
 
+    if (url.pathname.startsWith("/v1/douban/")) {
+      return handleDouban(url, env, ctx);
+    }
+
     if (url.pathname.startsWith("/img/")) {
       return handleImage(request, env, ctx);
     }
@@ -66,7 +71,7 @@ export default {
 
     return json({
       error: "not_found",
-      hint: "/v2/title/by/kinopub/{id} · /v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /3/… · /t/p/… · /p/exports/…",
+      hint: "/v2/title/by/kinopub/{id} · /v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /v1/douban/by/imdb/{tt} · /3/… · /t/p/… · /p/exports/…",
     }, 404);
   },
 };

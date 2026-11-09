@@ -179,7 +179,7 @@ enum RatingSources {
     var drawsFaint: Bool {
       if value == nil { return true }
       switch logo {
-      case .tmdb, .kinopub, .trakt, .letterboxd, .myAnimeList:
+      case .tmdb, .kinopub, .trakt, .letterboxd, .myAnimeList, .douban:
         return (votes ?? 0) <= MediaScoreItem.faintVoteCeiling
       default:
         return false
@@ -250,7 +250,7 @@ enum RatingSources {
   /// MyAnimeList. Only published scores: Trakt drops the empty ones before they get here,
   /// so these never stand as placeholders.
   private static func relayed(_ ratings: [ExternalRating]) -> [Score] {
-    let order: [ExternalRating.Kind] = [.trakt, .metacritic, .rottenTomatoes, .rottenTomatoesAudience,
+    let order: [ExternalRating.Kind] = [.trakt, .douban, .metacritic, .rottenTomatoes, .rottenTomatoesAudience,
                                         .letterboxd, .myAnimeList]
     let sorted = ratings.sorted {
       (order.firstIndex(of: $0.kind) ?? order.count) < (order.firstIndex(of: $1.kind) ?? order.count)
@@ -284,6 +284,8 @@ enum RatingSources {
         logo = .letterboxd; name = "Letterboxd"
       case .myAnimeList:
         logo = .myAnimeList; name = "MyAnimeList"
+      case .douban:
+        logo = .douban; name = "Douban"
       }
       var tile = score(id: name, logo: logo, value: rating.score10, votes: rating.votes,
                        url: relayedURL(rating), known: false)

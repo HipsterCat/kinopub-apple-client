@@ -47,6 +47,9 @@ struct MediaItemRatingsAndReviewsPage: View {
         if let trakt = traktScore, !payload.traktDistribution.isEmpty {
           TraktDistributionCard(score: trakt, distribution: payload.traktDistribution)
         }
+        if let douban = payload.externalRatings.first(where: { $0.kind == .douban }) {
+          DoubanStatsCard(score: douban, stats: payload.doubanStats)
+        }
         if let stats = payload.audienceStats {
           AudienceStatsCard(stats: stats,
                             afterCredits: payload.hasAfterCreditsScene == true,
@@ -155,59 +158,20 @@ struct TraktDistributionCard: View {
   let score: ExternalRating
   let distribution: [Int: Int]
 
-  private var buckets: [(label: String, votes: Int)] {
+  /// Trakt's ten scores folded into five bars.
+  private var buckets: [Double] {
     (0..<5).map { index in
       let low = index * 2 + 1
-      return ("\(index + 1)", (distribution[low] ?? 0) + (distribution[low + 1] ?? 0))
+      return Double((distribution[low] ?? 0) + (distribution[low + 1] ?? 0))
     }
   }
 
   var body: some View {
-    let peak = max(buckets.map(\.votes).max() ?? 0, 1)
-    BlockCard {
-      VStack(alignment: .leading, spacing: 12) {
-        Text("MediaItem_TraktRatingTitle")
-          .font(TypeScale.detailBody.weight(.semibold))
-          .foregroundStyle(.secondary)
-        HStack(alignment: .bottom, spacing: 24) {
-          VStack(alignment: .leading, spacing: 4) {
-            Text(verbatim: "\(Int((score.value * 10).rounded()))%")
-              .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-              .foregroundStyle(Color.KinoPub.text)
-            if let votes = score.votes, votes > 0 {
-              Text(verbatim: "\(votes.formatted(.number.grouping(.automatic))) \(Self.unit(votes))")
-                .font(TypeScale.detailBody)
-                .foregroundStyle(.secondary)
-            }
-          }
-          .fixedSize()
-          HStack(alignment: .bottom, spacing: 10) {
-            ForEach(buckets, id: \.label) { bucket in
-              VStack(spacing: 6) {
-                GeometryReader { proxy in
-                  let share = CGFloat(bucket.votes) / CGFloat(peak)
-                  ZStack(alignment: .bottom) {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                      .fill(Color.primary.opacity(0.08))
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                      .fill(Color.purple.opacity(bucket.votes == peak ? 0.9 : 0.55))
-                      .frame(height: max(proxy.size.height * share, bucket.votes > 0 ? 6 : 0))
-                  }
-                }
-                .frame(height: 72)
-                Text(verbatim: bucket.label)
-                  .font(TypeScale.detailBody)
-                  .foregroundStyle(.secondary)
-              }
-              .frame(maxWidth: 56)
-              .accessibilityElement(children: .ignore)
-              .accessibilityLabel(Text(verbatim: "\(bucket.label): \(bucket.votes)"))
-            }
-          }
-          .frame(maxWidth: .infinity)
-        }
-      }
-    }
+    RatingDistributionCard(title: "MediaItem_TraktRatingTitle",
+                           score: "\(Int((score.value * 10).rounded()))%",
+                           votes: score.votes,
+                           buckets: buckets,
+                           tint: .purple)
   }
 
   static func unit(_ votes: Int) -> String {
@@ -216,6 +180,140 @@ struct TraktDistributionCard: View {
     case 1: "MediaItem_UnitRatingFew".localized
     default: "MediaItem_UnitRatingMany".localized
     }
+  }
+}
+
+/// A source's score beside five bars, 1 to 5 stars: Trakt's folded ten, Douban's own five.
+struct RatingDistributionCard<Footer: View>: View {
+  let title: LocalizedStringKey
+  let score: String
+  let votes: Int?
+  /// Votes or shares per bar, 1★…5★; only their proportions matter.
+  let buckets: [Double]
+  let tint: Color
+  @ViewBuilder var footer: Footer
+
+  var body: some View {
+    let peak = max(buckets.max() ?? 0, .leastNonzeroMagnitude)
+    BlockCard {
+      VStack(alignment: .leading, spacing: 12) {
+        Text(title)
+          .font(TypeScale.detailBody.weight(.semibold))
+          .foregroundStyle(.secondary)
+        HStack(alignment: .bottom, spacing: 24) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: score)
+              .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+              .foregroundStyle(Color.KinoPub.text)
+            if let votes, votes > 0 {
+              Text(verbatim: "\(votes.formatted(.number.grouping(.automatic))) \(TraktDistributionCard.unit(votes))")
+                .font(TypeScale.detailBody)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .fixedSize()
+          if !buckets.isEmpty {
+            HStack(alignment: .bottom, spacing: 10) {
+              ForEach(Array(buckets.enumerated()), id: \.offset) { index, value in
+                VStack(spacing: 6) {
+                  GeometryReader { proxy in
+                    let share = CGFloat(value / peak)
+                    ZStack(alignment: .bottom) {
+                      RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.primary.opacity(0.08))
+                      RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(tint.opacity(value == peak ? 0.9 : 0.55))
+                        .frame(height: max(proxy.size.height * share, value > 0 ? 6 : 0))
+                    }
+                  }
+                  .frame(height: 72)
+                  Text(verbatim: "\(index + 1)")
+                    .font(TypeScale.detailBody)
+                    .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: 56)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "\(index + 1): \(Int((value / max(buckets.reduce(0, +), 1) * 100).rounded()))%"))
+              }
+            }
+            .frame(maxWidth: .infinity)
+          }
+        }
+        footer
+      }
+    }
+  }
+}
+
+extension RatingDistributionCard where Footer == EmptyView {
+  init(title: LocalizedStringKey, score: String, votes: Int?, buckets: [Double], tint: Color) {
+    self.init(title: title, score: score, votes: votes, buckets: buckets, tint: tint) { EmptyView() }
+  }
+}
+
+/// Douban: its score over five stars, what its users did with the title, and where it
+/// ranks in its genres — "better than 99% of crime films". Numbers and English only
+/// reach the app; the genre names are ours (Sasha, 2026-11-09).
+struct DoubanStatsCard: View {
+  let score: ExternalRating
+  let stats: DoubanStats?
+
+  private var counts: [(symbol: String, title: LocalizedStringKey, value: Int)] {
+    guard let stats else { return [] }
+    let list: [(String, LocalizedStringKey, Int?)] = [
+      ("checkmark.circle", "MediaItem_DoubanWatched", stats.watched),
+      ("bookmark", "MediaItem_DoubanWantToWatch", stats.wantToWatch),
+      ("play.circle", "MediaItem_DoubanWatching", stats.watching),
+    ]
+    return list.compactMap { entry in
+      guard let value = entry.2, value > 0 else { return nil }
+      return (symbol: entry.0, title: entry.1, value: value)
+    }
+  }
+
+  var body: some View {
+    RatingDistributionCard(title: "MediaItem_DoubanRatingTitle",
+                           score: String(format: "%.1f", score.value),
+                           votes: score.votes,
+                           buckets: stats?.shares ?? [],
+                           tint: .green) {
+      if !counts.isEmpty {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 12, alignment: .leading)],
+                  alignment: .leading, spacing: 12) {
+          ForEach(counts, id: \.symbol) { tile in
+            VStack(alignment: .leading, spacing: 4) {
+              Image(systemName: tile.symbol)
+                .foregroundStyle(.secondary)
+              Text(tile.title)
+                .foregroundStyle(.secondary)
+              Text(verbatim: tile.value.formatted(.number.notation(.compactName)))
+                .font(TypeScale.detailBody.weight(.semibold))
+                .foregroundStyle(Color.KinoPub.text)
+            }
+            .font(TypeScale.detailBody)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+          }
+        }
+      }
+      ForEach(stats?.ranks ?? [], id: \.genre) { rank in
+        if let line = Self.rankLine(rank, isSeries: stats?.isSeries == true) {
+          Label(line, systemImage: "trophy")
+            .font(TypeScale.detailBody)
+            .foregroundStyle(Color.KinoPub.text)
+        }
+      }
+    }
+  }
+
+  /// «Лучше 99% фильмов жанра «криминал»». A genre we have no name for is left out.
+  static func rankLine(_ rank: DoubanStats.Rank, isSeries: Bool) -> String? {
+    let key = "MediaItem_DoubanGenre_\(rank.genre)"
+    let genre = key.localized
+    guard genre != key else { return nil }
+    let percent = rank.betterThan.formatted(.percent.precision(.fractionLength(0)))
+    let format = (isSeries ? "MediaItem_DoubanRankSeries" : "MediaItem_DoubanRankFilm").localized
+    return String(format: format, percent, genre)
   }
 }
 
