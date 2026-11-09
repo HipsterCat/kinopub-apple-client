@@ -171,6 +171,11 @@ enum FeatureFlags {
   /// flip one open title to the other path to compare them; that does not change this.
   static var titleCardMetadata: Bool { FeatureFlag.titleCardMetadata.isEnabled }
 
+  /// Title page hero: the status capsule («Новый сезон», «Новинка») first in the facts
+  /// line, as it shipped on 2026-11-08. Off: on a line of its own above the facts, where
+  /// Sasha moved it for now (2026-11-09).
+  static var heroStatusInFactsLine: Bool { FeatureFlag.heroStatusInFactsLine.isEnabled }
+
   /// **TEMPORARY DIAGNOSTIC — DELETE ME.** Synthesises a fake season of episodes onto
   /// *movies*, so the detail page's season rail renders for a title that has none.
   ///
@@ -209,6 +214,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
   case trailerInfoPanel
   case rivuletSeasonRail
   case titleCardMetadata
+  case heroStatusInFactsLine
   case macSidebar
   case macLegacySearchChrome
 #if DEBUG
@@ -238,6 +244,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .trailerInfoPanel: false
     case .rivuletSeasonRail: true
     case .titleCardMetadata: false
+    case .heroStatusInFactsLine: false
     case .macSidebar: true
     case .macLegacySearchChrome: false
 #if DEBUG
@@ -267,6 +274,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .trailerInfoPanel: "Info panel on trailers"
     case .rivuletSeasonRail: "Rivulet season rail"
     case .titleCardMetadata: "Title metadata from /v2/title"
+    case .heroStatusInFactsLine: "Status badge inside the facts line"
     case .macSidebar: "Sidebar navigation (Mac)"
     case .macLegacySearchChrome: "Toolbar search field and icon filters (Mac)"
 #if DEBUG
@@ -296,6 +304,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .trailerInfoPanel: "The trailer player's Info panel, with the trailer's running time in it. Off: no Info on trailers."
     case .rivuletSeasonRail: "Season tabs, the S2 divider and the episode metadata plate. Select on the text opens the info sheet. Off is the numbered tabs."
     case .titleCardMetadata: "One worker /v2/title call plus Kinopoisk instead of the TMDB calls. Only the chosen source is fetched."
+    case .heroStatusInFactsLine: "Title page: «Новый сезон», «Новинка» first in the year / genres line. Off: on its own line above it."
     case .macSidebar: "The Apple TV app's sidebar: Search, Home, the catalog, the Library and every bookmark folder. Off is the tab bar."
     case .macLegacySearchChrome: "The search field in the toolbar on the Search page, and sort / type / genre / country / years as a row of icon menus. Off: the field at the top of the sidebar, one Filters menu and Sort on its own."
 #if DEBUG

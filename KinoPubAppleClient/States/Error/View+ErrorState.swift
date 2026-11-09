@@ -53,7 +53,7 @@ extension UnavailableView {
   /// The one load-failure state: the error's own headline, advice and kind
   /// (`Error.loadFailureText`), with Try Again. `nil` (failure without a captured
   /// error) reads as a connection problem, as it always did.
-  init(loadError: Error?, onRetry: @escaping () -> Void) {
+  init(loadError: Error?, isRetrying: Bool = false, onRetry: @escaping () -> Void) {
     let text = loadError?.loadFailureText ?? LoadFailureText(
       title: "Couldn't Load".localized,
       systemImage: "wifi.exclamationmark",
@@ -65,6 +65,7 @@ extension UnavailableView {
               message: text.message,
               detail: text.detail,
               retryTitle: "Try Again",
-              onRetry: onRetry)
+              onRetry: onRetry,
+              isRetrying: isRetrying)
   }
 }

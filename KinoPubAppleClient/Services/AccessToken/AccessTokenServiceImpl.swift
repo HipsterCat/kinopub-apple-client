@@ -284,7 +284,9 @@ public final class AccessTokenServiceImpl: AccessTokenService {
     if userInitiated {
       DevSessionMirror.delete(reason: "user signed out")
     } else {
-      DevSessionMirror.record("keychain cleared (session rejected); file kept")
+      DevSessionMirror.record(DevSessionMirror.exists
+                              ? "keychain cleared (session rejected); file kept"
+                              : "keychain cleared (session rejected); no file")
     }
 #endif
   }

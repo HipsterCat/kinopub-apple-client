@@ -41,6 +41,8 @@ class MediaItemModel: ObservableObject {
   @Published public var loadFailed: Bool = false
   /// The failure behind `loadFailed`, so the retry state can say what actually went wrong.
   @Published public var loadError: Error?
+  /// Try Again is out: the failure stays on screen until the answer (`retry()`).
+  @Published public var isRetrying: Bool = false
 
   /// Card → detail already handed us the item, or a previous fetch succeeded.
   /// Auth blips and revalidation failures must not wipe this paint.
@@ -436,9 +438,19 @@ class MediaItemModel: ObservableObject {
   /// per episode, through `MediaLinksResolver`.
   private let excludeLinksOnFetch: Bool
 
-  func fetchData() {
-    loadFailed = false
-    loadError = nil
+  /// Try Again: the failure stays where it is, with a spinner under the button, until
+  /// the details answer — not swapped for a loader and back.
+  func retry() {
+    guard !isRetrying else { return }
+    isRetrying = true
+    fetchData(keepingFailure: true)
+  }
+
+  func fetchData(keepingFailure: Bool = false) {
+    if !keepingFailure {
+      loadFailed = false
+      loadError = nil
+    }
     externalMetadataLoaded = false
     moreFromDirector = []
     moreWithActor = []
@@ -492,6 +504,9 @@ class MediaItemModel: ObservableObject {
           "details id=\(self.mediaItemId) nolinks=\(self.excludeLinksOnFetch) type=\(self.mediaItem.type) seasons=\(self.mediaItem.seasons?.count ?? 0) firstEpisodeFiles=\(self.mediaItem.seasons?.first?.episodes.first?.files.count ?? -1) videoFiles=\(self.mediaItem.videos?.first?.files.count ?? -1) trailer=\(self.mediaItem.trailerURL?.host ?? "none")"
         )
         itemLoaded = true
+        loadFailed = false
+        loadError = nil
+        isRetrying = false
         repaintFromLocalProgress()
         identity = MediaIdentity(mediaItem: mediaItem)
         // People shelves need credit names from the details payload — kick them
@@ -515,6 +530,7 @@ class MediaItemModel: ObservableObject {
         loadError = error
         // The card's hero stays; the view puts the failure under it, not over it.
         loadFailed = true
+        isRetrying = false
         externalMetadataLoaded = true
         moreFromDirectorLoaded = true
         moreWithActorLoaded = true

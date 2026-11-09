@@ -748,13 +748,20 @@ struct MediaItemHeroView: View {
   }
 #else
   /// 2:3, as tall as half the band — the upper half, which the title shares with it; the
-  /// synopsis and the buttons below stay clear.
+  /// synopsis and the buttons below stay clear. A narrower window gets a smaller share, so
+  /// the synopsis beside the poster keeps a reading width (Sasha, 2026-11-09).
   static func posterAccentSize(in bandSize: CGSize) -> CGSize {
-    let height = max(0, bandSize.height * posterAccentBandShare)
+    let share = posterAccentBandShares.first { bandSize.width >= $0.minWidth }?.share
+      ?? posterAccentBandShares.last?.share ?? 0.5
+    let height = max(0, bandSize.height * share)
     return CGSize(width: height * CardAspect.poster.ratio, height: height)
   }
 
-  static let posterAccentBandShare: CGFloat = 0.5
+  /// Band width breakpoints, widest first: a full Mac window or a landscape iPad Pro,
+  /// a half-screen window or a portrait iPad, anything narrower.
+  static let posterAccentBandShares: [(minWidth: CGFloat, share: CGFloat)] = [
+    (1200, 0.5), (900, 0.42), (0, 0.34)
+  ]
   /// Black over the blurred poster behind a poster hero, so the light chrome reads.
   static let posterWashDim: Double = 0.35
 #endif
@@ -1003,7 +1010,10 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var scrollingScrim: some View {
 #if os(macOS)
-    HeroLegibilityTexture(tone: .black)
+    ZStack {
+      HeroLegibilityTexture(tone: .black)
+      bottomShade
+    }
 #else
     LinearGradient(stops: [
       .init(color: .clear, location: 0),
@@ -1012,8 +1022,26 @@ struct MediaItemHeroView: View {
       .init(color: Color.KinoPub.background.opacity(0.9), location: 0.97),
       .init(color: Color.KinoPub.background, location: 1)
     ], startPoint: .top, endPoint: .bottom)
+    .overlay { bottomShade }
 #endif
   }
+
+  /// A little more dark under the words than the shared texture gives (Sasha,
+  /// 2026-11-09), and about twice that while the trailer plays behind them — moving
+  /// pictures fight the text harder than a still.
+  private var bottomShade: some View {
+    LinearGradient(stops: [
+      .init(color: .clear, location: Self.bottomShadeTop),
+      .init(color: .black.opacity(trailer.isReady ? Self.bottomShadeTrailer : Self.bottomShadeStill),
+            location: 1)
+    ], startPoint: .top, endPoint: .bottom)
+    .allowsHitTesting(false)
+    .animation(.easeInOut(duration: 0.6), value: trailer.isReady)
+  }
+
+  static let bottomShadeTop: CGFloat = 0.4
+  static let bottomShadeStill: Double = 0.25
+  static let bottomShadeTrailer: Double = 0.5
 #endif
 
   // MARK: - Foreground
@@ -1098,6 +1126,13 @@ struct MediaItemHeroView: View {
   /// their column and the screen is not a phone's.
   private var detailColumn: some View {
     VStack(alignment: .leading, spacing: Self.contentSpacing) {
+      // Above the facts, not in them, for now (Sasha, 2026-11-09); the Diagnostics
+      // switch puts it back first in the line.
+      if !FeatureFlags.heroStatusInFactsLine, let status = titleStatus {
+        TitleStatusBadge(status.text)
+          .font(Self.secondaryFont)
+          .padding(.bottom, Self.contentSpacing / 2)
+      }
       factsLine
       scoresLine
       // No overview at all: no paragraph, so no lone «ЕЩЁ» capsule taking focus
@@ -1128,9 +1163,6 @@ struct MediaItemHeroView: View {
 #endif
       }
       playbackLine
-      if showsCreditsInline {
-        creditsBlock
-      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
 #if os(tvOS)
@@ -1267,9 +1299,10 @@ struct MediaItemHeroView: View {
   /// broken across two lines.
   @ViewBuilder
   private var factsLine: some View {
-    let status = titleStatus
+    let status = FeatureFlags.heroStatusInFactsLine ? titleStatus : nil
     let blocks = factBlocks
-    if status != nil || !blocks.isEmpty {
+    let rating = ageRating.flatMap { $0.isEmpty ? nil : $0 }
+    if status != nil || !blocks.isEmpty || rating != nil {
       AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2) {
         if let status {
           TitleStatusBadge(status.text)
@@ -1277,11 +1310,34 @@ struct MediaItemHeroView: View {
         ForEach(blocks, id: \.self) { block in
           Text(verbatim: block)
             .lineLimit(1)
+            .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
+        }
+        // Always: the «show age rating» preference is the poster's, not this line's
+        // (Sasha, 2026-11-08). Drawn where `badges/` has the mark (2026-11-09).
+        if let rating {
+          if let asset = MediaBadgeImages.ageRatingAssetName(rating) {
+            MediaBadgeImages([asset])
+              .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
+          } else {
+            Text(verbatim: rating)
+              .lineLimit(1)
+              .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
+          }
         }
       }
       .font(Self.secondaryFont)
       .foregroundStyle(heroMetaForeground)
     }
+  }
+
+  /// The chrome is the forced-dark kind, over a picture or the blurred poster — where
+  /// the meta lines go vibrant (`HeroVibrantLabel`).
+  private var isChromeOverArt: Bool {
+#if os(tvOS)
+    heroChromeColorScheme == .dark
+#else
+    hasArtBackdrop
+#endif
   }
 
   private var titleStatus: TitleStatus? {
@@ -1300,7 +1356,9 @@ struct MediaItemHeroView: View {
     let kindKey = profile.kindTitleKey(isSeries: isSeries)
     // A plain film says nothing about being a film: the runtime says it.
     let kind = kindKey == "Kind_movies_One" ? nil : kindKey.localized
-    let years = isSeries ? card.bannerYearSpan : (mediaItem.year > 0 ? String(mediaItem.year) : nil)
+    let years = isSeries
+      ? SeriesFacts.heroYears(mediaItem, externalMetadata, fallbackSpan: card.bannerYearSpan)
+      : (mediaItem.year > 0 ? String(mediaItem.year) : nil)
     // «2011  Документальный фильм»: the kind keeps its capital, two spaces from the year
     // (Sasha, 2026-11-08).
     let head = [years, kind].compactMap { $0 }
@@ -1315,25 +1373,26 @@ struct MediaItemHeroView: View {
       } else if let text = EpisodesLeftText(episodes)?.formatted() {
         volume.append(text)
       }
-      if SeriesFacts.isFinished(mediaItem, externalMetadata) {
-        volume.append("MediaItem_StatusEndedShort".localized)
+      // Whatever the status is, when anyone knows it (Sasha, 2026-11-09).
+      if let status = SeriesFacts.shortStatusKey(mediaItem, externalMetadata) {
+        volume.append(status.localized)
       }
       if !volume.isEmpty { blocks.append(volume.joined(separator: ", ")) }
     }
 
-    let genres = card.usefulGenres(limit: Self.genreLimit,
+    // Not the genre the kind already says: «Концерт  …, концерт», «ТВ-шоу  Развлекательные».
+    let restated = Set(card.genres.filter { profile.kindGenreIDs.contains($0.id) }
+      .map { $0.name.value(languageCode: MediaLanguage.current.rawValue) })
+    let genres = card.usefulGenres(limit: Self.genreLimit + restated.count,
                                    omittingDocumentary: profile.kind == .documentary)
+      .filter { !restated.contains($0) }
+      .prefix(Self.genreLimit)
     if let first = genres.first {
       let rest = genres.dropFirst().map { $0.lowercased() }
       blocks.append(([first] + rest).joined(separator: ", "))
     }
     if let country = mediaItem.countryNames.first, !country.isEmpty {
       blocks.append(country)
-    }
-    // Always: the «show age rating» preference is the poster's, not this line's (Sasha,
-    // 2026-11-08).
-    if let ageRating, !ageRating.isEmpty {
-      blocks.append(ageRating)
     }
     return blocks
   }
@@ -1343,24 +1402,38 @@ struct MediaItemHeroView: View {
   private var runtimeText: String? {
     if isSeries {
       guard let (_, episode) = mediaItem.primaryEpisode, episode.duration > 0 else { return nil }
-      return RuntimeText(seconds: episode.duration).text(for: .detailRuntime)
+      return RuntimeText(seconds: episode.duration).formatted(Self.runtimeLength)
     }
     if let version = runtimeVersion, version.duration > 0 {
-      return RuntimeText(seconds: version.duration).text(for: .detailRuntime)
+      return RuntimeText(seconds: version.duration).formatted(Self.runtimeLength)
     }
-    return mediaItem.mediaEntity.runtime.flatMap { RuntimeText(seconds: $0).text(for: .detailRuntime) }
+    return mediaItem.mediaEntity.runtime.flatMap { RuntimeText(seconds: $0).formatted(Self.runtimeLength) }
   }
 
   @ViewBuilder
   private var scoresLine: some View {
-    if lineScores.hasDisplayableScore {
+    let views = mediaItem.views
+    if lineScores.hasDisplayableScore || views > 0 {
       HStack(spacing: Self.metaSpacing) {
-        if FeatureFlags.combinedRatingEnabled, let rating = lineScores.aggregate {
-          RatingBadgeView(rating: rating)
-          MediaScoresView(lineScores, deduplicateAgainstAggregate: true, detailLine: true)
-        } else {
-          // No aggregate: each score keeps its own logo rather than becoming one number.
-          MediaScoresView(lineScores, detailLine: true)
+        if lineScores.hasDisplayableScore {
+          if FeatureFlags.combinedRatingEnabled, let rating = lineScores.aggregate {
+            RatingBadgeView(rating: rating)
+            MediaScoresView(lineScores, deduplicateAgainstAggregate: true, detailLine: true)
+          } else {
+            // No aggregate: each score keeps its own logo rather than becoming one number.
+            MediaScoresView(lineScores, detailLine: true)
+          }
+        }
+        // kino.pub's own count, last (Sasha, 2026-11-09): the eyes of the ratings
+        // section's views tile.
+        if views > 0 {
+          HStack(spacing: Self.glyphSpacing) {
+            Image(systemName: Self.viewsSymbol)
+            Text(verbatim: formattedViewCount(views))
+          }
+          .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
         }
       }
       .font(Self.secondaryFont)
@@ -1432,6 +1505,7 @@ struct MediaItemHeroView: View {
       .lineLimit(1)
       .font(Self.secondaryFont)
       .foregroundStyle(heroMetaForeground)
+      .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
     }
   }
 
@@ -1485,33 +1559,31 @@ struct MediaItemHeroView: View {
     track.typeId.flatMap(VoiceType.init(rawValue:))?.preferenceRank ?? AudioTracks.kindRankUnknown
   }
 
-  /// The column on the right: present on the TV; elsewhere once the hero leaves room for
-  /// it beside a full synopsis measure. Never on a phone.
+  /// The column on the right, on every screen but a phone's — never moved under the
+  /// synopsis: the synopsis and the column both narrow instead (Sasha, 2026-11-09). Beside
+  /// a corner poster it sits left of the poster's column.
   private var showsCreditsColumn: Bool {
     guard !creditLines.isEmpty else { return false }
 #if os(tvOS)
     return true
 #else
-    // The poster has the right side; the people go under the synopsis.
-    guard !showsCornerPoster else { return false }
-    let available = heroBandSize.width - 2 * Self.contentHorizontalInset
-    return available >= MediaItemPlotView.maxWidth + Self.columnGutter + creditsColumnWidth
+    return !phoneHeroGrows
 #endif
   }
 
-  /// No room for the column: the people go under the playback line — on a Mac window or
-  /// an iPad too narrow for the column, never on a phone.
-  private var showsCreditsInline: Bool {
-#if os(tvOS)
-    false
-#else
-    !creditLines.isEmpty && !showsCreditsColumn && !phoneHeroGrows && heroBandSize.width > 0
-#endif
-  }
-
-  /// Half the synopsis measure, as the Apple TV app's column is beside its text.
+  /// A little under half the synopsis measure at most, as the Apple TV app's column is
+  /// beside its text; a share of what is left beside the poster and the margins once
+  /// the window is narrower than both at full width.
   private var creditsColumnWidth: CGFloat {
-    MediaItemPlotView.maxWidth * Self.creditsColumnRatio
+    let widest = MediaItemPlotView.maxWidth * Self.creditsColumnRatio
+#if os(tvOS)
+    return widest
+#else
+    var available = heroBandSize.width - 2 * Self.contentHorizontalInset - Self.columnGutter
+    if showsCornerPoster { available -= posterColumnWidth }
+    guard available > 0 else { return widest }
+    return min(widest, (available * Self.creditsColumnShare).rounded())
+#endif
   }
 
   /// One line per role, each wrapping on its own: «В ролях Мэтт Дэймон, Том Холланд,
@@ -1520,6 +1592,7 @@ struct MediaItemHeroView: View {
     VStack(alignment: .leading, spacing: Self.creditLineSpacing) {
       ForEach(creditLines, id: \.role) { line in
         Text(creditLine(line))
+          .lineSpacing(Self.creditLeading)
           .fixedSize(horizontal: false, vertical: true)
       }
     }
@@ -2042,7 +2115,20 @@ struct MediaItemHeroView: View {
   static let genreLimit = 3
 
   /// The people's column, as a share of the synopsis measure beside it.
-  static let creditsColumnRatio: CGFloat = 0.5
+  static let creditsColumnRatio: CGFloat = 0.42
+  /// The column's share of the room beside the margins (and the poster) when the window
+  /// is too narrow for both measures at full width.
+  static let creditsColumnShare: CGFloat = 0.34
+  /// Extra room between the lines of one role: «В ролях» with five names was tight
+  /// (Sasha, 2026-11-09).
+#if os(tvOS)
+  static let creditLeading: CGFloat = 2
+#else
+  static let creditLeading: CGFloat = 1
+#endif
+  static let viewsSymbol = "eyes"
+  /// «1ч 15 мин», not «1ч 15м»: the facts line has the room (Sasha, 2026-11-09).
+  static let runtimeLength: TextLength = .medium
 
   /// Glyph before the voicing and before the subtitle languages in the playback line.
   static let voicingSymbol = "waveform"
@@ -2081,7 +2167,7 @@ struct MediaItemHeroView: View {
   static let metaSpacing: CGFloat = 20
   static let actionsGap: CGFloat = 20
   static let actionsRowGap: CGFloat = 16
-  static let creditLineSpacing: CGFloat = 8
+  static let creditLineSpacing: CGFloat = 10
   static let columnGutter: CGFloat = 48
   static let trailingPosterWidth: CGFloat = 500
   static let trailingPosterCornerRadius: CGFloat = 14
@@ -2098,7 +2184,7 @@ struct MediaItemHeroView: View {
   static let metaSpacing: CGFloat = 12
   static let actionsGap: CGFloat = 12
   static let actionsRowGap: CGFloat = 10
-  static let creditLineSpacing: CGFloat = 3
+  static let creditLineSpacing: CGFloat = 5
   static let columnGutter: CGFloat = 28
   static let trailingPosterCornerRadius: CGFloat = 14
 #else
@@ -2114,7 +2200,7 @@ struct MediaItemHeroView: View {
   static let metaSpacing: CGFloat = 10
   static let actionsGap: CGFloat = 10
   static let actionsRowGap: CGFloat = 10
-  static let creditLineSpacing: CGFloat = 3
+  static let creditLineSpacing: CGFloat = 5
   static let columnGutter: CGFloat = 16
   static let trailingPosterCornerRadius: CGFloat = 12
 #endif
@@ -2199,4 +2285,25 @@ private struct HeroBandLayout: Layout {
       subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
     }
   }
+}
+
+/// The Apple TV app's weight between its lines: the facts, scores and playback lines a
+/// step back from the synopsis, lightening what is behind them rather than covering it —
+/// vibrancy over the picture (Sasha, 2026-11-09). Over the plain page, and with Increase
+/// Contrast, the solid colour the line already has.
+struct HeroVibrantLabel: ViewModifier {
+  var isOverArt: Bool
+  @Environment(\.colorSchemeContrast) private var contrast
+
+  func body(content: Content) -> some View {
+    if isOverArt, contrast != .increased {
+      content
+        .opacity(Self.opacity)
+        .blendMode(.plusLighter)
+    } else {
+      content
+    }
+  }
+
+  static let opacity: Double = 0.78
 }

@@ -90,10 +90,24 @@ public struct MediaPresentationProfile: Equatable, Sendable {
   /// starring to speak of — nobody stars in a stand-up set.
   public var showsHeroCastLine: Bool { kind == .fiction }
 
-  /// The hero's director / creator line. Fiction and animation only: a documentary's,
-  /// a concert's or a stand-up set's director is a name nobody picks the title by, and the
-  /// Credits card further down names them anyway (Sasha, 2026-11-08).
-  public var showsHeroAuthorLine: Bool { kind == .fiction || kind == .animation }
+  /// The hero's director / creator line. Fiction only: a documentary's, a cartoon's, a
+  /// concert's or a stand-up set's director is a name nobody picks the title by, and the
+  /// Credits card further down names them anyway (Sasha, 2026-11-08; animation dropped
+  /// 2026-11-09).
+  public var showsHeroAuthorLine: Bool { kind == .fiction }
+
+  /// Genres (ids of our table) that only restate the kind the facts line already names:
+  /// «Концерт  Хип-хоп, рок, концерт», «ТВ-шоу  Развлекательные». kino.pub files every TV
+  /// show under Развлекательные and every set under Стендап, so after the kind they say
+  /// nothing (Sasha, 2026-11-09). A documentary's are matched by name in `MediaCard`.
+  public var kindGenreIDs: Set<String> {
+    switch kind {
+    case .concert: return ["concert"]
+    case .standup: return ["stand-up"]
+    case .show: return ["tv-show", "entertainment"]
+    case .fiction, .documentary, .animation: return []
+    }
+  }
 
   /// The label in front of `count` credited makers: «Режиссёр» / «Режиссёры»,
   /// «Создатель» / «Создатели». One person is never captioned in the plural.

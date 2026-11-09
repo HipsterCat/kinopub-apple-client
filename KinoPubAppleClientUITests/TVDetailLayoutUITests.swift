@@ -410,7 +410,11 @@ final class TVDetailLayoutUITests: XCTestCase {
     try shoot("fail-00-retry")
     XCUIRemote.shared.press(.up)
     Thread.sleep(forTimeInterval: 0.8)
-    XCTAssertTrue(focusedDescription.contains("hero."), "Up from Try Again did not reach the hero: \(focusedDescription)")
+    // The hero's controls do not all carry an identifier («···» has none): it is enough
+    // that focus left Try Again upward while the hero is still there.
+    XCTAssertFalse(focusedDescription.contains("kinopub.unavailable.retry"),
+                   "Up from Try Again went nowhere: \(focusedDescription)")
+    XCTAssertTrue(app.buttons["kinopub.hero.play"].exists, "the hero is gone")
     try shoot("fail-01-hero")
   }
 

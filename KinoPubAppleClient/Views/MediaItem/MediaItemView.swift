@@ -241,8 +241,8 @@ struct MediaItemView: View {
         // Full-page error only when there is nothing to paint. Under a hero drawn from
         // the card the failure sits where the details would be (`detailsFailure`).
         if itemModel.loadFailed && !paintsPage {
-          UnavailableView(loadError: itemModel.loadError) {
-            itemModel.fetchData()
+          UnavailableView(loadError: itemModel.loadError, isRetrying: itemModel.isRetrying) {
+            itemModel.retry()
           }
         } else if !itemModel.itemLoaded && !itemModel.hasPaintedItem {
 #if !os(tvOS)
@@ -543,7 +543,13 @@ struct MediaItemView: View {
         .defaultFocus($focus, entryFocus, priority: .userInitiated)
     } else {
 #if os(tvOS)
-      LoadingIndicatorView(delay: .milliseconds(700))
+      // The failure is drawn over this (the overlay above); a spinner under it showed
+      // through the error text.
+      if itemModel.loadFailed {
+        Color.clear
+      } else {
+        LoadingIndicatorView(delay: .milliseconds(700))
+      }
 #else
       Color.clear
 #endif
@@ -698,8 +704,8 @@ struct MediaItemView: View {
   /// Try Again, where the seasons and the rest would be. Its own focus section, so the
   /// remote can always reach Try Again from the hero.
   private var detailsFailure: some View {
-    UnavailableView(loadError: itemModel.loadError) {
-      itemModel.fetchData()
+    UnavailableView(loadError: itemModel.loadError, isRetrying: itemModel.isRetrying) {
+      itemModel.retry()
     }
     .frame(maxWidth: .infinity)
 #if os(tvOS)

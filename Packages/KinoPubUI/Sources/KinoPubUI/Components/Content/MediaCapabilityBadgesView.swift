@@ -26,16 +26,17 @@ public struct MediaCapabilityBadgesView: View {
     case .poster:
       typedChips(badges.posterChips)
     case .detail:
-      // The drawn marks of `Media.xcassets/badges` (Sasha, 2026-11-08); a certification
-      // has no drawing, so it stays a typed capsule after them.
-      let assets = badges.detailBadgeAssets
+      // The drawn marks of `Media.xcassets/badges` (Sasha, 2026-11-08), the certification
+      // too where it has a drawing (2026-11-09); one without stays a typed capsule.
       let rating = badges.ageRating.flatMap { $0.isEmpty ? nil : $0 }
+      let ratingAsset = rating.flatMap(MediaBadgeImages.ageRatingAssetName)
+      let assets = badges.detailBadgeAssets + (ratingAsset.map { [$0] } ?? [])
       if !assets.isEmpty || rating != nil {
         HStack(spacing: Self.spacing) {
           if !assets.isEmpty {
             MediaBadgeImages(assets)
           }
-          if let rating {
+          if let rating, ratingAsset == nil {
             typedChips([rating])
           }
         }
@@ -84,6 +85,23 @@ public struct MediaBadgeImages: View {
   public init(_ names: [String]) {
     self.names = names
   }
+
+  /// The drawing for a certification — «18+», «16», «R», «PG-13», «TV-MA» — or nil when
+  /// `Media.xcassets/badges` has none for it («0+», «6+», «TV-14»), and the rating
+  /// stays typed. Matched without case, «+» or spaces.
+  public static func ageRatingAssetName(_ rating: String) -> String? {
+    let key = rating.uppercased()
+      .replacingOccurrences(of: "+", with: "")
+      .replacingOccurrences(of: " ", with: "")
+    return ageRatingAssets[key]
+  }
+
+  /// Certification → asset, for the files in `badges/` (Sasha, 2026-11-09).
+  private static let ageRatingAssets: [String: String] = [
+    "12": "12", "14": "14", "16": "16", "18": "18",
+    "G": "g", "PG": "pg", "PG-13": "pg-13", "R": "R", "NC-17": "nc-17",
+    "TV-Y": "tv-y", "TV-PG": "tv-pg", "TV-MA": "tv-ma"
+  ]
 
   public var body: some View {
     BadgeImagesFitText(spacing: MediaCapabilityBadgesView.spacing) {

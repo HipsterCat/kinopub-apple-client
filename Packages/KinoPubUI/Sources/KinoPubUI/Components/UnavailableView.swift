@@ -24,6 +24,10 @@ public struct UnavailableView: View {
   private let onRetry: (() -> Void)?
   private let secondaryTitle: LocalizedStringKey?
   private let onSecondary: (() -> Void)?
+  /// Try Again was pressed and the answer is not in yet: the failure stays on screen
+  /// and a system spinner with a label shows under the button. One state at a time —
+  /// never a loader drawn over the error.
+  private let isRetrying: Bool
 
   /// The remote needs somewhere to land when this is the only thing on screen.
   @FocusState private var retryFocused: Bool
@@ -36,8 +40,10 @@ public struct UnavailableView: View {
     retryTitle: LocalizedStringKey? = nil,
     onRetry: (() -> Void)? = nil,
     secondaryTitle: LocalizedStringKey? = nil,
-    onSecondary: (() -> Void)? = nil
+    onSecondary: (() -> Void)? = nil,
+    isRetrying: Bool = false
   ) {
+    self.isRetrying = isRetrying
     self.title = Text(title)
     self.systemImage = systemImage
     self.message = message
@@ -55,8 +61,10 @@ public struct UnavailableView: View {
     message: String? = nil,
     detail: String? = nil,
     retryTitle: LocalizedStringKey? = nil,
-    onRetry: (() -> Void)? = nil
+    onRetry: (() -> Void)? = nil,
+    isRetrying: Bool = false
   ) {
+    self.isRetrying = isRetrying
     self.title = Text(verbatim: verbatimTitle)
     self.systemImage = systemImage
     self.message = message
@@ -85,25 +93,43 @@ public struct UnavailableView: View {
         }
       }
     } actions: {
-      HStack(spacing: 16) {
-        if let retryTitle, let onRetry {
-          Button(retryTitle, action: onRetry)
-            .focused($retryFocused)
-            .accessibilityIdentifier("kinopub.unavailable.retry")
+      VStack(spacing: 16) {
+        HStack(spacing: 16) {
+          if let retryTitle, let onRetry {
+            Button(retryTitle, action: onRetry)
+              .focused($retryFocused)
+              .accessibilityIdentifier("kinopub.unavailable.retry")
 #if !os(tvOS)
-            .buttonStyle(.glass)
-            .controlSize(.large)
+              .buttonStyle(.glass)
+              .controlSize(.large)
 #endif
-        }
+          }
 
-        if let secondaryTitle, let onSecondary {
-          Button(secondaryTitle, action: onSecondary)
+          if let secondaryTitle, let onSecondary {
+            Button(secondaryTitle, action: onSecondary)
 #if !os(tvOS)
-            .buttonStyle(.glass)
-            .controlSize(.large)
+              .buttonStyle(.glass)
+              .controlSize(.large)
 #endif
+          }
+        }
+        if onRetry != nil {
+          // Always laid out, shown only while retrying, so nothing above it moves.
+          HStack(spacing: 8) {
+            ProgressView()
+#if !os(tvOS)
+              .controlSize(.small)
+#endif
+            Text("Loading…")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+          }
+          .opacity(isRetrying ? 1 : 0)
+          .accessibilityHidden(!isRetrying)
+          .accessibilityIdentifier("kinopub.unavailable.retrying")
         }
       }
+      .animation(.easeInOut(duration: 0.2), value: isRetrying)
     }
     .onAppear {
       // An empty list has no button. Focusing a binding nothing uses pulled the

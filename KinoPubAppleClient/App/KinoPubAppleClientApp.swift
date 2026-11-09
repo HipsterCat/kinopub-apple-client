@@ -209,7 +209,7 @@ struct KinoPubAppleClientApp: App {
     .defaultSize(width: 720, height: 520)
     .commandsRemoved()
 
-    Window("About KinoPub", id: AboutWindow.id) {
+    Window("About Kinopub", id: AboutWindow.id) {
       AboutView()
 //        // .preferredColorScheme(.dark)
     }
@@ -247,7 +247,7 @@ private struct AboutCommands: Commands {
 
   var body: some Commands {
     CommandGroup(replacing: .appInfo) {
-      Button("About KinoPub") {
+      Button("About Kinopub") {
         openWindow(id: AboutWindow.id)
       }
     }
