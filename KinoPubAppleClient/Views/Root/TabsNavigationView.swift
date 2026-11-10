@@ -935,6 +935,7 @@ struct FilterCatalogTabView: View {
       content
         .platformNavigationTitle("Catalog")
 #if !os(tvOS)
+        .navigationSubtitle(LibraryBrowserSubtitle.text(for: catalog))
         .toolbar {
           LibraryFiltersToolbar(catalog: catalog, showingFilters: $showingFilters)
         }
@@ -1041,17 +1042,7 @@ struct FilterCatalogTabView: View {
         onRetryPagination: {
           catalog.retryPagination()
         }
-      ) {
-#if !os(tvOS)
-        LibraryBrowserScrollChrome(
-          catalog: catalog,
-          resultCount: catalog.resultCount,
-          showsTypePresets: true,
-          showsInlineControls: false,
-          showingFilters: $showingFilters
-        )
-#endif
-      }
+      )
       .environment(\.catalogCaptionOmittedGenreIDs, catalog.filter.captionOmittedGenreIDs)
     }
 #endif

@@ -471,19 +471,7 @@ struct SearchView: View {
             onRetryPagination: {
               catalog.retryPagination()
             }
-          ) {
-            // Status, type presets and (on iPhone) inline filter/sort capsules scroll
-            // with the grid. Toolbar owns the same controls when there is room.
-#if !os(tvOS)
-            LibraryBrowserScrollChrome(
-              catalog: catalog,
-              resultCount: catalog.resultCount,
-              showsTypePresets: true,
-              showsInlineControls: false,
-              showingFilters: $showingFilters
-            )
-#endif
-          }
+          )
           .environment(\.catalogCaptionOmittedGenreIDs, catalog.filter.captionOmittedGenreIDs)
           .environment(\.scrollMemory, catalog.scrollMemory)
         }
@@ -508,6 +496,8 @@ struct SearchView: View {
       .platformNavigationTitle(navigationTitleText)
 #endif
 #if !os(tvOS)
+      // Notes-style count under the title — not an orphan “Total N” in the scroll.
+      .navigationSubtitle(LibraryBrowserSubtitle.text(for: catalog))
       .toolbar {
         LibraryFiltersToolbar(catalog: catalog,
                               chrome: .full,
