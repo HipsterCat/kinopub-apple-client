@@ -83,6 +83,18 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   @Published var skipOffer: PlaybackSkip.Offer?
   /// The skip just taken, until the clock has passed it.
   var skippedOffer: PlaybackSkip.Offer?
+  /// Share of the countdown left before the skip takes itself, 1 → 0 (`PlaybackSkip.countdown`).
+  @Published var skipCountdownLeft: Double = 1
+  /// The stream time the offer on screen appeared at: the countdown runs on playback, so a
+  /// pause holds it.
+  var skipOfferShownAt: Double?
+  /// Kinds already skipped in this stream: going back into one shows the button again,
+  /// but it does not take itself a second time.
+  var skippedKinds: Set<SkipSegments.Kind> = []
+#if os(tvOS)
+  /// AVKit's button, kept so its ring can be redrawn in place.
+  var skipAction: UIAction?
+#endif
   /// What the info panel is enriched from, beyond kino.pub — see `PlaybackMediaContext`.
   private let metadataService: MetadataService
   private var cues: [SubtitleCue] = []
@@ -349,12 +361,14 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     // The resume point we already have, before any network: the local store is written
     // every ten seconds of playback and answered synchronously. The server's mark is
     // still fetched on ready and can move the position forward (see `fetchWatchMark`).
-    if watchMode == .media, canReportWatching {
-      pendingResumeTime = AppContext.shared.localProgressStore
+    if watchMode == .media, canReportWatching,
+       let entry = AppContext.shared.localProgressStore
         .entry(forId: playItem.metadata.id,
                season: playItem.metadata.season,
-               episode: playItem.metadata.video)?
-        .position
+               episode: playItem.metadata.video) {
+      // A watched one starts over: what is left past 85 % is credits, and opening there
+      // sent the next episode straight to its own end (Sasha, 2026-11-10).
+      pendingResumeTime = entry.finished ? nil : entry.position
     }
     if watchMode != .live, let recovery = recoveryResumeTime {
       pendingResumeTime = recovery
@@ -1045,6 +1059,15 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       .position ?? 0
 
     let best = max(remoteContinueTime, localContinueTime)
+    // Watched (kino.pub's 85 %, the same rule its site marks with a tick): start over,
+    // not in the credits. The runtime is the stream's now that it is ready.
+    let itemDuration = player.currentItem?.duration.seconds ?? 0
+    let runtime = itemDuration.isFinite && itemDuration > 0
+      ? itemDuration : Double((playItem as? Episode)?.duration ?? 0)
+    if WatchProgress(position: best, duration: runtime).isFinished {
+      Logger.app.info("Resume at \(best)s of \(runtime)s is watched: starting from the beginning")
+      return
+    }
     // Re-seeking to the position playback already opened at is a visible stutter, so
     // only a genuinely different answer moves the playhead.
     let current = player.currentTime().seconds
@@ -1677,10 +1700,20 @@ extension PlayerManager {
     // episode already counts as watched. An unknown runtime leaves the API default: the
     // very end of the item.
     let duration = Double((playItem as? Episode)?.duration ?? 0)
-    let transition = duration > 0
-      ? CMTime(seconds: duration - WatchProgress.upNextLeadTime(forDuration: duration),
-               preferredTimescale: 600)
-      : .indefinite
+    // Credits that run to the end, when the skip times know them: the next episode is
+    // offered as they start, in place of a Skip that jumped to the end (Sasha, 2026-11-10).
+    let creditsStart = skipSegments.flatMap {
+      PlaybackSkip.closingCreditsStart(in: $0, durationSeconds: skipDurationSeconds)
+    }
+    let transition: CMTime
+    if let creditsStart {
+      transition = CMTime(seconds: creditsStart, preferredTimescale: 600)
+    } else if duration > 0 {
+      transition = CMTime(seconds: duration - WatchProgress.upNextLeadTime(forDuration: duration),
+                          preferredTimescale: 600)
+    } else {
+      transition = .indefinite
+    }
 
     let label = EpisodeText(season: next.seasonNumber, number: next.number)
       .text(for: .continueWatchingCard)

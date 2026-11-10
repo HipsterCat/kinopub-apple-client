@@ -38,4 +38,22 @@ final class PlaybackSkipTests: XCTestCase {
     XCTAssertNil(PlaybackSkip.offer(at: 2_510, in: segments, durationSeconds: 2_600, isEpisode: false))
     XCTAssertEqual(PlaybackSkip.offer(at: 10, in: segments, durationSeconds: 2_600, isEpisode: false)?.kind, .recap)
   }
+
+  func testClosingCreditsGiveWayToTheNextEpisode() {
+    XCTAssertEqual(PlaybackSkip.closingCreditsStart(in: segments, durationSeconds: 2_600), 2_500)
+    XCTAssertNil(PlaybackSkip.offer(at: 2_510, in: segments, durationSeconds: 2_600, isEpisode: true,
+                                    nextEpisodeAtCredits: true))
+    // Credits with a scene after them keep their skip.
+    var withScene = segments
+    withScene[.credits] = .init(startMs: 2_400_000, endMs: 2_500_000, source: .skipDB)
+    XCTAssertNil(PlaybackSkip.closingCreditsStart(in: withScene, durationSeconds: 2_600))
+    XCTAssertEqual(PlaybackSkip.offer(at: 2_410, in: withScene, durationSeconds: 2_600, isEpisode: true,
+                                      nextEpisodeAtCredits: true)?.kind, .credits)
+  }
+
+  func testCountdownRunsOnPlaybackTime() {
+    XCTAssertEqual(PlaybackSkip.countdownLeft(at: 60, shownAt: 60), 1)
+    XCTAssertEqual(PlaybackSkip.countdownLeft(at: 62.5, shownAt: 60), 0.5, accuracy: 0.001)
+    XCTAssertEqual(PlaybackSkip.countdownLeft(at: 70, shownAt: 60), 0)
+  }
 }

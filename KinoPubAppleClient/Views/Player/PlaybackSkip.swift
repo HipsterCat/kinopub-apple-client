@@ -9,6 +9,10 @@
 //  button in the lower trailing corner that Apple's own apps use for Skip Intro. It is
 //  set while a segment plays and emptied after. iOS and macOS have no such API yet.
 //
+//  One label, «Пропустить», whatever is skipped: per-kind titles were long and the button
+//  changed width (Sasha, 2026-11-10). Left alone, the skip takes itself after
+//  `countdown` seconds of playback, the time left drawn on the button.
+//
 
 import AVKit
 import KinoPubBackend
@@ -33,11 +37,16 @@ enum PlaybackSkip {
 
   /// The segment playing at `seconds`, while more than `tail` of it is left. A film is never
   /// offered its credits: there may be a scene after them, and the end is near anyway.
+  ///
+  /// `nextEpisodeAtCredits`: the next episode is proposed when credits that close the
+  /// episode begin (tvOS's Up Next panel), so they get no skip of their own.
   static func offer(at seconds: Double, in segments: SkipSegments, durationSeconds: Double,
-                    isEpisode: Bool) -> Offer? {
+                    isEpisode: Bool, nextEpisodeAtCredits: Bool = false) -> Offer? {
     let kinds: [SkipSegments.Kind] = isEpisode ? [.recap, .intro, .credits, .preview] : [.recap, .intro]
     for kind in kinds {
       guard let segment = segments[kind] else { continue }
+      if kind == .credits, nextEpisodeAtCredits,
+         closingCreditsStart(in: segments, durationSeconds: durationSeconds) != nil { continue }
       let start = Double(segment.startMs) / 1000
       var end = segment.endMs.map { Double($0) / 1000 } ?? durationSeconds
       if durationSeconds > 0 { end = min(end, durationSeconds) }
@@ -47,13 +56,36 @@ enum PlaybackSkip {
     return nil
   }
 
-  static func title(for kind: SkipSegments.Kind) -> String {
+  /// Seconds of playback the button waits before it skips by itself.
+  static let countdown: Double = 5
+
+  /// The button's label, the same for every kind.
+  static var title: String { "Player_Skip".localized }
+
+  /// What VoiceOver says: which part goes.
+  static func accessibilityTitle(for kind: SkipSegments.Kind) -> String {
     switch kind {
     case .intro: "Player_SkipIntro".localized
     case .recap: "Player_SkipRecap".localized
     case .credits: "Player_SkipCredits".localized
     case .preview: "Player_SkipPreview".localized
     }
+  }
+
+  /// Where an episode's closing credits start when nothing follows them: they run to the
+  /// stream's end, give or take a few seconds. There the next episode is offered at their
+  /// start instead of a skip into the end.
+  static func closingCreditsStart(in segments: SkipSegments, durationSeconds: Double) -> Double? {
+    guard let credits = segments[.credits], durationSeconds > 0 else { return nil }
+    let end = credits.endMs.map { Double($0) / 1000 } ?? durationSeconds
+    guard end >= durationSeconds - 5 else { return nil }
+    let start = Double(credits.startMs) / 1000
+    return start > 0 && start < durationSeconds ? start : nil
+  }
+
+  /// Share of the countdown left at `seconds` for an offer shown at `shownAt`, 1 → 0.
+  static func countdownLeft(at seconds: Double, shownAt: Double) -> Double {
+    min(max(1 - (seconds - shownAt) / countdown, 0), 1)
   }
 }
 
@@ -214,6 +246,13 @@ extension PlayerManager {
         self.skipSegments = segments
         self.skipDurationSeconds = duration
         self.addSkipTimeObserver()
+#if os(tvOS)
+        // Up Next moves to where the closing credits start, now that they are known.
+        if self.pendingNextEpisode != nil,
+           PlaybackSkip.closingCreditsStart(in: segments, durationSeconds: duration) != nil {
+          self.installNextEpisodeProposal(on: item)
+        }
+#endif
       }
     }
   }
@@ -224,6 +263,8 @@ extension PlayerManager {
     skipSegmentsTask?.cancel()
     skipSegmentsTask = nil
     skipSegments = nil
+    skippedKinds = []
+    skipOfferShownAt = nil
     if let skipObserverToken {
       player.removeTimeObserver(skipObserverToken)
       self.skipObserverToken = nil
@@ -234,10 +275,13 @@ extension PlayerManager {
     }
   }
 
-  /// The viewer pressed the button: to the segment's end, and the button goes at once.
-  func performSkip() {
+  /// The viewer pressed the button, or its countdown ran out: to the segment's end, and
+  /// the button goes at once.
+  func performSkip(automatically: Bool = false) {
     guard let offer = skipOffer else { return }
-    Logger.app.info("Skip \(offer.kind.rawValue, privacy: .public) to \(offer.targetSeconds)s")
+    Logger.app.info("Skip \(offer.kind.rawValue, privacy: .public) to \(offer.targetSeconds)s\(automatically ? " (countdown)" : "", privacy: .public)")
+    skippedKinds.insert(offer.kind)
+    skipOfferShownAt = nil
     player.seek(to: CMTime(seconds: offer.targetSeconds, preferredTimescale: 600),
                 toleranceBefore: .zero, toleranceAfter: .positiveInfinity)
     skippedOffer = offer
@@ -247,7 +291,8 @@ extension PlayerManager {
 
   private func addSkipTimeObserver() {
     guard skipObserverToken == nil else { return }
-    let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
+    // Four ticks a second: the countdown on the button moves smoothly between them.
+    let interval = CMTime(seconds: 0.25, preferredTimescale: 600)
     skipObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
       self?.updateSkipOffer(at: time.seconds.isFinite ? time.seconds : 0)
     }
@@ -255,15 +300,34 @@ extension PlayerManager {
 
   private func updateSkipOffer(at seconds: Double) {
     guard let segments = skipSegments else { return }
+#if os(tvOS)
+    let nextAtCredits = pendingNextEpisode != nil
+#else
+    let nextAtCredits = false
+#endif
     var offer = PlaybackSkip.offer(at: seconds, in: segments, durationSeconds: skipDurationSeconds,
-                                   isEpisode: playItem is Episode)
+                                   isEpisode: playItem is Episode, nextEpisodeAtCredits: nextAtCredits)
     // The seek just asked for may not have landed yet: no flash of the same button.
     if let skipped = skippedOffer {
       if offer == skipped { offer = nil } else { skippedOffer = nil }
     }
-    guard offer != skipOffer else { return }
-    skipOffer = offer
-    showSkip(offer)
+    if offer != skipOffer {
+      skipOffer = offer
+      // A kind skipped once in this stream is offered again, but waits for a press.
+      skipOfferShownAt = offer.flatMap { skippedKinds.contains($0.kind) ? nil : seconds }
+      skipCountdownLeft = 1
+      showSkip(offer)
+    }
+    guard offer != nil, let shownAt = skipOfferShownAt else { return }
+    // Scrubbed back before the button appeared: the countdown starts over from here.
+    if seconds < shownAt { skipOfferShownAt = seconds }
+    let left = PlaybackSkip.countdownLeft(at: seconds, shownAt: skipOfferShownAt ?? seconds)
+    skipCountdownLeft = left
+    if left <= 0 {
+      performSkip(automatically: true)
+    } else {
+      updateSkipRing(left)
+    }
   }
 
   /// tvOS: AVKit's own button (`contextualActions`), which it animates in and out. iOS and
@@ -272,17 +336,75 @@ extension PlayerManager {
 #if os(tvOS)
     MainActor.assumeIsolated {
       guard let offer else {
+        skipAction = nil
         playerViewController?.contextualActions = []
         return
       }
-      let action = UIAction(title: PlaybackSkip.title(for: offer.kind)) { [weak self] _ in
+      let action = UIAction(title: PlaybackSkip.title,
+                            image: skipOfferShownAt == nil ? nil : SkipCountdownGlyph.image(left: 1)) { [weak self] _ in
         self?.performSkip()
       }
+      action.accessibilityLabel = PlaybackSkip.accessibilityTitle(for: offer.kind)
+      skipAction = action
       playerViewController?.contextualActions = [action]
     }
 #endif
   }
+
+  /// tvOS: the ring beside the label drains as Apple's Next Episode button does; the
+  /// action is redrawn in place, not replaced, so AVKit does not animate it in again.
+  private func updateSkipRing(_ left: Double) {
+#if os(tvOS)
+    MainActor.assumeIsolated {
+      skipAction?.image = SkipCountdownGlyph.image(left: left)
+    }
+#endif
+  }
 }
+
+#if os(tvOS)
+/// The glyph of tvOS's skip button: a play arrow inside a ring that drains with the
+/// countdown, the shape of the TV app's «Next Episode» (Sasha's photo, 2026-11-10).
+@MainActor
+enum SkipCountdownGlyph {
+  static let side: CGFloat = 38
+
+  static func image(left: Double) -> UIImage {
+    // Twenty steps are enough for the eye and keep the images few.
+    let step = (left * 20).rounded() / 20
+    if let cached = cache[step] { return cached }
+    let size = CGSize(width: side, height: side)
+    let image = UIGraphicsImageRenderer(size: size).image { context in
+      let cg = context.cgContext
+      let lineWidth: CGFloat = 3
+      let rect = CGRect(origin: .zero, size: size).insetBy(dx: lineWidth / 2 + 1, dy: lineWidth / 2 + 1)
+      let center = CGPoint(x: rect.midX, y: rect.midY)
+      let radius = rect.width / 2
+      cg.setStrokeColor(UIColor.black.cgColor)
+      cg.setLineWidth(lineWidth)
+      cg.setLineCap(.round)
+      if step > 0 {
+        let startAngle = -CGFloat.pi / 2
+        cg.addArc(center: center, radius: radius, startAngle: startAngle,
+                  endAngle: startAngle + 2 * .pi * CGFloat(step), clockwise: false)
+        cg.strokePath()
+      }
+      // The arrow, a third of the ring.
+      let arrow = radius * 0.62
+      cg.setFillColor(UIColor.black.cgColor)
+      cg.move(to: CGPoint(x: center.x - arrow * 0.45, y: center.y - arrow * 0.6))
+      cg.addLine(to: CGPoint(x: center.x + arrow * 0.65, y: center.y))
+      cg.addLine(to: CGPoint(x: center.x - arrow * 0.45, y: center.y + arrow * 0.6))
+      cg.closePath()
+      cg.fillPath()
+    }.withRenderingMode(.alwaysTemplate)
+    cache[step] = image
+    return image
+  }
+
+  private static var cache: [Double: UIImage] = [:]
+}
+#endif
 
 #if !os(tvOS)
 
@@ -291,6 +413,8 @@ extension PlayerManager {
 /// one feature on every platform).
 struct SkipButtonOverlay: View {
   let offer: PlaybackSkip.Offer?
+  /// Share of the countdown left, 1 → 0; 1 when the button waits for a press.
+  var countdownLeft: Double = 1
   let action: () -> Void
 
   var body: some View {
@@ -298,18 +422,31 @@ struct SkipButtonOverlay: View {
       Color.clear
       if let offer {
         Button(action: action) {
-          Label(PlaybackSkip.title(for: offer.kind), systemImage: "forward.end.fill")
+          Label(PlaybackSkip.title, systemImage: "forward.end.fill")
             .font(.headline)
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
-        .background(.regularMaterial, in: Capsule())
+        .background {
+          // The time spent as a darker band that grows across the capsule from the
+          // leading edge, under the label; the light part is the time left (Sasha,
+          // 2026-11-10).
+          GeometryReader { proxy in
+            Rectangle()
+              .fill(.black.opacity(0.35))
+              .frame(width: proxy.size.width * (1 - countdownLeft))
+              .animation(.linear(duration: 0.25), value: countdownLeft)
+          }
+        }
+        .background(.regularMaterial)
+        .clipShape(Capsule())
         .environment(\.colorScheme, .dark)
         .padding(.trailing, 24)
         .padding(.bottom, 96)
         .transition(.opacity.combined(with: .scale(scale: 0.9)))
+        .accessibilityLabel(PlaybackSkip.accessibilityTitle(for: offer.kind))
         .accessibilityIdentifier("player.skip")
       }
     }

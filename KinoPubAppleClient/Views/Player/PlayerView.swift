@@ -60,7 +60,8 @@ struct PlayerView: View {
 #if os(macOS)
       // AVPlayerView has no place for a skip button; tvOS uses AVKit's own, iOS adds one
       // over the presented player (`SystemVideoPlayer`).
-      SkipButtonOverlay(offer: playerManager.skipOffer) { playerManager.performSkip() }
+      SkipButtonOverlay(offer: playerManager.skipOffer,
+                        countdownLeft: playerManager.skipCountdownLeft) { playerManager.performSkip() }
 #endif
     }
     .ignoresSafeArea(.all)
@@ -551,8 +552,11 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
     // MARK: Skip
 
     private var skipCancellable: AnyCancellable?
+    private var skipCountdownCancellable: AnyCancellable?
     private weak var skipManager: PlayerManager?
     private var skipButton: UIButton?
+    /// The time spent of the countdown, a darker band growing across the capsule.
+    private var skipBand: UIView?
 
     /// The skip button over the presented player. AVKit on iOS has no `contextualActions`,
     /// so it is ours: a capsule in the lower trailing corner, above the transport bar, on
@@ -564,13 +568,28 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
         .sink { [weak self] offer in
           MainActor.assumeIsolated { self?.showSkip(offer) }
         }
+      skipCountdownCancellable = manager.$skipCountdownLeft
+        .receive(on: RunLoop.main)
+        .sink { [weak self] left in
+          MainActor.assumeIsolated { self?.showCountdown(left) }
+        }
+    }
+
+    private func showCountdown(_ left: Double) {
+      guard let button = skipButton, let band = skipBand else { return }
+      button.layoutIfNeeded()
+      button.layer.cornerRadius = button.bounds.height / 2
+      UIView.animate(withDuration: left >= 1 ? 0 : 0.25, delay: 0, options: [.curveLinear, .beginFromCurrentState]) {
+        band.frame = CGRect(x: 0, y: 0, width: button.bounds.width * (1 - left), height: button.bounds.height)
+      }
     }
 
     private func showSkip(_ offer: PlaybackSkip.Offer?) {
       guard let view = host?.playerController.view else { return }
       let button = skipButton ?? makeSkipButton(in: view)
       if let offer {
-        button.configuration?.title = PlaybackSkip.title(for: offer.kind)
+        button.configuration?.title = PlaybackSkip.title
+        button.accessibilityLabel = PlaybackSkip.accessibilityTitle(for: offer.kind)
       }
       UIView.animate(withDuration: 0.2) {
         button.alpha = offer == nil ? 0 : 1
@@ -590,6 +609,13 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
         self?.skipManager?.performSkip()
       })
       button.accessibilityIdentifier = "player.skip"
+      button.clipsToBounds = true
+      let band = UIView()
+      band.backgroundColor = UIColor.black.withAlphaComponent(0.35)
+      band.isUserInteractionEnabled = false
+      // Over the label too, as the TV app greys the spent part of a progress button.
+      button.addSubview(band)
+      skipBand = band
       button.alpha = 0
       button.translatesAutoresizingMaskIntoConstraints = false
       view.addSubview(button)
