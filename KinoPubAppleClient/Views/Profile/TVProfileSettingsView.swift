@@ -216,7 +216,7 @@ struct TVProfileSettingsView: View {
       infoRow(label: "User Name", value: model.userData.username, focus: focus, id: "username")
       infoRow(
         label: "User Subscription",
-        value: "\(model.userData.subscription.days) \("days".localized)",
+        value: model.userData.subscription.settingsValue,
         focus: focus,
         id: "subscription"
       )

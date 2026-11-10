@@ -44,7 +44,7 @@ struct RootView: View {
 #if os(macOS)
       .sheet(isPresented: macAuthSheetPresented) {
         AuthView(model: AuthModel(authService: appContext.authService, authState: authState))
-          .frame(minWidth: 440, idealWidth: 520, minHeight: 420, idealHeight: 460)
+          .frame(minWidth: 440, idealWidth: 520, minHeight: 500, idealHeight: 560)
           .interactiveDismissDisabled()
       }
       .onChange(of: navigationState.playerWindowRequestID) { _, requestID in

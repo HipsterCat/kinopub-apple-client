@@ -58,7 +58,7 @@ struct GeneralSettingsPane: View {
   private var accountAndLanguageSections: some View {
     Section {
       LabeledContent("User Name", value: model.userData.username)
-      LabeledContent("User Subscription", value: "\(model.userData.subscription.days) \("days".localized)")
+      LabeledContent("User Subscription", value: model.userData.subscription.settingsValue)
       LabeledContent("Registration Date", value: model.userData.registrationDateFormatted)
       LabeledContent("App version", value: Bundle.main.appVersionLong)
     }
@@ -81,8 +81,8 @@ struct GeneralSettingsPane: View {
 }
 #endif
 
-#if os(macOS)
-/// The page of the profile row at the top of the Settings sidebar: who is signed in, and
+#if !os(tvOS)
+/// The page of the profile row at the top of the Settings sidebar (and of the iOS list): who is signed in, and
 /// Logout — as System Settings' account row opens the account's page.
 struct AccountSettingsPane: View {
   let model: ProfileModel
@@ -113,12 +113,20 @@ struct AccountSettingsPane: View {
         }
         Section {
           LabeledContent("User Name", value: model.userData.username)
-          LabeledContent("User Subscription", value: "\(model.userData.subscription.days) \("days".localized)")
+          LabeledContent("User Subscription", value: model.userData.subscription.settingsValue)
           LabeledContent("Registration Date", value: model.userData.registrationDateFormatted)
         }
+#if os(iOS)
+        Section {
+          Button("Logout", role: .destructive) {
+            showLogoutAlert = true
+          }
+        }
+#endif
       }
       .formStyle(.grouped)
 
+#if os(macOS)
       // macOS Control Center–style pill — not a Form row.
       HStack {
         Button("Logout…") {
@@ -129,6 +137,7 @@ struct AccountSettingsPane: View {
       }
       .padding(.horizontal, 20)
       .padding(.bottom, 16)
+#endif
     }
   }
 }

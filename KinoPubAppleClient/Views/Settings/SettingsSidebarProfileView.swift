@@ -25,19 +25,21 @@ struct SettingsSidebarProfileView: View {
         .frame(width: avatarSize, height: avatarSize)
 
       VStack(alignment: .leading, spacing: 2) {
+        // Regular weight, as TestFlight's and System Settings' account rows set the name
+        // (Sasha, 2026-11-10).
         Text(name)
 #if os(iOS)
-          .font(.title3.weight(.semibold))
+          .font(.title3)
 #else
-          .font(.body.weight(.semibold))
+          .font(.body)
 #endif
           .foregroundStyle(.primary)
           .lineLimit(1)
         Text(subtitle)
 #if os(iOS)
-          .font(.footnote)
+          .font(.subheadline)
 #else
-          .font(.caption)
+          .font(.callout)
 #endif
           .foregroundStyle(.secondary)
           .lineLimit(2)
@@ -51,8 +53,9 @@ struct SettingsSidebarProfileView: View {
     Avatar(name: name, image: avatarImage)
   }
 
-  /// The picture, or the initials on a grey disc, at whatever size it is given: the
-  /// sidebar row's and the account page's (Sasha, 2026-11-09).
+  /// The picture, or the person glyph on a grey disc at whatever size it is given: the
+  /// sidebar row's and the account page's. A glyph, not initials or a service's
+  /// generated placeholder, as Apple's account rows do (Sasha, 2026-11-10).
   struct Avatar: View {
     let name: String
     let image: Image?
@@ -64,31 +67,13 @@ struct SettingsSidebarProfileView: View {
           .scaledToFill()
           .clipShape(Circle())
       } else {
-        GeometryReader { proxy in
-          let side = min(proxy.size.width, proxy.size.height)
-          ZStack {
-            Circle().fill(Color.secondary.opacity(0.35))
-            if initials.isEmpty {
-              Image(systemName: "person.fill")
-                .font(.system(size: side * 0.42, weight: .semibold))
-                .foregroundStyle(.primary)
-            } else {
-              Text(initials)
-                .font(.system(size: side * 0.32, weight: .semibold))
-                .foregroundStyle(.primary)
-            }
-          }
-          .frame(width: proxy.size.width, height: proxy.size.height)
-        }
+        Image(systemName: "person.crop.circle.fill")
+          .resizable()
+          .scaledToFit()
+          .symbolRenderingMode(.hierarchical)
+          .foregroundStyle(.secondary)
+          .accessibilityHidden(true)
       }
-    }
-
-    private var initials: String {
-      let trimmed = name.trimmingCharacters(in: .whitespaces)
-      guard !trimmed.isEmpty else { return "" }
-      let parts = trimmed.split(separator: " ").prefix(2)
-      let letters = parts.compactMap { $0.first.map(String.init) }
-      return letters.isEmpty ? String(trimmed.prefix(1)).uppercased() : letters.joined().uppercased()
     }
   }
 }

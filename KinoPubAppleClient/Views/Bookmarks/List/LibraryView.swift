@@ -70,6 +70,7 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showsSettings) {
           settings
+            .environment(\.isSettingsSheet, true)
         }
 #endif
     }

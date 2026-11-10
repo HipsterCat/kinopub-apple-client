@@ -414,7 +414,7 @@ enum Integration: String, CaseIterable, Identifiable, Hashable {
 /// The source's logo in a rounded square, or its short name on the brand colour.
 struct IntegrationIconView: View {
   let integration: Integration
-  var size: CGFloat = 26
+  var size: CGFloat = SettingsIconView.rowSize
 
   var body: some View {
     if let mark = integration.markImage {
@@ -434,7 +434,7 @@ struct IntegrationIconView: View {
 /// One row of what a source brings: its mark, or a symbol tile, at the sidebar's size.
 struct IntegrationProvidedIcon: View {
   let item: Integration.Provided
-  var size: CGFloat = 26
+  var size: CGFloat = SettingsIconView.rowSize
 
   var body: some View {
     if let mark = item.mark.flatMap(ProviderMark.image(named:)) {

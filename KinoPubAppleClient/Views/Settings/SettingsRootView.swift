@@ -19,6 +19,12 @@ struct SettingsRootView: View {
   @Bindable var model: ProfileModel
   @State private var showLogoutAlert = false
   @State private var avatarImage: Image?
+#if os(iOS)
+  /// Over Library on iPhone: TestFlight's sheet, a cross and a small title. The iPad tab
+  /// keeps its large one.
+  @Environment(\.isSettingsSheet) private var isSheet
+  @Environment(\.dismiss) private var dismiss
+#endif
 #if os(macOS)
   /// Back / Forward across panes and pushed pages (`SettingsMacChrome.swift`).
   @State private var history = SettingsHistory(SettingsLocation(category: .general))
@@ -180,12 +186,16 @@ struct SettingsRootView: View {
 #if os(iOS)
   private var iosList: some View {
     List {
+      // The account row opens the account's page, as TestFlight's and Settings' do: it
+      // was a dead row and only the categories under it opened (Sasha, 2026-11-10).
       Section {
-        SettingsSidebarProfileView(
-          name: profileName,
-          subtitle: profileSubtitle,
-          avatarImage: avatarImage
-        )
+        NavigationLink(value: SettingsCategory.account) {
+          SettingsSidebarProfileView(
+            name: profileName,
+            subtitle: profileSubtitle,
+            avatarImage: avatarImage
+          )
+        }
       }
 
       ForEach(SettingsCategory.availableCategories) { category in
@@ -247,7 +257,7 @@ struct SettingsRootView: View {
           }
         }
     }
-    .platformNavigationTitle("Settings")
+    .settingsSheetChrome(isSheet: isSheet, dismiss: { dismiss() })
     .task {
       model.fetch()
       await loadAvatar()
@@ -275,20 +285,15 @@ struct SettingsRootView: View {
   }
 
   private var profileSubtitle: String {
-    let days = model.userData.subscription.days
-    return "\(days) \("days".localized)"
+    model.userData.subscription.summary
   }
 
   @ViewBuilder
   private func pane(for category: SettingsCategory) -> some View {
     switch category {
     case .account:
-#if os(macOS)
       AccountSettingsPane(model: model, name: profileName, subtitle: profileSubtitle,
                           avatarImage: avatarImage, showLogoutAlert: $showLogoutAlert)
-#else
-      GeneralSettingsPane(model: model, showLogoutAlert: $showLogoutAlert)
-#endif
     case .general:
       GeneralSettingsPane(model: model, showLogoutAlert: $showLogoutAlert)
     case .playback:
@@ -323,11 +328,14 @@ struct SettingsRootView: View {
        let image = Self.platformImage(from: cached) {
       avatarImage = image
     }
-    let urlString = model.userData.profile.avatar
-    guard let urlString, !urlString.isEmpty, let url = URL(string: urlString) else { return }
+    guard let url = model.userData.profile.avatarURL else { return }
     do {
-      let (data, _) = try await URLSession.shared.data(from: url)
-      if let image = Self.platformImage(from: data) {
+      let (data, response) = try await URLSession.shared.data(from: url)
+      if (response as? HTTPURLResponse)?.statusCode == 404 {
+        // No picture of their own (Gravatar's 404): the person glyph, not a cached placeholder.
+        avatarImage = nil
+        UserProfileCache.shared.clearAvatar()
+      } else if let image = Self.platformImage(from: data) {
         avatarImage = image
         UserProfileCache.shared.saveAvatar(data)
       }
@@ -344,6 +352,30 @@ struct SettingsRootView: View {
     guard let nsImage = NSImage(data: data) else { return nil }
     return Image(nsImage: nsImage)
 #endif
+  }
+}
+#endif
+
+#if os(iOS)
+extension EnvironmentValues {
+  /// Settings is presented as a sheet (iPhone's Library), not a tab.
+  @Entry var isSettingsSheet = false
+}
+
+private extension View {
+  @ViewBuilder
+  func settingsSheetChrome(isSheet: Bool, dismiss: @escaping () -> Void) -> some View {
+    if isSheet {
+      navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+          ToolbarItem(placement: .topBarLeading) {
+            Button(role: .close, action: dismiss)
+          }
+        }
+    } else {
+      platformNavigationTitle("Settings")
+    }
   }
 }
 #endif

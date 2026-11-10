@@ -9,11 +9,7 @@
 //
 
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
+import KinoPubUI
 
 /// Where a code sign-in stands: shared by Trakt's device code and Plex's PIN.
 enum AccountSignIn: Equatable {
@@ -34,12 +30,16 @@ protocol AccountSigningIn: AnyObject, Observable {
   func signOut()
 }
 
+/// Trakt's device code and Plex's PIN on the shared code sign-in screen
+/// (`DeviceCodeSignInView`), the one kino.pub's own activation uses.
 struct AccountSignInView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.openURL) private var openURL
-  @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 64
   let integration: Integration
   private let account: any AccountSigningIn
+  @State private var hudToast: HudToast?
+  /// When the code on screen arrived: the start of the ring.
+  @State private var codeShownAt = Date()
 
   init(integration: Integration) {
     self.integration = integration
@@ -47,27 +47,41 @@ struct AccountSignInView: View {
   }
 
   var body: some View {
-    VStack(spacing: 20) {
-      IntegrationIconView(integration: integration, size: iconSize)
-      Text(verbatim: integration == .trakt ? "Trakt_SignIn_Title".localized
-           : String(format: "Account_SignIn_Title".localized, integration.name))
-        .font(.title2.weight(.bold))
-
-      content
-        .frame(maxWidth: .infinity)
-
-      Button("Cancel", role: .cancel) {
-        account.cancelSignIn()
-        dismiss()
+    DeviceCodeSignInView(
+      title: integration == .trakt ? "Trakt_SignIn_Title".localized
+        : String(format: "Account_SignIn_Title".localized, integration.name),
+      message: "Account_SignIn_Instructions".localized,
+      activateTitle: "Auth_Activate".localized,
+      state: state,
+      // Plex PINs are four characters, Trakt codes eight.
+      placeholderTiles: integration == .plex ? 4 : 8,
+      shareURL: awaiting?.url ?? URL(string: "https://\(integration.host)")!,
+      shareMessage: String(format: "Account_SignIn_ShareMessage %@ %@ %@".localized,
+                           integration.name, state.displayURL, state.code),
+      actions: .init(
+        copy: copyCode,
+        activate: {
+          guard let url = awaiting?.url else { return }
+          copyCode()
+          openURL(url)
+        },
+        newCode: { account.startSignIn() },
+        retry: { account.startSignIn() },
+        close: {
+          account.cancelSignIn()
+          dismiss()
+        }
+      )
+    ) {
+      if let mark = integration.markImage {
+        DeviceCodeSignInLogo(image: mark)
+      } else {
+        IntegrationIconView(integration: integration, size: DeviceCodeSignInLogo.baseSide)
       }
-#if !os(tvOS)
-      .keyboardShortcut(.cancelAction)
-#endif
     }
-    .multilineTextAlignment(.center)
-    .padding(32)
+    .hudToast($hudToast)
 #if os(macOS)
-    .frame(width: 420)
+    .frame(width: 480)
 #endif
     .task {
       switch account.signIn {
@@ -75,69 +89,51 @@ struct AccountSignInView: View {
       default: account.startSignIn()
       }
     }
+    .onChange(of: awaiting?.code, initial: true) { _, _ in
+      codeShownAt = Date()
+    }
     .onChange(of: account.isSignedIn) { _, signedIn in
       if signedIn { dismiss() }
     }
+#if os(tvOS)
+    // No cross on Apple TV: Menu closes the page, and stops asking the service.
+    .onDisappear {
+      if !account.isSignedIn { account.cancelSignIn() }
+    }
+#endif
   }
 
-  @ViewBuilder
-  private var content: some View {
+  private var awaiting: (code: String, url: URL, expiresAt: Date)? {
+    if case .awaitingUser(let code, let url, let expiresAt) = account.signIn {
+      return (code, url, expiresAt)
+    }
+    return nil
+  }
+
+  private var state: DeviceCodeSignInState {
     switch account.signIn {
     case .idle, .requestingCode:
-      ProgressView()
-    case .awaitingUser(let code, let url, _):
-      VStack(spacing: 16) {
-        Text(String(format: "Trakt_SignIn_Instructions".localized, displayHost(url)))
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-        Text(verbatim: code)
-          .font(.system(.largeTitle, design: .monospaced).weight(.bold))
-#if !os(tvOS)
-          .textSelection(.enabled)
-#endif
-          .accessibilityLabel(code.map(String.init).joined(separator: " "))
-#if !os(tvOS)
-        Button(String(format: "Open %@".localized, displayHost(url))) {
-          copy(code)
-          openURL(url)
-        }
-        .buttonStyle(.borderedProminent)
-        .keyboardShortcut(.defaultAction)
-        Text("Trakt_SignIn_CodeCopied")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-#endif
-        HStack(spacing: 8) {
-          ProgressView()
-            .controlSize(.small)
-          Text(verbatim: integration == .trakt ? "Trakt_SignIn_Waiting".localized
-               : String(format: "Account_SignIn_Waiting".localized, integration.name))
-        }
-        .font(.callout)
-        .foregroundStyle(.secondary)
-      }
+      return DeviceCodeSignInState(isBusy: true)
+    case .awaitingUser(let code, let url, let expiresAt):
+      return DeviceCodeSignInState(
+        code: code,
+        displayURL: displayHost(url),
+        validRange: min(codeShownAt, expiresAt)...expiresAt
+      )
     case .failed(let message):
-      VStack(spacing: 12) {
-        Text(verbatim: message)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-        Button("Try Again") { account.startSignIn() }
-      }
+      return DeviceCodeSignInState(errorMessage: message)
     }
+  }
+
+  private func copyCode() {
+    guard let code = awaiting?.code else { return }
+    DeviceCodePasteboard.copy(code)
+    hudToast = HudToast(systemImage: "document.on.document.fill", title: "Copied".localized)
   }
 
   private func displayHost(_ url: URL) -> String {
     let host = url.host()?.replacingOccurrences(of: "www.", with: "") ?? integration.host
     let path = url.path()
     return path.isEmpty || path == "/" ? host : host + path
-  }
-
-  private func copy(_ code: String) {
-#if os(iOS)
-    UIPasteboard.general.string = code
-#elseif os(macOS)
-    NSPasteboard.general.clearContents()
-    NSPasteboard.general.setString(code, forType: .string)
-#endif
   }
 }

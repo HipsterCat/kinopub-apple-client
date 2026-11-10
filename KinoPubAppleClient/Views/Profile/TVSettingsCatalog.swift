@@ -160,7 +160,7 @@ final class TVSettingsCatalog {
   private func accountSections() -> [TSKSection] {
     [TSKSection(rows: [
       info("User Name", model.userData.username),
-      info("User Subscription", "\(model.userData.subscription.days) \("days".localized)"),
+      info("User Subscription", model.userData.subscription.settingsValue),
       info("Registration Date", model.userData.registrationDateFormatted),
       TSKRow(title: "Logout".localized,
              description: "Settings_Tip_Logout".localized,

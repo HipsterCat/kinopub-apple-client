@@ -1121,7 +1121,7 @@ private struct MacSidebarAccount: View {
     .task {
       guard let user = try? await userService.fetchUserData() else { return }
       name = user.profile.name.flatMap { $0.isEmpty ? nil : $0 } ?? user.username
-      avatarURL = user.profile.avatar.flatMap(URL.init(string:))
+      avatarURL = user.profile.avatarURL
     }
   }
 }

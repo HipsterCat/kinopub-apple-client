@@ -73,9 +73,10 @@ public enum InfoPopupMetrics {
 /// The popup's own chrome. Everything inside is content the caller supplies — this
 /// owns the frame, the scroll, and the way out.
 ///
-/// `confirmTitle` adds a real button under the content (What's New's «Готово») and takes
-/// the entry focus; without it tvOS leaves with Menu, as every other popup does. Short
-/// content hugs the panel, long content scrolls inside it.
+/// `confirmTitle` adds a real button under the content on tvOS (What's New's «Готово») and
+/// takes the entry focus; without it tvOS leaves with Menu, as every other popup does.
+/// Elsewhere the cross in the leading corner closes it. Short content hugs the panel,
+/// long content scrolls inside it.
 public struct InfoPopupView<Content: View>: View {
   let title: Text
   let subtitle: Text?
@@ -152,6 +153,9 @@ public struct InfoPopupView<Content: View>: View {
   }
 
 #if !os(tvOS)
+  /// TestFlight's sheet head: a small centred title (and its subtitle), the cross in the
+  /// leading corner. It was «Готово» in a capsule at the trailing corner, the TV app's
+  /// (Sasha, 2026-11-10: "то же самое с обновлением и информацией детальной").
   private var header: some View {
     VStack(spacing: 2) {
       title
@@ -165,17 +169,14 @@ public struct InfoPopupView<Content: View>: View {
     }
     .multilineTextAlignment(.center)
     .frame(maxWidth: .infinity)
-    // The button's own width on either side keeps a long title centred and clear of it.
-    .padding(.horizontal, InfoPopupMetrics.padding * 3)
-    .overlay(alignment: .topTrailing) {
-      // A plain bordered capsule, as the TV app's «Готово» — not glass.
-      Button(action: close) { confirmTitle ?? Text("Done") }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.large)
-        .keyboardShortcut(.defaultAction)
+    // The cross's width on either side keeps a long title centred and clear of it.
+    .padding(.horizontal, SheetCloseButton.side + SheetCloseButton.inset * 2)
+    .frame(minHeight: SheetCloseButton.side + 12)
+    .overlay(alignment: .leading) {
+      SheetCloseButton(action: close)
+        .padding(.leading, SheetCloseButton.inset)
     }
-    .padding([.horizontal, .top], InfoPopupMetrics.padding * 0.6)
+    .padding(.top, SheetCloseButton.inset)
     .padding(.bottom, InfoPopupMetrics.padding * 0.4)
   }
 #endif

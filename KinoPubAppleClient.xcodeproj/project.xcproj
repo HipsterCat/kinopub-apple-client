@@ -339,6 +339,7 @@
               "children": [
                 { "path": "AuthView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "AuthModel.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "DeviceCodeSignInView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],
             }, {
               "kind": "group",
