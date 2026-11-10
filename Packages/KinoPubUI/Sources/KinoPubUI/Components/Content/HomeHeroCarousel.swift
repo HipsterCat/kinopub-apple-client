@@ -183,7 +183,7 @@ public struct HomeHeroCarousel: View {
     // narrower than the scroll, turns that skipped a title, and a click on the hero that
     // opened its neighbour (Sasha, 2026-11-04).
     .scrollIndicators(.hidden)
-    .scrollTargetBehavior(.paging)
+    .scrollTargetBehavior(HeroOnePage())
     .scrollPosition($scroll)
     .onScrollGeometryChange(for: CGFloat.self) { geometry in
       let width = geometry.containerSize.width
@@ -278,6 +278,10 @@ public struct HomeHeroCarousel: View {
     }
     .onChange(of: current.index) { _, index in
       if index != shownIndex { shownIndex = index }
+      HomeHeroWarmup.warm(features, around: index, backdropSize: .zero)
+    }
+    .onChange(of: features.map(\.card.id), initial: true) {
+      HomeHeroWarmup.warm(features, around: current.index, backdropSize: .zero)
     }
     .onChange(of: features.count) { _, count in
       // The banner set is topped up or trimmed: keep a title that still exists.
@@ -973,12 +977,16 @@ private struct DrawnPageDots: View {
     let advances: Bool
   }
 
-  private var running: CGFloat { dot * 3 }
+  /// Off for now (Sasha, 2026-11-10): plain dots, the current one white, no fill running
+  /// through it, until the running fill is right on the Mac. The clock still turns.
+  static let showsProgress = false
+
+  private var running: CGFloat { Self.showsProgress ? dot * 3 : dot }
   private var gap: CGFloat { dot }
 
   var body: some View {
-    TimelineView(.animation(paused: runStart == nil)) { context in
-      let progress = fill(at: context.date)
+    TimelineView(.animation(paused: runStart == nil || !Self.showsProgress)) { context in
+      let progress = Self.showsProgress ? fill(at: context.date) : 1
       HStack(spacing: gap) {
         ForEach(0..<count, id: \.self) { index in
           let active = index == shown
@@ -987,7 +995,7 @@ private struct DrawnPageDots: View {
             .overlay(alignment: .leading) {
               Capsule()
                 .fill(.white)
-                .frame(width: active ? max(dot, running * (shown == current ? progress : 0)) : 0)
+                .frame(width: active ? max(dot, running * (shown == current || !Self.showsProgress ? progress : 0)) : 0)
                 .opacity(active ? 1 : 0)
             }
             .frame(width: active ? running : dot, height: dot)
@@ -1184,6 +1192,22 @@ private struct WindowSheetProbe: NSViewRepresentable {
 }
 #endif
 
+
+/// Paging that moves one title per gesture at most (Sasha, 2026-11-10): a fling on the
+/// trackpad ran past several pages, and every page it crossed loaded and drew its
+/// picture. The system's paging picks the page, then it is held to the neighbours of
+/// the page the gesture began on.
+struct HeroOnePage: ScrollTargetBehavior {
+  func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
+    PagingScrollTargetBehavior().updateTarget(&target, context: context)
+    let width = context.containerSize.width
+    guard width > 0 else { return }
+    let start = (context.originalTarget.rect.minX / width).rounded()
+    let page = (target.rect.minX / width).rounded()
+    let held = min(max(page, start - 1), start + 1)
+    if held != page { target.rect.origin.x = held * width }
+  }
+}
 
 /// Debug trace of the hero's clock and turns (`[HomeHero]` in the console).
 @inline(__always)

@@ -8,6 +8,7 @@
 //  read the same values, so a title says the same thing in each.
 //
 
+import CoreGraphics
 import Foundation
 
 /// The Home hero's names off tvOS, where nothing else is a "TV page".
@@ -165,5 +166,41 @@ public enum HomeHeroText {
     }
 
     return parts
+  }
+}
+
+/// Loads the neighbours' pictures before they are needed (Sasha, 2026-11-10): the title
+/// before the current one and the two after it, logo and backdrop, decoded into memory
+/// at the size they will be drawn. A turn then paints from the cache in the same frame,
+/// and the line under the logo has its language stamp (`imageWithSource` remembers it)
+/// instead of waiting a second for it. Nuke coalesces a load already under way.
+@MainActor
+public enum HomeHeroWarmup {
+  /// Behind by one, ahead by two.
+  static let offsets = [1, -1, 2]
+
+  /// - Parameter backdropSize: the size the backdrop is decoded to where it is drawn
+  ///   (`.zero` for full resolution), so the warm copy is the one the hero asks for;
+  ///   `nil` while that size is not known yet: logos only.
+  public static func warm(_ features: [HomeHeroFeature], around index: Int, backdropSize: CGSize?) {
+    let count = features.count
+    guard count > 1 else { return }
+    var seen = Set<Int>()
+    for offset in [0] + offsets {
+      let at = ((index + offset) % count + count) % count
+      guard seen.insert(at).inserted else { continue }
+      let feature = features[at]
+      if let logo = feature.logoURL { load(logo, size: .zero) }
+      if let backdropSize, let backdrop = feature.backdropCandidates.first {
+        load(backdrop, size: backdropSize)
+      }
+    }
+  }
+
+  private static func load(_ url: URL, size: CGSize) {
+    guard Artwork.cachedImage(for: url, size: size) == nil else { return }
+    Task(priority: .utility) {
+      _ = try? await Artwork.imageWithSource(for: url, size: size)
+    }
   }
 }

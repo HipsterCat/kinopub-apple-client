@@ -96,7 +96,16 @@ final class TVPageHeroCarousel {
     }
     TVUIKitRemoteImage.prefetch(features.map { $0.backdropCandidates.first })
     backdrop?.show(current, direction: 0, next: next)
+    warmNeighbours()
     cell?.render(direction: 0)
+  }
+
+  /// The title before and the two after, logo and picture, decoded at the backdrop's
+  /// size before a turn asks for them (Sasha, 2026-11-10).
+  private func warmNeighbours() {
+    let size = backdrop?.bounds.size ?? .zero
+    HomeHeroWarmup.warm(features, around: index,
+                        backdropSize: size.width > 0 && size.height > 0 ? size : nil)
   }
 
   /// One title over: +1 forward, -1 back. Both wrap.
@@ -109,6 +118,7 @@ final class TVPageHeroCarousel {
   func move(to newIndex: Int, direction: Int) {
     guard features.indices.contains(newIndex), newIndex != index else { return }
     index = newIndex
+    warmNeighbours()
     // The words turn with the picture, not before it: the backdrop says when its
     // page turn starts (at once when the picture is cached).
     guard let backdrop else {
