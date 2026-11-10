@@ -903,9 +903,22 @@ struct MediaItemHeroView: View {
   /// Whether the hero's bottom edge has gone up under the window toolbar (Mac) or the
   /// navigation bar (iPhone, iPad). One write per crossing, read by the title page's bar
   /// alone.
+  /// Mac: once the whole hero is under the toolbar. iPhone: once its words reach the
+  /// bar — the hero is a screen tall there, and a bare bar let the synopsis run under the
+  /// clock while the picture was still partly under it.
+  private func barTakesOver(heroFrame frame: CGRect) -> Bool {
+#if os(iOS)
+    if phoneHeroGrows {
+      return frame.minY <= -phoneWordsTop
+    }
+#endif
+    return frame.maxY <= phase.topChromeInset
+  }
+
   private var toolbarCrossingProbe: some View {
     GeometryReader { proxy in
-      let past = proxy.frame(in: .named(MediaItemLayout.scrollSpace)).maxY <= phase.topChromeInset
+      let frame = proxy.frame(in: .named(MediaItemLayout.scrollSpace))
+      let past = barTakesOver(heroFrame: frame)
       Color.clear
         .onChange(of: past, initial: true) { _, past in
           if phase.isHeroPastToolbar != past { phase.isHeroPastToolbar = past }
