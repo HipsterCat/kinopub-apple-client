@@ -6,10 +6,9 @@
  */
 
 import { handleAdmin } from "./admin.js";
-import { handleCard } from "./card.js";
 import { handleDouban } from "./douban.js";
 import { handleSeasons } from "./seasons.js";
-import { handleImage, handleTitle } from "./title.js";
+import { handleImage, handleTitle, handleTitleV2 } from "./title.js";
 
 const TMDB_API = "https://api.themoviedb.org";
 const TMDB_IMAGE = "https://image.tmdb.org";
@@ -38,9 +37,10 @@ export default {
       return handleSeasons(request, env, ctx);
     }
 
-    if (url.pathname.startsWith("/v2/title/by/kinopub/")
+    if (url.pathname === "/v2/title" || url.pathname === "/v2/title/"
+        || url.pathname.startsWith("/v2/title/by/kinopub/")
         || url.pathname.startsWith("/v1/card/by/kinopub/")) {
-      return handleCard(url, env);
+      return handleTitleV2(url, env, ctx);
     }
 
     if (url.pathname.startsWith("/v1/title/by/kinopub/")) {
@@ -71,7 +71,7 @@ export default {
 
     return json({
       error: "not_found",
-      hint: "/v2/title/by/kinopub/{id} · /v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /v1/douban/by/imdb/{tt} · /3/… · /t/p/… · /p/exports/…",
+      hint: "/v2/title/by/kinopub/{id} · /v2/title?imdb=&kinopoisk=&runtime=&year=&name_ru=&name_original= · /v1/title/by/kinopub/{id} · /v1/title/by/kinopub/{id}/seasons/2-4 · /img/{logo|backdrop|poster|thumbnail}/by/kinopub/{id}?w=&s=&e= · /v1/douban/by/imdb/{tt} · /3/… · /t/p/… · /p/exports/…",
     }, 404);
   },
 };

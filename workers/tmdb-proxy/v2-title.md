@@ -4,13 +4,25 @@ Base: `https://kinopub-tmdb-proxy.traneblow1nd.workers.dev`
 
 ```
 GET /v2/title/by/kinopub/{id}
+GET /v2/title?imdb=&kinopoisk=&runtime=&year=&name_ru=&name_original=
 ```
 
 One request. The page reads this. Do not also call `/v1/title`. That route is the old raw document. `/v1/card/by/kinopub/{id}` is the same body as `/v2/title`; call v2.
 
-No query. No `Accept-Language`. The id is the kino.pub item id. `200` is the card. `404` means we have no card for that id yet. Cache is 60 seconds.
+`GET /v2/title/by/kinopub/{id}` with no query is the stored card. `200` is the card. `404` means we have no card for that id yet. Cache is 60 seconds. No `Accept-Language` on the body: names are Russian, as the rest of the card.
 
-The call does **not** search TMDB. `title`, `original`, `year`, and `runtime` are not parameters. A show with no IMDb and no Kinopoisk id is matched only if that link was already stored.
+The same identity hints `/v1/title` takes can ride on the query, so a cold id still matches:
+
+| param | |
+| --- | --- |
+| `imdb` | `tt…`, from kino.pub |
+| `kinopoisk` | Kinopoisk film id, from kino.pub |
+| `runtime` | minutes; breaks a name+year tie |
+| `year` | |
+| `name_ru` | kino.pub's localized title (`title` still works) |
+| `name_original` | kino.pub's original title (`original` still works) |
+
+IMDb is `/3/find`. Without it, the worker searches TMDB with the names and year. `GET /v2/title` (no kinopub id) looks up a stored card by `imdb` or `kinopoisk`.
 
 ## Body
 
