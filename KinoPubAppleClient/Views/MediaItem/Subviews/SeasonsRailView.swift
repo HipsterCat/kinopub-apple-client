@@ -41,7 +41,7 @@ final class SeasonsRailMemory {
   /// The first card showing at the leading edge, season cards included (iOS / macOS):
   /// a page rebuilt on coming back stands on the same card, not on the episode after it.
   var leadingAnchor: String?
-  /// Seasons folded down to their card: a click on it, or «Свернуть серии» (iOS / macOS).
+  /// Seasons folded down to their card: a click on it, or «Свернуть серии».
   var collapsedSeasonIDs: Set<Int> = []
 }
 
@@ -614,6 +614,7 @@ struct SeasonsRailView: View {
     }
   }
 
+#endif
   /// Folds a season down to its card, or opens it again, keeping the card where it stands.
   private func toggleCollapsed(_ seasonID: Int) {
     withAnimation(.snappy(duration: 0.3)) {
@@ -628,7 +629,6 @@ struct SeasonsRailView: View {
     let parts = [info.episodes, info.years].compactMap { $0 }
     return parts.isEmpty ? nil : parts.joined(separator: " · ")
   }
-#endif
 
   // MARK: - Season cards
 
@@ -715,21 +715,25 @@ struct SeasonsRailView: View {
   private var seasonRail: some View {
     let entries = entries
     let tabs = tabs
-    let rail = tvRailItems(entries, tabs: tabs)
+    let railItems = tvRailItems(entries, tabs: tabs)
+    let cardSeason = { (id: Int) in seasons.first { Self.seasonCardItemID($0.id) == id } }
     return TVSeasonRail(
       title: seasonTitle(tabs: tabs),
       tabs: tabs.map { tab in
         TVSeasonTab(id: tab.id, label: tab.label, symbol: tab.status.symbol,
                     isAvailable: tab.status == .available, accessibilityLabel: tab.spokenLabel)
       },
-      items: rail.items,
-      tabOfItem: rail.tabOfItem,
-      entryByTab: Self.entryByTab(entries),
-      openingItemID: openingEntry(in: entries)?.id,
+      items: railItems.items,
+      tabOfItem: railItems.tabOfItem,
+      entryByTab: tvEntryByTab(entries),
+      openingItemID: tvOpeningItemID(entries),
       contentInset: TVHIGGrid.sideInset,
       // Home's still row, size and all (Sasha, 2026-10-04).
       columns: MainView.stillColumns,
-      onSelect: { id in select(entryID: id) },
+      onSelect: { id in
+        // Select on a season's card folds or opens its episodes (Sasha, 2026-11-10).
+        if let season = cardSeason(id) { toggleCollapsed(season.id) } else { select(entryID: id) }
+      },
       onTabSelected: { id in
         // Only a season kino.pub has can be asked about: there is no schedule to fetch
         // for a number it does not carry.
@@ -738,11 +742,69 @@ struct SeasonsRailView: View {
         }
       },
       contextMenuProvider: { id in
+        if let season = cardSeason(id) { return seasonContextEntries(season, entries: entries) }
         guard case .playable(let season, let episode, _)? = entries.first(where: { $0.id == id })
         else { return [] }
         return contextEntries(for: episode, season: season)
       }
     )
+  }
+
+  /// A folded season keeps only its card: its tab, and an opening inside it, land there.
+  private func tvEntryByTab(_ entries: [RailEntry]) -> [Int: Int] {
+    var result = Self.entryByTab(entries)
+    for id in rail.collapsedSeasonIDs where result[id] != nil && seasons.count > 1 {
+      result[id] = Self.seasonCardItemID(id)
+    }
+    return result
+  }
+
+  private func tvOpeningItemID(_ entries: [RailEntry]) -> Int? {
+    guard let opening = openingEntry(in: entries) else { return nil }
+    if seasons.count > 1, let season = opening.season, rail.collapsedSeasonIDs.contains(season.id) {
+      return Self.seasonCardItemID(season.id)
+    }
+    return opening.id
+  }
+
+  /// The season card's menu on tvOS: the iOS / macOS card's, less what tvOS has no place
+  /// for yet (the image browser, links out of the app).
+  private func seasonContextEntries(_ season: Season, entries: [RailEntry]) -> [MediaCardContextEntry] {
+    let number = tabs.first { $0.id == season.id }?.first ?? KinoPubMediaMapping.seasonNumber(season)
+    var result: [MediaCardContextEntry] = []
+    let info = seasonCardInfo(seasonID: season.id, number: number,
+                              entries: entries.filter { $0.season?.id == season.id }, posterWidth: 0)
+    if let overview = info.overview {
+      result.append(.action(.init(id: "season.details", title: "Season Details".localized,
+                                  systemImage: "info.circle") { [self] in
+        episodeInfoTitle = info.title
+        episodeInfoBody = ([Self.detailsSubtitle(info)].compactMap { $0 } + [overview])
+          .joined(separator: "\n\n")
+        showsEpisodeInfo = true
+      }))
+    }
+    let collapsed = rail.collapsedSeasonIDs.contains(season.id)
+    result.append(.action(.init(id: "season.fold",
+                                title: (collapsed ? "Expand Episodes" : "Collapse Episodes").localized,
+                                systemImage: collapsed ? "rectangle.expand.vertical"
+                                  : "rectangle.compress.vertical") { [self] in
+      toggleCollapsed(season.id)
+    }))
+    if let onToggleSeasonWatched {
+      let allWatched = !season.episodes.isEmpty && season.episodes.allSatisfy(\.isWatched)
+      result.append(.action(.init(id: "season.watched",
+                                  title: (allWatched ? "Mark Season Unwatched" : "Mark Season Watched").localized,
+                                  systemImage: allWatched ? "eye.slash" : "eye") {
+        onToggleSeasonWatched(season)
+      }))
+    }
+    if FeatureFlags.downloadsEnabled, let onDownloadSeason {
+      result.append(.action(.init(id: "season.download", title: "Download Season".localized,
+                                  systemImage: "arrow.down.circle") {
+        onDownloadSeason(season)
+      }))
+    }
+    return result
   }
 
   /// The episodes in media-item terms, with a season's portrait card in front of each
@@ -772,6 +834,8 @@ struct SeasonsRailView: View {
           chips: [info.episodes, info.episodesShort].compactMap { $0 })))
         tabOfItem[id] = season.id
       }
+      // A folded season is its card alone.
+      if seasons.count > 1, let season = entry.season, rail.collapsedSeasonIDs.contains(season.id) { continue }
       items.append(railItem(for: entry))
       if tabOfItem[entry.id] == nil { tabOfItem[entry.id] = entry.tabID }
     }
@@ -1023,7 +1087,15 @@ struct SeasonsRailView: View {
     seasons.count > 1 ? selectedTab?.id : nil
   }
 
-  static let inactiveSeasonOpacity: Double = 0.5
+  /// 0.5 hid them (Sasha, 2026-11-10).
+  static let inactiveSeasonOpacity: Double = 0.7
+
+  /// An episode card with nothing in it, only to take an episode card's height: the caption
+  /// always reserves the same lines (`MediaCardView.reservedCaptionLines`).
+  private static var captionTemplate: MediaCard {
+    MediaCard(unavailableEpisodeID: -1, number: 1, title: nil, episodeLabel: nil,
+              dateLabel: nil, stillURL: nil)
+  }
 
   /// The season card is as tall as an episode's still and a poster's 2:3 across.
   private var seasonCardWidth: CGFloat {
@@ -1041,16 +1113,27 @@ struct SeasonsRailView: View {
           switch cell {
           case .season(let info):
             let isActive = info.seasonID == activeTabID
-            SeasonRailCard(info: info, posterHeight: stillHeight,
-                           cornerRadius: Self.seasonCardCornerRadius(stillRadius: Metrics.cardCornerRadius),
-                           isActive: isActive,
-                           isCollapsed: rail.collapsedSeasonIDs.contains(info.seasonID),
-                           onToggle: { toggleCollapsed(info.seasonID) })
-              .contextMenu {
-                if let season = seasons.first(where: { $0.id == info.seasonID }) {
-                  seasonMenu(season: season, number: info.number)
+            ZStack(alignment: .topLeading) {
+              // As tall as an episode card, caption and all, though the card itself has
+              // no words: the lazy row takes its height from the first card it lays out,
+              // and a still-high season card there cut every episode's caption off
+              // (Sasha, 2026-11-10).
+              MediaCardView(card: Self.captionTemplate, caption: .always)
+                .frame(width: cardWidth)
+                .frame(width: seasonCardWidth, alignment: .leading)
+                .hidden()
+                .accessibilityHidden(true)
+              SeasonRailCard(info: info, posterHeight: stillHeight,
+                             cornerRadius: Self.seasonCardCornerRadius(stillRadius: Metrics.cardCornerRadius),
+                             isActive: isActive,
+                             isCollapsed: rail.collapsedSeasonIDs.contains(info.seasonID),
+                             onToggle: { toggleCollapsed(info.seasonID) })
+                .contextMenu {
+                  if let season = seasons.first(where: { $0.id == info.seasonID }) {
+                    seasonMenu(season: season, number: info.number)
+                  }
                 }
-              }
+            }
               .frame(width: seasonCardWidth)
               .opacity(isActive ? 1 : Self.inactiveSeasonOpacity)
               .animation(.easeOut(duration: 0.2), value: isActive)

@@ -5,10 +5,15 @@
 //
 //  A season's portrait card in front of its episodes on the title page's rail
 //  (`TVUIKitMediaItem.seasonCard`, Sasha 2026-11-09). The episodes are the system's wide
-//  media-item cell; this one is not focusable — a heading for the run after it, the way
-//  the season tabs head the rail — so it draws itself: the poster as tall as the stills
-//  beside it, the episode count in the stills' runtime pill, and the one line under the
-//  art in the stills' own caption type and place.
+//  media-item cell; this one is the poster alone, as tall as the stills beside it, with no
+//  words on or under it (Sasha, 2026-11-10: the card is a picture, the menu says the rest).
+//
+//  It takes focus so it has a context menu and Select folds its season
+//  (`TVUIKitMediaItemRail`). The focus lift is the system's own image effect
+//  (`adjustsImageWhenAncestorFocused`) on art that carries its own rounding: the effect
+//  floats the bitmap, so a layer's corner radius would not follow it, and
+//  `masksFocusEffectToContents` keeps the sheen inside the rounded corners. Every bitmap
+//  goes through `TVUIKitTileArtwork.render` (32-bit BGRA), the format the effect reads.
 //
 
 import UIKit
@@ -19,27 +24,11 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
   static let reuseID = "TVUIKitSeasonCardCell"
 
   private let posterView = UIImageView()
-  private let chip = UIView()
-  private let chipLabel = UILabel()
-  private let captionLabel = UILabel()
   private var card: TVUIKitMediaItem.SeasonCard?
   private var imageTask: Task<Void, Never>?
-  /// The card whose poster is on screen or on its way.
+  /// The card whose poster is on screen or on its way, and the size it was drawn at.
   private var loadingFor: TVUIKitMediaItem.SeasonCard?
-
-  /// The stills' runtime pill (`TVUIKitMediaItemOverlayView`): height, inset, fill.
-  private static let chipHeight: CGFloat = 32
-  private static let chipInset: CGFloat = 8
-  private static let chipPadding: CGFloat = 10
-  private static let chipFill = UIColor.black.withAlphaComponent(0.36)
-  /// Between the art and the line under it — the wide cell's, measured on tvOS 27.2
-  /// (`TVPageCellMetrics.stillTextBlock`: 9 pt gap + 39 pt label).
-  private static let captionGap: CGFloat = 9
-  private static let captionHeight: CGFloat = 39
-
-  /// The wide cell's caption: its type and alignment, read off the system configuration
-  /// rather than restated.
-  private static let captionText = TVMediaItemContentConfiguration.wideCell().textProperties
+  private var drawnSize: CGSize = .zero
 
   var tileAlpha: CGFloat = 1 {
     didSet { contentView.alpha = tileAlpha }
@@ -50,31 +39,24 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
     clipsToBounds = false
     contentView.clipsToBounds = false
 
-    posterView.contentMode = .scaleAspectFill
-    posterView.clipsToBounds = true
-    posterView.layer.cornerCurve = .continuous
+    posterView.contentMode = .scaleToFill
+    posterView.clipsToBounds = false
+    posterView.adjustsImageWhenAncestorFocused = true
+    posterView.masksFocusEffectToContents = true
     contentView.addSubview(posterView)
 
-    chip.backgroundColor = Self.chipFill
-    chip.layer.cornerCurve = .continuous
-    chipLabel.font = .preferredFont(forTextStyle: .caption2)
-    chipLabel.textColor = .white
-    chip.addSubview(chipLabel)
-    contentView.addSubview(chip)
-
-    captionLabel.font = Self.captionText.font
-    captionLabel.textColor = .secondaryLabel
-    captionLabel.numberOfLines = 1
-    captionLabel.lineBreakMode = .byTruncatingTail
-    contentView.addSubview(captionLabel)
-
     isAccessibilityElement = true
-    accessibilityTraits = .header
+    accessibilityTraits = [.header, .button]
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  override var canBecomeFocused: Bool { false }
+  override var canBecomeFocused: Bool { true }
+
+  /// As round as a still would be at this width: the still's radius scaled down.
+  private static var cornerRadius: CGFloat {
+    TVUIKitMediaItemCell.stillCornerRadius * CardAspect.poster.ratio / CardAspect.landscape.ratio
+  }
 
   func configure(_ card: TVUIKitMediaItem.SeasonCard, id: Int) {
     let reload = loadingFor?.posterURL != card.posterURL
@@ -82,68 +64,51 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
     self.card = card
     accessibilityIdentifier = "kinopub.rail.season.\(id)"
     accessibilityLabel = ([card.captions.first] + [card.chips.first]).compactMap { $0 }.joined(separator: ", ")
-    if reload {
-      posterView.image = TVUIKitTileArtwork.placeholder(traits: traitCollection)
-      loadPoster(card)
-    }
+    if reload { drawnSize = .zero }
     setNeedsLayout()
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    let art = contentView.bounds
-    posterView.frame = art
-    // As round as a still would be at this width: the still's radius scaled down.
-    posterView.layer.cornerRadius = TVUIKitMediaItemCell.stillCornerRadius
-      * CardAspect.poster.ratio / CardAspect.landscape.ratio
+    posterView.frame = contentView.bounds
+    // The art is drawn at the card's size; a new size (or a new card) draws it again.
+    let size = contentView.bounds.size
+    guard let card, size.width > 0, size.height > 0, size != drawnSize else { return }
+    drawnSize = size
+    posterView.image = TVUIKitTileArtwork.placeholder(size: size, cornerRadius: Self.cornerRadius,
+                                                      traits: traitCollection)
+    loadPoster(card, size: size)
+  }
 
-    let room = art.width - Self.chipInset * 2
-    let chipText = Self.firstFitting(card?.chips ?? [], font: chipLabel.font,
-                                     width: room - Self.chipPadding * 2)
-    chipLabel.text = chipText
-    chip.isHidden = chipText == nil
-    if let chipText {
-      let textWidth = (chipText as NSString).size(withAttributes: [.font: chipLabel.font as Any]).width.rounded(.up)
-      let width = min(textWidth + Self.chipPadding * 2, room)
-      chip.frame = CGRect(x: art.maxX - Self.chipInset - width,
-                          y: art.maxY - Self.chipInset - Self.chipHeight,
-                          width: width, height: Self.chipHeight)
-      chip.layer.cornerRadius = Self.chipHeight / 2
-      chipLabel.frame = chip.bounds.insetBy(dx: Self.chipPadding, dy: 0)
+  /// `image` filling `size` (centre crop), its corners cut, in the focus effect's format.
+  private static func rounded(_ image: UIImage, size: CGSize) -> UIImage {
+    let source = image.size
+    guard source.width > 0, source.height > 0 else { return image }
+    let scale = max(size.width / source.width, size.height / source.height)
+    let drawn = CGSize(width: source.width * scale, height: source.height * scale)
+    let frame = CGRect(x: (size.width - drawn.width) / 2, y: (size.height - drawn.height) / 2,
+                       width: drawn.width, height: drawn.height)
+    return TVUIKitTileArtwork.render(size: size) { _ in
+      UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: cornerRadius).addClip()
+      image.draw(in: frame)
     }
-
-    captionLabel.textAlignment = Self.alignment
-    captionLabel.text = Self.firstFitting(card?.captions ?? [], font: captionLabel.font, width: art.width)
-      ?? card?.captions.last
-    captionLabel.frame = CGRect(x: art.minX, y: art.maxY + Self.captionGap,
-                                width: art.width, height: Self.captionHeight)
   }
 
-  /// The first candidate that fits `width` on one line in `font`.
-  private static func firstFitting(_ candidates: [String], font: UIFont, width: CGFloat) -> String? {
-    candidates.first { ($0 as NSString).size(withAttributes: [.font: font]).width <= width }
-  }
-
-  /// Centred, as the wide cell centres its caption under the still (its text properties
-  /// carry no alignment to read).
-  private static let alignment: NSTextAlignment = .center
-
-  private func loadPoster(_ card: TVUIKitMediaItem.SeasonCard) {
+  private func loadPoster(_ card: TVUIKitMediaItem.SeasonCard, size: CGSize) {
     imageTask?.cancel()
     loadingFor = card
-    let size = contentView.bounds.size
     let urls = [card.posterURL, card.fallbackPosterURL].compactMap { $0 }
     if let first = urls.first, let hit = TVUIKitRemoteImage.cached(url: first, size: size) {
-      posterView.image = hit
+      posterView.image = Self.rounded(hit, size: size)
       return
     }
     imageTask = Task { [weak self] in
       // The worker's season poster, then TMDB's when the worker has none (it answers 404).
       for url in urls {
         let image = await TVUIKitRemoteImage.load(url: url, size: size)
-        guard let self, !Task.isCancelled, self.loadingFor == card else { return }
+        guard let self, !Task.isCancelled, self.loadingFor == card, self.drawnSize == size else { return }
         if let image {
-          self.posterView.image = image
+          self.posterView.image = Self.rounded(image, size: size)
           return
         }
       }
@@ -156,6 +121,7 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
     imageTask = nil
     card = nil
     loadingFor = nil
+    drawnSize = .zero
     posterView.image = nil
     tileAlpha = 1
   }

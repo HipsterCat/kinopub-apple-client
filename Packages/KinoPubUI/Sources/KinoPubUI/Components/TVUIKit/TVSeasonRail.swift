@@ -143,7 +143,7 @@ public struct TVSeasonRail: UIViewControllerRepresentable {
 public final class TVSeasonRailController: UIViewController {
 
   /// The tiles of the seasons that are not the selected one (Sasha, 2026-10-11).
-  static let otherSeasonAlpha: CGFloat = 0.8
+  static let otherSeasonAlpha: CGFloat = 0.7
 
   /// Between the tab row and the rail. The rail's own top inset (room for the focus lift)
   /// adds 9; together they are the 22 pt Sasha asked for (2026-10-11).
@@ -382,7 +382,7 @@ public final class TVSeasonRailController: UIViewController {
 
   /// What goes to the page margin when the rail stands on `id`: the season's card when
   /// `id` is the first episode after it, so the season is seen to start there; else `id`.
-  /// Focus still lands on the episode — the card is never a stop.
+  /// Focus still lands on the episode; the card is a stop only when moved onto.
   private func alignmentTarget(for id: Int) -> Int {
     guard let index = items.firstIndex(where: { $0.id == id }), index > 0 else { return id }
     let before = items[index - 1]

@@ -152,7 +152,7 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   /// Mac and iPad cards, or YouTube's button on a video that opens YouTube. Nil: nothing.
   public let focusGlyph: LandscapePlayGlyph?
   /// Set, the item is a season's portrait card in front of its episodes instead of a
-  /// still: a poster as tall as the stills, never focusable (`TVUIKitSeasonCardCell`).
+  /// still: a poster as tall as the stills, focusable for its menu and fold (`TVUIKitSeasonCardCell`).
   public let seasonCard: SeasonCard?
 
   /// A season's card on the episode rail. Each line comes as a list of candidates, longest
@@ -161,9 +161,9 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     public let posterURL: URL?
     /// Tried when `posterURL` does not load (the worker has no poster for the season).
     public let fallbackPosterURL: URL?
-    /// The line under the poster: «Сезон 1 · 2020», then «Сезон 1».
+    /// What VoiceOver reads first: «Сезон 1 · 2020», then «Сезон 1» (the card draws no text).
     public let captions: [String]
-    /// The chip on the poster: «10 серий», then «10 эп.».
+    /// Read after the caption: «10 серий», then «10 эп.».
     public let chips: [String]
 
     public init(posterURL: URL?, fallbackPosterURL: URL?, captions: [String], chips: [String]) {
@@ -880,7 +880,8 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
   }
 
   public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-    guard items.indices.contains(indexPath.item), items[indexPath.item].seasonCard == nil else { return }
+    // A season card's id too: the owner folds the season (Sasha, 2026-11-10).
+    guard items.indices.contains(indexPath.item) else { return }
     onSelect?(items[indexPath.item].id)
   }
 
@@ -897,8 +898,8 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
                              canFocusItemAt indexPath: IndexPath) -> Bool {
     guard allowsFocus else { return false }
     guard items.indices.contains(indexPath.item) else { return true }
-    // A season card is a heading for the episodes after it, not a stop.
-    if items[indexPath.item].seasonCard != nil { return false }
+    // A season card is a stop too: it has the season's menu and Select folds the season
+    // (Sasha, 2026-11-10).
     let id = items[indexPath.item].id
     // `canFocusItem` is the season rail's, which keeps its own entry; the rest of the
     // rails with an entry keep it here.

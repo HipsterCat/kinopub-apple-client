@@ -5,6 +5,7 @@
 
 import SwiftUI
 import KinoPubUI
+import KinoPubMedia
 
 /// One stop in the season strip above the episode rail: a season, or a run of seasons that
 /// stand in the same place.
@@ -42,6 +43,13 @@ struct SeasonTab: Identifiable, Equatable {
   /// "4", or "19–20" for a run.
   var label: String {
     first == last ? "\(first)" : "\(first)–\(last)"
+  }
+
+  /// The selected pill's text: «1 сезон» / "Season 1" for one season, the run as it is.
+  /// It stands in for the word «Сезон» the line used to start with, which scrolled away
+  /// with the pills (Sasha, 2026-11-10).
+  var selectedLabel: String {
+    first == last ? SeasonText(first).formatted(.long) : label
   }
 
   /// What VoiceOver says for the pill: the glyph alone means nothing spoken.
@@ -99,8 +107,8 @@ enum SeasonTabMetrics {
   static let font: Font = TypeScale.rowHeader
 }
 
-/// The line above the episode rail on iOS and macOS (tvOS draws `TVSeasonRail`): the word
-/// «Сезон» (always secondary), 20 pt of air, and a pill per stop with none between them.
+/// The line above the episode rail on iOS and macOS (tvOS draws `TVSeasonRail`): a pill per
+/// stop with none between them, the selected one reading «N сезон» (Sasha, 2026-11-10).
 ///
 /// The line is there whatever the show has. One season is not a choice, so it reads
 /// «Сезон 1» with no pills — and is exactly as tall as the same line with them, so the rail
@@ -148,6 +156,8 @@ struct SeasonTabStrip<TabMenu: View>: View {
 
   /// The pointer is over the line (Mac, iPad).
   @State private var isHovered = false
+  /// The selected pill's capsule moves from pill to pill instead of fading in each.
+  @Namespace private var selection
   /// A pill was just pressed: the line answers as engaged for a moment on touch too.
   @State private var pressedAt: Date?
   @State private var isRecentlyPressed = false
@@ -166,11 +176,14 @@ struct SeasonTabStrip<TabMenu: View>: View {
     ScrollViewReader { proxy in
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 0) {
-          Text(word)
-            .font(SeasonTabMetrics.font)
-            .foregroundStyle(.primary)
-            .padding(.vertical, SeasonTabMetrics.verticalPadding)
-            .padding(.trailing, tabs.count > 1 || count != nil ? SeasonTabMetrics.labelGap : 0)
+          // Several seasons: the pills are the line, the selected one says «N сезон».
+          if tabs.count <= 1 {
+            Text(word)
+              .font(SeasonTabMetrics.font)
+              .foregroundStyle(.primary)
+              .padding(.vertical, SeasonTabMetrics.verticalPadding)
+              .padding(.trailing, count != nil ? SeasonTabMetrics.labelGap : 0)
+          }
 
           if let count, tabs.count <= 1 {
             // `SectionHeader`'s count.
@@ -192,6 +205,9 @@ struct SeasonTabStrip<TabMenu: View>: View {
         .padding(.horizontal, inset)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isEngaged)
+        // The number grows into «N сезон» and the old one shrinks back while the capsule
+        // slides between them.
+        .animation(.smooth(duration: 0.35), value: selectedID)
       }
       // A focused pill grows past its own bounds; the scroll view would shave it.
       .scrollClipDisabled()
@@ -215,7 +231,7 @@ struct SeasonTabStrip<TabMenu: View>: View {
       onSelect(tab)
       markPressed()
     } label: {
-      SeasonPill(tab: tab, isSelected: isSelected, isEngaged: isEngaged)
+      SeasonPill(tab: tab, isSelected: isSelected, isEngaged: isEngaged, selection: selection)
     }
     .buttonStyle(.plain)
     .contextMenu { tabMenu(tab) }
@@ -246,7 +262,8 @@ extension SeasonTabStrip where TabMenu == EmptyView {
 }
 
 /// A season pill: the number (or run), then the glyph if the season is not on kino.pub.
-/// Filled when selected; it has no chrome of its own at rest otherwise.
+/// Filled when selected, and the number becomes «N сезон» (`SeasonTab.selectedLabel`,
+/// interpolated glyph by glyph); it has no chrome of its own at rest otherwise.
 ///
 /// A season kino.pub has is primary; one it does not have is secondary — the glyph says
 /// the rest.
@@ -256,6 +273,8 @@ struct SeasonPill: View {
   let isSelected: Bool
   /// The line is under the pointer, focused or just pressed.
   var isEngaged: Bool = false
+  /// The strip's namespace: the selected capsule is one view that moves between pills.
+  var selection: Namespace.ID? = nil
 
   @Environment(\.isFocused) private var isFocused
 
@@ -269,10 +288,11 @@ struct SeasonPill: View {
   /// The glyph is a character of the text, not an `Image` view, so it sits on the text's
   /// baseline at the text's size.
   private var label: Text {
-    guard let symbol = tab.status.symbol else { return Text(verbatim: tab.label) }
+    let text = isSelected ? tab.selectedLabel : tab.label
+    guard let symbol = tab.status.symbol else { return Text(verbatim: text) }
     // Same font as the number: a smaller one sat on its own baseline, a second label
     // (Sasha, 2026-10-30). `.imageScale(.small)` on the pill keeps it a mark, not a word.
-    return Text("\(tab.label) \(Image(systemName: symbol))")
+    return Text("\(text) \(Image(systemName: symbol))")
   }
 
   /// The pointer is over it (Mac, iPad): the system fill says it can be pressed.
@@ -284,12 +304,13 @@ struct SeasonPill: View {
         .font(SeasonTabMetrics.font)
         .imageScale(.medium)
         .foregroundStyle(textStyle)
+        .contentTransition(.interpolate)
         .padding(.vertical, SeasonTabMetrics.verticalPadding)
         .padding(.horizontal, SeasonTabMetrics.horizontalPadding)
     }
     .background {
       if isSelected {
-        Capsule().fill(isEngaged || isFocused ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.fill.quaternary))
+        selectedCapsule
       } else if isHovered || isFocused {
         Capsule().fill(.fill.quaternary)
       }
@@ -297,6 +318,16 @@ struct SeasonPill: View {
     .contentShape(Capsule())
     .onHover { isHovered = $0 }
     .animation(.easeOut(duration: 0.15), value: isHovered)
+  }
+
+  @ViewBuilder
+  private var selectedCapsule: some View {
+    let capsule = Capsule().fill(isEngaged || isFocused ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.fill.quaternary))
+    if let selection {
+      capsule.matchedGeometryEffect(id: "selected", in: selection)
+    } else {
+      capsule
+    }
   }
 }
 
