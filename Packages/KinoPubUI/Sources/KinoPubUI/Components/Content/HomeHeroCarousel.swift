@@ -1192,7 +1192,7 @@ private struct WindowSheetProbe: NSViewRepresentable {
 }
 #endif
 
-
+#if !os(tvOS)
 /// Paging that moves one title per gesture at most (Sasha, 2026-11-10): a fling on the
 /// trackpad ran past several pages, and every page it crossed loaded and drew its
 /// picture. The system's paging picks the page, then it is held to the neighbours of
@@ -1208,6 +1208,7 @@ struct HeroOnePage: ScrollTargetBehavior {
     if held != page { target.rect.origin.x = held * width }
   }
 }
+#endif
 
 /// Debug trace of the hero's clock and turns (`[HomeHero]` in the console).
 @inline(__always)
