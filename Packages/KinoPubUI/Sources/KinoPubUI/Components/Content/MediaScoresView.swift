@@ -131,6 +131,7 @@ public struct MediaScoreLogo: View {
   private let source: Source
   private let height: CGFloat
   private let style: Style
+  @Environment(\.colorScheme) private var colorScheme
 
   public init(_ source: Source, height: CGFloat, style: Style = .color) {
     self.source = source
@@ -194,7 +195,10 @@ public struct MediaScoreLogo: View {
       }
     case .color: return source.colorAssetName
     case .compact: return source.compactAssetName
-    case .card: return source.cardAssetName
+    case .card:
+      // Dark detail ratings: the white mark reads on the page; colour stays for light.
+      if source == .kinopub, colorScheme == .dark { return "kinopub_big_white" }
+      return source.cardAssetName
     case .line: return source.lineAssetName
     }
   }

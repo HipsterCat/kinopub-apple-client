@@ -403,6 +403,14 @@ struct MediaItemView: View {
       .hudToast($itemModel.hudToast)
       .modifier(VoteChoicePresentation(isPresented: $itemModel.showsVoteChoice,
                                        onVote: { itemModel.vote(up: $0) }))
+      .alert("MediaItem_VoteChoice".localized, isPresented: $itemModel.showsVoteConfirm) {
+        Button(itemModel.pendingVoteUp ? "Like".localized : "Dislike".localized) {
+          itemModel.confirmPendingVote()
+        }
+        Button("Cancel".localized, role: .cancel) {}
+      } message: {
+        Text("MediaItem_VoteLocked".localized)
+      }
       .alert("MediaItem_VoteCastTitle".localized, isPresented: $itemModel.showsVoteLockedNotice) {
         Button("OK".localized, role: .cancel) {}
       } message: {
@@ -998,6 +1006,7 @@ struct MediaItemView: View {
                               likeCount: itemModel.likeCount,
                               dislikeCount: itemModel.dislikeCount,
                               myVote: itemModel.myVote,
+                              onVote: { itemModel.askToConfirmVote(up: $0) },
                               showsHeader: true)
 #if !os(tvOS)
       // Experiment: scores and opinions as one block section.
@@ -1008,12 +1017,14 @@ struct MediaItemView: View {
                                         dislikeCount: itemModel.dislikeCount,
                                         destination: ratingsAndReviewsDestination,
                                         tabDestination: { ratingsAndReviewsDestination(tab: $0) })
-#endif
+#else
+      // tvOS fallback SwiftUI stack: thumbs live on the TVUIKit card when that flag is on.
       MediaItemCommunityVoteSection(likeCount: itemModel.likeCount,
                                     dislikeCount: itemModel.dislikeCount,
                                     myVote: itemModel.myVote,
                                     onVote: { _ in itemModel.askToVote() })
         .detailFocusSection()
+#endif
       MediaItemCastSection(mediaItem: itemModel.mediaItem,
                            linkProvider: itemModel.linkProvider,
                            externalMetadata: itemModel.externalMetadata)

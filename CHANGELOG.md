@@ -5,6 +5,18 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Compact counts k/M; Kinopub like/dislike on pointer platforms (KP-12)
+
+- `CompactCountFormat` in KinoPubUI: always Latin `k` / `M`, round with up to
+  one decimal for thousands and two for millions (1.1M, 15.56M, 554.6k). Replaces
+  integer truncation in `MediaScoreItem.votesCompact` and locale
+  `.notation(.compactName)` (`тыс.` / `млн`) in view counts, collections and
+  reviews stats.
+- iOS / iPadOS / macOS detail ratings: interactive thumbs on the kino.pub tile
+  (basic outline → hover/press capsules → solid cast pill), confirm alert before
+  `vote(up:)`, dark-mode mark `kinopub_big_white`. Separate
+  `MediaItemCommunityVoteSection` stays tvOS-only for the SwiftUI fallback.
+
 ### `/v2/title` takes the same identity hints as `/v1/title` (2026-11-10)
 
 - `GET /v2/title/by/kinopub/{id}` with no query is still the stored card. Query

@@ -284,13 +284,7 @@ public struct MediaScoreItem: Identifiable, Hashable, Sendable {
     }
 
     if let v = self.votes, v > 0 {
-      if v >= 1_000_000 {
-        self.votesCompact = "\(v / 1_000_000)M"
-      } else if v >= 1_000 {
-        self.votesCompact = "\(v / 1_000)K"
-      } else {
-        self.votesCompact = "\(v)"
-      }
+      self.votesCompact = CompactCountFormat.string(v)
     } else {
       self.votesCompact = nil
     }

@@ -168,8 +168,8 @@ enum CollectionMediaCard {
     return date.formatted(date: .abbreviated, time: .omitted)
   }
 
-  /// Compact count, e.g. 12_345 → "12K".
+  /// Compact count, e.g. 12_345 → "12.3k". Always Latin `k` / `M`.
   private static func compact(_ value: Int) -> String {
-    value.formatted(.number.notation(.compactName))
+    CompactCountFormat.string(value)
   }
 }

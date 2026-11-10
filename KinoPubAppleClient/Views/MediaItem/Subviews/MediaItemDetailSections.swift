@@ -91,19 +91,10 @@ func mediaItemAdvisories(_ mediaItem: MediaItem) -> [String] {
 }
 
 /// How many times a title was watched on kino.pub, short enough for a score's line:
-/// 999 · 9,999 · 99,999 · 100K · 100.5K · 1.56M (Sasha, 2026-11-04). Up to 99,999 the count
-/// is printed whole; past it the system's compact notation takes over, in the viewer's
-/// locale (`100,5 тыс.` in Russian), with one decimal for thousands and two for millions.
+/// 999 · 9,999 · 99,999 · 100k · 100.5k · 1.56M. Up to 99,999 the count is printed
+/// whole; past that, always Latin `k` / `M` (never locale `тыс.` / `млн`), rounded.
 func formattedViewCount(_ views: Int) -> String {
-  switch views {
-  case ..<100_000:
-    return views.formatted(.number.grouping(.automatic))
-  // 999,950 and up would round to "1,000K"; it reads as millions from there.
-  case ..<999_950:
-    return views.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)))
-  default:
-    return views.formatted(.number.notation(.compactName).precision(.fractionLength(0...2)))
-  }
+  CompactCountFormat.views(views)
 }
 
 /// The title's page on the kino.pub website (its `kino.watch` mirror, as the Debug sheet's
@@ -161,10 +152,10 @@ enum RatingSources {
     /// What the tile prints. Not derived from `value` in the view: TMDB and kino.pub
     /// are a percentage to read and a 0…10 number to average.
     let display: String
-    /// Turnout beside the score, short enough to sit in a chip: `1.4K`, `24.5K`.
+    /// Turnout beside the score, short enough to sit in a chip: `1.4k`, `24.5k`.
     var votesCompact: String? {
       guard let votes, votes > 0 else { return nil }
-      return votes.formatted(.number.notation(.compactName))
+      return CompactCountFormat.string(votes)
     }
     /// The same count in full, for a row that has the width for it.
     var votesGrouped: String? {
@@ -590,6 +581,8 @@ struct MediaItemRatingsSection: View {
   var dislikeCount: Int = 0
   /// The viewer's own thumb: the kino.pub tile fills the one they cast (as on tvOS).
   var myVote: MediaItemUserVote = .none
+  /// Pointer platforms: tap a thumb → confirm → cast. Nil on tvOS (card select asks).
+  var onVote: ((Bool) -> Void)? = nil
   /// Hidden while the hero/trailer owns the page — same chrome gate as season tabs,
   /// so "Ratings" doesn't caption the wide art peeking under the hero.
   var showsHeader: Bool = true
@@ -646,8 +639,9 @@ struct MediaItemRatingsSection: View {
               RatingTile(score: score,
                          url: score.url,
                          openURL: openURL,
-                         thumbs: score.logo == .kinopub && likeCount + dislikeCount > 0
+                         thumbs: score.logo == .kinopub
                            ? (likeCount, dislikeCount, myVote) : nil,
+                         onVote: score.logo == .kinopub ? onVote : nil,
                          pageEntryFocus: aggregate == nil && index == 0 ? pageEntryFocus : nil)
             }
             if mediaItem.views > 0 {
@@ -776,23 +770,26 @@ private struct RatingTile: View {
   let openURL: OpenURLAction
   /// kino.pub's tile: likes, dislikes and the viewer's own vote, under the number.
   var thumbs: (up: Int, down: Int, mine: MediaItemUserVote)? = nil
+  /// Pointer platforms: confirm-then-cast. Nil means display-only thumbs.
+  var onVote: ((Bool) -> Void)? = nil
   var pageEntryFocus: FocusState<MediaItemFocusTarget?>.Binding? = nil
   @State private var isHovered = false
+  @State private var hoveredThumb: Bool? = nil
 
   private var isLink: Bool { url != nil }
 
   var body: some View {
+#if os(tvOS)
     Button {
       if let url { openURL(url) }
     } label: {
       tileContent
     }
     .buttonStyle(DetailTileStyle.buttonStyle)
-#if os(tvOS)
     .modifier(OptionalPageEntryFocus(binding: pageEntryFocus))
 #else
-    .onHover { isHovered = $0 }
-//    .pointingHandCursorOnHover(enabled: isLink)
+    // Logo + score open the source; thumbs are their own controls (confirm → vote).
+    tileContent
 #endif
   }
 
@@ -803,16 +800,20 @@ private struct RatingTile: View {
   private var tileContent: some View {
     // Centred under the mark and the number, as on the tvOS card.
     VStack(alignment: .center, spacing: 6) {
-      HStack(alignment: .center, spacing: 10) {
-        MediaScoreLogo(score.logo, height: MediaItemRatingsSection.iconSize, style: .card)
-        if !score.isPlaceholder {
-          ScoreValueText(score.value == nil ? "?" : score.display,
-                         font: MediaItemRatingsSection.valueUIFont)
-            .foregroundStyle(score.drawsFaint || score.value == nil
-                             ? Color.KinoPub.subtitle : Color.KinoPub.text)
+      Group {
+        if let url {
+          Button { openURL(url) } label: { scoreHeader }
+            .buttonStyle(.plain)
+            .pointingHandCursorOnHover()
+        } else {
+          scoreHeader
         }
       }
-      .frame(height: MediaItemRatingsSection.lineHeight)
+      .opacity(isLink && isHovered && hoveredThumb == nil
+               ? MediaItemRatingsSection.hoverOpacity : 1)
+      .onHover { isHovered = $0 }
+      .animation(.easeOut(duration: 0.15), value: isHovered)
+
       if let thumbs {
         thumbsLine(thumbs)
       } else if let caption {
@@ -822,31 +823,62 @@ private struct RatingTile: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
-    // The whole tile is the link: it fades under the pointer and takes the click,
-    // caption included — this opens the source.
-    .contentShape(Rectangle())
-    .opacity(isLink && isHovered ? MediaItemRatingsSection.hoverOpacity : 1)
-    .animation(.easeOut(duration: 0.15), value: isHovered)
   }
 
-  /// tvOS's kino.pub line: outline thumbs in secondary until the viewer has voted; the one
-  /// they cast fills and takes its colour, its count primary.
+  private var scoreHeader: some View {
+    HStack(alignment: .center, spacing: 10) {
+      MediaScoreLogo(score.logo, height: MediaItemRatingsSection.iconSize, style: .card)
+      if !score.isPlaceholder {
+        ScoreValueText(score.value == nil ? "?" : score.display,
+                       font: MediaItemRatingsSection.valueUIFont)
+          .foregroundStyle(score.drawsFaint || score.value == nil
+                           ? Color.KinoPub.subtitle : Color.KinoPub.text)
+      }
+    }
+    .frame(height: MediaItemRatingsSection.lineHeight)
+    .contentShape(Rectangle())
+  }
+
+  /// Outline thumbs at rest; pills appear on hover/press; the cast thumb fills a solid pill.
   private func thumbsLine(_ thumbs: (up: Int, down: Int, mine: MediaItemUserVote)) -> some View {
-    HStack(spacing: 16) {
-      thumb(up: true, count: thumbs.up, chosen: thumbs.mine == .up)
-      thumb(up: false, count: thumbs.down, chosen: thumbs.mine == .down)
+    HStack(spacing: 8) {
+      thumbControl(up: true, count: thumbs.up, chosen: thumbs.mine == .up)
+      thumbControl(up: false, count: thumbs.down, chosen: thumbs.mine == .down)
     }
     .font(MediaItemRatingsSection.captionFont)
+    .onHover { hovering in
+      if !hovering { hoveredThumb = nil }
+    }
   }
 
-  private func thumb(up: Bool, count: Int, chosen: Bool) -> some View {
-    HStack(spacing: 4) {
-      Image(systemName: up ? (chosen ? "hand.thumbsup.fill" : "hand.thumbsup")
-                           : (chosen ? "hand.thumbsdown.fill" : "hand.thumbsdown"))
-        .foregroundStyle(chosen ? (up ? Color.green : Color.red) : Color.KinoPub.subtitle)
-      Text(count.formatted(.number.grouping(.automatic)))
-        .foregroundStyle(chosen ? Color.KinoPub.text : Color.KinoPub.subtitle)
+  private func thumbControl(up: Bool, count: Int, chosen: Bool) -> some View {
+    let blockHovered = isHovered || hoveredThumb != nil
+    let targetHovered = hoveredThumb == up
+    return Button {
+      if let onVote {
+        onVote(up)
+      }
+    } label: {
+      HStack(spacing: 4) {
+        Image(systemName: up ? (chosen ? "hand.thumbsup.fill" : "hand.thumbsup")
+                             : (chosen ? "hand.thumbsdown.fill" : "hand.thumbsdown"))
+        Text(count.formatted(.number.grouping(.automatic)))
+      }
     }
+    .buttonStyle(KinopubThumbButtonStyle(
+      up: up,
+      chosen: chosen,
+      neighborPill: blockHovered,
+      emphasized: targetHovered
+    ))
+    .disabled(onVote == nil)
+    .accessibilityLabel(up ? "Like" : "Dislike")
+    .onHover { hovering in
+      hoveredThumb = hovering ? up : (hoveredThumb == up ? nil : hoveredThumb)
+    }
+    .animation(.easeOut(duration: 0.2), value: chosen)
+    .animation(.easeOut(duration: 0.2), value: hoveredThumb)
+    .animation(.easeOut(duration: 0.2), value: isHovered)
   }
 
   private var caption: String? {
@@ -905,14 +937,45 @@ private struct RatingTile: View {
       }
     }
     .padding(MediaItemRatingsSection.tilePadding)
-//    .background(
-//      Color.KinoPub.selectionBackground.opacity(isLink && isHovered ? 0.72 : 0.5),
-//      in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-//    )
-//    .animation(.easeOut(duration: 0.15), value: isHovered)
   }
 #endif
 }
+
+#if !os(tvOS)
+/// Pill chrome for a kino.pub thumb: basic → hover/press capsule → solid cast colour.
+private struct KinopubThumbButtonStyle: ButtonStyle {
+  var up: Bool
+  var chosen: Bool
+  /// The other thumb (or the block) is hovered — both pills appear, this one softer.
+  var neighborPill: Bool
+  /// Pointer is over this thumb.
+  var emphasized: Bool
+
+  func makeBody(configuration: ButtonStyleConfiguration) -> some View {
+    // `Configuration` alone resolves to the app's `Configuration` protocol.
+    let pressed = configuration.isPressed
+    let showPill = chosen || pressed || neighborPill || emphasized
+    let strong = chosen || pressed || emphasized
+    configuration.label
+      .font(MediaItemRatingsSection.captionFont)
+      .foregroundStyle(chosen ? Color.white
+                        : (showPill ? Color.KinoPub.text : Color.KinoPub.subtitle))
+      .padding(.horizontal, 10)
+      .padding(.vertical, 5)
+      .background {
+        if chosen {
+          Capsule(style: .continuous)
+            .fill(up ? Color.green : Color.red)
+        } else if showPill {
+          Capsule(style: .continuous)
+            .fill(Color.primary.opacity(strong ? 0.22 : 0.12))
+        }
+      }
+      .scaleEffect(pressed ? 0.98 : 1)
+      .animation(.easeOut(duration: 0.15), value: pressed)
+  }
+}
+#endif
 
 private struct ViewsRatingTile: View {
   let views: Int
