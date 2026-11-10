@@ -228,7 +228,9 @@ struct MainView: View {
         result.append(.posters(id: row.id, title: row.title, count: row.count, cards: row.cards))
       }
 
-      if tab == .home && row.id == HomeCatalog.continueWatchingRowID {
+      // Under the hero comes Continue Watching (on Movies and Series, of that kind only),
+      // the shortcut chips after it (Sasha, 2026-11-10).
+      if row.id == HomeCatalog.continueWatchingRowID {
         result.append(quickPresetsSection)
         insertedQuickPresets = true
       }

@@ -807,7 +807,7 @@ struct TabsNavigationView: View {
 
   /// Watch Now / Movies / Series on tvOS — and Watch Now on every platform — share
   /// `MainView` + `HomeCatalog`. Typed catalogs filter Hot / Fresh / Popular to one
-  /// `MediaType`; Continue Watching stays on Watch Now only.
+  /// `MediaType`; Continue Watching shows on all three, filtered to the tab's kind.
   private func posterShelves(tab: NavigationTabs, contentType: MediaType?) -> some View {
     MainView(tab: tab, catalog: sectionModels.model("shelves-\(tab)") {
       HomeCatalog(itemsService: appContext.contentService,

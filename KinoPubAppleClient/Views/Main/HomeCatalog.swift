@@ -389,9 +389,71 @@ class HomeCatalog: ObservableObject {
   /// Typed Movies / Series catalogs have their own section lists and hero banner,
   /// while Continue Watching and Collections live on Watch Now (`contentType == nil`).
   var includesWatchNowExtras: Bool { contentType == nil }
+  /// Every catalog shows Continue Watching under its hero; the Movies and Series tabs
+  /// only their own kind (Sasha, 2026-11-10: instead of the shortcut buttons there).
+  var includesContinueWatching: Bool { true }
   var supportsHeroBanner: Bool { contentType == nil || contentType == .movie || contentType == .serial }
 
   static let continueWatchingRowID = "continue-watching"
+
+  // MARK: Hero banner pool
+
+  /// Where the hero's titles come from (Sasha, 2026-11-10): the latest 4K releases, not a
+  /// draw from the shelves (that drew Harry Potter and Wednesday again and again). Films
+  /// by date added, series by their last new episode; Home mixes the two, the Movies and
+  /// Series tabs take their own. Kept in the store under their own keys, never shown as
+  /// a shelf.
+  enum HeroSource: String, CaseIterable, Sendable {
+    case movies = "hero-4k-movies"
+    case series = "hero-4k-series"
+
+    var filter: LibraryFilter {
+      var filter: LibraryFilter
+      switch self {
+      case .movies:
+        filter = LibraryFilter(sort: .recentlyAdded)
+        filter.contentTypes = [.movie, .documovie]
+      case .series:
+        filter = LibraryFilter(sort: .recentlyUpdated)
+        filter.contentTypes = [.serial, .docuserial]
+      }
+      filter.minimumQuality = .uhd4K
+      return filter
+    }
+  }
+
+  /// Hero sources of this catalog.
+  var heroSources: [HeroSource] {
+    switch contentType {
+    case .movie: return [.movies]
+    case .serial: return [.series]
+    default: return HeroSource.allCases
+    }
+  }
+
+  /// A title the hero may show: it has an IMDb id (the worker finds its art by it), is
+  /// no concert, and is recent — a film at most two years old, a series at most six and
+  /// still running. Whether the viewer follows, bookmarked or finished it does not
+  /// matter: a series watched to the end may be getting new episodes now.
+  nonisolated static func isHeroWorthy(_ item: MediaItem, source: HeroSource,
+                                       year now: Int = Calendar.current.component(.year, from: Date())) -> Bool {
+    guard let imdb = item.imdb, imdb > 0, item.type != MediaType.concert.rawValue else { return false }
+    switch source {
+    case .movies:
+      return item.year >= now - 2
+    case .series:
+      return item.year >= now - 6 && !item.finished
+    }
+  }
+
+  /// One page is enough: the hero shows six, and the filter above keeps most of a page
+  /// of fresh 4K releases.
+  private static let heroPageSize = 50
+
+  private func fetchHeroItems(_ source: HeroSource) async throws -> [RowItem] {
+    let data = try await itemsService.fetchItems(filter: source.filter, page: nil, perPage: Self.heroPageSize)
+    return data.items.filter { Self.isHeroWorthy($0, source: source) }.map(Self.item(for:))
+  }
   static let collectionsRowID = "collections"
   static let liveTVRowID = "live-tv"
   static let topBookmarksRowID = "top-bookmarks"
@@ -437,7 +499,7 @@ class HomeCatalog: ObservableObject {
   /// Empty until the first fetch lands — the screen shows a spinner rather than
   /// stand-in artwork, the way the Apple TV app waits.
   @Published public private(set) var rows: [MediaRow] = []
-  /// Up to six contained banner cards sampled from the catalog shelves below.
+  /// Up to six banner cards: the latest 4K releases (`HeroSource`).
   @Published public private(set) var bannerCards: [MediaCard] = [] {
     didSet { resolveBannerImages() }
   }
@@ -538,8 +600,18 @@ class HomeCatalog: ObservableObject {
     let homeSections = activeHomeSections
     let excludeConcerts = SectionVisibilityStore.shared.excludeConcertsOnHome
 
+    let heroSources = supportsHeroBanner && FeatureFlags.homeBannerEnabled ? self.heroSources : []
+
     await withTaskGroup(of: Void.self) { group in
-      if includesWatchNowExtras {
+      for source in heroSources {
+        group.addTask { [store] in
+          await store.refreshIfStale(.homeSection(source.rawValue)) { [weak self] in
+            guard let self else { throw CancellationError() }
+            return try await self.fetchHeroItems(source)
+          }
+        }
+      }
+      if includesContinueWatching {
         group.addTask { [store] in
           await store.refreshIfStale(.continueWatching) { [weak self] in
             guard let self else { throw CancellationError() }
@@ -719,7 +791,7 @@ class HomeCatalog: ObservableObject {
   /// plus a 60 s TTL is why the row kept showing the last snapshot while the
   /// network log still filled with requests (shelves, banner details, metadata).
   func refreshContinueWatching() async {
-    guard includesWatchNowExtras, authState.userState == .authorized else {
+    guard includesContinueWatching, authState.userState == .authorized else {
       assembleRows()
       return
     }
@@ -732,8 +804,14 @@ class HomeCatalog: ObservableObject {
 
   private func assembleRows() {
     var assembled: [MediaRow] = []
-    if includesWatchNowExtras {
-      let continueWatchingCards = paintedContinueWatchingCards()
+    if includesContinueWatching {
+      let continueWatchingCards = paintedContinueWatchingCards().filter { card in
+        switch contentType {
+        case .movie: return !card.isSeries
+        case .serial: return card.isSeries
+        default: return true
+        }
+      }
       if !continueWatchingCards.isEmpty {
         assembled.append(MediaRow(id: Self.continueWatchingRowID,
                                   title: "Continue Watching".localized,
@@ -877,10 +955,9 @@ class HomeCatalog: ObservableObject {
 #endif
   }
 
-  /// v1 hack: up to six unique titles drawn at random from the catalog shelves
-  /// (not Continue Watching). Only titles whose payload sent a `wide` still — derived
-  /// `/wide/` paths often 404 and leave the hero empty.
-  /// Sampled once per launch; later refreshes only top it up.
+  /// Up to six of the latest 4K releases (`HeroSource`, `isHeroWorthy`). Only titles
+  /// whose payload sent a `wide` still — derived `/wide/` paths often 404 and leave the
+  /// hero empty. Picked once per launch; later refreshes only top it up.
   /// Skipped entirely when `FeatureFlags.homeBannerEnabled` is off — no sampling and
   /// therefore no wide-poster fetches from `HomeBannerCardView`.
   /// Re-reads the banner switch and either samples the shelf or clears it.
@@ -903,54 +980,38 @@ class HomeCatalog: ObservableObject {
       logBanner("pruned \(before - bannerCards.count) on-screen card(s) — \(bannerCards.count) left")
     }
 
-    let continueWatchingTopIDs = Set(
-      rows.first(where: { $0.id == Self.continueWatchingRowID })?
-        .cards.prefix(4).map(\.itemID) ?? []
-    )
-
+    // Newest first from each source, taken in turns: a film, a series, a film… so Home
+    // shows both. Wide artwork is still required (a derived `/wide/` path can 404).
     var seen = Set<Int>()
+    let lists = heroSources.map { source in
+      store.cards(.homeSection(source.rawValue)).filter { isBannerEligible($0) && seen.insert($0.id).inserted }
+    }
     var pool: [MediaCard] = []
-    for row in rows where row.id != Self.continueWatchingRowID && row.id != Self.collectionsRowID {
-      for card in row.cards
-      where !card.isWatched && isBannerEligible(card) && seen.insert(card.id).inserted {
-        pool.append(card)
-      }
+    for index in 0..<(lists.map(\.count).max() ?? 0) {
+      for list in lists where index < list.count { pool.append(list[index]) }
     }
 
     if pool.isEmpty {
-      logBanner("pool empty — keeping \(bannerCards.count) on-screen card(s); rows=\(rows.count)")
+      logBanner("pool empty — keeping \(bannerCards.count) on-screen card(s)")
       return
     }
 
     logBanner("pool=\(pool.count) eligible — on-screen=\(bannerCards.count)")
 
-    // Soft-weight candidates: avoid duplicating the first 4 Continue Watching cards right
-    // below the banner when there are enough candidates, and boost bookmarked/followed items.
-    let deDuped = pool.filter { !continueWatchingTopIDs.contains($0.itemID) }
-    let source = deDuped.count >= 4 ? deDuped : pool
-
-    // Drawn once per launch: a refresh that reorders or reshuffles the shelves never
-    // touches what is already on screen, it only tops a short banner up to six. The
-    // next launch samples afresh (Sasha, 2026-10-22).
+    // Drawn once per launch: a refresh never touches what is already on screen, it only
+    // tops a short banner up to six (Sasha, 2026-10-22).
     if !bannerCards.isEmpty {
       guard bannerCards.count < 6 else { return }
-      let missing = source.filter { card in !bannerCards.contains(where: { $0.id == card.id }) }
+      let missing = pool.filter { card in !bannerCards.contains(where: { $0.id == card.id }) }
       guard !missing.isEmpty else { return }
-      let added = missing.shuffled().prefix(6 - bannerCards.count)
+      let added = missing.prefix(6 - bannerCards.count)
       bannerCards += added
       logBanner("topped up +\(added.count) — now \(bannerCards.count)")
       return
     }
 
-    let bookmarked = source.filter {
-      ($0.viewerState.isBookmarked == true) || ($0.viewerState.isFollowing == true)
-    }
-    let others = source.filter {
-      ($0.viewerState.isBookmarked != true) && ($0.viewerState.isFollowing != true)
-    }
-    let combined = (bookmarked.shuffled().prefix(2) + others.shuffled()).prefix(6)
-    bannerCards = Array(combined)
-    logBanner("sampled \(bannerCards.count): \(bannerCards.map { "\($0.id)" }.joined(separator: ", "))")
+    bannerCards = Array(pool.prefix(6))
+    logBanner("picked \(bannerCards.count): \(bannerCards.map { "\($0.id)" }.joined(separator: ", "))")
   }
 
   /// The banner's pictures are URLs, not lookups: the logo and the textless backdrop
