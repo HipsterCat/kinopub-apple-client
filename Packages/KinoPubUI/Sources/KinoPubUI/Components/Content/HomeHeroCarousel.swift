@@ -520,6 +520,8 @@ public struct HomeHeroCarousel: View {
       accessibilityLabel: hero.labels.play
     )
     appearance.chrome = .pill
+    // Phone: «Смотреть» / «Продолжить» / «Пересмотреть», as the title page's (Sasha, 2026-11-10).
+    if isCompact { appearance = MediaActionCatalog.compactPlay(appearance) }
     return MediaActionButton(appearance) { onPlay(feature.card) }
       .accessibilityIdentifier("kinopub.hero.play")
   }
@@ -662,30 +664,8 @@ private struct HeroBackdrop: View {
     let wide = pictureWidth
 #if os(iOS)
     if isCompact {
-      let still = HomeHeroCarousel.stillHeight(width: width)
-      let below = max(height - topBleed - still, 0)
-      ZStack(alignment: .top) {
-        FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
-          .frame(width: wide, height: still)
-          .clipped()
-          .backgroundExtensionEffect()
-          .safeAreaPadding(.top, topBleed)
-          .safeAreaPadding(.bottom, below)
-          .blur(radius: width * 0.06, opaque: true)
-        FallbackRemoteImage(urls: feature.backdropCandidates, contentMode: .fill)
-          .frame(width: wide, height: still)
-          .clipped()
-          .mask {
-            LinearGradient(stops: [
-              .init(color: .clear, location: 0),
-              .init(color: .black, location: 0.22),
-              .init(color: .black, location: 0.55),
-              .init(color: .clear, location: 1)
-            ], startPoint: .top, endPoint: .bottom)
-          }
-          .padding(.top, topBleed)
-      }
-      .frame(width: wide, height: height, alignment: .top)
+      CompactHeroPicture(urls: feature.backdropCandidates, width: width, pictureWidth: wide,
+                         height: height, topBleed: topBleed)
     } else {
       croppedPicture(feature, width: wide)
     }
@@ -710,11 +690,7 @@ private struct HeroScrim: View {
 
   var body: some View {
     if isCompact {
-      LinearGradient(stops: [
-        .init(color: .black.opacity(0), location: 0.38),
-        .init(color: .black.opacity(0.45), location: 0.64),
-        .init(color: .black.opacity(0.85), location: 1)
-      ], startPoint: .top, endPoint: .bottom)
+      CompactHeroScrim()
     } else {
       HeroLegibilityTexture(tone: .black)
     }

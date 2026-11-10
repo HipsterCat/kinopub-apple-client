@@ -193,9 +193,17 @@ struct MediaItemView: View {
   @State private var imagePickerTarget: TitleImagePickerTarget?
   /// The Title IDs form, while open.
   @State private var idsTarget: TitleImagePickerTarget?
-#if os(macOS)
+#if !os(tvOS)
   @State private var showsNewFolderAlert = false
   @State private var newFolderName = ""
+#endif
+#if os(iOS)
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  /// iPhone: the hero is a centred column with Play and Trailer alone; Bookmarks, the
+  /// bell and Download are in the navigation bar and Mark as Watched in «…» (Sasha,
+  /// 2026-11-10). The hero reads the same size class (`phoneHeroGrows`).
+  private var barCarriesActions: Bool { horizontalSizeClass == .compact }
 #endif
   @StateObject private var itemModel: MediaItemModel
   /// Shared with the hero (Up → fullscreen, the ambient preview behind the artwork).
@@ -282,12 +290,13 @@ struct MediaItemView: View {
       // top edge and the title is already spelled out in 100pt over it. What stays is
       // the toolbar itself — Back and the overflow float over the picture.
 #if os(iOS)
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbarBackground(.hidden, for: .navigationBar)
       // One back control. Otherwise the bar draws the chevron and the previous
       // screen's name as two pills over the picture.
       .toolbarRole(.editor)
-//      .toolbarColorScheme(.dark, for: .navigationBar)
+      // Bare over the picture — no title, no edge effect, no bar — and the system's own
+      // bar with the title once the hero has gone under it, as on Mac.
+      .modifier(PhoneTitlePageBar(phase: itemModel.heroPhase,
+                                  title: itemModel.mediaItem.localizedTitle))
 #endif
 #if os(macOS)
       // No title over the hero — it spells the name out itself; once the hero has gone
@@ -295,8 +304,6 @@ struct MediaItemView: View {
       .modifier(MacTitlePageToolbar(phase: itemModel.heroPhase,
                                     title: itemModel.mediaItem.localizedTitle,
                                     subtitle: macToolbarSubtitle))
-#else
-      .platformNavigationTitle("")
 #endif
 #if os(iOS) || os(macOS)
       .toolbar {
@@ -310,6 +317,14 @@ struct MediaItemView: View {
           // One glass group, the way Notes pairs Share with its «…»: Bookmarks and More.
           // Everything else is an item in More.
           bookmarkToolbarMenu
+#endif
+#if os(iOS)
+          // iPhone: top right, as everywhere (Sasha, 2026-11-10).
+          if barCarriesActions {
+            bookmarkToolbarMenu
+            followToolbarButton
+            downloadToolbarMenu
+          }
 #endif
           overflowMenu
         }
@@ -412,10 +427,11 @@ struct MediaItemView: View {
     )
   }
 
-#if os(macOS)
+#if !os(tvOS)
   /// Bookmarks lives in the window toolbar on a Mac, not in the hero row: a `Menu` in the
   /// row never wore the buttons' glass, hover or inactive-window state, and the toolbar's
-  /// own items have all three (Sasha, 2026-10-30). Mark as Watched is in More.
+  /// own items have all three (Sasha, 2026-10-30). Mark as Watched is in More. iPhone:
+  /// in the navigation bar, beside More (2026-11-10).
   private var bookmarkToolbarMenu: some View {
     Menu {
       Section {
@@ -443,6 +459,10 @@ struct MediaItemView: View {
     } label: {
       Label("Bookmarks", systemImage: itemModel.isBookmarked ? "bookmark.fill" : "bookmark")
     }
+#if os(iOS)
+    // Stays open while folders are ticked, as the hero's menu did.
+    .menuActionDismissBehavior(.disabled)
+#endif
     .menuIndicator(.hidden)
     .help("Bookmarks")
     .disabled(!itemModel.itemLoaded)
@@ -496,6 +516,65 @@ struct MediaItemView: View {
   }
 #endif
 
+#if os(iOS)
+  /// The bell, for a series that can be followed — not while labelled Follow leads the
+  /// hero's row (nothing left to play), where it would be said twice.
+  @ViewBuilder
+  private var followToolbarButton: some View {
+    let item = itemModel.mediaItem
+    if item.isSeries,
+       !MediaItemHeroView.promotesFollow(mediaItem: item,
+                                         awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
+                                         canFollow: true) {
+      Button {
+        itemModel.toggleWatchlist()
+      } label: {
+        Label(MediaActionCopy.followTitle(isFollowing: itemModel.isInWatchlist),
+              systemImage: itemModel.isInWatchlist ? "bell.fill" : "bell")
+      }
+      .disabled(!itemModel.itemLoaded)
+    }
+  }
+
+  /// Download (with the flag on): a tap downloads or pauses what Play opens; a long press
+  /// on a series offers the season, its unwatched episodes, or all of them.
+  @ViewBuilder
+  private var downloadToolbarMenu: some View {
+    if let phase = itemModel.downloadPhase, phase != .downloaded {
+      let downloading: Bool = if case .downloading = phase { true } else { false }
+      Menu {
+        if let (season, _) = itemModel.mediaItem.primaryEpisode {
+          Button {
+            itemModel.downloadSeason(season)
+          } label: {
+            Label("Season", systemImage: "arrow.down.to.line")
+          }
+          Button {
+            itemModel.downloadUnwatchedInSeason(season)
+          } label: {
+            Label("Unwatched in Season", systemImage: "arrow.down.to.line")
+          }
+          Button {
+            itemModel.downloadAllEpisodes()
+          } label: {
+            Label("All Episodes", systemImage: "arrow.down.to.line")
+          }
+        }
+      } label: {
+        Label(downloading ? LocalizedStringKey("Pause Download") : LocalizedStringKey("Download"),
+              systemImage: downloading ? "pause.circle" : "arrow.down.to.line")
+      } primaryAction: {
+        if downloading {
+          itemModel.pauseCurrentDownload()
+        } else {
+          itemModel.startCurrentDownload()
+        }
+      }
+      .menuIndicator(.hidden)
+    }
+  }
+#endif
+
 #if os(iOS) || os(macOS)
   /// The page's secondary actions, in the one place a platform with a toolbar puts
   /// them. Same list the tvOS hero shows in its overflow circle.
@@ -503,6 +582,10 @@ struct MediaItemView: View {
     Menu {
 #if os(macOS)
       watchedMenuItems
+#elseif os(iOS)
+      if barCarriesActions {
+        watchedMenuItems
+      }
 #endif
       if let imageAdminActions {
         TitleImageAdminMenuItems(actions: imageAdminActions)
@@ -1257,6 +1340,32 @@ private struct MacTitlePageToolbar: ViewModifier {
       // A hidden toolbar background took the scroll edge with it: hidden over the
       // picture only, the system's own once the rows are under the toolbar.
       .toolbarBackgroundVisibility(past ? .automatic : .hidden, for: .windowToolbar)
+  }
+}
+#endif
+
+#if os(iOS)
+/// The title page's navigation bar on iPhone and iPad. Over the hero: no title (the hero
+/// spells it out; a blank key drew a lone «.» there), a clear bar and no scroll-edge
+/// effect, so the picture runs to the top edge unbroken as the Home banner's does — the
+/// soft edge had drawn a blurred strip across the picture (Sasha, 2026-11-10). Light
+/// controls while a picture is under them. Once the hero has gone under the bar, the
+/// system's bar, its edge effect and the title. Reads the phase itself, so only this
+/// modifier re-runs when the hero crosses.
+private struct PhoneTitlePageBar: ViewModifier {
+  let phase: MediaItemHeroPhase
+  let title: String
+  @Environment(\.colorScheme) private var colorScheme
+
+  func body(content: Content) -> some View {
+    let past = phase.isHeroPastToolbar
+    content
+      .navigationTitle(Text(verbatim: past ? title : ""))
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(past ? AnyShapeStyle(.bar) : AnyShapeStyle(Color.clear), for: .navigationBar)
+      .toolbarBackground(past ? .automatic : .visible, for: .navigationBar)
+      .toolbarColorScheme(!past && phase.showsPicture ? .dark : colorScheme, for: .navigationBar)
+      .scrollEdgeEffectHidden(!past, for: .top)
   }
 }
 #endif

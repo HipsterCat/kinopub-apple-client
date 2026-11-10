@@ -47,6 +47,8 @@ final class PlaybackSession: ObservableObject {
   /// The most recently torn-down manager, kept so a dying destination has something
   /// inert to hold. Which dead manager it is doesn't matter — the view is leaving.
   private var stoppedManager: PlayerManager?
+  /// Routes that asked to start from the beginning (`startFromBeginning`), by token.
+  private var fromBeginningTokens: Set<UUID> = []
 
   private init() {}
 
@@ -88,9 +90,18 @@ final class PlaybackSession: ObservableObject {
       trackProfile: profile,
       plan: PlaybackPreflight.shared.plan(for: item, profile: profile)
     )
+    if let token, fromBeginningTokens.remove(token) != nil {
+      created.startsFromBeginning = true
+    }
     manager = created
     request = next
     return created
+  }
+
+  /// The player route pushed with this token opens at zero, not at the resume point —
+  /// Play's «Начать сначала». Called just before the push that mints the token.
+  func startFromBeginning(token: UUID) {
+    fromBeginningTokens.insert(token)
   }
 
   /// Anime-ness and the original language, for track selection.

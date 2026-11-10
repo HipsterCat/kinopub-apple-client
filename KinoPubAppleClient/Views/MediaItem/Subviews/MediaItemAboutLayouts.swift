@@ -629,6 +629,8 @@ struct AboutFlowLayout: Layout {
   var spacing: CGFloat
   /// Between rows; `spacing` when nil.
   var lineSpacing: CGFloat? = nil
+  /// Each row centred in the width rather than from its leading edge (the phone hero).
+  var centersRows = false
 
   private struct Row {
     var items: [(index: Int, size: CGSize)] = []
@@ -672,7 +674,7 @@ struct AboutFlowLayout: Layout {
                      cache: inout ()) {
     var y = bounds.minY
     for row in rows(maxWidth: bounds.width, subviews: subviews) {
-      var x = bounds.minX
+      var x = centersRows ? bounds.minX + max(0, (bounds.width - row.width) / 2) : bounds.minX
       for item in row.items {
         subviews[item.index].place(at: CGPoint(x: x, y: y + row.height / 2), anchor: .leading,
                                    proposal: ProposedViewSize(item.size))

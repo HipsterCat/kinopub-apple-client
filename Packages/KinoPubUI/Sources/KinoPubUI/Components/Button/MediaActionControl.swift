@@ -21,6 +21,19 @@ public struct MediaActionLabel: View {
     self.appearance = appearance
   }
 
+#if os(iOS)
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#endif
+
+  /// A step down on iPhone, with the control (`MediaActionMetrics.compactControlSize`).
+  private var labelFont: Font? {
+#if os(iOS)
+    horizontalSizeClass == .compact ? MediaActionMetrics.compactLabelFont : MediaActionMetrics.labelFont
+#else
+    MediaActionMetrics.labelFont
+#endif
+  }
+
   public var body: some View {
     Group {
       if appearance.isLoading {
@@ -41,7 +54,7 @@ public struct MediaActionLabel: View {
         content
       }
     }
-    .font(MediaActionMetrics.labelFont)
+    .font(labelFont)
 #if !os(tvOS)
     // The monochrome Play's label (`mediaActionPlayPillStyle`), set on the label.
     .modifier(PlayPillLabelColor(isPlayPill: appearance.chrome == .playPill))
@@ -197,8 +210,11 @@ public struct MediaActionButton: View {
 /// swaps, so a bell toggle cannot look like the gaps grew.
 public struct MediaActionRow<Content: View>: View {
   private let content: Content
+  /// Where each line of controls sits: leading, or centred (the phone hero).
+  private let alignment: HorizontalAlignment
 
-  public init(@ViewBuilder content: () -> Content) {
+  public init(alignment: HorizontalAlignment = .leading, @ViewBuilder content: () -> Content) {
+    self.alignment = alignment
     self.content = content()
   }
 
@@ -210,7 +226,7 @@ public struct MediaActionRow<Content: View>: View {
 #else
     // One line while the labels fit. When they do not, the next ones drop to
     // another line — a label is never cut down to "Play…".
-    ActionWrapLayout(spacing: MediaActionMetrics.rowSpacing) {
+    ActionWrapLayout(spacing: MediaActionMetrics.rowSpacing, centersRows: alignment == .center) {
       content
     }
 #endif
@@ -220,6 +236,7 @@ public struct MediaActionRow<Content: View>: View {
 /// Left-to-right rows that wrap once the next control does not fit.
 private struct ActionWrapLayout: Layout {
   var spacing: CGFloat
+  var centersRows = false
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
     let limit = proposal.width ?? .greatestFiniteMagnitude
@@ -243,19 +260,29 @@ private struct ActionWrapLayout: Layout {
   }
 
   func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-    var x = bounds.minX
-    var y = bounds.minY
-    var rowHeight: CGFloat = 0
+    // Lines first, then each placed from where its alignment starts it.
+    var lines: [[(Subviews.Element, CGSize)]] = [[]]
+    var x: CGFloat = 0
     for subview in subviews {
       let size = subview.sizeThatFits(.unspecified)
-      if x > bounds.minX, x + size.width > bounds.maxX {
-        x = bounds.minX
-        y += rowHeight + spacing
-        rowHeight = 0
+      if x > 0, x + size.width > bounds.width {
+        lines.append([])
+        x = 0
       }
-      subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-      rowHeight = max(rowHeight, size.height)
+      lines[lines.count - 1].append((subview, size))
       x += size.width + spacing
+    }
+    var y = bounds.minY
+    for line in lines where !line.isEmpty {
+      let used = line.map(\.1.width).reduce(0, +) + spacing * CGFloat(line.count - 1)
+      var x = centersRows ? bounds.minX + max(0, (bounds.width - used) / 2) : bounds.minX
+      let rowHeight = line.map(\.1.height).max() ?? 0
+      for (subview, size) in line {
+        subview.place(at: CGPoint(x: x, y: y + (rowHeight - size.height) / 2),
+                      proposal: ProposedViewSize(size))
+        x += size.width + spacing
+      }
+      y += rowHeight + spacing
     }
   }
 }

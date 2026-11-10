@@ -351,6 +351,9 @@ struct MediaItemHeroView: View {
   /// The band's size, for the corner poster and the column the title leaves it.
   @State private var heroBandSize: CGSize = .zero
 #endif
+#if os(iOS)
+  @Environment(NavigationState.self) private var navigationState
+#endif
   @State private var showNewFolderAlert = false
   @State private var newFolderName = ""
   /// Actions currently showing a spinner (Mark Watched, Follow, …). Cleared when the
@@ -647,9 +650,7 @@ struct MediaItemHeroView: View {
       heroCanvas
         .frame(maxWidth: .infinity)
         .background(visibilityProbe)
-#if os(macOS)
         .background(toolbarCrossingProbe)
-#endif
 #endif
     }
   }
@@ -680,17 +681,9 @@ struct MediaItemHeroView: View {
   private var heroCanvas: some View {
     Group {
       if phoneHeroGrows {
-        content
-          .padding(.top, phase.topChromeInset)
-          .frame(maxWidth: .infinity, alignment: .topLeading)
-          .background {
-            ZStack {
-              scrollingBackdrop
-              if !usesAdaptivePosterHero {
-                scrollingScrim
-              }
-            }
-          }
+#if os(iOS)
+        phoneHero
+#endif
       } else {
         // At least the band's aspect, taller when the words need it — the poster hero
         // shows its whole synopsis, and nothing may run off the top (Sasha, 2026-11-08).
@@ -726,6 +719,99 @@ struct MediaItemHeroView: View {
     }
   }
 #endif
+
+#if os(iOS)
+  /// iPhone: the Home banner's phone hero (Sasha, 2026-11-10: «в баннере на главной норм
+  /// не пидорасит ничего»). A 16:10 still under the bars with the words in one centred
+  /// column starting over its lower part, the picture carried on under them as blurred
+  /// glass (`CompactHeroPicture`), the foot shaded (`CompactHeroScrim`). A title with no
+  /// picture shows its poster there instead, over its blurred wash. The whole full-height
+  /// band of a 16:9 picture cropped to a portrait screen is gone: that crop was the
+  /// zoomed-in mess behind the words.
+  private var phoneHero: some View {
+    VStack(spacing: 0) {
+      Color.clear
+        .frame(height: phoneWordsTop)
+        .accessibilityHidden(true)
+      content
+    }
+    .padding(.top, phase.topChromeInset)
+    .frame(maxWidth: .infinity)
+    .onGeometryChange(for: CGSize.self, of: \.size) { heroBandSize = $0 }
+    .background(alignment: .top) { phoneBackdrop }
+    .clipped()
+    .animation(Self.heroStateChange, value: showsPicture)
+  }
+
+  /// The still's height at this width — the banner's.
+  private var phoneStillHeight: CGFloat {
+    CompactHeroPicture.stillHeight(width: heroBandSize.width)
+  }
+
+  /// Where the words start under the bars: over the still's fading lower part with a
+  /// picture, under the poster without one, at the top with neither.
+  private var phoneWordsTop: CGFloat {
+    if showsPicture { return (phoneStillHeight * Self.phoneWordsOverStill).rounded() }
+    if showsCornerPoster { return phoneStillHeight + Self.contentSpacing }
+    return 0
+  }
+
+  @ViewBuilder
+  private var phoneBackdrop: some View {
+    let size = heroBandSize
+    let still = phoneStillHeight
+    ZStack(alignment: .top) {
+      MediaItemPosterWash(url: heroWashURL, onOutcome: noteWash(loaded:))
+      Color.black
+        .opacity(!showsPicture && showsWash ? Self.posterWashDim : 0)
+      Color.KinoPub.posterHeroPlate
+        .opacity(usesAdaptivePosterHero ? 1 : 0)
+      if !backdropCandidates.isEmpty, size.width > 0 {
+        CompactHeroPicture(urls: backdropCandidates, width: size.width, height: size.height,
+                           topBleed: phase.topChromeInset,
+                           onLoaded: { noteBackdrop(loaded: true) },
+                           onFailed: { noteBackdrop(loaded: false) })
+          .id(localCacheEpoch)
+      }
+      if showsCornerPoster, let url = heroPosterURL, still > 0 {
+        CachedRemoteImage(url: url, contentMode: .fit)
+          .frame(width: (still * CardAspect.poster.ratio).rounded(), height: still)
+          .clipShape(RoundedRectangle(cornerRadius: Self.trailingPosterCornerRadius, style: .continuous))
+          .padding(.top, phase.topChromeInset)
+          .transition(.opacity)
+          .accessibilityHidden(true)
+      }
+      if !usesAdaptivePosterHero {
+        // From a little way into the still, so its top keeps its colour.
+        CompactHeroScrim(start: size.height > 0
+                         ? min(Self.phoneScrimMaxStart,
+                               (phase.topChromeInset + still * Self.phoneScrimStillShare) / size.height)
+                         : 0.38)
+      }
+    }
+    .frame(width: size.width, height: size.height, alignment: .top)
+    .clipped()
+  }
+
+  /// How far down the still the words begin, as a share of it.
+  static let phoneWordsOverStill: CGFloat = 0.62
+  /// The shade starts this far down the still…
+  static let phoneScrimStillShare: CGFloat = 0.3
+  /// …and never lower than this share of the hero.
+  static let phoneScrimMaxStart: CGFloat = 0.5
+#endif
+
+  /// The phone's one centred column (Sasha, 2026-11-10) instead of the leading one.
+  private var centersColumn: Bool {
+#if os(iOS)
+    phoneHeroGrows
+#else
+    false
+#endif
+  }
+
+  private var columnAlignment: HorizontalAlignment { centersColumn ? .center : .leading }
+  private var columnTextAlignment: TextAlignment { centersColumn ? .center : .leading }
 
   private func cornerPosterImage(url: URL, bandSize: CGSize) -> some View {
     let size = Self.posterAccentSize(in: bandSize)
@@ -813,9 +899,10 @@ struct MediaItemHeroView: View {
   }
 #endif
 
-#if os(macOS)
-  /// Mac: whether the hero's bottom edge has gone up under the window toolbar. One write
-  /// per crossing, read by the title page's toolbar alone.
+#if !os(tvOS)
+  /// Whether the hero's bottom edge has gone up under the window toolbar (Mac) or the
+  /// navigation bar (iPhone, iPad). One write per crossing, read by the title page's bar
+  /// alone.
   private var toolbarCrossingProbe: some View {
     GeometryReader { proxy in
       let past = proxy.frame(in: .named(MediaItemLayout.scrollSpace)).maxY <= phase.topChromeInset
@@ -1081,7 +1168,7 @@ struct MediaItemHeroView: View {
   /// Title / logo at the top, synopsis and actions on the bottom — Yellowstone layout.
   @ViewBuilder
   private var contentBody: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    VStack(alignment: columnAlignment, spacing: 0) {
       heroTitleRow
       Spacer(minLength: 0)
       heroBottomBlock
@@ -1093,7 +1180,7 @@ struct MediaItemHeroView: View {
     .padding(.bottom, Self.horizontalInset)
     .padding(.horizontal, Self.bottomInset)
 #endif
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: centersColumn ? .top : .topLeading)
   }
 
   /// The written column and the buttons under it, with the people in a column of their
@@ -1122,7 +1209,7 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var leadingBottomColumn: some View {
 #if os(iOS)
-    VStack(alignment: .leading, spacing: Self.contentSpacing) {
+    VStack(alignment: columnAlignment, spacing: Self.contentSpacing) {
       detailColumn
       actions
         .padding(.top, Self.actionsGap)
@@ -1141,7 +1228,7 @@ struct MediaItemHeroView: View {
   /// «[4K]  Дубляж  Рус, англ». The people follow inline only when there is no room for
   /// their column and the screen is not a phone's.
   private var detailColumn: some View {
-    VStack(alignment: .leading, spacing: Self.contentSpacing) {
+    VStack(alignment: columnAlignment, spacing: Self.contentSpacing) {
       // Above the facts, not in them, for now (Sasha, 2026-11-09); the Diagnostics
       // switch puts it back first in the line.
       if !FeatureFlags.heroStatusInFactsLine, let status = titleStatus {
@@ -1170,7 +1257,8 @@ struct MediaItemHeroView: View {
           title: mediaItem.localizedTitle,
           plot: synopsis.plot,
           lead: synopsis.lead,
-          expandsFully: showsCornerPoster,
+          // Not on a phone: there the poster is above the words, not beside them.
+          expandsFully: showsCornerPoster && !centersColumn,
           focus: $focus,
           popupSubtitle: popupOriginalTitle,
           summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
@@ -1180,7 +1268,7 @@ struct MediaItemHeroView: View {
       }
       playbackLine
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(maxWidth: .infinity, alignment: centersColumn ? .center : .leading)
 #if os(tvOS)
     // Separate from the action row so Down leaves this section at the page's
     // `defaultFocus` (Play), not the geometrically nearest trailing circle.
@@ -1190,7 +1278,7 @@ struct MediaItemHeroView: View {
 
   @ViewBuilder
   private var heroTitleRow: some View {
-    if showsCornerPoster {
+    if showsCornerPoster, !centersColumn {
       HStack(alignment: .top, spacing: Self.columnGutter) {
         titleBlock
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -1209,15 +1297,16 @@ struct MediaItemHeroView: View {
     // logo on the first frame, lettered title only after a confirmed miss.
     // Under a logo the subtitle is no wider than the logo is drawn — a long romaji title
     // ran across the window (Sasha, 2026-10-30). Under lettered type it keeps its width.
-    SecondLineCappedToFirst(capsWidth: resolvedTitleLogoMark == .logo) {
+    SecondLineCappedToFirst(capsWidth: resolvedTitleLogoMark == .logo, alignment: columnAlignment) {
       TitleLogoSlot(
         resolution: TitleLogoResolution(
           url: titleLogoURL,
           lookupComplete: externalMetadataLoaded
         ),
-        maxWidth: Self.logoMaxWidth,
-        maxHeight: Self.logoMaxHeight,
+        maxWidth: logoMaxWidth,
+        maxHeight: logoMaxHeight,
         textMaxWidth: .infinity,
+        alignment: columnAlignment,
         onMarkChange: { titleLogoMark = $0 },
         // A slot rebuilt on coming back paints the logo from the cache and knows no
         // served language: keep the one it said before, or the subtitle flips.
@@ -1233,14 +1322,30 @@ struct MediaItemHeroView: View {
     .padding(.top, Self.bottomInset / 1.5)
     .accessibilityElement(children: .combine)
     .accessibilityLabel(mediaItem.localizedTitle)
-    .modifier(TitleBlockHorizontalBounds(reservePosterColumn: showsCornerPoster))
+    .modifier(TitleBlockHorizontalBounds(reservePosterColumn: showsCornerPoster && !centersColumn,
+                                         alignment: centersColumn ? .center : .leading))
+  }
+
+  /// The logo's box. Phone: the Home banner's phone budget, 70% × 26% of the width.
+  private var logoMaxWidth: CGFloat {
+#if os(iOS)
+    if centersColumn, heroBandSize.width > 0 { return (heroBandSize.width * 0.7).rounded() }
+#endif
+    return Self.logoMaxWidth
+  }
+
+  private var logoMaxHeight: CGFloat {
+#if os(iOS)
+    if centersColumn, heroBandSize.width > 0 { return (heroBandSize.width * 0.26).rounded() }
+#endif
+    return Self.logoMaxHeight
   }
 
   private var titlePrimaryText: some View {
     Text(mediaItem.localizedTitle)
       .font(Self.titleFont)
       .foregroundStyle(heroPrimaryForeground)
-      .multilineTextAlignment(.leading)
+      .multilineTextAlignment(columnTextAlignment)
       .fixedSize(horizontal: false, vertical: true)
       .shadow(color: .black.opacity(titleShadowOpacity), radius: 12, x: 0, y: 2)
   }
@@ -1263,7 +1368,7 @@ struct MediaItemHeroView: View {
       Text(line)
         .font(Self.secondaryFont)
         .foregroundStyle(heroSecondaryForeground)
-        .multilineTextAlignment(.leading)
+        .multilineTextAlignment(columnTextAlignment)
         .fixedSize(horizontal: false, vertical: true)
         .shadow(color: .black.opacity(titleShadowOpacity), radius: 8, x: 0, y: 2)
     }
@@ -1322,7 +1427,8 @@ struct MediaItemHeroView: View {
     let blocks = factBlocks
     let rating = ageRating.flatMap { $0.isEmpty ? nil : $0 }
     if status != nil || !blocks.isEmpty || rating != nil {
-      AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2) {
+      AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2,
+                      centersRows: centersColumn) {
         if let status {
           TitleStatusBadge(status.text)
         }
@@ -1518,7 +1624,8 @@ struct MediaItemHeroView: View {
     let audio = audioSummary
     let subtitles = subtitleSummary
     if runtime != nil || !badges.isEmpty || audio != nil || subtitles != nil {
-      AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2) {
+      AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2,
+                      centersRows: centersColumn) {
         if let runtime {
           Text(verbatim: runtime)
         }
@@ -1678,7 +1785,7 @@ struct MediaItemHeroView: View {
   /// light and dark. tvOS keeps them dark everywhere; iPhone / Mac follow the appearance
   /// with no picture behind.
   private var actions: some View {
-    MediaActionRow {
+    MediaActionRow(alignment: columnAlignment) {
       ForEach(actionAppearances) { appearance in
         actionControl(for: appearance)
           .accessibilityIdentifier("kinopub.hero.\(appearance.id.rawValue)")
@@ -1797,10 +1904,51 @@ struct MediaItemHeroView: View {
 #if os(macOS)
     // The window toolbar carries these on a Mac (`MediaItemView`).
     MediaActionCatalog.row(for: actionContext).filter { $0.id != .bookmark && $0.id != .markWatched }
+#elseif os(iOS)
+    let row = MediaActionCatalog.row(for: actionContext)
+    guard phoneHeroGrows else { return row }
+    // iPhone: what plays, and nothing else (Sasha, 2026-11-10). Bookmarks, the bell and
+    // Download are in the navigation bar, top right, as everywhere; Mark as Watched is in
+    // «…»; Shuffle and starting over are in Play's long press. A labelled Follow that
+    // leads the row (nothing left to play) stays.
+    return row
+      .filter { appearance in
+        switch appearance.id {
+        case .bookmark, .markWatched, .download, .shuffle, .more: false
+        case .follow: appearance.chrome != .circle
+        default: true
+        }
+      }
+      .map(MediaActionCatalog.compactPlay)
 #else
     MediaActionCatalog.row(for: actionContext)
 #endif
   }
+
+#if os(iOS)
+  /// Play's long press: start over, and a random unwatched episode (Sasha, 2026-11-10).
+  /// Starting over is offered where Play shows a resume bar — the same answer as the bar.
+  @ViewBuilder
+  private func playMenu(for target: any PlayableItem, appearance: MediaActionAppearance) -> some View {
+    if appearance.progress != nil {
+      Button {
+        let token = UUID()
+        PlaybackSession.shared.startFromBeginning(token: token)
+        navigationState.push(.player(target, token: token))
+      } label: {
+        Label("MediaAction_PlayFromBeginning", systemImage: "backward.end")
+      }
+    }
+    if isSeries, randomUnwatchedEpisode != nil {
+      Button {
+        guard let episode = randomUnwatchedEpisode else { return }
+        navigationState.push(.player(episode, token: UUID()))
+      } label: {
+        Label("MediaAction_RandomEpisode", systemImage: "shuffle")
+      }
+    }
+  }
+#endif
 
   @ViewBuilder
   private func actionControl(for appearance: MediaActionAppearance) -> some View {
@@ -1898,6 +2046,9 @@ struct MediaItemHeroView: View {
       MediaActionLabel(appearance)
     }
     .mediaActionStyle(appearance)
+#if os(iOS)
+    .contextMenu { playMenu(for: target, appearance: appearance) }
+#endif
     .focused($focus, equals: Self.focusTarget(forPlay: appearance.id))
     .accessibilityLabel(Text(appearance.accessibilityLabel))
     .accessibilityHint(Text("Starts playback"))
@@ -2245,12 +2396,13 @@ struct MediaItemHeroView: View {
 /// Title width: ~80% of the hero, or the full column left of the portrait poster.
 private struct TitleBlockHorizontalBounds: ViewModifier {
   let reservePosterColumn: Bool
+  var alignment: Alignment = .leading
 
   func body(content: Content) -> some View {
     if reservePosterColumn {
-      content.frame(maxWidth: .infinity, alignment: .leading)
+      content.frame(maxWidth: .infinity, alignment: alignment)
     } else {
-      content.containerRelativeFrame(.horizontal, count: 5, span: 4, spacing: 0, alignment: .leading)
+      content.containerRelativeFrame(.horizontal, count: 5, span: 4, spacing: 0, alignment: alignment)
     }
   }
 }

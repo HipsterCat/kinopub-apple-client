@@ -7109,6 +7109,40 @@
         }
       }
     },
+    "MediaAction_PlayFromBeginning" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play from Beginning"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смотреть сначала"
+          }
+        }
+      }
+    },
+    "MediaAction_RandomEpisode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Random Episode"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Случайная серия"
+          }
+        }
+      }
+    },
     "MediaAction_ReplayEpisodeRef" : {
       "comment" : "Replay capsule on an episode; %@ is the episode reference.",
       "extractionState" : "manual",

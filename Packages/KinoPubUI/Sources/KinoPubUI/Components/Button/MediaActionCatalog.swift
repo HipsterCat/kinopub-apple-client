@@ -332,7 +332,7 @@ public enum MediaActionCatalog {
       return MediaActionAppearance(
         id: .play,
         chrome: .pill,
-        systemImage: "arrow.clockwise",
+        systemImage: replayGlyph,
         title: caption.title,
         accessibilityLabel: caption.accessibility,
         isLoading: loading
@@ -349,6 +349,26 @@ public enum MediaActionCatalog {
       )
     }
   }
+
+  /// The phone's Play says only what it does — «Смотреть», «Продолжить» with its bar,
+  /// «Пересмотреть» — as the Home banner's did; which episode, and how long is left,
+  /// stay in the facts under the title and in VoiceOver's label (Sasha, 2026-11-10).
+  /// Anything but the main Play (a version's pill, Follow) is left as it is.
+  public static func compactPlay(_ appearance: MediaActionAppearance) -> MediaActionAppearance {
+    guard appearance.id == .play, appearance.title != nil else { return appearance }
+    var compact = appearance
+    if appearance.progress != nil {
+      compact.title = MediaActionCopy.localized("Resume")
+    } else if appearance.systemImage == replayGlyph {
+      compact.title = MediaActionCopy.localized("Play Again")
+    } else {
+      compact.title = MediaActionCopy.localized("Play")
+    }
+    return compact
+  }
+
+  /// Play's glyph once everything is watched.
+  public static let replayGlyph = "arrow.clockwise"
 
   public static func markWatched(for context: MediaActionContext) -> MediaActionAppearance {
     let title = MediaActionCopy.localized("Mark as Watched")

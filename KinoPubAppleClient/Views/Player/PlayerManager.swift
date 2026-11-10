@@ -124,6 +124,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   private var endOfPlaybackObserver: NSObjectProtocol?
   /// Set once the resume point has been asked for, so a re-entering view cannot ask twice.
   private var didFetchWatchMark = false
+  /// «Начать сначала» from Play's long press: no resume point, local or the server's, for
+  /// the first run (`PlaybackSession.startFromBeginning`).
+  var startsFromBeginning = false
   /// Arms when a stream starts preparing. AVFoundation reports a stalled master or
   /// variant fetch as *nothing* — no failure, no log line — so without a timeout a hung
   /// load is an infinite spinner with no way out and no answer for the viewer.
@@ -369,6 +372,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       // A watched one starts over: what is left past 85 % is credits, and opening there
       // sent the next episode straight to its own end (Sasha, 2026-11-10).
       pendingResumeTime = entry.finished ? nil : entry.position
+    }
+    if startsFromBeginning {
+      pendingResumeTime = nil
     }
     if watchMode != .live, let recovery = recoveryResumeTime {
       pendingResumeTime = recovery
@@ -1037,6 +1043,12 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   func fetchWatchMark() async {
     guard watchMode == .media, canReportWatching, !didFetchWatchMark else { return }
     didFetchWatchMark = true
+    // Asked to start over: the server's mark is not applied either — once. A later reload
+    // resumes from what this run saved.
+    guard !startsFromBeginning else {
+      startsFromBeginning = false
+      return
+    }
 
     var remoteContinueTime: TimeInterval = 0
     do {

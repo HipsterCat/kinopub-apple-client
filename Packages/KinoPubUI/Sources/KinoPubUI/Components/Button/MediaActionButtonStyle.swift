@@ -61,9 +61,36 @@ public enum MediaActionMetrics {
      #endif
      #if os(iOS)
   public static let controlSize: ControlSize = .large
+  /// iPhone: a size down from the iPad's (Sasha, 2026-11-10) — the hero is a column a
+  /// phone wide, and `.large` made Play the widest thing in it.
+  public static let compactControlSize: ControlSize = .regular
+  /// iPhone: the resume bar as thick as ever, shorter (Sasha, 2026-11-10).
+  public static let compactProgressWidth: CGFloat = 24
+  /// The label's type a step down with the control.
+  public static let compactLabelFont: Font? = .subheadline.weight(.semibold)
      #endif
 #endif
 }
+
+#if !os(tvOS)
+/// The hero controls' size: `MediaActionMetrics.controlSize`, a size down in a compact
+/// width on iPhone.
+private struct MediaActionControlSize: ViewModifier {
+#if os(iOS)
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#endif
+
+  func body(content: Content) -> some View {
+#if os(iOS)
+    content.controlSize(horizontalSizeClass == .compact
+                        ? MediaActionMetrics.compactControlSize
+                        : MediaActionMetrics.controlSize)
+#else
+    content.controlSize(MediaActionMetrics.controlSize)
+#endif
+  }
+}
+#endif
 
 // MARK: - Scaled icon glyphs
 
@@ -118,7 +145,11 @@ public extension View {
   func mediaActionPillStyle() -> some View {
     buttonStyle(.glass)
       .buttonBorderShape(.capsule)
+#if os(tvOS)
       .controlSize(MediaActionMetrics.controlSize)
+#else
+      .modifier(MediaActionControlSize())
+#endif
   }
 
   /// Icon-only circle. Same glass family as the labelled pills — focus owns the
@@ -158,16 +189,27 @@ public struct MediaActionProgressTrack: View {
   }
 
   @Environment(\.mediaActionLabelColor) private var labelColor
+#if os(iOS)
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#endif
+
+  private var width: CGFloat {
+#if os(iOS)
+    horizontalSizeClass == .compact ? MediaActionMetrics.compactProgressWidth : MediaActionMetrics.progressWidth
+#else
+    MediaActionMetrics.progressWidth
+#endif
+  }
 
   public var body: some View {
-    Capsule()
+    let width = self.width
+    return Capsule()
       .fill(labelColor.map { AnyShapeStyle($0.opacity(0.25)) } ?? AnyShapeStyle(.tertiary))
-      .frame(width: MediaActionMetrics.progressWidth,
-             height: MediaActionMetrics.progressHeight)
+      .frame(width: width, height: MediaActionMetrics.progressHeight)
       .overlay(alignment: .leading) {
         Capsule()
           .fill(labelColor.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.primary))
-          .frame(width: max(6, MediaActionMetrics.progressWidth * min(max(progress, 0), 1)),
+          .frame(width: max(6, width * min(max(progress, 0), 1)),
                  height: MediaActionMetrics.progressHeight)
       }
   }
@@ -335,7 +377,7 @@ private struct MonochromePlayTint: ViewModifier {
     content
       .buttonStyle(.glassProminent)
       .buttonBorderShape(.capsule)
-      .controlSize(MediaActionMetrics.controlSize)
+      .modifier(MediaActionControlSize())
       .tint(colorScheme == .dark ? Color.white : Color.black)
   }
 }
@@ -348,7 +390,7 @@ private struct MediaActionCircleChrome: ViewModifier {
       .menuStyle(.button)
       .menuIndicator(.hidden)
       .buttonBorderShape(.circle)
-      .controlSize(MediaActionMetrics.controlSize)
+      .modifier(MediaActionControlSize())
 #if os(macOS)
       // A Mac `Menu` takes no glass from `.buttonStyle(.glass)`: the Bookmarks glyph
       // hung bare between Play and Details (Sasha, 2026-10-31). The same circle of glass
