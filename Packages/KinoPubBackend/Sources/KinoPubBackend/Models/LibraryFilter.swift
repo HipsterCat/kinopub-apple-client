@@ -23,19 +23,31 @@ public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable, Sendab
 
   public var id: Self { self }
 
-  /// The `sort` parameter. A `-` prefix means descending.
-  public var apiValue: String {
+  /// The field name the API sorts on, without a direction prefix.
+  public var field: String {
     switch self {
-    case .recentlyAdded: return "-created"
-    case .recentlyUpdated: return "-updated"
-    case .views: return "-views"
-    case .watchers: return "-watchers"
+    case .recentlyAdded: return "created"
+    case .recentlyUpdated: return "updated"
+    case .views: return "views"
+    case .watchers: return "watchers"
     case .title: return "title"
-    case .year: return "-year"
-    case .kinopoiskRating: return "-kinopoisk_rating"
-    case .imdbRating: return "-imdb_rating"
-    case .rating: return "-rating"
+    case .year: return "year"
+    case .kinopoiskRating: return "kinopoisk_rating"
+    case .imdbRating: return "imdb_rating"
+    case .rating: return "rating"
     }
+  }
+
+  /// Default direction for this field. Title reads better A→Z; everything else
+  /// newest / highest first.
+  public var prefersDescending: Bool { self != .title }
+
+  /// The `sort` parameter. A `-` prefix means descending.
+  public var apiValue: String { apiValue(descending: prefersDescending) }
+
+  /// The `sort` parameter for an explicit direction.
+  public func apiValue(descending: Bool) -> String {
+    descending ? "-\(field)" : field
   }
 
   /// Localization key.
@@ -50,6 +62,24 @@ public enum MediaSortOrder: String, CaseIterable, Identifiable, Hashable, Sendab
     case .kinopoiskRating: return "Sort_KinopoiskRating"
     case .imdbRating: return "Sort_ImdbRating"
     case .rating: return "Sort_Rating"
+    }
+  }
+
+  /// Labels for the ascending / descending section of the sort popup
+  /// (field + direction, like the Reminders sort menu).
+  public var descendingTitleKey: String {
+    switch self {
+    case .title: return "Sort_ZtoA"
+    case .year, .recentlyAdded, .recentlyUpdated: return "Sort_LatestFirst"
+    case .views, .watchers, .kinopoiskRating, .imdbRating, .rating: return "Sort_HighToLow"
+    }
+  }
+
+  public var ascendingTitleKey: String {
+    switch self {
+    case .title: return "Sort_AtoZ"
+    case .year, .recentlyAdded, .recentlyUpdated: return "Sort_EarliestFirst"
+    case .views, .watchers, .kinopoiskRating, .imdbRating, .rating: return "Sort_LowToHigh"
     }
   }
 }
@@ -139,6 +169,9 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   /// `genre` — the API has no genre AND. Empty = everything.
   public var kinds: Set<CatalogKind> = []
   public var sort: MediaSortOrder
+  /// When `true`, the API gets a `-` prefix on the sort field. Defaults to the
+  /// field's preferred direction; the sort popup can flip it.
+  public var sortDescending: Bool
   public var genreID: Int?
   /// Several genres at once — `/v1/items` reads a comma as OR on `genre`. Set instead
   /// of `genreID` when asking "more like this" of a title filed under six of them.
@@ -183,6 +216,7 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   public init(
     contentType: MediaType? = nil,
     sort: MediaSortOrder = .recentlyAdded,
+    sortDescending: Bool? = nil,
     genreID: Int? = nil,
     genreIDs: [Int] = [],
     countryID: Int? = nil,
@@ -198,6 +232,7 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   ) {
     self.contentType = contentType
     self.sort = sort
+    self.sortDescending = sortDescending ?? sort.prefersDescending
     self.genreID = genreID
     self.genreIDs = genreIDs
     self.countryID = countryID
@@ -211,6 +246,9 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
     self.withoutHD = withoutHD
     self.wantAC3 = wantAC3
   }
+
+  /// The `sort=` query value for the current field and direction.
+  public var sortAPIValue: String { sort.apiValue(descending: sortDescending) }
 
   /// The server-side filters as query parameters, shared by `/v1/items` and
   /// `/v1/items/search` — the search endpoint honors the same `type` / `genre` /
@@ -300,25 +338,26 @@ public struct LibraryFilter: Equatable, Hashable, Sendable {
   }
 
   /// True when anything other than the default sort is in play.
-  public var hasActiveFilters: Bool {
-    contentType != nil
-      || !contentTypes.isEmpty
-      || !kinds.isEmpty
-      || !countryIDs.isEmpty
-      || finishedOnly
-      || genreID != nil
-      || !genreIDs.isEmpty
-      || countryID != nil
-      || years != nil
-      || yearFrom != nil
-      || yearTo != nil
-      || period != nil
-      || kinopoiskMin != nil
-      || kinopoiskMax != nil
-      || imdbMin != nil
-      || imdbMax != nil
-      || minimumQuality != nil
-      || hasClientSideFacets
+  public var hasActiveFilters: Bool { activeFilterCount > 0 }
+
+  /// How many filter groups are narrowing the list — the badge on «Filters».
+  /// Sort direction alone does not count.
+  public var activeFilterCount: Int {
+    var count = 0
+    if contentType != nil || !contentTypes.isEmpty || !kinds.isEmpty { count += 1 }
+    if genreID != nil || !genreIDs.isEmpty { count += 1 }
+    if countryID != nil || !countryIDs.isEmpty { count += 1 }
+    if years != nil || yearFrom != nil || yearTo != nil { count += 1 }
+    if period != nil { count += 1 }
+    if finishedOnly { count += 1 }
+    if kinopoiskMin != nil || kinopoiskMax != nil || imdbMin != nil || imdbMax != nil { count += 1 }
+    if minimumQuality != nil { count += 1 }
+    if wantHD { count += 1 }
+    if want4K { count += 1 }
+    if withoutHD { count += 1 }
+    if wantAC3 { count += 1 }
+    if withoutAdverts { count += 1 }
+    return count
   }
 
   /// Facets the server ignores — applied to each fetched page locally. Ratings are no
@@ -350,25 +389,35 @@ public extension LibraryFilter {
   /// sort control reorders the list the page already holds. This is not a filter:
   /// it does not drop items. Default for those pages is year descending.
   func sortingLocally(_ items: [MediaItem]) -> [MediaItem] {
+    let descending = sortDescending
     switch sort {
     case .recentlyAdded:
-      return items.sorted { $0.createdAt > $1.createdAt }
+      return items.sorted { descending ? $0.createdAt > $1.createdAt : $0.createdAt < $1.createdAt }
     case .recentlyUpdated:
-      return items.sorted { $0.updatedAt > $1.updatedAt }
-    case .views:
-      return items.sorted { $0.views > $1.views }
-    case .watchers:
-      return items.sorted { $0.views > $1.views }
+      return items.sorted { descending ? $0.updatedAt > $1.updatedAt : $0.updatedAt < $1.updatedAt }
+    case .views, .watchers:
+      return items.sorted { descending ? $0.views > $1.views : $0.views < $1.views }
     case .title:
-      return items.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+      return items.sorted {
+        let order = $0.title.localizedCaseInsensitiveCompare($1.title)
+        return descending ? order == .orderedDescending : order == .orderedAscending
+      }
     case .year:
-      return items.sorted { $0.year > $1.year }
+      return items.sorted { descending ? $0.year > $1.year : $0.year < $1.year }
     case .kinopoiskRating:
-      return items.sorted { ($0.kinopoiskRating ?? 0) > ($1.kinopoiskRating ?? 0) }
+      return items.sorted {
+        descending
+          ? ($0.kinopoiskRating ?? 0) > ($1.kinopoiskRating ?? 0)
+          : ($0.kinopoiskRating ?? 0) < ($1.kinopoiskRating ?? 0)
+      }
     case .imdbRating:
-      return items.sorted { ($0.imdbRating ?? 0) > ($1.imdbRating ?? 0) }
+      return items.sorted {
+        descending
+          ? ($0.imdbRating ?? 0) > ($1.imdbRating ?? 0)
+          : ($0.imdbRating ?? 0) < ($1.imdbRating ?? 0)
+      }
     case .rating:
-      return items.sorted { $0.rating > $1.rating }
+      return items.sorted { descending ? $0.rating > $1.rating : $0.rating < $1.rating }
     }
   }
 }
@@ -392,6 +441,7 @@ extension LibraryFilter {
     public var imdbMax: Double?
     public var minimumQuality: Int?
     public var sort: String?
+    public var sortDescending: Bool?
 
     public init() {}
   }
@@ -410,11 +460,13 @@ extension LibraryFilter {
     saved.imdbMax = imdbMax
     saved.minimumQuality = minimumQuality?.rawValue
     saved.sort = sort.rawValue
+    saved.sortDescending = sortDescending
     return saved
   }
 
   public init(saved: Saved) {
-    self.init(sort: saved.sort.flatMap(MediaSortOrder.init(rawValue:)) ?? .recentlyAdded)
+    let sort = saved.sort.flatMap(MediaSortOrder.init(rawValue:)) ?? .recentlyAdded
+    self.init(sort: sort, sortDescending: saved.sortDescending ?? sort.prefersDescending)
     kinds = Set(saved.kinds.compactMap(CatalogKind.init(rawValue:)))
     genreIDs = saved.genreIDs
     countryIDs = Set(saved.countryIDs)

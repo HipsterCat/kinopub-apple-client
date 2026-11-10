@@ -33,6 +33,7 @@ struct PersonItemsView: View {
   @State private var personMetadata = PersonMetadata()
 #if !os(tvOS)
   @State private var bioExpanded = false
+  @State private var showingFilters = false
 #endif
 
   init(person: MediaPerson,
@@ -55,8 +56,14 @@ struct PersonItemsView: View {
     .platformNavigationTitle(person.name)
 #endif
 #if !os(tvOS)
-    .toolbar { LibraryFiltersToolbar(catalog: catalog) }
+    .toolbar { LibraryFiltersToolbar(catalog: catalog, showingFilters: $showingFilters) }
     .catalogGridChrome()
+    .sheet(isPresented: $showingFilters) {
+      LibraryFilterSheet(catalog: catalog)
+#if os(macOS)
+        .frame(minWidth: 420, minHeight: 560)
+#endif
+    }
 #endif
     .overlay {
 #if !os(tvOS)

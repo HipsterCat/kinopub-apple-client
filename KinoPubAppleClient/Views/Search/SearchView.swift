@@ -40,6 +40,9 @@ struct SearchView: View {
   @Environment(\.scenePhase) private var scenePhase
 #endif
   @State private var navigationTitleText: String = "Search".localized
+#if !os(tvOS)
+  @State private var showingFilters = false
+#endif
 
   @Environment(\.openURL) private var openURL
 
@@ -469,16 +472,16 @@ struct SearchView: View {
               catalog.retryPagination()
             }
           ) {
-            // No in-content Back on tvOS. Search is a normal tab there, so the way out
-            // is up into the tab bar — a chevron row above the grid is a phone idiom
-            // that also steals the first focus target on every entry.
-            //
-            // Filters scroll away with the grid on iOS/tvOS. On macOS they live in
-            // the toolbar accessory bar under the principal search field.
-#if !os(macOS)
-            if !catalog.isSearching {
-              LibraryFiltersBar(catalog: catalog)
-            }
+            // Status, type presets and (on iPhone) inline filter/sort capsules scroll
+            // with the grid. Toolbar owns the same controls when there is room.
+#if !os(tvOS)
+            LibraryBrowserScrollChrome(
+              catalog: catalog,
+              resultCount: catalog.resultCount,
+              showsTypePresets: true,
+              showsInlineControls: false,
+              showingFilters: $showingFilters
+            )
 #endif
           }
           .environment(\.catalogCaptionOmittedGenreIDs, catalog.filter.captionOmittedGenreIDs)
@@ -505,13 +508,18 @@ struct SearchView: View {
       .platformNavigationTitle(navigationTitleText)
 #endif
 #if !os(tvOS)
-      // The grid / wide switch, and on the Mac sort and filters as menus, as on every
-      // listing page; a text search keeps only the switch — the picks do not apply.
       .toolbar {
         LibraryFiltersToolbar(catalog: catalog,
-                              chrome: catalog.isSearching ? .layoutOnly : .full)
+                              chrome: .full,
+                              showingFilters: $showingFilters)
       }
       .catalogGridChrome()
+      .sheet(isPresented: $showingFilters) {
+        LibraryFilterSheet(catalog: catalog)
+#if os(macOS)
+          .frame(minWidth: 420, minHeight: 560)
+#endif
+      }
 #endif
       .handleError(state: $errorHandler.state)
       .task {

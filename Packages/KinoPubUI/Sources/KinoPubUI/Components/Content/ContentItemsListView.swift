@@ -34,7 +34,7 @@ public struct ContentItemsListView<Header: View>: View {
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.usesTVUIKitPosters) private var usesTVUIKitPosters
   @Environment(\.mediaNavigation) private var mediaNavigation
-  /// Posters or wide cells, where the page offers the switch (`MediaGridLayout`).
+  /// Posters grid or list/table rows, where the page offers the switch (`MediaGridLayout`).
   @Environment(\.mediaGridLayout) private var gridLayout
   @State private var containerWidth: CGFloat = 1920
 
@@ -49,10 +49,10 @@ public struct ContentItemsListView<Header: View>: View {
   static var cardCaption: MediaCardCaption { .always }
 #endif
 
+  private var usesListLayout: Bool { gridLayout == .list }
+
   private var metrics: ShelfMetrics {
-    gridLayout == .wide
-      ? .landscape(width: containerWidth, typeSize: dynamicTypeSize)
-      : .posters(width: containerWidth, typeSize: dynamicTypeSize)
+    .posters(width: containerWidth, typeSize: dynamicTypeSize)
   }
 
   private var gridColumns: [GridItem] {
@@ -180,47 +180,10 @@ public struct ContentItemsListView<Header: View>: View {
             // which is not what an empty state looks like anywhere in the system.
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
+        } else if usesListLayout {
+          listBody
         } else {
-          LazyVGrid(columns: gridColumns, spacing: metrics.gutter) {
-            if items.isEmpty, placeholderCount > 0 {
-              ForEach(0..<placeholderCount, id: \.self) { _ in
-                placeholderCard
-              }
-            } else {
-              ForEach(items, id: \.id) { item in
-                NavigationLink(value: navigationLinkProvider(item)) {
-                  MediaCardView(card: MediaCard.card(for: item, in: gridLayout),
-                                caption: Self.cardCaption)
-                    .onAppear {
-                      onLoadMoreContent(item)
-                    }
-                }
-#if os(tvOS)
-                .buttonStyle(.borderless)
-                .focused($focusedItemID, equals: item.id)
-#else
-                .buttonStyle(MediaCardButtonStyle())
-#endif
-                .modifier(MediaCardContextMenuModifier(
-                  isEnabled: contextMenuProvider != nil,
-                  entriesProvider: { contextMenuProvider?(item) ?? [] }
-                ))
-              }
-            }
-          }
-          .safeAreaPadding(.horizontal, metrics.gridInset(in: containerWidth))
-          .padding(.vertical, Metrics.focusPadding)
-
-          PaginationFooter(state: pagination, onRetry: onRetryPagination)
-
-          if let footer, !items.isEmpty {
-            footer
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity)
-              .padding(.top, metrics.gutter)
-              .padding(.bottom, Metrics.listFooterBottomSpace)
-          }
+          gridBody
         }
       }
     }
@@ -243,12 +206,97 @@ public struct ContentItemsListView<Header: View>: View {
 #endif
   }
 
+  private var gridBody: some View {
+    Group {
+      LazyVGrid(columns: gridColumns, spacing: metrics.gutter) {
+        if items.isEmpty, placeholderCount > 0 {
+          ForEach(0..<placeholderCount, id: \.self) { _ in
+            placeholderCard
+          }
+        } else {
+          ForEach(items, id: \.id) { item in
+            NavigationLink(value: navigationLinkProvider(item)) {
+              MediaCardView(card: MediaCard.card(for: item, in: gridLayout),
+                            caption: Self.cardCaption)
+                .onAppear {
+                  onLoadMoreContent(item)
+                }
+            }
+#if os(tvOS)
+            .buttonStyle(.borderless)
+            .focused($focusedItemID, equals: item.id)
+#else
+            .buttonStyle(MediaCardButtonStyle())
+#endif
+            .modifier(MediaCardContextMenuModifier(
+              isEnabled: contextMenuProvider != nil,
+              entriesProvider: { contextMenuProvider?(item) ?? [] }
+            ))
+          }
+        }
+      }
+      .safeAreaPadding(.horizontal, metrics.gridInset(in: containerWidth))
+      .padding(.vertical, Metrics.focusPadding)
+
+      listFooter
+    }
+  }
+
+  private var listBody: some View {
+    Group {
+      LazyVStack(alignment: .leading, spacing: 0) {
+        if items.isEmpty, placeholderCount > 0 {
+          ForEach(0..<min(placeholderCount, 8), id: \.self) { _ in
+            placeholderListRow
+            Divider().opacity(0.35)
+          }
+        } else {
+          ForEach(items, id: \.id) { item in
+            NavigationLink(value: navigationLinkProvider(item)) {
+              CatalogMediaRow(item: item)
+                .onAppear { onLoadMoreContent(item) }
+            }
+#if os(tvOS)
+            .buttonStyle(.borderless)
+            .focused($focusedItemID, equals: item.id)
+#else
+            .buttonStyle(.plain)
+#endif
+            .modifier(MediaCardContextMenuModifier(
+              isEnabled: contextMenuProvider != nil,
+              entriesProvider: { contextMenuProvider?(item) ?? [] }
+            ))
+            Divider().opacity(0.35)
+          }
+        }
+      }
+      .safeAreaPadding(.horizontal, metrics.gridInset(in: containerWidth))
+      .padding(.vertical, Metrics.focusPadding)
+
+      listFooter
+    }
+  }
+
+  @ViewBuilder
+  private var listFooter: some View {
+    PaginationFooter(state: pagination, onRetry: onRetryPagination)
+
+    if let footer, !items.isEmpty {
+      footer
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity)
+        .padding(.top, metrics.gutter)
+        .padding(.bottom, Metrics.listFooterBottomSpace)
+    }
+  }
+
   /// Same footprint as a real poster card (tile + caption line), inert so focus
   /// stays on the filters / search field while the page is still loading.
   private var placeholderCard: some View {
     VStack(alignment: .leading, spacing: Metrics.cardCaptionSpacing) {
       Color.KinoPub.placeholder
-        .aspectRatio((gridLayout == .wide ? CardAspect.landscape : .poster).ratio, contentMode: .fit)
+        .aspectRatio(CardAspect.poster.ratio, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous))
 
@@ -257,6 +305,21 @@ public struct ContentItemsListView<Header: View>: View {
         .opacity(0)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .accessibilityHidden(true)
+  }
+
+  private var placeholderListRow: some View {
+    HStack(spacing: 14) {
+      Color.KinoPub.placeholder
+        .frame(width: 52, height: 78)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+      VStack(alignment: .leading, spacing: 6) {
+        Color.KinoPub.placeholder.frame(height: 14).frame(maxWidth: 180)
+        Color.KinoPub.placeholder.frame(height: 12).frame(maxWidth: 120)
+      }
+      Spacer(minLength: 0)
+    }
+    .padding(.vertical, 10)
     .accessibilityHidden(true)
   }
 

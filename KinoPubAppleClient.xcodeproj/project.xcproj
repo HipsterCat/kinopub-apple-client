@@ -499,6 +499,8 @@
               "children": [
                 { "path": "SearchView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "LibraryFiltersBar.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "LibraryBrowserChrome.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "LibraryFilterSheet.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "LibraryCatalog.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PersonItemsView.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
               ],

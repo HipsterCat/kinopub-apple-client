@@ -2,19 +2,19 @@
 //  MediaGridLayout.swift
 //  KinoPubUI
 //
-//  How a catalogue grid draws its titles: 2:3 posters, or the 16:9 wide card Home's
-//  Continue Watching already uses — the same `MediaCardView`, the same
-//  `ShelfMetrics.landscape` columns. Not a second card.
+//  How a catalogue listing draws its titles: a poster grid, or a table/list of
+//  poster + title + meta rows. Shared across Catalog, Search, person credits and
+//  collections so flipping the switch on one page is visible on the next.
 //
 
 import SwiftUI
 import KinoPubBackend
 
-/// The grid / wide cells switch of the listing pages (Catalog, Search, a person's
-/// credits, a collection), as the SF Symbols app and AniShelf have it in the toolbar.
+/// The grid / list switch of the listing pages (Catalog, Search, a person's
+/// credits, a collection). List is a table of rows — not a wide 16:9 grid.
 public enum MediaGridLayout: String, CaseIterable, Identifiable, Sendable {
   case posters
-  case wide
+  case list
 
   public var id: String { rawValue }
 
@@ -22,18 +22,27 @@ public enum MediaGridLayout: String, CaseIterable, Identifiable, Sendable {
   /// finding posters again on Search would read as the switch not having worked.
   public static let storageKey = "mediaGridLayout"
 
-  /// Existing catalogue keys («Постеры» / «Горизонтальные»).
+  /// Existing catalogue keys («Постеры» / «Список»).
   public var titleKey: String {
     switch self {
     case .posters: return "Posters"
-    case .wide: return "Landscape"
+    case .list: return "List"
     }
   }
 
   public var systemImage: String {
     switch self {
     case .posters: return "square.grid.3x2"
-    case .wide: return "rectangle.grid.2x2"
+    case .list: return "list.bullet"
+    }
+  }
+
+  /// Resolves a stored raw value, including the retired `wide` landscape layout
+  /// (mapped to list — that switch was the alternative view, not a second grid).
+  public static func resolved(from raw: String?) -> MediaGridLayout {
+    switch raw {
+    case list.rawValue, "wide": return .list
+    default: return .posters
     }
   }
 }
@@ -66,15 +75,9 @@ public extension MediaCard {
               captionStats: captionStats, imdbID: imdbID, kinopoiskID: kinopoiskID)
   }
 
-  /// A catalogue item's card for `layout`: wide takes the title's own 16:9 cover
-  /// (`titleWideArtwork`, the rule Continue Watching follows), then its backdrop, then
-  /// the poster cropped — every tile in a wide grid stays 16:9.
+  /// A catalogue item's card for `layout`. List layout keeps the poster card; the
+  /// page draws `CatalogMediaRow` instead of a grid cell.
   static func card(for item: MediaItem, in layout: MediaGridLayout?) -> MediaCard {
-    let card = MediaCard(item)
-    guard layout == .wide else { return card }
-    let wide = titleWideArtwork(posters: item.posters)
-      ?? card.backdropURL.flatMap { $0.isEmpty ? nil : $0 }
-      ?? card.posterURL
-    return card.withLandscapeImage(wide)
+    MediaCard(item)
   }
 }

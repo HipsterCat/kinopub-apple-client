@@ -73,14 +73,16 @@ class CollectionDetailModel: ObservableObject {
   func update(_ transform: (inout LibraryFilter) -> Void) {
     var updated = filter
     transform(&updated)
-    guard updated.sort != filter.sort else { return }
+    guard updated.sort != filter.sort || updated.sortDescending != filter.sortDescending else { return }
     filter.sort = updated.sort
+    filter.sortDescending = updated.sortDescending
     applySort()
   }
 
   func clearFilters() {
-    guard filter.sort != .year else { return }
+    guard filter.sort != .year || !filter.sortDescending else { return }
     filter.sort = .year
+    filter.sortDescending = true
     applySort()
   }
 
