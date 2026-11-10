@@ -134,17 +134,66 @@ final class TVPageHeroCarousel {
 
   /// How far into its recede the hero is, 0 (page at the top) to 1, as the page scrolls.
   private(set) var recede: CGFloat = 0
+  /// Where the scroll says the recede should be; `recede` follows it.
+  private var recedeTarget: CGFloat = 0
+  private var follower: CADisplayLink?
+  private var lastTick: CFTimeInterval = 0
+
+  /// How quickly the parallax catches up with the page (time constant, seconds). The
+  /// engine's own Down from the hero is a short quick scroll, and the dim, the
+  /// picture's rise and the words' lift done in step with it read as a jolt (Sasha,
+  /// 2026-11-10: «резкая, дерганая»). Following it this way they ease in and settle
+  /// about half a second after the scroll, with no timed stage of their own.
+  static let recedeSmoothing: CFTimeInterval = 0.14
 
   func setRecede(_ newRecede: CGFloat) {
-    let newRecede = min(max(newRecede, 0), 1)
-    guard newRecede != recede else { return }
-    recede = newRecede
-    backdrop?.apply(recede: newRecede)
-    cell?.apply(recede: newRecede)
-    let newStage: Stage = newRecede < 0.3 ? .hero : .receded
+    recedeTarget = min(max(newRecede, 0), 1)
+    guard recedeTarget != recede else { return }
+    if UIAccessibility.isReduceMotionEnabled || Self.recedeSmoothing <= 0 {
+      paintRecede(recedeTarget)
+      return
+    }
+    guard follower == nil else { return }
+    lastTick = CACurrentMediaTime()
+    let link = CADisplayLink(target: FollowerTarget(self), selector: #selector(FollowerTarget.tick(_:)))
+    link.add(to: .main, forMode: .common)
+    follower = link
+  }
+
+  fileprivate func followTick() {
+    let now = CACurrentMediaTime()
+    let elapsed = max(now - lastTick, 0)
+    lastTick = now
+    let step = CGFloat(1 - exp(-elapsed / Self.recedeSmoothing))
+    var next = recede + (recedeTarget - recede) * step
+    if abs(recedeTarget - next) < 0.002 { next = recedeTarget }
+    paintRecede(next)
+    if next == recedeTarget {
+      follower?.invalidate()
+      follower = nil
+    }
+  }
+
+  private func paintRecede(_ value: CGFloat) {
+    guard value != recede else { return }
+    recede = value
+    backdrop?.apply(recede: value)
+    cell?.apply(recede: value)
+    let newStage: Stage = value < 0.3 ? .hero : .receded
     guard newStage != stage else { return }
     stage = newStage
     cell?.updateTimer()
+  }
+}
+
+/// CADisplayLink holds its target strongly; this one holds the carousel weakly.
+@MainActor
+private final class FollowerTarget: NSObject {
+  weak var carousel: TVPageHeroCarousel?
+  init(_ carousel: TVPageHeroCarousel) { self.carousel = carousel }
+  @objc func tick(_ link: CADisplayLink) {
+    guard let carousel else { link.invalidate(); return }
+    carousel.followTick()
   }
 }
 
