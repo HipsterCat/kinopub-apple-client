@@ -20,6 +20,9 @@ import SwiftUI
 /// not flash the placeholder over art that was already visible.
 public struct CachedRemoteImage<Placeholder: View, Failure: View>: View {
   private let url: URL?
+  /// Decode target in points. Pass the card/tile box from shelves and grids;
+  /// `.zero` keeps full resolution for sparse chrome (see `ArtworkImage`).
+  private let size: CGSize
   private let contentMode: ContentMode
   private let placeholder: () -> Placeholder
   private let failure: () -> Failure
@@ -27,11 +30,13 @@ public struct CachedRemoteImage<Placeholder: View, Failure: View>: View {
 
   public init(
     url: URL?,
+    size: CGSize = .zero,
     contentMode: ContentMode = .fill,
     @ViewBuilder placeholder: @escaping () -> Placeholder,
     @ViewBuilder failure: @escaping () -> Failure
   ) {
     self.url = url
+    self.size = size
     self.contentMode = contentMode
     self.placeholder = placeholder
     self.failure = failure
@@ -40,6 +45,7 @@ public struct CachedRemoteImage<Placeholder: View, Failure: View>: View {
   public var body: some View {
     ArtworkImage(
       url: url,
+      size: size,
       transaction: Transaction(animation: .easeOut(duration: 0.25))
     ) { phase in
       switch phase {
@@ -67,9 +73,10 @@ public struct CachedRemoteImage<Placeholder: View, Failure: View>: View {
 
 public extension CachedRemoteImage where Placeholder == Color, Failure == Color {
   /// Clear while loading or after failure — never a permanent gray plate.
-  init(url: URL?, contentMode: ContentMode = .fill) {
+  init(url: URL?, size: CGSize = .zero, contentMode: ContentMode = .fill) {
     self.init(
       url: url,
+      size: size,
       contentMode: contentMode,
       placeholder: { Color.clear },
       failure: { Color.clear }

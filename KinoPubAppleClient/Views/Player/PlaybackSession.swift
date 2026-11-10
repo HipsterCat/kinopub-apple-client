@@ -44,6 +44,10 @@ final class PlaybackSession: ObservableObject {
   /// manager: `preparePlayback` on it is a no-op and its player has no item. A legit
   /// replay never collides — a fresh push mints a fresh token.
   private var tombstonedRequests: Set<Request> = []
+  /// Insertion order for `tombstonedRequests` so repeated Play / dismiss cycles cannot
+  /// retain an unbounded set of route identities across a long Mac session.
+  private var tombstoneOrder: [Request] = []
+  private static let maxTombstones = 24
   /// The most recently torn-down manager, kept so a dying destination has something
   /// inert to hold. Which dead manager it is doesn't matter — the view is leaving.
   private var stoppedManager: PlayerManager?
@@ -51,6 +55,16 @@ final class PlaybackSession: ObservableObject {
   private var fromBeginningTokens: Set<UUID> = []
 
   private init() {}
+
+  private func rememberTombstone(_ request: Request) {
+    if tombstonedRequests.insert(request).inserted {
+      tombstoneOrder.append(request)
+    }
+    while tombstoneOrder.count > Self.maxTombstones {
+      let oldest = tombstoneOrder.removeFirst()
+      tombstonedRequests.remove(oldest)
+    }
+  }
 
   /// Returns the shared manager for `item`, replacing the previous request when the
   /// id/mode changes so only one stream runs at a time.
@@ -71,7 +85,7 @@ final class PlaybackSession: ObservableObject {
     }
 
     if let request {
-      tombstonedRequests.insert(request)
+      rememberTombstone(request)
       stoppedManager = manager
     }
     manager?.tearDownForReplacement()
@@ -150,7 +164,7 @@ final class PlaybackSession: ObservableObject {
     manager.tearDownForReplacement()
     guard self.manager === manager else { return false }
     if let request {
-      tombstonedRequests.insert(request)
+      rememberTombstone(request)
     }
     stoppedManager = manager
     self.manager = nil
