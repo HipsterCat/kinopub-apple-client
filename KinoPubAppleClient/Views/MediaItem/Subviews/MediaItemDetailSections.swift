@@ -1072,8 +1072,8 @@ private struct OptionalPageEntryFocus: ViewModifier {
 
 // MARK: - Cast
 
-/// Poster-shaped portraits. Photos and character names come from TMDB when the
-/// metadata proxy is configured; otherwise initials and the role label.
+/// Round headshots for the cast rail. Photos and character names come from TMDB when the
+/// metadata proxy is configured; otherwise initials — never a generic «Актёр» label.
 ///
 /// Each one leads to that person's credits, which is also what makes the rail
 /// reachable: a tvOS scroll view moves by focus, and portraits that were plain text
@@ -1083,6 +1083,8 @@ struct MediaItemCastSection: View {
   let mediaItem: MediaItem
   let linkProvider: NavigationLinkProvider
   var externalMetadata: TitleMetadata = TitleMetadata()
+  /// Full cast & crew page. `nil` leaves the header plain — see `MediaItemSectionHeader`.
+  var destination: (any Hashable)? = nil
 
 #if os(tvOS)
   /// The UIKit rail can't use a SwiftUI `NavigationLink`, so selection is pushed
@@ -1107,21 +1109,32 @@ struct MediaItemCastSection: View {
     member.photo ?? ActorImageProvider.photoURL(for: member.name)
   }
 
-  /// Actors, and only actors. Directors used to lead this rail: a name people know
-  /// over a face they do not, taking the opening slot of the one section that exists
-  /// because of faces. They are a Credits row in the information table now.
+  /// Actors for the rail: kino.pub's names enriched from TMDB, ranked the same way as
+  /// tvOS (`MediaItemTVSections.rankedCast`), then soft-preferring people who already
+  /// have a real photo URL so the first screen is faces, not stubs.
   private var people: [(person: MediaPerson, member: CastMember)] {
-    let actors = TitleMetadata.enrich(
+    let enriched = TitleMetadata.enrich(
       names: mediaItem.castMembers,
       roleDepartment: "Acting",
       from: externalMetadata
-    ).map {
+    )
+    let ranked = CastRanking.ranked(enriched, isEpisodic: mediaItem.isEpisodicType)
+    let withPhoto = ranked.filter { $0.photo != nil }
+    let withoutPhoto = ranked.filter { $0.photo == nil }
+    return (withPhoto + withoutPhoto).map {
       (MediaPerson(name: $0.name,
                    role: .actor,
                    photoURL: photoURL(for: $0),
                    tmdbPersonId: $0.tmdbPersonId), $0)
     }
-    return actors
+  }
+
+  /// Full company size for the header badge — rail may show a shorter ranked list.
+  private var companyCount: String? {
+    let company = CastAndCrew.make(item: mediaItem, metadata: externalMetadata)
+    let total = company.cast.count + company.crew.count
+    let value = total > 0 ? total : people.count
+    return value > 0 ? value.formatted(.number.grouping(.automatic)) : nil
   }
 
   /// Faces are for fiction. A concert, a stand-up set, a documentary, a show or
@@ -1130,12 +1143,15 @@ struct MediaItemCastSection: View {
   var body: some View {
     if mediaItem.presentation.showsCastPortraits, !people.isEmpty {
       VStack(alignment: .leading, spacing: 12) {
-        MediaItemSectionHeader(LocalizedStringKey(mediaItem.presentation.castSectionTitleKey))
+        MediaItemSectionHeader(
+          LocalizedStringKey(mediaItem.presentation.castSectionTitleKey),
+          count: companyCount,
+          destination: destination
+        )
 
 #if os(tvOS)
         monogramRail
 #else
-//           monogramRail
         portraitRail
 #endif
       }
@@ -1144,15 +1160,7 @@ struct MediaItemCastSection: View {
 
 #if os(tvOS)
   /// System `TVMonogramContentConfiguration` circles — the round person treatment
-  /// Apple's own tvOS apps use, and the shape TVUIKit draws for people. Replaces a
-  /// hand-rolled rounded-rect avatar + `PortraitButtonStyle` (manual `scaleEffect`,
-  /// and — until the 2026-08-09 shadow pass — a focus-animated `shadow` radius on
-  /// every visible circle). The system cell owns its focus motion, so there is no
-  /// custom focus code left on this rail at all.
-  ///
-  /// Two things the SwiftUI rail had and this does not: `mediaZoomSource` (the zoom
-  /// transition is a SwiftUI-`NavigationLink` affordance with no UIKit-cell analog
-  /// here) and per-card focus reporting, which the page no longer needs.
+  /// Apple's own tvOS apps use, and the shape TVUIKit draws for people.
   private var monogramRail: some View {
     TVUIKitPersonCollection(
       people: people.map { entry in
@@ -1171,14 +1179,17 @@ struct MediaItemCastSection: View {
     .focusSection()
   }
 
-  /// Character when TMDB has one, else the credit role — same rule as
-  /// `CastPortraitView.subtitleLabel`, which still backs the non-tvOS rail.
-  private static func caption(for entry: (person: MediaPerson, member: CastMember)) -> String {
+  /// Character when TMDB has one; episode count when known. Never a generic «Актёр».
+  private static func caption(for entry: (person: MediaPerson, member: CastMember)) -> String? {
+    var parts: [String] = []
     if let character = entry.member.character?.trimmingCharacters(in: .whitespacesAndNewlines),
        !character.isEmpty {
-      return character
+      parts.append(character)
     }
-    return entry.person.role.titleKey.localized
+    if let episodes = entry.member.episodeCount, episodes > 0 {
+      parts.append(localizedEpisodeCount(episodes))
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
   }
 
 #else
@@ -1208,14 +1219,30 @@ struct MediaItemCastSection: View {
 #endif
 }
 
-/// Poster-shaped portrait art shared by the cast rail and the person page hero.
+/// «2 серии» / «1 episode» — the declined unit, not «2 эп.» / «episodes».
+func localizedEpisodeCount(_ count: Int) -> String {
+  "\(count.formatted(.number.grouping(.automatic))) \(SeriesFacts.unit(count, .episode))"
+}
+
+/// Portrait art shared by the cast rail (circle) and the person page hero (poster).
 ///
 /// Keeps the last successful decode across URL changes (pushbr → TMDB, size
 /// upgrades) so the loading phase never flashes initials over a face that was
-/// already on screen. Same sticky approach as `CachedRemoteImage`.
+/// already on screen. Same sticky approach as `CachedRemoteImage`. Stub Kinopoisk
+/// "no photo" cards are treated as missing — same rule as `PersonArtwork` / tvOS
+/// monograms — so the rail does not leave a grey K-tile when the person page would
+/// correctly show initials.
 struct CastAvatarView: View {
+  enum Style {
+    case circle
+    case poster
+  }
+
   let name: String
   var photoURL: URL? = nil
+  var style: Style = .poster
+  /// Overrides the circle diameter (list rows). Ignored for `.poster`.
+  var diameter: CGFloat? = nil
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.openURL) private var openURL
   @State private var image: Image?
@@ -1223,10 +1250,24 @@ struct CastAvatarView: View {
   @State private var loadedURL: URL?
 
   var body: some View {
+    Group {
+      switch style {
+      case .circle:
+        content(shape: Circle())
+      case .poster:
+        content(shape: Self.posterShape)
+      }
+    }
+    .modifier(MediaCardContextMenuModifier(entries: debugMenuEntries))
+    .task(id: loadKey) {
+      await loadPhoto()
+    }
+  }
+
+  @ViewBuilder
+  private func content<S: InsettableShape>(shape: S) -> some View {
     ZStack {
-      // Solid plate — focus shadow sits behind this, not through the gradient.
-      Self.posterShape
-            .fill(Color.KinoPub.placeholder)
+      shape.fill(Color.KinoPub.placeholder)
 
       if let image {
         image
@@ -1234,17 +1275,13 @@ struct CastAvatarView: View {
           .scaledToFill()
           .transition(.opacity)
       } else {
-        placeholder
+        placeholder(shape: shape)
       }
     }
-    .frame(width: Self.avatarWidth, height: Self.avatarHeight)
-    .clipShape(Self.posterShape)
-    .kinoGlassRim(in: Self.posterShape)
+    .frame(width: width, height: height)
+    .clipShape(shape)
+    .kinoGlassRim(in: shape)
     .animation(.easeOut(duration: 0.2), value: image == nil)
-    .modifier(MediaCardContextMenuModifier(entries: debugMenuEntries))
-    .task(id: loadKey) {
-      await loadPhoto()
-    }
   }
 
   private var debugMenuEntries: [MediaCardContextEntry] {
@@ -1255,7 +1292,21 @@ struct CastAvatarView: View {
   }
 
   private var loadKey: String {
-    "\(name)|\(photoURL?.absoluteString ?? "")"
+    "\(name)|\(photoURL?.absoluteString ?? "")|\(style)|\(diameter ?? -1)"
+  }
+
+  private var width: CGFloat {
+    switch style {
+    case .circle: diameter ?? Self.circleDiameter
+    case .poster: Self.posterWidth
+    }
+  }
+
+  private var height: CGFloat {
+    switch style {
+    case .circle: diameter ?? Self.circleDiameter
+    case .poster: Self.posterHeight
+    }
   }
 
   @MainActor
@@ -1277,10 +1328,10 @@ struct CastAvatarView: View {
         return
       }
 #if canImport(UIKit)
-      guard let uiImage = UIImage(data: data) else { return }
+      guard let uiImage = UIImage(data: data), !PersonArtwork.isPlaceholder(uiImage) else { return }
       image = Image(uiImage: uiImage)
 #elseif canImport(AppKit)
-      guard let nsImage = NSImage(data: data) else { return }
+      guard let nsImage = NSImage(data: data), !PersonArtwork.isPlaceholder(nsImage) else { return }
       image = Image(nsImage: nsImage)
 #endif
       loadedURL = photoURL
@@ -1289,21 +1340,21 @@ struct CastAvatarView: View {
     }
   }
 
-  private var placeholder: some View {
+  @ViewBuilder
+  private func placeholder<S: Shape>(shape: S) -> some View {
     ZStack {
-      Self.posterShape
-        .fill(
-          LinearGradient(
-            colors: [
-              Color.primary.opacity(colorScheme == .dark ? 0.22 : 0.14),
-              Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.06)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-          )
+      shape.fill(
+        LinearGradient(
+          colors: [
+            Color.primary.opacity(colorScheme == .dark ? 0.22 : 0.14),
+            Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.06)
+          ],
+          startPoint: .top,
+          endPoint: .bottom
         )
+      )
       Text(Self.initials(of: name))
-        .font(Self.initialsFont)
+        .font(initialsFont)
         .foregroundStyle(Color.KinoPub.subtitle)
     }
   }
@@ -1319,70 +1370,83 @@ struct CastAvatarView: View {
     )
   }
 
-  static let posterShape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-  static let avatarWidth: CGFloat = 100
-  static let avatarHeight: CGFloat = 152
+  private var initialsFont: Font {
+    switch style {
+    case .circle:
+      let side = diameter ?? Self.circleDiameter
+      let size = max(16, side * 0.32)
+      return .system(size: size, weight: .semibold, design: .rounded)
+    case .poster:
+      return .system(size: 36, weight: .semibold, design: .rounded)
+    }
+  }
 
-#if os(tvOS)
-  static let initialsFont: Font = .system(size: 36, weight: .semibold, design: .rounded)
-#else
-  static let initialsFont: Font = .system(size: 36, weight: .semibold, design: .rounded)
-#endif
+  static let posterShape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+  static let posterWidth: CGFloat = 100
+  static let posterHeight: CGFloat = 152
+  static let circleDiameter: CGFloat = 96
+
+  /// Back-compat for call sites that still size against the poster rail.
+  static var avatarWidth: CGFloat { posterWidth }
+  static var avatarHeight: CGFloat { posterHeight }
 }
 
-/// Poster tile + name/role under it for the cast rail.
+/// Round avatar + name / character / episode count under it for the cast rail.
 struct CastPortraitView: View {
   let person: MediaPerson
   let member: CastMember
 
+  private var episodeLine: String? {
+    guard let episodeCount = member.episodeCount, episodeCount > 0 else { return nil }
+    return localizedEpisodeCount(episodeCount)
+  }
+
+  private var characterLine: String? {
+    let character = member.character?.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let character, !character.isEmpty else { return nil }
+    return character
+  }
+
   var body: some View {
     VStack(spacing: 8) {
-      CastAvatarView(name: person.name, photoURL: person.photoURL)
+      CastAvatarView(name: person.name, photoURL: person.photoURL, style: .circle)
 
-      VStack(spacing: 4) {
+      VStack(spacing: 2) {
         Text(person.name)
           .font(Self.nameFont)
+          .fontWeight(.semibold)
           .foregroundStyle(Color.KinoPub.text)
-          .lineLimit(2)
+          .lineLimit(episodeLine == nil ? 2 : 1)
           .multilineTextAlignment(.center)
           .frame(maxWidth: .infinity, alignment: .center)
 
-        subtitleLabel
-          .font(Self.roleFont)
-          .foregroundStyle(Color.KinoPub.subtitle)
-          .lineLimit(2)
-          .multilineTextAlignment(.center)
-          .frame(maxWidth: .infinity, alignment: .center)
-
-        if let episodeCount = member.episodeCount, episodeCount > 0 {
-          Text("\(episodeCount) \("MediaItem_EpisodesShort".localized)")
+        if let characterLine {
+          Text(characterLine)
             .font(Self.roleFont)
-            .foregroundStyle(Color.KinoPub.subtitle.opacity(0.7))
+            .foregroundStyle(Color.KinoPub.subtitle)
+            .lineLimit(episodeLine == nil ? 2 : 1)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+
+        if let episodeLine {
+          Text(episodeLine)
+            .font(Self.roleFont)
+            .foregroundStyle(Color.KinoPub.subtitle)
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .center)
         }
       }
       .frame(maxWidth: .infinity, alignment: .center)
     }
-    .frame(width: CastAvatarView.avatarWidth, alignment: .center)
-  }
-
-  /// Character when TMDB has one; otherwise the credit role (Actor / Director).
-  @ViewBuilder
-  private var subtitleLabel: some View {
-    if let character = member.character?.trimmingCharacters(in: .whitespacesAndNewlines),
-       !character.isEmpty {
-      Text(character)
-    } else {
-      Text(person.role.titleKey.localized)
-    }
+    .frame(width: CastAvatarView.circleDiameter, alignment: .center)
   }
 
 #if os(tvOS)
-  static let nameFont: Font = .system(size: 24, weight: .medium)
+  static let nameFont: Font = .system(size: 24, weight: .semibold)
   static let roleFont: Font = .system(size: 20, weight: .regular)
 #else
-  static let nameFont: Font = .system(size: 12, weight: .regular)
+  static let nameFont: Font = .system(size: 12, weight: .semibold)
   static let roleFont: Font = .system(size: 12, weight: .regular)
 #endif
 }
@@ -1402,11 +1466,6 @@ private struct PortraitButtonStyle: ButtonStyle {
     var body: some View {
       configuration.label
         .scaleEffect(isFocused ? 1.05 : (configuration.isPressed ? 0.96 : 1.0))
-//        .scaleEffect(isFocused ? 1.05 : (configuration.isPressed ? 0.96 : 1.0))
-        // Radius (not just opacity) changes with focus — SwiftUI has to re-render the
-        // shadow's blur every tick, on every cast/crew circle in the row. Off on tvOS,
-        // where this style backs a `LazyHGrid` of many simultaneously-visible circles.
-//        .shadow(color: .black.opacity(isFocused ? 0.45 : (isHovered ? 0.2 : 0)), radius: isFocused ? 14 : 8, y: isFocused ? 6 : 2)
         .animation(.easeOut(duration: 0.18), value: isFocused)
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .animation(.spring(response: 0.15, dampingFraction: 0.9), value: configuration.isPressed)

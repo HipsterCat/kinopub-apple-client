@@ -1027,7 +1027,8 @@ struct MediaItemView: View {
 #endif
       MediaItemCastSection(mediaItem: itemModel.mediaItem,
                            linkProvider: itemModel.linkProvider,
-                           externalMetadata: itemModel.externalMetadata)
+                           externalMetadata: itemModel.externalMetadata,
+                           destination: castAndCrewDestination)
         .detailFocusSection()
       MediaItemAwardsSection(awards: itemModel.externalMetadata.awards)
         .detailFocusSection()
@@ -1075,6 +1076,16 @@ struct MediaItemView: View {
     MediaItemTVPage(model: itemModel, cardMenu: relatedRowsMenu)
   }
 #endif
+
+  private var castAndCrewDestination: (any Hashable)? {
+#if os(tvOS)
+    nil
+#else
+    itemModel.linkProvider.castAndCrew(
+      CastAndCrew.make(item: itemModel.mediaItem, metadata: itemModel.externalMetadata)
+    )
+#endif
+  }
 
   /// Always present. The block's header and every card in it lead to the same page,
   /// and that has to be true before the reviews arrive as well as after — a chevron

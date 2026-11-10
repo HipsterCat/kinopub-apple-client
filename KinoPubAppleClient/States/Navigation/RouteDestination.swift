@@ -93,6 +93,13 @@ struct RouteDestination: View {
 #else
       MediaItemRatingsAndReviewsPage(payload: payload)
 #endif
+    case .castAndCrew(let payload):
+#if os(tvOS)
+      // Navigating section headers are an iOS/macOS affordance; tvOS keeps the rail.
+      EmptyView()
+#else
+      MediaItemCastAndCrewPage(payload: payload, linkProvider: linkProvider)
+#endif
     case .player(let item, let token):
 #if os(macOS)
       MacPlayerRouteGuard(item: item, mode: .media)

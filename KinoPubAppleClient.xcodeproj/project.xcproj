@@ -447,6 +447,8 @@
                     { "path": "SeasonTabStrip.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemDetailSections.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemAboutLayouts.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "CastRanking.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                    { "path": "MediaItemCastAndCrewPage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemReviewsPage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemTVSections.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                     { "path": "MediaItemTVPage.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },

@@ -48,6 +48,8 @@ enum Route: Hashable {
   case bookmarkFolders([Bookmark])
   /// A detail page's Ratings and Reviews block, opened in full.
   case ratingsAndReviews(RatingsAndReviews)
+  /// A detail page's cast rail, opened as the full cast & crew company.
+  case castAndCrew(CastAndCrew)
 
   var isPlayerRoute: Bool {
     switch self {
@@ -112,6 +114,9 @@ enum Route: Hashable {
     case .ratingsAndReviews(let payload):
       hasher.combine(12)
       hasher.combine(payload)
+    case .castAndCrew(let payload):
+      hasher.combine(18)
+      hasher.combine(payload)
     case .filteredShelf(let filter, let title):
       hasher.combine(14)
       hasher.combine(filter)
@@ -155,6 +160,8 @@ enum Route: Hashable {
     case (.shortcutItems(let a, let at, let atitle), .shortcutItems(let b, let bt, let btitle)):
       return a == b && at == bt && atitle == btitle
     case (.ratingsAndReviews(let a), .ratingsAndReviews(let b)):
+      return a == b
+    case (.castAndCrew(let a), .castAndCrew(let b)):
       return a == b
     case (.filteredShelf(let a, let atitle), .filteredShelf(let b, let btitle)):
       return a == b && atitle == btitle
@@ -270,6 +277,132 @@ enum RatingsTab: String, CaseIterable, Hashable, Identifiable {
   }
 }
 
+
+/// Everything the Cast & Crew page needs, already loaded from the title's metadata.
+struct CastAndCrew: Hashable {
+  let item: MediaItem
+  let cast: [CastMember]
+  let crew: [CastMember]
+  var tab: CastAndCrewTab = .featured
+
+  /// One row on the page — person identity for navigation plus the lines under the name.
+  struct Entry: Hashable, Identifiable {
+    let person: MediaPerson
+    let roleLine: String?
+    let episodeLine: String?
+
+    var id: String { person.id }
+
+    func matches(_ needle: String) -> Bool {
+      let q = needle.lowercased()
+      if person.name.lowercased().contains(q) { return true }
+      if let roleLine, roleLine.lowercased().contains(q) { return true }
+      return false
+    }
+  }
+
+  /// kino.pub's billed names plus everyone TMDB listed, then the crew.
+  static func make(item: MediaItem, metadata: TitleMetadata,
+                   tab: CastAndCrewTab = .featured) -> CastAndCrew {
+    var cast = TitleMetadata.enrich(names: item.castMembers, roleDepartment: "Acting",
+                                    from: metadata)
+    var seen = Set(cast.map { TitleMetadata.normalize($0.name) })
+    for member in metadata.cast {
+      let key = TitleMetadata.normalize(member.name)
+      if seen.insert(key).inserted { cast.append(member) }
+    }
+    return CastAndCrew(item: item, cast: cast, crew: metadata.crew, tab: tab)
+  }
+
+  func entry(for member: CastMember, role: MediaPerson.Role) -> Entry {
+    let photo = member.photo ?? ActorImageProvider.photoURL(for: member.name)
+    let person = MediaPerson(name: member.name, role: role, photoURL: photo,
+                             tmdbPersonId: member.tmdbPersonId)
+    let roleLine = member.character?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleaned = (roleLine?.isEmpty == false) ? roleLine : nil
+    let episodes: String?
+    if let count = member.episodeCount, count > 0 {
+      episodes = localizedEpisodeCount(count)
+    } else {
+      episodes = nil
+    }
+    return Entry(person: person, roleLine: cleaned, episodeLine: episodes)
+  }
+
+  /// Regular vs guest floor — same rule as `MediaItemTVSections.rankedCast`.
+  var regularEpisodeFloor: Int {
+    let most = cast.compactMap(\.episodeCount).max() ?? 0
+    guard item.isEpisodicType, most > 0 else { return 0 }
+    return most > 1 ? max(2, Int((Double(most) * 0.2).rounded(.up))) : 1
+  }
+
+  var featuredPeople: [Entry] {
+    let leads = CastRanking.ranked(cast, isEpisodic: item.isEpisodicType)
+    var rows = leads.map { entry(for: $0, role: .actor) }
+    let keyCrew = crew.filter { member in
+      let department = (member.department ?? "").lowercased()
+      let job = (member.character ?? "").lowercased()
+      if department.contains("direct") { return true }
+      return ["creator", "director", "writer", "screenplay", "novel"].contains {
+        job == $0 || job.contains($0)
+      }
+    }.prefix(5)
+    rows.append(contentsOf: keyCrew.map { entry(for: $0, role: .director) })
+    var seen = Set<String>()
+    return rows.filter { seen.insert($0.id).inserted }
+  }
+
+  var regularPeople: [Entry] {
+    let floor = regularEpisodeFloor
+    if floor > 0 {
+      return cast.filter { ($0.episodeCount ?? 0) >= floor }.map { entry(for: $0, role: .actor) }
+    }
+    // Films: everyone past the featured billing still belongs under Regular.
+    let featuredNames = Set(CastRanking.ranked(cast, isEpisodic: false).map {
+      TitleMetadata.normalize($0.name)
+    })
+    return cast.filter { !featuredNames.contains(TitleMetadata.normalize($0.name)) }
+      .map { entry(for: $0, role: .actor) }
+  }
+
+  var guestPeople: [Entry] {
+    let floor = regularEpisodeFloor
+    guard floor > 0 else { return [] }
+    return cast.filter { ($0.episodeCount ?? 0) < floor }.map { entry(for: $0, role: .actor) }
+  }
+
+  var crewPeople: [Entry] {
+    crew.map { entry(for: $0, role: .director) }
+  }
+}
+
+enum CastAndCrewTab: String, CaseIterable, Hashable, Identifiable {
+  case featured, regular, guest, crew
+
+  var id: String { rawValue }
+
+  func title(count: Int) -> String {
+    let label: String
+    switch self {
+    case .featured: label = "MediaItem_CastTabFeatured".localized
+    case .regular: label = "MediaItem_CastTabRegular".localized
+    case .guest: label = "MediaItem_CastTabGuest".localized
+    case .crew: label = "MediaItem_CastTabCrew".localized
+    }
+    guard count > 0 else { return label }
+    return "\(label) (\(count.formatted(.number.grouping(.automatic))))"
+  }
+
+  func people(in payload: CastAndCrew) -> [CastAndCrew.Entry] {
+    switch self {
+    case .featured: payload.featuredPeople
+    case .regular: payload.regularPeople
+    case .guest: payload.guestPeople
+    case .crew: payload.crewPeople
+    }
+  }
+}
+
 /// Legacy names kept as aliases so call sites migrate without five duplicate enums.
 typealias MainRoutes = Route
 typealias CatalogRoutes = Route
@@ -299,6 +432,7 @@ extension Route {
     case .detailsById(let id): .picture(Self.backdropKey(itemID: id))
     // A title's own sub-page stays on the title's picture.
     case .ratingsAndReviews(let block): .picture(Self.backdropKey(itemID: block.item.id))
+    case .castAndCrew(let block): .picture(Self.backdropKey(itemID: block.item.id))
     case .player, .trailerPlayer, .livePlayer: .passThrough
     default: .none
     }
