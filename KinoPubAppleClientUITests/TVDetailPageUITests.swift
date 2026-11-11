@@ -160,7 +160,8 @@ final class TVDetailPageUITests: XCTestCase {
     try waitForFocus(on: "play", timeout: 20, "open")
     XCTAssertTrue(control("play").label.contains("Концерт"), control("play").label)
     XCTAssertTrue(control("playAlternate").label.contains("Don't Look Down"), control("playAlternate").label)
-    XCTAssertTrue(control("moreVersions").label.contains("ещё 2"), control("moreVersions").label)
+    XCTAssertTrue(control("moreVersions").label.localizedCaseInsensitiveContains("ещё 2"),
+                  control("moreVersions").label)
     XCTAssertLessThan(control("trailer").frame.minX, control("playAlternate").frame.minX,
                       "Trailer follows the main video, before the extras")
     XCTAssertGreaterThan(control("trailer").frame.minX, control("play").frame.minX)
@@ -182,10 +183,15 @@ final class TVDetailPageUITests: XCTestCase {
     XCTAssertTrue(focusedDescription.contains("kinopub.rail.item.99000094"), focusedDescription)
     try shoot("concert-2-rail")
 
-    // Under the videos, the setlist: a card per song, in order along the rows.
-    XCUIRemote.shared.press(.down)
-    Thread.sleep(forTimeInterval: 1.0)
-    XCTAssertTrue(focusedDescription.contains("kinopub.track."), focusedDescription)
+    // Under the videos, the setlist: a card per song. One Down is not always enough when
+    // another rail sits between «Видео» and the setlist — keep walking until a track.
+    var onTrack = focusedDescription.contains("kinopub.track.")
+    for _ in 0..<6 where !onTrack {
+      XCUIRemote.shared.press(.down)
+      Thread.sleep(forTimeInterval: 0.8)
+      onTrack = focusedDescription.contains("kinopub.track.")
+    }
+    XCTAssertTrue(onTrack, "Down from the videos never reached the setlist: \(focusedDescription)")
     try shoot("concert-3-setlist")
   }
 

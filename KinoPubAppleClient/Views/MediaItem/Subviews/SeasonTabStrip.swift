@@ -15,7 +15,7 @@ struct SeasonTab: Identifiable, Equatable {
   enum Status: Equatable {
     /// kino.pub has it.
     case available
-    /// Announced, not out yet — a filled clock.
+    /// Announced, not out yet — a calendar.
     case soon
     /// Out somewhere, but kino.pub does not have it — a lock.
     case unavailable
@@ -115,7 +115,7 @@ enum SeasonTabMetrics {
 /// under it does not move between titles. Pills are as tall as the headline text plus 10 pt
 /// above and below, 24 pt of padding each side of the text, and never narrower than tall
 /// (a lone digit is about a circle, «10» and «4–7» are wider). Seasons that are not on
-/// kino.pub take the secondary colour and a glyph after the number: a filled clock for those
+/// kino.pub take the secondary colour and a glyph after the number: a calendar for those
 /// still to come, a lock for those it lacks. The selected pill is the filled one.
 ///
 /// The word is primary, a section header's (Sasha, 2026-11-09); with one season it is the

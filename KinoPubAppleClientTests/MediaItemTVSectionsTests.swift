@@ -674,8 +674,8 @@ final class MediaItemTVSectionsTests: XCTestCase {
     XCTAssertEqual(groupIDs(section), ["languages", "video", "info"])
     XCTAssertTrue(section.groups.allSatisfy { $0.stacked && $0.columns == 3 && $0.title == nil })
     XCTAssertEqual(specs(in: section).map(\.id),
-                   ["audio", "subtitles", "resolution", "runtime", "type", "year", "genres", "countries"],
-                   "audio and subtitles each a card; the resolution and the runtime each; every item of the third")
+                   ["audio", "subtitles", "resolution", "runtime", "skip", "type", "year", "genres", "countries"],
+                   "audio and subtitles each a card; the resolution and the runtime each; skip; every item of the third")
 
     let plan = TVPageStripPlan(section: section, contentWidth: 1760, sideInset: 80)
     let art = TVPageStripPlan.cardWidth(columns: 3, contentWidth: 1760, share: 3)

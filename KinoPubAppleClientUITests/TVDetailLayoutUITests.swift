@@ -177,7 +177,9 @@ final class TVDetailLayoutUITests: XCTestCase {
   /// - Up from the tabs is the hero's main button, and Down again is the episode you left —
   ///   the rail is where you left it (only reopening the page puts it back on S2E4).
   func testSeasonRailFocusWalk() throws {
-    launch("seasonStrip")
+    // Numbered tabs (`TVSeasonRail`). Rivulet is the default rail; its Down/Menu walk
+    // is `TVDetailPageUITests.testSeasonRailDownKeepsFocusOnScreen`.
+    launch("seasonStrip", extra: ["-featureFlag.rivuletSeasonRail", "<false/>"])
     try waitForHeroFocus()
     try shoot("seasons-00-open")
 
@@ -200,6 +202,11 @@ final class TVDetailLayoutUITests: XCTestCase {
     try move(.right, "seasons-03-right-to-3")
     XCTAssertTrue(seasonTab("3").hasFocus && seasonTab("3").isSelected, "Right did not select «3»: \(focusedDescription)")
     let s3e1 = railItem(season: 3, number: 1)
+    // Selecting a tab scrolls the rail; wait for S3E1 to settle on the page margin.
+    let railDeadline = Date().addingTimeInterval(4)
+    while Date() < railDeadline, abs(s3e1.frame.minX - TVHIG.sideInset) > 30 {
+      Thread.sleep(forTimeInterval: 0.25)
+    }
     XCTAssertEqual(s3e1.frame.minX, TVHIG.sideInset, accuracy: 30, "the rail did not go to S3E1: \(s3e1.frame)")
 
     try move(.right, "seasons-04-right-to-4-7")
@@ -243,8 +250,10 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertFalse(app.descendants(matching: .any)
                      .matching(NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.season.tab.")).firstMatch.exists,
                    "a one-season show has a season tab to press")
-    XCTAssertTrue(app.descendants(matching: .any)
-                    .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.rail.item.")).firstMatch.exists,
+    let onEpisode = app.descendants(matching: .any).matching(NSPredicate(
+      format: "(identifier BEGINSWITH %@ OR identifier BEGINSWITH %@) AND hasFocus == true",
+      "kinopub.rail.item.", "kinopub.rivulet.still.")).firstMatch
+    XCTAssertTrue(onEpisode.exists,
                   "Down from the hero did not land on an episode: \(focusedDescription)")
   }
 

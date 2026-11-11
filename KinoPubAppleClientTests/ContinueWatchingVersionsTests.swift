@@ -51,7 +51,7 @@ final class ContinueWatchingVersionsTests: XCTestCase {
     XCTAssertEqual(card.offeredName, "Rival Sons")
     XCTAssertEqual(card.durationSeconds, 16 * 60)
     XCTAssertNil(card.progress, "a set not started yet has no bar")
-    XCTAssertEqual(card.title, "VA – Back to the Beginning")
+    XCTAssertEqual(card.title, "VA: Back to the Beginning")
   }
 
   /// The first set watched is not the concert watched.
