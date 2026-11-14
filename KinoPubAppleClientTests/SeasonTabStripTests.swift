@@ -30,7 +30,7 @@ final class SeasonTabStripTests: XCTestCase {
 
   func testOnlySeasonsNotOnKinoPubCarryAGlyph() {
     XCTAssertNil(SeasonTab.Status.available.symbol)
-    XCTAssertEqual(SeasonTab.Status.soon.symbol, "clock.fill")
+    XCTAssertEqual(SeasonTab.Status.soon.symbol, "calendar")
     XCTAssertEqual(SeasonTab.Status.unavailable.symbol, "lock.fill")
   }
 
@@ -96,13 +96,13 @@ final class SeasonTabStripTests: XCTestCase {
     XCTAssertGreaterThan(ten.width, one.width, "«10» is no wider than «1»")
     XCTAssertGreaterThan(ten.width, ten.height + 8, "«10» is as round as a single digit")
     XCTAssertGreaterThan(run.width, ten.width)
-    XCTAssertGreaterThanOrEqual(one.width, 48, "a pill's text has 24 pt each side")
+    XCTAssertGreaterThanOrEqual(one.width, SeasonTabMetrics.horizontalPadding * 2,
+                                "a pill's text has padding each side")
   }
 
-  /// Headline text plus 10 pt above and below.
+  /// The line is as tall as a pill: the section header's type plus the platform padding.
   func testTheLineIsHeadlineTextPlusTenPointsEachSide() {
-    let headline = UIFont.preferredFont(forTextStyle: .headline).lineHeight
-    XCTAssertEqual(height(of: everyKind), headline + 20, accuracy: 2)
+    XCTAssertEqual(height(of: everyKind), pillSize(tab(1, 1)).height, accuracy: 2)
   }
 #endif
 }

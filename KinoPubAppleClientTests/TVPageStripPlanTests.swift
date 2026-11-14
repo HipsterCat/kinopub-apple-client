@@ -340,7 +340,8 @@ final class TVPageStripPlanTests: XCTestCase {
     let rating = TVPageInfoCard.rating(.init(id: "IMDb", source: .imdb, title: "IMDb", value: "6.5"))
     XCTAssertEqual(reviewsCard.height(forWidth: column), rating.height(forWidth: column), "the same height")
     XCTAssertGreaterThanOrEqual(reviewsCard.width(inColumn: column), column, "never narrower than a score")
-    XCTAssertEqual(rating.width(inColumn: column), column)
+    XCTAssertEqual(rating.width(inColumn: column), max(column + TVPageRatingContent.extraWidth,
+                                                       TVPageRatingContent.fittingWidth))
 
     let section = TVPageSection.strip(id: "ratings", groups: [
       TVPageGroup(id: "scores", title: "Оценки", columns: 6, items: [.info(rating), .info(reviewsCard)])

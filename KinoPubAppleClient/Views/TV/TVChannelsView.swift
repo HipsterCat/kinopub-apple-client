@@ -49,7 +49,10 @@ struct TVChannelsView: View {
               !channel.stream.isEmpty else { return }
         navigationState.push(.livePlayer(channel, token: UUID()))
       },
-      onRetry: { Task { await model.fetch() } }
+      onRetry: { Task { await model.fetch() } },
+      // Stable across the minute TimelineView tick (EPG subtitles change; the list does not),
+      // so focus memory survives the player pop.
+      contentID: model.channels.map { String($0.id) }.joined(separator: ",")
     )
   }
 
