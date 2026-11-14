@@ -346,7 +346,7 @@ struct SeasonPill: View {
       if isSelected {
         selectedCapsule
       } else if isHovered || isFocused {
-        Capsule().fill(.fill.quaternary)
+        Capsule().fill(.fill.secondary)
       }
     }
     .contentShape(Capsule())
@@ -356,7 +356,7 @@ struct SeasonPill: View {
 
   @ViewBuilder
   private var selectedCapsule: some View {
-    let capsule = Capsule().fill(isEngaged || isFocused ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.fill.quaternary))
+    let capsule = Capsule().fill(isEngaged || isFocused ? AnyShapeStyle(.fill.secondary) : AnyShapeStyle(.fill.tertiary))
     if let selection {
       capsule.matchedGeometryEffect(id: "selected", in: selection)
     } else {
