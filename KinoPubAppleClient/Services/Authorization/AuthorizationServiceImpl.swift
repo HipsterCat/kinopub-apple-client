@@ -124,19 +124,33 @@ final class AuthorizationServiceImpl: AuthorizationService, @unchecked Sendable 
 
   func logout(userInitiated: Bool) {
     accessTokenService.clear(userInitiated: userInitiated)
-    BookmarkMembershipStore.shared.clear()
-    // Folder names outlive a session on disk, so they have to go with the account.
-    Task { @MainActor in BookmarkFoldersStore.shared.clear() }
-#if os(tvOS)
-    // The shelf showed this account's titles; signed out, it is the static image again.
-    Task { @MainActor in TopShelfPublisher.clear() }
-#endif
-    AppContext.shared.libraryState.clear()
     // The device record belonged to the account we just left — the next activation has
     // to register its identity and streaming profile from scratch.
     DeviceProfileRegistry.reset()
+    // Intentional sign-out drops personal data immediately. A ban / refused grant only
+    // clears credentials here so the same person can re-auth without losing bookmarks
+    // and continue-watching; a *different* account triggers `clearPersonalSessionData`
+    // after device-code success.
+    if userInitiated {
+      clearPersonalSessionData()
+    }
     // Do NOT clear ResponseCache — we only cache immutable reference lists
     // (genres/countries). Those never change per account on kino.pub.
+  }
+
+  func clearPersonalSessionData() {
+    BookmarkMembershipStore.shared.clear()
+    AppContext.shared.libraryState.clear()
+    AppContext.shared.localProgressStore.clearAll()
+    Task { @MainActor in
+      BookmarkFoldersStore.shared.clear()
+      AppContext.shared.contentStore.clearPersonalAccountData()
+      UserProfileCache.shared.clear()
+#if os(tvOS)
+      // The shelf showed this account's titles; signed out, it is the static image again.
+      TopShelfPublisher.clear()
+#endif
+    }
   }
 
 }

@@ -16,6 +16,8 @@ public enum BackendErrorCode: Codable, Hashable, Sendable {
   case invalidGrant
   case slowDown
   case unauthorized
+  /// Account suspended / banned — content endpoints answer 403 with this code.
+  case userBanned
   case unknown(String)
 
   public var rawValue: String {
@@ -25,6 +27,7 @@ public enum BackendErrorCode: Codable, Hashable, Sendable {
     case .invalidGrant: return "invalid_grant"
     case .slowDown: return "slow_down"
     case .unauthorized: return "unauthorized"
+    case .userBanned: return "user_banned"
     case .unknown(let raw): return raw
     }
   }
@@ -37,6 +40,7 @@ public enum BackendErrorCode: Codable, Hashable, Sendable {
     case "invalid_grant": self = .invalidGrant
     case "slow_down": self = .slowDown
     case "unauthorized": self = .unauthorized
+    case "user_banned": self = .userBanned
     default: self = .unknown(raw)
     }
   }

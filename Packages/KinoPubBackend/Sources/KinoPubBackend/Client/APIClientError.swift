@@ -28,12 +28,51 @@ public extension APIClientError {
     case .networkError(let error):
       guard let backendError = error as? BackendError else { return false }
       switch backendError.errorCode {
-      case .invalidGrant, .invalidClient, .unauthorized, .unknown:
+      case .invalidGrant, .invalidClient, .unauthorized, .userBanned, .unknown:
         return true
       case .authorizationPending, .slowDown:
         return false
       }
     case .urlError, .invalidUrlParams, .decodingError:
+      return false
+    }
+  }
+
+  /// Hard session death where retrying the same request is useless: the account is
+  /// banned, or the grant itself was refused. Callers should present device-code
+  /// auth instead of a Try Again loop. Distinct from a mid-session 401 that refresh
+  /// may still heal.
+  var requiresInteractiveReauthentication: Bool {
+    switch self {
+    case .httpStatus(let code, _):
+      // Bare 401 after recovery already failed — the access token is dead.
+      return code == 401
+    case .networkError(let error):
+      guard let backendError = error as? BackendError else { return false }
+      switch backendError.errorCode {
+      case .userBanned, .invalidGrant, .invalidClient, .unauthorized:
+        return true
+      case .unknown(let raw):
+        let normalized = raw.lowercased()
+        return normalized == "user_banned" || normalized == "access_denied"
+      case .authorizationPending, .slowDown:
+        return false
+      }
+    case .urlError, .invalidUrlParams, .decodingError:
+      return false
+    }
+  }
+
+  /// `user_banned` (named case or legacy unknown string).
+  var isUserBanned: Bool {
+    guard case .networkError(let error) = self,
+          let backendError = error as? BackendError else { return false }
+    switch backendError.errorCode {
+    case .userBanned:
+      return true
+    case .unknown(let raw):
+      return raw.lowercased() == "user_banned"
+    default:
       return false
     }
   }

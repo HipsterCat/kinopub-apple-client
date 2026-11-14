@@ -67,7 +67,7 @@ extension APIClientError: CustomStringConvertible { // Extension declares a conf
         return normalized == "expired_token"
           || normalized == "bad_verification_code"
           || normalized == "access_denied"
-      case .authorizationPending, .slowDown, .invalidClient, .unauthorized:
+      case .authorizationPending, .slowDown, .invalidClient, .unauthorized, .userBanned:
         return false
       }
     default:
@@ -94,11 +94,16 @@ extension APIClientError: CustomStringConvertible { // Extension declares a conf
     case .networkError(let error):
       if let backendError = error as? BackendError {
         switch backendError.errorCode {
+        case .userBanned:
+          return "This account can't sign in right now. Sign in again or use another account.".localized
         case .invalidGrant, .unauthorized, .invalidClient:
-          return "Your session has expired. Try again.".localized
+          return "Your session has expired. Sign in again.".localized
         case .authorizationPending, .slowDown:
           break
         case .unknown(let raw):
+          if raw.lowercased() == "user_banned" {
+            return "This account can't sign in right now. Sign in again or use another account.".localized
+          }
           return backendError.errorDescription ?? raw
         }
         return backendError.errorDescription ?? backendError.errorCode.rawValue
@@ -109,7 +114,7 @@ extension APIClientError: CustomStringConvertible { // Extension declares a conf
       return error.localizedDescription
     case .httpStatus(let code, _):
       if code == 401 {
-        return "Your session has expired. Try again.".localized
+        return "Your session has expired. Sign in again.".localized
       }
       return "Request failed (\(code))"
     case .urlError, .invalidUrlParams, .decodingError:
@@ -175,10 +180,16 @@ private extension APIClientError {
         let detail = backendError.status > 0
           ? "HTTP \(backendError.status) · \(backendError.errorCode.rawValue)"
           : "API · \(backendError.errorCode.rawValue)"
-        if isAuthRejection {
+        if isUserBanned {
+          return LoadFailureText(title: "Account Unavailable".localized,
+                                 systemImage: "person.crop.circle.badge.exclamationmark",
+                                 message: "This account can't sign in right now. Sign in again or use another account.".localized,
+                                 detail: detail)
+        }
+        if requiresInteractiveReauthentication || isAuthRejection {
           return LoadFailureText(title: "Session Expired".localized,
                                  systemImage: "person.crop.circle.badge.exclamationmark",
-                                 message: "Your session has expired. Try again.".localized,
+                                 message: "Your session has expired. Sign in again.".localized,
                                  detail: detail)
         }
         return LoadFailureText(title: "Couldn't Load".localized,
@@ -216,7 +227,7 @@ extension LoadFailureText {
     case 401:
       return LoadFailureText(title: "Session Expired".localized,
                              systemImage: "person.crop.circle.badge.exclamationmark",
-                             message: "Your session has expired. Try again.".localized,
+                             message: "Your session has expired. Sign in again.".localized,
                              detail: detail)
     case 403:
       return LoadFailureText(title: "Access Denied".localized,

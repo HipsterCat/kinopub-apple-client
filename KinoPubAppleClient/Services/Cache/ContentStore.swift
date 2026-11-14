@@ -277,6 +277,20 @@ final class ContentStore {
     }
   }
 
+  /// Drops continue-watching, history, watchlist and bookmark rows for an account
+  /// switch. Catalogue shelves stay — they are not personal.
+  func clearPersonalAccountData() {
+    let personal = rows.keys.filter { $0.family == .watch || $0.family == .bookmarks }
+    guard !personal.isEmpty else { return }
+    for key in personal {
+      bump(key)
+      rows[key] = nil
+      lastErrors[key] = nil
+    }
+    save()
+    NotificationCenter.default.post(name: .contentStoreDidInvalidateWatch, object: nil)
+  }
+
   private func bump(_ key: RowKey) {
     generation[key, default: 0] += 1
   }
