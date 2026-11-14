@@ -26,6 +26,9 @@ import SwiftUI
 import Nuke
 import KinoPubLogging
 import KinoPubMetadata
+#if os(macOS)
+import AppKit
+#endif
 
 /// Namespace for the shared artwork stack: the pipeline, the request shape, and the
 /// cache accounting Settings reports.
@@ -132,14 +135,32 @@ public enum Artwork {
 
   private static func makeRequest(_ url: URL, size: CGSize, mode: ResizeMode) -> ImageRequest {
     guard size != .zero else { return ImageRequest(url: url) }
+    // Nuke's `unit: .points` multiplies by `Screen.scale`. On iOS/tvOS that is the
+    // display scale; on **macOS Nuke hardcodes scale to 1** (see Nuke `Graphics.swift`
+    // `enum Screen`). Passing card point sizes with `.points` therefore decoded 1×
+    // bitmaps for Retina Macs — soft posters on every Home/Series rail (KP-14).
+    // Convert to pixels ourselves with the densest attached screen (≥2 when unknown).
+    let target = macOSPixelSize(forPoints: size)
+    let unit: ImageProcessingOptions.Unit = target.unit
     let processor: ImageProcessors.Resize
     switch mode {
     case .fill:
-      processor = ImageProcessors.Resize(size: size, unit: .points, contentMode: .aspectFill, crop: true)
+      processor = ImageProcessors.Resize(size: target.size, unit: unit, contentMode: .aspectFill, crop: true)
     case .fit:
-      processor = ImageProcessors.Resize(size: size, unit: .points, contentMode: .aspectFit, crop: false)
+      processor = ImageProcessors.Resize(size: target.size, unit: unit, contentMode: .aspectFit, crop: false)
     }
     return ImageRequest(url: url, processors: [processor])
+  }
+
+  /// Point box → Nuke resize unit. macOS always uses `.pixels` at display scale;
+  /// other platforms keep Nuke's `.points` (it already multiplies by scale).
+  private static func macOSPixelSize(forPoints size: CGSize) -> (size: CGSize, unit: ImageProcessingOptions.Unit) {
+#if os(macOS)
+    let scale = max(NSScreen.screens.map(\.backingScaleFactor).max() ?? 2, 2)
+    return (CGSize(width: size.width * scale, height: size.height * scale), .pixels)
+#else
+    return (size, .points)
+#endif
   }
 
   /// Already-decoded art at this size, or nil. Synchronous on purpose: a cell calls this
