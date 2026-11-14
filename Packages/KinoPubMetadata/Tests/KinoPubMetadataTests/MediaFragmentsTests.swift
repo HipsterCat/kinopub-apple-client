@@ -242,4 +242,27 @@ final class MediaFragmentsTests: XCTestCase {
     XCTAssertNil(TMDBSeasonMatch.tmdbSeason(kinoNumber: 3, titleNumber: 20,
                                             tmdbSeasons: [1, 2]))
   }
+
+  func testUnmappedSeasonCandidatesNeverReturnsAll() {
+    let summaries = [
+      (number: 1, episodeCount: 10 as Int?),
+      (number: 2, episodeCount: 12),
+      (number: 3, episodeCount: 8),
+      (number: 4, episodeCount: 22),
+      (number: 5, episodeCount: 24),
+    ]
+    // Same episode count → that one season only.
+    XCTAssertEqual(
+      TMDBSeasonMatch.unmappedSeasonCandidates(kinoNumber: 9, kinoEpisodeCount: 22, summaries: summaries),
+      [4])
+    // Index present when counts do not help.
+    XCTAssertEqual(
+      TMDBSeasonMatch.unmappedSeasonCandidates(kinoNumber: 2, kinoEpisodeCount: 99, summaries: summaries),
+      [2])
+    // Nothing to guess — empty, not every season.
+    XCTAssertEqual(
+      TMDBSeasonMatch.unmappedSeasonCandidates(kinoNumber: 9, kinoEpisodeCount: 99, summaries: summaries),
+      [])
+  }
+
 }

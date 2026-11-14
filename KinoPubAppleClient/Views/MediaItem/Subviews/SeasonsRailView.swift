@@ -1197,18 +1197,29 @@ struct SeasonsRailView: View {
   private func railItem(for entry: RailEntry) -> TVUIKitMediaItem {
     switch entry {
     case .playable(let season, let episode, let schedule):
+      let schedule = Self.enrichedSchedule(schedule, from: officialEpisodes,
+                                           fallbackSeason: tabs.first { $0.id == season.id }?.first
+                                             ?? KinoPubMediaMapping.seasonNumber(season),
+                                           fallbackEpisode: episode.number)
       let card = card(for: episode, in: season, schedule: schedule)
       let base = TVUIKitMediaItem(card: card)
-      var caption = EpisodeText(season: seasons.count > 1
-                                  ? (tabs.first { $0.id == season.id }?.first
-                                     ?? KinoPubMediaMapping.seasonNumber(season))
-                                  : nil,
-                                number: episode.number,
-                                name: Self.displayTitle(episode: episode, schedule: schedule))
-        .text(for: .episodeTile)
+      let seasonNumber = seasons.count > 1
+        ? (tabs.first { $0.id == season.id }?.first ?? KinoPubMediaMapping.seasonNumber(season))
+        : nil
+      let title = Self.displayTitle(episode: episode, schedule: schedule)
+      let episodeRef = EpisodeText(season: seasonNumber, number: episode.number).formatted(.short)
       let isFinale = schedule?.isSeasonFinale == true
-      if isFinale {
-        caption += " · \("MediaItem_SeasonFinale".localized)"
+      let finaleMark = isFinale ? "MediaItem_SeasonFinale".localized : nil
+      // Title on the primary line when TMDB/kino has one; grey line keeps «N сезон, M серия»
+      // (and finale). No title → grey line is the only caption (Sasha checklist).
+      let caption: String
+      let detail: String?
+      if title.isEmpty {
+        caption = [episodeRef, finaleMark].compactMap { $0 }.joined(separator: " · ")
+        detail = nil
+      } else {
+        caption = title
+        detail = [episodeRef, finaleMark].compactMap { $0 }.joined(separator: " · ")
       }
       let status = Self.tileStatus(base: base.status, episode: episode, schedule: schedule)
       let playable = !Self.clocksOut(episode, schedule)
@@ -1223,18 +1234,20 @@ struct SeasonsRailView: View {
       }()
       let finaleBadge = isFinale && !statusOwnsBadge
         ? "MediaItem_SeasonFinale".localized : nil
+      // Primary art is unique still only — never series backdrop (that skipped the
+      // iconic → backdrop → unique ladder, Sasha 2026-11-14).
       return TVUIKitMediaItem(id: entry.id,
-                              imageURL: unique ?? base.imageURL,
+                              imageURL: unique,
                               tint: UIColor.secondaryLabel,
                               symbol: "play.rectangle.on.rectangle",
                               caption: caption,
+                              detail: detail,
                               status: status,
                               timeLabel: base.timeLabel,
                               badgeText: base.badgeText ?? finaleBadge,
-                              // Trailers already set this; episode tiles did not (Sasha, 2026-11-14).
                               focusGlyph: playable ? .play : nil,
                               backdropImageURL: seriesBackdropURL,
-                              fallbackImageURL: kinopub.flatMap { $0 == unique ? nil : $0 })
+                              fallbackImageURL: kinopub)
 
     case .unavailable(_, let schedule):
       // An episode kino.pub has not uploaded must not read differently from one it has —
@@ -1706,11 +1719,19 @@ struct SeasonsRailView: View {
                     schedule: EpisodeSchedule?,
                     fallbackStill: URL? = nil,
                     primaryAction: MediaCardPrimaryAction = .play) -> MediaCard {
+    let schedule = Self.enrichedSchedule(
+      schedule, from: officialEpisodes,
+      fallbackSeason: tabs.first { $0.id == season.id }?.first
+        ?? KinoPubMediaMapping.seasonNumber(season),
+      fallbackEpisode: episode.number)
     // Ladder: unique still (worker / TMDB) first; kino.pub + series backdrop are
     // fallbacks — MediaCardView paints iconic → backdrop → unique → kinopub on 404.
     let unique = uniqueStillURL(episode: episode, schedule: schedule, seasonNumber: season.number)
     let kinopub = episode.thumbnail.isEmpty ? nil : episode.thumbnail
     let backdrop = seriesBackdropURL?.absoluteString ?? fallbackStill?.absoluteString
+    // Primary still: unique → kinopub. Series backdrop is a ladder interim only —
+    // stuffing it into landscapeImageURL painted backdrop as the "unique" and skipped
+    // the iconic plate (Sasha, 2026-11-14).
     var card = MediaCard(episode: episode,
               in: season,
               title: Self.displayTitle(episode: episode, schedule: schedule),
@@ -1721,7 +1742,7 @@ struct SeasonsRailView: View {
                                                : nil),
               dateLabel: Self.dateLabel(episode: episode, schedule: schedule,
                                         isSeasonFinale: schedule?.isSeasonFinale == true),
-              stillURL: unique?.absoluteString ?? kinopub ?? backdrop,
+              stillURL: unique?.absoluteString ?? kinopub,
               primaryAction: primaryAction)
     if let kinopub, kinopub != card.landscapeImageURL {
       card.fallbackLandscapeURL = kinopub
