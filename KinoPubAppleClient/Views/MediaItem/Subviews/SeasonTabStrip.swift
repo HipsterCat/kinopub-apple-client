@@ -332,15 +332,29 @@ struct SeasonPill: View {
   /// The pointer is over it (Mac, iPad): the system fill says it can be pressed.
   @State private var isHovered = false
 
+  /// Calendar+date soon chips wrap like section-header counters (smaller type, capsule),
+  /// not a single-digit circle stretched across «27 июля 2027» (Sasha / KP-23).
+  private var isCalendarDateChip: Bool {
+    tab.status == .soon && tab.premiereDate != nil
+  }
+
   var body: some View {
-    PillWidth {
-      label
-        .font(labelFont)
-        .imageScale(tab.status == .soon && tab.premiereDate != nil ? .small : .medium)
-        .foregroundStyle(textStyle)
-        .contentTransition(.interpolate)
-        .padding(.vertical, SeasonTabMetrics.verticalPadding)
-        .padding(.horizontal, SeasonTabMetrics.horizontalPadding)
+    let chip = label
+      .font(labelFont)
+      .imageScale(isCalendarDateChip ? .small : .medium)
+      .foregroundStyle(textStyle)
+      .contentTransition(.interpolate)
+      .lineLimit(isCalendarDateChip ? 2 : 1)
+      .multilineTextAlignment(.center)
+      .padding(.vertical, isCalendarDateChip ? 3 : SeasonTabMetrics.verticalPadding)
+      .padding(.horizontal, isCalendarDateChip ? 7 : SeasonTabMetrics.horizontalPadding)
+    Group {
+      if isCalendarDateChip {
+        // Section-header count capsule: natural width, no forced circle.
+        chip
+      } else {
+        PillWidth { chip }
+      }
     }
     .background {
       if isSelected {

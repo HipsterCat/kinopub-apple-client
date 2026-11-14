@@ -151,6 +151,10 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
   /// Drawn in the middle of the still while the tile has focus — the hover Play of the
   /// Mac and iPad cards, or YouTube's button on a video that opens YouTube. Nil: nothing.
   public let focusGlyph: LandscapePlayGlyph?
+  /// Series backdrop shown while the unique still loads (KP-23 thumb ladder).
+  public let backdropImageURL: URL?
+  /// Tried when `imageURL` 404s — usually kino.pub's episode thumbnail.
+  public let fallbackImageURL: URL?
   /// Set, the item is a season's portrait card in front of its episodes instead of a
   /// still: a poster as tall as the stills, focusable for its menu and fold (`TVUIKitSeasonCardCell`).
   public let seasonCard: SeasonCard?
@@ -197,6 +201,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
               artworkFit: ArtworkFit = .fill,
               isNowPlaying: Bool = false,
               focusGlyph: LandscapePlayGlyph? = nil,
+              backdropImageURL: URL? = nil,
+              fallbackImageURL: URL? = nil,
               seasonCard: SeasonCard? = nil) {
     self.id = id
     self.imageURL = imageURL
@@ -213,6 +219,8 @@ public struct TVUIKitMediaItem: Identifiable, Equatable {
     self.artworkFit = artworkFit
     self.isNowPlaying = isNowPlaying
     self.focusGlyph = focusGlyph
+    self.backdropImageURL = backdropImageURL
+    self.fallbackImageURL = fallbackImageURL
     self.seasonCard = seasonCard
   }
 
@@ -264,7 +272,9 @@ public extension TVUIKitMediaItem {
               status: status,
               timeLabel: stackedCaption ? nil : Self.timeLabel(for: card, status: status),
               badgeText: Self.badgeText(for: card),
-              focusGlyph: focusGlyph)
+              focusGlyph: focusGlyph,
+              backdropImageURL: card.backdropURL.flatMap(URL.init(string:)),
+              fallbackImageURL: card.fallbackLandscapeURL.flatMap(URL.init(string:)))
   }
 
   /// A fraction only means something pinned to one episode or one movie. A
@@ -1133,27 +1143,53 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     imageTask?.cancel()
     imageTask = nil
     loadedURL = nil
-    guard let url = item.imageURL else {
+    // Ladder (KP-23): iconic tint/symbol at rest → series backdrop while unique
+    // still loads → unique still → kino.pub thumb on 404. Blank grey forever is wrong.
+    let unique = item.imageURL
+    let backdrop = item.backdropImageURL.flatMap { $0 == unique ? nil : $0 }
+    let kinopub = item.fallbackImageURL.flatMap { $0 == unique || $0 == backdrop ? nil : $0 }
+    guard unique != nil || backdrop != nil || kinopub != nil else {
       ArtworkLog.skipped(by: "wide", reason: "no artwork URL")
       return
     }
-    // Already decoded — take it now so a recycled tile never shows the tint fallback
-    // in place of art it had a moment ago.
     let size = contentView.bounds.size
     let mode: Artwork.ResizeMode = item.artworkFit == .letterbox ? .fit : .fill
-    if let hit = TVUIKitRemoteImage.cached(url: url, size: size, mode: mode) {
+    if let unique,
+       let hit = TVUIKitRemoteImage.cached(url: unique, size: size, mode: mode) {
       artwork = Self.present(hit, fit: item.artworkFit)
-      loadedURL = url
-      ArtworkLog.servedFromMemory(url, by: "wide")
+      loadedURL = unique
+      ArtworkLog.servedFromMemory(unique, by: "wide")
       return
     }
-    ArtworkLog.requested(url, by: "wide")
+    if let unique { ArtworkLog.requested(unique, by: "wide") }
     imageTask = Task { [weak self] in
-      let image = await TVUIKitRemoteImage.load(url: url, size: size, mode: mode)
-      guard let self, !Task.isCancelled, self.item?.imageURL == url else { return }
-      self.artwork = image.map { Self.present($0, fit: item.artworkFit) }
-      self.loadedURL = image == nil ? nil : url
-      self.setNeedsUpdateConfiguration()
+      // Interim backdrop under the iconic placeholder.
+      if let backdrop {
+        if let image = await TVUIKitRemoteImage.load(url: backdrop, size: size, mode: mode) {
+          guard let self, !Task.isCancelled, self.item?.id == item.id, self.loadedURL == nil else { return }
+          self.artwork = Self.present(image, fit: item.artworkFit)
+          self.setNeedsUpdateConfiguration()
+        }
+      }
+      if let unique {
+        let image = await TVUIKitRemoteImage.load(url: unique, size: size, mode: mode)
+        guard let self, !Task.isCancelled, self.item?.imageURL == unique else { return }
+        if let image {
+          self.artwork = Self.present(image, fit: item.artworkFit)
+          self.loadedURL = unique
+          self.setNeedsUpdateConfiguration()
+          return
+        }
+      }
+      if let kinopub {
+        let image = await TVUIKitRemoteImage.load(url: kinopub, size: size, mode: mode)
+        guard let self, !Task.isCancelled, self.item?.id == item.id else { return }
+        if let image {
+          self.artwork = Self.present(image, fit: item.artworkFit)
+          self.loadedURL = kinopub
+          self.setNeedsUpdateConfiguration()
+        }
+      }
     }
   }
 

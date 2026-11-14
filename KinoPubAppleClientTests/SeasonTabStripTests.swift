@@ -28,6 +28,17 @@ final class SeasonTabStripTests: XCTestCase {
     XCTAssertEqual(tab(-2, 4, 35, .unavailable).label, "4–35")
   }
 
+  /// Soon pills with a premiere prefer the full calendar date («27 июля 2027»), not «N».
+  func testSoonPillPrefersFullPremiereDate() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let date = calendar.date(from: DateComponents(year: 2027, month: 7, day: 27))!
+    let soon = SeasonTab(id: -3, first: 4, last: 4, status: .soon, premiereDate: date)
+    XCTAssertEqual(soon.label, soon.premiereDateLabel)
+    XCTAssertNotNil(soon.premiereDateLabel)
+    XCTAssertTrue(soon.premiereDateLabel?.contains("2027") == true)
+  }
+
   func testOnlySeasonsNotOnKinoPubCarryAGlyph() {
     XCTAssertNil(SeasonTab.Status.available.symbol)
     XCTAssertEqual(SeasonTab.Status.soon.symbol, "calendar")
