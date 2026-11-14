@@ -10,6 +10,7 @@ import Foundation
 import UIKit
 #elseif canImport(AppKit)
 import AppKit
+import CoreGraphics
 #endif
 
 /// Pixel widths for title artwork, derived once from the screen the app runs on.
@@ -19,8 +20,15 @@ import AppKit
 /// that changed between the two would be a second download of the same logo.
 @MainActor
 enum ArtworkPixelWidth {
-  /// Full-screen textless backdrop: the screen's native width.
-  static var backdrop: Int { screen }
+  /// Full-screen textless backdrop: the screen's native width, capped on MacBook-class
+  /// panels so a ~1400 pt window does not pull a 3456 px / ~2 MB JPEG (Sasha, KP-32).
+  static var backdrop: Int {
+#if os(macOS)
+    macBackdrop
+#else
+    screen
+#endif
+  }
 
   /// Title logo: the widest place it is drawn is the tvOS title page's hero, 680 pt of a
   /// 1920 pt screen (`MediaItemHeroView.logoMaxWidth`); the banner draws it narrower
@@ -53,4 +61,29 @@ enum ArtworkPixelWidth {
     return 1920
 #endif
   }()
+
+#if os(macOS)
+  /// Worker `w=` for backdrops on Mac. MacBook panels (~286–360 mm wide) cap at 1920;
+  /// iMac / Studio-class (≥ ~400 mm) keep native Retina width so a large desktop is not starved.
+  private static let macBackdrop: Int = {
+    guard let screen = NSScreen.main else { return min(Self.screen, 1920) }
+    let native = Int(max(screen.frame.width, screen.frame.height) * screen.backingScaleFactor)
+    return isMacBookClassDisplay(screen) ? min(native, 1920) : native
+  }()
+
+  /// Physical panel width separates laptops from desktop displays better than pixel count
+  /// (a 16″ MBP on "More Space" can exceed 4k px while still being a laptop).
+  private static func isMacBookClassDisplay(_ screen: NSScreen) -> Bool {
+    let laptopWidthMM: CGFloat = 400
+    guard
+      let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+    else {
+      // Unknown display id: treat ≤ 16″ Retina native (3456) as laptop-class.
+      return Int(max(screen.frame.width, screen.frame.height) * screen.backingScaleFactor) <= 3456
+    }
+    let mm = CGDisplayScreenSize(CGDirectDisplayID(number.uint32Value))
+    if mm.width > 0 { return mm.width < laptopWidthMM }
+    return Int(max(screen.frame.width, screen.frame.height) * screen.backingScaleFactor) <= 3456
+  }
+#endif
 }
