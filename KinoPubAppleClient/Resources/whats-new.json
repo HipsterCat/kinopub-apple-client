@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Кадры серий: в URL воркера уходит номер сезона из kino.pub (1, 2…), а не год из названия; если кадра нет — подставляется свой thumbnail kino.pub.",
         "Apple TV, Главная: под «Продолжить» больше нет ряда чипов (Каталог / Подборки / Аниме / …) — они открывали Каталог и сбрасывали фильтры.",
         "Кадры серий: картинка запрашивается сразу по маршруту воркера (как логотип), без пустой заглушки пока метаданные ещё не подтянулись; ширина w= больше не игнорируется.",
         "Если аккаунт заблокирован (403 user_banned), открывается вход по коду вместо бесполезного «Попробовать снова»; уже загруженный тайтл остаётся на экране. Закладки и «Продолжить» сбрасываются только при входе под другим аккаунтом.",
@@ -113,6 +114,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Episode stills: the worker URL uses kino.pub’s season index (1, 2…), not a year from the title; if the still is missing, kino.pub’s own thumbnail is used.",
         "Apple TV Home: the chip row under Continue Watching (Catalog / Collections / Anime / …) is gone — it jumped to Catalog and wiped active filters.",
         "Episode stills: asked from the worker route right away (same as the logo), so the tile is not empty while metadata is still loading; requested width is honored.",
         "If the account is banned (403 user_banned), device-code sign-in opens instead of a useless Try Again; the title you already had stays on screen. Bookmarks and Continue Watching clear only when a different account signs in.",

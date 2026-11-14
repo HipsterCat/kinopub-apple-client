@@ -46,6 +46,9 @@ public struct RivuletRailItem: Identifiable, Equatable {
   public let tabID: Int
   public let divider: String
   public let stillURL: URL?
+  /// kino.pub's own episode thumb when the worker still 404s (year-named seasons,
+  /// cold miss). Same idea as `SeasonCardInfo.fallbackPosterURL`.
+  public let fallbackStillURL: URL?
   public let duration: String?
   public let eyebrow: String
   public let title: String
@@ -54,12 +57,14 @@ public struct RivuletRailItem: Identifiable, Equatable {
   /// 0…1 while an episode is in progress. Nil hides the bar.
   public let progress: Double?
 
-  public init(id: Int, tabID: Int, divider: String, stillURL: URL?, duration: String?,
+  public init(id: Int, tabID: Int, divider: String, stillURL: URL?,
+              fallbackStillURL: URL? = nil, duration: String?,
               eyebrow: String, title: String, year: String?, rating: String?, progress: Double?) {
     self.id = id
     self.tabID = tabID
     self.divider = divider
     self.stillURL = stillURL
+    self.fallbackStillURL = fallbackStillURL
     self.duration = duration
     self.eyebrow = eyebrow
     self.title = title
@@ -1355,9 +1360,14 @@ final class RivuletRailEpisodeCell: UICollectionViewCell {
     loadToken &+= 1
     let token = loadToken
     still.image = nil
-    guard let url = item.stillURL else { return }
+    let urls = [item.stillURL, item.fallbackStillURL].compactMap { $0 }
+    guard !urls.isEmpty else { return }
     Task { [weak self] in
-      let image = try? await Artwork.image(for: url)
+      var image: PlatformImage?
+      for url in urls {
+        image = try? await Artwork.image(for: url)
+        if image != nil { break }
+      }
       guard let self, self.loadToken == token else { return }
       self.still.image = image
     }
