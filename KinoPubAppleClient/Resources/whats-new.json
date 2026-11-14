@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Страница тайтла: «Актёрский состав» с шевроном на полный список, круглые фото, имя / роль / «N серий», без подписи «Актёр»; заглушки-карточки Кинопоиска больше не рисуются как фото.",
         "Главная на Mac: полки крутятся легче — обложки декодируются в размере карточки, а не целиком, и чипы на «Продолжить» больше не тянут материал под каждой картинкой.",
         "Оценки и просмотры: короткие числа всегда с латинскими k / M (554.6k, 15.56M), без «тыс.» и «млн», с округлением, а не обрезкой.",
         "iPhone, iPad и Mac: лайк и дизлайк Кинопаба — прямо на карточке рейтинга (контур → капсула при наведении/нажатии → зелёная/красная заливка после голоса); перед отправкой — подтверждение. В тёмной теме знак Кинопаба белый.",
@@ -109,6 +110,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Title page: “Cast & Crew” with a chevron to the full list, round photos, name / role / “N episodes”, no generic “Actor” label; Kinopoisk stub cards no longer paint as portraits.",
         "Home on the Mac scrolls more lightly — covers decode at the card’s size, not full-bleed, and Continue Watching chips no longer sample a material under every still.",
         "Ratings and views: compact counts always use Latin k / M (554.6k, 15.56M), never localized тыс./млн, and round instead of truncating.",
         "iPhone, iPad and Mac: kino.pub like and dislike sit on the rating card (outline → capsule on hover/press → solid green/red after voting); an alert confirms before casting. In Dark Mode the kino.pub mark is white.",

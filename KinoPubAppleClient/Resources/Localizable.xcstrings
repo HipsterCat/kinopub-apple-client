@@ -8488,19 +8488,104 @@
         }
       }
     },
+    "MediaItem_CastAndCrewSearch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search cast & crew"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поиск по составу"
+          }
+        }
+      }
+    },
     "MediaItem_CastSection": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cast"
+            "value": "Cast & Crew"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "В ролях"
+            "value": "Актёрский состав"
+          }
+        }
+      }
+    },
+    "MediaItem_CastTabCrew": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crew"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Съёмочная группа"
+          }
+        }
+      }
+    },
+    "MediaItem_CastTabFeatured": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Featured"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Главные"
+          }
+        }
+      }
+    },
+    "MediaItem_CastTabGuest": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guest Cast"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приглашённые"
+          }
+        }
+      }
+    },
+    "MediaItem_CastTabRegular": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regular Cast"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В главных ролях"
           }
         }
       }

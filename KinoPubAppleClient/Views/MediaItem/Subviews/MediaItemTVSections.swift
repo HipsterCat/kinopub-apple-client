@@ -304,58 +304,24 @@ enum MediaItemTVSections {
     }
   }
 
-  /// The most people the cast row holds. A billing runs to dozens; past a dozen it is a
-  /// list of names nobody is looking for.
-  static let castLimit = 12
+  /// The most people the cast row holds — see `CastRanking.castLimit`.
+  static let castLimit = CastRanking.castLimit
 
-  /// Who is worth a card, the most important first — "sort the stars by episodes or
-  /// popularity and drop the insignificant" (Sasha, 2026-10-06).
-  ///
-  /// A series ranks by how many of its episodes a person is in (TMDB's aggregate credits). A
-  /// film keeps kino.pub's own list order and only uses TMDB billing to drop bit parts
-  /// (`order >= castLimit`). Reordering a film by billing is what put Jason Statham tenth
-  /// in *Mutiny* and an unknown ahead of Bondarchuk in *Трудно быть богом*. kino.pub's order
-  /// also stands in for a title TMDB has nothing on. In a series, someone in fewer than a
-  /// fifth of the episodes the most-seen person is in — and never fewer than two, once
-  /// anyone has more than one — is a guest and is dropped; so is everything past `castLimit`.
-  ///
-  /// **Except the first of kino.pub's own list, who is never dropped** (Sasha, 2026-10-11):
-  /// that is the lead, and a name TMDB could not match (no episode count) was dropped as a
-  /// guest — Dexter's own Dexter. If ranking would have left them out they open the row.
-  /// #50 narrowed this to unmatched series only so the `filmCrew` extras stayed gone; that
-  /// is the workaround this restores past.
+  /// Who is worth a card — see `CastRanking.ranked`.
   static func rankedCast(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
-    let ranked = ranking(members, isEpisodic: isEpisodic)
-    guard let lead = members.first, !ranked.contains(where: { $0.name == lead.name }) else { return ranked }
-    return [lead] + ranked.prefix(castLimit - 1)
+    CastRanking.ranked(members, isEpisodic: isEpisodic)
   }
 
-  private static func ranking(_ members: [CastMember], isEpisodic: Bool) -> [CastMember] {
-    var ranked = Array(members.enumerated())
-    let most = members.compactMap(\.episodeCount).max() ?? 0
-    if isEpisodic, most > 0 {
-      let floor = most > 1 ? max(2, Int((Double(most) * 0.2).rounded(.up))) : 1
-      ranked = ranked.filter { ($0.element.episodeCount ?? 0) >= floor }
-      ranked.sort { lhs, rhs in
-        let (left, right) = (lhs.element, rhs.element)
-        if (left.episodeCount ?? 0) != (right.episodeCount ?? 0) { return (left.episodeCount ?? 0) > (right.episodeCount ?? 0) }
-        if (left.order ?? .max) != (right.order ?? .max) { return (left.order ?? .max) < (right.order ?? .max) }
-        return lhs.offset < rhs.offset
-      }
-    } else if members.contains(where: { $0.order != nil }) {
-      ranked = ranked.filter { ($0.element.order ?? 0) < castLimit }
-    }
-    return ranked.prefix(castLimit).map(\.element)
-  }
-
-  /// Actors as `MediaItemCastSection` has always chosen them — kino.pub's names, with
+    /// Actors as `MediaItemCastSection` has always chosen them — kino.pub's names, with
   /// TMDB's photo and character where it has them — ranked and trimmed (`rankedCast`). The
   /// caption is the character, then how many episodes for a series; a person with neither
   /// has none, because "Actor" under an actor says nothing.
   private static func castCards(_ input: Input) -> [TVUIKitPerson] {
     let members = TitleMetadata.enrich(names: input.mediaItem.castMembers, roleDepartment: "Acting",
                                        from: input.metadata)
-    return rankedCast(members, isEpisodic: input.mediaItem.isEpisodicType).map { member in
+    let ranked = rankedCast(members, isEpisodic: input.mediaItem.isEpisodicType)
+    let ordered = ranked.filter { $0.photo != nil } + ranked.filter { $0.photo == nil }
+    return ordered.map { member in
       let person = MediaPerson(name: member.name, role: .actor,
                                photoURL: member.photo ?? ActorImageProvider.photoURL(for: member.name),
                                tmdbPersonId: member.tmdbPersonId)
@@ -364,7 +330,7 @@ enum MediaItemTVSections {
         parts.append(character)
       }
       if let episodes = member.episodeCount, episodes > 0 {
-        parts.append("\(episodes) \("MediaItem_EpisodesShort".localized)")
+        parts.append(localizedEpisodeCount(episodes))
       }
       return card(for: person, caption: parts.isEmpty ? nil : parts.joined(separator: " · "))
     }

@@ -21,6 +21,8 @@ protocol NavigationLinkProvider {
   func collection(_ collection: Collection) -> any Hashable
   /// A detail page's Ratings and Reviews block — the same content, unclamped.
   func ratingsAndReviews(_ payload: RatingsAndReviews) -> any Hashable
+  /// A detail page's cast rail — the full cast & crew company.
+  func castAndCrew(_ payload: CastAndCrew) -> any Hashable
 }
 
 /// One provider for every tab stack — destinations are always `Route`.
@@ -34,6 +36,9 @@ struct AppRoutesLinkProvider: NavigationLinkProvider {
   func collection(_ collection: Collection) -> any Hashable { Route.collection(collection) }
   func ratingsAndReviews(_ payload: RatingsAndReviews) -> any Hashable {
     Route.ratingsAndReviews(payload)
+  }
+  func castAndCrew(_ payload: CastAndCrew) -> any Hashable {
+    Route.castAndCrew(payload)
   }
 }
 
