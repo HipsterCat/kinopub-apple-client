@@ -34,6 +34,10 @@ public enum ArtworkPhase {
 
 public struct ArtworkImage<Content: View>: View {
   private let url: URL?
+  /// Tile box in points. `.zero` keeps full resolution (logos, sparse chrome).
+  /// Poster / still cells must pass their measured box — Mac Home used to decode
+  /// every rail card at full resolution and hitch while scrolling.
+  private let size: CGSize
   private let animation: Animation?
   private let content: (ArtworkPhase) -> Content
   @State private var phase: ArtworkPhase = .empty
@@ -43,17 +47,23 @@ public struct ArtworkImage<Content: View>: View {
 
   public init(
     url: URL?,
+    size: CGSize = .zero,
     transaction: Transaction = Transaction(),
     @ViewBuilder content: @escaping (ArtworkPhase) -> Content
   ) {
     self.url = url
+    self.size = size
     self.animation = transaction.animation
     self.content = content
   }
 
+  private var taskKey: String {
+    "\(url?.absoluteString ?? "")#\(Int(size.width))x\(Int(size.height))"
+  }
+
   public var body: some View {
     content(phase)
-      .task(id: url?.absoluteString) {
+      .task(id: taskKey) {
         loadID += 1
         await load(id: loadID)
       }
@@ -65,13 +75,13 @@ public struct ArtworkImage<Content: View>: View {
       apply(.empty)
       return
     }
-    if let cached = Artwork.cachedImage(for: url) {
+    if let cached = Artwork.cachedImage(for: url, size: size) {
       apply(.success(Image(platformImage: cached)))
       return
     }
     apply(.empty)
     do {
-      let loaded = try await Artwork.image(for: url)
+      let loaded = try await Artwork.image(for: url, size: size)
       // `.task(id:)` cancels on URL change, but `Artwork.image` does not always
       // throw `CancellationError` — a stale decode must not paint over the new card.
       guard id == loadID else { return }

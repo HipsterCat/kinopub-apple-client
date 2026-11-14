@@ -66,11 +66,13 @@ public struct LandscapeTimeBadge: View {
     .foregroundStyle(isWatchedStyle ? Color.black : Color.white)
     .padding(.horizontal, 4)
     .padding(.vertical, 3)
-    // The system's thin material over the still, in a scheme of its own rather than the
-    // page's: a watched chip is the light one in both appearances, the rest dark — the
-    // watched chip turned black in light mode (Sasha, 2026-10-30).
-    .background(.thinMaterial, in: Capsule(style: .continuous))
-    .environment(\.colorScheme, isWatchedStyle ? .light : .dark)
+    // Opaque capsule — not `.thinMaterial`. Continue Watching puts one of these on
+    // every still; materials re-sample while the rail scrolls and hitch Mac Home.
+    // Watched stays light-on-still, the rest dark-on-still (Sasha, 2026-10-30).
+    .background(
+      (isWatchedStyle ? Color.white.opacity(0.92) : Color.black.opacity(0.55)),
+      in: Capsule(style: .continuous)
+    )
     .accessibilityLabel(Text(accessibilityLabel))
   }
 

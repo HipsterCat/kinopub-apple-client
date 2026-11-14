@@ -1163,7 +1163,9 @@ public struct MediaCardView: View {
           .foregroundStyle(.white)
           .padding(.horizontal, MediaCapabilityBadgesView.horizontalPadding)
           .padding(.vertical, MediaCapabilityBadgesView.verticalPadding)
-          .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+          // Opaque plate — not `.ultraThinMaterial`. Materials on every poster
+          // re-sample the backdrop while Home scrolls (Mac hitch).
+          .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
           .accessibilityLabel(Text(chip))
       }
     }
@@ -1181,22 +1183,39 @@ public struct MediaCardView: View {
 //#endif
   }
 
+  /// Points box for Nuke downsample. Wait for the width probe — decoding at
+  /// `.zero` (full resolution) on every Home card was the Mac scroll hitch.
+  private var artworkDecodeSize: CGSize {
+    guard let width = artworkWidth, width > 1 else { return .zero }
+    return CGSize(width: width, height: width / aspect.ratio)
+  }
+
   private var stillImage: some View {
     // Clear + overlay is the reliable fill: the loader's ideal size otherwise
-    // letterboxes inside the 16:9 lockup.
-    Color.clear
+    // letterboxes inside the 16:9 lockup. Hold the placeholder until the width
+    // probe reports — starting a full-resolution decode on the first frame and
+    // then swapping to the tile size was the Mac Home scroll cost.
+    let decodeSize = artworkDecodeSize
+    return Color.clear
       .overlay {
-        CachedRemoteImage(
-          url: URL(string: imageURL),
-          contentMode: .fill,
-          placeholder: { Color.KinoPub.placeholder },
-          failure: { Color.KinoPub.placeholder }
-        )
+        if decodeSize.width > 1 {
+          CachedRemoteImage(
+            url: URL(string: imageURL),
+            size: decodeSize,
+            contentMode: .fill,
+            placeholder: { Color.KinoPub.placeholder },
+            failure: { Color.KinoPub.placeholder }
+          )
+        } else {
+          Color.KinoPub.placeholder
+        }
       }
       .overlay {
         // The offered episode's own still over the title's cover while hovered, crossfaded.
-        if showsHoverStill, let url = card.hoverStillURL.flatMap(URL.init(string:)) {
-          CachedRemoteImage(url: url, contentMode: .fill)
+        if decodeSize.width > 1,
+           showsHoverStill,
+           let url = card.hoverStillURL.flatMap(URL.init(string:)) {
+          CachedRemoteImage(url: url, size: decodeSize, contentMode: .fill)
             .transition(.opacity)
         }
       }
@@ -1230,15 +1249,15 @@ public struct MediaCardView: View {
     }
     .overlay(alignment: .topLeading) {
       if let notice = card.unavailableNotice {
-        // The time chip's look: the system's thin material, dark, over the still.
+        // Same opaque chip language as `LandscapeTimeBadge` — no material sampling
+        // while the rail scrolls under the pointer.
         Label(notice, systemImage: "lock.fill")
           .font(.caption2.weight(.medium))
           .labelStyle(.titleAndIcon)
           .foregroundStyle(.white)
           .padding(.horizontal, 6)
           .padding(.vertical, 3)
-          .background(.thinMaterial, in: Capsule(style: .continuous))
-          .environment(\.colorScheme, .dark)
+          .background(Color.black.opacity(0.55), in: Capsule(style: .continuous))
           .padding(6)
       }
     }
