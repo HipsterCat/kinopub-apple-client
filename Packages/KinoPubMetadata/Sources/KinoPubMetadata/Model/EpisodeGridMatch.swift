@@ -457,10 +457,11 @@ public enum EpisodeGridMatch {
   static func runtimeScore(_ kino: Int?, _ official: Int?) -> Int {
     guard let kino, let official else { return 0 }
     let delta = abs(kino - official)
-    // ±1 minute rounding never rejects a hit; treat it as exact.
-    if delta <= 1 { return 40 }
-    if delta <= 2 { return 40 }
-    if delta <= 5 { return 25 }
+    // Exact only. ±1 «rounding» used to count as identity and fold the next season
+    // into this one — prefer under-match (Sasha / KP-23).
+    if delta == 0 { return 40 }
+    if delta <= 2 { return 10 }
+    if delta <= 5 { return 5 }
     return 0
   }
 

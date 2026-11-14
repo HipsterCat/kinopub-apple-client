@@ -47,6 +47,26 @@ final class EpisodePlayabilityTests: XCTestCase {
 
 final class EpisodeGridMatchTests: XCTestCase {
 
+  /// ±1 minute must not count as identity — prefer under-match (Sasha / KP-23).
+  func testRuntimeScoreRejectsOneMinuteRoundingAsExact() {
+    XCTAssertEqual(EpisodeGridMatch.runtimeScore(52, 52), 40)
+    XCTAssertLessThan(EpisodeGridMatch.runtimeScore(52, 53), 40)
+    XCTAssertEqual(EpisodeGridMatch.runtimeScore(52, 53), 10)
+    XCTAssertEqual(EpisodeGridMatch.runtimeScore(52, 60), 0)
+  }
+
+  /// A weak runtime alone must not identify an episode across seasons.
+  func testOneMinuteRuntimeDoesNotIdentifyAcrossSeasons() {
+    let result = EpisodeGridMatch.align(
+      kino: [kino(block: 1, titled: 1, number: 1, title: "Untitled Slot", runtime: 45)],
+      official: [
+        official(season: 1, number: 1, title: "Something Else", runtime: 46),
+        official(season: 2, number: 1, title: "Untitled Slot", runtime: 45),
+      ])
+    // Prefer the exact title+runtime in S2 over a ±1 runtime in S1 with a different title.
+    XCTAssertEqual(result.hits.first?.official.season, 2)
+  }
+
   private func kino(block: Int, titled: Int?, number: Int, title: String,
                     runtime: Int, blockNumber: Int? = nil) -> EpisodeGridMatch.KinoEpisode {
     EpisodeGridMatch.KinoEpisode(blockID: block,
