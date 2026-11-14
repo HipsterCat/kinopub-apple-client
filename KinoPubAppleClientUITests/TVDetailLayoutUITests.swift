@@ -241,6 +241,19 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertEqual(s3e3.frame.midX, s3e3MidX, accuracy: 2, "the rail moved while focus was in the hero")
   }
 
+  /// Focused playable episode shows the centre Play glyph (checklist play-on-focus).
+  func testSeasonRailPlayGlyphOnFocus() throws {
+    launch("seasonStrip", extra: ["-featureFlag.rivuletSeasonRail", "<false/>"])
+    try waitForHeroFocus()
+    let s2e4 = railItem(season: 2, number: 4)
+    try move(.down, "playglyph-01-down")
+    XCTAssertTrue(s2e4.hasFocus, "Down from hero missed S2E4: \(focusedDescription)")
+    let play = app.descendants(matching: .any).matching(identifier: "kinopub.rail.playGlyph").firstMatch
+    XCTAssertTrue(play.waitForExistence(timeout: 3),
+                  "focused playable episode has no centre Play glyph: \(focusedDescription)")
+    try shoot("playglyph-02-focused")
+  }
+
   /// One season is not a choice: the line still stands above the rail and reads «Сезон 1», with
   /// no tab to press — so Down from the hero lands on an episode, never on an empty stop.
   func testSeasonLineOfAOneSeasonShowIsJustTheWord() throws {

@@ -1475,6 +1475,11 @@ final class TVUIKitMediaItemOverlayView: UIView {
   func applyFocusGlyph(_ glyph: LandscapePlayGlyph?, focused: Bool) {
     let glass: CGFloat = focused && glyph == .play ? 1 : 0
     let youTube: CGFloat = focused && glyph == .youtube ? 1 : 0
+    // UITest hook: focused playable tiles expose the centre Play (Sasha checklist).
+    centerGlass.isAccessibilityElement = glass > 0
+    centerGlass.accessibilityIdentifier = glass > 0 ? "kinopub.rail.playGlyph" : nil
+    centerYouTube.isAccessibilityElement = youTube > 0
+    centerYouTube.accessibilityIdentifier = youTube > 0 ? "kinopub.rail.youtubeGlyph" : nil
     guard centerGlass.alpha != glass || centerYouTube.alpha != youTube else { return }
     UIView.animate(withDuration: 0.2) {
       self.centerGlass.alpha = glass
