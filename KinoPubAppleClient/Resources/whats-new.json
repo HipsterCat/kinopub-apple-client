@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Фильмы с несколькими версиями: одна кнопка «Смотреть» открывает лист «Выберите версию» в стиле Apple TV (кадр + длительность / качество / звук / субтитры).",
         "Оценки под постером: без многоточия в счётчике, один общий тираж для двух источников, плотнее и в формате 10K / 1.45M; в Настройках › Оформление — счётчик, IMDb, Кинопоиск, сортировка, тусклые значки, на постере / под ним, по фокусу и только высокие.",
         "Сезоны: чипы и кнопка «Смотреть» больше не подставляют год вместо номера сезона; эпизоды подгружаются по открытому сезону.",
         "Карточка серии: название сверху, «N серия» и дата снизу; финал сезона помечается; в меню серии — Смотреть / Просмотрено / Инфо (без закладок и Hide).",
@@ -117,6 +118,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Multi-version films: one Watch button opens an Apple TV-style Choose a Version sheet (thumb + runtime / quality / audio / subs).",
         "Poster ratings: no ellipsis in the count, one combined turnout for two sources, tighter spacing and 10K / 1.45M format; Settings › Appearance toggles counter, IMDb, Kinopoisk, sort, faded icons, on-poster vs under, focus/hover and high-only.",
         "Seasons: chips and Play no longer turn into a year; episodes load for the open season first.",
         "Episode cards: title on top, episode + date under; season finales marked; episode menu is Play / Watched / Info (no bookmarks or Hide).",

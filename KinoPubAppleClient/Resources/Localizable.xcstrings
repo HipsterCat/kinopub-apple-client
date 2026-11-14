@@ -2663,6 +2663,23 @@
         }
       }
     },
+    "Choose a Version" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a Version"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите версию"
+          }
+        }
+      }
+    },
     "Collections" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -18834,6 +18851,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Проверить"
+          }
+        }
+      }
+    },
+    "VersionPicker_Audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Звук: %@"
+          }
+        }
+      }
+    },
+    "VersionPicker_None" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет"
+          }
+        }
+      }
+    },
+    "VersionPicker_Subtitles" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subtitles: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Субтитры: %@"
           }
         }
       }

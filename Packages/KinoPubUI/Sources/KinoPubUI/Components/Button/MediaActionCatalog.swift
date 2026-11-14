@@ -105,9 +105,10 @@ public struct MediaActionContext: Equatable, Sendable {
   /// Series ongoing, everything watched, and the next episode of the season kino.pub is
   /// on has a known date → labelled Follow leads.
   public var promoteFollow: Bool
-  /// A film's versions in number order. Two or more → play pills of their own in place
-  /// of Play — three without a Trailer pill, two beside one — and «+ ещё N» for the rest,
-  /// which leads to the rail of them under the hero.
+  /// Concert / multi-part choices in number order. Two or more → play pills in place of
+  /// Play — three without a Trailer pill, two beside one — and «+ ещё N» for the rest.
+  /// Multi-version films (`subtype: multi`) leave this empty: one Play opens the
+  /// Choose a Version sheet instead.
   public var versions: [MediaActionVersion]
   public var loading: Set<MediaActionID>
   /// How many seasons the show has that we know of — one, and it is the first, drops the

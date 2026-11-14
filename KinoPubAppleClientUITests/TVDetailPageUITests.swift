@@ -14,8 +14,8 @@
 //  - Replay, when it leads, has the focus on opening and after the player too;
 //  - episodes TMDB lists and kino.pub does not have: a lock, «Сегодня» … «3 дня назад»,
 //    «Позже» (the screenshots are the check; the badge is drawn, not an element);
-//  - a film in versions has a play button per version (two at most), named after the
-//    version, else «Смотреть» / «Вторая версия».
+//  - a multi-version film has one Play («Смотреть фильм»); Select opens Choose a
+//    Version with the first row focused. Concerts still use version pills.
 //
 //  Runs in Russian so the labels are the ones Sasha reads. Screenshots go to the result
 //  and to /tmp/kinopub-detail-shots/, which CI prints into the job log.
@@ -127,26 +127,29 @@ final class TVDetailPageUITests: XCTestCase {
 
   // MARK: - Versions of one film
 
-  func testTwoVersionsAreTwoNamedPlayButtons() throws {
+  func testMultiVersionFilmOpensChooserFromSinglePlay() throws {
     launch("versions")
     try waitForFocus(on: "play", timeout: 20, "open")
-    XCTAssertTrue(control("play").label.contains("24 fps"), control("play").label)
-    XCTAssertTrue(control("playAlternate").label.contains("48 fps"), control("playAlternate").label)
+    XCTAssertTrue(control("play").label.contains("Смотреть"), control("play").label)
+    XCTAssertFalse(control("playAlternate").exists, "multi-version film: one Play, not pills")
     try shoot("versions-0-open")
 
-    XCUIRemote.shared.press(.right)
-    try waitForFocus(on: "playAlternate", timeout: 5, "Right")
-    try shoot("versions-1-second")
+    XCUIRemote.shared.press(.select)
+    let first = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH %@", "kinopub.versionPicker."))
+      .firstMatch
+    XCTAssertTrue(first.waitForExistence(timeout: 5), "Choose a Version sheet did not appear")
+    try shoot("versions-1-sheet")
   }
 
-  /// No trailer: all three unnamed versions are pills.
-  func testUnnamedVersionsFallBackAndTakeThreePills() throws {
+  /// Unnamed multi-version film: still one Play; the sheet lists Version 1…N.
+  func testUnnamedMultiVersionFilmUsesSinglePlay() throws {
     launch("versionsUnnamed")
     try waitForFocus(on: "play", timeout: 20, "open")
     XCTAssertTrue(control("play").label.contains("Смотреть"), control("play").label)
-    XCTAssertTrue(control("playAlternate").label.contains("Вторая версия"), control("playAlternate").label)
-    XCTAssertTrue(control("playThird").label.contains("Третья версия"), control("playThird").label)
-    XCTAssertFalse(control("moreVersions").exists, "three versions fit without «+ ещё»")
+    XCTAssertFalse(control("playAlternate").exists)
+    XCTAssertFalse(control("playThird").exists)
+    XCTAssertFalse(control("moreVersions").exists)
     try shoot("versions-unnamed-0-open")
   }
 

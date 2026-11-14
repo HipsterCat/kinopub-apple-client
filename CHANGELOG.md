@@ -5,6 +5,13 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+- **Multi-version films: one Play → Choose a Version.** A `subtype: multi` film no longer
+  gets a play pill per edition in the hero. One «Смотреть фильм» (or Continue / Play Again)
+  opens an Apple TV-style sheet — thumb + name + runtime / quality / audio / subs when
+  those differ. The Versions rail stays for browsing. Concerts and multi-part titles keep
+  the old pills. (Sasha, 2026-11-14.)
+
+
 ### Compact counts k/M; Kinopub like/dislike on pointer platforms (KP-12)
 
 - `CompactCountFormat` in KinoPubUI: always Latin `k` / `M`, round with up to

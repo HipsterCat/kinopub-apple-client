@@ -347,6 +347,8 @@ struct MediaItemHeroView: View {
   /// tvOS only: the Up gesture lifts the muted inline preview into a real full-screen
   /// player. Kept here so the same view that owns the preview owns its promotion.
   @State private var isTrailerFullScreen = false
+  /// Multi-version film: one Play opens «Choose a Version» instead of several pills.
+  @State private var showsVersionPicker = false
 #if !os(tvOS)
   /// The band's size, for the corner poster and the column the title leaves it.
   @State private var heroBandSize: CGSize = .zero
@@ -437,6 +439,14 @@ struct MediaItemHeroView: View {
       // page's body never re-runs for it.
       .onChange(of: phase.isHeroOnScreen) { _, onScreen in
         trailer.setActive(onScreen)
+      }
+      .sheet(isPresented: $showsVersionPicker) {
+        VersionPickerSheet(
+          variants: mediaItem.playbackVariants,
+          fallbackStillURL: mediaItem.posters.wideURL
+            ?? (mediaItem.posters.big.isEmpty ? nil : mediaItem.posters.big),
+          linkProvider: linkProvider
+        )
       }
 #if os(tvOS)
       // `focus` is non-nil exactly while a hero control holds focus. Read here rather
@@ -1886,6 +1896,13 @@ struct MediaItemHeroView: View {
     let promote = Self.promotesFollow(mediaItem: mediaItem,
                                       awaitedEpisodeAirDate: awaitedEpisodeAirDate,
                                       canFollow: onToggleWatchlist != nil)
+    // Multi-version films use one Play + sheet; concerts / parts keep version pills.
+    let versionPills = offersVersionPills
+      ? choices.map {
+        MediaActionVersion(name: $0.name, playback: $0.playbackButtonContent,
+                           isMain: mediaItem.isMainVersion($0))
+      }
+      : []
     return MediaActionContext(
       playback: playback,
       kind: mediaItem.presentation.kind,
@@ -1899,15 +1916,20 @@ struct MediaItemHeroView: View {
       showsShuffle: showsShuffleButton && !promote,
       showsMore: showsMore,
       promoteFollow: promote,
-      versions: choices.count > 1
-        ? choices.map {
-          MediaActionVersion(name: $0.name, playback: $0.playbackButtonContent,
-                             isMain: mediaItem.isMainVersion($0))
-        }
-        : [],
+      versions: versionPills,
       loading: loadingActions,
       seasonCount: mediaItem.seasons?.count
     )
+  }
+
+  /// Concerts and multi-part titles still get a play pill per choice. A film that
+  /// ships as `subtype: multi` opens one Play and the version sheet instead.
+  private var offersVersionPills: Bool {
+    !mediaItem.isMultiVersion && mediaItem.playChoices.count > 1
+  }
+
+  private var presentsVersionPicker: Bool {
+    mediaItem.isMultiVersion && mediaItem.playbackVariants.count > 1
   }
 
   /// Whether labelled Follow leads the row. Shared with the page, whose `defaultFocus`
@@ -2068,22 +2090,40 @@ struct MediaItemHeroView: View {
     return pool.randomElement()
   }
 
-  /// Play, or one version's pill — same control, different target.
+  /// Play, or one version's pill — same control, different target. A multi-version
+  /// film's single Play opens «Choose a Version» instead of jumping straight in.
   @ViewBuilder
   private func playControl(_ appearance: MediaActionAppearance) -> some View {
-    let target = playTarget(for: appearance.id)
-    PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
-      MediaActionLabel(appearance)
-    }
-    .mediaActionStyle(appearance)
+    if presentsVersionPicker, appearance.id == .play {
+      Button {
+        showsVersionPicker = true
+      } label: {
+        MediaActionLabel(appearance)
+      }
+      .mediaActionStyle(appearance)
+      .focused($focus, equals: .play)
+      .accessibilityLabel(Text(appearance.accessibilityLabel))
+      .accessibilityHint(Text("Choose a Version"))
+      .task(id: mediaItem.playbackVariants.map(\.id)) {
+        for variant in mediaItem.playbackVariants.prefix(3) {
+          await PlaybackPreflight.shared.warm(variant)
+        }
+      }
+    } else {
+      let target = playTarget(for: appearance.id)
+      PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
+        MediaActionLabel(appearance)
+      }
+      .mediaActionStyle(appearance)
 #if os(iOS)
-    .contextMenu { playMenu(for: target, appearance: appearance) }
+      .contextMenu { playMenu(for: target, appearance: appearance) }
 #endif
-    .focused($focus, equals: Self.focusTarget(forPlay: appearance.id))
-    .accessibilityLabel(Text(appearance.accessibilityLabel))
-    .accessibilityHint(Text("Starts playback"))
-    .task(id: target.id) {
-      await PlaybackPreflight.shared.warm(target)
+      .focused($focus, equals: Self.focusTarget(forPlay: appearance.id))
+      .accessibilityLabel(Text(appearance.accessibilityLabel))
+      .accessibilityHint(Text("Starts playback"))
+      .task(id: target.id) {
+        await PlaybackPreflight.shared.warm(target)
+      }
     }
   }
 

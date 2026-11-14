@@ -43,15 +43,21 @@ Legend: `[pill]` · `(circle)` · `…` = More (tvOS)
 `[↻ Пересмотреть]` · `[Трейлер]` · `(bookmark)` · `(download*)` · `(…)`  
 \* download only while not yet on disk — see Download below.
 
-### Movie · several versions (`videos` > 1)
-`[▶ 24 fps]` · `[▶ 48 fps]` · `[Трейлер]` · `(bookmark)` · `(✓)` · `(…)`
+### Movie · several versions (`subtype: multi`)
+`[Смотреть фильм]` · `[Трейлер]` · `(bookmark)` · `(✓)` · `(…)`
 
-One play pill per version, for the **first two** in number order; a third version is
-not a button (the Versions rail under the hero has it). Play icon, labelled with the
-version's name; without names `[Смотреть]` · `[Вторая версия]`. Each pill carries **its own**
-version's state: progress bar when started, `↻` and the quieter pill when watched. The
-first stays the filled play pill. `(✓)` stays a circle here even mid-title.
-(Sasha, 2026-10-03.)
+One Play — the usual kind-specific title (`Смотреть фильм` / Continue / Play Again).
+Select opens an Apple TV-style **Choose a Version** sheet: first row focused by
+default; each row is thumb + version name + distinguishing facts (runtime delta,
+quality / projector format, audio, subs) when the titles alone are not enough.
+The Versions rail under the hero stays for browsing. (Sasha, 2026-11-14; was one
+pill per version, 2026-10-03.)
+
+### Concert / multi-part · several videos (`videos` > 1, not `subtype: multi`)
+`[▶ Концерт]` · `[▶ Don't Look Down]` · `[Трейлер]` · `«+ ещё N»` · …
+
+Still one play pill per offered choice (main / next parts), Trailer between main
+and extras, «+ ещё N» into the Videos rail. Not the film version sheet.
 
 ### Series · unwatched
 `[1 сезон, 1 серия]` / `[Play S1, E1]` · `[Трейлер]` · `(bookmark)` · `(bell)` · `(✓)` · `(…)`  
