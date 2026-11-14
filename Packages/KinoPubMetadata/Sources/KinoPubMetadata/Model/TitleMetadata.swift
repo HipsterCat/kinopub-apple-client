@@ -73,6 +73,8 @@ public struct EpisodeSchedule: Sendable, Hashable, Identifiable {
   /// TMDB's audience score for this one episode, and how many people it is from.
   public var voteAverage: Double?
   public var voteCount: Int?
+  /// TMDB `episode_type == finale` (and the worker's `season_finale`).
+  public var isSeasonFinale: Bool
 
   public init(
     episodeNumber: Int,
@@ -83,7 +85,8 @@ public struct EpisodeSchedule: Sendable, Hashable, Identifiable {
     runtime: Int? = nil,
     still: URL? = nil,
     voteAverage: Double? = nil,
-    voteCount: Int? = nil
+    voteCount: Int? = nil,
+    isSeasonFinale: Bool = false
   ) {
     self.episodeNumber = episodeNumber
     self.seasonNumber = seasonNumber
@@ -94,6 +97,7 @@ public struct EpisodeSchedule: Sendable, Hashable, Identifiable {
     self.still = still
     self.voteAverage = voteAverage
     self.voteCount = voteCount
+    self.isSeasonFinale = isSeasonFinale
   }
 
   /// True when the episode has a known air date in the future (local calendar day).

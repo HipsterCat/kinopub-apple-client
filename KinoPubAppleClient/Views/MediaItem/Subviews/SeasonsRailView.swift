@@ -110,7 +110,8 @@ enum KinoEpisodeGrid {
       title: schedule.name ?? "",
       runtimeMinutes: schedule.runtime,
       airDate: schedule.airDate,
-      still: schedule.still)
+      still: schedule.still,
+      isSeasonFinale: schedule.isSeasonFinale)
   }
 
   static func schedule(_ episode: EpisodeGridMatch.OfficialEpisode) -> EpisodeSchedule {
@@ -119,7 +120,8 @@ enum KinoEpisodeGrid {
                     name: episode.titles.first { !$0.isEmpty },
                     airDate: episode.airDate,
                     runtime: episode.runtimeMinutes,
-                    still: episode.still)
+                    still: episode.still,
+                    isSeasonFinale: episode.isSeasonFinale)
   }
 }
 
@@ -185,10 +187,9 @@ struct SeasonsRailView: View {
   @Environment(\.openURL) private var openURL
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.displayScale) private var displayScale
-#if os(tvOS)
-  /// The UIKit rail can't host a `NavigationLink`, so playback is pushed through the
-  /// same environment hook `MediaPosterShelf`'s TVUIKit rails use.
+  /// Playback push for TVUIKit rails and context-menu Play on every platform.
   @Environment(\.mediaNavigation) private var mediaNavigation
+#if os(tvOS)
   @Environment(\.pageBackdropStage) private var backdropStage
 #endif
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
@@ -221,10 +222,10 @@ struct SeasonsRailView: View {
   /// True while a tab-driven scroll is in flight, so a stray episode focus update
   /// doesn't yank the selected tab back mid-jump.
   @State private var isScrollingFromTab = false
-#if os(tvOS)
   @State private var showsEpisodeInfo = false
   @State private var episodeInfoTitle = ""
   @State private var episodeInfoBody = ""
+#if os(tvOS)
   @State private var railFocus = RivuletSeasonRailFocus()
   @State private var inspectedEpisodeID: Int?
 #endif
@@ -362,23 +363,43 @@ struct SeasonsRailView: View {
   private var tabs: [SeasonTab] {
     // The number, never the name: kino.pub's titles («Сезон 14», or none) are not drawn here,
     // and its re-numbering from 1 must not sit beside TMDB's numbers on the trailing tabs.
+    // Years and TMDB production/episode-group indices are not chips — kino.pub / Netflix
+    // display counts win, with collision avoidance so two blocks never both say «1».
     let alignment = gridAlignment
+    var claimed = Set<Int>()
     let kino = seasons.map { season -> SeasonTab in
-      let number = alignment.displaySeason(blockID: season.id, titledNumber: season.titleSeasonNumber)
-        ?? KinoPubMediaMapping.seasonNumber(season)
+      let number = Self.chipNumber(for: season, alignment: alignment, claimed: &claimed)
       return SeasonTab(id: season.id, first: number, last: number, status: .available)
     }
     let beyond = trailingCards.compactMap { entry -> SeasonTab? in
       switch entry {
       case .missingSeasons(let from, let to, _, _, _):
         return SeasonTab(id: entry.id, first: from, last: to, status: .unavailable)
-      case .upcomingSeason(let number, _, _):
-        return SeasonTab(id: entry.id, first: number, last: number, status: .soon)
+      case .upcomingSeason(let number, let date, _):
+        return SeasonTab(id: entry.id, first: number, last: number, status: .soon, premiereDate: date)
       case .playable, .unavailable:
         return nil
       }
     }
     return kino + beyond
+  }
+
+  /// Display chip for one kino.pub block. Never a calendar year; never a duplicate of
+  /// another chip on this strip.
+  private static func chipNumber(for season: Season,
+                                 alignment: EpisodeGridMatch.Result,
+                                 claimed: inout Set<Int>) -> Int {
+    let candidates: [Int] = [
+      alignment.displaySeason(blockID: season.id, titledNumber: season.titleSeasonNumber),
+      season.titleSeasonNumber.flatMap { Season.isCalendarYear($0) ? nil : $0 },
+      season.number,
+    ].compactMap { $0 }.filter { !Season.isCalendarYear($0) }
+    for candidate in candidates where claimed.insert(candidate).inserted {
+      return candidate
+    }
+    var n = max(season.number, 1)
+    while !claimed.insert(n).inserted { n += 1 }
+    return n
   }
 
   private var selectedTab: SeasonTab? {
@@ -508,6 +529,11 @@ struct SeasonsRailView: View {
                  isPresented: Binding(get: { seasonDetails != nil },
                                       set: { if !$0 { seasonDetails = nil } })) {
         Text(verbatim: seasonDetails?.overview ?? "")
+          .font(InfoPopupMetrics.bodyFont)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .infoPopup(Text(episodeInfoTitle), isPresented: $showsEpisodeInfo) {
+        Text(episodeInfoBody)
           .font(InfoPopupMetrics.bodyFont)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
@@ -939,6 +965,9 @@ struct SeasonsRailView: View {
       ? EpisodeText(season: nil, number: episode.number).formatted(.long)
       : name
     var parts = [EpisodeText(season: season.number, number: episode.number, seasonCount: seasons.count).formatted(.long)]
+    if schedule?.isSeasonFinale == true {
+      parts[0] += " · \("MediaItem_SeasonFinale".localized)"
+    }
     if let overview = schedule?.overview, !overview.isEmpty {
       parts.append(overview)
     }
@@ -979,9 +1008,16 @@ struct SeasonsRailView: View {
     case .playable(let season, let episode, let schedule):
       let card = card(for: episode, in: season, schedule: schedule)
       let base = TVUIKitMediaItem(card: card)
-      let caption = EpisodeText(season: nil, number: episode.number,
+      var caption = EpisodeText(season: seasons.count > 1
+                                  ? (tabs.first { $0.id == season.id }?.first
+                                     ?? KinoPubMediaMapping.seasonNumber(season))
+                                  : nil,
+                                number: episode.number,
                                 name: Self.displayTitle(episode: episode, schedule: schedule))
         .text(for: .episodeTile)
+      if schedule?.isSeasonFinale == true {
+        caption += " · \("MediaItem_SeasonFinale".localized)"
+      }
       let status = Self.tileStatus(base: base.status, episode: episode, schedule: schedule)
       return TVUIKitMediaItem(id: entry.id,
                               imageURL: base.imageURL ?? seriesBackdropURL,
@@ -1369,32 +1405,51 @@ struct SeasonsRailView: View {
 
   private func contextEntries(for episode: Episode, season: Season) -> [MediaCardContextEntry] {
     let card = card(for: episode, in: season, schedule: nil)
-    let containing = cardMenu.containingFolders(for: card)
-    let folders = cardMenu.folders.map {
-      MediaCardContextMenus.BookmarkFolderOption(
-        id: $0.id,
-        title: $0.title,
-        isContaining: containing.contains($0.id)
-      )
-    }
+    // Episode rail: Play / watched / Info only. Bookmarks, Follow and Hide belong on
+    // the series (and on Continue Watching), not on a single episode tile.
     return MediaCardContextMenus.entries(
       for: card,
-      surface: .shelf,
-      bookmarkFolders: folders,
-      onPlay: nil,
-      onGoToTitle: nil,
-      onToggleWatchlist: { cardMenu.toggleWatchlist(card) },
-      onToggleBookmarkFolder: { folderID in
-        guard let folder = cardMenu.folders.first(where: { $0.id == folderID }) else { return }
-        cardMenu.toggleBookmark(itemID: card.itemID,
-                                folder: folder,
-                                serverHint: card.viewerState.bookmarkFolderIDs ?? [])
-      },
-      onCreateBookmarkFolder: { cardMenu.promptNewFolder(for: card.itemID) },
+      surface: .episodeRail,
+      onPlay: { playEpisodeFromMenu(id: episode.id) },
+      onGoToTitle: { presentEpisodeInfoFromMenu(id: episode.id) },
       onToggleWatched: { onToggleWatched?(episode, season) },
-      onHide: { onHide?(episode, season) },
       onOpenImageURL: { openURL($0) }
     )
+  }
+
+  /// Context-menu Play — same route as tapping the card (`PlayerLink` / tvOS select).
+  private func playEpisodeFromMenu(id: Int) {
+#if os(tvOS)
+    select(entryID: id)
+#else
+    guard case .playable(let season, let episode, let schedule)? = entries.first(where: { $0.id == id }),
+          !Self.clocksOut(episode, schedule) else { return }
+    mediaNavigation?(linkProvider.player(for: filled(episode, in: season)))
+#endif
+  }
+
+  /// Context-menu Info — the same synopsis sheet the tvOS description focus opens.
+  private func presentEpisodeInfoFromMenu(id: Int) {
+#if os(tvOS)
+    presentEpisodeInfo(entryID: id)
+#else
+    guard case .playable(let season, let episode, let schedule)? = entries.first(where: { $0.id == id }) else {
+      return
+    }
+    let name = Self.displayTitle(episode: episode, schedule: schedule)
+    episodeInfoTitle = name.isEmpty
+      ? EpisodeText(season: nil, number: episode.number).formatted(.long)
+      : name
+    var parts = [EpisodeText(season: season.number, number: episode.number, seasonCount: seasons.count).formatted(.long)]
+    if schedule?.isSeasonFinale == true {
+      parts[0] += " · \("MediaItem_SeasonFinale".localized)"
+    }
+    if let overview = schedule?.overview, !overview.isEmpty {
+      parts.append(overview)
+    }
+    episodeInfoBody = parts.joined(separator: "\n\n")
+    showsEpisodeInfo = true
+#endif
   }
 
   /// A kino.pub episode with a file or a runtime stays interactive. A future premiere
@@ -1415,11 +1470,20 @@ struct SeasonsRailView: View {
 
   /// A future date on a playable episode is not a caption. Lag says nothing; an early
   /// drop says «Премьера». A date in the past still does.
-  private static func dateLabel(episode: Episode, schedule: EpisodeSchedule?) -> String? {
-    if let badge = premiereText(episode: episode, schedule: schedule) { return badge }
-    guard let date = schedule?.airDate else { return nil }
-    if Calendar.current.startOfDay(for: date) > Calendar.current.startOfDay(for: Date()) { return nil }
-    return airDateLabel(date)
+  private static func dateLabel(episode: Episode, schedule: EpisodeSchedule?,
+                                isSeasonFinale: Bool = false) -> String? {
+    var parts: [String] = []
+    if let badge = premiereText(episode: episode, schedule: schedule) {
+      parts.append(badge)
+    } else if let date = schedule?.airDate,
+              Calendar.current.startOfDay(for: date) <= Calendar.current.startOfDay(for: Date()) {
+      parts.append(airDateLabel(date))
+    }
+    if isSeasonFinale {
+      parts.append("MediaItem_SeasonFinale".localized)
+    }
+    guard !parts.isEmpty else { return nil }
+    return parts.joined(separator: " · ")
   }
 
 #if os(tvOS)
@@ -1456,8 +1520,13 @@ struct SeasonsRailView: View {
     return MediaCard(episode: episode,
               in: season,
               title: Self.displayTitle(episode: episode, schedule: schedule),
-              episodeLabel: Self.episodeLabel(number: episode.number),
-              dateLabel: Self.dateLabel(episode: episode, schedule: schedule),
+              episodeLabel: Self.episodeLabel(number: episode.number,
+                                             seasonNumber: seasons.count > 1
+                                               ? (tabs.first { $0.id == season.id }?.first
+                                                  ?? KinoPubMediaMapping.seasonNumber(season))
+                                               : nil),
+              dateLabel: Self.dateLabel(episode: episode, schedule: schedule,
+                                        isSeasonFinale: schedule?.isSeasonFinale == true),
               stillURL: worker?.absoluteString ?? kinopub ?? fallbackStill?.absoluteString,
               primaryAction: primaryAction)
   }
@@ -1484,8 +1553,9 @@ struct SeasonsRailView: View {
     return nil
   }
 
-  private static func episodeLabel(number: Int) -> String {
-    EpisodeText(season: nil, number: number).listItem()
+  private static func episodeLabel(number: Int, seasonNumber: Int? = nil) -> String {
+    // Multi-season shows put the season in the grey line («1 сезон, 6 серия»).
+    EpisodeText(season: seasonNumber, number: number).formatted(.short)
   }
 
   /// Inside a week either way the date is relative — "in 3 days", "7 days ago", and
@@ -1805,40 +1875,46 @@ private struct SeasonRailCard: View {
   private var plate: some View {
     shape
       .fill(.fill.tertiary)
-      .overlay(alignment: .bottomLeading) {
-        VStack(alignment: .leading, spacing: 2) {
-          Text(info.numberTitle)
-            .font(TypeScale.episodeCardTitle)
-            .foregroundStyle(.primary)
-          if let episodes = info.episodes {
-            Text(episodes)
-              .font(TypeScale.cardMeta)
-              .foregroundStyle(.secondary)
-          }
-          if let years = info.years {
-            Text(years)
-              .font(TypeScale.cardMeta)
-              .foregroundStyle(.secondary)
-          }
-        }
-        .lineLimit(1)
-        .minimumScaleFactor(0.7)
-        .padding(8)
-      }
+      .overlay(alignment: .bottomLeading) { plateContent }
   }
 
-  /// The worker's season poster; TMDB's when the worker has none.
+  private var plateContent: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(info.numberTitle)
+        .font(TypeScale.episodeCardTitle)
+        .foregroundStyle(.primary)
+      if let episodes = info.episodes {
+        Text(episodes)
+          .font(TypeScale.cardMeta)
+          .foregroundStyle(.secondary)
+      }
+      if let years = info.years {
+        Text(years)
+          .font(TypeScale.cardMeta)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .lineLimit(1)
+    .minimumScaleFactor(0.7)
+    .padding(8)
+  }
+
+  /// The worker's season poster; TMDB's when the worker has none. Placeholder is the
+  /// same plate (number / count / years) until artwork paints — not an empty episode.
   private var poster: some View {
-    CachedRemoteImage(
+    let placeholder = shape
+      .fill(Color.KinoPub.placeholder)
+      .overlay(alignment: .bottomLeading) { plateContent }
+    return CachedRemoteImage(
       url: info.posterURL,
       contentMode: .fill,
-      placeholder: { Color.KinoPub.placeholder },
+      placeholder: { placeholder },
       failure: {
         CachedRemoteImage(
           url: info.fallbackPosterURL,
           contentMode: .fill,
-          placeholder: { Color.KinoPub.placeholder },
-          failure: { Color.KinoPub.placeholder }
+          placeholder: { placeholder },
+          failure: { placeholder }
         )
       }
     )
@@ -2140,12 +2216,13 @@ struct TrailersRailView: View {
       items: entries.enumerated().map { index, entry in
         switch entry {
         case .kinopub:
+          // Same centre Play-on-focus as Continue Watching / versions (not YouTube).
           TVUIKitMediaItem(id: index, imageURL: imageURL(for: entry), caption: caption(for: entry),
-                           focusGlyph: .play)
+                           status: .ready, focusGlyph: .play)
         case .external:
           // No second line: the rail is one caption line tall, as every still rail.
           TVUIKitMediaItem(id: index, imageURL: imageURL(for: entry),
-                           caption: caption(for: entry), focusGlyph: .youtube)
+                           caption: caption(for: entry), status: .ready, focusGlyph: .youtube)
         }
       },
       contentInset: metrics.inset,
@@ -2158,6 +2235,7 @@ struct TrailersRailView: View {
         }
       }
     )
+    .focusSection()
   }
 #else
   private var rail: some View {

@@ -10536,6 +10536,40 @@
         }
       }
     },
+    "Info" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Info"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Инфо"
+          }
+        }
+      }
+    },
+    "MediaItem_SeasonFinale" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Season finale"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "финал сезона"
+          }
+        }
+      }
+    },
     "MediaItem_PremiereOn" : {
       "extractionState" : "manual",
       "localizations" : {

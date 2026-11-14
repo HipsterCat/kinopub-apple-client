@@ -326,7 +326,8 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
         runtime: ep.runtime,
         still: imageURL(path: ep.stillPath, size: .stillW300),
         voteAverage: ep.voteAverage,
-        voteCount: ep.voteCount
+        voteCount: ep.voteCount,
+        isSeasonFinale: ep.episodeType == "finale"
       )
     }
   }

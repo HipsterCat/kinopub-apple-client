@@ -53,9 +53,11 @@ public enum EpisodeGridMatch {
     public var runtimeMinutes: Int?
     public var airDate: Date?
     public var still: URL?
+    public var isSeasonFinale: Bool
 
     public init(source: Source, season: Int, number: Int, titles: [String],
-                runtimeMinutes: Int? = nil, airDate: Date? = nil, still: URL? = nil) {
+                runtimeMinutes: Int? = nil, airDate: Date? = nil, still: URL? = nil,
+                isSeasonFinale: Bool = false) {
       self.source = source
       self.season = season
       self.number = number
@@ -63,12 +65,15 @@ public enum EpisodeGridMatch {
       self.runtimeMinutes = runtimeMinutes
       self.airDate = airDate
       self.still = still
+      self.isSeasonFinale = isSeasonFinale
     }
 
     public init(source: Source, season: Int, number: Int, title: String,
-                runtimeMinutes: Int? = nil, airDate: Date? = nil, still: URL? = nil) {
+                runtimeMinutes: Int? = nil, airDate: Date? = nil, still: URL? = nil,
+                isSeasonFinale: Bool = false) {
       self.init(source: source, season: season, number: number, titles: [title],
-                runtimeMinutes: runtimeMinutes, airDate: airDate, still: still)
+                runtimeMinutes: runtimeMinutes, airDate: airDate, still: still,
+                isSeasonFinale: isSeasonFinale)
     }
   }
 
@@ -111,13 +116,19 @@ public enum EpisodeGridMatch {
     }
 
     /// The number the season chip and the play button share.
-    /// A year in the title stays the year (a merged run such as 17262). One official
-    /// season across the block's matches replaces a duplicated or renumbered title.
+    /// Years in the title are not display seasons (a merged run such as 17262 keeps
+    /// the kino.pub block index via the caller). One official season across the block's
+    /// matches replaces a duplicated or renumbered title — unless that official number
+    /// itself looks like a year.
     public func displaySeason(blockID: Int, titledNumber: Int?) -> Int? {
-      if let titledNumber, EpisodeGridMatch.isYear(titledNumber) { return titledNumber }
-      let seasons = Set(hits.filter { $0.kino.blockID == blockID }.map(\.official.season))
-      guard seasons.count == 1 else { return nil }
-      return seasons.first
+      let titled = titledNumber.flatMap { EpisodeGridMatch.isYear($0) ? nil : $0 }
+      let seasons = Set(
+        hits.filter { $0.kino.blockID == blockID }
+          .map(\.official.season)
+          .filter { !EpisodeGridMatch.isYear($0) }
+      )
+      if seasons.count == 1 { return seasons.first }
+      return titled
     }
 
     /// Rail order for one kino.pub block: matched episodes, the holes that belong
@@ -296,6 +307,7 @@ public enum EpisodeGridMatch {
         if existing.runtimeMinutes == nil { existing.runtimeMinutes = episode.runtimeMinutes }
         if existing.airDate == nil { existing.airDate = episode.airDate }
         if existing.still == nil { existing.still = episode.still }
+        if episode.isSeasonFinale { existing.isSeasonFinale = true }
         if episode.source > existing.source { existing.source = episode.source }
         groups[index] = existing
       } else {
@@ -318,13 +330,18 @@ public enum EpisodeGridMatch {
 
   /// A duplicated title number is not a season (Drag Race UK chips `2` twice).
   /// A year is not one either. Otherwise the unique number, or the block's own
-  /// number when that season exists and nobody else claimed it.
+  /// number when that season exists and nobody else claimed it. When a titled
+  /// number is missing from the official set, also try the other way: an official
+  /// season that uniquely fits this block's episode numbers can live "inside" a
+  /// renumbered or year-titled kino block.
   static func seasonHints(kino: [KinoEpisode], official: [OfficialEpisode]) -> [Int: Int] {
     let officialSeasons = Set(official.map(\.season))
     var titled: [Int: Int] = [:]
     var blocks: [Int: KinoEpisode] = [:]
+    var blockEpisodes: [Int: [KinoEpisode]] = [:]
     for episode in kino {
       blocks[episode.blockID] = episode
+      blockEpisodes[episode.blockID, default: []].append(episode)
       guard let number = episode.titledNumber, !isYear(number) else { continue }
       titled[episode.blockID] = number
     }
@@ -346,6 +363,25 @@ public enum EpisodeGridMatch {
       guard officialSeasons.contains(number), !claimed.contains(number) else { continue }
       hints[blockID] = number
       claimed.insert(number)
+    }
+    // Reverse: titled/year blocks with no forward hint — pick an unclaimed official
+    // season whose episode-number span uniquely covers this block's numbers.
+    for (blockID, episodes) in blockEpisodes where hints[blockID] == nil {
+      let numbers = Set(episodes.map(\.number))
+      guard !numbers.isEmpty else { continue }
+      var candidates: [Int] = []
+      for season in officialSeasons.subtracting(claimed) {
+        let officialNumbers = Set(official.filter { $0.season == season }.map(\.number))
+        guard !officialNumbers.isDisjoint(with: numbers) else { continue }
+        // The block's episode numbers sit inside this official season (or the season
+        // sits inside the block — merged years). Either direction is a hint.
+        if numbers.isSubset(of: officialNumbers) || officialNumbers.isSubset(of: numbers) {
+          candidates.append(season)
+        }
+      }
+      guard candidates.count == 1, let season = candidates.first else { continue }
+      hints[blockID] = season
+      claimed.insert(season)
     }
     return hints
   }
@@ -404,6 +440,8 @@ public enum EpisodeGridMatch {
   static func runtimeScore(_ kino: Int?, _ official: Int?) -> Int {
     guard let kino, let official else { return 0 }
     let delta = abs(kino - official)
+    // ±1 minute rounding never rejects a hit; treat it as exact.
+    if delta <= 1 { return 40 }
     if delta <= 2 { return 40 }
     if delta <= 5 { return 25 }
     return 0

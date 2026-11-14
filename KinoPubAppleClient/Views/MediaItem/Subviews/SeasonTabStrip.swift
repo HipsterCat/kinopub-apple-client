@@ -39,17 +39,39 @@ struct SeasonTab: Identifiable, Equatable {
   let first: Int
   let last: Int
   let status: Status
+  /// Announced premiere for `.soon` pills — full date after the calendar glyph.
+  let premiereDate: Date?
 
-  /// "4", or "19–20" for a run.
+  init(id: Int, first: Int, last: Int, status: Status, premiereDate: Date? = nil) {
+    self.id = id
+    self.first = first
+    self.last = last
+    self.status = status
+    self.premiereDate = premiereDate
+  }
+
+  /// Full localized premiere for a soon pill («27 июля 2027»).
+  var premiereDateLabel: String? {
+    guard let premiereDate else { return nil }
+    let formatter = DateFormatter()
+    formatter.setLocalizedDateFormatFromTemplate("d MMMM yyyy")
+    return formatter.string(from: premiereDate)
+  }
+
+  /// "4", or "19–20" for a run. Soon tabs with a known date prefer the date (calendar
+  /// glyph still comes from `status.symbol`).
   var label: String {
-    first == last ? "\(first)" : "\(first)–\(last)"
+    if status == .soon, let premiereDateLabel { return premiereDateLabel }
+    return first == last ? "\(first)" : "\(first)–\(last)"
   }
 
   /// The selected pill's text: «1 сезон» / "Season 1" for one season, the run as it is.
+  /// Soon with a date: calendar + full date stays — not «N сезон» from a rename.
   /// It stands in for the word «Сезон» the line used to start with, which scrolled away
   /// with the pills (Sasha, 2026-11-10).
   var selectedLabel: String {
-    first == last ? SeasonText(first).formatted(.long) : label
+    if status == .soon, let premiereDateLabel { return premiereDateLabel }
+    return first == last ? SeasonText(first).formatted(.long) : label
   }
 
   /// What VoiceOver says for the pill: the glyph alone means nothing spoken.
@@ -59,7 +81,11 @@ struct SeasonTab: Identifiable, Equatable {
       : String(format: "MediaItem_SeasonsRange".localized, first, last)
     switch status {
     case .available: return seasons
-    case .soon: return "\(seasons), \("MediaItem_NotAvailableYet".localized)"
+    case .soon:
+      if let premiereDateLabel {
+        return "\(seasons), \(premiereDateLabel)"
+      }
+      return "\(seasons), \("MediaItem_NotAvailableYet".localized)"
     case .unavailable: return "\(seasons), \("MediaItem_NotOnKinoPub".localized)"
     }
   }
@@ -290,9 +316,17 @@ struct SeasonPill: View {
   private var label: Text {
     let text = isSelected ? tab.selectedLabel : tab.label
     guard let symbol = tab.status.symbol else { return Text(verbatim: text) }
+    // Calendar first for soon pills with a date; number-first otherwise.
+    if tab.status == .soon, tab.premiereDate != nil {
+      return Text("\(Image(systemName: symbol)) \(text)")
+    }
     // Same font as the number: a smaller one sat on its own baseline, a second label
     // (Sasha, 2026-10-30). `.imageScale(.small)` on the pill keeps it a mark, not a word.
     return Text("\(text) \(Image(systemName: symbol))")
+  }
+
+  private var labelFont: Font {
+    tab.status == .soon && tab.premiereDate != nil ? TypeScale.rowCount : SeasonTabMetrics.font
   }
 
   /// The pointer is over it (Mac, iPad): the system fill says it can be pressed.
@@ -301,8 +335,8 @@ struct SeasonPill: View {
   var body: some View {
     PillWidth {
       label
-        .font(SeasonTabMetrics.font)
-        .imageScale(.medium)
+        .font(labelFont)
+        .imageScale(tab.status == .soon && tab.premiereDate != nil ? .small : .medium)
         .foregroundStyle(textStyle)
         .contentTransition(.interpolate)
         .padding(.vertical, SeasonTabMetrics.verticalPadding)

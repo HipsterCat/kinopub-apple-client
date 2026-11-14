@@ -6,12 +6,35 @@
 import Foundation
 
 public extension Season {
-  /// The real season number parsed from the title ("Сезон 14" / "Season 14" / "14
-  /// сезон"), for when kino.pub re-numbers its blocks from 1. Nil when the title
-  /// carries no digits (specials and oddly-named blocks).
+  /// Digits from the season title ("Сезон 14" / "Season 14" / "14 сезон", or a bare
+  /// year like "2012"). Matching uses this raw value; chips and Play use
+  /// `displaySeasonNumber`, which drops calendar years.
   var titleSeasonNumber: Int? {
+    let patterns = [
+      #"(?i)(?:сезон|season)\s*(\d+)"#,
+      #"(\d+)\s*(?:сезон|season)"#,
+    ]
+    for pattern in patterns {
+      guard let match = title.range(of: pattern, options: .regularExpression) else { continue }
+      let matched = title[match]
+      if let digits = matched.range(of: #"\d+"#, options: .regularExpression) {
+        return Int(matched[digits])
+      }
+    }
     guard let range = title.range(of: #"\d+"#, options: .regularExpression) else { return nil }
     return Int(title[range])
+  }
+
+  /// Whether `number` is a calendar year written as a season title, not a season index.
+  static func isCalendarYear(_ number: Int) -> Bool {
+    (1900...2100).contains(number)
+  }
+
+  /// Number for chips and Play: a real season index from the title, else the block
+  /// index. Never a year — year-titled merged runs keep `season.number`.
+  var displaySeasonNumber: Int {
+    if let titled = titleSeasonNumber, !Self.isCalendarYear(titled) { return titled }
+    return number
   }
 }
 

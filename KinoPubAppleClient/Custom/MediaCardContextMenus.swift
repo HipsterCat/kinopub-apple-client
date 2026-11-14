@@ -91,12 +91,18 @@ enum MediaCardContextMenus {
          markGroup()
        }
 
-    // MARK: Navigation
+    // MARK: Navigation / Info
     if let onGoToTitle {
       appendDivider()
+      let infoTitle: String
+      if surface == .episodeRail {
+        infoTitle = "Info".localized
+      } else {
+        infoTitle = (card.isSeries ? "Go to Show" : "Go to Movie").localized
+      }
       entries.append(.action(MediaCardContextAction(
-        id: "go-to-title",
-        title: (card.isSeries ? "Go to Show" : "Go to Movie").localized,
+        id: surface == .episodeRail ? "info" : "go-to-title",
+        title: infoTitle,
         systemImage: "info",
         handler: onGoToTitle
       )))
@@ -104,9 +110,11 @@ enum MediaCardContextMenus {
     }
 
     // MARK: Library
-    let showBookmarks = onToggleBookmarkFolder != nil || onCreateBookmarkFolder != nil
+    // Episode rail: bookmarks / Follow belong on the series, not one episode tile.
+    let showBookmarks = surface != .episodeRail
+      && (onToggleBookmarkFolder != nil || onCreateBookmarkFolder != nil)
     // Follow is a series' alone; a film is kept with bookmarks (user's call, 2026-10-03).
-    let onToggleFollow = card.isSeries ? onToggleWatchlist : nil
+    let onToggleFollow = surface != .episodeRail && card.isSeries ? onToggleWatchlist : nil
     // Read when the menu opens, not from the card: a follow toggled since the row was
     // built already counts.
     let isFollowing = onToggleFollow != nil
@@ -164,7 +172,7 @@ enum MediaCardContextMenus {
 
 
     // MARK: Destructive / CW
-    if let onHide {
+    if let onHide, surface != .episodeRail {
       appendDivider()
       entries.append(.action(MediaCardContextAction(
         id: "hide",
@@ -219,7 +227,7 @@ enum MediaCardContextMenus {
   static func artworkURL(for card: MediaCard, surface: MediaCardContextSurface) -> String? {
     let raw: String
     switch surface {
-    case .shelf:
+    case .shelf, .episodeRail:
       if let landscape = card.landscapeImageURL, !landscape.isEmpty {
         raw = landscape
       } else {

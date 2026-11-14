@@ -241,7 +241,8 @@ public final class TitleCardSource: MetadataSource, @unchecked Sendable {
         runtime: episode.runtimeMin,
         still: still,
         voteAverage: rating,
-        voteCount: votes
+        voteCount: votes,
+        isSeasonFinale: episode.seasonFinale == true
       )
     }
     var rows = [row(episode.nameRu)]
@@ -437,6 +438,7 @@ struct TitleCardEpisode: Decodable, Sendable {
   var still: String?
   var tmdbValue: FlexibleDouble?
   var tmdbVotes: Int?
+  var seasonFinale: Bool?
 
   enum CodingKeys: String, CodingKey {
     case number, still
@@ -446,5 +448,6 @@ struct TitleCardEpisode: Decodable, Sendable {
     case airDate = "air_date"
     case tmdbValue = "tmdb_value"
     case tmdbVotes = "tmdb_votes"
+    case seasonFinale = "season_finale"
   }
 }

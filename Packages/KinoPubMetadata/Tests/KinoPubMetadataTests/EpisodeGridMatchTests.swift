@@ -98,9 +98,9 @@ final class EpisodeGridMatchTests: XCTestCase {
   }
 
   /// 17262: one year-titled block holds episodes from two official seasons. The chip
-  /// stays the year. The official episode between two matches is a hole. An extra
-  /// kino.pub episode is not forced onto a row.
-  func testAYearBlockKeepsTheYearAndSpansTheSeasonsItMerged() {
+  /// is no longer the year (years are not display seasons). Matching still spans the
+  /// seasons it merged; an extra kino.pub episode is not forced onto a row.
+  func testAYearBlockSpansTheSeasonsItMergedWithoutYearChip() {
     let kino = [
       kino(block: 10, titled: 2012, number: 1, title: "Альфа", runtime: 45, blockNumber: 1),
       kino(block: 10, titled: 2012, number: 2, title: "Дельта", runtime: 45, blockNumber: 1),
@@ -114,7 +114,8 @@ final class EpisodeGridMatchTests: XCTestCase {
       official(season: 5, number: 1, title: "Бета", runtime: 44),
     ]
     let result = EpisodeGridMatch.align(kino: kino, official: grid)
-    XCTAssertEqual(result.displaySeason(blockID: 10, titledNumber: 2012), 2012)
+    // Two official seasons → no single display season; year titledNumber is ignored.
+    XCTAssertNil(result.displaySeason(blockID: 10, titledNumber: 2012))
     XCTAssertEqual(result.hits.count, 3)
     XCTAssertEqual(result.unmatchedKino.map(\.title), ["Лишний"])
     let rows = result.rows(for: 10)

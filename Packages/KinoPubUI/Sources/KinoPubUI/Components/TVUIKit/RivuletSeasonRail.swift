@@ -1363,7 +1363,7 @@ final class RivuletRailEpisodeCell: UICollectionViewCell {
     let urls = [item.stillURL, item.fallbackStillURL].compactMap { $0 }
     guard !urls.isEmpty else { return }
     Task { [weak self] in
-      var image: PlatformImage?
+      var image: UIImage?
       for url in urls {
         image = try? await Artwork.image(for: url)
         if image != nil { break }

@@ -371,6 +371,7 @@ struct TMDBSeasonEpisode: Codable, Sendable {
   let stillPath: String?
   let voteAverage: Double?
   let voteCount: Int?
+  let episodeType: String?
 
   enum CodingKeys: String, CodingKey {
     case name, overview, runtime
@@ -379,6 +380,7 @@ struct TMDBSeasonEpisode: Codable, Sendable {
     case stillPath = "still_path"
     case voteAverage = "vote_average"
     case voteCount = "vote_count"
+    case episodeType = "episode_type"
   }
 }
 

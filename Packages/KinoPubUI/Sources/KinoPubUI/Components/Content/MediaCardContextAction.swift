@@ -10,6 +10,8 @@ import SwiftUI
 public enum MediaCardContextSurface: Sendable {
   case shelf
   case banner
+  /// Detail-page seasons rail — episode tiles, not series shelves.
+  case episodeRail
 }
 
 /// One entry in a card's long-press menu. Titles are resolved by the app so this

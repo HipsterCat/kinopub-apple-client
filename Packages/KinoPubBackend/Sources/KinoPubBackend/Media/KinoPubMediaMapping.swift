@@ -102,9 +102,10 @@ public enum KinoPubMediaMapping {
   }
 
   /// kino.pub numbers some shows' season blocks from 1 while naming them "Сезон 14"; the
-  /// number in the name is the real one. Our model only ever carries the real one.
+  /// number in the name is the real one. Years written as titles ("2012") are not seasons —
+  /// those blocks keep their index so chips and Play never become «2012 сезон».
   public static func seasonNumber(_ season: Season) -> Int {
-    season.titleSeasonNumber ?? season.number
+    season.displaySeasonNumber
   }
 
   /// Everything kino.pub knows about one playback, level by level. `title` is the

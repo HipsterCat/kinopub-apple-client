@@ -917,11 +917,22 @@ public struct MediaCardView: View {
 
   private var landscapeTimeBadge: LandscapeTimeBadge? {
     guard showDuration, card.isLandscape else { return nil }
+#if os(macOS)
+    // Duration only on hover/focus; watched check stays at rest so it does not fight
+    // the hover chip.
+    return LandscapeTimeBadge(
+      durationSeconds: card.durationSeconds,
+      progress: card.progress,
+      isWatched: card.isWatched,
+      includeDuration: isPointerActive
+    )
+#else
     return LandscapeTimeBadge(
       durationSeconds: card.durationSeconds,
       progress: card.progress,
       isWatched: card.isWatched
     )
+#endif
   }
 
   /// One caption line for landscape: "S1, E12 + 3 more", "E6 + 2 more", or either half alone.

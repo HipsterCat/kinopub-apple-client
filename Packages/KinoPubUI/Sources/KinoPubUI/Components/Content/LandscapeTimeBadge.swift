@@ -33,16 +33,21 @@ public struct LandscapeTimeBadge: View {
   /// `progress` is `resumeFraction` (nil unless in-progress). Do not pass a raw
   /// `time / duration` and expect this init to recover the watched threshold — 0.95
   /// of a two-hour title is six minutes left; `WatchProgress` finishes at three.
-  public init?(durationSeconds: Int?, progress: Double?, isWatched: Bool) {
+  ///
+  /// - Parameter includeDuration: on macOS pointer platforms the duration text is
+  ///   hover/focus-only; watched still shows the checkmark at rest.
+  public init?(durationSeconds: Int?, progress: Double?, isWatched: Bool,
+               includeDuration: Bool = true) {
     guard let durationSeconds, durationSeconds >= 60 else { return nil }
     let runtime = RuntimeText(seconds: durationSeconds)
     guard let total = runtime.text(for: .timeBadge) else { return nil }
     let spokenTotal = runtime.accessibilityLabel() ?? total
     if isWatched {
-      self.kind = .watched(total: total)
+      self.kind = .watched(total: includeDuration ? total : "")
       self.spoken = "\(String(localized: "Watched")), \(spokenTotal)"
       return
     }
+    guard includeDuration else { return nil }
     if let fraction = progress {
       let left = RemainingText(progress: fraction, durationSeconds: durationSeconds)
       self.kind = .inProgress(remaining: left.formatted(MediaSurface.timeBadge.runtimeLength))
@@ -59,9 +64,10 @@ public struct LandscapeTimeBadge: View {
         Image(systemName: iconName)
               .font(.system(.caption2, weight: .bold))
       }
-      Text(label)
-        .font(.caption2.weight(.regular))
-//        .monospacedDigit()
+      if !label.isEmpty {
+        Text(label)
+          .font(.caption2.weight(.regular))
+      }
     }
     .foregroundStyle(isWatchedStyle ? Color.black : Color.white)
     .padding(.horizontal, 4)
