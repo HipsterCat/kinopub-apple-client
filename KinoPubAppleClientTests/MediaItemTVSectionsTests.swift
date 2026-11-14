@@ -965,5 +965,35 @@ final class MediaItemTVSectionsTests: XCTestCase {
                                       likeCount: 145, dislikeCount: 19, rowLimit: nil)
     XCTAssertGreaterThan(all.viewers?.rows.count ?? 0, ScoreSummary.rowLimit, "the page lists every source")
   }
+
+  /// Kinopub-only 0% (0 likes, a tiny down vote) is not a viewers' card — the gauge is a dash.
+  func testKinopubOnlyZeroPercentHidesViewersCard() throws {
+    let item = try kinopubOnlyItem()
+    let empty = TitleMetadata()
+    let zero = RatingSources.summaries(for: item, metadata: empty, likeCount: 0, dislikeCount: 1)
+    XCTAssertNil(zero.viewers)
+    XCTAssertEqual(zero.total, 0)
+
+    let liked = RatingSources.summaries(for: item, metadata: empty, likeCount: 12, dislikeCount: 1)
+    XCTAssertNotNil(liked.viewers, "a non-zero Kinopub share still earns the card")
+
+    var withAudience = empty
+    withAudience.externalRatings = [ExternalRating(kind: .trakt, value: 7.1, votes: 300)]
+    let mixed = RatingSources.summaries(for: item, metadata: withAudience,
+                                        likeCount: 0, dislikeCount: 1)
+    XCTAssertNotNil(mixed.viewers, "an external audience score keeps the card")
+  }
+
+  private func kinopubOnlyItem() throws -> MediaItem {
+    let json: [String: Any] = [
+      "id": 42, "type": "movie", "subtype": "", "title": "Без оценок", "year": 2024,
+      "cast": "", "director": "",
+      "genres": [Any](), "countries": [Any](), "duration": ["average": 5400, "total": 5400],
+      "langs": 1, "quality": 1080, "plot": "",
+      "posters": ["small": "", "medium": "", "big": "", "wide": ""],
+      "finished": false
+    ]
+    return try JSONDecoder().decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: json))
+  }
 }
 #endif

@@ -417,7 +417,8 @@ extension RatingSources {
 
     let viewers = viewersSummary(audience, rowLimit: rowLimit)
     let critic = criticsSummary(critics, tally: tally, rowLimit: rowLimit)
-    let votes = audience.reduce(0) { $0 + ($1.votes ?? 0) }
+    // Votes behind a dropped Kinopub-only 0% card are not a section count.
+    let votes = viewers == nil ? 0 : audience.reduce(0) { $0 + ($1.votes ?? 0) }
     return Summaries(viewers: viewers, critics: critic, total: votes + tally.total)
   }
 
@@ -438,6 +439,12 @@ extension RatingSources {
 
   private static func viewersSummary(_ audience: [Score], rowLimit: Int?) -> ScoreSummary? {
     guard !audience.isEmpty else { return nil }
+    // Kinopub-only 0% (0 likes, a few downvotes): the gauge is a dash and the row is
+    // useless. Keep the card when another audience source is present, or when anyone liked it.
+    if audience.allSatisfy({ $0.logo == .kinopub }),
+       audience.allSatisfy({ ($0.value ?? 0) == 0 }) {
+      return nil
+    }
     // kino.pub's thumbs are listed, not averaged: a thumb is not a score (`scores(for:)`).
     let mean = weightedMean(audience.filter { $0.logo != .kinopub })
     let votes = audience.reduce(0) { $0 + ($1.votes ?? 0) }
