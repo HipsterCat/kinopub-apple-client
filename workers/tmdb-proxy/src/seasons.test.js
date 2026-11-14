@@ -108,6 +108,8 @@ test("English does not receive the Russian title stored as a bare string", async
   assert.equal(body.seasons[0].overview, null);
   assert.equal(body.seasons[0].episodes[0].name, null);
   assert.equal(body.seasons[0].episodes[0].runtime_min, 44);
+  // Still URL is advertised before any thumbnail is stored (logo-parity).
+  assert.equal(body.seasons[0].episodes[0].still, "/img/thumbnail/by/kinopub/82852?s=1&e=1");
 });
 
 test("a missing TMDB season is fetched for the asked language and remembered", async () => {

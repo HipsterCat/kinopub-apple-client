@@ -97,6 +97,7 @@ test("the card returns featured people, counts and a top episode", async () => {
   assert.equal(body.ratings.tmdb.value, 6.8);
   assert.equal(body.images[0].kind, "poster");
   assert.equal(body.seasons[0].episodes[0].name_ru, "Выпуск");
+  assert.equal(body.seasons[0].episodes[0].still, "/img/thumbnail/by/kinopub/1?s=1&e=1");
   assert.equal(body.seasons[0].episode_count, 9);
 });
 

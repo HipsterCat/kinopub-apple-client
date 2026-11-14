@@ -935,6 +935,11 @@ struct MediaItemView: View {
                           images.url(.poster, kinopubID: item.id, imdb: item.imdb,
                                      width: pixels, season: season)
                         },
+                        episodeStillURL: { [images = appContext.metadataService.images,
+                                            item = itemModel.mediaItem] season, episode, pixels in
+                          images.url(.thumbnail, kinopubID: item.id, imdb: item.imdb,
+                                     width: pixels, season: season, episode: episode)
+                        },
                         onToggleSeasonWatched: { season in
                           itemModel.toggleWatched(season: season)
                         },

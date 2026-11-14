@@ -256,13 +256,16 @@ function projectSeason(document, number, lang, id) {
 }
 
 function projectEpisode(episode, lang, id, seasonNumber) {
-  const thumb = episode.thumbnail ? String(episode.thumbnail) : "";
-  const still = thumb && !thumb.includes("staticpop.net")
-    ? `/img/thumbnail/by/kinopub/${id}?s=${seasonNumber}&e=${episode.number}`
+  const number = Number(episode.number);
+  // Always advertise the image route — same pattern as /img/logo. The still
+  // may not be in the document yet; /img/thumbnail fetches it on first hit.
+  // A kino.pub CDN thumb is never a candidate; the route still stands.
+  const still = Number.isFinite(number)
+    ? `/img/thumbnail/by/kinopub/${id}?s=${seasonNumber}&e=${number}`
     : null;
   // Timestamps stay on the source. The flag only says the marker exists.
   return {
-    number: Number(episode.number),
+    number,
     name: textIn(episode.name, lang),
     overview: textIn(episode.overview, lang),
     runtime_min: episode.runtime_min ?? null,

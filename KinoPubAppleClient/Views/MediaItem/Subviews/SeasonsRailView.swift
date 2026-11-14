@@ -162,6 +162,10 @@ struct SeasonsRailView: View {
   /// A season's poster at a pixel width: the worker's `/img/poster/by/kinopub/{id}?s=`.
   /// Nil (no worker) falls back to TMDB's season poster. iOS / macOS season cards.
   var seasonPosterURL: ((_ seasonNumber: Int, _ pixelWidth: Int) -> URL?)? = nil
+  /// An episode still at a pixel width: `/img/thumbnail/by/kinopub/{id}?w=&s=&e=`.
+  /// Same logo-parity pattern as the banner logo — always a URL so Artwork kicks the
+  /// worker fetch; a 404 is the confirmed miss, not a blank while metadata is cold.
+  var episodeStillURL: ((_ seasonNumber: Int, _ episodeNumber: Int, _ pixelWidth: Int) -> URL?)? = nil
   /// The season menu (a season card, a season tab), iOS / macOS: watched for all of it, or
   /// none of it when it is all watched already.
   var onToggleSeasonWatched: ((Season) -> Void)? = nil
@@ -894,7 +898,9 @@ struct SeasonsRailView: View {
       let name = Self.displayTitle(episode: episode, schedule: schedule)
       let year = schedule?.airDate.map { String(Calendar.current.component(.year, from: $0)) }
       let duration = episode.duration >= 60 ? RuntimeText(seconds: episode.duration).text(for: .timeBadge) : nil
-      let still = Self.stillURL(episode: episode, schedule: schedule).flatMap(URL.init(string:))
+      let displaySeason = gridAlignment.displaySeason(blockID: season.id, titledNumber: season.titleSeasonNumber)
+        ?? KinoPubMediaMapping.seasonNumber(season)
+      let still = stillURL(episode: episode, schedule: schedule, seasonNumber: displaySeason)
       return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider, stillURL: still,
                              duration: duration,
                              eyebrow: EpisodeText(season: nil, number: episode.number).formatted(.long).uppercased(),
@@ -969,7 +975,7 @@ struct SeasonsRailView: View {
   private func railItem(for entry: RailEntry) -> TVUIKitMediaItem {
     switch entry {
     case .playable(let season, let episode, let schedule):
-      let card = Self.card(for: episode, in: season, schedule: schedule)
+      let card = card(for: episode, in: season, schedule: schedule)
       let base = TVUIKitMediaItem(card: card)
       let caption = EpisodeText(season: nil, number: episode.number,
                                 name: Self.displayTitle(episode: episode, schedule: schedule))
@@ -1209,7 +1215,7 @@ struct SeasonsRailView: View {
       PlayerLink(route: linkProvider.player(for: filled(episode, in: season)),
                  item: filled(episode, in: season),
                  mode: .media) {
-        MediaCardView(card: Self.card(for: episode, in: season, schedule: schedule),
+        MediaCardView(card: card(for: episode, in: season, schedule: schedule),
                       caption: .always)
       }
       .modifier(MediaCardContextMenuModifier(
@@ -1223,7 +1229,7 @@ struct SeasonsRailView: View {
       unavailableCard(
         message: Self.unavailableMessage(date: schedule?.airDate)
       ) {
-        MediaCardView(card: Self.card(for: episode,
+        MediaCardView(card: card(for: episode,
                                       in: season,
                                       schedule: schedule,
                                       fallbackStill: seriesBackdropURL,
@@ -1360,7 +1366,7 @@ struct SeasonsRailView: View {
   }
 
   private func contextEntries(for episode: Episode, season: Season) -> [MediaCardContextEntry] {
-    let card = Self.card(for: episode, in: season, schedule: nil)
+    let card = card(for: episode, in: season, schedule: nil)
     let containing = cardMenu.containingFolders(for: card)
     let folders = cardMenu.folders.map {
       MediaCardContextMenus.BookmarkFolderOption(
@@ -1438,17 +1444,20 @@ struct SeasonsRailView: View {
 
   /// The rail's card — the same landscape `MediaCard` History and Continue Watching
   /// draw, captioned "EPISODE 9 · 5 Mar" where the poster shelves caption "S2, E5".
-  private static func card(for episode: Episode,
-                           in season: Season,
-                           schedule: EpisodeSchedule?,
-                           fallbackStill: URL? = nil,
-                           primaryAction: MediaCardPrimaryAction = .play) -> MediaCard {
-    MediaCard(episode: episode,
+  private func card(for episode: Episode,
+                    in season: Season,
+                    schedule: EpisodeSchedule?,
+                    fallbackStill: URL? = nil,
+                    primaryAction: MediaCardPrimaryAction = .play) -> MediaCard {
+    let displaySeason = gridAlignment.displaySeason(blockID: season.id, titledNumber: season.titleSeasonNumber)
+      ?? KinoPubMediaMapping.seasonNumber(season)
+    return MediaCard(episode: episode,
               in: season,
-              title: displayTitle(episode: episode, schedule: schedule),
-              episodeLabel: episodeLabel(number: episode.number),
+              title: Self.displayTitle(episode: episode, schedule: schedule),
+              episodeLabel: Self.episodeLabel(number: episode.number),
               dateLabel: Self.dateLabel(episode: episode, schedule: schedule),
-              stillURL: stillURL(episode: episode, schedule: schedule) ?? fallbackStill?.absoluteString,
+              stillURL: stillURL(episode: episode, schedule: schedule, seasonNumber: displaySeason)?.absoluteString
+                ?? fallbackStill?.absoluteString,
               primaryAction: primaryAction)
   }
 
@@ -1458,9 +1467,18 @@ struct SeasonsRailView: View {
     EpisodeTitle.meaningful(episode.title) ?? EpisodeTitle.meaningful(schedule?.name) ?? ""
   }
 
-  private static func stillURL(episode: Episode, schedule: EpisodeSchedule?) -> String? {
-    if !episode.thumbnail.isEmpty { return episode.thumbnail }
-    return schedule?.still?.absoluteString
+  /// Worker route first (logo-parity), then a still metadata already carries, then
+  /// kino.pub's own thumb. Width is rounded like season posters so a resize does
+  /// not ask the worker for a new file on every layout pass.
+  private func stillURL(episode: Episode, schedule: EpisodeSchedule?,
+                        seasonNumber: Int) -> URL? {
+    let pixels = Int((cardWidth * displayScale / 100).rounded(.up)) * 100
+    if let worker = episodeStillURL?(seasonNumber, episode.number, max(pixels, 300)) {
+      return worker
+    }
+    if let scheduleStill = schedule?.still { return scheduleStill }
+    if !episode.thumbnail.isEmpty { return URL(string: episode.thumbnail) }
+    return nil
   }
 
   private static func episodeLabel(number: Int) -> String {
