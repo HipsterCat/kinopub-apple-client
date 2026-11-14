@@ -1279,10 +1279,11 @@ public struct MediaCardView: View {
   /// Iconic plate until a photograph arrives — not an empty grey forever.
   private var landscapeIconicPlaceholder: some View {
     ZStack {
-      Color.KinoPub.placeholder
+      // fill.tertiary — same quiet family as «Сезон», not bright white (Sasha, 2026-11-14).
+      Rectangle().fill(.fill.tertiary)
       Image(systemName: "play.rectangle.on.rectangle")
         .font(.system(size: 28, weight: .regular))
-        .foregroundStyle(.secondary.opacity(0.85))
+        .foregroundStyle(.tertiary)
         .accessibilityHidden(true)
     }
   }

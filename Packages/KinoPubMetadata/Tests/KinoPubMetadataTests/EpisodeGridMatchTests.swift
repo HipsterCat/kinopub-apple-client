@@ -203,6 +203,33 @@ final class EpisodeGridMatchTests: XCTestCase {
     XCTAssertEqual(bonus.title, "Bonus")
   }
 
+  /// RU kino titles vs EN official, same numbers, ±1 runtime — must pair. Emitting both
+  /// a «нет на Кинопабе» hole and the playable card for E2/E3 is wrong (Sasha, 2026-11-14).
+  func testRussianKinoPairsEnglishOfficialWithoutFalseHoles() {
+    let result = EpisodeGridMatch.align(
+      kino: [
+        kino(block: 1, titled: 1, number: 1, title: "ITEM", runtime: 24),
+        kino(block: 1, titled: 1, number: 2, title: "Новобранка Сайай Кинухата", runtime: 24),
+        kino(block: 1, titled: 1, number: 3, title: "Пятая, Тёби Ханано", runtime: 24),
+        kino(block: 1, titled: 1, number: 4, title: "Четвёртая", runtime: 24),
+      ],
+      official: [
+        official(season: 1, number: 1, title: "ITEM", runtime: 24),
+        official(season: 1, number: 2, title: "Saiai Kinuhata - Newcomer", runtime: 25),
+        official(season: 1, number: 3, title: "Choubi Hanano - The Fifth", runtime: 23),
+        official(season: 1, number: 4, title: "The Fourth", runtime: 24),
+      ])
+    XCTAssertEqual(result.hits.count, 4)
+    XCTAssertTrue(result.unmatchedKino.isEmpty)
+    let rows = result.rows(for: 1)
+    XCTAssertEqual(rows.count, 4)
+    let holes = rows.filter {
+      if case .hole = $0 { return true }
+      return false
+    }
+    XCTAssertTrue(holes.isEmpty, "no false missing holes, got \(rows)")
+  }
+
   func testAYearIsNotASeasonIndex() {
     XCTAssertTrue(EpisodeGridMatch.isYear(2012))
     XCTAssertFalse(EpisodeGridMatch.isYear(14))

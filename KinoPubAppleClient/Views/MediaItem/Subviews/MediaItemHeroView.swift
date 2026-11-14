@@ -1606,8 +1606,25 @@ struct MediaItemHeroView: View {
     }
     let name = EpisodeTitle.meaningful(primaryEpisodeSchedule?.name)
       ?? EpisodeTitle.meaningful(episode.title)
-    var lead = name.map { String(format: "MediaItem_EpisodeLead".localized, episode.number, $0) }
-      ?? String(format: "MediaItem_EpisodeLeadNumber".localized, episode.number)
+    // Multi-season: «1 сезон, 8 серия: Title» — Sasha circled the missing season (2026-11-14).
+    let seasonCount = mediaItem.seasons?.count ?? 0
+    let seasonNumber = mediaItem.primaryEpisode.map {
+      $0.season.titleSeasonNumber ?? $0.season.number
+    }
+    var lead: String = {
+      if seasonCount > 1, let seasonNumber {
+        if let name {
+          return String(format: "MediaItem_EpisodeLeadWithSeason".localized,
+                        seasonNumber, episode.number, name)
+        }
+        return String(format: "MediaItem_EpisodeLeadSeasonNumber".localized,
+                      seasonNumber, episode.number)
+      }
+      if let name {
+        return String(format: "MediaItem_EpisodeLead".localized, episode.number, name)
+      }
+      return String(format: "MediaItem_EpisodeLeadNumber".localized, episode.number)
+    }()
     if let last = lead.last, !".!?…".contains(last) { lead += "." }
     let overview = primaryEpisodeSchedule?.overview?.trimmingCharacters(in: .whitespacesAndNewlines)
     return (lead, overview.flatMap { $0.isEmpty ? nil : $0 } ?? mediaItem.plot)

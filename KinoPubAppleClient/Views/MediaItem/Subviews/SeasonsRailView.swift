@@ -419,7 +419,10 @@ struct SeasonsRailView: View {
       case .missingSeasons(let from, let to, _, _, _):
         return SeasonTab(id: entry.id, first: from, last: to, status: .unavailable)
       case .upcomingSeason(let number, let date, _):
-        return SeasonTab(id: entry.id, first: number, last: number, status: .soon, premiereDate: date)
+        let episodes = externalMetadata.seasonSummaries
+          .first { $0.seasonNumber == number }?.episodeCount
+        return SeasonTab(id: entry.id, first: number, last: number, status: .soon,
+                         premiereDate: date, episodeCount: episodes)
       case .playable, .unavailable:
         return nil
       }
@@ -809,20 +812,26 @@ struct SeasonsRailView: View {
   }
 
   private func presentEpisodeInfo(episode: Episode, season: Season, schedule: EpisodeSchedule?) {
-    let schedule = Self.enrichedSchedule(schedule, from: officialEpisodes)
+    // Tabs already name the season — Info subtitle is «1 серия · 24 сен 2007», not
+    // «1 сезон, 1 серия» (Sasha, 2026-11-14). Hero lead carries the season when needed.
+    let schedule = Self.enrichedSchedule(schedule, from: officialEpisodes,
+                                         fallbackSeason: KinoPubMediaMapping.seasonNumber(season),
+                                         fallbackEpisode: episode.number)
     let name = Self.displayTitle(episode: episode, schedule: schedule)
-    let seasonNumber = seasons.count > 1
-      ? (tabs.first { $0.id == season.id }?.first ?? KinoPubMediaMapping.seasonNumber(season))
-      : nil
-    var episodeLine = EpisodeText(season: seasonNumber, number: episode.number,
-                                  seasonCount: seasons.count).formatted(.long)
+    var episodeLine = EpisodeText(season: nil, number: episode.number).formatted(.long)
     if schedule?.isSeasonFinale == true {
       episodeLine += " · \("MediaItem_SeasonFinale".localized)"
     }
     let air = schedule?.airDate.map { Self.absoluteAirDate($0, now: Date()) }
+    let runtime: String? = {
+      if let minutes = schedule?.runtime, minutes > 0 { return "\(minutes)м" }
+      if episode.duration >= 60 { return RuntimeText(seconds: episode.duration).text(for: .timeBadge) }
+      return nil
+    }()
     let rating = Self.ratingText(schedule)
     episodeInfoTitle = name.isEmpty ? episodeLine : name
-    episodeInfoSubtitle = ([name.isEmpty ? nil : episodeLine, air, rating] as [String?])
+    // Title sheet subtitle: episode · date · runtime (TMDB density floor).
+    episodeInfoSubtitle = ([name.isEmpty ? nil : episodeLine, air, runtime] as [String?])
       .compactMap { $0 }
       .joined(separator: " · ")
       .nilIfEmpty
@@ -838,6 +847,7 @@ struct SeasonsRailView: View {
       synopsis: synopsis,
       airDate: air,
       rating: rating,
+      runtime: runtime,
       audioLines: Self.audioLines(for: episode),
       subtitleNames: Self.subtitleNames(for: episode),
       qualityLines: Self.qualityLines(for: episode)
@@ -847,13 +857,25 @@ struct SeasonsRailView: View {
   }
 
   /// Prefer the full TMDB row (overview / votes) when the rail schedule lost them.
+  /// When the rail had no schedule (unmatched extra), still look up by season+number.
   private static func enrichedSchedule(_ schedule: EpisodeSchedule?,
-                                       from official: [EpisodeSchedule]) -> EpisodeSchedule? {
-    guard let schedule else { return nil }
+                                       from official: [EpisodeSchedule],
+                                       fallbackSeason: Int? = nil,
+                                       fallbackEpisode: Int? = nil) -> EpisodeSchedule? {
+    let seed = schedule ?? {
+      guard let fallbackEpisode else { return nil as EpisodeSchedule? }
+      if let fallbackSeason {
+        return official.first {
+          $0.seasonNumber == fallbackSeason && $0.episodeNumber == fallbackEpisode
+        }
+      }
+      let matches = official.filter { $0.episodeNumber == fallbackEpisode }
+      return matches.count == 1 ? matches[0] : nil
+    }()
+    guard var merged = seed else { return nil }
     guard let full = official.first(where: {
-      $0.seasonNumber == schedule.seasonNumber && $0.episodeNumber == schedule.episodeNumber
-    }) else { return schedule }
-    var merged = schedule
+      $0.seasonNumber == merged.seasonNumber && $0.episodeNumber == merged.episodeNumber
+    }) else { return merged }
     if merged.overview == nil || merged.overview?.isEmpty == true { merged.overview = full.overview }
     if merged.still == nil { merged.still = full.still }
     if merged.airDate == nil { merged.airDate = full.airDate }
@@ -861,11 +883,17 @@ struct SeasonsRailView: View {
     if merged.voteCount == nil { merged.voteCount = full.voteCount }
     if merged.runtime == nil { merged.runtime = full.runtime }
     if full.isSeasonFinale { merged.isSeasonFinale = true }
+    if merged.name == nil || merged.name?.isEmpty == true { merged.name = full.name }
     return merged
   }
 
+  /// TMDB-style percentage when we have a 0…10 average; else star score.
   private static func ratingText(_ schedule: EpisodeSchedule?) -> String? {
     guard let average = schedule?.voteAverage, average > 0 else { return nil }
+    if average <= 10 {
+      let percent = Int((average * 10).rounded())
+      return "\(percent)%"
+    }
     let score = String(format: average == floor(average) ? "%.0f" : "%.1f", average)
     if let count = schedule?.voteCount, count > 0 {
       return "★ \(score) (\(count))"
@@ -930,6 +958,7 @@ struct SeasonsRailView: View {
       title: seasonTitle(tabs: tabs),
       tabs: tabs.map { tab in
         TVSeasonTab(id: tab.id, label: tab.label, symbol: tab.status.symbol,
+                    detail: tab.status == .soon ? tab.premiereDateLabel : nil,
                     isAvailable: tab.status == .available, accessibilityLabel: tab.spokenLabel)
       },
       items: railItems.items,
@@ -1102,7 +1131,10 @@ struct SeasonsRailView: View {
     switch entry {
     case .playable(let season, let episode, let schedule):
       let name = Self.displayTitle(episode: episode, schedule: schedule)
-      let year = schedule?.airDate.map { String(Calendar.current.component(.year, from: $0)) }
+      // Under the tile: «1 серия · 24 сен» — season lives in the tabs (Sasha, 2026-11-14).
+      let dateCaption = schedule?.airDate.map { Self.absoluteAirDate($0, now: Date()) }
+      let episodeCaption = EpisodeText(season: nil, number: episode.number).formatted(.long)
+      let year = [episodeCaption, dateCaption].compactMap { $0 }.joined(separator: " · ")
       let duration = episode.duration >= 60 ? RuntimeText(seconds: episode.duration).text(for: .timeBadge) : nil
       // Worker `s=` is the kino.pub season index, never a year-in-the-title
       // (displaySeason → 2006 for title 17262 → not_found).
@@ -2012,6 +2044,7 @@ struct EpisodeInfoContent: Equatable {
   var synopsis: String?
   var airDate: String?
   var rating: String?
+  var runtime: String? = nil
   var audioLines: [String]
   var subtitleNames: [String]
   var qualityLines: [String]
@@ -2035,7 +2068,7 @@ private struct EpisodeInfoPopupContent: View {
         .accessibilityHidden(true)
       }
 
-      let facts = [content.airDate, content.rating].compactMap { $0 }
+      let facts = [content.airDate, content.runtime, content.rating].compactMap { $0 }
       if !facts.isEmpty {
         Text(facts.joined(separator: " · "))
           .font(InfoPopupMetrics.captionFont)

@@ -9782,6 +9782,40 @@
         }
       }
     },
+    "MediaItem_EpisodeLeadWithSeason" : {
+      "comment" : "Bold lead of the hero synopsis when the show has multiple seasons: season, episode, name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Season %1$lld, Episode %2$lld: %3$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld сезон, %2$lld серия: %3$@"
+          }
+        }
+      }
+    },
+    "MediaItem_EpisodeLeadSeasonNumber" : {
+      "comment" : "Bold lead of the hero synopsis when multi-season and the episode has no name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Season %1$lld, Episode %2$lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld сезон, %2$lld серия"
+          }
+        }
+      }
+    },
     "MediaItem_EpisodeLeadNumber" : {
       "comment" : "Bold lead of the hero synopsis when the episode has no name",
       "extractionState" : "manual",

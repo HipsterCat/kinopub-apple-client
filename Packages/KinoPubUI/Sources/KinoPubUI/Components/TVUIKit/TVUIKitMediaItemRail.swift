@@ -1129,6 +1129,11 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   }
 
   private func fallbackImage(for item: TVUIKitMediaItem) -> UIImage {
+    // Empty episode stills: quiet tertiary plate + muted SF Symbol — not bright
+    // secondaryLabel / label chrome on dark tvOS (Sasha, 2026-11-14).
+    if item.symbol == "play.rectangle.on.rectangle" {
+      return TVUIKitTileArtwork.iconicStill(traits: traitCollection)
+    }
     guard let tint = item.tint else { return TVUIKitTileArtwork.placeholder(traits: traitCollection) }
     // A channel plate is the logo's own colour, opaque, so the tile does not change
     // shade when the picture lands. Other drawn tiles stay the quieter wash.

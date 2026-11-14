@@ -39,18 +39,22 @@ import UIKit
 /// One stop on the tab row: a season, or a run of seasons standing in one place.
 public struct TVSeasonTab: Identifiable, Equatable {
   public let id: Int
-  /// «4», or «4–7» for a run.
+  /// «4», or «4–7» for a run; dated soon chips: the leading counter («8»).
   public let label: String
-  /// A glyph after the label — a clock for an announced season, a lock for one kino.pub lacks.
+  /// Calendar for announced, lock for missing. Dated soon chips put it between counter and `detail`.
   public let symbol: String?
+  /// Short premiere after the calendar on a soon chip («29 дек 2026»).
+  public let detail: String?
   /// False for a season with nothing to watch: its label is secondary at rest.
   public let isAvailable: Bool
   public let accessibilityLabel: String
 
-  public init(id: Int, label: String, symbol: String?, isAvailable: Bool, accessibilityLabel: String) {
+  public init(id: Int, label: String, symbol: String?, detail: String? = nil,
+              isAvailable: Bool, accessibilityLabel: String) {
     self.id = id
     self.label = label
     self.symbol = symbol
+    self.detail = detail
     self.isAvailable = isAvailable
     self.accessibilityLabel = accessibilityLabel
   }
@@ -581,6 +585,7 @@ final class TVSeasonTabCell: UICollectionViewListCell {
   private var font: UIFont = .preferredFont(forTextStyle: .headline)
 
   /// The label with its glyph as a character of the text, not a separate image view.
+  /// Dated soon: «8 📅 29 дек 2026» — counter, calendar, short date (Sasha, 2026-11-14).
   static func text(for tab: TVSeasonTab, font: UIFont) -> NSAttributedString {
     let text = NSMutableAttributedString(string: tab.label, attributes: [.font: font])
     if let symbol = tab.symbol,
@@ -588,6 +593,9 @@ final class TVSeasonTabCell: UICollectionViewListCell {
                            withConfiguration: UIImage.SymbolConfiguration(textStyle: .footnote)) {
       text.append(NSAttributedString(string: " ", attributes: [.font: font]))
       text.append(NSAttributedString(attachment: NSTextAttachment(image: image.withRenderingMode(.alwaysTemplate))))
+    }
+    if let detail = tab.detail, !detail.isEmpty {
+      text.append(NSAttributedString(string: " \(detail)", attributes: [.font: font]))
     }
     return text
   }

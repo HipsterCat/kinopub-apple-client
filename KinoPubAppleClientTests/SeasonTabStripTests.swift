@@ -28,15 +28,22 @@ final class SeasonTabStripTests: XCTestCase {
     XCTAssertEqual(tab(-2, 4, 35, .unavailable).label, "4–35")
   }
 
-  /// Soon pills with a premiere prefer the full calendar date («27 июля 2027»), not «N».
-  func testSoonPillPrefersFullPremiereDate() {
+  /// Dated soon pills: episode-count (or season) counter first; short date beside calendar.
+  func testSoonPillCounterThenShortDate() {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 0)!
     let date = calendar.date(from: DateComponents(year: 2027, month: 7, day: 27))!
-    let soon = SeasonTab(id: -3, first: 4, last: 4, status: .soon, premiereDate: date)
-    XCTAssertEqual(soon.label, soon.premiereDateLabel)
+    let soon = SeasonTab(id: -3, first: 4, last: 4, status: .soon,
+                         premiereDate: date, episodeCount: 8)
+    XCTAssertEqual(soon.label, "8")
+    XCTAssertEqual(soon.soonCounter, "8")
     XCTAssertNotNil(soon.premiereDateLabel)
     XCTAssertTrue(soon.premiereDateLabel?.contains("2027") == true)
+    // Template form appends Russian «г.» — forced short format must not.
+    XCTAssertFalse(soon.premiereDateLabel?.contains("г.") == true)
+    XCTAssertFalse(soon.premiereDateLabel?.contains("July") == true)
+    let noCount = SeasonTab(id: -4, first: 4, last: 4, status: .soon, premiereDate: date)
+    XCTAssertEqual(noCount.label, "4")
   }
 
   func testOnlySeasonsNotOnKinoPubCarryAGlyph() {

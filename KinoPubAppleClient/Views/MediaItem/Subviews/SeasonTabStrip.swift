@@ -39,38 +39,51 @@ struct SeasonTab: Identifiable, Equatable {
   let first: Int
   let last: Int
   let status: Status
-  /// Announced premiere for `.soon` pills — full date after the calendar glyph.
+  /// Announced premiere for `.soon` pills — short date after the calendar glyph.
   let premiereDate: Date?
+  /// Episode count for a soon chip's leading counter («8 📅 29 дек 2026»). Nil → season number.
+  let episodeCount: Int?
 
-  init(id: Int, first: Int, last: Int, status: Status, premiereDate: Date? = nil) {
+  init(id: Int, first: Int, last: Int, status: Status,
+       premiereDate: Date? = nil, episodeCount: Int? = nil) {
     self.id = id
     self.first = first
     self.last = last
     self.status = status
     self.premiereDate = premiereDate
+    self.episodeCount = episodeCount
   }
 
-  /// Full localized premiere for a soon pill («27 июля 2027»).
+  /// Short localized premiere for a soon pill («29 дек. 2026»), not template «… г.».
+  /// Forced `dateFormat` keeps locale month names without the Russian year suffix.
   var premiereDateLabel: String? {
     guard let premiereDate else { return nil }
     let formatter = DateFormatter()
-    formatter.setLocalizedDateFormatFromTemplate("d MMMM yyyy")
+    formatter.locale = .current
+    formatter.dateFormat = "d MMM yyyy"
     return formatter.string(from: premiereDate)
   }
 
-  /// "4", or "19–20" for a run. Soon tabs with a known date prefer the date (calendar
-  /// glyph still comes from `status.symbol`).
+  /// Leading counter on a dated soon chip: episode count when known, else the season number.
+  var soonCounter: String? {
+    guard status == .soon, premiereDate != nil else { return nil }
+    if let episodeCount { return "\(episodeCount)" }
+    return first == last ? "\(first)" : "\(first)–\(last)"
+  }
+
+  /// "4", or "19–20" for a run. Dated soon chips show the counter only — calendar + short
+  /// date are composed beside it in `SeasonPill` / `TVSeasonTabCell` (Sasha, 2026-11-14).
   var label: String {
-    if status == .soon, let premiereDateLabel { return premiereDateLabel }
+    if let soonCounter { return soonCounter }
     return first == last ? "\(first)" : "\(first)–\(last)"
   }
 
   /// The selected pill's text: «1 сезон» / "Season 1" for one season, the run as it is.
-  /// Soon with a date: calendar + full date stays — not «N сезон» from a rename.
+  /// Dated soon chips keep the counter form — not «N сезон» from a rename.
   /// It stands in for the word «Сезон» the line used to start with, which scrolled away
   /// with the pills (Sasha, 2026-11-10).
   var selectedLabel: String {
-    if status == .soon, let premiereDateLabel { return premiereDateLabel }
+    if soonCounter != nil { return label }
     return first == last ? SeasonText(first).formatted(.long) : label
   }
 
@@ -316,9 +329,9 @@ struct SeasonPill: View {
   private var label: Text {
     let text = isSelected ? tab.selectedLabel : tab.label
     guard let symbol = tab.status.symbol else { return Text(verbatim: text) }
-    // Calendar first for soon pills with a date; number-first otherwise.
-    if tab.status == .soon, tab.premiereDate != nil {
-      return Text("\(Image(systemName: symbol)) \(text)")
+    // Dated soon: «8 📅 29 дек 2026» — counter, calendar, short date (Sasha, 2026-11-14).
+    if tab.status == .soon, let date = tab.premiereDateLabel {
+      return Text("\(text) \(Image(systemName: symbol)) \(date)")
     }
     // Same font as the number: a smaller one sat on its own baseline, a second label
     // (Sasha, 2026-10-30). `.imageScale(.small)` on the pill keeps it a mark, not a word.
