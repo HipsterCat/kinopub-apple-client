@@ -253,7 +253,10 @@ public extension TVUIKitMediaItem {
   /// `stackedCaption` is the Library's still grid: the card's own title and subtitle
   /// as the system's two text lines, no overlay packing. Home's rail stays one line.
   init(card: MediaCard, stackedCaption: Bool) {
-    let art = card.landscapeImageURL ?? card.backdropURL ?? card.posterURL
+    // Tile art is the landscape still when the card has one, else the poster.
+    // Never the focus backdrop alone — that made debug menus say `/poster/…` while
+    // the tile painted `/wide/…` (Sasha, 2026-11-14).
+    let art = card.landscapeImageURL ?? card.posterURL
     let status = Self.status(for: card)
     let subtitle = card.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines)
     // Playable landscape tiles (Continue, History, DV, episode rails that use `init(card:)`)
@@ -1129,6 +1132,11 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   }
 
   private func fallbackImage(for item: TVUIKitMediaItem) -> UIImage {
+    // YouTube trailers with no still: brand mark, not a generic play SF Symbol
+    // (Sasha, 2026-11-14).
+    if item.focusGlyph == .youtube {
+      return TVUIKitTileArtwork.youTubeStill(traits: traitCollection)
+    }
     // Empty episode stills: quiet tertiary plate + muted SF Symbol — not bright
     // secondaryLabel / label chrome on dark tvOS (Sasha, 2026-11-14).
     if item.symbol == "play.rectangle.on.rectangle" {

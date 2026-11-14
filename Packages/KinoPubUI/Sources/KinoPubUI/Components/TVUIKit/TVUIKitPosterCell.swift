@@ -236,11 +236,20 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
       ArtworkLog.skipped(by: "poster", reason: "no artwork URL")
       return
     }
+    // A /wide/ path in the poster slot letterboxes landscape pixels into 2:3 —
+    // the "poster URL drawn as wide" lie (Sasha, 2026-11-14).
+    if Self.isWidePosterPath(url) {
+      posterView.image = nil
+      placeholderPanel.isHidden = false
+      ArtworkLog.skipped(by: "poster", reason: "wide path in poster lockup")
+      return
+    }
     // Recycled tiles repaint in this frame instead of showing the placeholder and
     // re-downloading art that was on screen a moment ago. The only piece of the
     // 2026-08-11 poster experiment kept after the revert — it changes nothing visually
     // except that the tile stops going blank.
-    if let hit = TVUIKitRemoteImage.cached(url: url, size: posterSize, mode: .fit) {
+    if let hit = TVUIKitRemoteImage.cached(url: url, size: posterSize, mode: .fit),
+       Self.isPortraitPoster(hit) {
       posterView.image = hit
       placeholderPanel.isHidden = true
       ArtworkLog.servedFromMemory(url, by: "poster")
@@ -254,10 +263,22 @@ public final class TVUIKitPosterCell: UICollectionViewCell {
       let image = await TVUIKitRemoteImage.load(url: url, size: size, mode: .fit)
       await MainActor.run {
         guard let self, self.currentURL == url else { return }
-        self.posterView.image = image
-        self.placeholderPanel.isHidden = image != nil
+        let usable = image.flatMap { Self.isPortraitPoster($0) ? $0 : nil }
+        self.posterView.image = usable
+        self.placeholderPanel.isHidden = usable != nil
       }
     }
+  }
+
+  /// Portrait (or near-square) only — landscape bitmaps in a 2:3 lockup are a lie.
+  private static func isPortraitPoster(_ image: UIImage) -> Bool {
+    let size = image.size
+    guard size.height > 1 else { return false }
+    return size.width / size.height <= 0.95
+  }
+
+  private static func isWidePosterPath(_ url: URL) -> Bool {
+    url.path.contains("/item/wide/")
   }
 
   public override func prepareForReuse() {

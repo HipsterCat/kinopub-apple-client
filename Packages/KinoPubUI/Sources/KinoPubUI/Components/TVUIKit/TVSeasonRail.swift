@@ -356,8 +356,13 @@ public final class TVSeasonRailController: UIViewController {
     guard let index = selectedTabIndex else { return }
     let path = IndexPath(item: index, section: 1)
     guard tabsView.numberOfSections > 1, tabsView.numberOfItems(inSection: 1) > index else { return }
+    // Center the selected pill — otherwise a 12+ season strip leaves the active
+    // tab off-screen with empty-looking space to the right (Sasha, 2026-11-14).
     if tabsView.indexPathsForSelectedItems?.first != path {
-      tabsView.selectItem(at: path, animated: false, scrollPosition: [])
+      tabsView.selectItem(at: path, animated: hasHadFocus,
+                          scrollPosition: .centeredHorizontally)
+    } else {
+      tabsView.scrollToItem(at: path, at: .centeredHorizontally, animated: hasHadFocus)
     }
   }
 
