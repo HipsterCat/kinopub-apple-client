@@ -621,17 +621,21 @@ class MediaItemModel: ObservableObject {
   }
 
   /// TMDB season numbers still needed for this kino block. A mapped block loads one
-  /// season; an unmapped / year-titled block loads every remaining summary season once.
+  /// season. Unmapped / year-titled never loads every remaining summary — that was the
+  /// 15-season hang on open (Sasha, 2026-11-14). Guess one season by episode count, or
+  /// the same index when TMDB has it; otherwise wait for the next tab.
   private func officialSeasonsToFetch(forKinoSeason kinoNumber: Int?) -> Set<Int> {
     var candidates: [Int] = []
     if let kinoNumber, let tmdb = tmdbSeasonNumber(forKinoSeason: kinoNumber) {
       candidates = [tmdb]
-    } else {
-      var numbers = externalMetadata.seasonSummaries.map(\.seasonNumber)
-      if numbers.isEmpty {
-        numbers = (mediaItem.seasons ?? []).map(\.number)
+    } else if let kinoNumber {
+      let summaries = externalMetadata.seasonSummaries.map {
+        (number: $0.seasonNumber, episodeCount: $0.episodeCount)
       }
-      candidates = numbers.filter { $0 >= 0 }
+      candidates = TMDBSeasonMatch.unmappedSeasonCandidates(
+        kinoNumber: kinoNumber,
+        kinoEpisodeCount: kinoSeason(for: kinoNumber)?.episodes.count,
+        summaries: summaries)
     }
     return Set(candidates).subtracting(loadedOfficialSeasonNumbers)
   }

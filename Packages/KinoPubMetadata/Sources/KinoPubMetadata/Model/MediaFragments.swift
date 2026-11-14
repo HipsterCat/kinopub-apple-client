@@ -92,4 +92,20 @@ public enum TMDBSeasonMatch {
     if tmdbSeasons.isEmpty || tmdbSeasons.contains(kinoNumber) { return kinoNumber }
     return nil
   }
+
+  /// One TMDB season for an unmapped kino block — never every remaining summary
+  /// (15-season hang on open, Sasha 2026-11-14).
+  public static func unmappedSeasonCandidates(kinoNumber: Int,
+                                              kinoEpisodeCount: Int?,
+                                              summaries: [(number: Int, episodeCount: Int?)]) -> [Int] {
+    let open = summaries.filter { $0.number >= 0 }
+    if let count = kinoEpisodeCount, count > 0,
+       let hit = open.first(where: { $0.episodeCount == count }) {
+      return [hit.number]
+    }
+    if open.contains(where: { $0.number == kinoNumber }) {
+      return [kinoNumber]
+    }
+    return []
+  }
 }

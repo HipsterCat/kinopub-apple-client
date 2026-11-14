@@ -242,4 +242,17 @@ final class MediaTextTests: XCTestCase {
     XCTAssertEqual(HistoryDayText(older).formatted(language: .en, calendar: calendar, now: now),
                    "10 September 2026")
   }
+
+  func testMultiSeasonShortKeepsSeason() {
+    let text = EpisodeText(season: 1, number: 6)
+    XCTAssertEqual(text.formatted(.short, language: .ru), "1 сезон, 6 серия")
+    XCTAssertEqual(text.formatted(.short, language: .en), "S1, E6")
+  }
+
+  func testListItemDropsSeasonEvenWhenSet() {
+    // episodeTile surface uses listItem — rail captions must not rely on it for
+    // multi-season «N сезон, M серия»; they format(.short) instead.
+    XCTAssertEqual(EpisodeText(season: 2, number: 7).listItem(language: .ru), "7 серия")
+  }
+
 }

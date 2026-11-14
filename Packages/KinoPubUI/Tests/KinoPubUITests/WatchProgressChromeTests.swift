@@ -58,6 +58,23 @@ final class LandscapeTimeBadgeTests: XCTestCase {
       return XCTFail("expected unwatched, got \(String(describing: badge?.kind))")
     }
   }
+
+  /// macOS rest: duration off, watched check stays (checklist).
+  func testMacRestHidesDurationKeepsWatched() {
+    let badge = LandscapeTimeBadge(
+      durationSeconds: 3600, progress: nil, isWatched: true, includeDuration: false)
+    guard case .watched(let total) = badge?.kind else {
+      return XCTFail("expected watched, got \(String(describing: badge?.kind))")
+    }
+    XCTAssertEqual(total, "")
+  }
+
+  /// macOS rest: unwatched with no progress has no duration chip until hover.
+  func testMacRestHidesUnwatchedDuration() {
+    let badge = LandscapeTimeBadge(
+      durationSeconds: 3600, progress: nil, isWatched: false, includeDuration: false)
+    XCTAssertNil(badge)
+  }
 }
 
 // `TVUIKitMediaItem` lives behind `#if os(tvOS)`, so these cases cannot compile on the
@@ -90,6 +107,14 @@ final class TVUIKitMediaItemStatusTests: XCTestCase {
                          progress: 0.5,
                          isSeries: true)
     XCTAssertEqual(TVUIKitMediaItem.status(for: card), .ready)
+  }
+
+  func testPlayableCardGetsFocusPlayGlyph() {
+    let card = MediaCard(id: 1, posterURL: "", title: "A",
+                         landscapeImageURL: "https://example.com/w.jpg",
+                         video: 1)
+    let item = TVUIKitMediaItem(card: card)
+    XCTAssertEqual(item.focusGlyph, .play)
   }
 }
 #endif

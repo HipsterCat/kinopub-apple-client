@@ -1035,7 +1035,15 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
     if let updated = config.updated(for: state) as? TVMediaItemContentConfiguration {
       config = updated
     }
-    config.image = artwork ?? fallbackImage(for: item)
+    // Focused playable empty stills: quiet plate without the iconic SF Symbol so the
+    // centre glass Play is the only affordance (Sasha — trailers had it, episodes looked
+    // like the placeholder glyph was "already playing").
+    if artwork == nil, state.isFocused, item.focusGlyph == .play,
+       item.symbol == "play.rectangle.on.rectangle" {
+      config.image = TVUIKitTileArtwork.placeholder(traits: traitCollection)
+    } else {
+      config.image = artwork ?? fallbackImage(for: item)
+    }
     // `text` is the line *under* the tile, always visible. Secondary at rest, label
     // when focused (CURRENT.md caption law); the configuration's default is white
     // regardless of appearance, which is what read as "always white, with a shadow".
