@@ -84,6 +84,23 @@ public enum MediaCardProgressVisibility: String, CaseIterable, Identifiable, Sen
   }
 }
 
+/// When poster / caption rating chrome is drawn.
+public enum MediaCardRatingVisibility: String, CaseIterable, Identifiable, Sendable {
+  case always
+  case onFocusHover
+  case hotOnly
+
+  public var id: String { rawValue }
+
+  public var titleKey: String {
+    switch self {
+    case .always: return "Always"
+    case .onFocusHover: return "On hover / focus"
+    case .hotOnly: return "Only high ratings"
+    }
+  }
+}
+
 /// Catalog / shelf card chrome preferences.
 public enum MediaCardDisplayPreferences {
 
@@ -91,6 +108,12 @@ public enum MediaCardDisplayPreferences {
 
   public static let ratingPlacementKey = "card.ratingPlacement"
   public static let ratingSourceKey = "card.ratingSource"
+  public static let ratingVisibilityKey = "card.ratingVisibility"
+  public static let showVoteCountKey = "card.showVoteCount"
+  public static let showIMDbRatingKey = "card.showIMDbRating"
+  public static let showKinopoiskRatingKey = "card.showKinopoiskRating"
+  public static let sortRatingsByVotesKey = "card.sortRatingsByVotes"
+  public static let fadedRatingIconsKey = "card.fadedRatingIcons"
   public static let capabilityPlacementKey = "card.capabilityPlacement"
   public static let show4KKey = "card.show4K"
   public static let showHDRKey = "card.showHDR"
@@ -114,6 +137,12 @@ public enum MediaCardDisplayPreferences {
 
   public static let defaultRatingPlacement: MediaCardChromePlacement = .onArtwork
   public static let defaultRatingSource: MediaCardRatingSource = .combined
+  public static let defaultRatingVisibility: MediaCardRatingVisibility = .always
+  public static let defaultShowVoteCount = true
+  public static let defaultShowIMDbRating = true
+  public static let defaultShowKinopoiskRating = true
+  public static let defaultSortRatingsByVotes = true
+  public static let defaultFadedRatingIcons = false
   public static let defaultCapabilityPlacement: MediaCardChromePlacement = .onArtwork
   public static let defaultShow4K = false
   public static let defaultShowHDR = false
@@ -142,6 +171,30 @@ public enum MediaCardDisplayPreferences {
       return value
     }
     return defaultRatingSource
+  }
+
+  public static var ratingVisibility: MediaCardRatingVisibility {
+    if let raw = UserDefaults.standard.string(forKey: ratingVisibilityKey),
+       let value = MediaCardRatingVisibility(rawValue: raw) {
+      return value
+    }
+    return defaultRatingVisibility
+  }
+
+  public static var showVoteCount: Bool {
+    bool(forKey: showVoteCountKey, default: defaultShowVoteCount)
+  }
+  public static var showIMDbRating: Bool {
+    bool(forKey: showIMDbRatingKey, default: defaultShowIMDbRating)
+  }
+  public static var showKinopoiskRating: Bool {
+    bool(forKey: showKinopoiskRatingKey, default: defaultShowKinopoiskRating)
+  }
+  public static var sortRatingsByVotes: Bool {
+    bool(forKey: sortRatingsByVotesKey, default: defaultSortRatingsByVotes)
+  }
+  public static var fadedRatingIcons: Bool {
+    bool(forKey: fadedRatingIconsKey, default: defaultFadedRatingIcons)
   }
 
   public static var capabilityPlacement: MediaCardChromePlacement {

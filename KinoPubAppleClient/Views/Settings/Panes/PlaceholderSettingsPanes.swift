@@ -39,6 +39,18 @@ struct AppearanceSettingsPane: View {
   private var ratingPlacement = MediaCardDisplayPreferences.defaultRatingPlacement.rawValue
   @AppStorage(MediaCardDisplayPreferences.ratingSourceKey)
   private var ratingSource = MediaCardDisplayPreferences.defaultRatingSource.rawValue
+  @AppStorage(MediaCardDisplayPreferences.ratingVisibilityKey)
+  private var ratingVisibility = MediaCardDisplayPreferences.defaultRatingVisibility.rawValue
+  @AppStorage(MediaCardDisplayPreferences.showVoteCountKey)
+  private var showVoteCount = MediaCardDisplayPreferences.defaultShowVoteCount
+  @AppStorage(MediaCardDisplayPreferences.showIMDbRatingKey)
+  private var showIMDbRating = MediaCardDisplayPreferences.defaultShowIMDbRating
+  @AppStorage(MediaCardDisplayPreferences.showKinopoiskRatingKey)
+  private var showKinopoiskRating = MediaCardDisplayPreferences.defaultShowKinopoiskRating
+  @AppStorage(MediaCardDisplayPreferences.sortRatingsByVotesKey)
+  private var sortRatingsByVotes = MediaCardDisplayPreferences.defaultSortRatingsByVotes
+  @AppStorage(MediaCardDisplayPreferences.fadedRatingIconsKey)
+  private var fadedRatingIcons = MediaCardDisplayPreferences.defaultFadedRatingIcons
   @AppStorage(MediaCardDisplayPreferences.capabilityPlacementKey)
   private var capabilityPlacement = MediaCardDisplayPreferences.defaultCapabilityPlacement.rawValue
   @AppStorage(MediaCardDisplayPreferences.show4KKey)
@@ -102,10 +114,8 @@ struct AppearanceSettingsPane: View {
         Text("Settings_Tip_Covers")
       }
 
-      // Both controls only choose how the combined plaque is drawn — with the
-      // aggregate off there is nothing for them to place, so the section goes with it.
-      if FeatureFlags.combinedRatingEnabled {
-        Section {
+      Section {
+        if FeatureFlags.combinedRatingEnabled {
           Picker("Rating", selection: $ratingPlacement) {
             ForEach(MediaCardChromePlacement.allCases) { placement in
               Text(LocalizedStringKey(placement.titleKey)).tag(placement.rawValue)
@@ -117,11 +127,37 @@ struct AppearanceSettingsPane: View {
             }
           }
           .disabled(ratingPlacement == MediaCardChromePlacement.hidden.rawValue)
-        } header: {
-          Text("Poster score")
-        } footer: {
-          Text("On poster uses the coloured plaque. Under title shows IMDb / Kinopoisk logos separately.")
         }
+        Picker("When to show", selection: $ratingVisibility) {
+          ForEach(MediaCardRatingVisibility.allCases) { visibility in
+            Text(LocalizedStringKey(visibility.titleKey)).tag(visibility.rawValue)
+          }
+        }
+        .disabled(FeatureFlags.combinedRatingEnabled
+          && ratingPlacement == MediaCardChromePlacement.hidden.rawValue)
+        Toggle("Show vote count", isOn: $showVoteCount)
+          .disabled(FeatureFlags.combinedRatingEnabled
+            && ratingPlacement == MediaCardChromePlacement.hidden.rawValue)
+        Toggle("Show IMDb", isOn: $showIMDbRating)
+          .disabled(FeatureFlags.combinedRatingEnabled
+            && ratingPlacement == MediaCardChromePlacement.hidden.rawValue)
+        Toggle("Show Kinopoisk", isOn: $showKinopoiskRating)
+          .disabled(FeatureFlags.combinedRatingEnabled
+            && ratingPlacement == MediaCardChromePlacement.hidden.rawValue)
+        Toggle("Sort by vote count", isOn: $sortRatingsByVotes)
+          .disabled(FeatureFlags.combinedRatingEnabled
+            && ratingPlacement == MediaCardChromePlacement.hidden.rawValue)
+        Toggle("Faded rating icons", isOn: $fadedRatingIcons)
+          .disabled(
+            (FeatureFlags.combinedRatingEnabled
+              && ratingPlacement == MediaCardChromePlacement.hidden.rawValue)
+            || (FeatureFlags.combinedRatingEnabled
+              && ratingPlacement == MediaCardChromePlacement.onArtwork.rawValue)
+          )
+      } header: {
+        Text("Poster score")
+      } footer: {
+        Text("On poster uses the coloured plaque. Under title shows IMDb / Kinopoisk logos separately. High ratings are green or gold.")
       }
 
       Section {

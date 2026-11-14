@@ -192,20 +192,25 @@ final class RatingTests: XCTestCase {
 
   func testCompactCountRoundsAndUsesLatinSuffixes() {
     XCTAssertEqual(CompactCountFormat.string(999), "999")
-    XCTAssertEqual(CompactCountFormat.string(1_000), "1k")
-    XCTAssertEqual(CompactCountFormat.string(12_000), "12k")
-    XCTAssertEqual(CompactCountFormat.string(554_600), "554.6k")
+    XCTAssertEqual(CompactCountFormat.string(1_000), "1K")
+    XCTAssertEqual(CompactCountFormat.string(9_400), "9.4K")
+    // From 10K: no decimals.
+    XCTAssertEqual(CompactCountFormat.string(10_000), "10K")
+    XCTAssertEqual(CompactCountFormat.string(12_000), "12K")
+    XCTAssertEqual(CompactCountFormat.string(554_600), "555K")
     XCTAssertEqual(CompactCountFormat.string(1_100_000), "1.1M")
+    XCTAssertEqual(CompactCountFormat.string(1_450_000), "1.45M")
     XCTAssertEqual(CompactCountFormat.string(15_560_000), "15.56M")
     XCTAssertEqual(CompactCountFormat.string(999_950), "1M")
     // Truncation used to print "1M" for 1.1M and "15M" for 15.56M.
     XCTAssertEqual(MediaScoreItem(source: .imdb, score: 8.0, votes: 1_100_000).votesCompact, "1.1M")
     XCTAssertEqual(MediaScoreItem(source: .imdb, score: 8.0, votes: 15_560_000).votesCompact, "15.56M")
+    XCTAssertEqual(MediaScores.formatVotesWholeThousands(12_400), "12K")
   }
 
   func testCompactViewCountKeepsFullUnderHundredThousand() {
     XCTAssertEqual(CompactCountFormat.views(99_999),
                    99_999.formatted(.number.grouping(.automatic)))
-    XCTAssertEqual(CompactCountFormat.views(554_600), "554.6k")
+    XCTAssertEqual(CompactCountFormat.views(554_600), "555K")
   }
 }
