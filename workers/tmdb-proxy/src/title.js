@@ -249,23 +249,24 @@ const TVOE_WIDTHS = [
 // the file we know about is within MAX_WIDTH (or the kind's originals are not
 // the multi-thousand-pixel backdrops).
 //
-// Thumbnail (episode still) ladder: still_sizes stop at w300, but the CDN also
-// serves backdrop widths and the face crops TMDB's own site uses for stills
-// (measured 2026-11-14). Without those, any w>300 fell through to original
-// (1920×1080) — only w=300 looked sized.
+// The CDN serves the same width tokens for logo / poster / backdrop / still
+// paths (measured 2026-11-14: w45…w1920 and face crops all 200). One ladder.
+const TMDB_WIDTHS = [45, 92, 154, 185, 227, 300, 320, 342, 454, 500, 780, 1280, 1920];
 const TMDB_LADDER = {
-  logo: [45, 92, 154, 185, 300, 500],
-  poster: [92, 154, 185, 342, 500, 780],
-  backdrop: [300, 780, 1280],
-  thumbnail: [92, 185, 227, 300, 454, 780, 1280],
+  logo: TMDB_WIDTHS,
+  poster: TMDB_WIDTHS,
+  backdrop: TMDB_WIDTHS,
+  thumbnail: TMDB_WIDTHS,
 };
 const TMDB_ORIGINAL_IF_WIDTH_UNKNOWN = new Set(["logo", "poster", "thumbnail"]);
-// Width → CDN size token. Missing entries use `w{n}`. Face crops match the
-// widths the Apple TV / TMDB episode stills ship at (~227 / ~454).
+// Width → CDN size token. Missing entries use `w{n}`. Face crops keep episode
+// stills 16:9; logos/posters/backdrops stay on plain `w{n}` (also 200 on CDN).
 const TMDB_SIZE_TOKEN = {
   thumbnail: {
     227: "w227_and_h127_bestv2",
+    320: "w320_and_h180_face",
     454: "w454_and_h254_face",
+    1920: "w1920_and_h1080_face",
   },
 };
 // kinopoiskapiunofficial.tech, measured: kp 667×1000, kp_small 360×540.
@@ -1234,7 +1235,7 @@ function selectQueryAsset(document, request, hints) {
   }
   if (kind === "poster" && s != null) {
     if (!document) return null;
-    return seasonPosterAsset(document, s);
+    return seasonPosterAsset(document, s, lang || "ru");
   }
   if (kind === "backdrop") {
     if (!document) return null;
@@ -1289,12 +1290,33 @@ function textlessBackdrops(document) {
       && isWideFrame(asset));
 }
 
-function seasonPosterAsset(document, seasonNumber) {
+function seasonPosterAsset(document, seasonNumber, lang = "ru") {
   const season = (document.seasons || []).find((item) => Number(item.number) === seasonNumber);
   if (!season) return null;
   const raw = season.poster || season.artwork?.poster;
+  if (!raw) return null;
   if (Array.isArray(raw)) {
-    return dropKinopub(bestAsset(raw.map(normalizeAsset).filter(Boolean), "poster", "ru"));
+    // Prefer the asked language, then ru / en / textless — a Russian request must
+    // not 404 when only an English or und season poster exists.
+    return dropKinopub(bestAsset(raw.map(normalizeAsset).filter(Boolean), "poster", lang));
+  }
+  // mergeLangPoster / title resolve store `{ ru: url, en: url }`, not a file asset.
+  if (typeof raw === "object" && !raw.url && !raw.file_path) {
+    const order = [];
+    for (const key of [lang, "ru", "en", "und", null]) {
+      if (key !== undefined && !order.includes(key)) order.push(key);
+    }
+    for (const key of order) {
+      const value = key == null ? (raw.und ?? raw[""]) : raw[key];
+      if (!value) continue;
+      const asset = dropKinopub(normalizeAsset(value));
+      if (asset) return { ...asset, lang: key === "und" ? null : key };
+    }
+    for (const [key, value] of Object.entries(raw)) {
+      const asset = dropKinopub(normalizeAsset(value));
+      if (asset) return { ...asset, lang: key === "und" ? null : key };
+    }
+    return null;
   }
   return dropKinopub(normalizeAsset(raw));
 }
