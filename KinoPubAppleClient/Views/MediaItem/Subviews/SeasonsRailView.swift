@@ -898,10 +898,12 @@ struct SeasonsRailView: View {
       let name = Self.displayTitle(episode: episode, schedule: schedule)
       let year = schedule?.airDate.map { String(Calendar.current.component(.year, from: $0)) }
       let duration = episode.duration >= 60 ? RuntimeText(seconds: episode.duration).text(for: .timeBadge) : nil
-      let displaySeason = gridAlignment.displaySeason(blockID: season.id, titledNumber: season.titleSeasonNumber)
-        ?? KinoPubMediaMapping.seasonNumber(season)
-      let still = stillURL(episode: episode, schedule: schedule, seasonNumber: displaySeason)
+      // Worker `s=` is the kino.pub season index, never a year-in-the-title
+      // (displaySeason → 2006 for title 17262 → not_found).
+      let still = stillURL(episode: episode, schedule: schedule, seasonNumber: season.number)
+      let kinopubStill = episode.thumbnail.isEmpty ? nil : URL(string: episode.thumbnail)
       return RivuletRailItem(id: entry.id, tabID: entry.tabID, divider: divider, stillURL: still,
+                             fallbackStillURL: still == kinopubStill ? nil : kinopubStill,
                              duration: duration,
                              eyebrow: EpisodeText(season: nil, number: episode.number).formatted(.long).uppercased(),
                              title: name.isEmpty ? EpisodeText(season: nil, number: episode.number).formatted(.long) : name,
@@ -1449,15 +1451,14 @@ struct SeasonsRailView: View {
                     schedule: EpisodeSchedule?,
                     fallbackStill: URL? = nil,
                     primaryAction: MediaCardPrimaryAction = .play) -> MediaCard {
-    let displaySeason = gridAlignment.displaySeason(blockID: season.id, titledNumber: season.titleSeasonNumber)
-      ?? KinoPubMediaMapping.seasonNumber(season)
+    let worker = stillURL(episode: episode, schedule: schedule, seasonNumber: season.number)
+    let kinopub = episode.thumbnail.isEmpty ? nil : episode.thumbnail
     return MediaCard(episode: episode,
               in: season,
               title: Self.displayTitle(episode: episode, schedule: schedule),
               episodeLabel: Self.episodeLabel(number: episode.number),
               dateLabel: Self.dateLabel(episode: episode, schedule: schedule),
-              stillURL: stillURL(episode: episode, schedule: schedule, seasonNumber: displaySeason)?.absoluteString
-                ?? fallbackStill?.absoluteString,
+              stillURL: worker?.absoluteString ?? kinopub ?? fallbackStill?.absoluteString,
               primaryAction: primaryAction)
   }
 
@@ -1467,9 +1468,11 @@ struct SeasonsRailView: View {
     EpisodeTitle.meaningful(episode.title) ?? EpisodeTitle.meaningful(schedule?.name) ?? ""
   }
 
-  /// Worker route first (logo-parity), then a still metadata already carries, then
-  /// kino.pub's own thumb. Width is rounded like season posters so a resize does
-  /// not ask the worker for a new file on every layout pass.
+  /// Worker route first (logo-parity). `seasonNumber` must be the kino.pub block
+  /// index (`season.number`), not a year parsed from the title. Width is rounded
+  /// like season posters so a resize does not ask the worker for a new file on
+  /// every layout pass. Callers that can try a second URL pass kino.pub's thumb
+  /// as `fallbackStillURL`.
   private func stillURL(episode: Episode, schedule: EpisodeSchedule?,
                         seasonNumber: Int) -> URL? {
     let pixels = Int((cardWidth * displayScale / 100).rounded(.up)) * 100
