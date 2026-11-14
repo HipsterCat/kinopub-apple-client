@@ -32,7 +32,16 @@ public enum TMDBImageURL {
   /// worker's `/t/p/…` forwarder — the same hop portraits use — so a DNS hijack of
   /// that host does not blank the page. Anything else (Kinopoisk, tvoe) stays as given.
   public static func proxied(_ absolute: String?, proxyBase: URL?) -> URL? {
-    guard let absolute, !absolute.isEmpty, var url = URL(string: absolute) else { return nil }
+    guard let absolute, !absolute.isEmpty else { return nil }
+    // Worker card / seasons stills are `/img/thumbnail/by/kinopub/…` — join them
+    // to the proxy host the same way logo URLs are built from TitleImageRoute.
+    if absolute.hasPrefix("/img/"), let proxyBase {
+      let base = proxyBase.absoluteString.hasSuffix("/")
+        ? String(proxyBase.absoluteString.dropLast())
+        : proxyBase.absoluteString
+      return URL(string: base + absolute)
+    }
+    guard var url = URL(string: absolute) else { return nil }
     guard let proxyBase, url.host == "image.tmdb.org" else { return url }
     guard url.path.hasPrefix("/t/p/") else { return url }
     let base = proxyBase.absoluteString.hasSuffix("/")

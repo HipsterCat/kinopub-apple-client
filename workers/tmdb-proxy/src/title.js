@@ -248,14 +248,26 @@ const TVOE_WIDTHS = [
 // TMDB configuration sizes, minus "original" — that bucket is chosen only when
 // the file we know about is within MAX_WIDTH (or the kind's originals are not
 // the multi-thousand-pixel backdrops).
+//
+// Thumbnail (episode still) ladder: still_sizes stop at w300, but the CDN also
+// serves backdrop widths and the face crops TMDB's own site uses for stills
+// (measured 2026-11-14). Without those, any w>300 fell through to original
+// (1920×1080) — only w=300 looked sized.
 const TMDB_LADDER = {
   logo: [45, 92, 154, 185, 300, 500],
   poster: [92, 154, 185, 342, 500, 780],
   backdrop: [300, 780, 1280],
-  thumbnail: [92, 185, 300],
+  thumbnail: [92, 185, 227, 300, 454, 780, 1280],
 };
 const TMDB_ORIGINAL_IF_WIDTH_UNKNOWN = new Set(["logo", "poster", "thumbnail"]);
-
+// Width → CDN size token. Missing entries use `w{n}`. Face crops match the
+// widths the Apple TV / TMDB episode stills ship at (~227 / ~454).
+const TMDB_SIZE_TOKEN = {
+  thumbnail: {
+    227: "w227_and_h127_bestv2",
+    454: "w454_and_h254_face",
+  },
+};
 // kinopoiskapiunofficial.tech, measured: kp 667×1000, kp_small 360×540.
 const KINOPOISK_POSTER = "https://kinopoiskapiunofficial.tech/images/posters";
 
@@ -1435,12 +1447,17 @@ function tmdbSized(url, kind, w, knownWidth) {
   const ladder = TMDB_LADDER[kind] || TMDB_LADDER.poster;
   const target = w == null ? MAX_WIDTH : w;
   const bucket = ladder.find((size) => size >= target);
-  if (bucket) return `https://image.tmdb.org/t/p/w${bucket}${path}`;
+  if (bucket) {
+    const token = TMDB_SIZE_TOKEN[kind]?.[bucket] || `w${bucket}`;
+    return `https://image.tmdb.org/t/p/${token}${path}`;
+  }
   const originalOK = knownWidth == null
     ? TMDB_ORIGINAL_IF_WIDTH_UNKNOWN.has(kind)
     : knownWidth <= MAX_WIDTH;
   if (originalOK) return `https://image.tmdb.org/t/p/original${path}`;
-  return `https://image.tmdb.org/t/p/w${ladder[ladder.length - 1]}${path}`;
+  const fallback = ladder[ladder.length - 1];
+  const token = TMDB_SIZE_TOKEN[kind]?.[fallback] || `w${fallback}`;
+  return `https://image.tmdb.org/t/p/${token}${path}`;
 }
 
 function kinopoiskSized(url, w) {

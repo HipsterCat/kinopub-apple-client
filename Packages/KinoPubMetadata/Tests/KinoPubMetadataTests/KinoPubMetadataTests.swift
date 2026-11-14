@@ -353,6 +353,11 @@ final class TitleCardMappingTests: XCTestCase {
       TMDBImageURL.proxied("https://kinopoiskapiunofficial.tech/images/posters/kp/1.jpg", proxyBase: proxy)?.host,
       "kinopoiskapiunofficial.tech"
     )
+    // Card / seasons stills are relative `/img/thumbnail…` — join to the proxy host.
+    XCTAssertEqual(
+      TMDBImageURL.proxied("/img/thumbnail/by/kinopub/7?s=1&e=2", proxyBase: proxy)?.absoluteString,
+      "https://proxy.example/img/thumbnail/by/kinopub/7?s=1&e=2"
+    )
   }
 
   private func fixture(_ name: String) throws -> Data {

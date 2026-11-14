@@ -377,6 +377,46 @@ test("season poster does not fall back to the title poster or to kino.pub", asyn
   assert.equal((await miss.json()).hint, "no season poster");
 });
 
+test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      seasons: [{
+        number: 1,
+        episodes: [{ number: 5, thumbnail: "https://image.tmdb.org/t/p/original/still.jpg" }],
+      }],
+    },
+  });
+  const original = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    return new Response(Uint8Array.from([0xff, 0xd8, 0xff]), {
+      status: 200,
+      headers: { "content-type": "image/jpeg" },
+    });
+  };
+  try {
+    const cases = [
+      ["300", "https://image.tmdb.org/t/p/w300/still.jpg"],
+      ["360", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
+      ["454", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
+      ["780", "https://image.tmdb.org/t/p/w780/still.jpg"],
+    ];
+    for (const [w, upstream] of cases) {
+      fetched.length = 0;
+      const response = await handleImage(
+        new Request(`https://example.test/img/thumbnail/by/kinopub/82852/und/thumbnail.jpg?w=${w}&s=1&e=5`),
+        env,
+        ctxSpy(),
+      );
+      assert.equal(response.status, 200, `w=${w}`);
+      assert.equal(fetched[0], upstream, `w=${w}`);
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("thumbnail is the episode still, needs both s and e, and refuses a kino.pub thumb", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {

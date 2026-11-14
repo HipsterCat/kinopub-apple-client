@@ -138,9 +138,22 @@ export async function handleCard(url, env) {
       air_date: season.air_date,
       end_date: season.end_date,
       poster: season.poster,
-      episodes: (rows.results || []).filter((episode) => episode.season === season.number),
+      // Always the /img/thumbnail route (logo-parity): missing bytes are fetched
+      // on first image hit, not hidden as a null still in the card.
+      episodes: (rows.results || [])
+        .filter((episode) => episode.season === season.number)
+        .map((episode) => ({
+          ...episode,
+          still: episodeStillRoute(row.kinopub_id, episode.season, episode.number),
+        })),
     })),
   });
+}
+
+/** Stable still URL for a known season/episode — same shape seasons.js projects. */
+function episodeStillRoute(kinopubId, season, episode) {
+  if (kinopubId == null || season == null || episode == null) return null;
+  return `/img/thumbnail/by/kinopub/${kinopubId}?s=${season}&e=${episode}`;
 }
 
 /** After a KV write, the same title is updated in D1. A failure here does not
