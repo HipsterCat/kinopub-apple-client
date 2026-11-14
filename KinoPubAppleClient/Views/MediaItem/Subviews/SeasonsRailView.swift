@@ -419,7 +419,10 @@ struct SeasonsRailView: View {
       case .missingSeasons(let from, let to, _, _, _):
         return SeasonTab(id: entry.id, first: from, last: to, status: .unavailable)
       case .upcomingSeason(let number, let date, _):
-        return SeasonTab(id: entry.id, first: number, last: number, status: .soon, premiereDate: date)
+        let episodes = externalMetadata.seasonSummaries
+          .first { $0.seasonNumber == number }?.episodeCount
+        return SeasonTab(id: entry.id, first: number, last: number, status: .soon,
+                         premiereDate: date, episodeCount: episodes)
       case .playable, .unavailable:
         return nil
       }
@@ -930,6 +933,7 @@ struct SeasonsRailView: View {
       title: seasonTitle(tabs: tabs),
       tabs: tabs.map { tab in
         TVSeasonTab(id: tab.id, label: tab.label, symbol: tab.status.symbol,
+                    detail: tab.status == .soon ? tab.premiereDateLabel : nil,
                     isAvailable: tab.status == .available, accessibilityLabel: tab.spokenLabel)
       },
       items: railItems.items,

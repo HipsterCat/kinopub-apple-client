@@ -55,10 +55,12 @@ public enum TVUIKitTileArtwork {
                            cornerRadius: CGFloat = 0,
                            fillAlpha: CGFloat = 0.85,
                            style: Style = .flat,
+                           glyphColor: UIColor? = nil,
                            traits: UITraitCollection? = nil) -> UIImage {
     let traits = traits ?? .current
     let resolved = tint.resolvedColor(with: traits)
-    let key = "\(resolved.hashValue)-\(symbol ?? "-")-\(Int(size.width))x\(Int(size.height))-r\(Int(cornerRadius))-a\(fillAlpha)-\(style)-\(traits.userInterfaceStyle.rawValue)" as NSString
+    let ink = (glyphColor ?? UIColor.label.withAlphaComponent(0.9)).resolvedColor(with: traits)
+    let key = "\(resolved.hashValue)-\(symbol ?? "-")-\(Int(size.width))x\(Int(size.height))-r\(Int(cornerRadius))-a\(fillAlpha)-\(style)-g\(ink.hashValue)-\(traits.userInterfaceStyle.rawValue)" as NSString
     if let cached = cache.object(forKey: key) { return cached }
 
     let bounds = CGRect(origin: .zero, size: size)
@@ -84,7 +86,7 @@ public enum TVUIKitTileArtwork {
         weight: .semibold
       )
       guard let glyph = UIImage(systemName: symbol, withConfiguration: config)?
-          .withTintColor(UIColor.label.resolvedColor(with: traits).withAlphaComponent(0.9), renderingMode: .alwaysOriginal)
+          .withTintColor(ink, renderingMode: .alwaysOriginal)
       else { return }
       let x = style == .gradient
         ? size.width - glyph.size.width - size.height * 0.14
@@ -180,10 +182,41 @@ public enum TVUIKitTileArtwork {
     }
   }
 
+  /// Quiet plate for empty episode stills — approximates SwiftUI `.fill.tertiary`, not the
+  /// bright label-tier wash that reads as a white card on dark tvOS (Sasha, 2026-11-14).
+  public static func quietFill(traits: UITraitCollection? = nil) -> UIColor {
+    let traits = traits ?? .current
+    let dark = traits.userInterfaceStyle == .dark
+    return (dark ? UIColor(white: 0.22, alpha: 1) : UIColor(white: 0.90, alpha: 1))
+      .resolvedColor(with: traits)
+  }
+
+  /// Tertiary-weight ink for the iconic SF Symbol on a quiet plate.
+  public static func quietGlyph(traits: UITraitCollection? = nil) -> UIColor {
+    let traits = traits ?? .current
+    let dark = traits.userInterfaceStyle == .dark
+    return (dark ? UIColor(white: 1.0, alpha: 0.35) : UIColor(white: 0.0, alpha: 0.35))
+      .resolvedColor(with: traits)
+  }
+
+  /// Iconic empty episode still: quiet underlay + `play.rectangle.on.rectangle`.
+  public static func iconicStill(size: CGSize = wideSize,
+                                 cornerRadius: CGFloat = 0,
+                                 traits: UITraitCollection? = nil) -> UIImage {
+    image(tint: quietFill(traits: traits),
+          symbol: "play.rectangle.on.rectangle",
+          size: size,
+          cornerRadius: cornerRadius,
+          fillAlpha: 1,
+          glyphColor: quietGlyph(traits: traits),
+          traits: traits)
+  }
+
   public static func placeholder(size: CGSize = wideSize,
                                  cornerRadius: CGFloat = 0,
                                  traits: UITraitCollection? = nil) -> UIImage {
-    image(tint: .label, symbol: nil, size: size, cornerRadius: cornerRadius, fillAlpha: 0.12, traits: traits)
+    image(tint: quietFill(traits: traits), symbol: nil, size: size, cornerRadius: cornerRadius,
+          fillAlpha: 1, traits: traits)
   }
 
   /// Draws `size` points into a 32-bit BGRA, premultiplied sRGB bitmap at the screen's

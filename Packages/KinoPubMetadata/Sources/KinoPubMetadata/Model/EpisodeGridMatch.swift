@@ -174,6 +174,13 @@ public enum EpisodeGridMatch {
         if let hit = hits.first(where: { $0.official.number == episode.number }) {
           rows.append(.matched(hit))
           used.insert(hit.kino.number)
+        } else if let extra = extras.first(where: { $0.number == episode.number }),
+                  Self.runtimesCompatible(extra.runtimeMinutes, episode.runtimeMinutes) {
+          // Same number + compatible runtime: align missed on titles (RU vs EN). Pair
+          // them — never «нет на Кинопабе» beside the playable card (Sasha, 2026-11-14).
+          // A true extra (12м) vs a missing 40м episode stays hole + extra.
+          rows.append(.matched(Hit(kino: extra, official: episode)))
+          used.insert(extra.number)
         } else if !Self.alreadyMatched(episode, hits: self.hits) {
           rows.append(.hole(episode))
         }
@@ -199,12 +206,19 @@ public enum EpisodeGridMatch {
         for episode in span {
           if let hit = seasonHits.first(where: { $0.official.number == episode.number }) {
             rows.append(.matched(hit))
+          } else if let extra = extras.first(where: { $0.number == episode.number }),
+                    Self.runtimesCompatible(extra.runtimeMinutes, episode.runtimeMinutes) {
+            rows.append(.matched(Hit(kino: extra, official: episode)))
           } else if !Self.alreadyMatched(episode, hits: self.hits) {
             rows.append(.hole(episode))
           }
         }
       }
-      rows.append(contentsOf: extras.map { .extra($0) })
+      let usedNumbers = Set(rows.compactMap { row -> Int? in
+        if case .matched(let hit) = row { return hit.kino.number }
+        return nil
+      })
+      rows.append(contentsOf: extras.filter { !usedNumbers.contains($0.number) }.map { .extra($0) })
       return rows
     }
 
@@ -212,6 +226,13 @@ public enum EpisodeGridMatch {
       hits.contains { hit in
         hit.official.season == episode.season && hit.official.number == episode.number
       }
+    }
+
+    /// Nils agree; otherwise any positive `runtimeScore` (delta ≤ 5). Farther apart is a
+    /// different episode that happens to share a number.
+    private static func runtimesCompatible(_ kino: Int?, _ official: Int?) -> Bool {
+      guard let kino, let official else { return true }
+      return EpisodeGridMatch.runtimeScore(kino, official) > 0
     }
 
     /// Rail order follows the number the UI shows: kino.pub's for matched/extra,
@@ -412,9 +433,16 @@ public enum EpisodeGridMatch {
     let runtime = runtimeScore(kino.runtimeMinutes, official.runtimeMinutes)
     let hinted = hint == official.season
     let sameNumber = hinted && kino.number == official.number
+    // Exact runtime stays the high bar for title-led identity. Same season+number
+    // must still pair when titles disagree (RU vs EN) and runtimes are merely close —
+    // `runtime >= 25` after exact-only scoring punched false «нет на Кинопабе» holes
+    // beside the playable cards (Sasha, 2026-11-14). `runtime > 0` ≈ delta ≤ 5.
+    let runtimeAgree = runtime > 0
+      || kino.runtimeMinutes == nil
+      || official.runtimeMinutes == nil
     let identified = title >= 85
       || (title >= 50 && runtime >= 40)
-      || (sameNumber && (runtime >= 25 || kino.runtimeMinutes == nil || official.runtimeMinutes == nil))
+      || (sameNumber && runtimeAgree)
     guard identified else { return nil }
     var total = title * 10 + runtime
     if hinted { total += 30 }
