@@ -1174,19 +1174,35 @@ struct SeasonsRailView: View {
                                 number: episode.number,
                                 name: Self.displayTitle(episode: episode, schedule: schedule))
         .text(for: .episodeTile)
-      if schedule?.isSeasonFinale == true {
+      let isFinale = schedule?.isSeasonFinale == true
+      if isFinale {
         caption += " · \("MediaItem_SeasonFinale".localized)"
       }
       let status = Self.tileStatus(base: base.status, episode: episode, schedule: schedule)
       let playable = !Self.clocksOut(episode, schedule)
+      let unique = uniqueStillURL(episode: episode, schedule: schedule, seasonNumber: season.number)
+      let kinopub = episode.thumbnail.isEmpty ? nil : URL(string: episode.thumbnail)
+      // Finale is a corner badge when premiere/lock is not already occupying it.
+      let statusOwnsBadge: Bool = {
+        switch status {
+        case .premiere, .upcoming, .locked, .unavailable: return true
+        case .ready, .inProgress, .watched: return false
+        }
+      }()
+      let finaleBadge = isFinale && !statusOwnsBadge
+        ? "MediaItem_SeasonFinale".localized : nil
       return TVUIKitMediaItem(id: entry.id,
-                              imageURL: base.imageURL ?? seriesBackdropURL,
+                              imageURL: unique ?? base.imageURL,
+                              tint: UIColor.secondaryLabel,
+                              symbol: "play.rectangle.on.rectangle",
                               caption: caption,
                               status: status,
                               timeLabel: base.timeLabel,
-                              badgeText: base.badgeText,
+                              badgeText: base.badgeText ?? finaleBadge,
                               // Trailers already set this; episode tiles did not (Sasha, 2026-11-14).
-                              focusGlyph: playable ? .play : nil)
+                              focusGlyph: playable ? .play : nil,
+                              backdropImageURL: seriesBackdropURL,
+                              fallbackImageURL: kinopub.flatMap { $0 == unique ? nil : $0 })
 
     case .unavailable(_, let schedule):
       // An episode kino.pub has not uploaded must not read differently from one it has —
@@ -1658,9 +1674,12 @@ struct SeasonsRailView: View {
                     schedule: EpisodeSchedule?,
                     fallbackStill: URL? = nil,
                     primaryAction: MediaCardPrimaryAction = .play) -> MediaCard {
-    let worker = stillURL(episode: episode, schedule: schedule, seasonNumber: season.number)
+    // Ladder: unique still (worker / TMDB) first; kino.pub + series backdrop are
+    // fallbacks — MediaCardView paints iconic → backdrop → unique → kinopub on 404.
+    let unique = uniqueStillURL(episode: episode, schedule: schedule, seasonNumber: season.number)
     let kinopub = episode.thumbnail.isEmpty ? nil : episode.thumbnail
-    return MediaCard(episode: episode,
+    let backdrop = seriesBackdropURL?.absoluteString ?? fallbackStill?.absoluteString
+    var card = MediaCard(episode: episode,
               in: season,
               title: Self.displayTitle(episode: episode, schedule: schedule),
               episodeLabel: Self.episodeLabel(number: episode.number,
@@ -1670,8 +1689,15 @@ struct SeasonsRailView: View {
                                                : nil),
               dateLabel: Self.dateLabel(episode: episode, schedule: schedule,
                                         isSeasonFinale: schedule?.isSeasonFinale == true),
-              stillURL: worker?.absoluteString ?? kinopub ?? fallbackStill?.absoluteString,
+              stillURL: unique?.absoluteString ?? kinopub ?? backdrop,
               primaryAction: primaryAction)
+    if let kinopub, kinopub != card.landscapeImageURL {
+      card.fallbackLandscapeURL = kinopub
+    }
+    if let backdrop, backdrop != card.landscapeImageURL, backdrop != card.fallbackLandscapeURL {
+      card = card.withBackdropURL(backdrop)
+    }
+    return card
   }
 
   /// kino.pub's name, else TMDB's — and neither when it is only the number spelled out
@@ -1680,18 +1706,25 @@ struct SeasonsRailView: View {
     EpisodeTitle.meaningful(episode.title) ?? EpisodeTitle.meaningful(schedule?.name) ?? ""
   }
 
-  /// Worker route first (logo-parity). `seasonNumber` must be the kino.pub block
-  /// index (`season.number`), not a year parsed from the title. Width is rounded
-  /// like season posters so a resize does not ask the worker for a new file on
-  /// every layout pass. Callers that can try a second URL pass kino.pub's thumb
-  /// as `fallbackStillURL`.
-  private func stillURL(episode: Episode, schedule: EpisodeSchedule?,
-                        seasonNumber: Int) -> URL? {
+  /// Unique still only (worker, then TMDB). kino.pub thumb and series backdrop are
+  /// fallbacks — see `card(for:)` / TVUIKit ladder. `seasonNumber` must be the
+  /// kino.pub block index (`season.number`), never a year from the title.
+  private func uniqueStillURL(episode: Episode, schedule: EpisodeSchedule?,
+                              seasonNumber: Int) -> URL? {
     let pixels = Int((cardWidth * displayScale / 100).rounded(.up)) * 100
     if let worker = episodeStillURL?(seasonNumber, episode.number, max(pixels, 300)) {
       return worker
     }
-    if let scheduleStill = schedule?.still { return scheduleStill }
+    return schedule?.still
+  }
+
+  /// Preferred photograph for callers that want one URL (Info sheet, rivulet).
+  private func stillURL(episode: Episode, schedule: EpisodeSchedule?,
+                        seasonNumber: Int) -> URL? {
+    if let unique = uniqueStillURL(episode: episode, schedule: schedule,
+                                   seasonNumber: seasonNumber) {
+      return unique
+    }
     if !episode.thumbnail.isEmpty { return URL(string: episode.thumbnail) }
     return nil
   }

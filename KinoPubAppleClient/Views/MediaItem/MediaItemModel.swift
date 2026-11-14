@@ -585,7 +585,7 @@ class MediaItemModel: ObservableObject {
     }
 
     let preferred = kinoSeasonNumber ?? mediaItem.seasons?.last?.number
-    var toFetch = officialSeasonsToFetch(forKinoSeason: preferred)
+    let toFetch = officialSeasonsToFetch(forKinoSeason: preferred)
     // Nothing new and we already painted once — keep what we have.
     if toFetch.isEmpty {
       if !didLoadEpisodeGrid {

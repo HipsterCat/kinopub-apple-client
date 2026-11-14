@@ -133,6 +133,9 @@ public struct MediaCard: Identifiable, Hashable, Codable, Sendable {
   /// A lock and these words on top of a landscape still: an episode that has aired and is
   /// not on kino.pub («Нет на Кинопабе»). Not encoded — the rail builds it every time.
   public var unavailableNotice: String? = nil
+  /// Episode still ladder (KP-23): tried when `landscapeImageURL` 404s — usually kino.pub's
+  /// own thumbnail. Not encoded; the rail sets it every time.
+  public var fallbackLandscapeURL: String? = nil
   /// When true, Select opens a curated collection rather than a media title — Home /
   /// Collections grids use this so collection ids are not mistaken for item ids.
   public let opensCollection: Bool
@@ -1206,19 +1209,16 @@ public struct MediaCardView: View {
     // letterboxes inside the 16:9 lockup. Hold the placeholder until the width
     // probe reports — starting a full-resolution decode on the first frame and
     // then swapping to the tile size was the Mac Home scroll cost.
+    //
+    // Episode ladder (KP-23): iconic → series backdrop (while unique loads) →
+    // unique still → kino.pub thumb on 404. Blank grey forever is wrong.
     let decodeSize = artworkDecodeSize
     return Color.clear
       .overlay {
         if decodeSize.width > 1 {
-          CachedRemoteImage(
-            url: URL(string: imageURL),
-            size: decodeSize,
-            contentMode: .fill,
-            placeholder: { Color.KinoPub.placeholder },
-            failure: { Color.KinoPub.placeholder }
-          )
+          episodeStillLadder(size: decodeSize)
         } else {
-          Color.KinoPub.placeholder
+          landscapeIconicPlaceholder
         }
       }
       .overlay {
@@ -1232,6 +1232,56 @@ public struct MediaCardView: View {
       }
       .animation(.easeInOut(duration: 0.3), value: showsHoverStill)
       .clipped()
+  }
+
+  /// Iconic plate until a photograph arrives — not an empty grey forever.
+  private var landscapeIconicPlaceholder: some View {
+    ZStack {
+      Color.KinoPub.placeholder
+      Image(systemName: "play.rectangle.on.rectangle")
+        .font(.system(size: 28, weight: .regular))
+        .foregroundStyle(.secondary.opacity(0.85))
+        .accessibilityHidden(true)
+    }
+  }
+
+  @ViewBuilder
+  private func episodeStillLadder(size: CGSize) -> some View {
+    let unique = URL(string: imageURL).flatMap { $0.absoluteString.isEmpty ? nil : $0 }
+    let kinopub = card.fallbackLandscapeURL.flatMap(URL.init(string:))
+      .flatMap { $0.absoluteString.isEmpty || $0 == unique ? nil : $0 }
+    let backdrop = card.backdropURL.flatMap(URL.init(string:))
+      .flatMap { $0.absoluteString.isEmpty || $0 == unique || $0 == kinopub ? nil : $0 }
+
+    let interim = Group {
+      if let backdrop {
+        CachedRemoteImage(url: backdrop, size: size, contentMode: .fill,
+                          placeholder: { landscapeIconicPlaceholder },
+                          failure: { landscapeIconicPlaceholder })
+      } else {
+        landscapeIconicPlaceholder
+      }
+    }
+
+    if let unique {
+      CachedRemoteImage(url: unique, size: size, contentMode: .fill,
+                        placeholder: { interim },
+                        failure: {
+                          if let kinopub {
+                            CachedRemoteImage(url: kinopub, size: size, contentMode: .fill,
+                                              placeholder: { interim },
+                                              failure: { interim })
+                          } else {
+                            interim
+                          }
+                        })
+    } else if let kinopub {
+      CachedRemoteImage(url: kinopub, size: size, contentMode: .fill,
+                        placeholder: { interim },
+                        failure: { interim })
+    } else {
+      interim
+    }
   }
 
   private var showsHoverStill: Bool {
