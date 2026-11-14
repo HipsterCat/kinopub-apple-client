@@ -169,7 +169,7 @@ struct VersionPickerSheet: View {
         .accessibilityIdentifier("kinopub.versionPicker.\(row.id)")
       }
     }
-    .defaultFocus($focusedID, equals: rows.first?.id)
+    .defaultFocus($focusedID, rows.first?.id, priority: .userInitiated)
 #else
     List {
       ForEach(rows) { row in
