@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Если аккаунт заблокирован (403 user_banned), открывается вход по коду вместо бесполезного «Попробовать снова»; уже загруженный тайтл остаётся на экране. Закладки и «Продолжить» сбрасываются только при входе под другим аккаунтом.",
         "Страница тайтла: «Актёрский состав» с шевроном на полный список, круглые фото, имя / роль / «N серий», без подписи «Актёр»; заглушки-карточки Кинопоиска больше не рисуются как фото.",
         "Главная на Mac: полки крутятся легче — обложки декодируются в размере карточки, а не целиком, и чипы на «Продолжить» больше не тянут материал под каждой картинкой.",
         "Оценки и просмотры: короткие числа всегда с латинскими k / M (554.6k, 15.56M), без «тыс.» и «млн», с округлением, а не обрезкой.",
@@ -110,6 +111,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "If the account is banned (403 user_banned), device-code sign-in opens instead of a useless Try Again; the title you already had stays on screen. Bookmarks and Continue Watching clear only when a different account signs in.",
         "Title page: “Cast & Crew” with a chevron to the full list, round photos, name / role / “N episodes”, no generic “Actor” label; Kinopoisk stub cards no longer paint as portraits.",
         "Home on the Mac scrolls more lightly — covers decode at the card’s size, not full-bleed, and Continue Watching chips no longer sample a material under every still.",
         "Ratings and views: compact counts always use Latin k / M (554.6k, 15.56M), never localized тыс./млн, and round instead of truncating.",

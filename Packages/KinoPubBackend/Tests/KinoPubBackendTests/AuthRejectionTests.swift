@@ -95,6 +95,22 @@ class AuthRejectionTests: XCTestCase {
     XCTAssertTrue(error?.isAuthRejection == true)
   }
 
+  /// Banned account on a content endpoint: 403 + `user_banned`. Must open auth, not a
+  /// Try Again loop — `requiresInteractiveReauthentication` is the gate.
+  func testContent403UserBanned_RequiresInteractiveReauthentication() async {
+    stub(status: 403, body: #"{"status":403,"error":"user_banned"}"#)
+    let error = await performRefresh()
+    guard case .networkError(let underlying) = error,
+          let backendError = underlying as? BackendError else {
+      return XCTFail("Expected BackendError, got \(String(describing: error))")
+    }
+    XCTAssertEqual(backendError.errorCode, .userBanned)
+    XCTAssertEqual(backendError.status, 403)
+    XCTAssertTrue(error?.isAuthRejection == true)
+    XCTAssertTrue(error?.isUserBanned == true)
+    XCTAssertTrue(error?.requiresInteractiveReauthentication == true)
+  }
+
   // MARK: - Not rejections
 
   /// Device-code polling gets 400 authorization_pending until the user activates —

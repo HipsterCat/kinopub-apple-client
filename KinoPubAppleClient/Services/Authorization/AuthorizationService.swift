@@ -18,7 +18,12 @@ protocol AuthorizationService: Sendable {
   func refreshToken() async throws
   func logout()
   /// `false` when the backend rejected the session rather than the user signing out.
+  /// System-forced logout clears credentials only; personal caches stay until a
+  /// different account signs in (`clearPersonalSessionData`).
   func logout(userInitiated: Bool)
+  /// Bookmarks, continue-watching, subscriptions / watchlist rows, local watch history
+  /// and optimistic library state for the previous account.
+  func clearPersonalSessionData()
 }
 
 protocol AuthorizationServiceProvider {
@@ -44,6 +49,10 @@ struct AuthorizationServiceMock: AuthorizationService {
   }
 
   func logout(userInitiated: Bool) {
+
+  }
+
+  func clearPersonalSessionData() {
 
   }
 

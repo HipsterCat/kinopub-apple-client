@@ -118,6 +118,8 @@ final class AuthFlowAndKeychainSyncTests: XCTestCase {
       logoutCalls.append(userInitiated)
     }
 
+    func clearPersonalSessionData() {}
+
     static var pendingError: APIClientError {
       let json = #"{"status":400,"error":"authorization_pending"}"#.data(using: .utf8)!
       let backendError = try! JSONDecoder().decode(BackendError.self, from: json)

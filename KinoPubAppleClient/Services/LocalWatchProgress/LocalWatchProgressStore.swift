@@ -237,6 +237,21 @@ final class LocalWatchProgressStore: @unchecked Sendable {
     notify()
   }
 
+  /// Every resume point and cached title payload — previous account's watch history.
+  func clearAll() {
+    lock.lock()
+    let itemIDs = Set(records.values.map(\.itemID)).union(snapshots.keys)
+    records = [:]
+    snapshots = [:]
+    payloads = [:]
+    persistedSnapshotIDs = []
+    lock.unlock()
+    for id in itemIDs {
+      writes.yield(.deleteAll(itemID: id))
+    }
+    notify()
+  }
+
   /// Returns once every write queued before it is on disk. Tests only.
   func flush() async {
     await withCheckedContinuation { writes.yield(.flush($0)) }

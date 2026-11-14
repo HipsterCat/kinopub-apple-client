@@ -57,4 +57,10 @@ final class UserProfileCache {
   func clearAvatar() {
     try? FileManager.default.removeItem(at: avatarFileURL)
   }
+
+  /// Drops the cached profile and avatar — previous account's name must not linger.
+  func clear() {
+    try? FileManager.default.removeItem(at: userFileURL)
+    clearAvatar()
+  }
 }

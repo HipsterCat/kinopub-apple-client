@@ -38,6 +38,8 @@ class ProfileModel {
         Task {
             do {
                 self.userData = try await userService.fetchUserData()
+                UserProfileCache.shared.save(user: userData)
+                authState.rememberSignedInUsername(userData.username)
             } catch {
                 errorHandler.setError(error)
             }

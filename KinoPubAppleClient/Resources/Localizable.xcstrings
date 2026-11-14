@@ -400,6 +400,23 @@
         }
       }
     },
+    "Account Unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account Unavailable"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунт недоступен"
+          }
+        }
+      }
+    },
     "Account_Error_HTTP" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19085,6 +19102,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "У вас пока нет загрузок"
+          }
+        }
+      }
+    },
+    "This account can't sign in right now. Sign in again or use another account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account can't sign in right now. Sign in again or use another account."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот аккаунт сейчас не может войти. Войдите снова или используйте другой аккаунт."
+          }
+        }
+      }
+    },
+    "Your session has expired. Sign in again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your session has expired. Sign in again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сессия истекла. Войдите снова."
           }
         }
       }

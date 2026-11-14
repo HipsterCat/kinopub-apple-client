@@ -73,6 +73,9 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
   /// signed-in stretch; later expiry is the proactive timer + 401 recovery.
   private var didBootstrap = false
 
+  private static let lastUsernameKey = "KinoPub.lastSignedInUsername"
+  private static let pendingPreviousUsernameKey = "KinoPub.pendingPreviousUsername"
+
   /// Initializes the `AuthState` with the provided services.
   /// - Parameters:
   ///   - authService: The authorization service used for authentication.
@@ -100,6 +103,13 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
       forName: .kinopubUnauthorizedResponse, object: nil, queue: .main
     ) { [weak self] _ in
       self?.handleUnauthorizedResponse()
+    }
+
+    // Content `user_banned` / refused grant → device-code auth. Personal caches stay.
+    NotificationCenter.default.addObserver(
+      forName: .kinopubSessionInvalidated, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.handleSessionInvalidated(reason: "content auth rejection")
     }
 
     UnauthorizedRequestRecovery.shared.recoverer = self
@@ -151,12 +161,29 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
     if activated {
       didActivateDevice = true
       didBootstrap = true
+      // Device-code success after a ban / forced sign-out: wipe personal data only when
+      // the new account is not the one we had.
+      Task { await self.reconcileAccountAfterInteractiveSignIn() }
     }
     phase = .signedIn
     userState = .authorized
     shouldShowAuthentication = false
     Logger.app.debug("Auth state: authorized")
     scheduleProactiveRefresh()
+  }
+
+  /// Remembers the signed-in username whenever `/v1/user` answers, so a later ban can
+  /// tell same-person re-auth apart from an account switch.
+  func rememberSignedInUsername(_ username: String) {
+    let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+    UserDefaults.standard.set(trimmed, forKey: Self.lastUsernameKey)
+  }
+
+  /// Opens device-code auth (macOS sheet / iOS·tvOS AuthView) without wiping title paint
+  /// or personal caches. Idempotent while already signed out.
+  func requestReauthentication(reason: String = "requested") {
+    handleSessionInvalidated(reason: reason)
   }
 
   /// APIClient calls this after a content 401. Refresh once (shared), then tell the
@@ -220,10 +247,12 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
     } catch let error as APIClientError where error.isFatalAuthError && !lastRefreshWasCancelled {
       // The backend explicitly rejected the refresh token — only now is the session
       // really over. Clear Keychain so the next launch does not revive a dead token.
+      // Personal caches stay until a different account device-codes in.
       refreshRetryTask?.cancel()
       refreshRetryTask = nil
       proactiveRefreshTask?.cancel()
       proactiveRefreshTask = nil
+      rememberPreviousUsernameForReauth()
       authService.logout(userInitiated: false)
       markSignedOut(reason: "refresh rejected")
       return .fatalRejection
@@ -298,8 +327,50 @@ final class AuthState: ObservableObject, UnauthorizedRequestRecovering {
     refreshRetryTask = nil
     proactiveRefreshTask?.cancel()
     proactiveRefreshTask = nil
+    UserDefaults.standard.removeObject(forKey: Self.pendingPreviousUsernameKey)
     authService.logout()
     markSignedOut(reason: "logout")
+  }
+
+  private func handleSessionInvalidated(reason: String) {
+    guard phase == .signedIn else { return }
+    refreshRetryTask?.cancel()
+    refreshRetryTask = nil
+    proactiveRefreshTask?.cancel()
+    proactiveRefreshTask = nil
+    rememberPreviousUsernameForReauth()
+    authService.logout(userInitiated: false)
+    markSignedOut(reason: reason)
+  }
+
+  private func rememberPreviousUsernameForReauth() {
+    let username = UserDefaults.standard.string(forKey: Self.lastUsernameKey)
+      ?? UserProfileCache.shared.loadUser()?.username
+    let trimmed = username?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    guard !trimmed.isEmpty else { return }
+    UserDefaults.standard.set(trimmed, forKey: Self.pendingPreviousUsernameKey)
+  }
+
+  /// After device-code auth: clear bookmarks / CW / history only when the username
+  /// changed. Same person after a ban lift keeps their local personal data.
+  private func reconcileAccountAfterInteractiveSignIn() async {
+    let previous = UserDefaults.standard.string(forKey: Self.pendingPreviousUsernameKey)
+    UserDefaults.standard.removeObject(forKey: Self.pendingPreviousUsernameKey)
+    do {
+      let user = try await AppContext.shared.userService.fetchUserData()
+      UserProfileCache.shared.save(user: user)
+      rememberSignedInUsername(user.username)
+      if let previous {
+        let prior = previous.trimmingCharacters(in: .whitespacesAndNewlines)
+        let next = user.username.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !prior.isEmpty, !next.isEmpty, prior.caseInsensitiveCompare(next) != .orderedSame {
+          Logger.app.info("Signed in as a different account (\(prior) → \(next)) — clearing personal caches")
+          authService.clearPersonalSessionData()
+        }
+      }
+    } catch {
+      Logger.app.warning("Could not reconcile account after sign-in: \(error)")
+    }
   }
 
   private func markSignedOut(reason: String) {

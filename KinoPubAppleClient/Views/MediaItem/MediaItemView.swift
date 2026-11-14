@@ -188,6 +188,7 @@ struct MediaItemView: View {
 
   @Environment(ErrorHandler.self) var errorHandler
   @Environment(NavigationState.self) var navigationState
+  @EnvironmentObject var authState: AuthState
   @Environment(\.appContext) private var appContext
   /// The Change Images sheet, while open.
   @State private var imagePickerTarget: TitleImagePickerTarget?
@@ -251,9 +252,9 @@ struct MediaItemView: View {
         // Full-page error only when there is nothing to paint. Under a hero drawn from
         // the card the failure sits where the details would be (`detailsFailure`).
         if itemModel.loadFailed && !paintsPage {
-          UnavailableView(loadError: itemModel.loadError, isRetrying: itemModel.isRetrying) {
-            itemModel.retry()
-          }
+          UnavailableView(loadError: itemModel.loadError, isRetrying: itemModel.isRetrying,
+                          onRetry: { itemModel.retry() },
+                          onSignIn: { authState.requestReauthentication(reason: "title details") })
         } else if !itemModel.itemLoaded && !itemModel.hasPaintedItem {
 #if !os(tvOS)
           LoadingIndicatorView(delay: .milliseconds(700))
@@ -794,12 +795,13 @@ struct MediaItemView: View {
   }
 
   /// The details call failed under a hero painted from the card: what went wrong and
-  /// Try Again, where the seasons and the rest would be. Its own focus section, so the
-  /// remote can always reach Try Again from the hero.
+  /// Try Again (or Sign In when the session is dead), where the seasons and the rest
+  /// would be. Its own focus section, so the remote can always reach the button from
+  /// the hero.
   private var detailsFailure: some View {
-    UnavailableView(loadError: itemModel.loadError, isRetrying: itemModel.isRetrying) {
-      itemModel.retry()
-    }
+    UnavailableView(loadError: itemModel.loadError, isRetrying: itemModel.isRetrying,
+                    onRetry: { itemModel.retry() },
+                    onSignIn: { authState.requestReauthentication(reason: "title details") })
     .frame(maxWidth: .infinity)
 #if os(tvOS)
     .focusSection()

@@ -1092,6 +1092,7 @@ struct TabsNavigationView_Previews: PreviewProvider {
 /// A click opens the Settings window.
 private struct MacSidebarAccount: View {
   let userService: UserService
+  @EnvironmentObject private var authState: AuthState
   @Environment(\.openWindow) private var openWindow
   @State private var name: String?
   @State private var avatarURL: URL?
@@ -1127,6 +1128,8 @@ private struct MacSidebarAccount: View {
     }
     .task {
       guard let user = try? await userService.fetchUserData() else { return }
+      UserProfileCache.shared.save(user: user)
+      authState.rememberSignedInUsername(user.username)
       name = user.profile.name.flatMap { $0.isEmpty ? nil : $0 } ?? user.username
       avatarURL = user.profile.avatarURL
     }
