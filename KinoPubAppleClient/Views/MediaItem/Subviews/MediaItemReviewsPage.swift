@@ -406,7 +406,7 @@ struct MyShowsStatsCard: View {
                 .foregroundStyle(.secondary)
               Text(tile.title)
                 .foregroundStyle(.secondary)
-              Text(verbatim: tile.value.formatted(.number.notation(.compactName)))
+              Text(verbatim: CompactCountFormat.string(tile.value))
                 .font(TypeScale.detailBody.weight(.semibold))
                 .foregroundStyle(Color.KinoPub.text)
             }
@@ -455,7 +455,7 @@ struct DoubanStatsCard: View {
                 .foregroundStyle(.secondary)
               Text(tile.title)
                 .foregroundStyle(.secondary)
-              Text(verbatim: tile.value.formatted(.number.notation(.compactName)))
+              Text(verbatim: CompactCountFormat.string(tile.value))
                 .font(TypeScale.detailBody.weight(.semibold))
                 .foregroundStyle(Color.KinoPub.text)
             }
@@ -520,7 +520,7 @@ struct AudienceStatsCard: View {
                 .foregroundStyle(.secondary)
               Text(tile.title)
                 .foregroundStyle(.secondary)
-              Text(verbatim: tile.value.formatted(.number.notation(.compactName)))
+              Text(verbatim: CompactCountFormat.string(tile.value))
                 .font(TypeScale.detailBody.weight(.semibold))
                 .foregroundStyle(Color.KinoPub.text)
             }

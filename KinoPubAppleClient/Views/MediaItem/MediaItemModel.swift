@@ -103,6 +103,10 @@ class MediaItemModel: ObservableObject {
   @Published public var myVote: MediaItemUserVote = .none
   /// The chooser, before a thumb is cast. kino.pub will not take it back.
   @Published var showsVoteChoice = false
+  /// Confirm a specific thumb (iOS / iPadOS / macOS ratings tile) before casting.
+  @Published var showsVoteConfirm = false
+  /// Direction waiting on `showsVoteConfirm` (`true` = like).
+  @Published var pendingVoteUp = true
   /// Said again after the vote, once the chooser has gone.
   @Published var showsVoteLockedNotice = false
   @Published public var likeCount: Int = 0
@@ -1285,6 +1289,23 @@ class MediaItemModel: ObservableObject {
     } else {
       showsVoteLockedNotice = true
     }
+  }
+
+  /// Confirm a specific thumb before casting (pointer platforms' ratings tile).
+  func askToConfirmVote(up: Bool) {
+    if myVote != .none {
+      showsVoteLockedNotice = true
+      return
+    }
+    pendingVoteUp = up
+    showsVoteConfirm = true
+  }
+
+  /// Commit the thumb waiting on `showsVoteConfirm`.
+  func confirmPendingVote() {
+    let up = pendingVoteUp
+    showsVoteConfirm = false
+    vote(up: up)
   }
 
   /// Cast a like (`up: true` → `like=1`) or dislike. One-shot — can't switch or re-cast.

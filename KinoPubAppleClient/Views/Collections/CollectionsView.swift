@@ -98,7 +98,7 @@ struct CollectionsView: View {
       parts.append("\(count) \(titlesUnit(count))")
     }
     if let views = collection.views, views > 0 {
-      parts.append("\(views.formatted(.number.notation(.compactName))) \("MediaItem_CatalogViews".localized)")
+      parts.append("\(CompactCountFormat.string(views)) \("MediaItem_CatalogViews".localized)")
     }
     return parts.isEmpty ? nil : parts.joined(separator: " · ")
   }
