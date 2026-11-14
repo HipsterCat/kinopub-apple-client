@@ -26,6 +26,23 @@ final class LibraryFilterTests: XCTestCase {
     XCTAssertEqual(MediaSortOrder.rating.apiValue, "-rating")
   }
 
+  /// The sort popup can reverse any field — including the default “newest first” ones.
+  func testSortDirectionFlipsTheAPIPrefix() {
+    XCTAssertEqual(MediaSortOrder.recentlyAdded.apiValue(descending: false), "created")
+    XCTAssertEqual(MediaSortOrder.title.apiValue(descending: true), "-title")
+    var filter = LibraryFilter(sort: .year)
+    XCTAssertEqual(filter.sortAPIValue, "-year")
+    filter.sortDescending = false
+    XCTAssertEqual(filter.sortAPIValue, "year")
+    XCTAssertEqual(params(filter)["sort"], "year")
+  }
+
+  func testActiveFilterCountIgnoresSortAlone() {
+    XCTAssertEqual(LibraryFilter().activeFilterCount, 0)
+    XCTAssertEqual(LibraryFilter(sort: .imdbRating).activeFilterCount, 0)
+    XCTAssertEqual(LibraryFilter(contentType: .movie, want4K: true).activeFilterCount, 2)
+  }
+
   /// Undocumented, but the service accepts both and orders correctly — checked
   /// against live responses before they were offered in the UI.
   func testRatingSortsUseTheUndocumentedFields() {

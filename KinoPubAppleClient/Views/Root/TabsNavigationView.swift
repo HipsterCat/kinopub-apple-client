@@ -921,6 +921,9 @@ struct FilterCatalogTabView: View {
 
   @StateObject private var catalog: LibraryCatalog
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
+#if !os(tvOS)
+  @State private var showingFilters = false
+#endif
 
   init(catalog: @autoclosure @escaping () -> LibraryCatalog) {
     _catalog = StateObject(wrappedValue: catalog())
@@ -932,9 +935,17 @@ struct FilterCatalogTabView: View {
       content
         .platformNavigationTitle("Catalog")
 #if !os(tvOS)
-        // On the page, whatever it shows: a load in flight or failed still has its sort.
-        .toolbar { LibraryFiltersToolbar(catalog: catalog) }
+        .navigationSubtitle(LibraryBrowserSubtitle.text(for: catalog))
+        .toolbar {
+          LibraryFiltersToolbar(catalog: catalog, showingFilters: $showingFilters)
+        }
         .catalogGridChrome()
+        .sheet(isPresented: $showingFilters) {
+          LibraryFilterSheet(catalog: catalog)
+#if os(macOS)
+            .frame(minWidth: 420, minHeight: 560)
+#endif
+        }
 #endif
 #if os(macOS)
         .macToolbarSearch()
@@ -1031,11 +1042,7 @@ struct FilterCatalogTabView: View {
         onRetryPagination: {
           catalog.retryPagination()
         }
-      ) {
-#if !os(macOS)
-        LibraryFiltersBar(catalog: catalog)
-#endif
-      }
+      )
       .environment(\.catalogCaptionOmittedGenreIDs, catalog.filter.captionOmittedGenreIDs)
     }
 #endif

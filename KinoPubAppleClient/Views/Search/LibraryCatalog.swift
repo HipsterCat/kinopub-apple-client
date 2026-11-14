@@ -261,28 +261,28 @@ class LibraryCatalog: ObservableObject {
       let page = silent ? 1 : (pagination.map { $0.current + 1 } ?? 1)
       let data: PaginatedData<MediaItem>
       if isSearching {
-        // The search endpoint takes the catalog's filters (and would take a sort — the
-        // UI offers none, a query is ranked by relevance as on the site; verified live
-        // 2026-09-26).
+        // Search takes the catalog's filters and sort (verified live 2026-09-25).
+        // tvOS still keeps type-only + relevance while typing; phone/Mac expose the
+        // same Filters / Sort chrome as the browse listing.
 #if os(tvOS)
-        // Only the type goes with a query on tvOS, as on kino.pub's site — the row
-        // offers nothing else while text is typed.
         let searchFilter = filter.searchSubset
+        let searchSort: MediaSortOrder? = nil
 #else
         let searchFilter = filter
+        let searchSort: MediaSortOrder? = filter.sort
 #endif
         if searchField == nil, searchesEveryField {
           let query = searchQuery
-          async let titles = itemsService.search(query: query, filter: searchFilter, sort: nil,
+          async let titles = itemsService.search(query: query, filter: searchFilter, sort: searchSort,
                                                  field: .title, page: page, perPage: Self.pageSize)
-          async let directors = itemsService.search(query: query, filter: searchFilter, sort: nil,
+          async let directors = itemsService.search(query: query, filter: searchFilter, sort: searchSort,
                                                     field: .director, page: page, perPage: Self.pageSize)
-          async let cast = itemsService.search(query: query, filter: searchFilter, sort: nil,
+          async let cast = itemsService.search(query: query, filter: searchFilter, sort: searchSort,
                                                field: .cast, page: page, perPage: Self.pageSize)
           // Titles first, then directors, then cast; `handle` drops the repeats.
           data = try await .merging([titles, directors, cast])
         } else {
-          data = try await itemsService.search(query: searchQuery, filter: searchFilter, sort: nil,
+          data = try await itemsService.search(query: searchQuery, filter: searchFilter, sort: searchSort,
                                                field: searchField, page: page, perPage: Self.pageSize)
         }
       } else {
@@ -441,9 +441,19 @@ class LibraryCatalog: ObservableObject {
   func clearFilters() {
     guard filter.hasActiveFilters else { return }
     // The person scope is the page itself, not a filter — clearing keeps it.
-    filter = LibraryFilter(sort: filter.sort, person: filter.person)
+    filter = LibraryFilter(sort: filter.sort,
+                           sortDescending: filter.sortDescending,
+                           person: filter.person)
     genres = []
     Task { await refresh() }
+  }
+
+  /// Result count for catalog chrome: prefers the server's `total_items`.
+  var resultCount: Int? {
+    guard let pagination else {
+      return items.isEmpty ? nil : items.count
+    }
+    return pagination.resultCount(loadedItemCount: items.count)
   }
 
   // MARK: - Subscriptions

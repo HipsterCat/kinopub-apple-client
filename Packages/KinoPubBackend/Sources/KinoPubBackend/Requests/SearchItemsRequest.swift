@@ -54,7 +54,10 @@ public struct SearchItemsRequest: Endpoint {
   public var parameters: [String: Any]? {
     var params = filter?.serverParameters ?? [:]
     if let sort {
-      params["sort"] = sort.apiValue
+      // Prefer the filter's explicit direction when the same field is selected.
+      let descending = (filter?.sort == sort ? filter?.sortDescending : nil)
+        ?? sort.prefersDescending
+      params["sort"] = sort.apiValue(descending: descending)
     }
     if let field {
       params["field"] = field.rawValue

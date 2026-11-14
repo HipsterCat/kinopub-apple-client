@@ -15,6 +15,9 @@ struct CollectionDetailView: View {
   @Environment(\.openURL) private var openURL
   @StateObject private var model: CollectionDetailModel
   @StateObject private var cardMenu = MediaCardMenuCoordinator()
+#if !os(tvOS)
+  @State private var showingFilters = false
+#endif
 
   init(model: @autoclosure @escaping () -> CollectionDetailModel) {
     _model = StateObject(wrappedValue: model())
@@ -25,7 +28,9 @@ struct CollectionDetailView: View {
     content
       .platformNavigationTitle(model.title)
 #if !os(tvOS)
-      .toolbar { LibraryFiltersToolbar(catalog: model, chrome: .sort) }
+      .toolbar {
+        LibraryFiltersToolbar(catalog: model, chrome: .sort, showingFilters: $showingFilters)
+      }
       .catalogGridChrome()
 #endif
       .background(Color.KinoPub.background)

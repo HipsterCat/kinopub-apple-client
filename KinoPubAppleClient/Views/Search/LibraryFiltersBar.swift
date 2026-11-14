@@ -35,7 +35,7 @@ extension LibraryCatalog: FilterBarDriver {}
 enum LibraryFiltersBarChrome {
   case full
   case sort
-  /// The toolbar's grid / wide switch alone: a text search, where the picks do not apply.
+  /// The toolbar's grid / list switch alone — no Filters / Sort.
   case layoutOnly
 }
 
@@ -471,65 +471,48 @@ struct LibraryFilterGlassStyle: ViewModifier {
 #endif
 
 #if !os(tvOS)
-/// The listing pages' toolbar: the grid / wide switch, then — on the Mac — one Filters
-/// menu and Sort, as Apple Music has its sort menu, not chips over the grid (Sasha,
-/// 2026-11-04). iOS keeps its filter chips in the scroll; the switch is its toolbar's.
-///
-/// Attach it before `.catalogGridChrome()`, which tells it whether the window has room
-/// for the menus' names.
+/// The listing pages' toolbar: grid ↔ list, Filters (badge → sheet), Sort
+/// (field + direction). Attach before `.catalogGridChrome()`.
 struct LibraryFiltersToolbar<Catalog: FilterBarDriver>: ToolbarContent {
   @ObservedObject var catalog: Catalog
   var chrome: LibraryFiltersBarChrome = .full
+  @Binding var showingFilters: Bool
   @Environment(\.toolbarShowsLabels) private var showsLabels
 
   var body: some ToolbarContent {
     ToolbarItem(placement: .primaryAction) {
       MediaGridLayoutPicker()
     }
-#if os(macOS)
     if chrome != .layoutOnly {
       ToolbarSpacer(.fixed, placement: .primaryAction)
-      if FeatureFlags.macLegacySearchChrome {
-        ToolbarItemGroup(placement: .primaryAction) {
-          LibraryFiltersBar(catalog: catalog, chrome: chrome, iconOnly: true).menus
-        }
-      } else {
-        // Photos' and Music's: one Filters menu with a submenu per filter, checkmarks
-        // inside; Sort its own menu after it — always last, so it never changes place.
-        if chrome == .full {
-          ToolbarItem(placement: .primaryAction) {
-            let bar = LibraryFiltersBar(catalog: catalog, chrome: chrome, asSubmenu: true)
-            Menu {
-              bar.filterMenus
-            } label: {
-              Label("Filters", systemImage: "line.3.horizontal.decrease")
-                .toolbarLabelStyle(showsTitle: showsLabels)
-                .symbolVariant(bar.hasActiveFilters ? .circle.fill : .none)
-            }
-            .menuIndicator(.hidden)
-            .help(Text("Filters"))
-          }
-          ToolbarSpacer(.fixed, placement: .primaryAction)
-        }
+      if chrome == .full {
         ToolbarItem(placement: .primaryAction) {
-          LibraryFiltersBar(catalog: catalog, chrome: chrome, iconOnly: true,
-                            showsToolbarTitle: showsLabels).sort
+          LibraryFiltersButton(
+            activeCount: catalog.filter.activeFilterCount,
+            action: { showingFilters = true },
+            showsTitle: showsLabels
+          )
         }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+      }
+      ToolbarItem(placement: .primaryAction) {
+        LibrarySortMenu(catalog: catalog,
+                        showsTitle: showsLabels,
+                        iconOnly: !showsLabels)
       }
     }
-#endif
   }
 }
 
-/// Posters or wide cells — a system segmented control, as the SF Symbols app and AniShelf
-/// switch their grids. On a phone a menu: two segments crowd a compact navigation bar.
+/// Posters or list/table — a system segmented control. On a phone a menu: two
+/// segments crowd a compact navigation bar.
 struct MediaGridLayoutPicker: View {
   @AppStorage(MediaGridLayout.storageKey) private var layoutRaw = MediaGridLayout.posters.rawValue
 #if os(iOS)
   @Environment(\.horizontalSizeClass) private var sizeClass
 #endif
 
-  private var current: MediaGridLayout { MediaGridLayout(rawValue: layoutRaw) ?? .posters }
+  private var current: MediaGridLayout { MediaGridLayout.resolved(from: layoutRaw) }
 
   var body: some View {
 #if os(iOS)
@@ -555,12 +538,19 @@ struct MediaGridLayoutPicker: View {
   }
 
   private var picker: some View {
-    Picker("View Options", selection: $layoutRaw) {
+    Picker("View Options", selection: layoutBinding) {
       ForEach(MediaGridLayout.allCases) { layout in
         Label(LocalizedStringKey(layout.titleKey), systemImage: layout.systemImage)
           .tag(layout.rawValue)
       }
     }
+  }
+
+  private var layoutBinding: Binding<String> {
+    Binding(
+      get: { MediaGridLayout.resolved(from: layoutRaw).rawValue },
+      set: { layoutRaw = $0 }
+    )
   }
 }
 
@@ -582,7 +572,7 @@ extension View {
   }
 
   /// What a listing page with `LibraryFiltersToolbar` needs around its grid: the chosen
-  /// posters / wide layout, and — on the Mac — whether its toolbar has room for names.
+  /// posters / list layout, and whether its toolbar has room for names.
   func catalogGridChrome() -> some View {
     modifier(CatalogGridChrome())
   }
@@ -593,15 +583,12 @@ private struct CatalogGridChrome: ViewModifier {
   @State private var showsLabels = false
 
   /// The page's width past which the toolbar shows Sort's current pick and «Фильтры»
-  /// beside their glyphs; below it, glyphs alone. A Mac window of 1280pt (a ~1000pt page)
-  /// fits the title, the switch and «Последние добавленные» with room to spare
-  /// (2026-11-05); narrower pages fold to icons before the toolbar would start pushing
-  /// items into its overflow menu.
+  /// beside their glyphs; below it, glyphs alone.
   private static let labelledToolbarWidth: CGFloat = 760
 
   func body(content: Content) -> some View {
     content
-      .environment(\.mediaGridLayout, MediaGridLayout(rawValue: layoutRaw) ?? .posters)
+      .environment(\.mediaGridLayout, MediaGridLayout.resolved(from: layoutRaw))
       .onGeometryChange(for: Bool.self) { proxy in
         proxy.size.width >= Self.labelledToolbarWidth
       } action: { fits in

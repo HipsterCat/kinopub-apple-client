@@ -29,7 +29,7 @@ public struct ItemsRequest: Endpoint {
 
   public var parameters: [String: Any]? {
     var params = filter.serverParameters
-    params["sort"] = filter.sort.apiValue
+    params["sort"] = filter.sortAPIValue
     if let page {
       params["page"] = "\(page)"
     }
