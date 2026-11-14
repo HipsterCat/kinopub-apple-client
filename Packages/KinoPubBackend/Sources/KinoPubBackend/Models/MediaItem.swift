@@ -293,7 +293,7 @@ public extension MediaItem {
     guard !isSeries, let videos, videos.count > 1 else { return [] }
     return videos
       .sorted { $0.number < $1.number }
-      .map { PlaybackVariant(video: $0, mediaId: id, movieTitle: localizedTitle) }
+      .map { PlaybackVariant(video: $0, mediaId: id, movieTitle: playerShowTitle) }
   }
 
   /// The versions the hero offers as play buttons. Three shapes:
@@ -361,7 +361,7 @@ public extension MediaItem {
   /// the caller plays the `MediaItem` itself, as it always did.
   var primaryVariant: PlaybackVariant? {
     guard !playbackVariants.isEmpty, let video = primaryVideo else { return nil }
-    return PlaybackVariant(video: video, mediaId: id, movieTitle: localizedTitle)
+    return PlaybackVariant(video: video, mediaId: id, movieTitle: playerShowTitle)
   }
 }
 
@@ -474,6 +474,16 @@ public extension MediaItem {
 
   var localizedTitle: String {
     KinoPubBilingualTitle.parts(from: title).localized
+  }
+
+  /// The show/album line the player window pairs with a part or version title
+  /// (`Kraftwerk: Minimum-Maximum — Часть первая`). Prefer the international name the
+  /// detail hero puts under the localized title when the two differ.
+  var playerShowTitle: String {
+    let localized = localizedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+    let original = originalTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !original.isEmpty, original != localized { return original }
+    return localized.isEmpty ? title : localized
   }
 }
 

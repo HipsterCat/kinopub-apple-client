@@ -34,6 +34,13 @@ final class ErrorHandler {
     }
   }
 
+  /// Toast a plain message — stream failures already have a localized string, not an `Error`.
+  func setMessage(_ message: String) {
+    let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+    self.state = State(error: trimmed, showError: true)
+  }
+
   /// Resets the error state.
   func reset() {
     self.state = State(error: nil, showError: false)

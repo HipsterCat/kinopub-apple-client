@@ -4,6 +4,9 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Mac: в заголовке окна плеера — S/E и название серии; для концертов — строка альбома и часть («Часть первая»).",
+        "Mac: поток выбирается как hls4 максимального качества; ошибка загрузки показывается тостом, а не чёрным экраном.",
+        "Mac: следующий ролик в том же окне не гасит картинку; при открытии плеера останавливается трейлер героя; чище title bar.",
         "Фильмы с несколькими версиями: одна кнопка «Смотреть» открывает лист «Выберите версию» в стиле Apple TV (кадр + длительность / качество / звук / субтитры).",
         "Оценки под постером: без многоточия в счётчике, один общий тираж для двух источников, плотнее и в формате 10K / 1.45M; в Настройках › Оформление — счётчик, IMDb, Кинопоиск, сортировка, тусклые значки, на постере / под ним, по фокусу и только высокие.",
         "Сезоны: чипы и кнопка «Смотреть» больше не подставляют год вместо номера сезона; эпизоды подгружаются по открытому сезону.",
@@ -118,6 +121,9 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Mac: player window title shows S/E + episode name; concerts show the album line and part title.",
+        "Mac: prefers max-quality hls4; load failures toast instead of a silent black screen.",
+        "Mac: starting the next item keeps the picture; opening the player stops the hero trailer; cleaner title bar.",
         "Multi-version films: one Watch button opens an Apple TV-style Choose a Version sheet (thumb + runtime / quality / audio / subs).",
         "Poster ratings: no ellipsis in the count, one combined turnout for two sources, tighter spacing and 10K / 1.45M format; Settings › Appearance toggles counter, IMDb, Kinopoisk, sort, faded icons, on-poster vs under, focus/hover and high-only.",
         "Seasons: chips and Play no longer turn into a year; episodes load for the open season first.",

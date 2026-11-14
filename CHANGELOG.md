@@ -1,3 +1,7 @@
+## Unreleased
+
+- **macOS player (KP-35):** window title carries S/E + episode name, or concert show line + part (`PlaybackVariant`); prefers max-quality `hls4`; toasts load failures; retargets in place so the next item does not wipe to black; transparent title bar (no underlay).
+
 # Changelog
 
 Notable shipped changes and implementation facts future agents need. Trivial copy/token churn does
