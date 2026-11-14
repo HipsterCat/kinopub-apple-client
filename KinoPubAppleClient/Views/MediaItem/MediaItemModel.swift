@@ -799,10 +799,12 @@ class MediaItemModel: ObservableObject {
     Logger.metadata.info(
       "metadata result path=\(self.usesTitleCard ? "v2" : "tmdb") kinopub=\(self.mediaItemId) ms=\(times[self.usesTitleCard] ?? -1) tmdbId=\(meta.tmdbId.map(String.init) ?? "nil") cast=\(meta.cast.count) photos=\(meta.cast.filter { $0.photo != nil }.count) logo=\(meta.titleLogoURL?.absoluteString ?? "nil") next=\(meta.nextEpisode.map { "S\($0.seasonNumber)E\($0.episodeNumber)" } ?? "nil") status=\(meta.status ?? "nil")"
     )
-    // Visible / continue-target season loads via `ensureSeasonSchedule` from reload /
-    // onSeasonVisible — not every TMDB season on first open.
-    if let lastSeason = mediaItem.seasons?.last?.number {
-      await ensureSeasonSchedule(lastSeason)
+    // Visible / continue-target season only — not every TMDB season on first open
+    // (eager 168KB did not help lag; Sasha, 2026-11-14). Prefer what Play opens.
+    let prefer = mediaItem.primaryEpisode?.season.number
+      ?? mediaItem.seasons?.first?.number
+    if let prefer {
+      await ensureSeasonSchedule(prefer)
     }
     // After the grid: the skip times ask in the official numbering, from the same cached calls.
     let item = mediaItem
