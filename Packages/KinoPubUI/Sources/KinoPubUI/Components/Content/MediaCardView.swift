@@ -1277,14 +1277,23 @@ public struct MediaCardView: View {
   }
 
   /// Iconic plate until a photograph arrives — not an empty grey forever.
+  /// YouTube cards use the brand mark instead of a play SF Symbol (Sasha, 2026-11-14).
   private var landscapeIconicPlaceholder: some View {
     ZStack {
       // fill.tertiary — same quiet family as «Сезон», not bright white (Sasha, 2026-11-14).
       Rectangle().fill(.fill.tertiary)
-      Image(systemName: "play.rectangle.on.rectangle")
-        .font(.system(size: 28, weight: .regular))
-        .foregroundStyle(.tertiary)
-        .accessibilityHidden(true)
+      if playGlyph == .youtube {
+        Image("youtube-play", bundle: .module)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(width: 56)
+          .accessibilityHidden(true)
+      } else {
+        Image(systemName: "play.rectangle.on.rectangle")
+          .font(.system(size: 28, weight: .regular))
+          .foregroundStyle(.tertiary)
+          .accessibilityHidden(true)
+      }
     }
   }
 

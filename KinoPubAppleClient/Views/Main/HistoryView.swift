@@ -449,7 +449,9 @@ struct HistoryView: View {
     let durationSeconds = entry.media?.duration.flatMap { $0 >= 60 ? $0 : nil }
     return MediaCard(
       id: id,
-      posterURL: posters?.medium ?? wide,
+      // Never a /wide/ path in the poster slot — that letterboxes landscape pixels
+      // into a 2:3 lockup (Sasha, 2026-11-14).
+      posterURL: posters?.medium ?? posters?.big ?? "",
       title: title,
       subtitle: HistoryEventText(entry.lastSeenDate)?.formatted(),
       watchedAt: entry.lastSeenDate,

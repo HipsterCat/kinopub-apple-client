@@ -5,8 +5,9 @@
 //
 //  A season's portrait card in front of its episodes on the title page's rail
 //  (`TVUIKitMediaItem.seasonCard`, Sasha 2026-11-09). The episodes are the system's wide
-//  media-item cell; this one is the poster alone, as tall as the stills beside it, with no
-//  words on or under it (Sasha, 2026-11-10: the card is a picture, the menu says the rest).
+//  media-item cell; this one is as tall as the stills beside it and a poster's 2:3 across.
+//  Until the poster paints, the plate shows number / count / years; once art lands the
+//  card is the picture alone (menu still says the rest).
 //
 //  It takes focus so it has a context menu and Select folds its season
 //  (`TVUIKitMediaItemRail`). The focus lift is the system's own image effect
@@ -24,6 +25,8 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
   static let reuseID = "TVUIKitSeasonCardCell"
 
   private let posterView = UIImageView()
+  /// Number / count / years until the poster paints (checklist plate).
+  private let plateStack = UIStackView()
   private var card: TVUIKitMediaItem.SeasonCard?
   private var imageTask: Task<Void, Never>?
   /// The card whose poster is on screen or on its way, and the size it was drawn at.
@@ -45,6 +48,18 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
     posterView.masksFocusEffectToContents = true
     contentView.addSubview(posterView)
 
+    plateStack.axis = .vertical
+    plateStack.alignment = .leading
+    plateStack.spacing = 2
+    plateStack.isUserInteractionEnabled = false
+    plateStack.translatesAutoresizingMaskIntoConstraints = false
+    contentView.addSubview(plateStack)
+    NSLayoutConstraint.activate([
+      plateStack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
+      plateStack.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -8),
+      plateStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+    ])
+
     isAccessibilityElement = true
     accessibilityTraits = [.header, .button]
   }
@@ -64,8 +79,27 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
     self.card = card
     accessibilityIdentifier = "kinopub.rail.season.\(id)"
     accessibilityLabel = ([card.captions.first] + [card.chips.first]).compactMap { $0 }.joined(separator: ", ")
+    rebuildPlate(card)
     if reload { drawnSize = .zero }
     setNeedsLayout()
+  }
+
+  private func rebuildPlate(_ card: TVUIKitMediaItem.SeasonCard) {
+    plateStack.arrangedSubviews.forEach {
+      plateStack.removeArrangedSubview($0)
+      $0.removeFromSuperview()
+    }
+    let lines = [card.captions.first, card.chips.first].compactMap { $0 }
+    for (index, line) in lines.enumerated() {
+      let label = UILabel()
+      label.text = line
+      label.textColor = index == 0 ? .label : .secondaryLabel
+      label.font = .preferredFont(forTextStyle: index == 0 ? .headline : .footnote)
+      label.numberOfLines = 1
+      label.lineBreakMode = .byTruncatingTail
+      plateStack.addArrangedSubview(label)
+    }
+    plateStack.isHidden = lines.isEmpty
   }
 
   override func layoutSubviews() {
@@ -77,6 +111,7 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
     drawnSize = size
     posterView.image = TVUIKitTileArtwork.placeholder(size: size, cornerRadius: Self.cornerRadius,
                                                       traits: traitCollection)
+    plateStack.isHidden = false
     loadPoster(card, size: size)
   }
 
@@ -100,6 +135,7 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
     let urls = [card.posterURL, card.fallbackPosterURL].compactMap { $0 }
     if let first = urls.first, let hit = TVUIKitRemoteImage.cached(url: first, size: size) {
       posterView.image = Self.rounded(hit, size: size)
+      plateStack.isHidden = true
       return
     }
     imageTask = Task { [weak self] in
@@ -109,9 +145,13 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
         guard let self, !Task.isCancelled, self.loadingFor == card, self.drawnSize == size else { return }
         if let image {
           self.posterView.image = Self.rounded(image, size: size)
+          self.plateStack.isHidden = true
           return
         }
       }
+      // Keep the number / count / years plate when no poster arrives.
+      guard let self, !Task.isCancelled, self.loadingFor == card else { return }
+      self.plateStack.isHidden = false
     }
   }
 
@@ -123,6 +163,11 @@ final class TVUIKitSeasonCardCell: UICollectionViewCell {
     loadingFor = nil
     drawnSize = .zero
     posterView.image = nil
+    plateStack.arrangedSubviews.forEach {
+      plateStack.removeArrangedSubview($0)
+      $0.removeFromSuperview()
+    }
+    plateStack.isHidden = true
     tileAlpha = 1
   }
 }

@@ -212,6 +212,36 @@ public enum TVUIKitTileArtwork {
           traits: traits)
   }
 
+  /// Empty YouTube trailer tile: quiet plate + YouTube logo — not an SF Symbol
+  /// that reads as another kind of empty still (Sasha, 2026-11-14).
+  public static func youTubeStill(size: CGSize = wideSize,
+                                  cornerRadius: CGFloat = 0,
+                                  traits: UITraitCollection? = nil) -> UIImage {
+    let traits = traits ?? .current
+    let fill = quietFill(traits: traits)
+    let key = "yt-still-\(Int(size.width))x\(Int(size.height))-r\(Int(cornerRadius))-\(traits.userInterfaceStyle.rawValue)" as NSString
+    if let cached = cache.object(forKey: key) { return cached }
+    let logo = UIImage(named: "youtube-play", in: .module, with: nil)
+    let bounds = CGRect(origin: .zero, size: size)
+    let drawn = render(size: size) { _ in
+      if cornerRadius > 0 {
+        UIBezierPath(roundedRect: bounds, cornerRadius: cornerRadius).addClip()
+      }
+      fill.setFill()
+      UIBezierPath(rect: bounds).fill()
+      guard let logo else { return }
+      let maxWidth = size.width * 0.36
+      let aspect = logo.size.height > 0 ? logo.size.width / logo.size.height : 28.57 / 20
+      let width = maxWidth
+      let height = width / aspect
+      logo.draw(in: CGRect(x: (size.width - width) / 2,
+                           y: (size.height - height) / 2,
+                           width: width, height: height))
+    }
+    cache.setObject(drawn, forKey: key)
+    return drawn
+  }
+
   public static func placeholder(size: CGSize = wideSize,
                                  cornerRadius: CGFloat = 0,
                                  traits: UITraitCollection? = nil) -> UIImage {
