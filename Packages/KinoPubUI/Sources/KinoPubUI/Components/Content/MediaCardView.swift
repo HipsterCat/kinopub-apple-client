@@ -735,6 +735,18 @@ public struct MediaCardView: View {
   private var ratingPlacementRaw = MediaCardDisplayPreferences.defaultRatingPlacement.rawValue
   @AppStorage(MediaCardDisplayPreferences.ratingSourceKey)
   private var ratingSourceRaw = MediaCardDisplayPreferences.defaultRatingSource.rawValue
+  @AppStorage(MediaCardDisplayPreferences.ratingVisibilityKey)
+  private var ratingVisibilityRaw = MediaCardDisplayPreferences.defaultRatingVisibility.rawValue
+  @AppStorage(MediaCardDisplayPreferences.showVoteCountKey)
+  private var showVoteCount = MediaCardDisplayPreferences.defaultShowVoteCount
+  @AppStorage(MediaCardDisplayPreferences.showIMDbRatingKey)
+  private var showIMDbRating = MediaCardDisplayPreferences.defaultShowIMDbRating
+  @AppStorage(MediaCardDisplayPreferences.showKinopoiskRatingKey)
+  private var showKinopoiskRating = MediaCardDisplayPreferences.defaultShowKinopoiskRating
+  @AppStorage(MediaCardDisplayPreferences.sortRatingsByVotesKey)
+  private var sortRatingsByVotes = MediaCardDisplayPreferences.defaultSortRatingsByVotes
+  @AppStorage(MediaCardDisplayPreferences.fadedRatingIconsKey)
+  private var fadedRatingIcons = MediaCardDisplayPreferences.defaultFadedRatingIcons
   @AppStorage(MediaCardDisplayPreferences.capabilityPlacementKey)
   private var capabilityPlacementRaw = MediaCardDisplayPreferences.defaultCapabilityPlacement.rawValue
   @AppStorage(MediaCardDisplayPreferences.show4KKey)
@@ -779,6 +791,10 @@ public struct MediaCardView: View {
     guard RatingFeature.combinedEnabled else { return .combined }
     return MediaCardRatingSource(rawValue: ratingSourceRaw)
       ?? MediaCardDisplayPreferences.defaultRatingSource
+  }
+  private var ratingVisibility: MediaCardRatingVisibility {
+    MediaCardRatingVisibility(rawValue: ratingVisibilityRaw)
+      ?? MediaCardDisplayPreferences.defaultRatingVisibility
   }
   private var capabilityPlacement: MediaCardChromePlacement {
     MediaCardChromePlacement(rawValue: capabilityPlacementRaw)
@@ -856,16 +872,42 @@ public struct MediaCardView: View {
 
   private var captionScores: MediaScores {
     // With the aggregate off there is no source picker — show whatever we have.
-    guard RatingFeature.combinedEnabled else { return card.scores }
-    return card.displayScores(source: ratingSource)
+    let base: MediaScores
+    if RatingFeature.combinedEnabled {
+      base = card.displayScores(source: ratingSource)
+    } else {
+      base = card.scores
+    }
+    return base.filteringPosterSources(imdb: showIMDbRating, kinopoisk: showKinopoiskRating)
+  }
+
+  private var showsRatingChrome: Bool {
+    guard ratingPlacement != .hidden || !RatingFeature.combinedEnabled else { return false }
+    switch ratingVisibility {
+    case .always:
+      break
+    case .onFocusHover:
+      if !isPointerActive { return false }
+    case .hotOnly:
+      guard let rating = activeRating,
+            rating.tier == .good || rating.tier == .awarded else { return false }
+    }
+    return true
   }
 
   private var showsCaptionScores: Bool {
     guard captionScores.hasDisplayableScore else { return false }
     // Labelled scores are the only rating a card has while the aggregate is off —
     // they are not the "Under title" branch of a setting that is no longer shown.
-    guard RatingFeature.combinedEnabled else { return true }
-    return ratingPlacement == .inCaption
+    guard RatingFeature.combinedEnabled else { return showsRatingChrome }
+    return ratingPlacement == .inCaption && showsRatingChrome
+  }
+
+  private var showsArtworkRatingBadge: Bool {
+    guard RatingFeature.combinedEnabled else { return false }
+    guard ratingPlacement == .onArtwork else { return false }
+    guard showsRatingChrome else { return false }
+    return activeRating != nil
   }
 
   private var showsPlayChrome: Bool {
@@ -1125,7 +1167,7 @@ public struct MediaCardView: View {
   private var posterOverlays: some View {
     ZStack(alignment: .topLeading) {
       Color.clear
-      if RatingFeature.combinedEnabled, ratingPlacement == .onArtwork, let rating = activeRating {
+      if showsArtworkRatingBadge, let rating = activeRating {
         RatingBadgeView(rating: rating)
           .padding(3)
           .accessibilityLabel(Text("Rating \(rating.formatted)"))
@@ -1385,7 +1427,13 @@ public struct MediaCardView: View {
       }
 
       if showsCaptionScores {
-        MediaScoresView(captionScores, collapsesVotesToFit: true)
+        MediaScoresView(
+          captionScores,
+          showsVotes: showVoteCount,
+          collapsesVotesToFit: true,
+          sortByVotes: sortRatingsByVotes,
+          fadedIcons: fadedRatingIcons
+        )
           .font(TypeScale.cardMeta)
           .foregroundStyle(Color.KinoPub.subtitle)
       }

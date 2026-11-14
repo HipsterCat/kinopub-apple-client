@@ -14391,6 +14391,214 @@
         }
       }
     },
+    "When to show" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When to show"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Когда показывать"
+          }
+        }
+      }
+    },
+    "Only high ratings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only high ratings"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только высокие оценки"
+          }
+        }
+      }
+    },
+    "Show vote count" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show vote count"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать число оценок"
+          }
+        }
+      }
+    },
+    "Show IMDb" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show IMDb"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать IMDb"
+          }
+        }
+      }
+    },
+    "Show Kinopoisk" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Kinopoisk"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать Кинопоиск"
+          }
+        }
+      }
+    },
+    "Sort by vote count" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sort by vote count"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сортировать по числу оценок"
+          }
+        }
+      }
+    },
+    "Faded rating icons" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faded rating icons"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тусклые значки оценок"
+          }
+        }
+      }
+    },
+    "On poster uses the coloured plaque. Under title shows IMDb / Kinopoisk logos separately. High ratings are green or gold." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On poster uses the coloured plaque. Under title shows IMDb / Kinopoisk logos separately. High ratings are green or gold."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На постере — цветная плашка. Под названием — логотипы IMDb и Кинопоиска отдельно. Высокие оценки — зелёные или золотые."
+          }
+        }
+      }
+    },
+    "Always, on focus, or only when the score is green or gold." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Always, on focus, or only when the score is green or gold."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всегда, по фокусу или только когда оценка зелёная или золотая."
+          }
+        }
+      }
+    },
+    "Combined plaque, or one source." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Combined plaque, or one source."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Общая плашка или один источник."
+          }
+        }
+      }
+    },
+    "Under-title row shows one combined turnout number." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Under-title row shows one combined turnout number."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Под названием — одно общее число оценок."
+          }
+        }
+      }
+    },
+    "Larger audience first under the poster." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Larger audience first under the poster."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Под постером сначала источник с большей аудиторией."
+          }
+        }
+      }
+    },
+    "Template marks instead of colour logos under the title." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Template marks instead of colour logos under the title."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Под названием — однотонные значки вместо цветных логотипов."
+          }
+        }
+      }
+    },
     "Posters" : {
       "extractionState" : "manual",
       "localizations" : {

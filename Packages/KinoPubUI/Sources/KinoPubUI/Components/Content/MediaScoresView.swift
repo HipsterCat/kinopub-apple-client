@@ -247,10 +247,14 @@ public struct MediaScoresView: View {
   /// with a handful of votes or one swamped by another dropped), in the title page's
   /// line marks.
   public var bannerLine: Bool
-  /// Under a poster the line has one width. Per-source vote counts when they fit;
-  /// otherwise the logos and scores plus one combined count; scores alone if that
-  /// still does not fit.
+  /// Under a poster the line has one width. Dual ratings always share one combined
+  /// count (never per-source). A single source may show its own count; if even that
+  /// overflows, scores alone. Never truncates with an ellipsis.
   public var collapsesVotesToFit: Bool
+  /// When false, keep IMDb → Kinopoisk → TMDB → kino.pub order instead of turnout.
+  public var sortByVotes: Bool
+  /// Template (faded) marks instead of full-colour brand assets.
+  public var fadedIcons: Bool
   /// The title page's line, trimmed to its biggest audiences and the critics
   /// (`compactDetailLine`): nil is the whole line; 0 keeps every major source.
   public var compactLimit: Int?
@@ -263,6 +267,8 @@ public struct MediaScoresView: View {
     detailLine: Bool = false,
     bannerLine: Bool = false,
     collapsesVotesToFit: Bool = false,
+    sortByVotes: Bool = true,
+    fadedIcons: Bool = false,
     compactLimit: Int? = nil
   ) {
     self.scores = scores
@@ -273,6 +279,8 @@ public struct MediaScoresView: View {
     self.detailLine = detailLine
     self.bannerLine = bannerLine
     self.collapsesVotesToFit = collapsesVotesToFit
+    self.sortByVotes = sortByVotes
+    self.fadedIcons = fadedIcons
   }
 
   /// Convenience for previews / call sites that still pass loose numbers.
@@ -304,7 +312,13 @@ public struct MediaScoresView: View {
     if detailLine {
       return scores.detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
     }
-    return scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    let ranked = scores.heroScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    guard sortByVotes else {
+      // Stable source order (IMDb → Kinopoisk → TMDB → kino.pub), still skipping empties.
+      let order = ranked.map(\.source)
+      return scores.allItems.filter { order.contains($0.source) }
+    }
+    return ranked
   }
 
   public var body: some View {
@@ -314,10 +328,19 @@ public struct MediaScoresView: View {
     if slice.isEmpty {
       EmptyView()
     } else if collapsesVotesToFit {
+      // Dual ratings always share one combined count — never try per-source first
+      // (that path truncated as "(6...." under a poster). `fixedSize` keeps
+      // ViewThatFits measuring intrinsic width so nothing ellipsises.
       ViewThatFits(in: .horizontal) {
-        scoresRow(slice, votes: .each)
-        scoresRow(slice, votes: .total)
-        scoresRow(slice, votes: .none)
+        if showsVotes {
+          if slice.count >= 2 {
+            scoresRow(slice, votes: .total).fixedSize(horizontal: true, vertical: false)
+          } else {
+            scoresRow(slice, votes: .each).fixedSize(horizontal: true, vertical: false)
+            scoresRow(slice, votes: .total).fixedSize(horizontal: true, vertical: false)
+          }
+        }
+        scoresRow(slice, votes: .none).fixedSize(horizontal: true, vertical: false)
       }
       .frame(maxWidth: .infinity, alignment: .center)
     } else {
@@ -333,18 +356,19 @@ public struct MediaScoresView: View {
 
   private func scoresRow(_ slice: [MediaScoreItem], votes: VoteStyle) -> some View {
     let total = slice.compactMap(\.votes).filter { $0 > 0 }.reduce(0, +)
-    return HStack(spacing: Self.groupSpacing) {
+    return HStack(spacing: rowSpacing) {
       ForEach(slice) { item in
         score(item: item, showsVotes: votes == .each)
       }
       if votes == .total, total > 0 {
-        Text("(\(MediaScores.formatVotesWholeThousands(total)))")
+        // No parentheses under a poster — they cost width and produced the ellipsis.
+        Text(CompactCountFormat.string(total))
           .font(.caption2)
           .fontWeight(.regular)
           .foregroundStyle(Color.KinoPub.subtitle)
+          .monospacedDigit()
       }
     }
-    .lineLimit(1)
   }
 
   /// Font and colour come from whatever this is dropped into. Scores read as part of
@@ -377,37 +401,52 @@ public struct MediaScoresView: View {
     MediaScoreLogo(
       item.source,
       height: usesLineMarks ? Self.lineIconHeight : Self.iconHeight,
-      style: usesLineMarks ? .line : .color
+      style: logoStyle
     )
+    .foregroundStyle(fadedIcons ? Color.KinoPub.subtitle : Color.KinoPub.text)
     if !item.displayScore.isEmpty {
       Text(item.displayScore)
         .fontDesign(.rounded)
         .fontWeight(.semibold)
-        .foregroundStyle(item.drawsFaint ? Color.KinoPub.subtitle : Color.KinoPub.text)
+        .foregroundStyle(item.drawsFaint || fadedIcons ? Color.KinoPub.subtitle : Color.KinoPub.text)
     }
     if showsVotes, let votes = item.votesCompact {
-      Text("(\(votes))")
+      Text(collapsesVotesToFit ? votes : "(\(votes))")
         .font(.caption2)
         .fontWeight(.regular)
         .foregroundStyle(Color.KinoPub.subtitle)
+        .monospacedDigit()
     }
   }
 
   private var usesLineMarks: Bool { detailLine || bannerLine }
 
+  private var logoStyle: MediaScoreLogo.Style {
+    if fadedIcons { return .template }
+    return usesLineMarks ? .line : .color
+  }
+
+  /// Under-poster row: half the hero/detail group gap (KP-33).
+  private var rowSpacing: CGFloat {
+    collapsesVotesToFit ? Self.captionGroupSpacing : Self.groupSpacing
+  }
+
   private static let markSpacing: CGFloat = 3
 
-  /// The synopsis-line marks. The PNGs are this tall; the view draws them at
+    /// The synopsis-line marks. The PNGs are this tall; the view draws them at
   /// their own width.
   public static let lineIconHeight: CGFloat = 32
 
 #if os(tvOS)
   public static let groupSpacing: CGFloat = 20
+  /// Half of `groupSpacing` — score↔score and scores↔count under a poster.
+  public static let captionGroupSpacing: CGFloat = 10
   public static let iconHeight: CGFloat = 16
   public static let imdbHeight: CGFloat = 16
   public static let kinopoiskHeight: CGFloat = 16
 #else
   public static let groupSpacing: CGFloat = 12
+  public static let captionGroupSpacing: CGFloat = 6
   public static let iconHeight: CGFloat = 12
   public static let imdbHeight: CGFloat = 12
   public static let kinopoiskHeight: CGFloat = 12

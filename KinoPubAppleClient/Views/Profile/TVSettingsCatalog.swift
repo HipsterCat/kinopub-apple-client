@@ -554,25 +554,66 @@ final class TVSettingsCatalog {
   }
 
   private func appearanceSections() -> [TSKSection] {
-    [TSKSection(rows: [
-      TSKRow(title: "Language".localized,
-             description: "Settings_Tip_Language".localized,
-             kind: .choice(key: "language",
-                           values: model.availableLanguages.keys.sorted().map { $0 as NSString },
-                           label: { [unowned self] in ($0 as? String).map { self.model.availableLanguages[$0] ?? $0 } })),
-      TSKRow(title: "Covers and images".localized,
-             description: "Settings_Tip_Covers".localized,
-             kind: .choice(key: "coverLanguage",
-                           values: CoverArtworkLanguage.allCases.map { $0.rawValue as NSString },
-                           label: { value in
-                             (value as? String).flatMap(CoverArtworkLanguage.init(rawValue:))?.titleKey.localized
-                           })),
-      info("Theme", "Dark".localized),
-      TSKRow(title: "Вкладки и Главная",
-             description: "Включение, отключение и сортировка вкладок верхнего меню и секций Главной страницы.",
-             kind: .action(pushes: true) { [unowned self] in self.open(.tabs) },
-             previewSymbol: "square.grid.2x2"),
-    ])]
+    var sections: [TSKSection] = [
+      TSKSection(rows: [
+        TSKRow(title: "Language".localized,
+               description: "Settings_Tip_Language".localized,
+               kind: .choice(key: "language",
+                             values: model.availableLanguages.keys.sorted().map { $0 as NSString },
+                             label: { [unowned self] in ($0 as? String).map { self.model.availableLanguages[$0] ?? $0 } })),
+        TSKRow(title: "Covers and images".localized,
+               description: "Settings_Tip_Covers".localized,
+               kind: .choice(key: "coverLanguage",
+                             values: CoverArtworkLanguage.allCases.map { $0.rawValue as NSString },
+                             label: { value in
+                               (value as? String).flatMap(CoverArtworkLanguage.init(rawValue:))?.titleKey.localized
+                             })),
+        info("Theme", "Dark".localized),
+        TSKRow(title: "Вкладки и Главная",
+               description: "Включение, отключение и сортировка вкладок верхнего меню и секций Главной страницы.",
+               kind: .action(pushes: true) { [unowned self] in self.open(.tabs) },
+               previewSymbol: "square.grid.2x2"),
+      ])
+    ]
+    var posterRows: [TSKRow] = []
+    if FeatureFlags.combinedRatingEnabled {
+      posterRows += [
+        TSKRow(title: "Rating".localized,
+               description: "On poster uses the coloured plaque. Under title shows IMDb / Kinopoisk logos separately.".localized,
+               kind: .choice(key: "cardRatingPlacement",
+                             values: MediaCardChromePlacement.allCases.map { $0.rawValue as NSString },
+                             label: { ($0 as? String).flatMap(MediaCardChromePlacement.init(rawValue:))?.titleKey.localized })),
+        TSKRow(title: "Rating source".localized,
+               description: "Combined plaque, or one source.".localized,
+               kind: .choice(key: "cardRatingSource",
+                             values: MediaCardRatingSource.allCases.map { $0.rawValue as NSString },
+                             label: { ($0 as? String).flatMap(MediaCardRatingSource.init(rawValue:))?.titleKey.localized })),
+      ]
+    }
+    posterRows += [
+      TSKRow(title: "When to show".localized,
+             description: "Always, on focus, or only when the score is green or gold.".localized,
+             kind: .choice(key: "cardRatingVisibility",
+                           values: MediaCardRatingVisibility.allCases.map { $0.rawValue as NSString },
+                           label: { ($0 as? String).flatMap(MediaCardRatingVisibility.init(rawValue:))?.titleKey.localized })),
+      TSKRow(title: "Show vote count".localized,
+             description: "Under-title row shows one combined turnout number.".localized,
+             kind: .toggle(key: "cardShowVoteCount")),
+      TSKRow(title: "Show IMDb".localized,
+             description: nil,
+             kind: .toggle(key: "cardShowIMDbRating")),
+      TSKRow(title: "Show Kinopoisk".localized,
+             description: nil,
+             kind: .toggle(key: "cardShowKinopoiskRating")),
+      TSKRow(title: "Sort by vote count".localized,
+             description: "Larger audience first under the poster.".localized,
+             kind: .toggle(key: "cardSortRatingsByVotes")),
+      TSKRow(title: "Faded rating icons".localized,
+             description: "Template marks instead of colour logos under the title.".localized,
+             kind: .toggle(key: "cardFadedRatingIcons")),
+    ]
+    sections.append(TSKSection(title: "Poster score".localized, rows: posterRows))
+    return sections
   }
 
   /// Settings › Integrations — the same catalog as the Mac and iOS pane (`Integration`).
@@ -1891,6 +1932,30 @@ final class TVSettingsCatalog {
                        let language = CoverArtworkLanguage(rawValue: raw) else { return }
                  CoverArtworkPreferences.set(language)
                })
+    store.bind("cardRatingPlacement",
+               get: { MediaCardDisplayPreferences.ratingPlacement.rawValue as NSString },
+               set: { defaults.set($0 as? String, forKey: MediaCardDisplayPreferences.ratingPlacementKey) })
+    store.bind("cardRatingVisibility",
+               get: { MediaCardDisplayPreferences.ratingVisibility.rawValue as NSString },
+               set: { defaults.set($0 as? String, forKey: MediaCardDisplayPreferences.ratingVisibilityKey) })
+    store.bind("cardRatingSource",
+               get: { MediaCardDisplayPreferences.ratingSource.rawValue as NSString },
+               set: { defaults.set($0 as? String, forKey: MediaCardDisplayPreferences.ratingSourceKey) })
+    store.bindBool("cardShowVoteCount",
+                   get: { MediaCardDisplayPreferences.showVoteCount },
+                   set: { defaults.set($0, forKey: MediaCardDisplayPreferences.showVoteCountKey) })
+    store.bindBool("cardShowIMDbRating",
+                   get: { MediaCardDisplayPreferences.showIMDbRating },
+                   set: { defaults.set($0, forKey: MediaCardDisplayPreferences.showIMDbRatingKey) })
+    store.bindBool("cardShowKinopoiskRating",
+                   get: { MediaCardDisplayPreferences.showKinopoiskRating },
+                   set: { defaults.set($0, forKey: MediaCardDisplayPreferences.showKinopoiskRatingKey) })
+    store.bindBool("cardSortRatingsByVotes",
+                   get: { MediaCardDisplayPreferences.sortRatingsByVotes },
+                   set: { defaults.set($0, forKey: MediaCardDisplayPreferences.sortRatingsByVotesKey) })
+    store.bindBool("cardFadedRatingIcons",
+                   get: { MediaCardDisplayPreferences.fadedRatingIcons },
+                   set: { defaults.set($0, forKey: MediaCardDisplayPreferences.fadedRatingIconsKey) })
     store.bind("streamQuality",
                get: { (defaults.string(forKey: StreamQuality.userDefaultsKey) ?? StreamQuality.auto.rawValue) as NSString },
                set: { defaults.set($0 as? String, forKey: StreamQuality.userDefaultsKey) })

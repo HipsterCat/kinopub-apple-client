@@ -218,19 +218,29 @@ public struct MediaScores: Hashable, Codable, Sendable {
     }
   }
 
+  /// Poster caption toggles: drop IMDb / Kinopoisk while leaving TMDB and kino.pub alone.
+  public func filteringPosterSources(imdb showIMDb: Bool, kinopoisk showKinopoisk: Bool) -> MediaScores {
+    MediaScores(
+      imdb: showIMDb ? imdb : nil,
+      imdbVotes: showIMDb ? imdbVotes : nil,
+      kinopoisk: showKinopoisk ? kinopoisk : nil,
+      kinopoiskVotes: showKinopoisk ? kinopoiskVotes : nil,
+      tmdb: tmdb,
+      tmdbVotes: tmdbVotes,
+      kinopubLikes: kinopubLikes,
+      kinopubDislikes: kinopubDislikes,
+      extras: extras
+    )
+  }
+
   private static func rated(_ value: Double?) -> Double? {
     (value ?? 0) > 0 ? value : nil
   }
 
-  /// Formats raw voter turnout count as integer thousands without decimals (e.g. 12K, 450, 1M).
+  /// Compact vote turnout for combined under-poster / banner counts. Delegates to
+  /// `CompactCountFormat` so poster chips and the hero share one K/M rule.
   public static func formatVotesWholeThousands(_ count: Int) -> String {
-    if count >= 1_000_000 {
-      return "\(count / 1_000_000)M"
-    } else if count >= 1_000 {
-      return "\(count / 1_000)K"
-    } else {
-      return "\(count)"
-    }
+    CompactCountFormat.string(count)
   }
 }
 
