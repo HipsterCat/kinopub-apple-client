@@ -220,7 +220,10 @@ public final class TVSeasonRailController: UIViewController {
   init(contentInset: CGFloat, columns: Int) {
     self.contentInset = contentInset
     self.columns = columns
-    self.rail = TVUIKitMediaItemRailController(contentInset: contentInset, columns: columns, caption: .always)
+    // Same as Home Continue Watching: runtime / progress only while focused. The season
+    // rail was painting «1ч» / «52м» at rest (Sasha, 2026-11-14).
+    self.rail = TVUIKitMediaItemRailController(contentInset: contentInset, columns: columns,
+                                               caption: .always, overlayOnFocus: true)
     super.init(nibName: nil, bundle: nil)
   }
 
