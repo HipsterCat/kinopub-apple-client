@@ -1568,7 +1568,10 @@ extension MediaIdentity {
       title: mediaItem.localizedTitle,
       originalTitle: mediaItem.originalTitle,
       year: mediaItem.year,
-      isSeries: mediaItem.isSeries
+      isSeries: mediaItem.isSeries,
+      runtimeMinutes: mediaItem.duration.average > 0
+        ? Int((mediaItem.duration.average / 60).rounded())
+        : nil
     )
   }
 }

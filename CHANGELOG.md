@@ -5,6 +5,14 @@ not belong here. Detail checklists live in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### `/v2/title` takes the same identity hints as `/v1/title` (2026-11-10)
+
+- `GET /v2/title/by/kinopub/{id}` with no query is still the stored card. Query
+  params `imdb`, `kinopoisk`, `runtime`, `year`, `name_ru`, `name_original` (and
+  the older `title` / `original`) let a cold id match TMDB instead of 404.
+  `GET /v2/title?imdb=` / `?kinopoisk=` looks up a stored card. The app sends
+  those hints from `TitleCardSource`.
+
 ### Trailer player: closes at the end; no Info on trailers (2026-11-03)
 
 - The end-of-stream observer only ran for `.media`, so a trailer that finished

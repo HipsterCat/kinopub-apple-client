@@ -297,6 +297,52 @@ final class TitleCardMappingTests: XCTestCase {
     XCTAssertEqual(meta.numberOfEpisodes, 2)
   }
 
+  func testByKinopubURLCarriesIdentityHints() throws {
+    let source = TitleCardSource(configuration: MetadataConfiguration(
+      proxyBaseURL: URL(string: "https://proxy.test")
+    ))
+    let identity = MediaIdentity(
+      kinopubId: 99,
+      imdb: "tt0418279",
+      kinopoisk: 81288,
+      title: "Трансформеры",
+      originalTitle: "Transformers",
+      year: 2007,
+      isSeries: false,
+      runtimeMinutes: 144
+    )
+    let url = try XCTUnwrap(source.makeURL(for: identity))
+    let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+    func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
+    XCTAssertEqual(url.path, "/v2/title/by/kinopub/99")
+    XCTAssertEqual(value("imdb"), "tt0418279")
+    XCTAssertEqual(value("kinopoisk"), "81288")
+    XCTAssertEqual(value("year"), "2007")
+    XCTAssertEqual(value("name_ru"), "Трансформеры")
+    XCTAssertEqual(value("name_original"), "Transformers")
+    XCTAssertEqual(value("runtime"), "144")
+    XCTAssertEqual(value("type"), "movie")
+  }
+
+  func testSeriesURLHintsShowAndOmitsEmptyIds() throws {
+    let source = TitleCardSource(configuration: MetadataConfiguration(
+      proxyBaseURL: URL(string: "https://proxy.test/")
+    ))
+    let identity = MediaIdentity(
+      kinopubId: 7,
+      imdb: nil,
+      kinopoisk: nil,
+      title: "Шоу",
+      originalTitle: "",
+      year: 0,
+      isSeries: true
+    )
+    let url = try XCTUnwrap(source.makeURL(for: identity))
+    let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+    XCTAssertEqual(Set(items.map(\.name)), ["name_ru", "type"])
+    XCTAssertEqual(items.first { $0.name == "type" }?.value, "show")
+  }
+
   func testProxiesOnlyTMDBImageHosts() {
     let proxy = URL(string: "https://proxy.example")
     XCTAssertEqual(

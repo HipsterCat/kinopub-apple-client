@@ -4,10 +4,11 @@ import KinoPubLogging
 
 /// `GET /v2/title/by/kinopub/{id}` — one card instead of the app's own TMDB calls.
 ///
-/// The body is the page's title: billing, images, seasons, episodes. It does not
-/// search TMDB. A 404 means the worker has no card yet. Not cached here: the
-/// comparison on the detail page is measuring this call, and the worker already
-/// keeps the answer for 60 seconds.
+/// The body is the page's title: billing, images, seasons, episodes. Identity
+/// hints (imdb, kinopoisk, names, year, runtime) go on the query so a cold id
+/// can still match. A 404 means the worker has no card and could not match.
+/// Not cached here: the comparison on the detail page is measuring this call,
+/// and the worker already keeps the answer for 60 seconds.
 public final class TitleCardSource: MetadataSource, @unchecked Sendable {
   public let id: MetadataSourceID = .titleCard
   public var isConfigured: Bool { configuration.isConfigured }
@@ -22,7 +23,7 @@ public final class TitleCardSource: MetadataSource, @unchecked Sendable {
 
   public func titleMetadata(for identity: MediaIdentity) async throws -> TitleMetadata? {
     guard identity.kinopubId > 0 else { return nil }
-    guard let url = makeURL(kinopubId: identity.kinopubId) else {
+    guard let url = makeURL(for: identity) else {
       return TitleMetadata()
     }
     let started = ContinuousClock().now
@@ -71,12 +72,36 @@ public final class TitleCardSource: MetadataSource, @unchecked Sendable {
     }
   }
 
-  private func makeURL(kinopubId: Int) -> URL? {
+  func makeURL(for identity: MediaIdentity) -> URL? {
     guard let base = configuration.proxyBaseURL else { return nil }
     let root = base.absoluteString.hasSuffix("/")
       ? String(base.absoluteString.dropLast())
       : base.absoluteString
-    return URL(string: "\(root)/v2/title/by/kinopub/\(kinopubId)")
+    guard var components = URLComponents(string: "\(root)/v2/title/by/kinopub/\(identity.kinopubId)") else {
+      return nil
+    }
+    var items: [URLQueryItem] = []
+    if let imdb = identity.imdb, !imdb.isEmpty {
+      items.append(URLQueryItem(name: "imdb", value: imdb))
+    }
+    if let kinopoisk = identity.kinopoisk, kinopoisk > 0 {
+      items.append(URLQueryItem(name: "kinopoisk", value: String(kinopoisk)))
+    }
+    if identity.year > 0 {
+      items.append(URLQueryItem(name: "year", value: String(identity.year)))
+    }
+    if !identity.title.isEmpty {
+      items.append(URLQueryItem(name: "name_ru", value: identity.title))
+    }
+    if !identity.originalTitle.isEmpty {
+      items.append(URLQueryItem(name: "name_original", value: identity.originalTitle))
+    }
+    if let runtime = identity.runtimeMinutes, runtime > 0 {
+      items.append(URLQueryItem(name: "runtime", value: String(runtime)))
+    }
+    items.append(URLQueryItem(name: "type", value: identity.isSeries ? "show" : "movie"))
+    components.queryItems = items
+    return components.url
   }
 
   static func map(_ card: TitleCardDTO, proxyBase: URL?) -> TitleMetadata {

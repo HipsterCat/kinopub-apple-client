@@ -30,7 +30,7 @@
  */
 
 import { tmdbGenres } from "./genres.js";
-import { publishCard } from "./card.js";
+import { findKinopubId, handleCard, json as cardJson, publishCard } from "./card.js";
 import { applySeasonLocale, ensureEpisodeStill, loadSeasons } from "./seasons.js";
 
 const DOC_TTL = 60 * 60 * 24 * 30;
@@ -134,6 +134,100 @@ export async function handleTitle(url, env, ctx) {
   const draft = draftDocument(id, hints);
   ctx.waitUntil(resolveAndStore(env, id, hints, draft));
   return json(draft, 200, { "X-Cache": "miss" });
+}
+
+/**
+ * GET /v2/title/by/kinopub/{id}
+ * GET /v2/title?imdb=&kinopoisk=&runtime=&year=&name_ru=&name_original=
+ *
+ * The page's card. A stored D1 row answers as before. Identity hints — the same
+ * ones /v1/title already takes, with v2's names for the title — let a cold id
+ * match TMDB instead of 404. `/v2/title/by/kinopub/{id}` with no query is unchanged.
+ */
+export async function handleTitleV2(url, env, ctx) {
+  const hints = readHints(url);
+  const byId = url.pathname.match(/\/(?:v2\/title|v1\/card)\/by\/kinopub\/(\d+)$/);
+  const pathId = byId?.[1]
+    || (hints.kinopub && /^\d+$/.test(hints.kinopub) ? hints.kinopub : null);
+
+  if (pathId) {
+    const cardURL = new URL(`https://title.invalid/v2/title/by/kinopub/${pathId}`);
+    const existing = await handleCard(cardURL, env);
+    if (existing.status !== 404) {
+      if (ctx && (hints.imdb || hints.kinopoisk)) {
+        const stored = await readDocument(env, pathId);
+        const missingImdb = hints.imdb && !stored?.ids?.imdb;
+        const missingFacts = hints.kinopoisk && !stored?.factsChecked;
+        if (stored && (stored.pending === true || missingImdb || missingFacts)) {
+          ctx.waitUntil(resolveAndStore(env, pathId, hints, stored));
+        }
+      }
+      return existing;
+    }
+    if (!canMatch(hints)) return existing;
+    const draft = draftDocument(pathId, hints);
+    await resolveAndStore(env, pathId, hints, draft);
+    const again = await handleCard(cardURL, env);
+    if (again.status !== 404) return again;
+    const resolved = await readDocument(env, pathId);
+    return cardJson(cardFromDocument(pathId, resolved || draft, hints), 200);
+  }
+
+  if (url.pathname.replace(/\/$/, "") !== "/v2/title") {
+    return cardJson({ error: "bad_request", hint: HINT_V2 }, 400);
+  }
+  if (!canMatch(hints)) {
+    return cardJson({ error: "bad_request", hint: HINT_V2 }, 400);
+  }
+  const found = await findKinopubId(env, hints);
+  if (found) {
+    return handleCard(new URL(`https://title.invalid/v2/title/by/kinopub/${found}`), env);
+  }
+  return cardJson({ error: "not_found", hint: "no card" }, 404);
+}
+
+const HINT_V2 = "/v2/title/by/kinopub/{id} · /v2/title?imdb=&kinopoisk=&runtime=&year=&name_ru=&name_original=";
+
+function canMatch(hints) {
+  return Boolean(hints.imdb || hints.kinopoisk || hints.title || hints.original);
+}
+
+/** Sparse v2 body from a KV document (or the cold draft) when D1 has no row yet. */
+function cardFromDocument(id, document, hints) {
+  const ids = document?.ids || {};
+  const val = (namespace) => idValue(ids, namespace);
+  const kind = document?.kind;
+  return {
+    kinopub_id: Number(id),
+    type: kind === "show" ? "serial" : (kind === "movie" ? "movie" : hints.type || null),
+    title: {
+      ru: document?.title?.ru ?? hints.title ?? null,
+      original: document?.title?.original ?? hints.original ?? null,
+    },
+    year: document?.year ?? (hints.year ? Number(hints.year) : null),
+    status: document?.status ?? null,
+    tagline_ru: null,
+    synopsis_ru: (document?.synopsis || []).find((item) => item.variant === "full" && item.lang === "ru")?.text ?? null,
+    ids: {
+      imdb: val("imdb"), tmdb: val("tmdb"), tvdb: val("tvdb"),
+      kinopoisk: val("kinopoisk"), kinopoisk_hd: null,
+      tvoe: val("tvoe"), wikidata: val("wikidata"), myshows: val("myshows"),
+    },
+    ratings: {
+      imdb: null, kinopoisk: null,
+      tmdb: (document?.ratings || []).find((item) => item.source === "tmdb")
+        ? { value: document.ratings.find((item) => item.source === "tmdb").value,
+            votes: document.ratings.find((item) => item.source === "tmdb").votes ?? null }
+        : null,
+      tvoe: null,
+    },
+    billing: {},
+    counts: {},
+    images: [],
+    top_episodes: [],
+    networks: [],
+    seasons: [],
+  };
 }
 
 const QUERY_KINDS = new Set(["logo", "backdrop", "poster", "thumbnail"]);
@@ -258,14 +352,19 @@ async function handleImageQuery(request, url, env, ctx, route) {
 // ------------------------------------------------------------------ helpers
 
 function readHints(url) {
-  const get = (name) => url.searchParams.get(name) || undefined;
+  const get = (name) => {
+    const value = url.searchParams.get(name);
+    return value && value.trim() ? value.trim() : undefined;
+  };
   return {
     imdb: get("imdb"),
     kinopoisk: get("kinopoisk"),
-    title: get("title"),
-    original: get("original"),
+    title: get("name_ru") || get("title"),
+    original: get("name_original") || get("original"),
     year: get("year"),
     type: get("type"),
+    runtime: get("runtime"),
+    kinopub: get("kinopub"),
   };
 }
 
@@ -455,30 +554,16 @@ export async function resolveAndStore(env, id, hints, base, options = {}) {
     }
   }
 
-  if ((!imdb && !pinned) || !env.TMDB_READ_TOKEN) {
+  const canSearch = Boolean(imdb || pinned || hints?.original || hints?.title);
+  if (!canSearch || !env.TMDB_READ_TOKEN) {
     if (document !== base) await writeDocument(env, id, document);
     return document !== base ? document : undefined;
   }
 
   try {
-    let mediaType = null;
-    let tmdbId = null;
-    if (pinned) {
-      mediaType = pinned.type;
-      tmdbId = pinned.id;
-    } else {
-      const found = await tmdb(env, `/3/find/${imdb}`, { external_source: "imdb_id" }, options);
-      const preferTv = base.kind === "show";
-      const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
-      for (const type of order) {
-        const results = found?.[`${type}_results`];
-        if (results?.length) {
-          mediaType = type;
-          tmdbId = String(results[0].id);
-          break;
-        }
-      }
-    }
+    const located = await locateTmdb(env, document, hints, { imdb, pinned }, options);
+    const mediaType = located?.type || null;
+    const tmdbId = located?.id || null;
     if (!mediaType || !tmdbId) {
       if (document !== base) await writeDocument(env, id, document);
       return document !== base ? document : undefined;
@@ -497,7 +582,7 @@ export async function resolveAndStore(env, id, hints, base, options = {}) {
     }
 
     const merged = await enrichResolved(
-      env, mergeTMDB(document, mediaType, tmdbId, details), mediaType, tmdbId, options,
+      env, mergeTMDB(document, mediaType, tmdbId, details, located.method), mediaType, tmdbId, options,
     );
     await writeDocument(env, id, merged);
     return merged;
@@ -521,6 +606,83 @@ async function kinopoiskProxyFacts(kinopoiskId) {
   return response.ok ? await response.json() : null;
 }
 
+async function locateTmdb(env, document, hints, { imdb, pinned }, options) {
+  if (pinned) return { type: pinned.type, id: pinned.id, method: "manual" };
+  if (imdb) {
+    const found = await tmdb(env, `/3/find/${imdb}`, { external_source: "imdb_id" }, options);
+    const preferTv = document.kind === "show" || hints.type === "show"
+      || hints.type === "serial" || hints.type === "series";
+    const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
+    for (const type of order) {
+      const results = found?.[`${type}_results`];
+      if (results?.length) return { type, id: String(results[0].id), method: "find:imdb" };
+    }
+  }
+  return searchTmdb(env, hints, document.kind, options);
+}
+
+async function searchTmdb(env, hints, kind, options) {
+  const query = hints.original || hints.title;
+  if (!query) return null;
+  const preferTv = kind === "show" || hints.type === "show"
+    || hints.type === "serial" || hints.type === "series";
+  const year = hints.year ? Number(hints.year) : null;
+  const runtime = hints.runtime ? Number(hints.runtime) : null;
+  const order = preferTv ? ["tv", "movie"] : ["movie", "tv"];
+  for (const type of order) {
+    const params = { query, language: "ru-RU" };
+    if (Number.isFinite(year)) {
+      if (type === "movie") params.year = String(year);
+      else params.first_air_date_year = String(year);
+    }
+    const found = await tmdb(env, `/3/search/${type}`, params, options);
+    const results = found?.results || [];
+    if (!results.length) continue;
+    let pick = pickSearchResult(results, hints, year);
+    if (type === "movie" && Number.isFinite(runtime) && runtime > 0 && results.length > 1) {
+      pick = (await pickByRuntime(env, results, runtime, options)) || pick;
+    }
+    if (pick?.id != null) return { type, id: String(pick.id), method: "search:name" };
+  }
+  return null;
+}
+
+function pickSearchResult(results, hints, year) {
+  const names = [hints.original, hints.title]
+    .filter(Boolean)
+    .map((name) => name.toLowerCase());
+  const exact = results.find((item) => {
+    const title = (item.title || item.name || "").toLowerCase();
+    const original = (item.original_title || item.original_name || "").toLowerCase();
+    return names.includes(title) || names.includes(original);
+  });
+  if (exact) return exact;
+  if (Number.isFinite(year)) {
+    const inYear = results.find((item) => {
+      const date = item.release_date || item.first_air_date || "";
+      return date.startsWith(String(year));
+    });
+    if (inYear) return inYear;
+  }
+  return results[0];
+}
+
+async function pickByRuntime(env, results, runtime, options) {
+  let best = null;
+  let bestDelta = Infinity;
+  for (const item of results.slice(0, 5)) {
+    const details = await tmdb(env, `/3/movie/${item.id}`, { language: "ru-RU" }, options);
+    const minutes = details?.runtime;
+    if (!Number.isFinite(minutes) || minutes <= 0) continue;
+    const delta = Math.abs(minutes - runtime);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = item;
+    }
+  }
+  return best && bestDelta <= 12 ? best : null;
+}
+
 async function tmdb(env, path, params, options = {}) {
   const url = new URL(path, "https://api.themoviedb.org");
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
@@ -538,7 +700,7 @@ async function tmdb(env, path, params, options = {}) {
 
 const IMAGE_BASE = "https://image.tmdb.org/t/p/original";
 
-function mergeTMDB(base, mediaType, tmdbId, details) {
+function mergeTMDB(base, mediaType, tmdbId, details, method = "find:imdb") {
   const document = {
     ...base,
     pending: false,
@@ -549,7 +711,7 @@ function mergeTMDB(base, mediaType, tmdbId, details) {
   const previousTmdb = base.ids?.tmdb;
   const tmdbSlot = previousTmdb?.method === "manual" && String(previousTmdb.value) === tmdbValue
     ? previousTmdb
-    : { value: tmdbValue, confidence: 1, method: "find:imdb" };
+    : { value: tmdbValue, confidence: 1, method };
   document.ids = { ...document.ids, tmdb: tmdbSlot };
   const external = details.external_ids || {};
   for (const [namespace, key] of [["wikidata", "wikidata_id"], ["tvdb", "tvdb_id"]]) {

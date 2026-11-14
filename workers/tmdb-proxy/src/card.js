@@ -8,6 +8,22 @@
 
 const HINT = "/v2/title/by/kinopub/{id}";
 
+/** A stored card with this IMDb or Kinopoisk id, if the catalog has one. */
+export async function findKinopubId(env, hints) {
+  if (!env?.CATALOG) return null;
+  const db = env.CATALOG;
+  const lookup = async (column, value) => {
+    if (!value) return null;
+    const [result] = await db.batch([
+      db.prepare(`SELECT kinopub_id FROM c2_card WHERE ${column} = ?`).bind(value),
+    ]);
+    const row = (result?.results || [])[0];
+    return row?.kinopub_id != null ? Number(row.kinopub_id) : null;
+  };
+  return (await lookup("imdb_id", hints.imdb))
+    || (await lookup("kinopoisk_id", hints.kinopoisk));
+}
+
 export async function handleCard(url, env) {
   const id = url.pathname.split("/").pop();
   if (!/^\d+$/.test(id || "")) return json({ error: "bad_request", hint: HINT }, 400);
@@ -239,7 +255,7 @@ async function runBatch(db, statements) {
   }
 }
 
-function json(body, status = 200) {
+export function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {

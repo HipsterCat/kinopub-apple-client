@@ -1,7 +1,8 @@
 import Foundation
 
 /// Everything needed to identify a title in external catalogs.
-/// Built once from kino.pub's `MediaItem` — never used for title-matching.
+/// Built once from kino.pub's `MediaItem`. The worker's `/v2/title` call sends
+/// these as query hints so a cold kino.pub id can still match TMDB.
 public struct MediaIdentity: Hashable, Sendable {
   public let kinopubId: Int
   /// IMDb id as `tt0903747`. Nil when kino.pub has no imdb field.
@@ -11,6 +12,9 @@ public struct MediaIdentity: Hashable, Sendable {
   public let originalTitle: String
   public let year: Int
   public let isSeries: Bool
+  /// Average runtime in minutes, when kino.pub sent one. Helps the worker tell two
+  /// same-year titles apart.
+  public let runtimeMinutes: Int?
 
   public init(
     kinopubId: Int,
@@ -19,7 +23,8 @@ public struct MediaIdentity: Hashable, Sendable {
     title: String,
     originalTitle: String,
     year: Int,
-    isSeries: Bool
+    isSeries: Bool,
+    runtimeMinutes: Int? = nil
   ) {
     self.kinopubId = kinopubId
     self.imdb = imdb
@@ -28,6 +33,7 @@ public struct MediaIdentity: Hashable, Sendable {
     self.originalTitle = originalTitle
     self.year = year
     self.isSeries = isSeries
+    self.runtimeMinutes = runtimeMinutes
   }
 
   /// The same title with a Kinopoisk id the title card supplied.
@@ -39,7 +45,8 @@ public struct MediaIdentity: Hashable, Sendable {
       title: title,
       originalTitle: originalTitle,
       year: year,
-      isSeries: isSeries
+      isSeries: isSeries,
+      runtimeMinutes: runtimeMinutes
     )
   }
 }
