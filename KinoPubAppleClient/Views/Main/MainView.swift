@@ -210,6 +210,10 @@ struct MainView: View {
       }
     }
 
+    // Movies / Series keep genre shortcut chips under Continue Watching.
+    // Home no longer shows Catalog / Подборки / … pills — they jumped to Catalog and
+    // wiped active filters (Sasha, 2026-11-14).
+    let showsQuickPresets = (tab == .movies || tab == .series)
     var insertedQuickPresets = false
     for row in homeRows {
       if row.cards.first?.isLandscape == true {
@@ -228,15 +232,13 @@ struct MainView: View {
         result.append(.posters(id: row.id, title: row.title, count: row.count, cards: row.cards))
       }
 
-      // Under the hero comes Continue Watching (on Movies and Series, of that kind only),
-      // the shortcut chips after it (Sasha, 2026-11-10).
-      if row.id == HomeCatalog.continueWatchingRowID {
+      if showsQuickPresets, row.id == HomeCatalog.continueWatchingRowID {
         result.append(quickPresetsSection)
         insertedQuickPresets = true
       }
     }
 
-    if !insertedQuickPresets && !homeRows.isEmpty {
+    if showsQuickPresets, !insertedQuickPresets, !homeRows.isEmpty {
       let insertIndex = min(result.count, (catalog.supportsHeroBanner && homeBannerEnabled) ? 1 : 0)
       result.insert(quickPresetsSection, at: insertIndex)
     }
@@ -264,7 +266,6 @@ struct MainView: View {
   }
 
   private var quickPresetsSection: TVPageSection {
-    let excludeConcerts = sectionStore.excludeConcertsOnHome
     let chips: [TVPageChip]
     switch tab {
     case .movies:
@@ -296,22 +297,7 @@ struct MainView: View {
         TVPageChip(id: "preset-series-tvshows", title: "ТВ-шоу и Передачи", systemImage: "tv"),
       ]
     default:
-      chips = [
-        TVPageChip(id: "preset-catalog", title: "Каталог", systemImage: "square.grid.2x2"),
-        TVPageChip(id: "preset-collections", title: "Подборки", systemImage: "rectangle.stack"),
-        TVPageChip(id: "preset-anime", title: "Аниме", systemImage: "sparkles"),
-        TVPageChip(id: "preset-cartoons", title: "Мультфильмы", systemImage: "face.smiling"),
-        TVPageChip(id: "preset-docs", title: "Документалки", systemImage: "globe"),
-        TVPageChip(id: "preset-4k", title: "4K UHD", systemImage: "4k.tv"),
-        TVPageChip(id: "preset-watchers", title: "По подписчикам", systemImage: "person.2"),
-        TVPageChip(id: "preset-imdb", title: "Топ IMDb", systemImage: "star.fill"),
-        TVPageChip(
-          id: "preset-exclude-concerts",
-          title: excludeConcerts ? "Без концертов: Вкл" : "Без концертов",
-          systemImage: excludeConcerts ? "checkmark.circle.fill" : "music.mic.slash",
-          isActive: excludeConcerts
-        ),
-      ]
+      chips = []
     }
     return .chips(id: "home-quick-presets", title: nil, chips: chips)
   }
@@ -348,18 +334,10 @@ struct MainView: View {
 
   private func handleChipSelection(_ chip: TVPageChip) {
     switch chip.id {
-    case "preset-catalog":
-      navigationState.openCatalog(filter: LibraryFilter(sort: .recentlyAdded), title: "Каталог")
     case "preset-movies-catalog":
       navigationState.openCatalog(filter: LibraryFilter(contentType: .movie, sort: .recentlyAdded), title: "Фильмы")
     case "preset-series-catalog":
       navigationState.openCatalog(filter: LibraryFilter(contentType: .serial, sort: .recentlyUpdated), title: "Сериалы")
-    case "preset-collections":
-      if sectionStore.isTabVisible(.collections) {
-        navigationState.selectedTab = .collections
-      } else {
-        navigationState.push(.collections)
-      }
     case "preset-anime":
       var filter = LibraryFilter(sort: .watchers)
       filter.kinds = [.anime]
@@ -368,20 +346,10 @@ struct MainView: View {
       var filter = LibraryFilter(sort: .views, period: .month)
       filter.kinds = [.cartoons]
       navigationState.openCatalog(filter: filter, title: "Мультфильмы")
-    case "preset-docs":
-      var filter = LibraryFilter(sort: .views, period: .year)
-      filter.kinds = [.documentaries]
-      navigationState.openCatalog(filter: filter, title: "Документалки")
     case "preset-4k":
       var filter = LibraryFilter(contentType: tab == .movies ? .movie : (tab == .series ? .serial : nil), sort: .recentlyAdded)
       filter.minimumQuality = .uhd4K
       navigationState.openCatalog(filter: filter, title: "4K UHD")
-    case "preset-watchers":
-      navigationState.openCatalog(filter: LibraryFilter(sort: .watchers), title: "По подписчикам")
-    case "preset-imdb":
-      var filter = LibraryFilter(sort: .imdbRating)
-      filter.yearFrom = 2020
-      navigationState.openCatalog(filter: filter, title: "Топ IMDb")
     case "preset-movies-scifi":
       navigationState.openCatalog(filter: LibraryFilter(contentType: .movie, sort: .views, genreIDs: [4, 5], period: .year), title: "Фантастика и Фэнтези")
     case "preset-movies-thriller":
@@ -420,7 +388,7 @@ struct MainView: View {
       navigationState.openCatalog(filter: LibraryFilter(contentType: .docuserial, sort: .views, period: .year), title: "Документальные сериалы")
     case "preset-series-tvshows":
       navigationState.openCatalog(filter: LibraryFilter(contentType: .tvshow, sort: .recentlyUpdated), title: "Телешоу и Передачи")
-    case "preset-exclude-concerts", "footer-exclude-concerts":
+    case "footer-exclude-concerts":
       sectionStore.excludeConcertsOnHome.toggle()
     case "footer-load-more":
       catalog.loadMoreSections()
