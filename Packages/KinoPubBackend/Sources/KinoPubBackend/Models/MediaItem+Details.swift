@@ -9,7 +9,17 @@ public extension Season {
   /// Digits from the season title ("Сезон 14" / "Season 14" / "14 сезон", or a bare
   /// year like "2012"). Matching uses this raw value; chips and Play use
   /// `displaySeasonNumber`, which drops calendar years.
+  ///
+  /// Cached on the class: Instruments showed regex here on every rail paint for every
+  /// episode of every season (~1.6s of a 7s hang on long shows).
   var titleSeasonNumber: Int? {
+    if let cached = _titleSeasonNumberCache { return cached }
+    let value = Self.parseTitleSeasonNumber(title)
+    _titleSeasonNumberCache = value
+    return value
+  }
+
+  private static func parseTitleSeasonNumber(_ title: String) -> Int? {
     let patterns = [
       #"(?i)(?:сезон|season)\s*(\d+)"#,
       #"(\d+)\s*(?:сезон|season)"#,

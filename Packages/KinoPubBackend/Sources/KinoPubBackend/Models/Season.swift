@@ -28,6 +28,8 @@ public class Season: Codable, Hashable, Identifiable {
   public var mediaId: Int? = nil {
     didSet { episodes.forEach { $0.mediaId = mediaId } }
   }
+  /// Memo for `titleSeasonNumber` (regex). Not coded; lives only for this process.
+  var _titleSeasonNumberCache: Int?? = nil
   
   public init(id: Int,
        title: String,

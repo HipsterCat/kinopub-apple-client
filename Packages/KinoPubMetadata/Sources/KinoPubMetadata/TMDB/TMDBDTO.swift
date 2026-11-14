@@ -86,6 +86,10 @@ struct TMDBTitleDetails: Codable, Sendable {
   /// videos are asked in, after the app's and English.
   let originalLanguage: String?
 
+  /// TV-only: alternate orderings (Production / Cours / Absolute…). List only — episodes
+  /// need `/tv/episode_group/{id}`.
+  let episodeGroups: TMDBEpisodeGroups?
+
   enum CodingKeys: String, CodingKey {
     case id, overview, tagline, homepage, status, genres, budget, revenue, networks, type
     case originalLanguage = "original_language"
@@ -106,6 +110,66 @@ struct TMDBTitleDetails: Codable, Sendable {
     case releaseDate = "release_date"
     case voteAverage = "vote_average"
     case voteCount = "vote_count"
+    case episodeGroups = "episode_groups"
+  }
+}
+
+// MARK: - Episode groups (TMDB production seasons when flat season=1)
+
+struct TMDBEpisodeGroups: Codable, Sendable {
+  let results: [TMDBEpisodeGroupSummary]?
+}
+
+struct TMDBEpisodeGroupSummary: Codable, Sendable {
+  let id: String
+  let name: String?
+  let type: Int?
+  let groupCount: Int?
+  let episodeCount: Int?
+
+  enum CodingKeys: String, CodingKey {
+    case id, name, type
+    case groupCount = "group_count"
+    case episodeCount = "episode_count"
+  }
+}
+
+struct TMDBEpisodeGroupDetails: Codable, Sendable {
+  let id: String
+  let name: String?
+  let type: Int?
+  let groups: [TMDBEpisodeGroupBucket]?
+}
+
+struct TMDBEpisodeGroupBucket: Codable, Sendable {
+  let id: String?
+  let name: String?
+  let order: Int?
+  let episodes: [TMDBEpisodeGroupEpisode]?
+}
+
+struct TMDBEpisodeGroupEpisode: Codable, Sendable {
+  let id: Int?
+  let name: String?
+  let overview: String?
+  let airDate: String?
+  let runtime: Int?
+  let stillPath: String?
+  let seasonNumber: Int?
+  let episodeNumber: Int?
+  let voteAverage: Double?
+  let voteCount: Int?
+  let episodeType: String?
+
+  enum CodingKeys: String, CodingKey {
+    case id, name, overview, runtime
+    case airDate = "air_date"
+    case stillPath = "still_path"
+    case seasonNumber = "season_number"
+    case episodeNumber = "episode_number"
+    case voteAverage = "vote_average"
+    case voteCount = "vote_count"
+    case episodeType = "episode_type"
   }
 }
 

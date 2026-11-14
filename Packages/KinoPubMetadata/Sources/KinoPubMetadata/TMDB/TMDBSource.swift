@@ -67,6 +67,9 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
       meta.trailers += extra.compactMap(Self.trailer(from:))
       meta.debugLog.append(videosDebug)
     }
+    if resolved.type == .tv {
+      await applyEpisodeGroupsIfNeeded(details: details, tmdbId: resolved.tmdbId, meta: &meta)
+    }
     return meta
   }
 
@@ -95,6 +98,10 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
     let (resolved, _) = await resolveID(for: identity)
     guard let resolved, resolved.type == .tv else {
       return []
+    }
+    // Flat season=1 titles: prefer remapped Production groups over /season/N absolute eps.
+    if let remapped = await remappedSchedule(tmdbId: resolved.tmdbId, season: season) {
+      return remapped
     }
     return try await fetchSeason(tmdbId: resolved.tmdbId, season: season, language: language)
   }
@@ -169,9 +176,9 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
   // MARK: - Details
 
   private func fetchDetails(id: Int, type: TMDBMediaType) async -> (TMDBTitleDetails?, SourceDebugEntry) {
-    // `videos-` in the key: entries from before the videos were asked in more than one
-    // language would otherwise serve the Russian ones alone for a month.
-    let key = "tmdb/details/videos-\(videoLanguages.joined(separator: "-"))/\(type.rawValue)/\(id)"
+    // `egroups-videos-`: bump when episode_groups joined append_to_response so old
+    // caches without the list do not stick for a month.
+    let key = "tmdb/details/egroups-videos-\(videoLanguages.joined(separator: "-"))/\(type.rawValue)/\(id)"
     let path = "/3/\(type.rawValue)/\(id)"
     let entry = await cache.deduped(key: key, ttl: Self.detailsTTL) { [self] in
       do {
@@ -180,7 +187,8 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
         case .movie:
           append = "credits,images,videos,release_dates,keywords,external_ids"
         case .tv:
-          append = "aggregate_credits,images,videos,content_ratings,keywords,external_ids"
+          // episode_groups: Production / Cours when TMDB dumps everything into season 1.
+          append = "aggregate_credits,images,videos,content_ratings,keywords,external_ids,episode_groups"
         }
         let url = try makeURL(path: path, query: [
           URLQueryItem(name: "language", value: configuration.language),
@@ -291,6 +299,131 @@ public final class TMDBSource: MetadataSource, @unchecked Sendable {
         return l != r ? l < r : (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
       }
       .compactMap { imageURL(path: $0.filePath, size: .posterW780) }
+  }
+
+  // MARK: - Episode groups
+
+  /// Production groups when TMDB is flat — fills `usesEpisodeGroupSeasons` / schedule.
+  private func applyEpisodeGroupsIfNeeded(details: TMDBTitleDetails, tmdbId: Int,
+                                          meta: inout TitleMetadata) async {
+    let summaries = details.episodeGroups?.results ?? []
+    guard TMDBEpisodeGroupsMapper.shouldApplyGroups(
+      numberOfSeasons: details.numberOfSeasons,
+      seasonSummaries: meta.seasonSummaries,
+      groupCount: TMDBEpisodeGroupsMapper.preferredSummary(from: summaries)?.groupCount ?? 0
+    ) else { return }
+    guard let preferred = TMDBEpisodeGroupsMapper.preferredSummary(from: summaries) else { return }
+    guard let detail = await fetchEpisodeGroupDetails(id: preferred.id) else { return }
+    let remapped = TMDBEpisodeGroupsMapper.remap(groups: detail.groups ?? []) { [self] path in
+      imageURL(path: path, size: .stillW300)
+    }
+    guard remapped.summaries.count >= 2 else { return }
+    meta.usesEpisodeGroupSeasons = true
+    meta.episodeGroupSchedule = remapped.schedule
+    meta.seasonSummaries = remapped.summaries
+    meta.numberOfSeasons = remapped.summaries.count
+    meta.numberOfEpisodes = remapped.schedule.values.reduce(0) { $0 + $1.count }
+    for (season, episodes) in remapped.schedule {
+      meta.schedule[season] = episodes
+    }
+    // Cache remap so schedule(for:) / episodeGrid hit groups without re-decoding details.
+    await cacheEpisodeGroupRemap(tmdbId: tmdbId, schedule: remapped.schedule)
+  }
+
+  private func remappedSchedule(tmdbId: Int, season: Int) async -> [EpisodeSchedule]? {
+    if let cached = await loadEpisodeGroupRemap(tmdbId: tmdbId) {
+      return cached[season]
+    }
+    // Details may already have applied groups; warm the remap cache from a details hit.
+    let (details, _) = await fetchDetails(id: tmdbId, type: .tv)
+    guard let details else { return nil }
+    var meta = mapDetails(details, type: .tv, tmdbId: tmdbId)
+    await applyEpisodeGroupsIfNeeded(details: details, tmdbId: tmdbId, meta: &meta)
+    guard meta.usesEpisodeGroupSeasons else { return nil }
+    return meta.episodeGroupSchedule[season]
+  }
+
+  private func fetchEpisodeGroupDetails(id: String) async -> TMDBEpisodeGroupDetails? {
+    let key = "tmdb/episode_group/\(id)/\(configuration.language)"
+    let entry = await cache.deduped(key: key, ttl: Self.seasonTTL) { [self] in
+      do {
+        let url = try makeURL(path: "/3/tv/episode_group/\(id)", query: [
+          URLQueryItem(name: "language", value: configuration.language),
+        ])
+        let data = try await fetch(url)
+        _ = try client.decode(TMDBEpisodeGroupDetails.self, from: data)
+        return MetadataCache.Entry(payload: data)
+      } catch {
+        return nil
+      }
+    }
+    guard let entry else { return nil }
+    return try? client.decode(TMDBEpisodeGroupDetails.self, from: entry.payload)
+  }
+
+  private struct EpisodeGroupRemapPayload: Codable, Sendable {
+    var seasons: [String: [EpisodeScheduleDTO]]
+  }
+
+  private struct EpisodeScheduleDTO: Codable, Sendable {
+    var episodeNumber: Int
+    var seasonNumber: Int
+    var name: String?
+    var overview: String?
+    var airDate: Date?
+    var runtime: Int?
+    var still: URL?
+    var voteAverage: Double?
+    var voteCount: Int?
+    var isSeasonFinale: Bool
+  }
+
+  private func cacheEpisodeGroupRemap(tmdbId: Int, schedule: [Int: [EpisodeSchedule]]) async {
+    let dto = EpisodeGroupRemapPayload(
+      seasons: Dictionary(uniqueKeysWithValues: schedule.map { key, value in
+        (String(key), value.map {
+          EpisodeScheduleDTO(
+            episodeNumber: $0.episodeNumber,
+            seasonNumber: $0.seasonNumber,
+            name: $0.name,
+            overview: $0.overview,
+            airDate: $0.airDate,
+            runtime: $0.runtime,
+            still: $0.still,
+            voteAverage: $0.voteAverage,
+            voteCount: $0.voteCount,
+            isSeasonFinale: $0.isSeasonFinale
+          )
+        })
+      })
+    )
+    guard let encoded = try? await cache.encode(dto) else { return }
+    await cache.store(MetadataCache.Entry(payload: encoded), for: "tmdb/episode_group_remap/\(tmdbId)")
+  }
+
+  private func loadEpisodeGroupRemap(tmdbId: Int) async -> [Int: [EpisodeSchedule]]? {
+    guard let entry = await cache.entry(for: "tmdb/episode_group_remap/\(tmdbId)", ttl: Self.seasonTTL),
+          let dto = try? await cache.decode(EpisodeGroupRemapPayload.self, from: entry.payload)
+    else { return nil }
+    var result: [Int: [EpisodeSchedule]] = [:]
+    for (key, rows) in dto.seasons {
+      guard let season = Int(key) else { continue }
+      result[season] = rows.map {
+        EpisodeSchedule(
+          episodeNumber: $0.episodeNumber,
+          seasonNumber: $0.seasonNumber,
+          name: $0.name,
+          overview: $0.overview,
+          airDate: $0.airDate,
+          runtime: $0.runtime,
+          still: $0.still,
+          voteAverage: $0.voteAverage,
+          voteCount: $0.voteCount,
+          isSeasonFinale: $0.isSeasonFinale
+        )
+      }
+    }
+    return result.isEmpty ? nil : result
   }
 
   private func fetchSeason(tmdbId: Int, season: Int, language: String?) async throws -> [EpisodeSchedule] {

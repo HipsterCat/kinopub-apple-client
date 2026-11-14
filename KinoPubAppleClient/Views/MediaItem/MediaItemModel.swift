@@ -595,6 +595,21 @@ class MediaItemModel: ObservableObject {
       return
     }
 
+    // Flat TMDB + Production groups: schedules already remapped on the title card —
+    // do not re-fetch /season/1 absolute numbers (24→54 under S1).
+    if externalMetadata.usesEpisodeGroupSeasons,
+       !externalMetadata.episodeGroupSchedule.isEmpty {
+      let fresh = toFetch.sorted().flatMap { externalMetadata.episodeGroupSchedule[$0] ?? [] }
+      Logger.metadata.info(
+        "TMDB episode groups kinopub=\(self.mediaItemId) seasons=\(toFetch.sorted()) eps=\(fresh.count)"
+      )
+      loadedOfficialSeasonNumbers.formUnion(toFetch)
+      officialEpisodes = Self.mergingOfficialEpisodes(officialEpisodes, fresh)
+      didLoadEpisodeGrid = true
+      applyEpisodeGridLabels(officialEpisodes)
+      return
+    }
+
     Logger.metadata.info(
       "TMDB episode grid kinopub=\(self.mediaItemId) fetch=\(toFetch.sorted()) prefer=\(preferred.map(String.init) ?? "nil")"
     )

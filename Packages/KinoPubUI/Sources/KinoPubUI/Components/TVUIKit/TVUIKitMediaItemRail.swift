@@ -248,6 +248,14 @@ public extension TVUIKitMediaItem {
     let art = card.landscapeImageURL ?? card.backdropURL ?? card.posterURL
     let status = Self.status(for: card)
     let subtitle = card.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+    // Playable landscape tiles (Continue, History, DV, episode rails that use `init(card:)`)
+    // get the same focus Play as trailers (Sasha, 2026-11-14).
+    let focusGlyph: LandscapePlayGlyph? = {
+      switch status {
+      case .ready, .inProgress, .watched, .premiere: return .play
+      case .unavailable, .upcoming, .locked: return nil
+      }
+    }()
     self.init(id: card.id,
               imageURL: URL(string: art),
               caption: stackedCaption ? card.title : TVUIKitCardText.caption(for: card),
@@ -255,7 +263,8 @@ public extension TVUIKitMediaItem {
               detail: stackedCaption ? (subtitle?.isEmpty == false ? subtitle : nil) : nil,
               status: status,
               timeLabel: stackedCaption ? nil : Self.timeLabel(for: card, status: status),
-              badgeText: Self.badgeText(for: card))
+              badgeText: Self.badgeText(for: card),
+              focusGlyph: focusGlyph)
   }
 
   /// A fraction only means something pinned to one episode or one movie. A

@@ -731,6 +731,13 @@ public struct TitleMetadata: Sendable {
   public var seriesType: String?
   /// TV: every season incl. specials (season 0), with counts and air dates.
   public var seasonSummaries: [SeasonSummary] = []
+  /// When TMDB is flat (`number_of_seasons == 1`) but an episode group (Production
+  /// «Seasons») carries the real seasons — schedules remapped to group order / index
+  /// within the group so kino.pub S1…Sn align and absolute eps (24→54) do not leak
+  /// under the wrong tab (Ice Wall / Apothecary).
+  public var usesEpisodeGroupSeasons: Bool = false
+  /// Remapped schedules keyed by display season number (group order). Empty when unused.
+  public var episodeGroupSchedule: [Int: [EpisodeSchedule]] = [:]
   /// TV totals as the source reports them (specials not included).
   public var numberOfSeasons: Int?
   public var numberOfEpisodes: Int?
@@ -841,6 +848,13 @@ public struct TitleMetadata: Sendable {
     if inProduction == nil { inProduction = other.inProduction }
     if seriesType == nil { seriesType = other.seriesType }
     if seasonSummaries.isEmpty { seasonSummaries = other.seasonSummaries }
+    if !usesEpisodeGroupSeasons, other.usesEpisodeGroupSeasons {
+      usesEpisodeGroupSeasons = true
+      episodeGroupSchedule = other.episodeGroupSchedule
+      if !other.seasonSummaries.isEmpty { seasonSummaries = other.seasonSummaries }
+    } else if episodeGroupSchedule.isEmpty, !other.episodeGroupSchedule.isEmpty {
+      episodeGroupSchedule = other.episodeGroupSchedule
+    }
     if numberOfSeasons == nil { numberOfSeasons = other.numberOfSeasons }
     if numberOfEpisodes == nil { numberOfEpisodes = other.numberOfEpisodes }
     if firstAirDate == nil { firstAirDate = other.firstAirDate }

@@ -52,36 +52,54 @@ enum KinoEpisodeGrid {
   /// this on every render; a long show is ~800 × ~900 pairs. The last few answers are
   /// kept and reused while the inputs are equal.
   static func alignment(seasons: [Season], official: [EpisodeSchedule]) -> EpisodeGridMatch.Result {
-    let kino = kinoEpisodes(seasons)
-    let grid = official.map(self.official)
-    return memo.result(kino: kino, official: grid) {
-      EpisodeGridMatch.align(kino: kino, official: grid)
+    // Key without building kino/official arrays — those used to run titleSeasonNumber
+    // regex for every episode on every paint before the memo could hit.
+    let key = AlignmentKey(seasons: seasons, official: official)
+    return memo.result(key: key) {
+      let kino = kinoEpisodes(seasons)
+      let grid = official.map(self.official)
+      return EpisodeGridMatch.align(kino: kino, official: grid)
     }
   }
 
   private static let memo = AlignmentMemo()
 
+  private struct AlignmentKey: Hashable {
+    let seasonIDs: [Int]
+    let episodeCounts: [Int]
+    let titled: [Int]
+    let officialCount: Int
+    let officialFingerprint: Int
+
+    init(seasons: [Season], official: [EpisodeSchedule]) {
+      seasonIDs = seasons.map(\.id)
+      episodeCounts = seasons.map(\.episodes.count)
+      titled = seasons.map { $0.titleSeasonNumber ?? -1 }
+      officialCount = official.count
+      officialFingerprint = official.reduce(into: 0) { acc, episode in
+        acc = acc &* 31 &+ episode.seasonNumber &* 1_000_003 &+ episode.episodeNumber
+      }
+    }
+  }
+
   private final class AlignmentMemo: @unchecked Sendable {
     private struct Entry {
-      let kino: [EpisodeGridMatch.KinoEpisode]
-      let official: [EpisodeGridMatch.OfficialEpisode]
+      let key: AlignmentKey
       let result: EpisodeGridMatch.Result
     }
     private let lock = NSLock()
     private var entries: [Entry] = []
 
-    func result(kino: [EpisodeGridMatch.KinoEpisode],
-                official: [EpisodeGridMatch.OfficialEpisode],
-                compute: () -> EpisodeGridMatch.Result) -> EpisodeGridMatch.Result {
+    func result(key: AlignmentKey, compute: () -> EpisodeGridMatch.Result) -> EpisodeGridMatch.Result {
       lock.lock()
-      if let hit = entries.first(where: { $0.kino == kino && $0.official == official }) {
+      if let hit = entries.first(where: { $0.key == key }) {
         lock.unlock()
         return hit.result
       }
       lock.unlock()
       let result = compute()
       lock.lock()
-      entries.insert(Entry(kino: kino, official: official, result: result), at: 0)
+      entries.insert(Entry(key: key, result: result), at: 0)
       if entries.count > 4 { entries.removeLast() }
       lock.unlock()
       return result
@@ -111,6 +129,9 @@ enum KinoEpisodeGrid {
       runtimeMinutes: schedule.runtime,
       airDate: schedule.airDate,
       still: schedule.still,
+      overview: schedule.overview,
+      voteAverage: schedule.voteAverage,
+      voteCount: schedule.voteCount,
       isSeasonFinale: schedule.isSeasonFinale)
   }
 
@@ -118,9 +139,12 @@ enum KinoEpisodeGrid {
     EpisodeSchedule(episodeNumber: episode.number,
                     seasonNumber: episode.season,
                     name: episode.titles.first { !$0.isEmpty },
+                    overview: episode.overview,
                     airDate: episode.airDate,
                     runtime: episode.runtimeMinutes,
                     still: episode.still,
+                    voteAverage: episode.voteAverage,
+                    voteCount: episode.voteCount,
                     isSeasonFinale: episode.isSeasonFinale)
   }
 }
@@ -224,6 +248,10 @@ struct SeasonsRailView: View {
   @State private var isScrollingFromTab = false
   @State private var showsEpisodeInfo = false
   @State private var episodeInfoTitle = ""
+  @State private var episodeInfoSubtitle: String? = nil
+  /// Rich episode Info (still / synopsis / audio / …). Nil → plain `episodeInfoBody`
+  /// (season-details reuse of the same popup).
+  @State private var episodeInfoContent: EpisodeInfoContent? = nil
   @State private var episodeInfoBody = ""
 #if os(tvOS)
   @State private var railFocus = RivuletSeasonRailFocus()
@@ -310,7 +338,16 @@ struct SeasonsRailView: View {
 
   private var entries: [RailEntry] {
     let alignment = gridAlignment
-    let episodeEntries = seasons.flatMap { season -> [RailEntry] in
+    // One selected season at a time — building every season's cards every paint hung
+    // the main thread on long shows (Instruments: railCard / titleSeasonNumber).
+    let visibleSeasons: [Season] = {
+      if let selectedTabID, let season = seasons.first(where: { $0.id == selectedTabID }) {
+        return [season]
+      }
+      if let first = seasons.first { return [first] }
+      return []
+    }()
+    let episodeEntries = visibleSeasons.flatMap { season -> [RailEntry] in
       alignment.rows(for: season.id).compactMap { row -> RailEntry? in
         switch row {
         case .matched(let hit):
@@ -325,7 +362,13 @@ struct SeasonsRailView: View {
         }
       }
     }
-    return episodeEntries + trailingCards
+    let selectedIsTrailing = selectedTabID.map { id in trailingCards.contains { $0.id == id } } ?? false
+    if selectedIsTrailing {
+      return trailingCards.filter { $0.id == selectedTabID }
+    }
+    // Trailing cards only when the last kino season is selected (or there is one season).
+    let showTrailing = visibleSeasons.last?.id == seasons.last?.id
+    return showTrailing ? episodeEntries + trailingCards : episodeEntries
   }
 
   /// What sits past kino.pub's last season: skipped seasons as one dark card, then
@@ -441,6 +484,14 @@ struct SeasonsRailView: View {
     ?? entries.first
   }
 
+  /// Tab to open on without materialising every season's rail entries.
+  private static func preferredOpeningTabID(seasons: [Season]) -> Int? {
+    for season in seasons {
+      if season.episodes.contains(where: { !$0.isWatched }) { return season.id }
+    }
+    return seasons.first?.id
+  }
+
   /// Rail item to land on when Down crosses from the season tabs into the rail — the
   /// tracked resume/entry episode when there is one, else the selected tab's first (its
   /// season's first episode, or its trailing card).
@@ -467,14 +518,14 @@ struct SeasonsRailView: View {
         seasonRail
       }
     }
-    .infoPopup(Text(episodeInfoTitle), isPresented: $showsEpisodeInfo, onDismiss: {
+    .infoPopup(Text(episodeInfoTitle),
+               subtitle: episodeInfoSubtitle.map { Text(verbatim: $0) },
+               isPresented: $showsEpisodeInfo, onDismiss: {
       if let inspectedEpisodeID {
         railFocus.restoreDescription(inspectedEpisodeID)
       }
     }) {
-      Text(episodeInfoBody)
-        .font(InfoPopupMetrics.bodyFont)
-        .frame(maxWidth: .infinity, alignment: .leading)
+      episodeInfoPopupBody
     }
       .task {
         cardMenu.bind(errorHandler: errorHandler)
@@ -509,7 +560,8 @@ struct SeasonsRailView: View {
       }
       .onAppear {
         if selectedTabID == nil {
-          selectedTabID = firstUnseen?.tabID ?? tabs.first?.id
+          // Cheap opener: do not build every season's rail just to pick a tab.
+          selectedTabID = Self.preferredOpeningTabID(seasons: seasons) ?? tabs.first?.id
         }
       }
       // Keyed on the rail's contents, not fired once on appear: the detail payload and
@@ -532,10 +584,10 @@ struct SeasonsRailView: View {
           .font(InfoPopupMetrics.bodyFont)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .infoPopup(Text(episodeInfoTitle), isPresented: $showsEpisodeInfo) {
-        Text(episodeInfoBody)
-          .font(InfoPopupMetrics.bodyFont)
-          .frame(maxWidth: .infinity, alignment: .leading)
+      .infoPopup(Text(episodeInfoTitle),
+                 subtitle: episodeInfoSubtitle.map { Text(verbatim: $0) },
+                 isPresented: $showsEpisodeInfo) {
+        episodeInfoPopupBody
       }
       .sheet(item: $browsingSeason) { info in
         SeasonImageBrowserSheet(title: info.title) {
@@ -731,6 +783,133 @@ struct SeasonsRailView: View {
     stillRadius * CardAspect.poster.ratio / CardAspect.landscape.ratio
   }
 
+  // MARK: - Episode Info sheet
+
+  @ViewBuilder
+  private var episodeInfoPopupBody: some View {
+    if let content = episodeInfoContent {
+      EpisodeInfoPopupContent(content: content)
+    } else {
+      Text(episodeInfoBody)
+        .font(InfoPopupMetrics.bodyFont)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  /// Dense episode Info: still + synopsis + air date + rating + audio/subs/quality.
+  /// Title+«2 серия» alone was rejected (Sasha, 2026-11-14).
+  private func presentEpisodeInfo(entryID: Int) {
+    guard case .playable(let season, let episode, let schedule)? = entries.first(where: { $0.id == entryID }) else {
+#if os(tvOS)
+      select(entryID: entryID)
+#endif
+      return
+    }
+    presentEpisodeInfo(episode: episode, season: season, schedule: schedule)
+  }
+
+  private func presentEpisodeInfo(episode: Episode, season: Season, schedule: EpisodeSchedule?) {
+    let schedule = Self.enrichedSchedule(schedule, from: officialEpisodes)
+    let name = Self.displayTitle(episode: episode, schedule: schedule)
+    let seasonNumber = seasons.count > 1
+      ? (tabs.first { $0.id == season.id }?.first ?? KinoPubMediaMapping.seasonNumber(season))
+      : nil
+    var episodeLine = EpisodeText(season: seasonNumber, number: episode.number,
+                                  seasonCount: seasons.count).formatted(.long)
+    if schedule?.isSeasonFinale == true {
+      episodeLine += " · \("MediaItem_SeasonFinale".localized)"
+    }
+    let air = schedule?.airDate.map { Self.absoluteAirDate($0, now: Date()) }
+    let rating = Self.ratingText(schedule)
+    episodeInfoTitle = name.isEmpty ? episodeLine : name
+    episodeInfoSubtitle = ([name.isEmpty ? nil : episodeLine, air, rating] as [String?])
+      .compactMap { $0 }
+      .joined(separator: " · ")
+      .nilIfEmpty
+    let still = schedule?.still
+      ?? stillURL(episode: episode, schedule: schedule, seasonNumber: season.number)
+      ?? (episode.thumbnail.isEmpty ? nil : URL(string: episode.thumbnail))
+      ?? seriesBackdropURL
+    let synopsis = schedule?.overview?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .nilIfEmpty
+    episodeInfoContent = EpisodeInfoContent(
+      stillURL: still,
+      synopsis: synopsis,
+      airDate: air,
+      rating: rating,
+      audioLines: Self.audioLines(for: episode),
+      subtitleNames: Self.subtitleNames(for: episode),
+      qualityLines: Self.qualityLines(for: episode)
+    )
+    episodeInfoBody = ""
+    showsEpisodeInfo = true
+  }
+
+  /// Prefer the full TMDB row (overview / votes) when the rail schedule lost them.
+  private static func enrichedSchedule(_ schedule: EpisodeSchedule?,
+                                       from official: [EpisodeSchedule]) -> EpisodeSchedule? {
+    guard let schedule else { return nil }
+    guard let full = official.first(where: {
+      $0.seasonNumber == schedule.seasonNumber && $0.episodeNumber == schedule.episodeNumber
+    }) else { return schedule }
+    var merged = schedule
+    if merged.overview == nil || merged.overview?.isEmpty == true { merged.overview = full.overview }
+    if merged.still == nil { merged.still = full.still }
+    if merged.airDate == nil { merged.airDate = full.airDate }
+    if merged.voteAverage == nil { merged.voteAverage = full.voteAverage }
+    if merged.voteCount == nil { merged.voteCount = full.voteCount }
+    if merged.runtime == nil { merged.runtime = full.runtime }
+    if full.isSeasonFinale { merged.isSeasonFinale = true }
+    return merged
+  }
+
+  private static func ratingText(_ schedule: EpisodeSchedule?) -> String? {
+    guard let average = schedule?.voteAverage, average > 0 else { return nil }
+    let score = String(format: average == floor(average) ? "%.0f" : "%.1f", average)
+    if let count = schedule?.voteCount, count > 0 {
+      return "★ \(score) (\(count))"
+    }
+    return "★ \(score)"
+  }
+
+  private static func audioLines(for episode: Episode) -> [String] {
+    let tracks = AudioTracks.catalog(episode.audios)
+    return AudioTracks.languageGroups(for: tracks).map { group in
+      let detail = group.detailLines.joined(separator: ", ")
+      return detail.isEmpty ? group.name : "\(group.name): \(detail)"
+    }
+  }
+
+  private static func subtitleNames(for episode: Episode) -> [String] {
+    SubtitleTracks.languageGroups(for: SubtitleTracks.catalog(episode.subtitles)).map(\.name)
+  }
+
+  private static func qualityLines(for episode: Episode) -> [String] {
+    let files = episode.files.dedupedByQuality
+    var lines: [String] = []
+    var seen = Set<String>()
+    let maxH = files.map(\.h).max() ?? 0
+    if maxH >= 2160 { lines.append("4K") }
+    else if maxH >= 720 { lines.append("HD") }
+    else if maxH > 0 { lines.append("SD") }
+    let mentionsHDR = files.contains {
+      $0.codec.localizedCaseInsensitiveContains("hdr")
+        || $0.quality.localizedCaseInsensitiveContains("hdr")
+    }
+    if mentionsHDR { lines.append("HDR") }
+    for file in files {
+      var parts: [String] = []
+      if !file.quality.isEmpty { parts.append(file.quality) }
+      if file.w > 0, file.h > 0 { parts.append("\(file.w)×\(file.h)") }
+      if !file.codec.isEmpty { parts.append(file.codec.uppercased()) }
+      let line = parts.joined(separator: " · ")
+      guard !line.isEmpty, seen.insert(line).inserted else { continue }
+      lines.append(line)
+    }
+    return lines
+  }
+
   // MARK: - Episode rail
 
 #if os(tvOS)
@@ -807,9 +986,10 @@ struct SeasonsRailView: View {
     if let overview = info.overview {
       result.append(.action(.init(id: "season.details", title: "Season Details".localized,
                                   systemImage: "info.circle") { [self] in
+        episodeInfoContent = nil
+        episodeInfoSubtitle = Self.detailsSubtitle(info)
         episodeInfoTitle = info.title
-        episodeInfoBody = ([Self.detailsSubtitle(info)].compactMap { $0 } + [overview])
-          .joined(separator: "\n\n")
+        episodeInfoBody = overview
         showsEpisodeInfo = true
       }))
     }
@@ -954,27 +1134,6 @@ struct SeasonsRailView: View {
     }
   }
 
-  /// Select on the episode text. The same info sheet the page uses for a clipped synopsis.
-  private func presentEpisodeInfo(entryID: Int) {
-    guard case .playable(let season, let episode, let schedule)? = entries.first(where: { $0.id == entryID }) else {
-      select(entryID: entryID)
-      return
-    }
-    let name = Self.displayTitle(episode: episode, schedule: schedule)
-    episodeInfoTitle = name.isEmpty
-      ? EpisodeText(season: nil, number: episode.number).formatted(.long)
-      : name
-    var parts = [EpisodeText(season: season.number, number: episode.number, seasonCount: seasons.count).formatted(.long)]
-    if schedule?.isSeasonFinale == true {
-      parts[0] += " · \("MediaItem_SeasonFinale".localized)"
-    }
-    if let overview = schedule?.overview, !overview.isEmpty {
-      parts.append(overview)
-    }
-    episodeInfoBody = parts.joined(separator: "\n\n")
-    showsEpisodeInfo = true
-  }
-
   /// «Сезон» before the tabs; one season is not a choice, so its line says which.
   private func seasonTitle(tabs: [SeasonTab]) -> String {
     guard tabs.count == 1, let only = tabs.first else { return "Season".localized }
@@ -1019,12 +1178,15 @@ struct SeasonsRailView: View {
         caption += " · \("MediaItem_SeasonFinale".localized)"
       }
       let status = Self.tileStatus(base: base.status, episode: episode, schedule: schedule)
+      let playable = !Self.clocksOut(episode, schedule)
       return TVUIKitMediaItem(id: entry.id,
                               imageURL: base.imageURL ?? seriesBackdropURL,
                               caption: caption,
                               status: status,
                               timeLabel: base.timeLabel,
-                              badgeText: base.badgeText)
+                              badgeText: base.badgeText,
+                              // Trailers already set this; episode tiles did not (Sasha, 2026-11-14).
+                              focusGlyph: playable ? .play : nil)
 
     case .unavailable(_, let schedule):
       // An episode kino.pub has not uploaded must not read differently from one it has —
@@ -1428,28 +1590,9 @@ struct SeasonsRailView: View {
 #endif
   }
 
-  /// Context-menu Info — the same synopsis sheet the tvOS description focus opens.
+  /// Context-menu Info — the same dense sheet the tvOS description focus opens.
   private func presentEpisodeInfoFromMenu(id: Int) {
-#if os(tvOS)
     presentEpisodeInfo(entryID: id)
-#else
-    guard case .playable(let season, let episode, let schedule)? = entries.first(where: { $0.id == id }) else {
-      return
-    }
-    let name = Self.displayTitle(episode: episode, schedule: schedule)
-    episodeInfoTitle = name.isEmpty
-      ? EpisodeText(season: nil, number: episode.number).formatted(.long)
-      : name
-    var parts = [EpisodeText(season: season.number, number: episode.number, seasonCount: seasons.count).formatted(.long)]
-    if schedule?.isSeasonFinale == true {
-      parts[0] += " · \("MediaItem_SeasonFinale".localized)"
-    }
-    if let overview = schedule?.overview, !overview.isEmpty {
-      parts.append(overview)
-    }
-    episodeInfoBody = parts.joined(separator: "\n\n")
-    showsEpisodeInfo = true
-#endif
   }
 
   /// A kino.pub episode with a file or a runtime stays interactive. A future premiere
@@ -1827,6 +1970,87 @@ private struct UpcomingSeasonCard: View {
         .lineLimit(1)
     }
     .frame(maxWidth: .infinity, alignment: .top)
+  }
+}
+
+/// What the episode Info sheet shows beyond title + number (Sasha, 2026-11-14).
+struct EpisodeInfoContent: Equatable {
+  var stillURL: URL?
+  var synopsis: String?
+  var airDate: String?
+  var rating: String?
+  var audioLines: [String]
+  var subtitleNames: [String]
+  var qualityLines: [String]
+}
+
+/// TMDB-density episode Info: still, synopsis, facts, then audio / subs / quality.
+private struct EpisodeInfoPopupContent: View {
+  let content: EpisodeInfoContent
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: InfoPopupMetrics.contentSpacing) {
+      if let url = content.stillURL {
+        CachedRemoteImage(url: url, contentMode: .fill) {
+          Color.KinoPub.placeholder
+        } failure: {
+          Color.KinoPub.placeholder
+        }
+        .aspectRatio(CardAspect.landscape.ratio, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityHidden(true)
+      }
+
+      let facts = [content.airDate, content.rating].compactMap { $0 }
+      if !facts.isEmpty {
+        Text(facts.joined(separator: " · "))
+          .font(InfoPopupMetrics.captionFont)
+          .foregroundStyle(Color.KinoPub.subtitle)
+      }
+
+      if let synopsis = content.synopsis, !synopsis.isEmpty {
+        Text(synopsis)
+          .font(InfoPopupMetrics.bodyFont)
+          .foregroundStyle(Color.KinoPub.text)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if !content.audioLines.isEmpty {
+        InfoPopupSection(Text("Audio")) {
+          Text(verbatim: content.audioLines.joined(separator: "\n"))
+            .font(InfoPopupMetrics.bodyFont)
+            .foregroundStyle(Color.KinoPub.text)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      if !content.subtitleNames.isEmpty {
+        InfoPopupSection(Text("Subtitles")) {
+          Text(verbatim: content.subtitleNames.joined(separator: ", "))
+            .font(InfoPopupMetrics.bodyFont)
+            .foregroundStyle(Color.KinoPub.text)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      if !content.qualityLines.isEmpty {
+        InfoPopupSection(Text("MediaItem_SpecVideo")) {
+          Text(verbatim: content.qualityLines.joined(separator: "\n"))
+            .font(InfoPopupMetrics.bodyFont)
+            .foregroundStyle(Color.KinoPub.text)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+private extension String {
+  var nilIfEmpty: String? {
+    let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
   }
 }
 

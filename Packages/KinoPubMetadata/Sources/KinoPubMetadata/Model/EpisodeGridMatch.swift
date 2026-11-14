@@ -53,10 +53,14 @@ public enum EpisodeGridMatch {
     public var runtimeMinutes: Int?
     public var airDate: Date?
     public var still: URL?
+    public var overview: String?
+    public var voteAverage: Double?
+    public var voteCount: Int?
     public var isSeasonFinale: Bool
 
     public init(source: Source, season: Int, number: Int, titles: [String],
                 runtimeMinutes: Int? = nil, airDate: Date? = nil, still: URL? = nil,
+                overview: String? = nil, voteAverage: Double? = nil, voteCount: Int? = nil,
                 isSeasonFinale: Bool = false) {
       self.source = source
       self.season = season
@@ -65,14 +69,19 @@ public enum EpisodeGridMatch {
       self.runtimeMinutes = runtimeMinutes
       self.airDate = airDate
       self.still = still
+      self.overview = overview
+      self.voteAverage = voteAverage
+      self.voteCount = voteCount
       self.isSeasonFinale = isSeasonFinale
     }
 
     public init(source: Source, season: Int, number: Int, title: String,
                 runtimeMinutes: Int? = nil, airDate: Date? = nil, still: URL? = nil,
+                overview: String? = nil, voteAverage: Double? = nil, voteCount: Int? = nil,
                 isSeasonFinale: Bool = false) {
       self.init(source: source, season: season, number: number, titles: [title],
                 runtimeMinutes: runtimeMinutes, airDate: airDate, still: still,
+                overview: overview, voteAverage: voteAverage, voteCount: voteCount,
                 isSeasonFinale: isSeasonFinale)
     }
   }
@@ -205,9 +214,12 @@ public enum EpisodeGridMatch {
       }
     }
 
+    /// Rail order follows the number the UI shows: kino.pub's for matched/extra,
+    /// official for holes. Sorting by official.number while captions show kino.number
+    /// produced 5→6→1 shuffles (KVN / Apothecary) when title match remapped slots.
     private static func orderKey(_ row: Row) -> Int {
       switch row {
-      case .matched(let hit): return hit.official.number
+      case .matched(let hit): return hit.kino.number
       case .hole(let episode): return episode.number
       case .extra(let kino): return kino.number
       }
@@ -307,6 +319,11 @@ public enum EpisodeGridMatch {
         if existing.runtimeMinutes == nil { existing.runtimeMinutes = episode.runtimeMinutes }
         if existing.airDate == nil { existing.airDate = episode.airDate }
         if existing.still == nil { existing.still = episode.still }
+        if existing.overview == nil || existing.overview?.isEmpty == true {
+          existing.overview = episode.overview
+        }
+        if existing.voteAverage == nil { existing.voteAverage = episode.voteAverage }
+        if existing.voteCount == nil { existing.voteCount = episode.voteCount }
         if episode.isSeasonFinale { existing.isSeasonFinale = true }
         if episode.source > existing.source { existing.source = episode.source }
         groups[index] = existing
