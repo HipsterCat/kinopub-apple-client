@@ -966,21 +966,22 @@ final class MediaItemTVSectionsTests: XCTestCase {
     XCTAssertGreaterThan(all.viewers?.rows.count ?? 0, ScoreSummary.rowLimit, "the page lists every source")
   }
 
-  /// Kinopub-only 0% (0 likes, a tiny down vote) is not a viewers' card — the gauge is a dash.
-  func testKinopubOnlyZeroPercentHidesViewersCard() throws {
+  /// KinoPub alone is never a viewers' card — 0% or 100%, same rule.
+  func testKinopubOnlyHidesViewersCard() throws {
     let item = try kinopubOnlyItem()
     let empty = TitleMetadata()
     let zero = RatingSources.summaries(for: item, metadata: empty, likeCount: 0, dislikeCount: 1)
     XCTAssertNil(zero.viewers)
     XCTAssertEqual(zero.total, 0)
 
-    let liked = RatingSources.summaries(for: item, metadata: empty, likeCount: 12, dislikeCount: 1)
-    XCTAssertNotNil(liked.viewers, "a non-zero Kinopub share still earns the card")
+    let liked = RatingSources.summaries(for: item, metadata: empty, likeCount: 4, dislikeCount: 0)
+    XCTAssertNil(liked.viewers, "KinoPub-only 100% is still not a viewers' card")
+    XCTAssertEqual(liked.total, 0)
 
     var withAudience = empty
     withAudience.externalRatings = [ExternalRating(kind: .trakt, value: 7.1, votes: 300)]
     let mixed = RatingSources.summaries(for: item, metadata: withAudience,
-                                        likeCount: 0, dislikeCount: 1)
+                                        likeCount: 4, dislikeCount: 0)
     XCTAssertNotNil(mixed.viewers, "an external audience score keeps the card")
   }
 
