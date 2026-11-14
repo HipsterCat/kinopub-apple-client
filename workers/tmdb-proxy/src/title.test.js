@@ -377,6 +377,59 @@ test("season poster does not fall back to the title poster or to kino.pub", asyn
   assert.equal((await miss.json()).hint, "no season poster");
 });
 
+test("season poster lang map prefers ru then falls through to en", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      seasons: [{
+        number: 1,
+        poster: {
+          en: "https://image.tmdb.org/t/p/original/s1-en.jpg",
+        },
+      }],
+    },
+  });
+  // Default Accept-Language is Russian — must not 404 when only en exists.
+  const hit = await handleImage(imageRequest("poster", { query: "s=1&w=400" }), env, ctxSpy());
+  assert.equal(hit.status, 302);
+  assert.equal(
+    hit.headers.get("location"),
+    "https://example.test/img/poster/by/kinopub/82852/en/poster.jpg?w=400&s=1",
+  );
+  assert.equal(hit.headers.get("content-language"), "en");
+});
+
+test("stamped logo snaps w onto 780 / 1280 / 1920", async () => {
+  const env = kvEnv({
+    "title:kinopub:82852": {
+      artwork: { logo: [{ source: "tmdb", url: TMDB_LOGO_EN, lang: "en", width: 2000, height: 400 }] },
+    },
+  });
+  const original = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    return new Response(Uint8Array.from([1, 2, 3]), {
+      status: 200,
+      headers: { "content-type": "image/png" },
+    });
+  };
+  try {
+    for (const [w, token] of [["780", "w780"], ["1280", "w1280"], ["1920", "w1920"]]) {
+      fetched.length = 0;
+      const response = await handleImage(
+        new Request(`https://example.test/img/logo/by/kinopub/82852/en/logo.png?w=${w}`),
+        env,
+        ctxSpy(),
+      );
+      assert.equal(response.status, 200, `w=${w}`);
+      assert.match(fetched[0], new RegExp(`/t/p/${token}/`), `w=${w} → ${fetched[0]}`);
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+
 test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", async () => {
   const env = kvEnv({
     "title:kinopub:82852": {
@@ -398,9 +451,12 @@ test("stamped thumbnail snaps w past 300 onto TMDB face / backdrop tokens", asyn
   try {
     const cases = [
       ["300", "https://image.tmdb.org/t/p/w300/still.jpg"],
+      ["320", "https://image.tmdb.org/t/p/w320_and_h180_face/still.jpg"],
       ["360", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
       ["454", "https://image.tmdb.org/t/p/w454_and_h254_face/still.jpg"],
       ["780", "https://image.tmdb.org/t/p/w780/still.jpg"],
+      ["1280", "https://image.tmdb.org/t/p/w1280/still.jpg"],
+      ["1920", "https://image.tmdb.org/t/p/w1920_and_h1080_face/still.jpg"],
     ];
     for (const [w, upstream] of cases) {
       fetched.length = 0;
