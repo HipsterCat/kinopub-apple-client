@@ -8,6 +8,9 @@
 import Foundation
 import SwiftUI
 import AVKit
+#if os(macOS)
+import AppKit
+#endif
 import Combine
 import KinoPubBackend
 import KinoPubUI
@@ -27,6 +30,7 @@ struct PlayerView: View {
   @State private var showsFailureAlert = false
 #if os(macOS)
   @Environment(\.dismissWindow) private var dismissWindow
+  @Environment(ErrorHandler.self) private var errorHandler
 #endif
 
   init(manager: PlayerManager) {
@@ -76,7 +80,13 @@ struct PlayerView: View {
       Text(message)
     }
     .onChange(of: playerManager.playbackState) { _, state in
-      if case .failed = state { showsFailureAlert = true }
+      if case .failed(let message) = state {
+        showsFailureAlert = true
+#if os(macOS)
+        // Alert alone was easy to miss in the player window — toast the reason too (KP-35).
+        errorHandler.setMessage(message)
+#endif
+      }
     }
 #if os(macOS)
     // The player has its own window (see `PlayerLink`), so the title bar stays: it
@@ -84,6 +94,9 @@ struct PlayerView: View {
     // player was pushed into the main window's detail column, which left the screen
     // with no way out at all once playback hid the custom chevron.
     .navigationTitle(playerManager.displayTitle ?? "")
+    // Transparent title bar over the video — drop the opaque underlay strip (KP-35).
+    .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+    .background(MacPlayerTitlebarChrome(title: playerManager.displayTitle ?? ""))
     // Escape leaves, the way it does out of full-screen video everywhere else. ⌘W still
     // works too, and now closes the film rather than the app's window.
     .onExitCommand {
@@ -720,6 +733,29 @@ private struct MacVideoPlayer: NSViewRepresentable {
   }
 }
 
+
+/// Transparent title bar over the video — no opaque underlay behind the traffic lights.
+private struct MacPlayerTitlebarChrome: NSViewRepresentable {
+  var title: String
+
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView()
+    view.isHidden = true
+    return view
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {
+    DispatchQueue.main.async {
+      guard let window = nsView.window else { return }
+      window.title = title
+      window.titlebarAppearsTransparent = true
+      if !window.styleMask.contains(.fullSizeContentView) {
+        window.styleMask.insert(.fullSizeContentView)
+      }
+    }
+  }
+}
+
 #endif
 
 /// Opens the player wherever the platform puts it, so no call site has to know.
@@ -797,26 +833,27 @@ final class PlaybackWindowState: ObservableObject {
   }
 }
 
-/// Contents of the player window. Keyed by request id so opening a different film builds
-/// a fresh `PlayerManager` instead of reusing one that has already prepared playback.
+/// Contents of the player window. Identity follows the live `PlayerManager`: a next-item
+/// swap retargets that manager in place (KP-35), so keying by request UUID — which forced
+/// a teardown and a black flash — is gone. A fresh manager after close still gets a new id.
 struct PlayerWindowContent: View {
 
   @ObservedObject private var playback = PlaybackWindowState.shared
+  @ObservedObject private var session = PlaybackSession.shared
   @Environment(\.appContext) private var appContext
+  @Environment(ErrorHandler.self) private var errorHandler
 
   var body: some View {
     if let request = playback.request {
-      PlayerView(manager: PlaybackSession.shared.play(
+      let manager = session.play(
         item: request.item,
         mode: request.mode,
         downloadedFilesDatabase: appContext.downloadedFilesDatabase,
         actionsService: appContext.actionsService
-      ))
-      // Keyed by the request, not by what it points at: closing the window ends the
-      // session, so playing the *same* film again has to build a new screen with a new
-      // `task`. An id made of item + mode is unchanged in that case, and SwiftUI would
-      // keep the old screen — a window that never asks anything to play.
-      .id(request.id)
+      )
+      PlayerView(manager: manager)
+        .id(ObjectIdentifier(manager))
+        .handleError(state: Bindable(errorHandler).state)
     } else {
       // Reachable by reopening the window from the Window menu after it was closed.
       Text("Nothing is playing")

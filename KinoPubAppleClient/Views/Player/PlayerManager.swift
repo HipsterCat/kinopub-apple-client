@@ -138,7 +138,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// What this title is, for track selection: anime, and its original language. Derived
   /// outside the player — the item payload knows its genres and countries, an `Episode`
   /// does not. See `PlaybackSession.trackProfile(for:)`.
-  private let trackProfile: TitleTrackProfile
+  private var trackProfile: TitleTrackProfile
   /// What every scope has learned about dubs and subtitles. Read on open, written on a
   /// pick and once a play counts.
   private let trackPreferences: TrackPreferenceStore
@@ -562,31 +562,54 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     audioReadyObservation?.invalidate()
   }
 
-  /// Stops the current stream so a new `PlaybackSession` request can take over the
-  /// single shared player without two AVPlayers competing — and so leaving the player
-  /// screen actually ends the film instead of playing it on with nothing to look at.
+  /// Swap what this manager is playing **without** blanking the player first.
   ///
-  /// `replaceCurrentItem(with: nil)` is the part that matters: pausing alone leaves a
-  /// loaded item, a live resource loader and an active audio session behind.
-  func tearDownForReplacement() {
-    // The last tick can be ten seconds behind and the server's mark thirty, and this
-    // stream is about to stop existing — so where the viewer actually left off is
-    // written down first. Clearing the cadence is what lets that final mark reach the
-    // server instead of being dropped as "too soon after the last one".
+  /// The macOS player window reuses one surface when the next concert part / episode
+  /// starts (KP-35): `tearDownForReplacement`'s `replaceCurrentItem(with: nil)` was the
+  /// black flash, and rebuilding `PlayerView` on every request made it worse. The new
+  /// item replaces the old one in `preparePlayback` once its URL is ready.
+  @MainActor
+  func retarget(playItem: any PlayableItem,
+                watchMode: WatchMode,
+                trackProfile: TitleTrackProfile,
+                plan: PlaybackPlan) {
+    finalizeCurrentPlayback(clearItem: false)
+    self.playItem = playItem
+    self.watchMode = watchMode
+    self.trackProfile = trackProfile
+    self.plan = plan
+    startsFromBeginning = false
+    bypassesMasterRewrite = false
+    lastSilentRecovery = nil
+    recoveryResumeTime = nil
+    didPreparePlayback = false
+    didFetchWatchMark = false
+    recordedAudioSignature = nil
+    recordedSubtitleSignature = nil
+    audioPicks = PickWatch<AudioTrackSignature>()
+    subtitlePicks = PickWatch<SubtitleChoiceSignature>()
+    configureSubtitles()
+    objectWillChange.send()
+    Task { await preparePlayback() }
+  }
+
+  /// Saves the watch mark and tears observers down. Pass `clearItem: true` when leaving
+  /// the player for good; `false` when the next item will replace the current one in place.
+  private func finalizeCurrentPlayback(clearItem: Bool) {
     let stoppedAt = player.currentTime().seconds
     if stoppedAt.isFinite, stoppedAt > 0 {
       lastServerMarkPosition = 0
       saveWatchMark(time: stoppedAt)
     }
-    // The same for a pick made since the last tick: the next episode is decided the moment
-    // this one is torn down.
     noteViewerPicks()
     if let mediaSelectionObserver {
       NotificationCenter.default.removeObserver(mediaSelectionObserver)
       self.mediaSelectionObserver = nil
     }
     player.pause()
-    player.replaceCurrentItem(with: nil)
+    if clearItem {
+      player.replaceCurrentItem(with: nil)
+    }
     isPictureInPictureActive = false
     statusObservation?.invalidate()
     statusObservation = nil
@@ -621,11 +644,26 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     pendingNextEpisode = nil
 #endif
 #if os(iOS) || os(tvOS)
-    // Give the session back so whatever was playing before us can resume.
-    PlaybackAudioSession.deactivate()
+    if clearItem {
+      PlaybackAudioSession.deactivate()
+    }
 #endif
     isPlaying = false
     playbackState = .preparing
+  }
+
+  /// Stops the current stream so a new `PlaybackSession` request can take over the
+  /// single shared player without two AVPlayers competing — and so leaving the player
+  /// screen actually ends the film instead of playing it on with nothing to look at.
+  ///
+  /// `replaceCurrentItem(with: nil)` is the part that matters: pausing alone leaves a
+  /// loaded item, a live resource loader and an active audio session behind.
+  func tearDownForReplacement() {
+    // The last tick can be ten seconds behind and the server's mark thirty, and this
+    // stream is about to stop existing — so where the viewer actually left off is
+    // written down first. Clearing the cadence is what lets that final mark reach the
+    // server instead of being dropped as "too soon after the last one".
+    finalizeCurrentPlayback(clearItem: true)
   }
 
   /// A stream that failed *through our master rewrite* gets one more try without it,
@@ -1118,6 +1156,22 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// protocol doesn't carry a display name, so we recover it from the concrete type —
   /// the only place the name actually lives.
   var displayTitle: String? {
+    if let variant = playItem as? PlaybackVariant {
+      // Concert / multi-video parts: show line + part title (KP-35). Empty here was the
+      // blank macOS window title when Play handed the player a `PlaybackVariant`.
+      let show = variant.movieTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+      let part = variant.name
+      switch (show.isEmpty, part) {
+      case (false, let part?):
+        return part.caseInsensitiveCompare(show) == .orderedSame ? show : "\(show) — \(part)"
+      case (false, nil):
+        return show
+      case (true, let part?):
+        return part
+      case (true, nil):
+        return nil
+      }
+    }
     if let media = playItem as? MediaItem {
       let name = media.localizedTitle
       return name.isEmpty ? nil : name
@@ -1126,16 +1180,13 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
       return download.localizedTitle.isEmpty ? nil : download.localizedTitle
     }
     if let episode = playItem as? Episode {
-        // The item page fills `seriesTitle` in before handing the episode to the player;
-      // a bare `Episode` from elsewhere falls back to its own title, the best we have.
-
-    // let epTitle = episode.title.trimmingCharacters(in: .whitespacesAndNewlines)
-    // if !epTitle.isEmpty && (epTitle != episode.seriesTitle) {
-    //   return epTitle
-    // }
-    if let seriesTitle = episode.seriesTitle, !seriesTitle.isEmpty {
-      return seriesTitle
-    }
+      // macOS window title / transport: S/E + name, not the bare series title (KP-35).
+      let line = EpisodeText(season: episode.seasonNumber,
+                             number: episode.number,
+                             name: EpisodeTitle.meaningful(episode.title))
+        .formatted(.medium)
+      if !line.isEmpty { return line }
+      if let seriesTitle = episode.seriesTitle, !seriesTitle.isEmpty { return seriesTitle }
       return episode.fixedTitle
     }
     return nil

@@ -562,6 +562,7 @@
         { "path": "EPGServiceTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "DevSessionMirrorTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlayerLiveModeTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
+        { "path": "BestVideoQualityFinderTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "ContentStoreRecordTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "LocalWatchProgressStoreTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },
         { "path": "PlaybackPreflightTests.swift", "target-membership": [ "KinoPubAppleClientTests/compile-sources" ] },

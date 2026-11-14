@@ -88,6 +88,20 @@ final class PlaybackSession: ObservableObject {
       rememberTombstone(request)
       stoppedManager = manager
     }
+    let profile = Self.trackProfile(for: item)
+    let plan = PlaybackPreflight.shared.plan(for: item, profile: profile)
+    // macOS window (and other tokenless) swaps: retarget the live manager so the picture
+    // stays up until the next item replaces it — tearing down to nil first was the wipe
+    // between concert parts (KP-35). Routed plays keep minting a fresh manager.
+    if let manager, token == nil {
+      if let media = item as? MediaItem {
+        AppContext.shared.localProgressStore.cacheItem(media)
+      }
+      manager.retarget(playItem: item, watchMode: mode, trackProfile: profile, plan: plan)
+      self.manager = manager
+      self.request = next
+      return manager
+    }
     manager?.tearDownForReplacement()
     if let media = item as? MediaItem {
       AppContext.shared.localProgressStore.cacheItem(media)
@@ -95,14 +109,13 @@ final class PlaybackSession: ObservableObject {
     // The plan is made here rather than inside the player so the hand-off is the thing
     // that travels: whatever a card or a Play button already said about this title is what
     // the player starts from, and the player refines it once it sees the real renditions.
-    let profile = Self.trackProfile(for: item)
     let created = PlayerManager(
       playItem: item,
       watchMode: mode,
       downloadedFilesDatabase: downloadedFilesDatabase,
       actionsService: actionsService,
       trackProfile: profile,
-      plan: PlaybackPreflight.shared.plan(for: item, profile: profile)
+      plan: plan
     )
     if let token, fromBeginningTokens.remove(token) != nil {
       created.startsFromBeginning = true
