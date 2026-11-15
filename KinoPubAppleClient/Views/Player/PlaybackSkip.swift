@@ -10,8 +10,9 @@
 //  set while a segment plays and emptied after. iOS and macOS have no such API yet.
 //
 //  One label, «Пропустить», whatever is skipped: per-kind titles were long and the button
-//  changed width (Sasha, 2026-11-10). Left alone, the skip takes itself after
-//  `countdown` seconds of playback, the time left drawn on the button.
+//  changed width (Sasha, 2026-11-10). On iOS and the Mac the button waits for a press
+//  unless Settings asks it to take itself (`SkipAutoStyle`, default `.apple`). tvOS
+//  still draws AVKit's own button and lets that countdown run.
 //
 
 import AVKit
@@ -56,7 +57,8 @@ enum PlaybackSkip {
     return nil
   }
 
-  /// Seconds of playback the button waits before it skips by itself.
+  /// Seconds of playback tvOS waits before its own button skips. iOS and the Mac
+  /// read `SkipChipPreferences.delaySeconds` instead, and only when a style auto-skips.
   static let countdown: Double = 5
 
   /// The button's label, the same for every kind.
@@ -85,7 +87,106 @@ enum PlaybackSkip {
 
   /// Share of the countdown left at `seconds` for an offer shown at `shownAt`, 1 → 0.
   static func countdownLeft(at seconds: Double, shownAt: Double) -> Double {
-    min(max(1 - (seconds - shownAt) / countdown, 0), 1)
+    countdownLeft(elapsed: seconds - shownAt, delay: countdown)
+  }
+
+  /// 1 is a full delay still to run, 0 is the moment an automatic skip fires.
+  /// A delay of 0 does not mean "skip now" — that was the button pressing itself
+  /// before anyone could see it.
+  static func countdownLeft(elapsed: Double, delay: Double) -> Double {
+    guard delay > 0 else { return 1 }
+    return min(max(1 - elapsed / delay, 0), 1)
+  }
+
+  static func countdownSecondsLeft(countdownLeft: Double, delay: Double) -> Int {
+    guard delay > 0 else { return 0 }
+    return max(0, Int((countdownLeft * delay).rounded(.up)))
+  }
+
+  /// «Пропустить 0:04», counting the delay still left.
+  static func countdownLabel(countdownLeft: Double, delay: Double) -> String {
+    let seconds = countdownSecondsLeft(countdownLeft: countdownLeft, delay: delay)
+    let clock = Swift.Duration.seconds(seconds).formatted(.time(pattern: .minuteSecond))
+    return String(format: "Player_SkipCountdown".localized, locale: .current, clock)
+  }
+
+  static func shouldAutoSkip(style: SkipAutoStyle, countdownLeft: Double) -> Bool {
+    style.autoSkips && countdownLeft <= 0
+  }
+}
+
+/// How an automatic skip is shown on iOS and the Mac. `.apple` does not press the
+/// button; the rest do, after `SkipChipPreferences.delaySeconds`.
+enum SkipAutoStyle: String, CaseIterable, Identifiable {
+  case apple
+  case countdown
+  case fill
+  case stroke
+  case ring
+  case pictureInPicture
+  case banner
+
+  var id: String { rawValue }
+  var autoSkips: Bool { self != .apple }
+
+  var title: String {
+    switch self {
+    case .apple: "Settings_SkipStyle_Apple".localized
+    case .countdown: "Settings_SkipStyle_Countdown".localized
+    case .fill: "Settings_SkipStyle_Fill".localized
+    case .stroke: "Settings_SkipStyle_Stroke".localized
+    case .ring: "Settings_SkipStyle_Ring".localized
+    case .pictureInPicture: "Settings_SkipStyle_PiP".localized
+    case .banner: "Settings_SkipStyle_Banner".localized
+    }
+  }
+}
+
+/// Always on the chip: a plain X, or the text button «Смотреть титры». The text
+/// button is the one that makes Skip the prominent glass button.
+enum SkipCancelStyle: String, CaseIterable, Identifiable {
+  case dismiss
+  case watchCredits
+
+  var id: String { rawValue }
+  var skipIsProminent: Bool { self == .watchCredits }
+
+  var title: String {
+    switch self {
+    case .dismiss: "Settings_SkipCancel_Dismiss".localized
+    case .watchCredits: "Settings_SkipCancel_Watch".localized
+    }
+  }
+}
+
+enum SkipChipPreferences {
+  static let styleKey = "skipAutoStyle"
+  static let delayKey = "skipAutoDelaySeconds"
+  static let cancelKey = "skipCancelStyle"
+  static let delays = [3, 4, 5, 8, 10, 15]
+  static let defaultDelay = 5
+
+  static var style: SkipAutoStyle {
+    let raw = UserDefaults.standard.string(forKey: styleKey) ?? ""
+    return SkipAutoStyle(rawValue: raw) ?? .apple
+  }
+
+  static var delaySeconds: Double {
+    let stored = UserDefaults.standard.object(forKey: delayKey) as? Int ?? defaultDelay
+    return Double(delays.contains(stored) ? stored : defaultDelay)
+  }
+
+  static var cancel: SkipCancelStyle {
+    let raw = UserDefaults.standard.string(forKey: cancelKey) ?? ""
+    return SkipCancelStyle(rawValue: raw) ?? .dismiss
+  }
+}
+
+enum SkipChipVisibility {
+  /// The chip is up only while the player chrome is up, and never over a menu
+  /// that chrome owns.
+  static func shown(hasOffer: Bool, controlsVisible: Bool, menuActive: Bool) -> Bool {
+    hasOffer && controlsVisible && !menuActive
   }
 }
 
@@ -265,6 +366,9 @@ extension PlayerManager {
     skipSegments = nil
     skippedKinds = []
     skipOfferShownAt = nil
+    skipCountdownElapsed = 0
+    skipCountdownAnchor = nil
+    dismissedOffer = nil
     if let skipObserverToken {
       player.removeTimeObserver(skipObserverToken)
       self.skipObserverToken = nil
@@ -285,6 +389,23 @@ extension PlayerManager {
     player.seek(to: CMTime(seconds: offer.targetSeconds, preferredTimescale: 600),
                 toleranceBefore: .zero, toleranceAfter: .positiveInfinity)
     skippedOffer = offer
+    dismissedOffer = nil
+    skipCountdownElapsed = 0
+    skipCountdownAnchor = nil
+    skipOffer = nil
+    showSkip(nil)
+  }
+
+  /// The viewer wants this part: credits, a recap, the opening of episode 1.
+  /// The chip stays down until the playhead leaves the segment.
+  func dismissSkip() {
+    guard let offer = skipOffer else { return }
+    Logger.app.info("Skip dismissed \(offer.kind.rawValue, privacy: .public)")
+    dismissedOffer = offer
+    skipOfferShownAt = nil
+    skipCountdownElapsed = 0
+    skipCountdownAnchor = nil
+    skipCountdownLeft = 1
     skipOffer = nil
     showSkip(nil)
   }
@@ -311,13 +432,19 @@ extension PlayerManager {
     if let skipped = skippedOffer {
       if offer == skipped { offer = nil } else { skippedOffer = nil }
     }
+    if let dismissed = dismissedOffer {
+      if offer == dismissed { offer = nil } else { dismissedOffer = nil }
+    }
     if offer != skipOffer {
       skipOffer = offer
       // A kind skipped once in this stream is offered again, but waits for a press.
       skipOfferShownAt = offer.flatMap { skippedKinds.contains($0.kind) ? nil : seconds }
+      skipCountdownElapsed = 0
+      skipCountdownAnchor = seconds
       skipCountdownLeft = 1
       showSkip(offer)
     }
+#if os(tvOS)
     guard offer != nil, let shownAt = skipOfferShownAt else { return }
     // Scrubbed back before the button appeared: the countdown starts over from here.
     if seconds < shownAt { skipOfferShownAt = seconds }
@@ -328,10 +455,38 @@ extension PlayerManager {
     } else {
       updateSkipRing(left)
     }
+#else
+    guard offer != nil, skipOfferShownAt != nil else {
+      skipCountdownLeft = 1
+      return
+    }
+    let style = SkipChipPreferences.style
+    guard style.autoSkips else {
+      skipCountdownLeft = 1
+      skipCountdownAnchor = seconds
+      return
+    }
+    // Chrome hidden, or a subtitle / audio menu open: the clock does not run,
+    // so the skip cannot fire while there is nothing on screen to cancel it.
+    if skipCountdownSuspended {
+      skipCountdownAnchor = seconds
+      return
+    }
+    if let anchor = skipCountdownAnchor, seconds > anchor {
+      skipCountdownElapsed += seconds - anchor
+    }
+    skipCountdownAnchor = seconds
+    let left = PlaybackSkip.countdownLeft(elapsed: skipCountdownElapsed,
+                                          delay: SkipChipPreferences.delaySeconds)
+    skipCountdownLeft = left
+    if PlaybackSkip.shouldAutoSkip(style: style, countdownLeft: left) {
+      performSkip(automatically: true)
+    }
+#endif
   }
 
   /// tvOS: AVKit's own button (`contextualActions`), which it animates in and out. iOS and
-  /// the Mac draw theirs from `skipOffer` (`SkipButtonOverlay`).
+  /// the Mac draw `SkipChipOverlay` from `skipOffer`.
   private func showSkip(_ offer: PlaybackSkip.Offer?) {
 #if os(tvOS)
     MainActor.assumeIsolated {
@@ -403,55 +558,5 @@ enum SkipCountdownGlyph {
   }
 
   private static var cache: [Double: UIImage] = [:]
-}
-#endif
-
-#if !os(tvOS)
-
-/// The skip button on iOS and the Mac, where AVKit has no place for one: a capsule in the
-/// lower trailing corner, the size and material of the system's own (Sasha, 2026-11-09:
-/// one feature on every platform).
-struct SkipButtonOverlay: View {
-  let offer: PlaybackSkip.Offer?
-  /// Share of the countdown left, 1 → 0; 1 when the button waits for a press.
-  var countdownLeft: Double = 1
-  let action: () -> Void
-
-  var body: some View {
-    ZStack(alignment: .bottomTrailing) {
-      Color.clear
-      if let offer {
-        Button(action: action) {
-          Label(PlaybackSkip.title, systemImage: "forward.end.fill")
-            .font(.headline)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.primary)
-        .background {
-          // The time spent as a darker band that grows across the capsule from the
-          // leading edge, under the label; the light part is the time left (Sasha,
-          // 2026-11-10).
-          GeometryReader { proxy in
-            Rectangle()
-              .fill(.black.opacity(0.35))
-              .frame(width: proxy.size.width * (1 - countdownLeft))
-              .animation(.linear(duration: 0.25), value: countdownLeft)
-          }
-        }
-        .background(.regularMaterial)
-        .clipShape(Capsule())
-        .environment(\.colorScheme, .dark)
-        .padding(.trailing, 24)
-        .padding(.bottom, 96)
-        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-        .accessibilityLabel(PlaybackSkip.accessibilityTitle(for: offer.kind))
-        .accessibilityIdentifier("player.skip")
-      }
-    }
-    .animation(.easeOut(duration: 0.2), value: offer)
-    .allowsHitTesting(offer != nil)
-  }
 }
 #endif

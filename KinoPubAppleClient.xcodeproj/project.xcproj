@@ -473,6 +473,8 @@
                 { "path": "PlaybackPreferences.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PlaybackEpisodes.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PlaybackSkip.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "SkipChip.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
+                { "path": "PlayerChromeMonitor.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "PictureInPictureKeeper.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SubtitlePreferences.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },
                 { "path": "SubtitleSelector.swift", "target-membership": [ "KinoPubAppleClient/compile-sources" ] },

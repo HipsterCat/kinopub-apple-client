@@ -86,8 +86,15 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// Share of the countdown left before the skip takes itself, 1 → 0 (`PlaybackSkip.countdown`).
   @Published var skipCountdownLeft: Double = 1
   /// The stream time the offer on screen appeared at: the countdown runs on playback, so a
-  /// pause holds it.
+  /// pause holds it. tvOS. iOS and the Mac count `skipCountdownElapsed` instead.
   var skipOfferShownAt: Double?
+  /// Playback time already counted toward an automatic skip. Hidden chrome and an open
+  /// menu do not add to it — the skip must not fire while the chip is off screen.
+  var skipCountdownElapsed: Double = 0
+  var skipCountdownAnchor: Double?
+  var skipCountdownSuspended = false
+  /// The viewer chose to keep watching this segment (the X, or «Смотреть титры»).
+  var dismissedOffer: PlaybackSkip.Offer?
   /// Kinds already skipped in this stream: going back into one shows the button again,
   /// but it does not take itself a second time.
   var skippedKinds: Set<SkipSegments.Kind> = []

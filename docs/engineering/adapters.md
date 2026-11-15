@@ -71,6 +71,8 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
   system Edit/Done/Cancel items draw as ✓/✕, so the buttons are titled. On the simulator a
   lifted row needs two Down presses per row — Apple's own page does the same.
 
+- **`PlayerChromeMonitor`** (iOS and macOS skip chip) — `playerViewController(_:willTransitionToVisibilityOfTransportBar:)` is tvOS-only (`API_UNAVAILABLE` on iOS and macOS; headers, iOS 27 / macOS 27). There is no public “controls are visible” callback on the platforms that draw the chip. macOS `AVPlayerView` publishes the private KVO keys `controlsHidden` and `showsControlsPane`, and `setCanHideControls:` keeps the chrome up (probed on the macOS 27.2 SDK: pinning leaves the pane up, unpinning lets it hide; `setValue` for `controlsHidden` throws). iOS has neither key, so the chrome view is found by class name and its public `alpha` / `isHidden` are what we watch. A subtitle or audio menu pins the chrome so it cannot hide out from under the menu. Re-probe on the next SDK.
+
 - **`RenditionNames`** (`PlayerManager.swift`) — `AVMetadataItem.stringValue` is deprecated
   (16) for the async `load(.stringValue)`, while `AudioRenditions` reads a rendition's `NAME=`
   synchronously and is tested with no asset. The player awaits the names right after each

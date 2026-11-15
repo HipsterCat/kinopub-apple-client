@@ -22,6 +22,9 @@ struct PlaybackSettingsPane: View {
   private var animePrefersOriginalAudio = false
   @AppStorage(PlaybackPreferences.autoPlayNextEpisodeKey) private var autoPlayNextEpisode = true
   @AppStorage(PlaybackPreferences.autoPlayNextSeasonKey) private var autoPlayNextSeason = false
+  @AppStorage(SkipChipPreferences.styleKey) private var skipStyleRaw = SkipAutoStyle.apple.rawValue
+  @AppStorage(SkipChipPreferences.delayKey) private var skipDelay = SkipChipPreferences.defaultDelay
+  @AppStorage(SkipChipPreferences.cancelKey) private var skipCancelRaw = SkipCancelStyle.dismiss.rawValue
 
   /// Rebuilt when a preference changes so the summary below never disagrees with the
   /// switches above it.
@@ -31,6 +34,7 @@ struct PlaybackSettingsPane: View {
     Form {
       qualitySection
       endOfPlaybackSection
+      skipSection
       audioSection
       subtitleSection
       TrackMemorySections(store: appContext.trackPreferences)
@@ -60,6 +64,35 @@ struct PlaybackSettingsPane: View {
       Text("Settings_Tip_AutoPlayNextEpisode")
         + Text("\n\n")
         + Text("Settings_Tip_ContinueToNextSeason")
+    }
+  }
+
+  private var skipSection: some View {
+    Section {
+      Picker("Settings_SkipDelay", selection: $skipDelay) {
+        ForEach(SkipChipPreferences.delays, id: \.self) { seconds in
+          Text(String(format: "Settings_SkipSeconds".localized, Int64(seconds))).tag(seconds)
+        }
+      }
+      .pickerStyle(.menu)
+
+      Picker("Settings_SkipStyle", selection: $skipStyleRaw) {
+        ForEach(SkipAutoStyle.allCases) { style in
+          Text(style.title).tag(style.rawValue)
+        }
+      }
+      .pickerStyle(.menu)
+
+      Picker("Settings_SkipCancel", selection: $skipCancelRaw) {
+        ForEach(SkipCancelStyle.allCases) { style in
+          Text(style.title).tag(style.rawValue)
+        }
+      }
+      .pickerStyle(.menu)
+    } header: {
+      Text("Settings_Skip")
+    } footer: {
+      Text("Settings_SkipFooter")
     }
   }
 
