@@ -198,19 +198,22 @@ final class TVDetailPageUITests: XCTestCase {
     try shoot("concert-3-setlist")
   }
 
-  /// Down from the hero lands on an episode still that is on screen, including the
-  /// second time, after Menu has returned to the hero.
+  /// Down from the hero lands on the episode Play stands for, on screen, including
+  /// the second time, after Menu has returned to the hero.
+  ///
+  /// The numbered rail is the one on screen (`FeatureFlag.rivuletSeasonRail` is off).
+  /// This fixture's Play is S2E4.
   func testSeasonRailDownKeepsFocusOnScreen() throws {
     launch("seasonStrip")
     try waitForFocus(on: "play", timeout: 20, "open")
     try shoot("rail-0-hero")
+    let entry = "kinopub.rail.item.\(9_900_008 * 1000 + 204)"
 
     XCUIRemote.shared.press(.down)
     Thread.sleep(forTimeInterval: 1.4)
     try shoot("rail-1-down")
     let first = try requireOnScreenFocus("first down")
-    XCTAssertTrue(first.identifier.hasPrefix("kinopub.rivulet.still."),
-                  "first down: \(focusedDescription)")
+    XCTAssertEqual(first.identifier, entry, "first down: \(focusedDescription)")
 
     XCUIRemote.shared.press(.menu)
     Thread.sleep(forTimeInterval: 1.2)
@@ -224,8 +227,7 @@ final class TVDetailPageUITests: XCTestCase {
     Thread.sleep(forTimeInterval: 1.4)
     try shoot("rail-3-down-again")
     let second = try requireOnScreenFocus("second down")
-    XCTAssertTrue(second.identifier.hasPrefix("kinopub.rivulet.still."),
-                  "second down: \(focusedDescription)")
+    XCTAssertEqual(second.identifier, entry, "second down: \(focusedDescription)")
   }
 
   /// Down from the episodes reaches the shelves under them and keeps going to the
@@ -258,7 +260,10 @@ final class TVDetailPageUITests: XCTestCase {
       stops += 1
     }
     if leavesRail {
-      XCTAssertFalse(previous.hasPrefix("kinopub.rivulet."), "Down never left the season rail")
+      let stillOnRail = previous.hasPrefix("kinopub.rivulet.")
+        || previous.hasPrefix("kinopub.rail.item.")
+        || previous.hasPrefix("kinopub.season.")
+      XCTAssertFalse(stillOnRail, "Down never left the season rail")
     }
     XCTAssertGreaterThan(stops, 2, "Down stopped after \(stops) moves: \(focusedDescription)")
 

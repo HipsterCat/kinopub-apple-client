@@ -110,6 +110,9 @@ public struct MediaActionContext: Equatable, Sendable {
   /// Multi-version films (`subtype: multi`) leave this empty: one Play opens the
   /// Choose a Version sheet instead.
   public var versions: [MediaActionVersion]
+  /// One Play opens Choose a Version. The capsule names the kind (`Смотреть фильм`),
+  /// not the first edition's remaining time — that edition is a row in the sheet.
+  public var choosesVersion: Bool
   public var loading: Set<MediaActionID>
   /// How many seasons the show has that we know of — one, and it is the first, drops the
   /// season from the capsule (`EpisodeText`).
@@ -129,6 +132,7 @@ public struct MediaActionContext: Equatable, Sendable {
     showsMore: Bool = false,
     promoteFollow: Bool = false,
     versions: [MediaActionVersion] = [],
+    choosesVersion: Bool = false,
     loading: Set<MediaActionID> = [],
     seasonCount: Int? = nil
   ) {
@@ -145,6 +149,7 @@ public struct MediaActionContext: Equatable, Sendable {
     self.showsMore = showsMore
     self.promoteFollow = promoteFollow
     self.versions = versions
+    self.choosesVersion = choosesVersion
     self.loading = loading
     self.seasonCount = seasonCount
   }
@@ -167,6 +172,7 @@ public struct MediaActionContext: Equatable, Sendable {
   }
 
   var isMidTitle: Bool {
+    if choosesVersion { return false }
     if case .resume = playback { return true }
     return false
   }
@@ -326,10 +332,11 @@ public enum MediaActionCatalog {
 
   public static func play(for context: MediaActionContext) -> MediaActionAppearance {
     let loading = context.loading.contains(.play)
-    let caption = MediaActionCopy.playCaption(playback: context.playback, kind: context.kind,
+    let playback = context.choosesVersion ? versionChooserPlayback(context.playback) : context.playback
+    let caption = MediaActionCopy.playCaption(playback: playback, kind: context.kind,
                                               seasonCount: context.seasonCount,
                                               isSeries: context.isSeries)
-    switch context.playback {
+    switch playback {
     case .playAgain:
       return MediaActionAppearance(
         id: .play,
@@ -350,6 +357,14 @@ public enum MediaActionCatalog {
         isLoading: loading
       )
     }
+  }
+
+  /// A multi-version film's one Play opens the chooser. Resume of the first edition
+  /// is that edition's row, not the capsule: the capsule stays the kind title.
+  /// Watched stays Play Again.
+  private static func versionChooserPlayback(_ playback: PlaybackButtonContent) -> PlaybackButtonContent {
+    if case .playAgain = playback { return playback }
+    return .play(season: nil, episode: nil)
   }
 
   /// The phone's Play says only what it does — «Смотреть», «Продолжить» with its bar,

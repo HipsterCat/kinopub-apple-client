@@ -1932,6 +1932,7 @@ struct MediaItemHeroView: View {
       showsMore: showsMore,
       promoteFollow: promote,
       versions: versionPills,
+      choosesVersion: presentsVersionPicker,
       loading: loadingActions,
       seasonCount: mediaItem.seasons?.count
     )

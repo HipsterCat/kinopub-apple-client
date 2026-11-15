@@ -851,7 +851,12 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     let held = focusedItemID
     let inside = focusIsInside
     collectionView.reloadData()
-    guard inside, let held, index(of: held) != nil else { return }
+    guard inside, let held, index(of: held) != nil else {
+      // `reloadData` drops the offset. A rail the remote has not entered still
+      // stands on its entry; otherwise Down finds the first visible card.
+      if entryItemID != nil { scrollToEntry(animated: false) }
+      return
+    }
     pendingFocusItemID = held
     FocusLog.rejected(heading: "reload",
                       preferred: "item \(held)",
@@ -1051,7 +1056,11 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
     guard let path = context.nextFocusedIndexPath, items.indices.contains(path.item) else { return }
     focusedItemID = items[path.item].id
     if pendingFocusItemID == focusedItemID { pendingFocusItemID = nil }
-    if entryItemID != nil { returnItemID = items[path.item].id }
+    // A focus search that only passes through a cell (no heading, nothing focused
+    // before it) is not the remote leaving the rail. Recording it made the next
+    // Down from the hero return to that cell instead of the entry.
+    let passedThrough = context.focusHeading.isEmpty && context.previouslyFocusedIndexPath == nil
+    if entryItemID != nil, !passedThrough { returnItemID = items[path.item].id }
     onFocusedItem?(items[path.item].id)
   }
 

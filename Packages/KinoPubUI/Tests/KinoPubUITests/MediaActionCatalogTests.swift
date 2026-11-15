@@ -116,6 +116,29 @@ final class MediaActionCatalogTests: XCTestCase {
 
   /// A listing card knows the type before `seasons` arrives. That gap must not say
   /// "Watch Movie".
+  /// One Play opens the version sheet. The first edition's remaining time stays in
+  /// that sheet, not on the capsule.
+  func testMultiVersionPlayNamesTheKindNotTheFirstEditionsTime() {
+    let play = MediaActionCatalog.play(for: MediaActionContext(
+      playback: .resume(progress: 0.3, season: nil, episode: nil, durationSeconds: 6000),
+      kind: .fiction,
+      isSeries: false,
+      choosesVersion: true
+    ))
+    XCTAssertEqual(play.title, MediaActionCopy.playTitle(kind: .fiction))
+    XCTAssertNil(play.progress)
+    XCTAssertNotEqual(play.title, MediaActionCopy.remainingLabel(progress: 0.3, durationSeconds: 6000))
+  }
+
+  func testMultiVersionWatchedStillSaysPlayAgain() {
+    let play = MediaActionCatalog.play(for: MediaActionContext(
+      playback: .playAgain(season: nil, episode: nil),
+      isSeries: false,
+      choosesVersion: true
+    ))
+    XCTAssertEqual(play.title, MediaActionCopy.localized("Play Again"))
+  }
+
   func testKnownSeriesWithoutEpisodeNumbersSaysPlay() {
     let play = MediaActionCatalog.play(for: MediaActionContext(
       playback: .play(season: nil, episode: nil),
