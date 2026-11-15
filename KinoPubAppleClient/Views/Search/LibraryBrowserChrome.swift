@@ -51,23 +51,27 @@ struct LibrarySortMenu<Catalog: FilterBarDriver>: View {
 
   var body: some View {
     Menu {
-      Picker("Sort", selection: sortBinding) {
+      Picker(selection: sortBinding) {
         ForEach(MediaSortOrder.allCases) { order in
           Text(LocalizedStringKey(order.titleKey)).tag(order)
         }
+      } label: {
+        Text("Sort_By")
       }
       .pickerStyle(.inline)
 
       Divider()
 
-      Picker("Sort_Order", selection: directionBinding) {
+      Picker(selection: directionBinding) {
         Text(LocalizedStringKey(catalog.filter.sort.descendingTitleKey)).tag(true)
         Text(LocalizedStringKey(catalog.filter.sort.ascendingTitleKey)).tag(false)
+      } label: {
+        Text("Sort_Order")
       }
       .pickerStyle(.inline)
     } label: {
       if iconOnly && !showsTitle {
-        Label("Sort", systemImage: "arrow.up.arrow.down")
+        Label("Sort_By", systemImage: "arrow.up.arrow.down")
           .labelStyle(.iconOnly)
       } else {
         Label(LocalizedStringKey(catalog.filter.sort.titleKey),
@@ -76,8 +80,9 @@ struct LibrarySortMenu<Catalog: FilterBarDriver>: View {
           .lineLimit(1)
       }
     }
+    // Same glass as Sort — never `.glassProminent` (that was the stark black/white pill).
     .modifier(LibraryFilterGlassStyle(isProminent: false))
-    .help(Text("Sort"))
+    .help(Text("Sort_By"))
   }
 
   private var sortBinding: Binding<MediaSortOrder> {
@@ -103,6 +108,7 @@ struct LibrarySortMenu<Catalog: FilterBarDriver>: View {
 }
 
 /// Filters capsule with an active-count badge; opens the Filter & Sort sheet.
+/// Always system `.glass` like Sort — never `.glassProminent` (stark black/white).
 struct LibraryFiltersButton: View {
   let activeCount: Int
   let action: () -> Void
@@ -127,7 +133,7 @@ struct LibraryFiltersButton: View {
       .font(TypeScale.filterControl)
       .lineLimit(1)
     }
-    .modifier(LibraryFilterGlassStyle(isProminent: activeCount > 0))
+    .modifier(LibraryFilterGlassStyle(isProminent: false))
     .help(Text("Filters"))
     .accessibilityValue(activeCount > 0
                         ? Text("\(activeCount)")
