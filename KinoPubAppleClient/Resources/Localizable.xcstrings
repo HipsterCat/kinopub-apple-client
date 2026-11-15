@@ -5059,13 +5059,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Go to Movie"
+            "value" : "Go to Details"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Перейти к фильму"
+            "value" : "Перейти к деталям"
           }
         }
       }
@@ -5076,13 +5076,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Go to Show"
+            "value" : "Go to Details"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Перейти к сериалу"
+            "value" : "Перейти к деталям"
           }
         }
       }
@@ -5256,13 +5256,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hide from Here"
+            "value" : "Remove from Up Next"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Скрыть отсюда"
+            "value" : "Убрать из очереди"
           }
         }
       }

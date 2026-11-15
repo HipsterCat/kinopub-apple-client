@@ -151,7 +151,7 @@ enum DeviceIdentity {
     // literal is only a last resort — keep it in step with the build setting.
     let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
       ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-      ?? "Kinopub Soda"
+      ?? "Soda"
     let version = Bundle.main.appVersionLong
     let build = Bundle.main.appBuild
     let app: String
