@@ -31,7 +31,7 @@ private struct KpFactsResponse: Decodable {
 }
 
 /// A user review. `type` is "POSITIVE" / "NEGATIVE" / "NEUTRAL".
-public struct KpReview: Decodable, Identifiable, Hashable {
+public struct KpReview: Decodable, Identifiable, Hashable, Sendable {
   public let kinopoiskId: Int?
   public let type: String?
   public let date: String?
@@ -42,7 +42,7 @@ public struct KpReview: Decodable, Identifiable, Hashable {
   public var id: String { "\(kinopoiskId ?? 0)-\(title ?? "")-\(date ?? "")" }
 }
 
-public struct KpReviewsPage: Decodable, Hashable {
+public struct KpReviewsPage: Decodable, Hashable, Sendable {
   public let total: Int?
   public let totalPositiveReviews: Int?
   public let totalNegativeReviews: Int?

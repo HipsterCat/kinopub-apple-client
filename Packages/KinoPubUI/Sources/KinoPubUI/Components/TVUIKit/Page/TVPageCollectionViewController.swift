@@ -251,11 +251,15 @@ public final class TVPageCollectionViewController: UIViewController {
   private var coverObserver: NSObjectProtocol?
 
   deinit {
-    if let metricsMeasuredObserver {
-      NotificationCenter.default.removeObserver(metricsMeasuredObserver)
-    }
-    if let coverObserver {
-      NotificationCenter.default.removeObserver(coverObserver)
+    // A view controller is destroyed on the main thread. `deinit` itself is
+    // nonisolated, and the observer tokens are not `Sendable`.
+    MainActor.assumeIsolated {
+      if let metricsMeasuredObserver {
+        NotificationCenter.default.removeObserver(metricsMeasuredObserver)
+      }
+      if let coverObserver {
+        NotificationCenter.default.removeObserver(coverObserver)
+      }
     }
   }
   private var lastCollectionBounds: CGRect = .null

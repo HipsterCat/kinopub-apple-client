@@ -51,7 +51,7 @@ let package = Package(
         .product(name: "KinoPubMetadata", package: "KinoPubMetadata")
       ])
   ],
-  // Tools 6.2 is required for `.v26` platforms; stay on language mode 5 until
-  // ObservableObject view models move to @Observable (see research/en/04 §4.4).
-  swiftLanguageModes: [.v5]
+  // Tools 6.2 is required for `.v26` platforms. Language mode 6: shared mutable
+  // state is an actor, the main actor, or a `Mutex` — not a global `var`.
+  swiftLanguageModes: [.v6]
 )

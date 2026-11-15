@@ -111,6 +111,7 @@ private enum HeroBleedSample {
   static let topInset: CGFloat = 100
 }
 
+@MainActor
 private var sampleArt: some View {
   CachedRemoteImage(
     url: HeroBleedSample.wideURL,

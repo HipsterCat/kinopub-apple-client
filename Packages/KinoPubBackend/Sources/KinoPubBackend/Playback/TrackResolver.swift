@@ -7,7 +7,7 @@ import Foundation
 
 /// Where a remembered choice was learned. Ordered most specific first when resolving,
 /// and named so a debug screen can say *why* a title opens the way it does.
-public enum TrackMemoryScope: Codable, Hashable {
+public enum TrackMemoryScope: Codable, Hashable, Sendable {
   /// What this very episode was last watched with. First in the chain, so a rewatch
   /// replays what it played the first time.
   case episode(titleID: Int, season: Int?, episode: Int)

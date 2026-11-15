@@ -12,7 +12,7 @@ import Foundation
 /// Not the HLS rendition name, not the index, not the URL — those differ between two
 /// episodes of one season, so a choice remembered that way pre-selects nothing on the
 /// next one. Language + kind + studio is what a viewer means by "the same озвучка".
-public struct AudioTrackSignature: Codable, Hashable {
+public struct AudioTrackSignature: Codable, Hashable, Sendable {
   public let languageKey: String
   /// `AudioTracks.kindRank`: 0 DUB, 1 MVO, 2 DVO, 3 VO, 4 AVO, 5 Orig, 6 unknown.
   public let kindRank: Int
@@ -75,7 +75,7 @@ public extension AudioTrackSignature {
 
 /// A remembered subtitle choice. `languageKey == nil` means **off**, which is a choice
 /// worth storing — otherwise the default turns subtitles back on every episode.
-public struct SubtitleChoiceSignature: Codable, Hashable {
+public struct SubtitleChoiceSignature: Codable, Hashable, Sendable {
 
   public let languageKey: String?
   public let isCC: Bool
@@ -128,7 +128,7 @@ public extension AudioTrackInfo {
 
 // MARK: - Ledger
 
-public struct AudioLedgerEntry: Codable, Equatable {
+public struct AudioLedgerEntry: Codable, Equatable, Sendable {
   public var signature: AudioTrackSignature
   /// Episodes actually watched with this dub, plus explicit picks. Not picker opens —
   /// two episodes of a stopgap must never outrank a season of the real preference.
@@ -148,7 +148,7 @@ public struct AudioLedgerEntry: Codable, Equatable {
   }
 }
 
-public struct SubtitleLedgerEntry: Codable, Equatable {
+public struct SubtitleLedgerEntry: Codable, Equatable, Sendable {
   public var signature: SubtitleChoiceSignature
   public var weight: Int
   public var lastPlayedAt: Date
@@ -200,7 +200,7 @@ extension Array where Element: RankedLedgerEntry {
 /// What one scope — a season, a title, or the anime class — has learned.
 ///
 /// Rules and their reasons: [docs/product/playback-tracks.md].
-public struct TrackPreferenceLedger: Codable, Equatable {
+public struct TrackPreferenceLedger: Codable, Equatable, Sendable {
 
   /// Weight at which a habit stops being provisional. Below it, a dub that has *never
   /// been on a menu before* and outranks the habit takes over; at or above it the habit
@@ -277,7 +277,7 @@ public struct TrackPreferenceLedger: Codable, Equatable {
 /// **Whether a title opens with subtitles** — Plex's three answers, because they are the
 /// ones a viewer actually means (Sasha, 2026-11-01). A pick in the player overrides it for
 /// that title until the next pick (`TrackResolver`).
-public enum SubtitleMode: String, CaseIterable, Codable {
+public enum SubtitleMode: String, CaseIterable, Codable, Sendable {
   /// Every title, in the first preferred subtitle language it offers.
   case always
   /// Only when the audio that plays is in none of the preferred **audio** languages.
@@ -288,7 +288,7 @@ public enum SubtitleMode: String, CaseIterable, Codable {
 
 /// The app-level half of the ladder. Everything here is a user setting; nothing here is
 /// per title.
-public struct PlaybackLanguagePreferences: Equatable {
+public struct PlaybackLanguagePreferences: Equatable, Sendable {
   /// Ordered. Empty means "use the system's preferred languages", which is the default
   /// and covers the viewer who never opens Settings.
   public var audioLanguages: [String]
@@ -347,7 +347,7 @@ public struct PlaybackLanguagePreferences: Equatable {
 
 /// The two things about a title that change how its tracks are chosen. Both are derived
 /// from what the item payload already carries — nothing is fetched for this.
-public struct TitleTrackProfile: Equatable {
+public struct TitleTrackProfile: Equatable, Sendable {
   public var isAnime: Bool
   public var originalLanguageKey: String?
 

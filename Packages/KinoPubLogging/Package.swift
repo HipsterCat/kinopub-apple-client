@@ -17,5 +17,5 @@ let package = Package(
       name: "KinoPubLoggingTests",
       dependencies: ["KinoPubLogging"])
   ],
-  swiftLanguageModes: [.v5]
+  swiftLanguageModes: [.v6]
 )

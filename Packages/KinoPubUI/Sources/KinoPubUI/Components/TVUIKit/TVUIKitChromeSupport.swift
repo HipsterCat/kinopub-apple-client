@@ -237,6 +237,7 @@ public enum TVContextMenuHandoff {
 }
 
 public enum TVUIKitContextMenuBuilder {
+  @MainActor
   public static func menu(from entries: [MediaCardContextEntry]) -> UIMenu {
     var children: [UIMenuElement] = []
     var pending: [UIMenuElement] = []

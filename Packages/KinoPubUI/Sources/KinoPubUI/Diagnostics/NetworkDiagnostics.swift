@@ -22,16 +22,23 @@
 import Foundation
 import Pulse
 import PulseProxy
+import Synchronization
 
 public enum NetworkDiagnostics {
 
-  private static var isStarted = false
+  /// `start` is sync and may be called from more than one launch path. The flag is
+  /// the whole critical section — enabling the proxy must not happen twice.
+  private static let started = Mutex(false)
 
   /// Call once, as early in launch as possible — requests made before this are not
   /// recorded. Safe to call again; the second call does nothing.
   public static func start() {
-    guard !isStarted else { return }
-    isStarted = true
+    let alreadyStarted = started.withLock { value -> Bool in
+      if value { return true }
+      value = true
+      return false
+    }
+    guard !alreadyStarted else { return }
     NetworkLogger.enableProxy(logger: NetworkLogger(store: store, configuration: configuration))
   }
 

@@ -113,7 +113,7 @@ public struct MediaScoreLogo: View {
     }
   }
 
-  public enum Style {
+  public enum Style: Sendable {
     /// Single-colour glyph that takes the surrounding foreground.
     case template
     /// Full-colour brand mark from the asset catalogue.

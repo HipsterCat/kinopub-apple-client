@@ -253,8 +253,10 @@ public struct MediaRowsView: View {
         shownIndex: heroIndex
       )
       // The picture is under the bar while its foot is below the bar's.
-      .onGeometryChange(for: Bool.self) { proxy in
-        proxy.frame(in: .global).maxY > barInsets.top + 1
+      // `barTop` is a value: the geometry closure is `@Sendable` and must not
+      // read the main-actor inset itself. The body runs again when the inset changes.
+      .onGeometryChange(for: Bool.self) { [barTop = barInsets.top] proxy in
+        proxy.frame(in: .global).maxY > barTop + 1
       } action: { under in
         heroUnderBar = under
       }

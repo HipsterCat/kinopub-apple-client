@@ -12,6 +12,10 @@ import SwiftUI
 import AppKit
 #endif
 
+/// Scroll offset for one page. Main-actor state: it is written from the scroll
+/// view's bounds notifications (queued on the main thread) and read when the page
+/// returns. Not observable — a write on every frame must not redraw.
+@MainActor
 public final class ScrollMemory {
   /// The top of the visible area, in content points.
   public var y: CGFloat = 0

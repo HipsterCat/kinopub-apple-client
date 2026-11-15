@@ -16,17 +16,23 @@
 
 import OSLog
 import Foundation
+import Synchronization
 
 public enum ArtworkLog {
 
   /// Off in release builds; the instrumentation compiles away with it.
-  public static var isEnabled: Bool = {
+  /// Read from image callbacks, which are not the main actor, so this is an atomic
+  /// rather than a global `var`.
 #if DEBUG
-    true
+  private static let enabledFlag = Atomic<Bool>(true)
 #else
-    false
+  private static let enabledFlag = Atomic<Bool>(false)
 #endif
-  }()
+
+  public static var isEnabled: Bool {
+    get { enabledFlag.load(ordering: .acquiring) }
+    set { enabledFlag.store(newValue, ordering: .releasing) }
+  }
 
   private static let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Kinopub Soda",

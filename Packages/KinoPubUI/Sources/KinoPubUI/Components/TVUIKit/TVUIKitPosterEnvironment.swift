@@ -13,7 +13,7 @@ private struct UsesTVUIKitPostersKey: EnvironmentKey {
 }
 
 private struct MediaNavigationKey: EnvironmentKey {
-  static let defaultValue: ((any Hashable) -> Void)? = nil
+  static let defaultValue: (@MainActor (any Hashable) -> Void)? = nil
 }
 
 extension EnvironmentValues {
@@ -25,7 +25,9 @@ extension EnvironmentValues {
   }
 
   /// Opens a `navigationDestination` value from a UIKit poster selection.
-  public var mediaNavigation: ((any Hashable) -> Void)? {
+  /// Main-actor isolated: the handler pushes a route, and a `@MainActor` function
+  /// type is `Sendable`, which a stored environment default has to be.
+  public var mediaNavigation: (@MainActor (any Hashable) -> Void)? {
     get { self[MediaNavigationKey.self] }
     set { self[MediaNavigationKey.self] = newValue }
   }

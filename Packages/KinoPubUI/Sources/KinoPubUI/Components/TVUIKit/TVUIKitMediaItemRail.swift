@@ -460,7 +460,7 @@ public enum TVUIKitMediaItemMetrics {
                                              interGroupSpacing: 40,
                                              verticalPadding: 40)
 
-  public struct SystemMetrics: Equatable {
+  public struct SystemMetrics: Equatable, Sendable {
     public var itemSize: CGSize
     public var interGroupSpacing: CGFloat
     /// The section's own top + bottom insets, which we do not scale.
@@ -538,6 +538,7 @@ public enum TVUIKitMediaItemMetrics {
     return metrics
   }
 
+  @MainActor
   private static func frame(of index: Int, in probe: UICollectionView) -> CGRect? {
     let path = IndexPath(item: index, section: 0)
     if let attributes = probe.layoutAttributesForItem(at: path) { return attributes.frame }

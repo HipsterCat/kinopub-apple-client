@@ -56,6 +56,7 @@ public extension View {
 /// spacing *larger* than the stack's makes the glass shapes blend into each other at
 /// rest, which is only correct when merging is the intent. `nil` (the default) uses the
 /// system's own default spacing.
+@MainActor
 public func kinoGlassGroup<Content: View>(spacing: CGFloat? = nil,
                                           @ViewBuilder content: () -> Content) -> some View {
   GlassEffectContainer(spacing: spacing, content: content)

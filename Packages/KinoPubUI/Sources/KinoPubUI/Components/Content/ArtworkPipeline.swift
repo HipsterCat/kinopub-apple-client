@@ -23,6 +23,7 @@
 import Foundation
 import CoreGraphics
 import SwiftUI
+import Synchronization
 import Nuke
 import KinoPubLogging
 import KinoPubMetadata
@@ -93,8 +94,9 @@ public enum Artwork {
   /// small — it is a within-session cache there, and pretending otherwise buys nothing.
   /// Worker logo/backdrop request URL → language stamp from the last network answer.
   /// Nuke cache hits do not keep `urlResponse`; hero captions read this table.
-  private static let workerLanguageLock = NSLock()
-  private static var workerLanguageByRequestURL: [URL: WorkerArtworkLanguageTag] = [:]
+  /// Written from the image task and read from hero captions, so it cannot live on
+  /// the main actor. The critical sections are dictionary updates with no await.
+  private static let workerLanguageByRequestURL = Mutex<[URL: WorkerArtworkLanguageTag]>([:])
 
   /// Original-byte budget. Nuke evicts past this. tvOS purges `Caches/` when the
   /// app is not running, so the TV budget stays a within-session cache.
@@ -238,15 +240,11 @@ public enum Artwork {
 
   private static func rememberWorkerLanguage(requestURL: URL, language: WorkerArtworkLanguageTag?) {
     guard let language else { return }
-    workerLanguageLock.lock()
-    workerLanguageByRequestURL[requestURL] = language
-    workerLanguageLock.unlock()
+    workerLanguageByRequestURL.withLock { $0[requestURL] = language }
   }
 
   private static func rememberedWorkerLanguage(for requestURL: URL) -> WorkerArtworkLanguageTag? {
-    workerLanguageLock.lock()
-    defer { workerLanguageLock.unlock() }
-    return workerLanguageByRequestURL[requestURL]
+    workerLanguageByRequestURL.withLock { $0[requestURL] }
   }
 
   // MARK: - Accounting, for Settings › Storage
@@ -266,9 +264,7 @@ public enum Artwork {
   }
 
   public static func sessionGroups() -> [UsageGroup] {
-    seenLock.lock()
-    let urls = Array(seen.keys)
-    seenLock.unlock()
+    let urls = seen.withLock { Array($0.keys) }
     let order = ["logos", "posters", "backdrops", "stills", "people", "other"]
     var buckets: [String: (count: Int, bytes: Int64)] = [:]
     for url in urls {
@@ -311,12 +307,8 @@ public enum Artwork {
   public static func clearCaches() {
     memoryCache.removeAll()
     diskCache?.removeAll()
-    seenLock.lock()
-    seen.removeAll()
-    seenLock.unlock()
-    workerLanguageLock.lock()
-    workerLanguageByRequestURL.removeAll()
-    workerLanguageLock.unlock()
+    seen.withLock { $0.removeAll() }
+    workerLanguageByRequestURL.withLock { $0.removeAll() }
   }
 
   /// Drops one title's pictures: the decoded sizes this session actually asked for,
@@ -324,15 +316,16 @@ public enum Artwork {
   public static func remove(urls: some Sequence<URL>) {
     let unique = Array(Set(urls))
     guard !unique.isEmpty else { return }
-    seenLock.lock()
-    var variants: [(URL, SeenVariant)] = []
-    for url in unique {
-      if let stored = seen[url] {
-        variants.append(contentsOf: stored.map { (url, $0) })
+    let variants: [(URL, SeenVariant)] = seen.withLock { table in
+      var variants: [(URL, SeenVariant)] = []
+      for url in unique {
+        if let stored = table[url] {
+          variants.append(contentsOf: stored.map { (url, $0) })
+        }
+        table[url] = nil
       }
-      seen[url] = nil
+      return variants
     }
-    seenLock.unlock()
     for (url, variant) in variants {
       pipeline.cache.removeCachedImage(
         for: makeRequest(url, size: variant.size, mode: variant.mode),
@@ -344,25 +337,25 @@ public enum Artwork {
       pipeline.cache.removeCachedData(for: bare)
       pipeline.cache[bare] = nil
     }
-    workerLanguageLock.lock()
-    for url in unique {
-      workerLanguageByRequestURL[url] = nil
+    workerLanguageByRequestURL.withLock { table in
+      for url in unique {
+        table[url] = nil
+      }
     }
-    workerLanguageLock.unlock()
   }
 
-  private struct SeenVariant: Hashable {
+  private struct SeenVariant: Hashable, Sendable {
     var size: CGSize
     var mode: ResizeMode
   }
 
-  private static let seenLock = NSLock()
-  private static var seen: [URL: Set<SeenVariant>] = [:]
+  /// Sizes this process has asked Nuke to decode, so Settings and "remove this
+  /// title" can name the memory entries. Touched from card layout on the main
+  /// actor and from cache clearing, which is why it is a mutex and not a global.
+  private static let seen = Mutex<[URL: Set<SeenVariant>]>([:])
 
   private static func noteSeen(_ url: URL, size: CGSize, mode: ResizeMode) {
-    seenLock.lock()
-    seen[url, default: []].insert(SeenVariant(size: size, mode: mode))
-    seenLock.unlock()
+    seen.withLock { $0[url, default: []].insert(SeenVariant(size: size, mode: mode)) }
   }
 }
 

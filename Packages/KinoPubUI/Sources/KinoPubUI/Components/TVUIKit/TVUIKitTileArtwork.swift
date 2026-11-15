@@ -17,7 +17,7 @@ public enum TVUIKitTileArtwork {
 
   /// Tile colours. Deliberately the system palette — these read as tinted artwork on a
   /// TV rather than as brand colour, and they are what the TVUIKit gallery shows.
-  nonisolated(unsafe) public static let palette: [UIColor] = [
+  public static let palette: [UIColor] = [
     .systemRed, .systemOrange, .systemYellow, .systemGreen,
     .systemTeal, .systemBlue, .systemIndigo, .systemPurple, .systemPink
   ]

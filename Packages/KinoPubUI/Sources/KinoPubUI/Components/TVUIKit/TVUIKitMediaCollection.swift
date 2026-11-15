@@ -162,8 +162,10 @@ public final class TVUIKitMediaCollectionController: UIViewController {
   }
 
   deinit {
-    if let coverObserver {
-      NotificationCenter.default.removeObserver(coverObserver)
+    MainActor.assumeIsolated {
+      if let coverObserver {
+        NotificationCenter.default.removeObserver(coverObserver)
+      }
     }
   }
 

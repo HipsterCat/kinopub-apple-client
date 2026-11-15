@@ -24,5 +24,5 @@ let package = Package(
       name: "KinoPubMediaTests",
       dependencies: ["KinoPubMedia"])
   ],
-  swiftLanguageModes: [.v5]
+  swiftLanguageModes: [.v6]
 )

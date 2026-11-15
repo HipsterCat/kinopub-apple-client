@@ -31,5 +31,5 @@ let package = Package(
         .copy("Fixtures")
       ])
   ],
-  swiftLanguageModes: [.v5]
+  swiftLanguageModes: [.v6]
 )

@@ -1135,7 +1135,7 @@ final class TVPageHeroCell: UICollectionViewCell {
   }
 }
 
-extension TVPageHeroCell: UIPageControlTimerProgressDelegate {
+extension TVPageHeroCell: @MainActor UIPageControlTimerProgressDelegate {
   /// The dwell ran out: the carousel moves, the control draws the new page itself.
   func pageControlTimerProgress(_ progress: UIPageControlTimerProgress, shouldAdvanceToPage page: Int) -> Bool {
     guard let carousel, carousel.advances else { return false }

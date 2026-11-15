@@ -309,6 +309,7 @@ struct FocusDebugSnapshot: Equatable {
     return strip.isEmpty ? nil : strip
   }
 
+  @MainActor
   private static func isPlausibleTargetFrame(_ frame: CGRect, in window: UIWindow) -> Bool {
     let bounds = window.bounds
     guard bounds.width > 0, bounds.height > 0 else { return false }

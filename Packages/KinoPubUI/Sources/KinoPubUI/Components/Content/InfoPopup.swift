@@ -534,6 +534,7 @@ public enum InfoPopupTriggerChrome: Sendable {
 /// sample applies to every card in the app, and the one this project already settled on
 /// after a hand-rolled focus style read as non-native.
 public enum InfoPopupTriggerStyle {
+  @MainActor
   public static var buttonStyle: some PrimitiveButtonStyle {
 #if os(tvOS)
     .card
@@ -544,6 +545,7 @@ public enum InfoPopupTriggerStyle {
 
   /// The stock borderless style on tvOS: no chrome at rest, the platform's own treatment
   /// on focus. The same choice the season tabs made (`SeasonsRailView`).
+  @MainActor
   public static var textButtonStyle: some PrimitiveButtonStyle {
 #if os(tvOS)
     .borderless

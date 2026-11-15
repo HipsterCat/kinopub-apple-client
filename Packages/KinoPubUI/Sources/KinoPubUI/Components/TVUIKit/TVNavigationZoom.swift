@@ -87,7 +87,10 @@ private struct TVNavigationZoomInstaller: UIViewControllerRepresentable {
 /// Stands in front of SwiftUI's navigation delegate. Answers the animator question,
 /// forwards everything else.
 private final class ZoomingNavigationDelegate: NSObject, UINavigationControllerDelegate {
-  private static var key: UInt8 = 0
+  /// Address token for `objc_setAssociatedObject`. Nothing reads or writes the
+  /// byte; the pointer is the identity. `nonisolated(unsafe)` is the stable
+  /// address, not a shared value.
+  nonisolated(unsafe) private static var key: UInt8 = 0
 
   /// SwiftUI's own delegate. Weak, as `UINavigationController.delegate` is; SwiftUI keeps it.
   weak var wrapped: NSObject?

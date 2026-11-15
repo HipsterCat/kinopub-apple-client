@@ -22,7 +22,7 @@ enum LoggingCategory: String {
 public extension Logger {
 
   /// The application's bundle identifier, used as the subsystem for logging.
-  private static var subsystem = Bundle.main.bundleIdentifier!
+  private static let subsystem = Bundle.main.bundleIdentifier!
 
   /// Logger instance specific to `viewCycle` logging.
   static let viewCycle = Logger(subsystem: subsystem, category: LoggingCategory.viewCycle.rawValue)

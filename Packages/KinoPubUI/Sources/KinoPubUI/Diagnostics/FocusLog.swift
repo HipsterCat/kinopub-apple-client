@@ -23,6 +23,7 @@
 
 import OSLog
 import SwiftUI
+import Synchronization
 import UIKit
 
 public enum FocusLog {
@@ -31,7 +32,13 @@ public enum FocusLog {
   /// The global trace walks the whole window hierarchy on *every* focus move, and
   /// with the system player up it sweeps AVKit's own collections too, flagging them
   /// as stranded — that sweep was the visible lag, not the logging itself.
-  public static var isEnabled = false
+  /// An atomic so a toggle and a focus callback cannot race on a plain global.
+  private static let enabledFlag = Atomic<Bool>(false)
+
+  public static var isEnabled: Bool {
+    get { enabledFlag.load(ordering: .acquiring) }
+    set { enabledFlag.store(newValue, ordering: .releasing) }
+  }
 
   private static let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Kinopub Soda",
@@ -143,7 +150,7 @@ public enum FocusLog {
 
   // MARK: - Global trace
 
-  private static var globalObserver: NSObjectProtocol?
+  @MainActor private static var globalObserver: NSObjectProtocol?
 
   /// Traces **every** focus change in the app from one place.
   ///
@@ -161,12 +168,18 @@ public enum FocusLog {
       object: nil,
       queue: .main
     ) { note in
-      guard let context = note.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey]
-              as? UIFocusUpdateContext else { return }
-      let from = describe(context.previouslyFocusedItem)
-      let to = describe(context.nextFocusedItem)
-      logger.info("◆ \(from, privacy: .public)  →  \(to, privacy: .public)")
-      sweepStrandedAcrossScreen()
+      // Queued on the main thread. The census has to run in this turn — a hop
+      // would walk the window after focus had already moved on. `Notification`
+      // is not `Sendable`; the queue is what makes the transfer safe.
+      nonisolated(unsafe) let note = note
+      MainActor.assumeIsolated {
+        guard let context = note.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey]
+                as? UIFocusUpdateContext else { return }
+        let from = describe(context.previouslyFocusedItem)
+        let to = describe(context.nextFocusedItem)
+        logger.info("◆ \(from, privacy: .public)  →  \(to, privacy: .public)")
+        sweepStrandedAcrossScreen()
+      }
     }
   }
 
@@ -199,6 +212,7 @@ public enum FocusLog {
     )
   }
 
+  @MainActor
   private static func collect(from view: UIView, into result: inout [UICollectionView]) {
     if let collection = view as? UICollectionView { result.append(collection) }
     for subview in view.subviews { collect(from: subview, into: &result) }
@@ -207,6 +221,7 @@ public enum FocusLog {
   /// "section · element" for a focus item, dug out of whatever it actually is:
   /// accessibility text first (SwiftUI fills it from the view's own labels), then the
   /// nearest meaningful ancestor as the section.
+  @MainActor
   private static func describe(_ item: UIFocusItem?) -> String {
     guard let item else { return "—" }
     guard let view = item as? UIView else {
@@ -224,6 +239,7 @@ public enum FocusLog {
   }
 
   /// Digs a real `UIView` out of a private SwiftUI focus item.
+  @MainActor
   private static func mirroredView(from subject: Any, depth: Int) -> UIView? {
     guard depth < 4 else { return nil }
     if let view = subject as? UIView { return view }
@@ -233,6 +249,7 @@ public enum FocusLog {
     return nil
   }
 
+  @MainActor
   private static func describe(view: UIView) -> String {
     let element = view.accessibilityIdentifier?.nilIfEmpty
       ?? view.accessibilityLabel?.nilIfEmpty
@@ -257,6 +274,7 @@ public enum FocusLog {
 
   /// SwiftUI renders text into `UILabel`s under the hood; the nearest one is usually
   /// the human name of the control when no accessibility text was set explicitly.
+  @MainActor
   private static func firstLabelText(in view: UIView) -> String? {
     if let label = view as? UILabel, let text = label.text?.nilIfEmpty { return text }
     for subview in view.subviews {
