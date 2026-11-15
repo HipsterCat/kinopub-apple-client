@@ -235,7 +235,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .homeBanner: true
     case .homeHeroCarousel: true
-    case .downloads: false
+    case .downloads: true
     case .allBookmarks: true
     case .tvUIKitPosters: true
     case .tvPageSections: true
@@ -250,7 +250,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case .ratingsSummaryCards: true
     case .playerTabsPlatter: false
     case .trailerInfoPanel: false
-    case .rivuletSeasonRail: true
+    case .rivuletSeasonRail: false
     case .titleCardMetadata: false
     case .heroStatusInFactsLine: false
     case .macSidebar: true

@@ -44,18 +44,18 @@ public struct UnwatchedEpisodesCountText: Hashable, Sendable {
   public func formatted(language: MediaLanguage = .current) -> String {
     switch language {
     case .en:
-      return count == 1 ? "1 unwatched episode" : "\(count) unwatched episodes"
+      return count == 1 ? "1 episode" : "\(count) episodes"
     case .ru:
       let lastTwo = count % 100
       let last = count % 10
       if (11...14).contains(lastTwo) {
-        return "\(count) непросмотренных серий"
+        return "\(count) серий"
       } else if last == 1 {
-        return "\(count) непросмотренная серия"
+        return "\(count) серия"
       } else if (2...4).contains(last) {
-        return "\(count) непросмотренные серии"
+        return "\(count) серии"
       } else {
-        return "\(count) непросмотренных серий"
+        return "\(count) серий"
       }
     }
   }

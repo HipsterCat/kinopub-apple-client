@@ -14,8 +14,8 @@ public struct HistoryEventText: Hashable, Sendable {
     let day = Self.string(from: date, template: "d MMMM", language: language, timeZone: timeZone)
     let time = Self.clock(from: date, language: language, timeZone: timeZone)
     switch language {
-    case .ru: return "\(day) в \(time)"
-    case .en: return "\(day) at \(time)"
+    case .ru: return "\(time)"
+    case .en: return "\(time)"
     }
   }
 

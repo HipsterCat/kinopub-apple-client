@@ -113,10 +113,10 @@ public struct MediaPrecedence: Sendable {
     .scores: [.imdb, .kinopoisk, .tmdb, .omdb, .kinopub],
     // TODO(decision): TMDB's artwork is textless and high-resolution, Kinopoisk's poster
     // is the Russian one-sheet. A Russian-speaking viewer may want the Russian poster.
-    .poster: [.apple, .tmdb, .kinopoisk, .kinopub],
+    .poster: [.apple, .tmdb, .kinopub, .kinopoisk],
     // An episode's frame: kino.pub's is full-size and from the very file that plays;
     // TMDB's arrives at 300 px. The episode rail has always preferred kino.pub's.
-    .still: [.kinopub, .tmdb, .apple],
+     .still: [.tmdb, .apple, .kinopub, .imdb],
     .backdrop: [.apple, .tmdb, .kinopoisk, .kinopub],
     .logo: [.apple, .tmdb, .kinopoisk],
     .countries: [.kinopub, .tmdb, .kinopoisk],

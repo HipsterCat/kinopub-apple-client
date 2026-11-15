@@ -62,7 +62,7 @@ public struct EpisodeText: Hashable, Sendable {
     if let name { return "\(number). \(name)" }
     switch language {
     case .ru: return "\(number) серия"
-    case .en: return "Episode \(number)"
+    case .en: return "Ep \(number)"
     }
   }
 
@@ -82,13 +82,13 @@ public struct EpisodeText: Hashable, Sendable {
   private func reference(_ length: TextLength, _ language: MediaLanguage) -> String {
     switch (language, season) {
     case (.ru, let season?):
-      return "\(season) сезон, \(number) серия"
+         return length == .short ? "Сез \(season), серия \(number)" : "\(season) сезон, \(number) серия"
     case (.ru, nil):
-      return "\(number) серия"
+         return length == .short ? "\(number) сер" : "\(number) серия"
     case (.en, let season?):
-      return length == .short ? "S\(season), E\(number)" : "Season \(season), Episode \(number)"
+      return length == .short ? "S\(season), E\(number)" : "Season \(season), Ep \(number)"
     case (.en, nil):
-      return length == .short ? "E\(number)" : "Episode \(number)"
+      return length == .short ? "E\(number)" : "Ep \(number)"
     }
   }
 }
@@ -105,7 +105,7 @@ public struct SeasonText: Hashable, Sendable {
 
   public func formatted(_ length: TextLength, language: MediaLanguage = .current) -> String {
     switch language {
-    case .ru: return "\(number) сезон"
+    case .ru: return length == .short ? "\(number) сез" :  "\(number) сезон"
     case .en: return length == .short ? "S\(number)" : "Season \(number)"
     }
   }
