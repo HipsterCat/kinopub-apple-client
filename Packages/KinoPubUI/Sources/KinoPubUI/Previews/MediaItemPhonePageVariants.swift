@@ -39,7 +39,7 @@ private enum PhonePageSample {
   static let plot =
     "A noir detective tangled in a web of corporate intrigue. When the city turns "
     + "against him, every ally becomes a suspect."
-  static let rating = Rating(imdb: 7.8, kinopoisk: 7.5)!
+  nonisolated(unsafe) static let rating = Rating(imdb: 7.8, kinopoisk: 7.5)!
   static let horizontalInset: CGFloat = 20
   static let posterWidth: CGFloat = 148
 }

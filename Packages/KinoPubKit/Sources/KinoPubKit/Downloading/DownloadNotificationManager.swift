@@ -89,9 +89,10 @@ public final class DownloadNotificationManager: NSObject, ObservableObject {
 
   private func refreshPermission() {
     center.getNotificationSettings { [weak self] settings in
+      let granted = settings.authorizationStatus == .authorized
+        || settings.authorizationStatus == .provisional
       Task { @MainActor in
-        self?.permissionGranted = settings.authorizationStatus == .authorized ||
-                                  settings.authorizationStatus == .provisional
+        self?.permissionGranted = granted
       }
     }
   }
