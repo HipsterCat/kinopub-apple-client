@@ -457,6 +457,32 @@ public final class TVSeasonRailController: UIViewController {
     updateGuides()
   }
 
+  private var consumedMenuPress = false
+
+  public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if presses.contains(where: { $0.type == .menu }), DetailPageMenu.consumeIfFocusIsInPage() {
+      consumedMenuPress = true
+      return
+    }
+    super.pressesBegan(presses, with: event)
+  }
+
+  public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesEnded(presses, with: event)
+  }
+
+  public override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesCancelled(presses, with: event)
+  }
+
   /// Walks the focus-environment chain: SwiftUI's items are not always views.
   private static func environment(_ item: UIFocusEnvironment?, isInside container: UIView) -> Bool {
     var current = item

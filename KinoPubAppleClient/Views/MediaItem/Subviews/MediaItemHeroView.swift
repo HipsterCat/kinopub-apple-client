@@ -644,6 +644,19 @@ struct MediaItemHeroView: View {
       // claims it), so the hero's text scrolls away over a picture that stays.
       content
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay(alignment: .bottom) {
+          // Full width of the hero, the height of the button band. Up from a card
+          // to the right of the buttons hits the guide and lands on Play (or Follow
+          // when it leads), not on the ellipsis and not through the row.
+          HeroButtonRowGuide(
+            entryIdentifier: actionContext.promoteFollow ? "kinopub.hero.follow" : "kinopub.hero.play",
+            suspended: focus?.isActionControl == true
+          )
+          .frame(maxWidth: .infinity)
+          .frame(height: 96)
+          .allowsHitTesting(false)
+          .accessibilityHidden(true)
+        }
         .overlay(alignment: .topTrailing) { cornerPosterAccent }
         .clipped()
         // The same muted preview, promoted to sound and full screen without restarting.
@@ -1853,9 +1866,9 @@ struct MediaItemHeroView: View {
     // Own focus section so Down from the plot section enters here at `defaultFocus`
     // Play — never `.disabled` on siblings to steer the remote (that killed Menus).
     .focusSection()
-    // Up from the season tabs or the episodes lands on the main button too, not on the
-    // circle that happens to be above (Sasha, 2026-10-11). `.userInitiated`: a remote
-    // move is user-initiated, and the default priority only seeds the first focus.
+    // Seeds the first focus only. Up from a card under the row is the full-width
+    // guide on the hero (`HeroButtonRowGuide`), which redirects to this same control
+    // (Sasha, 2026-10-11) — a `defaultFocus` priority does not run again on re-entry.
     .defaultFocus($focus, actionEntryTarget, priority: .userInitiated)
 #endif
     // Animate only membership changes (Mark Watched appearing/disappearing) — not
@@ -1906,7 +1919,9 @@ struct MediaItemHeroView: View {
     return MediaActionContext(
       playback: playback,
       kind: mediaItem.presentation.kind,
-      isSeries: isSeries,
+      // `isSeries` waits for `seasons`. The type is known from the card, and a
+      // series must not read "Watch Movie" until that payload arrives.
+      isSeries: isSeries || mediaItem.isEpisodicType,
       isBookmarked: isBookmarked,
       isFollowing: isInWatchlist,
       showsMarkWatched: showsWatchedButton && !promote,

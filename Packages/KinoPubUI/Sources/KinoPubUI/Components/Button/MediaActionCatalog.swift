@@ -327,7 +327,8 @@ public enum MediaActionCatalog {
   public static func play(for context: MediaActionContext) -> MediaActionAppearance {
     let loading = context.loading.contains(.play)
     let caption = MediaActionCopy.playCaption(playback: context.playback, kind: context.kind,
-                                              seasonCount: context.seasonCount)
+                                              seasonCount: context.seasonCount,
+                                              isSeries: context.isSeries)
     switch context.playback {
     case .playAgain:
       return MediaActionAppearance(

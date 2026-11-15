@@ -55,6 +55,10 @@ struct KinoPubAppleClientApp: App {
 #if os(macOS)
     MainActor.assumeIsolated { SidebarCollapseLock.install() }
 #endif
+#if os(tvOS)
+    // Rejected moves only — not the per-move hierarchy sweep.
+    MainActor.assumeIsolated { FocusLog.startRejectionTrace() }
+#endif
 #if os(tvOS) && DEBUG
     // One observer under both SwiftUI and UIKit — see `FocusLog.startGlobalTrace`.
     MainActor.assumeIsolated { FocusLog.startGlobalTrace() }

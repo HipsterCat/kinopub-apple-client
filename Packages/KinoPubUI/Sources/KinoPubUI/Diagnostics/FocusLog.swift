@@ -148,6 +148,88 @@ public enum FocusLog {
     logger.info("▸ SECTION \(section, privacy: .public)")
   }
 
+  /// A move the engine refused, or a programmatic request that did not land on the
+  /// environment it named. Always on: the census sweep stays behind `isEnabled`,
+  /// but a rejected move used to leave the console empty.
+  @MainActor
+  public static func rejected(heading: String, preferred: String, chosen: String, reason: String) {
+    logger.error(
+      "✖ REJECTED \(heading, privacy: .public): preferred \(preferred, privacy: .public), chosen \(chosen, privacy: .public) — \(reason, privacy: .public)"
+    )
+  }
+
+  // MARK: - Rejection trace
+
+  @MainActor private static var rejectionObserver: NSObjectProtocol?
+
+  /// Logs every move the engine rejects: heading, where focus was, what the
+  /// environments along that chain preferred, and that nothing was chosen.
+  /// Cheap — it only runs when a move fails — so it is not behind `isEnabled`.
+  @MainActor
+  public static func startRejectionTrace() {
+    guard rejectionObserver == nil else { return }
+    rejectionObserver = NotificationCenter.default.addObserver(
+      forName: UIFocusSystem.movementDidFailNotification,
+      object: nil,
+      queue: .main
+    ) { note in
+      nonisolated(unsafe) let note = note
+      MainActor.assumeIsolated {
+        guard let context = note.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey]
+                as? UIFocusUpdateContext else { return }
+        let heading = headingName(context.focusHeading)
+        let previous = describe(context.previouslyFocusedItem)
+        let chosen = context.nextFocusedItem == nil ? "— (move rejected)" : describe(context.nextFocusedItem)
+        let preferred = preferredSummary(around: context.previouslyFocusedItem)
+        rejected(heading: heading, preferred: preferred, chosen: chosen,
+                 reason: "the engine rejected the move from \(previous)")
+      }
+    }
+  }
+
+  private static func headingName(_ heading: UIFocusHeading) -> String {
+    var parts: [String] = []
+    if heading.contains(.up) { parts.append("up") }
+    if heading.contains(.down) { parts.append("down") }
+    if heading.contains(.left) { parts.append("left") }
+    if heading.contains(.right) { parts.append("right") }
+    if heading.contains(.next) { parts.append("next") }
+    if heading.contains(.previous) { parts.append("previous") }
+    return parts.isEmpty ? "none" : parts.joined(separator: "+")
+  }
+
+  /// What the environments above the item that had focus asked the engine to prefer.
+  @MainActor
+  private static func preferredSummary(around item: UIFocusItem?) -> String {
+    let start: UIFocusEnvironment?
+    if let view = item as? UIView {
+      start = view
+    } else if let item, let view = mirroredView(from: item, depth: 0) {
+      start = view
+    } else {
+      start = nil
+    }
+    guard var environment = start else { return "—" }
+    var seen: [String] = []
+    var steps = 0
+    while steps < 6 {
+      let preferred = environment.preferredFocusEnvironments
+      if !preferred.isEmpty {
+        seen.append(preferred.map(describeEnvironment).joined(separator: ", "))
+      }
+      guard let parent = environment.parentFocusEnvironment else { break }
+      environment = parent
+      steps += 1
+    }
+    return seen.isEmpty ? "—" : seen.joined(separator: " → ")
+  }
+
+  @MainActor
+  private static func describeEnvironment(_ environment: UIFocusEnvironment) -> String {
+    if let view = environment as? UIView { return describe(view: view) }
+    return "\(type(of: environment))"
+  }
+
   // MARK: - Global trace
 
   @MainActor private static var globalObserver: NSObjectProtocol?

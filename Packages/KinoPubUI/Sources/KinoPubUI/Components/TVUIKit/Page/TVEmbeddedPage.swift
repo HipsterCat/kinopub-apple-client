@@ -38,8 +38,9 @@ public struct TVEmbeddedPage: UIViewControllerRepresentable {
   public func makeUIViewController(context: Context) -> TVPageCollectionViewController {
     let controller = TVPageCollectionViewController(sideInset: sideInset)
     controller.isEmbedded = true
-    // Menu on the detail page still pops. Staging it to the first section under
-    // the hero would steal the stack's back (Sasha, 985564d).
+    // Menu below the hero is `DetailPageMenu`: it scrolls to the hero. Staging
+    // focus onto this collection's first row would steal the stack's back, and
+    // at the hero the press is left alone so the stack pops (Sasha, 985564d).
     controller.returnsToTopOnMenu = false
     // The hero names the page's entry control; a page below it must never take first
     // focus from it.

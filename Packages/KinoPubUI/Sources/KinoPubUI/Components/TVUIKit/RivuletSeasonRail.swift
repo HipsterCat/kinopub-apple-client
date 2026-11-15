@@ -844,19 +844,9 @@ public final class RivuletSeasonRailController: UIViewController, UICollectionVi
 
   @discardableResult
   private func scrollHomeOnMenu() -> Bool {
-    guard let scroll = pageScroll else { return false }
-    let minY = -scroll.adjustedContentInset.top
-    if scroll.contentOffset.y <= minY + 40 { return false }
-    zone = .outside
-    hasHadFocus = true
-    updateGuides()
-    refreshEpisodeFocus()
-    releaseEpisodePlatter(with: UIFocusAnimationCoordinator())
-    releaseHold()
-    // The hero button is SwiftUI. Asking UIKit to focus it is refused, so the
-    // page moves its own focus and scrolls. The press stays eaten either way.
-    NotificationCenter.default.post(name: .rivuletSeasonRailRequestsHero, object: nil)
-    return true
+    // The page scrolls to the hero and asks the button-row guide for the entry
+    // control. At the hero the page declines, and Menu pops the stack.
+    DetailPageMenu.consumeIfFocusIsInPage()
   }
 
   public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {

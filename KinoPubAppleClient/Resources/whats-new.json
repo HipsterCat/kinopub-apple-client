@@ -4,6 +4,7 @@
       "version": "1.0",
       "date": "2026-10-10",
       "ru": [
+        "Apple TV: вверх с карточки справа от кнопок попадает на «Смотреть», а не на «…». Menu ниже героя возвращает к нему, а не закрывает страницу. У сериала кнопка сразу «Смотреть», без «Смотреть фильм». Трейлер не теряет увеличение, когда рядом появляется YouTube. Назад из тайтла фокус возвращается на ту же карточку.",
         "iPhone, iPad и Mac: «Пропустить» больше не нажимается само. Кнопка из обычного стекла гаснет чуть раньше панели плеера. В Настройках › Воспроизведение — задержка, вид автопропуска (кнопка как у Apple, отсчёт, заливка, полоска, кольцо, PiP с постером, баннер «далее») и отмена: крестик или «Смотреть титры».",
         "Каталог и Поиск: «Фильтры и сортировка» — X и галочка (применить при закрытии), «Сбросить фильтры» отдельно; значения — переносящиеся теги с выбранными впереди; кнопка «Фильтры» в тулбаре как стеклянная, как сортировка.",
         "Mac: в заголовке окна плеера — S/E и название серии; для концертов — строка альбома и часть («Часть первая»).",
@@ -122,6 +123,7 @@
         "«Продолжить просмотр» обновляется после просмотра и при возврате на главную: прогресс с другого устройства и «отметить просмотренным» на странице тайтла сразу меняют ряд."
       ],
       "en": [
+        "Apple TV: Up from a card to the right of the buttons lands on Play, not the ellipsis. Menu below the hero returns to it instead of closing the page. A series says Play immediately, not Watch Movie. A trailer keeps its focus scale when the YouTube card arrives. Back from a title returns focus to that card.",
         "iPhone, iPad and Mac: Skip no longer presses itself. The ordinary-glass button fades out just before the player chrome. Settings › Playback chooses the delay, how an automatic skip is shown (Apple’s button, a countdown, a shrinking fill, a progress stroke, a ring, Picture in Picture with artwork, an Up Next banner) and cancel: an X or Watch Credits.",
         "Catalog and Search: Filter & Sort with X and checkmark (apply on close), Clear Filters separately; values are wrapping tags with selected ones first; the Filters toolbar control matches Sort’s glass pill.",
         "Mac: player window title shows S/E + episode name; concerts show the album line and part title.",

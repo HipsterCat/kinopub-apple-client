@@ -114,6 +114,18 @@ final class MediaActionCatalogTests: XCTestCase {
     )
   }
 
+  /// A listing card knows the type before `seasons` arrives. That gap must not say
+  /// "Watch Movie".
+  func testKnownSeriesWithoutEpisodeNumbersSaysPlay() {
+    let play = MediaActionCatalog.play(for: MediaActionContext(
+      playback: .play(season: nil, episode: nil),
+      kind: .fiction,
+      isSeries: true
+    ))
+    XCTAssertEqual(play.title, MediaActionCopy.localized("Play"))
+    XCTAssertNotEqual(play.title, MediaActionCopy.playTitle(kind: .fiction))
+  }
+
   func testSeriesUnwatchedPlayIncludesVerbInEnglishFallback() {
     let play = MediaActionCatalog.play(for: MediaActionContext(
       playback: .play(season: 1, episode: 1),
