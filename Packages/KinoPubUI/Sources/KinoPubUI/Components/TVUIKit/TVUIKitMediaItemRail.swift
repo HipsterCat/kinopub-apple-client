@@ -778,10 +778,8 @@ public final class TVUIKitMediaItemRailController: UIViewController {
              onFocusedItem: ((Int) -> Void)?,
              contextMenuProvider: ((Int) -> [MediaCardContextEntry])?,
              allowsFocus: Bool = true) {
-    let previous = self.items
-    let changed = previous != items
+    let changed = self.items != items
     let entryMoved = self.entryItemID != entryItemID
-    self.items = items
     self.entryItemID = entryItemID
     self.onSelect = onSelect
     self.onNearEnd = onNearEnd
@@ -791,9 +789,10 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     self.allowsFocus = allowsFocus
     collectionView.allowsFocus = allowsFocus
     if focusChanged {
+      self.items = items
       collectionView.reloadData()
     } else if changed {
-      syncItems(from: previous)
+      syncItems(to: items)
     }
     if changed || entryMoved { scrollToEntry(animated: animatesEntryScroll && !changed) }
   }
@@ -805,14 +804,11 @@ public final class TVUIKitMediaItemRailController: UIViewController {
                  onSelect: @escaping (Int) -> Void,
                  onFocusedItem: ((Int) -> Void)?,
                  contextMenuProvider: ((Int) -> [MediaCardContextEntry])?) {
-    let previous = self.items
-    let changed = previous != items
-    self.items = items
     self.onSelect = onSelect
     self.onFocusedItem = onFocusedItem
     self.contextMenuProvider = contextMenuProvider
-    guard changed else { return }
-    syncItems(from: previous)
+    guard self.items != items else { return }
+    syncItems(to: items)
   }
 
   /// Appends and in-place edits keep the focused cell. `reloadData` rebuilds it: the
@@ -820,15 +816,26 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   /// back from `configurationState.isFocused`, which is the trailer that loses its
   /// scale when the YouTube card inserts. A real identity change still reloads, then
   /// asks the engine for the same item.
-  private func syncItems(from previous: [TVUIKitMediaItem]) {
-    guard isViewLoaded else { return }
-    let next = items
+  ///
+  /// `items` is the data source, so it changes only where UIKit expects it to: inside
+  /// the batch block for an insert, before `reloadData` for a reload. A batch reads the
+  /// "before" counts from the data source when its cached ones are stale, and the
+  /// season layout (`mixedStillRun`) reads `items` too; with `items` already the new
+  /// list both saw 11 before an insert of 7...10 and UIKit threw "Invalid batch updates"
+  /// (season rail, 7 → 11, Sasha 2026-11-17).
+  private func syncItems(to next: [TVUIKitMediaItem]) {
+    let previous = items
+    guard isViewLoaded else {
+      items = next
+      return
+    }
     let count = collectionView.numberOfSections > 0
       ? collectionView.numberOfItems(inSection: 0) : 0
     let shared = min(previous.count, next.count)
     let prefixMatches = !previous.isEmpty && next.count >= previous.count && count == previous.count
       && (0..<shared).allSatisfy { previous[$0].id == next[$0].id }
     guard prefixMatches else {
+      items = next
       reloadKeepingFocus()
       return
     }
@@ -836,8 +843,11 @@ public final class TVUIKitMediaItemRailController: UIViewController {
       previous[index] == next[index] ? nil : IndexPath(item: index, section: 0)
     }
     let inserted = (previous.count..<next.count).map { IndexPath(item: $0, section: 0) }
-    if !inserted.isEmpty {
-      collectionView.performBatchUpdates {
+    if inserted.isEmpty {
+      items = next
+    } else {
+      collectionView.performBatchUpdates { [self] in
+        items = next
         collectionView.insertItems(at: inserted)
       }
     }
