@@ -519,6 +519,48 @@ final class TVDetailLayoutUITests: XCTestCase {
     }
   }
 
+  /// Down into a row a few screens below the hero, sideways along it, then Up back into the
+  /// hero: the hero must look as it did on arrival — picture, scrim and text where they were,
+  /// no band of another layer across the playback line and the buttons (Sasha, 2026-11-17,
+  /// «Ламборгини»: a dark strip cut the lower hero after scrolling back up). Shots at
+  /// arrival, in the row, and at three moments after the hero has focus again.
+  /// `KINOPUB_LIVE_ITEM=<id>` (as `TEST_RUNNER_KINOPUB_LIVE_ITEM`) walks a live title on
+  /// the dev session instead of the fixture.
+  func testTheHeroIsWholeAfterTheDetailsAndBack() throws {
+    let live = ProcessInfo.processInfo.environment["KINOPUB_LIVE_ITEM"].flatMap { Int($0) }
+    for scheme in ["light", "dark"] {
+      if let live {
+        app = XCUIApplication()
+        app.launchArguments += ["-KINOPUBOpenItem", "\(live)",
+                                "-KINOPUBForceColorScheme", scheme,
+                                "-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"]
+        app.launch()
+      } else {
+        launch("film", extra: ["-KINOPUBFixtureInTabs", "YES"], scheme: scheme)
+      }
+      try waitForHeroFocus()
+      Thread.sleep(forTimeInterval: 2.0)
+      try shoot("roundtrip-\(scheme)-0-arrival")
+      step(.down, times: 3)
+      step(.right, times: 3)
+      Thread.sleep(forTimeInterval: 1.0)
+      note("roundtrip \(scheme) deep")
+      try shoot("roundtrip-\(scheme)-1-deep")
+      for _ in 0..<10 where !heroHasFocus {
+        XCUIRemote.shared.press(.up)
+        Thread.sleep(forTimeInterval: 0.9)
+      }
+      note("roundtrip \(scheme) back")
+      XCTAssertTrue(heroHasFocus, focusedDescription)
+      try shoot("roundtrip-\(scheme)-2-back")
+      Thread.sleep(forTimeInterval: 0.6)
+      try shoot("roundtrip-\(scheme)-3-back-settling")
+      Thread.sleep(forTimeInterval: 1.5)
+      try shoot("roundtrip-\(scheme)-4-back-settled")
+      app.terminate()
+    }
+  }
+
   /// Light appearance, the plain way through: a title's hero, its details, and the list it
   /// was opened from — what is behind each of them.
   func testLightAppearanceBehindEveryPage() throws {
@@ -709,9 +751,12 @@ final class TVDetailLayoutUITests: XCTestCase {
       .firstMatch.exists
   }
 
+  /// A hero control or the synopsis, whose id is `hero.plot`: Up from the rows lands on
+  /// whichever the engine finds above the card.
   private var heroHasFocus: Bool {
     app.descendants(matching: .any)
-      .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.hero."))
+      .matching(NSPredicate(format: "(identifier BEGINSWITH %@ OR identifier BEGINSWITH %@) AND hasFocus == true",
+                            "kinopub.hero.", "hero."))
       .firstMatch.exists
   }
 
