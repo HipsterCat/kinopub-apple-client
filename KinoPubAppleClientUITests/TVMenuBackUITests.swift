@@ -110,6 +110,86 @@ final class TVMenuBackUITests: XCTestCase {
     XCTAssertTrue(tabBarFocused(in: app), "the tab bar went away\n\(focusDescription(app))")
   }
 
+  /// The tab bar leaves with a pushed page every time, not only the first (Sasha,
+  /// 2026-11-16): Home hero → «Подробнее» → Menu back to the hero → «Подробнее» again →
+  /// Play showed the bar over the title page and over the black player at 00:00.
+  /// Two rounds, the bar checked on the hero, the title page and the player. Needs the
+  /// simulator's kino.pub session (the real Home hero).
+  func testTabBarStaysHiddenOnTitleAndPlayerOpenedTwiceFromTheHero() throws {
+    try XCTSkipUnless(FileManager.default.fileExists(atPath: UITestDevSession.filePath),
+                      "no ~/.kinopub-dev-session.json — live Home hero only")
+    let app = XCUIApplication()
+    app.launchArguments += ["-KINOPUBInitialTab", "home", "-KINOPUBForceColorScheme", "dark"]
+    if let session = UITestDevSession.json {
+      app.launchEnvironment["KINOPUB_DEV_SESSION"] = session
+    }
+    app.launch()
+    let details = app.buttons["kinopub.hero.details"]
+    XCTAssertTrue(details.waitForExistence(timeout: 30), "no Home hero")
+    Thread.sleep(forTimeInterval: 2)
+
+    for round in 1...2 {
+      try focusHeroDetails(in: app)
+      try shoot(app, name: "hero-reentry-\(round)-0-hero")
+      XCTAssertTrue(tabBarOnScreen(in: app), "round \(round): the hero should show the tab bar")
+
+      XCUIRemote.shared.press(.select)
+      Thread.sleep(forTimeInterval: 0.25)
+      try shoot(app, name: "hero-reentry-\(round)-1-opening")
+      Thread.sleep(forTimeInterval: 2.5)
+      try shoot(app, name: "hero-reentry-\(round)-2-title")
+      XCTAssertFalse(details.exists && details.isHittable, "round \(round): the title never opened")
+      XCTAssertFalse(tabBarOnScreen(in: app),
+                     "round \(round): tab bar over the title page\n\(tabBarDescription(app))")
+
+      if round == 2 {
+        // Play is the title page's entry focus.
+        XCUIRemote.shared.press(.select)
+        Thread.sleep(forTimeInterval: 4)
+        try shoot(app, name: "hero-reentry-\(round)-3-player")
+        XCTAssertFalse(tabBarOnScreen(in: app),
+                       "round \(round): tab bar over the player\n\(tabBarDescription(app))")
+        XCUIRemote.shared.press(.menu)
+        Thread.sleep(forTimeInterval: 2.5)
+        try shoot(app, name: "hero-reentry-\(round)-4-back-on-title")
+        XCTAssertFalse(tabBarOnScreen(in: app),
+                       "round \(round): tab bar over the title after the player\n\(tabBarDescription(app))")
+      }
+
+      XCUIRemote.shared.press(.menu)
+      Thread.sleep(forTimeInterval: 0.2)
+      try shoot(app, name: "hero-reentry-\(round)-5-closing")
+      XCTAssertTrue(details.waitForExistence(timeout: 6), "round \(round): Menu did not return to the hero")
+      Thread.sleep(forTimeInterval: 2)
+      try shoot(app, name: "hero-reentry-\(round)-6-back")
+      XCTAssertTrue(tabBarOnScreen(in: app), "round \(round): the tab bar did not come back on Home")
+    }
+  }
+
+  private func focusHeroDetails(in app: XCUIApplication) throws {
+    let details = app.buttons["kinopub.hero.details"]
+    for _ in 0..<8 where !details.hasFocus {
+      let heroFocused = app.buttons.matching(
+        NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.hero.")
+      ).firstMatch.exists
+      XCUIRemote.shared.press(heroFocused ? .left : .down)
+      Thread.sleep(forTimeInterval: 0.8)
+    }
+    XCTAssertTrue(details.hasFocus, "never reached «Подробнее»\n\(focusDescription(app))")
+  }
+
+  /// The real bar (not a leftover snapshot): present, hittable, and inside the screen.
+  private func tabBarOnScreen(in app: XCUIApplication) -> Bool {
+    let bar = app.tabBars.firstMatch
+    guard bar.exists, bar.isHittable else { return false }
+    return bar.frame.maxY > 0 && bar.frame.intersects(app.windows.firstMatch.frame)
+  }
+
+  private func tabBarDescription(_ app: XCUIApplication) -> String {
+    let bar = app.tabBars.firstMatch
+    return bar.exists ? "tab bar \(bar.frame) hittable \(bar.isHittable)" : "no tab bar"
+  }
+
   private func tabBarFocused(in app: XCUIApplication) -> Bool {
     app.tabBars.buttons.matching(NSPredicate(format: "hasFocus == true")).count > 0
   }
