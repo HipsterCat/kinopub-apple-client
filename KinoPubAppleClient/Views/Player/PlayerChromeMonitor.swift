@@ -41,6 +41,8 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
 
   @Published private(set) var controlsVisible = true
   @Published private(set) var menuActive = false
+  /// Set while `revealChrome` writes, so the KVO it triggers cannot re-enter it.
+  private var isRevealingChrome = false
 
   private weak var manager: PlayerManager?
   private var timer: Timer?
@@ -439,10 +441,12 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
   }
 
   private func revealChrome() {
-    guard let view = playerView else { return }
+    guard !isRevealingChrome, let view = playerView else { return }
     if let controls = view.value(forKey: "playbackControlsViewController") as? NSViewController {
-      controls.view.alphaValue = 1
-      controls.view.isHidden = false
+      isRevealingChrome = true
+      defer { isRevealingChrome = false }
+      if controls.view.alphaValue < 1 { controls.view.alphaValue = 1 }
+      if controls.view.isHidden { controls.view.isHidden = false }
     }
   }
 
@@ -512,10 +516,17 @@ final class PlayerChromeMonitor: NSObject, ObservableObject {
     return best
   }
 
+  /// KVO on `alpha` / `isHidden` fires on every set, even of the same value, and the
+  /// observer above calls back here while a menu is open — so setting unconditionally
+  /// recursed until the stack ran out (crash on the audio-track menu, 2026-11-16).
+  /// Write only what changed, and never from inside our own write.
   private func revealChrome() {
-    guard let controls = controlsView else { return }
-    controls.alpha = 1
-    controls.isHidden = false
+    guard !isRevealingChrome, let controls = controlsView else { return }
+    guard controls.alpha < 1 || controls.isHidden else { return }
+    isRevealingChrome = true
+    defer { isRevealingChrome = false }
+    if controls.alpha < 1 { controls.alpha = 1 }
+    if controls.isHidden { controls.isHidden = false }
   }
 
   private func viewTreeHasMenu(_ root: UIView) -> Bool {
