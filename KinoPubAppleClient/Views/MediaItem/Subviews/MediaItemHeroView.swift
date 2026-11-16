@@ -756,8 +756,8 @@ struct MediaItemHeroView: View {
       .padding(.top, phase.topChromeInset)
       .frame(maxWidth: .infinity)
       .onGeometryChange(for: CGSize.self, of: \.size) { heroBandSize = $0 }
+      // Not clipped: the backdrop runs on under the next section to melt into the page.
       .background(alignment: .top) { phoneBackdrop }
-      .clipped()
       .animation(Self.heroStateChange, value: showsPicture)
   }
 
@@ -819,7 +819,11 @@ struct MediaItemHeroView: View {
 
   @ViewBuilder
   private var phoneBackdrop: some View {
-    let size = heroBandSize
+    // Past the words the backdrop runs on for a stretch and fades out into the page,
+    // instead of stopping on a line under the playback line (Sasha, 2026-11-16).
+    let band = heroBandSize
+    let foot = (phoneStillHeight * Self.phoneFootShare).rounded()
+    let size = CGSize(width: band.width, height: band.height > 0 ? band.height + foot : 0)
     let still = phoneStillHeight
     ZStack(alignment: .top) {
       MediaItemPosterWash(url: heroWashURL, onOutcome: noteWash(loaded:))
@@ -853,8 +857,18 @@ struct MediaItemHeroView: View {
     }
     .frame(width: size.width, height: size.height, alignment: .top)
     .clipped()
+    .mask {
+      LinearGradient(stops: [
+        .init(color: .black, location: 0),
+        .init(color: .black, location: size.height > 0 ? band.height / size.height : 1),
+        .init(color: .clear, location: 1)
+      ], startPoint: .top, endPoint: .bottom)
+    }
+    .allowsHitTesting(false)
   }
 
+  /// How far the backdrop runs on past the words while it fades out, against the picture.
+  static let phoneFootShare: CGFloat = 0.3
   /// The picture under the bars, against the width.
   static let phoneStillTallness: CGFloat = 0.95
   /// Play's top, as a share of the picture under the bars.
