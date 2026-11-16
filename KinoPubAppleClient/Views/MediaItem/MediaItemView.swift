@@ -490,27 +490,33 @@ struct MediaItemView: View {
   private var watchedMenuItems: some View {
     if !itemModel.isWatched {
       if let (season, episode) = itemModel.mediaItem.primaryEpisode {
-        Button {
-          itemModel.toggleWatched()
+        // One «Mark as Watched ›» opening the episode, the season and the rest, the way
+        // Download is (Sasha, 2026-11-16); the season or episode is each item's subtitle.
+        Menu {
+          Button {
+            itemModel.toggleWatched()
+          } label: {
+            Label("Mark Episode Watched", systemImage: "checkmark")
+            Text(verbatim: EpisodeText(season: season.number, number: episode.number).text(for: .contextMenu))
+          }
+          Button {
+            itemModel.toggleWatched(season: season)
+          } label: {
+            Label("Mark Season Watched", systemImage: "checkmark.circle")
+            Text(verbatim: SeasonText(season.number).formatted(.long))
+          }
+          Button {
+            itemModel.markUnwatchedInSeason(season)
+          } label: {
+            Label("Mark Unwatched in Season", systemImage: "checkmark.circle")
+          }
+          Button {
+            itemModel.markAllEpisodesWatched()
+          } label: {
+            Label("Mark All Episodes Watched", systemImage: "checkmark.circle.fill")
+          }
         } label: {
-          Label("\("Mark Episode Watched".localized) · \(EpisodeText(season: season.number, number: episode.number).text(for: .contextMenu))",
-                systemImage: "checkmark")
-        }
-        Button {
-          itemModel.toggleWatched(season: season)
-        } label: {
-          Label("\("Mark Season Watched".localized) · \(SeasonText(season.number).formatted(MediaSurface.contextMenu.textLength))",
-                systemImage: "checkmark.circle")
-        }
-        Button {
-          itemModel.markUnwatchedInSeason(season)
-        } label: {
-          Label("Mark Unwatched in Season", systemImage: "checkmark.circle")
-        }
-        Button {
-          itemModel.markAllEpisodesWatched()
-        } label: {
-          Label("Mark All Episodes Watched", systemImage: "checkmark.circle.fill")
+          Label("Mark as Watched", systemImage: "checkmark")
         }
       } else {
         Button {
@@ -522,6 +528,7 @@ struct MediaItemView: View {
       Divider()
     }
   }
+
 #endif
 
 #if os(iOS)
@@ -531,22 +538,28 @@ struct MediaItemView: View {
   private var downloadMenuItems: some View {
     if let phase = itemModel.downloadPhase, phase != .downloaded {
       let downloading: Bool = if case .downloading = phase { true } else { false }
-      Section {
-        Button {
-          if downloading {
-            itemModel.pauseCurrentDownload()
-          } else {
-            itemModel.startCurrentDownload()
-          }
-        } label: {
-          Label(downloading ? LocalizedStringKey("Pause Download") : LocalizedStringKey("Download"),
-                systemImage: downloading ? "pause.circle" : "arrow.down.to.line")
+      let current = Button {
+        if downloading {
+          itemModel.pauseCurrentDownload()
+        } else {
+          itemModel.startCurrentDownload()
         }
-        if let (season, _) = itemModel.mediaItem.primaryEpisode {
+      } label: {
+        Label(downloading ? LocalizedStringKey("Pause Download") : LocalizedStringKey("Download"),
+              systemImage: downloading ? "pause.circle" : "arrow.down.to.line")
+        if let (season, episode) = itemModel.mediaItem.primaryEpisode {
+          Text(verbatim: EpisodeText(season: season.number, number: episode.number).text(for: .contextMenu))
+        }
+      }
+      if let (season, _) = itemModel.mediaItem.primaryEpisode {
+        // «Download ›»: what Play opens, the season, its unwatched episodes, or all.
+        Menu {
+          current
           Button {
             itemModel.downloadSeason(season)
           } label: {
             Label("Season", systemImage: "arrow.down.to.line")
+            Text(verbatim: SeasonText(season.number).formatted(.long))
           }
           Button {
             itemModel.downloadUnwatchedInSeason(season)
@@ -558,10 +571,15 @@ struct MediaItemView: View {
           } label: {
             Label("All Episodes", systemImage: "arrow.down.to.line")
           }
+        } label: {
+          Label("Download", systemImage: "arrow.down.to.line")
         }
+      } else {
+        current
       }
     }
   }
+
 #endif
 
 #if os(iOS) || os(macOS)
