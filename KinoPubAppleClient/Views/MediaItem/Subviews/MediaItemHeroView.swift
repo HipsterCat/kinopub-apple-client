@@ -882,7 +882,8 @@ struct MediaItemHeroView: View {
     .allowsHitTesting(false)
   }
 
-  /// The picture under the bars, against the width.
+  /// Between the facts' blocks: the stack's spacing, as spaces.
+  static let phoneFactsSeparator = "   "
   /// Half of what stands between the status capsule and the logo: the stack's
   /// spacing and the title block's own top inset.
   static let phoneBadgeGapCut: CGFloat = (contentSpacing + bottomInset / 1.5) / 2
@@ -1407,7 +1408,10 @@ struct MediaItemHeroView: View {
     // logo on the first frame, lettered title only after a confirmed miss.
     // Under a logo the subtitle is no wider than the logo is drawn — a long romaji title
     // ran across the window (Sasha, 2026-10-30). Under lettered type it keeps its width.
-    SecondLineCappedToFirst(capsWidth: resolvedTitleLogoMark == .logo, alignment: columnAlignment) {
+    // The phone's caption carries the country and keeps its own width: capped to the
+    // logo it wrapped at « · США» (Sasha, 2026-11-16).
+    SecondLineCappedToFirst(capsWidth: resolvedTitleLogoMark == .logo && !centersColumn,
+                            alignment: columnAlignment) {
       TitleLogoSlot(
         resolution: TitleLogoResolution(
           url: titleLogoURL,
@@ -1694,14 +1698,15 @@ struct MediaItemHeroView: View {
           if let status {
             TitleStatusBadge(status.text)
           }
-          ForEach(factBlocks(genreLimit: limit, place: false), id: \.self) { block in
-            Text(verbatim: block)
-          }
+          // One text, so the details' fuller line morphs out of the listing's.
+          Text(verbatim: factBlocks(genreLimit: limit, place: false).joined(separator: Self.phoneFactsSeparator))
+            .contentTransition(.interpolate)
         }
         .lineLimit(1)
         .fixedSize()
       }
     }
+    .animation(.smooth, value: factBlocks(place: false))
     .font(Self.phoneMetaFont)
     .foregroundStyle(heroMetaForeground)
     .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))

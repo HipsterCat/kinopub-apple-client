@@ -136,17 +136,28 @@ public enum HomeHeroText {
   /// `genres`: how many genres lead the line — the tvOS banner names one, the iOS / macOS
   /// hero two (Sasha, 2026-10-30).
   public static func metaParts(for card: MediaCard, genres: Int = 1) -> [String] {
+    // As the title page writes it (Sasha, 2026-11-16): what and when first — «Сериал
+    // 2025–», «2026» — then the genres as one phrase, «Драма, криминал», the country,
+    // and how long. The line drops its last parts when it does not fit.
     var parts: [String] = []
+    let duration = card.bannerDurationText().flatMap { $0.isEmpty ? nil : $0 }
 
-    // 1. Жанр (пропуская базовые/банальные: аниме, мультфильм)
-    let saysSeriesKind = card.isSeries && card.bannerDurationText()?.isEmpty != false
-    parts += card.usefulGenres(limit: genres,
-                               omittingDocumentary: saysSeriesKind
-                                 && card.seriesKindKey == "Kind_documentarySeries_One")
+    // 1. Вид (сериал, когда сезонов не знаем) и год / года (2026, 2024–26)
+    // A shelf payload knows no seasons or episodes: at least say it is a series, the
+    // way the Apple TV app's «Телешоу · Drama» does.
+    let saysSeriesKind = card.isSeries && duration == nil
+    let kind = saysSeriesKind
+      ? NSLocalizedString(card.seriesKindKey, comment: "A series, in the banner's line") : nil
+    let years = card.bannerYearSpan.flatMap { $0.isEmpty ? nil : $0 }
+    let head = [kind, years].compactMap { $0 }
+    if !head.isEmpty { parts.append(head.joined(separator: " ")) }
 
-    // 2. Год / года (2026, 2024–26)
-    if let years = card.bannerYearSpan, !years.isEmpty {
-      parts.append(years)
+    // 2. Жанры одной фразой (пропуская базовые/банальные: аниме, мультфильм)
+    let useful = card.usefulGenres(limit: genres,
+                                   omittingDocumentary: saysSeriesKind
+                                     && card.seriesKindKey == "Kind_documentarySeries_One")
+    if let first = useful.first {
+      parts.append(([first] + useful.dropFirst().map { $0.lowercased() }).joined(separator: ", "))
     }
 
     // 3. Страна
@@ -155,14 +166,8 @@ public enum HomeHeroText {
     }
 
     // 4. Длительность: сезоны если 1+, серии если 1, duration у фильма
-    if let duration = card.bannerDurationText(), !duration.isEmpty {
+    if let duration {
       parts.append(duration)
-    } else if card.isSeries {
-      // A shelf payload knows no seasons or episodes: at least say it is a series —
-      // first, as the Apple TV app's «Телешоу · Drama», since the line drops its last
-      // parts when it does not fit.
-      parts.insert(NSLocalizedString(card.seriesKindKey, comment: "A series, in the banner's line"),
-                   at: 0)
     }
 
     return parts
