@@ -17,6 +17,8 @@
 //  Capture is by swizzling `URLSession` (`NetworkLogger.enableProxy`), which is what
 //  catches tasks while they are still in flight and covers every client in the app in one
 //  call. **Artwork and media are then filtered back out** — see `configuration`.
+//  Asset-download tasks never enter that swizzle: their `currentRequest` throws.
+//  See `URLSessionResumeGuard`.
 //
 
 import Foundation
@@ -39,7 +41,13 @@ public enum NetworkDiagnostics {
       return false
     }
     guard !alreadyStarted else { return }
+    // Pulse's resume swizzle reads `currentRequest`, and an aggregate asset
+    // download task throws from that getter. Keep the implementations from
+    // before the swizzle so those tasks resume without entering it.
+    let methods = URLSessionResumeGuard.resumeMethods()
+    let originals = methods.map { method_getImplementation($0) }
     NetworkLogger.enableProxy(logger: NetworkLogger(store: store, configuration: configuration))
+    URLSessionResumeGuard.install(methods: methods, originals: originals)
   }
 
   // MARK: - The store

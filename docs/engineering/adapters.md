@@ -19,6 +19,14 @@ Allowed to exist, one place each, the limitation in the type's doc comment. Rule
 - **Auto-connect in `setRemoteLoggingEnabled`** — Pulse keeps `RemoteLoggerSettingsView` internal,
   so there is no server picker to present. "First server found, then remembered" is the only
   selection model its public API offers. Re-probe if that view goes public.
+- **`URLSessionResumeGuard`** — Pulse 5.2.3's resume swizzle reads `currentRequest` on every
+  `URLSessionTask`. `AVAggregateAssetDownloadTask` and `AVAssetDownloadTask` mark that property
+  (and `originalRequest`) `NS_UNAVAILABLE`; the getter throws `NSGenericException` (headers,
+  iOS 27 / macOS 27). The HLS download resumes
+  `__NSCFBackgroundAVAggregateAssetDownloadTaskNoChildTask`, which is not an
+  `AVAssetDownloadTask`, so Pulse's `logTaskCreated` early return misses it. The guard calls
+  the pre-Pulse `resume` for those classes and does not enter the swizzle. Re-probe on the
+  next Pulse version.
 
 - **`UISearchController+GridKeyboard.swift`** (tvOS Search) — the grid keyboard (Settings →
   General → Keyboard) hides while focus is in the results and the results take the full width,
