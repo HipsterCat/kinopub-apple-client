@@ -176,6 +176,49 @@ final class TVUIKitMediaItemRailSyncTests: XCTestCase {
     XCTAssertEqual(collection.numberOfItems(inSection: 0), current.count)
   }
 
+  // MARK: - Counts invalidated between the read and the batch
+
+  /// The device's crash: `numberOfItems` still answered the cached 7, then the layout
+  /// pass `performBatchUpdates` forces first ran a full layout invalidation (which also
+  /// drops the cached counts), so the batch read "before" from the data source. With the
+  /// data source already at 11 that is "before = [11]" and UIKit throws. The host here
+  /// invalidates the rail's layout from its own `layoutSubviews`, the way a pending
+  /// parent layout did on the device.
+  func testBatchThatReReadsCountsAfterAForcedLayoutPass() throws {
+    let rail = makeRail()
+    let host = InvalidatingHostController(rail: rail)
+    self.host(host)
+    configure(rail, episodes(0..<7))
+    host.view.layoutIfNeeded()
+    let collection = try XCTUnwrap(railCollectionView(in: rail.view))
+    XCTAssertEqual(collection.numberOfItems(inSection: 0), 7)
+    host.collection = collection
+    for count in [11, 12, 15] {
+      host.view.setNeedsLayout()
+      rail.view.setNeedsLayout()
+      collection.setNeedsLayout()
+      configure(rail, episodes(0..<count))
+      host.view.layoutIfNeeded()
+      XCTAssertEqual(collection.numberOfItems(inSection: 0), count)
+    }
+  }
+
+  func testSeasonRailBatchThatReReadsCountsAfterAForcedLayoutPass() throws {
+    let controller = TVSeasonRailController(contentInset: 80, columns: 5)
+    let host = InvalidatingHostController(rail: controller)
+    self.host(host)
+    applySeasons(controller, episodesPerSeason: [6])
+    host.view.layoutIfNeeded()
+    let collection = try XCTUnwrap(railCollectionView(in: controller.view))
+    host.collection = collection
+    host.view.setNeedsLayout()
+    controller.view.setNeedsLayout()
+    collection.setNeedsLayout()
+    applySeasons(controller, episodesPerSeason: [10])
+    host.view.layoutIfNeeded()
+    XCTAssertEqual(collection.numberOfItems(inSection: 0), 11)
+  }
+
   // MARK: - Season rail (the crashing path: TVSeasonRail.updateUIViewController)
 
   private func applySeasons(_ controller: TVSeasonRailController, episodesPerSeason: [Int]) {
@@ -226,6 +269,39 @@ final class TVUIKitMediaItemRailSyncTests: XCTestCase {
     controller.view.layoutIfNeeded()
     let collection = try XCTUnwrap(railCollectionView(in: controller.view))
     XCTAssertEqual(collection.numberOfItems(inSection: 0), 4 + 12 + 2)
+  }
+}
+
+/// Hosts a rail and, on each of its own layout passes, fully invalidates the rail's
+/// collection layout — which marks the collection view's cached item counts stale.
+@MainActor
+private final class InvalidatingHostController: UIViewController {
+  let rail: UIViewController
+  weak var collection: UICollectionView?
+
+  init(rail: UIViewController) {
+    self.rail = rail
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    addChild(rail)
+    view.addSubview(rail.view)
+    rail.didMove(toParent: self)
+  }
+
+  override func viewWillLayoutSubviews() {
+    super.viewWillLayoutSubviews()
+    collection?.collectionViewLayout.invalidateLayout()
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    rail.view.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 400)
+    collection?.collectionViewLayout.invalidateLayout()
   }
 }
 
