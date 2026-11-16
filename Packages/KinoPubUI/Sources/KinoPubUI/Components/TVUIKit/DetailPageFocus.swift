@@ -24,16 +24,35 @@ import UIKit
 
 @MainActor
 public enum DetailPageMenu {
-  static weak var anchor: DetailPageMenuAnchorView?
+  /// Every detail page's anchor still alive. A title opened from a title is a second
+  /// page with a second anchor, and the page underneath keeps its own: one static
+  /// "current" anchor was cleared when the page above left, so Menu on the page
+  /// beneath popped it at once instead of going back up to its hero (Sasha, 2026-11-17).
+  static let anchors = NSHashTable<DetailPageMenuAnchorView>.weakObjects()
 
   /// True when this press was eaten. False leaves Menu to the responder chain
   /// (the navigation stack, or a page that is not the detail page).
   public static func consumeIfFocusIsInPage() -> Bool {
-    guard let anchor, let window = anchor.window,
-          let focused = focusedView(in: window),
-          let scroll = anchor.enclosingScroll,
-          focused.isDescendant(of: scroll) else { return false }
-    return anchor.onMenu?() ?? false
+    for anchor in anchors.allObjects {
+      guard let window = anchor.window,
+            let focused = focusedView(in: window),
+            let scroll = anchor.enclosingScroll,
+            focused.isDescendant(of: scroll) else { continue }
+      return anchor.onMenu?() ?? false
+    }
+    return false
+  }
+
+  /// The scroll of the detail page that holds focus now, if any.
+  static func focusedPageScroll() -> UIScrollView? {
+    for anchor in anchors.allObjects {
+      guard let window = anchor.window,
+            let focused = focusedView(in: window),
+            let scroll = anchor.enclosingScroll,
+            focused.isDescendant(of: scroll) else { continue }
+      return scroll
+    }
+    return nil
   }
 
   private static func focusedView(in window: UIWindow) -> UIView? {
@@ -88,11 +107,7 @@ public final class DetailPageMenuAnchorView: UIView {
 
   public override func didMoveToWindow() {
     super.didMoveToWindow()
-    if window != nil {
-      DetailPageMenu.anchor = self
-    } else if DetailPageMenu.anchor === self {
-      DetailPageMenu.anchor = nil
-    }
+    DetailPageMenu.anchors.add(self)
   }
 }
 
@@ -100,11 +115,16 @@ public final class DetailPageMenuAnchorView: UIView {
 
 @MainActor
 public enum HeroEntryFocus {
-  static weak var guide: HeroButtonRowGuideView?
+  /// Every page's button-row guide; `request` asks the one on the page with focus.
+  static let guides = NSHashTable<HeroButtonRowGuideView>.weakObjects()
 
   /// Asks the engine to land on the entry control the guide names. Logs when the
   /// focused item afterwards is not that control.
   public static func request() {
+    let inWindow = guides.allObjects.filter { $0.window != nil }
+    let scroll = DetailPageMenu.focusedPageScroll()
+    let guide = inWindow.first { guide in scroll.map { guide.isDescendant(of: $0) } ?? false }
+      ?? (inWindow.count == 1 ? inWindow.first : nil)
     guard let guide else {
       FocusLog.rejected(heading: "menu", preferred: "hero entry", chosen: "—",
                         reason: "the button-row focus guide is not in the window")
@@ -115,6 +135,7 @@ public enum HeroEntryFocus {
 }
 
 public struct HeroButtonRowGuide: UIViewRepresentable {
+  /// For the log only: which control the marker stands on.
   var entryIdentifier: String
   /// Focus is already on a hero button: the guide must not sit on top of Left/Right.
   var suspended: Bool
@@ -140,24 +161,52 @@ public struct HeroButtonRowGuide: UIViewRepresentable {
   }
 }
 
+/// Put behind the entry control (Play, or Follow when it leads). The guide finds the
+/// control's focus item under it.
+///
+/// Why a marker: a SwiftUI button is not a `UIView` with an `accessibilityIdentifier`.
+/// The identifier lives in the accessibility tree only, so the guide that looked the
+/// control up by identifier among UIKit views never found it, stayed disabled, and Up
+/// from the right of the row went to «…» or flew over the row onto the synopsis
+/// (Sasha, 2026-11-17). The focus item itself is what the hosting view hands out
+/// through `UIFocusItemContainer`, at the marker's place.
+public struct HeroEntryMarker: UIViewRepresentable {
+  public init() {}
+
+  public func makeUIView(context: Context) -> HeroEntryMarkerView {
+    let view = HeroEntryMarkerView()
+    view.isUserInteractionEnabled = false
+    view.isAccessibilityElement = false
+    return view
+  }
+
+  public func updateUIView(_ view: HeroEntryMarkerView, context: Context) {}
+}
+
+public final class HeroEntryMarkerView: UIView {
+  public override var canBecomeFocused: Bool { false }
+}
+
 public final class HeroButtonRowGuideView: UIView {
   let guide = UIFocusGuide()
   var entryIdentifier = "kinopub.hero.play"
   var suspended = false
+  private var reportedMissingEntry = false
 
   public override var canBecomeFocused: Bool { false }
 
-  /// Menu asks this view for focus. The engine then follows the environments
-  /// below — the entry control — the same way a directional move follows the guide.
-  /// A `UIFocusGuide` is not itself a focus environment `requestFocusUpdate` accepts.
+  /// The guide prefers this view, and this view answers with the entry control's focus
+  /// item at the moment the engine asks — SwiftUI rebuilds its items, so a stored one
+  /// goes stale. Menu asks this view the same way.
   public override var preferredFocusEnvironments: [UIFocusEnvironment] {
     if let target = resolveEntry() { return [target] }
-    return super.preferredFocusEnvironments
+    return []
   }
 
   public override init(frame: CGRect) {
     super.init(frame: frame)
     addLayoutGuide(guide)
+    guide.preferredFocusEnvironments = [self]
     NSLayoutConstraint.activate([
       guide.leadingAnchor.constraint(equalTo: leadingAnchor),
       guide.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -170,24 +219,22 @@ public final class HeroButtonRowGuideView: UIView {
 
   public override func didMoveToWindow() {
     super.didMoveToWindow()
-    if window != nil {
-      HeroEntryFocus.guide = self
-      retarget()
-    } else if HeroEntryFocus.guide === self {
-      HeroEntryFocus.guide = nil
-    }
+    HeroEntryFocus.guides.add(self)
+    if window != nil { retarget() }
   }
 
-  private var reportedMissingEntry = false
+  public override func layoutSubviews() {
+    super.layoutSubviews()
+    retarget()
+  }
 
   func retarget() {
-    let target = resolveEntry()
-    guide.preferredFocusEnvironments = target.map { [$0] } ?? []
-    guide.isEnabled = !suspended && target != nil
-    if target == nil, window != nil, !reportedMissingEntry {
+    let found = window != nil && marker != nil
+    guide.isEnabled = !suspended && found
+    if window != nil, !found, !reportedMissingEntry {
       reportedMissingEntry = true
       FocusLog.rejected(heading: "up", preferred: entryIdentifier, chosen: "—",
-                        reason: "the button-row guide found no view named \(entryIdentifier); the guide is off")
+                        reason: "the button-row guide found no entry marker on its page; the guide is off")
     }
   }
 
@@ -201,31 +248,93 @@ public final class HeroButtonRowGuideView: UIView {
     let before = Self.describe(system.focusedItem)
     guard let target = resolveEntry() else {
       FocusLog.rejected(heading: "menu", preferred: entryIdentifier, chosen: before,
-                        reason: "entry control is not in the window")
+                        reason: "no focus item under the entry marker")
       return
     }
     system.requestFocusUpdate(to: target)
     system.updateFocusIfNeeded()
-    if !Self.matches(system.focusedItem, identifier: entryIdentifier) {
-      system.requestFocusUpdate(to: self)
-      system.updateFocusIfNeeded()
-    }
-    let chosen = Self.describe(system.focusedItem)
-    if !Self.matches(system.focusedItem, identifier: entryIdentifier) {
-      FocusLog.rejected(heading: "menu", preferred: entryIdentifier, chosen: chosen,
-                        reason: "requestFocusUpdate did not land on the preferred control (was \(before))")
+    if !isEntry(system.focusedItem) {
+      FocusLog.rejected(heading: "menu", preferred: entryIdentifier,
+                        chosen: Self.describe(system.focusedItem),
+                        reason: "requestFocusUpdate did not land on the entry control (was \(before))")
     }
   }
 
-  private func resolveEntry() -> UIFocusEnvironment? {
-    let root = enclosingScroll ?? window
-    guard let root else { return nil }
-    if let view = focusableView(identifier: entryIdentifier, in: root) { return view }
-    if entryIdentifier != "kinopub.hero.play",
-       let view = focusableView(identifier: "kinopub.hero.play", in: root) {
-      return view
+  // MARK: Finding the entry control
+
+  private var marker: HeroEntryMarkerView? {
+    guard let root = enclosingScroll ?? window else { return nil }
+    return Self.firstMarker(in: root)
+  }
+
+  private static func firstMarker(in view: UIView) -> HeroEntryMarkerView? {
+    if let marker = view as? HeroEntryMarkerView, marker.window != nil { return marker }
+    for subview in view.subviews {
+      if let found = firstMarker(in: subview) { return found }
     }
     return nil
+  }
+
+  /// The smallest focusable item that covers the marker's centre, asked of the focus item
+  /// containers above the marker, nearest first.
+  private func resolveEntry() -> UIFocusItem? {
+    guard let marker else { return nil }
+    let center = CGPoint(x: marker.bounds.midX, y: marker.bounds.midY)
+    var container: UIView? = marker.superview
+    while let view = container {
+      if let itemContainer = view.focusItemContainer {
+        let space = itemContainer.coordinateSpace
+        let point = marker.convert(center, to: space)
+        // The marker's own rectangle, wherever the page is scrolled: Menu asks while the
+        // scroll back to the hero is still running.
+        let items = itemContainer.focusItems(in: marker.convert(marker.bounds, to: space))
+        if let best = Self.smallestFocusable(in: items, covering: point, space: space, depth: 0) {
+          return best
+        }
+      }
+      container = view.superview
+    }
+    return nil
+  }
+
+  private static func smallestFocusable(in items: [UIFocusItem], covering point: CGPoint,
+                                        space: UICoordinateSpace, depth: Int) -> UIFocusItem? {
+    var best: (item: UIFocusItem, area: CGFloat)?
+    for item in items {
+      guard !(item is HeroEntryMarkerView), !(item is HeroButtonRowGuideView) else { continue }
+      let frame = frameOf(item, in: space)
+      guard frame.contains(point) else { continue }
+      if item.canBecomeFocused {
+        let area = frame.width * frame.height
+        if best == nil || area < best!.area { best = (item, area) }
+      } else if depth < 4, let nested = item.focusItemContainer {
+        let probe = CGRect(origin: point, size: .zero).insetBy(dx: -1, dy: -1)
+        let children = nested.focusItems(in: space.convert(probe, to: nested.coordinateSpace))
+        if let found = smallestFocusable(in: children, covering: point, space: space, depth: depth + 1) {
+          let area = frameOf(found, in: space).width * frameOf(found, in: space).height
+          if best == nil || area < best!.area { best = (found, area) }
+        }
+      }
+    }
+    return best?.item
+  }
+
+  /// A focus item's frame is in its parent container's coordinate space.
+  private static func frameOf(_ item: UIFocusItem, in space: UICoordinateSpace) -> CGRect {
+    if let view = item as? UIView, let superview = view.superview {
+      return superview.convert(view.frame, to: space)
+    }
+    guard let parentSpace = item.parentFocusEnvironment?.focusItemContainer?.coordinateSpace else {
+      return item.frame
+    }
+    return parentSpace.convert(item.frame, to: space)
+  }
+
+  private func isEntry(_ item: UIFocusItem?) -> Bool {
+    guard let item, let marker else { return false }
+    let space = marker.coordinateSpace
+    let center = CGPoint(x: marker.bounds.midX, y: marker.bounds.midY)
+    return Self.frameOf(item, in: space).contains(center)
   }
 
   private var enclosingScroll: UIScrollView? {
@@ -235,36 +344,6 @@ public final class HeroButtonRowGuideView: UIView {
       view = current.superview
     }
     return nil
-  }
-
-  private func focusableView(identifier: String, in root: UIView) -> UIView? {
-    if root.accessibilityIdentifier == identifier {
-      if root.canBecomeFocused { return root }
-      if let child = firstFocusable(in: root) { return child }
-      return root
-    }
-    for subview in root.subviews {
-      if let found = focusableView(identifier: identifier, in: subview) { return found }
-    }
-    return nil
-  }
-
-  private func firstFocusable(in view: UIView) -> UIView? {
-    if view.canBecomeFocused { return view }
-    for subview in view.subviews {
-      if let found = firstFocusable(in: subview) { return found }
-    }
-    return nil
-  }
-
-  private static func matches(_ item: UIFocusItem?, identifier: String) -> Bool {
-    guard let view = item as? UIView else { return false }
-    var current: UIView? = view
-    while let node = current {
-      if node.accessibilityIdentifier == identifier { return true }
-      current = node.superview
-    }
-    return false
   }
 
   private static func describe(_ item: UIFocusItem?) -> String {

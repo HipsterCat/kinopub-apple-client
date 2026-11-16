@@ -2146,6 +2146,12 @@ struct MediaItemHeroView: View {
         actionControl(for: appearance)
           .accessibilityIdentifier("kinopub.hero.\(appearance.id.rawValue)")
 #if os(tvOS)
+          // Where the button-row guide finds the entry control's focus item.
+          .background {
+            if appearance.id == (actionContext.promoteFollow ? .follow : .play) {
+              HeroEntryMarker()
+            }
+          }
           // The row does not animate on tvOS at all — not as the page opens or closes,
           // not when the details call adds a button. Scaling glass in from 85 % was the
           // flicker and blur on every visit (Sasha, 2026-11-05).
