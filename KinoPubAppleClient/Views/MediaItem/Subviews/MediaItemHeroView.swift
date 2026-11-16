@@ -786,29 +786,29 @@ struct MediaItemHeroView: View {
 
       // Under Play every line keeps its room, filled or not — one line of scores, two of
       // synopsis, one playback line — so the hero ends at one place (Sasha, 2026-11-16).
-      ZStack {
-        phoneLineSlot(lines: 1, font: Self.secondaryFont)
-        scoresLine
-      }
-      ZStack(alignment: .top) {
-        phoneLineSlot(lines: Self.phonePlotLines, font: MediaItemPlotView.font)
-        if hasSynopsis {
-          MediaItemPlotView(
-            title: mediaItem.localizedTitle,
-            plot: synopsis.plot,
-            lead: synopsis.lead,
-            maxLines: Self.phonePlotLines,
-            centered: true,
-            focus: $focus,
-            popupSubtitle: popupOriginalTitle,
-            summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
-          )
+      // The slots alone give the height; what is drawn in them never changes it.
+      phoneLineSlot(lines: 1, font: Self.secondaryFont)
+        .frame(maxWidth: .infinity)
+        .overlay { scoresLine }
+      phoneLineSlot(lines: Self.phonePlotLines, font: MediaItemPlotView.font)
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .top) {
+          if hasSynopsis {
+            MediaItemPlotView(
+              title: mediaItem.localizedTitle,
+              plot: synopsis.plot,
+              lead: synopsis.lead,
+              maxLines: Self.phonePlotLines,
+              centered: true,
+              focus: $focus,
+              popupSubtitle: popupOriginalTitle,
+              summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
+            )
+          }
         }
-      }
-      ZStack {
-        phoneLineSlot(lines: 1, font: Self.secondaryFont)
-        playbackLine
-      }
+      phoneLineSlot(lines: 1, font: Self.secondaryFont)
+        .frame(maxWidth: .infinity)
+        .overlay { playbackLine }
     }
     .padding(.horizontal, Self.horizontalInset)
     .padding(.bottom, Self.bottomInset)
@@ -1595,9 +1595,13 @@ struct MediaItemHeroView: View {
     // «Сериал с 2013 в эфире», «Документальный фильм 2011»: the kind first with its
     // capital, then the years, then where the series stands, whatever anyone knows of it
     // (Sasha, 2026-11-09).
-    let status = isSeries ? SeriesFacts.shortStatusKey(mediaItem, externalMetadata)?.localized : nil
-    let head = [kind, years, status].compactMap { $0 }
+    let statusKey = isSeries ? SeriesFacts.shortStatusKey(mediaItem, externalMetadata) : nil
+    let status = statusKey?.localized
+    // «с 2011 в эфире» reads as one; «с 2011 продлён» does not, so the word stands apart.
+    let statusJoins = statusKey != "MediaItem_StatusReturningShort"
+    let head = [kind, years, statusJoins ? status : nil].compactMap { $0 }
     if !head.isEmpty { blocks.append(head.joined(separator: " ")) }
+    if !statusJoins, let status { blocks.append(status) }
 
     if isSeries {
       let seasons = mediaItem.seasons ?? []
@@ -1650,14 +1654,16 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var scoresLine: some View {
     // Views alone are no line of their own: they close the playback line (Sasha, 2026-11-16).
-    if lineScores.hasDisplayableScore, centersColumn {
+    if centersColumn, lineScores.hasDisplayableScore || mediaItem.views > 0 {
       // The phone: IMDb first, scales after numbers that could mislead, no vote counts,
       // the views last; the tail gives way when the line is full (Sasha, 2026-11-16).
       ViewThatFits(in: .horizontal) {
         phoneScoresRow(limit: nil, views: true)
         phoneScoresRow(limit: nil, views: false)
-        ForEach([4, 3, 2, 1], id: \.self) { limit in
-          phoneScoresRow(limit: limit, views: false)
+        // The niche audiences (Douban, MyShows, Trakt…) give way before the critics.
+        phoneScoresRow(limit: nil, views: false, others: false)
+        ForEach([3, 2, 1], id: \.self) { limit in
+          phoneScoresRow(limit: limit, views: false, others: false)
         }
       }
       .font(Self.secondaryFont)
@@ -1676,11 +1682,14 @@ struct MediaItemHeroView: View {
     }
   }
 
-  private func phoneScoresRow(limit: Int?, views showsViews: Bool) -> some View {
+  private func phoneScoresRow(limit: Int?, views showsViews: Bool, others: Bool = true) -> some View {
     let views = mediaItem.views
+    // No scores at all: the views are the line.
+    let viewsShown = showsViews || !lineScores.hasDisplayableScore
     return HStack(spacing: Self.metaSpacing) {
-      MediaScoresView(lineScores, limit: limit, showsVotes: false, phoneLine: true)
-      if showsViews, views > 0 {
+      MediaScoresView(lineScores, limit: limit, showsVotes: false, phoneLine: true,
+                      phoneLineOthers: others)
+      if viewsShown, views > 0 {
         HStack(spacing: Self.glyphSpacing) {
           Image(systemName: Self.viewsSymbol)
           Text(verbatim: formattedViewCount(views))
@@ -1792,11 +1801,12 @@ struct MediaItemHeroView: View {
     let voicing = preferredVoicingTag
     let captions = subtitleSummary != nil
     let rating = ageRating.flatMap { $0.isEmpty ? nil : $0 }
-    let views = lineScores.hasDisplayableScore ? 0 : mediaItem.views
+    // The views stand in the scores' slot when there are no scores (`scoresLine`).
+    let views = 0
     let badges = MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
       + (rating.flatMap(MediaBadgeImages.ageRatingAssetName).map { [$0] } ?? [])
     let typedRating = rating.flatMap { MediaBadgeImages.ageRatingAssetName($0) == nil ? $0 : nil }
-    if runtime != nil || !languages.isEmpty || !badges.isEmpty || typedRating != nil || views > 0 {
+    if runtime != nil || !languages.isEmpty || !badges.isEmpty || typedRating != nil {
       ViewThatFits(in: .horizontal) {
         phonePlaybackRow(runtime: runtime, languages: languages, voicing: voicing, captions: captions,
                          badges: badges, typedRating: typedRating, views: views)
@@ -1851,14 +1861,27 @@ struct MediaItemHeroView: View {
   /// its own name: «Рус», «Eng», «Укр».
   private var audioLanguageCodes: [String] {
     let tracks = mediaItem.detailAudioTracks.filter { !$0.isAudioDescription }
-    return viewerLanguages.compactMap { key -> String? in
-      guard tracks.contains(where: { SubtitleTracks.languageKey($0.lang) == key }) else { return nil }
+    // The viewer's languages, then the original sound's — «Рус, Eng» — and for a title
+    // with neither (a concert's one track), whatever language its first track is in.
+    let originals = tracks
+      .filter { $0.typeId.flatMap(VoiceType.init(rawValue:)) == .original }
+      .map { SubtitleTracks.languageKey($0.lang) }
+    var seen = Set<String>()
+    var keys = (viewerLanguages + originals).filter { key in
+      !key.isEmpty && tracks.contains { SubtitleTracks.languageKey($0.lang) == key } && seen.insert(key).inserted
+    }
+    if keys.isEmpty, let first = tracks.first.map({ SubtitleTracks.languageKey($0.lang) }), !first.isEmpty {
+      keys = [first]
+    }
+    return keys.prefix(Self.phoneLanguageLimit).compactMap { key -> String? in
       let own = Locale(identifier: key).localizedString(forLanguageCode: key) ?? languageName(key)
       guard let own, !own.isEmpty else { return nil }
       let short = own.prefix(3)
       return short.prefix(1).uppercased() + short.dropFirst()
     }
   }
+
+  static let phoneLanguageLimit = 3
 
   /// kino.pub's short word for the best voicing in the viewer's first language that is
   /// voiced at all: «DUB», «MVO», «VO». Nil for the original sound.

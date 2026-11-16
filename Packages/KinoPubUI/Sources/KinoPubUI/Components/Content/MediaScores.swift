@@ -428,7 +428,7 @@ public extension MediaScores {
   /// the two the app had from the start, so the first to arrive — then Letterboxd, then
   /// the other audiences by votes, Rotten Tomatoes, and Metacritic last of all. Only
   /// published scores.
-  public func phoneLine(deduplicateAgainstAggregate: Bool = false) -> [MediaScoreItem] {
+  public func phoneLine(deduplicateAgainstAggregate: Bool = false, includesOthers: Bool = true) -> [MediaScoreItem] {
     func rank(_ source: MediaScoreLogo.Source) -> Int {
       switch source {
       case .imdb: return 0
@@ -443,6 +443,7 @@ public extension MediaScores {
     }
     return detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
       .filter { $0.hasKnownScore && ($0.score ?? 0) > 0 }
+      .filter { includesOthers || rank($0.source) != 3 }
       .enumerated()
       .sorted { lhs, rhs in
         let l = rank(lhs.element.source), r = rank(rhs.element.source)

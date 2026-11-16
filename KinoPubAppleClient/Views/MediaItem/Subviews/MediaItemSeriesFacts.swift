@@ -28,7 +28,7 @@ enum SeriesFacts {
   /// it has one — kino.pub's flag is not to be trusted (Sasha, 2026-11-09) — and kino.pub
   /// only to say a series it marks finished is. Nil when nobody knows.
   /// A returning series is «в эфире» / "airing now" only while its episodes come out —
-  /// TMDB's last episode or its next one within `airingDays` — and «вернётся» /
+  /// TMDB's last episode or its next one within `airingDays` — and «продлён» /
   /// "returning" between seasons (Sasha, 2026-11-16).
   static func shortStatusKey(_ item: MediaItem, _ metadata: TitleMetadata, now: Date = Date()) -> String? {
     switch metadata.status?.lowercased() {

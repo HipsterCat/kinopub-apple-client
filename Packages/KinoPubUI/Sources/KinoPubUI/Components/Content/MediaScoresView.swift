@@ -261,6 +261,8 @@ public struct MediaScoresView: View {
   /// The phone's title line (`MediaScores.phoneLine`): IMDb first, a scale after a
   /// number that could be read on the wrong one (Sasha, 2026-11-16).
   public var phoneLine: Bool
+  /// On the phone's line, the audiences after Letterboxd (Douban, MyShows, Trakt…).
+  public var phoneLineOthers: Bool
 
   public init(
     _ scores: MediaScores,
@@ -273,10 +275,12 @@ public struct MediaScoresView: View {
     sortByVotes: Bool = true,
     fadedIcons: Bool = false,
     compactLimit: Int? = nil,
-    phoneLine: Bool = false
+    phoneLine: Bool = false,
+    phoneLineOthers: Bool = true
   ) {
     self.scores = scores
     self.phoneLine = phoneLine
+    self.phoneLineOthers = phoneLineOthers
     self.compactLimit = compactLimit
     self.limit = limit
     self.showsVotes = showsVotes
@@ -308,7 +312,8 @@ public struct MediaScoresView: View {
 
   private var items: [MediaScoreItem] {
     if phoneLine {
-      return scores.phoneLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+      return scores.phoneLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate,
+                              includesOthers: phoneLineOthers)
     }
     if bannerLine {
       return scores.bannerScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
