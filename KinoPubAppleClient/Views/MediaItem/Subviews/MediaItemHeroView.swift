@@ -1770,12 +1770,15 @@ struct MediaItemHeroView: View {
       // The phone: IMDb first, scales after numbers that could mislead, no vote counts,
       // the views last; the tail gives way when the line is full (Sasha, 2026-11-16).
       ViewThatFits(in: .horizontal) {
-        phoneScoresRow(limit: nil, views: true, votes: true)
-        phoneScoresRow(limit: nil, views: false, votes: true)
-        // The niche audiences (Douban, MyShows, Trakt…) give way before the critics and
-        // before the vote total.
-        phoneScoresRow(limit: nil, views: true, others: false, votes: true)
-        phoneScoresRow(limit: nil, views: false, others: false, votes: true)
+        // IMDb's and Kinopoisk's own counts, as on the Home banner; then one total.
+        ForEach([false, true], id: \.self) { total in
+          phoneScoresRow(limit: nil, views: true, votes: true, totalVotes: total)
+          phoneScoresRow(limit: nil, views: false, votes: true, totalVotes: total)
+          // The niche audiences (Douban, MyShows, Trakt…) give way before the critics and
+          // before the counts.
+          phoneScoresRow(limit: nil, views: true, others: false, votes: true, totalVotes: total)
+          phoneScoresRow(limit: nil, views: false, others: false, votes: true, totalVotes: total)
+        }
         phoneScoresRow(limit: nil, views: false, others: false)
         ForEach([3, 2, 1], id: \.self) { limit in
           phoneScoresRow(limit: limit, views: false, others: false)
@@ -1798,13 +1801,13 @@ struct MediaItemHeroView: View {
   }
 
   private func phoneScoresRow(limit: Int?, views showsViews: Bool, others: Bool = true,
-                              votes: Bool = false) -> some View {
+                              votes: Bool = false, totalVotes: Bool = false) -> some View {
     let views = mediaItem.views
     // No scores at all: the views are the line.
     let viewsShown = showsViews || !lineScores.hasDisplayableScore
     return HStack(spacing: Self.metaSpacing) {
       MediaScoresView(lineScores, limit: limit, showsVotes: votes, phoneLine: true,
-                      phoneLineOthers: others)
+                      phoneLineOthers: others, phoneLineTotalVotes: totalVotes)
       if viewsShown, views > 0 {
         HStack(spacing: Self.glyphSpacing) {
           Image(systemName: Self.viewsSymbol)
