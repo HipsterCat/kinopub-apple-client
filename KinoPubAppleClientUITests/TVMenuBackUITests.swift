@@ -149,8 +149,13 @@ final class TVMenuBackUITests: XCTestCase {
         try shoot(app, name: "hero-reentry-\(round)-3-player")
         XCTAssertFalse(tabBarOnScreen(in: app),
                        "round \(round): tab bar over the player\n\(tabBarDescription(app))")
-        XCUIRemote.shared.press(.menu)
-        Thread.sleep(forTimeInterval: 2.5)
+        // The first Menu only hides AVKit's transport bar; the next one leaves the player.
+        let titlePlay = app.buttons["kinopub.hero.play"]
+        for _ in 0..<3 where !titlePlay.exists {
+          XCUIRemote.shared.press(.menu)
+          Thread.sleep(forTimeInterval: 2.5)
+        }
+        XCTAssertTrue(titlePlay.exists, "round \(round): Menu never left the player")
         try shoot(app, name: "hero-reentry-\(round)-4-back-on-title")
         XCTAssertFalse(tabBarOnScreen(in: app),
                        "round \(round): tab bar over the title after the player\n\(tabBarDescription(app))")
