@@ -1431,11 +1431,11 @@ final class TVUIKitMediaItemOverlayView: UIView {
   private let centerYouTube = UIImageView(image: UIImage(named: "youtube-play", in: .module, with: nil))
   /// Glass circle diameter as a share of the still's height — the Mac card's 38 pt on a
   /// ~170 pt still.
-  private static let centerGlassFraction: CGFloat = 0.24
+  private static let centerGlassFraction: CGFloat = 0.35
 
   /// Keeps the corner chrome clear of the bar along the very bottom edge.
   private static let cornerInset: CGFloat = 32
-  private static let glyphSize: CGFloat = 22
+  private static let glyphSize: CGFloat = 24
   private static let badgeIconSize: CGFloat = 16
   private static let badgeHeight: CGFloat = 32
   /// Both pills stand this far in from their corner.
