@@ -418,15 +418,21 @@ class LibraryCatalog: ObservableObject {
     var updated = filter
     transform(&updated)
     guard updated != filter else { return }
-    let typeChanged = updated.contentType != filter.contentType
-      || updated.contentTypes != filter.contentTypes
+    let previous = filter
+    let typeChanged = updated.contentType != previous.contentType
+      || updated.contentTypes != previous.contentTypes
+    let genresWereTouched = updated.genreIDs != previous.genreIDs
+      || updated.genreID != previous.genreID
     filter = updated
-    // Genres are per content type, so a type change invalidates the list — and any
-    // genre picked from the old one.
+    // Genres are per content type. Reload the picker list on type change.
+    // Wipe genre picks only when the transform didn't set them (live type
+    // change); Filter & Sort ✓ applies a whole draft that may keep picks.
     if typeChanged {
       genres = []
-      self.filter.genreID = nil
-      self.filter.genreIDs = []
+      if !genresWereTouched {
+        self.filter.genreID = nil
+        self.filter.genreIDs = []
+      }
     }
     Task { await refresh() }
   }
