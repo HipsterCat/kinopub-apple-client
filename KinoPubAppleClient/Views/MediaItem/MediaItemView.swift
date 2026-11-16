@@ -320,11 +320,10 @@ struct MediaItemView: View {
           bookmarkToolbarMenu
 #endif
 #if os(iOS)
-          // iPhone: top right, as everywhere (Sasha, 2026-11-10).
+          // iPhone: Bookmarks top right, as everywhere (Sasha, 2026-11-10). One button
+          // there, not three: the bell is in the hero's row, Download in «…» (2026-11-16).
           if barCarriesActions {
             bookmarkToolbarMenu
-            followToolbarButton
-            downloadToolbarMenu
           }
 #endif
           overflowMenu
@@ -526,32 +525,23 @@ struct MediaItemView: View {
 #endif
 
 #if os(iOS)
-  /// The bell, for a series that can be followed — not while labelled Follow leads the
-  /// hero's row (nothing left to play), where it would be said twice.
+  /// Download (with the flag on), in «…»: what Play opens, or pausing it; for a series
+  /// also the season, its unwatched episodes, or all of them.
   @ViewBuilder
-  private var followToolbarButton: some View {
-    let item = itemModel.mediaItem
-    if item.isSeries,
-       !MediaItemHeroView.promotesFollow(mediaItem: item,
-                                         awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
-                                         canFollow: true) {
-      Button {
-        itemModel.toggleWatchlist()
-      } label: {
-        Label(MediaActionCopy.followTitle(isFollowing: itemModel.isInWatchlist),
-              systemImage: itemModel.isInWatchlist ? "bell.fill" : "bell")
-      }
-      .disabled(!itemModel.itemLoaded)
-    }
-  }
-
-  /// Download (with the flag on): a tap downloads or pauses what Play opens; a long press
-  /// on a series offers the season, its unwatched episodes, or all of them.
-  @ViewBuilder
-  private var downloadToolbarMenu: some View {
+  private var downloadMenuItems: some View {
     if let phase = itemModel.downloadPhase, phase != .downloaded {
       let downloading: Bool = if case .downloading = phase { true } else { false }
-      Menu {
+      Section {
+        Button {
+          if downloading {
+            itemModel.pauseCurrentDownload()
+          } else {
+            itemModel.startCurrentDownload()
+          }
+        } label: {
+          Label(downloading ? LocalizedStringKey("Pause Download") : LocalizedStringKey("Download"),
+                systemImage: downloading ? "pause.circle" : "arrow.down.to.line")
+        }
         if let (season, _) = itemModel.mediaItem.primaryEpisode {
           Button {
             itemModel.downloadSeason(season)
@@ -569,17 +559,7 @@ struct MediaItemView: View {
             Label("All Episodes", systemImage: "arrow.down.to.line")
           }
         }
-      } label: {
-        Label(downloading ? LocalizedStringKey("Pause Download") : LocalizedStringKey("Download"),
-              systemImage: downloading ? "pause.circle" : "arrow.down.to.line")
-      } primaryAction: {
-        if downloading {
-          itemModel.pauseCurrentDownload()
-        } else {
-          itemModel.startCurrentDownload()
-        }
       }
-      .menuIndicator(.hidden)
     }
   }
 #endif
@@ -594,6 +574,7 @@ struct MediaItemView: View {
 #elseif os(iOS)
       if barCarriesActions {
         watchedMenuItems
+        downloadMenuItems
       }
 #endif
       if let imageAdminActions {

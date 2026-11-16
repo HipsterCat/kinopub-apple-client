@@ -11528,7 +11528,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "on air"
+            "value" : "airing now"
           }
         },
         "ru" : {
@@ -11710,7 +11710,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "продолжается"
+            "value" : "вернётся"
           }
         }
       }

@@ -258,6 +258,9 @@ public struct MediaScoresView: View {
   /// The title page's line, trimmed to its biggest audiences and the critics
   /// (`compactDetailLine`): nil is the whole line; 0 keeps every major source.
   public var compactLimit: Int?
+  /// The phone's title line (`MediaScores.phoneLine`): IMDb first, a scale after a
+  /// number that could be read on the wrong one (Sasha, 2026-11-16).
+  public var phoneLine: Bool
 
   public init(
     _ scores: MediaScores,
@@ -269,9 +272,11 @@ public struct MediaScoresView: View {
     collapsesVotesToFit: Bool = false,
     sortByVotes: Bool = true,
     fadedIcons: Bool = false,
-    compactLimit: Int? = nil
+    compactLimit: Int? = nil,
+    phoneLine: Bool = false
   ) {
     self.scores = scores
+    self.phoneLine = phoneLine
     self.compactLimit = compactLimit
     self.limit = limit
     self.showsVotes = showsVotes
@@ -302,6 +307,9 @@ public struct MediaScoresView: View {
   }
 
   private var items: [MediaScoreItem] {
+    if phoneLine {
+      return scores.phoneLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+    }
     if bannerLine {
       return scores.bannerScores(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
     }
@@ -382,7 +390,7 @@ public struct MediaScoresView: View {
       scoreContent(item: item, showsVotes: showsVotes)
     }
 #else
-    if detailLine || bannerLine {
+    if detailLine || bannerLine || phoneLine {
       // The title page's line follows the type: the mark fills the score's line height
       // at any Dynamic Type size (Sasha, 2026-10-29).
       MarkFillsLineHeight(spacing: Self.markSpacing) {
@@ -409,6 +417,12 @@ public struct MediaScoresView: View {
         .fontDesign(.rounded)
         .fontWeight(.semibold)
         .foregroundStyle(item.drawsFaint || fadedIcons ? Color.KinoPub.subtitle : Color.KinoPub.text)
+      if phoneLine, let scale = MediaScores.phoneScale(item) {
+        Text(verbatim: scale)
+          .fontDesign(.rounded)
+          .foregroundStyle(Color.KinoPub.subtitle)
+          .padding(.leading, -Self.markSpacing)
+      }
     }
     if showsVotes, let votes = item.votesCompact {
       Text(collapsesVotesToFit ? votes : "(\(votes))")
@@ -419,7 +433,7 @@ public struct MediaScoresView: View {
     }
   }
 
-  private var usesLineMarks: Bool { detailLine || bannerLine }
+  private var usesLineMarks: Bool { detailLine || bannerLine || phoneLine }
 
   private var logoStyle: MediaScoreLogo.Style {
     if fadedIcons { return .template }

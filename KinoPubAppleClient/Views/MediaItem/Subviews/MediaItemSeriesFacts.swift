@@ -27,18 +27,31 @@ enum SeriesFacts {
   /// «отменён», «продолжается», «в производстве»… TMDB's status for every title whenever
   /// it has one — kino.pub's flag is not to be trusted (Sasha, 2026-11-09) — and kino.pub
   /// only to say a series it marks finished is. Nil when nobody knows.
-  /// `airing` says a returning series is «в эфире», as it reads after «с 2013» in the
-  /// hero (Sasha, 2026-11-09); without it, «продолжается».
-  static func shortStatusKey(_ item: MediaItem, _ metadata: TitleMetadata, airing: Bool = false) -> String? {
+  /// A returning series is «в эфире» / "airing now" only while its episodes come out —
+  /// TMDB's last episode or its next one within `airingDays` — and «вернётся» /
+  /// "returning" between seasons (Sasha, 2026-11-16).
+  static func shortStatusKey(_ item: MediaItem, _ metadata: TitleMetadata, now: Date = Date()) -> String? {
     switch metadata.status?.lowercased() {
     case "ended": return "MediaItem_StatusEndedShort"
     case "canceled": return "MediaItem_StatusCanceledShort"
-    case "returning series": return airing ? "MediaItem_StatusAiringShort" : "MediaItem_StatusReturningShort"
+    case "returning series":
+      return isAiring(metadata, now: now) ? "MediaItem_StatusAiringShort" : "MediaItem_StatusReturningShort"
     case "in production": return "MediaItem_StatusInProductionShort"
     case "planned": return "MediaItem_StatusPlannedShort"
     case "pilot": return "MediaItem_StatusPilotShort"
     default: return item.finished ? "MediaItem_StatusEndedShort" : nil
     }
+  }
+
+  /// How near the last or next episode keeps a series «в эфире».
+  static let airingDays = 14
+
+  /// An episode out within `airingDays`, or one coming within them.
+  static func isAiring(_ metadata: TitleMetadata, now: Date = Date()) -> Bool {
+    let window = TimeInterval(airingDays * 24 * 60 * 60)
+    if let last = metadata.lastEpisode?.airDate, last <= now, now.timeIntervalSince(last) <= window { return true }
+    if let next = metadata.nextEpisode?.airDate, next >= now, next.timeIntervalSince(now) <= window { return true }
+    return false
   }
 
   /// The hero's years: «2019–26» once it has ended, «с 2006» / «2006–» while it airs

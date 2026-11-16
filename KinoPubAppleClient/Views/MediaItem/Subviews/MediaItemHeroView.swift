@@ -756,8 +756,10 @@ struct MediaItemHeroView: View {
       .padding(.top, phase.topChromeInset)
       .frame(maxWidth: .infinity)
       .onGeometryChange(for: CGSize.self, of: \.size) { heroBandSize = $0 }
-      // Not clipped: the backdrop runs on under the next section to melt into the page.
       .background(alignment: .top) { phoneBackdrop }
+      // A clear edge where the hero ends, at the same place on every title: fading
+      // into the page went muddy grey in the light appearance (Sasha, 2026-11-16).
+      .clipped()
       .animation(Self.heroStateChange, value: showsPicture)
   }
 
@@ -766,11 +768,12 @@ struct MediaItemHeroView: View {
       // Above Play, bottom-aligned in a box of fixed height: a long title or a second
       // facts line grows up over the picture and never moves Play.
       VStack(spacing: Self.contentSpacing) {
-        titleBlock
+        // Over the logo, never between it and the facts (Sasha, 2026-11-16).
         if !FeatureFlags.heroStatusInFactsLine, let status = titleStatus {
           TitleStatusBadge(status.text)
             .font(Self.secondaryFont)
         }
+        titleBlock
         factsLine
       }
       .fixedSize(horizontal: false, vertical: true)
@@ -781,23 +784,42 @@ struct MediaItemHeroView: View {
         .padding(.top, Self.actionsGap)
         .padding(.bottom, Self.actionsGap)
 
-      scoresLine
-      if hasSynopsis {
-        MediaItemPlotView(
-          title: mediaItem.localizedTitle,
-          plot: synopsis.plot,
-          lead: synopsis.lead,
-          maxLines: Self.phonePlotLines,
-          centered: true,
-          focus: $focus,
-          popupSubtitle: popupOriginalTitle,
-          summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
-        )
+      // Under Play every line keeps its room, filled or not — one line of scores, two of
+      // synopsis, one playback line — so the hero ends at one place (Sasha, 2026-11-16).
+      ZStack {
+        phoneLineSlot(lines: 1, font: Self.secondaryFont)
+        scoresLine
       }
-      playbackLine
+      ZStack(alignment: .top) {
+        phoneLineSlot(lines: Self.phonePlotLines, font: MediaItemPlotView.font)
+        if hasSynopsis {
+          MediaItemPlotView(
+            title: mediaItem.localizedTitle,
+            plot: synopsis.plot,
+            lead: synopsis.lead,
+            maxLines: Self.phonePlotLines,
+            centered: true,
+            focus: $focus,
+            popupSubtitle: popupOriginalTitle,
+            summary: MediaItemSynopsisSummary(mediaItem: mediaItem, metadata: externalMetadata)
+          )
+        }
+      }
+      ZStack {
+        phoneLineSlot(lines: 1, font: Self.secondaryFont)
+        playbackLine
+      }
     }
     .padding(.horizontal, Self.horizontalInset)
     .padding(.bottom, Self.bottomInset)
+  }
+
+  /// The room of `lines` lines of `font`, drawn as nothing.
+  private func phoneLineSlot(lines: Int, font: Font) -> some View {
+    Text(verbatim: Array(repeating: " ", count: max(lines, 1)).joined(separator: "\n"))
+      .font(font)
+      .hidden()
+      .accessibilityHidden(true)
   }
 
   /// The picture's height under the bars: taller than the banner's 16:10 (Sasha,
@@ -819,11 +841,7 @@ struct MediaItemHeroView: View {
 
   @ViewBuilder
   private var phoneBackdrop: some View {
-    // Past the words the backdrop runs on for a stretch and fades out into the page,
-    // instead of stopping on a line under the playback line (Sasha, 2026-11-16).
-    let band = heroBandSize
-    let foot = (phoneStillHeight * Self.phoneFootShare).rounded()
-    let size = CGSize(width: band.width, height: band.height > 0 ? band.height + foot : 0)
+    let size = heroBandSize
     let still = phoneStillHeight
     ZStack(alignment: .top) {
       MediaItemPosterWash(url: heroWashURL, onOutcome: noteWash(loaded:))
@@ -857,18 +875,9 @@ struct MediaItemHeroView: View {
     }
     .frame(width: size.width, height: size.height, alignment: .top)
     .clipped()
-    .mask {
-      LinearGradient(stops: [
-        .init(color: .black, location: 0),
-        .init(color: .black, location: size.height > 0 ? band.height / size.height : 1),
-        .init(color: .clear, location: 1)
-      ], startPoint: .top, endPoint: .bottom)
-    }
     .allowsHitTesting(false)
   }
 
-  /// How far the backdrop runs on past the words while it fades out, against the picture.
-  static let phoneFootShare: CGFloat = 0.3
   /// The picture under the bars, against the width.
   static let phoneStillTallness: CGFloat = 0.95
   /// Play's top, as a share of the picture under the bars.
@@ -1520,7 +1529,8 @@ struct MediaItemHeroView: View {
   private var factsLine: some View {
     let status = FeatureFlags.heroStatusInFactsLine ? titleStatus : nil
     let blocks = factBlocks
-    let rating = ageRating.flatMap { $0.isEmpty ? nil : $0 }
+    // On a phone the age rating closes the playback line instead (Sasha, 2026-11-16).
+    let rating = centersColumn ? nil : ageRating.flatMap { $0.isEmpty ? nil : $0 }
     if status != nil || !blocks.isEmpty || rating != nil {
       AboutFlowLayout(spacing: Self.metaSpacing, lineSpacing: Self.contentSpacing / 2,
                       centersRows: centersColumn) {
@@ -1574,15 +1584,18 @@ struct MediaItemHeroView: View {
     var blocks: [String] = []
 
     let kindKey = profile.kindTitleKey(isSeries: isSeries)
-    // A plain film says nothing about being a film: the runtime says it.
-    let kind = kindKey == "Kind_movies_One" ? nil : kindKey.localized
+    // A plain film says nothing about being a film: the runtime says it. On a phone a
+    // series does not say it either — the season count and the episodes under the hero
+    // do; a documentary series stays one by its genre (Sasha, 2026-11-16).
+    let dropsKind = kindKey == "Kind_movies_One" || (centersColumn && isSeries)
+    let kind = dropsKind ? nil : kindKey.localized
     let years = isSeries
       ? SeriesFacts.heroYears(mediaItem, externalMetadata, fallbackSpan: card.bannerYearSpan)
       : (mediaItem.year > 0 ? String(mediaItem.year) : nil)
     // «Сериал с 2013 в эфире», «Документальный фильм 2011»: the kind first with its
     // capital, then the years, then where the series stands, whatever anyone knows of it
     // (Sasha, 2026-11-09).
-    let status = isSeries ? SeriesFacts.shortStatusKey(mediaItem, externalMetadata, airing: true)?.localized : nil
+    let status = isSeries ? SeriesFacts.shortStatusKey(mediaItem, externalMetadata)?.localized : nil
     let head = [kind, years, status].compactMap { $0 }
     if !head.isEmpty { blocks.append(head.joined(separator: " ")) }
 
@@ -1597,10 +1610,10 @@ struct MediaItemHeroView: View {
     }
 
     // Not the genre the kind already says: «Концерт  …, концерт», «ТВ-шоу  Развлекательные».
-    let restated = Set(card.genres.filter { profile.kindGenreIDs.contains($0.id) }
+    let restated = kind == nil ? [] : Set(card.genres.filter { profile.kindGenreIDs.contains($0.id) }
       .map { $0.name.value(languageCode: MediaLanguage.current.rawValue) })
     let genres = card.usefulGenres(limit: Self.genreLimit + restated.count,
-                                   omittingDocumentary: profile.kind == .documentary)
+                                   omittingDocumentary: kind != nil && profile.kind == .documentary)
       .filter { !restated.contains($0) }
       .prefix(Self.genreLimit)
     let place = mediaItem.countryNames.first.flatMap { $0.isEmpty ? nil : $0 }
@@ -1637,7 +1650,19 @@ struct MediaItemHeroView: View {
   @ViewBuilder
   private var scoresLine: some View {
     // Views alone are no line of their own: they close the playback line (Sasha, 2026-11-16).
-    if lineScores.hasDisplayableScore {
+    if lineScores.hasDisplayableScore, centersColumn {
+      // The phone: IMDb first, scales after numbers that could mislead, no vote counts,
+      // the views last; the tail gives way when the line is full (Sasha, 2026-11-16).
+      ViewThatFits(in: .horizontal) {
+        phoneScoresRow(limit: nil, views: true)
+        phoneScoresRow(limit: nil, views: false)
+        ForEach([4, 3, 2, 1], id: \.self) { limit in
+          phoneScoresRow(limit: limit, views: false)
+        }
+      }
+      .font(Self.secondaryFont)
+      .foregroundStyle(heroMetaForeground)
+    } else if lineScores.hasDisplayableScore {
       ViewThatFits(in: .horizontal) {
         scoresRow(votes: true, views: true)
         scoresRow(votes: false, views: true)
@@ -1649,6 +1674,23 @@ struct MediaItemHeroView: View {
       .font(Self.secondaryFont)
       .foregroundStyle(heroMetaForeground)
     }
+  }
+
+  private func phoneScoresRow(limit: Int?, views showsViews: Bool) -> some View {
+    let views = mediaItem.views
+    return HStack(spacing: Self.metaSpacing) {
+      MediaScoresView(lineScores, limit: limit, showsVotes: false, phoneLine: true)
+      if showsViews, views > 0 {
+        HStack(spacing: Self.glyphSpacing) {
+          Image(systemName: Self.viewsSymbol)
+          Text(verbatim: formattedViewCount(views))
+        }
+        .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
+      }
+    }
+    .fixedSize()
   }
 
   private func scoresRow(votes: Bool, views showsViews: Bool, compactLimit: Int? = nil) -> some View {
@@ -1732,6 +1774,108 @@ struct MediaItemHeroView: View {
   /// the viewer's own languages only (Sasha, 2026-11-08).
   @ViewBuilder
   private var playbackLine: some View {
+    if centersColumn {
+      phonePlaybackLine
+    } else {
+      regularPlaybackLine
+    }
+  }
+
+  /// The phone's playback line, always one line, short the way Kinopoisk writes it
+  /// (Sasha, 2026-11-16): «45 мин  Рус, Eng [DUB] [CC] [4K] [16+]». The details are a
+  /// tap away in the synopsis sheet. What does not fit gives way from the front of the
+  /// tags: the voicing, then the runtime, then all but the first language.
+  @ViewBuilder
+  private var phonePlaybackLine: some View {
+    let runtime = runtimeText
+    let languages = audioLanguageCodes
+    let voicing = preferredVoicingTag
+    let captions = subtitleSummary != nil
+    let rating = ageRating.flatMap { $0.isEmpty ? nil : $0 }
+    let views = lineScores.hasDisplayableScore ? 0 : mediaItem.views
+    let badges = MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
+      + (rating.flatMap(MediaBadgeImages.ageRatingAssetName).map { [$0] } ?? [])
+    let typedRating = rating.flatMap { MediaBadgeImages.ageRatingAssetName($0) == nil ? $0 : nil }
+    if runtime != nil || !languages.isEmpty || !badges.isEmpty || typedRating != nil || views > 0 {
+      ViewThatFits(in: .horizontal) {
+        phonePlaybackRow(runtime: runtime, languages: languages, voicing: voicing, captions: captions,
+                         badges: badges, typedRating: typedRating, views: views)
+        phonePlaybackRow(runtime: runtime, languages: languages, voicing: nil, captions: captions,
+                         badges: badges, typedRating: typedRating, views: views)
+        phonePlaybackRow(runtime: nil, languages: languages, voicing: nil, captions: captions,
+                         badges: badges, typedRating: typedRating, views: views)
+        phonePlaybackRow(runtime: nil, languages: Array(languages.prefix(1)), voicing: nil, captions: captions,
+                         badges: badges, typedRating: typedRating, views: 0)
+      }
+      .font(Self.secondaryFont)
+      .foregroundStyle(heroMetaForeground)
+      .modifier(HeroVibrantLabel(isOverArt: isChromeOverArt))
+    }
+  }
+
+  private func phonePlaybackRow(runtime: String?, languages: [String], voicing: String?, captions: Bool,
+                                badges: [String], typedRating: String?, views: Int) -> some View {
+    HStack(spacing: Self.metaSpacing) {
+      if let runtime {
+        Text(verbatim: runtime)
+      }
+      if !languages.isEmpty {
+        Text(verbatim: languages.joined(separator: ", "))
+      }
+      if let voicing {
+        PlaybackTag(voicing)
+      }
+      if captions {
+        MediaBadgeImages(["CC"])
+      }
+      if !badges.isEmpty {
+        MediaBadgeImages(badges)
+      }
+      if let typedRating {
+        PlaybackTag(typedRating)
+      }
+      if views > 0 {
+        HStack(spacing: Self.glyphSpacing) {
+          Image(systemName: Self.viewsSymbol)
+          Text(verbatim: formattedViewCount(views))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("MediaItem_Views") + Text(verbatim: " " + views.formatted()))
+      }
+    }
+    .lineLimit(1)
+    .fixedSize()
+  }
+
+  /// The viewer's languages among the sound tracks, each by the first three letters of
+  /// its own name: «Рус», «Eng», «Укр».
+  private var audioLanguageCodes: [String] {
+    let tracks = mediaItem.detailAudioTracks.filter { !$0.isAudioDescription }
+    return viewerLanguages.compactMap { key -> String? in
+      guard tracks.contains(where: { SubtitleTracks.languageKey($0.lang) == key }) else { return nil }
+      let own = Locale(identifier: key).localizedString(forLanguageCode: key) ?? languageName(key)
+      guard let own, !own.isEmpty else { return nil }
+      let short = own.prefix(3)
+      return short.prefix(1).uppercased() + short.dropFirst()
+    }
+  }
+
+  /// kino.pub's short word for the best voicing in the viewer's first language that is
+  /// voiced at all: «DUB», «MVO», «VO». Nil for the original sound.
+  private var preferredVoicingTag: String? {
+    let tracks = mediaItem.detailAudioTracks.filter { !$0.isAudioDescription }
+    for key in viewerLanguages {
+      let inLanguage = tracks.filter { SubtitleTracks.languageKey($0.lang) == key }
+      guard let best = inLanguage.min(by: { rank($0) < rank($1) }),
+            let voice = best.typeId.flatMap(VoiceType.init(rawValue:)) else { continue }
+      if voice == .original || voice == .undetermined { continue }
+      return voice.shortTitle
+    }
+    return nil
+  }
+
+  @ViewBuilder
+  private var regularPlaybackLine: some View {
     let runtime = runtimeText
     let badges = MediaCapabilityBadges.from(item: mediaItem).detailBadgeAssets
     let audio = audioSummary
@@ -2045,19 +2189,21 @@ struct MediaItemHeroView: View {
 #elseif os(iOS)
     let row = MediaActionCatalog.row(for: actionContext)
     guard phoneHeroGrows else { return row }
-    // iPhone: what plays, and nothing else (Sasha, 2026-11-10). Bookmarks, the bell and
-    // Download are in the navigation bar, top right, as everywhere; Mark as Watched is in
-    // «…»; Shuffle and starting over are in Play's long press. A labelled Follow that
-    // leads the row (nothing left to play) stays.
+    // iPhone: what plays, and the bell (Sasha, 2026-11-10, 2026-11-16). Bookmarks are in
+    // the navigation bar, top right; Download and Mark as Watched in «…»; Shuffle and
+    // starting over in Play's long press. Trailer says its word alone, as Apple's does.
     return row
       .filter { appearance in
         switch appearance.id {
         case .bookmark, .markWatched, .download, .shuffle, .more: false
-        case .follow: appearance.chrome != .circle
         default: true
         }
       }
-      .map(MediaActionCatalog.compactPlay)
+      .map { appearance in
+        var compact = MediaActionCatalog.compactPlay(appearance)
+        if compact.id == .trailer, compact.title != nil { compact.systemImage = "" }
+        return compact
+      }
 #else
     MediaActionCatalog.row(for: actionContext)
 #endif
@@ -2153,6 +2299,7 @@ struct MediaItemHeroView: View {
     if let target = randomUnwatchedEpisode {
       PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
         MediaActionLabel(appearance)
+          .frame(minWidth: playMinWidth(appearance))
       }
       .mediaActionStyle(appearance)
       .focused($focus, equals: .shuffle)
@@ -2185,6 +2332,7 @@ struct MediaItemHeroView: View {
         showsVersionPicker = true
       } label: {
         MediaActionLabel(appearance)
+          .frame(minWidth: playMinWidth(appearance))
       }
       .mediaActionStyle(appearance)
       .focused($focus, equals: .play)
@@ -2199,6 +2347,7 @@ struct MediaItemHeroView: View {
       let target = playTarget(for: appearance.id)
       PlayerLink(route: linkProvider.player(for: target), item: target, mode: .media) {
         MediaActionLabel(appearance)
+          .frame(minWidth: playMinWidth(appearance))
       }
       .mediaActionStyle(appearance)
 #if os(iOS)
@@ -2212,6 +2361,14 @@ struct MediaItemHeroView: View {
       }
     }
   }
+
+  /// The phone's Play is never the smaller button beside Trailer: «Play» alone read
+  /// as a stub (Sasha, 2026-11-16, his 110 pt).
+  private func playMinWidth(_ appearance: MediaActionAppearance) -> CGFloat? {
+    centersColumn && appearance.id == .play ? Self.phonePlayMinWidth : nil
+  }
+
+  static let phonePlayMinWidth: CGFloat = 110
 
   @ViewBuilder
   private func trailerControl(_ appearance: MediaActionAppearance) -> some View {
@@ -2550,6 +2707,25 @@ struct MediaItemHeroView: View {
 }
 
 /// Title width: ~80% of the hero, or the full column left of the portrait poster.
+/// A short word framed like the drawn badges beside it: «DUB», «MVO», «6+».
+private struct PlaybackTag: View {
+  let text: String
+
+  init(_ text: String) {
+    self.text = text
+  }
+
+  var body: some View {
+    Text(verbatim: text)
+      .font(.caption2.weight(.bold))
+      .padding(.horizontal, 3)
+      .overlay {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+          .strokeBorder(lineWidth: 1)
+      }
+  }
+}
+
 private struct TitleBlockHorizontalBounds: ViewModifier {
   let reservePosterColumn: Bool
   var alignment: Alignment = .leading

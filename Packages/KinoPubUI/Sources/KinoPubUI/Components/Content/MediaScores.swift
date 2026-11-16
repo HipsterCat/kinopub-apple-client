@@ -424,6 +424,48 @@ public extension MediaScores {
     return Array(major.prefix(limit ?? major.count)) + critics
   }
 
+  /// The phone's title line (Sasha, 2026-11-16): IMDb always first, then Kinopoisk —
+  /// the two the app had from the start, so the first to arrive — then Letterboxd, then
+  /// the other audiences by votes, Rotten Tomatoes, and Metacritic last of all. Only
+  /// published scores.
+  public func phoneLine(deduplicateAgainstAggregate: Bool = false) -> [MediaScoreItem] {
+    func rank(_ source: MediaScoreLogo.Source) -> Int {
+      switch source {
+      case .imdb: return 0
+      case .kinopoisk: return 1
+      case .letterboxd: return 2
+      case .rottenTomatoesCertified, .rottenTomatoesFresh, .rottenTomatoesRotten,
+           .rottenTomatoesAudienceVerified, .rottenTomatoesAudienceUpright, .rottenTomatoesAudienceSpilled:
+        return 4
+      case .metacritic, .metacriticFavorable, .metacriticUnfavorable: return 5
+      default: return 3
+      }
+    }
+    return detailLine(deduplicateAgainstAggregate: deduplicateAgainstAggregate)
+      .filter { $0.hasKnownScore && ($0.score ?? 0) > 0 }
+      .enumerated()
+      .sorted { lhs, rhs in
+        let l = rank(lhs.element.source), r = rank(rhs.element.source)
+        return l != r ? l < r : lhs.offset < rhs.offset
+      }
+      .map(\.element)
+  }
+
+  /// The scale written after a score on the phone's line, faint: Letterboxd's «/5»
+  /// always — its 2.6 beside IMDb's 5.3 read as the worse film — and «/10» after an
+  /// IMDb or Kinopoisk score of `lowTenScale` or under.
+  public static func phoneScale(_ item: MediaScoreItem) -> String? {
+    switch item.source {
+    case .letterboxd, .myShows: return "/5"
+    case .imdb, .kinopoisk:
+      return (item.score ?? 10) <= lowTenScale ? "/10" : nil
+    default: return nil
+    }
+  }
+
+  /// «Около или ниже 5» (Sasha, 2026-11-16).
+  public static let lowTenScale = 5.5
+
   /// The share of the line's votes a source needs to stay on a compact line.
   static let compactShare = 0.10
 
