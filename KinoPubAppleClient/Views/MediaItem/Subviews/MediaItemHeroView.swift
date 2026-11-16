@@ -882,8 +882,6 @@ struct MediaItemHeroView: View {
     .allowsHitTesting(false)
   }
 
-  /// Between the facts' blocks: the stack's spacing, as spaces.
-  static let phoneFactsSeparator = "   "
   /// Half of what stands between the status capsule and the logo: the stack's
   /// spacing and the title block's own top inset.
   static let phoneBadgeGapCut: CGFloat = (contentSpacing + bottomInset / 1.5) / 2
@@ -1689,6 +1687,10 @@ struct MediaItemHeroView: View {
   /// The phone's facts: one line under the original title, never two — a second line
   /// pushed the logo up (Sasha, 2026-11-16). Genres give way one by one; the country
   /// is beside the original title (`phoneCaption`).
+  /// Between the facts' blocks: the stack's spacing, as spaces. Outside the iOS-only
+  /// block: the facts line is built on every platform.
+  static let phoneFactsSeparator = "   "
+
   @ViewBuilder
   private var phoneFactsLine: some View {
     let status = FeatureFlags.heroStatusInFactsLine ? titleStatus : nil
