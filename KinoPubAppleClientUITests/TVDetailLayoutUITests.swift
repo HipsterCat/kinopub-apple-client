@@ -561,6 +561,66 @@ final class TVDetailLayoutUITests: XCTestCase {
     }
   }
 
+  /// Up from the right end of the first row lands on the entry control, not on the circle
+  /// nearest to the card — «…» was what Sasha got from the rightmost trailer (2026-11-17).
+  /// The full-width guide over the button band (`HeroButtonRowGuide`) is what should do it.
+  func testUpFromTheRightEndOfTheFirstRowLandsOnPlay() throws {
+    launch("film")
+    try waitForHeroFocus()
+    XCUIRemote.shared.press(.down)
+    Thread.sleep(forTimeInterval: 1.2)
+    var last = ""
+    for _ in 0..<14 {
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 0.7)
+      let now = focusedElement.identifier
+      if now == last { break }
+      last = now
+    }
+    note("right end")
+    try shoot("up-entry-0-right-end")
+    XCUIRemote.shared.press(.up)
+    Thread.sleep(forTimeInterval: 1.0)
+    note("up from the right end")
+    try shoot("up-entry-1-up")
+    XCTAssertEqual(focusedElement.identifier, "kinopub.hero.play", focusedDescription)
+  }
+
+  /// Title → title → title through Similar, each time from deep in the page; then Menu at
+  /// each depth: first back up to that title's hero, only then to the title before, onto
+  /// the card that opened the page. Sasha (2026-11-17): after a few levels Menu closed the
+  /// page at once and the positions blinked, never rising to the hero.
+  func testMenuReturnsToEachHeroBeforeClosingTheTitle() throws {
+    launch("film", extra: ["-KINOPUBFixtureInTabs", "YES"])
+    try waitForHeroFocus()
+    let depth = 3
+    for level in 1...depth {
+      XCTAssertTrue(seek(.down, until: "kinopub.poster.", limit: 10), "level \(level): \(focusedDescription)")
+      XCUIRemote.shared.press(.right)
+      Thread.sleep(forTimeInterval: 0.8)
+      note("open from level \(level)")
+      XCUIRemote.shared.press(.select)
+      Thread.sleep(forTimeInterval: 3.0)
+      try waitForHeroFocus()
+    }
+    // Deep in the last title before the first Menu.
+    step(.down, times: 4)
+    try shoot("menu-depth-0-deep")
+    for level in stride(from: depth + 1, through: 2, by: -1) {
+      XCUIRemote.shared.press(.menu)
+      Thread.sleep(forTimeInterval: 1.4)
+      note("menu at level \(level): to the hero")
+      try shoot("menu-depth-\(level)-hero")
+      XCTAssertTrue(heroHasFocus, "level \(level): Menu did not return to the hero: \(focusedDescription)")
+      XCUIRemote.shared.press(.menu)
+      Thread.sleep(forTimeInterval: 2.0)
+      note("menu at level \(level): to the title before")
+      try shoot("menu-depth-\(level)-popped")
+      XCTAssertTrue(focusedDescription.contains("kinopub.poster."),
+                    "level \(level): the title before is not on the card that opened it: \(focusedDescription)")
+    }
+  }
+
   /// Light appearance, the plain way through: a title's hero, its details, and the list it
   /// was opened from — what is behind each of them.
   func testLightAppearanceBehindEveryPage() throws {

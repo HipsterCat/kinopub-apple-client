@@ -178,10 +178,17 @@ public final class HeroButtonRowGuideView: UIView {
     }
   }
 
+  private var reportedMissingEntry = false
+
   func retarget() {
     let target = resolveEntry()
     guide.preferredFocusEnvironments = target.map { [$0] } ?? []
     guide.isEnabled = !suspended && target != nil
+    if target == nil, window != nil, !reportedMissingEntry {
+      reportedMissingEntry = true
+      FocusLog.rejected(heading: "up", preferred: entryIdentifier, chosen: "—",
+                        reason: "the button-row guide found no view named \(entryIdentifier); the guide is off")
+    }
   }
 
   func requestEntry() {
