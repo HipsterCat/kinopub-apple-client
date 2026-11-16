@@ -92,6 +92,14 @@ public final class HLSDownloadsStore {
     })
   }
 
+  /// A film's download when the caller does not know which video it is (`video` nil —
+  /// a page painted offline from a listing), or knows and the exact lookup missed.
+  public func filmAsset(forId id: Int, video: Int?) -> HLSDownloadedAsset? {
+    let films = readData().filter { $0.meta.id == id && $0.meta.metadata.season == nil && $0.fileExists }
+    if let video, let exact = films.first(where: { $0.meta.metadata.video == video }) { return exact }
+    return video == nil ? films.first : nil
+  }
+
   // MARK: - Size
 
   /// On-disk size (in bytes) of the `.movpkg` directory for the given asset.

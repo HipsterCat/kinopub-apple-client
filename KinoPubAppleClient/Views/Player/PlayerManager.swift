@@ -253,6 +253,18 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
           return hls.localFileURL
         }
       }
+      // A film opened offline: its page is painted from the listing (the details call
+      // failed), which has no videos, so `video` is nil while the download says 1.
+      // That lookup found nothing and the player said "no playable link" in airplane
+      // mode (Sasha, 2026-11-16). A film has one download per title: take it.
+      if playItem.metadata.season == nil {
+        for contentId in contentIds {
+          if let hls = AppContext.shared.hlsDownloadsStore.filmAsset(forId: contentId,
+                                                                     video: playItem.metadata.video) {
+            return hls.localFileURL
+          }
+        }
+      }
       let downloadedFiles = downloadedFilesDatabase.readData() ?? []
       let sameItem = downloadedFiles.filter { contentIds.contains($0.metadata.id) }
       let playURLs = Set(playItem.files.map(\.url.http))

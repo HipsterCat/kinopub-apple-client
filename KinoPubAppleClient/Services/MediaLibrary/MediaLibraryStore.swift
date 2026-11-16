@@ -167,7 +167,14 @@ final class MediaLibraryStore: ObservableObject {
   }
 
   func isDownloaded(itemId: Int, video: Int?, season: Int?) -> Bool {
-    downloadedKeys.contains(Self.downloadKey(itemId, video, season))
+    if downloadedKeys.contains(Self.downloadKey(itemId, video, season)) { return true }
+    // A film whose page was painted offline from a listing knows no video number:
+    // any download of the title counts (same rule as the player's lookup).
+    if video == nil, season == nil {
+      let prefix = "\(itemId)|"
+      return downloadedKeys.contains { $0.hasPrefix(prefix) && $0.hasSuffix("|-") }
+    }
+    return false
   }
 
   /// Whether the title has any completed download (any episode/video) — for poster cards.
