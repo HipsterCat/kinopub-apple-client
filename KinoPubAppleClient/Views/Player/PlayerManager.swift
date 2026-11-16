@@ -182,6 +182,9 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
   /// resolver's subtitle decision is applied, and where a pick made in the system player's
   /// own menu is read back from.
   private var legibleGroup: AVMediaSelectionGroup?
+  /// The renditions the subtitles are chosen among: the group's, or only those on disk
+  /// when the stream is a download (`playableOptions`).
+  private var legibleOptions: [AVMediaSelectionOption] = []
 #if os(iOS) || os(tvOS)
   /// What the info panel currently shows and the picture already fetched for it, kept
   /// apart so a late enrichment re-stamp doesn't drop the artwork and vice versa.
@@ -657,6 +660,7 @@ class PlayerManager: ObservableObject, @unchecked Sendable {
     audioReadyObservation?.invalidate()
     audioReadyObservation = nil
     legibleGroup = nil
+    legibleOptions = []
     prepareWatchdog?.cancel()
     prepareWatchdog = nil
 #if os(tvOS)
@@ -1527,6 +1531,8 @@ extension PlayerManager {
   /// answer when this master carries no rendition of the decided language.
   func applyLegibleGroup(from item: AVPlayerItem, group: AVMediaSelectionGroup) {
     legibleGroup = group
+    let options = playableOptions(in: group, of: item)
+    legibleOptions = options
     guard watchMode == .media else {
       item.select(nil, in: group)
       return
@@ -1534,7 +1540,7 @@ extension PlayerManager {
     // The master's renditions are the menu, not the API's list, which can be short or
     // empty (`SubtitleRenditions.catalog`). Decided again from them — with the audio menu
     // the dub was chosen from, when it is known already.
-    let fromMaster = SubtitleRenditions.catalog(group.options)
+    let fromMaster = SubtitleRenditions.catalog(options)
     if !fromMaster.isEmpty {
       if fromMaster.count != subtitleTracks.count {
         Logger.app.info(
@@ -1545,16 +1551,32 @@ extension PlayerManager {
       primaryTrack = refreshPlan(audioMenu: audibleGroup.map { audioMenu(from: $0) }).decision.subtitle
     }
     let index = primaryTrack.flatMap {
-      SubtitleRenditions.renditionIndex(for: $0, among: subtitleTracks, in: group.options)
+      SubtitleRenditions.renditionIndex(for: $0, among: subtitleTracks, in: options)
     }
     if primaryTrack != nil, index == nil {
       Logger.app.debug("No rendition for the decided subtitle track; opening without subtitles")
     }
-    item.select(index.map { group.options[$0] }, in: group)
+    item.select(index.map { options[$0] }, in: group)
     subtitlePicks.request(index.flatMap {
-      SubtitleRenditions.track(forRenditionAt: $0, among: group.options, in: subtitleTracks)
+      SubtitleRenditions.track(forRenditionAt: $0, among: options, in: subtitleTracks)
     }.map(SubtitleChoiceSignature.init) ?? .off)
-    logSubtitleMenu(group, chosenIndex: index)
+    logSubtitleMenu(group, chosenIndex: index.flatMap { chosen in
+      group.options.firstIndex { $0 === options[chosen] }
+    })
+  }
+
+  /// **A download plays only what was downloaded.** The master inside a `.movpkg` still
+  /// lists every rendition the stream had, and selecting one that is not on disk does
+  /// nothing visible: the menu reads Off while AVFoundation falls back to the forced
+  /// track of the dub (Russian signage over a film, 2026-11-16). On a download the
+  /// choice is made among `AVAssetCache`'s options; a stream from the network keeps all.
+  private func playableOptions(in group: AVMediaSelectionGroup,
+                               of item: AVPlayerItem) -> [AVMediaSelectionOption] {
+    guard let cache = (item.asset as? AVURLAsset)?.assetCache else { return group.options }
+    let cached = cache.mediaSelectionOptions(in: group)
+    guard !cached.isEmpty else { return group.options }
+    // Keep the group's order, which is what the menu and the logs count by.
+    return group.options.filter { option in cached.contains { $0 == option } }
   }
 
   // MARK: What the menus hold
@@ -1606,12 +1628,13 @@ extension PlayerManager {
     guard !subtitleTracks.isEmpty,
           let item = player.currentItem,
           let group = legibleGroup else { return nil }
+    let options = legibleOptions.isEmpty ? group.options : legibleOptions
     guard let selected = item.currentMediaSelection.selectedMediaOption(in: group) else {
       return .off
     }
-    guard let index = group.options.firstIndex(where: { $0 === selected }),
+    guard let index = options.firstIndex(where: { $0 === selected }),
           let track = SubtitleRenditions.track(forRenditionAt: index,
-                                               among: group.options,
+                                               among: options,
                                                in: subtitleTracks) else { return nil }
     return SubtitleChoiceSignature(track)
   }

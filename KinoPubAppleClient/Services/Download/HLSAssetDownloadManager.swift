@@ -273,8 +273,8 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
       : .failed(lastError ?? "Couldn't start download".localized)
   }
 
-  /// Builds and resumes an aggregate download. Attempts 0…maxRetries-2 grab every audio (озвучка) +
-  /// subtitle track; the final attempt narrows to the preferred selection (video + default audio) so
+  /// Builds and resumes an aggregate download. Attempts 0…maxRetries-2 grab the audio (озвучки) and
+  /// subtitles in the viewer's languages (`DownloadTrackFilter`); the final attempt narrows to the preferred selection (video + default audio) so
   /// a heavily rate-limited title can still complete rather than failing outright.
   @discardableResult
   private func launch(meta: DownloadMeta, hlsURL: URL, retryCount: Int,
@@ -300,8 +300,13 @@ public final class HLSAssetDownloadManager: NSObject, ObservableObject, AVAssetD
 
     var mediaSelections: [AVMediaSelection] = []
     if !narrow, let baseSelection = preferred.mutableCopy() as? AVMutableMediaSelection {
-      for group in [audibleGroup, legibleGroup].compactMap({ $0 }) {
-        for option in group.options {
+      let wanted = DownloadTrackFilter(preferences: .current)
+      let groups: [(AVMediaSelectionGroup, [AVMediaSelectionOption])] = [
+        audibleGroup.map { ($0, wanted.audio($0.options)) },
+        legibleGroup.map { ($0, wanted.subtitles($0.options)) },
+      ].compactMap { $0 }
+      for (group, options) in groups {
+        for option in options {
           guard let selection = baseSelection.mutableCopy() as? AVMutableMediaSelection else { continue }
           selection.select(option, in: group)
           mediaSelections.append(selection)
@@ -721,4 +726,51 @@ public final class HLSAssetDownloadManager: ObservableObject {
   public func dismissInterrupted(_ key: String) {}
 }
 
+#endif
+
+#if os(iOS)
+/// **What a download keeps of a stream's tracks: the viewer's languages, not all of them.**
+/// kino.pub masters carry a dozen subtitle languages and several dubs; downloading every
+/// one costs space and requests (429s) for tracks nobody will pick (Sasha, 2026-11-16).
+///
+/// - Audio: every dub in an audio language, and in a subtitle language too — whoever
+///   reads English subtitles may well want the English original. Nothing matches → all.
+/// - Subtitles: the subtitle languages, plus forced tracks for the dubs kept.
+/// The stream's default selection is always added on top by the caller.
+struct DownloadTrackFilter {
+  let audioLanguages: Set<String>
+  let subtitleLanguages: Set<String>
+
+  init(preferences: PlaybackLanguagePreferences) {
+    let system = Locale.preferredLanguages.map(Self.base)
+    let audio = preferences.audioLanguages.isEmpty ? system : preferences.audioLanguages.map(Self.base)
+    let subtitles = preferences.subtitleLanguages.isEmpty ? audio : preferences.subtitleLanguages.map(Self.base)
+    audioLanguages = Set(audio)
+    subtitleLanguages = Set(subtitles)
+  }
+
+  func audio(_ options: [AVMediaSelectionOption]) -> [AVMediaSelectionOption] {
+    let kept = options.filter { option in
+      let language = Self.base(option.renditionLanguageCode)
+      return audioLanguages.contains(language) || subtitleLanguages.contains(language)
+    }
+    return kept.isEmpty ? options : kept
+  }
+
+  func subtitles(_ options: [AVMediaSelectionOption]) -> [AVMediaSelectionOption] {
+    options.filter { option in
+      let language = Self.base(option.renditionLanguageCode)
+      if option.isForcedRendition { return audioLanguages.contains(language) || subtitleLanguages.contains(language) }
+      return subtitleLanguages.contains(language)
+    }
+  }
+
+  /// "ru-RU", "ru" and "rus" read as one language; Norwegian "nb"/"no" too.
+  static func base(_ code: String) -> String {
+    let language = Locale.Language(identifier: code).languageCode?.identifier(.alpha2)
+      ?? Locale.Language(identifier: code).languageCode?.identifier
+      ?? code.lowercased()
+    return language == "nb" || language == "nn" ? "no" : language
+  }
+}
 #endif
