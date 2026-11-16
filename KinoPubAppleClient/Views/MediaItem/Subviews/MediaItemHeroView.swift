@@ -1215,27 +1215,14 @@ struct MediaItemHeroView: View {
   /// nothing fading the picture into the page — it ends on a clean edge. The flat
   /// top-and-bottom bands of the old backdrop scrim read as two slabs (Sasha, 2026-10-30).
   ///
-  /// Phone / iPad: barely there, the way the Apple TV app leaves its hero video alone:
-  /// clear for most of the frame, a light shade under the text, and the background colour
-  /// only at the last few percent — without that the hero would meet the page on a
-  /// visible seam.
-  @ViewBuilder
+  /// iPad takes the Mac's: fading into the page background went muddy grey in the light
+  /// appearance, right under the white-on-glass buttons (Sasha, 2026-11-16) — the same
+  /// fault the phone hero had, fixed there with a clean edge too.
   private var scrollingScrim: some View {
-#if os(macOS)
     ZStack {
       HeroLegibilityTexture(tone: .black)
       bottomShade
     }
-#else
-    LinearGradient(stops: [
-      .init(color: .clear, location: 0),
-      .init(color: .clear, location: 0.62),
-      .init(color: Color.KinoPub.background.opacity(0.32), location: 0.82),
-      .init(color: Color.KinoPub.background.opacity(0.9), location: 0.97),
-      .init(color: Color.KinoPub.background, location: 1)
-    ], startPoint: .top, endPoint: .bottom)
-    .overlay { bottomShade }
-#endif
   }
 
   /// A little more dark under the words than the shared texture gives (Sasha,
@@ -2309,7 +2296,8 @@ struct MediaItemHeroView: View {
     MediaActionCatalog.row(for: actionContext).filter { $0.id != .bookmark && $0.id != .markWatched }
 #elseif os(iOS)
     let row = MediaActionCatalog.row(for: actionContext)
-    guard phoneHeroGrows else { return row }
+    // iPad: the Mac's row — Mark as Watched is in «…» (Sasha, 2026-11-16).
+    guard phoneHeroGrows else { return row.filter { $0.id != .markWatched } }
     // iPhone: what plays, and Bookmarks, as on the Home banner (Sasha, 2026-11-10,
     // 2026-11-16). The bell is in the navigation bar, top right; Download and Mark as
     // Watched in «…»; Shuffle and starting over in Play's long press. Trailer says its

@@ -24,8 +24,8 @@ import KinoPubKit
 /// - **macOS:** `.tabBarOnly`; no Settings tab (Settings window / ⌘,); no Search tab —
 ///   compact trailing toolbar search via `macToolbarSearch()` on each `RouteStack`
 ///   (Finder/Photos). Return opens Search results.
-/// - **iPad:** `.tabBarOnly`; Search glyph **first**, Settings gear last, icon+word in
-///   between.
+/// - **iPad:** `.sidebarAdaptable`; no Settings tab — the Home banner's and Library's gear
+///   open the Settings sheet, as on iPhone (Sasha, 2026-11-16).
 /// - **iPhone:** bottom bar; `Tab(role: .search)` pins Search trailing (HIG).
 ///
 /// Badges are `@available(tvOS, unavailable)` on `TabContent` — verified in the 27.0 SDK
@@ -627,7 +627,7 @@ struct TabsNavigationView: View {
 #endif
 
 #if os(iOS)
-  /// iPad top tab bar: Search glyph leads, Settings gear closes, icon+word in between.
+  /// iPad top tab bar / sidebar. No Settings tab: it is a sheet from the gear.
   ///
   /// Search deliberately does **not** use `Tab(role: .search)` here — that role pins it
   /// trailing, which put the two utility tabs at the same end and read as an
@@ -688,10 +688,8 @@ struct TabsNavigationView: View {
         }
         .defaultVisibility(.hidden, for: .tabBar)
       }
-
-      Tab("Settings", systemImage: "gear", value: NavigationTabs.settings) {
-        settingsContent
-      }
+      // No Settings tab: Settings is the sheet the Home banner's and Library's gear open,
+      // as on iPhone (Sasha, 2026-11-16: «никакого таба»).
     }
     .tabViewStyle(.sidebarAdaptable)
     // Always visible for now (2026-08-09) — the system's scroll-driven minimize was
@@ -841,10 +839,11 @@ struct TabsNavigationView: View {
     }, settings: shelvesSettings)
   }
 
-  /// iPhone: the hero's gear opens Settings as a sheet, as Library's does.
+  /// iPhone and iPad: the hero's gear opens Settings as a sheet, as Library's does. The
+  /// iPad has no Settings tab (Sasha, 2026-11-16).
   private var shelvesSettings: AnyView? {
 #if os(iOS)
-    horizontalSizeClass == .compact ? AnyView(settingsContent) : nil
+    AnyView(settingsContent)
 #else
     nil
 #endif
@@ -871,7 +870,7 @@ struct TabsNavigationView: View {
                 bookmarks: LibrarySectionCatalog(contentService: appContext.contentService,
                                                  authState: authState,
                                                  errorHandler: errorHandler),
-                settings: horizontalSizeClass == .compact ? AnyView(settingsContent) : nil)
+                settings: AnyView(settingsContent))
 #endif
   }
 

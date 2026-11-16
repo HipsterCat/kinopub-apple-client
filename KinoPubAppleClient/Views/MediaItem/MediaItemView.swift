@@ -273,6 +273,11 @@ struct MediaItemView: View {
       // The synopsis popup as the TV app's panel over the page: the page stays live, a
       // click outside closes it (Sasha, 2026-10-30).
       .hostsInfoPopups()
+#elseif os(iOS)
+      // iPad: the open sidebar floats over the page and is its leading safe area; bleeding
+      // under it cut the logo, the facts and the buttons on the left (Sasha, 2026-11-16).
+      // Vertical only there, as on a Mac. iPhone still bleeds edge to edge.
+      .ignoresSafeArea(edges: horizontalSizeClass == .regular ? .vertical : .all)
 #else
       .ignoresSafeArea()
 #endif
@@ -609,8 +614,10 @@ struct MediaItemView: View {
 #if os(macOS)
       watchedMenuItems
 #elseif os(iOS)
+      // iPad: the Mac's «…» — Mark as Watched here, Download in the hero's row (Sasha,
+      // 2026-11-16: the menu differed). iPhone adds Download, its row has no room.
+      watchedMenuItems
       if barCarriesActions {
-        watchedMenuItems
         downloadMenuItems
       }
 #endif
