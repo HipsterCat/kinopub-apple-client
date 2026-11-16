@@ -138,8 +138,8 @@ enum SeriesFacts {
 /// 2026-11-16 (Sasha): the badge kept changing its words while the page loaded («Новинка»,
 /// then «Новые серии», then the next episode) and said «новые серии» to someone who had
 /// watched none. Until a badge can be shown for sure, only TMDB dates speak, in short
-/// windows: a new season that began at most a week ago or starts within two days, the next
-/// episode within two days. «Недавно добавлен», «Новые серии» and «Новинка» (kino.pub's
+/// windows: «Новый сезон» while a later season's episodes air (last one at most a week
+/// ago or the next at most a week ahead), the next episode within two days. «Недавно добавлен», «Новые серии» and «Новинка» (kino.pub's
 /// added/updated dates, a four-month release window) are off.
 enum TitleStatus: Equatable {
   case newEpisode(inDays: Int)
@@ -162,9 +162,15 @@ enum TitleStatus: Equatable {
 
     if item.isSeries {
       let seasons = metadata.seasonSummaries.filter { $0.seasonNumber > 0 }
-      let latestSeasonStart = seasons.max { $0.seasonNumber < $1.seasonNumber }?.airDate
-      let isNewSeason = seasons.count > 1
-        && days(since: latestSeasonStart).map { (-Rules.aheadDays...Rules.newSeasonDays).contains($0) } == true
+      // A season is new while its episodes come out: TMDB's last aired episode at most a
+      // week ago, or its next one at most a week ahead — the two episodes the series'
+      // own record carries, no episode list fetched (Sasha, 2026-11-16).
+      let seasonCount = max(seasons.count, item.seasons?.count ?? 0)
+      let lastAired = days(since: metadata.lastEpisode?.airDate)
+      let nextAirs = days(since: metadata.nextEpisode?.airDate).map { -$0 }
+      let isNewSeason = seasonCount > 1
+        && (lastAired.map { (0...Rules.newSeasonDays).contains($0) } == true
+          || nextAirs.map { (0...Rules.newSeasonDays).contains($0) } == true)
       let premiered = days(since: metadata.firstAirDate).map { (0...Rules.premiereDays).contains($0) } == true
       let episodeAhead = days(since: awaitedEpisodeAirDate).map { -$0 }
         .flatMap { (0...Rules.aheadDays).contains($0) ? $0 : nil }
@@ -177,7 +183,7 @@ enum TitleStatus: Equatable {
       if let episodeAhead { return .newEpisode(inDays: episodeAhead) }
       if SeriesFacts.isFinished(item, metadata),
          let ended = days(since: metadata.lastAirDate), (0...Rules.endedDays).contains(ended) {
-        return seasons.count > 1 ? .finalSeason : .allEpisodes
+        return seasonCount > 1 ? .finalSeason : .allEpisodes
       }
       return nil
     }
@@ -216,7 +222,7 @@ enum TitleStatus: Equatable {
     static let aheadDays = 2
     static let premiereDays = 14
     static let endedDays = 60
-    /// How long a season that has begun stays «Новый сезон».
+    /// How near TMDB's last or next episode keeps a later season «Новый сезон».
     static let newSeasonDays = 7
   }
 }
