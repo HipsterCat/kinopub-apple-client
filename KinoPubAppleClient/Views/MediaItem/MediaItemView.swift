@@ -516,13 +516,13 @@ struct MediaItemView: View {
             Label("Mark All Episodes Watched", systemImage: "checkmark.circle.fill")
           }
         } label: {
-          Label("Mark as Watched", systemImage: "checkmark")
+          Label("MediaAction_MarkWatchedMenu", systemImage: "checkmark.circle")
         }
       } else {
         Button {
           itemModel.toggleWatched()
         } label: {
-          Label("Mark as Watched", systemImage: "checkmark")
+          Label("MediaAction_MarkWatchedMenu", systemImage: "checkmark.circle")
         }
       }
       Divider()

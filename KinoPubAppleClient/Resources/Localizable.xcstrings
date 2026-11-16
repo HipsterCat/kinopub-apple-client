@@ -8504,6 +8504,24 @@
         }
       }
     },
+    "MediaAction_MarkWatchedMenu" : {
+      "comment" : "The title page's «…» item (or submenu) that marks a title, an episode or a season watched: an action, not a status.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as Watched"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отметить просмотренным"
+          }
+        }
+      }
+    },
     "MediaAction_PlayFromBeginning" : {
       "extractionState" : "manual",
       "localizations" : {
