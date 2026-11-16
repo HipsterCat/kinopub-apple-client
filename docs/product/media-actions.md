@@ -46,7 +46,8 @@ Legend: `[pill]` · `(circle)` · `…` = More (tvOS)
 ### Movie · several versions (`subtype: multi`)
 `[Смотреть фильм]` · `[Трейлер]` · `(bookmark)` · `(✓)` · `(…)`
 
-One Play — the usual kind-specific title (`Смотреть фильм` / Continue / Play Again).
+One Play — the kind title (`Смотреть фильм` / Play Again). Not the first edition's
+remaining time; that time belongs to its row in the sheet.
 Select opens an Apple TV-style **Choose a Version** sheet: first row focused by
 default; each row is thumb + version name + distinguishing facts (runtime delta,
 quality / projector format, audio, subs) when the titles alone are not enough.

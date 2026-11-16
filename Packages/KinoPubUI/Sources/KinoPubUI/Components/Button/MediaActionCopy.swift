@@ -78,15 +78,22 @@ public enum MediaActionCopy {
   }
 
   /// Primary play capsule title for a given playback state + presentation kind.
+  /// `isSeries` is the title's type, including before `seasons` has arrived: a known
+  /// series must not say "Watch Movie" in that gap.
   public static func playCaption(
     playback: PlaybackButtonContent,
     kind: MediaPresentationKind,
-    seasonCount: Int? = nil
+    seasonCount: Int? = nil,
+    isSeries: Bool = false
   ) -> (title: String, progress: Double?, accessibility: String) {
     switch playback {
     case .play(let season, let episode):
       if let season, let episode {
         let title = playEpisodeTitle(season: season, episode: episode, seasonCount: seasonCount)
+        return (title, nil, title)
+      }
+      if isSeries {
+        let title = localized("Play")
         return (title, nil, title)
       }
       let title = playTitle(kind: kind)

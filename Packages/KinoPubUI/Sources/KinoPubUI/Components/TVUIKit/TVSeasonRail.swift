@@ -369,7 +369,11 @@ public final class TVSeasonRailController: UIViewController {
   /// The engine stood on an episode: its tab is the selected one (the rail does not
   /// move — the engine has already framed it), and it is where Down from the tabs returns.
   private func railFocused(_ id: Int) {
-    rail.preferredItemID = id
+    // Until the remote has been here, the entry stays the episode Play stands for.
+    // A focus update that only passes through must not replace it.
+    if hasHadFocus {
+      rail.preferredItemID = id
+    }
     guard let tab = tabOfItem[id], tab != selectedTabID else { return }
     selectedTabID = tab
     applyTabSelection()
@@ -452,9 +456,45 @@ public final class TVSeasonRailController: UIViewController {
     }
     guard newZone != zone else { return }
     zone = newZone
-    if newZone != .outside { hasHadFocus = true }
+    // The engine's first search can pass through a cell on the way to the hero.
+    // That is not the remote: it must not freeze the rail on that cell, or Down
+    // from Play lands on whatever was nearest (S1E1) instead of the episode Play
+    // stands for. A real entry has a heading and something focused before it.
+    // The collection's focus callback runs first and still sees `hasHadFocus` false,
+    // so it does not adopt that passing cell as the entry.
+    if newZone != .outside,
+       !context.focusHeading.isEmpty,
+       context.previouslyFocusedItem != nil {
+      hasHadFocus = true
+    }
     FocusLog.enteredSection("season-rail:\(newZone.rawValue)")
     updateGuides()
+  }
+
+  private var consumedMenuPress = false
+
+  public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if presses.contains(where: { $0.type == .menu }), DetailPageMenu.consumeIfFocusIsInPage() {
+      consumedMenuPress = true
+      return
+    }
+    super.pressesBegan(presses, with: event)
+  }
+
+  public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesEnded(presses, with: event)
+  }
+
+  public override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesCancelled(presses, with: event)
   }
 
   /// Walks the focus-environment chain: SwiftUI's items are not always views.
