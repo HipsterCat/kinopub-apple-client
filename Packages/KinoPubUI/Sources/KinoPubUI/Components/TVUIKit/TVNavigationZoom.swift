@@ -131,7 +131,7 @@ private final class ZoomingNavigationDelegate: NSObject, UINavigationControllerD
                             willShow viewController: UIViewController, animated: Bool) {
     let count = navigationController.viewControllers.count
     if count > shownCount {
-      TabBarSlide.willShow(in: navigationController, pushing: true)
+      TabBarSlide.willPush(in: navigationController)
     } else if count < shownCount {
       TabBarSlide.willPop(in: navigationController, toRoot: count == 1)
     }
@@ -151,6 +151,7 @@ private final class ZoomingNavigationDelegate: NSObject, UINavigationControllerD
     shownCount = navigationController.viewControllers.count
     (wrapped as? UINavigationControllerDelegate)?
       .navigationController?(navigationController, didShow: viewController, animated: animated)
+    if shownCount > 1 { TabBarSlide.keepHidden(in: navigationController) }
     guard let snapshot = pendingSnapshot else { return }
     pendingSnapshot = nil
     guard let container = viewController.view.superview,
@@ -205,9 +206,17 @@ private final class SwapAnimator: NSObject, UIViewControllerAnimatedTransitionin
 }
 
 /// The tab bar leaves a pushed page by sliding up out of the screen, and comes back down
-/// into place on the way back, instead of blinking out and in. SwiftUI still decides
-/// when the bar is hidden (`.toolbar(.hidden, for: .tabBar)` on pushed pages); this only
-/// draws the move: a snapshot rising on the way out, an additive slide on the way in.
+/// into place on the way back, instead of blinking out and in.
+///
+/// **This owns the bar's visibility for the stack's pushes and pops**, not SwiftUI.
+/// `.toolbar(.hidden, for: .tabBar)` on pushed pages (`RouteDestination`) hides the bar
+/// once, on the first push; with our animator answering the pops SwiftUI never shows it
+/// again, and it caches "hidden". Showing the bar here on the way back (the slide) left
+/// that cache stale, so the next push changed nothing in SwiftUI's eyes and the bar
+/// stayed over the title page and the player (Sasha, 2026-11-16: second entry from the
+/// Home hero; measured on 27.2 — `TVMenuBackUITests.testTabBarStaysHiddenOnTitleAndPlayerOpenedTwiceFromTheHero`).
+/// Rule, the same as the product's (2026-09-21): the stack's root has the bar, every
+/// pushed page has none. The modifier stays for stacks this proxy is not installed on.
 @MainActor
 private enum TabBarSlide {
   static let duration: CFTimeInterval = 0.45
@@ -221,28 +230,37 @@ private enum TabBarSlide {
     !tabs.isTabBarHidden && !bar.isHidden && bar.alpha > 0.01 && bar.window != nil
   }
 
-  static func willShow(in navigation: UINavigationController, pushing: Bool) {
+  /// A push hides the bar at once; a snapshot of it rises out of the screen.
+  static func willPush(in navigation: UINavigationController) {
     guard let (tabs, bar) = bar(of: navigation) else { return }
-    guard pushing, isShowing(tabs, bar), !UIAccessibility.isReduceMotionEnabled,
-          let window = bar.window,
-          let snapshot = bar.snapshotView(afterScreenUpdates: false) else { return }
-    snapshot.frame = bar.convert(bar.bounds, to: window)
-    snapshot.isUserInteractionEnabled = false
-    window.addSubview(snapshot)
-    let rise = snapshot.frame.maxY + 24
-    UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState]) {
-      snapshot.transform = CGAffineTransform(translationX: 0, y: -rise).scaledBy(x: 0.94, y: 0.94)
-    } completion: { _ in
-      snapshot.removeFromSuperview()
+    if isShowing(tabs, bar), !UIAccessibility.isReduceMotionEnabled,
+       let window = bar.window,
+       let snapshot = bar.snapshotView(afterScreenUpdates: false) {
+      snapshot.frame = bar.convert(bar.bounds, to: window)
+      snapshot.isUserInteractionEnabled = false
+      window.addSubview(snapshot)
+      let rise = snapshot.frame.maxY + 24
+      UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState]) {
+        snapshot.transform = CGAffineTransform(translationX: 0, y: -rise).scaledBy(x: 0.94, y: 0.94)
+      } completion: { _ in
+        snapshot.removeFromSuperview()
+      }
     }
+    keepHidden(in: navigation)
   }
 
-  /// SwiftUI shows the bar again only once a pop has finished. Going back to the stack's
-  /// root — the one page that has the bar — it is shown as the pop starts and slides in
-  /// alongside it.
+  /// A pushed page (the title, the player over it, …) has no bar, whatever SwiftUI did.
+  static func keepHidden(in navigation: UINavigationController) {
+    guard let (tabs, _) = bar(of: navigation), !tabs.isTabBarHidden else { return }
+    tabs.setTabBarHidden(true, animated: false)
+  }
+
+  /// Back to the stack's root — the one page that has the bar — it is shown as the pop
+  /// starts and slides in alongside it. A pop that stays above the root (player → title)
+  /// keeps it hidden.
   static func willPop(in navigation: UINavigationController, toRoot: Bool) {
-    guard toRoot, let (tabs, bar) = bar(of: navigation) else { return }
-    guard tabs.isTabBarHidden else { return }
+    guard toRoot else { keepHidden(in: navigation); return }
+    guard let (tabs, bar) = bar(of: navigation), tabs.isTabBarHidden else { return }
     tabs.setTabBarHidden(false, animated: false)
     guard !UIAccessibility.isReduceMotionEnabled else { return }
     let rise = bar.frame.maxY + 24

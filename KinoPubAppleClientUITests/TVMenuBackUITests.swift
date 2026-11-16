@@ -168,20 +168,34 @@ final class TVMenuBackUITests: XCTestCase {
 
   private func focusHeroDetails(in app: XCUIApplication) throws {
     let details = app.buttons["kinopub.hero.details"]
-    for _ in 0..<8 where !details.hasFocus {
+    for _ in 0..<10 where !details.hasFocus {
+      // A signed-in launch can open on What's New; its Done takes focus.
+      let done = app.buttons.matching(NSPredicate(format: "hasFocus == true AND label IN %@", ["Done", "Готово"])).firstMatch
+      if done.exists {
+        XCUIRemote.shared.press(.select)
+        Thread.sleep(forTimeInterval: 1.5)
+        continue
+      }
       let heroFocused = app.buttons.matching(
         NSPredicate(format: "identifier BEGINSWITH %@ AND hasFocus == true", "kinopub.hero.")
-      ).firstMatch.exists
-      XCUIRemote.shared.press(heroFocused ? .left : .down)
+      ).firstMatch
+      if heroFocused.exists {
+        // Play · «Подробнее» · Bookmark · Next.
+        XCUIRemote.shared.press(heroFocused.identifier == "kinopub.hero.play" ? .right : .left)
+      } else {
+        XCUIRemote.shared.press(.down)
+      }
       Thread.sleep(forTimeInterval: 0.8)
     }
     XCTAssertTrue(details.hasFocus, "never reached «Подробнее»\n\(focusDescription(app))")
   }
 
-  /// The real bar (not a leftover snapshot): present, hittable, and inside the screen.
+  /// The real bar (not a leftover snapshot) in the accessibility tree and inside the
+  /// screen. Not `isHittable`: over a pushed page the stray bar is drawn yet reports
+  /// not hittable, while a hidden bar leaves the tree.
   private func tabBarOnScreen(in app: XCUIApplication) -> Bool {
     let bar = app.tabBars.firstMatch
-    guard bar.exists, bar.isHittable else { return false }
+    guard bar.exists else { return false }
     return bar.frame.maxY > 0 && bar.frame.intersects(app.windows.firstMatch.frame)
   }
 
