@@ -822,7 +822,8 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   /// "before" counts from the data source when its cached ones are stale, and the
   /// season layout (`mixedStillRun`) reads `items` too; with `items` already the new
   /// list both saw 11 before an insert of 7...10 and UIKit threw "Invalid batch updates"
-  /// (season rail, 7 → 11, Sasha 2026-11-17).
+  /// (season rail, 7 → 11, Sasha 2026-11-17; the trailers rail of live title 85471 on
+  /// tvOS 26.5 when YouTube trailers append, hero thread 2ed55e57).
   private func syncItems(to next: [TVUIKitMediaItem]) {
     let previous = items
     guard isViewLoaded else {
@@ -834,7 +835,8 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     let shared = min(previous.count, next.count)
     let prefixMatches = !previous.isEmpty && next.count >= previous.count && count == previous.count
       && (0..<shared).allSatisfy { previous[$0].id == next[$0].id }
-    guard prefixMatches else {
+    // Off the window a batch has nothing on screen to keep; a reload is the safe road.
+    guard prefixMatches, collectionView.window != nil else {
       items = next
       reloadKeepingFocus()
       return
@@ -846,6 +848,8 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     if inserted.isEmpty {
       items = next
     } else {
+      // Settle layout still owed to the old list before the batch starts.
+      collectionView.layoutIfNeeded()
       collectionView.performBatchUpdates { [self] in
         items = next
         collectionView.insertItems(at: inserted)
