@@ -184,11 +184,14 @@ public enum TVUIKitTileArtwork {
 
   /// Quiet plate for empty episode stills — approximates SwiftUI `.fill.tertiary`, not the
   /// bright label-tier wash that reads as a white card on dark tvOS (Sasha, 2026-11-14).
+  /// Light mode used to be a hardcoded near-white (`white: 0.90`); tvOS has no system
+  /// fill or background colors, so the light plate is the system label at low alpha.
   public static func quietFill(traits: UITraitCollection? = nil) -> UIColor {
     let traits = traits ?? .current
-    let dark = traits.userInterfaceStyle == .dark
-    return (dark ? UIColor(white: 0.22, alpha: 1) : UIColor(white: 0.90, alpha: 1))
-      .resolvedColor(with: traits)
+    if traits.userInterfaceStyle == .dark {
+      return UIColor(white: 0.22, alpha: 1).resolvedColor(with: traits)
+    }
+    return UIColor.label.withAlphaComponent(0.14).resolvedColor(with: traits)
   }
 
   /// Tertiary-weight ink for the iconic SF Symbol on a quiet plate.

@@ -177,8 +177,8 @@ final class TVDetailLayoutUITests: XCTestCase {
   /// - Up from the tabs is the hero's main button, and Down again is the episode you left —
   ///   the rail is where you left it (only reopening the page puts it back on S2E4).
   func testSeasonRailFocusWalk() throws {
-    // Numbered tabs (`TVSeasonRail`). Rivulet is the default rail; its Down/Menu walk
-    // is `TVDetailPageUITests.testSeasonRailDownKeepsFocusOnScreen`.
+    // Numbered tabs (`TVSeasonRail`). Rivulet is off; the same Down/Menu walk on the
+    // numbered rail is `TVDetailPageUITests.testSeasonRailDownKeepsFocusOnScreen`.
     launch("seasonStrip", extra: ["-featureFlag.rivuletSeasonRail", "<false/>"])
     try waitForHeroFocus()
     try shoot("seasons-00-open")
@@ -367,7 +367,7 @@ final class TVDetailLayoutUITests: XCTestCase {
     XCTAssertTrue(seek(.down, until: "kinopub.poster.9902", limit: 6), focusedDescription)
     Thread.sleep(forTimeInterval: 1.2)
     XCUIRemote.shared.press(.select, forDuration: 1.5)
-    let goTo = app.descendants(matching: .any)["Перейти к фильму"]
+    let goTo = app.descendants(matching: .any)["Перейти к деталям"]
     XCTAssertTrue(goTo.waitForExistence(timeout: 5), "no Go to Movie in the menu")
     // The menu opens on its first row, «Просмотрено»; Go to Movie is the next. The rows'
     // focus is not in the accessibility tree (tvOS 27.2), so the shot is the check.

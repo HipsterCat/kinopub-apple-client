@@ -98,7 +98,7 @@ final class PlayerTabsUITests: XCTestCase {
     XCUIRemote.shared.press(.down)
     Thread.sleep(forTimeInterval: 2)
     try shoot("player-lateinfo-1-after")
-    let goToShow = app.buttons["Перейти к сериалу"]
+    let goToShow = app.buttons["Перейти к деталям"]
     for _ in 0..<3 where !goToShow.exists {
       XCUIRemote.shared.press(.down)
       Thread.sleep(forTimeInterval: 2)
@@ -131,7 +131,7 @@ final class PlayerTabsUITests: XCTestCase {
     // Down every second while the stream opens; no strip may come up without Info. The
     // first strip that does come up is open on Info, so its Go to Show is there with it.
     let strip = app.collectionViews["AVInfoMenuCollection"]
-    let goToShow = app.buttons["Перейти к сериалу"]
+    let goToShow = app.buttons["Перейти к деталям"]
     for step in 0..<20 {
       XCUIRemote.shared.press(.down)
       Thread.sleep(forTimeInterval: 1)
@@ -149,7 +149,7 @@ final class PlayerTabsUITests: XCTestCase {
   /// The shots after Select are the record; the test asserts the page arrived.
   func testGoToShowClosesThePanelFirst() throws {
     try openPlayer()
-    let goToShow = app.buttons["Перейти к сериалу"]
+    let goToShow = app.buttons["Перейти к деталям"]
     for _ in 0..<4 where !goToShow.hasFocus {
       press(.down)
     }
@@ -215,7 +215,7 @@ final class PlayerTabsUITests: XCTestCase {
     XCTAssertTrue(strip.exists, "the player never showed its tabs\n\(app.debugDescription)")
     // The first Down may show only the transport bar, the strip folded under it (tvOS 26.5);
     // Info is open once its own button is there — focus is then on the «Info» pill.
-    let goToShow = app.buttons["Перейти к сериалу"]
+    let goToShow = app.buttons["Перейти к деталям"]
     for _ in 0..<4 where !goToShow.exists {
       XCUIRemote.shared.press(.down)
       Thread.sleep(forTimeInterval: 2)

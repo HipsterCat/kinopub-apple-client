@@ -754,30 +754,12 @@ struct MediaItemView: View {
       .background(Color.KinoPub.background)
       .coordinateSpace(name: MediaItemLayout.scrollSpace)
 #if os(tvOS)
-      .onReceive(NotificationCenter.default.publisher(for: .rivuletSeasonRailRequestsHero)) { _ in
-        focus = MediaItemFocusTarget.entry(promotesFollow: MediaItemHeroView.promotesFollow(
-          mediaItem: itemModel.mediaItem,
-          awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
-          canFollow: true
-        ))
-        withAnimation(.easeInOut(duration: 0.45)) {
-          proxy.scrollTo(Self.heroAnchor, anchor: .top)
-        }
+      .background {
+        DetailPageMenuAnchor(onMenu: { menuReturnsToHero(proxy) })
       }
+      .onPreferenceChange(PageScrollOffsetKey.self) { pageScrollMinY = $0 }
       .onExitCommand {
-        if pageScrollMinY > -40 {
-          dismiss()
-        } else {
-          NotificationCenter.default.post(name: .rivuletSeasonRailPrepareForHero, object: nil)
-          focus = MediaItemFocusTarget.entry(promotesFollow: MediaItemHeroView.promotesFollow(
-            mediaItem: itemModel.mediaItem,
-            awaitedEpisodeAirDate: itemModel.awaitedEpisodeAirDate,
-            canFollow: true
-          ))
-          withAnimation(.easeInOut(duration: 0.45)) {
-            proxy.scrollTo(Self.heroAnchor, anchor: .top)
-          }
-        }
+        if !menuReturnsToHero(proxy) { dismiss() }
       }
 #endif
 #if !os(tvOS)
@@ -816,6 +798,21 @@ struct MediaItemView: View {
   }
 
   private static let heroAnchor = "media-item-hero"
+
+#if os(tvOS)
+  /// Menu below the hero scrolls back to it and asks the button-row guide for the
+  /// entry control. At the hero the press is declined so the stack pops. Nothing
+  /// here writes `@FocusState` — that assignment left the card below visually focused.
+  private func menuReturnsToHero(_ proxy: ScrollViewProxy) -> Bool {
+    guard pageScrollMinY <= -40 else { return false }
+    NotificationCenter.default.post(name: .rivuletSeasonRailPrepareForHero, object: nil)
+    withAnimation(.easeInOut(duration: 0.45)) {
+      proxy.scrollTo(Self.heroAnchor, anchor: .top)
+    }
+    HeroEntryFocus.request()
+    return true
+  }
+#endif
 
   /// «+ ещё N»: park the rail on the first version without a pill, then hand it focus —
   /// a turn later, so the rail has its entry before the engine asks for it.

@@ -808,6 +808,7 @@ public final class TVPageCollectionViewController: UIViewController {
     // Another list: nothing of the last one is coming back.
     handoffPath = nil
     lastFocusedPath = nil
+    lastFocusedItemID = nil
     collectionView.setContentOffset(CGPoint(x: 0, y: -collectionView.adjustedContentInset.top), animated: false)
     guard !ownsFocus else { return }
     // One-shot, the Menu-to-top mechanism: the next focus into the collection asks
@@ -1022,6 +1023,28 @@ public final class TVPageCollectionViewController: UIViewController {
   /// The cell the engine last reported inside the collection; unlike `focusedPath` it
   /// survives focus leaving, so a change made meanwhile knows what focus will come back to.
   private var lastFocusedPath: IndexPath?
+  /// The same cell by identity. A snapshot while the page is covered moves indexes
+  /// (a loading tail, a row arriving), and the old index path then answers a different
+  /// card — or nothing, and the engine lands on the first visible title.
+  private var lastFocusedItemID: TVPageItemID?
+
+  private func rememberedIndexPath() -> IndexPath? {
+    guard isViewLoaded, dataSource != nil, let id = lastFocusedItemID else { return nil }
+    return dataSource.indexPath(for: id)
+  }
+
+  /// The next time focus enters this collection, land on the card it left. Hero pages
+  /// answer that from `indexPathForPreferredFocusedView` themselves; a handoff here
+  /// would also catch Down from the tab bar. `leaving` is set from `didUpdateFocus`,
+  /// where the focus system can still report the cell this collection is giving up.
+  private func parkReturnFocus(leaving: Bool = false) {
+    guard remembersFocus, leaving || !ownsFocus, sections.first?.kind != .hero,
+          let path = rememberedIndexPath() else { return }
+    if prefersFirstPosterFocus, !didPlacePosterFocus { return }
+    handoffPath = path
+    lastFocusedPath = path
+    collectionView.remembersLastFocusedIndexPath = false
+  }
 
   /// One-shot, as `wantsTopFocus`: the next focus update asks
   /// `indexPathForPreferredFocusedView`, which answers this, and memory resumes.
@@ -1135,6 +1158,7 @@ public final class TVPageCollectionViewController: UIViewController {
     pendingReconfigure = []
     dataSource.apply(snapshot, animatingDifferences: animated && hasAppliedOnce)
     hasAppliedOnce = true
+    parkReturnFocus()
   }
 
   /// Item ids per group, so a scores row can be told apart from the same cards resorted.
@@ -1319,7 +1343,8 @@ public final class TVPageCollectionViewController: UIViewController {
   }
 
   public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-    if presses.contains(where: { $0.type == .menu }), returnToTopRow() {
+    if presses.contains(where: { $0.type == .menu }),
+       DetailPageMenu.consumeIfFocusIsInPage() || returnToTopRow() {
       consumedMenuPress = true
       return
     }
@@ -1507,6 +1532,7 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     // UIKit has no view of its own to restore (the trailer's player took the window's
     // focus): the card focus last left, not the hero at the top (Sasha, 2026-10-23).
     if sections.first?.kind == .hero {
+      if let path = rememberedIndexPath() { return path }
       guard let last = lastFocusedPath, sections.indices.contains(last.section),
             dataSource.itemIdentifier(for: last) != nil else { return IndexPath(item: 0, section: 0) }
       return last
@@ -1527,7 +1553,12 @@ extension TVPageCollectionViewController: UICollectionViewDelegate {
     let previousSection = context.previouslyFocusedIndexPath?.section
     let resolved = resolveFocusedPath(from: context)
     focusedPath = resolved
-    if let resolved { lastFocusedPath = resolved }
+    if let resolved {
+      lastFocusedPath = resolved
+      lastFocusedItemID = dataSource.itemIdentifier(for: resolved)
+    } else {
+      parkReturnFocus(leaving: true)
+    }
     let nextSection = resolved?.section ?? context.nextFocusedIndexPath?.section
     focusedSectionIndex = nextSection
     if wantsTopFocus, context.nextFocusedView != nil {

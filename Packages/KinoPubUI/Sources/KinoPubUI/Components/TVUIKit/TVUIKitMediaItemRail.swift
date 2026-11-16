@@ -709,6 +709,13 @@ public final class TVUIKitMediaItemRailController: UIViewController {
   /// The tile the remote left the rail from; coming back lands there rather than on an
   /// entry the rail may have scrolled away from since.
   private var returnItemID: Int?
+  /// The tile the engine last focused in this rail, by id. A reload that has to rebuild
+  /// cells asks `indexPathForPreferredFocusedView` for this one so the scale comes back
+  /// on the same title.
+  private var focusedItemID: Int?
+  /// One-shot after a reload that destroyed the focused cell.
+  private var pendingFocusItemID: Int?
+  private var consumedMenuPress = false
 
   /// The one tile a move in from outside may land on: where the remote left, or the entry.
   private var landingItemID: Int? {
@@ -721,6 +728,31 @@ public final class TVUIKitMediaItemRailController: UIViewController {
                                       with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
     focusIsInside = context.nextFocusedView?.isDescendant(of: collectionView) ?? false
+    if !focusIsInside { resetStrandedWideCells() }
+  }
+
+  public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if presses.contains(where: { $0.type == .menu }), DetailPageMenu.consumeIfFocusIsInPage() {
+      consumedMenuPress = true
+      return
+    }
+    super.pressesBegan(presses, with: event)
+  }
+
+  public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesEnded(presses, with: event)
+  }
+
+  public override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    if consumedMenuPress, presses.contains(where: { $0.type == .menu }) {
+      consumedMenuPress = false
+      return
+    }
+    super.pressesCancelled(presses, with: event)
   }
 
   public override func viewDidLoad() {
@@ -746,7 +778,8 @@ public final class TVUIKitMediaItemRailController: UIViewController {
              onFocusedItem: ((Int) -> Void)?,
              contextMenuProvider: ((Int) -> [MediaCardContextEntry])?,
              allowsFocus: Bool = true) {
-    let changed = self.items != items
+    let previous = self.items
+    let changed = previous != items
     let entryMoved = self.entryItemID != entryItemID
     self.items = items
     self.entryItemID = entryItemID
@@ -757,7 +790,11 @@ public final class TVUIKitMediaItemRailController: UIViewController {
     let focusChanged = self.allowsFocus != allowsFocus
     self.allowsFocus = allowsFocus
     collectionView.allowsFocus = allowsFocus
-    if changed || focusChanged { collectionView.reloadData() }
+    if focusChanged {
+      collectionView.reloadData()
+    } else if changed {
+      syncItems(from: previous)
+    }
     if changed || entryMoved { scrollToEntry(animated: animatesEntryScroll && !changed) }
   }
 
@@ -768,13 +805,71 @@ public final class TVUIKitMediaItemRailController: UIViewController {
                  onSelect: @escaping (Int) -> Void,
                  onFocusedItem: ((Int) -> Void)?,
                  contextMenuProvider: ((Int) -> [MediaCardContextEntry])?) {
-    let changed = self.items != items
+    let previous = self.items
+    let changed = previous != items
     self.items = items
     self.onSelect = onSelect
     self.onFocusedItem = onFocusedItem
     self.contextMenuProvider = contextMenuProvider
     guard changed else { return }
+    syncItems(from: previous)
+  }
+
+  /// Appends and in-place edits keep the focused cell. `reloadData` rebuilds it: the
+  /// system's focus scale is dropped while the overlay (play glyph, colours) comes
+  /// back from `configurationState.isFocused`, which is the trailer that loses its
+  /// scale when the YouTube card inserts. A real identity change still reloads, then
+  /// asks the engine for the same item.
+  private func syncItems(from previous: [TVUIKitMediaItem]) {
+    guard isViewLoaded else { return }
+    let next = items
+    let count = collectionView.numberOfSections > 0
+      ? collectionView.numberOfItems(inSection: 0) : 0
+    let shared = min(previous.count, next.count)
+    let prefixMatches = !previous.isEmpty && next.count >= previous.count && count == previous.count
+      && (0..<shared).allSatisfy { previous[$0].id == next[$0].id }
+    guard prefixMatches else {
+      reloadKeepingFocus()
+      return
+    }
+    let changed = (0..<previous.count).compactMap { index -> IndexPath? in
+      previous[index] == next[index] ? nil : IndexPath(item: index, section: 0)
+    }
+    let inserted = (previous.count..<next.count).map { IndexPath(item: $0, section: 0) }
+    if !inserted.isEmpty {
+      collectionView.performBatchUpdates {
+        collectionView.insertItems(at: inserted)
+      }
+    }
+    for path in changed {
+      guard let cell = collectionView.cellForItem(at: path) else { continue }
+      configure(cell, at: path)
+    }
+  }
+
+  private func reloadKeepingFocus() {
+    let held = focusedItemID
+    let inside = focusIsInside
     collectionView.reloadData()
+    guard inside, let held, index(of: held) != nil else {
+      // `reloadData` drops the offset. A rail the remote has not entered still
+      // stands on its entry; otherwise Down finds the first visible card.
+      if entryItemID != nil { scrollToEntry(animated: false) }
+      return
+    }
+    pendingFocusItemID = held
+    FocusLog.rejected(heading: "reload",
+                      preferred: "item \(held)",
+                      chosen: "rebuilt cell",
+                      reason: "item identities changed under the focused rail; asking the engine to focus that item again")
+    collectionView.setNeedsFocusUpdate()
+    collectionView.updateFocusIfNeeded()
+  }
+
+  private func resetStrandedWideCells() {
+    for cell in collectionView.visibleCells {
+      (cell as? TVUIKitMediaItemCell)?.resetStaleFocusAppearance()
+    }
   }
 
   /// Re-reads `itemAlpha` for the tiles on screen; the rest read it as they are dequeued.
@@ -883,23 +978,33 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
 
   public func collectionView(_ collectionView: UICollectionView,
                              cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-    if let card = items[indexPath.item].seasonCard {
+    if items[indexPath.item].seasonCard != nil {
       let cell = collectionView.dequeueReusableCell(withReuseIdentifier: TVUIKitSeasonCardCell.reuseID,
                                                     for: indexPath) as! TVUIKitSeasonCardCell
-      cell.configure(card, id: items[indexPath.item].id)
-      cell.tileAlpha = alpha(at: indexPath.item)
+      configure(cell, at: indexPath)
       return cell
     }
     let cell = collectionView.dequeueReusableCell(
       withReuseIdentifier: TVUIKitMediaItemCell.reuseID,
       for: indexPath
     ) as! TVUIKitMediaItemCell
+    configure(cell, at: indexPath)
+    return cell
+  }
+
+  private func configure(_ cell: UICollectionViewCell, at indexPath: IndexPath) {
+    guard items.indices.contains(indexPath.item) else { return }
+    if let card = items[indexPath.item].seasonCard, let cell = cell as? TVUIKitSeasonCardCell {
+      cell.configure(card, id: items[indexPath.item].id)
+      cell.tileAlpha = alpha(at: indexPath.item)
+      return
+    }
+    guard let cell = cell as? TVUIKitMediaItemCell else { return }
     cell.configure(items[indexPath.item], allowsFocus: allowsFocus,
                    captionOnFocus: columns != nil && caption == .onFocus,
                    hidesCaption: tileRun != nil || (columns != nil && caption == .never),
                    overlayOnFocus: overlayOnFocus)
     cell.tileAlpha = alpha(at: indexPath.item)
-    return cell
   }
 
   public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -913,6 +1018,9 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
   /// which fights the engine and loses.
   public func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
     guard allowsFocus else { return nil }
+    if let pendingFocusItemID, let index = index(of: pendingFocusItemID) {
+      return IndexPath(item: index, section: 0)
+    }
     guard let index = index(of: landingItemID ?? entryItemID) else { return nil }
     return IndexPath(item: index, section: 0)
   }
@@ -942,8 +1050,17 @@ extension TVUIKitMediaItemRailController: UICollectionViewDataSource, UICollecti
                     from: name(context.previouslyFocusedIndexPath),
                     to: name(context.nextFocusedIndexPath))
 
+    coordinator.addCoordinatedAnimations(nil) { [weak self] in
+      self?.resetStrandedWideCells()
+    }
     guard let path = context.nextFocusedIndexPath, items.indices.contains(path.item) else { return }
-    if entryItemID != nil { returnItemID = items[path.item].id }
+    focusedItemID = items[path.item].id
+    if pendingFocusItemID == focusedItemID { pendingFocusItemID = nil }
+    // A focus search that only passes through a cell (no heading, nothing focused
+    // before it) is not the remote leaving the rail. Recording it made the next
+    // Down from the hero return to that cell instead of the entry.
+    let passedThrough = context.focusHeading.isEmpty && context.previouslyFocusedIndexPath == nil
+    if entryItemID != nil, !passedThrough { returnItemID = items[path.item].id }
     onFocusedItem?(items[path.item].id)
   }
 
@@ -1128,9 +1245,31 @@ final class TVUIKitMediaItemCell: UICollectionViewCell {
   static let stillCornerRadius: CGFloat = 12
   private static let focusedStillCornerRadius: CGFloat = 12
 
+  /// The system's unfocus animation is what clears the scale and the label shift.
+  /// When that animation never runs (a sibling collection, or a SwiftUI focus move
+  /// in the same turn), the cell stays enlarged. Same exception as the poster cell:
+  /// clear the leftover transform, do not invent a scale.
+  func resetStaleFocusAppearance() {
+    guard !isFocused else { return }
+    func clear(_ view: UIView) {
+      if !view.transform.isIdentity { view.transform = .identity }
+      if !CATransform3DIsIdentity(view.layer.transform) {
+        view.layer.transform = CATransform3DIdentity
+      }
+      view.motionEffects.forEach { view.removeMotionEffect($0) }
+      view.subviews.forEach(clear)
+    }
+    clear(contentView)
+  }
+
   override func didUpdateFocus(in context: UIFocusUpdateContext,
                                with coordinator: UIFocusAnimationCoordinator) {
     super.didUpdateFocus(in: context, with: coordinator)
+    if !isFocused {
+      coordinator.addCoordinatedAnimations(nil) { [weak self] in
+        self?.resetStaleFocusAppearance()
+      }
+    }
     guard item?.isNowPlaying == true else { return }
     // The ring grows and shrinks with the still, in the same animation.
     coordinator.addCoordinatedAnimations { [weak self] in
