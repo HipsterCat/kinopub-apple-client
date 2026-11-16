@@ -16,76 +16,53 @@
 //
 
 import Foundation
-import ObjectiveC
+import ObjectiveC.runtime
 
-#if os(iOS) || os(macOS)
-import AVFoundation
-#endif
+/// A helper to bypass Pulse's swizzle on URLSessionTask resume methods.
+/// This is used to call the original implementations directly, to avoid
+/// issues with Pulse's swizzle on aggregate asset download tasks whose
+/// `currentRequest` throws.
+/// This mirrors the intent of similar logic in NetworkDiagnostics.swift.
+public struct URLSessionResumeGuard {
+    /// Returns the Objective-C methods for the `resume` selector on
+    /// URLSessionTask and URLSessionDataTask if available, in that order,
+    /// without duplicates.
+    public static func resumeMethods() -> [Method] {
+        let resumeSelector = #selector(URLSessionTask.resume)
+        var methods: [Method] = []
+        
+        if let urlSessionTaskClass: AnyClass = NSClassFromString("NSURLSessionTask"),
+           let method = class_getInstanceMethod(urlSessionTaskClass, resumeSelector) {
+            methods.append(method)
+        }
 
-enum URLSessionResumeGuard {
-
-  /// True when `currentRequest` / `originalRequest` throw instead of returning.
-  ///
-  /// The public classes are `AVAggregateAssetDownloadTask` and `AVAssetDownloadTask`
-  /// (both `NS_UNAVAILABLE` for those properties; headers, iOS 27 / macOS 27).
-  /// The name walk is the private subclasses, including the background task with
-  /// no child that the download button resumes. Neither check reads a request.
-  static func skipsLogging(_ task: URLSessionTask) -> Bool {
-    #if os(iOS) || os(macOS)
-    if task is AVAggregateAssetDownloadTask { return true }
-    if task is AVAssetDownloadTask { return true }
-    #endif
-    var type: AnyClass? = object_getClass(task)
-    while let current = type {
-      let name = NSStringFromClass(current)
-      if name.contains("AggregateAssetDownload") || name.contains("AVAssetDownloadTask") {
-        return true
-      }
-      if current == URLSessionTask.self { return false }
-      type = class_getSuperclass(current)
+        if let urlSessionDataTaskClass: AnyClass = NSClassFromString("NSURLSessionDataTask"),
+           let method = class_getInstanceMethod(urlSessionDataTaskClass, resumeSelector) {
+            // Append only if not already included
+            if !methods.contains(where: { method_getImplementation($0) == method_getImplementation(method) }) {
+                methods.append(method)
+            }
+        }
+        
+        return methods
     }
-    return false
-  }
 
-  /// The `resume` methods Pulse replaces, looked up the same way, so the guard
-  /// wraps the implementation the download task actually runs.
-  static func resumeMethods() -> [Method] {
-    var methods: [Method] = []
-    func append(_ method: Method) {
-      guard !methods.contains(where: { $0 == method }) else { return }
-      methods.append(method)
+    /// Reinstalls the original IMPs for the given methods.
+    /// If the counts of methods and originals do not match, does nothing safely.
+    public static func install(methods: [Method], originals: [IMP]) {
+        guard methods.count == originals.count else { return }
+        for (method, originalIMP) in zip(methods, originals) {
+            method_setImplementation(method, originalIMP)
+        }
     }
-    if let method = class_getInstanceMethod(URLSessionTask.self, #selector(URLSessionTask.resume)) {
-      append(method)
-    }
-    // "__NSCFURLSessionTask" — joined at runtime, as Pulse does, so the private
-    // name is not one string in the binary.
-    let sessionTaskName = ["__", "NS", "CFURL", "Session", "Task"].joined()
-    if let sessionTaskClass = NSClassFromString(sessionTaskName),
-       let method = class_getInstanceMethod(sessionTaskClass, NSSelectorFromString("resume")) {
-      append(method)
-    }
-    return methods
-  }
 
-  /// `original` is `resume` from before the logging swizzle. `logging` is that swizzle.
-  /// An asset-download task must take `original` and must not take `logging`.
-  static func callResume(_ task: URLSessionTask, original: IMP, logging: IMP) {
-    let imp = skipsLogging(task) ? original : logging
-    typealias Resume = @convention(c) (AnyObject, Selector) -> Void
-    unsafeBitCast(imp, to: Resume.self)(task, #selector(URLSessionTask.resume))
-  }
-
-  /// Call after `NetworkLogger.enableProxy`, which has replaced these implementations.
-  /// `originals` were captured before that call, in the same order as `methods`.
-  static func install(methods: [Method], originals: [IMP]) {
-    precondition(methods.count == originals.count)
-    for (method, original) in zip(methods, originals) {
-      let logging = method_getImplementation(method)
-      let block: @convention(block) (URLSessionTask) -> Void = { task in
-        callResume(task, original: original, logging: logging)
-      }
-      method_setImplementation(method, imp_implementationWithBlock(block))
+    /// Calls the original resume IMP on the given URLSessionTask.
+    ///
+    /// This is used to bypass Pulse's swizzle and call the original
+    /// implementation directly.
+    internal static func callOriginalResume(on task: URLSessionTask, originalIMP: IMP) {
+        typealias ResumeFunction = @convention(c) (AnyObject, Selector) -> Void
+        let function = unsafeBitCast(originalIMP, to: ResumeFunction.self)
+        function(task, #selector(URLSessionTask.resume))
     }
-  }
 }
