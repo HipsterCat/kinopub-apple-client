@@ -1474,7 +1474,25 @@ struct MediaItemHeroView: View {
   /// `en`), not only the `?lang=` query. Under lettered type: original when it differs.
   @ViewBuilder
   private var titleSupplementaryBlock: some View {
-    if let line = centersColumn ? phoneCaption : supplementaryUnderTitle {
+    if centersColumn, phoneCaption != nil {
+      // One line: a long other name gives way, the country never does — two lines
+      // pushed the logo up (round 5).
+      HStack(spacing: 0) {
+        if let name = supplementaryUnderTitle {
+          Text(name)
+            .lineLimit(1)
+            .truncationMode(.tail)
+        }
+        if let country = phoneCountry {
+          Text(verbatim: supplementaryUnderTitle == nil ? country : " · " + country)
+            .lineLimit(1)
+            .fixedSize()
+        }
+      }
+      .font(Self.phoneMetaFont)
+      .foregroundStyle(heroSecondaryForeground)
+      .shadow(color: .black.opacity(titleShadowOpacity), radius: 8, x: 0, y: 2)
+    } else if let line = supplementaryUnderTitle {
       Text(line)
         .font(centersColumn ? Self.phoneMetaFont : Self.secondaryFont)
         .foregroundStyle(heroSecondaryForeground)
